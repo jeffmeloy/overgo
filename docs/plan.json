@@ -193,16 +193,16 @@
     },
     {
       "id": "profile-runtime-commands",
-      "title": "Split the profile's commands into runtime and automation by declaration",
+      "title": "Refuse a landing that deletes a product entry point no declared successor reaches",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Split the profile's commands into runtime and automation by declaration",
+          "title": "Refuse a landing that deletes a product entry point no declared successor reaches",
           "status": "open",
-          "verify": "go test ./internal/codeprofile -run '^TestProfilePartitionsDeclaredCommands$' -count=1",
-          "rationale": "Deferred from automation-path-surface-catalog (2026-09-26): codeprofile counts every cmd/ Go file in the Automation partition, so product commands (server, swap, train, generate, the gguf and hf converters, embedding, rerank, tokenize, ...) inflate the automation figure the delta advisory reports and skew any ROI read of it. The split is a per-command owner decision: declare it once in the path catalog (codeprofile.Classify's Automation class) as the harness command set -- gate, loop, plan, the censuses, the lanes, closure-scan, finding, guard and the like -- rather than inferring it from names. Done when TestProfilePartitionsDeclaredCommands classifies cmd/server as runtime and cmd/gate as automation from the declared set."
+          "verify": "go test ./internal/gate -run '^TestLandingKeepsProductCapabilitiesReachable$' -count=1",
+          "rationale": "Owner direction 2026-09-26: replace doctrine with deterministic code. The rule that product capability shrinks only by deduplication -- every trainer, server and converter stays reachable (a trainer only tests call is unwired, not dead) -- while tooling may also be deleted, is applied today from the worker's memory, so a lapse ships. Declare the product command set once in the path catalog (codeprofile.Classify: server, swap, train, generate, the gguf and hf tools and converters, embedding, rerank, tokenize, the probes; tooling is what only checks or records the repo -- gate, loop, plan, the censuses, the lanes), which also corrects the size profile that counts every cmd/ file as automation. The gate then refuses a landing that deletes a product command unless a declared successor reaches its capability -- a cmd/train route, as train-routes-first-probes did for oscillatorimage and tabular. Done when TestLandingKeepsProductCapabilitiesReachable refuses deleting a product command with no successor, admits one whose route is declared, and admits deleting a tooling command."
         }
       ]
     },
@@ -498,16 +498,16 @@
     },
     {
       "id": "goldens-provenance",
-      "title": "Track golden generators and keep golden provenance in the store",
+      "title": "Keep goldens in git under one provenance manifest and delete their Python generators",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Track golden generators and keep golden provenance in the store",
+          "title": "Keep goldens in git under one provenance manifest and delete their Python generators",
           "status": "open",
           "verify": "go test ./internal/repoanalysis -run '^TestGoldensHaveProvenance$' -count=1",
-          "rationale": "Golden outputs are tracked (testdata, fixtures), but their generators and inputs (timesfm3_golden.py, dinov2_golden.py, generate_kimi_k3_rank_reference.py, their input and spec JSON) exist only in tmp, and internal/parity/testdata/make_olmoe_tiny.py is the one generator still in the tree. Put generators in one tracked directory, the only place Python is allowed. Record each golden in the store with its reference commit, checkpoint identity, generator and inputs, and have the test check its testdata file against that record. Large goldens live only in the store. The Colibri2 merge (2026-09-25) moved the Kimi K3 rank generator from internal/hfbpe/testdata to tmp, consistent with the others; its fixture kimi_k3_rank_reference.json keeps its source provenance (repository, commit, sha256)."
+          "rationale": "Owner direction 2026-09-26. 177 tracked goldens (4.3 MB, the largest about 1 MB) stay where they are in git -- fixtures/ and package testdata -- because git is the durable, pushed copy, the store is local and has been rebuilt, a golden in git never makes its test skip, and moving them would churn the tests and the records that pin them. What they lack is provenance. One manifest in fixtures/ records, for each golden, its upstream repository and commit, its checkpoint identity, its input digest and its own digest; TestGoldensHaveProvenance refuses a golden without an entry or whose bytes differ from it. The upstream output itself is kept, not just a parity verdict: kernels legitimately move numbers, and only the upstream output re-checks parity after each move without re-running Python, where comparing against overgo's own old output would stack tolerances. The Python generators are deleted -- internal/parity/testdata/make_olmoe_tiny.py and those in tmp (timesfm3_golden.py, dinov2_golden.py, generate_kimi_k3_rank_reference.py and their inputs) -- because the manifest names what to re-run if upstream ever changes; no Python is tracked. The store holds only a future golden too large for git; none is today."
         }
       ]
     },
@@ -1178,7 +1178,8 @@
             "pinned-bytes-preflight/do",
             "profile-runtime-commands/do",
             "receipt-serial-packages/do",
-            "train-routes-first-probes/do"
+            "train-routes-first-probes/do",
+            "train-routes-lane-repair/do"
           ]
         }
       ]

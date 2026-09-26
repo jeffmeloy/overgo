@@ -82,22 +82,6 @@
       ]
     },
     {
-      "id": "automation-structured-parsing",
-      "title": "Replace regex parsing of structured data with typed decoding",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Replace regex parsing of structured data with typed decoding",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestNoRegexParsesStructuredData$' -count=1",
-          "rationale": "Owner 2026-09-25: avoid brittle regex. 39 production files import regexp. Inventory each use: grammar, tokenizer and pattern-language uses stay; any regex that parses structured data (JSON, go test output, git output, CSS, file paths, plan or verify text) is replaced by typed decoding at its owner. The GUI lane replaces its CSS regex with a browser CSSOM census itself. Done when TestNoRegexParsesStructuredData holds every remaining regexp to a declared pattern-language owner."
-        }
-      ]
-    },
-    {
       "id": "automation-master-owned-ratchets",
       "title": "Refuse a merge that loosens a master ceiling or registry check",
       "class": "consolidation",

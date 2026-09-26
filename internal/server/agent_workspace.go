@@ -128,13 +128,15 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 			return
 		}
 	}
+	// A running tool's output reaches the page as it arrives; the result below stays the authority.
+	ctx := agenttool.WithOutputObserver(request.Context(), h.agentOutput(sessionID))
 	var result json.RawMessage
 	if body.Agent == "" {
-		result, err = h.agentCoordinator.Propose(request.Context(), session, body.Tool, arguments)
+		result, err = h.agentCoordinator.Propose(ctx, session, body.Tool, arguments)
 	} else {
 		session.Ceiling = active.Definition.ID
 		result, err = h.agentCoordinator.ProposeWithManuals(
-			request.Context(), session, body.Tool, arguments, active.Definition.ToolManuals,
+			ctx, session, body.Tool, arguments, active.Definition.ToolManuals,
 		)
 	}
 	if err != nil {

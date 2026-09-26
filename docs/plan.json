@@ -6,24 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-agent-sessions",
-      "title": "Resume agent sessions after interruption and stream tool output into the thread",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resume agent sessions after interruption and stream tool output into the thread",
-          "status": "open",
-          "verify": "test -f internal/server/agent_session_recovery_test.go \u0026\u0026 go test ./internal/server -run '^TestAgentSessionRecoveryAndStreaming$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(AgentRecovery|LayoutAudit)$' -leg 'agent recovery leg'",
-          "rationale": "Carried from professional_overgo_gui, after agent-route-consolidation so it builds on the single /agents/* prefix.",
-          "depends_on": [
-            "agent-route-consolidation/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-adapter-compare",
       "title": "Compare base and adapter output side by side in chat on the same prompt and sampling",
       "owner": "overgo_gui_cleanup",

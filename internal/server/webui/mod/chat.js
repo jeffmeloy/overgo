@@ -116,8 +116,26 @@
       const agentPicker = el("select", { class: "text w-auto", "aria-label": "agent" }, ...agents.map((item) => el("option", { value: item.name, text: "agent " + item.name })));
       const agentHost = el("div", { class: "agent-session" });
       agentHost.hidden = true;
-      const agentSession = "front-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+      // The agent session outlives a reload: its id is kept for this tab, and its thread reads back from the store.
+      const AGENT_SESSION_STORAGE = "overgo.agent.front-session";
+      let agentSession = "";
+      try { agentSession = sessionStorage.getItem(AGENT_SESSION_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
+      if (!agentSession) {
+        agentSession = "front-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+        try { sessionStorage.setItem(AGENT_SESSION_STORAGE, agentSession); } catch (_) { /* storage unavailable */ }
+      }
       const histories = new Map();
+      let agentRestored = false;
+      // restoreAgentSession replays the session's turns and steps into an empty thread, once per mount.
+      async function restoreAgentSession() {
+        if (agentRestored || !agents.length || thread.messages.length) return;
+        agentRestored = true;
+        let restored = null;
+        try { restored = await overgo.restoreAgentThread(thread, agentPicker.value, agentSession); } catch (_) { /* the session starts fresh */ }
+        if (!restored || overgo.signal.aborted) return;
+        if (restored.history.length) { welcome.remove(); histories.set(agentPicker.value, restored.history); }
+        if (restored.steps && toolSurface) toolSurface.guard.textContent = "steps " + restored.steps + " / " + restored.bound + " · " + (restored.bound - restored.steps) + " remaining";
+      }
 
       const system = el("textarea", { "aria-label": "System prompt", class: "text system-prompt", placeholder: "system prompt (optional)" });
       const facts = el("div", { class: "statgrid", role: "group", "aria-label": "Context meter" });
@@ -429,7 +447,7 @@
           });
         },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
-        onMode: (mode) => { agentHost.hidden = mode !== "agent"; saveDraft(); return renderMode(mode); },
+        onMode: (mode) => { agentHost.hidden = mode !== "agent"; if (mode === "agent") restoreAgentSession(); saveDraft(); return renderMode(mode); },
         controls: [],
       });
       composer.input.value = typeof draft.text === "string" ? draft.text : "";
@@ -655,7 +673,7 @@
         composer.input.focus();
       }
       const toolSurface = agents.length ? overgo.toolStep(agentHost, {
-        agent: () => agentPicker.value, session: () => agentSession, thread: () => thread, controls: [agentPicker],
+        agent: () => agentPicker.value, session: () => agentSession, thread: () => thread, controls: [agentPicker], subscribe: overgo.subscribe,
         onError: (err) => thread.errorRow(overgo.friendlyError(err)),
       }) : null;
       if (toolSurface) { toolSurface.setAgent(agents[0], tools); agentPicker.addEventListener("change", () => toolSurface.setAgent(agents.find((item) => item.name === agentPicker.value), tools)); }
@@ -858,7 +876,7 @@
           // media lands in this thread as artifacts with their provenance.
           if (mode === "agent") {
             const history = (histories.get(agentPicker.value) || []).concat([{ role: "user", content: parts.length ? [...parts, { type: "text", text }] : text }]);
-            const result = await overgo.api.post("/agents/chat", { agent: agentPicker.value, messages: history }, { signal: controller.signal });
+            const result = await overgo.api.post("/agents/chat", { agent: agentPicker.value, session: agentSession, messages: history }, { signal: controller.signal });
             assistant = thread.add("assistant", "");
             await thread.consume(overgo.streams.reply(result), assistant);
             if (assistant.content) history.push({ role: "assistant", content: assistant.content });

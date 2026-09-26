@@ -183,10 +183,21 @@ func (adapter *httpAdapter) invoke(ctx context.Context, manual Manual, arguments
 	return body, nil
 }
 
+// outputObserverKey carries an argv tool's output observer on its context.
+type outputObserverKey struct{}
+
+// WithOutputObserver returns a context under which an argv tool reports each piece
+// of stdout it retains as the process writes it; the result stays the
+// whole output.
+func WithOutputObserver(ctx context.Context, observe func([]byte)) context.Context {
+	return context.WithValue(ctx, outputObserverKey{}, observe)
+}
+
 func (argvAdapter) invoke(ctx context.Context, manual Manual, arguments json.RawMessage) (json.RawMessage, error) {
 	bounded, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
-	stdout := argvOutput{cancel: func() { cancel(&OutputLimitError{RetainedBytes: artifact.MaxContentBytes}) }}
+	observe, _ := ctx.Value(outputObserverKey{}).(func([]byte))
+	stdout := argvOutput{cancel: func() { cancel(&OutputLimitError{RetainedBytes: artifact.MaxContentBytes}) }, observe: observe}
 	receipt, err := processcontrol.Run(bounded, processcontrol.Command{
 		Path:   manual.Transport.Program,
 		Args:   manual.Transport.Args,
@@ -230,6 +241,8 @@ type argvOutput struct {
 	data     []byte
 	cancel   context.CancelFunc
 	overflow bool
+	// observe, when set, sees each retained piece as it arrives.
+	observe func([]byte)
 }
 
 // Write retains a bounded prefix and cancels on overflow while allowing drain.
@@ -243,6 +256,9 @@ func (output *argvOutput) Write(data []byte) (int, error) {
 		output.data = grown
 	}
 	output.data = append(output.data, data[:retained]...)
+	if output.observe != nil && retained > 0 {
+		output.observe(data[:retained])
+	}
 	if retained < len(data) && !output.overflow {
 		output.overflow = true
 		output.cancel()

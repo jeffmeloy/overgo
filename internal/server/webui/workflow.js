@@ -30,7 +30,7 @@
       };
       name = "runtime.activity";
       latest.set(name, value);
-    } else if (name !== "workspace.changed") { // a change happened once; replaying it would refresh again
+    } else if (name !== "workspace.changed" && name !== "agent.output") { // a change or an output piece happened once; replaying it would repeat it
       latest.set(name, value);
       if (name === "operation.snapshot") {
         const activity = latest.get("runtime.activity");

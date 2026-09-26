@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
@@ -84,6 +85,42 @@ func (h *Handler) recordAgentTurn(ctx context.Context, sessionID string, user, a
 	return errors.New("server: the agent session holds its bound of turns")
 }
 
+// hubAgentOutput names a running agent tool's output pieces on the event hub.
+const hubAgentOutput = "agent.output"
+
+// agentOutputEvent: one piece of a running tool's output for the session's
+// running tool card; the step's result stays the authority.
+type agentOutputEvent struct {
+	Session  string `json:"session"`
+	Sequence int    `json:"sequence"`
+	Text     string `json:"text"`
+}
+
+// agentOutput publishes a running tool's output as it arrives; a rune split
+// across pieces waits for its rest. The tool's one output drain calls it.
+func (h *Handler) agentOutput(sessionID string) func([]byte) {
+	var pending []byte
+	sequence := 0
+	return func(piece []byte) {
+		pending = append(pending, piece...)
+		cut := len(pending)
+		for start := len(pending) - 1; start >= 0 && start >= len(pending)-utf8.UTFMax; start-- {
+			if utf8.RuneStart(pending[start]) {
+				if !utf8.FullRune(pending[start:]) {
+					cut = start
+				}
+				break
+			}
+		}
+		if cut == 0 {
+			return
+		}
+		sequence++
+		h.events.publish(hubAgentOutput, agentOutputEvent{Session: sessionID, Sequence: sequence, Text: string(pending[:cut])})
+		pending = append(pending[:0], pending[cut:]...)
+	}
+}
+
 // agentThreadEntry: one entry of a session's thread: a chat turn's user and
 // assistant text, or a tool step's call and its result.
 type agentThreadEntry struct {
@@ -101,6 +138,7 @@ type agentThreadEntry struct {
 type agentThreadResponse struct {
 	Session   string             `json:"session"`
 	Steps     int                `json:"steps"`
+	Bound     int                `json:"bound"`
 	Entries   []agentThreadEntry `json:"entries"`
 	Truncated bool               `json:"truncated"`
 }
@@ -114,7 +152,7 @@ func (h *Handler) agentThread(response http.ResponseWriter, request *http.Reques
 		return
 	}
 	sessionID := agentSessionID(values.Get("agent"), values.Get("session"))
-	thread := agentThreadResponse{Session: sessionID, Entries: []agentThreadEntry{}}
+	thread := agentThreadResponse{Session: sessionID, Bound: h.config.MaxStoredResponses, Entries: []agentThreadEntry{}}
 	page, err := overgodb.VisitDecodedDocuments(request.Context(), h.repository, overgodb.DocumentQuery{
 		Contracts:     []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.InteractionMediaType, Schema: runrecord.InteractionSchema}},
 		AliasPrefixes: []string{runrecord.InteractionResponseAliasRoot + sessionID + "-"},

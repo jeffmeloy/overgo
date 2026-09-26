@@ -157,6 +157,58 @@
   // intakeStripLimit bounds the stored files a slot lists (the newest first).
   window.overgo.intakeStripLimit = 12;
 
+  // rememberedControls: the last values a capability ran with and the reader's named presets, kept per
+  // capability recipe in this browser; the declared defaults stay the fallback. Storage a browser refuses
+  // (a private window) keeps nothing, and every read then answers nothing remembered.
+  const rememberedPrefix = "overgo.controls.";
+  function readRemembered(recipe) {
+    try { return JSON.parse(localStorage.getItem(rememberedPrefix + recipe) || "null") || { presets: {} }; }
+    catch (_) { return { presets: {} }; }
+  }
+  function writeRemembered(recipe, kept) {
+    try { localStorage.setItem(rememberedPrefix + recipe, JSON.stringify(kept)); } catch (_) { /* storage refused */ }
+  }
+  window.overgo.rememberedControls = {
+    last: (recipe) => readRemembered(recipe).last || null,
+    remember(recipe, values) { const kept = readRemembered(recipe); kept.last = values; writeRemembered(recipe, kept); },
+    presets: (recipe) => readRemembered(recipe).presets || {},
+    savePreset(recipe, name, values) { const kept = readRemembered(recipe); kept.presets = { ...(kept.presets || {}), [name]: values }; writeRemembered(recipe, kept); },
+    // values: the fields' settings as typed; an artifact slot holds one turn's input, not a setting.
+    values: (fields) => Object.fromEntries([...fields].filter(([, field]) => field.control.type !== "artifact").map(([name, field]) => [name, field.input.value])),
+    // apply: values onto the fields; a value a choice no longer offers is left unset.
+    apply(fields, values) {
+      if (!values) return;
+      for (const [name, field] of fields) {
+        if (!Object.hasOwn(values, name)) continue;
+        const value = String(values[name]);
+        field.input.value = field.control.choices?.length && !field.control.choices.includes(value) ? "" : value;
+      }
+    },
+  };
+
+  // presetControls: the capability's named presets beside its controls: choosing one fills the fields,
+  // and Save preset keeps the current entries under a name.
+  window.overgo.presetControls = function (recipe, fields) {
+    const el = window.overgo.el;
+    const remembered = window.overgo.rememberedControls;
+    const choose = el("select", { class: "text w-auto", "aria-label": "preset" });
+    const name = el("input", { class: "text", type: "text", "aria-label": "Preset name", placeholder: "Preset name" });
+    function list() {
+      choose.replaceChildren(el("option", { value: "", text: "Presets" }), ...Object.keys(remembered.presets(recipe)).sort().map((preset) => el("option", { value: preset, text: preset })));
+    }
+    choose.addEventListener("change", () => { if (choose.value) remembered.apply(fields, remembered.presets(recipe)[choose.value]); });
+    const save = el("button", { class: "btn alt", type: "button", text: "Save preset", onclick: () => {
+      const label = name.value.trim();
+      if (!label) { name.focus(); return; }
+      remembered.savePreset(recipe, label, remembered.values(fields));
+      name.value = "";
+      list();
+      choose.value = label;
+    } });
+    list();
+    return el("span", { class: "row presets" }, choose, name, save);
+  };
+
   // controlValues reads the typed inputs back as the request's fields and
   // names the required ones left empty.
   window.overgo.controlValues = function (fields) {
@@ -249,7 +301,14 @@
         }
         let fields = new Map();
         function selected() { return capabilities.find((item) => item.recipe === capabilitySelect.value); }
-        function renderControls() { const capability = selected(); fields = overgo.controlInputs(controls, capability ? capability.controls : []); }
+        // The capability's last entries return with it; its presets sit beside the controls.
+        function renderControls() {
+          const capability = selected();
+          fields = overgo.controlInputs(controls, capability ? capability.controls : []);
+          if (!capability) return;
+          overgo.rememberedControls.apply(fields, overgo.rememberedControls.last(capability.recipe));
+          if (fields.size) controls.appendChild(overgo.presetControls(capability.recipe, fields));
+        }
         capabilitySelect.addEventListener("change", renderControls);
         renderControls();
         if (definition.preview) definition.preview(previewHost, () => ({ task: selected().task, recipe: selected().recipe, input: overgo.controlValues(fields).input }), overgo);
@@ -301,6 +360,7 @@
           let accepted;
           try {
             accepted = await api.post("/" + definition.scope + "/run", { task: capability.task, recipe: capability.recipe, input });
+            overgo.rememberedControls.remember(capability.recipe, overgo.rememberedControls.values(fields));
           } catch (err) { status.replaceChildren(overgo.failure(err)); run.disabled = false; return; }
           await follow(accepted.operation);
         });

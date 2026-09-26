@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-remember-settings",
-      "title": "Remember the last generation settings per model and capability, keep named presets, and start a new run from a past run's recipe",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Remember the last generation settings per model and capability, keep named presets, and start a new run from a past run's recipe",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserRememberedSettings$' -leg 'remembered settings leg'",
-          "rationale": "Generation controls reset to the model's declared defaults on every mount. The last settings used are kept per model and capability, beside the declared defaults, so repeating a generation takes no re-entry. Folded in from the LlamaFactory review 2026-09-25: named presets, and a new run started from a past run's recipe (its reload-from-output-dir). Judged by the effort leg's count for the generate task."
-        }
-      ]
-    },
-    {
       "id": "gui-agent-sessions",
       "title": "Resume agent sessions after interruption and stream tool output into the thread",
       "owner": "overgo_gui_cleanup",

@@ -505,10 +505,10 @@
       const transcriptionSettings = el('section', { class: 'settings-section', hidden: true, 'aria-label': 'Transcription options' });
       settings.appendChild(transcriptionSettings);
       const transcriptionNote = el('details', { class: 'transcription-note' }, el('summary', { text: 'Add a note' }));
-      const generationValues = new Map();
       let speechSelection = '';
+      // retainGenerationValues: the capability's entries as they stand, kept for its next selection and visit.
       function retainGenerationValues() {
-        if (generation.capability?.task === 'speech') generationValues.set(generation.capability.recipe, new Map([...generation.fields].map(([name, field]) => [name, field.input.value])));
+        if (generation.capability) overgo.rememberedControls.remember(generation.capability.recipe, overgo.rememberedControls.values(generation.fields));
       }
       function openSpeechOptions(field) {
         const dialog = document.getElementById('settings-dialog');
@@ -586,11 +586,10 @@
           generation.fields = overgo.controlInputs(controlsHost, typed);
           selectionNote.hidden = !!generation.capability;
           selectionNote.textContent = generation.capability ? '' : (declared.find((capability) => capability.recipe === picker.value)?.refusal || 'The selected model is unavailable').replace(/\.$/, '') + '. Choose another model for this task.';
-          const saved = generation.capability && generationValues.get(generation.capability.recipe);
-          for (const [name, field] of generation.fields) if (saved && saved.has(name)) {
-            const value = saved.get(name);
-            if (field.control.choices?.length && !field.control.choices.includes(value)) field.input.value = '';
-            else field.input.value = value;
+          // The capability's last entries return with it; its presets sit beside its controls.
+          if (generation.capability) {
+            overgo.rememberedControls.apply(generation.fields, overgo.rememberedControls.last(generation.capability.recipe));
+            if (generation.fields.size && mode !== 'speech') controlsHost.appendChild(overgo.presetControls(generation.capability.recipe, generation.fields));
           }
           if (mode === 'speech') {
             speechFields.replaceChildren();
@@ -640,8 +639,20 @@
         const card = thread.mediaCard({ kind: overgo.mediaKind(item.descriptor.media_type), url, artifact: item.descriptor.id, mime: item.descriptor.media_type, bytes: item.descriptor.size, caption: name, run: run.id });
         let request = {};
         try { request = await requestOf(item.descriptor.id, run.id) || {}; } catch (err) { card.appendChild(overgo.failure(err)); }
+        // A new run starts from this one's settings: its capability chosen and its entries filled.
+        const offered = generation.picker && [...generation.picker.options].some((option) => option.value === run.recipe && !option.disabled);
+        const reuse = offered && Object.keys(request).length ? el("button", { class: "btn alt", text: "Use these settings", onclick: () => useSettings(run.recipe, request) }) : null;
         card.appendChild(el("div", { class: "record" }, overgo.table(["control", "value"], Object.entries(request).map(([control, value]) => [control, String(value)])),
-          el("div", { class: "row" }, overgo.artifactLink(run.id, "run " + fmt.shortID(run.id)), el("a", { class: "btn alt", href: url, download: "", text: "download" }))));
+          el("div", { class: "row" }, overgo.artifactLink(run.id, "run " + fmt.shortID(run.id)), reuse, el("a", { class: "btn alt", href: url, download: "", text: "download" }))));
+      }
+      // useSettings: a past run's capability and entries in the composer, its body text as the message.
+      function useSettings(recipe, request) {
+        generation.picker.value = recipe;
+        generation.picker.dispatchEvent(new Event("change"));
+        overgo.rememberedControls.apply(generation.fields, request);
+        const body = generation.capability && overgo.bodyControl(generation.capability.controls);
+        if (body && typeof request[body.name] === "string") { composer.input.value = request[body.name]; composer.input.dispatchEvent(new Event("input", { bubbles: true })); }
+        composer.input.focus();
       }
       const toolSurface = agents.length ? overgo.toolStep(agentHost, {
         agent: () => agentPicker.value, session: () => agentSession, thread: () => thread, controls: [agentPicker],
@@ -859,6 +870,7 @@
             const sources = enhancement.record && text === enhancement.enhanced ? [enhancement.record] : [];
             if (mode === 'speech') for (const item of attachments) if (item.textApplied && item.sourceArtifact && !sources.includes(item.sourceArtifact)) sources.push(item.sourceArtifact);
             enhancement.record = enhancement.enhanced = "";
+            retainGenerationValues();
             const work = generation.capability ? trackOperation() : null;
             const selection = generation.capability ? { capability: generation.capability, fields: generation.fields, sources, lifecycle: work.lifecycle } : null;
             const terminal = await thread.consume(overgo.generate(mode, text, parts, controller.signal, selection));

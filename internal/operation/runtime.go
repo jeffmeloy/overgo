@@ -14,6 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/operatoraction"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -119,8 +120,8 @@ type entry struct {
 	execute Executor
 	cancel  context.CancelFunc
 	done    chan struct{}
-	// started: when the operation began running, for Progress.ElapsedMS.
-	started time.Time
+	// started: the counter read when the operation began running, for Progress.ElapsedMS.
+	started processmeasure.Stopwatch
 }
 
 type ticket struct {
@@ -400,7 +401,7 @@ func (manager *Manager) setState(id artifact.ID, state State) {
 	if current := manager.entries[id]; current != nil && !terminal(current.status.State) {
 		current.status.State = state
 		if state == StateRunning {
-			current.started = time.Now()
+			current.started = processmeasure.NewStopwatch()
 		}
 		manager.publishLocked(current.status)
 	}
@@ -519,8 +520,8 @@ func (reporter operationReporter) Progress(completed uint64, total *uint64) {
 			value := *total
 			current.status.Progress.Total = &value
 		}
-		if !current.started.IsZero() {
-			current.status.Progress.ElapsedMS = float64(time.Since(current.started)) / float64(time.Millisecond)
+		if elapsed, err := current.started.Elapsed(); err == nil {
+			current.status.Progress.ElapsedMS = float64(elapsed) / float64(time.Millisecond)
 		}
 		reporter.manager.publishLocked(current.status)
 	}

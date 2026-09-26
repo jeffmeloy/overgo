@@ -413,6 +413,10 @@
       "row": "skipped-fixture-classification"
     },
     {
+      "key": "skipped-fixture:test:overgo/internal/tabularicl",
+      "reason": "tabularicl's parity, wall and real-artifact fixtures need model artifacts this machine lacks; the landing changed operation progress and the web UI, which tabularicl does not reach"
+    },
+    {
       "key": "skipped-fixture:test:overgo/internal/tokenizer",
       "row": "skipped-fixture-classification"
     },
@@ -507,6 +511,10 @@
     {
       "key": "surface-move:production-nodes:00b49160532265a7eea191429073651bff3be82a",
       "row": "automation-harness-surface-remainder"
+    },
+    {
+      "key": "surface-move:production-nodes:08111ba1f554a487d153200af96b5bc7ab4f1864",
+      "row": "harness-trend-paydown"
     },
     {
       "key": "surface-move:production-nodes:38f8a354ac0fefbec2051a7905eb7d32dafcf028",

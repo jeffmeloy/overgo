@@ -116,5 +116,4 @@ var Declared = map[string]Descriptor{
 		"an operator probing adapter training"),
 	"mixture-train-probe": operator("mixture-train-probe", "run a bounded causal-LM training smoke for a densecausal artifact, routed mixtures included",
 		"an operator probing mixture-of-experts training"),
-	"tabular-train-probe": operator("tabular-train-probe", "run bounded decoder training on a tabular model", "an operator probing tabular training"),
 }

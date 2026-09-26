@@ -8,10 +8,12 @@ import (
 	"time"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
 
-// objectiveRun is cmd/train's -objective mode: train a text model on a
+// objectiveRun is cmd/train's -objective mode: train the model the
+// objective's kind names (a text model, or a TabFM table head) on the
 // registered objective's training split and publish its held-out verdict.
 type objectiveRun struct {
 	Alias, Model    string
@@ -48,10 +50,19 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 	if run.Model == "" || run.Steps <= 0 {
 		return fmt.Errorf("train: -objective requires -model and positive -steps")
 	}
-	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
-		Alias: run.Alias, ModelDirectory: run.Model, Steps: run.Steps, MaximumSequence: run.Sequence,
-		Host: run.Host, MaxProjectedWall: run.MaxWall,
-	})
+	objective, err := trainingworkflow.LoadObjectiveAlias(ctx, store, run.Alias)
+	if err != nil {
+		return err
+	}
+	var result trainingworkflow.HeldoutResult
+	if objective.Kind == trainingprogram.ObjectiveTablePrediction {
+		result, err = trainTableObjective(ctx, store, run, objective)
+	} else {
+		result, err = trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
+			Alias: run.Alias, ModelDirectory: run.Model, Steps: run.Steps, MaximumSequence: run.Sequence,
+			Host: run.Host, MaxProjectedWall: run.MaxWall,
+		})
+	}
 	if err != nil {
 		return err
 	}

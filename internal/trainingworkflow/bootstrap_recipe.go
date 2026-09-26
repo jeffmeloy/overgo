@@ -90,14 +90,7 @@ func BootstrapObjectiveRecipe(ctx context.Context, store *overgodb.Store, modelP
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	target, found, err := store.ResolveAlias(ctx, objectiveAlias)
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	if !found {
-		return artifact.ID{}, fmt.Errorf("training workflow: objective alias %q is not registered", objectiveAlias)
-	}
-	objective, err := trainingprogram.LoadObjective(ctx, store, target)
+	objective, err := LoadObjectiveAlias(ctx, store, objectiveAlias)
 	if err != nil {
 		return artifact.ID{}, err
 	}

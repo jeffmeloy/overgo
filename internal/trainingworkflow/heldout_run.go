@@ -51,20 +51,26 @@ type HeldoutResult struct {
 	Passed                                                bool
 }
 
+// LoadObjectiveAlias loads the objective an alias names, refusing an alias
+// the store does not bind.
+func LoadObjectiveAlias(ctx context.Context, reader artifact.Reader, alias string) (trainingprogram.ObjectiveDocument, error) {
+	id, bound, err := reader.ResolveAlias(ctx, alias)
+	if err != nil {
+		return trainingprogram.ObjectiveDocument{}, err
+	}
+	if !bound {
+		return trainingprogram.ObjectiveDocument{}, fmt.Errorf("training workflow: objective alias %q is absent", alias)
+	}
+	return trainingprogram.LoadObjective(ctx, reader, id)
+}
+
 // RunHeldout trains through run.Train on the objective's training
 // membership, records the training session, scores the base and trained
 // model on its held-out membership, and publishes the view, plan, both
 // reports and the verdict. Every held-out record must have an example: a
 // view that skipped some would judge a chosen subset.
 func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (HeldoutResult, error) {
-	objectiveID, bound, err := store.ResolveAlias(ctx, run.Alias)
-	if err != nil {
-		return HeldoutResult{}, err
-	}
-	if !bound {
-		return HeldoutResult{}, fmt.Errorf("training workflow: objective alias %q is absent", run.Alias)
-	}
-	objective, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
+	objective, err := LoadObjectiveAlias(ctx, store, run.Alias)
 	if err != nil {
 		return HeldoutResult{}, err
 	}

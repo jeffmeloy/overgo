@@ -30,7 +30,7 @@
           "title": "Have every GPU user take the device claim lanes wait on",
           "status": "open",
           "verify": "go test ./internal/server -run '^TestServedModelHoldsTheDeviceClaim$' -count=1",
-          "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out. 2026-09-25: the device lane of 69368990 failed 'physical resource is already reserved' in devicemath while two other gate processes held the GPU, and passed unchanged on re-run; a claim every GPU user takes turns that into a wait with a named holder instead of a failed lane and a manual re-run."
+          "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out. 2026-09-25: the device lane of 69368990 failed 'physical resource is already reserved' in devicemath while two other gate processes held the GPU, and passed unchanged on re-run; a claim every GPU user takes turns that into a wait with a named holder instead of a failed lane and a manual re-run. Found 2026-09-26: every CUDA context already takes the shared device claim (driver.ContextCreate calls processcontrol.ShareResource), so a served model holds it for its context's life, and a timed-out exclusive wait already names its holders (01cbf544, TestResourceWaitNamesItsHolders). What remains is proof, not mechanism: a device test that a served model's context holds the claim an exclusive reservation then waits on."
         }
       ]
     },
@@ -1177,7 +1177,8 @@
             "lanes-repair-real-text-pin/do",
             "pinned-bytes-preflight/do",
             "profile-runtime-commands/do",
-            "receipt-serial-packages/do"
+            "receipt-serial-packages/do",
+            "train-routes-first-probes/do"
           ]
         }
       ]

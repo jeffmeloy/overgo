@@ -1,4 +1,5 @@
-// Command train executes native recipe-bound training.
+// Command train executes native recipe-bound training; -route <name>, ahead
+// of every other flag, runs a bounded family trainer (see trainRoutes).
 package main
 
 import (
@@ -20,6 +21,9 @@ func main() {
 }
 
 func run() error {
+	if len(os.Args) > 1 && os.Args[1] == routeFlag {
+		return runRoute(os.Args[2:])
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	model := flag.String("model", "", "model directory (safetensors + config.json + tokenizer.json)")
@@ -38,7 +42,7 @@ func run() error {
 	bootstrapRecipe := flag.String("bootstrap-recipe", "", "publish, verify, and activate a token-training recipe for the model weights file at this path, then exit")
 	previewDataset := flag.String("preview-dataset", "", "validate one speech training example from a source/split/policy JSON manifest without loading a model or updating parameters")
 	audioManifest := flag.String("audio-manifest", "", "CPU CTC adapter source-processing manifest; the active training recipe owns the registered dataset and split")
-	objective := flag.String("objective", "", "registered text objective alias: train on its training split and publish the held-out verdict")
+	objective := flag.String("objective", "", "registered objective alias (text or table prediction): train on its training split and publish the held-out verdict")
 	flag.Parse()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {

@@ -32,14 +32,7 @@ func PromoteObjectiveAdaptive(
 	if len(observations) == 0 {
 		return trainingprogram.ObjectiveDocument{}, errors.New("training workflow: promotion requires at least one training observation")
 	}
-	currentID, bound, err := repository.ResolveAlias(ctx, aliasName)
-	if err != nil {
-		return trainingprogram.ObjectiveDocument{}, err
-	}
-	if !bound {
-		return trainingprogram.ObjectiveDocument{}, fmt.Errorf("training workflow: objective alias %q is absent", aliasName)
-	}
-	current, err := trainingprogram.LoadObjective(ctx, repository, currentID)
+	current, err := LoadObjectiveAlias(ctx, repository, aliasName)
 	if err != nil {
 		return trainingprogram.ObjectiveDocument{}, err
 	}
@@ -114,14 +107,7 @@ func PromoteObjectiveApproved(
 	if len(reports) == 0 {
 		return trainingprogram.ObjectiveDocument{}, errors.New("training workflow: approval requires at least one passed evaluation report")
 	}
-	currentID, bound, err := repository.ResolveAlias(ctx, aliasName)
-	if err != nil {
-		return trainingprogram.ObjectiveDocument{}, err
-	}
-	if !bound {
-		return trainingprogram.ObjectiveDocument{}, fmt.Errorf("training workflow: objective alias %q is absent", aliasName)
-	}
-	current, err := trainingprogram.LoadObjective(ctx, repository, currentID)
+	current, err := LoadObjectiveAlias(ctx, repository, aliasName)
 	if err != nil {
 		return trainingprogram.ObjectiveDocument{}, err
 	}

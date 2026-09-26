@@ -16,13 +16,13 @@ import (
 	"overgo/internal/trainingworkflow"
 )
 
-// TestTabularObjectiveProbeApprovesOnLabelAccuracyGain walks a registered
+// TestTabularObjectiveApprovesOnLabelAccuracyGain walks a registered
 // dataset of TabFM requests through a table-prediction objective: its
 // examples come through the training data path keyed by record, with each
 // held-out request's query-row classes as the target, and a head that
 // learns the classes climbs the objective from declared to approved on its
 // held-out label accuracy.
-func TestTabularObjectiveProbeApprovesOnLabelAccuracyGain(t *testing.T) {
+func TestTabularObjectiveApprovesOnLabelAccuracyGain(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 	const tables = 12

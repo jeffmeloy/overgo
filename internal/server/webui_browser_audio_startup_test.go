@@ -149,5 +149,5 @@ func TestWebUIBrowserAudioStartup(t *testing.T) {
 	if generator.executions != 1 || generator.recipeUsed != generator.capability.Recipe || generator.speech.Voice != "alba" {
 		t.Fatalf("wrong cold-start request: executions=%d recipe=%s voice=%q", generator.executions, generator.recipeUsed, generator.speech.Voice)
 	}
-	t.Log("audio startup leg: native idle manifest and single-task first mount select and submit admitted speech without a chat model; fixture refuses synthesis")
+	webuilane.Leg(t, "audio startup leg", "native idle manifest and single-task first mount select and submit admitted speech without a chat model; fixture refuses synthesis")
 }

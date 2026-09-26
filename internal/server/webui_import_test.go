@@ -84,21 +84,6 @@ func TestFrontPageImport(t *testing.T) {
 	if refused.Code != http.StatusBadRequest {
 		t.Fatalf("binary document status = %d body=%s", refused.Code, refused.Body.String())
 	}
-
-	get := func(path string) string { return serveTestRequest(handler, http.MethodGet, path, "").Body.String() }
-	composer := get("/composer.js")
-	for _, needle := range []string{`"dragover"`, `"drop"`, `"paste"`, "media.refusals", "media.max_image_bytes", "media.max_media_bytes",
-		"media.max_image_dimension", "media.max_image_pixels", `type: "input_file"`, "item.refusal", "readAsDataURL"} {
-		if !strings.Contains(composer, needle) {
-			t.Errorf("composer missing %q", needle)
-		}
-	}
-	if !strings.Contains(get("/mod/chat.js"), `"input_file"`) {
-		t.Error("chat does not pass file parts through")
-	}
-	if !strings.Contains(get("/style.css"), ".composer.drop") {
-		t.Error("style lacks the drop target")
-	}
 }
 
 // testPDF builds a one-page document whose content stream is deflated.

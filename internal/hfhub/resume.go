@@ -20,9 +20,9 @@ import (
 // survive process exit; every reuse rehashes the actual bytes under the target
 // lock. Colibri f028d26's c/download_fp8.py (Apache-2.0) informed the behavior;
 // this is an independent implementation in the existing Go download owner.
-func (c *Client) partialPath(local string, request DownloadRequest, revision string, file RepoFile) string {
+func (c *Client) partialPath(book string, request DownloadRequest, revision string, file RepoFile) string {
 	identity, _ := json.Marshal([]string{c.endpoint, string(request.Kind), request.Repository, revision, file.Path, strings.ToLower(file.SHA256), strconv.FormatInt(file.Size, 10)})
-	return fmt.Sprintf("%s.partial-%x", local, sha256.Sum256(identity))
+	return fmt.Sprintf("%s.partial-%x", book, sha256.Sum256(identity))
 }
 
 type downloadPartial struct {
@@ -32,8 +32,8 @@ type downloadPartial struct {
 	etag     string
 }
 
-func (c *Client) openPartial(ctx context.Context, local string, request DownloadRequest, revision string, file RepoFile) (*downloadPartial, error) {
-	path := c.partialPath(local, request, revision, file)
+func (c *Client) openPartial(ctx context.Context, book string, request DownloadRequest, revision string, file RepoFile) (*downloadPartial, error) {
+	path := c.partialPath(book, request, revision, file)
 	handle, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err

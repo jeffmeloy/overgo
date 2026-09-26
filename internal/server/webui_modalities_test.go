@@ -9,17 +9,11 @@ import (
 	"overgo/internal/recipe"
 )
 
-// TestFrontPageModalities pins modality-adaptive inference (professional
-// GUI campaign, gui-multimodal/dynamic-inference, revised by
-// gui-generation-declarations): the front page's modes are the capability
-// document's enabled modes and nothing else, every generation mode rides
-// one shared dispatch in composer.js that runs the declared capability
-// through the generic run route, generated media names its artifact for
-// provenance through its artifact URL (the native speech route still
-// names its artifact in a header for API clients), a mode the served
-// recipe lacks is refused by the server with a typed error, and a model
-// switch is exercised by TestWebUIBrowserDraftLifecycle against refreshed
-// capability declarations, including delayed and failed mounts.
+// TestFrontPageModalities holds the server's side of modality-adaptive
+// inference: declared generation capabilities are the capability
+// document's enabled modes, an undeclared one is a refused mode and a typed
+// error, and the native speech route names its artifact in a header for API
+// clients. The generated media leg drives the modes on the page.
 func TestFrontPageModalities(t *testing.T) {
 	t.Parallel()
 	handler, workspace, _, _ := nativeMediaProtocolFixture(t)
@@ -52,22 +46,5 @@ func TestFrontPageModalities(t *testing.T) {
 	video := serveTestRequest(handler, http.MethodPost, "/v1/videos/generations", `{"prompt":"test"}`)
 	if video.Code == http.StatusOK || !strings.Contains(video.Body.String(), `"error"`) {
 		t.Fatalf("undeclared video generation status=%d body=%s", video.Code, video.Body.String())
-	}
-
-	get := func(path string) string { return serveTestRequest(handler, http.MethodGet, path, "").Body.String() }
-	composer := get("/composer.js")
-	for _, needle := range []string{
-		"async function* generate(", "async function* generation(", `"/generation/run"`,
-		`"/v1/embeddings"`, `"/v1/rerank"`, "artifactOf(item.url)", "overgo.artifactLink(event.artifact)", "options.modes.length > 1",
-	} {
-		if !strings.Contains(composer, needle) {
-			t.Errorf("composer missing %q", needle)
-		}
-	}
-	chat := get("/mod/chat.js")
-	for _, needle := range []string{"modes: (capabilities.modes || []).filter((mode) => mode.enabled)", "overgo.generate(mode, text, parts, controller.signal, selection)"} {
-		if !strings.Contains(chat, needle) {
-			t.Errorf("chat missing %q", needle)
-		}
 	}
 }

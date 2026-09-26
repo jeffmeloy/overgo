@@ -247,6 +247,10 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .evidence-block { min-width:0; border-top:1px solid var(--line); margin-top:14px; }
 .series-legend { display:flex; flex-wrap:wrap; gap:12px; color:var(--dim); font:var(--t-xs) var(--mono); }
 .series-legend span { display:flex; align-items:center; gap:5px; }
+/* A sequence as training reads it: the masked prompt prefix faint, the trained tokens marked. */
+.token-run { display:flex; flex-wrap:wrap; gap:var(--s1); margin:var(--s2) 0; font:var(--t-sm) var(--mono); }
+.token-run span { border:1px solid var(--line-soft); border-radius:var(--radius-s); padding:0 var(--s1); color:var(--faint); white-space:pre; }
+.token-run span.trained { border-color:var(--acc); background:var(--acc-soft); color:var(--ink); }
 .series-legend .swatch { width:12px; height:2px; display:inline-block; }
 .artifact-links { margin:12px 0; }
 .signed-series { display:block; min-width:0; }
@@ -375,6 +379,9 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .history-editor input { width:100%; min-width:0; }
 .turn-editor { margin-top:var(--s2); }
 .turn-editor textarea { width:100%; min-height:6em; resize:vertical; }
+.adapter-compare { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap:var(--s2); margin-top:var(--s2); }
+.compare-column { display:flex; flex-direction:column; gap:var(--s1); min-width:0; padding:var(--s2); border:1px solid var(--line-soft); border-radius:var(--radius-s); }
+.compare-text { white-space:pre-wrap; overflow-wrap:anywhere; }
 .attachment-strip { flex-direction:column; align-items:stretch; gap:0; }
 .attachment-row { display:flex; align-items:center; gap:var(--s2); padding:var(--s2) 0; border-bottom:1px solid var(--line-soft); min-width:0; }
 .attachment-info { display:flex; flex:1; min-width:0; flex-direction:column; }

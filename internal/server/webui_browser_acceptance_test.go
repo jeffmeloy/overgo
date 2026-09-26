@@ -92,7 +92,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 			t.Error(finding)
 		}
 	}
-	t.Logf("states leg: picker-empty captured at %d viewports", len(webuilane.ScreenViewports))
+	webuilane.Leg(t, "states leg", "picker-empty captured at %d viewports", len(webuilane.ScreenViewports))
 	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll(".topbar .card button")].pop().click(); return true; })()`)
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-library.active") && document.activeElement.getAttribute("aria-label") === "provider name"`); err != nil {
 		t.Fatal(err)
@@ -288,14 +288,21 @@ func publishBrowserLaneOperations(t *testing.T, handler *Handler) (artifact.ID, 
 		t.Fatal(err)
 	}
 	<-runningEntered
+	return running, blockOperation(t, handler, recipeID, runID, "retry-browser", "Retry browser operation")
+}
+
+// blockOperation submits an operation that blocks on one approval, code,
+// until an operator grants it, then completes as run.
+func blockOperation(t *testing.T, handler *Handler, recipeID, runID artifact.ID, code, summary string) artifact.ID {
+	t.Helper()
 	var attempts atomic.Uint32
 	blocked, err := handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
 		if attempts.Add(1) == 1 {
 			return operation.Completion{Run: runID}, operatoraction.Recoverable(errors.New("browser approval required"), operatoraction.Block{
-				Subject: recipeID, Reason: "approve browser recovery", Evidence: []artifact.ID{},
-				Actions: []operatoraction.Action{{Code: "retry-browser", Summary: "Retry browser operation", Argv: []string{"overgo", "retry-browser"}}},
+				Subject: recipeID, Reason: "approve " + summary, Evidence: []artifact.ID{},
+				Actions: []operatoraction.Action{{Code: code, Summary: summary, Argv: []string{"overgo", code}}},
 			})
 		}
 		return operation.Completion{Run: runID}, nil
@@ -304,7 +311,7 @@ func publishBrowserLaneOperations(t *testing.T, handler *Handler) (artifact.ID, 
 		t.Fatal(err)
 	}
 	waitBrowserOperationState(t, handler, blocked, operation.StateBlocked)
-	return running, blocked
+	return blocked
 }
 
 // waitBrowserOperationState follows the event hub's operation transitions

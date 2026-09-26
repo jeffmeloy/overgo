@@ -67,5 +67,5 @@ func TestWebUIBrowserTurnLimit(t *testing.T) {
 	check(`(() => {window.limitComposer=document.querySelector('.composer');overgo.openConversation(overgo.conversation());return true;})()`)
 	settle(`!!document.querySelector('.composer') && document.querySelector('.composer')!==limitComposer && !document.querySelector('.send-button').disabled && document.querySelectorAll('.msg.assistant').length===2`)
 	check(`[...document.querySelectorAll('.msg.assistant .tag')].filter(tag=>tag.textContent==='Output limit reached').length===1 && document.querySelector('.msg.assistant .role').textContent.includes('Output limit reached')`)
-	t.Log("turn limit leg: real Responses generation with synthetic tokens preserves partial output and limit reason through stream, follow, reopen and continuation; no false connection-ended error or stale recovery handle")
+	webuilane.Leg(t, "turn limit leg", "real Responses generation with synthetic tokens preserves partial output and limit reason through stream, follow, reopen and continuation; no false connection-ended error or stale recovery handle")
 }

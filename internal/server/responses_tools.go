@@ -626,7 +626,7 @@ func responseItems(
 	for index, call := range message.ToolCalls {
 		callID := call.ID
 		if callID == "" {
-			callID = fmt.Sprintf("call_%s_%d", idSuffix, index)
+			callID = responseCallIdentity(idSuffix)(index)
 		}
 		items = append(items, responseOutputItem{
 			Arguments: call.Function.Arguments,
@@ -640,11 +640,7 @@ func responseItems(
 	return items
 }
 
-func (h *Handler) assignResponseCallIDs(message *inference.ChatMessage, idSuffix string) {
-	for index := range message.ToolCalls {
-		if message.ToolCalls[index].ID == "" {
-			message.ToolCalls[index].ID = fmt.Sprintf("call_%s_%d", idSuffix, index)
-		}
-	}
-	h.issuedCalls.record(message.ToolCalls...)
+// responseCallIdentity names a response's unnamed calls by the response and the call's position.
+func responseCallIdentity(idSuffix string) func(int) string {
+	return func(index int) string { return fmt.Sprintf("call_%s_%d", idSuffix, index) }
 }

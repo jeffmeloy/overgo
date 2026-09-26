@@ -217,7 +217,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	settle("download succeeded", rowNote(laneHubRepository, "done"))
 	settle("downloaded model registered", rowNote(laneHubRepository, "registered"))
 	downloadValidated := validated(laneHubRepository, "downloaded model validation")
-	t.Logf("download leg: one add downloaded, registered and validated the hub model through the cold proxy's workbench (completed=%v)", downloadValidated)
+	webuilane.Leg(t, "download leg", "one add downloaded, registered and validated the hub model through the cold proxy's workbench (completed=%v)", downloadValidated)
 
 	// 2. A local model added with its projector keeps the projector as its projection candidate, and
 	// its text path validates as an operation the workbench behind the shell runs.
@@ -232,7 +232,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	if projectorValidated {
 		assertBrowserPredicate(t, ctx, browser, rowNote(projectedLocation, "projector"))
 	}
-	t.Logf("projector leg: %s admitted its text validation with projector %s registered (completed=%v)", projectedName, filepath.Base(projectorPath), projectorValidated)
+	webuilane.Leg(t, "projector leg", "%s admitted its text validation with projector %s registered (completed=%v)", projectedName, filepath.Base(projectorPath), projectorValidated)
 
 	// 4. A model the store activates serves from the picker: the validated
 	// download on a clean checkout, otherwise the projector pair the copied
@@ -251,5 +251,5 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
   return true;
 })()`)
 	settle("the chosen model serves", `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` && !!document.querySelector("#panel-chat.active .composer textarea") && !window.overgo.modelSwitching()`)
-	t.Logf("library validation leg: downloaded, registered with a projector, validation admitted and %s served from the cold proxy", name)
+	webuilane.Leg(t, "library validation leg", "downloaded, registered with a projector, validation admitted and %s served from the cold proxy", name)
 }

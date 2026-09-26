@@ -172,5 +172,5 @@ func TestWebUIBrowserHardenedStates(t *testing.T) {
 		t.Error(finding)
 	}
 	encoded, _ := json.Marshal(tabs)
-	t.Logf("hardened states leg: %d tabs %s through empty, loading, failure (%d showed a failed read, and its reload recovered) and oversized states at desktop and phone with %d findings", len(tabs), encoded, failed, len(findings))
+	webuilane.Leg(t, "hardened states leg", "%d tabs %s through empty, loading, failure (%d showed a failed read, and its reload recovered) and oversized states at desktop and phone with %d findings", len(tabs), encoded, failed, len(findings))
 }

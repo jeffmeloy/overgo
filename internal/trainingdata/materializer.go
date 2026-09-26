@@ -4,6 +4,7 @@ package trainingdata
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -189,7 +190,37 @@ func Materialize(
 	if ctx == nil || reader == nil {
 		return nil, errors.New("training data: nil materializer input")
 	}
-	if authority.Dataset.Kind() != artifact.KindDataset || authority.Split.Kind() != artifact.KindDatasetShard {
+	if authority.Split.Kind() != artifact.KindDatasetShard {
+		return nil, errors.New("training data: invalid dataset authority")
+	}
+	return materialize(ctx, reader, authority, bindings)
+}
+
+// MaterializeWhole reads every record of a dataset for inspection, as a
+// registration commits it with no split; training materializes a split.
+func MaterializeWhole(
+	ctx context.Context,
+	reader artifact.Reader,
+	authority Authority,
+	bindings []ProcessorBinding,
+) (*Dataset, error) {
+	if ctx == nil || reader == nil {
+		return nil, errors.New("training data: nil materializer input")
+	}
+	if authority.Split.Valid() {
+		return nil, errors.New("training data: a whole dataset names no split")
+	}
+	return materialize(ctx, reader, authority, bindings)
+}
+
+// materialize: a zero split reads every record, a split filters to its membership.
+func materialize(
+	ctx context.Context,
+	reader artifact.Reader,
+	authority Authority,
+	bindings []ProcessorBinding,
+) (*Dataset, error) {
+	if authority.Dataset.Kind() != artifact.KindDataset {
 		return nil, errors.New("training data: invalid dataset authority")
 	}
 	processors, assets, fallback, err := compileBindings(authority, bindings)
@@ -205,21 +236,20 @@ func Materialize(
 		state.close()
 		return nil, err
 	}
-	membership, ok, err := dataset.LoadMembership(ctx, reader, authority.Split)
-	if err != nil || !ok {
-		state.close()
-		if err == nil {
-			err = errors.New("split membership absent")
+	if authority.Split.Valid() {
+		membership, ok, err := dataset.LoadMembership(ctx, reader, authority.Split)
+		if err != nil || !ok {
+			state.close()
+			return nil, fmt.Errorf("training data: load split: %w", cmp.Or(err, errors.New("split membership absent")))
 		}
-		return nil, fmt.Errorf("training data: load split: %w", err)
-	}
-	if membership.Source != authority.Dataset {
-		state.close()
-		return nil, errors.New("training data: split source differs from dataset")
-	}
-	if err := filterMembership(members, membership); err != nil {
-		state.close()
-		return nil, err
+		if membership.Source != authority.Dataset {
+			state.close()
+			return nil, errors.New("training data: split source differs from dataset")
+		}
+		if err := filterMembership(members, membership); err != nil {
+			state.close()
+			return nil, err
+		}
 	}
 	deduplicate(members)
 	members = nonemptyMembers(members)
@@ -801,7 +831,7 @@ func nonemptyMembers(source []member) []member {
 func identifyAuthority(authority Authority) (artifact.ID, error) {
 	payload, err := json.Marshal(struct {
 		Dataset    artifact.ID                      `json:"dataset"`
-		Split      artifact.ID                      `json:"split"`
+		Split      artifact.ID                      `json:"split,omitzero"` // a whole dataset names none
 		Processors []artifact.ID                    `json:"processors"`
 		Seed       uint64                           `json:"seed"`
 		Shuffle    bool                             `json:"shuffle"`

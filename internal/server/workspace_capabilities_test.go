@@ -53,17 +53,7 @@ func TestWorkspaceCapabilityDocument(t *testing.T) {
 		}
 	}
 
-	sources := webuiJavaScript(t)
-	boot := sources["boot.js"]
-	for _, needle := range []string{"function capabilities()", "overgo.capabilities", "workspaceManifest.model"} {
-		if !strings.Contains(boot, needle) {
-			t.Errorf("boot.js does not expose the capability document (%s)", needle)
-		}
-	}
-	if !strings.Contains(sources["composer.js"], "overgo.capabilities()") {
-		t.Error("composer.js does not take its accepted media from the capability document")
-	}
-	for name, source := range sources {
+	for name, source := range webuiJavaScript(t) {
 		if !strings.HasPrefix(name, "mod/") {
 			continue
 		}

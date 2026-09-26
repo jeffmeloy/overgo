@@ -24,7 +24,7 @@ func TestGenerationPumpFiltersCountsAndFlushes(t *testing.T) {
 	}
 	if pump.text() != "a" || pump.generated != 3 || pump.completion != 2 ||
 		!pump.stopped() || pump.stoppingWord() != "STOP" ||
-		pump.finishReason(2, "stop", "length") != "stop" {
+		(protocolGenerationResult{pump: pump}).end(2, inference.ChatMessage{}) != turnStopped {
 		t.Fatalf("pump = text %q generated %d completion %d stopped %v word %q",
 			pump.text(), pump.generated, pump.completion, pump.stopped(), pump.stoppingWord())
 	}
@@ -39,7 +39,7 @@ func TestGenerationPumpLengthReason(t *testing.T) {
 	if err := pump.accept(inference.TokenEvent{Piece: "a"}); err != nil {
 		t.Fatal(err)
 	}
-	if pump.finishReason(1, "stop", "length") != "length" {
-		t.Fatal("expected length finish reason")
+	if (protocolGenerationResult{pump: pump}).end(1, inference.ChatMessage{}) != turnLimited {
+		t.Fatal("expected the output limit to end the turn")
 	}
 }

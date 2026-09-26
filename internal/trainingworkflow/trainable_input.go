@@ -36,42 +36,59 @@ func loadTrainableModel(input string) (*densecausal.Model, error) {
 // checkpoint carries, so resume needs no HF tokenizer files.
 const checkpointTokenizerGGUF = "tokenizer.gguf"
 
-// loadTrainableEncoder resolves the text encoder beside the weights: the
-// HF tokenizer files in a safetensors directory, the tokenizer GGUF
-// metadata embeds, or the metadata-only tokenizer a GGUF-trained
-// checkpoint staged for resume.
+// trainableTokenizer: the encoder training reads text with, and each token's
+// text for showing what it read.
+type trainableTokenizer struct {
+	encode func(string) ([]int, error)
+	piece  func(int) string
+}
+
+// loadTrainableEncoder resolves the text encoder beside the weights.
 func loadTrainableEncoder(input string) (func(string) ([]int, error), error) {
+	loaded, err := loadTrainableTokenizer(input)
+	return loaded.encode, err
+}
+
+// loadTrainableTokenizer resolves the tokenizer beside the weights: the HF
+// tokenizer files in a safetensors directory, the tokenizer GGUF metadata
+// embeds, or the metadata-only tokenizer a GGUF-trained checkpoint staged
+// for resume.
+func loadTrainableTokenizer(input string) (trainableTokenizer, error) {
 	tokenizerPath := input
 	if !isGGUFModelInput(input) {
 		staged := filepath.Join(input, checkpointTokenizerGGUF)
 		if _, err := os.Stat(staged); err != nil {
 			loaded, err := hfbpe.Load(input)
 			if err != nil {
-				return nil, err
+				return trainableTokenizer{}, err
 			}
-			return loaded.Encode, nil
+			return trainableTokenizer{encode: loaded.Encode, piece: func(id int) string { return loaded.Decode([]int{id}) }}, nil
 		}
 		tokenizerPath = staged
 	}
 	file, err := gguf.Open(tokenizerPath)
 	if err != nil {
-		return nil, err
+		return trainableTokenizer{}, err
 	}
 	defer file.Close()
 	vocabulary, err := tokenizer.Load(file)
 	if err != nil {
-		return nil, err
+		return trainableTokenizer{}, err
 	}
-	return func(text string) ([]int, error) {
-		ids, err := vocabulary.Encode(text, tokenizer.EncodeOptions{})
-		if err != nil {
-			return nil, err
-		}
-		tokens := make([]int, len(ids))
-		for index, id := range ids {
-			tokens[index] = int(id)
-		}
-		return tokens, nil
+	return trainableTokenizer{
+		encode: func(text string) ([]int, error) {
+			ids, err := vocabulary.Encode(text, tokenizer.EncodeOptions{})
+			if err != nil {
+				return nil, err
+			}
+			tokens := make([]int, len(ids))
+			for index, id := range ids {
+				tokens[index] = int(id)
+			}
+			return tokens, nil
+		},
+		// A piece the vocabulary cannot decode shows empty; the id stays beside it.
+		piece: func(id int) string { piece, _ := vocabulary.DecodePiece(tokenizer.TokenID(id), true); return piece },
 	}, nil
 }
 

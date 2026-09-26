@@ -105,7 +105,7 @@
       const validate = (job) => step(job, async (stage, name) => {
         if (job.kind === "datasets") {
           const preview = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 });
-          stage.host.replaceChildren(el("span", { class: "note", text: "validated: " + (preview.rows || []).length + " row previewed" }));
+          stage.host.replaceChildren(el("span", { class: "note", text: "validated: " + preview.examples.length + " example previewed" }));
           return;
         }
         const admitted = await overgo.api.post("/library/validate", { path: stage.registered.path, projector: stage.registered.projector || "" });

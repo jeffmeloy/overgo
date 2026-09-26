@@ -1,8 +1,6 @@
 package server
 
 import (
-	"io/fs"
-	"strings"
 	"testing"
 )
 
@@ -15,37 +13,8 @@ import (
 // tab is the manifest's first tab so it is the default view.
 func TestFrontPage(t *testing.T) {
 	t.Parallel()
-	shell, err := fs.ReadFile(webuiFS, "index.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, needle := range []string{`class="shell front"`, `id="workbench-toggle"`, `id="model-evidence"`} {
-		if !strings.Contains(string(shell), needle) {
-			t.Errorf("index.html lacks %s", needle)
-		}
-	}
-	sources := webuiJavaScript(t)
-	boot := sources["boot.js"]
-	for _, needle := range []string{"function setFront(", `"/catalog/models"`, "servedModel", "workbench-toggle", "model-evidence"} {
-		if !strings.Contains(boot, needle) {
-			t.Errorf("boot.js lacks the front-page wiring (%s)", needle)
-		}
-	}
-	chat := sources["mod/chat.js"]
-	for _, needle := range []string{"front-empty", "overgo.capabilities()", "overgo.servedModel()", "starters", "openPicker()", `"model-pill"`} {
-		if !strings.Contains(chat, needle) {
-			t.Errorf("chat.js lacks the getting-started card (%s)", needle)
-		}
-	}
-	style, err := fs.ReadFile(webuiFS, "style.css")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, needle := range []string{".shell.front .sidebar .nav-group", ".front-empty"} {
-		if !strings.Contains(string(style), needle) {
-			t.Errorf("style.css lacks %s", needle)
-		}
-	}
+	// The front surfaces, task effort and states legs drive the front page;
+	// the manifest keeps the conversation first.
 	declaration, err := parseWorkspaceManifest()
 	if err != nil {
 		t.Fatal(err)

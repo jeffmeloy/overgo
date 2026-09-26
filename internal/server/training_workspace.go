@@ -81,6 +81,33 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	return workspace.executeWorkflow(ctx, recipeID, input, reporter)
 }
 
+// PreviewWorkflow pages the input's dataset as this workspace's objective
+// encodes it with its policy's tokenizer, before any run.
+func (workspace *TrainingWorkspace) PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
+	if workspace == nil || kind != WorkflowTraining || task != recipe.TaskTraining || recipeID != workspace.program.Definition().ID {
+		return nil, errors.New("training workspace: workflow is not admitted")
+	}
+	var input struct {
+		Dataset artifact.ID `json:"dataset"`
+	}
+	if err := json.Unmarshal(raw, &input); err != nil || input.Dataset.Kind() != artifact.KindDataset {
+		return nil, errors.Join(err, errors.New("training workspace: preview needs a dataset"))
+	}
+	policy, ok := workspace.program.Definition().PrimaryDependency(recipe.DependencyModel)
+	if !ok {
+		return nil, errors.New("training workspace: policy dependency absent")
+	}
+	policyDirectory, err := artifact.AvailablePath(ctx, workspace.store, policy, artifact.LocationDirectory)
+	if err != nil {
+		return nil, err
+	}
+	datasetPath, err := artifact.AvailablePath(ctx, workspace.store, input.Dataset, artifact.LocationFile)
+	if err != nil {
+		return nil, err
+	}
+	return trainingworkflow.PreviewDataset(workspace.objective, policyDirectory, datasetPath, position, limit)
+}
+
 func (workspace *TrainingWorkspace) executeWorkflow(
 	ctx context.Context,
 	recipeID artifact.ID,

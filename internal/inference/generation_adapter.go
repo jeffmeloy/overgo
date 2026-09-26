@@ -36,10 +36,14 @@ func normalizeGenerateOptions(options *GenerateOptions, maxStopSequences int) er
 	return err
 }
 
-func (r *Runner) applyGenerationLoRA(options GenerateOptions) (func(), error) {
+// applyGenerationLoRA sets a request's adapter scales for its generation
+// and returns their restore; such a request neither reuses nor retains a
+// prompt cache, which holds state computed under other scales.
+func (r *Runner) applyGenerationLoRA(options *GenerateOptions) (func(), error) {
 	if !options.LoRAConfigured {
 		return func() {}, nil
 	}
+	options.CachePrompt = false
 	next, err := validatedLoRAScales(len(r.loraAdapters), options.LoRA)
 	if err != nil {
 		return nil, err

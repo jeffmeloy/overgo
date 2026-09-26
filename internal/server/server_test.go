@@ -1022,7 +1022,8 @@ func newTestHandlerWithRepository(t testing.TB, generator Generator) *Handler {
 	return handler
 }
 
-func newTestHandlerForRepository(t testing.TB, repository *overgodb.Store, generator Generator) *Handler {
+// newTestHandlerForRepository: configure adjusts the config before the handler is built.
+func newTestHandlerForRepository(t testing.TB, repository *overgodb.Store, generator Generator, configure ...func(*Config)) *Handler {
 	t.Helper()
 	if inspector, ok := generator.(interface {
 		RecipeRuntimeDescription(recipe.Task) (modelrecipe.RuntimeDescription, error)
@@ -1037,12 +1038,16 @@ func newTestHandlerForRepository(t testing.TB, repository *overgodb.Store, gener
 			}
 		}
 	}
-	handler, err := New(Config{
+	config := Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens,
 		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		Analysis: testAnalysisPolicy, Repository: repository,
 		LibraryIntake: LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate},
-	}, generator)
+	}
+	for _, adjust := range configure {
+		adjust(&config)
+	}
+	handler, err := New(config, generator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1330,7 +1335,7 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 			request := httptest.NewRequest(
 				http.MethodPost,
 				"/v1/completions",
-				strings.NewReader(`{"prompt":"hi","max_tokens":1}`),
+				strings.NewReader(`{"prompt":[5,6],"max_tokens":1}`),
 			)
 			request.Header.Set("Authorization", testBearerToken)
 			responses[index] = httptest.NewRecorder()
@@ -1649,7 +1654,7 @@ func TestCompletion(t *testing.T) {
 	if result.Choices[0].Text != "AB" || result.Choices[0].FinishReason != "length" {
 		t.Fatalf("choice = %+v", result.Choices[0])
 	}
-	if result.Usage != (completionUsage{PromptTokens: 2, CompletionTokens: 2, TotalTokens: 4}) {
+	if result.Usage != (completionUsage{PromptTokens: 3, CompletionTokens: 2, TotalTokens: 5}) {
 		t.Fatalf("usage = %+v", result.Usage)
 	}
 	metricsRequest := httptest.NewRequest(http.MethodGet, "/metrics", nil)
@@ -1705,7 +1710,7 @@ func TestOpenAICompletionExactMixedAndBatchedPrompts(t *testing.T) {
 		{
 			name: "string batch", prompt: `["one","two"]`, n: 2,
 			wantChoices: 4,
-			wantUsage:   completionUsage{PromptTokens: 4, CompletionTokens: 4, TotalTokens: 8},
+			wantUsage:   completionUsage{PromptTokens: 6, CompletionTokens: 4, TotalTokens: 10},
 		},
 		{
 			name: "token batch", prompt: `[[5],[6]]`, n: 1,

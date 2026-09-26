@@ -133,5 +133,5 @@ func TestWebUIBrowserTypeset(t *testing.T) {
 	if !(measure.Measure > 0) || measure.Characters > measure.Measure+0.5 {
 		t.Errorf("a long reply runs %.1f characters wide against a measure of %.1f", measure.Characters, measure.Measure)
 	}
-	t.Logf("typeset leg: %d states on the %v px scale with %d sizes off it; a long reply runs %.1f of %.0f characters", states, scale, len(findings), measure.Characters, measure.Measure)
+	webuilane.Leg(t, "typeset leg", "%d states on the %v px scale with %d sizes off it; a long reply runs %.1f of %.0f characters", states, scale, len(findings), measure.Characters, measure.Measure)
 }

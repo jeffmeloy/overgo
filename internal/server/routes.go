@@ -99,6 +99,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/generation/enhance", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).promptEnhance},
 	{Path: "/training/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: workflowRoute(WorkflowTraining, (*Handler).workflowCapabilities)},
 	{Path: "/training/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(WorkflowTraining, (*Handler).workflowRun)},
+	{Path: "/training/preview", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(WorkflowTraining, (*Handler).workflowPreview)},
 	{Path: "/model-builder/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: workflowRoute(WorkflowModelBuild, (*Handler).workflowCapabilities)},
 	{Path: "/model-builder/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(WorkflowModelBuild, (*Handler).workflowRun)},
 	{Path: "/export/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: workflowRoute(WorkflowExport, (*Handler).workflowCapabilities)},
@@ -129,6 +130,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/agents/tools", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentTools)},
 	{Path: "/agents/provenance", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentProvenance)},
 	{Path: "/agents/sessions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentSessionList)},
+	{Path: "/agents/thread", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentThread)},
 	// The workbench's own routes: the manifest, schema and route table are
 	// public like the shell they feed; the operations evidence and the
 	// automation, peer and agent workspaces take the bearer credential. They

@@ -87,22 +87,6 @@ func TestAutomationWorkspaceRefusal(t *testing.T) {
 
 func TestAutomationWorkspaceNoDirectExecutor(t *testing.T) {
 	t.Parallel()
-	fixture := newAutomationServerFixture(t)
-	defer fixture.store.Close()
-	routes := serveTestRequest(fixture.handler, http.MethodGet, "/mod/automations.js", "").Body.String()
-	// A decision goes through the shell's decideOperation, which binds the advertised approval request to /operations/decision.
-	for _, expected := range []string{
-		"/automations/definitions", "/automations/activate", "/automations/run", "/automations/schedule",
-		"/automations/history", "overgo.subscribe(", "overgo.cancelOperation(", "overgo.decideOperation(", "schemaForm",
-	} {
-		if !strings.Contains(routes, expected) {
-			t.Errorf("automation GUI lacks %q", expected)
-		}
-	}
-	shell := serveTestRequest(fixture.handler, http.MethodGet, "/operations_shell.js", "").Body.String()
-	if !strings.Contains(shell, "/operations/decision") || !strings.Contains(shell, "request: action.request") {
-		t.Error("the shell's decision does not bind the advertised request to /operations/decision")
-	}
 	source := readServerSource(t, "automation_routes.go")
 	for _, forbidden := range []string{"NewForProgram", "AutomationRuntime{", "NewExecutor", "ExecuteProgram"} {
 		if strings.Contains(source, forbidden) {

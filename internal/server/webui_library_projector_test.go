@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"overgo/internal/dataroot"
@@ -86,11 +85,5 @@ func TestFrontPageLibraryProjector(t *testing.T) {
 	if refused := serveTestRequest(handler, http.MethodPost, "/library/register",
 		`{"kind":"model","path":`+quoted(modelPath)+`,"projector":`+quoted(notes)+`}`); refused.Code == http.StatusOK {
 		t.Fatalf("register accepted a text file as the projector: %s", refused.Body.String())
-	}
-	library := serveTestRequest(handler, http.MethodGet, "/mod/discovery.js", "").Body.String()
-	for _, needle := range []string{`projector: job.projector`, `"Add a local model"`, `stage.registered.projector`} {
-		if !strings.Contains(library, needle) {
-			t.Errorf("library module missing %q", needle)
-		}
 	}
 }

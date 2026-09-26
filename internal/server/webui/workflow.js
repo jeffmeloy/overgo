@@ -30,7 +30,7 @@
       };
       name = "runtime.activity";
       latest.set(name, value);
-    } else if (name !== "workspace.changed") { // a change happened once; replaying it would refresh again
+    } else if (name !== "workspace.changed" && name !== "agent.output") { // a change or an output piece happened once; replaying it would repeat it
       latest.set(name, value);
       if (name === "operation.snapshot") {
         const activity = latest.get("runtime.activity");
@@ -157,6 +157,58 @@
   // intakeStripLimit bounds the stored files a slot lists (the newest first).
   window.overgo.intakeStripLimit = 12;
 
+  // rememberedControls: the last values a capability ran with and the reader's named presets, kept per
+  // capability recipe in this browser; the declared defaults stay the fallback. Storage a browser refuses
+  // (a private window) keeps nothing, and every read then answers nothing remembered.
+  const rememberedPrefix = "overgo.controls.";
+  function readRemembered(recipe) {
+    try { return JSON.parse(localStorage.getItem(rememberedPrefix + recipe) || "null") || { presets: {} }; }
+    catch (_) { return { presets: {} }; }
+  }
+  function writeRemembered(recipe, kept) {
+    try { localStorage.setItem(rememberedPrefix + recipe, JSON.stringify(kept)); } catch (_) { /* storage refused */ }
+  }
+  window.overgo.rememberedControls = {
+    last: (recipe) => readRemembered(recipe).last || null,
+    remember(recipe, values) { const kept = readRemembered(recipe); kept.last = values; writeRemembered(recipe, kept); },
+    presets: (recipe) => readRemembered(recipe).presets || {},
+    savePreset(recipe, name, values) { const kept = readRemembered(recipe); kept.presets = { ...(kept.presets || {}), [name]: values }; writeRemembered(recipe, kept); },
+    // values: the fields' settings as typed; an artifact slot holds one turn's input, not a setting.
+    values: (fields) => Object.fromEntries([...fields].filter(([, field]) => field.control.type !== "artifact").map(([name, field]) => [name, field.input.value])),
+    // apply: values onto the fields; a value a choice no longer offers is left unset.
+    apply(fields, values) {
+      if (!values) return;
+      for (const [name, field] of fields) {
+        if (!Object.hasOwn(values, name)) continue;
+        const value = String(values[name]);
+        field.input.value = field.control.choices?.length && !field.control.choices.includes(value) ? "" : value;
+      }
+    },
+  };
+
+  // presetControls: the capability's named presets beside its controls: choosing one fills the fields,
+  // and Save preset keeps the current entries under a name.
+  window.overgo.presetControls = function (recipe, fields) {
+    const el = window.overgo.el;
+    const remembered = window.overgo.rememberedControls;
+    const choose = el("select", { class: "text w-auto", "aria-label": "preset" });
+    const name = el("input", { class: "text", type: "text", "aria-label": "Preset name", placeholder: "Preset name" });
+    function list() {
+      choose.replaceChildren(el("option", { value: "", text: "Presets" }), ...Object.keys(remembered.presets(recipe)).sort().map((preset) => el("option", { value: preset, text: preset })));
+    }
+    choose.addEventListener("change", () => { if (choose.value) remembered.apply(fields, remembered.presets(recipe)[choose.value]); });
+    const save = el("button", { class: "btn alt", type: "button", text: "Save preset", onclick: () => {
+      const label = name.value.trim();
+      if (!label) { name.focus(); return; }
+      remembered.savePreset(recipe, label, remembered.values(fields));
+      name.value = "";
+      list();
+      choose.value = label;
+    } });
+    list();
+    return el("span", { class: "row presets" }, choose, name, save);
+  };
+
   // controlValues reads the typed inputs back as the request's fields and
   // names the required ones left empty.
   window.overgo.controlValues = function (fields) {
@@ -170,6 +222,20 @@
     }
     return { input, missing };
   };
+
+  // liveOperation: the first operation the stream's snapshot holds that
+  // matches, or null when it holds none or the stream is down.
+  function liveOperation(match) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const unsubscribe = subscribe((name, value) => {
+        if (settled || !["operation.snapshot", "stream.idle", "stream.error"].includes(name)) return;
+        settled = true;
+        resolve(name === "operation.snapshot" ? value.find(match) || null : null);
+        queueMicrotask(unsubscribe);
+      });
+    });
+  }
 
   // waitOperation follows one operation on the runtime stream to its end: the
   // server's hub never drops a transition (a stream that falls behind takes
@@ -207,16 +273,20 @@
         const controls = el("div", { class: "control-grid" });
         const status = el("div", { class: "note" });
         const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, hidden: true });
+        const remaining = el("span", { class: "note", role: "status", "aria-label": "time remaining" });
+        const trends = el("div");
         const metrics = el("div");
         const evidence = el("div");
+        // previewHost: the run's input as the workflow reads it, when the tab declares a preview.
+        const previewHost = el("div");
         const run = el("button", { class: "btn", text: "Run" });
         const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
         // The task first, then its inputs, then the action that runs them.
         panel.append(
           el("div", { class: "section-title", text: overgo.title }),
-          el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), controls,
+          el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), controls, previewHost,
           el("div", { class: "row" }, run, cancel), status,
-          progress, metrics, evidence);
+          el("div", { class: "row" }, progress, remaining), trends, metrics, evidence);
 
         let capabilities;
         try { capabilities = await api.get("/" + definition.scope + "/capabilities"); }
@@ -231,9 +301,17 @@
         }
         let fields = new Map();
         function selected() { return capabilities.find((item) => item.recipe === capabilitySelect.value); }
-        function renderControls() { const capability = selected(); fields = overgo.controlInputs(controls, capability ? capability.controls : []); }
+        // The capability's last entries return with it; its presets sit beside the controls.
+        function renderControls() {
+          const capability = selected();
+          fields = overgo.controlInputs(controls, capability ? capability.controls : []);
+          if (!capability) return;
+          overgo.rememberedControls.apply(fields, overgo.rememberedControls.last(capability.recipe));
+          if (fields.size) controls.appendChild(overgo.presetControls(capability.recipe, fields));
+        }
         capabilitySelect.addEventListener("change", renderControls);
         renderControls();
+        if (definition.preview) definition.preview(previewHost, () => ({ task: selected().task, recipe: selected().recipe, input: overgo.controlValues(fields).input }), overgo);
 
         let operation = null;
         cancel.addEventListener("click", async () => {
@@ -246,10 +324,31 @@
           const suffix = current.run ? " / " + fmt.shortID(current.run) : "";
           status.textContent = current.state + suffix + (current.failure ? " / " + current.failure : "");
           const total = current.progress && current.progress.total;
+          const completed = current.progress ? current.progress.completed : 0;
           progress.hidden = !total;
-          if (total) { progress.max = total; progress.value = current.progress.completed; }
+          if (total) { progress.max = total; progress.value = completed; }
+          // The remainder projects the server's elapsed wall over the steps left, as of the last step.
+          const elapsed = current.progress && current.progress.elapsed_ms;
+          remaining.textContent = total && completed && elapsed && !terminal(current.state) ?
+            "step " + completed + " of " + total + " · about " + fmt.duration((total - completed) * elapsed / completed) + " remaining" : "";
+          const drawn = (current.series || []).filter((series) => definition.trend && definition.trend(series.name) && series.values.length > 1);
+          trends.replaceChildren(...drawn.map((series) => el("section", { class: "evidence-block", "data-trend": series.name },
+            el("div", { class: "section-title", text: series.name + " · " + series.reports + " steps" }),
+            overgo.viz.signedSeries([{ label: series.name, values: series.values, color: "var(--accent)" }]))));
           const table = overgo.table(["measurement", "value"], (current.metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : "")]), "metric-grid");
           metrics.replaceChildren(...((current.metrics || []).length ? [table] : []));
+        }
+        // follow: the operation's live state until it ends, then its evidence.
+        async function follow(id) {
+          operation = id;
+          run.disabled = true;
+          cancel.disabled = false;
+          cancel.hidden = false;
+          status.textContent = "running / " + fmt.shortID(operation);
+          try {
+            const completed = await overgo.waitOperation(operation, renderOperation);
+            if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
+          } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
         }
         run.addEventListener("click", async () => {
           const capability = selected();
@@ -257,18 +356,21 @@
           const { input, missing } = overgo.controlValues(fields);
           if (missing.size) { const [name] = missing; fields.get(name).input.focus(); status.textContent = name + " is required"; return; }
           run.disabled = true;
-          cancel.disabled = false;
-          cancel.hidden = false;
           evidence.replaceChildren();
+          let accepted;
           try {
-            const accepted = await api.post("/" + definition.scope + "/run", {
-              task: capability.task, recipe: capability.recipe, input,
-            });
-            operation = accepted.operation;
-            status.textContent = "running / " + fmt.shortID(operation);
-            const completed = await overgo.waitOperation(operation, renderOperation);
-            if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
-          } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
+            accepted = await api.post("/" + definition.scope + "/run", { task: capability.task, recipe: capability.recipe, input });
+            overgo.rememberedControls.remember(capability.recipe, overgo.rememberedControls.values(fields));
+          } catch (err) { status.replaceChildren(overgo.failure(err)); run.disabled = false; return; }
+          await follow(accepted.operation);
+        });
+        // A run of this tab's recipes still going (the page was reloaded) is followed again.
+        liveOperation((item) => !terminal(item.state) && capabilities.some((capability) => capability.recipe === item.recipe)).then((live) => {
+          if (!live || operation || overgo.signal.aborted) return;
+          capabilitySelect.value = live.recipe;
+          renderControls();
+          renderOperation(live);
+          follow(live.id);
         });
       },
     });

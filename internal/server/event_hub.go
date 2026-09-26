@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 
@@ -12,6 +13,12 @@ import (
 // hubResync asks a subscriber that fell a queue behind to take fresh
 // snapshots in place of the events it missed.
 const hubResync = "resync"
+
+// hubRecordsChanged tells every stream the store gained a record its
+// activity snapshot projects (a stage receipt, a decision, an interaction),
+// which serving events do not carry; each stream answers with a fresh
+// activity snapshot.
+const hubRecordsChanged = "runtime.records"
 
 var errEventHubUnavailable = errors.New("operation: event subscription unavailable")
 
@@ -92,11 +99,19 @@ func (hub *eventHub) publish(name string, value any) {
 // under the manager's lock) and asks for the sessions it changed.
 func (hub *eventHub) observeOperation(event operation.Event) {
 	hub.publish("operation", event)
+	// A workflow has written its stage receipts by the time it settles.
+	if slices.Contains(settledStates, event.Status.State) {
+		hub.publish(hubRecordsChanged, nil)
+	}
 	select {
 	case hub.sessionsChanged <- struct{}{}:
 	default:
 	}
 }
+
+// settledStates are the operation states that stop its work: blocked on a
+// decision, or ended.
+var settledStates = []operation.State{operation.StateBlocked, operation.StateCompleted, operation.StateFailed, operation.StateCancelled}
 
 // pump publishes the sessions snapshot once per coalesced run of operation
 // transitions, until the hub closes.

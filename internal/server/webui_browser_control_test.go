@@ -180,5 +180,5 @@ func TestWebUIBrowserConversationControl(t *testing.T) {
 	if generator.calls.Load() != 4 {
 		t.Fatal("an expired response generated a replacement automatically")
 	}
-	t.Log("conversation control leg: real stored generation cancels on Stop and early Stop; navigation preserves execution; server-owned resume produces one answer; failures preserve prompts; expired and truncated responses never complete or retry automatically")
+	webuilane.Leg(t, "conversation control leg", "real stored generation cancels on Stop and early Stop; navigation preserves execution; server-owned resume produces one answer; failures preserve prompts; expired and truncated responses never complete or retry automatically")
 }

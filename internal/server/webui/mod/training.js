@@ -101,6 +101,52 @@
         overgo.artifactLink(current.checkpoint, "current " + overgo.fmt.shortID(current.checkpoint), true)), table);
   }
 
+  // lengthBins: the token-length distribution's bar count, fewer when lengths span less.
+  const lengthBins = 8;
+  function lengthDistribution(overgo, lengths) {
+    if (!lengths.length) return null;
+    const low = Math.min(...lengths), high = Math.max(...lengths);
+    const width = Math.max(1, Math.ceil((high - low + 1) / lengthBins));
+    const counts = new Map();
+    for (const length of lengths) { const bin = Math.floor((length - low) / width); counts.set(bin, (counts.get(bin) || 0) + 1); }
+    const entries = [...counts.keys()].sort((a, b) => a - b).map((bin) => {
+      const from = low + bin * width, to = Math.min(high, from + width - 1);
+      return { label: (from === to ? String(from) : from + "–" + to) + " tokens", value: counts.get(bin), title: counts.get(bin) + " sequences" };
+    });
+    return overgo.el("section", { class: "evidence-block", "aria-label": "Token lengths" },
+      overgo.el("div", { class: "section-title", text: "Token lengths · " + lengths.length + " sequences" }), overgo.viz.probBars(entries));
+  }
+
+  // trainingPreview: a dataset's records as the run's objective encodes them, before the run: each
+  // sequence's tokens with the masked prompt prefix faint and the trained response marked, a record
+  // pager, and every sequence's token length. request() is the run's task, recipe and input.
+  function trainingPreview(host, request, overgo) {
+    const { el, fmt } = overgo;
+    const status = el("span", { class: "note", role: "status" });
+    const body = el("div");
+    const prev = el("button", { class: "btn alt", text: "prev", disabled: true });
+    const next = el("button", { class: "btn alt", text: "next", disabled: true });
+    let position = 0;
+    const show = overgo.read(body, (signal) => overgo.api.post("/training/preview", { ...request(), position, limit: 1 }, { signal }), (preview) => {
+      status.textContent = preview.records ? "record " + (position + 1) + " of " + fmt.grouped(preview.records) : "no records";
+      prev.disabled = position === 0;
+      next.disabled = position + 1 >= preview.records;
+      body.replaceChildren(...preview.page.flatMap((record) => [
+        el("div", { class: "section-title", text: record.id }),
+        ...record.sequences.map((sequence) => el("section", { class: "evidence-block", "data-sequence": sequence.label },
+          el("div", { class: "note", text: sequence.label + " · " + sequence.tokens.filter((token) => token.trained).length + " trained of " + sequence.tokens.length + " tokens" }),
+          el("div", { class: "token-run" }, ...sequence.tokens.map((token) => el("span", {
+            class: token.trained ? "trained" : "masked", title: "id " + token.id + (token.trained ? " · trained" : " · masked prompt"), text: overgo.displayToken(token.piece),
+          }))))),
+      ]), lengthDistribution(overgo, preview.lengths) || "");
+    }, { loading: "Encoding records…" });
+    prev.addEventListener("click", () => { position--; show(); });
+    next.addEventListener("click", () => { position++; show(); });
+    const open = el("button", { class: "btn alt", text: "Preview as trained", onclick: () => { position = 0; show(); } });
+    host.replaceChildren(el("div", { class: "row" }, open, prev, next, status), body);
+  }
+
+  window.overgo.trainingPreview = trainingPreview;
   window.overgo.trainingEvidence = {
     async renderOperation(host, operation, overgo) {
       const traceID = (operation.outputs || []).find((id) => String(id).startsWith("evidence:"));

@@ -1,6 +1,8 @@
-package composition
+package composition_test
 
 import (
+	"overgo/internal/composition"
+	"overgo/internal/composition/compositiontest"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -9,14 +11,14 @@ import (
 )
 
 func TestExternalCrossAttentionPlan(t *testing.T) {
-	store, authority := compositionAuthorityFixture(t)
+	store, authority := compositiontest.Authority(t)
 	ctx := t.Context()
 	sourceChannels := authority.SourceContract.Tensor.Axes[tensor.FirstOffset].Bounds.Extent
 	targetChannels := authority.TargetContract.Tensor.Axes[tensor.FirstOffset].Bounds.Extent
 	sourceTokenLimit := authority.SourceContract.Tensor.Axes[tensor.SingletonExtent].Bounds.Maximum
 	layer := *authority.SourceContract.Producer.Layer
 	headCount := uint64(tensor.PairedExtent)
-	external, err := NewExternalCrossAttentionDefinition(ExternalCrossAttentionDefinition{
+	external, err := composition.NewExternalCrossAttentionDefinition(composition.ExternalCrossAttentionDefinition{
 		Target: authority.Recipe.TargetModel, Source: authority.Recipe.SourceModel,
 		Adapter: authority.Recipe.BridgeWeights, Layers: []uint32{layer},
 		SourceChannels: sourceChannels, HeadCount: headCount, SourceTokenLimit: sourceTokenLimit,
@@ -25,7 +27,7 @@ func TestExternalCrossAttentionPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	authority.Recipe.ExternalCrossAttention = external.ID
-	authority.Recipe, err = NewCompositionRecipe(authority.Recipe)
+	authority.Recipe, err = composition.NewCompositionRecipe(authority.Recipe)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +58,7 @@ func TestExternalCrossAttentionPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := CompileExternalCrossAttentionPlan(
+	if _, err := composition.CompileExternalCrossAttentionPlan(
 		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task, plan,
 	); err == nil {
 		t.Fatal("external cross-attention compiled before recipe activation")
@@ -68,7 +70,7 @@ func TestExternalCrossAttentionPlan(t *testing.T) {
 	if _, err := store.Commit(ctx, activation); err != nil {
 		t.Fatal(err)
 	}
-	compiled, err := CompileExternalCrossAttentionPlan(
+	compiled, err := composition.CompileExternalCrossAttentionPlan(
 		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task, plan,
 	)
 	if err != nil {

@@ -65,6 +65,20 @@ func TestReporterMetricsRemainBounded(t *testing.T) {
 	if len(status.Metrics) != 1 || status.Metrics[0].Name != "loss" || status.Metrics[0].Value != 99 {
 		t.Fatalf("metrics=%+v", status.Metrics)
 	}
+	// The repeated metric is a trend: every report counted, the values
+	// within the manager's bound, value i the report i*stride.
+	if len(status.Series) != 1 || status.Series[0].Name != "loss" || status.Series[0].Reports != 100 {
+		t.Fatalf("series=%+v", status.Series)
+	}
+	trend := status.Series[0]
+	if len(trend.Values) > 8 || trend.Stride < 2 {
+		t.Fatalf("trend is not bounded: %+v", trend)
+	}
+	for index, value := range trend.Values {
+		if value != float64(uint64(index)*trend.Stride) {
+			t.Fatalf("trend value %d = %v, want report %d", index, value, uint64(index)*trend.Stride)
+		}
+	}
 }
 
 func TestServingAttemptEvidenceRemainsOrderedAndUnique(t *testing.T) {

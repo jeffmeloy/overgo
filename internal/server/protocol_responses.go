@@ -35,6 +35,8 @@ type responsesRequest struct {
 	ParallelTools      *bool                     `json:"parallel_tool_calls"`
 	Store              *bool                     `json:"store"`
 	Reasoning          *responsesReasoningConfig `json:"reasoning"`
+	// Continue resumes the stopped turn previous_response_id names.
+	Continue bool `json:"continue"`
 	samplingParameters
 }
 
@@ -104,10 +106,10 @@ func responseLimitDetails(reason runrecord.InteractionTerminalReason) *responseI
 	return nil
 }
 
-// Match the common pump's stop precedence and the chat protocol's valid tool
-// completion precedence. Token counts alone cannot override a matched stop.
-func responseCompletion(pump *generationPump, maxTokens int, message inference.ChatMessage) (string, runrecord.InteractionTerminalReason) {
-	if len(message.ToolCalls) == 0 && pump.finishReason(maxTokens, "stop", "length") == "length" {
+// responseCompletion names a turn's end as a response's status: only the
+// output limit leaves it incomplete.
+func responseCompletion(end turnEnd) (string, runrecord.InteractionTerminalReason) {
+	if end == turnLimited {
 		return "incomplete", runrecord.InteractionOutputLimit
 	}
 	return "completed", ""
@@ -137,24 +139,15 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
-	previous, parent, ok := h.previousResponseMessages(response, request.Context(), body.PreviousResponseID)
+	if body.Continue {
+		h.continueResponses(response, request, body)
+		return
+	}
+	built, ok := h.responsesChatTurn(response, request, body)
 	if !ok {
 		return
 	}
-	reasoningSummary, reasoningThinking, err := validateResponsesReasoning(body.Reasoning)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	toolSelection, err := selectResponsesTools(
-		body.Tools,
-		body.ToolChoice,
-		body.ParallelTools,
-	)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
+	parent, reasoningSummary, toolSelection := built.parent, built.summary, built.tools
 	if reasoningSummary && len(toolSelection.active) != 0 {
 		writeInvalidRequestMessage(response, "reasoning summaries cannot be combined with tools")
 		return
@@ -172,25 +165,11 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			return
 		}
 	}
-	current, err := h.parseResponsesMessages(request.Context(), body.Input, "")
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	messages := responseRequestMessages(previous, current, body.Instructions)
-	turn := cloneResponseMessages(current)
-	multimodal := chatMediaCount(messages) != 0
-	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
-	if len(toolSelection.prompt) != 0 || body.Reasoning != nil {
-		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": reasoningThinking}
-	}
-	if multimodal {
-		normalizedBody.Tools = toolSelection.active
-	}
+	turn := cloneResponseMessages(built.current)
 	normalizedPrompt, err := h.normalizeChatPrompt(
 		request.Context(),
 		formatter,
-		normalizedBody,
+		built.chat,
 		toolSelection.prompt,
 		true,
 	)
@@ -229,6 +208,51 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	defer plan.release()
+	// A plain-text turn keeps its token context when it can be continued.
+	session := turnSession{
+		parameters: continuationParameters{Sampling: samplingParams, Stop: stops},
+		keep:       len(toolSelection.active) == 0 && !reasoningSummary,
+	}
+	h.runResponseTurn(response, request, body, plan, toolSelection.active, turn, parent, reasoningSummary, parser, session)
+}
+
+// continueResponses resumes a stopped turn from its token context with the
+// sampling and stops it ran with; the output is the continued text alone.
+func (h *Handler) continueResponses(response http.ResponseWriter, request *http.Request, body responsesRequest) {
+	continued, ok := h.continuedResponse(response, request, body)
+	if !ok {
+		return
+	}
+	maxTokens, err := boundedProtocolTokens(
+		body.MaxOutputTokens, h.defaultOutputTokens, h.config.MaxTokens, "max_output_tokens", false,
+	)
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return
+	}
+	parameters := continued.session.parameters
+	plan, ok := h.prepareProtocolGenerationPlan(response, request, continued.prompt, parameters.Sampling, maxTokens, parameters.Stop)
+	if !ok {
+		return
+	}
+	defer plan.release()
+	plan.held = continued.session.held
+	h.runResponseTurn(response, request, body, plan, nil, continued.turn, continued.parent, false, nil, continued.session)
+}
+
+// runResponseTurn generates, streams or answers, and stores one response turn.
+func (h *Handler) runResponseTurn(
+	response http.ResponseWriter,
+	request *http.Request,
+	body responsesRequest,
+	plan *protocolGenerationPlan,
+	tools []inference.ChatTool,
+	turn []inference.ChatMessage,
+	parent artifact.ID,
+	reasoningSummary bool,
+	parser ChatOutputParser,
+	session turnSession,
+) {
 	idNumber := h.nextID.Add(1)
 	responseID := "resp_" + strconv.FormatUint(idNumber, identifierRadix)
 	messageID := "msg_" + strconv.FormatUint(idNumber, identifierRadix)
@@ -239,12 +263,13 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			plan,
 			responseID,
 			messageID,
-			toolSelection.active,
+			tools,
 			turn,
 			parent,
 			body.Store == nil || *body.Store,
 			reasoningSummary,
 			parser,
+			session,
 		)
 		return
 	}
@@ -259,10 +284,10 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		Role:    inference.ChatRoleAssistant,
 		Content: result.pump.text(),
 	}
-	if len(toolSelection.active) != 0 || reasoningSummary {
+	if len(tools) != 0 || reasoningSummary {
 		message, err = parser.ParseChatOutput(
 			result.pump.text(),
-			toolSelection.active,
+			tools,
 		)
 		if err != nil {
 			writeGenerationError(response, err)
@@ -270,12 +295,15 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		}
 	}
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
-	h.assignResponseCallIDs(&message, idSuffix)
-	status, reason := responseCompletion(result.pump, plan.maxTokens, message)
+	h.issueToolCalls(message.ToolCalls, responseCallIdentity(idSuffix))
+	status, reason := responseCompletion(result.end(plan.maxTokens, message))
 	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary, status)
 	promptTokens := result.promptTokens()
 	if body.Store == nil || *body.Store {
-		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, message), runrecord.OutcomeSucceeded, reason); err != nil {
+		stored := message
+		stored.Content = session.prefix + message.Content
+		if err := h.publishTurn(context.WithoutCancel(request.Context()), responseID, parent, append(turn, stored), runrecord.OutcomeSucceeded, reason,
+			session, result.ids, result.pump.held(), reason == runrecord.InteractionOutputLimit); err != nil {
 			writeError(response, http.StatusInternalServerError, "response_not_durable", err.Error())
 			return
 		}
@@ -291,8 +319,8 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		IncompleteDetails: responseLimitDetails(reason),
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      result.outputTokens(),
-			TotalTokens:       promptTokens + result.outputTokens(),
+			OutputTokens:      result.completionTokens(),
+			TotalTokens:       promptTokens + result.completionTokens(),
 			InputTokenDetails: responseInputTokenDetails{CachedTokens: result.cachedTokens()},
 		},
 		Sampling: resolvedSampling(plan.sampler),
@@ -314,12 +342,15 @@ func (h *Handler) streamResponses(
 	store bool,
 	reasoningSummary bool,
 	parser ChatOutputParser,
+	session turnSession,
 ) {
 	var output strings.Builder
 	var turnBuffer *inflightTurn
 	finished := false
 	completionStatus := "completed"
 	var writeEvent func(string, any) error
+	// generated: the run's ids and pump once it returns, for a stopped turn's context.
+	var generated protocolGenerationResult
 	fail := func(err error) {
 		status, outcome := "failed", runrecord.OutcomeFailed
 		// The execution context owns explicit Stop even when an executor has
@@ -328,8 +359,15 @@ func (h *Handler) streamResponses(
 			status, outcome = "cancelled", runrecord.OutcomeCancelled
 		}
 		if turnBuffer != nil {
-			partial := inference.ChatMessage{Role: inference.ChatRoleAssistant, Content: output.String()}
-			if publishErr := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, partial), outcome, ""); publishErr != nil {
+			partial := inference.ChatMessage{Role: inference.ChatRoleAssistant, Content: session.prefix + output.String()}
+			held := ""
+			if generated.pump != nil && session.keep {
+				// The pump's text holds every released token, one whose send the
+				// stop interrupted included, so the message matches its context.
+				partial.Content, held = session.prefix+generated.pump.text(), generated.pump.held()
+			}
+			if publishErr := h.publishTurn(context.WithoutCancel(request.Context()), responseID, parent, append(turn, partial), outcome, "",
+				session, generated.ids, held, outcome == runrecord.OutcomeCancelled); publishErr != nil {
 				err = errors.Join(err, publishErr)
 				status = "failed"
 			}
@@ -355,7 +393,7 @@ func (h *Handler) streamResponses(
 		defer turnBuffer.stop()
 		// Reserve the response identity and prompt before the client can observe
 		// it. A restart leaves an inconclusive record, never a reused ID.
-		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, turn, runrecord.OutcomeInconclusive, ""); err != nil {
+		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, turn, runrecord.OutcomeInconclusive, "", turnRecord{continues: session.continues}); err != nil {
 			turnBuffer.finish(responsesResponse{ID: responseID, Object: "response", Status: "failed"}, err.Error())
 			writeError(response, http.StatusInternalServerError, "response_not_durable", err.Error())
 			return
@@ -457,7 +495,7 @@ func (h *Handler) streamResponses(
 					outputIndex++
 				}
 				itemID := fmt.Sprintf("fc_%s_%d", idSuffix, delta.Index)
-				callID := fmt.Sprintf("call_%s_%d", idSuffix, delta.Index)
+				callID := responseCallIdentity(idSuffix)(delta.Index)
 				if delta.Started {
 					if err := writeEvent(
 						"response.output_item.added",
@@ -561,11 +599,12 @@ func (h *Handler) streamResponses(
 			return emitText(piece)
 		},
 	)
+	generated = result
 	if err != nil {
 		fail(err)
 		return
 	}
-	completionStatus, reason := responseCompletion(result.pump, plan.maxTokens, inference.ChatMessage{})
+	completionStatus, reason := responseCompletion(result.end(plan.maxTokens, inference.ChatMessage{}))
 	var parsedMessage inference.ChatMessage
 	if len(tools) != 0 {
 		parsedMessage, err = toolStream.parse(parser, tools)
@@ -573,7 +612,7 @@ func (h *Handler) streamResponses(
 			fail(err)
 			return
 		}
-		completionStatus, reason = responseCompletion(result.pump, plan.maxTokens, parsedMessage)
+		completionStatus, reason = responseCompletion(result.end(plan.maxTokens, parsedMessage))
 		if !toolStream.started {
 			if err := emitText(parsedMessage.Content); err != nil {
 				return
@@ -634,7 +673,7 @@ func (h *Handler) streamResponses(
 		outputItems = append(outputItems, item)
 	}
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
-	h.assignResponseCallIDs(&parsedMessage, idSuffix)
+	h.issueToolCalls(parsedMessage.ToolCalls, responseCallIdentity(idSuffix))
 	callItems := responseItems(
 		inference.ChatMessage{
 			Role:      inference.ChatRoleAssistant,
@@ -705,8 +744,8 @@ func (h *Handler) streamResponses(
 		IncompleteDetails: responseLimitDetails(reason),
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      result.outputTokens(),
-			TotalTokens:       promptTokens + result.outputTokens(),
+			OutputTokens:      result.completionTokens(),
+			TotalTokens:       promptTokens + result.completionTokens(),
 			InputTokenDetails: responseInputTokenDetails{CachedTokens: result.cachedTokens()},
 		},
 	}
@@ -721,7 +760,10 @@ func (h *Handler) streamResponses(
 		return
 	}
 	if store {
-		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage), runrecord.OutcomeSucceeded, reason); err != nil {
+		stored := parsedMessage
+		stored.Content = session.prefix + parsedMessage.Content
+		if err := h.publishTurn(context.WithoutCancel(request.Context()), responseID, parent, append(turn, stored), runrecord.OutcomeSucceeded, reason,
+			session, result.ids, result.pump.held(), reason == runrecord.InteractionOutputLimit); err != nil {
 			fail(err)
 			return
 		}
@@ -733,54 +775,62 @@ func (h *Handler) streamResponses(
 	})
 }
 
+// The count takes the same request the turn will stream, so a page counts
+// with the exact body it sends; generation-only fields are ignored here.
 func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *http.Request) {
-	formatter, ok := h.requireProtocolTokenCounting(response, request)
+	h.countTurn(response, request, true, func() (chatCompletionRequest, []inference.ChatTool, bool) {
+		var body responsesRequest
+		if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
+			return chatCompletionRequest{}, nil, false
+		}
+		turn, ok := h.responsesChatTurn(response, request, body)
+		return turn.chat, turn.tools.prompt, ok
+	})
+}
+
+// responsesTurn is the chat turn a Responses body asks for: the stored
+// history it continues and its new input as a chat request, its tools and
+// its reasoning.
+type responsesTurn struct {
+	chat    chatCompletionRequest
+	tools   chatToolSelection
+	current []inference.ChatMessage
+	parent  artifact.ID
+	summary bool
+}
+
+// responsesChatTurn builds the turn a Responses body and its token count
+// share, so a count measures the prompt its turn generates from; a refusal
+// is written and answers false.
+func (h *Handler) responsesChatTurn(response http.ResponseWriter, request *http.Request, body responsesRequest) (responsesTurn, bool) {
+	previous, parent, ok := h.previousResponseMessages(response, request.Context(), body.PreviousResponseID)
 	if !ok {
-		return
+		return responsesTurn{}, false
 	}
-	// The count takes the same request the turn will stream, so a page counts
-	// with the exact body it sends; generation-only fields are ignored here.
-	var body responsesRequest
-	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
-		return
-	}
-	previous, _, ok := h.previousResponseMessages(response, request.Context(), body.PreviousResponseID)
-	if !ok {
-		return
-	}
-	_, reasoningThinking, err := validateResponsesReasoning(body.Reasoning)
+	summary, thinking, err := validateResponsesReasoning(body.Reasoning)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return responsesTurn{}, false
 	}
-	toolSelection, err := selectResponsesTools(
-		body.Tools,
-		body.ToolChoice,
-		body.ParallelTools,
-	)
+	tools, err := selectResponsesTools(body.Tools, body.ToolChoice, body.ParallelTools)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return responsesTurn{}, false
 	}
 	current, err := h.parseResponsesMessages(request.Context(), body.Input, "")
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return responsesTurn{}, false
 	}
 	messages := responseRequestMessages(previous, current, body.Instructions)
-	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
-	if len(toolSelection.prompt) != 0 || body.Reasoning != nil {
-		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": reasoningThinking}
+	chat := chatCompletionRequest{Messages: messages}
+	if len(tools.prompt) != 0 || body.Reasoning != nil {
+		chat.TemplateKwargs = map[string]any{templateThinkingKwarg: thinking}
 	}
 	if chatMediaCount(messages) != 0 {
-		normalizedBody.Tools = toolSelection.active
+		chat.Tools = tools.active
 	}
-	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, normalizedBody, toolSelection.prompt, false)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	h.writeProtocolInputTokenCount(response, request, normalized, true)
+	return responsesTurn{chat: chat, tools: tools, current: current, parent: parent, summary: summary}, true
 }
 
 func (h *Handler) previousResponseMessages(

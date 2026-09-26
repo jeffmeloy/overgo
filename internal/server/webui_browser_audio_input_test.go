@@ -110,7 +110,7 @@ func TestWebUIBrowserAudioInput(t *testing.T) {
 				}
 			}
 			check(`asrSubmitted.task==='transcription' && asrSubmitted.input.audio===asrSelected && document.querySelector('.task-model-selector select').value===asrSubmitted.recipe`)
-			t.Log("audio input leg: one declared ASR task, WAV attachment intake and native recipe execution produce fixture transcript x without chat model properties; fixture encoder only, not production ASR quality")
+			webuilane.Leg(t, "audio input leg", "one declared ASR task, WAV attachment intake and native recipe execution produce fixture transcript x without chat model properties; fixture encoder only, not production ASR quality")
 		})
 	}
 }

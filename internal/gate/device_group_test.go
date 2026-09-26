@@ -69,10 +69,16 @@ func TestDeviceGroupRatchet(t *testing.T) {
 	}
 	// Measured 2026-09-14: 151 of 257 packages before the two cuts, 106 of
 	// 259 after (hostoptimizer and modeldevice added). A package joins the
-	// group only by importing the device runtime on purpose.
+	// group only by importing the device runtime on purpose. The composition
+	// authority fixture is a reviewed addition: it publishes a composition,
+	// whose package links the device runtime.
 	const ceiling = 106
-	if len(device) > ceiling {
-		t.Errorf("device group regrew to %d of %d packages, ceiling %d", len(device), total, ceiling)
+	const reviewedAddition = "internal/composition/compositiontest"
+	if !slices.Contains(device, reviewedAddition) {
+		t.Errorf("%s left the device group; drop the reviewed addition", reviewedAddition)
+	}
+	if len(device)-1 > ceiling {
+		t.Errorf("device group regrew to %d of %d packages, ceiling %d plus %s", len(device), total, ceiling, reviewedAddition)
 	}
 	for _, host := range []string{"cmd/compatibility", "cmd/audio-oracle", "internal/audioparity", "internal/modelrecipe", "internal/modelartifact", "internal/hostoptimizer", "internal/model", "internal/trainingprogram", "internal/runrecord", "internal/plan", "internal/testevidence"} {
 		if slices.Contains(device, host) {

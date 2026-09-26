@@ -57,7 +57,8 @@ func TestDownloadCLICallerBudget(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("caller deadline = %v", err)
 	}
-	partials, err := filepath.Glob(filepath.Join(destination, "weights.bin.partial-*"))
+	// The retained prefix lives in the destination's sibling bookkeeping directory.
+	partials, err := filepath.Glob(filepath.Join(filepath.Dir(destination), "."+filepath.Base(destination)+".download", "weights.bin.partial-*"))
 	if err != nil {
 		t.Fatal(err)
 	}

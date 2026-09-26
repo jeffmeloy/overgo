@@ -173,5 +173,5 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 	pressKey(t, ctx, browser, "Enter", 13)
 	settle(`!!document.querySelector('.transcript-offer button')`)
 	check(`document.querySelector('.composer textarea').value==='Send the complete edited text. An edit.'&&overgo.errors.length===0`)
-	t.Log("speech text import leg: real intake preserves BOM bytes; UTF-8 draft-safe insert/replace/discard and invalid input refusal; no speech completion claim")
+	webuilane.Leg(t, "speech text import leg", "real intake preserves BOM bytes; UTF-8 draft-safe insert/replace/discard and invalid input refusal; no speech completion claim")
 }

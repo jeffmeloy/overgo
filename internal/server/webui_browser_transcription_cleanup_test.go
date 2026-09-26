@@ -173,5 +173,5 @@ func TestWebUIBrowserTranscriptionCleanup(t *testing.T) {
 	pressKey(t, ctx, browser, "ArrowDown", 40)
 	check(`cleanupOwned.element.querySelector('[aria-label="Transcription model"]').value==='fixture-other-asr' && !cleanupOwned.element.querySelector('.attachment-actions button[aria-label^="Transcribe "]').disabled && cleanupOwned.input.value==='Keep selection draft'`)
 	check(`overgo.errors.length===0`)
-	t.Log("transcription cleanup leg: mode/read-only/pagehide/clear/remove/dispose abort pending work and invalidate ready callbacks while retaining drafts; synthetic lifecycle and controlled reply timing")
+	webuilane.Leg(t, "transcription cleanup leg", "mode/read-only/pagehide/clear/remove/dispose abort pending work and invalidate ready callbacks while retaining drafts; synthetic lifecycle and controlled reply timing")
 }

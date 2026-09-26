@@ -78,20 +78,11 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		writeInvalidRequest(response, err)
 		return
 	}
-	thinkingEnabled, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)
-	if err != nil {
-		writeInvalidRequest(response, err)
+	turn, ok := h.anthropicChatTurn(response, request, body)
+	if !ok {
 		return
 	}
-	toolSelection, err := selectAnthropicTools(body.Tools, body.ToolChoice)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	if thinkingEnabled && len(toolSelection.active) != 0 {
-		writeInvalidRequestMessage(response, "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable")
-		return
-	}
+	thinkingEnabled, toolSelection := turn.thinking, turn.tools
 	parserFeature := ""
 	if thinkingEnabled {
 		parserFeature = "thinking"
@@ -105,18 +96,8 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 			return
 		}
 	}
-	messages, err := h.parseAnthropicMessages(request.Context(), body.System, body.Messages)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
-	if len(toolSelection.prompt) != 0 || thinkingEnabled {
-		normalizedBody.Tools = toolSelection.active
-		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": thinkingEnabled}
-	}
 	normalized, err := h.normalizeChatPrompt(
-		request.Context(), formatter, normalizedBody, toolSelection.prompt, true,
+		request.Context(), formatter, turn.chat, toolSelection.prompt, true,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -163,12 +144,6 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		return
 	}
 	pump := result.pump
-	stopReason := pump.finishReason(maxTokens, "end_turn", "max_tokens")
-	var stopSequence *string
-	if pump.stopped() {
-		value := pump.stoppingWord()
-		stopSequence = &value
-	}
 	message := inference.ChatMessage{Role: inference.ChatRoleAssistant, Content: pump.text()}
 	if len(toolSelection.active) != 0 || thinkingEnabled {
 		message, err = parser.ParseChatOutput(
@@ -184,15 +159,13 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 			return
 		}
 	}
-	content, err := h.anthropicBlocks(message, "toolu_"+strings.TrimPrefix(messageID, "msg_"))
+	h.issueToolCalls(message.ToolCalls, anthropicCallIdentity(messageID))
+	content, err := h.anthropicBlocks(message, "")
 	if err != nil {
 		writeGenerationError(response, err)
 		return
 	}
-	if len(message.ToolCalls) != 0 {
-		stopReason = "tool_use"
-		stopSequence = nil
-	}
+	stopReason, stopSequence := anthropicStop(result.end(maxTokens, message), pump)
 	writeJSON(response, http.StatusOK, anthropicResponse{
 		ID:           messageID,
 		Type:         "message",
@@ -204,9 +177,24 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		Usage: anthropicUsage{
 			InputTokens:          result.promptTokens() - result.cachedTokens(),
 			CacheReadInputTokens: result.cachedTokens(),
-			OutputTokens:         pump.generated,
+			OutputTokens:         result.completionTokens(),
 		},
 	})
+}
+
+// anthropicStop names a turn's end as a message's stop reason, with the
+// matched sequence when a requested stop sequence ended it.
+func anthropicStop(end turnEnd, pump *generationPump) (string, *string) {
+	switch end {
+	case turnCalledTools:
+		return "tool_use", nil
+	case turnStopped:
+		sequence := pump.stoppingWord()
+		return "stop_sequence", &sequence
+	case turnLimited:
+		return "max_tokens", nil
+	}
+	return "end_turn", nil
 }
 
 func (h *Handler) streamAnthropicMessages(
@@ -269,7 +257,7 @@ func (h *Handler) streamAnthropicMessages(
 		})
 	}
 	emitToolPiece := func(piece string) error {
-		idPrefix := "toolu_" + strings.TrimPrefix(messageID, "msg_")
+		identity := anthropicCallIdentity(messageID)
 		return toolStream.route(piece, toolDeltaSink{
 			Content: emitText,
 			Tool: func(delta inference.ChatToolCallDelta) error {
@@ -289,7 +277,7 @@ func (h *Handler) streamAnthropicMessages(
 					if err := writeEvent("content_block_start", anthropicStreamEvent{
 						Type: "content_block_start", Index: new(blockIndex),
 						ContentBlock: anthropicContentBlockStart{
-							Type: "tool_use", ID: fmt.Sprintf("%s_%d", idPrefix, delta.Index),
+							Type: "tool_use", ID: identity(delta.Index),
 							Name: delta.Name, Input: new(map[string]any{}),
 						},
 					}); err != nil {
@@ -383,7 +371,8 @@ func (h *Handler) streamAnthropicMessages(
 		return
 	}
 	pump := result.pump
-	stopReason := pump.finishReason(plan.maxTokens, "end_turn", "max_tokens")
+	// finished: the parsed turn, whose tool calls end it as calls.
+	var finished inference.ChatMessage
 	if thinkingEnabled {
 		message, parseErr := parser.ParseChatOutput(buffered.String(), nil)
 		if parseErr != nil || message.ReasoningContent == "" {
@@ -411,10 +400,8 @@ func (h *Handler) streamAnthropicMessages(
 			_ = emitNamedGenerationError(writeEvent, "error", parseErr)
 			return
 		}
-		blocks, blockErr := h.anthropicBlocks(
-			message,
-			"toolu_"+strings.TrimPrefix(messageID, "msg_"),
-		)
+		h.issueToolCalls(message.ToolCalls, anthropicCallIdentity(messageID))
+		blocks, blockErr := h.anthropicBlocks(message, "")
 		if blockErr != nil {
 			_ = emitNamedGenerationError(writeEvent, "error", blockErr)
 			return
@@ -468,9 +455,7 @@ func (h *Handler) streamAnthropicMessages(
 				return
 			}
 		}
-		if len(message.ToolCalls) != 0 {
-			stopReason = "tool_use"
-		}
+		finished = message
 	} else if textStarted && !textStopped {
 		if err := writeEvent("content_block_stop", anthropicStreamEvent{
 			Type: "content_block_stop", Index: new(firstEventIndex),
@@ -478,14 +463,15 @@ func (h *Handler) streamAnthropicMessages(
 			return
 		}
 	}
+	stopReason, sequence := anthropicStop(result.end(plan.maxTokens, finished), pump)
 	var stopSequence any
-	if pump.stopped() && stopReason != "tool_use" {
-		stopSequence = pump.stoppingWord()
+	if sequence != nil {
+		stopSequence = *sequence
 	}
 	if err := writeEvent("message_delta", anthropicStreamEvent{
 		Type:  "message_delta",
 		Delta: anthropicMessageDelta{StopReason: stopReason, StopSequence: stopSequence},
-		Usage: anthropicOutputUsage{OutputTokens: pump.generated},
+		Usage: anthropicOutputUsage{OutputTokens: result.completionTokens()},
 	}); err != nil {
 		return
 	}
@@ -493,46 +479,56 @@ func (h *Handler) streamAnthropicMessages(
 }
 
 func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *http.Request) {
-	formatter, ok := h.requireProtocolTokenCounting(response, request)
-	if !ok {
-		return
-	}
-	var body anthropicTokenCountRequest
-	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
-		return
-	}
-	thinkingEnabled, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)
+	h.countTurn(response, request, false, func() (chatCompletionRequest, []inference.ChatTool, bool) {
+		var body anthropicTokenCountRequest
+		if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
+			return chatCompletionRequest{}, nil, false
+		}
+		turn, ok := h.anthropicChatTurn(response, request, body)
+		return turn.chat, turn.tools.prompt, ok
+	})
+}
+
+// anthropicThinkingWithTools refuses a turn that asks for signed thinking and tools together.
+const anthropicThinkingWithTools = "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable"
+
+// anthropicTurn is the chat turn an Anthropic body asks for: its thinking,
+// its tools and its messages as a chat request.
+type anthropicTurn struct {
+	chat     chatCompletionRequest
+	tools    chatToolSelection
+	thinking bool
+}
+
+// anthropicChatTurn builds the turn a messages body and its token count
+// share, so a count measures the prompt its turn generates from; a refusal
+// is written and answers false.
+func (h *Handler) anthropicChatTurn(response http.ResponseWriter, request *http.Request, body anthropicTokenCountRequest) (anthropicTurn, bool) {
+	thinking, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return anthropicTurn{}, false
 	}
-	toolSelection, err := selectAnthropicTools(body.Tools, body.ToolChoice)
+	tools, err := selectAnthropicTools(body.Tools, body.ToolChoice)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return anthropicTurn{}, false
 	}
-	if thinkingEnabled && len(toolSelection.active) != 0 {
-		writeInvalidRequestMessage(response, "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable")
-		return
+	if thinking && len(tools.active) != 0 {
+		writeInvalidRequestMessage(response, anthropicThinkingWithTools)
+		return anthropicTurn{}, false
 	}
 	messages, err := h.parseAnthropicMessages(request.Context(), body.System, body.Messages)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return anthropicTurn{}, false
 	}
-	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
-	if len(toolSelection.prompt) != 0 || thinkingEnabled {
-		normalizedBody.Tools = toolSelection.active
-		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": thinkingEnabled}
+	chat := chatCompletionRequest{Messages: messages}
+	if len(tools.prompt) != 0 || thinking {
+		chat.Tools = tools.active
+		chat.TemplateKwargs = map[string]any{templateThinkingKwarg: thinking}
 	}
-	normalized, err := h.normalizeChatPrompt(
-		request.Context(), formatter, normalizedBody, toolSelection.prompt, false,
-	)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	h.writeProtocolInputTokenCount(response, request, normalized, false)
+	return anthropicTurn{chat: chat, tools: tools, thinking: thinking}, true
 }
 
 func (h *Handler) parseAnthropicMessages(
@@ -615,4 +611,10 @@ func parseAnthropicContent(raw json.RawMessage, label string) (string, error) {
 		result.WriteString(block.Text)
 	}
 	return result.String(), nil
+}
+
+// anthropicCallIdentity names a message's unnamed tool uses by the message and the call's position.
+func anthropicCallIdentity(messageID string) func(int) string {
+	prefix := "toolu_" + strings.TrimPrefix(messageID, "msg_")
+	return func(index int) string { return fmt.Sprintf("%s_%d", prefix, index) }
 }

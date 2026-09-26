@@ -410,6 +410,6 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 		}
 	}
 	if !t.Failed() {
-		t.Log("background work leg: real stored replies and operations; early Stop and cancel retry; Library failure/retry with retained draft; concurrent store publication; durable outputs and decisions; stale receipt and runtime recovery; typed reservation/memory/load refusal and unknown errors; exact artifact confirmation and explicit retry; Chromium desktop and phone layouts. No native image inference or physical-device claim.")
+		webuilane.Leg(t, "background work leg", "real stored replies and operations; early Stop and cancel retry; Library failure/retry with retained draft; concurrent store publication; durable outputs and decisions; stale receipt and runtime recovery; typed reservation/memory/load refusal and unknown errors; exact artifact confirmation and explicit retry; Chromium desktop and phone layouts. No native image inference or physical-device claim.")
 	}
 }

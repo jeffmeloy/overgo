@@ -215,5 +215,5 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	}
 	settle(`document.querySelector('.composer textarea')?.value==='Saved without a chat model'`)
 	check(`!document.querySelector('.composer').textContent.includes('Draft cannot be restored') && !document.querySelector('.composer').textContent.includes('server has not declared')`)
-	t.Log("speech controls leg: keyboard voice/options/Close, required options and task-local validation, native selected recipe/voice request and failure recovery, retirement/reselection, catalog cancellation/stale refusal/retry/disposal; synthesis deliberately refused by fixture")
+	webuilane.Leg(t, "speech controls leg", "keyboard voice/options/Close, required options and task-local validation, native selected recipe/voice request and failure recovery, retirement/reselection, catalog cancellation/stale refusal/retry/disposal; synthesis deliberately refused by fixture")
 }

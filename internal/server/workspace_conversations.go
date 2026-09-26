@@ -577,7 +577,8 @@ func (h *Handler) conversationLeaf(ctx context.Context, interaction runrecord.In
 		if err != nil {
 			return false, err
 		}
-		if child.Parent != interaction.ID {
+		// A continuation succeeds the stopped turn it resumed, as a reply does its parent.
+		if child.Parent != interaction.ID && child.Continues != interaction.ID {
 			continue
 		}
 		active, found, err := runrecord.ResolveInteraction(ctx, h.repository, child.Response)

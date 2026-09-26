@@ -68,7 +68,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		t.Fatal("first-run journey requires an isolated store before publishing browser fixtures")
 	}
 	modelName, modelLocation := journey.model, journey.location
-	t.Logf("first-run journey: model %s at %s", modelName, modelLocation)
+	webuilane.Leg(t, "first-run journey", "model %s at %s", modelName, modelLocation)
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
 		t.Fatal(err)
@@ -175,7 +175,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("states leg: %s captured at %d viewports", name, len(webuilane.ScreenViewports))
+		webuilane.Leg(t, "states leg", "%s captured at %d viewports", name, len(webuilane.ScreenViewports))
 	}
 	// openPicker: picker open over the catalog rows. A picker left open after
 	// a swap shows the swap's note, not rows: a click closes it, a second
@@ -260,7 +260,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	if err := browser.Evaluate(ctx, declaredTag, &declaredOnPage); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("cold-page declaration leg: declared on the page %v", declaredOnPage)
+	webuilane.Leg(t, "cold-page declaration leg", "declared on the page %v", declaredOnPage)
 	// The hash no longer names the Library, so the served model's remount lands on the front page.
 	assertBrowserPredicate(t, ctx, browser, `(() => { history.replaceState(null, "", location.pathname); document.querySelector("#model-pill").click(); return true; })()`)
 	settle("picker lists the store's models on the cold page", `document.querySelectorAll(".topbar .card .row .mono").length > 0`)
@@ -276,7 +276,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
       document.querySelector("#model-pill").textContent === `+strconv.Quote(modelName)+` &&
       !window.overgo.modelSwitching() && !document.querySelector('dialog[aria-label="Choose a model"][open]') && !document.querySelector('.send-button').disabled &&
       document.querySelector("#proxy-dot").classList.contains("ok") && window.overgo.errors.length === 0`)
-	t.Logf("cold-start leg: the picker served %s from the cold page and the front page followed", modelName)
+	webuilane.Leg(t, "cold-start leg", "the picker served %s from the cold page and the front page followed", modelName)
 
 	// 2. The first message streams a reply and fills the context meter.
 	say(t, ctx, browser, "Reply with the single word hello.")
@@ -294,7 +294,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	settle("the rename editor holds focus", `document.hasFocus() && document.activeElement === document.querySelector('#history-rows form input')`)
 	pressKey(t, ctx, browser, "Enter", 13)
 	settle("the rail shows the new title", `[...document.querySelectorAll('#conversation-list .conversation-title')].some(node=>node.textContent==='renamed by the lane')`)
-	t.Log("rename leg: the conversation renamed in place from the rail")
+	webuilane.Leg(t, "rename leg", "the conversation renamed in place from the rail")
 	captureStates("thread-reply")
 
 	// 3. The inspector opens over the first turn with its run record.
@@ -318,7 +318,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 			if err := browser.Evaluate(ctx, `!!(window.overgo.capabilities().modalities || {}).image`, &vision); err != nil {
 				t.Fatal(err)
 			}
-			t.Logf("image-in leg: switched to %s, image input declared %v", multimodal, vision)
+			webuilane.Leg(t, "image-in leg", "switched to %s, image input declared %v", multimodal, vision)
 		}
 		attachTinyPNG()
 		if vision {
@@ -332,7 +332,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 			say(t, ctx, browser, "Describe the attached image in one sentence.")
 			settle("grounded reply", `document.querySelectorAll("#panel-chat .msg.assistant").length === `+strconv.Itoa(before+1)+` &&
       [...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1).textContent.trim().length > 0 && !document.querySelector(".composer .btn").disabled`)
-			t.Log("image-in leg: the multimodal model answered the attached image")
+			webuilane.Leg(t, "image-in leg", "the multimodal model answered the attached image")
 		} else {
 			settle("image refused with the declared reason", `(() => {
         const card = document.querySelector('.composer .attachment-row[data-state=refused]');
@@ -340,7 +340,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
         return !!card && reason !== "" && card.textContent.includes(reason);
       })()`)
 			assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector('.composer .attachment-row[data-state=refused] button[aria-label^="Remove "]').click(); return !document.querySelector('.composer .attachment-row[data-state=refused]'); })()`)
-			t.Log("vision leg: the served model accepts no images, so the refusal contract was proven instead")
+			webuilane.Leg(t, "vision leg", "the served model accepts no images, so the refusal contract was proven instead")
 		}
 	}
 
@@ -405,7 +405,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		openPicker()
 		pressKey(t, ctx, browser, "Escape", 27)
 		settle("Escape closes the picker", `!document.querySelector(".topbar .card")`)
-		t.Log("picker leg: the picker closed after the served swap and on Escape")
+		webuilane.Leg(t, "picker leg", "the picker closed after the served swap and on Escape")
 	} else {
 		t.Log("switch leg not taken: the store holds one servable model")
 	}
@@ -483,11 +483,11 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		if err := browser.Evaluate(ctx, `(() => { document.querySelector("#panel-chat .enhancement .card .btn").click(); return document.querySelector(".composer textarea").value; })()`, &rewrite); err != nil || rewrite == "" || rewrite == "a test image" {
 			t.Fatalf("accepted rewrite = %q, %v", rewrite, err)
 		}
-		t.Logf("enhance leg: the served model rewrote the prompt to %q", rewrite)
+		webuilane.Leg(t, "enhance leg", "the served model rewrote the prompt to %q", rewrite)
 		pressKey(t, ctx, browser, "Enter", 13)
 		settle("image out as an artifact card", mediaCards+` === 1 && !!document.querySelector("#panel-chat .msg.media img") &&
       !!document.querySelector("#panel-chat .msg.media .note a") && !document.querySelector(".composer .btn").disabled`)
-		t.Log("media-out leg: an image landed as an artifact card")
+		webuilane.Leg(t, "media-out leg", "an image landed as an artifact card")
 		captureStates("thread-media")
 		assertBrowserPredicate(t, ctx, browser, `(() => { const again = [...document.querySelectorAll("#panel-chat .msg.media button")].find((button) => button.textContent === "use as input"); if (!again) return false; again.click(); return true; })()`)
 		settle("image back in as an attachment", `document.querySelectorAll('.composer .attachment-row[data-state=ready], .composer .attachment-row[data-state=refused]').length === 1`)
@@ -495,7 +495,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		if err := browser.Evaluate(ctx, `!!document.querySelector('.composer .attachment-row[data-state=refused]')`, &refused); err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("media-in leg: the generated image re-entered the composer, refused=%v", refused)
+		webuilane.Leg(t, "media-in leg", "the generated image re-entered the composer, refused=%v", refused)
 		captureStates("composer-attachment")
 		assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector('.composer .attachment-row button[aria-label^="Remove "]').click(); return !document.querySelector('.composer .attachment-row') && !document.querySelector('.send-button').disabled; })()`)
 		// 10b. Gallery after a reload: the image the store holds reappears
@@ -517,7 +517,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		settle("gallery thumb opens the image with its record", mediaCards+` === 1 && !!document.querySelector("#panel-chat .msg.media img") &&
       [...document.querySelectorAll("#panel-chat .msg.media .record td")].some((cell) => cell.textContent === "seed") &&
       !!document.querySelector("#panel-chat .msg.media .record a[download]") && [...document.querySelectorAll("#panel-chat .msg.media button")].some((button) => button.textContent === "use as input")`)
-		t.Log("gallery leg: the generated image reappeared in the gallery after a reload and opened its record")
+		webuilane.Leg(t, "gallery leg", "the generated image reappeared in the gallery after a reload and opened its record")
 		captureStates("thread-record")
 		// 10c. Vary and regenerate from the record: the card's "vary" resubmits
 		// the stored request with a fresh seed and the new card names its
@@ -533,7 +533,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		assertBrowserPredicate(t, ctx, browser, `(() => { const again = [...document.querySelector("#panel-chat .msg.media").querySelectorAll("button")].find((button) => button.textContent === "regenerate"); if (!again) return false; again.click(); return true; })()`)
 		settle("regenerate says the store memoized the unchanged request", mediaCards+` === 3 && !document.querySelector(".composer .btn").disabled &&
       [...document.querySelectorAll("#panel-chat .msg.media")].at(-1).querySelector(".note").textContent.includes("the store memoized")`)
-		t.Log("vary leg: vary made a new image from the record and regenerate memoized to the same output")
+		webuilane.Leg(t, "vary leg", "vary made a new image from the record and regenerate memoized to the same output")
 		// 10d. Lineage and next steps: the image card's lineage names the run
 		// that made it with its request, and offers as a next step every
 		// active capability whose declared slot takes an image; the step opens
@@ -545,13 +545,13 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		if err := browser.Evaluate(ctx, `[...document.querySelectorAll("#panel-chat .msg.media .lineage [aria-label='Next steps'] .chip")].map((chip) => chip.textContent)`, &steps); err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("lineage leg: the image's next steps are %q", steps)
+		webuilane.Leg(t, "lineage leg", "the image's next steps are %q", steps)
 		if len(steps) > 0 {
 			assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector("#panel-chat .msg.media .lineage [aria-label='Next steps'] .chip").click(); return true; })()`)
 			settle("the next step opened its mode with the image in the slot", `(() => {
       const slot = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.querySelector("input") && label.querySelector("input").value === `+strconv.Quote(generated)+`);
       return !!slot && document.querySelector('.composer select[aria-label="mode"]').value !== "image-gen"; })()`)
-			t.Log("lineage leg: the next step opened its mode with the image in its declared slot")
+			webuilane.Leg(t, "lineage leg", "the next step opened its mode with the image in its declared slot")
 		}
 	} else {
 		t.Log("media-out leg not taken: the store declares no host oscillator image model")
@@ -559,7 +559,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	if generationMode("speech", "") {
 		say(t, ctx, browser, "hello from the lane")
 		settle("speech out as an artifact card", `!!document.querySelector("#panel-chat .msg.media audio") && !document.querySelector(".composer .btn").disabled`)
-		t.Log("speech-out leg: a clip landed as an artifact card")
+		webuilane.Leg(t, "speech-out leg", "a clip landed as an artifact card")
 	} else {
 		t.Log("speech-out leg not taken: the store declares no speech model")
 	}
@@ -571,7 +571,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		say(t, ctx, browser, "a test clip")
 		settle("clip out as an artifact card", `!document.querySelector(".composer .btn").disabled &&
       !!document.querySelector("#panel-chat .msg.media video") && !!document.querySelector("#panel-chat .msg.media .note a")`)
-		t.Log("clip-out leg: a clip landed as an artifact card")
+		webuilane.Leg(t, "clip-out leg", "a clip landed as an artifact card")
 		// Presets from declared bounds: the Wan prompt form prefills the profile's
 		// geometry, and an aspect chip moves width and height by the stride
 		// while keeping the pixel area; the leg never runs the generation.
@@ -586,7 +586,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
       [...document.querySelectorAll(".mode-controls .preset-chips .chip")].find((chip) => chip.textContent === "9:16").click();
       const width = Number(field("width").value), height = Number(field("height").value);
       return width % step === 0 && height % step === 0 && height > width && Math.abs(width * height - before) < before / 10; })()`)
-			t.Log("presets leg: the Wan form's aspect chip moved the declared geometry by its stride")
+			webuilane.Leg(t, "presets leg", "the Wan form's aspect chip moved the declared geometry by its stride")
 			captureStates("mode-video")
 		}
 		if generationMode("video-gen", "model.reference-video-prepare") {
@@ -598,7 +598,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
       const field = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.textContent.trim().startsWith("source clip"));
       const input = field && field.querySelector("input");
       return !!input && input.value.includes(":sha256:") && document.querySelectorAll(".composer .attachment-row").length === 0; })()`)
-			t.Log("clip-in leg: the clip's stored id filled LiveEdit's source clip")
+			webuilane.Leg(t, "clip-in leg", "the clip's stored id filled LiveEdit's source clip")
 		} else {
 			t.Log("clip-in leg not taken: the store declares no LiveEdit model")
 		}
@@ -630,7 +630,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		if err := browser.Evaluate(ctx, `([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent`, &answer); err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("vqa leg: the VQA model answered %q", answer)
+		webuilane.Leg(t, "vqa leg", "the VQA model answered %q", answer)
 		// 12b. Fresh attachment in vqa mode (the served chat model refuses
 		// images): stored through the intake route, the card names the
 		// artifact, the image control takes its id, the answer is about it.
@@ -652,7 +652,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
       if (!thumb) return false;
       input.value = ""; thumb.click();
       return input.value === thumb.dataset.id; })()`)
-		t.Log("slot leg: the declared image slot listed the stored attachment and filled from it")
+		webuilane.Leg(t, "slot leg", "the declared image slot listed the stored attachment and filled from it")
 		var before int
 		if err := browser.Evaluate(ctx, `document.querySelectorAll("#panel-chat .msg.assistant").length`, &before); err != nil {
 			t.Fatal(err)
@@ -664,7 +664,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		if err := browser.Evaluate(ctx, `([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent`, &answer); err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("vqa upload leg: the VQA model answered %q about the stored attachment", answer)
+		webuilane.Leg(t, "vqa upload leg", "the VQA model answered %q about the stored attachment", answer)
 	} else {
 		t.Log("vqa leg not taken: the store declares no VQA model")
 	}
@@ -692,7 +692,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		settle("the transcript lands as the assistant's text", `document.querySelectorAll("#panel-chat .msg.assistant").length === `+strconv.Itoa(before+1)+` &&
       !document.querySelector(".composer .btn").disabled && document.querySelectorAll("#panel-chat .msg.error").length === 0 &&
       (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").trim().length > 0`)
-		t.Log("transcription leg: the transcript of the attached clip landed as the assistant's text")
+		webuilane.Leg(t, "transcription leg", "the transcript of the attached clip landed as the assistant's text")
 	} else {
 		t.Log("transcription leg not taken: the store declares no active transcription recipe")
 	}
@@ -711,7 +711,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
       [...document.querySelectorAll("#panel-chat .msg.assistant .role .tag")].some((tag) => tag.textContent === "remote") &&
       [...document.querySelectorAll(".statgrid .stat")].some((stat) => stat.textContent.includes("Input")) &&
       document.querySelectorAll("#panel-chat .msg.error").length === 0`)
-		t.Log("remote leg: the declared remote model answered through the relay with its marker")
+		webuilane.Leg(t, "remote leg", "the declared remote model answered through the relay with its marker")
 	}
 	// 14. Key entry: the keyless model lists refused with a key field; the
 	// entered key lifts the refusal (proxy and child hold it in memory),
@@ -730,7 +730,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		settle("the keyed model answers", `!document.querySelector(".composer .btn").disabled &&
       (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").includes("Hello after the key") &&
       document.querySelectorAll("#panel-chat .msg.error").length === 0`)
-		t.Log("key-entry leg: the keyless declaration served after the key was entered on the page")
+		webuilane.Leg(t, "key-entry leg", "the keyless declaration served after the key was entered on the page")
 	}
 	// 15. The provider declared on the cold page (leg 0b) is listed by the
 	// picker over the served child; it serves and answers. A declaration
@@ -738,14 +738,14 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	// modified tree saw the refusal and proves nothing here.
 	if entryName != "" {
 		if !declaredOnPage {
-			t.Log("declare-from-page leg: the declaration was refused on a modified tree; the serve is proven on a clean tree")
+			webuilane.Leg(t, "declare-from-page leg", "the declaration was refused on a modified tree; the serve is proven on a clean tree")
 		} else {
 			switchTo("page-model")
 			say(t, ctx, browser, "hello from the page")
 			settle("the page-declared model answers", `!document.querySelector(".composer .btn").disabled &&
       (([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent || "").includes("from the page's provider") &&
       document.querySelectorAll("#panel-chat .msg.error").length === 0`)
-			t.Log("declare-from-page leg: a provider declared on the Library tab served a turn through the relay")
+			webuilane.Leg(t, "declare-from-page leg", "a provider declared on the Library tab served a turn through the relay")
 		}
 		// 16. Retire from the page: the key-entry model's Library row retires
 		// it with the section's reason; the catalog relists without it. The
@@ -787,7 +787,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		if err := browser.Evaluate(ctx, `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(`+strconv.Quote(entryName)+`))`, &retiredOnPage); err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("retire-from-page leg: retired on the page %v", retiredOnPage)
+		webuilane.Leg(t, "retire-from-page leg", "retired on the page %v", retiredOnPage)
 		assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "#chat"; return true; })()`)
 		settle("back on the front page after the retirement", `!!document.querySelector("#panel-chat.active .composer textarea")`)
 	}

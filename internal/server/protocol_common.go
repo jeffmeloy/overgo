@@ -57,6 +57,12 @@ type protocolGenerationPlan struct {
 	// content, even when the original template has a thinking suffix.
 	constrainedContent bool
 	tokenEventDecoder  inference.TokenEventDecoder
+	// held: text a stopped turn decoded but its stop filter held back; a
+	// continuation primes its filter with it.
+	held string
+	// lora: the request's adapter scales, when it named them.
+	lora           []inference.LoRAScale
+	loraConfigured bool
 }
 
 type protocolGenerationResult struct {
@@ -64,81 +70,44 @@ type protocolGenerationResult struct {
 	pump *generationPump
 }
 
-type protocolBatchGenerationPlan struct {
-	handler   *Handler
-	request   *http.Request
-	session   *requestSession
-	prompts   []nativePrompt
-	sampler   *sampling.Sampler
-	maxTokens int
-	stops     []string
+// turnEnd is how a generated turn ended, classified once for every
+// protocol; each protocol only names it.
+type turnEnd int
+
+const (
+	// turnEnded: the model ended the turn itself.
+	turnEnded turnEnd = iota
+	// turnStopped: a requested stop sequence ended it.
+	turnStopped
+	// turnLimited: the output token limit ended it.
+	turnLimited
+	// turnCalledTools: it ended in tool calls.
+	turnCalledTools
+)
+
+// end classifies the turn: tool calls first, then a matched stop, then the
+// output limit, so token counts alone never override a matched stop.
+func (result protocolGenerationResult) end(maxTokens int, message inference.ChatMessage) turnEnd {
+	switch {
+	case len(message.ToolCalls) != 0:
+		return turnCalledTools
+	case result.pump.stopped():
+		return turnStopped
+	case result.pump.completion >= maxTokens:
+		return turnLimited
+	}
+	return turnEnded
 }
 
-func (h *Handler) prepareProtocolBatchGenerationPlan(
-	response http.ResponseWriter,
-	request *http.Request,
-	prompts []nativePrompt,
-	parameters samplingParameters,
-	maxTokens int,
-	stops []string,
-) (*protocolBatchGenerationPlan, bool) {
-	sampler, err := h.newSampler(parameters)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return nil, false
+// chatFinish names a turn's end as chat and text completions report it.
+func chatFinish(end turnEnd) string {
+	switch end {
+	case turnCalledTools:
+		return "tool_calls"
+	case turnLimited:
+		return "length"
 	}
-	lease, acquired := h.acquireRequestSession(request.Context(), response, -1)
-	if !acquired {
-		return nil, false
-	}
-	return &protocolBatchGenerationPlan{
-		handler: h, request: request, session: lease, prompts: prompts,
-		sampler: sampler, maxTokens: maxTokens, stops: stops,
-	}, true
-}
-
-func (plan *protocolBatchGenerationPlan) release() {
-	plan.handler.releaseSession(plan.session)
-}
-
-func (plan *protocolBatchGenerationPlan) run(
-	choices int,
-	emit func(int, string) error,
-	accept func(int, int, protocolGenerationResult) error,
-) error {
-	choiceIndex := 0
-	for _, prompt := range plan.prompts {
-		for promptChoice := range choices {
-			sampler, err := samplerForChoice(plan.sampler, choiceIndex)
-			if err != nil {
-				return err
-			}
-			var emitChoice func(string) error
-			if emit != nil {
-				index := choiceIndex
-				emitChoice = func(piece string) error { return emit(index, piece) }
-			}
-			ids, pump, err := plan.handler.generateWithPump(
-				plan.request.Context(), plan.session, prompt.Text,
-				inference.GenerateOptions{
-					MaxNewTokens: plan.maxTokens, Sampler: sampler,
-					PromptTokenIDs: prompt.TokenIDs,
-					ContextShift:   plan.handler.config.ContextShift,
-				},
-				plan.stops, emitChoice,
-			)
-			if err != nil {
-				return err
-			}
-			if err := accept(
-				promptChoice, choiceIndex, protocolGenerationResult{ids: ids, pump: pump},
-			); err != nil {
-				return err
-			}
-			choiceIndex++
-		}
-	}
-	return nil
+	return "stop"
 }
 
 // promptTokens: the prompt's count; the provider's when the generator
@@ -186,36 +155,81 @@ func (h *Handler) prepareProtocolGenerationPlan(
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
+	lora, loraConfigured, err := h.parseRequestLoRA(parameters.LoRA)
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return nil, false
+	}
 	lease, acquired := h.acquireRequestSession(request.Context(), response, -1)
 	if !acquired {
 		return nil, false
 	}
-	prepared, err := h.preparePrompt(request.Context(), prompt, true)
-	if err != nil {
-		h.releaseSession(lease)
-		writeGenerationError(response, err)
+	plan := &protocolGenerationPlan{
+		handler: h, request: request, session: lease,
+		sampler: sampler, maxTokens: maxTokens, stops: stops,
+		lora: lora, loraConfigured: loraConfigured,
+	}
+	if err := plan.admit(prompt); err != nil {
+		plan.release()
+		writePromptRefusal(response, err)
 		return nil, false
 	}
-	if properties, ok := h.generator.(ModelPropertiesAPI); ok {
-		limit := properties.ModelProperties().ContextLength
-		// Prepared IDs include projected media and any reusable prefix. Decode
-		// shifting cannot make an oversized initial prompt fit. An unknown
-		// context or an untokenized provider prompt stays with its generator.
-		if limit > 0 && uint64(len(prepared.TokenIDs)) > uint64(limit) {
-			h.releaseSession(lease)
-			failure := errorEnvelope("invalid_request_error", fmt.Sprintf(
-				"prompt has %d tokens, exceeding the model context length of %d tokens",
-				len(prepared.TokenIDs), limit,
-			))
-			failure.Error.Code = "context_length_exceeded"
-			writeJSON(response, http.StatusBadRequest, failure)
-			return nil, false
+	return plan, true
+}
+
+// turn: one more prompt on the plan's session and sampling. A multi-prompt
+// completion admits every prompt before any generates.
+func (plan *protocolGenerationPlan) turn(prompt nativePrompt) (*protocolGenerationPlan, error) {
+	next := &protocolGenerationPlan{
+		handler: plan.handler, request: plan.request, session: plan.session,
+		sampler: plan.sampler, maxTokens: plan.maxTokens, stops: plan.stops,
+		lora: plan.lora, loraConfigured: plan.loraConfigured,
+	}
+	return next, next.admit(prompt)
+}
+
+// admit prepares the prompt and holds it to the model context. Prepared IDs
+// include projected media and any reusable prefix; decode shifting cannot
+// make an oversized initial prompt fit. An unknown context or an
+// untokenized provider prompt stays with its generator.
+func (plan *protocolGenerationPlan) admit(prompt nativePrompt) error {
+	prepared, err := plan.handler.preparePrompt(plan.request.Context(), prompt, true)
+	if err != nil {
+		return err
+	}
+	if properties, ok := plan.handler.generator.(ModelPropertiesAPI); ok {
+		limit := uint64(properties.ModelProperties().ContextLength)
+		if limit > 0 && uint64(len(prepared.TokenIDs)) > limit {
+			return contextLengthError{tokens: len(prepared.TokenIDs), limit: limit}
 		}
 	}
-	return &protocolGenerationPlan{
-		handler: h, request: request, session: lease, prompt: prepared,
-		sampler: sampler, maxTokens: maxTokens, stops: stops,
-	}, true
+	plan.prompt = prepared
+	return nil
+}
+
+type contextLengthError struct {
+	tokens int
+	limit  uint64
+}
+
+// Error names the prompt's size against the model context.
+func (failure contextLengthError) Error() string {
+	return fmt.Sprintf(
+		"prompt has %d tokens, exceeding the model context length of %d tokens",
+		failure.tokens, failure.limit,
+	)
+}
+
+// writePromptRefusal: an oversized prompt is the client's error; any other
+// preparation failure is the generation's.
+func writePromptRefusal(response http.ResponseWriter, err error) {
+	if _, exceeded := errors.AsType[contextLengthError](err); exceeded {
+		failure := errorEnvelope("invalid_request_error", err.Error())
+		failure.Error.Code = "context_length_exceeded"
+		writeJSON(response, http.StatusBadRequest, failure)
+		return
+	}
+	writeGenerationError(response, err)
 }
 
 func (plan *protocolGenerationPlan) release() {
@@ -251,6 +265,7 @@ func (plan *protocolGenerationPlan) runWithSampler(
 		plan.maxTokens, sampler, plan.prompt.TokenIDs, plan.prompt.ProjectedInputs,
 	)
 	options.TokenEventDecoder = plan.tokenEventDecoder
+	options.LoRA, options.LoRAConfigured = plan.lora, plan.loraConfigured
 	// The selected session may use a scheduler instead of the inspected model.
 	// Never infer scheduler support from the underlying Runner.
 	if provider, ok := plan.session.Model().(promptCacheProvider); ok {
@@ -259,15 +274,31 @@ func (plan *protocolGenerationPlan) runWithSampler(
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
 		plan.evaluation = evaluation
 	}
-	ids, pump, err := plan.handler.generateWithPump(
-		plan.context(),
-		plan.session,
-		plan.prompt.Text,
-		options,
-		plan.stops,
-		emit,
-	)
+	pump := newGenerationPump(plan.stops, emit)
+	pump.filter.prime(plan.held)
+	ids, err := plan.handler.pumpGeneration(plan.context(), plan.session, plan.prompt.Text, options, pump)
 	return protocolGenerationResult{ids: ids, pump: pump}, err
+}
+
+// countTurn is every protocol's input-token count: the protocol's turn
+// builder, the one its generation route calls, gives the chat request and
+// prompt tools, and the count measures the prompt they format (pending tool
+// calls are not executed). A refusal the builder wrote answers false.
+func (h *Handler) countTurn(response http.ResponseWriter, request *http.Request, object bool, turn func() (chatCompletionRequest, []inference.ChatTool, bool)) {
+	formatter, ok := h.requireProtocolTokenCounting(response, request)
+	if !ok {
+		return
+	}
+	chat, tools, ok := turn()
+	if !ok {
+		return
+	}
+	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, chat, tools, false)
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return
+	}
+	h.writeProtocolInputTokenCount(response, request, normalized, object)
 }
 
 func (h *Handler) writeProtocolInputTokenCount(

@@ -16,19 +16,9 @@ import (
 // reason and no serve control.
 func TestFrontPageModelSwitch(t *testing.T) {
 	t.Parallel()
-	sources := webuiJavaScript(t)
-	boot := sources["boot.js"]
-	for _, needle := range []string{
-		`"/catalog/models"`, `"/health?swap="`, "prompt_tokens_per_second", "decode_tokens_per_second",
-		"item.capabilities", "item.stale", "MODEL_STORAGE", "elapsed", "remountActive(", "invalidateModel()",
-		"overgo_gui.bat", "capabilityDocument = ",
-	} {
-		if !strings.Contains(boot, needle) {
-			t.Errorf("boot.js selector lacks %s", needle)
-		}
-	}
-	// A stale entry is never offered a serve control: the button is created
-	// only for servable entries.
+	// The model picker leg drives the picker; the source keeps the stale
+	// check ahead of the serve control, so a stale entry is never offered one.
+	boot := webuiJavaScript(t)["boot.js"]
 	if strings.Index(boot, "item.stale") > strings.Index(boot, `text: "Serve"`) {
 		t.Error("boot.js decides the serve control before reading the entry's staleness")
 	}

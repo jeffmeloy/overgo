@@ -150,6 +150,7 @@ var directCommitAllowances = []authorityAllowance{
 	{File: "internal/artifact/repositorytest/counting.go", Count: oneAuthoritySite},
 	{File: "internal/artifact/schema.go", Count: oneAuthoritySite},
 	{File: "internal/codemanifest/repository.go", Count: twoAuthoritySites},
+	{File: "internal/composition/compositiontest/authority.go", Count: twoAuthoritySites},
 	{File: "internal/composition/record.go", Count: fourAuthoritySites},
 	{File: "internal/overgodb/retention.go", Count: oneAuthoritySite},
 	{File: "internal/runrecord/claim_commit.go", Count: oneAuthoritySite},

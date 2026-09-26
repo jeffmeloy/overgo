@@ -251,5 +251,5 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 		t.Errorf("a page shown again did not probe health: hidden %v, shown %v", hidden, resumed)
 	}
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)
-	t.Logf("one event stream leg: the automations, peers, inbox and library tabs remounted %d times, each remount settled before its tabs were visited, over the runtime stream alone (no tab stream, no download poll), every replaced stream aborted, a cleanly ended stream reconnected, each operation read its evidence once, a peers change read the open peers tab again once and another inventory's change left it alone, a hidden page stopped probing, and a page shown again resumes probing", remounts)
+	webuilane.Leg(t, "one event stream leg", "the automations, peers, inbox and library tabs remounted %d times, each remount settled before its tabs were visited, over the runtime stream alone (no tab stream, no download poll), every replaced stream aborted, a cleanly ended stream reconnected, each operation read its evidence once, a peers change read the open peers tab again once and another inventory's change left it alone, a hidden page stopped probing, and a page shown again resumes probing", remounts)
 }

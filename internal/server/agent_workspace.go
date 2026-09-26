@@ -25,6 +25,8 @@ import (
 type agentSessions struct {
 	mu       sync.Mutex
 	sessions map[string]*agentloop.Session
+	// turns serializes a session's chat turn numbering with its publication.
+	turns sync.Mutex
 }
 
 // get returns the live session, restoring it from the durable
@@ -94,7 +96,7 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 	if len(arguments) == 0 {
 		arguments = json.RawMessage(`{}`)
 	}
-	sessionID := body.Session
+	sessionID := agentSessionID(body.Agent, body.Session)
 	var active runrecord.ActiveAgent
 	var err error
 	if body.Agent != "" {
@@ -104,7 +106,6 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 			writeError(response, http.StatusUnprocessableEntity, "agent_step_refused", "active agent model recipe differs from served runtime")
 			return
 		}
-		sessionID = body.Agent + ":" + body.Session
 	}
 	session, err := h.agentSessions.get(request.Context(), h.agentCoordinator, sessionID)
 	if err != nil {
@@ -127,13 +128,15 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 			return
 		}
 	}
+	// A running tool's output reaches the page as it arrives; the result below stays the authority.
+	ctx := agenttool.WithOutputObserver(request.Context(), h.agentOutput(sessionID))
 	var result json.RawMessage
 	if body.Agent == "" {
-		result, err = h.agentCoordinator.Propose(request.Context(), session, body.Tool, arguments)
+		result, err = h.agentCoordinator.Propose(ctx, session, body.Tool, arguments)
 	} else {
 		session.Ceiling = active.Definition.ID
 		result, err = h.agentCoordinator.ProposeWithManuals(
-			request.Context(), session, body.Tool, arguments, active.Definition.ToolManuals,
+			ctx, session, body.Tool, arguments, active.Definition.ToolManuals,
 		)
 	}
 	if err != nil {
@@ -182,10 +185,7 @@ func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *ht
 	if len(arguments) == 0 {
 		arguments = json.RawMessage(`{}`)
 	}
-	sessionID := body.Session
-	if body.Agent != "" {
-		sessionID = body.Agent + ":" + body.Session
-	}
+	sessionID := agentSessionID(body.Agent, body.Session)
 	session, err := h.agentSessions.get(request.Context(), h.agentCoordinator, sessionID)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
@@ -199,16 +199,24 @@ func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *ht
 	payload := map[string]any{
 		"call_id": preview.CallID, "operation": idText(preview.Operation),
 		"manual": idText(preview.Manual), "tool": preview.Tool,
-		"effect": string(preview.Effect), "arguments": preview.Arguments,
+		"effect": string(preview.Effect), "arguments": wireArguments(preview.Arguments),
 		"binds": preview.Binds,
 	}
 	if preview.Decision != nil {
 		payload["decision"] = map[string]any{
 			"id": idText(preview.Decision.ID), "answer": string(preview.Decision.Answer),
-			"tool": preview.Decision.Tool, "arguments": preview.Decision.Arguments,
+			"tool": preview.Decision.Tool, "arguments": wireArguments(preview.Decision.Arguments),
 		}
 	}
 	writeJSON(response, http.StatusOK, payload)
+}
+
+// wireArguments: arguments are lists on the wire; a call without them is [], never null.
+func wireArguments(arguments []string) []string {
+	if arguments == nil {
+		return []string{}
+	}
+	return arguments
 }
 
 // agentSessionList projects every durable agent session from the

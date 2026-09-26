@@ -172,18 +172,26 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 	// snapshots sends every state a stream shows, at connect and when it fell
 	// a queue behind; serving events at or before its cursor are already in it.
 	var cursor uint64
+	// activity sends the activity snapshot; serving events at or before its
+	// cursor are in it.
+	activity := func() error {
+		snapshot, err := h.runtimeActivitySnapshot(request.Context())
+		if err != nil {
+			return err
+		}
+		if err := stream.named("runtime.activity", snapshot); err != nil {
+			return err
+		}
+		cursor = snapshot.Cursor
+		return nil
+	}
 	snapshots := func() error {
 		if err := stream.named("runtime.sessions", h.runtimeSessionsSnapshot()); err != nil {
 			return err
 		}
-		activity, err := h.runtimeActivitySnapshot(request.Context())
-		if err != nil {
+		if err := activity(); err != nil {
 			return err
 		}
-		if err := stream.named("runtime.activity", activity); err != nil {
-			return err
-		}
-		cursor = activity.Cursor
 		if err := stream.named("operation.snapshot", h.operations.List()); err != nil {
 			return err
 		}
@@ -203,6 +211,8 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 			switch event.name {
 			case hubResync:
 				err = snapshots()
+			case hubRecordsChanged:
+				err = activity()
 			case "runtime.serving":
 				serving := event.value.(runtimeServingEvent)
 				if serving.Cursor <= cursor {

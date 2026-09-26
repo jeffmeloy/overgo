@@ -1,69 +1,18 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
 )
 
-func TestPeerWorkspaceVertical(t *testing.T) {
-	t.Parallel()
-	fixture := newPeerWorkspaceFixture(t, "peer-gui-vertical", "")
-	publishPeerControlFixture(t, fixture, "gui-peer")
-	manifestResponse := serveTestRequest(fixture.handler, http.MethodGet, "/workspace/manifest", "")
-	var manifest workspaceManifestResponse
-	if err := json.Unmarshal(manifestResponse.Body.Bytes(), &manifest); err != nil {
-		t.Fatal(err)
-	}
-	peerEnabled := false
-	for _, tab := range manifest.Tabs {
-		if tab.ID == "peers" {
-			peerEnabled = tab.Enabled
-		}
-	}
-	module := serveTestRequest(fixture.handler, http.MethodGet, "/mod/peers.js", "")
-	for _, capability := range []string{
-		"Inventory, peer labels, and capacity", "Peer detail", "peer labels", "Placement rules", "Staging, attempts, and logs",
-		"/peers/enroll", "/peers/state", "/peers/placement", "/peers/reconcile", "/peers/evidence",
-	} {
-		if !strings.Contains(module.Body.String(), capability) {
-			t.Errorf("peer workspace lacks %q", capability)
-		}
-	}
-	if manifestResponse.Code != http.StatusOK || module.Code != http.StatusOK || !peerEnabled {
-		t.Fatalf("peer workspace manifest=%d module=%d enabled=%t", manifestResponse.Code, module.Code, peerEnabled)
-	}
-}
-
-func TestPeerWorkspaceUsesCommonForm(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	module := serveTestRequest(handler, http.MethodGet, "/mod/peers.js", "").Body.String()
-	for _, token := range []string{
-		"overgo.schemaForm", "/workspace/schema?id=peer-enrollment", "/workspace/schema?id=peer-placement",
-		"enrollmentForm.validate()", "placementForm.validate()", "markSaved()",
-	} {
-		if !strings.Contains(module, token) {
-			t.Errorf("peer workspace common form missing %q", token)
-		}
-	}
-	for _, id := range []string{"peer-enrollment", "peer-placement"} {
-		response := serveTestRequest(handler, http.MethodGet, "/workspace/schema?id="+id, "")
-		if response.Code != http.StatusOK {
-			t.Fatalf("peer schema %s status=%d body=%s", id, response.Code, response.Body.String())
-		}
-	}
-}
-
+// TestPeerWorkspaceUsesGlobalOperations keeps the peers tab from owning
+// operation state: the peer workspace leg drives the tab, and its source
+// holds no poller or operation read of its own (the runtime stream carries
+// operations).
 func TestPeerWorkspaceUsesGlobalOperations(t *testing.T) {
 	t.Parallel()
 	module := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/peers.js", "").Body.String()
-	for _, token := range []string{"openGlobalOperation", `url.searchParams.set("operation"`, "PopStateEvent", "overgo.subscribe("} {
-		if !strings.Contains(module, token) {
-			t.Errorf("peer workspace global operation integration missing %q", token)
-		}
-	}
 	for _, forbidden := range []string{"setInterval", "overgo.poller", `api.get("/operations`} {
 		if strings.Contains(module, forbidden) {
 			t.Errorf("peer workspace duplicates operation authority with %q", forbidden)

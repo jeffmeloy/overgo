@@ -11,7 +11,9 @@
   let selected = "";
   let detailRequest = null;
   let shellHost = null;
-  let activityDialog, detailHost, listHost, streamHost, summaryButton;
+  let activityDialog, detailHost, listHost, streamHost, summaryButton, decisionHost;
+  // deciding: a status-line decision is in flight; decisionError: its refusal, shown beside the line.
+  let deciding = false, decisionError = "";
   let connectionError = null;
   let activityOpener = null;
   let actionError = null;
@@ -60,10 +62,40 @@
     }
     if (focused) [...listHost.children].find(button => button.dataset.operation === focused)?.focus();
     if (!listHost.children.length) listHost.appendChild(el('p', { class: 'note', text: 'No operations recorded in this session.' }));
+    renderDecisions(values.filter((item) => item.state === "blocked" && item.recovery && (item.recovery.actions || []).length));
     // The approvals count: every blocked operation waiting on a decision.
     const waiting = values.filter((item) => item.state === "blocked" && item.recovery).length;
     const badge = document.getElementById("inbox-count");
     if (badge) { badge.hidden = !waiting; badge.textContent = waiting + " waiting"; }
+  }
+
+  // renderDecisions: a waiting decision is decided where it surfaces: the first one on the status line,
+  // and every one with a single action at once when several wait. A refusal stays beside them.
+  function renderDecisions(waiting) {
+    const first = waiting[0];
+    const single = waiting.filter((item) => item.recovery.actions.length === 1);
+    const controls = [];
+    if (first) {
+      const action = first.recovery.actions[0];
+      controls.push(
+        el("span", { class: "note", text: first.task + " waits on " + (action.summary || action.code) }),
+        el("button", { class: "btn", text: "Grant " + action.code, disabled: deciding, onclick: () => decideInPlace([first], "grant") }),
+        el("button", { class: "btn alt", text: "Decline", "aria-label": "Decline " + action.code, disabled: deciding, onclick: () => decideInPlace([first], "decline") }));
+      if (single.length > 1) controls.push(el("button", { class: "btn alt", text: "Grant all " + single.length, disabled: deciding, onclick: () => decideInPlace(single, "grant") }));
+    }
+    if (decisionError) controls.push(el("span", { class: "note", role: "alert", text: decisionError }));
+    decisionHost.replaceChildren(...controls);
+  }
+
+  // decideInPlace records each decision in turn; the stream's transitions then redraw the line.
+  async function decideInPlace(items, answer) {
+    if (deciding) return;
+    deciding = true; decisionError = "";
+    renderStrip(shellHost);
+    try {
+      for (const item of items) await decide(item.id, item.recovery.actions[0].code, answer);
+    } catch (err) { decisionError = overgo.friendlyError(err); }
+    finally { deciding = false; renderStrip(shellHost); }
   }
 
   async function cancelOperation(host, id) {
@@ -263,8 +295,9 @@
       el('div', { class: 'dialog-heading' }, el('h2', { text: 'Activity' }), el('button', { class: 'btn alt', text: 'Close', 'aria-label': 'Close activity', onclick: closeActivity })), streamHost, listHost, detailHost);
     activityDialog.addEventListener('cancel', event => { event.preventDefault(); closeActivity(); });
     document.body.appendChild(activityDialog);
-    summaryButton = el('button', { class: 'link-button activity-summary', 'aria-haspopup': 'dialog', onclick: openActivity });
-    host.replaceChildren(el('div', { class: 'operation-strip', 'aria-live': 'polite' }, summaryButton));
+    summaryButton = el('button', { class: 'link-button activity-summary', text: 'Activity', 'aria-haspopup': 'dialog', onclick: openActivity });
+    decisionHost = el('span', { class: 'row operation-decisions', 'aria-label': 'Waiting decisions' });
+    host.replaceChildren(el('div', { class: 'operation-strip', 'aria-live': 'polite' }, summaryButton, decisionHost));
     selected = routeOperation();
     renderStrip(host);
     if (selected) { openActivity(); loadDetail(host, selected); }

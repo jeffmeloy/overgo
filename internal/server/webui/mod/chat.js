@@ -116,8 +116,26 @@
       const agentPicker = el("select", { class: "text w-auto", "aria-label": "agent" }, ...agents.map((item) => el("option", { value: item.name, text: "agent " + item.name })));
       const agentHost = el("div", { class: "agent-session" });
       agentHost.hidden = true;
-      const agentSession = "front-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+      // The agent session outlives a reload: its id is kept for this tab, and its thread reads back from the store.
+      const AGENT_SESSION_STORAGE = "overgo.agent.front-session";
+      let agentSession = "";
+      try { agentSession = sessionStorage.getItem(AGENT_SESSION_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
+      if (!agentSession) {
+        agentSession = "front-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+        try { sessionStorage.setItem(AGENT_SESSION_STORAGE, agentSession); } catch (_) { /* storage unavailable */ }
+      }
       const histories = new Map();
+      let agentRestored = false;
+      // restoreAgentSession replays the session's turns and steps into an empty thread, once per mount.
+      async function restoreAgentSession() {
+        if (agentRestored || !agents.length || thread.messages.length) return;
+        agentRestored = true;
+        let restored = null;
+        try { restored = await overgo.restoreAgentThread(thread, agentPicker.value, agentSession); } catch (_) { /* the session starts fresh */ }
+        if (!restored || overgo.signal.aborted) return;
+        if (restored.history.length) { welcome.remove(); histories.set(agentPicker.value, restored.history); }
+        if (restored.steps && toolSurface) toolSurface.guard.textContent = "steps " + restored.steps + " / " + restored.bound + " · " + (restored.bound - restored.steps) + " remaining";
+      }
 
       const system = el("textarea", { "aria-label": "System prompt", class: "text system-prompt", placeholder: "system prompt (optional)" });
       const facts = el("div", { class: "statgrid", role: "group", "aria-label": "Context meter" });
@@ -173,13 +191,49 @@
         return slots.find((field) => file && field.control.media && file.type.startsWith(field.control.media + "/")) || slots[0]; };
       const fieldUploads = new WeakMap();
       const thread = overgo.thread(panel, { reuse: (file, artifact, source) => { const field = artifactField(file); if (field && artifact) field.input.value = artifact; else composer.addFile(file, source); },
-        replay: replayRecord, lineage: showLineage, actions: messageActions, marker: capabilities.remote ? "remote" : "" });
+        replay: replayRecord, lineage: showLineage, actions: messageActions, marker: capabilities.remote ? "remote" : "",
+        stopped: (note) => { if (activeTurn) offerContinue(note, activeTurn.response, activeTurn.assistant); } });
       const branchNotice = el('div', { class: 'note', role: 'status', hidden: true });
       function actionsBlocked() { return overgo.signal.aborted || !!controller || !!activeTurn || actionPending || uncertainPrevious !== null || otherModel || overgo.modelSwitching(); }
       function messageActions(message) {
         if (!['user', 'assistant'].includes(message.role)) return [];
-        return [el('button', { class: 'link-button turn-action', title: 'Create a new branch using current settings', text: message.role === 'user' ? 'Edit and resend' : 'Regenerate',
+        const actions = [el('button', { class: 'link-button turn-action', title: 'Create a new branch using current settings', text: message.role === 'user' ? 'Edit and resend' : 'Regenerate',
           disabled: actionsBlocked(), onclick: () => prepareBranch(message) })];
+        if (message.role === 'assistant' && message.response && capabilities.adapters.length) actions.push(el('button', { class: 'link-button turn-action', title: 'Run this turn on the base model and each loaded adapter with one prompt, sampling and seed',
+          text: 'Compare adapter', disabled: actionsBlocked(), onclick: () => compareAdapters(message) }));
+        return actions;
+      }
+      // storedTurn: an assistant turn's stored prompt: its user input and the response it follows.
+      async function storedTurn(message) {
+        const chain = await overgo.api.get('/interactions/messages?response=' + encodeURIComponent(message.response));
+        if (mismatchedModel(chain)) throw new Error('Choose this conversation’s original model to resend it.');
+        if (chain.status === 'in_progress') throw new Error('This response is still running. Open it to resume or stop it.');
+        const turn = chain.messages.filter(item => item.response === message.response);
+        const users = turn.filter(item => item.role === 'user');
+        if (!users.length || turn.some(item => item.role === 'tool' || (item.tool_calls || []).length)) throw new Error('This turn includes tool execution. Start a new message to continue it.');
+        return { chain, users };
+      }
+      // compareAdapters: the turn's prompt under the current settings and one seed, run on the base model
+      // and on each loaded adapter, side by side under the turn; the runs are not stored.
+      async function compareAdapters(message) {
+        if (actionsBlocked()) return;
+        message.node.querySelectorAll('.adapter-compare').forEach(node => node.remove());
+        const columns = [{ title: 'Base model', lora: [] }, ...capabilities.adapters.map(adapter => ({ title: adapter.name, lora: [{ id: adapter.id, scale: adapter.scale || 1 }] }))];
+        const texts = columns.map(() => el('div', { class: 'compare-text', text: 'Waiting…' }));
+        const grid = el('div', { class: 'adapter-compare', role: 'group', 'aria-label': 'Adapter comparison' },
+          ...columns.map((column, index) => el('div', { class: 'compare-column' }, el('strong', { text: column.title }), texts[index])));
+        message.node.appendChild(grid); actionPending = true; updateBusy();
+        try {
+          const { chain, users } = await storedTurn(message);
+          const request = turnSettings({ model: modelID, input: users.map(item => branchInput(item)), store: false, seed: crypto.getRandomValues(new Uint32Array(1))[0] });
+          if (chain.previous) request.previous_response_id = chain.previous;
+          for (const [index, column] of columns.entries()) {
+            texts[index].textContent = 'Running…';
+            const result = await overgo.api.post('/v1/responses', { ...request, lora: column.lora }, { signal: overgo.signal });
+            texts[index].textContent = (result.output || []).flatMap(item => item.content || []).map(part => part.text || '').join('');
+          }
+        } catch (err) { if (!overgo.signal.aborted) grid.replaceChildren(overgo.failure(err)); }
+        finally { actionPending = false; if (!overgo.signal.aborted) updateBusy(); }
       }
       function renderConversation(messages) {
         thread.reset();
@@ -221,13 +275,8 @@
         panel.querySelectorAll('.turn-editor').forEach(node => node.remove());
         message.node.appendChild(editor); actionPending = true; updateBusy();
         try {
-          const chain = await overgo.api.get('/interactions/messages?response=' + encodeURIComponent(message.response));
+          const { chain, users } = await storedTurn(message);
           if (overgo.signal.aborted) return;
-          if (mismatchedModel(chain)) throw new Error('Choose this conversation’s original model to resend it.');
-          if (chain.status === 'in_progress') throw new Error('This response is still running. Open it to resume or stop it.');
-          const turn = chain.messages.filter(item => item.response === message.response);
-          const users = turn.filter(item => item.role === 'user');
-          if (!users.length || turn.some(item => item.role === 'tool' || (item.tool_calls || []).length)) throw new Error('This turn includes tool execution. Start a new message to continue it.');
           const editIndex = message.role === 'user' ? thread.messages.filter(item => item.role === 'user' && item.response === message.response).indexOf(message) : users.length - 1;
           if (editIndex < 0 || !users[editIndex]) throw new Error('The stored turn changed. Reopen the conversation and try again.');
           const branch = { prefix: chain.messages.filter(item => item.response !== message.response), previous: chain.previous || '', text: users[editIndex].content,
@@ -428,7 +477,7 @@
           });
         },
         modes: (capabilities.modes || []).filter((mode) => mode.enabled), // the served recipe declares agent mode with the rest
-        onMode: (mode) => { agentHost.hidden = mode !== "agent"; saveDraft(); return renderMode(mode); },
+        onMode: (mode) => { agentHost.hidden = mode !== "agent"; if (mode === "agent") restoreAgentSession(); saveDraft(); return renderMode(mode); },
         controls: [],
       });
       composer.input.value = typeof draft.text === "string" ? draft.text : "";
@@ -504,10 +553,10 @@
       const transcriptionSettings = el('section', { class: 'settings-section', hidden: true, 'aria-label': 'Transcription options' });
       settings.appendChild(transcriptionSettings);
       const transcriptionNote = el('details', { class: 'transcription-note' }, el('summary', { text: 'Add a note' }));
-      const generationValues = new Map();
       let speechSelection = '';
+      // retainGenerationValues: the capability's entries as they stand, kept for its next selection and visit.
       function retainGenerationValues() {
-        if (generation.capability?.task === 'speech') generationValues.set(generation.capability.recipe, new Map([...generation.fields].map(([name, field]) => [name, field.input.value])));
+        if (generation.capability) overgo.rememberedControls.remember(generation.capability.recipe, overgo.rememberedControls.values(generation.fields));
       }
       function openSpeechOptions(field) {
         const dialog = document.getElementById('settings-dialog');
@@ -585,11 +634,10 @@
           generation.fields = overgo.controlInputs(controlsHost, typed);
           selectionNote.hidden = !!generation.capability;
           selectionNote.textContent = generation.capability ? '' : (declared.find((capability) => capability.recipe === picker.value)?.refusal || 'The selected model is unavailable').replace(/\.$/, '') + '. Choose another model for this task.';
-          const saved = generation.capability && generationValues.get(generation.capability.recipe);
-          for (const [name, field] of generation.fields) if (saved && saved.has(name)) {
-            const value = saved.get(name);
-            if (field.control.choices?.length && !field.control.choices.includes(value)) field.input.value = '';
-            else field.input.value = value;
+          // The capability's last entries return with it; its presets sit beside its controls.
+          if (generation.capability) {
+            overgo.rememberedControls.apply(generation.fields, overgo.rememberedControls.last(generation.capability.recipe));
+            if (generation.fields.size && mode !== 'speech') controlsHost.appendChild(overgo.presetControls(generation.capability.recipe, generation.fields));
           }
           if (mode === 'speech') {
             speechFields.replaceChildren();
@@ -639,11 +687,23 @@
         const card = thread.mediaCard({ kind: overgo.mediaKind(item.descriptor.media_type), url, artifact: item.descriptor.id, mime: item.descriptor.media_type, bytes: item.descriptor.size, caption: name, run: run.id });
         let request = {};
         try { request = await requestOf(item.descriptor.id, run.id) || {}; } catch (err) { card.appendChild(overgo.failure(err)); }
+        // A new run starts from this one's settings: its capability chosen and its entries filled.
+        const offered = generation.picker && [...generation.picker.options].some((option) => option.value === run.recipe && !option.disabled);
+        const reuse = offered && Object.keys(request).length ? el("button", { class: "btn alt", text: "Use these settings", onclick: () => useSettings(run.recipe, request) }) : null;
         card.appendChild(el("div", { class: "record" }, overgo.table(["control", "value"], Object.entries(request).map(([control, value]) => [control, String(value)])),
-          el("div", { class: "row" }, overgo.artifactLink(run.id, "run " + fmt.shortID(run.id)), el("a", { class: "btn alt", href: url, download: "", text: "download" }))));
+          el("div", { class: "row" }, overgo.artifactLink(run.id, "run " + fmt.shortID(run.id)), reuse, el("a", { class: "btn alt", href: url, download: "", text: "download" }))));
+      }
+      // useSettings: a past run's capability and entries in the composer, its body text as the message.
+      function useSettings(recipe, request) {
+        generation.picker.value = recipe;
+        generation.picker.dispatchEvent(new Event("change"));
+        overgo.rememberedControls.apply(generation.fields, request);
+        const body = generation.capability && overgo.bodyControl(generation.capability.controls);
+        if (body && typeof request[body.name] === "string") { composer.input.value = request[body.name]; composer.input.dispatchEvent(new Event("input", { bubbles: true })); }
+        composer.input.focus();
       }
       const toolSurface = agents.length ? overgo.toolStep(agentHost, {
-        agent: () => agentPicker.value, session: () => agentSession, thread: () => thread, controls: [agentPicker],
+        agent: () => agentPicker.value, session: () => agentSession, thread: () => thread, controls: [agentPicker], subscribe: overgo.subscribe,
         onError: (err) => thread.errorRow(overgo.friendlyError(err)),
       }) : null;
       if (toolSurface) { toolSurface.setAgent(agents[0], tools); agentPicker.addEventListener("change", () => toolSurface.setAgent(agents.find((item) => item.name === agentPicker.value), tools)); }
@@ -685,6 +745,14 @@
         }
         content.push({ type: "input_text", text });
         return [{ role: "user", content: parts.length ? content : text }];
+      }
+
+      // turnSettings: the settings' instructions, temperature and output limit on a Responses request.
+      function turnSettings(request) {
+        if (system.value.trim()) request.instructions = system.value.trim();
+        if (temperature.value !== "") request.temperature = Number(temperature.value);
+        if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+        return request;
       }
 
       function streamTurn(path, body, method) { return overgo.api.stream(path, body, { signal: controller.signal, method }); }
@@ -774,6 +842,38 @@
         finally { controller = null; if (!overgo.signal.aborted) updateBusy(); }
       }
 
+      // offerContinue: a stopped turn's note offers to resume it where it stopped.
+      function offerContinue(note, stoppedID, assistant) {
+        if (!stoppedID || !assistant || capabilities.remote) return;
+        note.append(" ", el("button", { class: "link-button", text: "Continue", "data-continue": stoppedID, onclick: () => continueTurn(stoppedID, assistant, note) }));
+      }
+
+      // continueTurn resumes a stopped turn from its stored token context: the stored partial first, with
+      // any text the stop held back, then the continuation streamed into the same assistant message. A
+      // refusal (another model, another temperature) stays beside the note with its reason.
+      async function continueTurn(stoppedID, assistant, note) {
+        if (actionsBlocked()) return;
+        controller = new AbortController();
+        updateBusy();
+        const users = thread.messages.filter(message => message.role === "user" && message.response === stoppedID);
+        try {
+          const request = { model: modelID, previous_response_id: stoppedID, continue: true, stream: true, store: true };
+          if (temperature.value !== "") request.temperature = Number(temperature.value);
+          if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+          const stored = await overgo.api.get("/interactions/messages?response=" + encodeURIComponent(stoppedID), { signal: controller.signal });
+          const partial = (stored.messages || []).findLast(message => message.role === "assistant");
+          const response = await streamTurn("/v1/responses", request, "POST");
+          note.remove();
+          if (partial) { assistant.content = partial.content; thread.renderMessage(assistant, true); }
+          activeTurn = { response: "", model: modelID, previous: stoppedID, assistant, users, prompt: null };
+          await consumeTurn(response, assistant, null);
+        } catch (err) {
+          if (overgo.signal.aborted) return;
+          if (activeTurn) turnFailure(err, activeTurn);
+          else note.after(el("div", { class: "note", role: "alert", text: overgo.friendlyError(err) }));
+        } finally { controller = null; if (!overgo.signal.aborted) updateBusy(); }
+      }
+
       function validateSettings() {
         const invalid = [temperature, maxTokens].find(field => !field.checkValidity());
         if (!invalid) return true;
@@ -790,6 +890,8 @@
           if (body && body.required && !text.trim()) { composer.input.setCustomValidity('Enter ' + (body.label || body.name) + '.'); composer.input.reportValidity(); return; }
         }
         welcome.remove();
+        // A new turn moves on from a stopped one; its offer to continue goes.
+        panel.querySelectorAll("[data-continue]").forEach(button => button.remove());
         const parts = branch ? [] : composer.attachmentParts();
         if (branch) {
           // The reader may have sent another message while this editor was
@@ -812,7 +914,7 @@
           // media lands in this thread as artifacts with their provenance.
           if (mode === "agent") {
             const history = (histories.get(agentPicker.value) || []).concat([{ role: "user", content: parts.length ? [...parts, { type: "text", text }] : text }]);
-            const result = await overgo.api.post("/agents/chat", { agent: agentPicker.value, messages: history }, { signal: controller.signal });
+            const result = await overgo.api.post("/agents/chat", { agent: agentPicker.value, session: agentSession, messages: history }, { signal: controller.signal });
             assistant = thread.add("assistant", "");
             await thread.consume(overgo.streams.reply(result), assistant);
             if (assistant.content) history.push({ role: "assistant", content: assistant.content });
@@ -824,6 +926,7 @@
             const sources = enhancement.record && text === enhancement.enhanced ? [enhancement.record] : [];
             if (mode === 'speech') for (const item of attachments) if (item.textApplied && item.sourceArtifact && !sources.includes(item.sourceArtifact)) sources.push(item.sourceArtifact);
             enhancement.record = enhancement.enhanced = "";
+            retainGenerationValues();
             const work = generation.capability ? trackOperation() : null;
             const selection = generation.capability ? { capability: generation.capability, fields: generation.fields, sources, lifecycle: work.lifecycle } : null;
             const terminal = await thread.consume(overgo.generate(mode, text, parts, controller.signal, selection));
@@ -837,9 +940,7 @@
           assistant = thread.add("assistant", "");
           const request = { model: modelID, input: branch ? branch.input : responsesInput(text, parts), stream: true, store: true };
           if (lastResponseID) request.previous_response_id = lastResponseID;
-          if (system.value.trim()) request.instructions = system.value.trim();
-          if (temperature.value !== "") request.temperature = Number(temperature.value);
-          if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+          turnSettings(request);
           const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal }).catch(() => null) /* reviewed: a hosted model's provider tokenizes, the count route refuses, and the meter stays empty by design */;
           controller.signal.throwIfAborted();
           activeTurn = { response: "", model: modelID, previous: lastResponseID, assistant, users, branch, prompt: { text, attachments } };
@@ -897,8 +998,11 @@
           lastResponseID = chain.status === "failed" ? (chain.previous || "") : chain.response;
           if (uncertainPrevious !== null && uncertainKind !== 'operation' && chain.response !== uncertainPrevious) { uncertainPrevious = null; uncertainText = ''; saveDraft(); showUncertainty(); }
           if (chain.status === "failed" && !lastResponseID) { moveDraft(""); overgo.rememberConversation(null); }
-          if (!inflight && chain.status === 'cancelled') thread.node.appendChild(el('div', { class: 'note', role: 'status', text: 'Stopped' }));
-          else if (!inflight && chain.failure) thread.errorRow(chain.failure);
+          if (!inflight && chain.status === 'cancelled') {
+            const note = el('div', { class: 'note', role: 'status', text: 'Stopped' });
+            thread.node.appendChild(note);
+            offerContinue(note, chain.response, thread.messages.findLast(message => message.role === 'assistant' && message.response === chain.response));
+          } else if (!inflight && chain.failure) thread.errorRow(chain.failure);
         } catch (err) {
           if (overgo.signal.aborted) return;
           if (err.status === 404) forgetTurn({ response: selected.latest, model: modelID });

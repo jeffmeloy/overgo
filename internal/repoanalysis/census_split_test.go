@@ -14,6 +14,7 @@ import (
 // was given without writing through the header's slices.
 // Serial: it measures the process's allocated bytes.
 func TestCensusSplitCopiesEachSiteOnce(t *testing.T) {
+	t.Parallel()
 	const packages, findings, perPackage = 200, 8, 4
 	census := ModernGoCensus{TargetGo: "1.26", SourceIdentity: "fixture"}
 	for finding := range findings {

@@ -56,14 +56,11 @@ func (h *Handler) runNativeCompletion(
 ) (nativeCompletionResponse, error) {
 	ctx := plan.request.Context()
 	body := plan.body
-	maxTokens, stops := plan.maxTokens, plan.stops
+	maxTokens := plan.maxTokens
 	started := time.Now()
-	var output strings.Builder
-	filter := newStopFilter(stops)
 	generated := make([]tokenizer.TokenID, 0, maxTokens)
 	probabilities := make([]nativeTokenProbability, 0, maxTokens)
 	promptTokensEstimate := 0
-	promptEvaluation := inference.PromptEvaluation{}
 	if prompt.TokenIDs != nil {
 		promptTokensEstimate = len(prompt.TokenIDs)
 	} else if api, ok := h.generator.(TokenizationAPI); ok {
@@ -81,8 +78,50 @@ func (h *Handler) runNativeCompletion(
 	var promptProgressErr error
 	var predictionStarted time.Time
 	timeLimitReached := false
-	indentationLimitReached := false
-	ids, _, err := h.generate(
+	// token: the token whose piece the pump emits next, with its
+	// probability; a piece the stop filter releases at the end has none.
+	var token *inference.TokenEvent
+	var probability *nativeTokenProbability
+	var pump *generationPump
+	pump = newGenerationPump(plan.stops, func(piece string) error {
+		event, tokenProbability := token, probability
+		token, probability = nil, nil
+		if onChunk == nil || piece == "" {
+			return ctx.Err()
+		}
+		chunk := nativeCompletionChunk{
+			Index:           index,
+			Content:         piece,
+			Tokens:          []tokenizer.TokenID{},
+			Stop:            false,
+			IDSlot:          -1,
+			TokensPredicted: len(generated),
+			TokensEvaluated: promptTokensEstimate,
+		}
+		if event != nil {
+			chunk.Tokens = []tokenizer.TokenID{event.ID}
+			if body.TimingsPerToken {
+				timings := measuredNativeTimings(
+					promptTokensEstimate,
+					len(generated),
+					pump.evaluation,
+					time.Since(started),
+				)
+				chunk.Timings = &timings
+			}
+			if tokenProbability != nil {
+				chunk.CompletionProbabilities =
+					[]nativeTokenProbability{*tokenProbability}
+			}
+		}
+		return onChunk(chunk)
+	})
+	if body.NIndent > 0 {
+		pump.limit = func(content string) (string, bool) {
+			return enforceNativeIndentation(content, body.NIndent)
+		}
+	}
+	ids, err := h.pumpGeneration(
 		ctx,
 		plan.session,
 		prompt.Text,
@@ -90,7 +129,6 @@ func (h *Handler) runNativeCompletion(
 			MaxNewTokens:    maxTokens,
 			Sampler:         sampler,
 			DeviceGreedy:    body.NProbs == 0,
-			StopSequences:   stops,
 			ContextShift:    h.config.ContextShift,
 			KeepTokens:      body.NKeep,
 			DiscardTokens:   body.NDiscard,
@@ -107,7 +145,6 @@ func (h *Handler) runNativeCompletion(
 				return 0
 			}(),
 			OnPromptEvaluated: func(evaluation inference.PromptEvaluation) {
-				promptEvaluation = evaluation
 				if onPromptProgress != nil {
 					promptProgressErr = onPromptProgress(nativePromptProgress{
 						Total:     evaluation.Tokens,
@@ -122,7 +159,7 @@ func (h *Handler) runNativeCompletion(
 					return promptProgressErr
 				}
 				generated = append(generated, event.ID)
-				var probability *nativeTokenProbability
+				token = &event
 				if body.NProbs > 0 {
 					var item nativeTokenProbability
 					var probabilityErr error
@@ -142,54 +179,10 @@ func (h *Handler) runNativeCompletion(
 					probabilities = append(probabilities, item)
 					probability = &probabilities[len(probabilities)-1]
 				}
-				piece := filter.Accept(event.Piece)
-				previousLength := output.Len()
-				output.WriteString(piece)
-				if body.NIndent > 0 {
-					if trimmed, stop := enforceNativeIndentation(
-						output.String(),
-						body.NIndent,
-					); stop {
-						trimmed = strings.Clone(trimmed)
-						output.Reset()
-						output.WriteString(trimmed)
-						indentationLimitReached = true
-						if previousLength < len(trimmed) {
-							piece = trimmed[previousLength:]
-						} else {
-							piece = ""
-						}
-					}
-				}
-				if onChunk != nil && piece != "" {
-					chunk := nativeCompletionChunk{
-						Index:           index,
-						Content:         piece,
-						Tokens:          []tokenizer.TokenID{event.ID},
-						Stop:            false,
-						IDSlot:          -1,
-						TokensPredicted: len(generated),
-						TokensEvaluated: promptTokensEstimate,
-					}
-					if body.TimingsPerToken {
-						timings := measuredNativeTimings(
-							promptTokensEstimate,
-							len(generated),
-							promptEvaluation,
-							time.Since(started),
-						)
-						chunk.Timings = &timings
-					}
-					if probability != nil {
-						chunk.CompletionProbabilities =
-							[]nativeTokenProbability{*probability}
-					}
-					return onChunk(chunk)
-				}
-				return ctx.Err()
+				return nil
 			},
 			ShouldStop: func(event inference.TokenEvent) bool {
-				if indentationLimitReached {
+				if pump.limited {
 					return true
 				}
 				now := time.Now()
@@ -206,6 +199,7 @@ func (h *Handler) runNativeCompletion(
 				return false
 			},
 		},
+		pump,
 	)
 	if err != nil {
 		return nativeCompletionResponse{}, err
@@ -213,49 +207,22 @@ func (h *Handler) runNativeCompletion(
 	if promptProgressErr != nil {
 		return nativeCompletionResponse{}, promptProgressErr
 	}
-	promptTokens := len(ids) - len(generated)
-	if pending := filter.Flush(); pending != "" {
-		previousLength := output.Len()
-		output.WriteString(pending)
-		if body.NIndent > 0 {
-			if trimmed, stop := enforceNativeIndentation(output.String(), body.NIndent); stop {
-				trimmed = strings.Clone(trimmed)
-				output.Reset()
-				output.WriteString(trimmed)
-				indentationLimitReached = true
-				if previousLength < len(trimmed) {
-					pending = trimmed[previousLength:]
-				} else {
-					pending = ""
-				}
-			}
-		}
-		if onChunk != nil && pending != "" {
-			if err := onChunk(nativeCompletionChunk{
-				Index:           index,
-				Content:         pending,
-				Tokens:          []tokenizer.TokenID{},
-				Stop:            false,
-				IDSlot:          -1,
-				TokensPredicted: len(generated),
-				TokensEvaluated: promptTokens,
-			}); err != nil {
-				return nativeCompletionResponse{}, err
-			}
-		}
-	}
+	// The pump's accounting: the provider's counts for a hosted turn, the
+	// ids for a local runner.
+	result := protocolGenerationResult{ids: ids, pump: pump}
+	promptTokens, predicted := result.promptTokens(), result.outputTokens()
 	stopType := "eos"
-	if filter.Stopped() {
+	if pump.stopped() {
 		stopType = "word"
-	} else if indentationLimitReached ||
+	} else if pump.limited ||
 		timeLimitReached ||
-		len(generated) >= maxTokens {
+		pump.generated >= maxTokens {
 		stopType = "limit"
 	}
 	timings := measuredNativeTimings(
 		promptTokens,
-		len(generated),
-		promptEvaluation,
+		predicted,
+		pump.evaluation,
 		time.Since(started),
 	)
 	truncated := false
@@ -267,7 +234,7 @@ func (h *Handler) runNativeCompletion(
 	if returnTokens || onChunk != nil {
 		tokens = append(tokens, generated...)
 	}
-	content := output.String()
+	content := pump.text()
 	return nativeCompletionResponse{
 		Index:                   index,
 		Content:                 content,
@@ -275,15 +242,15 @@ func (h *Handler) runNativeCompletion(
 		IDSlot:                  plan.session.ID,
 		Stop:                    true,
 		Model:                   h.config.ModelID,
-		TokensPredicted:         len(generated),
+		TokensPredicted:         predicted,
 		TokensEvaluated:         promptTokens,
 		GenerationSettings:      plan.settings,
 		Prompt:                  prompt.Response,
 		HasNewLine:              strings.Contains(content, "\n"),
 		Truncated:               truncated,
 		StopType:                stopType,
-		StoppingWord:            filter.StoppingWord(),
-		TokensCached:            promptEvaluation.Cached,
+		StoppingWord:            pump.stoppingWord(),
+		TokensCached:            pump.evaluation.Cached,
 		Timings:                 timings,
 		CompletionProbabilities: probabilities,
 	}, nil

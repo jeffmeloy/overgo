@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 )
 
@@ -33,35 +32,5 @@ func TestWorkspaceSchema(t *testing.T) {
 	missing := serveTestRequest(handler, http.MethodGet, "/workspace/schema?id=absent", "")
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("missing schema status = %d", missing.Code)
-	}
-}
-
-func TestWorkspaceFormRenderer(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	renderer := serveTestRequest(handler, http.MethodGet, "/schema_form.js", "").Body.String()
-	for _, expected := range []string{
-		"window.overgo.schemaForm", "field.identity_kind", "field.options", "field.unit",
-		"field.minimum", "field.maximum", "applicable(field)", "root.checkValidity()", "minimum_items",
-	} {
-		if !strings.Contains(renderer, expected) {
-			t.Errorf("schema form renderer lacks %q", expected)
-		}
-	}
-	app := serveTestRequest(handler, http.MethodGet, "/boot.js", "").Body.String()
-	if !strings.Contains(app, "/schema_form.js") {
-		t.Fatal("workspace shell does not load schema form renderer")
-	}
-}
-
-func TestWorkspaceUnsavedChanges(t *testing.T) {
-	t.Parallel()
-	renderer := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/schema_form.js", "").Body.String()
-	for _, expected := range []string{
-		"function dirty()", "beforeunload", "event.preventDefault()", "event.returnValue", "markSaved", "dispose()",
-	} {
-		if !strings.Contains(renderer, expected) {
-			t.Errorf("unsaved-change protection lacks %q", expected)
-		}
 	}
 }

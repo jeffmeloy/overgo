@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"path/filepath"
 	"slices"
 
 	"overgo/internal/inference"
@@ -31,6 +32,17 @@ type workspaceModelCapabilities struct {
 	// Remote: served through the relay at a hosted provider; the page marks
 	// its turns (not reproducible from the store).
 	Remote bool `json:"remote"`
+	// Adapters: the LoRA adapters the served model loaded; a chat turn runs
+	// again on each beside its base model.
+	Adapters []workspaceAdapter `json:"adapters"`
+}
+
+// workspaceAdapter: one loaded adapter by its request ID, file name and
+// loaded scale; the page never sees the server's path.
+type workspaceAdapter struct {
+	ID    int     `json:"id"`
+	Name  string  `json:"name"`
+	Scale float32 `json:"scale"`
 }
 
 // workspaceMediaLimits: the media kinds the served model accepts as prompt
@@ -98,6 +110,12 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 			MaxImageBytes: maxImageBytes, MaxMediaBytes: maxMediaBytes,
 			MaxImageDimension: maxImageDimension, MaxImagePixels: maxImagePixels,
 		},
+	}
+	document.Adapters = []workspaceAdapter{}
+	if controller, ok := h.generator.(LoRAControlAPI); ok {
+		for _, adapter := range controller.LoRAAdapters() {
+			document.Adapters = append(document.Adapters, workspaceAdapter{ID: adapter.ID, Name: filepath.Base(adapter.Path), Scale: adapter.Scale})
+		}
 	}
 	if modelID, recipeID, ok := h.servingIdentity(recipe.TaskInference); ok {
 		document.Model, document.Recipe = modelID.String(), recipeID.String()

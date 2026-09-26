@@ -82,7 +82,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 	ctx context.Context,
 	body chatCompletionRequest,
 ) (nativePrompt, error) {
-	if body.N != 1 {
+	if body.N > 1 { // zero is the default single choice
 		return nativePrompt{}, errors.New("multimodal chat requires n=1")
 	}
 	if len(body.Messages) != 1 ||
@@ -187,6 +187,10 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 
 const chatMediaMarkerPrefix = "<__overgo_media_"
 
+// templateThinkingKwarg is the chat template switch every protocol sets to
+// turn the model's thinking on or off.
+const templateThinkingKwarg = "enable_thinking"
+
 func (h *Handler) parseChatMultimodalPrompt(
 	ctx context.Context,
 	formatter ChatFormatter,
@@ -198,7 +202,7 @@ func (h *Handler) parseChatMultimodalPrompt(
 		!hasToolConfig && len(promptTools) == 0 {
 		return h.parseChatSingleMultimodalPrompt(ctx, body)
 	}
-	if body.N != 1 {
+	if body.N > 1 { // zero is the default single choice
 		return nativePrompt{}, errors.New("multimodal chat requires n=1")
 	}
 	mediaCount := chatMediaCount(body.Messages)
@@ -364,7 +368,7 @@ func chatTemplateKwargs(kwargs map[string]any) (bool, map[string]any, error) {
 	extras := make(map[string]any, len(kwargs))
 	for key, value := range kwargs {
 		switch key {
-		case "enable_thinking":
+		case templateThinkingKwarg:
 			var ok bool
 			if enabled, ok = value.(bool); !ok {
 				return false, nil, errors.New("chat_template_kwargs.enable_thinking must be a boolean")
@@ -402,28 +406,21 @@ func chatThinkingEnabled(kwargs map[string]any) (bool, error) {
 }
 
 func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Request) {
-	formatter, ok := h.requireProtocolTokenCounting(response, request)
-	if !ok {
-		return
-	}
-	var body chatCompletionRequest
-	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
-		return
-	}
-	if body.N == 0 {
-		body.N = 1
-	}
-	toolSelection, err := selectChatTools(body)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, body, toolSelection.prompt, false)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	h.writeProtocolInputTokenCount(response, request, normalized, true)
+	h.countTurn(response, request, true, func() (chatCompletionRequest, []inference.ChatTool, bool) {
+		var body chatCompletionRequest
+		if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
+			return body, nil, false
+		}
+		if body.N == 0 {
+			body.N = 1
+		}
+		toolSelection, err := selectChatTools(body)
+		if err != nil {
+			writeInvalidRequest(response, err)
+			return body, nil, false
+		}
+		return body, toolSelection.prompt, true
+	})
 }
 
 func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Request) {
@@ -687,8 +684,7 @@ func (h *Handler) completeChat(
 			cachedTokens = result.cachedTokens()
 		}
 		pump := result.pump
-		finishReason := pump.finishReason(plan.maxTokens, "stop", "length")
-		totalCompletionTokens += pump.completion
+		totalCompletionTokens += result.completionTokens()
 		message := inference.ChatMessage{
 			Role:    inference.ChatRoleAssistant,
 			Content: pump.text(),
@@ -706,25 +702,12 @@ func (h *Handler) completeChat(
 				writeGenerationError(response, err)
 				return
 			}
-			for callIndex := range message.ToolCalls {
-				if message.ToolCalls[callIndex].ID == "" {
-					message.ToolCalls[callIndex].ID = fmt.Sprintf(
-						"call_%s_%d_%d",
-						strings.TrimPrefix(id, "chatcmpl-"),
-						choiceIndex,
-						callIndex,
-					)
-				}
-			}
-			h.issuedCalls.record(message.ToolCalls...)
-			if len(message.ToolCalls) != 0 {
-				finishReason = "tool_calls"
-			}
+			h.issueToolCalls(message.ToolCalls, chatCallIdentity(id, choiceIndex))
 		}
 		choices = append(choices, chatChoice{
 			Index:        choiceIndex,
 			Message:      message,
-			FinishReason: finishReason,
+			FinishReason: chatFinish(result.end(plan.maxTokens, message)),
 		})
 	}
 	writeJSON(response, http.StatusOK, chatResponse{
@@ -839,12 +822,7 @@ func (h *Handler) streamChatCompletion(
 						},
 					}
 					if delta.Started {
-						call.ID = fmt.Sprintf(
-							"call_%s_%d_%d",
-							strings.TrimPrefix(id, "chatcmpl-"),
-							choiceIndex,
-							delta.Index,
-						)
+						call.ID = chatCallIdentity(id, choiceIndex)(delta.Index)
 						call.Type = inference.ChatToolTypeFunction
 						call.Function.Name = delta.Name
 					}
@@ -878,7 +856,8 @@ func (h *Handler) streamChatCompletion(
 			_ = emitGenerationError(stream.write, err)
 			break
 		}
-		reason := result.pump.finishReason(plan.maxTokens, "stop", "length")
+		// finished: the parsed turn, whose tool calls end it as calls.
+		var finished inference.ChatMessage
 		if toolStream.promptAware || len(tools) != 0 {
 			message, parseErr := toolStream.parse(parser, tools)
 			if parseErr != nil {
@@ -910,12 +889,7 @@ func (h *Handler) streamChatCompletion(
 				}
 				callID := call.ID
 				if callID == "" {
-					callID = fmt.Sprintf(
-						"call_%s_%d_%d",
-						strings.TrimPrefix(id, "chatcmpl-"),
-						choiceIndex,
-						callIndex,
-					)
+					callID = chatCallIdentity(id, choiceIndex)(callIndex)
 				}
 				if err := writeChunk(choiceIndex, chatStreamDelta{
 					ToolCalls: []chatStreamToolCall{{
@@ -933,22 +907,10 @@ func (h *Handler) streamChatCompletion(
 			}
 			// Issue every parsed call under the same identity rule the
 			// stream used, whether it went out incrementally or here.
-			issued := slices.Clone(message.ToolCalls)
-			for callIndex := range issued {
-				if issued[callIndex].ID == "" {
-					issued[callIndex].ID = fmt.Sprintf(
-						"call_%s_%d_%d",
-						strings.TrimPrefix(id, "chatcmpl-"),
-						choiceIndex,
-						callIndex,
-					)
-				}
-			}
-			h.issuedCalls.record(issued...)
-			if len(message.ToolCalls) != 0 {
-				reason = "tool_calls"
-			}
+			h.issueToolCalls(slices.Clone(message.ToolCalls), chatCallIdentity(id, choiceIndex))
+			finished = message
 		}
+		reason := chatFinish(result.end(plan.maxTokens, finished))
 		terminalUsage := completionUsage{
 			PromptTokenDetails: responseInputTokenDetails{CachedTokens: result.cachedTokens()},
 			PromptTokens:       result.promptTokens(),
@@ -961,4 +923,11 @@ func (h *Handler) streamChatCompletion(
 		_ = writeChunk(choiceIndex, chatStreamDelta{}, &reason)
 	}
 	_ = stream.done()
+}
+
+// chatCallIdentity names a chat turn's unnamed calls by the completion, the
+// choice and the call's position.
+func chatCallIdentity(completion string, choice int) func(int) string {
+	suffix := strings.TrimPrefix(completion, "chatcmpl-")
+	return func(index int) string { return fmt.Sprintf("call_%s_%d_%d", suffix, choice, index) }
 }

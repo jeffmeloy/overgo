@@ -4,129 +4,13 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"hash"
 	"math"
 
-	"overgo/internal/checked"
 	"overgo/internal/gguf"
-	"overgo/internal/sampling"
 	"overgo/internal/statecodec"
-	"overgo/internal/tokenizer"
 )
-
-const (
-	sessionStateMagic = "L2GSES01"
-	sessionHeaderSize = 56
-)
-
-// Session: resumable generation state; final token is intentionally
-// pending: Cache contains every token before it, so ContinueSession can
-// evaluate that token and produce next one without recomputing prompt
-type Session struct {
-	TokenIDs []tokenizer.TokenID
-	Cache    *KVCache
-}
-
-// SaveSession: serializes token history, KV tensors, and sampler RNG/adaptive
-// state; state is bound to fingerprint of loaded GGUF model
-func (r *Runner) SaveSession(session *Session, sampler *sampling.Sampler) ([]byte, error) {
-	if r == nil {
-		return nil, errRunnerNil
-	}
-	if err := r.validateSession(session); err != nil {
-		return nil, err
-	}
-	cacheData, err := r.SaveCache(session.Cache)
-	if err != nil {
-		return nil, err
-	}
-	samplerData, err := sampler.SaveState()
-	if err != nil {
-		return nil, fmt.Errorf("inference: save sampler state: %w", err)
-	}
-	signature, err := r.sessionModelSignature()
-	if err != nil {
-		return nil, err
-	}
-	encoder := statecodec.NewEncoder(uint64(math.MaxInt))
-	encoder.Raw([]byte(sessionStateMagic))
-	encoder.Raw(signature[:])
-	encoder.U32(uint32(len(session.TokenIDs)))
-	encoder.U64(uint64(len(cacheData)))
-	encoder.U32(uint32(len(samplerData)))
-	for _, tokenID := range session.TokenIDs {
-		encoder.U32(uint32(tokenID))
-	}
-	encoder.Raw(cacheData)
-	encoder.Raw(samplerData)
-	output, err := encoder.Data()
-	if err != nil {
-		return nil, errors.New("inference: session state exceeds addressable memory")
-	}
-	return output, nil
-}
-
-// LoadSession: parses and validates untrusted session state, then restores
-// supplied sampler only after complete session has passed validation
-func (r *Runner) LoadSession(data []byte, sampler *sampling.Sampler) (*Session, error) {
-	if r == nil {
-		return nil, errRunnerNil
-	}
-	if sampler == nil {
-		return nil, errors.New("inference: sampler is nil")
-	}
-	decoder, err := r.modelStateDecoder(data, sessionStateMagic, "session")
-	if err != nil {
-		return nil, err
-	}
-	tokenCount := decoder.U32()
-	cacheLength := decoder.U64()
-	samplerLength := decoder.U32()
-	if decoder.Err() != nil {
-		return nil, errors.New("inference: session state is truncated")
-	}
-	if tokenCount == 0 {
-		return nil, errors.New("inference: session token count is invalid or exceeds limit")
-	}
-	if !sampling.ValidStateSize(uint64(samplerLength)) {
-		return nil, errors.New("inference: sampler state size is invalid or exceeds limit")
-	}
-	tokenBytes, _ := checked.Bytes(uint64(tokenCount), 4)
-	payloadLength := decoder.Remaining()
-	if tokenBytes > payloadLength ||
-		cacheLength > payloadLength-tokenBytes ||
-		uint64(samplerLength) != payloadLength-tokenBytes-cacheLength {
-		return nil, errors.New("inference: session payload lengths are invalid")
-	}
-
-	tokens := make([]tokenizer.TokenID, int(tokenCount))
-	for index := range tokens {
-		raw := decoder.U32()
-		if raw > math.MaxInt32 {
-			return nil, fmt.Errorf("inference: session token %d is outside token ID range", index)
-		}
-		tokens[index] = tokenizer.TokenID(raw)
-	}
-	cacheData := decoder.Raw(cacheLength)
-	samplerData := decoder.Raw(uint64(samplerLength))
-	if decoder.Done() != nil {
-		return nil, errors.New("inference: session payload lengths are invalid")
-	}
-	cache, err := r.LoadCache(cacheData)
-	if err != nil {
-		return nil, fmt.Errorf("inference: load session cache: %w", err)
-	}
-	session := &Session{TokenIDs: tokens, Cache: cache}
-	if err := r.validateSession(session); err != nil {
-		return nil, err
-	}
-	if err := sampler.LoadState(samplerData); err != nil {
-		return nil, fmt.Errorf("inference: load sampler state: %w", err)
-	}
-	return session, nil
-}
 
 func (r *Runner) modelStateDecoder(data []byte, magic, label string) (*statecodec.Decoder, error) {
 	if r == nil {
@@ -149,42 +33,6 @@ func (r *Runner) modelStateDecoder(data []byte, magic, label string) (*statecode
 		return nil, fmt.Errorf("inference: %s state belongs to a different model", label)
 	}
 	return decoder, nil
-}
-
-func (r *Runner) validateSession(session *Session) error {
-	if session == nil {
-		return errors.New("inference: session is nil")
-	}
-	if len(session.TokenIDs) == 0 || uint64(len(session.TokenIDs)) > math.MaxUint32 {
-		return errors.New("inference: session token count is invalid or exceeds limit")
-	}
-	if err := r.validateCache(session.Cache); err != nil {
-		return err
-	}
-	if uint64(effectiveCachePosition(session.Cache))+1 != uint64(len(session.TokenIDs)) {
-		return fmt.Errorf(
-			"inference: session has %d tokens but cache next position is %d; need exactly one pending token",
-			len(session.TokenIDs),
-			effectiveCachePosition(session.Cache),
-		)
-	}
-	if r.spec.ContextLength > 0 && session.Cache.Tokens > r.spec.ContextLength {
-		return fmt.Errorf(
-			"inference: session cache token count %d exceeds context state limit %d",
-			session.Cache.Tokens,
-			r.spec.ContextLength,
-		)
-	}
-	vocabularySize := r.spec.VocabularySize
-	if vocabularySize == 0 && r.vocab != nil {
-		vocabularySize = uint32(len(r.vocab.Tokens))
-	}
-	for index, tokenID := range session.TokenIDs {
-		if tokenID < 0 || (vocabularySize > 0 && uint32(tokenID) >= vocabularySize) {
-			return fmt.Errorf("inference: session token %d has invalid ID %d", index, tokenID)
-		}
-	}
-	return nil
 }
 
 func (r *Runner) sessionModelSignature() ([32]byte, error) {

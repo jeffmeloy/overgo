@@ -26,6 +26,60 @@ func TestPromptCacheReuseAfterDecodeTokensHost(t *testing.T) {
 	assertPromptCacheAfterDecode(t, runner)
 }
 
+// TestPromptCacheRetainsDecodedTokens: a greedy run stopped after three
+// tokens returns them, and continuing from them forwards only the pending
+// token and produces the tokens of the uninterrupted run.
+func TestPromptCacheRetainsDecodedTokens(t *testing.T) {
+	assertDecodedTokensContinue(t, openPromptCacheHostRunner(t))
+}
+
+func assertDecodedTokensContinue(t *testing.T, runner *Runner) {
+	t.Helper()
+	prompt := []tokenizer.TokenID{1, 4, 5}
+	const stopAfter, total = 3, 6
+	generate := func(ids []tokenizer.TokenID, tokens int, cached bool, stop int) ([]tokenizer.TokenID, PromptEvaluation, error) {
+		t.Helper()
+		ctx, cancel := context.WithCancelCause(t.Context())
+		defer cancel(nil)
+		sampler, err := sampling.New(sampling.Config{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var evaluation PromptEvaluation
+		delivered := 0
+		result, _, err := runner.Generate(ctx, "", GenerateOptions{
+			PromptTokenIDs: ids, MaxNewTokens: tokens, ContinueAfterEOG: true, CachePrompt: cached, Sampler: sampler,
+			OnPromptEvaluated: func(value PromptEvaluation) { evaluation = value },
+			OnToken: func(TokenEvent) error {
+				if delivered++; delivered == stop {
+					cancel(context.Canceled)
+					return context.Cause(ctx)
+				}
+				return nil
+			},
+		})
+		return result, evaluation, err
+	}
+	if err := runner.ClearPromptCaches(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	reference, _, err := generate(prompt, total, false, 0)
+	if err != nil || len(reference) != len(prompt)+total {
+		t.Fatalf("reference=%v err=%v", reference, err)
+	}
+	stopped, _, err := generate(prompt, total, true, stopAfter)
+	if !errors.Is(err, context.Canceled) || !slices.Equal(stopped, reference[:len(prompt)+stopAfter]) {
+		t.Fatalf("stopped=%v err=%v, want the first %d tokens of %v", stopped, err, stopAfter, reference)
+	}
+	continued, evaluation, err := generate(stopped, total-stopAfter, true, 0)
+	if err != nil || !slices.Equal(continued, reference) {
+		t.Fatalf("continued=%v err=%v, want %v", continued, err, reference)
+	}
+	if evaluation.Tokens != len(stopped) || evaluation.Cached != len(stopped)-1 {
+		t.Fatalf("the continuation re-evaluated its context: %+v of %d tokens", evaluation, len(stopped))
+	}
+}
+
 func openPromptCacheHostRunner(t *testing.T) *Runner {
 	t.Helper()
 	path := testutil.HermeticLlamaGGUF(t, 16)
@@ -94,8 +148,15 @@ func assertPromptCacheAfterDecode(t *testing.T, runner *Runner) {
 				if warm.evaluation.Tokens != len(next) || cold.evaluation.Cached != 0 {
 					t.Fatalf("accounting cold=%+v warm=%+v", cold.evaluation, warm.evaluation)
 				}
-				if slices.Equal(next, prompt) && warm.evaluation.Cached != len(prompt) {
-					t.Fatalf("exact prompt not reused: %+v", warm.evaluation)
+				// The decoded entry replaces the prompt's when only one fits: the
+				// exact prompt then recomputes its last token, unless the run
+				// stopped at its first token and decoded nothing past the prompt.
+				exact := len(prompt)
+				if capacity == 1 && !cancelled {
+					exact--
+				}
+				if slices.Equal(next, prompt) && warm.evaluation.Cached != exact {
+					t.Fatalf("capacity=%d exact prompt reused %+v, want %d cached", capacity, warm.evaluation, exact)
 				}
 				if len(warm.logits) != 4 || len(cold.logits) != 4 {
 					t.Fatal("incomplete token/logit comparison")

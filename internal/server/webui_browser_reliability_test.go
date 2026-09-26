@@ -181,5 +181,5 @@ func TestWebUIBrowserReliability(t *testing.T) {
 	if started.Load() != 1 || followed.Load() != 1 || cancelled.Load() != 1 {
 		t.Fatalf("response ownership: started=%d followed=%d cancelled=%d", started.Load(), followed.Load(), cancelled.Load())
 	}
-	t.Log("reliability leg: Markdown fences terminate; IME preserves composition; attachments await decoding; protected previews/downloads authenticate; conversation switches cancel old mounts and recover only the selected chain")
+	webuilane.Leg(t, "reliability leg", "Markdown fences terminate; IME preserves composition; attachments await decoding; protected previews/downloads authenticate; conversation switches cancel old mounts and recover only the selected chain")
 }

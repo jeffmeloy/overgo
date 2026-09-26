@@ -61,6 +61,7 @@ var workspaceFieldOwners = map[string]string{
 // workspace drifts back into reaching the entire handler.
 var workspaceFileAllowances = map[string][]string{
 	"agent_control.go":               {"agent", "operator", "serving"},
+	"agent_session_recovery.go":      {"agent"},
 	"agent_workspace.go":             {"agent"},
 	"analyze_attention.go":           {"serving"},
 	"analyze_model.go":               {"serving"},
@@ -91,6 +92,7 @@ var workspaceFileAllowances = map[string][]string{
 	"protocol_responses.go":          {"serving"},
 	"recipe_inspector.go":            {"serving"},
 	"response_interaction.go":        {"operator", "serving"},
+	"response_session.go":            {"serving"},
 	"responses_tools.go":             {"operator", "serving"},
 	"runtime_activity.go":            {"hub", "operator", "serving"},
 	"server.go":                      {"hub", "operator", "serving", "workbench"},

@@ -91,23 +91,8 @@ func TestFrontPageConversations(t *testing.T) {
 		t.Errorf("follow of an unknown turn status = %d", unknown.Code)
 	}
 
-	sources := webuiJavaScript(t)
-	chat := sources["mod/chat.js"]
-	for _, needle := range []string{`"/v1/responses"`, "previous_response_id", `"/interactions/follow?response="`, `"/interactions/messages?response="`, "overgo.streams.responses(", "INFLIGHT_STORAGE", "Context meter", "instructions"} {
-		if !strings.Contains(chat, needle) {
-			t.Errorf("chat.js lacks %s", needle)
-		}
-	}
-	if strings.Contains(chat, `"/v1/chat/completions"`) {
+	// The conversation legs drive the page; the source keeps one ban.
+	if strings.Contains(webuiJavaScript(t)["mod/chat.js"], `"/v1/chat/completions"`) {
 		t.Error("chat.js still streams the stateless chat completion; conversations ride the Responses API")
-	}
-	boot := sources["boot.js"]
-	for _, needle := range []string{`"/interactions"`, `"/interactions/label"`, "conversation-list", "openConversation"} {
-		if !strings.Contains(boot, needle) {
-			t.Errorf("boot.js lacks the conversation rail (%s)", needle)
-		}
-	}
-	if !strings.Contains(sources["composer.js"], "response.output_text.delta") {
-		t.Error("composer.js lacks the Responses stream adapter")
 	}
 }

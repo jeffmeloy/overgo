@@ -45,8 +45,6 @@ var regexOwners = map[string]string{
 	"internal/server/resource_policy.go":              "validates a file-id grammar",
 	"internal/testevidence/evidence.go":               "quotes a test name into a go test -run selector",
 	"internal/tokenizer/gennfc/main.go":               "generator reading Unicode data tables",
-	"internal/webuilane/census.go":                    "scans the shell's JavaScript text; the GUI lane replaces it with a browser census",
-	"internal/webuilane/design.go":                    "reads the shell's CSS custom properties; the GUI lane replaces it with CSSOM",
 }
 
 // TestNoRegexParsesStructuredData holds every production regexp to a declared

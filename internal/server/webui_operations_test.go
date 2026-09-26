@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 )
 
@@ -31,28 +30,5 @@ func TestFrontPageOperations(t *testing.T) {
 	}
 	if probe.Status != "ok" || probe.Device.PeakBytes == 0 || probe.Device.CurrentBytes == 0 {
 		t.Fatalf("health = %s", health.Body.String())
-	}
-
-	get := func(path string) string { return serveTestRequest(handler, http.MethodGet, path, "").Body.String() }
-	shell := get("/")
-	for _, needle := range []string{`id="server-dot"`, `id="proxy-dot"`, `id="device-dot"`, `id="inbox-count"`} {
-		if !strings.Contains(shell, needle) {
-			t.Errorf("shell missing %q", needle)
-		}
-	}
-	boot := get("/boot.js")
-	for _, needle := range []string{`"X-Overgo-Swap-Proxy"`, "opts.onHeaders(response.headers)", "health.device", "peak_bytes", "overgo.localOperation("} {
-		if !strings.Contains(boot, needle) {
-			t.Errorf("boot missing %q", needle)
-		}
-	}
-	strip := get("/operations_shell.js")
-	for _, needle := range []string{"Live events", `"inbox-count"`, `location.hash = "inbox"`, "function localOperation(", "Download result", "overgo.cancelOperation(", `"/operations/evidence?id="`} {
-		if !strings.Contains(strip, needle) {
-			t.Errorf("operations shell missing %q", needle)
-		}
-	}
-	if !strings.Contains(get("/style.css"), ".dot.ok") {
-		t.Error("style lacks the status dots")
 	}
 }

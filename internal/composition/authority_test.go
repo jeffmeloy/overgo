@@ -1,21 +1,15 @@
-package composition
+package composition_test
 
 import (
+	"overgo/internal/composition"
+	"overgo/internal/composition/compositiontest"
 	"testing"
 
-	"overgo/internal/artifact"
-	"overgo/internal/bridgegraph"
-	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
-	"overgo/internal/recipe"
 	"overgo/internal/representation"
-	"overgo/internal/runrecord"
-	"overgo/internal/tensor/dtype"
-	"overgo/internal/testutil"
 )
 
 func TestRepresentationContractRepository(t *testing.T) {
-	store, authority := compositionAuthorityFixture(t)
+	store, authority := compositiontest.Authority(t)
 	loaded, err := representation.LoadContract(t.Context(), store, authority.SourceContract.ID)
 	if err != nil || loaded.ID != authority.SourceContract.ID || loaded.Producer.Model != authority.Recipe.SourceModel {
 		t.Fatalf("loaded source contract = %+v, %v", loaded, err)
@@ -26,12 +20,12 @@ func TestRepresentationContractRepository(t *testing.T) {
 }
 
 func TestBridgeDefinitionRepository(t *testing.T) {
-	store, authority := compositionAuthorityFixture(t)
-	loaded, err := LoadBridgeDefinition(t.Context(), store, authority.Bridge.ID)
+	store, authority := compositiontest.Authority(t)
+	loaded, err := composition.LoadBridgeDefinition(t.Context(), store, authority.Bridge.ID)
 	if err != nil || loaded != authority.Bridge || loaded.Weights != authority.Recipe.BridgeWeights {
 		t.Fatalf("loaded bridge definition = %+v, %v", loaded, err)
 	}
-	weights, err := LoadBridgeWeights(t.Context(), store, authority.Bridge.ID)
+	weights, err := composition.LoadBridgeWeights(t.Context(), store, authority.Bridge.ID)
 	if err != nil || weights.Weights.ID != authority.Bridge.Weights ||
 		weights.Inventory.ID != authority.Bridge.WeightInventory {
 		t.Fatalf("loaded bridge weights = %+v, %v", weights, err)
@@ -39,125 +33,9 @@ func TestBridgeDefinitionRepository(t *testing.T) {
 }
 
 func TestCompositionRecipeRepository(t *testing.T) {
-	store, authority := compositionAuthorityFixture(t)
-	loaded, err := LoadCompositionRecipe(t.Context(), store, authority.Recipe.ID)
+	store, authority := compositiontest.Authority(t)
+	loaded, err := composition.LoadCompositionRecipe(t.Context(), store, authority.Recipe.ID)
 	if err != nil || loaded != authority.Recipe || loaded.Promotion != authority.Promotion.ID {
 		t.Fatalf("loaded composition recipe = %+v, %v", loaded, err)
 	}
-}
-
-func compositionAuthorityFixture(t *testing.T) (*overgodb.Store, CompositionAuthority) {
-	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { store.Close() })
-	ctx := t.Context()
-	sourceModel := testutil.ArtifactID(t, artifact.KindModel, "composition source model")
-	targetModel := testutil.ArtifactID(t, artifact.KindModel, "composition target model")
-	sourceDefinition := testutil.ArtifactID(t, artifact.KindModelDefinition, "composition source definition")
-	targetDefinition := testutil.ArtifactID(t, artifact.KindModelDefinition, "composition target definition")
-	weights := testutil.ArtifactID(t, artifact.KindAdapter, "composition bridge weights")
-	inventory := testutil.ArtifactID(t, artifact.KindTensorInventory, "composition bridge inventory")
-	heldOut := testutil.ArtifactID(t, artifact.KindDatasetShard, "composition held-out split")
-	regression := testutil.ArtifactID(t, artifact.KindDatasetShard, "composition regression split")
-	evaluator := testutil.ArtifactID(t, artifact.KindEvidence, "composition evaluator")
-	trainingPolicy := testutil.ArtifactID(t, artifact.KindProfile, "composition training policy")
-	promotionPolicy, err := NewRepresentationBridgePromotionPolicy(RepresentationBridgePromotionPolicy{
-		Direction: runrecord.DirectionMaximize, MinimumSeeds: 2,
-		MinimumHeldOutGain: 0.05, MinimumSourceDependence: 0.1, MaximumRegression: 0.02,
-		MaximumSeedSpread: 0.05, MaximumLatencyIncrease: 0.25, MaximumDeviceByteIncrease: 64,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	parents := []artifact.ID{
-		sourceModel, targetModel, sourceDefinition, targetDefinition,
-		weights, inventory, heldOut, regression, evaluator, trainingPolicy,
-	}
-	descriptors := make([]artifact.Descriptor, len(parents))
-	for index, id := range parents {
-		descriptors[index] = artifact.Descriptor{ID: id, Size: 1}
-	}
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/composition/parents", Artifacts: descriptors}); err != nil {
-		t.Fatal(err)
-	}
-
-	sequence := representation.SequenceContract{
-		Axis: representation.AxisSequence, Mask: representation.MaskPrefix,
-		Padding: representation.PaddingSuffix, Position: representation.PositionSequential,
-		PositionAxes: []representation.AxisKind{representation.AxisSequence},
-	}
-	contract := func(model, definition artifact.ID, tap representation.TapPoint, layer *uint32, channels uint64) representation.Contract {
-		value, err := representation.NewContract(representation.Contract{
-			Producer: representation.Producer{Model: model, Definition: definition, Tap: tap, Layer: layer},
-			Modality: representation.ModalityText,
-			Tensor: representation.TensorContract{DataType: dtype.F32, Axes: []representation.Axis{
-				{Kind: representation.AxisChannel, Bounds: representation.AxisBounds{Extent: channels}},
-				{Kind: representation.AxisSequence, Bounds: representation.AxisBounds{Minimum: 1, Maximum: 16}},
-			}},
-			Sequence: sequence,
-			Normalization: representation.NormalizationContract{
-				Kind: representation.NormalizationNone, Magnitude: representation.MagnitudeNative,
-			},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return value
-	}
-	layer := uint32(3)
-	source := contract(sourceModel, sourceDefinition, representation.TapLayerInput, &layer, 4)
-	target := contract(targetModel, targetDefinition, representation.TapEmbeddingOutput, nil, 6)
-	graph := bridgegraph.Definition{Source: source.ID, Target: target.ID, Operator: bridgegraph.OperatorLinear}
-	bridge, err := NewBridgeDefinition(BridgeDefinition{
-		SourceModel: sourceModel, TargetModel: targetModel, Graph: graph,
-		Weights: weights, WeightInventory: inventory,
-	}, source, target)
-	if err != nil {
-		t.Fatal(err)
-	}
-	execution, err := (modelrecipe.RepresentationBridgeCompiler{
-		SourcePlacement: recipe.PlacementDevice, TargetPlacement: recipe.PlacementDevice,
-		SourceResidency: recipe.ResidencyDeviceF32, TargetResidency: recipe.ResidencyDeviceF32,
-		SourceSession: recipe.SessionCapacity, TargetSession: recipe.SessionRequest,
-	}).Definition(sourceModel, targetModel, source.ID, target.ID, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
-	promotion, err := (RepresentationBridgePromoter{}).Evaluate(promotionPolicy, RepresentationBridgePromotion{
-		Bridge: weights, SourceModel: sourceModel, TargetModel: targetModel,
-		SourceContract: source.ID, TargetContract: target.ID,
-		HeldOutSplit: heldOut, RegressionSet: regression, Evaluator: evaluator,
-		Trials: []RepresentationBridgePromotionTrial{
-			{Seed: 11, BridgeScore: 0.9, CheapBaselineScore: 0.8, DroppedSourceScore: 0.7, ShuffledSourceScore: 0.72, RegressionBaselineScore: 0.85, RegressionCandidateScore: 0.84, BaselineLatencyNS: 100, ComposedLatencyNS: 110, BaselinePeakDeviceBytes: 1000, ComposedPeakDeviceBytes: 1020},
-			{Seed: 29, BridgeScore: 0.88, CheapBaselineScore: 0.8, DroppedSourceScore: 0.69, ShuffledSourceScore: 0.7, RegressionBaselineScore: 0.86, RegressionCandidateScore: 0.85, BaselineLatencyNS: 100, ComposedLatencyNS: 112, BaselinePeakDeviceBytes: 1000, ComposedPeakDeviceBytes: 1024},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	compositionRecipe, err := NewCompositionRecipe(CompositionRecipe{
-		SourceModel: sourceModel, TargetModel: targetModel, Task: recipe.TaskGeneration,
-		SourceContract: source.ID, TargetContract: target.ID,
-		BridgeDefinition: bridge.ID, BridgeWeights: weights,
-		ExecutionRecipe: execution.ID, TrainingPolicy: trainingPolicy,
-		PromotionPolicy: promotionPolicy.ID, Promotion: promotion.ID,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	authority := CompositionAuthority{
-		SourceContract: source, TargetContract: target, Bridge: bridge,
-		Execution: execution, PromotionPolicy: promotionPolicy, Promotion: promotion, Recipe: compositionRecipe,
-	}
-	batch, err := authority.Batch("fixture/composition/authority")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Commit(ctx, batch); err != nil {
-		t.Fatal(err)
-	}
-	return store, authority
 }

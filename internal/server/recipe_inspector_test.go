@@ -76,15 +76,19 @@ func responseRecipeGenerator(t testing.TB, generator *fakeGenerator) *recipeInsp
 	}}
 }
 
-func TestActiveRecipeInspectorUsesCompiledOrder(t *testing.T) {
-	t.Parallel()
+// inspectorStageOrder is the compiled order of inspectorDescription's stages.
+var inspectorStageOrder = []recipe.NodeID{"prepare", "execute", "publish"}
+
+// inspectorDescription is a compiled inference recipe of three host stages
+// that requires its model as a stored fact.
+func inspectorDescription(t *testing.T) modelrecipe.RuntimeDescription {
+	t.Helper()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "inspector-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "inspector-recipe")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "inspector-profile")
 	definitionID := testutil.ArtifactID(t, artifact.KindModelDefinition, "inspector-definition")
-	stageOrder := []recipe.NodeID{"prepare", "execute", "publish"}
-	stages := make([]recipe.Stage, len(stageOrder))
-	for index, id := range stageOrder {
+	stages := make([]recipe.Stage, len(inspectorStageOrder))
+	for index, id := range inspectorStageOrder {
 		module := recipe.ModuleID("runtime." + string(id))
 		stages[index] = recipe.Stage{
 			Node: recipe.Node{ID: id, Module: module, Placement: recipe.PlacementHost},
@@ -94,7 +98,7 @@ func TestActiveRecipeInspectorUsesCompiledOrder(t *testing.T) {
 			},
 		}
 	}
-	description := modelrecipe.RuntimeDescription{
+	return modelrecipe.RuntimeDescription{
 		Task: recipe.TaskInference,
 		Identity: modelrecipe.ProgramIdentity{
 			Model: modelID, Profile: profileID, Definition: definitionID,
@@ -105,6 +109,12 @@ func TestActiveRecipeInspectorUsesCompiledOrder(t *testing.T) {
 		Stages: stages, CacheIdentity: recipeID,
 		RequiredFacts: []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
 	}
+}
+
+func TestActiveRecipeInspectorUsesCompiledOrder(t *testing.T) {
+	t.Parallel()
+	description := inspectorDescription(t)
+	recipeID := description.Identity.Recipe
 	handler := newTestHandler(t, &recipeInspectorGenerator{fakeGenerator: &fakeGenerator{}, description: description})
 	response := serveTestRequest(handler, http.MethodGet, "/recipes/active?task=inference", "")
 	if response.Code != http.StatusOK {
@@ -121,17 +131,13 @@ func TestActiveRecipeInspectorUsesCompiledOrder(t *testing.T) {
 	for index, stage := range result.Recipe.Stages {
 		gotOrder[index] = stage.Node.ID
 	}
-	if !slices.Equal(gotOrder, stageOrder) {
-		t.Fatalf("stage order = %v, want compiled %v", gotOrder, stageOrder)
+	if !slices.Equal(gotOrder, inspectorStageOrder) {
+		t.Fatalf("stage order = %v, want compiled %v", gotOrder, inspectorStageOrder)
 	}
 
-	module := serveTestRequest(handler, http.MethodGet, "/mod/recipe.js", "").Body.String()
-	for _, token := range []string{"runtime.stages.entries()", "runtime.required_facts", "runtime.cache_identity"} {
-		if !strings.Contains(module, token) {
-			t.Errorf("recipe module missing %q", token)
-		}
-	}
-	if strings.Contains(module, "runtime.stages.sort(") {
+	// The standalone tabs leg drives the recipe tab; the source keeps the
+	// compiled order its own.
+	if module := serveTestRequest(handler, http.MethodGet, "/mod/recipe.js", "").Body.String(); strings.Contains(module, "runtime.stages.sort(") {
 		t.Error("browser reorders compiled stages")
 	}
 

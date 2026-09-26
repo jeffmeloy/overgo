@@ -1,11 +1,11 @@
 package webuilane
 
 import (
-	"errors"
-	"fmt"
-	"regexp"
 	"slices"
 	"strings"
+	"unicode"
+
+	"overgo/internal/extent"
 )
 
 // Review is the client review criteria measured over JavaScript source
@@ -24,65 +24,194 @@ type Review struct {
 	DebtMarkers     int `json:"debt_markers"`     // TODO/FIXME/HACK/XXX
 }
 
-var (
-	silentFallbackPattern = regexp.MustCompile(`\.catch\(\([^)]*\) => (?:null|\{\s*\}|\[\]|false|undefined|""|0)\)(\s*/\*)?`)
-	windowDialogPattern   = regexp.MustCompile(`(?:^|[\s(=!&|,])(?:window\.)?(?:alert|confirm|prompt)\(`)
-	controlPattern        = regexp.MustCompile(`el\("(?:input|select|textarea)"`)
-	buttonPattern         = regexp.MustCompile(`el\("button"`)
-	namedControlPattern   = regexp.MustCompile(`aria-label|type: "(?:file|checkbox|hidden)"`)
-	namedButtonPattern    = regexp.MustCompile(`aria-label|title:|\btext[:,}]|\}, \S`)
-	inlineStylePattern    = regexp.MustCompile(`style: "`)
-	nestedTernaryPattern  = regexp.MustCompile(`\?[^:\n]*\?[^:\n]*:`)
-	timerLiteralPattern   = regexp.MustCompile(`set(?:Timeout|Interval)\([^\n]*?,\s*\d+\)`)
-	debtMarkerPattern     = regexp.MustCompile(`\b(?:TODO|FIXME|HACK|XXX)\b`)
-)
-
-// ReviewMeasures measures one JavaScript source against the review criteria.
+// ReviewMeasures measures one JavaScript source against the review
+// criteria, reading its tokens: a word in a string or a comment is never
+// taken for code, and a call is read to its balanced close however many
+// lines it spans.
 func ReviewMeasures(source string) Review {
+	tokens := tokenizeJS(source)
+	// code is the source without its comments; commented[i] reports a
+	// comment written straight after code[i].
+	code := make([]jsToken, 0, len(tokens))
+	var commented []bool
 	var review Review
-	for _, match := range silentFallbackPattern.FindAllStringSubmatch(source, everyMatch) {
-		if match[1] == "" {
-			review.SilentFallbacks++
+	for _, token := range tokens {
+		if token.kind != jsComment {
+			code = append(code, token)
+			commented = append(commented, false)
+			continue
 		}
-	}
-	review.WindowDialogs = len(windowDialogPattern.FindAllString(source, everyMatch))
-	for _, at := range controlPattern.FindAllStringIndex(source, everyMatch) {
-		// before: the call's own line up to the call, where a wrapping label would be written.
-		call, before := elCall(source, at[0]), source[:at[0]]
-		if lineStart := strings.LastIndexByte(before, '\n'); lineStart >= 0 {
-			before = before[lineStart:]
+		if len(commented) > 0 {
+			commented[len(commented)-1] = true
 		}
-		if !namedControlPattern.MatchString(call) && !strings.Contains(before, `el("label"`) {
-			review.UnnamedControls++
-		}
-	}
-	for _, at := range buttonPattern.FindAllStringIndex(source, everyMatch) {
-		if !namedButtonPattern.MatchString(elCall(source, at[0])) {
-			review.UnnamedButtons++
-		}
-	}
-	review.InlineStyles = len(inlineStylePattern.FindAllString(source, everyMatch))
-	review.NestedTernaries = len(nestedTernaryPattern.FindAllString(source, everyMatch))
-	review.TimerLiterals = len(timerLiteralPattern.FindAllString(source, everyMatch))
-	review.DebtMarkers = len(debtMarkerPattern.FindAllString(source, everyMatch))
-	return review
-}
-
-// elCall returns the el(...) call text starting at start, to its balanced closing
-// parenthesis (the whole call, however many lines it spans).
-func elCall(source string, start int) string {
-	depth := 0
-	for index := start; index < len(source); index++ {
-		switch source[index] {
-		case '(':
-			depth++
-		case ')':
-			if depth--; depth == 0 {
-				return source[start : index+1]
+		for word := range strings.FieldsFuncSeq(token.text, func(character rune) bool {
+			return character > unicode.MaxASCII || !isIdentifierByte(byte(character))
+		}) {
+			if slices.Contains(debtMarkers, word) {
+				review.DebtMarkers++
 			}
 		}
 	}
-	return source[start:]
+	for index, token := range code {
+		switch {
+		case token.is(jsPunctuator, ".") && index+1 < len(code) && code[index+1].is(jsIdentifier, "catch"):
+			if end, silent := silentFallback(code, index+1); silent && !commented[end] {
+				review.SilentFallbacks++
+			}
+		case token.kind == jsIdentifier && slices.Contains(windowDialogs, token.text) && next(code, index, "("):
+			if index == 0 || !code[index-1].is(jsPunctuator, ".") || index > 1 && code[index-2].is(jsIdentifier, "window") {
+				review.WindowDialogs++
+			}
+		case token.is(jsIdentifier, "el") && next(code, index, "(") && index+2 < len(code) && code[index+2].kind == jsString:
+			call := code[index+1 : closing(code, index+1)+1]
+			switch element := code[index+2].value(); {
+			case slices.Contains(formControls, element):
+				if !controlNamed(call) && !insideLabel(code, index) {
+					review.UnnamedControls++
+				}
+			case element == "button":
+				if !buttonNamed(call) {
+					review.UnnamedButtons++
+				}
+			}
+		case token.is(jsIdentifier, "style") && index+2 < len(code) && code[index+1].is(jsPunctuator, ":") && code[index+2].kind == jsString:
+			review.InlineStyles++
+		case (token.is(jsIdentifier, "setTimeout") || token.is(jsIdentifier, "setInterval")) && next(code, index, "("):
+			call := arguments(code[index+2 : closing(code, index+1)])
+			if len(call) >= extent.PairedExtent {
+				if last := call[len(call)-1]; len(last) == extent.SingletonExtent && last[0].kind == jsNumber {
+					review.TimerLiterals++
+				}
+			}
+		}
+	}
+	review.NestedTernaries = nestedTernaries(code)
+	return review
+}
+
+var (
+	debtMarkers   = []string{"TODO", "FIXME", "HACK", "XXX"}
+	windowDialogs = []string{"alert", "confirm", "prompt"}
+	formControls  = []string{"input", "select", "textarea"}
+	// unnamedTypes are the input types that need no accessible name.
+	unnamedTypes = []string{"file", "checkbox", "hidden"}
+	// swallowedValues are the values a silent catch settles to.
+	swallowedValues = []string{"null", "false", "undefined", "0", `""`, "''"}
+)
+
+func next(tokens []jsToken, index int, text string) bool {
+	return index+1 < len(tokens) && tokens[index+1].is(jsPunctuator, text)
+}
+
+// jsCursor walks a token sequence one expected token at a time.
+type jsCursor struct {
+	tokens []jsToken
+	index  int
+}
+
+// step moves onto the next token when it is this punctuator.
+func (cursor *jsCursor) step(text string) bool {
+	if !next(cursor.tokens, cursor.index, text) {
+		return false
+	}
+	cursor.index++
+	return true
+}
+
+// silentFallback reads .catch((...) => value) settling to an empty value,
+// from the catch token, answering the index of the call's closing
+// parenthesis.
+func silentFallback(code []jsToken, catch int) (end int, silent bool) {
+	cursor := jsCursor{tokens: code, index: catch}
+	if !cursor.step("(") || !cursor.step("(") {
+		return end, silent
+	}
+	cursor.index = closing(code, cursor.index)
+	if !cursor.step("=>") || cursor.index >= len(code)-extent.SingletonExtent {
+		return end, silent
+	}
+	cursor.index++
+	switch value := code[cursor.index]; {
+	case value.is(jsPunctuator, "{"):
+		if !cursor.step("}") {
+			return end, silent
+		}
+	case value.is(jsPunctuator, "["):
+		if !cursor.step("]") {
+			return end, silent
+		}
+	case value.kind == jsPunctuator || !slices.Contains(swallowedValues, value.text):
+		return end, silent
+	}
+	if !cursor.step(")") {
+		return end, silent
+	}
+	return cursor.index, true
+}
+
+// controlNamed: an accessible name in the call's attributes, or a type
+// that needs none.
+func controlNamed(call []jsToken) bool {
+	for index, token := range call {
+		if token.kind == jsString && token.value() == "aria-label" {
+			return true
+		}
+		if token.is(jsIdentifier, "type") && index+2 < len(call) && call[index+1].is(jsPunctuator, ":") &&
+			slices.Contains(unnamedTypes, call[index+2].value()) {
+			return true
+		}
+	}
+	return false
+}
+
+// insideLabel: an el("label") call opened earlier on the control's line.
+func insideLabel(code []jsToken, control int) bool {
+	for index := control - 1; index >= extent.PairedExtent && code[index].line == code[control].line; index-- {
+		if code[index].kind == jsString && code[index].value() == "label" && code[index-1].is(jsPunctuator, "(") && code[index-2].is(jsIdentifier, "el") {
+			return true
+		}
+	}
+	return false
+}
+
+// buttonNamed: a child after the element and its attributes, or an
+// aria-label, title or text attribute.
+func buttonNamed(call []jsToken) bool {
+	if len(arguments(call[1:len(call)-1])) > extent.PairedExtent {
+		return true
+	}
+	for index, token := range call {
+		if token.kind == jsString && token.value() == "aria-label" {
+			return true
+		}
+		if (token.is(jsIdentifier, "title") || token.is(jsIdentifier, "text")) && index+1 < len(call) &&
+			slices.Contains([]string{":", ",", "}"}, call[index+1].text) {
+			return true
+		}
+	}
+	return false
+}
+
+// nestedTernaries counts, line by line, a ternary opened inside another's
+// branch before either's colon.
+func nestedTernaries(code []jsToken) (count int) {
+	var open, nested bool
+	var line int
+	for _, token := range code {
+		if token.line != line {
+			open, nested, line = false, false, token.line
+		}
+		switch {
+		case token.is(jsPunctuator, "?"):
+			nested, open = open, true
+		case token.is(jsPunctuator, ":") && open:
+			if nested {
+				count++
+			}
+			open, nested = false, false
+		}
+	}
+	return count
 }
 
 // Add sums another source's measures into this review.
@@ -97,11 +226,6 @@ func (review *Review) Add(other Review) {
 	review.DebtMarkers += other.DebtMarkers
 }
 
-const (
-	// everyMatch asks the regexp package for all matches (a negative count).
-	everyMatch = -1
-)
-
 // BrowserTestPrefix names the browser acceptance tests: the lane runs them
 // by this prefix, and a plan verify naming one without the lane is refused.
 const BrowserTestPrefix = "TestWebUIBrowser"
@@ -114,69 +238,3 @@ const ModelJourneyPrefix = "TestModelJourney"
 // ModelJourneyEnvironment is set by the lane's -journeys mode; a journey
 // skips without it, since outside the lane it proves nothing.
 const ModelJourneyEnvironment = "OVERGO_MODEL_JOURNEY"
-
-// LaneVerdict judges one lane run from its output: a test the run skipped
-// or a run in which no test passed is no evidence, and every required
-// line (a journey leg's log) must have been written; nil is the pass.
-func LaneVerdict(output string, required []string) error {
-	var proven []string
-	passed := 0
-	for line := range strings.SplitSeq(output, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if skipped, ok := strings.CutPrefix(trimmed, "--- SKIP: "); ok {
-			return fmt.Errorf("webui lane: %s was skipped, so it proves nothing", skipped)
-		}
-		if name, ok := strings.CutPrefix(trimmed, "--- PASS: "); ok {
-			passed++
-			proven = append(proven, name)
-		} else if strings.Contains(trimmed, "journey:") || strings.Contains(trimmed, " leg") {
-			if _, after, ok := strings.Cut(trimmed, ": "); ok {
-				proven = append(proven, after)
-			}
-		}
-	}
-	if passed == 0 {
-		return errors.New("webui lane: no browser test passed")
-	}
-	for _, text := range required {
-		if !slices.ContainsFunc(proven, func(line string) bool { return strings.Contains(line, text) }) {
-			return fmt.Errorf("webui lane: the run did not write the required evidence %q", text)
-		}
-	}
-	return nil
-}
-
-// FailureLines names each failed test with the last line its own source
-// wrote before its verdict and that line's indented continuation: the
-// failing step and its page state, which a bounded tail of the whole run
-// would lose behind the tests after it.
-func FailureLines(output string) []string {
-	var failures []string
-	var last string
-	for line := range strings.SplitSeq(output, "\n") {
-		trimmed := strings.TrimSpace(line)
-		switch {
-		case strings.HasPrefix(trimmed, "=== RUN "):
-			last = ""
-		case strings.Contains(trimmed, "_test.go:"):
-			last = trimmed
-		case strings.HasPrefix(trimmed, "--- FAIL: "):
-			name, _, _ := strings.Cut(strings.TrimPrefix(trimmed, "--- FAIL: "), " (")
-			failures = append(failures, name+": "+last)
-		case last != "" && strings.HasPrefix(line, "        ") && trimmed != "":
-			// The step's name leads the line; a page dump behind it is cut so
-			// the name survives a caller's bounded tail.
-			if len(last) < failureLineBytes {
-				last += " " + trimmed
-				if len(last) > failureLineBytes {
-					last = strings.ToValidUTF8(last[:failureLineBytes], "") + "…"
-				}
-			}
-		}
-	}
-	return failures
-}
-
-// failureLineBytes bounds one reported failure so several fit a caller's
-// diagnostic tail beside one another.
-const failureLineBytes = 800

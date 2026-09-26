@@ -117,6 +117,7 @@
 
   // ---- thread: the stream renderer (messages, tool cards, media cards, a thinking row, error rows);
   // options.reuse(file): media output -> next turn's input; options.marker: tag on every assistant turn ("remote"). ----
+  // options.stopped(note): a stopped turn's note, where the page offers to continue it.
   function thread(host, options) {
     const reuse = options && options.reuse;
     const replay = options && options.replay; // replay(event, "regenerate" | "vary"): the page resubmits the card's stored request
@@ -204,19 +205,32 @@
       log.appendChild(card);
       scroll();
       const started = Date.now();
+      let streamed = null;
       return {
-        // end: a tool run's result, or a model's completed call (final arguments, no result).
+        // output: a running tool's output as it arrives, shown open until its result replaces it.
+        output(text) {
+          if (!streamed) {
+            streamed = el("pre", { class: "mono tool-output" });
+            bodyNode.append(streamed);
+            bodyNode.hidden = false; header.setAttribute("aria-expanded", "true"); arrow.classList.add("open");
+          }
+          streamed.textContent += text;
+          scroll();
+        },
+        // end: a tool run's result, or a model's completed call (final arguments, no result). A card
+        // restored from the store reads its outcome alone: its wall is not this page's.
         end(result, finalArguments) {
-          const elapsed = ((Date.now() - started) / 1000).toFixed(1) + "s";
+          if (streamed) { streamed.remove(); streamed = null; }
+          const elapsed = call.restored ? "" : " · " + ((Date.now() - started) / 1000).toFixed(1) + "s";
           if (finalArguments !== undefined) input.textContent = typeof finalArguments === "string" ? finalArguments : JSON.stringify(finalArguments, null, 2);
           if (result === undefined) {
-            status.textContent = "requested · " + elapsed;
+            status.textContent = "requested" + elapsed;
             scroll();
             return;
           }
           const failed = !!(result && result.error);
           status.className = failed ? "tag tag-danger" : "tag";
-          status.textContent = failed ? "error · " + elapsed : "done · " + elapsed;
+          status.textContent = (failed ? "error" : "done") + elapsed;
           bodyNode.append(el("div", { class: "note", text: failed ? "error" : "result" }),
             el("pre", { class: "mono", text: typeof result === "string" ? result : JSON.stringify(result == null ? null : result, null, 2) }));
           scroll();
@@ -309,12 +323,15 @@
               terminal.status = event.status || "failed";
               announcement.textContent = "Response failed.";
               break;
-            case "cancelled":
+            case "cancelled": {
               thinking(false);
-              log.appendChild(el("div", { class: "note", role: "status", text: "Stopped" }));
+              const note = el("div", { class: "note", role: "status", text: "Stopped" });
+              log.appendChild(note);
+              if (options && options.stopped) options.stopped(note);
               terminal.status = "cancelled";
               announcement.textContent = "Response stopped.";
               break;
+            }
             case "done":
               terminal.status = event.status || "completed";
               if (event.status === "incomplete") {
@@ -818,18 +835,27 @@
       execute.disabled = preview.effect === "mutation";
     }
     async function preview() { renderDecision(await api.post("/agents/approval", body())); }
+    // running: the card of the step in flight, which the session's output pieces fill as they arrive.
+    let running = null;
+    if (options.subscribe) options.subscribe((name, value) => {
+      if (name === "stream.ready") host.dataset.live = "true";
+      if (name === "agent.output" && running && value.session === (options.agent() ? options.agent() + ":" : "") + options.session()) running.output(value.text);
+    });
     async function step(approving) {
       const request = body();
       if (approving) request.approval = previewed && previewed.operation;
       const card = options.thread().toolCard({ name: request.tool, arguments: request.arguments });
+      running = card;
       try {
         const result = await api.post("/agents/step", request);
+        running = null;
         card.end(result.result);
         guard.textContent = "steps " + result.steps + " / " + result.bound + " · " + (result.bound - result.steps) + " remaining";
         decisionHost.replaceChildren();
         previewed = null;
         if (options.onStep) options.onStep(result);
       } catch (err) {
+        running = null;
         card.end({ error: overgo.friendlyError(err) });
         try { await preview(); } catch (_) { /* the refusal stands on its own */ }
       }
@@ -839,6 +865,25 @@
     approve.addEventListener("click", () => step(true));
     host.append(el("div", { class: "row" }, select, review, execute, approve, guard, ...(options.controls || [])), args, decisionHost);
     return { setAgent, guard };
+  }
+
+  // restoreAgentThread replays an agent session's stored turns and tool steps into a thread in the order
+  // they happened, and answers the chat history to continue from with the session's step count.
+  async function restoreAgentThread(target, agent, session) {
+    const stored = await overgo.api.get("/agents/thread?agent=" + encodeURIComponent(agent) + "&session=" + encodeURIComponent(session));
+    const history = [];
+    for (const entry of stored.entries || []) {
+      if (entry.kind === "turn") {
+        target.add("user", entry.user);
+        target.add("assistant", entry.assistant);
+        history.push({ role: "user", content: entry.user }, { role: "assistant", content: entry.assistant });
+        continue;
+      }
+      let result = entry.result;
+      try { result = JSON.parse(entry.result); } catch (_) { /* a plain-text result */ }
+      target.toolCard({ name: entry.tool, arguments: entry.arguments, restored: true }).end(entry.error ? { error: entry.result } : result);
+    }
+    return { history, steps: stored.steps || 0, bound: stored.bound };
   }
 
 
@@ -851,6 +896,7 @@
   overgo.outputKind = outputKind;
   overgo.offered = offered;
   overgo.toolStep = toolStep;
+  overgo.restoreAgentThread = restoreAgentThread;
   overgo.mediaPlayer = mediaPlayer;
   overgo.mediaKind = mediaKind;
 })();

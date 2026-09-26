@@ -1,6 +1,8 @@
-package composition
+package composition_test
 
 import (
+	"overgo/internal/composition"
+	"overgo/internal/composition/compositiontest"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -8,9 +10,9 @@ import (
 )
 
 func TestCompositionPromotionActivation(t *testing.T) {
-	store, authority := compositionAuthorityFixture(t)
+	store, authority := compositiontest.Authority(t)
 	ctx := t.Context()
-	policy, err := LoadRepresentationBridgePromotionPolicy(ctx, store, authority.Recipe.PromotionPolicy)
+	policy, err := composition.LoadRepresentationBridgePromotionPolicy(ctx, store, authority.Recipe.PromotionPolicy)
 	if err != nil || policy != authority.PromotionPolicy || authority.Promotion.PolicyID != policy.ID {
 		t.Fatalf("recipe promotion policy = %+v, %v", policy, err)
 	}
@@ -21,7 +23,7 @@ func TestCompositionPromotionActivation(t *testing.T) {
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
-	active, found, err := ActiveComposition(
+	active, found, err := composition.ActiveComposition(
 		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
 	)
 	if err != nil || !found || active.ID != authority.Recipe.ID {
@@ -30,11 +32,11 @@ func TestCompositionPromotionActivation(t *testing.T) {
 }
 
 func TestUnpromotedBridgeRefused(t *testing.T) {
-	store, authority := compositionAuthorityFixture(t)
+	store, authority := compositiontest.Authority(t)
 	ctx := t.Context()
 	candidate := authority.Recipe
 	candidate.Promotion = testutil.ArtifactID(t, artifact.KindEvidence, "missing bridge promotion")
-	candidate, err := NewCompositionRecipe(candidate)
+	candidate, err := composition.NewCompositionRecipe(candidate)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +53,7 @@ func TestUnpromotedBridgeRefused(t *testing.T) {
 	}
 	candidate = authority.Recipe
 	candidate.PromotionPolicy = testutil.ArtifactID(t, artifact.KindProfile, "unowned promotion policy")
-	candidate, err = NewCompositionRecipe(candidate)
+	candidate, err = composition.NewCompositionRecipe(candidate)
 	if err != nil {
 		t.Fatal(err)
 	}

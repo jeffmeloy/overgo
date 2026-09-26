@@ -102,7 +102,7 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	if findings := audit(clean); len(findings) != 0 {
 		t.Errorf("the clean page audited with findings: %v", findings)
 	}
-	t.Log("layout audit leg: the design floor finds a glyph standing in for an icon, a flat heading, a gradient fill and faded live text, and passes drawn icons, a stepped heading and a disabled dimmed control")
+	Leg(t, "layout audit leg", "the design floor finds a glyph standing in for an icon, a flat heading, a gradient fill and faded live text, and passes drawn icons, a stepped heading and a disabled dimmed control")
 	modal := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><p style="color:rgb(187,187,187)">inactive words</p><button style="width:10px;height:10px;padding:0">inactive tiny</button><dialog id="modal" style="background:rgb(255,255,255);color:rgb(0,0,0)"><p>Active dialog</p><button style="width:40px;height:40px">fine</button></dialog><script>document.getElementById('modal').showModal()</script></body>`
 	if findings := audit(modal); len(findings) != 0 {
 		t.Errorf("the modal page audited inactive content: %v", findings)
@@ -169,5 +169,5 @@ func TestWebUIBrowserPromisePredicateHolds(t *testing.T) {
 	if !state.Done || state.Checks < 2 {
 		t.Fatalf("a promise predicate held before it settled true: %+v", state)
 	}
-	t.Logf("promise predicate leg: a wait held only once its promise settled true, after %d checks", state.Checks)
+	Leg(t, "promise predicate leg", "a wait held only once its promise settled true, after %d checks", state.Checks)
 }

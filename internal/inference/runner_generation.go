@@ -30,7 +30,9 @@ func (r *Runner) Greedy(
 }
 
 // Generate: performs correctness-first token generation and optionally reports
-// each new token synchronously through OnToken
+// each new token synchronously through OnToken. A decode step that fails (a
+// cancellation) returns the prompt and the ids decoded before it with the
+// error; with CachePrompt the decoded state stays cached for a continuation.
 func (r *Runner) Generate(
 	ctx context.Context,
 	prompt string,
@@ -65,7 +67,7 @@ func (r *Runner) Generate(
 		return nil, "", err
 	}
 	defer r.mu.Unlock()
-	restoreLoRA, err := r.applyGenerationLoRA(options)
+	restoreLoRA, err := r.applyGenerationLoRA(&options)
 	if err != nil {
 		return nil, "", err
 	}
@@ -249,7 +251,17 @@ func (r *Runner) Generate(
 				if cached > 0 {
 					hidden = selectedPromptCache.Hidden
 					cache = selectedPromptCache.Cache
-					if cached < len(selectedPromptCache.Tokens) {
+					if cached < len(selectedPromptCache.Tokens) && selectedPromptCache.Decoded {
+						// A decoded entry keeps only its last hidden row: keep the
+						// shared KV and recompute at least the final requested token.
+						if cached == len(ids) {
+							cached--
+						}
+						hidden, cache = reference.Value{}, nil
+						if cached > 0 {
+							cache, err = r.trimHostPromptKV(selectedPromptCache.Cache, uint32(cached))
+						}
+					} else if cached < len(selectedPromptCache.Tokens) {
 						hidden, cache, err = r.trimHostPromptCache(
 							hidden,
 							cache,
@@ -300,11 +312,14 @@ func (r *Runner) Generate(
 		}
 	}
 	if !useDeviceCache {
-		ids, cache, err = r.generateCachedHost(
+		ids, hidden, cache, err = r.generateCachedHost(
 			ctx, ids, hidden, cache, options, false, keepTokens, options.DiscardTokens,
 		)
+		if options.CachePrompt && options.ProjectedInputs == nil {
+			err = errors.Join(err, r.retainDecodedPromptCache(context.WithoutCancel(ctx), ids, hidden, cache, nil))
+		}
 		if err != nil {
-			return nil, "", err
+			return ids, "", err
 		}
 		text, decodeErr := r.vocab.Decode(ids, false)
 		return ids, text, decodeErr
@@ -322,6 +337,8 @@ func (r *Runner) Generate(
 	}
 
 	var generatedText strings.Builder
+	// loopErr: a failed step ends the loop with the ids decoded so far.
+	var loopErr error
 	for generatedIndex := range options.MaxNewTokens {
 		if generatedIndex > 0 {
 			if options.ContextShift {
@@ -335,14 +352,16 @@ func (r *Runner) Generate(
 					r.ownsDevicePromptCache(deviceCache),
 				)
 				if err != nil {
-					return nil, "", err
+					loopErr = err
+					break
 				}
 				if shiftedDeviceCache != deviceCache {
 					oldDeviceCache := deviceCache
 					deviceCache = shiftedDeviceCache
 					if !r.ownsDevicePromptCache(oldDeviceCache) {
 						if releaseErr := oldDeviceCache.Release(ctx); releaseErr != nil {
-							return nil, "", releaseErr
+							loopErr = releaseErr
+							break
 						}
 					}
 				}
@@ -371,7 +390,8 @@ func (r *Runner) Generate(
 				_ = nextDeviceCache.Release(context.Background())
 			}
 			if err != nil {
-				return nil, "", err
+				loopErr = err
+				break
 			}
 		}
 		var event TokenEvent
@@ -381,18 +401,27 @@ func (r *Runner) Generate(
 			var sampleErr error
 			event, sampleErr = sampleGenerationToken(deviceCache.Logits, ids, options)
 			if sampleErr != nil {
-				return nil, "", sampleErr
+				loopErr = sampleErr
+				break
 			}
 		}
 		event.Index = generatedIndex
 		ids = append(ids, event.ID)
 		stop, deliverErr := r.deliverGenerationToken(&event, options, &generatedText)
 		if deliverErr != nil {
-			return nil, "", deliverErr
+			loopErr = deliverErr
+			break
 		}
 		if stop {
 			break
 		}
+	}
+	if options.CachePrompt {
+		// A stopped generation keeps its state too, so a continuation resumes it.
+		loopErr = errors.Join(loopErr, r.retainDecodedPromptCache(context.WithoutCancel(ctx), ids, reference.Value{}, nil, deviceCache))
+	}
+	if loopErr != nil {
+		return ids, "", loopErr
 	}
 	text, err := r.vocab.Decode(ids, false)
 	if err != nil {

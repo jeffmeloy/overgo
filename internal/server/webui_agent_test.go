@@ -6,15 +6,11 @@ import (
 	"testing"
 )
 
-// TestFrontPageAgent pins agent mode inside the conversation (professional
-// GUI campaign, gui-workbench/agent-in-thread): a tool step and the session
-// list report the session's step bound beside its steps, the front page
-// offers an agent mode over the active agent definitions and runs the same
-// thread through /agents/chat with the shared tool-step surface, that
-// surface is one piece composer.js owns (review a grant's binding, execute
-// an inspection, approve a mutation bound to the previewed operation
-// identity, render results as tool cards, show steps against the bound),
-// and the workbench agent tab rides the same piece.
+// TestFrontPageAgent holds agent mode's server side: a tool step and the
+// session list report the session's step bound beside its steps. The agent
+// thread leg drives agent mode on the page; this bans the agent tab from
+// calling the approval route itself instead of riding the shared tool-step
+// surface.
 func TestFrontPageAgent(t *testing.T) {
 	t.Parallel()
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
@@ -30,26 +26,8 @@ func TestFrontPageAgent(t *testing.T) {
 		t.Fatalf("session list status=%d body=%s", sessions.Code, sessions.Body.String())
 	}
 
-	get := func(path string) string {
-		return serveTestRequest(fixture.handler, http.MethodGet, path, "").Body.String()
-	}
-	composer := get("/composer.js")
-	for _, needle := range []string{
-		"function toolStep(", `"/agents/approval"`, `"/agents/step"`, "request.approval = previewed && previewed.operation",
-		"result.bound - result.steps", "options.thread().toolCard(", `class: "card approval"`, "options.onMode(modeSelect.value)",
-	} {
-		if !strings.Contains(composer, needle) {
-			t.Errorf("composer missing %q", needle)
-		}
-	}
-	chat := get("/mod/chat.js")
-	for _, needle := range []string{`"/agents"`, `"/agents/tools"`, `"/agents/chat"`, "overgo.toolStep(", `mode === "agent"`, "onMode:", "overgo.streams.reply("} {
-		if !strings.Contains(chat, needle) {
-			t.Errorf("chat missing %q", needle)
-		}
-	}
-	agent := get("/mod/agent.js")
-	if !strings.Contains(agent, "overgo.toolStep(") || strings.Contains(agent, `"/agents/approval"`) {
-		t.Error("the agent tab does not ride the shared tool-step surface")
+	agent := serveTestRequest(fixture.handler, http.MethodGet, "/mod/agent.js", "").Body.String()
+	if strings.Contains(agent, `"/agents/approval"`) {
+		t.Error("the agent tab calls the approval route instead of riding the shared tool-step surface")
 	}
 }

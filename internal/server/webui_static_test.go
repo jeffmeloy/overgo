@@ -65,15 +65,9 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 func TestEvaluationWorkbenchUsesDeclaredCapabilities(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
+	// The standalone tabs leg drives the evaluations tab; the source keeps
+	// every benchmark out of the page (plans come from the server).
 	module := serveTestRequest(handler, http.MethodGet, "/mod/evaluations.js", "").Body.String()
-	for _, token := range []string{
-		"/evaluations/capabilities", "/evaluations/run", "/evaluations/history", "/evaluations/report",
-		"/evaluations/failures", "/evaluations/compare", "overgo.waitOperation", "capability.suite.plan",
-	} {
-		if !strings.Contains(module, token) {
-			t.Errorf("evaluation workbench missing %q", token)
-		}
-	}
 	for _, benchmark := range []string{"mmlu", "truthfulqa", "ifeval", "bbh", "musr"} {
 		if strings.Contains(strings.ToLower(module), benchmark) {
 			t.Errorf("evaluation workbench embeds benchmark %q", benchmark)
@@ -90,12 +84,9 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 	get := func(path string) string {
 		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
 	}
+	// The serving stream and stream lifecycle legs drive the monitor; the
+	// source keeps its polling paths banned.
 	runtime := get("/mod/runtime.js")
-	for _, token := range []string{"overgo.subscribe(", "whileShown: true", "runtime.sessions", "runtime.activity"} {
-		if !strings.Contains(runtime, token) {
-			t.Errorf("runtime module missing %q", token)
-		}
-	}
 	for _, polling := range []string{"overgo.poller", `api.get("/runtime/sessions"`, `api.get("/runtime/activity"`} {
 		if strings.Contains(runtime, polling) {
 			t.Errorf("runtime module retains polling path %q", polling)
@@ -105,11 +96,6 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 		t.Error("runtime monitor requests retained text")
 	}
 	boot := get("/boot.js")
-	for _, token := range []string{"document.hidden", "t.life.setActive(true)", "t.life.setActive(false)"} {
-		if !strings.Contains(boot, token) {
-			t.Errorf("boot lifecycle missing %q", token)
-		}
-	}
 	// Live state arrives on the one runtime stream; the shell keeps no poller and no per-tab stream.
 	for _, retired := range []string{"function poller", "function tabStream"} {
 		if strings.Contains(boot, retired) {
@@ -121,54 +107,11 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 	}
 }
 
-func TestWorkflowStageGUI(t *testing.T) {
-	t.Parallel()
-	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, token := range []string{"data.stages", "Workflow stages", "stage.operation", "stage.attempt"} {
-		if !strings.Contains(runtime, token) {
-			t.Errorf("workflow stage GUI missing %q", token)
-		}
-	}
-}
-
-func TestToolDecisionGUI(t *testing.T) {
-	t.Parallel()
-	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, token := range []string{"overgo.decideOperation(", "item.recovery", "Grant ", "decline"} {
-		if !strings.Contains(runtime, token) {
-			t.Errorf("tool decision GUI missing %q", token)
-		}
-	}
-}
-
-func TestInteractionReplayGUI(t *testing.T) {
-	t.Parallel()
-	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, token := range []string{"data.interactions", "/interactions/replay?response=", "interaction.trace"} {
-		if !strings.Contains(runtime, token) {
-			t.Errorf("interaction replay GUI missing %q", token)
-		}
-	}
-}
-
-func TestRemoteAttemptGUI(t *testing.T) {
-	t.Parallel()
-	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
-	if !strings.Contains(runtime, `item.compatibility ? " / peer"`) {
-		t.Fatal("remote attempts are not identified from compatibility evidence")
-	}
-}
-
 func TestAgentGUIUsesProjectedQueriesAndSSE(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	runtime := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String()
 	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
-	for _, token := range []string{"runtimeEvents", "/runtime/activity/stream", "operation.snapshot"} {
-		if !strings.Contains(workflow, token) {
-			t.Errorf("shared runtime stream missing %q", token)
-		}
-	}
 	for _, polling := range []string{"operationPollMilliseconds", `api.get("/operations?id="`, "overgo.poller"} {
 		if strings.Contains(workflow, polling) || strings.Contains(runtime, polling) {
 			t.Errorf("agent GUI retains polling path %q", polling)
@@ -221,26 +164,13 @@ func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
 	get := func(path string) string {
 		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
 	}
+	// The sampling, turn limit and first-run legs drive the context meter;
+	// the source keeps embedded sampling defaults banned.
 	chat := get("/mod/chat.js")
-	for _, token := range []string{
-		"overgo.capabilities(",
-		`api.post("/v1/responses/input_tokens"`,
-		"overgo.api.stream(",
-		"Context ratio",
-		"terminal.usage",
-		"terminal.timings",
-	} {
-		if !strings.Contains(chat, token) {
-			t.Errorf("chat module missing %q", token)
-		}
-	}
 	for _, embeddedDefault := range []string{`value: "0.7"`, `value: "512"`, `|| 512`} {
 		if strings.Contains(chat, embeddedDefault) {
 			t.Errorf("chat module embeds sampling default %q", embeddedDefault)
 		}
-	}
-	if !strings.Contains(get("/boot.js"), "async stream(path, body, opts)") {
-		t.Error("shared API client does not own streaming fetch")
 	}
 }
 
@@ -306,92 +236,12 @@ func TestWebUIStyleInvariants(t *testing.T) {
 	}
 }
 
-// TestWebUIAuthUX guards the centralized 401 handling: a shared friendlyError
-// helper directing the user to connection settings, and the analysis tabs
-// routing their errors through the helper instead of leaking the raw bearer
-// error.
-func TestWebUIAuthUX(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
-
-	boot := get("/boot.js")
-	for _, needle := range []string{"friendlyError", "Settings", "Connection"} {
-		if !strings.Contains(boot, needle) {
-			t.Errorf("boot.js missing %q", needle)
-		}
-	}
-	page := get("/")
-	for _, needle := range []string{`id="settings-dialog"`, `id="api-key"`} {
-		if !strings.Contains(page, needle) {
-			t.Errorf("settings missing %q", needle)
-		}
-	}
-	for _, asset := range []string{"/mod/analyze_model.js", "/mod/analyze_vocab.js", "/mod/analyze_tensors.js"} {
-		// A tab's reads report through its workspace (overgo.read / overgo.load), which renders overgo.failure.
-		if source := get(asset); !strings.Contains(source, "friendlyError") && !strings.Contains(source, "overgo.failure(") &&
-			!strings.Contains(source, "overgo.read(") && !strings.Contains(source, "overgo.load(") {
-			t.Errorf("%s does not route errors through friendlyError", asset)
-		}
-	}
-}
-
-// TestWebUIHeatmapLegend guards the heatmap readability additions: a color-scale
-// legend built from the same ramp() the cells use, and axis tick labels driven by
-// caller-supplied labels (so a reader can map color→value and read the axes
-// instead of hovering every cell).
-func TestWebUIHeatmapLegend(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	viz := serveTestRequest(handler, http.MethodGet, "/viz.js", "").Body.String()
-	for _, needle := range []string{"colorScaleLegend", "linearGradient", "rowLabels", "colLabels"} {
-		if !strings.Contains(viz, needle) {
-			t.Errorf("viz.js heatmap missing %q", needle)
-		}
-	}
-	for _, asset := range []string{"/mod/analyze_attention.js", "/mod/analyze_states.js"} {
-		if !strings.Contains(serveTestRequest(handler, http.MethodGet, asset, "").Body.String(), "labels:") {
-			t.Errorf("%s does not pass labels to heatmap (axis ticks)", asset)
-		}
-	}
-}
-
-func TestSignedSeriesPreservesNegativeMeasurements(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	viz := serveTestRequest(handler, http.MethodGet, "/viz.js", "").Body.String()
-	start := strings.Index(viz, "function signedSeries")
-	if start < 0 {
-		t.Fatal("signed series primitive absent")
-	}
-	end := strings.Index(viz[start:], "function probBars")
-	if end < 0 {
-		t.Fatal("signed series boundary absent")
-	}
-	series := viz[start : start+end]
-	for _, token := range []string{"Math.min(0, ...values)", `class: "zero-axis"`, `"data-value": String(value)`} {
-		if !strings.Contains(series, token) {
-			t.Errorf("signed series missing %q", token)
-		}
-	}
-	if strings.Contains(series, "Math.max(0, value)") {
-		t.Error("signed series clamps negative measurements")
-	}
-}
-
 func TestRLWorkspaceRendersMeasuredEvidence(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
+	// The training evidence leg drives the view over stored runs; the source
+	// keeps derived signals out (the view draws measurements as measured).
 	training := serveTestRequest(handler, http.MethodGet, "/mod/training.js", "").Body.String()
-	for _, token := range []string{
-		"DPO loss", "GRPO loss", "Evaluator reward", "Margin decomposition", "Chosen / rejected pair", "Optimizer health",
-		"Checkpoint comparison", "policy_margin", "reference_margin", "relative_margin",
-		"mean_reward", "reward_dispersion", "gradient_l2", "update_l2", "overgo.contentURL(",
-	} {
-		if !strings.Contains(training, token) {
-			t.Errorf("training evidence view missing %q", token)
-		}
-	}
 	for _, forbidden := range []string{"smooth", "movingAverage"} {
 		if strings.Contains(training, forbidden) {
 			t.Errorf("training evidence view contains derived signal %q", forbidden)
@@ -414,55 +264,6 @@ func TestRLWorkspaceUsesGenericWorkflowEndpoints(t *testing.T) {
 	}
 	if strings.Contains(workflow, "/dpo") || strings.Contains(jobs, "/dpo") {
 		t.Error("RL workspace adds a DPO-only transport")
-	}
-}
-
-// TestWebUIShellCache guards the shared /analyze/model cache (fetched once for
-// capability gating, the Model tab, and the lens vocab size) and the periodic
-// health re-probe so a dropped/restored server updates the status pill; the
-// re-probe runs only while the page is visible.
-func TestWebUIShellCache(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
-	boot := get("/boot.js")
-	for _, needle := range []string{"modelInfo", "invalidateModel", "setInterval(probeVisible", "if (!document.hidden) refreshStatus()"} {
-		if !strings.Contains(boot, needle) {
-			t.Errorf("boot.js missing %q", needle)
-		}
-	}
-	for _, asset := range []string{"/mod/analyze_model.js", "/mod/analyze_logits.js"} {
-		body := get(asset)
-		if !strings.Contains(body, "modelInfo") {
-			t.Errorf("%s does not use the shared modelInfo cache", asset)
-		}
-		if strings.Contains(body, `api.get("/analyze/model")`) {
-			t.Errorf("%s still fetches /analyze/model directly (bypasses the cache)", asset)
-		}
-	}
-}
-
-// TestWebUICancel guards the cancelable-run path for the tabs that drive a real
-// forward pass (lens, hidden-states, attention). The abort semantics live once
-// in the shared runner; each tab drives it and forwards the signal.
-func TestWebUICancel(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
-	boot := get("/boot.js")
-	for _, needle := range []string{"AbortController", "controller.abort", "AbortError", "function runner"} {
-		if !strings.Contains(boot, needle) {
-			t.Errorf("boot.js shared runner missing %q", needle)
-		}
-	}
-	for _, asset := range []string{"/mod/analyze_logits.js", "/mod/analyze_states.js", "/mod/analyze_attention.js"} {
-		body := get(asset)
-		if !strings.Contains(body, "overgo.runner(") && !strings.Contains(body, "overgo.analysisSurface(") {
-			t.Errorf("%s does not use the shared overgo.runner", asset)
-		}
-		if !strings.Contains(body, "{ signal }") {
-			t.Errorf("%s does not forward the abort signal to its request", asset)
-		}
 	}
 }
 
@@ -490,31 +291,10 @@ func TestWebUIChatMarkdown(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
 
-	md := get("/md.js")
-	if strings.Contains(md, ".innerHTML") {
+	// The acceptance sanitizer, reliability and conversation actions legs
+	// drive the rendering; the source keeps markup assignment banned.
+	if strings.Contains(get("/md.js"), ".innerHTML") {
 		t.Error("md.js assigns .innerHTML — model output must render as DOM text, never markup")
-	}
-	for _, needle := range []string{"md-codeblock", "clipboard.writeText", "https?:", "createTextNode"} {
-		if !strings.Contains(md, needle) {
-			t.Errorf("md.js missing %q", needle)
-		}
-	}
-	// The thread renderer in composer.js owns assistant markdown and copy for
-	// every surface; chat.js reaches it through the shared thread.
-	composer := get("/composer.js")
-	for _, needle := range []string{"overgo.md(", "overgo.copyButton"} {
-		if !strings.Contains(composer, needle) {
-			t.Errorf("composer.js does not use %q", needle)
-		}
-	}
-	if !strings.Contains(get("/mod/chat.js"), "overgo.thread(") {
-		t.Error("chat.js does not render through the shared thread")
-	}
-	// md.js must load before any module so overgo.md exists when chat renders:
-	// the loader lists it among the libraries it awaits before the modules.
-	boot := get("/boot.js")
-	if strings.Index(boot, `"/md.js"`) < 0 || strings.Index(boot, `"/md.js"`) > strings.Index(boot, "loadWorkspaceModules(") {
-		t.Error("boot.js must list /md.js among the libraries loaded before the modules")
 	}
 }
 
@@ -558,34 +338,5 @@ func TestWebUIRejectsNonGet(t *testing.T) {
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/", nil))
 	if response.Code != http.StatusNotFound {
 		t.Fatalf("POST / status = %d, want 404", response.Code)
-	}
-}
-
-// TestCollapsibleSections pins the fold contract: the shell serves the
-// shared fold helper, the dense pages consume it instead of stacking
-// section headers, and the stylesheet carries the disclosure control
-// styling -- so optional free-entry panels collapse to their headers.
-func TestCollapsibleSections(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	assertions := []struct {
-		path, needle string
-	}{
-		{"/boot.js", "function fold("},
-		{"/mod/agent.js", "overgo.fold("},
-		{"/mod/runtime.js", "overgo.fold("},
-		{"/style.css", ".fold[open] > summary::before"},
-		// The agent page leads with the task: simple creation posts to
-		// the derive-everything endpoint, the session names itself, and
-		// every operator panel folds behind an Advanced header.
-		{"/mod/agent.js", "/agents/create"},
-		{"/mod/agent.js", "Advanced: manual tool steps"},
-		{"/mod/agent.js", "autoSession"},
-	}
-	for _, assertion := range assertions {
-		response := serveTestRequest(handler, http.MethodGet, assertion.path, "")
-		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), assertion.needle) {
-			t.Fatalf("%s status=%d missing %q", assertion.path, response.Code, assertion.needle)
-		}
 	}
 }

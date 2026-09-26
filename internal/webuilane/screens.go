@@ -296,7 +296,7 @@ func CaptureSummary(states int, findings []StateFinding) string {
 			layout++
 		}
 	}
-	return fmt.Sprintf("screens leg: tab mount errors: %d; unlabelled controls: %d; captured %d states at %d viewports under %d colour schemes with %d layout findings", len(failedTabs), unlabelled, states, len(ScreenViewports), len(ColourSchemes), layout)
+	return fmt.Sprintf("tab mount errors: %d; unlabelled controls: %d; captured %d states at %d viewports under %d colour schemes with %d layout findings", len(failedTabs), unlabelled, states, len(ScreenViewports), len(ColourSchemes), layout)
 }
 
 // layoutAuditScript is the audit with its fault kinds named from the

@@ -225,5 +225,5 @@ func TestWebUIBrowserMediaCapture(t *testing.T) {
 	settle(`captureDialog().dataset.state==='preview'`)
 	check(`(()=>{captureOwned.dispose();captureOwned.element.querySelector('.attach-button').click();captureOwned.element.remove();return !captureDialog()&&captureTracks.every(track=>track.readyState==='ended');})()`)
 	check(`overgo.errors.length===0`)
-	t.Log("media capture leg: synthetic AudioWorklet WAV with independent decoder, byte-limit auto-stop and explicit Stop; camera switching, preview/retake and resized PNG pixels; authenticated artifact intake; declared-slot admission; permission denial, late permission cleanup, navigation, mode/read-only/disposal and Escape cleanup; draft preservation and narrow/keyboard viewport controls passed. No physical microphone/camera or model-understanding claim.")
+	webuilane.Leg(t, "media capture leg", "synthetic AudioWorklet WAV with independent decoder, byte-limit auto-stop and explicit Stop; camera switching, preview/retake and resized PNG pixels; authenticated artifact intake; declared-slot admission; permission denial, late permission cleanup, navigation, mode/read-only/disposal and Escape cleanup; draft preservation and narrow/keyboard viewport controls passed. No physical microphone/camera or model-understanding claim.")
 }

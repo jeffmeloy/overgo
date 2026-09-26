@@ -82,22 +82,6 @@
       ]
     },
     {
-      "id": "automation-master-owned-ratchets",
-      "title": "Refuse a merge that loosens a master ceiling or registry check",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse a merge that loosens a master ceiling or registry check",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestMergeRefusesLooserRatchet$' -count=1",
-          "rationale": "Merge lesson (2026-09-25): lanes can loosen master's checks to get green. The VAE lane narrowed TestReviewedDeltaRegistryExplainsTheTree instead of reconciling its media runtime move, raised docs/clone_baseline.json from 7991 to 9970 though the merged tree measured 7964, and wrote compatibility.json evidence identities that live only in its own store. Ceilings, floors and reviewed registries are editable files on every branch. Make master own them: a merge (and a lane gate) derives each ceiling from master's tree and refuses any raise, narrowed registry check or foreign evidence identity without a declared paydown row. Done when TestMergeRefusesLooserRatchet refuses a merge that raises a ceiling or narrows a registry check."
-        }
-      ]
-    },
-    {
       "id": "automation-lane-consumer-first",
       "title": "Hold lane gates to consumer-first exports and paid-down harness growth",
       "class": "consolidation",

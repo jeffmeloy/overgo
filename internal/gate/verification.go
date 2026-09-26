@@ -222,6 +222,11 @@ func (g *gateContext) pipeline() error {
 			return err
 		}
 	}
+	if g.mergeBefore != nil {
+		if err := reportGateAdmissionPhase("master-owned ratchets", g.refuseLooserRatchets); err != nil {
+			return err
+		}
+	}
 	tree, err := g.plannedTree()
 	if err != nil {
 		return err

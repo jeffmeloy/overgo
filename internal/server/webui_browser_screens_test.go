@@ -32,7 +32,7 @@ func (g screensGenerator) ModelProperties() inference.ModelProperties {
 // banner in its panel, no page error).
 func TestWebUIBrowserScreens(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": browser screens run through cmd/webui-lane")
+		testskip.NotApplicable(t, "browser screens run through cmd/webui-lane")
 	}
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {

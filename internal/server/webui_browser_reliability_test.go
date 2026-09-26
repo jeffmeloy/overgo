@@ -21,7 +21,7 @@ import (
 func TestWebUIBrowserReliability(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": browser reliability runs through cmd/webui-lane")
+		testskip.NotApplicable(t, "browser reliability runs through cmd/webui-lane")
 	}
 	repository, err := overgodb.Open(t.TempDir())
 	if err != nil {

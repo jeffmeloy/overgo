@@ -17,7 +17,7 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN3_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := openFixtureRunner(modelPath, 0)
 	if err != nil {
@@ -193,7 +193,7 @@ func TestPreloadedCachedLayerInputsMatchFullExtraction(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN3_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,
@@ -241,7 +241,7 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN3_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := openFixtureRunner(modelPath, 0)
 	if err != nil {
@@ -290,7 +290,7 @@ func TestNativeQ8GreedyMatchesOracle(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN3_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
 	}
 	assertNativeQuantGreedyOracle(t, modelPath)
 }
@@ -299,7 +299,7 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN3_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,
@@ -552,7 +552,7 @@ func TestNativeQ6KGreedyMatchesOracle(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN3_Q6K_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN3_Q6K_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN3_Q6K_MODEL is not set")
 	}
 	assertNativeQuantGreedyOracle(t, modelPath)
 }
@@ -561,7 +561,7 @@ func TestNativeQwen35HybridMatchesOracleAndResumes(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN35_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN35_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,
@@ -735,7 +735,7 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN35_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN35_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,
@@ -877,7 +877,7 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MTP_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN35_MTP_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN35_MTP_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,
@@ -976,7 +976,7 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	assistantPath := os.Getenv("OVERGO_GEMMA4_ASSISTANT_MODEL")
 	targetPath := os.Getenv("OVERGO_GEMMA4_TARGET_MODEL")
 	if assistantPath == "" || targetPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_GEMMA4_ASSISTANT_MODEL and OVERGO_GEMMA4_TARGET_MODEL are not set")
+		testskip.NotApplicable(t, "OVERGO_GEMMA4_ASSISTANT_MODEL and OVERGO_GEMMA4_TARGET_MODEL are not set")
 	}
 	assistant, err := openNativeFixtureRunner(assistantPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
@@ -1060,7 +1060,7 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 	draftPath := os.Getenv("OVERGO_EAGLE3_MODEL")
 	targetPath := os.Getenv("OVERGO_EAGLE3_TARGET_MODEL")
 	if draftPath == "" || targetPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_EAGLE3_MODEL and OVERGO_EAGLE3_TARGET_MODEL are not set")
+		testskip.NotApplicable(t, "OVERGO_EAGLE3_MODEL and OVERGO_EAGLE3_TARGET_MODEL are not set")
 	}
 	draftRunner, err := openNativeFixtureRunner(draftPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
@@ -1133,7 +1133,7 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 	draftPath := os.Getenv("OVERGO_DFLASH_MODEL")
 	targetPath := os.Getenv("OVERGO_DFLASH_TARGET_MODEL")
 	if draftPath == "" || targetPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_DFLASH_MODEL and OVERGO_DFLASH_TARGET_MODEL are not set")
+		testskip.NotApplicable(t, "OVERGO_DFLASH_MODEL and OVERGO_DFLASH_TARGET_MODEL are not set")
 	}
 	draftRunner, err := openNativeFixtureRunner(draftPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
@@ -1211,7 +1211,7 @@ func TestWavTokenizerDecodeWaveform(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_WAVTOKENIZER_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_WAVTOKENIZER_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_WAVTOKENIZER_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
@@ -1236,7 +1236,7 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_COHERE2_MTP_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_COHERE2_MTP_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_COHERE2_MTP_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,
@@ -1329,7 +1329,7 @@ func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_BONSAI_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_BONSAI_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_BONSAI_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,
@@ -1361,7 +1361,7 @@ func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_GEMMA3_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_GEMMA3_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_GEMMA3_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,
@@ -1425,7 +1425,7 @@ func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_UMT5_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_UMT5_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_UMT5_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,

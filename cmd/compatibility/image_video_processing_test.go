@@ -167,9 +167,7 @@ func mediaProcessingRecordedRows(raw []byte) ([]mediaProcessingObservation, erro
 
 func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": retained media processing comparison")
-	}
+	testskip.Short(t, "retained media processing comparison")
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_processing.json")
 	raw, err := os.ReadFile(path)

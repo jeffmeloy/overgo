@@ -19,7 +19,7 @@ import (
 func TestWebUIBrowserTranscriptionDraft(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": transcription draft runs through cmd/webui-lane")
+		testskip.NotApplicable(t, "transcription draft runs through cmd/webui-lane")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

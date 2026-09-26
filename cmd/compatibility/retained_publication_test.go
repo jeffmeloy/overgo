@@ -84,9 +84,7 @@ func TestQwenFourVerificationPublication(t *testing.T) {
 
 func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixture) {
 	t.Helper()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/verification", fixture.Specification)
 	var spec verificationSpecification

@@ -65,7 +65,7 @@ func TestTranscriptionSelectedRecipe(t *testing.T) {
 func TestWebUIBrowserTranscriptionSelection(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": transcription selection runs through cmd/webui-lane")
+		testskip.NotApplicable(t, "transcription selection runs through cmd/webui-lane")
 	}
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	// The chat attachment declaration allows WAV; transcription itself uses the

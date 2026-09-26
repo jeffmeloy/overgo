@@ -22,11 +22,9 @@ import (
 // launches inference or promotes a partial or fixture-only model result.
 func TestAcceptedE4BModalities(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for canonical E4B evidence acceptance")
+		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for canonical E4B evidence acceptance")
 	}
 	root := testutil.RepoRoot(t)
 	var spec modelValidationSpecification

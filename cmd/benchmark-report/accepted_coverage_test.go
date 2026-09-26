@@ -27,7 +27,7 @@ const minMMLUProCovered = 6
 // models carry no MMLU-Pro record and are not required here.
 func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for MMLU-Pro coverage acceptance")
+		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for MMLU-Pro coverage acceptance")
 	}
 	root, err := dataroot.StoreRoot("")
 	if err != nil {

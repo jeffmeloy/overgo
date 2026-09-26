@@ -13,8 +13,23 @@
           "id": "do",
           "title": "Classify failures as typed kinds at their owner, not by message text",
           "status": "open",
-          "verify": "go test ./internal/testevidence -run '^TestOutcomesClassifyFromTypedEvents$' -count=1",
-          "rationale": "Owner 2026-09-25: classify facts once at their owner and derive decisions from typed facts; avoid brittle string matching. Measured: 11 production decisions match error-message text and 25 scrape test or lane output. Examples: gate staleClosureAuthorityFailure (verification.go:1555) picks remediation by strings.Contains on 'stale active binding'; impact_fallback.go:29 does the same for manifest uncertainty; testevidence classifies skip kind (evidence.go:254), device contention through ErrResourceBusy text (:261) and panic cause (:318) from output substrings; VerifyOutput (:465-486) judges verify commands by text; output 'UNAVAILABLE' markers decide credit. Owners return typed kinds instead: closurescan ErrStaleBinding and ErrUncatalogued, a codemanifest uncertainty kind, and testevidence reading go test -json events plus a structured outcome record (skip kind, resource contention with holder, panic) rather than prose. Each replaced matcher is deleted. GUI lane survey items 3 and 7. Done when TestOutcomesClassifyFromTypedEvents classifies skip, contention and panic outcomes from typed events with no output substring."
+          "verify": "go test ./internal/testevidence -run '^TestVerifyReadsTypedUnavailability$' -count=1",
+          "rationale": "Owner 2026-09-25: classify facts once at their owner and derive decisions from typed facts; avoid brittle string matching. Done so far: closurescan ErrStaleBinding and UncataloguedPolicyError, codemanifest UncertaintyConsumerBoundary (gate remediation and impact fallback), and skip kinds as typed attr events (typed-skip-kinds). Remaining slice, which also pays down typed-skip-kinds' +20 production lines: (1) unavailability -- 131 producers print UNAVAILABLE or 'parity NOT verified' and testevidence.unavailable greps output for them; a test records it with a typed testskip-style attribute (t.Attr) and the parser reads the attr event; producers that are commands (train-lane, webui-lane, race-lane, plan) return a typed error instead; (2) cuda/testutil.MeasurementProcess runs its child with -test.v and judges the text with VerifyOutput; run it through test2json and read the typed report; (3) VerifyOutput then serves only non-go-test shell verifies and loses its go test text checks. Not typed, by reasoning: device contention reaches go test only through arbitrary t.Fatal(err) text, so matching the owner sentinel processcontrol.ErrResourceBusy's own Error() is the channel; the panic cause line is diagnostic retention, not a decision. Done when TestVerifyReadsTypedUnavailability classifies an unavailable test from its attr event with no output substring."
+        }
+      ]
+    },
+    {
+      "id": "modeltest-tag-compiles",
+      "title": "Compile every test under the modeltest tag",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compile every test under the modeltest tag",
+          "status": "open",
+          "verify": "go vet -tags modeltest ./...",
+          "rationale": "Found 2026-09-26 while vetting the typed-skip migration under every build tag: go vet -tags modeltest ./... fails in files no recent change touched -- internal/seq2seq/real_text_model_test.go (unused path/filepath import), internal/hybridtrain/resident_layout_test.go (undefined smallHybrid), internal/cuda/executor/executor_windows_bf16_prefill_test.go (undefined patternedValue) -- so the modeltest-tagged real-model proofs cannot run at all; helpers they used were moved or deleted without the tagged consumers being compiled. Fix each consumer (restore the helper next to it or use its successor), then decide whether a gate check should compile tagged test files so this rot cannot recur. Done when go vet -tags modeltest ./... exits 0."
         }
       ]
     },
@@ -1343,7 +1358,9 @@
             "automation-typed-remediation-kinds/do",
             "consumer-graph-sort-keys/do",
             "gate-suite-serial-phase/do",
-            "profile-file-facts-memo/do"
+            "profile-file-facts-memo/do",
+            "typed-skip-kinds/do",
+            "modeltest-tag-compiles/do"
           ]
         }
       ]

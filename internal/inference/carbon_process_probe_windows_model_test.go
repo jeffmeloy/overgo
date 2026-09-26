@@ -54,7 +54,7 @@ func TestCarbonServingProcessProbe(t *testing.T) {
 	modelPath := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Carbon-500M-f16-ropefix.gguf")
 	storePath := os.Getenv("OVERGO_CARBON_REPODB")
 	if storePath == "" {
-		t.Skip(testskip.Inapplicable + ": child process probe requires OVERGO_CARBON_REPODB")
+		testskip.NotApplicable(t, "child process probe requires OVERGO_CARBON_REPODB")
 	}
 	store, err := overgodb.Open(storePath)
 	if err != nil {

@@ -15,7 +15,7 @@ import (
 func TestWebUIBrowserSamplingSettings(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": sampling settings run through cmd/webui-lane")
+		testskip.NotApplicable(t, "sampling settings run through cmd/webui-lane")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

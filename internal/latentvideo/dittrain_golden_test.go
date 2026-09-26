@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/testskip"
 	"overgo/internal/trainingprogram"
 )
 
@@ -19,9 +20,7 @@ import (
 // with the committed g1 projected context: block-0 intra-block seams, every
 // block output, and the unpatchified branch output, on both branches.
 func TestDiTTrainerGoldenParityG3(t *testing.T) {
-	if testing.Short() {
-		t.Skip("integration excluded by -short: loads the full 5.7GB trainable tensor set")
-	}
+	testskip.Short(t, "loads the full 5.7GB trainable tensor set")
 	manifest, dir := loadDenoiseManifest(t, "g3_denoise.json")
 	modelDir := wanModelDir(t)
 	config, err := LoadDenoiserConfig(modelDir, referenceDenoiserPolicy)

@@ -16,9 +16,7 @@ import (
 const predictWallRuns = 5
 
 func TestPredictWall(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": loads ~6.5GB weights per head")
-	}
+	testskip.Short(t, "loads ~6.5GB weights per head")
 	golden := readGolden(t)
 	for _, task := range Tasks() {
 		loadStart := time.Now()

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -98,9 +99,7 @@ const (
 // TestTextConditioningGoldenParity: full pipeline vs the committed g1 cond
 // and uncond contexts (fox prompt / negative prompt).
 func TestTextConditioningGoldenParity(t *testing.T) {
-	if testing.Short() {
-		t.Skip("integration excluded by -short: streams the 11.4GB encoder checkpoint twice")
-	}
+	testskip.Short(t, "streams the 11.4GB encoder checkpoint twice")
 	g, fixtureDir := loadG1(t)
 	modelDir := wanModelDir(t)
 	spec := TextConditioningSpec{

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -45,9 +46,7 @@ func decodeVAEFrames(t *testing.T, decode func(sink VideoFrameSink) (VAEDecodeSt
 
 func runVAEDecodeCUDAAgainstHost(t *testing.T, manifestName string) {
 	cudatest.Require(t)
-	if testing.Short() {
-		t.Skip("integration excluded by -short: loads the 293MB VAE decoder weight set")
-	}
+	testskip.Short(t, "loads the 293MB VAE decoder weight set")
 	golden := loadVAEGoldenFrames(t, manifestName)
 	plan, checkpoint := compileRealVAEDecoderPlan(t)
 	stats := vaeG0LatentStats(t)
@@ -113,9 +112,7 @@ func loadF32LE(t testing.TB, path string, elements int) []float32 {
 // only); the log states which. Gated like every real-model CUDA test.
 func TestVAEDecodeCUDAProduction(t *testing.T) {
 	cudatest.Require(t)
-	if testing.Short() {
-		t.Skip("integration excluded by -short: production-scale decode")
-	}
+	testskip.Short(t, "production-scale decode")
 	plan, checkpoint := compileRealVAEDecoderPlan(t)
 	stats := vaeG0LatentStats(t)
 	const latentFrames, latentH, latentW = 21, 60, 104

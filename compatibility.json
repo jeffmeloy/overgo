@@ -67,7 +67,7 @@
    "summary": "A declared CPU acoustic encoder, post-normalized attention stack and speaker-activity head use shared operations and SpeechLease, with no model-family dispatch. Four waveform cases verify all 156 independently pinned capture files and 148 intermediate traces under the predeclared absolute float32 bound; valid-frame masking is explicit. Three preselected continuous AMI EN2002b windows match C++ turns exactly and retain zero-collar overlap-inclusive speaker-time error, bidirectional nearest-boundary distances and unmatched counts. The partial-window control clips one C++ endpoint to actual audio. Native evaluate repeats fresh inference with exact library scores, retains all failed/scored attempts and preserves annotation-conditioned words with ambiguous/unassigned labels. Cancellation, admission, task, release and reuse refusals execute. Weights are CC-BY-NC-4.0; the model card lists AMI training and manual segment boundaries include pauses. Recorded errors are not a quality gain. No held-out generalization, commercial readiness, cross-recording identity, streaming diarization, HTTP analysis, encoder training, RSS/performance or GPU claim.",
    "evidence": [
     {"path": "internal/speechrecognition/activity.go", "contains": "func LoadSpeakerActivity(", "role": "source", "identity": "file:sha256:334679b6892d0e67cc02454e9b953ee6b7c9d391485818f529081c9a07bd4f30"},
-    {"path": "internal/audioparity/speaker_numerical_test.go", "contains": "func TestSpeakerDiarizationAcceptance(", "role": "artifact", "identity": "evidence:sha256:d3408483ee83a8415b290d6407b7a800d1aa65849b9d969a2ae0a4d8c263315a"},
+    {"path": "internal/audioparity/speaker_numerical_test.go", "contains": "func TestSpeakerDiarizationAcceptance(", "role": "artifact", "identity": "evidence:sha256:b5ba93736d6aaf39e434bda7e53ccff10e95bdee0bc5d1ec2122e179826b18d6"},
     {"path": "internal/audioparity/testdata/speaker_reference.json", "contains": "CC-BY-NC-4.0", "role": "source", "identity": "file:sha256:53d981c8788cffcc2282b53f6a261809500dc3ce249acd35ce40732283f42284"},
     {"path": "internal/audioparity/speaker_session_test.go", "contains": "verifySpeakerCommand(", "role": "source", "identity": "file:sha256:7d3576d4b996a37202dc9778055ec9d8494537835ac6563f199e18151db38f8e"},
     {"path": "internal/speechrecognition/speaker_boundary_test.go", "contains": "func TestSpeakerBoundaryIndependentOracle(", "role": "source", "identity": "file:sha256:5cab97b61d546c721ff0032f4a27ce7c25aead54d162bc4e5a0838bb081211cb"},
@@ -93,7 +93,7 @@
      "path": "internal/audioparity/alignment_acceptance_test.go",
      "contains": "func TestSpeechAlignmentAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:7a2e10dc425a91b3c61401a76fe7b366efde505098ce8ac4250e812984bde12f"
+     "identity": "evidence:sha256:06f830b3341e2ec39adef53b8397a2669722927de351b013fba890e3308e3307"
     },
     {
      "path": "internal/audioparity/testdata/ami_alignment.json",
@@ -179,7 +179,7 @@
      "path": "internal/audioparity/cpu_resource_fitness_test.go",
      "contains": "func TestAudioResourceFitnessAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:621184d2b2eb48321f788dddc2ae307b458de52727680102e58ff09d125f05bd"
+     "identity": "evidence:sha256:1c17210e57516f7d4a738dbfb50b9bbed5c23d189cbe3249c942614667507377"
     }
    ]
   },
@@ -201,7 +201,7 @@
      "path": "internal/audioparity/production_training_test.go",
      "contains": "func TestASRProductionTrainingAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:4da300e11cb28672df5b1784feae15a1444e955e0213359ff03a2df74e35b83f"
+     "identity": "evidence:sha256:34a0415456a912a1adbe3026be311eba96dfca6f2251aae22321cadfed072830"
     },
     {
      "path": "internal/trainingworkflow/audio_test.go",
@@ -223,7 +223,7 @@
      "path": "internal/audioparity/cpu_lifecycle_test.go",
      "contains": "func TestASRCPUClosedLoop(",
      "role": "artifact",
-     "identity": "evidence:sha256:42c32bac865631d921d8b9b923993cdee6572d7827d266b311a546cc10c4926a"
+     "identity": "evidence:sha256:97bd2855dfda4405e35c8643a7d8a295139bd78cfa761dd637d4db4e2b362826"
     },
     {
      "path": "internal/audioparity/testdata/lifecycle_heldout.json",
@@ -245,7 +245,7 @@
      "path": "internal/audioparity/audio_recovery_test.go",
      "contains": "func TestAudioCancellationAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:2501333eae4db61b0e11d593ae3ffa092f5c78fcf0b4f8ec100c4ba1376c206c"
+     "identity": "evidence:sha256:b64801bf05091da071e9af0778607e120ce77f74cdf14323956d273156d14cbd"
     },
     {
      "path": "internal/speechrecognition/session.go",
@@ -267,7 +267,7 @@
      "path": "internal/audioparity/audio_recovery_test.go",
      "contains": "func TestAudioPublicationRecoveryAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:2501333eae4db61b0e11d593ae3ffa092f5c78fcf0b4f8ec100c4ba1376c206c"
+     "identity": "evidence:sha256:b64801bf05091da071e9af0778607e120ce77f74cdf14323956d273156d14cbd"
     },
     {
      "path": "internal/trainingworkflow/input_projection.go",
@@ -645,7 +645,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:7164f81203eadee002f0518a78aa6edd2826e74e3f216e71175b627a0bf4d50f"
+     "identity": "evidence:sha256:3b4dea5f42c3eef1e772e39a7b633ece4436568cd4fb51ddca41b0eee9599886"
     }
    ],
    "id": "gemma4-multimodal-oracle",
@@ -676,7 +676,7 @@
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "symbol": "TestMultimodalInputMatrix",
      "role": "artifact",
-     "identity": "evidence:sha256:536ae7e6101c23b206ffe9aab22fa8a9380585308dd5fd9df6d27161f9d54951"
+     "identity": "evidence:sha256:7d0664f963c05e3df2d784c085ac46d24f64917690433018dbc345f47c62dbc9"
     }
    ],
    "id": "gemma-e4b-audio-tower-oracle",
@@ -698,7 +698,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:7164f81203eadee002f0518a78aa6edd2826e74e3f216e71175b627a0bf4d50f"
+     "identity": "evidence:sha256:3b4dea5f42c3eef1e772e39a7b633ece4436568cd4fb51ddca41b0eee9599886"
     }
    ],
    "id": "gemma-e4b-image-language-oracle",
@@ -726,7 +726,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:7164f81203eadee002f0518a78aa6edd2826e74e3f216e71175b627a0bf4d50f"
+     "identity": "evidence:sha256:3b4dea5f42c3eef1e772e39a7b633ece4436568cd4fb51ddca41b0eee9599886"
     }
    ],
    "id": "qwen35-image-video-language-oracle",
@@ -748,7 +748,7 @@
      "contains": "func TestRxBrainProductionParity(",
      "path": "cmd/vqaparity/recipeverify_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:1f833b2e6ce1c5cc8b683e746c4fce53b3656059f1d910795414389adebb5f4f"
+     "identity": "evidence:sha256:b8f448d1d77b71ecb9d57d7dd54a0a6d7aad1ddf8b7a4c29612ee946d96ebad1"
     }
    ],
    "id": "rxbrain-vqa-production-oracle",
@@ -1422,7 +1422,7 @@
      "contains": "func TestExactAttentionCaptureRejectsModifiedScorePolicies(",
      "path": "internal/inference/attention_capture_probe_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:42b060e8bd2c641efbc88f5b07247c96c9fd930a27989998c01ff9a77814d955"
+     "identity": "evidence:sha256:96d8c857e018b6d60cf44af1131af7c0f368f00b8cf57ce6e070da23124dde6b"
     }
    ],
    "id": "exact-attention-workbench",
@@ -1520,7 +1520,7 @@
      "path": "internal/capabilityruntime/native_asr_session_test.go",
      "contains": "func TestNativeASRSessionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:413cf293205dc3506fd049a69e7b60ae643ec541c4184cd8e559f523bc5aeee3"
+     "identity": "evidence:sha256:ef19bcc155df227cbcf40c9e932b62f0b1f3d17b171ead54b62fbb551a21f9c3"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -1549,7 +1549,7 @@
      "path": "internal/server/streaming_transcriptions_test.go",
      "contains": "func TestStreamingTranscriptionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:fa63edd1c6c624cde54f1d31e39755a3c9ebb5c8c0f1353522f2342a9e5bdc4b"
+     "identity": "evidence:sha256:77fbd0f650f1b218fe9d9ba4b824a799928b8e720d1cff3d9e34f50f85788464"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -1578,7 +1578,7 @@
      "path": "internal/capabilityruntime/native_asr_session_test.go",
      "contains": "func TestNativeASRSessionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:413cf293205dc3506fd049a69e7b60ae643ec541c4184cd8e559f523bc5aeee3"
+     "identity": "evidence:sha256:ef19bcc155df227cbcf40c9e932b62f0b1f3d17b171ead54b62fbb551a21f9c3"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -1606,7 +1606,7 @@
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRModelSwitchAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:255fcfed37a55a09995fb1d63b74cdd33680c5696cf41a5d4778933d0bb98ebd"
+     "identity": "evidence:sha256:8c8648714cc4c55695e03d7c25c52c2c78f7e972eb87c959928ece2659c97260"
     }
    ]
   },
@@ -1628,7 +1628,7 @@
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRLiveOperationsAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:255fcfed37a55a09995fb1d63b74cdd33680c5696cf41a5d4778933d0bb98ebd"
+     "identity": "evidence:sha256:8c8648714cc4c55695e03d7c25c52c2c78f7e972eb87c959928ece2659c97260"
     }
    ]
   }

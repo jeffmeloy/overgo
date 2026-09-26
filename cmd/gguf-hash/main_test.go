@@ -59,12 +59,10 @@ func TestExecuteHashesAndChecksManifest(t *testing.T) {
 }
 
 func TestExecuteMatchesPinnedLlamaCPPGGUFHash(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": requires pinned llama-gguf-hash")
-	}
+	testskip.Short(t, "requires pinned llama-gguf-hash")
 	oracle := os.Getenv("OVERGO_GGUF_HASH_ORACLE")
 	if oracle == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_GGUF_HASH_ORACLE to pinned llama-gguf-hash")
+		testskip.NotApplicable(t, "set OVERGO_GGUF_HASH_ORACLE to pinned llama-gguf-hash")
 	}
 	path := writeHashFixture(t)
 	var got bytes.Buffer

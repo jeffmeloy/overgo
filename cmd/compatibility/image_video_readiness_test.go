@@ -146,17 +146,15 @@ func inheritedCensus(ctx context.Context, storePath string) (artifact.ID, error)
 
 func TestImageVideoWorktreeReadiness(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for image/video worktree readiness")
+		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for image/video worktree readiness")
 	}
 	// The lane is the role the dispatch runs under; reading the plan for it
 	// would bind the plan document into this package's inputs and expire the
 	// package's receipt at every landing.
 	if os.Getenv(worklease.AutomationRoleEnvironment) != imageVideoLane {
-		t.Skip(testskip.Inapplicable + ": readiness applies to the image_video_gen campaign")
+		testskip.NotApplicable(t, "readiness applies to the image_video_gen campaign")
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)

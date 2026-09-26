@@ -23,9 +23,7 @@ import (
 // Retained acceptance only: no model load, current-HEAD requirement or promotion.
 func TestAcceptedRxBrainVQA(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	var fixture retainedPublicationFixture
 	for _, candidate := range retainedPublicationFixtures(t) {
 		if candidate.Name == "rxbrain-vqa" {

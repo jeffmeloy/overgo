@@ -68,9 +68,7 @@ func compareMediaRuntimeIdentity(expected, actual string) error {
 
 func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": merged media evidence requires the private store")
-	}
+	testskip.Short(t, "merged media evidence requires the private store")
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_merged.json")
 	raw, err := os.ReadFile(path)

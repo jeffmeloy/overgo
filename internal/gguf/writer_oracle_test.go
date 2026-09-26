@@ -13,12 +13,10 @@ import (
 )
 
 func TestWriterAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": requires pinned llama-gguf-hash")
-	}
+	testskip.Short(t, "requires pinned llama-gguf-hash")
 	oracle := os.Getenv("OVERGO_GGUF_HASH_ORACLE")
 	if oracle == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_GGUF_HASH_ORACLE to pinned llama-gguf-hash")
+		testskip.NotApplicable(t, "set OVERGO_GGUF_HASH_ORACLE to pinned llama-gguf-hash")
 	}
 	path := filepath.Join(t.TempDir(), "writer-oracle.gguf")
 	destination, err := os.Create(path)
@@ -74,12 +72,10 @@ func TestWriterAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
 }
 
 func TestQuantizerOutputAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": requires pinned llama-gguf-hash")
-	}
+	testskip.Short(t, "requires pinned llama-gguf-hash")
 	oracle := os.Getenv("OVERGO_GGUF_HASH_ORACLE")
 	if oracle == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_GGUF_HASH_ORACLE to pinned llama-gguf-hash")
+		testskip.NotApplicable(t, "set OVERGO_GGUF_HASH_ORACLE to pinned llama-gguf-hash")
 	}
 	values := quantizeFixtureValues(64)
 	var sourceData bytes.Buffer
@@ -128,12 +124,10 @@ func TestQuantizerOutputAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
 }
 
 func TestSplitWriterAcceptedByPinnedLlamaCPPMerge(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": requires pinned llama-gguf-split")
-	}
+	testskip.Short(t, "requires pinned llama-gguf-split")
 	oracle := os.Getenv("OVERGO_GGUF_SPLIT_ORACLE")
 	if oracle == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_GGUF_SPLIT_ORACLE to pinned llama-gguf-split")
+		testskip.NotApplicable(t, "set OVERGO_GGUF_SPLIT_ORACLE to pinned llama-gguf-split")
 	}
 	var encoded bytes.Buffer
 	tensors := make([]TensorData, 3)

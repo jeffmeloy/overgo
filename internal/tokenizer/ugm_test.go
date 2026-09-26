@@ -30,12 +30,10 @@ func TestUGMViterbiPrefersHighestSequenceScore(t *testing.T) {
 }
 
 func TestRealUMT5Tokenization(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": requires a real UMT5 model")
-	}
+	testskip.Short(t, "requires a real UMT5 model")
 	path := os.Getenv("OVERGO_UMT5_MODEL")
 	if path == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_UMT5_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_UMT5_MODEL is not set")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {

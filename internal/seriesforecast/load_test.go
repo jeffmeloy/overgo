@@ -26,9 +26,7 @@ func artifactDir(t *testing.T) string {
 // the expectations mirror the adaptive_new reference test for the same
 // artifact (the port's first parity point).
 func TestDimsDeriveFromRealArtifact(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": loads ~930MB weights")
-	}
+	testskip.Short(t, "loads ~930MB weights")
 	model, err := Load(artifactDir(t))
 	if err != nil {
 		t.Fatal(err)

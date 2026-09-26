@@ -120,9 +120,7 @@ func checkMediaLoaderObservations(consumer string, rows []mediaLoaderObservation
 
 func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": loader baseline reads retained acquisitions")
-	}
+	testskip.Short(t, "loader baseline reads retained acquisitions")
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_baseline.json")
 	data, err := os.ReadFile(path)

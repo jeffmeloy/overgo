@@ -24,14 +24,10 @@ import (
 // an explicit disposition. Registration never grants new verification credit.
 func TestAcceptedCapabilityCensus(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
-	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
-		t.Skip(testskip.StoreAcceptance)
-	}
+	testskip.Short(t)
+	testskip.StoreAcceptance(t)
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT to check the exact capability census; no models execute")
+		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT to check the exact capability census; no models execute")
 	}
 	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
 	if err != nil {

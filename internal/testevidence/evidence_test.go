@@ -152,9 +152,9 @@ func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Ski
 
 func TestGoTestJSONShort(t *testing.T) {
 	classified := fmt.Sprintf(
-		"{\"Action\":\"output\",\"Package\":\"x\",\"Test\":\"TestX\",\"Output\":%q}\n"+
+		"{\"Action\":\"attr\",\"Package\":\"x\",\"Test\":\"TestX\",\"Key\":%q,\"Value\":%q}\n"+
 			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestX\"}\n",
-		testskip.ShortIntegration+"\n",
+		testskip.Key, testskip.KindShort,
 	)
 	if err := GoTestJSONShort(classified); err != nil {
 		t.Fatal(err)
@@ -189,10 +189,10 @@ func TestGoTestJSONReportPreservesSkippedEvidence(t *testing.T) {
 func TestCIRequiredEvidence(t *testing.T) {
 	out := fmt.Sprintf(
 		"{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestPass\"}\n"+
-			"{\"Action\":\"output\",\"Package\":\"x\",\"Test\":\"TestSlow\",\"Output\":%q}\n"+
+			"{\"Action\":\"attr\",\"Package\":\"x\",\"Test\":\"TestSlow\",\"Key\":%q,\"Value\":%q}\n"+
 			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestSlow\"}\n"+
 			"{\"Action\":\"pass\",\"Package\":\"x\"}\n",
-		testskip.ShortIntegration+"\n",
+		testskip.Key, testskip.KindShort,
 	)
 	report, err := GoTestJSONShortReport(out)
 	if err != nil {
@@ -251,9 +251,9 @@ func TestVerifyGoTestEvidenceClassifiesExplicitShortExclusions(t *testing.T) {
 	passing := "{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestOne\"}\n" +
 		"{\"Action\":\"pass\",\"Package\":\"x\"}\n"
 	classified := fmt.Sprintf(
-		"{\"Action\":\"output\",\"Package\":\"x\",\"Test\":\"TestIntegration\",\"Output\":%q}\n"+
+		"{\"Action\":\"attr\",\"Package\":\"x\",\"Test\":\"TestIntegration\",\"Key\":%q,\"Value\":%q}\n"+
 			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestIntegration\"}\n",
-		testskip.ShortIntegration+"\n",
+		testskip.Key, testskip.KindShort,
 	)
 	if err := VerifyGoTestEvidence("go test -race -short ./x", passing+classified); err != nil {
 		t.Fatal(err)

@@ -56,9 +56,7 @@ type mediaCompositionBundle struct {
 
 func TestImageVideoCompositionAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": retained composition evidence")
-	}
+	testskip.Short(t, "retained composition evidence")
 	root := testutil.RepoRoot(t)
 	var bundle mediaCompositionBundle
 	path := filepath.Join(root, "docs/image_video_composition.json")

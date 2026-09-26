@@ -141,9 +141,7 @@ func compareMediaTransfers(before, after mediaTransferRecord, steps, stepBytes u
 
 func TestImageVideoTransferOptimizationAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": transfer comparison reads retained acquisitions")
-	}
+	testskip.Short(t, "transfer comparison reads retained acquisitions")
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_transfers.json")
 	raw, err := os.ReadFile(path)

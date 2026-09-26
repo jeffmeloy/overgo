@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -32,8 +33,8 @@ func TestSkipConstantReach(t *testing.T) {
 				t.Errorf("%s runs only programs its callers name yet is classed as a source reader", node.ImportPath)
 			}
 		case "overgo/internal/testskip":
-			if len(node.Imports) != 0 {
-				t.Errorf("testskip imports %v; it must stay a leaf", node.Imports)
+			if slices.ContainsFunc(node.Imports, func(path string) bool { return strings.HasPrefix(path, "overgo/") }) {
+				t.Errorf("testskip imports %v; it must stay a repository leaf", node.Imports)
 			}
 		}
 	}

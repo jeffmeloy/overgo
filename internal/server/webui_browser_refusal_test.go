@@ -18,7 +18,7 @@ import (
 func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": workspace refusal runs through cmd/webui-lane")
+		testskip.NotApplicable(t, "workspace refusal runs through cmd/webui-lane")
 	}
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()

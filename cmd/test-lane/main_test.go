@@ -14,10 +14,10 @@ import (
 func TestCIRequiredEvidenceCommand(t *testing.T) {
 	events := fmt.Sprintf(
 		"{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestX\"}\n"+
-			"{\"Action\":\"output\",\"Package\":\"x\",\"Test\":\"TestSlow\",\"Output\":%q}\n"+
+			"{\"Action\":\"attr\",\"Package\":\"x\",\"Test\":\"TestSlow\",\"Key\":%q,\"Value\":%q}\n"+
 			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestSlow\"}\n"+
 			"{\"Action\":\"pass\",\"Package\":\"x\"}\n",
-		testskip.ShortIntegration+"\n",
+		testskip.Key, testskip.KindShort,
 	)
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"./..."}, &stdout, &stderr, func([]string) (testevidence.GoTestReport, error) {

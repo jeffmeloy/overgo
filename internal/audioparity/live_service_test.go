@@ -98,9 +98,7 @@ type liveASRFixture struct {
 
 func newLiveASRFixture(t *testing.T) *liveASRFixture {
 	t.Helper()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": real ASR child startup requires registered models and corpus")
-	}
+	testskip.Short(t, "real ASR child startup requires registered models and corpus")
 	previousLog := log.Writer()
 	log.SetOutput(testutil.UnexpectedLog{Test: t})
 	t.Cleanup(func() { log.SetOutput(previousLog) })

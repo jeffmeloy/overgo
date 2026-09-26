@@ -10,6 +10,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testskip"
 )
 
 // runSessionGoldenDenoise: the full guided trajectory on the CUDA session vs
@@ -17,9 +18,7 @@ import (
 func runSessionGoldenDenoise(t *testing.T, name string) {
 	t.Helper()
 	cudatest.Require(t)
-	if testing.Short() {
-		t.Skip("integration excluded by -short: runs the full 30-block denoiser on CUDA")
-	}
+	testskip.Short(t, "runs the full 30-block denoiser on CUDA")
 	manifest, dir := loadDenoiseManifest(t, name)
 	program := newGoldenDenoiserProgram(t, manifest)
 	session, err := NewDenoiserCUDASession(program, 0)
@@ -103,9 +102,7 @@ func TestDenoiserCUDASessionGoldenG3(t *testing.T) {
 // agreement (cosine/normalized RMS) logged verbatim and gated loosely.
 func TestDenoiserCUDASessionBF16G3(t *testing.T) {
 	cudatest.Require(t)
-	if testing.Short() {
-		t.Skip("integration excluded by -short: runs the full 30-block denoiser on CUDA")
-	}
+	testskip.Short(t, "runs the full 30-block denoiser on CUDA")
 	manifest, dir := loadDenoiseManifest(t, "g3_denoise.json")
 	config, weights := denoiserFixture(t)
 	geometry, err := config.CompileLatentGeometry(manifest.Request.Frames, manifest.Request.Width, manifest.Request.Height)

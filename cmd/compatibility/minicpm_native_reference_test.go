@@ -148,11 +148,9 @@ func readMiniNativeCaptures(t testing.TB) {
 
 func TestAcceptedMiniCPMNativeReference(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for retained MiniCPM native evidence")
+		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for retained MiniCPM native evidence")
 	}
 	readMiniNativeCaptures(t)
 	t.Log("four host-greedy and four device-greedy cases match pinned native CPU: exact 48 input and 82 output tokens per path; source, loaded model/recipe and conversion bound; model executions=0")

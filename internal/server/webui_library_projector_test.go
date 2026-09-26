@@ -55,9 +55,7 @@ func storedProjectorPair(t *testing.T) (modelPath, projectorPath string) {
 // validate.
 func TestFrontPageLibraryProjector(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": reading model files is integration")
-	}
+	testskip.Short(t, "reading model files is integration")
 	modelPath, projectorPath := storedProjectorPair(t)
 	model, projector, err := libraryintake.ModelFiles(modelPath, projectorPath)
 	if err != nil || model != modelPath || projector != projectorPath {

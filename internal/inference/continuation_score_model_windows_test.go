@@ -77,7 +77,7 @@ func TestContinuationScoringMatchesReferenceBackend(t *testing.T) {
 	cudatest.Require(t)
 	path := os.Getenv("OVERGO_PARITY_MODEL")
 	if path == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_PARITY_MODEL to a GGUF path")
+		testskip.NotApplicable(t, "set OVERGO_PARITY_MODEL to a GGUF path")
 	}
 	// The host-reference residency runs every operator on the CPU
 	// reference backend; the device runner scores through its kernels.
@@ -113,7 +113,7 @@ func TestContinuationScoringPathsAgreeOnAModel(t *testing.T) {
 	cudatest.Require(t)
 	path := os.Getenv("OVERGO_PARITY_MODEL")
 	if path == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_PARITY_MODEL to a GGUF path")
+		testskip.NotApplicable(t, "set OVERGO_PARITY_MODEL to a GGUF path")
 	}
 	runner := openParityRunner(t, path, recipe.ResidencyHybridNative)
 	if !runner.hasPreloadedWeights() || !runner.forwardProgram().PersistentDeviceCache() {

@@ -47,9 +47,7 @@ func (ctx *cancelDecodeContext) Err() error {
 
 func TestAudioCancellationAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": real audio cancellation runs as its exact mandatory batch acceptance")
-	}
+	testskip.Short(t, "real audio cancellation runs as its exact mandatory batch acceptance")
 	l := newAdapterLifecycle(t)
 	t.Run("decode", func(t *testing.T) {
 		ctx, cancel := context.WithCancelCause(t.Context())
@@ -215,9 +213,7 @@ func TestAudioCancellationAcceptance(t *testing.T) {
 
 func TestAudioPublicationRecoveryAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": real audio publication recovery runs as its exact mandatory batch acceptance")
-	}
+	testskip.Short(t, "real audio publication recovery runs as its exact mandatory batch acceptance")
 	l := newAdapterLifecycle(t)
 	step := l.update(t, l.batcher(t, nil))
 	commit := strings.TrimSpace(baselineCommand(t, l.fixture.root, "git", "rev-parse", "HEAD"))

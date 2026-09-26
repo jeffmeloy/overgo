@@ -22,7 +22,7 @@ import (
 
 // ShortIntegrationSkip is the skip reason under its retained name, kept
 // for harness files whose bytes an acquisition record binds; a new test
-// names testskip.ShortIntegration.
+// calls testskip.Short.
 const ShortIntegrationSkip = testskip.ShortIntegration
 
 type GoTestReport struct {
@@ -125,8 +125,8 @@ func RequireComplete(report GoTestReport) error {
 	return nil
 }
 
-// GoTestJSONShortReport decodes a hermetic short-mode lane. Only skips whose
-// output carries testskip.ShortIntegration are classified exclusions; they remain
+// GoTestJSONShortReport decodes a hermetic short-mode lane. Only short-mode
+// skips (testskip.Short, or its message) are classified exclusions; they remain
 // visible in the report and are never counted as passing evidence.
 func GoTestJSONShortReport(out string) (GoTestReport, error) {
 	return goTestJSONReport(out, true, false)
@@ -153,6 +153,7 @@ func goTestJSONReport(out string, short, allowAuxiliary bool) (GoTestReport, err
 
 type goTestEvent struct {
 	Action, Package, ImportPath, Test, Output string
+	Key, Value                                string
 	Time                                      string
 	Elapsed                                   *float64
 }
@@ -163,6 +164,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 	scanner := bufio.NewScanner(reader)
 	seen := false
 	classified := map[string]bool{}
+	typed := map[string]bool{}
 	contended := map[string]bool{}
 	results := map[string]*testResult{}
 	updates := packageUpdates{observe: observe, passed: map[string]bool{}}
@@ -251,7 +253,11 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 			tail.append(event.Output, diagnosticBytes)
 			tails[key] = tail
 		}
-		if short && strings.Contains(event.Output, testskip.ShortIntegration) || strings.Contains(event.Output, testskip.Inapplicable) {
+		// A recorded kind decides; a test that recorded none -- a stored
+		// receipt, a frozen harness -- is read by its skip message.
+		typed[key] = typed[key] || event.Action == "attr" && event.Key == testskip.Key
+		if typed[key] && event.Key == testskip.Key && (short && event.Value == testskip.KindShort || event.Value == testskip.KindInapplicable) ||
+			!typed[key] && (short && strings.Contains(event.Output, testskip.ShortIntegration) || strings.Contains(event.Output, testskip.Inapplicable)) {
 			classified[key] = true
 		}
 		if reason := unavailable(event.Output); reason != "" {

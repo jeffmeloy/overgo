@@ -21,6 +21,12 @@ func packageEvent(action, pkg, test, output string) string {
 	return string(data) + "\n"
 }
 
+// skipEvent is the attribute a testskip call records ahead of its skip.
+func skipEvent(pkg, test, kind string) string {
+	data, _ := json.Marshal(map[string]string{"Action": "attr", "Package": pkg, "Test": test, "Key": testskip.Key, "Value": kind})
+	return string(data) + "\n"
+}
+
 func TestSlowPublicationProcess(t *testing.T) {
 	announce := os.Getenv("OVERGO_TEST_SLOW_PUBLICATION")
 	if announce == "" {
@@ -118,7 +124,7 @@ func TestPackageCreditTransitions(t *testing.T) {
 	start := packageEvent("start", "example", "", "")
 	passed := packageEvent("run", "example", "TestWorks", "") + packageEvent("pass", "example", "TestWorks", "")
 	terminal := packageEvent("pass", "example", "", "")
-	skipped := packageEvent("run", "example", "TestIntegration", "") + packageEvent("output", "example", "TestIntegration", testskip.ShortIntegration) + packageEvent("skip", "example", "TestIntegration", "")
+	skipped := packageEvent("run", "example", "TestIntegration", "") + skipEvent("example", "TestIntegration", testskip.KindShort) + packageEvent("skip", "example", "TestIntegration", "")
 	for _, tc := range []struct {
 		name, stream string
 		short        bool

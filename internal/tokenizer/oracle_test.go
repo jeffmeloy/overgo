@@ -15,12 +15,10 @@ import (
 // TestUpstreamTokenizerCorpus compares against checked-in llama.cpp
 // tokenizer oracle when OVERGO_LLAMA_CPP points at source checkout
 func TestUpstreamTokenizerCorpus(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": requires pinned llama.cpp tokenizer corpus")
-	}
+	testskip.Short(t, "requires pinned llama.cpp tokenizer corpus")
 	source := os.Getenv("OVERGO_LLAMA_CPP")
 	if source == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_LLAMA_CPP is not set")
+		testskip.NotApplicable(t, "OVERGO_LLAMA_CPP is not set")
 	}
 	for _, name := range []string{"qwen2", "qwen35", "deepseek-llm", "gpt-2", "llama-spm", "llama-bpe", "bert-bge"} {
 		t.Run(name, func(t *testing.T) {

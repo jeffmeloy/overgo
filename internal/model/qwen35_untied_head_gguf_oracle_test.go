@@ -32,9 +32,7 @@ func qwen35_9BPath(t *testing.T) string {
 }
 
 func TestQwen35_9BUntiedHeadGGUFStructuralOracle(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	file, err := gguf.Open(qwen35_9BPath(t))
 	if err != nil {
 		t.Fatalf("open GGUF: %v", err)

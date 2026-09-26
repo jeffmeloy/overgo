@@ -462,6 +462,31 @@
         ]
       },
       "scope": "Ported from the overgo_vae lane (codex/overgo_vae at e1ee1326fe2b): the Wan VAE source encode (host and CUDA) and decode (CUDA) run their chunks through one media.CodecChunkStream that owns causal codec state. The receipt runs internal/media and internal/latentvideo on the device with the integration tag and the real Wan2.1-T2V-1.3B checkpoint, naming the CUDA decode goldens, the production CUDA decode, the source codec and its boundary, device runtime, cancellation recovery and the Wan lifecycle acceptance."
+    },
+    {
+      "changes": {
+        "internal/cuda/testutil/require.go": {
+          "after_sha256": "0dfc30a2b9673f0387b3b9872623b9ce676f3b50ca7b8d4899b7db1077d124da",
+          "before_sha256": "0d2f378df75af1955ac92eaa5f882680d5063475ccb0c9cf7cc46a56973668ca",
+          "reason": "the shared CUDA test gate skips through testskip.Short and testskip.NotApplicable, which record the skip kind as a typed test attribute; only how the skip is classified changes and no runtime code reads it."
+        }
+      },
+      "evidence": "evidence:sha256:cbfcf52eebd9e41ca550ee51357e3426cf582155ace98cf1aa5ab5315bb31a85",
+      "id": "cuda-test-gate-typed-skip",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/cuda/cublas": [
+          "TestSGEMMIntegration",
+          "TestRowMajorGEMMF32Integration"
+        ],
+        "overgo/internal/cuda/driver": [
+          "TestDriverIntegration"
+        ],
+        "overgo/internal/cuda/kernel": [
+          "TestVectorAddIntegration"
+        ]
+      },
+      "scope": "The typed skip kinds: the test-support gate every device fixture calls skips through the typed testskip calls instead of citing marker text. The receipt re-runs the driver, cuBLAS and kernel packages on the device with the gate opted in, so their fixtures pass through the changed gate instead of skipping."
     }
   ],
   "paths": [

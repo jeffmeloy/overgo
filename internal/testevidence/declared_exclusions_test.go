@@ -13,10 +13,10 @@ import (
 // when a skip states no such reason.
 func TestCompleteRunRecordsDeclaredExclusions(t *testing.T) {
 	t.Parallel()
-	stream := func(reason string) string {
+	stream := func(classification string) string {
 		return packageEvent("start", "example", "", "") +
 			packageEvent("run", "example", "TestApplies", "") + packageEvent("pass", "example", "TestApplies", "") +
-			packageEvent("run", "example", "TestElsewhere", "") + packageEvent("output", "example", "TestElsewhere", reason) +
+			packageEvent("run", "example", "TestElsewhere", "") + classification +
 			packageEvent("skip", "example", "TestElsewhere", "") + packageEvent("pass", "example", "", "")
 	}
 	var observed []string
@@ -24,7 +24,7 @@ func TestCompleteRunRecordsDeclaredExclusions(t *testing.T) {
 		observed = append(observed, pkg+" passed="+map[bool]string{true: "true", false: "false"}[passed])
 		return nil
 	}
-	report, err := readGoTestJSON(strings.NewReader(stream(testskip.Inapplicable+": applies to another campaign lane")), false, false, 0, observe, nil)
+	report, err := readGoTestJSON(strings.NewReader(stream(skipEvent("example", "TestElsewhere", testskip.KindInapplicable))), false, false, 0, observe, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestCompleteRunRecordsDeclaredExclusions(t *testing.T) {
 		t.Fatalf("a declared exclusion is not complete: %v", err)
 	}
 	observed = nil
-	report, err = readGoTestJSON(strings.NewReader(stream("integration: needs a device")), false, false, 0, observe, nil)
+	report, err = readGoTestJSON(strings.NewReader(stream(packageEvent("output", "example", "TestElsewhere", "integration: needs a device"))), false, false, 0, observe, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -78,12 +78,10 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 // prove the model bytes are present. Gated by OVERGO_SENSENOVA_MODEL so CI and
 // plan-verify skip (mirrors TestActiveRecipeQwen35Open).
 func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	modelDir := os.Getenv("OVERGO_SENSENOVA_MODEL")
 	if modelDir == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_SENSENOVA_MODEL for real SenseNova activation")
+		testskip.NotApplicable(t, "set OVERGO_SENSENOVA_MODEL for real SenseNova activation")
 	}
 	ctx := t.Context()
 

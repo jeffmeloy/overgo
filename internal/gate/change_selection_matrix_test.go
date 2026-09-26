@@ -106,7 +106,7 @@ func TestChangeSelectionRequiredMatrix(t *testing.T) {
 		})
 	}
 	if ranCases == 0 {
-		t.Skip(testskip.Inapplicable + ": the -run filter selected no matrix case")
+		testskip.NotApplicable(t, "the -run filter selected no matrix case")
 	}
 	if excludedCases == 0 {
 		t.Fatal("no matrix case excluded a package; the comparison proves nothing")

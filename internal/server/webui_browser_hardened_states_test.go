@@ -51,7 +51,7 @@ const hardenedStatesFilter = `(() => {
 func TestWebUIBrowserHardenedStates(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": hardened states run through cmd/webui-lane")
+		testskip.NotApplicable(t, "hardened states run through cmd/webui-lane")
 	}
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {

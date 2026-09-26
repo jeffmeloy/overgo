@@ -36,14 +36,14 @@ func Directory(t testing.TB, name string) string {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(roots.Store); errors.Is(err, fs.ErrNotExist) {
-		t.Skip(testskip.Inapplicable + ": no store holds model registrations here")
+		testskip.NotApplicable(t, "no store holds model registrations here")
 	}
 	directory, err := registeredDirectory(context.Background(), roots.Store, name)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if directory == "" {
-		t.Skip(testskip.Inapplicable + ": no model registered here sits in a directory named " + name)
+		testskip.NotApplicable(t, "no model registered here sits in a directory named "+name)
 	}
 	return directory
 }

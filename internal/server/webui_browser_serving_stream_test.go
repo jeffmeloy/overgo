@@ -20,7 +20,7 @@ import (
 func TestWebUIBrowserServingStream(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": serving stream uses Chromium through cmd/webui-lane")
+		testskip.NotApplicable(t, "serving stream uses Chromium through cmd/webui-lane")
 	}
 	handler, store := servingStreamFixture(t, 2)
 	handler.config.APIKey = testAPIKey

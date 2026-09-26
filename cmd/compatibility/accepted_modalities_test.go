@@ -28,11 +28,9 @@ import (
 
 func TestAcceptedModalityCoverage(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for retained modality coverage")
+		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for retained modality coverage")
 	}
 	t.Run("case-denominators", TestProtocolCaseProjection)
 	t.Run("resource-denominators", TestResourceCaseProjection)
@@ -176,9 +174,7 @@ func TestResourceCaseProjection(t *testing.T) {
 
 func TestAcceptedTextVisionEvidence(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	var coverage acceptedCoverage
 	requireAcceptedDocument(t, root, "docs/verification/text-vision-coverage.json", "ec07d869988aa9cdbe9ea0e3d8a41d6408188aa80acce418d9b3f7f6ae27c381", &coverage)
@@ -319,12 +315,10 @@ func requireAcceptedDocument(t *testing.T, root, path, digest string, target any
 
 func TestAcceptedSpecializedTaskEvidence(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	var coverage acceptedCoverage
-	requireAcceptedDocument(t, root, "docs/verification/specialized-coverage.json", "12a843562d786e0b1121edfe4d0887d75899a2bd6fc98968a3b584905deff190", &coverage)
+	requireAcceptedDocument(t, root, "docs/verification/specialized-coverage.json", "7e9d3f6e023fdae69406565fc4c86a460576b2169ef1e8846d0287915e81756b", &coverage)
 	requireAcceptedCoverage(t, root, coverage, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskTranscription, recipe.TaskGeneration, recipe.TaskAlignment, recipe.TaskDiarization, recipe.TaskActivityDetection, recipe.TaskAudioConversion, recipe.TaskAudioGeneration)
 }
 

@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-legs-picker",
-      "title": "Behaviour tests, stage 7b: a browser leg drives the model picker and header evidence (row and header evidence lines, capability tags, a stale row without Serve, the remembered model, and a switch's progress chip), retiring the model switch needles",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Behaviour tests, stage 7b: a browser leg drives the model picker and header evidence (row and header evidence lines, capability tags, a stale row without Serve, the remembered model, and a switch's progress chip), retiring the model switch needles",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserModelPicker$' -leg 'model picker leg'",
-          "rationale": "Stage 7 split 2026-09-25 by fixture: a survey of the eleven front-page needle tests found each needle's behaviour either driven by an existing leg (those needles go in the row that retires the test) or driven by no hermetic leg, and the gaps group by the fixture they need. Picker group over declared remote and keyless providers: each row's evidence (prompt and decode tokens per second, accuracies) and capability tags, a stale row with its reason and no Serve, the remembered last-served note, and a switch's model-switch chip with its elapsed progress. Retires TestFrontPageModelSwitch, keeping its stale-before-Serve order check."
-        }
-      ]
-    },
-    {
       "id": "gui-legs-media",
       "title": "Behaviour tests, stage 7c: a browser leg drives generated media (a speech run to an artifact card with provenance, its output reused into an artifact slot, embeddings and rerank turns, and the operations' live events), retiring the generation, media round trip and modalities needles",
       "owner": "overgo_gui_cleanup",

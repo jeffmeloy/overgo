@@ -5,17 +5,17 @@
   "items": [
     {
       "id": "ratchets-one-document",
-      "title": "Hold the gate's ratchets and baselines in one document",
+      "title": "Hold the gate's ratchets and baselines in one document (declined; owner to retire)",
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Hold the gate's ratchets and baselines in one document",
+          "title": "Hold the gate's ratchets and baselines in one document (declined; owner to retire)",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestRatchetsLiveInOneDocument$' -count=1",
-          "rationale": " File consolidation (owner priority 2026-09-26). Eleven ratchet and baseline files (the *_baseline.json family, structure_budgets, staged_surface, published_debt, plan_proof_horizon; six under 400 bytes) are one concern the gate already reads as a set (internal/gate/master_ratchets.go). Hold them in one docs/ratchets.json, one section per ratchet with its owner, so the merge ratchet check, the staged repairs and the preflight read one document. Done when TestRatchetsLiveInOneDocument finds every ratchet in docs/ratchets.json and none of the separate files."
+          "rationale": "Declined 2026-09-26 after reading the owners; kept open only because a committed row leaves the plan by landing, so the owner decides whether to retire it. Folding the ten remaining ratchets into one docs/ratchets.json would add code rather than remove it: their owners use them as paths, not only as JSON -- the proof horizon's ship-set membership, merge sync regenerating each baseline, staged-surface inheritance reading its file's history, the API manifest pinning a digest -- so one file would need a section-addressing mechanism and would couple ten independent lifecycles. The part of this row that shrinks the tree, retiring the two ledgers that had emptied, landed as ratchet-ledgers-retired."
         }
       ]
     },
@@ -1267,7 +1267,8 @@
             "verification-specs-into-compatibility/do",
             "ratchets-one-document/do",
             "tracked-files-need-readers/do",
-            "selection-prose-per-path/do"
+            "selection-prose-per-path/do",
+            "ratchet-ledgers-retired/do"
           ]
         }
       ]

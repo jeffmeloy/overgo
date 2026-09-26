@@ -453,17 +453,6 @@
     },
     {
       "guideline": "maps_keys_values_iter",
-      "path": "cmd/store-check/main.go",
-      "symbol": "run",
-      "owner": "overgo/cmd/store-check",
-      "reason": "The owner requires an explicitly materialized key or value slice for capacity, mutation, ordering, or downstream API ownership.",
-      "oracle": "go test ./cmd/store-check -count=1",
-      "retirement": "Retire when the downstream contract accepts an iterator directly and no concrete slice identity or mutation remains.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "maps_keys_values_iter",
       "path": "internal/adaptiveparity/matrix.go",
       "symbol": "InferenceModalityMatrix",
       "owner": "overgo/internal/adaptiveparity",
@@ -4643,5 +4632,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "69c9d9600b15f2f6d5333db2ee4810b52dc574a63632e723494033b814021666"
+  "exceptions_sha256": "634f0672904c47f1266b0ba85ae7325581da13945013f2b0c629eb986ee40300"
 }

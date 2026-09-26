@@ -4,9 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
-
-	"overgo/internal/jsonfile"
 )
 
 // TestNoFixedTimers holds the owner's rule that no wait is bound to a
@@ -14,9 +13,8 @@ import (
 // and constant-initialised durations as fixed, a constant a sibling file
 // declares included, and parameters, fields and flags as the caller's
 // declaration; a duration under a testing/synctest bubble advances a
-// simulated clock and is no wall wait; over the live tree the census never
-// exceeds the reviewed baseline and the baseline never lists a timer the
-// source has already lost, so the count only falls.
+// simulated clock and is no wall wait; any fixed timer is refused, and the
+// live tree holds none.
 func TestNoFixedTimers(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -83,18 +81,11 @@ func Declared(ctx context.Context, budget time.Duration, o options) {
 	if !slices.Equal(census, []FixedTimer{{File: "fixed.go", Function: "Fixed", Count: 7}}) {
 		t.Fatalf("fixture census = %+v", census)
 	}
-	baseline := FixedTimerBaseline{Version: 1, Timers: []FixedTimer{{File: "fixed.go", Function: "Fixed", Count: 7}}}
-	if err := AdmitFixedTimers(baseline, census); err != nil {
-		t.Fatalf("exact baseline refused: %v", err)
+	if err := RefuseFixedTimers(census); err == nil || !strings.Contains(err.Error(), "fixed.go Fixed waits 7") {
+		t.Fatalf("a fixed timer was admitted: %v", err)
 	}
-	if err := AdmitFixedTimers(FixedTimerBaseline{Version: 1}, census); err == nil {
-		t.Fatal("a new fixed timer was admitted")
-	}
-	if err := AdmitFixedTimers(baseline, nil); err == nil {
-		t.Fatal("a stale baseline entry was admitted")
-	}
-	if err := AdmitFixedTimers(baseline, []FixedTimer{{File: "fixed.go", Function: "Fixed", Count: 6}}); err == nil {
-		t.Fatal("a removal without lowering the baseline was admitted")
+	if err := RefuseFixedTimers(nil); err != nil {
+		t.Fatalf("a source with no fixed timer was refused: %v", err)
 	}
 
 	repository, err := filepath.Abs(filepath.Join("..", ".."))
@@ -109,16 +100,7 @@ func Declared(ctx context.Context, budget time.Duration, o options) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var reviewed FixedTimerBaseline
-	if err := jsonfile.DecodeStrict(filepath.Join(repository, filepath.FromSlash(FixedTimerBaselineFile)), &reviewed); err != nil {
+	if err := RefuseFixedTimers(liveCensus); err != nil {
 		t.Fatal(err)
 	}
-	if err := AdmitFixedTimers(reviewed, liveCensus); err != nil {
-		t.Fatal(err)
-	}
-	total := 0
-	for _, timer := range liveCensus {
-		total += timer.Count
-	}
-	t.Logf("fixed timers remaining: %d sites in %d functions", total, len(liveCensus))
 }

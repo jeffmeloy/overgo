@@ -4,15 +4,10 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"maps"
 	"path"
 	"slices"
 	"strings"
 )
-
-// FixedTimerBaselineFile is the reviewed census of wall-clock bounds the
-// source still fixes at writing time. The ratchet lets it shrink only.
-const FixedTimerBaselineFile = "docs/fixed_timer_baseline.json"
 
 // FixedTimer counts, in one function, the waits bound to a duration the
 // source fixes rather than one the caller declares.
@@ -20,13 +15,6 @@ type FixedTimer struct {
 	File     string `json:"file"`
 	Function string `json:"function"`
 	Count    int    `json:"count"`
-}
-
-// FixedTimerBaseline is the reviewed census document.
-type FixedTimerBaseline struct {
-	Version int          `json:"version"`
-	Doc     string       `json:"doc"`
-	Timers  []FixedTimer `json:"timers"`
 }
 
 // timerCalls are the calls that bind a wait or a delay to a duration.
@@ -81,27 +69,12 @@ func FixedTimerCensus(snapshot SourceSnapshot) ([]FixedTimer, error) {
 	return timers, nil
 }
 
-// AdmitFixedTimers refuses a census that adds a timer the baseline does not
-// list or exceeds a listed count, and a baseline that still lists a timer
-// the source no longer holds: the baseline follows every removal down.
-func AdmitFixedTimers(baseline FixedTimerBaseline, census []FixedTimer) error {
-	allowed := make(map[[2]string]int, len(baseline.Timers))
-	for _, timer := range baseline.Timers {
-		allowed[[2]string{timer.File, timer.Function}] = timer.Count
-	}
+// RefuseFixedTimers refuses every wait bound to a duration the source fixes
+// (owner rule 2026-09-14: no arbitrary timers). The census once shrank against
+// a reviewed list; the list is empty, so the rule holds without one.
+func RefuseFixedTimers(census []FixedTimer) error {
 	for _, timer := range census {
-		key := [2]string{timer.File, timer.Function}
-		limit, known := allowed[key]
-		if !known || timer.Count > limit {
-			return fmt.Errorf("fixed timer exceeds the reviewed census: %s %s %d -> %d; wait on the operation's own progress under caller cancellation", timer.File, timer.Function, limit, timer.Count)
-		}
-		if timer.Count < limit {
-			return fmt.Errorf("fixed timer census fell below the baseline: %s %s %d -> %d; lower %s", timer.File, timer.Function, limit, timer.Count, FixedTimerBaselineFile)
-		}
-		delete(allowed, key)
-	}
-	for key := range maps.Keys(allowed) {
-		return fmt.Errorf("fixed timer baseline lists a timer the source no longer holds: %s %s; lower %s", key[0], key[1], FixedTimerBaselineFile)
+		return fmt.Errorf("fixed timer: %s %s waits %d time(s) on a duration the source fixes; wait on the operation's own progress under caller cancellation", timer.File, timer.Function, timer.Count)
 	}
 	return nil
 }

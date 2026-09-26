@@ -244,7 +244,7 @@ func checkCompletionAuthority(ctx context.Context, checkout string, store *overg
 	return err
 }
 
-// checkPublishedChains runs store-check, which owns the chain baseline, against the candidate.
+// checkPublishedChains runs store-check, which refuses every broken chain, against the candidate.
 func checkPublishedChains(ctx context.Context, checkout, candidate string) error {
 	absolute, err := filepath.Abs(candidate)
 	if err != nil {

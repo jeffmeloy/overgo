@@ -21,7 +21,7 @@ func TestGateAdvisoryFindingPublication(t *testing.T) {
 	store := mustGateValue(overgodb.Open(filepath.Join(t.TempDir(), "store")))
 	defer store.Close()
 	batch := artifact.Batch{Key: "gate/fixture"}
-	audit := []string{"magic backlog: 2 inherited uncatalogued constants"}
+	audit := []auditNote{{noteWarning, "magic backlog: 2 inherited uncatalogued constants"}}
 	if err := appendGateAdvisoryFinding(t.Context(), store, &batch, []string{"internal/p"}, audit); err != nil {
 		t.Fatal(err)
 	}
@@ -42,13 +42,13 @@ func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 			{Name: "test", Outcome: runrecord.StepReused},
 			{Name: "claims", Outcome: runrecord.StepSkipped},
 		},
-		audit: []string{
-			"code profile: production=700 files/1000000 nodes and a large routine baseline",
-			"code profile delta vs HEAD: production=+0 files/-20 nodes duplicate_excess=-12",
-			"consumer census commit context=windows/amd64 delta: production=+1 test_only=+0 boundary=+0 zero=+0",
-			"test scope: 2 direct + 1 dependent packages (derived from import graph)",
-			"claims skipped: no changed path appears in compatibility.json",
-			"magic backlog: 3 inherited uncatalogued constants",
+		audit: []auditNote{
+			{noteDetail, "code profile: production=700 files/1000000 nodes and a large routine baseline"},
+			{noteDelta, "code profile delta vs HEAD: production=+0 files/-20 nodes duplicate_excess=-12"},
+			{noteConsumer, "consumer census commit context=windows/amd64 delta: production=+1 test_only=+0 boundary=+0 zero=+0"},
+			{noteScope, "test scope: 2 direct + 1 dependent packages (derived from import graph)"},
+			{noteDetail, "claims skipped: no changed path appears in compatibility.json"},
+			{noteWarning, "magic backlog: 3 inherited uncatalogued constants"},
 		},
 	}
 	var output bytes.Buffer
@@ -67,7 +67,7 @@ func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 	profile := codeprofile.Profile{Clones: []codeprofile.Clone{{
 		Nodes: 8, Functions: []string{"cmd/first/main.go:main", "cmd/second/main.go:main"},
 	}}}
-	if focus := profileReviewFocus(profile, []string{"cmd/first/main.go"}); !strings.Contains(focus, "exact_clone=none") {
+	if kind, focus := profileReviewFocus(profile, []string{"cmd/first/main.go"}); kind != noteDetail || !strings.Contains(focus, "exact_clone=none") {
 		t.Fatalf("CLI wrapper clone reached agent output: %s", focus)
 	}
 }

@@ -50,7 +50,7 @@ func TestPhaseWallTableOrdersByCost(t *testing.T) {
 		t.Fatalf("executed success carries a mark: %q", lines[1])
 	}
 
-	gate := &gateContext{start: time.Now(), steps: steps, audit: []string{"code profile delta vs HEAD: production=+0 files/-20 nodes duplicate_excess=-12"}}
+	gate := &gateContext{start: time.Now(), steps: steps, audit: []auditNote{{noteDelta, "code profile delta vs HEAD: production=+0 files/-20 nodes duplicate_excess=-12"}}}
 	var output bytes.Buffer
 	gate.printSummary(&output, runrecord.OutcomeSucceeded, "")
 	text := output.String()

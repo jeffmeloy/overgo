@@ -61,3 +61,12 @@ func isolatedProcess(t *testing.T) bool {
 	}
 	return true
 }
+
+// auditLines is the audit's text, for tests that read notes as lines.
+func auditLines(notes []auditNote) []string {
+	lines := make([]string, 0, len(notes))
+	for _, note := range notes {
+		lines = append(lines, note.text)
+	}
+	return lines
+}

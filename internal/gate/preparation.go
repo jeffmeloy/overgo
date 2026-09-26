@@ -198,11 +198,11 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 			surface = ownershipSurface(legacy)
 		}
 		surface.Unknown = append(surface.Unknown, "code manifest unavailable: "+structuralErr.Error())
-		g.note("code manifest unavailable; owned checks defaulted to run: " + structuralErr.Error())
+		g.advise(noteWarning, "code manifest unavailable; owned checks defaulted to run: "+structuralErr.Error())
 	}
 	if graphErr != nil {
 		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
-		g.note("package ownership unavailable; owned checks defaulted to run: " + graphErr.Error())
+		g.advise(noteWarning, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
 	}
 	if graphErr == nil && structuralErr == nil && baseManifest.SourceIdentity == candidateManifest.SourceIdentity &&
 		documentationChanges(g.paths, inputGraph) {
@@ -233,7 +233,7 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 			g.note(fmt.Sprintf("impact fallback: dependency closure over changed packages %s excluded %d owned check(s) under %d uncertainties",
 				strings.Join(changed, ","), len(impact.Exclusions), len(surface.Unknown)))
 		} else {
-			g.note("impact fallback unavailable; owned checks defaulted to run: " + resolverErr.Error())
+			g.advise(noteWarning, "impact fallback unavailable; owned checks defaulted to run: "+resolverErr.Error())
 		}
 	}
 	// The shell's assets are not Go symbols: a changed web UI path triggers
@@ -259,9 +259,9 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 			continue
 		}
 		if reason, excluded := impact.ExclusionReason(check.Descriptor.Name); excluded {
-			g.note(fmt.Sprintf("impact selection: %s excluded: %s", check.Descriptor.Name, reason))
+			g.advise(noteImpact, fmt.Sprintf("impact selection: %s excluded: %s", check.Descriptor.Name, reason))
 		} else {
-			g.note(fmt.Sprintf("impact selection: %s triggered: %s", check.Descriptor.Name, check.Descriptor.Ownership.Fact))
+			g.advise(noteImpact, fmt.Sprintf("impact selection: %s triggered: %s", check.Descriptor.Name, check.Descriptor.Ownership.Fact))
 		}
 	}
 	checks, err := automationcheck.Plan(definitions, impact)

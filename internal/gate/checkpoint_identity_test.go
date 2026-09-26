@@ -49,7 +49,7 @@ func TestCheckpointMemoCoversEveryCommand(t *testing.T) {
 	}
 	for _, want := range []string{"acceptance-compound", "acceptance-guarded"} {
 		if _, found := first[want]; !found {
-			t.Fatalf("%s was not memoised; audit=%v", want, g.audit)
+			t.Fatalf("%s was not memoised; audit=%v", want, auditLines(g.audit))
 		}
 	}
 	for _, refused := range []string{"acceptance-mixed", "acceptance-stray-guard", "acceptance-absent"} {
@@ -57,7 +57,7 @@ func TestCheckpointMemoCoversEveryCommand(t *testing.T) {
 			t.Fatalf("%s was memoised despite an uncoverable verifier", refused)
 		}
 	}
-	audit := strings.Join(g.audit, "\n")
+	audit := strings.Join(auditLines(g.audit), "\n")
 	for _, reason := range []string{"mixed: segment", "stray-guard: guard", "absent: package"} {
 		if !strings.Contains(audit, reason) {
 			t.Fatalf("audit lacks refusal %q:\n%s", reason, audit)

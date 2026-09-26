@@ -350,9 +350,9 @@ func (g *gateContext) preflightRepairs(output io.Writer) error {
 	}
 	g.auditMutex.Lock()
 	defer g.auditMutex.Unlock()
-	for _, line := range g.audit {
-		if strings.HasPrefix(line, "staged repair: ") {
-			fmt.Fprintf(output, "preflight: %s\n", line)
+	for _, note := range g.audit {
+		if note.kind == noteRepair {
+			fmt.Fprintf(output, "preflight: %s\n", note.text)
 		}
 	}
 	return nil

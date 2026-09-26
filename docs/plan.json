@@ -1367,7 +1367,8 @@
             "automation-structured-parsing/do",
             "preference-loss-variants/do",
             "classification-replan/do",
-            "automation-gate-rule-table/do"
+            "automation-gate-rule-table/do",
+            "automation-typed-gate-notes/do"
           ]
         }
       ]

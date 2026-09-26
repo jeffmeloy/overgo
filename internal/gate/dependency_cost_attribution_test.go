@@ -114,8 +114,8 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 		if len(g.selectionCauses) != 1 || g.selectionCauses[0].Step != testOwnersCheckName || g.selectionCauses[0].Package != pureTarget {
 			t.Fatalf("attribution includes unrelated work: %+v", g.selectionCauses)
 		}
-		if len(g.audit) != 0 {
-			t.Fatalf("attribution copied into advisories: %v", g.audit)
+		if len(auditLines(g.audit)) != 0 {
+			t.Fatalf("attribution copied into advisories: %v", auditLines(g.audit))
 		}
 	})
 	t.Run("live device math binding", func(t *testing.T) {

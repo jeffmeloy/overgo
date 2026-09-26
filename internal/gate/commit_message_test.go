@@ -28,12 +28,12 @@ func TestStructuredCommitMessage(t *testing.T) {
 	if err != nil || string(plain) != authored {
 		t.Fatalf("a gate that measured nothing wrote %q, %v", plain, err)
 	}
-	audit := []string{
-		"impact selection: claims triggered: authority:compatibility",
-		"operation class: code-change",
-		"test scope: 195 opaque reader(s) bound to every root",
-		"code profile delta vs HEAD: runtime=+0 files/+19 nodes",
-		"automation ROI commit: production_ast=0-4 net=-4",
+	audit := []auditNote{
+		{noteImpact, "impact selection: claims triggered: authority:compatibility"},
+		{noteClass, "operation class: code-change"},
+		{noteScope, "test scope: 195 opaque reader(s) bound to every root"},
+		{noteDelta, "code profile delta vs HEAD: runtime=+0 files/+19 nodes"},
+		{noteROI, "automation ROI commit: production_ast=0-4 net=-4"},
 	}
 	got, err := structuredMessage([]byte(authored), audit)
 	want := strings.TrimSpace(authored) + "\n\nMeasured by the gate:\n  operation class: code-change\n" +
@@ -41,7 +41,7 @@ func TestStructuredCommitMessage(t *testing.T) {
 	if err != nil || string(got) != want {
 		t.Fatalf("structured message = %q, %v; want %q", got, err, want)
 	}
-	if len(audit) != 5 || audit[0] != "impact selection: claims triggered: authority:compatibility" {
+	if len(audit) != 5 || audit[0].text != "impact selection: claims triggered: authority:compatibility" {
 		t.Fatalf("building the message rewrote the gate's audit: %q", audit)
 	}
 }

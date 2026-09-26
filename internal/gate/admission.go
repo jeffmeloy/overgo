@@ -198,7 +198,7 @@ func (g *gateContext) stepScope() (bool, error) {
 	g.pendingGenerated = &pending
 	var verificationInputs []string
 	for _, path := range unplanned {
-		g.note("unplanned dirty (not shipped): " + path)
+		g.advise(noteWarning, "unplanned dirty (not shipped): "+path)
 		if unplannedVerificationInput(path) {
 			verificationInputs = append(verificationInputs, path)
 		}

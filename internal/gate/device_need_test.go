@@ -50,10 +50,10 @@ func TestDevicePackagesRunFirstUnderTheLease(t *testing.T) {
 	if devices, hostPart, err := g.splitDevice(group); err != nil || !slices.Equal(devices, want[0]) || !slices.Equal(hostPart, want[1]) {
 		t.Fatalf("split = %v / %v, %v; want %v", devices, hostPart, err, want)
 	}
-	if !slices.ContainsFunc(g.audit, func(line string) bool {
+	if !slices.ContainsFunc(auditLines(g.audit), func(line string) bool {
 		return strings.HasPrefix(line, "test order: 2 device and model acceptance packages first under the shared lease")
 	}) {
-		t.Fatalf("audit = %v, want the device-first order", g.audit)
+		t.Fatalf("audit = %v, want the device-first order", auditLines(g.audit))
 	}
 	host := []string{"overgo/internal/plan", "overgo/cmd/plan", "overgo/internal/latentimage"}
 	if devices, hostPart, err := g.splitDevice(host); err != nil || len(devices) != 0 || !slices.Equal(hostPart, host) {

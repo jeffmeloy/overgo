@@ -207,7 +207,7 @@ func (g *gateContext) stageRepairs(repairs []mechanicalRepair) error {
 				g.paths = append(g.paths, file)
 			}
 		}
-		g.note(fmt.Sprintf("staged repair: %s for the %s phase wall=%dms rewrote=[%s]", repair.name, repair.phase, result.wall.Milliseconds(), strings.Join(changed, ",")))
+		g.advise(noteRepair, fmt.Sprintf("staged repair: %s for the %s phase wall=%dms rewrote=[%s]", repair.name, repair.phase, result.wall.Milliseconds(), strings.Join(changed, ",")))
 	}
 	return nil
 }
@@ -306,7 +306,7 @@ func (g *gateContext) harnessSurfaceUpdate() ([]byte, error) {
 		if paydown == "" {
 			return nil, fmt.Errorf("the repair would move a reviewed threshold in %s: %s; shrink the change, or declare the open row that pays the raise down through the plan (`go run ./cmd/plan -budget -paydown <open item> -reason <why> <item>`)", harnessSurfaceBaselineFile, strings.Join(deltas, "; "))
 		}
-		g.note(fmt.Sprintf("harness surface raised against paydown row %s: %s", paydown, strings.Join(deltas, "; ")))
+		g.advise(noteDebt, fmt.Sprintf("harness surface raised against paydown row %s: %s", paydown, strings.Join(deltas, "; ")))
 	}
 	current, err := json.MarshalIndent(baseline, "", " ")
 	if err != nil {

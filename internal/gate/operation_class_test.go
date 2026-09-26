@@ -77,12 +77,12 @@ func TestOperationClassPrechecks(t *testing.T) {
 		}
 	}
 
-	if err := g.requireOperationPrechecks(ctx, store); err != nil || g.audit[0] != "operation class: "+classPlanEdit {
-		t.Fatalf("an unmutated store = %v, audit %v", err, g.audit)
+	if err := g.requireOperationPrechecks(ctx, store); err != nil || auditLines(g.audit)[0] != "operation class: "+classPlanEdit {
+		t.Fatalf("an unmutated store = %v, audit %v", err, auditLines(g.audit))
 	}
 	release("first")
 	refused("a release with no proof")
-	if last := g.audit[len(g.audit)-1]; !strings.HasSuffix(last, "+"+classStoreMutation) {
+	if last := auditLines(g.audit)[len(auditLines(g.audit))-1]; !strings.HasSuffix(last, "+"+classStoreMutation) {
 		t.Fatalf("a released store was classed %q", last)
 	}
 	if _, err := store.Commit(ctx, prove(true)); !errors.Is(err, overgodb.ErrProducerRefused) {

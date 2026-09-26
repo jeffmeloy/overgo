@@ -329,7 +329,7 @@ func (g *gateContext) pipeline() error {
 			g.terminal[name] = result.Evidence
 			g.steps = append(g.steps, gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name]))
 			if result.Evidence.Reused {
-				g.note(name + " reused: derived inputs already passed this step")
+				g.advise(noteReuse, name+" reused: derived inputs already passed this step")
 			}
 		}
 		// reported failures show all findings
@@ -563,7 +563,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 		profile.Generated.Files, profile.Generated.Nodes, profile.Test.Files, profile.Test.Nodes, profile.DuplicateExcessNodes,
 		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
-	g.note(surfaceDeltaAudit(base, profile))
+	g.advise(noteDelta, surfaceDeltaAudit(base, profile))
 	if err := g.admitScopeBudget(base, profile); err != nil {
 		return false, err
 	}
@@ -587,12 +587,12 @@ func (g *gateContext) stepProfile() (bool, error) {
 			return false, err
 		}
 		summary, err := automationROIAdmission("commit", movement)
-		g.note(summary)
+		g.advise(noteROI, summary)
 		if err != nil {
 			return false, err
 		}
 	}
-	g.note(profileReviewFocus(profile, g.changedGoFiles()))
+	g.advise(profileReviewFocus(profile, g.changedGoFiles()))
 	if err := g.appendConsumerCensus(snapshot, baseSource, changed, &profile); err != nil {
 		return false, err
 	}
@@ -618,7 +618,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 		"function impact: base=%s candidate=%s seeds=%d reachable=%d unknown=%d",
 		impact.BaseIdentity, impact.CandidateIdentity, len(impact.Seeds), len(impact.Reachable), len(impact.Unknown),
 	))
-	g.note(impactSelectionAudit(profile.Impact))
+	g.advise(noteImpact, impactSelectionAudit(profile.Impact))
 	if _, profile.Consumers, err = codeprofile.ProductionConsumerCensus(candidate, selection, nil); err != nil {
 		return err
 	}
@@ -631,7 +631,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	g.note(consumerCensusAudit("commit", selection.Context, declarations, base, current))
+	g.advise(noteConsumer, consumerCensusAudit("commit", selection.Context, declarations, base, current))
 	if unconsumed := codeprofile.NewUnconsumedSurface(baseDeclarations, declarations); len(unconsumed) > 0 {
 		// docs/staged_surface.json is the reviewed acceptance for new
 		// surface whose consumer is deliberately deferred (owner ruling
@@ -653,7 +653,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 
 	mergeBase, err := command(g.repo, "git", "merge-base", "master", "HEAD")
 	if err != nil {
-		g.note("consumer census plan-slice unavailable: " + err.Error())
+		g.advise(noteWarning, "consumer census plan-slice unavailable: "+err.Error())
 		return nil
 	}
 	mergeBase = strings.TrimSpace(mergeBase)
@@ -671,7 +671,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 			return err
 		}
 		summary, err := automationROIAdmission("plan-slice@"+mergeBase[:12], movement)
-		g.note(summary)
+		g.advise(noteROI, summary)
 		if err != nil {
 			return err
 		}
@@ -685,7 +685,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	g.note(consumerCensusAudit("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
+	g.advise(noteConsumer, consumerCensusAudit("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
 	return nil
 }
 
@@ -800,19 +800,19 @@ func surfaceDeltaAudit(base, candidate codeprofile.Profile) string {
 	)
 }
 
-func profileReviewFocus(profile codeprofile.Profile, changed []string) string {
+func profileReviewFocus(profile codeprofile.Profile, changed []string) (noteKind, string) {
 	paths := pathSet(changed)
-	cloneFocus := "none"
+	kind, cloneFocus := noteDetail, "none"
 	for _, candidate := range profile.Clones {
 		if !cliMainClone(candidate) && slices.ContainsFunc(candidate.Functions, func(function string) bool {
 			path, _, ok := strings.Cut(function, ":")
 			return ok && paths[path]
 		}) {
-			cloneFocus = fmt.Sprintf("nodes=%d functions=%s", candidate.Nodes, strings.Join(candidate.Functions, ","))
+			kind, cloneFocus = noteReview, fmt.Sprintf("nodes=%d functions=%s", candidate.Nodes, strings.Join(candidate.Functions, ","))
 			break
 		}
 	}
-	return fmt.Sprintf("code review candidate: exact_clone=%s; advisory_only=inspect semantic ownership and numerical contracts, migrate callers and delete displaced paths, require parity evidence", cloneFocus)
+	return kind, fmt.Sprintf("code review candidate: exact_clone=%s; advisory_only=inspect semantic ownership and numerical contracts, migrate callers and delete displaced paths, require parity evidence", cloneFocus)
 }
 
 func cliMainClone(clone codeprofile.Clone) bool {
@@ -1155,16 +1155,16 @@ func (g *gateContext) stepTestPlan(ctx context.Context) (bool, error) {
 	if len(boundaryCoverage.Boundaries) != 0 {
 		g.note("assembled agent boundaries: " + strings.Join(boundaryCoverage.Boundaries, ","))
 	}
-	g.note(fmt.Sprintf("test scope: %d direct + %d uncertain packages in the short group, %d dependent packages in the complete group (derived from import graph)", len(scope.direct), len(scope.uncertain), len(dependent)))
+	g.advise(noteScope, fmt.Sprintf("test scope: %d direct + %d uncertain packages in the short group, %d dependent packages in the complete group (derived from import graph)", len(scope.direct), len(scope.uncertain), len(dependent)))
 	g.note(fmt.Sprintf("test exclusions: %d packages without affected compiled production or test inputs", scope.excluded))
 	if len(scope.opaqueRuntimeInputs) != 0 {
-		g.note("test scope: runtime consumers bind named commands, named paths or every repository input: " + strings.Join(scope.opaqueRuntimeInputs, ","))
+		g.advise(noteScope, "test scope: runtime consumers bind named commands, named paths or every repository input: "+strings.Join(scope.opaqueRuntimeInputs, ","))
 	}
 	if len(scope.opaqueReaders) != 0 {
-		g.note(fmt.Sprintf("test scope: %d opaque reader(s) bound to every root; first=%s", len(scope.opaqueReaders), scope.opaqueReaders[0]))
+		g.advise(noteScope, fmt.Sprintf("test scope: %d opaque reader(s) bound to every root; first=%s", len(scope.opaqueReaders), scope.opaqueReaders[0]))
 	}
 	if len(scope.shadowIsolated) != 0 {
-		g.note(fmt.Sprintf("test scope: shadow isolation, measured and not enforced, would leave out %d of %d uncertain package(s): %s", len(scope.shadowIsolated), len(scope.uncertain), strings.Join(scope.shadowIsolated, ",")))
+		g.advise(noteScope, fmt.Sprintf("test scope: shadow isolation, measured and not enforced, would leave out %d of %d uncertain package(s): %s", len(scope.shadowIsolated), len(scope.uncertain), strings.Join(scope.shadowIsolated, ",")))
 	}
 	if len(scope.unresolved) != 0 {
 		g.note("test scope widened for global or unresolved Go inputs: " + strings.Join(scope.unresolved, ","))
@@ -1291,7 +1291,7 @@ func (g *gateContext) runRestParts(ctx context.Context, device bool) error {
 		report, err = g.runContendedBatch(ctx, dependent, false, observe, g.runHostTests)
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
-		g.note(fmt.Sprintf(
+		g.advise(noteWarning, fmt.Sprintf(
 			"dependent fixture evidence not credited: %d skipped [%s], %d unavailable [%s]",
 			len(report.Skipped), strings.Join(report.Skipped, "; "), len(report.Unavailable), strings.Join(report.Unavailable, "; "),
 		))

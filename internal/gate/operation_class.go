@@ -48,6 +48,6 @@ func (g *gateContext) requireOperationPrechecks(ctx context.Context, store *over
 		}
 		landed = introduction.Sequence
 	}
-	g.note("operation class: " + strings.Join(operationClasses(g.paths, store.LastRelease(), landed), "+"))
+	g.advise(noteClass, "operation class: "+strings.Join(operationClasses(g.paths, store.LastRelease(), landed), "+"))
 	return store.RequireProvenSince(ctx, landed)
 }

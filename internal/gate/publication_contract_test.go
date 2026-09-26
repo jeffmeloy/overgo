@@ -92,10 +92,10 @@ func TestPlanPublicationCostBreakdown(t *testing.T) {
 		if cost.StepNS != 8*uint64(time.Second)+16 || cost.ExecutedNS != 8*uint64(time.Second)+7 {
 			t.Fatalf("overlapping work lost: %+v", cost)
 		}
-		if len(g.audit) != 1 || !strings.Contains(g.audit[0], "total_wall=1s summed_step_time=8.000000016s") {
-			t.Fatalf("audit = %v", g.audit)
+		if len(auditLines(g.audit)) != 1 || !strings.Contains(auditLines(g.audit)[0], "total_wall=1s summed_step_time=8.000000016s") {
+			t.Fatalf("audit = %v", auditLines(g.audit))
 		}
-		t.Log(g.audit[0])
+		t.Log(auditLines(g.audit)[0])
 	})
 	t.Run("failed and reused work stay separate", func(t *testing.T) {
 		cost := batchCostOf(costSteps(runrecord.StepFailed, runrecord.StepReused, 5*uint64(time.Second), 1))

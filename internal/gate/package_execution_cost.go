@@ -108,7 +108,7 @@ func (g *gateContext) appendSuiteCost(batch *artifact.Batch, result artifact.ID)
 	}
 	batch.Contents = append(batch.Contents, content)
 	batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: content.Descriptor.ID, Parent: result, Relation: artifact.RelationDependsOn})
-	g.note(fmt.Sprintf("suite cost ranking: evidence=%s result=%s invocations=%d bytes=%d; query with overgodb-query -repo <store> -id %s -content", content.Descriptor.ID, result, len(record.Invocations), len(data), content.Descriptor.ID))
+	g.advise(noteSuiteCost, fmt.Sprintf("suite cost ranking: evidence=%s result=%s invocations=%d bytes=%d; query with overgodb-query -repo <store> -id %s -content", content.Descriptor.ID, result, len(record.Invocations), len(data), content.Descriptor.ID))
 	return nil
 }
 

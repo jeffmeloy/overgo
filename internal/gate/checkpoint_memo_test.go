@@ -227,7 +227,7 @@ func TestCheckpointEvidenceReuseAcrossRuns(t *testing.T) {
 	bad.Checkpoints = []plan.VerificationCheckpoint{{ID: "bare", Title: "Bare", Verify: "go test -run '^TestProducer$' -count=1"}}
 	g.audit = nil
 	memos, err := g.checkpointMemoInputs(&bad)
-	if err != nil || len(memos) != 0 || len(g.audit) != 1 || !strings.Contains(g.audit[0], "bare: go test segment names no package") {
-		t.Fatalf("verify without a package: memos=%v err=%v audit=%v; want an audited refusal", memos, err, g.audit)
+	if err != nil || len(memos) != 0 || len(auditLines(g.audit)) != 1 || !strings.Contains(auditLines(g.audit)[0], "bare: go test segment names no package") {
+		t.Fatalf("verify without a package: memos=%v err=%v audit=%v; want an audited refusal", memos, err, auditLines(g.audit))
 	}
 }

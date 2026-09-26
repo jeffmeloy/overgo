@@ -60,9 +60,9 @@ func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
 			t.Fatalf("rerun = %+v, want the refused package alone outside the lease", rerun)
 		}
 	}
-	if !slices.ContainsFunc(g.audit, func(line string) bool { return strings.HasPrefix(line, "device contention: 1 package(s) refused") }) ||
-		!slices.ContainsFunc(g.audit, func(line string) bool { return strings.Contains(line, "admitted alone after 3 attempt(s)") }) {
-		t.Fatalf("audit = %q", g.audit)
+	if !slices.ContainsFunc(auditLines(g.audit), func(line string) bool { return strings.HasPrefix(line, "device contention: 1 package(s) refused") }) ||
+		!slices.ContainsFunc(auditLines(g.audit), func(line string) bool { return strings.Contains(line, "admitted alone after 3 attempt(s)") }) {
+		t.Fatalf("audit = %q", auditLines(g.audit))
 	}
 
 	other := errors.New("go test evidence: a real failure")

@@ -131,7 +131,7 @@ func (g *gateContext) batchCostAudit(ctx context.Context, store *overgodb.Store,
 	current := batchCostOf(steps)
 	prior, err := priorBatchCosts(ctx, store, g.planRef)
 	if err != nil {
-		g.note("gate cost: prior attempts unavailable: " + err.Error())
+		g.advise(noteWarning, "gate cost: prior attempts unavailable: "+err.Error())
 		return
 	}
 	saved, unmeasured := reuseSavings(prior, current)
@@ -219,6 +219,6 @@ func (g *gateContext) appendSelectionCauses(batch *artifact.Batch, result artifa
 	}
 	batch.Contents = append(batch.Contents, content)
 	batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: content.Descriptor.ID, Parent: result, Relation: artifact.RelationDependsOn})
-	g.note(fmt.Sprintf("selection causes: evidence=%s result=%s packages=%d; query with plan -history all -phases -result %s", content.Descriptor.ID, result, len(record.Packages), result))
+	g.advise(noteDependency, fmt.Sprintf("selection causes: evidence=%s result=%s packages=%d; query with plan -history all -phases -result %s", content.Descriptor.ID, result, len(record.Packages), result))
 	return nil
 }

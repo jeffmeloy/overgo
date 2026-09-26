@@ -340,32 +340,3 @@ func TestWebUIRejectsNonGet(t *testing.T) {
 		t.Fatalf("POST / status = %d, want 404", response.Code)
 	}
 }
-
-// TestCollapsibleSections pins the fold contract: the shell serves the
-// shared fold helper, the dense pages consume it instead of stacking
-// section headers, and the stylesheet carries the disclosure control
-// styling -- so optional free-entry panels collapse to their headers.
-func TestCollapsibleSections(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	assertions := []struct {
-		path, needle string
-	}{
-		{"/boot.js", "function fold("},
-		{"/mod/agent.js", "overgo.fold("},
-		{"/mod/runtime.js", "overgo.fold("},
-		{"/style.css", ".fold[open] > summary::before"},
-		// The agent page leads with the task: simple creation posts to
-		// the derive-everything endpoint, the session names itself, and
-		// every operator panel folds behind an Advanced header.
-		{"/mod/agent.js", "/agents/create"},
-		{"/mod/agent.js", "Advanced: manual tool steps"},
-		{"/mod/agent.js", "autoSession"},
-	}
-	for _, assertion := range assertions {
-		response := serveTestRequest(handler, http.MethodGet, assertion.path, "")
-		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), assertion.needle) {
-			t.Fatalf("%s status=%d missing %q", assertion.path, response.Code, assertion.needle)
-		}
-	}
-}

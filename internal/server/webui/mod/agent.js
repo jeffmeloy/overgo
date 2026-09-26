@@ -48,7 +48,6 @@
           return { tool, box, row: el("label", { class: "note" }, box, " " + tool.name + " / " + tool.effect) };
         });
         const create = el("button", { class: "btn", text: "Create agent" });
-        const note = el("span", { class: "note" });
         create.addEventListener("click", () => overgo.act(status, async () => {
           const chosen = boxes.filter((item) => item.box.checked).map((item) => item.tool.name);
           await api.post("/agents/create", {
@@ -56,12 +55,13 @@
           });
           selected = name.value.trim();
           inventory = await api.get("/agents");
-          note.textContent = "created and activated";
+          // The status outlives the re-render, which rebuilds this form empty.
+          status.textContent = "created and activated / " + selected;
           renderAll();
         }));
         createHost.replaceChildren(name, instructions,
           el("div", { class: "row" }, ...boxes.map((item) => item.row)),
-          el("div", { class: "row" }, create, note));
+          el("div", { class: "row" }, create));
       }
 
       function activeAgent() { return inventory.find((item) => item.name === selected); }

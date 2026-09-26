@@ -74,6 +74,14 @@ func (pump *generationPump) text() string {
 	return pump.output.String()
 }
 
+// held: decoded text the stop filter still holds, unreleased when a turn stops.
+func (pump *generationPump) held() string {
+	if pump.filter.Stopped() {
+		return ""
+	}
+	return pump.filter.pending
+}
+
 func (pump *generationPump) stopped() bool {
 	return pump.filter.Stopped()
 }

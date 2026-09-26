@@ -35,6 +35,8 @@ type responsesRequest struct {
 	ParallelTools      *bool                     `json:"parallel_tool_calls"`
 	Store              *bool                     `json:"store"`
 	Reasoning          *responsesReasoningConfig `json:"reasoning"`
+	// Continue resumes the stopped turn previous_response_id names.
+	Continue bool `json:"continue"`
 	samplingParameters
 }
 
@@ -137,6 +139,10 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
+	if body.Continue {
+		h.continueResponses(response, request, body)
+		return
+	}
 	built, ok := h.responsesChatTurn(response, request, body)
 	if !ok {
 		return
@@ -202,6 +208,51 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	defer plan.release()
+	// A plain-text turn keeps its token context when it can be continued.
+	session := turnSession{
+		parameters: continuationParameters{Sampling: samplingParams, Stop: stops},
+		keep:       len(toolSelection.active) == 0 && !reasoningSummary,
+	}
+	h.runResponseTurn(response, request, body, plan, toolSelection.active, turn, parent, reasoningSummary, parser, session)
+}
+
+// continueResponses resumes a stopped turn from its token context with the
+// sampling and stops it ran with; the output is the continued text alone.
+func (h *Handler) continueResponses(response http.ResponseWriter, request *http.Request, body responsesRequest) {
+	continued, ok := h.continuedResponse(response, request, body)
+	if !ok {
+		return
+	}
+	maxTokens, err := boundedProtocolTokens(
+		body.MaxOutputTokens, h.defaultOutputTokens, h.config.MaxTokens, "max_output_tokens", false,
+	)
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return
+	}
+	parameters := continued.session.parameters
+	plan, ok := h.prepareProtocolGenerationPlan(response, request, continued.prompt, parameters.Sampling, maxTokens, parameters.Stop)
+	if !ok {
+		return
+	}
+	defer plan.release()
+	plan.held = continued.session.held
+	h.runResponseTurn(response, request, body, plan, nil, continued.turn, continued.parent, false, nil, continued.session)
+}
+
+// runResponseTurn generates, streams or answers, and stores one response turn.
+func (h *Handler) runResponseTurn(
+	response http.ResponseWriter,
+	request *http.Request,
+	body responsesRequest,
+	plan *protocolGenerationPlan,
+	tools []inference.ChatTool,
+	turn []inference.ChatMessage,
+	parent artifact.ID,
+	reasoningSummary bool,
+	parser ChatOutputParser,
+	session turnSession,
+) {
 	idNumber := h.nextID.Add(1)
 	responseID := "resp_" + strconv.FormatUint(idNumber, identifierRadix)
 	messageID := "msg_" + strconv.FormatUint(idNumber, identifierRadix)
@@ -212,12 +263,13 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			plan,
 			responseID,
 			messageID,
-			toolSelection.active,
+			tools,
 			turn,
 			parent,
 			body.Store == nil || *body.Store,
 			reasoningSummary,
 			parser,
+			session,
 		)
 		return
 	}
@@ -232,10 +284,10 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		Role:    inference.ChatRoleAssistant,
 		Content: result.pump.text(),
 	}
-	if len(toolSelection.active) != 0 || reasoningSummary {
+	if len(tools) != 0 || reasoningSummary {
 		message, err = parser.ParseChatOutput(
 			result.pump.text(),
-			toolSelection.active,
+			tools,
 		)
 		if err != nil {
 			writeGenerationError(response, err)
@@ -248,7 +300,10 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary, status)
 	promptTokens := result.promptTokens()
 	if body.Store == nil || *body.Store {
-		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, message), runrecord.OutcomeSucceeded, reason); err != nil {
+		stored := message
+		stored.Content = session.prefix + message.Content
+		if err := h.publishTurn(context.WithoutCancel(request.Context()), responseID, parent, append(turn, stored), runrecord.OutcomeSucceeded, reason,
+			session, result.ids, result.pump.held(), reason == runrecord.InteractionOutputLimit); err != nil {
 			writeError(response, http.StatusInternalServerError, "response_not_durable", err.Error())
 			return
 		}
@@ -287,12 +342,15 @@ func (h *Handler) streamResponses(
 	store bool,
 	reasoningSummary bool,
 	parser ChatOutputParser,
+	session turnSession,
 ) {
 	var output strings.Builder
 	var turnBuffer *inflightTurn
 	finished := false
 	completionStatus := "completed"
 	var writeEvent func(string, any) error
+	// generated: the run's ids and pump once it returns, for a stopped turn's context.
+	var generated protocolGenerationResult
 	fail := func(err error) {
 		status, outcome := "failed", runrecord.OutcomeFailed
 		// The execution context owns explicit Stop even when an executor has
@@ -301,8 +359,15 @@ func (h *Handler) streamResponses(
 			status, outcome = "cancelled", runrecord.OutcomeCancelled
 		}
 		if turnBuffer != nil {
-			partial := inference.ChatMessage{Role: inference.ChatRoleAssistant, Content: output.String()}
-			if publishErr := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, partial), outcome, ""); publishErr != nil {
+			partial := inference.ChatMessage{Role: inference.ChatRoleAssistant, Content: session.prefix + output.String()}
+			held := ""
+			if generated.pump != nil && session.keep {
+				// The pump's text holds every released token, one whose send the
+				// stop interrupted included, so the message matches its context.
+				partial.Content, held = session.prefix+generated.pump.text(), generated.pump.held()
+			}
+			if publishErr := h.publishTurn(context.WithoutCancel(request.Context()), responseID, parent, append(turn, partial), outcome, "",
+				session, generated.ids, held, outcome == runrecord.OutcomeCancelled); publishErr != nil {
 				err = errors.Join(err, publishErr)
 				status = "failed"
 			}
@@ -328,7 +393,7 @@ func (h *Handler) streamResponses(
 		defer turnBuffer.stop()
 		// Reserve the response identity and prompt before the client can observe
 		// it. A restart leaves an inconclusive record, never a reused ID.
-		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, turn, runrecord.OutcomeInconclusive, ""); err != nil {
+		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, turn, runrecord.OutcomeInconclusive, "", turnRecord{continues: session.continues}); err != nil {
 			turnBuffer.finish(responsesResponse{ID: responseID, Object: "response", Status: "failed"}, err.Error())
 			writeError(response, http.StatusInternalServerError, "response_not_durable", err.Error())
 			return
@@ -534,6 +599,7 @@ func (h *Handler) streamResponses(
 			return emitText(piece)
 		},
 	)
+	generated = result
 	if err != nil {
 		fail(err)
 		return
@@ -694,7 +760,10 @@ func (h *Handler) streamResponses(
 		return
 	}
 	if store {
-		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage), runrecord.OutcomeSucceeded, reason); err != nil {
+		stored := parsedMessage
+		stored.Content = session.prefix + parsedMessage.Content
+		if err := h.publishTurn(context.WithoutCancel(request.Context()), responseID, parent, append(turn, stored), runrecord.OutcomeSucceeded, reason,
+			session, result.ids, result.pump.held(), reason == runrecord.InteractionOutputLimit); err != nil {
 			fail(err)
 			return
 		}

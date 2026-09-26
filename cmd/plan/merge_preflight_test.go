@@ -113,6 +113,7 @@ func TestMergePreflightOwnedDocuments(t *testing.T) {
 // TestMergeHarnessBaselineConflictResolution proves a generated harness
 // ratchet conflict stays on the lane's reviewed baseline until gate repair.
 func TestMergeHarnessBaselineConflictResolution(t *testing.T) {
+	t.Parallel()
 	root, git := mergeTestRepository(t)
 	branch := git("branch", "--show-current")
 	for _, path := range []string{harnessSurfaceBaselinePath, modernGoBaselinePath} {

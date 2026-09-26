@@ -294,7 +294,7 @@ func TestStoredResponseUnconfirmedRestart(t *testing.T) {
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 	if err := handler.publishResponseInteraction(t.Context(), "resp_9", artifact.ID{},
-		[]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: "private interrupted prompt"}}, runrecord.OutcomeInconclusive, ""); err != nil {
+		[]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: "private interrupted prompt"}}, runrecord.OutcomeInconclusive, "", turnRecord{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := handler.Close(); err != nil {

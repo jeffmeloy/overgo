@@ -8,6 +8,13 @@ import (
 // HermeticLlamaGGUF writes the shared dense CPU/device parity fixture.
 func HermeticLlamaGGUF(t testing.TB, context uint32) string {
 	t.Helper()
+	return HermeticLlamaGGUFWith(t, context)
+}
+
+// HermeticLlamaGGUFWith writes the fixture with extra metadata, such as a
+// chat template.
+func HermeticLlamaGGUFWith(t testing.TB, context uint32, extra ...gguf.Metadata) string {
+	t.Helper()
 	const (
 		hermeticEmbedding = uint64(8)
 		hermeticHeads     = uint64(2)
@@ -50,5 +57,5 @@ func HermeticLlamaGGUF(t testing.TB, context uint32) string {
 		GGUFTensorF32("blk.0.ffn_up.weight", []uint64{hermeticEmbedding, hermeticFFN}, 11),
 		GGUFTensorF32("blk.0.ffn_down.weight", []uint64{hermeticFFN, hermeticEmbedding}, 12),
 	}
-	return TempGGUF(t, "hermetic.gguf", metadata, tensors)
+	return TempGGUF(t, "hermetic.gguf", append(metadata, extra...), tensors)
 }

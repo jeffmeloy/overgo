@@ -2,6 +2,7 @@ package runrecord
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -19,6 +20,10 @@ const (
 	InteractionTranscriptMediaType = "application/vnd.overgo.interaction-transcript+json"
 	// InteractionTranscriptSchema identifies the transcript contract.
 	InteractionTranscriptSchema = "overgo/interaction-transcript/v1"
+	// InteractionContextMediaType identifies a turn's token context.
+	InteractionContextMediaType = "application/vnd.overgo.interaction-context+json"
+	// InteractionContextSchema identifies the token context contract.
+	InteractionContextSchema = "overgo/interaction-context/v1"
 	// InteractionResponseAliasRoot scopes current response interactions.
 	InteractionResponseAliasRoot = "interaction/response/"
 	// InteractionOperationAliasRoot indexes response interactions by operation.
@@ -45,6 +50,50 @@ var interactionTranscriptCodec = artifact.JSONDocumentCodec(
 	cloneInteractionTranscript,
 )
 
+var interactionContextCodec = artifact.JSONDocumentCodec(
+	"interaction context", artifact.KindEvidence, InteractionContextMediaType, InteractionContextSchema,
+	canonicalizeInteractionContext,
+	func(value InteractionContext) artifact.ID { return value.ID },
+	func(value *InteractionContext, id artifact.ID) { value.ID = id },
+	func(value InteractionContext) InteractionContext {
+		value.Tokens = slices.Clone(value.Tokens)
+		value.Sampling = slices.Clone(value.Sampling)
+		return value
+	},
+)
+
+// InteractionContext is the token context a generation ended with: the
+// prompt and generated ids, the last one pending (its state not computed),
+// the sampling it ran with, and any decoded text a stop filter held back, so
+// a stopped turn continues exactly.
+type InteractionContext struct {
+	Version  uint16          `json:"version"`
+	Tokens   []uint32        `json:"tokens"`
+	Sampling json.RawMessage `json:"sampling"`
+	Held     string          `json:"held,omitzero"`
+	ID       artifact.ID     `json:"-"`
+}
+
+// InteractionContextMinimumTokens is the shortest context: a computed token beside its pending last one.
+const InteractionContextMinimumTokens = 2
+
+func canonicalizeInteractionContext(value *InteractionContext) error {
+	if value.Version != artifact.InitialDocumentVersion || len(value.Tokens) < InteractionContextMinimumTokens || !json.Valid(value.Sampling) {
+		return errors.New("run record: invalid interaction context")
+	}
+	return nil
+}
+
+// NewInteractionContext identifies one turn's token context.
+func NewInteractionContext(value InteractionContext) (InteractionContext, error) {
+	return interactionContextCodec.NewInitial(value)
+}
+
+// RequireInteractionContext returns one validated token context.
+func RequireInteractionContext(ctx context.Context, reader artifact.Reader, id artifact.ID) (InteractionContext, error) {
+	return interactionContextCodec.Require(ctx, reader, id)
+}
+
 // InteractionTerminalReason distinguishes a bounded output from a natural end.
 // Empty reasons preserve the interpretation and identity of older records.
 type InteractionTerminalReason string
@@ -69,7 +118,11 @@ type Interaction struct {
 	TerminalReason InteractionTerminalReason `json:"terminal_reason,omitzero"`
 	// Stimulus references the exact boundary admitted before execution.
 	Stimulus artifact.ID `json:"stimulus,omitzero"`
-	ID       artifact.ID `json:"-"`
+	// Context is the turn's token context; Continues, the stopped turn this
+	// one resumed.
+	Context   artifact.ID `json:"context,omitzero"`
+	Continues artifact.ID `json:"continues,omitzero"`
+	ID        artifact.ID `json:"-"`
 }
 
 // InteractionTranscript stores ordered protocol-neutral messages.
@@ -118,6 +171,8 @@ func canonicalizeInteraction(value *Interaction) error {
 		value.Message.Kind() != artifact.KindEvidence || value.Trace.Kind() != artifact.KindEvidence ||
 		(value.Parent.Valid() && value.Parent.Kind() != artifact.KindEvidence) ||
 		(value.Stimulus.Valid() && value.Stimulus.Kind() != artifact.KindEvidence) ||
+		(value.Context.Valid() && value.Context.Kind() != artifact.KindEvidence) ||
+		(value.Continues.Valid() && value.Continues.Kind() != artifact.KindEvidence) ||
 		(value.TerminalReason != "" && value.TerminalReason != InteractionOutputLimit) {
 		return errors.New("run record: invalid interaction")
 	}
@@ -234,6 +289,24 @@ func VisibleInteractionMessages(
 // PublishInteraction commits the transcript, trace outcome and event atomically.
 // An empty terminal leaves the execution outcome unspecified.
 func PublishInteraction(ctx context.Context, repository artifact.Repository, value Interaction, messages []InteractionMessage, terminal Outcome) (Interaction, error) {
+	return PublishInteractionWithContext(ctx, repository, value, messages, terminal, nil)
+}
+
+// PublishInteractionWithContext publishes an interaction with the token
+// context its generation ended with, in the same commit.
+func PublishInteractionWithContext(ctx context.Context, repository artifact.Repository, value Interaction, messages []InteractionMessage, terminal Outcome, tokens *InteractionContext) (Interaction, error) {
+	var contextContent []artifact.Content
+	if tokens != nil {
+		identified, err := NewInteractionContext(*tokens)
+		if err != nil {
+			return Interaction{}, err
+		}
+		content, err := interactionContextCodec.Content(identified)
+		if err != nil {
+			return Interaction{}, err
+		}
+		value.Context, contextContent = identified.ID, []artifact.Content{content}
+	}
 	// A successful bounded generation may exhaust its output allowance. A
 	// reservation, cancellation or failed execution cannot assert that reason.
 	if ctx == nil || repository == nil || value.TerminalReason != "" && terminal != OutcomeSucceeded {
@@ -276,11 +349,11 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 		return Interaction{}, err
 	}
 	parents := slices.Concat(
-		[]artifact.ID{value.Trace, value.Recipe, value.Operation, value.Run, value.Parent, value.Stimulus},
+		[]artifact.ID{value.Trace, value.Recipe, value.Operation, value.Run, value.Parent, value.Stimulus, value.Context, value.Continues},
 		value.Tools, value.Media,
 	)
 	parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
-	contents := []artifact.Content{transcriptContent}
+	contents := append([]artifact.Content{transcriptContent}, contextContent...)
 	if requestTranscript.ID != transcript.ID {
 		requestContent, err := interactionTranscriptCodec.Content(requestTranscript)
 		if err != nil {

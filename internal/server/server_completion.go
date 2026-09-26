@@ -88,6 +88,12 @@ func (filter *stopFilter) Accept(piece string) string {
 	return safe
 }
 
+// prime restores text a stopped turn's filter held back, so a stop sequence
+// that spans the stop and the continuation still matches.
+func (filter *stopFilter) prime(held string) {
+	filter.pending = held
+}
+
 func (filter *stopFilter) Flush() string {
 	if filter == nil || filter.stopped {
 		return ""

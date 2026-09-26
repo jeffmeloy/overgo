@@ -99,6 +99,7 @@ func (h *Handler) publishResponseInteraction(
 	messages []inference.ChatMessage,
 	terminal runrecord.Outcome,
 	reason runrecord.InteractionTerminalReason,
+	record turnRecord,
 ) error {
 	if h.repository == nil {
 		return nil
@@ -108,10 +109,10 @@ func (h *Handler) publishResponseInteraction(
 		h.observationErrors.Add(counterStep)
 		return errors.New("server: interaction authority is unavailable; the response cannot be stored")
 	}
-	_, err := runrecord.PublishInteraction(ctx, h.repository, runrecord.Interaction{
+	_, err := runrecord.PublishInteractionWithContext(ctx, h.repository, runrecord.Interaction{
 		Response: responseID, Recipe: description.Identity.Recipe, Model: description.Identity.Model,
-		Node: description.Interaction.Node, Parent: parent, TerminalReason: reason,
-	}, interactionMessages(messages), terminal)
+		Node: description.Interaction.Node, Parent: parent, TerminalReason: reason, Continues: record.continues,
+	}, interactionMessages(messages), terminal, record.context)
 	if err != nil {
 		h.observationErrors.Add(counterStep)
 		return fmt.Errorf("server: response interaction publication failed: %w", err)

@@ -57,6 +57,9 @@ type protocolGenerationPlan struct {
 	// content, even when the original template has a thinking suffix.
 	constrainedContent bool
 	tokenEventDecoder  inference.TokenEventDecoder
+	// held: text a stopped turn decoded but its stop filter held back; a
+	// continuation primes its filter with it.
+	held string
 }
 
 type protocolGenerationResult struct {
@@ -260,14 +263,9 @@ func (plan *protocolGenerationPlan) runWithSampler(
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
 		plan.evaluation = evaluation
 	}
-	ids, pump, err := plan.handler.generateWithPump(
-		plan.context(),
-		plan.session,
-		plan.prompt.Text,
-		options,
-		plan.stops,
-		emit,
-	)
+	pump := newGenerationPump(plan.stops, emit)
+	pump.filter.prime(plan.held)
+	ids, err := plan.handler.pumpGeneration(plan.context(), plan.session, plan.prompt.Text, options, pump)
 	return protocolGenerationResult{ids: ids, pump: pump}, err
 }
 

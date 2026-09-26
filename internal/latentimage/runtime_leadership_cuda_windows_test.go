@@ -23,7 +23,7 @@ const krea2048AdaptivePNGPath = `C:\Users\jeffm\adaptive_new\.claude\worktrees\i
 
 func BenchmarkKrea2048Leadership(b *testing.B) {
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
-		b.Skip(testskip.Inapplicable + ": set OVERGO_CUDA_TEST=1")
+		testskip.NotApplicable(b, "set OVERGO_CUDA_TEST=1")
 	}
 	if _, err := os.Stat(kreaModelDir + `\model_index.json`); err != nil {
 		b.Fatalf("Krea artifact unavailable: %v", err)

@@ -159,10 +159,7 @@ func commandBinaries(root, context string) ([]apimanifest.Binary, error) {
 	// The declared commands project their single owner-declared help identity and
 	// caller classification into the manifest; the rest are named until their
 	// owner rolls them in.
-	declared := map[string]commanddoc.Descriptor{
-		"plan":           commanddoc.Plan,
-		"overgodb-query": commanddoc.OvergodbQuery,
-	}
+	declared := commanddoc.Declared
 	binaries := make([]apimanifest.Binary, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.IsDir() {

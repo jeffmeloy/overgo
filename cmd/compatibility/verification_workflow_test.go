@@ -162,9 +162,7 @@ func assertStructuredMediaProtocol(t *testing.T, root string, reader artifact.Re
 }
 
 func TestMediaEvidenceBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	if err != nil {
@@ -486,9 +484,7 @@ func TestMediaReceiptAssertions(t *testing.T) {
 		})
 	}
 	t.Run("retained contracts", func(t *testing.T) {
-		if testing.Short() {
-			t.Skip(testskip.ShortIntegration)
-		}
+		testskip.Short(t)
 		root, err := filepath.Abs(filepath.Join("..", ".."))
 		if err != nil {
 			t.Fatal(err)

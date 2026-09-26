@@ -26,14 +26,10 @@ import (
 // while preserving the original quality and native-mask bundle.
 func TestAcceptedE4BResourceRefresh(t *testing.T) {
 	t.Parallel()
-	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
-		t.Skip(testskip.StoreAcceptance)
-	}
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.StoreAcceptance(t)
+	testskip.Short(t)
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for canonical resource refresh acceptance")
+		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for canonical resource refresh acceptance")
 	}
 	checkE4BResourceRefresh(t, true)
 }

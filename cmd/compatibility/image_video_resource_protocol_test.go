@@ -42,12 +42,10 @@ type imageVideoResourceProtocol struct {
 
 func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": media resource protocol discovers current hardware")
-	}
+	testskip.Short(t, "media resource protocol discovers current hardware")
 	root := testutil.RepoRoot(t)
 	if os.Getenv(worklease.AutomationRoleEnvironment) != imageVideoLane || os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": image_video_gen resources require their explicit data root")
+		testskip.NotApplicable(t, "image_video_gen resources require their explicit data root")
 	}
 	var protocol imageVideoResourceProtocol
 	protocolPath := filepath.Join(root, "docs/image_video_resources.json")

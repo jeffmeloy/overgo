@@ -90,9 +90,7 @@ func TestLoadRefusesContradictoryConfig(t *testing.T) {
 // TestLoadArtifactPresenceContract: the model dir keeps its expected
 // artifact files (config beside weights beside tokenizer).
 func TestLoadArtifactPresenceContract(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	dir := artifactDir(t)
 	if _, err := os.Stat(dir); err != nil {
 		t.Skipf("UNAVAILABLE: artifact absent at %s; parity NOT verified", dir)

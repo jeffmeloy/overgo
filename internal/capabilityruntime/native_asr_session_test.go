@@ -32,9 +32,7 @@ func TestNativeASRSessionAcceptance(t *testing.T) {
 		verifyNativeRestartChild(t, request)
 		return
 	}
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": native recurrent sessions require registered model and corpus captures")
-	}
+	testskip.Short(t, "native recurrent sessions require registered model and corpus captures")
 	directory := t.TempDir()
 	storePath := filepath.Join(directory, "store")
 	store, err := overgodb.Open(storePath)

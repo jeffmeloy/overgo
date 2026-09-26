@@ -16,7 +16,7 @@ func TestLiveEditSourceCodecGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkpoint := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B", "Wan2.1_VAE.pth")
+	checkpoint := filepath.Join(roots.ResolveModelPath("Wan2.1-T2V-1.3B"), "Wan2.1_VAE.pth")
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: Wan VAE metadata: %v", err)

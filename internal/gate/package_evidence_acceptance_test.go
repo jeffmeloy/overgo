@@ -77,7 +77,7 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 		files := map[string]string{
 			"app/app_test.go":          "package app\nimport \"testing\"\nfunc TestRequired(t *testing.T) { t.Fatal(\"declared failure\") }\n",
 			"other/other.go":           "package other\nconst Value = 1\n",
-			"other/other_test.go":      "package other\nimport (_ \"embed\"; \"testing\")\n//go:embed testdata/value.txt\nvar data string\nfunc TestRequired(t *testing.T) { if data != \"pass\" || Value != 1 { t.Fatalf(\"fixture=%s value=%d\", data, Value) } }\nfunc TestIntegration(t *testing.T) { if testing.Short() { t.Skip(\"" + testskip.ShortIntegration + "\") }; if Value != 1 { t.Fatal(Value) } }\n",
+			"other/other_test.go":      "package other\nimport (_ \"embed\"; \"testing\")\n//go:embed testdata/value.txt\nvar data string\nfunc TestRequired(t *testing.T) { if data != \"pass\" || Value != 1 { t.Fatalf(\"fixture=%s value=%d\", data, Value) } }\nfunc TestIntegration(t *testing.T) { if testing.Short() { t.Attr(\"" + testskip.Key + "\", \"" + testskip.KindShort + "\"); t.Skip(\"short\") }; if Value != 1 { t.Fatal(Value) } }\n",
 			"other/testdata/value.txt": "pass",
 		}
 		for name, data := range files {
@@ -109,8 +109,8 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 		if _, err := g.stepTest(t.Context()); err == nil || !strings.Contains(err.Error(), "declared failure") {
 			t.Fatalf("group failure lost: %v", err)
 		}
-		if !slices.Contains(g.audit, "short-profile exclusions (no full-test credit): 1 [example/other: TestIntegration]") {
-			t.Fatalf("profile denominator lost: %v", g.audit)
+		if !slices.Contains(auditLines(g.audit), "short-profile exclusions (no full-test credit): 1 [example/other: TestIntegration]") {
+			t.Fatalf("profile denominator lost: %v", auditLines(g.audit))
 		}
 		if err := g.closeStore(); err != nil {
 			t.Fatal(err)
@@ -146,8 +146,8 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 		if _, err := g.stepTest(t.Context()); err == nil || !strings.Contains(err.Error(), "declared failure") {
 			t.Fatalf("retry failure lost: %v", err)
 		}
-		if !slices.Contains(g.audit, "package test work: 1 reused profiles; 1 started attempts") {
-			t.Fatalf("retry denominator missing: %v", g.audit)
+		if !slices.Contains(auditLines(g.audit), "package test work: 1 reused profiles; 1 started attempts") {
+			t.Fatalf("retry denominator missing: %v", auditLines(g.audit))
 		}
 		if err := os.WriteFile(filepath.Join(root, "app", "app_test.go"), []byte("package app\nimport \"testing\"\nfunc TestRequired(t *testing.T) { t.Log(\"repaired\") }\n"), 0o644); err != nil {
 			t.Fatal(err)
@@ -156,15 +156,15 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 		if _, err := g.stepTest(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		if !slices.Contains(g.audit, "package test work: 1 reused profiles; 1 started attempts") {
-			t.Fatalf("repair denominator missing: %v", g.audit)
+		if !slices.Contains(auditLines(g.audit), "package test work: 1 reused profiles; 1 started attempts") {
+			t.Fatalf("repair denominator missing: %v", auditLines(g.audit))
 		}
 		g = newGate()
 		if _, err := g.stepTest(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		if !slices.Contains(g.audit, "package test work: 2 reused profiles; 0 started attempts") {
-			t.Fatalf("complete reuse denominator missing: %v", g.audit)
+		if !slices.Contains(auditLines(g.audit), "package test work: 2 reused profiles; 0 started attempts") {
+			t.Fatalf("complete reuse denominator missing: %v", auditLines(g.audit))
 		}
 		for _, tc := range []struct{ path, target string }{
 			{"dep/dep.go", "example/app"},
@@ -234,8 +234,8 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 			if attempt != 0 {
 				want = "package test work: 1 reused profiles; 2 started attempts"
 			}
-			if !slices.Contains(g.audit, want) || !slices.Contains(g.audit, "dependent fixture evidence not credited: 1 skipped [example/app: TestRequired], 0 unavailable []") {
-				t.Fatalf("dependent skip/reuse denominator: %v", g.audit)
+			if !slices.Contains(auditLines(g.audit), want) || !slices.Contains(auditLines(g.audit), "dependent fixture evidence not credited: 1 skipped [example/app: TestRequired]") {
+				t.Fatalf("dependent skip/reuse denominator: %v", auditLines(g.audit))
 			}
 		}
 	})
@@ -290,9 +290,7 @@ func assertIndependentPackageStreams(t *testing.T) {
 	}{
 		{"failed sibling", start("bad") + event("fail", "bad", "TestRequired", "") + event("fail", "bad", "", ""), false},
 		{"skipped sibling", start("bad") + event("skip", "bad", "TestRequired", "") + event("pass", "bad", "", ""), false},
-		{"classified skip", start("bad") + event("output", "bad", "TestRequired", testskip.ShortIntegration) + event("skip", "bad", "TestRequired", "") + event("pass", "bad", "", ""), false},
-		{"unavailable test", start("bad") + event("output", "bad", "TestRequired", "UNAVAILABLE") + pass("bad"), false},
-		{"unavailable package", start("bad") + event("output", "bad", "", "UNAVAILABLE") + pass("bad"), false},
+		{"classified skip", start("bad") + `{"Action":"attr","Package":"bad","Test":"TestRequired","Key":"` + testskip.Key + `","Value":"` + testskip.KindShort + "\"}\n" + event("skip", "bad", "TestRequired", "") + event("pass", "bad", "", ""), false},
 		{"unfinished package", start("bad") + event("pass", "bad", "TestRequired", ""), false},
 		{"unfinished subtest", start("bad") + event("run", "bad", "TestRequired/child", "") + pass("bad"), false},
 		{"failed subtest", start("bad") + event("run", "bad", "TestRequired/child", "") + event("fail", "bad", "TestRequired/child", "") + pass("bad"), false},

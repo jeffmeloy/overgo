@@ -207,7 +207,7 @@ func (g *gateContext) stageRepairs(repairs []mechanicalRepair) error {
 				g.paths = append(g.paths, file)
 			}
 		}
-		g.note(fmt.Sprintf("staged repair: %s for the %s phase wall=%dms rewrote=[%s]", repair.name, repair.phase, result.wall.Milliseconds(), strings.Join(changed, ",")))
+		g.advise(noteRepair, fmt.Sprintf("staged repair: %s for the %s phase wall=%dms rewrote=[%s]", repair.name, repair.phase, result.wall.Milliseconds(), strings.Join(changed, ",")))
 	}
 	return nil
 }
@@ -228,22 +228,11 @@ func (g *gateContext) fileDigests(files []string) (map[string]string, error) {
 
 // repairFormatting formats the planned Go files gofmt lists as unformatted.
 func (g *gateContext) repairFormatting() error {
-	files := g.changedGoFiles()
-	if len(files) == 0 {
-		return nil
-	}
-	var unformatted []string
-	for _, chunk := range chunkByArgBudget(files) {
-		out, err := command(g.repo, "gofmt", append([]string{"-l"}, chunk...)...)
-		if err != nil {
-			return err
-		}
-		unformatted = append(unformatted, strings.Fields(out)...)
+	unformatted, err := g.unformattedGoFiles()
+	if err != nil {
+		return err
 	}
 	for _, chunk := range chunkByArgBudget(unformatted) {
-		if len(chunk) == 0 {
-			continue
-		}
 		if _, err := command(g.repo, "gofmt", append([]string{"-w"}, chunk...)...); err != nil {
 			return err
 		}
@@ -317,7 +306,7 @@ func (g *gateContext) harnessSurfaceUpdate() ([]byte, error) {
 		if paydown == "" {
 			return nil, fmt.Errorf("the repair would move a reviewed threshold in %s: %s; shrink the change, or declare the open row that pays the raise down through the plan (`go run ./cmd/plan -budget -paydown <open item> -reason <why> <item>`)", harnessSurfaceBaselineFile, strings.Join(deltas, "; "))
 		}
-		g.note(fmt.Sprintf("harness surface raised against paydown row %s: %s", paydown, strings.Join(deltas, "; ")))
+		g.advise(noteDebt, fmt.Sprintf("harness surface raised against paydown row %s: %s", paydown, strings.Join(deltas, "; ")))
 	}
 	current, err := json.MarshalIndent(baseline, "", " ")
 	if err != nil {

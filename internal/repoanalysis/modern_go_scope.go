@@ -7,7 +7,7 @@ import (
 
 var modernGoNumericRuntimePrefixes = []string{
 	"cmd/dit-train-probe/", "cmd/flow-organ-train-probe/", "cmd/mot-train-probe/",
-	"cmd/oscillatorimage-train-probe/", "cmd/sensenovaparity/", "cmd/seriesforecast-train-probe/",
+	"cmd/train/route_oscillatorimage.go", "cmd/sensenovaparity/", "cmd/seriesforecast-train-probe/",
 	"cmd/vqaparity/",
 	"internal/adaptiveparity/", "internal/composition/", "internal/cuda/", "internal/densecausal/",
 	"internal/devicemath/", "internal/diffusionimage/", "internal/hostmath/", "internal/hybridtrain/",

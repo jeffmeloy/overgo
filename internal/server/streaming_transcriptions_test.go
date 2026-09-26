@@ -28,9 +28,7 @@ import (
 
 func TestStreamingTranscriptionAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": authenticated native streaming requires registered waveform and model captures")
-	}
+	testskip.Short(t, "authenticated native streaming requires registered waveform and model captures")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

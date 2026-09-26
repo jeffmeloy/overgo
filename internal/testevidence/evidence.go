@@ -22,7 +22,7 @@ import (
 
 // ShortIntegrationSkip is the skip reason under its retained name, kept
 // for harness files whose bytes an acquisition record binds; a new test
-// names testskip.ShortIntegration.
+// calls testskip.Short.
 const ShortIntegrationSkip = testskip.ShortIntegration
 
 type GoTestReport struct {
@@ -33,7 +33,6 @@ type GoTestReport struct {
 	NoTestPackages    int
 	ClassifiedSkipped []string
 	Skipped           []string
-	Unavailable       []string
 	Failed            []string
 	Unfinished        []string
 	// Contended names, once each, the packages whose failures carried the
@@ -71,7 +70,6 @@ type testResult struct {
 	Package     string
 	Name        string
 	Action      string
-	Unavailable string
 	started     bool
 	ineligible  bool
 	excluded    bool
@@ -107,7 +105,7 @@ func GoTestJSONShort(out string) error {
 	return RequireComplete(report)
 }
 
-// RequireComplete rejects failed, unfinished, unavailable or unclassified
+// RequireComplete rejects failed, unfinished or unclassified
 // skipped tests. Classified short exclusions remain visible but are permitted.
 func RequireComplete(report GoTestReport) error {
 	if len(report.Failed) > 0 {
@@ -116,17 +114,14 @@ func RequireComplete(report GoTestReport) error {
 	if len(report.Unfinished) > 0 {
 		return fmt.Errorf("%s did not finish", report.Unfinished[0])
 	}
-	if len(report.Unavailable) > 0 {
-		return fmt.Errorf("%s", report.Unavailable[0])
-	}
 	if len(report.Skipped) > 0 {
 		return fmt.Errorf("%s skipped", report.Skipped[0])
 	}
 	return nil
 }
 
-// GoTestJSONShortReport decodes a hermetic short-mode lane. Only skips whose
-// output carries testskip.ShortIntegration are classified exclusions; they remain
+// GoTestJSONShortReport decodes a hermetic short-mode lane. Only short-mode
+// skips (testskip.Short, or its message) are classified exclusions; they remain
 // visible in the report and are never counted as passing evidence.
 func GoTestJSONShortReport(out string) (GoTestReport, error) {
 	return goTestJSONReport(out, true, false)
@@ -153,6 +148,7 @@ func goTestJSONReport(out string, short, allowAuxiliary bool) (GoTestReport, err
 
 type goTestEvent struct {
 	Action, Package, ImportPath, Test, Output string
+	Key, Value                                string
 	Time                                      string
 	Elapsed                                   *float64
 }
@@ -163,6 +159,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 	scanner := bufio.NewScanner(reader)
 	seen := false
 	classified := map[string]bool{}
+	typed := map[string]bool{}
 	contended := map[string]bool{}
 	results := map[string]*testResult{}
 	updates := packageUpdates{observe: observe, passed: map[string]bool{}}
@@ -208,9 +205,6 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		}
 		var event goTestEvent
 		if allowAuxiliary && !strings.HasPrefix(line, "{") {
-			if reason := unavailable(line); reason != "" {
-				return report, fmt.Errorf("auxiliary verifier: %s", reason)
-			}
 			continue
 		}
 		if decodeErr := json.Unmarshal([]byte(line), &event); decodeErr != nil {
@@ -251,12 +245,12 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 			tail.append(event.Output, diagnosticBytes)
 			tails[key] = tail
 		}
-		if short && strings.Contains(event.Output, testskip.ShortIntegration) || strings.Contains(event.Output, testskip.Inapplicable) {
+		// A recorded kind decides; a test that recorded none -- a stored
+		// receipt, a frozen harness -- is read by its skip message.
+		typed[key] = typed[key] || event.Action == "attr" && event.Key == testskip.Key
+		if typed[key] && event.Key == testskip.Key && (short && event.Value == testskip.KindShort || event.Value == testskip.KindInapplicable) ||
+			!typed[key] && (short && strings.Contains(event.Output, testskip.ShortIntegration) || strings.Contains(event.Output, testskip.Inapplicable)) {
 			classified[key] = true
-		}
-		if reason := unavailable(event.Output); reason != "" {
-			report.Unavailable = append(report.Unavailable, event.Package+": "+reason)
-			results[key].Unavailable = reason
 		}
 		if strings.Contains(event.Output, processcontrol.ErrResourceBusy.Error()) {
 			contended[key] = true
@@ -398,9 +392,6 @@ func verifyTarget(target *runrecord.GoTestTarget, report GoTestReport) error {
 		if !target.MatchString(result.Name) {
 			continue
 		}
-		if result.Unavailable != "" {
-			return fmt.Errorf("%s:%s: %s", result.Package, result.Name, result.Unavailable)
-		}
 		if result.ineligible || !report.packages[result.Package].passed {
 			return fmt.Errorf("%s:%s has incomplete package evidence", result.Package, result.Name)
 		}
@@ -459,9 +450,6 @@ func VerifyGoTestNames(out string, short bool, names []string) error {
 // VerifyOutput rejects successful shell verification that did not prove its
 // Go tests ran. Non-Go commands retain ordinary exit-code semantics.
 func VerifyOutput(command, out string) error {
-	if reason := unavailable(out); reason != "" {
-		return fmt.Errorf("%s", reason)
-	}
 	if strings.Contains(out, "[no tests to run]") {
 		return fmt.Errorf("go test filter matched no tests")
 	}
@@ -477,17 +465,6 @@ func VerifyOutput(command, out string) error {
 		return fmt.Errorf("go test output contains no explicit passing test")
 	}
 	return nil
-}
-
-func unavailable(out string) string {
-	switch {
-	case strings.Contains(out, "UNAVAILABLE"):
-		return "output contains UNAVAILABLE"
-	case strings.Contains(out, "parity NOT verified"):
-		return "output reports parity NOT verified"
-	default:
-		return ""
-	}
 }
 
 // goTestSegment is one go test invocation of a chained verifier: the packages

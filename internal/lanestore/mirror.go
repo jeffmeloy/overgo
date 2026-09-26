@@ -14,7 +14,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -22,6 +21,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/storepolicy"
 )
 
 // MirrorDepth is the record depth the closure of one activation is followed
@@ -34,11 +34,6 @@ const (
 	// batchSize bounds one committed batch of copied records.
 	batchSize = 200
 )
-
-var idPattern = regexp.MustCompile(`[a-z][a-z-]*:sha256:[0-9a-f]{64}`)
-
-// allMatches asks the pattern for every match, the sentinel regexp takes.
-const allMatches = -1
 
 // Report is the mirror's outcome: what the source held, what the closure
 // reached, what was copied, and the activations bound and released.
@@ -131,12 +126,10 @@ func (w *closureWalker) walk(queue []pending) ([]artifact.Batch, error) {
 			if _, seen := w.depth[view.Target]; seen {
 				return nil
 			}
-			for _, match := range idPattern.FindAllString(view.Name, allMatches) {
-				if id, err := artifact.ParseID(match); err == nil {
-					if level, seen := w.depth[id]; seen && level < w.maxDepth {
-						queue = append(queue, pending{view.Target, level + 1})
-						return nil
-					}
+			for _, id := range storepolicy.Identities([]byte(view.Name)) {
+				if level, seen := w.depth[id]; seen && level < w.maxDepth {
+					queue = append(queue, pending{view.Target, level + 1})
+					return nil
 				}
 			}
 			return nil
@@ -164,11 +157,7 @@ func (w *closureWalker) walk(queue []pending) ([]artifact.Batch, error) {
 		}
 		if next.depth < w.maxDepth {
 			for _, text := range texts {
-				for _, match := range idPattern.FindAll(text, allMatches) {
-					child, err := artifact.ParseID(string(match))
-					if err != nil {
-						continue
-					}
+				for _, child := range storepolicy.Identities(text) {
 					if level, seen := w.depth[child]; !seen || level > next.depth+1 {
 						queue = append(queue, pending{child, next.depth + 1})
 					}
@@ -290,10 +279,8 @@ func (w *closureWalker) bindings(prefix string, sourceActive map[artifact.ID]art
 		}
 		// An alias naming a record outside the closure (a policy alias of a
 		// recipe the lane never received) stays with its recipe.
-		for _, match := range idPattern.FindAllString(view.Name, allMatches) {
-			if id, err := artifact.ParseID(match); err == nil && !closure(id) {
-				return nil
-			}
+		if slices.ContainsFunc(storepolicy.Identities([]byte(view.Name)), func(id artifact.ID) bool { return !closure(id) }) {
+			return nil
 		}
 		current, bound, err := w.target.ResolveAlias(w.ctx, view.Name)
 		if err != nil {

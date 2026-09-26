@@ -39,14 +39,7 @@ func runObjective(storeRoot, alias, modelDir string, steps int, maxWall time.Dur
 		return err
 	}
 	defer store.Close()
-	objectiveID, bound, err := store.ResolveAlias(ctx, alias)
-	if err != nil {
-		return err
-	}
-	if !bound {
-		return fmt.Errorf("seriesforecast-train-probe: objective alias %q is absent", alias)
-	}
-	objective, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
+	objective, err := trainingworkflow.LoadObjectiveAlias(ctx, store, alias)
 	if err != nil {
 		return err
 	}

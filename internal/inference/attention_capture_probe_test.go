@@ -40,7 +40,7 @@ func TestExtractAttentionShapeGeometry(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN35_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN35_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{DeviceOrdinal: 0})
 	if err != nil {

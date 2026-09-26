@@ -87,9 +87,7 @@ func TestTokenizerGoldenCases(t *testing.T) {
 // artifact's tokenizer.model must reproduce the pinned piece table (text,
 // score, unk id) and the g1 encoding.
 func TestTokenizerModelFileMatchesFixture(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	path := filepath.Join(artifactDir(t), "tokenizer.model")
 	if _, err := os.Stat(path); err != nil {
 		t.Skipf("UNAVAILABLE: tokenizer.model absent at %s; parity NOT verified", path)

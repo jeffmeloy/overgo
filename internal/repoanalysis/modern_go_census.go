@@ -74,26 +74,37 @@ type ModernGoCensus struct {
 func (c ModernGoCensus) SplitByPackage() (ModernGoCensus, []ModernGoCensus) {
 	header := c
 	header.Findings = slices.Clone(c.Findings)
-	packages := map[string]bool{}
-	for index, finding := range header.Findings {
-		for _, site := range slices.Concat(finding.Candidates, finding.Adopted) {
-			packages[site.Package] = true
+	byPackage := map[string]*ModernGoCensus{}
+	// Each site is copied once, into its package's part under the finding it
+	// is visited in, so the parts keep the census's finding and site order.
+	place := func(finding string, site ModernGoSite, adopted bool) {
+		part := byPackage[site.Package]
+		if part == nil {
+			part = &ModernGoCensus{}
+			byPackage[site.Package] = part
+		}
+		if last := len(part.Findings); last == 0 || part.Findings[last-1].ID != finding {
+			part.Findings = append(part.Findings, ModernGoFinding{ID: finding})
+		}
+		sites := &part.Findings[len(part.Findings)-1]
+		if adopted {
+			sites.Adopted = append(sites.Adopted, site)
+		} else {
+			sites.Candidates = append(sites.Candidates, site)
+		}
+	}
+	for index, finding := range c.Findings {
+		for _, site := range finding.Candidates {
+			place(finding.ID, site, false)
+		}
+		for _, site := range finding.Adopted {
+			place(finding.ID, site, true)
 		}
 		header.Findings[index].Candidates, header.Findings[index].Adopted = nil, nil
 	}
-	var parts []ModernGoCensus
-	for _, pkg := range slices.Sorted(maps.Keys(packages)) {
-		elsewhere := func(site ModernGoSite) bool { return site.Package != pkg }
-		var part ModernGoCensus
-		for _, finding := range c.Findings {
-			sites := ModernGoFinding{ID: finding.ID,
-				Candidates: slices.DeleteFunc(slices.Clone(finding.Candidates), elsewhere),
-				Adopted:    slices.DeleteFunc(slices.Clone(finding.Adopted), elsewhere)}
-			if len(sites.Candidates)+len(sites.Adopted) != 0 {
-				part.Findings = append(part.Findings, sites)
-			}
-		}
-		parts = append(parts, part)
+	parts := make([]ModernGoCensus, 0, len(byPackage))
+	for _, pkg := range slices.Sorted(maps.Keys(byPackage)) {
+		parts = append(parts, *byPackage[pkg])
 	}
 	return header, parts
 }
@@ -108,15 +119,29 @@ func JoinModernGoCensus(header ModernGoCensus, parts []ModernGoCensus) ModernGoC
 	for index, finding := range joined.Findings {
 		at[finding.ID] = index
 	}
+	// Count first, so each finding's sites are copied once into their final
+	// capacity and the header's slices are never written through.
+	candidates, adopted := make([]int, len(joined.Findings)), make([]int, len(joined.Findings))
 	for _, part := range parts {
 		for _, finding := range part.Findings {
-			index, found := at[finding.ID]
-			if !found {
-				continue
+			if index, found := at[finding.ID]; found {
+				candidates[index] += len(finding.Candidates)
+				adopted[index] += len(finding.Adopted)
 			}
-			target := &joined.Findings[index]
-			target.Candidates = append(slices.Clip(target.Candidates), finding.Candidates...)
-			target.Adopted = append(slices.Clip(target.Adopted), finding.Adopted...)
+		}
+	}
+	for index := range joined.Findings {
+		target := &joined.Findings[index]
+		target.Candidates = slices.Grow(slices.Clip(target.Candidates), candidates[index])
+		target.Adopted = slices.Grow(slices.Clip(target.Adopted), adopted[index])
+	}
+	for _, part := range parts {
+		for _, finding := range part.Findings {
+			if index, found := at[finding.ID]; found {
+				target := &joined.Findings[index]
+				target.Candidates = append(target.Candidates, finding.Candidates...)
+				target.Adopted = append(target.Adopted, finding.Adopted...)
+			}
 		}
 	}
 	for index := range joined.Findings {

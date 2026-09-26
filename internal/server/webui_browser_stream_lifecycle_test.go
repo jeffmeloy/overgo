@@ -36,7 +36,7 @@ type streamLifecycleGenerator struct {
 func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the stream lifecycle runs through cmd/webui-lane")
+		testskip.NotApplicable(t, "the stream lifecycle runs through cmd/webui-lane")
 	}
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/sampling"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -253,9 +254,7 @@ func TestNormalNoiseGoldenG3(t *testing.T) {
 // TestTimestepConditioningGoldenG2: sinusoidal + embedding + projection over
 // the real weights vs the g2 host capture (same engine class; tolerance 0).
 func TestTimestepConditioningGoldenG2(t *testing.T) {
-	if testing.Short() {
-		t.Skip("integration excluded by -short: loads the 5.7GB denoiser weight set")
-	}
+	testskip.Short(t, "loads the 5.7GB denoiser weight set")
 	dir := testutil.FixturePath(t, "wan")
 	raw, err := os.ReadFile(filepath.Join(dir, "g2_timestep_conditioning.json"))
 	if err != nil {
@@ -340,9 +339,7 @@ func logHeapPeak(t *testing.T, scope string) {
 // both branches, per-step branch/guided/sampler tensors, and the final
 // latent. Reference backend executes both graphs.
 func TestDenoiserGoldenDenoiseG3(t *testing.T) {
-	if testing.Short() {
-		t.Skip("integration excluded by -short: runs the full 30-block denoiser on the reference backend")
-	}
+	testskip.Short(t, "runs the full 30-block denoiser on the reference backend")
 	manifest, dir := loadDenoiseManifest(t, "g3_denoise.json")
 	program := newGoldenDenoiserProgram(t, manifest)
 	run := reference.Execute
@@ -455,9 +452,7 @@ func TestDenoiserGoldenDenoiseG3(t *testing.T) {
 // TestDenoiserGoldenDenoiseG4: the temporal 5-frame clip — multi-frame
 // rotary coordinates and a 2-step trajectory vs the g4 capture.
 func TestDenoiserGoldenDenoiseG4(t *testing.T) {
-	if testing.Short() {
-		t.Skip("integration excluded by -short: runs the full 30-block denoiser on the reference backend")
-	}
+	testskip.Short(t, "runs the full 30-block denoiser on the reference backend")
 	manifest, dir := loadDenoiseManifest(t, "g4_denoise.json")
 	program := newGoldenDenoiserProgram(t, manifest)
 	run := reference.Execute

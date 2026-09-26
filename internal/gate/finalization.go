@@ -232,6 +232,13 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	if err := appendGateAdvisoryFinding(context.Background(), store, &batch, g.paths, g.audit); err != nil {
 		return g.oweRecord(batch, err)
 	}
+	if g.suiteCost.Valid() {
+		alias, err := moveAlias(context.Background(), store, suiteCostAlias, g.suiteCost)
+		if err != nil {
+			return g.oweRecord(batch, err)
+		}
+		batch.Aliases = append(batch.Aliases, alias)
+	}
 	if _, err := store.CommitAs(context.Background(), gateProducer, batch); err != nil {
 		return g.oweRecord(batch, err)
 	}

@@ -101,12 +101,12 @@ func TestBatchedGateCostEvidence(t *testing.T) {
 	}
 	g := &gateContext{planRef: "flush/cost"}
 	g.batchCostAudit(t.Context(), store, costSteps(runrecord.StepReused, runrecord.StepSucceeded, 1, 4*uint64(time.Second)), uint64(time.Second))
-	if len(g.audit) != 1 || !strings.Contains(g.audit[0], "accepted=3 reused=1") || !strings.Contains(g.audit[0], "estimated_step_time_avoided=5s") || !strings.Contains(g.audit[0], "prior_runs=1") {
-		t.Fatalf("audit = %v", g.audit)
+	if len(auditLines(g.audit)) != 1 || !strings.Contains(auditLines(g.audit)[0], "accepted=3 reused=1") || !strings.Contains(auditLines(g.audit)[0], "estimated_step_time_avoided=5s") || !strings.Contains(auditLines(g.audit)[0], "prior_runs=1") {
+		t.Fatalf("audit = %v", auditLines(g.audit))
 	}
 	g.audit = nil
 	g.batchCostAudit(t.Context(), store, []runrecord.GateStep{{Name: "protection", Phase: runrecord.PhasePackage, Outcome: runrecord.StepSucceeded, DurationNS: 1}}, 1)
-	if len(g.audit) != 1 || !strings.Contains(g.audit[0], "accepted=0 reused=0") || !strings.Contains(g.audit[0], "other_phases=1/1ns") {
-		t.Fatalf("audit without acceptance steps = %v", g.audit)
+	if len(auditLines(g.audit)) != 1 || !strings.Contains(auditLines(g.audit)[0], "accepted=0 reused=0") || !strings.Contains(auditLines(g.audit)[0], "other_phases=1/1ns") {
+		t.Fatalf("audit without acceptance steps = %v", auditLines(g.audit))
 	}
 }

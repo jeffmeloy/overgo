@@ -24,7 +24,8 @@ func TestPlanOnlyCommitsAreMergesOnly(t *testing.T) {
 			t.Fatalf("%s = %v, want admission", name, err)
 		}
 	}
-	if err := PlanOnlyCommitRefusal(lane, MergeItemPrefix+"2ef953fab346/do", []string{Path}, false); err != nil {
+	merging := Plan{Lane: "hatchet", Items: []Item{{ID: "merge-2ef953fab346", Class: ClassMerge}}}
+	if err := PlanOnlyCommitRefusal(merging, "merge-2ef953fab346/do", []string{Path}, false); err != nil {
 		t.Fatalf("merge row = %v, want admission", err)
 	}
 	if err := PlanOnlyCommitRefusal(lane, "gate-wall/validate-first", []string{Path}, true); err != nil {

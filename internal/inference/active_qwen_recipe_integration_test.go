@@ -19,7 +19,7 @@ func TestActiveRecipeQwen35Open(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN35_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN35_MODEL is not set")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

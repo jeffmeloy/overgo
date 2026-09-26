@@ -24,11 +24,9 @@ const closureAuthorityTestEnv = "OVERGO_CLOSURE_AUTHORITY_TEST"
 
 func requireRepositoryClosureAuthority(t *testing.T) {
 	t.Helper()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	if os.Getenv(closureAuthorityTestEnv) != "1" {
-		t.Skip(testskip.Inapplicable + ": set " + closureAuthorityTestEnv + "=1 to verify the current worktree against shared closure authority")
+		testskip.NotApplicable(t, "set "+closureAuthorityTestEnv+"=1 to verify the current worktree against shared closure authority")
 	}
 }
 

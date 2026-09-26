@@ -1,17 +1,23 @@
+//overgo:runtime-inputs caller
+
 package main
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/clioptions"
 	"overgo/internal/dataset"
+	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/tabularicl"
@@ -27,50 +33,43 @@ var tableSignature = recipecontract.ModalitySignature{
 	Outputs: []recipecontract.Modality{recipecontract.ModalityTable},
 }
 
-// runObjective fine-tunes a TabFM classification head under a registered
-// table-prediction objective and publishes its held-out verdict: each
-// record of the objective's registered dataset is one request file, the
-// head trains only on the training membership's requests, and the base and
-// trained heads are judged on the held-out requests' query rows.
-func runObjective(storeRoot, alias, modelDir, task string, steps int) (err error) {
-	ctx := context.Background()
-	store, err := overgodb.Open(storeRoot)
-	if err != nil {
+// tableObjectiveTask is the head a table-prediction objective trains: its
+// verdict is label accuracy, which only a classification head answers.
+const tableObjectiveTask = "classification"
+
+// tabularSteps is the tabular route's output: every decoder update's result.
+type tabularSteps struct {
+	Task       string                       `json:"task"`
+	Parameters int                          `json:"parameters"`
+	Steps      []tabularicl.TrainStepResult `json:"steps"`
+}
+
+// trainTabular is the tabular route: bounded decoder updates of a TabFM
+// task head on one request, printed as JSON.
+func trainTabular(flags *flag.FlagSet, args []string) (err error) {
+	model := flags.String("model", "", "TabFM model directory")
+	task := flags.String("task", "", "classification or regression")
+	input := flags.String("input", "", "training request JSON")
+	steps := clioptions.IntOverride(flags, "steps", "required decoder update steps")
+	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	defer store.Close()
-	objectiveID, bound, err := store.ResolveAlias(ctx, alias)
-	if err != nil {
+	if *model == "" || *task == "" || *input == "" || *steps <= 0 {
+		return fmt.Errorf("%s: model, task, input, and positive steps required", flags.Name())
+	}
+	var request tabularicl.Request
+	if err := jsonfile.Decode(*input, &request); err != nil {
 		return err
 	}
-	if !bound {
-		return fmt.Errorf("tabular-train-probe: objective alias %q is absent", alias)
+	if request.Task != *task {
+		return fmt.Errorf("%s: request task %q differs from %q", flags.Name(), request.Task, *task)
 	}
-	objective, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
+	head, err := tabularicl.LoadHead(filepath.Join(*model, *task))
 	if err != nil {
 		return err
-	}
-	if objective.Kind != trainingprogram.ObjectiveTablePrediction {
-		return fmt.Errorf("tabular-train-probe: objective %q trains %q, not table prediction", alias, objective.Kind)
-	}
-	headDir := filepath.Join(modelDir, task)
-	head, err := tabularicl.LoadHead(headDir)
-	if err != nil {
-		return err
-	}
-	if !head.Dims.IsClassifier {
-		return fmt.Errorf("tabular-train-probe: table accuracy judges a classification head; %s is not one", headDir)
-	}
-	requests, examples, err := objectiveRequests(ctx, store, objective, task)
-	if err != nil {
-		return err
-	}
-	weights, err := filepath.Glob(filepath.Join(headDir, "*.safetensors"))
-	if err != nil || len(weights) != 1 {
-		return fmt.Errorf("tabular-train-probe: %s holds %d safetensors files, want one to record", headDir, len(weights))
 	}
 	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
-		Objective: trainingprogram.ObjectiveTablePrediction, Updates: steps,
+		Objective: trainingprogram.ObjectiveTablePrediction, Updates: *steps,
 		Parameters: head.TrainableParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
 	})
 	if err != nil {
@@ -81,11 +80,55 @@ func runObjective(storeRoot, alias, modelDir, task string, steps int) (err error
 		return err
 	}
 	defer func() { err = errors.Join(err, trainer.Close()) }()
-	result, err := trainingworkflow.RunHeldout(ctx, store, trainingworkflow.HeldoutRun{
+	result := tabularSteps{Task: *task, Parameters: trainer.ParameterCount(), Steps: make([]tabularicl.TrainStepResult, plan.Updates())}
+	for index := range result.Steps {
+		result.Steps[index], err = trainer.Step(request)
+		if err != nil {
+			return err
+		}
+	}
+	return clioptions.WritePrettyJSON(os.Stdout, result)
+}
+
+// trainTableObjective fine-tunes a TabFM classification head under a
+// registered table-prediction objective and publishes its held-out verdict:
+// each record of the objective's registered dataset is one request file, the
+// head trains only on the training membership's requests, and the base and
+// trained heads are judged on the held-out requests' query rows.
+func trainTableObjective(ctx context.Context, store *overgodb.Store, run objectiveRun, objective trainingprogram.ObjectiveDocument) (_ trainingworkflow.HeldoutResult, err error) {
+	headDir := filepath.Join(run.Model, tableObjectiveTask)
+	head, err := tabularicl.LoadHead(headDir)
+	if err != nil {
+		return trainingworkflow.HeldoutResult{}, err
+	}
+	if !head.Dims.IsClassifier {
+		return trainingworkflow.HeldoutResult{}, fmt.Errorf("table accuracy judges a classification head; %s is not one", headDir)
+	}
+	requests, examples, err := objectiveRequests(ctx, store, objective, tableObjectiveTask)
+	if err != nil {
+		return trainingworkflow.HeldoutResult{}, err
+	}
+	weights, err := filepath.Glob(filepath.Join(headDir, "*.safetensors"))
+	if err != nil || len(weights) != 1 {
+		return trainingworkflow.HeldoutResult{}, fmt.Errorf("%s holds %d safetensors files, want one to record", headDir, len(weights))
+	}
+	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: trainingprogram.ObjectiveTablePrediction, Updates: run.Steps,
+		Parameters: head.TrainableParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
+	})
+	if err != nil {
+		return trainingworkflow.HeldoutResult{}, err
+	}
+	trainer, err := tabularicl.NewTrainer(head, plan.Optimizer())
+	if err != nil {
+		return trainingworkflow.HeldoutResult{}, err
+	}
+	defer func() { err = errors.Join(err, trainer.Close()) }()
+	return trainingworkflow.RunHeldout(ctx, store, trainingworkflow.HeldoutRun{
 		// optimizer.NewStepper runs Muon on the CUDA device on Windows
 		// (stepper_windows.go) and on the host elsewhere; the observation
 		// records which.
-		Alias: alias, ModelPath: weights[0], Examples: examples, Host: runtime.GOOS != "windows",
+		Alias: run.Alias, ModelPath: weights[0], Examples: examples, Host: runtime.GOOS != "windows",
 		Train: func(_ context.Context, shown []trainingworkflow.HeldoutExample) error {
 			return trainTable(trainer, requests, shown, plan.Updates())
 		},
@@ -93,12 +136,6 @@ func runObjective(storeRoot, alias, modelDir, task string, steps int) (err error
 			return predictClasses(head, requests[example.Record])
 		},
 	})
-	if err != nil {
-		return err
-	}
-	fmt.Printf("held-out verdict %s passed=%t observation=%s view=%s plan=%s baseline=%s candidate=%s\n",
-		result.Verdict, result.Passed, result.Observation, result.View, result.Plan, result.Baseline, result.Candidate)
-	return nil
 }
 
 // objectiveRequests reads both of the objective's memberships as request
@@ -128,15 +165,15 @@ func objectiveRequests(ctx context.Context, store *overgodb.Store, objective tra
 		read, err := trainingworkflow.ReadAll(ctx, materialized)
 		closeErr := materialized.Close()
 		if err != nil || closeErr != nil {
-			return nil, nil, fmt.Errorf("tabular-train-probe: %s membership: %w", membership.Partition, errors.Join(err, closeErr))
+			return nil, nil, fmt.Errorf("%s membership: %w", membership.Partition, errors.Join(err, closeErr))
 		}
 		for _, example := range read {
 			var request tabularicl.Request
 			if len(example.Values) != 1 || json.Unmarshal(example.Values[0].Data, &request) != nil {
-				return nil, nil, fmt.Errorf("tabular-train-probe: record %s is not one request document", example.ID)
+				return nil, nil, fmt.Errorf("record %s is not one request document", example.ID)
 			}
 			if err := tabularicl.ValidateRequest(request); err != nil || request.Task != task {
-				return nil, nil, fmt.Errorf("tabular-train-probe: record %s is not a valid %s request: %v", example.ID, task, err)
+				return nil, nil, fmt.Errorf("record %s is not a valid %s request: %v", example.ID, task, err)
 			}
 			requests[example.ID] = request
 			examples[example.ID] = trainingworkflow.HeldoutExample{Target: dtype.ConvertSlice[float64](request.Y[request.TrainRows:])}
@@ -149,7 +186,7 @@ func objectiveRequests(ctx context.Context, store *overgodb.Store, objective tra
 // turn, refusing a step whose loss is not finite.
 func trainTable(trainer *tabularicl.Trainer, requests map[string]tabularicl.Request, shown []trainingworkflow.HeldoutExample, updates int) error {
 	if len(shown) == 0 {
-		return errors.New("tabular-train-probe: the training membership holds no requests")
+		return errors.New("the training membership holds no requests")
 	}
 	for step := range updates {
 		result, err := trainer.Step(requests[shown[step%len(shown)].Record])
@@ -157,7 +194,7 @@ func trainTable(trainer *tabularicl.Trainer, requests map[string]tabularicl.Requ
 			return err
 		}
 		if !checked.Finite64(result.Loss) {
-			return fmt.Errorf("tabular-train-probe: step %d loss is non-finite", step+1)
+			return fmt.Errorf("step %d loss is non-finite", step+1)
 		}
 		fmt.Printf("step %d/%d: loss=%.6f\n", step+1, updates, result.Loss)
 	}

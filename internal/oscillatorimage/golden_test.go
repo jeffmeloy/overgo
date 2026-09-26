@@ -107,7 +107,7 @@ func artifactDir(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return filepath.Join(roots.Models, "Un-0")
+	return roots.ResolveModelPath("Un-0")
 }
 
 func loadArtifactModel(t *testing.T) *Model {

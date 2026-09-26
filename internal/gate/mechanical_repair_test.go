@@ -97,7 +97,7 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 		t.Fatal("an unchanged harness surface rewrote its baseline")
 	}
 	staged := 0
-	for _, line := range g.audit {
+	for _, line := range auditLines(g.audit) {
 		if strings.HasPrefix(line, "staged repair: ") {
 			staged++
 		}
@@ -109,7 +109,7 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 		}
 	}
 	if staged != 4 {
-		t.Fatalf("staged repairs audited = %d, want four derived-file repairs: %q", staged, g.audit)
+		t.Fatalf("staged repairs audited = %d, want four derived-file repairs: %q", staged, auditLines(g.audit))
 	}
 	if len(recorded) != 1 {
 		t.Fatalf("commands = %v, want only the manifest update", recorded)
@@ -159,7 +159,7 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 
 	docs := &gateContext{repo: repo, storePath: gateStorePath, paths: []string{"docs/plan.json"}, runCommand: fake}
 	recorded = nil
-	if err := docs.stageMechanicalRepairs(); err != nil || len(recorded) != 0 || len(docs.audit) != 0 {
+	if err := docs.stageMechanicalRepairs(); err != nil || len(recorded) != 0 || len(auditLines(docs.audit)) != 0 {
 		t.Fatalf("plan-only change staged %v with %v, want nothing", recorded, err)
 	}
 }

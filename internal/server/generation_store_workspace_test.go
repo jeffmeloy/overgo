@@ -255,9 +255,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 // cheapest of them, the host oscillator, publishing it as a PNG artifact.
 func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": generating from store models is integration")
-	}
+	testskip.Short(t, "generating from store models is integration")
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatalf("store media unavailable: %v", err)

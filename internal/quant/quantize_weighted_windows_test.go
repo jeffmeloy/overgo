@@ -17,7 +17,7 @@ import (
 func TestQuantizeWeightedMatchesPinnedGGML(t *testing.T) {
 	path := os.Getenv("OVERGO_GGML_BASE_ORACLE")
 	if path == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_GGML_BASE_ORACLE to pinned ggml-base.dll")
+		testskip.NotApplicable(t, "set OVERGO_GGML_BASE_ORACLE to pinned ggml-base.dll")
 	}
 	library := syscall.NewLazyDLL(path)
 	initialize := library.NewProc("ggml_quantize_init")

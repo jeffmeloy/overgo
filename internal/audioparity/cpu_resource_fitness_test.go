@@ -79,9 +79,7 @@ func TestAudioResourceFitnessAcceptance(t *testing.T) {
 		runAudioProfile(t, path)
 		return
 	}
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": exact CPU fitness acceptance executes held-out, profile and repeated processes")
-	}
+	testskip.Short(t, "exact CPU fitness acceptance executes held-out, profile and repeated processes")
 	f := newAudioMeasurementFixture(t)
 	baseline := f.measure(t)
 	f.profile(t, baseline)

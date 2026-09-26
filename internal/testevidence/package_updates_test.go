@@ -21,6 +21,12 @@ func packageEvent(action, pkg, test, output string) string {
 	return string(data) + "\n"
 }
 
+// skipEvent is the attribute a testskip call records ahead of its skip.
+func skipEvent(pkg, test, kind string) string {
+	data, _ := json.Marshal(map[string]string{"Action": "attr", "Package": pkg, "Test": test, "Key": testskip.Key, "Value": kind})
+	return string(data) + "\n"
+}
+
 func TestSlowPublicationProcess(t *testing.T) {
 	announce := os.Getenv("OVERGO_TEST_SLOW_PUBLICATION")
 	if announce == "" {
@@ -118,7 +124,7 @@ func TestPackageCreditTransitions(t *testing.T) {
 	start := packageEvent("start", "example", "", "")
 	passed := packageEvent("run", "example", "TestWorks", "") + packageEvent("pass", "example", "TestWorks", "")
 	terminal := packageEvent("pass", "example", "", "")
-	skipped := packageEvent("run", "example", "TestIntegration", "") + packageEvent("output", "example", "TestIntegration", testskip.ShortIntegration) + packageEvent("skip", "example", "TestIntegration", "")
+	skipped := packageEvent("run", "example", "TestIntegration", "") + skipEvent("example", "TestIntegration", testskip.KindShort) + packageEvent("skip", "example", "TestIntegration", "")
 	for _, tc := range []struct {
 		name, stream string
 		short        bool
@@ -132,7 +138,6 @@ func TestPackageCreditTransitions(t *testing.T) {
 		{"duplicate", start + passed + passed + terminal, false, false},
 		{"failed", start + strings.ReplaceAll(passed, `"pass"`, `"fail"`) + terminal, false, false},
 		{"unfinished", start + packageEvent("run", "example", "TestWorks", "") + terminal, false, false},
-		{"late unavailable", start + passed + terminal + packageEvent("output", "example", "TestWorks", "UNAVAILABLE: fixture"), false, false},
 		{"malformed tail", start + passed + terminal + "{invalid\n", false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -164,7 +169,6 @@ func TestTerminalPackageUpdates(t *testing.T) {
 		{"malformed stream", "not json\n", true},
 		{"duplicate terminal", packageEvent("pass", "good", "", ""), true},
 		{"late test", packageEvent("run", "good", "TestLate", ""), true},
-		{"late unavailable", packageEvent("output", "good", "", "UNAVAILABLE: required fixture absent"), true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			reader, writer := io.Pipe()

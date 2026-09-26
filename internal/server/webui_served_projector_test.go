@@ -33,7 +33,7 @@ import (
 func TestModelJourneyServedProjector(t *testing.T) {
 	t.Parallel()
 	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
-		t.Skip(testskip.Inapplicable + ": a served model runs through cmd/webui-lane -journeys")
+		testskip.NotApplicable(t, "a served model runs through cmd/webui-lane -journeys")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

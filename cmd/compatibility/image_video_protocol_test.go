@@ -87,9 +87,7 @@ func checkImageVideoObservation(value imageVideoObservation, content artifact.Co
 
 func TestImageVideoProtocolAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": media protocol reads retained private-store outputs")
-	}
+	testskip.Short(t, "media protocol reads retained private-store outputs")
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_protocol.json")
 	data, err := os.ReadFile(path)

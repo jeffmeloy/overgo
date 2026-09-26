@@ -32,11 +32,9 @@ import (
 // and E4B results remain diagnostic evidence; a current baseline must be
 // reacquired on the same observed weight path as its comparison.
 func TestAcceptedBaselineEvidence(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT to audit the exact stored guard records; no measurement runs")
+		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT to audit the exact stored guard records; no measurement runs")
 	}
 	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
 	if err != nil {

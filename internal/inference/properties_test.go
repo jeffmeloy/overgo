@@ -75,7 +75,7 @@ func TestModelPropertiesFromRealGGUF(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN3_MODEL")
 	if path == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN3_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {

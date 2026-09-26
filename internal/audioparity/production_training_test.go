@@ -31,9 +31,7 @@ import (
 
 func TestASRProductionTrainingAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": production CPU training runs as its exact mandatory acceptance")
-	}
+	testskip.Short(t, "production CPU training runs as its exact mandatory acceptance")
 	l := newAdapterLifecycle(t)
 	reference := l.update(t, l.batcher(t, nil))
 	referenceWeights := l.adapter.WeightSnapshot()

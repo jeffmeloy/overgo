@@ -39,7 +39,7 @@ func TestActivityDetectionHonoursRequestOverrides(t *testing.T) {
 	// asks the store for them by the digest the reviewed policy names.
 	reference := cmp.Or(os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"), roots.AudioReference)
 	if _, err := os.Stat(reference); errors.Is(err, fs.ErrNotExist) {
-		t.Skip(testskip.Inapplicable + ": no audio reference store holds the activity model's registration here")
+		testskip.NotApplicable(t, "no audio reference store holds the activity model's registration here")
 	}
 	registrations, err := overgodb.OpenReadOnly(reference)
 	if err != nil {

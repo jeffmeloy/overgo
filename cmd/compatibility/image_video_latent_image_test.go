@@ -121,9 +121,7 @@ func checkMediaLatentCoverage(cases []mediaLatentBundleCase, expected []string) 
 
 func TestImageVideoLatentImageAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": retained image case bundle")
-	}
+	testskip.Short(t, "retained image case bundle")
 	root := testutil.RepoRoot(t)
 	var bundle mediaLatentImageBundle
 	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_latent_images.json"), &bundle); err != nil {

@@ -23,14 +23,14 @@ func TestRegisteredModelResolvesThroughTheStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(roots.Store); errors.Is(err, fs.ErrNotExist) {
-		t.Skip(testskip.Inapplicable + ": no store holds model registrations here")
+		testskip.NotApplicable(t, "no store holds model registrations here")
 	}
 	directory, err := registeredDirectory(t.Context(), roots.Store, "FireRedVAD")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if directory == "" {
-		t.Skip(testskip.Inapplicable + ": FireRedVAD is not registered in this store")
+		testskip.NotApplicable(t, "FireRedVAD is not registered in this store")
 	}
 	if filepath.Dir(filepath.Join(roots.Models, "FireRedVAD")) == filepath.Dir(directory) {
 		t.Logf("the models root holds FireRedVAD too; the registration still decided it")

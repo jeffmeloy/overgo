@@ -21,6 +21,7 @@ import (
 // normal test run does nothing. It prints a first chunk, blocks on the
 // test's loopback listener until the test releases it, then prints a second.
 func TestAgentRecoveryToolProcess(t *testing.T) {
+	// Serial: it is the child process's entry, which returns at once in a normal run.
 	separator := slices.Index(os.Args, "--")
 	if separator < 0 || separator+1 >= len(os.Args) {
 		return

@@ -14,7 +14,7 @@ func TestDecodeVideoFileFFmpeg(t *testing.T) {
 	requireIntegration(t)
 	ffmpeg := os.Getenv("OVERGO_FFMPEG_TEST")
 	if ffmpeg == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_FFMPEG_TEST to run FFmpeg integration tests")
+		testskip.NotApplicable(t, "set OVERGO_FFMPEG_TEST to run FFmpeg integration tests")
 	}
 	path := filepath.Join(t.TempDir(), "input.mkv")
 	command := exec.Command(

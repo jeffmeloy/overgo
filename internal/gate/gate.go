@@ -102,7 +102,7 @@ type gateContext struct {
 	authored            []byte
 	storePath           string
 	steps               []runrecord.GateStep
-	audit               []string
+	audit               []auditNote
 	start               time.Time
 	clock               processmeasure.Stopwatch
 	environment         runrecord.Environment
@@ -170,6 +170,10 @@ type gateContext struct {
 	testPlan *testGroups
 	// Protected by auditMutex; each invocation retains its own cost and profile.
 	testExecutions []packageExecutionBatch
+	// suiteCost is the suite cost this gate records; packageCosts, what the
+	// last recorded one measured, read once.
+	suiteCost    artifact.ID
+	packageCosts func() map[string]float64
 	// testStep names the check whose package executions are being recorded;
 	// the test checks run one after another.
 	testStep string
@@ -191,11 +195,44 @@ func (g *gateContext) setTestStep(name string) {
 }
 
 // appends one audit line under the lock the concurrent validate wave shares
-func (g *gateContext) note(line string) {
+func (g *gateContext) note(line string) { g.advise(noteDetail, line) }
+
+// advise records a note of a declared kind; readers select by kind, not text.
+func (g *gateContext) advise(kind noteKind, line string) {
 	g.auditMutex.Lock()
 	defer g.auditMutex.Unlock()
-	g.audit = append(g.audit, line)
+	g.audit = append(g.audit, auditNote{kind, line})
 }
+
+type auditNote struct {
+	kind noteKind
+	text string
+}
+
+// noteKind: detail and repair notes stay unlabelled; the measured kinds
+// (suite cost through debt) also enter the commit message.
+type noteKind uint8
+
+const (
+	noteDetail noteKind = iota
+	noteRepair
+	noteSuiteCost
+	noteDelta
+	noteROI
+	noteClass
+	noteDebt
+	noteDependency
+	noteConsumer
+	noteImpact
+	noteScope
+	noteReuse
+	noteReview
+	noteWarning
+)
+
+var noteLabels = [...]string{noteSuiteCost: "suite-cost", noteDependency: "dependency", noteDelta: "delta", noteROI: "roi",
+	noteConsumer: "consumer", noteImpact: "impact", noteClass: "class", noteDebt: "debt", noteScope: "scope", noteReuse: "reuse",
+	noteReview: "review", noteWarning: "warning"}
 
 // returns the plan parsed once for the gate's readers that run before the
 // commit phase rewrites it
@@ -632,11 +669,11 @@ func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, 
 	}
 }
 
-func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch *artifact.Batch, owners, audit []string) error {
-	evidence := slices.DeleteFunc(compactAudit(audit), func(line string) bool {
-		return !strings.HasPrefix(line, "advisory: review:") && !strings.HasPrefix(line, "advisory: warning:") &&
-			(!strings.HasPrefix(line, "advisory: consumer:") || strings.Contains(line, "candidates=;"))
-	})
+func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch *artifact.Batch, owners []string, audit []auditNote) error {
+	evidence := compactAudit(slices.DeleteFunc(slices.Clone(audit), func(note auditNote) bool {
+		return note.kind != noteReview && note.kind != noteWarning &&
+			(note.kind != noteConsumer || strings.Contains(note.text, "candidates=;"))
+	}))
 	if len(evidence) == 0 {
 		return nil
 	}
@@ -648,11 +685,9 @@ func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch
 	if err != nil {
 		return err
 	}
-	alias := artifact.AliasBinding{Name: finding.GateAdvisoriesAlias, Target: document.ID}
-	if previous, found, err := artifact.ResolveAlias(ctx, store, alias.Name); err != nil {
+	alias, err := moveAlias(ctx, store, finding.GateAdvisoriesAlias, document.ID)
+	if err != nil {
 		return err
-	} else if found {
-		alias = artifact.AliasMove(alias.Name, alias.Target, previous)
 	}
 	batch.Contents = append(batch.Contents, findingBatch.Contents...)
 	batch.Lineage = append(batch.Lineage, findingBatch.Lineage...)
@@ -660,43 +695,19 @@ func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch
 	return nil
 }
 
-func compactAudit(lines []string) []string {
+// moveAlias binds name to target over whatever it named before.
+func moveAlias(ctx context.Context, store artifact.Reader, name string, target artifact.ID) (artifact.AliasBinding, error) {
+	previous, _, err := artifact.ResolveAlias(ctx, store, name)
+	return artifact.AliasMove(name, target, previous), err
+}
+
+func compactAudit(notes []auditNote) []string {
 	var output []string
-	for _, line := range lines {
-		label := ""
-		switch {
-		case strings.HasPrefix(line, "suite cost ranking:"):
-			label = "advisory: suite-cost: "
-		case strings.HasPrefix(line, "selection causes:"):
-			label = "advisory: dependency: "
-		case strings.Contains(line, "code profile delta vs HEAD"):
-			label = "advisory: delta: "
-		case strings.HasPrefix(line, "automation ROI"):
-			label = "advisory: roi: "
-		case strings.HasPrefix(line, "consumer census"):
-			label = "advisory: consumer: "
-		case strings.HasPrefix(line, "impact selection:"):
-			label = "advisory: impact: "
-		case strings.HasPrefix(line, "operation class:"):
-			label = "advisory: class: "
-		case strings.HasPrefix(line, "harness surface raised"):
-			label = "advisory: debt: "
-		case strings.HasPrefix(line, "test scope:"):
-			label = "advisory: scope: "
-		case strings.HasPrefix(line, "package test evidence:"):
-			label = "advisory: reuse: "
-		case strings.Contains(line, " reused:"):
-			label = "advisory: reuse: "
-		case strings.Contains(line, "exact_clone=") && !strings.Contains(line, "exact_clone=none"):
-			label = "advisory: review: "
-		case strings.Contains(line, "uncatalogued") || strings.Contains(line, "unplanned dirty") ||
-			strings.Contains(line, "unavailable") || strings.Contains(line, "unreadable") || strings.Contains(line, "not persisted"):
-			label = "advisory: warning: "
-		}
-		if label == "" {
+	for _, note := range notes {
+		if noteLabels[note.kind] == "" {
 			continue
 		}
-		line = label + line
+		line := "advisory: " + noteLabels[note.kind] + ": " + note.text
 		if len(line) > 600 {
 			line = line[:600] + "..."
 		}

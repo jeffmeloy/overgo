@@ -687,17 +687,14 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 // Validate the live plan's contracts without duplicating its task inventory.
 func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 	t.Helper()
-	mergeRows := 0
+	// A merge row may be parked for a lane awaiting its first consumer
+	// (the VAE lane, 2026-09-25) while another lane merges, so each merge
+	// boundary is held to its shape, not to being the only one; its ID
+	// carries its lane revision, so two never name the same one.
 	for _, item := range document.Items {
-		if strings.HasPrefix(item.ID, "merge-") {
-			mergeRows++
-			if !preparedMergeBoundary(item) {
-				t.Errorf("invalid prepared merge boundary %+v", item)
-			}
+		if strings.HasPrefix(item.ID, "merge-") && !preparedMergeBoundary(item) {
+			t.Errorf("invalid prepared merge boundary %+v", item)
 		}
-	}
-	if mergeRows > 1 {
-		t.Errorf("validation campaign has %d prepared merge boundaries, want at most one", mergeRows)
 	}
 	for _, violation := range campaignStructuralViolations(document) {
 		t.Errorf("validation campaign policy: %s", violation)

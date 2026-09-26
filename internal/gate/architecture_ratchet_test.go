@@ -76,10 +76,10 @@ func TestArchitectureRatchetAlwaysRequired(t *testing.T) {
 	if evidence.Inapplicable || evidence.DurationNS == 0 {
 		t.Fatalf("architecture evidence = %+v", evidence)
 	}
-	if !slices.ContainsFunc(gate.audit, func(line string) bool {
+	if !slices.ContainsFunc(auditLines(gate.audit), func(line string) bool {
 		return strings.HasPrefix(line, "entry authority ratchet:") && strings.Contains(line, "wall=")
 	}) {
-		t.Fatalf("architecture ratchet omitted measured entry-authority evidence: %q", gate.audit)
+		t.Fatalf("architecture ratchet omitted measured entry-authority evidence: %q", auditLines(gate.audit))
 	}
 
 	base, err := artifact.JSONID(artifact.KindProfile, struct{ Name string }{"base"})

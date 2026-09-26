@@ -72,7 +72,7 @@ func hubFixtureServer(t *testing.T, file string) *httptest.Server {
 func TestModelJourneyLibraryValidation(t *testing.T) {
 	t.Parallel()
 	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
-		t.Skip(testskip.Inapplicable + ": library validation runs through cmd/webui-lane -journeys")
+		testskip.NotApplicable(t, "library validation runs through cmd/webui-lane -journeys")
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)

@@ -55,11 +55,9 @@ func TestUnlimitedOCRLayoutMetrics(t *testing.T) {
 }
 
 func TestUnlimitedOCRProductionParity(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_CUDA_TEST=1 for real Unlimited OCR parity")
+		testskip.NotApplicable(t, "set OVERGO_CUDA_TEST=1 for real Unlimited OCR parity")
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)

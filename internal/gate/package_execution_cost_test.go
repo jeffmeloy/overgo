@@ -62,8 +62,8 @@ func TestGatePackageExecutionCostAcceptance(t *testing.T) {
 	if !readers {
 		t.Fatal("reader diagnostic missing")
 	}
-	if len(g.audit) != 0 {
-		t.Fatalf("execution data copied into advisories: %v", g.audit)
+	if len(auditLines(g.audit)) != 0 {
+		t.Fatalf("execution data copied into advisories: %v", auditLines(g.audit))
 	}
 	before, err := graph.identity(target)
 	if err != nil {
@@ -91,13 +91,13 @@ func TestPackageExecutionAuditUsesObservedWork(t *testing.T) {
 	}}, errors.New("failure"))
 	g.recordPackageExecution([]string{"changed"}, true, time.Second, testevidence.GoTestReport{Executions: []testevidence.PackageExecution{{Package: "changed", Started: true, Action: "pass"}}}, nil)
 	g.packageExecutionAudit()
-	if !slices.Contains(g.audit, "package test work: 1 reused profiles; 2 started attempts") || !slices.Contains(g.audit, "package observations: passed=1 failed=2 skipped=0 interrupted=0 unstarted=1; awaiting=3 deferred=1; observations grant no evidence credit") {
-		t.Fatalf("planned work, profiles or failed retry collapsed: %v", g.audit)
+	if !slices.Contains(auditLines(g.audit), "package test work: 1 reused profiles; 2 started attempts") || !slices.Contains(auditLines(g.audit), "package observations: passed=1 failed=2 skipped=0 interrupted=0 unstarted=1; awaiting=3 deferred=1; observations grant no evidence credit") {
+		t.Fatalf("planned work, profiles or failed retry collapsed: %v", auditLines(g.audit))
 	}
 	g.recordPackageExecution([]string{"host", "device"}, true, time.Second, testevidence.GoTestReport{Executions: []testevidence.PackageExecution{{Package: "host", Started: true, Action: "skip"}, {Package: "device", Started: true}}}, errors.New("interrupted"))
 	g.packageExecutionAudit()
-	if !slices.Contains(g.audit, "package observations: passed=1 failed=2 skipped=1 interrupted=1 unstarted=1; awaiting=1 deferred=0; observations grant no evidence credit") {
-		t.Fatalf("skip, interruption or unobserved full profile lost: %v", g.audit)
+	if !slices.Contains(auditLines(g.audit), "package observations: passed=1 failed=2 skipped=1 interrupted=1 unstarted=1; awaiting=1 deferred=0; observations grant no evidence credit") {
+		t.Fatalf("skip, interruption or unobserved full profile lost: %v", auditLines(g.audit))
 	}
 	if len(g.testExecutions) != 3 || g.testPlan.reused != 1 {
 		t.Fatal("diagnostic changed retained execution or reuse authority")

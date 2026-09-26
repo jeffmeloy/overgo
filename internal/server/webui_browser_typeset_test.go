@@ -22,7 +22,7 @@ import (
 func TestWebUIBrowserTypeset(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the typeset leg runs through cmd/webui-lane")
+		testskip.NotApplicable(t, "the typeset leg runs through cmd/webui-lane")
 	}
 	stylesheet, err := os.ReadFile("webui/style.css")
 	if err != nil {

@@ -26,9 +26,7 @@ import (
 // fixture location. Only -short excludes this device integration check.
 func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	modelPath := os.Getenv("OVERGO_QWEN2_MODEL")
 	if modelPath == "" {
 		roots, err := dataroot.Resolve(testutil.RepoRoot(t))

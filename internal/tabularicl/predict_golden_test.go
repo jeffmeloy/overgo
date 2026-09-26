@@ -66,7 +66,7 @@ func headDir(t *testing.T, task string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(roots.Models, "tabfm-1.0.0-pytorch", task)
+	dir := roots.ResolveModelPath(filepath.Join("tabfm-1.0.0-pytorch", task))
 	if _, err := os.Stat(filepath.Join(dir, "model.safetensors")); err != nil {
 		t.Skipf("UNAVAILABLE: tabfm %s head absent at %s; parity NOT verified", task, dir)
 	}

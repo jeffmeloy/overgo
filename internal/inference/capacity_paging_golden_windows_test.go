@@ -41,7 +41,7 @@ func TestServingGoldenRegression(t *testing.T) {
 	fixturePath := os.Getenv("OVERGO_GOLDEN_FIXTURE")
 	sessionName := os.Getenv("OVERGO_GOLDEN_SESSION")
 	if modelPath == "" || fixturePath == "" || sessionName == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_GOLDEN_MODEL, OVERGO_GOLDEN_FIXTURE, OVERGO_GOLDEN_SESSION")
+		testskip.NotApplicable(t, "set OVERGO_GOLDEN_MODEL, OVERGO_GOLDEN_FIXTURE, OVERGO_GOLDEN_SESSION")
 	}
 	var session modelrecipe.DecodeSessionPolicy
 	switch sessionName {

@@ -60,9 +60,7 @@ func storedProjectionPair(t *testing.T) (modelPath, projectorPath string, projec
 // store activated for that pair: the same model, the same projector
 // artifact, the same media.
 func TestPrepareProjectionCandidateReproducesStoredBinding(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": reading model files is integration")
-	}
+	testskip.Short(t, "reading model files is integration")
 	modelPath, projectorPath, stored := storedProjectionPair(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

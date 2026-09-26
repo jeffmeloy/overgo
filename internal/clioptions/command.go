@@ -29,12 +29,21 @@ const (
 	// PrivateFileMode is the owner-only mode for local state that can contain
 	// command arguments, failure context, or other non-published evidence.
 	PrivateFileMode = os.FileMode(0o600)
+	// ErrorFileEnvironment names a file a failing command also writes its
+	// final error to, so a supervisor reads the refusal without parsing output.
+	ErrorFileEnvironment = "OVERGO_ERROR_FILE"
 )
 
-// Main: common command error exit.
+// Main: common command error exit. The error file is this command's alone:
+// its subprocesses do not inherit the name.
 func Main(run func() error) {
+	errorFile := os.Getenv(ErrorFileEnvironment)
+	_ = os.Unsetenv(ErrorFileEnvironment)
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		if errorFile != "" {
+			_ = os.WriteFile(errorFile, []byte(err.Error()), PrivateFileMode)
+		}
 		if errors.Is(err, processcontrol.ErrResourceBusy) {
 			os.Exit(processcontrol.ResourceBusyExitCode)
 		}

@@ -128,6 +128,7 @@ func runPreflight(ctx context.Context, pipeline []automationcheck.Check, output 
 	}
 	report.Total = time.Since(started).Round(time.Millisecond)
 	report.FirstFinding = report.FirstFinding.Round(time.Millisecond)
+	var failures []error
 	for index, result := range results {
 		// A blocked invocation leaves its result empty.
 		name := static[index].Check.Name
@@ -135,6 +136,7 @@ func runPreflight(ctx context.Context, pipeline []automationcheck.Check, output 
 		switch {
 		case result.Err != nil:
 			report.Findings = append(report.Findings, name)
+			failures = append(failures, fmt.Errorf("%s: %w", name, result.Err))
 			fmt.Fprintf(output, "preflight: %s FAIL %s: %v\n", name, wall, result.Err)
 		case !result.Evidence.ID.Valid():
 			report.Unstarted++
@@ -150,7 +152,7 @@ func runPreflight(ctx context.Context, pipeline []automationcheck.Check, output 
 		len(report.Findings), len(static), report.Skipped, report.Unstarted)
 	if len(report.Findings) != 0 {
 		fmt.Fprintf(output, "preflight: first finding after %s; total %s\n", report.FirstFinding, report.Total)
-		return fmt.Errorf("preflight: %d finding(s); first=%s", len(report.Findings), report.Findings[0])
+		return fmt.Errorf("preflight: %d finding(s); first=%s\n%w", len(report.Findings), report.Findings[0], errors.Join(failures...))
 	}
 	fmt.Fprintf(output, "preflight: clean in %s; the gate repeats these checks against the frozen candidate\n", report.Total)
 	return nil
@@ -180,6 +182,11 @@ func (g *gateContext) Preflight(output io.Writer) error {
 		return err
 	}
 	err := runPreflight(context.Background(), g.pipelineChecks(), output)
+	for _, note := range g.audit {
+		if note.kind == noteWarning {
+			fmt.Fprintf(output, "preflight: advisory: warning: %s\n", note.text)
+		}
+	}
 	if g.pendingGenerated != nil {
 		fmt.Fprintf(output, "preflight: dirty-generated: ok (%d generated file(s) pending commit)\n", *g.pendingGenerated)
 	}
@@ -350,9 +357,9 @@ func (g *gateContext) preflightRepairs(output io.Writer) error {
 	}
 	g.auditMutex.Lock()
 	defer g.auditMutex.Unlock()
-	for _, line := range g.audit {
-		if strings.HasPrefix(line, "staged repair: ") {
-			fmt.Fprintf(output, "preflight: %s\n", line)
+	for _, note := range g.audit {
+		if note.kind == noteRepair {
+			fmt.Fprintf(output, "preflight: %s\n", note.text)
 		}
 	}
 	return nil

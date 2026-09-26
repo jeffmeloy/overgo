@@ -157,6 +157,9 @@ const (
 	UncertaintyAnalysis UncertaintyKind = "analysis"
 	// UncertaintyExternal marks a declaration observable outside the snapshot.
 	UncertaintyExternal UncertaintyKind = "external"
+	// UncertaintyConsumerBoundary marks an external or command consumer the
+	// consumer census bounds by the dependency closure.
+	UncertaintyConsumerBoundary UncertaintyKind = "consumer-boundary"
 )
 
 // Uncertainty records a boundary that cannot prove verification independence.
@@ -406,7 +409,7 @@ func validUncertaintyKind(kind UncertaintyKind) bool {
 	switch kind {
 	case UncertaintyReflection, UncertaintyCgo, UncertaintyInterface, UncertaintyGenerated,
 		UncertaintyBuildSelection, UncertaintyNonGo, UncertaintyOutsideSnapshot, UncertaintyAnalysis,
-		UncertaintyExternal:
+		UncertaintyExternal, UncertaintyConsumerBoundary:
 		return true
 	default:
 		return false

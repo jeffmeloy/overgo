@@ -32,7 +32,6 @@ import (
 	"overgo/internal/planverify"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processmeasure"
-	"overgo/internal/protection"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
@@ -66,22 +65,16 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		defer release()
 		return runJourney(ctx, invocation)
 	}
-	// The store writer among the static checks (the magics phase may rebind
-	// the closure ledger) declares the store exclusively; the store readers
-	// declare it shared, so the writer never overlaps a reader's replay.
-	storeWriter := []automationcheck.Resource{{Name: "store", Exclusive: true}}
-	storeReader := []automationcheck.Resource{{Name: "store"}}
-	published.Descriptor.Resources = storeReader
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
-		withResources(gateCheck("magics", runrecord.PhaseValidate, g.stepMagics), storeWriter),
-		{Descriptor: automationcheck.Descriptor{Name: modernCensusCheckName, Phase: runrecord.PhaseValidate, Always: true, Resources: storeReader}, Run: g.computeModernGo},
+		gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
+		{Descriptor: automationcheck.Descriptor{Name: modernCensusCheckName, Phase: runrecord.PhaseValidate, Always: true}, Run: g.computeModernGo},
 		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
 		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitectureRatchet),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
 		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), gateCheck("surface", runrecord.PhaseValidate, g.stepSurface),
 		generated[0], generated[1], generated[2],
-		withResources(gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), storeReader), published,
+		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), published,
 		gateCheck("vet", runrecord.PhaseVet, g.stepVet),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance),
 		gateTestCheck(testPlanCheckName, g.stepTestPlan),
@@ -90,64 +83,107 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateTestCheck(testRestCheckName, g.stepTestRest),
 		device, webui, journeys, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
-	// Protection and scope admit the candidate first
-	dependencies := map[string][]string{"scope": {"protection"}}
-	for _, name := range validateWave {
-		dependencies[name] = []string{"scope"}
-	}
-	dependencies["modern-go"] = []string{modernCensusCheckName}
-	dependencies["vet"] = slices.Clone(validateWave)
-	dependencies["acceptance"] = []string{"vet"}
-	// Changed owners precede shared dependency tests and browser correctness.
-	// The device lane and remaining host tests follow the dependency tests.
-	// Shared device admission and waiting store locks protect overlap.
-	dependencies[testPlanCheckName] = []string{"acceptance"}
-	dependencies[testOwnersCheckName] = []string{testPlanCheckName}
-	dependencies[testDeviceCheckName] = []string{testOwnersCheckName}
-	dependencies[testRestCheckName] = []string{testDeviceCheckName}
-	dependencies["device"] = []string{testDeviceCheckName}
-	dependencies[automationcheck.WebUICheckName] = []string{testOwnersCheckName}
-	dependencies[automationcheck.ModelJourneyCheckName] = []string{testOwnersCheckName}
-	if g.serializeLanes {
-		// A merge or failed-lane replay already costs a full inline run.
-		// Keep browser, model and CUDA waves apart: shared device leases
-		// admit both even when their combined VRAM does not fit.
-		dependencies[automationcheck.ModelJourneyCheckName] = []string{automationcheck.WebUICheckName}
-		dependencies[testDeviceCheckName] = []string{testOwnersCheckName, automationcheck.ModelJourneyCheckName}
-	}
-	dependencies["commit"] = []string{testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
 	for index := range checks {
-		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
-		if requirements, declared := gateCheckRequirements[checks[index].Descriptor.Name]; declared {
-			checks[index].Descriptor.Requirements = requirements
+		gateRuleNamed(checks[index].Descriptor.Name).declare(&checks[index].Descriptor)
+		if g.serializeLanes {
+			// A merge or failed-lane replay already costs a full inline run.
+			// Keep browser, model and CUDA waves apart: shared device leases
+			// admit both even when their combined VRAM does not fit.
+			switch checks[index].Descriptor.Name {
+			case automationcheck.ModelJourneyCheckName:
+				checks[index].Descriptor.Dependencies = []string{automationcheck.WebUICheckName}
+			case testDeviceCheckName:
+				checks[index].Descriptor.Dependencies = []string{testOwnersCheckName, automationcheck.ModelJourneyCheckName}
+			}
 		}
 	}
 	return checks
 }
 
-// gateCheckRequirements declares what the gate's own checks need beyond the
-// working tree; constructed checks carry their declaration from their owner.
-// Undeclared checks run in process and are static.
-var gateCheckRequirements = map[string]automationcheck.Requirements{
-	modernCensusCheckName: {Intermediate: true},
-	"docs":                {Process: automationcheck.ProcessToolchain},
-	"vet":                 {Process: automationcheck.ProcessToolchain},
-	"acceptance":          {Candidate: true, Process: automationcheck.ProcessSuite},
-	testPlanCheckName:     {Candidate: true, Process: automationcheck.ProcessSuite},
-	testOwnersCheckName:   {Candidate: true, Process: automationcheck.ProcessSuite},
-	testDeviceCheckName:   {Candidate: true, Process: automationcheck.ProcessSuite},
-	testRestCheckName:     {Candidate: true, Process: automationcheck.ProcessSuite},
-	"commit":              {Candidate: true},
+// gateRule: one check's policy, in pipeline order. Store-coupled checks are
+// never reused (each attempt moves their store); receipts own test reuse.
+type gateRule struct {
+	name                                               string
+	after                                              []string
+	needs                                              automationcheck.Requirements
+	store                                              *automationcheck.Resource
+	owns                                               codeprofile.Surface
+	static, afterStatic, reuse, deferrable, cumulative bool
 }
 
-// validateWave lists the static prerequisites of build and vet. Independent
-// checks run together; census output precedes modern-Go admission.
-var validateWave = []string{"magics", modernCensusCheckName, "modern-go", "architecture", "profile", "fmt", "style", "surface", "manifest", "sbom", "claims", "docs", "published"}
+var (
+	afterScope = []string{"scope"}
+	// A check owns evidence for the path classes its verdict reads.
+	governed, published, tested = codeprofile.GoInput | codeprofile.Harness, codeprofile.GoInput | codeprofile.Document, codeprofile.GoInput | codeprofile.TestData
+	suite                       = automationcheck.Requirements{Candidate: true, Process: automationcheck.ProcessSuite}
+	toolchain                   = automationcheck.Requirements{Process: automationcheck.ProcessToolchain}
+	// Magics may rebind the closure ledger, so it never overlaps a reader.
+	readStore, writeStore = &automationcheck.Resource{Name: "store"}, &automationcheck.Resource{Name: "store", Exclusive: true}
+)
 
-func withResources(check automationcheck.Check, resources []automationcheck.Resource) automationcheck.Check {
-	check.Descriptor.Resources = resources
-	return check
+// Admission, then the static wave (census before modern-Go), vet, changed
+// owners, then shared dependency tests, browser and device lanes.
+var gateRules = []gateRule{
+	{name: "protection", owns: governed, reuse: true}, {name: "scope", after: []string{"protection"}, owns: governed, reuse: true},
+	{name: "magics", after: afterScope, store: writeStore, static: true},
+	{name: modernCensusCheckName, after: afterScope, owns: codeprofile.GoInput, needs: automationcheck.Requirements{Intermediate: true}, store: readStore, static: true, reuse: true},
+	{name: "modern-go", after: []string{modernCensusCheckName}, static: true},
+	{name: "architecture", after: afterScope, owns: codeprofile.GoInput | codeprofile.Plan | codeprofile.Budget, static: true, reuse: true}, {name: "profile", after: afterScope, owns: codeprofile.GoInput, static: true, reuse: true},
+	{name: "fmt", after: afterScope, owns: codeprofile.GoInput, static: true, reuse: true}, {name: "style", after: afterScope, owns: codeprofile.GoInput, static: true, reuse: true},
+	{name: "surface", after: afterScope, static: true}, {name: "manifest", after: afterScope, owns: published, static: true, reuse: true},
+	{name: "sbom", after: afterScope, owns: published, static: true, reuse: true}, {name: "claims", after: afterScope, owns: published, static: true, reuse: true},
+	{name: "docs", after: afterScope, owns: published, needs: toolchain, store: readStore, static: true, reuse: true},
+	{name: "published", after: afterScope, store: readStore, static: true},
+	{name: "vet", afterStatic: true, owns: codeprofile.GoInput, needs: toolchain, reuse: true},
+	{name: "acceptance", after: []string{"vet"}, needs: suite, cumulative: true},
+	{name: testPlanCheckName, after: []string{"acceptance"}, needs: suite}, {name: testOwnersCheckName, after: []string{testPlanCheckName}, owns: tested, needs: suite},
+	{name: testDeviceCheckName, after: []string{testOwnersCheckName}, owns: tested, needs: suite, deferrable: true, cumulative: true},
+	{name: testRestCheckName, after: []string{testDeviceCheckName}, owns: tested, needs: suite, cumulative: true},
+	{name: "device", after: []string{testDeviceCheckName}, deferrable: true, cumulative: true},
+	{name: automationcheck.WebUICheckName, after: []string{testOwnersCheckName}, deferrable: true, cumulative: true},
+	{name: automationcheck.ModelJourneyCheckName, after: []string{testOwnersCheckName}, deferrable: true},
+	{name: "commit", after: []string{testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName},
+		needs: automationcheck.Requirements{Candidate: true}, cumulative: true},
 }
+
+var (
+	validateWave       = gateRuleNames(func(rule gateRule) bool { return rule.static })
+	deferredLaneChecks = gateRuleNames(func(rule gateRule) bool { return rule.deferrable })
+)
+
+func gateRuleNames(keep func(gateRule) bool) (names []string) {
+	for _, rule := range gateRules {
+		if keep(rule) {
+			names = append(names, rule.name)
+		}
+	}
+	return names
+}
+
+func gateRuleNamed(name string) gateRule {
+	if index := slices.IndexFunc(gateRules, func(rule gateRule) bool { return rule.name == name }); index >= 0 {
+		return gateRules[index]
+	}
+	return gateRule{}
+}
+
+// declare applies the rule; an owner-constructed check keeps its own needs.
+func (rule gateRule) declare(descriptor *automationcheck.Descriptor) {
+	descriptor.Dependencies = slices.Clone(rule.after)
+	if rule.afterStatic {
+		descriptor.Dependencies = slices.Clone(validateWave)
+	}
+	if rule.needs != (automationcheck.Requirements{}) {
+		descriptor.Requirements = rule.needs
+	}
+	if rule.store != nil {
+		descriptor.Resources = []automationcheck.Resource{*rule.store}
+	}
+}
+
+// phaseReusesEvidence reports whether a check's terminal evidence may be
+// reused across attempts whose manifest-bound input fingerprint is identical.
+func phaseReusesEvidence(phase string) bool { return gateRuleNamed(phase).reuse }
 
 // joins every failed check
 func checkFailures(results []automationcheck.DAGResult) error {
@@ -183,6 +219,11 @@ func gateTestCheck(name string, run func(context.Context) (bool, error)) automat
 func (g *gateContext) pipeline() error {
 	if g.planProjection == plan.MergeProjectionFirstParentTarget {
 		if err := reportGateAdmissionPhase("preflight projected merge completion", g.preflightProjectedMergeCompletion); err != nil {
+			return err
+		}
+	}
+	if g.mergeBefore != nil {
+		if err := reportGateAdmissionPhase("master-owned ratchets", g.refuseLooserRatchets); err != nil {
 			return err
 		}
 	}
@@ -295,7 +336,7 @@ func (g *gateContext) pipeline() error {
 			g.terminal[name] = result.Evidence
 			g.steps = append(g.steps, gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name]))
 			if result.Evidence.Reused {
-				g.note(name + " reused: derived inputs already passed this step")
+				g.advise(noteReuse, name+" reused: derived inputs already passed this step")
 			}
 		}
 		// reported failures show all findings
@@ -529,7 +570,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 		profile.Generated.Files, profile.Generated.Nodes, profile.Test.Files, profile.Test.Nodes, profile.DuplicateExcessNodes,
 		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
-	g.note(surfaceDeltaAudit(base, profile))
+	g.advise(noteDelta, surfaceDeltaAudit(base, profile))
 	if err := g.admitScopeBudget(base, profile); err != nil {
 		return false, err
 	}
@@ -547,18 +588,18 @@ func (g *gateContext) stepProfile() (bool, error) {
 			baseline.DuplicateExcessNodes-profile.DuplicateExcessNodes,
 		))
 	}
-	if g.automationPlan() {
+	if row, _, err := g.row(); err == nil && row.Class == plan.ClassConsolidation {
 		movement, err := codeprofile.MeasureProductionMovement(baseSource, snapshot)
 		if err != nil {
 			return false, err
 		}
 		summary, err := automationROIAdmission("commit", movement)
-		g.note(summary)
+		g.advise(noteROI, summary)
 		if err != nil {
 			return false, err
 		}
 	}
-	g.note(profileReviewFocus(profile, g.changedGoFiles()))
+	g.advise(profileReviewFocus(profile, g.changedGoFiles()))
 	if err := g.appendConsumerCensus(snapshot, baseSource, changed, &profile); err != nil {
 		return false, err
 	}
@@ -584,7 +625,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 		"function impact: base=%s candidate=%s seeds=%d reachable=%d unknown=%d",
 		impact.BaseIdentity, impact.CandidateIdentity, len(impact.Seeds), len(impact.Reachable), len(impact.Unknown),
 	))
-	g.note(impactSelectionAudit(profile.Impact))
+	g.advise(noteImpact, impactSelectionAudit(profile.Impact))
 	if _, profile.Consumers, err = codeprofile.ProductionConsumerCensus(candidate, selection, nil); err != nil {
 		return err
 	}
@@ -597,7 +638,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	g.note(consumerCensusAudit("commit", selection.Context, declarations, base, current))
+	g.advise(noteConsumer, consumerCensusAudit("commit", selection.Context, declarations, base, current))
 	if unconsumed := codeprofile.NewUnconsumedSurface(baseDeclarations, declarations); len(unconsumed) > 0 {
 		// docs/staged_surface.json is the reviewed acceptance for new
 		// surface whose consumer is deliberately deferred (owner ruling
@@ -607,7 +648,12 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 		if err != nil {
 			return err
 		}
-		accepted, blocking := codeprofile.PartitionStagedSurface(unconsumed, staged)
+		_, document, _ := g.row() // a checkout without a plan declares no lane
+		master, err := masterStagedSurface(g.repo)
+		if err != nil {
+			return err
+		}
+		accepted, blocking := admitStagedSurface(unconsumed, staged, master, document.Lane != "")
 		if len(accepted) > 0 {
 			g.note(fmt.Sprintf(
 				"staged surface accepted per docs/staged_surface.json: %s", consumerCandidates(accepted)))
@@ -619,7 +665,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 
 	mergeBase, err := command(g.repo, "git", "merge-base", "master", "HEAD")
 	if err != nil {
-		g.note("consumer census plan-slice unavailable: " + err.Error())
+		g.advise(noteWarning, "consumer census plan-slice unavailable: "+err.Error())
 		return nil
 	}
 	mergeBase = strings.TrimSpace(mergeBase)
@@ -631,13 +677,13 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	if g.automationPlan() {
+	if row, _, err := g.row(); err == nil && row.Class == plan.ClassConsolidation {
 		movement, err := codeprofile.MeasureProductionMovement(sliceBase, candidate)
 		if err != nil {
 			return err
 		}
 		summary, err := automationROIAdmission("plan-slice@"+mergeBase[:12], movement)
-		g.note(summary)
+		g.advise(noteROI, summary)
 		if err != nil {
 			return err
 		}
@@ -651,8 +697,32 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	g.note(consumerCensusAudit("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
+	g.advise(noteConsumer, consumerCensusAudit("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
 	return nil
+}
+
+// admitStagedSurface accepts the new unconsumed surface master's staged
+// declarations name. A lane's export arrives with its consumer: at a lane
+// gate no new surface is staged, so a lane cannot accumulate what a master
+// row would have to retire.
+// admitStagedSurface: a lane stages nothing of its own, so only master's
+// committed staging, arriving with a merge of master, admits its surface.
+func admitStagedSurface(unconsumed []codeprofile.ConsumerDeclaration, staged, master codeprofile.StagedSurfaceDeclaration, lane bool) (accepted, blocking []codeprofile.ConsumerDeclaration) {
+	if lane {
+		staged = master
+	}
+	return codeprofile.PartitionStagedSurface(unconsumed, staged)
+}
+
+// masterStagedSurface: the staged list master has committed; a checkout
+// without master stages nothing.
+func masterStagedSurface(repo string) (codeprofile.StagedSurfaceDeclaration, error) {
+	var declaration codeprofile.StagedSurfaceDeclaration
+	data, err := command(repo, "git", "show", "master:docs/staged_surface.json")
+	if err != nil {
+		return declaration, nil
+	}
+	return declaration, json.Unmarshal([]byte(data), &declaration)
 }
 
 func impactSelectionAudit(selection codeprofile.ImpactSelection) string {
@@ -662,19 +732,14 @@ func impactSelectionAudit(selection codeprofile.ImpactSelection) string {
 	)
 }
 
-func (g *gateContext) automationPlan() bool {
-	item, _, _ := strings.Cut(g.planRef, "/")
-	return strings.HasPrefix(item, "automation-")
-}
-
 func automationROIAdmission(scope string, movement codeprofile.ProductionMovement) (string, error) {
 	summary := fmt.Sprintf(
-		"automation ROI %s: production_ast=%d-%d net=%+d go_lines=%d-%d net=%+d; admission=net-negative",
+		"automation ROI %s: production_ast=%d-%d net=%+d go_lines=%d-%d net=%+d; admission=net-negative lines",
 		scope, movement.Added, movement.Deleted, movement.Added-movement.Deleted,
 		movement.GoLinesAdded, movement.GoLinesDeleted, movement.GoLinesAdded-movement.GoLinesDeleted,
 	)
-	if movement.Added > 0 && movement.Added >= movement.Deleted ||
-		movement.GoLinesAdded > 0 && movement.GoLinesAdded >= movement.GoLinesDeleted {
+	// Owner 2026-09-25: lines enforced; nodes reported (tables spend nodes on data).
+	if movement.GoLinesAdded > 0 && movement.GoLinesAdded >= movement.GoLinesDeleted {
 		return summary, fmt.Errorf("automation surface is not net-negative: %s", summary)
 	}
 	return summary, nil
@@ -766,19 +831,19 @@ func surfaceDeltaAudit(base, candidate codeprofile.Profile) string {
 	)
 }
 
-func profileReviewFocus(profile codeprofile.Profile, changed []string) string {
+func profileReviewFocus(profile codeprofile.Profile, changed []string) (noteKind, string) {
 	paths := pathSet(changed)
-	cloneFocus := "none"
+	kind, cloneFocus := noteDetail, "none"
 	for _, candidate := range profile.Clones {
 		if !cliMainClone(candidate) && slices.ContainsFunc(candidate.Functions, func(function string) bool {
 			path, _, ok := strings.Cut(function, ":")
 			return ok && paths[path]
 		}) {
-			cloneFocus = fmt.Sprintf("nodes=%d functions=%s", candidate.Nodes, strings.Join(candidate.Functions, ","))
+			kind, cloneFocus = noteReview, fmt.Sprintf("nodes=%d functions=%s", candidate.Nodes, strings.Join(candidate.Functions, ","))
 			break
 		}
 	}
-	return fmt.Sprintf("code review candidate: exact_clone=%s; advisory_only=inspect semantic ownership and numerical contracts, migrate callers and delete displaced paths, require parity evidence", cloneFocus)
+	return kind, fmt.Sprintf("code review candidate: exact_clone=%s; advisory_only=inspect semantic ownership and numerical contracts, migrate callers and delete displaced paths, require parity evidence", cloneFocus)
 }
 
 func cliMainClone(clone codeprofile.Clone) bool {
@@ -799,7 +864,7 @@ func sourceAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (repoanaly
 	paths := map[string]bool{}
 	for _, entry := range dirty {
 		for _, path := range []string{entry.Path, entry.OriginalPath} {
-			if !strings.HasSuffix(path, ".go") || !strings.HasPrefix(path, "internal/") && !strings.HasPrefix(path, "cmd/") {
+			if codeprofile.Classify(path)&codeprofile.GoSource == 0 {
 				continue
 			}
 			paths[path] = true
@@ -861,7 +926,7 @@ func fingerprintPhaseInputs(root, phase string, paths []string) (artifact.ID, er
 	var selected []string
 	for _, path := range paths {
 		path = filepath.ToSlash(path)
-		if phaseOwnsPath(phase, path) {
+		if gateRuleNamed(phase).owns&codeprofile.Classify(path) != 0 {
 			selected = append(selected, path)
 		}
 	}
@@ -884,70 +949,18 @@ func fingerprintPhaseInputs(root, phase string, paths []string) (artifact.ID, er
 	return artifact.IdentifyBytes(artifact.KindEvidence, hasher.Sum(nil))
 }
 
-func phaseOwnsPath(phase, path string) bool {
-	goSource := path == "go.mod" || path == "go.sum" || strings.HasSuffix(path, ".go")
-	goInput := goSource ||
-		(strings.HasPrefix(path, "internal/") || strings.HasPrefix(path, "cmd/")) && !strings.HasSuffix(path, ".md")
-	documentation := strings.HasSuffix(path, ".md") || strings.HasPrefix(path, "docs/") ||
-		path == "compatibility.json" || path == "SBOM.cdx.json"
-	switch phase {
-	case "architecture":
-		return goInput || path == plan.Path || path == "docs/staged_surface.json" || path == repoanalysis.StructureBudgetsFile
-	case "vet", "fmt", "style", "profile", modernCensusCheckName:
-		return goInput
-	case "scope", "protection":
-		return goInput || strings.HasPrefix(path, "scripts/") || strings.HasPrefix(path, protection.HarnessConfigDirectory)
-	case "manifest", "sbom", "claims", "docs":
-		return goInput || documentation
-	case testRestCheckName, testOwnersCheckName, testDeviceCheckName:
-		return goInput || path == "README.md" || strings.HasPrefix(path, "docs/") && path != plan.Path
-	default:
-		return false
-	}
-}
-
-// phaseReusesEvidence reports whether a check's terminal evidence may be
-// reused across consecutive gate attempts when its exact manifest-bound input
-// fingerprint is byte-identical. Store-coupled checks (magics, acceptance,
-// published) stay excluded because every attempt's preparation commit moves
-// the store their verdicts read; device stays excluded because hardware is
-// not a fingerprintable input; the commit check is never reused.
-func phaseReusesEvidence(phase string) bool {
-	switch phase {
-	case "vet", "fmt", "style", "profile", "architecture", "scope", "protection", modernCensusCheckName,
-		"manifest", "sbom", "claims", "docs":
-		return true
-	default:
-		// Package receipts own test reuse; a passed phase may contain uncredited skips.
-		return false
-	}
-}
-
+// changedGoFiles skips planned .go paths no longer on disk (a rename/delete
+// staged in this commit): gofmt cannot stat a removed file, and the scope step
+// already validated the deletion is tracked.
 func (g *gateContext) changedGoFiles() []string {
-	var out []string
-	for _, p := range g.paths {
-		if !strings.HasSuffix(p, ".go") {
-			continue
-		}
-		// Skip planned .go paths no longer on disk (a rename/delete staged in
-		// this commit): gofmt cannot stat a removed file, and the scope step
-		// already validated the deletion is tracked.
-		if _, err := os.Stat(filepath.Join(g.repo, filepath.FromSlash(p))); err != nil {
-			continue
-		}
-		out = append(out, p)
-	}
-	return out
+	return slices.DeleteFunc(slices.Clone(g.paths), func(path string) bool {
+		_, err := os.Stat(filepath.Join(g.repo, filepath.FromSlash(path)))
+		return !strings.HasSuffix(path, ".go") || err != nil
+	})
 }
 
 func (g *gateContext) plannedGoFiles() []string {
-	var out []string
-	for _, path := range g.paths {
-		if strings.HasSuffix(path, ".go") && (strings.HasPrefix(path, "cmd/") || strings.HasPrefix(path, "internal/")) {
-			out = append(out, path)
-		}
-	}
-	return out
+	return slices.DeleteFunc(slices.Clone(g.paths), func(path string) bool { return codeprofile.Classify(path)&codeprofile.GoSource == 0 })
 }
 
 // argBudget bounds the cumulative path-argument bytes per spawned
@@ -974,28 +987,26 @@ func chunkByArgBudget(files []string) [][]string {
 }
 
 func (g *gateContext) stepFmt() (bool, error) {
-	files := g.changedGoFiles()
-	if len(files) == 0 {
+	if len(g.changedGoFiles()) == 0 {
 		return true, nil
 	}
-	var unformatted []string
-	for _, chunk := range chunkByArgBudget(files) {
+	files, err := g.unformattedGoFiles()
+	if err == nil && len(files) > 0 {
+		err = fmt.Errorf("unformatted: %s; remediate with `gofmt -w %s`", strings.Join(files, " "), strings.Join(files, " "))
+	}
+	return false, err
+}
+
+// unformattedGoFiles lists the changed Go files gofmt would rewrite.
+func (g *gateContext) unformattedGoFiles() (unformatted []string, err error) {
+	for _, chunk := range chunkByArgBudget(g.changedGoFiles()) {
 		out, err := command(g.repo, "gofmt", append([]string{"-l"}, chunk...)...)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
-		if s := strings.TrimSpace(out); s != "" {
-			unformatted = append(unformatted, s)
-		}
+		unformatted = append(unformatted, strings.Fields(out)...)
 	}
-	if len(unformatted) > 0 {
-		files := strings.Fields(strings.Join(unformatted, "\n"))
-		return false, fmt.Errorf(
-			"unformatted: %s; remediate with `gofmt -w %s`",
-			strings.Join(files, " "), strings.Join(files, " "),
-		)
-	}
-	return false, nil
+	return unformatted, nil
 }
 
 func (g *gateContext) stepStyle() (bool, error) {
@@ -1051,22 +1062,15 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 // gate runs: a separate build refused nothing in 865 landings, because a
 // compile error fails here first. It runs for any Go-owned source or asset,
 // not only a changed .go file, so an embedded file that goes missing is still
-// caught before the tests.
+// caught before the tests. The opt-in real-model and integration test tags
+// only add files, so one tagged pass also compiles the tests no default run
+// builds.
 func (g *gateContext) stepVet() (bool, error) {
-	if !g.pathsTouchGo() && !g.pathsTouchAny("cmd/", "internal/") {
+	if !codeprofile.Holds(g.paths, codeprofile.GoInput) && !g.pathsTouchAny("cmd/", "internal/") {
 		return true, nil
 	}
-	_, err := g.runGateCommand(g.sourceRoot(), "go", "vet", "./...")
+	_, err := g.runGateCommand(g.sourceRoot(), "go", "vet", "-tags", "modeltest,integration", "./...")
 	return false, err
-}
-
-func (g *gateContext) pathsTouchGo() bool {
-	for _, p := range g.paths {
-		if strings.HasSuffix(p, ".go") || p == "go.mod" || p == "go.sum" {
-			return true
-		}
-	}
-	return false
 }
 
 func (g *gateContext) pathsTouchAny(prefixes ...string) bool {
@@ -1140,16 +1144,16 @@ func (g *gateContext) stepTestPlan(ctx context.Context) (bool, error) {
 	if len(boundaryCoverage.Boundaries) != 0 {
 		g.note("assembled agent boundaries: " + strings.Join(boundaryCoverage.Boundaries, ","))
 	}
-	g.note(fmt.Sprintf("test scope: %d direct + %d uncertain packages in the short group, %d dependent packages in the complete group (derived from import graph)", len(scope.direct), len(scope.uncertain), len(dependent)))
+	g.advise(noteScope, fmt.Sprintf("test scope: %d direct + %d uncertain packages in the short group, %d dependent packages in the complete group (derived from import graph)", len(scope.direct), len(scope.uncertain), len(dependent)))
 	g.note(fmt.Sprintf("test exclusions: %d packages without affected compiled production or test inputs", scope.excluded))
 	if len(scope.opaqueRuntimeInputs) != 0 {
-		g.note("test scope: runtime consumers bind named commands, named paths or every repository input: " + strings.Join(scope.opaqueRuntimeInputs, ","))
+		g.advise(noteScope, "test scope: runtime consumers bind named commands, named paths or every repository input: "+strings.Join(scope.opaqueRuntimeInputs, ","))
 	}
 	if len(scope.opaqueReaders) != 0 {
-		g.note(fmt.Sprintf("test scope: %d opaque reader(s) bound to every root; first=%s", len(scope.opaqueReaders), scope.opaqueReaders[0]))
+		g.advise(noteScope, fmt.Sprintf("test scope: %d opaque reader(s) bound to every root; first=%s", len(scope.opaqueReaders), scope.opaqueReaders[0]))
 	}
 	if len(scope.shadowIsolated) != 0 {
-		g.note(fmt.Sprintf("test scope: shadow isolation, measured and not enforced, would leave out %d of %d uncertain package(s): %s", len(scope.shadowIsolated), len(scope.uncertain), strings.Join(scope.shadowIsolated, ",")))
+		g.advise(noteScope, fmt.Sprintf("test scope: shadow isolation, measured and not enforced, would leave out %d of %d uncertain package(s): %s", len(scope.shadowIsolated), len(scope.uncertain), strings.Join(scope.shadowIsolated, ",")))
 	}
 	if len(scope.unresolved) != 0 {
 		g.note("test scope widened for global or unresolved Go inputs: " + strings.Join(scope.unresolved, ","))
@@ -1275,11 +1279,8 @@ func (g *gateContext) runRestParts(ctx context.Context, device bool) error {
 	} else {
 		report, err = g.runContendedBatch(ctx, dependent, false, observe, g.runHostTests)
 	}
-	if len(report.Skipped)+len(report.Unavailable) > 0 {
-		g.note(fmt.Sprintf(
-			"dependent fixture evidence not credited: %d skipped [%s], %d unavailable [%s]",
-			len(report.Skipped), strings.Join(report.Skipped, "; "), len(report.Unavailable), strings.Join(report.Unavailable, "; "),
-		))
+	if len(report.Skipped) > 0 {
+		g.advise(noteWarning, fmt.Sprintf("dependent fixture evidence not credited: %d skipped [%s]", len(report.Skipped), strings.Join(report.Skipped, "; ")))
 	}
 	g.packageExecutionAudit()
 	return err
@@ -1397,7 +1398,7 @@ func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string,
 	}
 	began := time.Now()
 	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
-		Path: "go", Args: append(args, packages...), Dir: g.sourceRoot(), Env: environment,
+		Path: "go", Args: append(args, g.orderByMeasuredCost(packages)...), Dir: g.sourceRoot(), Env: environment,
 	}, options)
 	wall := time.Since(began)
 	if len(report.ClassifiedSkipped) != 0 {
@@ -1553,9 +1554,8 @@ func (g *gateContext) proposeClosureRows(sites []closurescan.Candidate) (propose
 // moved under the active aliases, either reported stale directly or surfacing
 // as an uncatalogued site that exact prior history still covers.
 func staleClosureAuthorityFailure(err error) bool {
-	message := err.Error()
-	return strings.Contains(message, "stale active binding") ||
-		strings.Contains(message, "uncatalogued production policy")
+	_, uncatalogued := errors.AsType[*closurescan.UncataloguedPolicyError](err)
+	return uncatalogued || errors.Is(err, closurescan.ErrStaleBinding)
 }
 
 func (g *gateContext) remediateStaleClosureBindings() error {
@@ -1905,7 +1905,11 @@ func (g *gateContext) sourceEnvironment() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	environment := append(gitauthority.RepositoryEnvironment(), bindings...)
+	// The operator's maintenance grant authorizes this gate's admission,
+	// never the code under test.
+	environment := append(slices.DeleteFunc(gitauthority.RepositoryEnvironment(), func(entry string) bool {
+		return strings.HasPrefix(entry, plan.AutomationMaintenanceEnvironment+"=")
+	}), bindings...)
 	if os.Getenv(audioReferenceEnv) == "" {
 		environment = append(environment, audioReferenceEnv+"="+audioReferenceStore(roots))
 	}

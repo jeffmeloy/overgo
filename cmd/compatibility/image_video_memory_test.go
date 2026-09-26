@@ -130,9 +130,7 @@ func compareMediaMemory(before, after mediaTransferRecord) (bool, error) {
 
 func TestImageVideoMemoryOptimizationAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": memory comparison reads retained acquisitions")
-	}
+	testskip.Short(t, "memory comparison reads retained acquisitions")
 	root := testutil.RepoRoot(t)
 	path := filepath.Join(root, "docs/image_video_memory.json")
 	raw, err := os.ReadFile(path)

@@ -42,7 +42,7 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_STEP35_MTP_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_STEP35_MTP_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_STEP35_MTP_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,
@@ -149,7 +149,7 @@ func TestHYV3MTPChainsIndependentHeads(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_HYV3_MTP_MODEL")
 	if modelPath == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_HYV3_MTP_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_HYV3_MTP_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,

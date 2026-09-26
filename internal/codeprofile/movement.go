@@ -57,9 +57,11 @@ func snapshotSurface(snapshot repoanalysis.SourceSnapshot) (map[string]int, map[
 		if err != nil {
 			return nil, nil, err
 		}
-		lines[source.Path] = source.Line(file.End())
+		// Owner 2026-09-25: automation rows shrink production; a fix may
+		// land with its test.
 		if !source.Test {
 			nodes[source.Path] = NodeCount(file)
+			lines[source.Path] = source.Line(file.End())
 		}
 	}
 	return nodes, lines, nil

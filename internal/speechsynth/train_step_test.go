@@ -60,9 +60,7 @@ func TestRealArtifactCPUJointMuonTraining(t *testing.T) {
 
 func testRealArtifactJointMuonTraining(t *testing.T, host bool) {
 	t.Helper()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	dir := artifactDir(t)
 	if _, err := os.Stat(filepath.Join(dir, configFileName)); err != nil {
 		t.Skipf("UNAVAILABLE: artifact absent at %s; real training step NOT verified", dir)

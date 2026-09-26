@@ -90,11 +90,9 @@ type qwen35VideoGolden struct {
 }
 
 func TestMultimodalInputMatrix(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_CUDA_TEST=1 for real multimodal parity")
+		testskip.NotApplicable(t, "set OVERGO_CUDA_TEST=1 for real multimodal parity")
 	}
 	t.Run("qwen35-image-video-language", testQwen35ImageVideoParity)
 	t.Run("gemma4-12b-image-audio-video", testGemma4InputParity)

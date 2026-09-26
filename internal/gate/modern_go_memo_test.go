@@ -26,6 +26,7 @@ import (
 )
 
 func TestSharedModernCensusPreparation(t *testing.T) {
+	t.Parallel()
 	root := modernMemoFixture(t)
 	testutil.WriteTextFile(t, root, "internal/example/value.go", "package example\nfunc Value() int { return 2 }\n")
 	g := modernMemoContext(t, root)

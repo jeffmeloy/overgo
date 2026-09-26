@@ -1,24 +1,23 @@
 package storepolicy
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"overgo/internal/artifact"
 	"overgo/internal/gitauthority"
 	"overgo/internal/plan"
 )
-
-// identityPattern matches a content-addressed identity as committed
-// documents and commit messages spell it.
-var identityPattern = regexp.MustCompile(`[a-z][a-z0-9-]*:sha256:[0-9a-f]{64}`)
 
 // CheckoutRoots collects every store identity a checkout pins without an
 // alias: the ones its committed JSON documents name (docs/**/*.json and the
@@ -62,23 +61,29 @@ func CheckoutRoots(ctx context.Context, checkout string) (roots []artifact.ID, d
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("git log for commit-message roots: %w", err)
 	}
-	fromDocuments, fromMessages := identities(committed), identities(history)
+	fromDocuments, fromMessages := Identities(committed), Identities(history)
 	roots = slices.Concat(fromDocuments, fromMessages)
 	slices.SortFunc(roots, artifact.CompareID)
 	return slices.Compact(roots), len(fromDocuments), len(fromMessages), nil
 }
 
-// identities returns every identity the text names, once each, sorted. A
-// match is at least one byte, so the text's length bounds their number.
-func identities(text []byte) []artifact.ID {
-	seen := map[artifact.ID]bool{}
+// Identities returns every content-addressed identity the text names, as
+// documents and commit messages spell them, once each, sorted: the algorithm
+// marker locates a candidate, its kind runs back to the leftmost letter, and
+// artifact.ParseID, which owns the syntax, decides it.
+func Identities(text []byte) []artifact.ID {
+	const marker = ":sha256:"
+	kindRune := func(r rune) bool { return r == '-' || unicode.IsLower(r) || unicode.IsDigit(r) }
 	var found []artifact.ID
-	for _, match := range identityPattern.FindAll(text, len(text)) {
-		if id, err := artifact.ParseID(string(match)); err == nil && !seen[id] {
-			seen[id] = true
+	var before []byte
+	for part := range bytes.SplitSeq(text, []byte(marker)) {
+		kind := bytes.TrimLeftFunc(before[len(bytes.TrimRightFunc(before, kindRune)):], func(r rune) bool { return !unicode.IsLower(r) })
+		digest := part[:min(len(part), hex.EncodedLen(sha256.Size))]
+		if id, err := artifact.ParseID(string(kind) + marker + string(digest)); err == nil {
 			found = append(found, id)
 		}
+		before = part
 	}
 	slices.SortFunc(found, artifact.CompareID)
-	return found
+	return slices.Compact(found)
 }

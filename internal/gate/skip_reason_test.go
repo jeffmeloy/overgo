@@ -110,7 +110,13 @@ func unclassifiedSkip(statement ast.Stmt) bool {
 		return false
 	}
 	selector, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || selector.Sel.Name != "Skip" && selector.Sel.Name != "Skipf" {
+	if !ok {
+		return false
+	}
+	if owner, named := selector.X.(*ast.Ident); named && owner.Name == "testskip" && selector.Sel.Name == "Short" {
+		return true // classified only when the run is short
+	}
+	if selector.Sel.Name != "Skip" && selector.Sel.Name != "Skipf" {
 		return false
 	}
 	classified := false

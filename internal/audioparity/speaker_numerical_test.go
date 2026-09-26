@@ -21,9 +21,7 @@ import (
 
 func TestSpeakerDiarizationAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": pinned real speaker model, independent traces and continuous annotated speech")
-	}
+	testskip.Short(t, "pinned real speaker model, independent traces and continuous annotated speech")
 	corpus := loadSpeakerCorpus(t)
 	root := filepath.Dir(corpus.path)
 	t.Run("numerical", func(t *testing.T) { verifySpeakerNumerical(t, root) })

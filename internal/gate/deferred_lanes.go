@@ -22,12 +22,6 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// The lanes a gate may run after its commit: the device test group, the
-// device lane and the browser lane. Their reach is proven by the same
-// selection as before; only their place in the pipeline moves, and the
-// obligation they leave is recorded before the commit is visible.
-var deferredLaneChecks = []string{testDeviceCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
-
 const (
 	gateLanesLocatorFile = processlock.StateDirectory + "/gate_lanes.json"
 	gateLanesLogFile     = processlock.StateDirectory + "/gate_lanes.log"

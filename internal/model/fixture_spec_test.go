@@ -7,9 +7,7 @@ import (
 
 func requireIntegration(t *testing.T) {
 	t.Helper()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 }
 
 const (

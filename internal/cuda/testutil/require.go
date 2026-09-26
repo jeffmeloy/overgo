@@ -88,13 +88,11 @@ func MeasurementProcess(t *testing.T, ordinal int) bool {
 // variable; both gates share the short-mode skip and the hint shape.
 func requireEnvironment(t testing.TB, variable, lane string) {
 	t.Helper()
-	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
-	}
+	testskip.Short(t)
 	if os.Getenv(variable) == "" {
 		// Inapplicable wherever the variable is unset, so a complete run
 		// classifies the skip and the package still earns its receipt.
-		t.Skip(testskip.Inapplicable + ": set " + variable + "=1 to run " + lane)
+		testskip.NotApplicable(t, "set "+variable+"=1 to run "+lane)
 	}
 }
 

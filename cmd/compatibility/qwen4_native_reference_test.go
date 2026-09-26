@@ -19,11 +19,9 @@ import (
 
 func TestQwenFourNativeReferenceAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for retained Qwen4 native evidence")
+		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for retained Qwen4 native evidence")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

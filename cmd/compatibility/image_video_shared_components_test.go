@@ -68,9 +68,7 @@ func compareMediaLoaderObservations(consumer string, before, after []mediaLoader
 
 func TestImageVideoSharedComponentsAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": shared decoder reads retained acquisitions")
-	}
+	testskip.Short(t, "shared decoder reads retained acquisitions")
 	root := testutil.RepoRoot(t)
 	t.Run("frozen-baseline", TestImageVideoOptimizationBaselineAcceptance)
 	var baseline mediaLoaderBaseline

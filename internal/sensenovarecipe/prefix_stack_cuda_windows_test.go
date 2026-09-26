@@ -60,7 +60,7 @@ type generationTextOracle struct {
 func TestSenseNovaPrefixStackMatchesOracle(t *testing.T) {
 	cudatest.Require(t)
 	if os.Getenv("OVERGO_SENSENOVA_BASELINE") != "1" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_SENSENOVA_BASELINE=1 for SenseNova prefix evidence")
+		testskip.NotApplicable(t, "set OVERGO_SENSENOVA_BASELINE=1 for SenseNova prefix evidence")
 	}
 	var oracle prefixOracle
 	if err := jsonfile.Decode(filepath.Join("..", "..", "fixtures", "sensenova", "prefix_oracle.json"), &oracle); err != nil {

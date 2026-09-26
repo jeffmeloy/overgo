@@ -101,8 +101,8 @@ func TestAdmissionStepsOverlap(t *testing.T) {
 	if !ran[compatibilityKey] || !ran[publishKey] || len(ran) != 2 {
 		t.Fatalf("repairs ran %v, want the compatibility and API manifest updates", ran)
 	}
-	staged := slices.IndexFunc(g.audit, func(line string) bool { return strings.HasPrefix(line, "staged repair: ") })
-	if staged < 0 || !strings.HasPrefix(g.audit[staged], "staged repair: gofmt") {
-		t.Fatalf("the formatter did not run first: %q", g.audit)
+	staged := slices.IndexFunc(auditLines(g.audit), func(line string) bool { return strings.HasPrefix(line, "staged repair: ") })
+	if staged < 0 || !strings.HasPrefix(auditLines(g.audit)[staged], "staged repair: gofmt") {
+		t.Fatalf("the formatter did not run first: %q", auditLines(g.audit))
 	}
 }

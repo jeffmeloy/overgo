@@ -32,9 +32,9 @@ func TestASTStructuralProfileGate(t *testing.T) {
 	}
 	g := gateContext{repo: root, paths: []string{"internal/p/p.go"}}
 	skipped, err := g.stepProfile()
-	if err != nil || skipped || len(g.audit) < 4 || !strings.Contains(g.audit[0], "runtime=1 files") ||
-		!strings.Contains(g.audit[1], "delta vs HEAD") {
-		t.Fatalf("profile step = skipped %v, err %v, audit %v", skipped, err, g.audit)
+	if err != nil || skipped || len(auditLines(g.audit)) < 4 || !strings.Contains(auditLines(g.audit)[0], "runtime=1 files") ||
+		!strings.Contains(auditLines(g.audit)[1], "delta vs HEAD") {
+		t.Fatalf("profile step = skipped %v, err %v, audit %v", skipped, err, auditLines(g.audit))
 	}
 }
 
@@ -82,7 +82,10 @@ func TestAdvisoryCandidate(t *testing.T) {
 			{Nodes: 8, Functions: []string{"internal/p/p_test.go:TestChanged", "internal/q/q_test.go:TestPeer"}, AdvisoryClass: "test"},
 		},
 	}
-	got := profileReviewFocus(profile, []string{"internal/p/p.go", "internal/p/p_test.go"})
+	kind, got := profileReviewFocus(profile, []string{"internal/p/p.go", "internal/p/p_test.go"})
+	if kind != noteReview {
+		t.Fatalf("a clone in a changed file was not a review candidate: %q", got)
+	}
 	for _, want := range []string{
 		"exact_clone=nodes=12",
 		"advisory_only=inspect semantic ownership and numerical contracts", "require parity evidence",
@@ -91,7 +94,7 @@ func TestAdvisoryCandidate(t *testing.T) {
 			t.Fatalf("review candidates %q lack %q", got, want)
 		}
 	}
-	if got := profileReviewFocus(profile, []string{"internal/new/empty.go"}); !strings.Contains(got, "exact_clone=none") {
+	if kind, got := profileReviewFocus(profile, []string{"internal/new/empty.go"}); kind != noteDetail || !strings.Contains(got, "exact_clone=none") {
 		t.Fatalf("empty review focus = %q", got)
 	}
 }
@@ -154,10 +157,20 @@ func TestAutomationROIProjection(t *testing.T) {
 		!strings.Contains(got, "production_ast=") || !strings.Contains(got, "go_lines=") || err == nil {
 		t.Fatalf("automation ROI = %+v, %q, %v", movement, got, err)
 	}
-	if compact := compactAudit([]string{got}); len(compact) != 1 || !strings.HasPrefix(compact[0], "advisory: roi: ") {
+	if compact := compactAudit([]auditNote{{noteROI, got}}); len(compact) != 1 || !strings.HasPrefix(compact[0], "advisory: roi: ") {
 		t.Fatalf("automation ROI hidden from gate summary: %v", compact)
 	}
 	if _, err := automationROIAdmission("deletion", codeprofile.ProductionMovement{Deleted: 1, GoLinesDeleted: 1}); err != nil {
 		t.Fatalf("deletion-only wave rejected: %v", err)
+	}
+	if _, err := automationROIAdmission("table", codeprofile.ProductionMovement{Added: 300, GoLinesAdded: 90, GoLinesDeleted: 91}); err != nil {
+		t.Fatalf("a declarative table that removes lines was rejected: %v", err)
+	}
+	tested, err := candidate.Overlay(map[string][]byte{"internal/q/q_test.go": []byte("package q\n\nfunc helper() {}\n")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withTest, err := codeprofile.MeasureProductionMovement(base, tested); err != nil || withTest != movement {
+		t.Fatalf("a test file moved the production measure: %+v, %v; want %+v", withTest, err, movement)
 	}
 }

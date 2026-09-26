@@ -17,9 +17,7 @@ import (
 
 // TestAcceptedFP8Guard checks the complete cohort; it never loads a model.
 func TestAcceptedFP8Guard(t *testing.T) {
-	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
-		t.Skip(testskip.StoreAcceptance)
-	}
+	testskip.StoreAcceptance(t)
 	selected := readGuardCatalog(t)
 	records := selected.Cohorts["Gemma 12B FP8"]
 	if len(records) != len(guardCohort{}.repeats) {
@@ -65,14 +63,10 @@ type guardCatalog struct {
 
 func readGuardCatalog(t *testing.T) guardCatalog {
 	t.Helper()
-	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
-		t.Skip(testskip.StoreAcceptance)
-	}
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.StoreAcceptance(t)
+	testskip.Short(t)
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for complete guard catalog acceptance")
+		testskip.NotApplicable(t, "integration: set OVERGO_DATA_ROOT for complete guard catalog acceptance")
 	}
 	var selected guardCatalog
 	if err := jsonfile.Decode(filepath.Join("..", "..", "docs", "verification", "guard-catalog.json"), &selected); err != nil {
@@ -89,9 +83,7 @@ func readGuardCatalog(t *testing.T) guardCatalog {
 // TestAcceptedGuardCatalog binds the live text denominator and fixed historical
 // references; the selection cannot discard either.
 func TestAcceptedGuardCatalog(t *testing.T) {
-	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
-		t.Skip(testskip.StoreAcceptance)
-	}
+	testskip.StoreAcceptance(t)
 	selected := readGuardCatalog(t)
 	if len(selected.Pending) != 0 {
 		t.Fatal("full catalog admission has unresolved model obligations")
@@ -159,9 +151,7 @@ func selectedGuardCohorts(t *testing.T, selected guardCatalog) []guardCohort {
 
 // Accept completed cohorts without granting the pending model live credit.
 func TestAcceptedCompletedGuardCohorts(t *testing.T) {
-	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
-		t.Skip(testskip.StoreAcceptance)
-	}
+	testskip.StoreAcceptance(t)
 	selected := readGuardCatalog(t)
 	fixtures := selectedGuardCohorts(t, selected)
 	if len(selected.Pending) == 0 {

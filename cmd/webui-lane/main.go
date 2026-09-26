@@ -23,6 +23,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/processcontrol"
+	"overgo/internal/runrecord"
 	"overgo/internal/webuilane"
 )
 
@@ -81,16 +82,12 @@ func run() error {
 	}
 	// The verdict is the run's typed outcomes and leg records: a plan verify
 	// naming the lane gets evidence, never a silent pass.
-	if lane.ran {
-		return webuilane.LaneVerdict(lane.tests, lane.legs, required)
-	}
-	return nil
+	return webuilane.LaneVerdict(lane.tests, lane.legs, required)
 }
 
-// laneRun is what a lane run proved: whether the tests ran at all, their
-// typed outcomes and the legs they recorded.
+// laneRun is what a lane run proved: its tests' typed outcomes and the legs
+// they recorded.
 type laneRun struct {
-	ran   bool
 	tests webuilane.TestRun
 	legs  []webuilane.LegRecord
 }
@@ -123,9 +120,9 @@ func captureLive(ctx context.Context, stdout io.Writer, pageURL, dir string) err
 }
 
 // runLane runs the browser self-check and the acceptance tests run names,
-// writing the lane's observations to stdout; ran reports whether the
-// tests ran at all (no browser leaves the lane UNAVAILABLE, not failed).
-// extra carries the screens test's capture directory and page address.
+// writing the lane's observations to stdout; no browser is a typed
+// unavailable outcome, never a pass. extra carries the screens test's
+// capture directory and page address.
 func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) (laneRun, error) {
 	var listing bytes.Buffer
 	if !strings.Contains(run, "/") {
@@ -146,8 +143,7 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) 
 	}
 	browser, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
-		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE no browser: %v\n", err)
-		return laneRun{}, nil
+		return laneRun{}, runrecord.LaneError(runrecord.LaneUnavailable, fmt.Sprintf("no browser: %v", err))
 	}
 	probe, err := webuilane.Open(ctx, browser, "data:text/html,<title>overgo-webui-lane</title>")
 	if err != nil {
@@ -181,7 +177,7 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) 
 	// The run's events are read as they arrive, their output passed on.
 	events, sink := io.Pipe()
 	read := make(chan error, 1)
-	lane := laneRun{ran: true}
+	lane := laneRun{}
 	go func() {
 		var err error
 		lane.tests, err = webuilane.ReadTestRun(events, stdout)

@@ -24,7 +24,7 @@ import (
 func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	requireLongTest(t)
 	if os.Getenv("OVERGO_KREA_BASELINE") != "1" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_KREA_BASELINE=1 to measure the real Krea pipeline")
+		testskip.NotApplicable(t, "set OVERGO_KREA_BASELINE=1 to measure the real Krea pipeline")
 	}
 	request := Request{
 		Prompt: "a red fox licking a vanilla ice cream cone in snow",
@@ -156,7 +156,7 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 	requireLongTest(t)
 	if os.Getenv("OVERGO_KREA_BASELINE") != "1" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_KREA_BASELINE=1 to measure Krea residency")
+		testskip.NotApplicable(t, "set OVERGO_KREA_BASELINE=1 to measure Krea residency")
 	}
 	request := Request{
 		Prompt: "a red fox licking a vanilla ice cream cone in snow",

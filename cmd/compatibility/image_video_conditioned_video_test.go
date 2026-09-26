@@ -91,9 +91,7 @@ type mediaConditionedObservation struct {
 
 func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": retained source-conditioned video evidence")
-	}
+	testskip.Short(t, "retained source-conditioned video evidence")
 	root := testutil.RepoRoot(t)
 	var bundle mediaConditionedBundle
 	path := filepath.Join(root, "docs/image_video_conditioned_videos.json")

@@ -57,11 +57,9 @@ type gemma4FP8PerformanceEvidence struct {
 }
 
 func TestGemma4FP8Leadership(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	if os.Getenv("OVERGO_GEMMA4_BASELINE") != "1" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_GEMMA4_BASELINE=1 for Gemma4 FP8 leadership")
+		testskip.NotApplicable(t, "set OVERGO_GEMMA4_BASELINE=1 for Gemma4 FP8 leadership")
 	}
 	if cudatest.MeasurementProcess(t, 0) {
 		return

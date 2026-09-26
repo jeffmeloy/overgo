@@ -34,8 +34,8 @@ func TestOwnershipClosureExcludesUntouchedLanes(t *testing.T) {
 		t.Fatal("a resolved impact admitted the fallback it does not need")
 	}
 	boundaries := codemanifest.Impact{Uncertainty: []codemanifest.Uncertainty{
-		{Kind: codemanifest.UncertaintyExternal, Reason: consumerBoundaryReason + "command"},
-		{Kind: codemanifest.UncertaintyExternal, Reason: consumerBoundaryReason + "method-dispatch"},
+		{Kind: codemanifest.UncertaintyConsumerBoundary, Reason: "consumer census boundary: command"},
+		{Kind: codemanifest.UncertaintyConsumerBoundary, Reason: "consumer census boundary: method-dispatch"},
 	}}
 	if !reachabilityOnlyUncertainty(boundaries) {
 		t.Fatal("consumer census boundaries refused the dependency fallback")

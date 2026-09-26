@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/pytorchzip"
+	"overgo/internal/testskip"
 )
 
 // Bit-parity expectations vs adaptive's CURRENT host path, verified
@@ -30,9 +31,7 @@ var (
 // class, same arithmetic; tolerance 0). Isolates port fidelity from the
 // CUDA-capture accumulation noise the g1 golden gate absorbs.
 func TestEncodeTokensStreamedMatchesReferenceHost(t *testing.T) {
-	if testing.Short() {
-		t.Skip("integration excluded by -short: streams the full encoder checkpoint")
-	}
+	testskip.Short(t, "streams the full encoder checkpoint")
 	modelDir := wanModelDir(t)
 	checkpoint := filepath.Join(modelDir, "models_t5_umt5-xxl-enc-bf16.pth")
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)

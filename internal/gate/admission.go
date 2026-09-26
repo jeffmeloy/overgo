@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/codeprofile"
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
@@ -76,17 +77,6 @@ func gateMergeSourceStore(value string, merge bool, projection plan.MergeProject
 		return "", errors.New("gate: -merge-source-store must name a canonical overgodb-store directory")
 	}
 	return resolved, nil
-}
-
-// Resolve the claimed ready row, or the legacy current row when unclaimed.
-// Admission and commit share the plan owner's contract and ownership checks.
-func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, string, *worklease.Lease, error) {
-	store, err := overgodb.OpenReadOnly(filepath.Join(repo, storePath))
-	if err != nil {
-		return plan.CompletionAuthority{}, "", nil, err
-	}
-	defer store.Close()
-	return resolvePlanBindingWithStore(repo, ref, store)
 }
 
 // resolvePlanBindingWithStore derives plan authority through an already-open
@@ -209,8 +199,8 @@ func (g *gateContext) stepScope() (bool, error) {
 	g.pendingGenerated = &pending
 	var verificationInputs []string
 	for _, path := range unplanned {
-		g.note("unplanned dirty (not shipped): " + path)
-		if unplannedVerificationInput(path) {
+		g.advise(noteWarning, "unplanned dirty (not shipped): "+path)
+		if codeprofile.Classify(path)&codeprofile.GoInput != 0 {
 			verificationInputs = append(verificationInputs, path)
 		}
 	}
@@ -242,12 +232,6 @@ func (g *gateContext) dirtyStatus() ([]repoanalysis.DirtyPath, error) {
 // of Git's rename presentation settings. Both affect verification and commit scope.
 func stagedPaths(repo string) ([]string, error) {
 	return gitLines(repo, "diff", "--cached", "--no-renames", "--name-only")
-}
-
-func unplannedVerificationInput(path string) bool {
-	return path == "go.mod" || path == "go.sum" || strings.HasSuffix(path, ".go") ||
-		(strings.HasPrefix(path, "internal/") || strings.HasPrefix(path, "cmd/") || strings.HasPrefix(path, "kernels/")) &&
-			!strings.HasSuffix(path, ".md")
 }
 
 // deriveShipPaths is the ship set of a run that names no -paths: every dirty

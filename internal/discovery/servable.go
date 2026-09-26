@@ -6,6 +6,7 @@
 package discovery
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -160,7 +162,7 @@ func presence(
 		if err != nil {
 			return recorded, false
 		}
-		matched := false
+		found, componentRecorded := "", ""
 		for _, location := range locations {
 			// A remote model's bytes live with its provider: the remote
 			// location is its serving location and its presence.
@@ -170,21 +172,20 @@ func presence(
 			if location.Kind != artifact.LocationFile {
 				continue
 			}
-			if recorded == "" {
-				recorded = location.Value
-			}
-			identity := identifyLocation(location.Value, descriptor.ID.Kind(), identities, memo)
-			if identity.present && identity.id == descriptor.ID && identity.size == descriptor.Size {
-				matched = true
-				if servingLocation == "" {
-					servingLocation = location.Value
-				}
+			componentRecorded = cmp.Or(componentRecorded, location.Value)
+			if holds(location.Value, descriptor, identities, memo) {
+				found = location.Value
 				break
 			}
 		}
-		if !matched {
+		recorded = cmp.Or(recorded, componentRecorded)
+		if found == "" && componentRecorded != "" {
+			found = moved(componentRecorded, descriptor, identities, memo)
+		}
+		if found == "" {
 			return recorded, false
 		}
+		servingLocation = cmp.Or(servingLocation, found)
 	}
 	if servingLocation != "" {
 		return servingLocation, true
@@ -199,6 +200,35 @@ func presence(
 		}
 	}
 	return "", false
+}
+
+func holds(path string, descriptor artifact.Descriptor, identities map[string]fileIdentity, memo *Memo) bool {
+	identity := identifyLocation(path, descriptor.ID.Kind(), identities, memo)
+	return identity.present && identity.id == descriptor.ID && identity.size == descriptor.Size
+}
+
+// moved finds bytes whose recorded file is gone by their identity: the
+// recorded path's trailing components under each model root, longest first,
+// so a model directory moved between roots keeps resolving.
+func moved(recorded string, descriptor artifact.Descriptor, identities map[string]fileIdentity, memo *Memo) string {
+	if _, err := os.Stat(recorded); err == nil {
+		return ""
+	}
+	roots, err := dataroot.ResolveCurrent()
+	if err != nil {
+		return ""
+	}
+	parts := strings.Split(filepath.ToSlash(filepath.Clean(recorded)), "/")
+	for first := range parts {
+		tail := filepath.Join(parts[first:]...)
+		for _, root := range roots.ModelRoots() {
+			candidate := filepath.Join(root, tail)
+			if holds(candidate, descriptor, identities, memo) {
+				return candidate
+			}
+		}
+	}
+	return ""
 }
 
 // WeightsIdentity is the model identity of the weights file at path,

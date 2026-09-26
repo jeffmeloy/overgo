@@ -25,7 +25,7 @@ import (
 func TestWebUIBrowserArtifactLinks(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": artifact links run through cmd/webui-lane")
+		testskip.NotApplicable(t, "artifact links run through cmd/webui-lane")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

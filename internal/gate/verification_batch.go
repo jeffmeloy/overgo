@@ -152,8 +152,9 @@ func (g *gateContext) checkpointDeferrals(definitions []automationcheck.Check) (
 	if err != nil {
 		return nil, err
 	}
-	cumulative := map[string]bool{
-		"acceptance": true, testRestCheckName: true, testDeviceCheckName: true, "device": true, automationcheck.WebUICheckName: true, "commit": true,
+	cumulative := map[string]bool{}
+	for _, name := range gateRuleNames(func(rule gateRule) bool { return rule.cumulative }) {
+		cumulative[name] = true
 	}
 	for _, checkpoint := range g.verificationBatch.Checkpoints {
 		if !required[checkpoint.ID] {

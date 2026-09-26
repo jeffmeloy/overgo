@@ -31,7 +31,7 @@ var onboardingTask = effortTask{"add a model from the hub", []effortStep{
 func TestWebUIBrowserModelOnboarding(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the onboarding leg runs through cmd/webui-lane")
+		testskip.NotApplicable(t, "the onboarding leg runs through cmd/webui-lane")
 	}
 	weights := filepath.Join(t.TempDir(), "lane.gguf")
 	if err := os.WriteFile(weights, []byte("GGUF onboarding fixture"), 0o644); err != nil {

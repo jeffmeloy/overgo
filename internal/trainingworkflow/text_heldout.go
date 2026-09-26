@@ -37,14 +37,7 @@ type TextHeldoutRequest struct {
 // follows. The model's weights update in place, so the base and trained
 // models answer in one process.
 func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeldoutRequest) (HeldoutResult, error) {
-	objectiveID, bound, err := store.ResolveAlias(ctx, request.Alias)
-	if err != nil {
-		return HeldoutResult{}, err
-	}
-	if !bound {
-		return HeldoutResult{}, fmt.Errorf("training workflow: objective alias %q is absent", request.Alias)
-	}
-	objective, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
+	objective, err := LoadObjectiveAlias(ctx, store, request.Alias)
 	if err != nil {
 		return HeldoutResult{}, err
 	}

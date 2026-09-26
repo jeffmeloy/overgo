@@ -12,9 +12,7 @@ import (
 
 func requireIntegration(t *testing.T) {
 	t.Helper()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 }
 
 // hostTensorFixture writes a one-tensor GGUF file, four F32 values named

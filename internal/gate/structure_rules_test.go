@@ -183,6 +183,7 @@ func TestRecipePlanOwnsAllTrainingExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	routes := trainRouteFunctions(t, snapshot)
 	var workflowCallers []string
 	for _, source := range snapshot.Files {
 		if source.Test {
@@ -204,34 +205,75 @@ func TestRecipePlanOwnsAllTrainingExecution(t *testing.T) {
 			}
 			imports[name] = imported
 		}
-		ast.Inspect(file, func(node ast.Node) bool {
-			call, ok := node.(*ast.CallExpr)
-			if !ok {
+		for _, declaration := range file.Decls {
+			function, isFunction := declaration.(*ast.FuncDecl)
+			routed := isFunction && path.Dir(filepath.ToSlash(source.Path)) == "cmd/train" && routes[function.Name.Name]
+			ast.Inspect(declaration, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				selector, ok := call.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				qualifier, ok := selector.X.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				imported := imports[qualifier.Name]
+				if imported == workflowPackage && selector.Sel.Name == "Execute" {
+					workflowCallers = append(workflowCallers, source.Path)
+				}
+				if strings.HasPrefix(source.Path, "cmd/") && !routed && !strings.Contains(source.Path, "-probe/") &&
+					directTraining[imported][selector.Sel.Name] {
+					t.Errorf("%s calls %s.%s outside the recipe workflow", source.Path, qualifier.Name, selector.Sel.Name)
+				}
 				return true
-			}
-			selector, ok := call.Fun.(*ast.SelectorExpr)
-			if !ok {
-				return true
-			}
-			qualifier, ok := selector.X.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			imported := imports[qualifier.Name]
-			if imported == workflowPackage && selector.Sel.Name == "Execute" {
-				workflowCallers = append(workflowCallers, source.Path)
-			}
-			if strings.HasPrefix(source.Path, "cmd/") && !strings.Contains(source.Path, "-probe/") &&
-				directTraining[imported][selector.Sel.Name] {
-				t.Errorf("%s calls %s.%s outside the recipe workflow", source.Path, qualifier.Name, selector.Sel.Name)
-			}
-			return true
-		})
+			})
+		}
 	}
 	slices.Sort(workflowCallers)
 	if !slices.Equal(workflowCallers, wantWorkflowCallers) {
 		t.Fatalf("training workflow callers=%v want %v", workflowCallers, wantWorkflowCallers)
 	}
+}
+
+// trainRouteFunctions names the trainers cmd/train's route table declares:
+// each is a bounded family trainer reached by name, as a probe command was,
+// so it may call its family's trainer directly.
+func trainRouteFunctions(t *testing.T, snapshot repoanalysis.SourceSnapshot) map[string]bool {
+	t.Helper()
+	routes := map[string]bool{}
+	for _, source := range snapshot.Files {
+		if path.Dir(filepath.ToSlash(source.Path)) != "cmd/train" || source.Test {
+			continue
+		}
+		file, err := source.Syntax()
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			spec, ok := node.(*ast.ValueSpec)
+			if !ok || len(spec.Names) != 1 || spec.Names[0].Name != "trainRoutes" || len(spec.Values) != 1 {
+				return true
+			}
+			if table, ok := spec.Values[0].(*ast.CompositeLit); ok {
+				for _, element := range table.Elts {
+					if entry, ok := element.(*ast.KeyValueExpr); ok {
+						if trainer, ok := entry.Value.(*ast.Ident); ok {
+							routes[trainer.Name] = true
+						}
+					}
+				}
+			}
+			return false
+		})
+	}
+	if len(routes) == 0 {
+		t.Fatal("cmd/train declares no trainRoutes table; the route exemption would read nothing")
+	}
+	return routes
 }
 
 // TestCapabilityEpisodeProjectionAuthorityRatchet holds every dataset

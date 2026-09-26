@@ -62,9 +62,7 @@ func mediaLifecycleProductionPath(path string) bool {
 
 func TestImageVideoLifecycleAcceptance(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": retained media lifecycle evidence")
-	}
+	testskip.Short(t, "retained media lifecycle evidence")
 	root := testutil.RepoRoot(t)
 	bundle, err := readMediaLifecycleBundle(root)
 	if err != nil {

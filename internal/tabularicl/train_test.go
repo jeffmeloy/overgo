@@ -12,9 +12,7 @@ import (
 )
 
 func TestDecoderTrainerRealArtifacts(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": loads both TabFM heads")
-	}
+	testskip.Short(t, "loads both TabFM heads")
 	golden := readGolden(t)
 	for _, task := range Tasks() {
 		t.Run(task, func(t *testing.T) {

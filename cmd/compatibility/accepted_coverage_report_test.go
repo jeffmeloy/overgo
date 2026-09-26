@@ -20,9 +20,7 @@ func TestAcceptedProtocolCoverageProjection(t *testing.T) {
 
 func acceptedProtocolCoverageProjection(t *testing.T) mediaReportOutput {
 	t.Helper()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	// Frozen independent assignments and native-output checks remain lower bounds.
 	t.Run("text-vision", TestAcceptedTextVisionEvidence)
 	t.Run("image-video", TestAcceptedImageVideoEvidence)

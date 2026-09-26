@@ -4,15 +4,19 @@ import (
 	"errors"
 	"slices"
 	"testing"
+
+	"overgo/internal/processcontrol"
 )
 
-// fakeRowWorld scripts each step's answer and records the order of calls.
+// fakeRowWorld scripts each step's answer and records the order of calls;
+// busy counts gate runs that meet a busy Git index first.
 type fakeRowWorld struct {
 	claim, preflight, gate, lanes string
 	report                        *laneReport
 	landedErr                     error
 	pending                       []string
 	calls                         []string
+	busy                          int
 }
 
 func (w *fakeRowWorld) Claim(string) (string, error) {
@@ -27,7 +31,28 @@ func (w *fakeRowWorld) Preflight(string) (string, error) {
 
 func (w *fakeRowWorld) Gate(string, string) (string, error) {
 	w.calls = append(w.calls, phaseGate)
+	if w.busy > 0 {
+		w.busy--
+		return "commit: Git lock index has partial or foreign ownership", processcontrol.ErrResourceBusy
+	}
 	return w.gate, nil
+}
+
+// TestLandRetriesAfterTransientGitLock lands a row whose gate twice met
+// another process holding the Git index: only the gate runs again, and the
+// row lands. A tool's resource-busy exit status is that contention; any
+// other status is a failure.
+func TestLandRetriesAfterTransientGitLock(t *testing.T) {
+	t.Parallel()
+	world := &fakeRowWorld{busy: 2}
+	outcome, err := landRow(world, "row/do", "message.txt")
+	if err != nil || outcome.Outcome != outcomeReady ||
+		!slices.Equal(world.calls, []string{phaseClaim, phasePreflight, phaseGate, phaseGate, phaseGate, "landed", phaseLanes, phaseReview}) {
+		t.Fatalf("outcome = %+v, %v; calls %v", outcome, err, world.calls)
+	}
+	if !errors.Is(toolExit(processcontrol.ResourceBusyExitCode), processcontrol.ErrResourceBusy) || errors.Is(toolExit(1), processcontrol.ErrResourceBusy) {
+		t.Fatal("a tool's exit status did not tell contention from failure")
+	}
 }
 
 func (w *fakeRowWorld) Landed(string) (string, error) {

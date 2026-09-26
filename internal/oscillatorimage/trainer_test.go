@@ -87,9 +87,7 @@ func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {
 
 // TestRealArtifactBootstrapTraining verifies objective band and scratch descent.
 func TestRealArtifactBootstrapTraining(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	real, err := Load(artifactDir(t))
 	if err != nil {
 		t.Skipf("UNAVAILABLE: Un-0 artifact absent: %v", err)

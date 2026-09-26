@@ -22,7 +22,7 @@ func TestGemma4RealDeviceHostParity(t *testing.T) {
 	projectorPath := os.Getenv("OVERGO_GEMMA4_MMPROJ")
 	imagePath := os.Getenv("OVERGO_GEMMA4_IMAGE")
 	if projectorPath == "" || imagePath == "" {
-		t.Skip(testskip.Inapplicable + ": set OVERGO_GEMMA4_MMPROJ and OVERGO_GEMMA4_IMAGE")
+		testskip.NotApplicable(t, "set OVERGO_GEMMA4_MMPROJ and OVERGO_GEMMA4_IMAGE")
 	}
 	handle, err := os.Open(imagePath)
 	if err != nil {

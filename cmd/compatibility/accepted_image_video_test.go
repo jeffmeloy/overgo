@@ -18,9 +18,7 @@ import (
 
 func TestAcceptedImageVideoEvidence(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
+	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	var coverage imageVideoCoverage
 	requireAcceptedDocument(t, root, "docs/verification/image-video-coverage.json", acceptedImageVideoSHA256, &coverage)

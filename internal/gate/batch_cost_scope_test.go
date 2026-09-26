@@ -46,10 +46,10 @@ func TestBatchedGateCostReportScope(t *testing.T) {
 	commitGateAttempt(t, store, "flush", "scope", costSteps(runrecord.StepSucceeded, runrecord.StepSucceeded, 5*second, 3*second))
 	g := &gateContext{planRef: "flush/scope"}
 	g.batchCostAudit(t.Context(), store, steps, 3*second)
-	if len(g.audit) != 1 {
-		t.Fatalf("audit = %v", g.audit)
+	if len(auditLines(g.audit)) != 1 {
+		t.Fatalf("audit = %v", auditLines(g.audit))
 	}
-	line := g.audit[0]
+	line := auditLines(g.audit)[0]
 	for _, label := range []string{
 		"total_wall=3s summed_step_time=5.000000018s", "failed=2/5s", "other_phases=1/9ns",
 		"accepted=2 reused=1 accepted_executed=7ns", "estimated_step_time_avoided=5s", "prior_runs=1",

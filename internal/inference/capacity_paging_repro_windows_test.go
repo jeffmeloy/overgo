@@ -61,7 +61,7 @@ func TestCapacityPagingReproGeneratesPastPageBoundary(t *testing.T) {
 	cudatest.Require(t)
 	path := os.Getenv("OVERGO_REPRO_MODEL")
 	if path == "" {
-		t.Skip(testskip.Inapplicable + ": OVERGO_REPRO_MODEL is not set")
+		testskip.NotApplicable(t, "OVERGO_REPRO_MODEL is not set")
 	}
 	capacityIDs := generateCapacityPagingRepro(t, path, modelrecipe.DecodeSessionCapacity)
 	if len(capacityIDs) <= 256 {

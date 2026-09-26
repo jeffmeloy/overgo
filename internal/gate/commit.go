@@ -27,6 +27,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 	"overgo/internal/runrecord"
 )
@@ -1660,9 +1661,10 @@ func removeExactGateGitLockMarkers(
 			continue
 		}
 		if !exact {
+			// Another process holds the lock: contention, not damage.
 			return fmt.Errorf(
-				"gate: Git lock %s has partial or foreign ownership; automatic recovery refused",
-				lock.name,
+				"gate: Git lock %s has partial or foreign ownership; automatic recovery refused: %w",
+				lock.name, processcontrol.ErrResourceBusy,
 			)
 		}
 		toRemove = append(toRemove, lock)
@@ -1946,7 +1948,7 @@ func clearCommittedMergeState(repo string, intent gateCommitIntent) error {
 		return removeGateMergeMetadata(repo, "cleanup", files, progress)
 	})
 	if errors.Is(err, errGateIndexMoved) {
-		return errors.New("commit admission: Git index moved before merge metadata cleanup")
+		return fmt.Errorf("commit admission: Git index moved before merge metadata cleanup: %w", processcontrol.ErrResourceBusy)
 	}
 	if errors.Is(err, errGateMergeMetadataMoved) {
 		return fmt.Errorf("commit admission: pending merge metadata moved before cleanup: %w", err)

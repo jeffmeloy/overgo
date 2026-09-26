@@ -1253,7 +1253,8 @@
             "tracked-files-need-readers/do",
             "selection-prose-per-path/do",
             "ratchet-ledgers-retired/do",
-            "verification-unread-removed/do"
+            "verification-unread-removed/do",
+            "verification-fixture-orphans/do"
           ]
         }
       ]

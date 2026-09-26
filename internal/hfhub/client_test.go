@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -106,6 +107,46 @@ func TestHubDownloadVerifiesDeclaredDigest(t *testing.T) {
 		if strings.Contains(entry.Name(), ".partial-") {
 			t.Fatalf("partial file survived: %s", entry.Name())
 		}
+	}
+}
+
+// TestDownloadPublishesOnlyRepositoryFiles: the destination lists exactly the
+// repository's files; each file's lock lives in the sibling bookkeeping directory.
+func TestDownloadPublishesOnlyRepositoryFiles(t *testing.T) {
+	server, _ := hubFixture(t, []byte("exact weight bytes"))
+	client, err := New(server.URL, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := DownloadRequest{Kind: KindModel, Repository: "acme/tiny", Destination: filepath.Join(t.TempDir(), "tiny")}
+	resolved, err := client.Download(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want, published []string
+	for _, file := range resolved.Files {
+		want = append(want, file.Path)
+		book, err := bookkeepingPath(request.Destination, file.Path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(book + ".lock"); err != nil {
+			t.Errorf("%s has no bookkeeping lock: %v", file.Path, err)
+		}
+	}
+	if err := filepath.WalkDir(request.Destination, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		relative, err := filepath.Rel(request.Destination, path)
+		published = append(published, filepath.ToSlash(relative))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	slices.Sort(want)
+	if !slices.Equal(published, want) {
+		t.Fatalf("destination lists %v, the repository %v", published, want)
 	}
 }
 

@@ -73,12 +73,18 @@ func (c *Client) downloadFile(ctx context.Context, request DownloadRequest, revi
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
+	book, err := bookkeepingPath(request.Destination, file.Path)
+	if err != nil {
 		return err
+	}
+	for _, directory := range []string{filepath.Dir(local), filepath.Dir(book)} {
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			return err
+		}
 	}
 	// Lock the destination, not the source identity: different revisions must
 	// not race publication. The lock file survives close to keep one OS owner.
-	lock, err := processlock.AcquireContext(ctx, local+".download.lock", 0o600)
+	lock, err := processlock.AcquireContext(ctx, book+".lock", 0o600)
 	if err != nil {
 		return err
 	}
@@ -89,7 +95,7 @@ func (c *Client) downloadFile(ctx context.Context, request DownloadRequest, revi
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	partial, err := c.openPartial(ctx, local, request, revision, file)
+	partial, err := c.openPartial(ctx, book, request, revision, file)
 	if err != nil {
 		return err
 	}
@@ -208,6 +214,17 @@ func alreadyComplete(ctx context.Context, local string, file RepoFile) bool {
 		return false
 	}
 	return strings.EqualFold(hex.EncodeToString(digest.Sum(nil)), file.SHA256)
+}
+
+// bookkeepingPath: where a file's lock and resumable partial live, a hidden
+// sibling of the destination on its volume, so the destination holds exactly
+// the repository's files and publication stays one rename.
+func bookkeepingPath(destination, path string) (string, error) {
+	root, err := filepath.Abs(destination)
+	if err != nil {
+		return "", err
+	}
+	return secureJoin(filepath.Join(filepath.Dir(root), "."+filepath.Base(root)+".download"), path)
 }
 
 // secureJoin refuses any repository path that would escape the destination.

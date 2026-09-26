@@ -53,9 +53,22 @@ func downloadFixtureForFile(t *testing.T, file RepoFile, transfer http.HandlerFu
 	return client, DownloadRequest{Kind: KindModel, Repository: "acme/tiny", Revision: "main", Destination: t.TempDir()}
 }
 
+// bookkeepingFor: the file's bookkeeping path, its directory made.
+func bookkeepingFor(t *testing.T, request DownloadRequest, file RepoFile) string {
+	t.Helper()
+	book, err := bookkeepingPath(request.Destination, file.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(book), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return book
+}
+
 func seedDownloadPrefix(t *testing.T, client *Client, request DownloadRequest, file RepoFile, prefix []byte) string {
 	t.Helper()
-	path := client.partialPath(filepath.Join(request.Destination, file.Path), request, "commit1", file)
+	path := client.partialPath(bookkeepingFor(t, request, file), request, "commit1", file)
 	if err := os.WriteFile(path, prefix, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +131,7 @@ func TestDownloadResumeInterruptedServedBytes(t *testing.T) {
 			if _, err := client.Download(ctx, request); !errors.Is(err, context.Canceled) {
 				t.Fatalf("interruption = %v", err)
 			}
-			partialPath := client.partialPath(filepath.Join(request.Destination, file.Path), request, "commit1", file)
+			partialPath := client.partialPath(bookkeepingFor(t, request, file), request, "commit1", file)
 			if retained, err := os.ReadFile(partialPath); err != nil || !bytes.Equal(retained, prefix) {
 				t.Fatalf("retained %q: %v", retained, err)
 			}
@@ -282,7 +295,7 @@ func TestDownloadIdentitySeparatesSources(t *testing.T) {
 			case "size":
 				priorFile.Size++
 			}
-			foreign := priorClient.partialPath(filepath.Join(request.Destination, file.Path), priorRequest, revision, priorFile)
+			foreign := priorClient.partialPath(bookkeepingFor(t, request, file), priorRequest, revision, priorFile)
 			if err := os.WriteFile(foreign, weights[:len(weights)/2], 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -303,8 +316,7 @@ func TestDownloadSameTargetSerializationAndWaitCancellation(t *testing.T) {
 		transfers.Add(1)
 		serveDownloadBytes(w, r, weights)
 	})
-	local := filepath.Join(request.Destination, file.Path)
-	lock, err := processlock.Acquire(local+".download.lock", 0o600)
+	lock, err := processlock.Acquire(bookkeepingFor(t, request, file)+".lock", 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}

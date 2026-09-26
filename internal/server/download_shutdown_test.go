@@ -160,7 +160,8 @@ func TestDownloadJobCallerBudget(t *testing.T) {
 	if _, err := os.Stat(final); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("budget published incomplete bytes: %v", err)
 	}
-	partials, err := filepath.Glob(final + ".partial-*")
+	// The retained prefix lives in the destination's sibling bookkeeping directory.
+	partials, err := filepath.Glob(filepath.Join(root, ".tiny.download", "weights.bin.partial-*"))
 	if err != nil {
 		t.Fatal(err)
 	}

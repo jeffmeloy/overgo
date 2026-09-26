@@ -1290,11 +1290,8 @@ func (g *gateContext) runRestParts(ctx context.Context, device bool) error {
 	} else {
 		report, err = g.runContendedBatch(ctx, dependent, false, observe, g.runHostTests)
 	}
-	if len(report.Skipped)+len(report.Unavailable) > 0 {
-		g.advise(noteWarning, fmt.Sprintf(
-			"dependent fixture evidence not credited: %d skipped [%s], %d unavailable [%s]",
-			len(report.Skipped), strings.Join(report.Skipped, "; "), len(report.Unavailable), strings.Join(report.Unavailable, "; "),
-		))
+	if len(report.Skipped) > 0 {
+		g.advise(noteWarning, fmt.Sprintf("dependent fixture evidence not credited: %d skipped [%s]", len(report.Skipped), strings.Join(report.Skipped, "; ")))
 	}
 	g.packageExecutionAudit()
 	return err

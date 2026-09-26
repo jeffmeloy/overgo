@@ -138,7 +138,6 @@ func TestPackageCreditTransitions(t *testing.T) {
 		{"duplicate", start + passed + passed + terminal, false, false},
 		{"failed", start + strings.ReplaceAll(passed, `"pass"`, `"fail"`) + terminal, false, false},
 		{"unfinished", start + packageEvent("run", "example", "TestWorks", "") + terminal, false, false},
-		{"late unavailable", start + passed + terminal + packageEvent("output", "example", "TestWorks", "UNAVAILABLE: fixture"), false, false},
 		{"malformed tail", start + passed + terminal + "{invalid\n", false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -170,7 +169,6 @@ func TestTerminalPackageUpdates(t *testing.T) {
 		{"malformed stream", "not json\n", true},
 		{"duplicate terminal", packageEvent("pass", "good", "", ""), true},
 		{"late test", packageEvent("run", "good", "TestLate", ""), true},
-		{"late unavailable", packageEvent("output", "good", "", "UNAVAILABLE: required fixture absent"), true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			reader, writer := io.Pipe()

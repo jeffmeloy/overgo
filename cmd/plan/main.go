@@ -918,16 +918,6 @@ func runVerify(it plan.Item, st plan.Step) error {
 	return nil
 }
 
-// vacuousVerify reports why a 0-exit verify is NOT real evidence, or "" when it
-// is. A skipped test still exits 0, so without this a capability whose golden /
-// fixture / hardware is absent advances UNVERIFIED -- the exact hole that let
-// the un0 batch regression through tightening's gate (the golden was
-// UNAVAILABLE on that worktree, the test skipped, exit stayed 0). It keys on the
-// repo's existing conventions: an absent prerequisite emits UNAVAILABLE and/or
-// "parity NOT verified", and an empty/over-filtered run emits "[no test(s)...]".
-// Environment-gated skips that DID run real assertions elsewhere still print a
-// package "ok" without these markers and are unaffected.
-
 func recordControl(lane, kind, reason, detail string) error {
 	head, err := gitOutput(commandWorktree, "rev-parse", "HEAD")
 	if err != nil {

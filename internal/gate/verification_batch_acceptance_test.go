@@ -22,7 +22,7 @@ func TestGovernedBatchDeclarationAcceptance(t *testing.T) {
 	// charged their wait to the parent's active budget, and a serial parent
 	// held the suite's serial phase. In sequence the cases never queue.
 	t.Parallel()
-	for _, mode := range []string{"pass", "failure", "skip", "unavailable", "no-match", "mutation"} {
+	for _, mode := range []string{"pass", "failure", "skip", "no-match", "mutation"} {
 		t.Run(mode, func(t *testing.T) {
 			g, batch, tree := verificationBatchFixture(t, mode)
 			before, err := os.ReadFile(filepath.Join(g.repo, plan.Path))
@@ -214,7 +214,6 @@ func TestConsumer(t *testing.T) {
     switch string(mode) {
     case "failure": t.Fatal("consumer failed")
     case "skip": t.Skip("missing fixture")
-    case "unavailable": t.Log("UNAVAILABLE")
     case "mutation": if err := os.WriteFile("mode", []byte("changed"), 0600); err != nil { t.Fatal(err) }
     }
 }

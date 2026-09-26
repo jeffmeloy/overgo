@@ -24,13 +24,13 @@ func TestMixedVerifierRepeatEvidence(t *testing.T) {
 			auxiliary: "printf '{malformed\\n'", wantError: "VACUOUS",
 		},
 		{
-			name: "repeat unavailable with unchanged verdict",
+			name: "repeat skipped with unchanged verdict",
 			source: `package probe
 import ("os"; "testing")
 func TestBehavior(t *testing.T) {
  if _, err := os.Stat("seen"); os.IsNotExist(err) {
   if err := os.WriteFile("seen", nil, 0600); err != nil { t.Fatal(err) }
- } else { t.Log("UNAVAILABLE: repeat fixture") }
+ } else { t.Skip("repeat fixture absent") }
 }
 `,
 			auxiliary: "printf 'smoke: passed=1 failed=0\n'", wantError: "REPEAT vacuous",

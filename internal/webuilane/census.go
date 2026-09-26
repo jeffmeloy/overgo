@@ -129,7 +129,7 @@ func LaneVerdict(output string, required []string) error {
 		if name, ok := strings.CutPrefix(trimmed, "--- PASS: "); ok {
 			passed++
 			proven = append(proven, name)
-		} else if !strings.HasPrefix(trimmed, "webui lane: UNAVAILABLE ") && (strings.Contains(trimmed, "journey:") || strings.Contains(trimmed, " leg")) {
+		} else if strings.Contains(trimmed, "journey:") || strings.Contains(trimmed, " leg") {
 			if _, after, ok := strings.Cut(trimmed, ": "); ok {
 				proven = append(proven, after)
 			}

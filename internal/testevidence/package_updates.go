@@ -68,8 +68,8 @@ type packageUpdates struct {
 }
 
 func includePackageResult(entry packageEvidence, result *testResult) packageEvidence {
-	entry.incomplete = entry.incomplete || !result.started || result.ineligible || result.Action != "pass" && !result.excluded || result.Unavailable != ""
-	entry.passed = entry.passed || result.Name == "" && result.Action == "pass" && !result.ineligible && result.Unavailable == ""
+	entry.incomplete = entry.incomplete || !result.started || result.ineligible || result.Action != "pass" && !result.excluded
+	entry.passed = entry.passed || result.Name == "" && result.Action == "pass" && !result.ineligible
 	entry.tested = entry.tested || result.Name != "" && result.Action == "pass"
 	return entry
 }

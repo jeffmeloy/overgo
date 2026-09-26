@@ -68,9 +68,6 @@ func run(args []string, stdout, stderr io.Writer, runner testRunner) int {
 		for _, skipped := range report.Skipped {
 			fmt.Fprintf(stderr, "test-lane: unclassified skip: %s\n", skipped)
 		}
-		for _, unavailable := range report.Unavailable {
-			fmt.Fprintf(stderr, "test-lane: unavailable: %s\n", unavailable)
-		}
 		return 1
 	}
 	fmt.Fprintf(stdout,

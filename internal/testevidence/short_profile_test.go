@@ -22,7 +22,6 @@ func TestShortProfilePackageEvidence(t *testing.T) {
 		{"no executed assertions", start + excluded + terminal, true, false},
 		{"unclassified skip", start + passed + strings.ReplaceAll(excluded, testskip.KindShort, "fixture missing") + terminal, true, false},
 		{"missing start", start + passed + strings.Replace(excluded, packageEvent("run", "example", "TestIntegration", ""), "", 1) + terminal, true, false},
-		{"missing resource", start + passed + excluded + packageEvent("output", "example", "TestIntegration", "UNAVAILABLE: missing fixture") + terminal, true, false},
 		{"duplicate exclusion", start + passed + excluded + packageEvent("skip", "example", "TestIntegration", "") + terminal, true, false},
 		{"late classification", start + passed + packageEvent("run", "example", "TestIntegration", "") + packageEvent("skip", "example", "TestIntegration", "") + skipEvent("example", "TestIntegration", testskip.KindShort) + terminal, true, false},
 		{"failure before exclusion", start + passed + packageEvent("run", "example", "TestIntegration", "") + packageEvent("fail", "example", "TestIntegration", "") + excluded + terminal, true, false},

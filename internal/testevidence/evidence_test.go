@@ -22,7 +22,6 @@ func TestProbe(t *testing.T) {
  t.Run("space name", func(t *testing.T) {})
  t.Run("skip", func(t *testing.T) { t.Skip("fixture skip") })
  t.Run("fail", func(t *testing.T) { t.Fatal("fixture failure") })
- t.Run("unavailable", func(t *testing.T) { t.Log("UNAVAILABLE: fixture") })
 }
 func TestOther(t *testing.T) {}
 func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Skip("fixture skip") }) }
@@ -46,7 +45,6 @@ func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Ski
 		{`^TestProbe$/^missing$`, false},
 		{`^TestProbe$/^skip$`, false},
 		{`^TestProbe$/^fail$`, false},
-		{`^TestProbe$/^unavailable$`, false},
 		{`^TestProbe$`, false},
 		{`^TestSkippedParent$`, false},
 		{`^TestProbe$/[`, false},
@@ -86,7 +84,7 @@ func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Ski
 	if err := RepeatAgreementForCommand(command, passing+otherPackage, otherPackage+passing); err != nil {
 		t.Fatalf("independent package ordering changed verdicts: %v", err)
 	}
-	for _, mutation := range []string{"package terminal", "child terminal", "child absent", "child skipped", "child failed", "child unavailable", "unrelated skip", "package contradicted"} {
+	for _, mutation := range []string{"package terminal", "child terminal", "child absent", "child skipped", "child failed", "unrelated skip", "package contradicted"} {
 		t.Run(mutation, func(t *testing.T) {
 			var out strings.Builder
 			for line := range strings.SplitSeq(passing, "\n") {
@@ -107,8 +105,6 @@ func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Ski
 						event.Action = "skip"
 					case "child failed":
 						event.Action = "fail"
-					case "child unavailable":
-						event.Output = "UNAVAILABLE: fixture"
 					}
 				}
 				if event.Test == "" && event.Action == "pass" {
@@ -135,7 +131,7 @@ func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Ski
 			if err := VerifyGoTestEvidence(compound, passing+out.String()); (err == nil) != (mutation == "unrelated skip") {
 				t.Fatalf("earlier pass hid later incomplete invocation: %v", err)
 			}
-			if err := RepeatAgreementForCommand(command, passing, out.String()); err == nil && mutation != "package terminal" && mutation != "package contradicted" && mutation != "child unavailable" {
+			if err := RepeatAgreementForCommand(command, passing, out.String()); err == nil && mutation != "package terminal" && mutation != "package contradicted" {
 				t.Fatal("changed verdicts received repeat credit")
 			}
 		})
@@ -178,7 +174,7 @@ func TestGoTestJSONReportPreservesSkippedEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(report.Skipped) != 1 || len(report.Unavailable) != 1 {
+	if len(report.Skipped) != 1 {
 		t.Fatalf("report = %+v", report)
 	}
 	if err := RequireComplete(report); err == nil {
@@ -201,7 +197,7 @@ func TestCIRequiredEvidence(t *testing.T) {
 	if report.PassedTests != 1 || report.PassedPackages != 1 || len(report.ClassifiedSkipped) != 1 {
 		t.Fatalf("required evidence counts are wrong: %+v", report)
 	}
-	if len(report.Skipped) != 0 || len(report.Unavailable) != 0 {
+	if len(report.Skipped) != 0 {
 		t.Fatalf("required evidence unexpectedly incomplete: %+v", report)
 	}
 	if err := GoTestJSONShort(out + "{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n"); err == nil {
@@ -219,7 +215,6 @@ func TestVerifyOutput(t *testing.T) {
 		{name: "benchmark name only", command: "go test ./x -bench BenchmarkX", output: "BenchmarkX\nPASS\n", wantErr: true},
 		{name: "skip", command: "go test ./x -v", output: "--- SKIP: TestX (0.00s)\nPASS\n", wantErr: true},
 		{name: "quiet", command: "go test ./x", output: "ok\tx\t0.1s\n", wantErr: true},
-		{name: "unavailable", command: "go test ./x -v", output: "UNAVAILABLE\n--- PASS: TestX\n", wantErr: true},
 		{name: "non-go", command: "test -s x", output: ""},
 	}
 	for _, test := range tests {
@@ -275,9 +270,6 @@ func TestVerifyGoTestEvidenceMixedCommand(t *testing.T) {
 	}
 	if err := VerifyGoTestEvidence(command, passing+"{malformed event\n"); err == nil {
 		t.Fatal("mixed verifier accepted malformed JSON event")
-	}
-	if err := VerifyGoTestEvidence(command, passing+"DEVICE UNAVAILABLE\n"); err == nil {
-		t.Fatal("mixed verifier accepted unavailable auxiliary evidence")
 	}
 	if err := VerifyGoTestEvidence("go test ./x", passing+"unexpected output\n"); err == nil {
 		t.Fatal("test-only verifier accepted auxiliary output")

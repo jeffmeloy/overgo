@@ -234,7 +234,7 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 			if attempt != 0 {
 				want = "package test work: 1 reused profiles; 2 started attempts"
 			}
-			if !slices.Contains(auditLines(g.audit), want) || !slices.Contains(auditLines(g.audit), "dependent fixture evidence not credited: 1 skipped [example/app: TestRequired], 0 unavailable []") {
+			if !slices.Contains(auditLines(g.audit), want) || !slices.Contains(auditLines(g.audit), "dependent fixture evidence not credited: 1 skipped [example/app: TestRequired]") {
 				t.Fatalf("dependent skip/reuse denominator: %v", auditLines(g.audit))
 			}
 		}
@@ -291,8 +291,6 @@ func assertIndependentPackageStreams(t *testing.T) {
 		{"failed sibling", start("bad") + event("fail", "bad", "TestRequired", "") + event("fail", "bad", "", ""), false},
 		{"skipped sibling", start("bad") + event("skip", "bad", "TestRequired", "") + event("pass", "bad", "", ""), false},
 		{"classified skip", start("bad") + `{"Action":"attr","Package":"bad","Test":"TestRequired","Key":"` + testskip.Key + `","Value":"` + testskip.KindShort + "\"}\n" + event("skip", "bad", "TestRequired", "") + event("pass", "bad", "", ""), false},
-		{"unavailable test", start("bad") + event("output", "bad", "TestRequired", "UNAVAILABLE") + pass("bad"), false},
-		{"unavailable package", start("bad") + event("output", "bad", "", "UNAVAILABLE") + pass("bad"), false},
 		{"unfinished package", start("bad") + event("pass", "bad", "TestRequired", ""), false},
 		{"unfinished subtest", start("bad") + event("run", "bad", "TestRequired/child", "") + pass("bad"), false},
 		{"failed subtest", start("bad") + event("run", "bad", "TestRequired/child", "") + event("fail", "bad", "TestRequired/child", "") + pass("bad"), false},

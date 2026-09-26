@@ -23,6 +23,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/processcontrol"
+	"overgo/internal/runrecord"
 	"overgo/internal/webuilane"
 )
 
@@ -67,8 +68,7 @@ func run() error {
 		}
 		extra = append(extra, "OVERGO_WEBUI_LANE_SCREENS="+absolute)
 	}
-	ran, err := runLane(ctx, stdout, *run, extra)
-	if err != nil {
+	if err := runLane(ctx, stdout, *run, extra); err != nil {
 		// The failed tests' own lines end the error, where a caller's
 		// bounded tail keeps them; the whole run is kept in a file the
 		// error names, since a caller keeps only that tail.
@@ -84,12 +84,7 @@ func run() error {
 		return err
 	}
 	// The verdict is the run's own output: a plan verify naming the lane gets evidence, never a silent pass.
-	if ran {
-		if err := webuilane.LaneVerdict(captured.String(), required); err != nil {
-			return err
-		}
-	}
-	return nil
+	return webuilane.LaneVerdict(captured.String(), required)
 }
 
 // captureLive captures and audits a running server's page: every tab and
@@ -120,10 +115,9 @@ func captureLive(ctx context.Context, stdout io.Writer, pageURL, dir string) err
 }
 
 // runLane runs the browser self-check and the acceptance tests run names,
-// writing the lane's observations to stdout; ran reports whether the
-// tests ran at all (no browser leaves the lane UNAVAILABLE, not failed).
-// extra carries the screens test's capture directory and page address.
-func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) (ran bool, err error) {
+// writing the lane's observations to stdout; no browser is a typed
+// unavailable outcome, never a pass. extra carries the screens test's capture directory and page address.
+func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) error {
 	var listing bytes.Buffer
 	if !strings.Contains(run, "/") {
 		// Empty -list executes tests instead of listing them.
@@ -131,24 +125,23 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) 
 		args := append([]string{"test", "-list", listingPattern, "-json"}, browserTestPackages...)
 		receipt, err := processcontrol.Run(ctx, processcontrol.Command{Path: "go", Args: args, Stdout: &listing, Stderr: os.Stderr})
 		if err != nil {
-			return false, err
+			return err
 		}
 		if receipt.ExitCode != 0 {
-			return false, fmt.Errorf("browser test discovery exited %d", receipt.ExitCode)
+			return fmt.Errorf("browser test discovery exited %d", receipt.ExitCode)
 		}
 	}
 	packages, err := browserPackages(run, &listing)
 	if err != nil {
-		return false, err
+		return err
 	}
 	browser, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
-		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE no browser: %v\n", err)
-		return false, nil
+		return runrecord.LaneError(runrecord.LaneUnavailable, fmt.Sprintf("no browser: %v", err))
 	}
 	probe, err := webuilane.Open(ctx, browser, "data:text/html,<title>overgo-webui-lane</title>")
 	if err != nil {
-		return false, err
+		return err
 	}
 	// The probe page renders on its own clock: the lane starts beside the
 	// test groups, and a loaded host may hand back an empty title before
@@ -161,10 +154,10 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) 
 	}
 	_ = probe.Close()
 	if err != nil {
-		return false, fmt.Errorf("browser transport self-check failed: %w", err)
+		return fmt.Errorf("browser transport self-check failed: %w", err)
 	}
 	if title != "overgo-webui-lane" {
-		return false, fmt.Errorf("browser transport self-check returned title %q", title)
+		return fmt.Errorf("browser transport self-check returned title %q", title)
 	}
 	env := append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser)
 	env = append(env, extra...)
@@ -179,13 +172,13 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) 
 		Stderr: os.Stderr,
 	})
 	if err != nil {
-		return true, err
+		return err
 	}
 	if receipt.ExitCode != 0 {
-		return true, fmt.Errorf("webui lane: acceptance exited %d: %s", receipt.ExitCode, progress.summary())
+		return fmt.Errorf("webui lane: acceptance exited %d: %s", receipt.ExitCode, progress.summary())
 	}
 	fmt.Fprintf(stdout, "webui lane: PASS browser=%s\n", browser)
-	return true, nil
+	return nil
 }
 
 var browserTestPackages = []string{"overgo/internal/server", "overgo/internal/webuilane", "overgo/internal/audioparity"}

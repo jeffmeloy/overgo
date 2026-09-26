@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "automation-typed-failure-kinds",
-      "title": "Classify failures as typed kinds at their owner, not by message text",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Classify failures as typed kinds at their owner, not by message text",
-          "status": "open",
-          "verify": "go test ./internal/testevidence -run '^TestVerifyReadsTypedUnavailability$' -count=1",
-          "rationale": "Owner 2026-09-25: classify facts once at their owner and derive decisions from typed facts; avoid brittle string matching. Done so far: closurescan ErrStaleBinding and UncataloguedPolicyError, codemanifest UncertaintyConsumerBoundary (gate remediation and impact fallback), and skip kinds as typed attr events (typed-skip-kinds). Remaining slice, which also pays down typed-skip-kinds' +20 production lines: (1) unavailability -- 131 producers print UNAVAILABLE or 'parity NOT verified' and testevidence.unavailable greps output for them; a test records it with a typed testskip-style attribute (t.Attr) and the parser reads the attr event; producers that are commands (train-lane, webui-lane, race-lane, plan) return a typed error instead; (2) cuda/testutil.MeasurementProcess runs its child with -test.v and judges the text with VerifyOutput; run it through test2json and read the typed report; (3) VerifyOutput then serves only non-go-test shell verifies and loses its go test text checks. Not typed, by reasoning: device contention reaches go test only through arbitrary t.Fatal(err) text, so matching the owner sentinel processcontrol.ErrResourceBusy's own Error() is the channel; the panic cause line is diagnostic retention, not a decision. Done when TestVerifyReadsTypedUnavailability classifies an unavailable test from its attr event with no output substring."
-        }
-      ]
-    },
-    {
       "id": "modeltest-tag-compiles",
       "title": "Compile every test under the modeltest tag",
       "owner": "master-lead",

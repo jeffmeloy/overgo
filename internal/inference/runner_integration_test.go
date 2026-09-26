@@ -102,31 +102,17 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, _, err := runner.StartSession(ctx, "Hello", GenerateOptions{
-		MaxNewTokens: 1,
+	// Context shift lets a generation run past the two-token context.
+	shiftedIDs, _, err := runner.Generate(ctx, "Hello", GenerateOptions{
+		MaxNewTokens: 3,
 		Sampler:      shiftSampler,
 		ContextShift: true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, _, err = runner.ContinueSession(ctx, session, GenerateOptions{
-		MaxNewTokens: 2,
-		Sampler:      shiftSampler,
-		ContextShift: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(session.TokenIDs) != 4 ||
-		session.Cache.Tokens != 2 ||
-		session.Cache.Position != 3 {
-		t.Fatalf(
-			"shifted session history/cache = %d/%d/%d, want 4/2/3",
-			len(session.TokenIDs),
-			session.Cache.Tokens,
-			session.Cache.Position,
-		)
+	if len(shiftedIDs) != 4 {
+		t.Fatalf("shifted generation history = %d, want 4", len(shiftedIDs))
 	}
 	firstPromptSampler, err := sampling.New(sampling.Config{})
 	if err != nil {
@@ -576,45 +562,12 @@ func TestNativeQwen35HybridMatchesOracleAndResumes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, _, err := runner.StartSession(ctx, "Hello", GenerateOptions{
-		MaxNewTokens: 1,
-		Sampler:      firstSampler,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	cacheData, err := runner.SaveCache(session.Cache)
-	if err != nil {
-		t.Fatal(err)
-	}
-	session.Cache, err = runner.LoadCache(cacheData)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sessionData, err := runner.SaveSession(session, firstSampler)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resumedSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	session, err = runner.LoadSession(sessionData, resumedSampler)
-	if err != nil {
-		t.Fatal(err)
-	}
-	session, text, err := runner.ContinueSession(ctx, session, GenerateOptions{
-		MaxNewTokens: 2,
-		Sampler:      resumedSampler,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	resumedIDs, text := resumeGeneration(t, runner, "Hello", firstSampler)
 	wantIDs := []tokenizer.TokenID{9419, 11, 353, 1044}
-	if !slices.Equal(session.TokenIDs, wantIDs) || text != "Hello, I am" {
+	if !slices.Equal(resumedIDs, wantIDs) || text != "Hello, I am" {
 		t.Fatalf(
 			"Qwen3.5 resumed generation = %v %q, want %v %q",
-			session.TokenIDs,
+			resumedIDs,
 			text,
 			wantIDs,
 			"Hello, I am",
@@ -1684,35 +1637,9 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, _, err := runner.StartSession(t.Context(), "Hello", GenerateOptions{
-		MaxNewTokens: 1,
-		Sampler:      firstSampler,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sessionData, err := runner.SaveSession(session, firstSampler)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resumedSampler, err := sampling.New(sampling.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	session, err = runner.LoadSession(sessionData, resumedSampler)
-	if err != nil {
-		t.Fatal(err)
-	}
-	session, resumedText, err := runner.ContinueSession(
-		t.Context(),
-		session,
-		GenerateOptions{MaxNewTokens: 2, Sampler: resumedSampler},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.Equal(session.TokenIDs, wantIDs) || resumedText != "Hello<3\n" {
-		t.Fatalf("resumed generation = %v %q, want %v %q", session.TokenIDs, resumedText, wantIDs, "Hello<3\n")
+	resumedIDs, resumedText := resumeGeneration(t, runner, "Hello", firstSampler)
+	if !slices.Equal(resumedIDs, wantIDs) || resumedText != "Hello<3\n" {
+		t.Fatalf("resumed generation = %v %q, want %v %q", resumedIDs, resumedText, wantIDs, "Hello<3\n")
 	}
 	dryBreakers, err := runner.TokenizeDryBreakers([]string{"\n", ":"})
 	if err != nil {
@@ -1786,4 +1713,31 @@ func assertNativeQuantGreedyOracle(t *testing.T, modelPath string) {
 	if len(chatIDs) != len(chatPromptIDs)+1 {
 		t.Fatalf("chat token count = %d, want prompt %d + 1", len(chatIDs), len(chatPromptIDs))
 	}
+}
+
+// resumeGeneration generates one token with the prompt cache kept, then
+// continues from the returned ids for two more: the continuation must
+// recompute only the pending token.
+func resumeGeneration(t *testing.T, runner *Runner, prompt string, sampler *sampling.Sampler) ([]tokenizer.TokenID, string) {
+	t.Helper()
+	first, _, err := runner.Generate(t.Context(), prompt, GenerateOptions{MaxNewTokens: 1, Sampler: sampler, CachePrompt: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resumedSampler, err := sampling.New(sampling.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var evaluation PromptEvaluation
+	resumed, text, err := runner.Generate(t.Context(), "", GenerateOptions{
+		PromptTokenIDs: first, MaxNewTokens: 2, Sampler: resumedSampler, CachePrompt: true,
+		OnPromptEvaluated: func(value PromptEvaluation) { evaluation = value },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evaluation.Cached != len(first)-1 {
+		t.Fatalf("resumed generation re-evaluated its context: %+v of %d tokens", evaluation, len(first))
+	}
+	return resumed, text
 }

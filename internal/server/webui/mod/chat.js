@@ -173,7 +173,8 @@
         return slots.find((field) => file && field.control.media && file.type.startsWith(field.control.media + "/")) || slots[0]; };
       const fieldUploads = new WeakMap();
       const thread = overgo.thread(panel, { reuse: (file, artifact, source) => { const field = artifactField(file); if (field && artifact) field.input.value = artifact; else composer.addFile(file, source); },
-        replay: replayRecord, lineage: showLineage, actions: messageActions, marker: capabilities.remote ? "remote" : "" });
+        replay: replayRecord, lineage: showLineage, actions: messageActions, marker: capabilities.remote ? "remote" : "",
+        stopped: (note) => { if (activeTurn) offerContinue(note, activeTurn.response, activeTurn.assistant); } });
       const branchNotice = el('div', { class: 'note', role: 'status', hidden: true });
       function actionsBlocked() { return overgo.signal.aborted || !!controller || !!activeTurn || actionPending || uncertainPrevious !== null || otherModel || overgo.modelSwitching(); }
       function messageActions(message) {
@@ -774,6 +775,38 @@
         finally { controller = null; if (!overgo.signal.aborted) updateBusy(); }
       }
 
+      // offerContinue: a stopped turn's note offers to resume it where it stopped.
+      function offerContinue(note, stoppedID, assistant) {
+        if (!stoppedID || !assistant || capabilities.remote) return;
+        note.append(" ", el("button", { class: "link-button", text: "Continue", "data-continue": stoppedID, onclick: () => continueTurn(stoppedID, assistant, note) }));
+      }
+
+      // continueTurn resumes a stopped turn from its stored token context: the stored partial first, with
+      // any text the stop held back, then the continuation streamed into the same assistant message. A
+      // refusal (another model, another temperature) stays beside the note with its reason.
+      async function continueTurn(stoppedID, assistant, note) {
+        if (actionsBlocked()) return;
+        controller = new AbortController();
+        updateBusy();
+        const users = thread.messages.filter(message => message.role === "user" && message.response === stoppedID);
+        try {
+          const request = { model: modelID, previous_response_id: stoppedID, continue: true, stream: true, store: true };
+          if (temperature.value !== "") request.temperature = Number(temperature.value);
+          if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+          const stored = await overgo.api.get("/interactions/messages?response=" + encodeURIComponent(stoppedID), { signal: controller.signal });
+          const partial = (stored.messages || []).findLast(message => message.role === "assistant");
+          const response = await streamTurn("/v1/responses", request, "POST");
+          note.remove();
+          if (partial) { assistant.content = partial.content; thread.renderMessage(assistant, true); }
+          activeTurn = { response: "", model: modelID, previous: stoppedID, assistant, users, prompt: null };
+          await consumeTurn(response, assistant, null);
+        } catch (err) {
+          if (overgo.signal.aborted) return;
+          if (activeTurn) turnFailure(err, activeTurn);
+          else note.after(el("div", { class: "note", role: "alert", text: overgo.friendlyError(err) }));
+        } finally { controller = null; if (!overgo.signal.aborted) updateBusy(); }
+      }
+
       function validateSettings() {
         const invalid = [temperature, maxTokens].find(field => !field.checkValidity());
         if (!invalid) return true;
@@ -790,6 +823,8 @@
           if (body && body.required && !text.trim()) { composer.input.setCustomValidity('Enter ' + (body.label || body.name) + '.'); composer.input.reportValidity(); return; }
         }
         welcome.remove();
+        // A new turn moves on from a stopped one; its offer to continue goes.
+        panel.querySelectorAll("[data-continue]").forEach(button => button.remove());
         const parts = branch ? [] : composer.attachmentParts();
         if (branch) {
           // The reader may have sent another message while this editor was
@@ -897,8 +932,11 @@
           lastResponseID = chain.status === "failed" ? (chain.previous || "") : chain.response;
           if (uncertainPrevious !== null && uncertainKind !== 'operation' && chain.response !== uncertainPrevious) { uncertainPrevious = null; uncertainText = ''; saveDraft(); showUncertainty(); }
           if (chain.status === "failed" && !lastResponseID) { moveDraft(""); overgo.rememberConversation(null); }
-          if (!inflight && chain.status === 'cancelled') thread.node.appendChild(el('div', { class: 'note', role: 'status', text: 'Stopped' }));
-          else if (!inflight && chain.failure) thread.errorRow(chain.failure);
+          if (!inflight && chain.status === 'cancelled') {
+            const note = el('div', { class: 'note', role: 'status', text: 'Stopped' });
+            thread.node.appendChild(note);
+            offerContinue(note, chain.response, thread.messages.findLast(message => message.role === 'assistant' && message.response === chain.response));
+          } else if (!inflight && chain.failure) thread.errorRow(chain.failure);
         } catch (err) {
           if (overgo.signal.aborted) return;
           if (err.status === 404) forgetTurn({ response: selected.latest, model: modelID });

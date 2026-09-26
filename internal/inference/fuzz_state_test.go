@@ -2,8 +2,6 @@ package inference
 
 import (
 	"testing"
-
-	"overgo/internal/sampling"
 )
 
 func FuzzCacheStateNeverPanics(f *testing.F) {
@@ -20,24 +18,5 @@ func FuzzCacheStateNeverPanics(f *testing.F) {
 			t.Skip()
 		}
 		_, _ = cacheTestRunner().LoadCache(data)
-	})
-}
-
-func FuzzSessionStateNeverPanics(f *testing.F) {
-	f.Add([]byte(sessionStateMagic))
-	f.Add([]byte("not-session"))
-	f.Fuzz(func(t *testing.T, data []byte) {
-		if len(data) > 16<<20 {
-			t.Skip()
-		}
-		runner := cacheTestRunner()
-		runner.spec.Name = "session-fixture"
-		runner.spec.ContextLength = 16
-		runner.spec.VocabularySize = 32
-		sampler, err := sampling.New(sampling.Config{})
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, _ = runner.LoadSession(data, sampler)
 	})
 }

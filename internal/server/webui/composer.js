@@ -117,6 +117,7 @@
 
   // ---- thread: the stream renderer (messages, tool cards, media cards, a thinking row, error rows);
   // options.reuse(file): media output -> next turn's input; options.marker: tag on every assistant turn ("remote"). ----
+  // options.stopped(note): a stopped turn's note, where the page offers to continue it.
   function thread(host, options) {
     const reuse = options && options.reuse;
     const replay = options && options.replay; // replay(event, "regenerate" | "vary"): the page resubmits the card's stored request
@@ -309,12 +310,15 @@
               terminal.status = event.status || "failed";
               announcement.textContent = "Response failed.";
               break;
-            case "cancelled":
+            case "cancelled": {
               thinking(false);
-              log.appendChild(el("div", { class: "note", role: "status", text: "Stopped" }));
+              const note = el("div", { class: "note", role: "status", text: "Stopped" });
+              log.appendChild(note);
+              if (options && options.stopped) options.stopped(note);
               terminal.status = "cancelled";
               announcement.textContent = "Response stopped.";
               break;
+            }
             case "done":
               terminal.status = event.status || "completed";
               if (event.status === "incomplete") {

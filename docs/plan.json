@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-chat-sessions",
-      "title": "Continue a stopped or resumed conversation exactly: keep the decoded tokens in the prompt cache, store each turn's token context, and continue after Stop with the tokens an uninterrupted greedy run produces, without re-prefill",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Continue a stopped or resumed conversation exactly: keep the decoded tokens in the prompt cache, store each turn's token context, and continue after Stop with the tokens an uninterrupted greedy run produces, without re-prefill",
-          "status": "open",
-          "verify": "test -f internal/server/response_session_test.go \u0026\u0026 go test ./internal/server -run '^TestResponsesContinueSavedSession$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SessionContinuation|LayoutAudit)$' -leg 'session continuation leg'",
-          "rationale": "Survey (2026-09-23): continuing a conversation re-prefills the previous reply because the prompt cache saves only the prompt tokens and releases the decoded tokens' state when generation returns; the cache holds one entry shared by every request, so another conversation evicts it; Stop stores only the text already sent (the stop filter's held-back text and summary reasoning are lost) and continuing re-renders the partial as a finished message. The engine's SaveSession, LoadSession and ContinueSession have no production caller and work only on the host cache, which serving does not use. Save the cache entry after decoding (every token but the pending last one), return partial ids on cancellation, store each turn's token context with its interaction, build the next turn in token space, add a continue request with a Continue control, and delete the unused session API. Acceptance: continuing after Stop produces the tokens of an uninterrupted greedy run with no re-prefill; a session from another model or sampler is refused with its reason."
-        }
-      ]
-    },
-    {
       "id": "gui-approve-in-place",
       "title": "Decide pending operations where they surface, and several at once",
       "owner": "overgo_gui_cleanup",

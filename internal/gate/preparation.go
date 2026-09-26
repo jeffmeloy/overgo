@@ -253,15 +253,22 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	g.selection = automationcheck.MeasureSelection(definitions, impact)
 	g.selectionID = surface.Identity
 	// Every owned check's decision is on the record: the closure proof that
-	// excluded it, or the fact that triggered it.
+	// excluded it, the fact that triggered it, or the uncertainty that left
+	// it unresolved, so a check that runs for want of a proof never reads as
+	// one the change reached.
 	for _, check := range definitions {
-		if check.Descriptor.Ownership.Fact == "" {
+		fact := check.Descriptor.Ownership.Fact
+		if fact == "" {
 			continue
 		}
 		if reason, excluded := impact.ExclusionReason(check.Descriptor.Name); excluded {
 			g.advise(noteImpact, fmt.Sprintf("impact selection: %s excluded: %s", check.Descriptor.Name, reason))
+		} else if slices.Contains(impact.Facts, fact) {
+			g.advise(noteImpact, fmt.Sprintf("impact selection: %s triggered: %s", check.Descriptor.Name, fact))
+		} else if len(surface.Unknown) != 0 {
+			g.advise(noteImpact, fmt.Sprintf("impact selection: %s unresolved under %d uncertainties; first %s", check.Descriptor.Name, len(surface.Unknown), surface.Unknown[0]))
 		} else {
-			g.advise(noteImpact, fmt.Sprintf("impact selection: %s triggered: %s", check.Descriptor.Name, check.Descriptor.Ownership.Fact))
+			g.advise(noteImpact, fmt.Sprintf("impact selection: %s unresolved: no exclusion proof", check.Descriptor.Name))
 		}
 	}
 	checks, err := automationcheck.Plan(definitions, impact)

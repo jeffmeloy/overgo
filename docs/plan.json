@@ -4,6 +4,101 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "tracked-files-need-readers",
+      "title": "Refuse a tracked document or fixture that nothing reads",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse a tracked document or fixture that nothing reads",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestEveryTrackedFileHasAReader$' -count=1",
+          "rationale": "File consolidation first, since it makes the rest enforceable (owner priority 2026-09-26: git tracks only what a person authors plus test fixtures; enforce by construction). An audit of the 296 tracked .md and .json files found 17 orphans nothing reads, links or pins (four qwen-twentyseven diagnostics, COLIBRI2_REVIEW.md, docs/gui/INTEGRATION.md, e4b-validation.md, eight unreferenced fixtures including the superseded carbon_golden and minicpm5_golden, and probably audioparity's firered_stream_vad_execution recipe). The document census missed them because it credits every file under a globbed directory as read and covers only the root and docs/. Make the census name each file's reader -- an embed, an exact path, a digest pin, a link from a human document, or a glob whose consumer keeps the file -- across docs/, fixtures/ and testdata, and delete what it then refuses. The same reader map is the selection index for non-prose documents: a changed file with named readers already selects only them (attributeNamedDocuments); an opaque reader (a package reading a path its source does not name, 197 today) must name its inputs instead of binding to every file. The prose selection fix is its own row, selection-prose-per-path. Done when TestEveryTrackedFileHasAReader refuses a tracked file with no reader and the orphans are gone."
+        }
+      ]
+    },
+    {
+      "id": "ratchets-one-document",
+      "title": "Hold the gate's ratchets and baselines in one document",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold the gate's ratchets and baselines in one document",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestRatchetsLiveInOneDocument$' -count=1",
+          "rationale": " File consolidation (owner priority 2026-09-26). Eleven ratchet and baseline files (the *_baseline.json family, structure_budgets, staged_surface, published_debt, plan_proof_horizon; six under 400 bytes) are one concern the gate already reads as a set (internal/gate/master_ratchets.go). Hold them in one docs/ratchets.json, one section per ratchet with its owner, so the merge ratchet check, the staged repairs and the preflight read one document. Done when TestRatchetsLiveInOneDocument finds every ratchet in docs/ratchets.json and none of the separate files."
+        }
+      ]
+    },
+    {
+      "id": "verification-specs-into-compatibility",
+      "title": "Fold the per-model verification specs into compatibility.json and their run logs into the store",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fold the per-model verification specs into compatibility.json and their run logs into the store",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^TestModelClaimsLiveInCompatibility$' -count=1",
+          "rationale": " File consolidation (owner priority 2026-09-26). docs/verification holds about 60 per-model spec JSONs (inference, -training and external-benchmark specs per model) and 58 run logs pinned by digest; compatibility -record-verification already copies the evidence into the store (cmd/compatibility/main.go ground()). Fold each model's claims into compatibility.json, which already holds the capability contracts, and keep the run logs and request inputs only in the store under their recorded identities; the four qwen-twentyseven diagnostics with no claims and no pin go. Done when TestModelClaimsLiveInCompatibility finds every model claim in compatibility.json and docs/verification empty."
+        }
+      ]
+    },
+    {
+      "id": "media-campaign-one-record",
+      "title": "Fold the media campaign's 22 files into one record",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fold the media campaign's 22 files into one record",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^TestMediaCampaignIsOneRecord$' -count=1",
+          "rationale": " File consolidation (owner priority 2026-09-26). The image and video campaign spans 19 docs/image_video_*.json files, media_reviewed_deltas.json, media_report.json and MEDIA_REPORT.md, about 830 KB for one concern; 16 are frozen receipts only cmd/compatibility tests read. Keep one authored media record (protocol, validation, assertions, capacity) and move the frozen receipts into the store with lineage, repointing the pins in gate/pinned_bytes.go and gate/surface_preflight.go. Pinned media evidence moves in one landing with its runtime digest (runtime-evidence-substrate). Done when TestMediaCampaignIsOneRecord finds one tracked media record."
+        }
+      ]
+    },
+    {
+      "id": "one-capability-report",
+      "title": "Replace the six generated capability reports with one rendered from the store",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace the six generated capability reports with one rendered from the store",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^TestOneCapabilityReport$' -count=1",
+          "rationale": " File consolidation (owner priority 2026-09-26). COMPATIBILITY.md, TRAINING_COMPATIBILITY.md, BENCHMARK.md, MEDIA_REPORT.md, media_report.json (381 KB, its totals duplicate MEDIA_REPORT.md) and model_compatibility.json (80 KB, written by -update-models, read and checked by nothing) are six generated views of one set of claims. Render one capability report from compatibility.json and the store (compatibility -report); track it only if an offline reader needs it, checked by automationcheck like the SBOM; repoint README links. Done when TestOneCapabilityReport finds one generated report and none of the six."
+        }
+      ]
+    },
+    {
+      "id": "root-policies-beside-owners",
+      "title": "Move the root policy documents beside their owners",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move the root policy documents beside their owners",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestRootHoldsNoPolicyDocuments$' -count=1",
+          "rationale": " File consolidation (owner priority 2026-09-26: git tracks only what a person authors plus test fixtures; what is measured or generated lives in the store). The root *_policy.json files and library_validation.json each govern one owner; embed each beside its owner as the internal/ policies already are, or fold them into one policy document where several owners share it. Done when TestRootHoldsNoPolicyDocuments finds no policy document at the repository root."
+        }
+      ]
+    },
+    {
       "id": "automation-lanes-one-process",
       "title": "Run every deferred lane from one build under one device claim",
       "class": "consolidation",
@@ -1180,7 +1275,14 @@
             "receipt-serial-packages/do",
             "train-routes-first-probes/do",
             "train-routes-lane-repair/do",
-            "root-documents-refactor/do"
+            "root-documents-refactor/do",
+            "root-policies-beside-owners/do",
+            "one-capability-report/do",
+            "media-campaign-one-record/do",
+            "verification-specs-into-compatibility/do",
+            "ratchets-one-document/do",
+            "tracked-files-need-readers/do",
+            "selection-prose-per-path/do"
           ]
         }
       ]

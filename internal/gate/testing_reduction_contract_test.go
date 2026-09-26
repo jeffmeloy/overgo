@@ -154,8 +154,9 @@ func hasInvocation(planned plannedPipeline, name string) bool {
 }
 
 // TestNamedDocumentAttribution resolves a changed document to the packages
-// that name it and leaves an unnamed document uncertain: the opaque reader
-// beside the named reader does not own it.
+// that name it, drops prose to the document checks, and leaves an unnamed
+// non-prose document uncertain: the opaque reader beside the named reader
+// does not own it.
 func TestNamedDocumentAttribution(t *testing.T) {
 	t.Parallel()
 	g := runtimeReaderFixture(t)
@@ -174,26 +175,31 @@ func TestNamedDocumentAttribution(t *testing.T) {
 		ExternalInputs: []codemanifest.ExternalInputChange{
 			{Path: "docs/config.txt", Kind: codemanifest.ChangeModified, Base: &codemanifest.ExternalInput{Path: "docs/config.txt", Owner: "docs"}, Candidate: &codemanifest.ExternalInput{Path: "docs/config.txt", Owner: "docs"}},
 			{Path: "README.md", Kind: codemanifest.ChangeModified, Base: &codemanifest.ExternalInput{Path: "README.md", Owner: "."}, Candidate: &codemanifest.ExternalInput{Path: "README.md", Owner: "."}},
+			{Path: "docs/unnamed.txt", Kind: codemanifest.ChangeModified, Base: &codemanifest.ExternalInput{Path: "docs/unnamed.txt", Owner: "docs"}, Candidate: &codemanifest.ExternalInput{Path: "docs/unnamed.txt", Owner: "docs"}},
 		},
 		Uncertainty: []codemanifest.Uncertainty{
 			{Kind: codemanifest.UncertaintyNonGo, Path: "docs/config.txt", Reason: "changed non-Go input has no structural dependency adapter"},
 			{Kind: codemanifest.UncertaintyNonGo, Path: "README.md", Reason: "changed non-Go input has no structural dependency adapter"},
+			{Kind: codemanifest.UncertaintyNonGo, Path: "docs/unnamed.txt", Reason: "changed non-Go input has no structural dependency adapter"},
 			{Kind: codemanifest.UncertaintyInterface, Reason: "dispatch"},
 		},
 	}
 	attributed, documents, notes := attributeNamedDocuments(impact, graph)
-	if len(notes) != 1 || !strings.Contains(notes[0], "docs/config.txt attributed to its named readers internal/reader") {
+	if len(notes) != 2 || !strings.Contains(notes[0], "docs/config.txt attributed to its named readers internal/reader") ||
+		!strings.Contains(notes[1], "README.md is prose") {
 		t.Fatalf("notes = %v", notes)
 	}
-	if len(attributed.Uncertainty) != 2 || attributed.Uncertainty[0].Path != "README.md" || attributed.Uncertainty[1].Kind != codemanifest.UncertaintyInterface {
+	if len(attributed.Uncertainty) != 2 || attributed.Uncertainty[0].Path != "docs/unnamed.txt" || attributed.Uncertainty[1].Kind != codemanifest.UncertaintyInterface {
 		t.Fatalf("uncertainty = %+v", attributed.Uncertainty)
 	}
 	if !slices.Equal(documents["docs/config.txt"], []string{"internal/reader"}) || len(documents) != 1 {
 		t.Fatalf("documents = %v", documents)
 	}
-	// Owners and packages are untouched: the resolver answers the document's
-	// directory through the named readers instead.
-	if attributed.ExternalInputs[0].Base.Owner != "docs" || !slices.Equal(attributed.Packages, impact.Packages) || len(impact.Uncertainty) != 3 {
+	// Prose leaves the external inputs; every other owner and the packages
+	// are untouched: the resolver answers a document's directory through
+	// its named readers instead.
+	if len(attributed.ExternalInputs) != 2 || attributed.ExternalInputs[0].Base.Owner != "docs" || attributed.ExternalInputs[1].Path != "docs/unnamed.txt" ||
+		!slices.Equal(attributed.Packages, impact.Packages) || len(impact.Uncertainty) != 4 || len(impact.ExternalInputs) != 3 {
 		t.Fatalf("attribution changed owners or packages: %+v", attributed)
 	}
 	g.attributedDocuments = documents

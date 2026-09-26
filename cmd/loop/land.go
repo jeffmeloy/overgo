@@ -10,10 +10,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
@@ -154,60 +154,29 @@ type execRowWorld struct {
 	message []byte
 }
 
-func (w execRowWorld) tool(arguments ...string) (string, error) {
-	return runToolEnv(os.Environ(), bytes.NewReader(w.message), &verdictLines{out: os.Stderr}, arguments...)
-}
-
-// verdictLines passes on the lines of a tool's output that decide or explain
-// the outcome: a refusal, a failing test with the detail indented under it,
-// the gate's verdict and what it measured. Everything else a landing prints
-// -- selection lists, a line per package -- is a record in the store already,
-// so a worker has no transcript worth saving to a file.
-type verdictLines struct {
-	out     io.Writer
-	partial []byte
-	failing bool
-}
-
-var verdictLine = regexp.MustCompile(`FAIL|result=fail|blocker:|refused|^(?:plan:|gate: gate:|GATE |advisory: (?:class|delta|debt|warning):|preflight: (?:\d+|first) finding)`)
-
-// Write echoes the whole lines completed by data that the verdict keeps.
-func (v *verdictLines) Write(data []byte) (int, error) {
-	v.partial = append(v.partial, data...)
-	for {
-		line, rest, whole := bytes.Cut(v.partial, []byte{'\n'})
-		if !whole {
-			return len(data), nil
-		}
-		v.partial = rest
-		if v.keeps(string(line)) {
-			if _, err := fmt.Fprintf(v.out, "%s\n", line); err != nil {
-				return len(data), err
-			}
-		}
+// tool runs one repository tool, echoing its standard output -- a tool's
+// verdict; its progress is standard error -- and returns a failed run's
+// refusal: the final error the tool wrote to its error file, or the tail of
+// its standard error when it wrote none, as a build that never ran it.
+func (w execRowWorld) tool(echo io.Writer, arguments ...string) (string, error) {
+	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-%d.error", os.Getpid()))
+	_ = os.Remove(errorFile)
+	progress := clioptions.NewTailWriter(clioptions.DiagnosticTailBytes)
+	err := runToolEnv(append(os.Environ(), clioptions.ErrorFileEnvironment+"="+errorFile), bytes.NewReader(w.message), echo, progress, arguments...)
+	if err == nil {
+		return "", nil
 	}
-}
-
-func (v *verdictLines) keeps(line string) bool {
-	detail := v.failing && strings.TrimLeft(line, " \t") != line
-	v.failing = detail || strings.Contains(line, "--- FAIL")
-	return detail || verdictLine.MatchString(line)
-}
-
-// refusalOf keeps the lines of a failed tool run that say why.
-func refusalOf(output string) string {
-	var kept strings.Builder
-	_, _ = (&verdictLines{out: &kept}).Write([]byte(output + "\n"))
-	return strings.TrimSpace(cmp.Or(kept.String(), output))
+	final, readErr := os.ReadFile(errorFile)
+	if readErr != nil {
+		final = []byte(progress.Tail())
+	}
+	return cmp.Or(strings.TrimSpace(string(final)), err.Error()), err
 }
 
 // Claim dispatches the row to this worker; the holder re-claims idempotently.
 func (w execRowWorld) Claim(reference string) (string, error) {
-	out, err := w.tool("go", "run", "./cmd/plan", "-prompt", reference)
-	if err != nil {
-		return refusalOf(out), nil
-	}
-	return "", nil
+	refusal, _ := w.tool(io.Discard, "go", "run", "./cmd/plan", "-prompt", reference)
+	return refusal, nil
 }
 
 // Preflight diagnoses the dirty tree without admission or acceptance credit.
@@ -219,28 +188,22 @@ func (w execRowWorld) Preflight(reference string) (string, error) {
 			fmt.Fprintln(os.Stderr, warning)
 		}
 	}
-	out, err := w.tool("go", "run", "./cmd/gate", "-preflight", "-plan", reference)
-	if err != nil {
-		return refusalOf(out), nil
-	}
-	return "", nil
+	refusal, _ := w.tool(io.Discard, "go", "run", "./cmd/gate", "-preflight", "-plan", reference)
+	return refusal, nil
 }
 
 // Gate commits the row over the ship set the gate derives. The gate runs
 // built, not through go run, so its resource-busy status reaches the loop.
 func (w execRowWorld) Gate(reference, messageFile string) (string, error) {
 	gate := filepath.Join(loopWorktree, "bin", "gate.exe")
-	out, err := w.tool("go", "build", "-o", gate, "./cmd/gate")
+	refusal, err := w.tool(io.Discard, "go", "build", "-o", gate, "./cmd/gate")
 	if err == nil {
-		out, err = w.tool(gate, "-plan", reference, "-message-file", messageFile)
+		refusal, err = w.tool(os.Stderr, gate, "-plan", reference, "-message-file", messageFile)
 	}
-	switch {
-	case err == nil:
-		return "", nil
-	case errors.Is(err, processcontrol.ErrResourceBusy):
-		return refusalOf(out), err
+	if errors.Is(err, processcontrol.ErrResourceBusy) {
+		return refusal, err
 	}
-	return refusalOf(out), nil
+	return refusal, nil
 }
 
 // Landed confirms from git that HEAD is the completion of reference.

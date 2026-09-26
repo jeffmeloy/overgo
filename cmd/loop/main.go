@@ -516,26 +516,25 @@ func planCommand(verbs ...string) (string, error) {
 // runTool supervises one repository tool invocation and returns its
 // combined output.
 func runTool(arguments ...string) (string, error) {
-	return runToolEnv(loopEnvironment(), nil, io.Discard, arguments...)
+	var combined bytes.Buffer
+	err := runToolEnv(loopEnvironment(), nil, &combined, &combined, arguments...)
+	return combined.String(), err
 }
 
-// runToolEnv is runTool under the caller's chosen environment, echoing the
-// tool's output to echo as it is captured.
-func runToolEnv(environment []string, input io.Reader, echo io.Writer, arguments ...string) (string, error) {
-	var combined bytes.Buffer
-	captured := io.MultiWriter(&combined, echo)
+// runToolEnv supervises one tool under the caller's environment and streams.
+func runToolEnv(environment []string, input io.Reader, stdout, stderr io.Writer, arguments ...string) error {
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
 		Path:   arguments[0],
 		Env:    environment,
 		Args:   arguments[1:],
 		Stdin:  input,
-		Stdout: captured,
-		Stderr: captured,
+		Stdout: stdout,
+		Stderr: stderr,
 	})
 	if err == nil && receipt.ExitCode != 0 {
 		err = toolExit(receipt.ExitCode)
 	}
-	return combined.String(), err
+	return err
 }
 
 // toolExit is a tool's nonzero exit status; the resource-busy status is

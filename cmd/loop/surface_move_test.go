@@ -51,9 +51,6 @@ func TestLandingNamesAnInferenceSurfaceMove(t *testing.T) {
 			t.Errorf("warning lacks %q: %s", part, warning)
 		}
 	}
-	if !verdictLine.MatchString(warning) {
-		t.Errorf("the landing's verdict filter would drop the warning: %s", warning)
-	}
 	many := make([]string, surfaceMoveShown+3)
 	for index := range many {
 		many[index] = "internal/inference/file" + string(rune('a'+index)) + ".go"

@@ -19,6 +19,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
+	"overgo/internal/clioptions"
 	"overgo/internal/closurescan"
 	"overgo/internal/commanddoc"
 	"overgo/internal/extent"
@@ -106,10 +107,7 @@ func main() {
 	if err == nil && !handled {
 		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, review: *review, reviewKind: *reviewKind, reviewRow: *reviewRow, reviewReason: *reviewReason, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, sealHorizon: *sealHorizon, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
 	}
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("plan", func() error { return err })
 }
 
 type cli struct {

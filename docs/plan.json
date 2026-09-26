@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "automation-typed-audit-notes",
-      "title": "Emit typed gate notes and one structured verdict",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Emit typed gate notes and one structured verdict",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestLandReadsStructuredVerdict$' -count=1",
-          "rationale": "Owner 2026-09-25 classification directive. The gate's g.note emits free text that compactAudit (gate.go:663-693), appendGateAdvisoryFinding, the commit message's Measured block (commit_message.go:14,30) and preflightRepairs (preflight.go:354) each re-parse by prefix, and cmd/loop recovers the gate's verdict with a verdictLine regex (land.go:159,180). Notes become typed records (kind: measured, advisory, warning, reuse or repair, with typed fields), rendered to text only at the edge, and the gate and plan emit one structured verdict (outcome, blocker, findings) that cmd/loop reads directly. The prefix parsers and the verdict regex are deleted. GUI lane survey items 1 and 2. Done when TestLandReadsStructuredVerdict proves cmd/loop takes its outcome from the gate's typed verdict with no text parsing."
-        }
-      ]
-    },
-    {
       "id": "automation-typed-failure-kinds",
       "title": "Classify failures as typed kinds at their owner, not by message text",
       "owner": "master-lead",

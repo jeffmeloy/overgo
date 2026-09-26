@@ -318,7 +318,7 @@ func TestAcceptedSpecializedTaskEvidence(t *testing.T) {
 	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	var coverage acceptedCoverage
-	requireAcceptedDocument(t, root, "docs/verification/specialized-coverage.json", "7e9d3f6e023fdae69406565fc4c86a460576b2169ef1e8846d0287915e81756b", &coverage)
+	requireAcceptedDocument(t, root, "docs/verification/specialized-coverage.json", "e918302bf88dfa0b831391835a4b515dd40b96d425f52624e82d83b342198d63", &coverage)
 	requireAcceptedCoverage(t, root, coverage, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskTranscription, recipe.TaskGeneration, recipe.TaskAlignment, recipe.TaskDiarization, recipe.TaskActivityDetection, recipe.TaskAudioConversion, recipe.TaskAudioGeneration)
 }
 

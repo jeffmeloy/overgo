@@ -189,7 +189,7 @@
     "fixtures/tabfm_predict_golden.json": "c3d7c0c4d9b5f5cf04074d810a07756bc040e9e1e2e48a00270e0512aa79e9f9",
     "fixtures/timesfm_golden.json": "4ea782a5ac1173f7dfa829f9e618615e8cccd0faf3b06a3ade40a50cd5f0ff17",
     "internal/seq2seq/oracle_golden_test.go": "f5f1cd86999a59713a1f003bbc4575b98a370d439c0ab6c453dcf1d8ba7df5b5",
-    "internal/seq2seq/real_text_model_test.go": "cfc35696e7638aa38e40f524a41ae01d2c7478e240a9c8913987135e57d0a50e",
+    "internal/seq2seq/real_text_model_test.go": "b2868c3f7120caf79db9c7dc89ec04f24cc99731fcf79bbeeace51439c515290",
     "internal/seriesforecast/forward_golden_test.go": "ff5f6a548ba6fcc34e5b46140fed5b50b142fd273745f98ee47b874ed84597d9",
     "internal/speechsynth/cancellation_test.go": "b9a7293ce114fe53df08a41c7a5725ca4f6ec9d740dbe0321c36da6797c39464",
     "internal/speechsynth/codec_golden_test.go": "9095b101f804d2201947c98f2ecde6f02a788d0eec2c946e749131fcfe242f30",

@@ -36,9 +36,7 @@ func receipt(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	var stream bytes.Buffer
-	run, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: "go", Args: append([]string{"test", "-json", "-count=1"}, flags.Args()...), Stdout: &stream, Stderr: stderr,
-	})
+	run, err := processcontrol.Run(ctx, processcontrol.Command{Path: "go", Args: receiptArgs(flags.Args()), Stdout: &stream, Stderr: stderr})
 	if err != nil || run.ExitCode != 0 {
 		fmt.Fprintf(stderr, "test-lane receipt: go test failed (exit=%d): %v\n", run.ExitCode, err)
 		return 1
@@ -50,6 +48,13 @@ func receipt(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "test-lane receipt: published %s for %s\n", id, strings.Join(flags.Args(), " "))
 	return 0
+}
+
+// receiptArgs runs the packages one at a time: a receipt proves device tests,
+// and parallel packages reserve the one GPU against each other. A -p the
+// operator passes still wins, as go test keeps the last.
+func receiptArgs(operator []string) []string {
+	return append([]string{"test", "-json", "-count=1", "-p=1"}, operator...)
 }
 
 // publishReceipt keeps a complete go test -json stream as evidence and returns

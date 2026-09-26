@@ -29,7 +29,17 @@ type mediaRuntimePins struct {
 // already refuses such a source, but it runs after the commit, so the move is
 // found only once it is recorded and has to be undone by a second commit.
 // Naming it here costs a file read and reports the path that moved.
+// A change to bytes a record pins is found here for the same reason.
 func (g *gateContext) stepSurface() (bool, error) {
+	quiet, err := g.mediaSurface()
+	stale, pinErr := stalePins(g.repo, g.paths)
+	if pinErr == nil && len(stale) != 0 {
+		pinErr = fmt.Errorf("changes bytes a record pins: %s; repin the record for a behaviour-neutral edit, or restore the file", strings.Join(stale, "; "))
+	}
+	return quiet && len(stale) == 0, errors.Join(err, pinErr)
+}
+
+func (g *gateContext) mediaSurface() (bool, error) {
 	data, err := os.ReadFile(filepath.Join(g.repo, filepath.FromSlash(mediaMergedDocument)))
 	if errors.Is(err, fs.ErrNotExist) {
 		return true, nil

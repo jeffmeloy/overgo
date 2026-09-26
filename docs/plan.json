@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "pinned-bytes-preflight",
-      "title": "Refuse a change to pinned bytes before the commit, not in a deferred lane",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse a change to pinned bytes before the commit, not in a deferred lane",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestPreflightNamesPinnedBytes$' -count=1",
-          "rationale": "Found 2026-09-26: three landings in one session touched files whose exact bytes a record pins -- coverage Inputs in docs/verification/*-coverage.json, acquisition source_files in docs/image_video_*.json, a document digest pinned in a complete-mode cmd/compatibility test -- and each was refused only after the commit, by a deferred lane or a complete-mode test (797c6efc left a stale digest; b335caee needed a retry; 1150a394 failed test-device). The pins are data: every docs/*.json and docs/verification/*.json entry that maps a repository path to a sha256. The preflight collects those path-to-digest pins once (one typed index, not a regex over prose) and names every planned path whose working bytes differ from a pin, with the pinning document, so the landing repins or restores before the gate runs. Done when TestPreflightNamesPinnedBytes reports a planned change to a pinned file with its pinning document, and nothing for an unpinned file."
-        }
-      ]
-    },
-    {
       "id": "automation-path-surface-catalog",
       "title": "Classify every path once in one surface catalog",
       "owner": "master-lead",

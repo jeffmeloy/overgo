@@ -12,7 +12,9 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 
 	"overgo/internal/repoanalysis"
 )
@@ -88,92 +90,32 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 	}
 	bodies := map[string]*body{}
 	for _, source := range snapshot.Files {
-		generated, err := source.Generated()
+		facts, err := profileFacts(source)
 		if err != nil {
 			return Profile{}, err
 		}
-		if generated {
-			profile.Generated.Files++
-			file, syntaxErr := source.Syntax()
-			if syntaxErr != nil {
-				return Profile{}, syntaxErr
-			}
-			profile.Generated.Nodes += NodeCount(file)
-			continue
-		}
-		file, err := source.Syntax()
-		if err != nil {
-			return Profile{}, err
-		}
-		nodes := NodeCount(file)
 		partition := &profile.Runtime
 		switch {
+		case facts.generated:
+			partition = &profile.Generated
 		case source.Test:
 			partition = &profile.Test
 		case strings.HasPrefix(filepath.ToSlash(source.Path), "cmd/"):
 			partition = &profile.Automation
 		}
 		partition.Files++
-		partition.Nodes += nodes
-		packagePath := filepath.ToSlash(filepath.Dir(source.Path))
-		for _, imported := range file.Imports {
-			imports[packagePath+"\x00"+imported.Path.Value] = true
+		partition.Nodes += facts.nodes
+		profile.ExportedDeclarations += facts.exported
+		for _, imported := range facts.imports {
+			imports[imported] = true
 		}
-		for _, declaration := range file.Decls {
-			switch value := declaration.(type) {
-			case *ast.FuncDecl:
-				if !source.Test && ast.IsExported(value.Name.Name) {
-					profile.ExportedDeclarations++
-				}
-				if value.Body == nil {
-					continue
-				}
-				size, branches := NodeCount(value.Body), branchCount(value.Body)
-				ref := source.Path + ":" + value.Name.Name
-				class := advisoryClass(source.Test, value)
-				fingerprint, err := exactNodeFingerprint(value)
-				if err != nil {
-					return Profile{}, err
-				}
-				signature, err := functionSignatureFingerprint(value)
-				if err != nil {
-					return Profile{}, err
-				}
-				bodyFingerprint, err := exactNodeFingerprint(value.Body)
-				if err != nil {
-					return Profile{}, err
-				}
-				clone, err := cloneFingerprint(value.Body)
-				if err != nil {
-					return Profile{}, err
-				}
-				profile.Functions = append(profile.Functions, Function{
-					File: source.Path, Name: value.Name.Name, Nodes: size, Branches: branches, AdvisoryClass: class,
-					packagePath: packagePath, receiver: receiverName(value), fingerprint: fingerprint,
-					signatureFingerprint: signature, bodyFingerprint: bodyFingerprint,
-				})
-				key := class + "\x00" + clone
-				if bodies[key] == nil {
-					bodies[key] = &body{nodes: size, delegates: true}
-				}
-				bodies[key].refs = append(bodies[key].refs, ref)
-				bodies[key].delegates = bodies[key].delegates && pureDelegate(value)
-			case *ast.GenDecl:
-				for _, spec := range value.Specs {
-					switch named := spec.(type) {
-					case *ast.TypeSpec:
-						if !source.Test && ast.IsExported(named.Name.Name) {
-							profile.ExportedDeclarations++
-						}
-					case *ast.ValueSpec:
-						for _, name := range named.Names {
-							if !source.Test && ast.IsExported(name.Name) {
-								profile.ExportedDeclarations++
-							}
-						}
-					}
-				}
+		profile.Functions = append(profile.Functions, facts.functions...)
+		for _, clone := range facts.clones {
+			if bodies[clone.key] == nil {
+				bodies[clone.key] = &body{nodes: clone.nodes, delegates: true}
 			}
+			bodies[clone.key].refs = append(bodies[clone.key].refs, clone.ref)
+			bodies[clone.key].delegates = bodies[clone.key].delegates && clone.delegates
 		}
 	}
 	profile.PackageImportEdges = len(imports)
@@ -210,6 +152,111 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 		return profile.Clones[i].AdvisoryClass < profile.Clones[j].AdvisoryClass
 	})
 	return profile, nil
+}
+
+// fileFacts is one source file's share of a profile. It depends only on the
+// file's path, content and test role, so a snapshot that shares a file with
+// an earlier one reuses its facts instead of printing its functions again.
+type fileFacts struct {
+	generated       bool
+	nodes, exported int
+	imports         []string
+	functions       []Function
+	clones          []cloneFact
+}
+
+type cloneFact struct {
+	key, ref  string
+	nodes     int
+	delegates bool
+}
+
+var fileFactsMemo sync.Map
+
+func profileFacts(source repoanalysis.GoFile) (fileFacts, error) {
+	key := source.Path + "\x00" + source.ContentID + "\x00" + strconv.FormatBool(source.Test)
+	if cached, found := fileFactsMemo.Load(key); found {
+		return cached.(fileFacts), nil
+	}
+	var facts fileFacts
+	generated, err := source.Generated()
+	if err != nil {
+		return fileFacts{}, err
+	}
+	file, err := source.Syntax()
+	if err != nil {
+		return fileFacts{}, err
+	}
+	facts.generated, facts.nodes = generated, NodeCount(file)
+	if !generated {
+		if err := facts.addDeclarations(source, file); err != nil {
+			return fileFacts{}, err
+		}
+	}
+	if source.ContentID != "" {
+		fileFactsMemo.Store(key, facts)
+	}
+	return facts, nil
+}
+
+func (facts *fileFacts) addDeclarations(source repoanalysis.GoFile, file *ast.File) error {
+	packagePath := filepath.ToSlash(filepath.Dir(source.Path))
+	for _, imported := range file.Imports {
+		facts.imports = append(facts.imports, packagePath+"\x00"+imported.Path.Value)
+	}
+	for _, declaration := range file.Decls {
+		switch value := declaration.(type) {
+		case *ast.FuncDecl:
+			if !source.Test && ast.IsExported(value.Name.Name) {
+				facts.exported++
+			}
+			if value.Body == nil {
+				continue
+			}
+			size, branches := NodeCount(value.Body), branchCount(value.Body)
+			class := advisoryClass(source.Test, value)
+			fingerprint, err := exactNodeFingerprint(value)
+			if err != nil {
+				return err
+			}
+			signature, err := functionSignatureFingerprint(value)
+			if err != nil {
+				return err
+			}
+			bodyFingerprint, err := exactNodeFingerprint(value.Body)
+			if err != nil {
+				return err
+			}
+			clone, err := cloneFingerprint(value.Body)
+			if err != nil {
+				return err
+			}
+			facts.functions = append(facts.functions, Function{
+				File: source.Path, Name: value.Name.Name, Nodes: size, Branches: branches, AdvisoryClass: class,
+				packagePath: packagePath, receiver: receiverName(value), fingerprint: fingerprint,
+				signatureFingerprint: signature, bodyFingerprint: bodyFingerprint,
+			})
+			facts.clones = append(facts.clones, cloneFact{
+				key: class + "\x00" + clone, ref: source.Path + ":" + value.Name.Name, nodes: size, delegates: pureDelegate(value),
+			})
+		case *ast.GenDecl:
+			for _, spec := range value.Specs {
+				switch named := spec.(type) {
+				case *ast.TypeSpec:
+					if !source.Test && ast.IsExported(named.Name.Name) {
+						facts.exported++
+					}
+				case *ast.ValueSpec:
+					for _, name := range named.Names {
+						if !source.Test && ast.IsExported(name.Name) {
+							facts.exported++
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // pureDelegate reports whether the function body is one statement

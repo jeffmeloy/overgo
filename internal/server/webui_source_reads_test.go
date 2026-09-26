@@ -26,7 +26,7 @@ func pendingLeg(row string) webuiSourceClass {
 
 // webuiPendingCeiling bounds the needle tests that still stand in for a
 // browser leg; each leg row that lands lowers it.
-const webuiPendingCeiling = 25
+const webuiPendingCeiling = 21
 
 // webuiSourceReaders declares every server test that reads the served UI
 // source; internal/gate's census holds the declaration to the tests.
@@ -64,11 +64,6 @@ var webuiSourceReaders = map[string]webuiSourceClass{
 	"TestWebUIChatUsesServerContextAndTiming":                     sourceBan,
 	"TestWebUIChatMarkdown":                                       sourceBan,
 	"TestRLWorkspaceUsesGenericWorkflowEndpoints":                 sourceBan,
-
-	"TestWebUIHeatmapLegend":                        pendingLeg("gui-legs-analysis"),
-	"TestSignedSeriesPreservesNegativeMeasurements": pendingLeg("gui-legs-analysis"),
-	"TestWebUICancel":                               pendingLeg("gui-legs-analysis"),
-	"TestWebUIShellCache":                           pendingLeg("gui-legs-analysis"),
 
 	"TestPeerWorkspaceVertical":             pendingLeg("gui-legs-peers"),
 	"TestPeerWorkspaceUsesCommonForm":       pendingLeg("gui-legs-peers"),

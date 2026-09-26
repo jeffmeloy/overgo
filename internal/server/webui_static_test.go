@@ -242,49 +242,6 @@ func TestWebUIStyleInvariants(t *testing.T) {
 	}
 }
 
-// TestWebUIHeatmapLegend guards the heatmap readability additions: a color-scale
-// legend built from the same ramp() the cells use, and axis tick labels driven by
-// caller-supplied labels (so a reader can map color→value and read the axes
-// instead of hovering every cell).
-func TestWebUIHeatmapLegend(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	viz := serveTestRequest(handler, http.MethodGet, "/viz.js", "").Body.String()
-	for _, needle := range []string{"colorScaleLegend", "linearGradient", "rowLabels", "colLabels"} {
-		if !strings.Contains(viz, needle) {
-			t.Errorf("viz.js heatmap missing %q", needle)
-		}
-	}
-	for _, asset := range []string{"/mod/analyze_attention.js", "/mod/analyze_states.js"} {
-		if !strings.Contains(serveTestRequest(handler, http.MethodGet, asset, "").Body.String(), "labels:") {
-			t.Errorf("%s does not pass labels to heatmap (axis ticks)", asset)
-		}
-	}
-}
-
-func TestSignedSeriesPreservesNegativeMeasurements(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	viz := serveTestRequest(handler, http.MethodGet, "/viz.js", "").Body.String()
-	start := strings.Index(viz, "function signedSeries")
-	if start < 0 {
-		t.Fatal("signed series primitive absent")
-	}
-	end := strings.Index(viz[start:], "function probBars")
-	if end < 0 {
-		t.Fatal("signed series boundary absent")
-	}
-	series := viz[start : start+end]
-	for _, token := range []string{"Math.min(0, ...values)", `class: "zero-axis"`, `"data-value": String(value)`} {
-		if !strings.Contains(series, token) {
-			t.Errorf("signed series missing %q", token)
-		}
-	}
-	if strings.Contains(series, "Math.max(0, value)") {
-		t.Error("signed series clamps negative measurements")
-	}
-}
-
 func TestRLWorkspaceRendersMeasuredEvidence(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
@@ -320,55 +277,6 @@ func TestRLWorkspaceUsesGenericWorkflowEndpoints(t *testing.T) {
 	}
 	if strings.Contains(workflow, "/dpo") || strings.Contains(jobs, "/dpo") {
 		t.Error("RL workspace adds a DPO-only transport")
-	}
-}
-
-// TestWebUIShellCache guards the shared /analyze/model cache (fetched once for
-// capability gating, the Model tab, and the lens vocab size) and the periodic
-// health re-probe so a dropped/restored server updates the status pill; the
-// re-probe runs only while the page is visible.
-func TestWebUIShellCache(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
-	boot := get("/boot.js")
-	for _, needle := range []string{"modelInfo", "invalidateModel", "setInterval(probeVisible", "if (!document.hidden) refreshStatus()"} {
-		if !strings.Contains(boot, needle) {
-			t.Errorf("boot.js missing %q", needle)
-		}
-	}
-	for _, asset := range []string{"/mod/analyze_model.js", "/mod/analyze_logits.js"} {
-		body := get(asset)
-		if !strings.Contains(body, "modelInfo") {
-			t.Errorf("%s does not use the shared modelInfo cache", asset)
-		}
-		if strings.Contains(body, `api.get("/analyze/model")`) {
-			t.Errorf("%s still fetches /analyze/model directly (bypasses the cache)", asset)
-		}
-	}
-}
-
-// TestWebUICancel guards the cancelable-run path for the tabs that drive a real
-// forward pass (lens, hidden-states, attention). The abort semantics live once
-// in the shared runner; each tab drives it and forwards the signal.
-func TestWebUICancel(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
-	boot := get("/boot.js")
-	for _, needle := range []string{"AbortController", "controller.abort", "AbortError", "function runner"} {
-		if !strings.Contains(boot, needle) {
-			t.Errorf("boot.js shared runner missing %q", needle)
-		}
-	}
-	for _, asset := range []string{"/mod/analyze_logits.js", "/mod/analyze_states.js", "/mod/analyze_attention.js"} {
-		body := get(asset)
-		if !strings.Contains(body, "overgo.runner(") && !strings.Contains(body, "overgo.analysisSurface(") {
-			t.Errorf("%s does not use the shared overgo.runner", asset)
-		}
-		if !strings.Contains(body, "{ signal }") {
-			t.Errorf("%s does not forward the abort signal to its request", asset)
-		}
 	}
 }
 

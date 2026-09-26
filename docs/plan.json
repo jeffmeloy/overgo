@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-legs-media",
-      "title": "Behaviour tests, stage 7c: a browser leg drives generated media (a speech run to an artifact card with provenance, its output reused into an artifact slot, embeddings and rerank turns, and the operations' live events), retiring the generation, media round trip and modalities needles",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Behaviour tests, stage 7c: a browser leg drives generated media (a speech run to an artifact card with provenance, its output reused into an artifact slot, embeddings and rerank turns, and the operations' live events), retiring the generation, media round trip and modalities needles",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserGeneratedMedia$' -leg 'generated media leg'",
-          "rationale": "Stage 7 split 2026-09-25 by fixture: a survey of the eleven front-page needle tests found each needle's behaviour either driven by an existing leg (those needles go in the row that retires the test) or driven by no hermetic leg, and the gaps group by the fixture they need. Media group over the native media protocol fixture (image and speech declared, video refused): a speech run to an artifact card with its provenance link, that output reused into an artifact slot, embeddings and rerank turns, and the operation strip's live events. Retires TestFrontPageGenerationDeclarations, TestFrontPageMediaRoundtrip and TestFrontPageModalities, keeping their API checks and endpoint bans."
-        }
-      ]
-    },
-    {
       "id": "gui-legs-agent-thread",
       "title": "Behaviour tests, stage 7d: a browser leg drives agent mode in the front thread and a mutation's preview and approval card, retiring the front agent needles",
       "owner": "overgo_gui_cleanup",

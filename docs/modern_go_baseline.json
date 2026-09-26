@@ -2576,17 +2576,6 @@
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/codeprofile/consumer.go",
-      "symbol": "ProductionConsumerGraph",
-      "owner": "overgo/internal/codeprofile",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/codeprofile -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
       "path": "internal/codeprofile/profile.go",
       "symbol": "Build",
       "owner": "overgo/internal/codeprofile",
@@ -4665,5 +4654,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "4064196a00668d84999890c03291b287cef66919cf0c81a0cadb07a4c12edf67"
+  "exceptions_sha256": "6fd0b6f878fd54fd9dde4cee0a7e174b8328f5efdf03baaad06fe5cd2e4c67bc"
 }

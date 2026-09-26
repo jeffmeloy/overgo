@@ -648,7 +648,8 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 		if err != nil {
 			return err
 		}
-		accepted, blocking := codeprofile.PartitionStagedSurface(unconsumed, staged)
+		_, document, _ := g.row() // a checkout without a plan declares no lane
+		accepted, blocking := admitStagedSurface(unconsumed, staged, document.Lane != "")
 		if len(accepted) > 0 {
 			g.note(fmt.Sprintf(
 				"staged surface accepted per docs/staged_surface.json: %s", consumerCandidates(accepted)))
@@ -694,6 +695,17 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	}
 	g.advise(noteConsumer, consumerCensusAudit("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
 	return nil
+}
+
+// admitStagedSurface accepts the new unconsumed surface master's staged
+// declarations name. A lane's export arrives with its consumer: at a lane
+// gate no new surface is staged, so a lane cannot accumulate what a master
+// row would have to retire.
+func admitStagedSurface(unconsumed []codeprofile.ConsumerDeclaration, staged codeprofile.StagedSurfaceDeclaration, lane bool) (accepted, blocking []codeprofile.ConsumerDeclaration) {
+	if lane {
+		return nil, unconsumed
+	}
+	return codeprofile.PartitionStagedSurface(unconsumed, staged)
 }
 
 func impactSelectionAudit(selection codeprofile.ImpactSelection) string {

@@ -15,6 +15,7 @@ import (
 var masterRatchets = map[string]bool{
 	"docs/clone_baseline.json": true, "docs/harness_surface_baseline.json": true, "docs/structure_budgets.json": true,
 	"docs/modern_go_baseline.json": true, "docs/fixed_timer_baseline.json": true, "docs/family_branch_baseline.json": true,
+	"docs/staged_surface.json":          true,
 	"docs/coverage_lanes_baseline.json": false,
 }
 

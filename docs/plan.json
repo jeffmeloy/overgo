@@ -82,22 +82,6 @@
       ]
     },
     {
-      "id": "automation-lane-consumer-first",
-      "title": "Hold lane gates to consumer-first exports and paid-down harness growth",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold lane gates to consumer-first exports and paid-down harness growth",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestLaneGateRefusesUnconsumedSurface$' -count=1",
-          "rationale": "Merge lesson (2026-09-25): the VAE lane built 25 exports with no production caller, about 1,000 lines of new runrecord experimental_* record families and campaign-history code in master's internal/plan, while master's automation- rows are held net-negative and staged surface must retire with a master row. Apply the same rules at lane gates: an export arrives with its consumer, and harness growth needs a paydown row, so a lane cannot accumulate what master would refuse. Done when TestLaneGateRefusesUnconsumedSurface refuses a lane landing that adds an export with no production caller."
-        }
-      ]
-    },
-    {
       "id": "automation-one-record-table",
       "title": "Declare every store record kind in one table",
       "class": "consolidation",

@@ -65,15 +65,9 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 func TestEvaluationWorkbenchUsesDeclaredCapabilities(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
+	// The standalone tabs leg drives the evaluations tab; the source keeps
+	// every benchmark out of the page (plans come from the server).
 	module := serveTestRequest(handler, http.MethodGet, "/mod/evaluations.js", "").Body.String()
-	for _, token := range []string{
-		"/evaluations/capabilities", "/evaluations/run", "/evaluations/history", "/evaluations/report",
-		"/evaluations/failures", "/evaluations/compare", "overgo.waitOperation", "capability.suite.plan",
-	} {
-		if !strings.Contains(module, token) {
-			t.Errorf("evaluation workbench missing %q", token)
-		}
-	}
 	for _, benchmark := range []string{"mmlu", "truthfulqa", "ifeval", "bbh", "musr"} {
 		if strings.Contains(strings.ToLower(module), benchmark) {
 			t.Errorf("evaluation workbench embeds benchmark %q", benchmark)

@@ -467,21 +467,6 @@
       ]
     },
     {
-      "id": "consumer-graph-private-islands",
-      "title": "Report private code only tests reach as review candidates",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Report private code only tests reach as review candidates",
-          "status": "open",
-          "verify": "go test ./internal/codeprofile -run '^TestPrivateCodeReachedOnlyByTestsIsFound$' -count=1",
-          "rationale": "SQA-013's detector half, re-scoped by owner direction 2026-09-24: a finding of no callers is a question, not a deletion order. The unconsumed-surface rule sees exported declarations with no production consumer, but not private code reachable only through them; that is how the seq2seq trainer went unnoticed as unwired. Compute unconsumed private code transitively over ProductionConsumerGraph, with reflection and cgo boundaries counted as consumers, and report each island as a review candidate classified by what it is: a training or inference capability to wire, test support to move, or code a named wired replacement supersedes. It refuses nothing on its own. Done when TestPrivateCodeReachedOnlyByTestsIsFound reports a private helper reached only from a test-only exported function in a fixture, and not one also reached from a live root."
-        }
-      ]
-    },
-    {
       "id": "env-gated-tests-run-or-go",
       "title": "Run or delete tests no lane enables",
       "owner": "master-lead",

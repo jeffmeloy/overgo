@@ -30,7 +30,7 @@ func run() error {
 	basePath := flag.String("base", "", "canonical base manifest to compare")
 	closure := flag.Bool("closure", false, "with -base: emit reverse-reachable impact instead of the raw delta")
 	ownershipSurface := flag.Bool("ownership-surface", false, "with -base and -closure: emit the automation ownership surface")
-	unconsumed := flag.String("unconsumed", "", "instead of the manifest, list the production declarations under these comma-separated package prefixes that no production code references and no dispatch boundary explains, costliest first")
+	unconsumed := flag.String("unconsumed", "", "instead of the manifest, list the production declarations under these comma-separated package prefixes that no production code references and no dispatch boundary explains, with the private islands only such code reaches, costliest first")
 	flag.Parse()
 	resolved, err := filepath.Abs(*root)
 	if err != nil {
@@ -83,9 +83,15 @@ func run() error {
 // or nothing reference, with their node counts, costliest first: the ranked
 // paydown list for a surface that must be reduced or held.
 func listUnconsumed(snapshot repoanalysis.SourceSnapshot, selection gosource.BuildSelection, prefixes []string) error {
-	declarations, _, err := codeprofile.ProductionConsumerCensus(snapshot, selection, nil)
+	declarations, references, _, err := codeprofile.ProductionConsumerGraph(snapshot, selection)
 	if err != nil {
 		return err
+	}
+	// An island is private code whose only references come from code no live
+	// root reaches: unconsumed through its callers, not by itself.
+	islands := map[string]bool{}
+	for _, island := range codeprofile.PrivateIslands(declarations, references) {
+		islands[island.File+":"+island.Receiver+"."+island.Name] = true
 	}
 	profile, err := codeprofile.Build(snapshot)
 	if err != nil {
@@ -102,7 +108,8 @@ func listUnconsumed(snapshot repoanalysis.SourceSnapshot, selection gosource.Bui
 	var rows []row
 	total := 0
 	for _, declaration := range declarations {
-		if declaration.ProductionReferences > 0 || declaration.Boundary != "" ||
+		island := islands[declaration.File+":"+declaration.Receiver+"."+declaration.Name]
+		if (declaration.ProductionReferences > 0 || declaration.Boundary != "") && !island ||
 			!slices.ContainsFunc(prefixes, func(prefix string) bool { return strings.HasPrefix(declaration.File, strings.TrimSpace(prefix)+"/") }) {
 			continue
 		}
@@ -111,7 +118,10 @@ func listUnconsumed(snapshot repoanalysis.SourceSnapshot, selection gosource.Bui
 			name = declaration.Receiver + "." + name
 		}
 		class := "unreferenced"
-		if declaration.TestReferences > 0 {
+		switch {
+		case island && declaration.ProductionReferences > 0:
+			class = "island"
+		case declaration.TestReferences > 0:
 			class = "test-only"
 		}
 		entry := row{name: declaration.File + ":" + name, class: class, nodes: nodes[declaration.File+":"+name]}

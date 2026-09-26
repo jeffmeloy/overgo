@@ -171,6 +171,20 @@
     return { input, missing };
   };
 
+  // liveOperation: the first operation the stream's snapshot holds that
+  // matches, or null when it holds none or the stream is down.
+  function liveOperation(match) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const unsubscribe = subscribe((name, value) => {
+        if (settled || !["operation.snapshot", "stream.idle", "stream.error"].includes(name)) return;
+        settled = true;
+        resolve(name === "operation.snapshot" ? value.find(match) || null : null);
+        queueMicrotask(unsubscribe);
+      });
+    });
+  }
+
   // waitOperation follows one operation on the runtime stream to its end: the
   // server's hub never drops a transition (a stream that falls behind takes
   // fresh snapshots), and a reconnect's snapshot that no longer holds the
@@ -207,6 +221,8 @@
         const controls = el("div", { class: "control-grid" });
         const status = el("div", { class: "note" });
         const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, hidden: true });
+        const remaining = el("span", { class: "note", role: "status", "aria-label": "time remaining" });
+        const trends = el("div");
         const metrics = el("div");
         const evidence = el("div");
         const run = el("button", { class: "btn", text: "Run" });
@@ -216,7 +232,7 @@
           el("div", { class: "section-title", text: overgo.title }),
           el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), controls,
           el("div", { class: "row" }, run, cancel), status,
-          progress, metrics, evidence);
+          el("div", { class: "row" }, progress, remaining), trends, metrics, evidence);
 
         let capabilities;
         try { capabilities = await api.get("/" + definition.scope + "/capabilities"); }
@@ -246,10 +262,31 @@
           const suffix = current.run ? " / " + fmt.shortID(current.run) : "";
           status.textContent = current.state + suffix + (current.failure ? " / " + current.failure : "");
           const total = current.progress && current.progress.total;
+          const completed = current.progress ? current.progress.completed : 0;
           progress.hidden = !total;
-          if (total) { progress.max = total; progress.value = current.progress.completed; }
+          if (total) { progress.max = total; progress.value = completed; }
+          // The remainder projects the server's elapsed wall over the steps left, as of the last step.
+          const elapsed = current.progress && current.progress.elapsed_ms;
+          remaining.textContent = total && completed && elapsed && !terminal(current.state) ?
+            "step " + completed + " of " + total + " · about " + fmt.duration((total - completed) * elapsed / completed) + " remaining" : "";
+          const drawn = (current.series || []).filter((series) => definition.trend && definition.trend(series.name) && series.values.length > 1);
+          trends.replaceChildren(...drawn.map((series) => el("section", { class: "evidence-block", "data-trend": series.name },
+            el("div", { class: "section-title", text: series.name + " · " + series.reports + " steps" }),
+            overgo.viz.signedSeries([{ label: series.name, values: series.values, color: "var(--accent)" }]))));
           const table = overgo.table(["measurement", "value"], (current.metrics || []).map((metric) => [metric.name, String(metric.value) + (metric.unit ? " " + metric.unit : "")]), "metric-grid");
           metrics.replaceChildren(...((current.metrics || []).length ? [table] : []));
+        }
+        // follow: the operation's live state until it ends, then its evidence.
+        async function follow(id) {
+          operation = id;
+          run.disabled = true;
+          cancel.disabled = false;
+          cancel.hidden = false;
+          status.textContent = "running / " + fmt.shortID(operation);
+          try {
+            const completed = await overgo.waitOperation(operation, renderOperation);
+            if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
+          } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
         }
         run.addEventListener("click", async () => {
           const capability = selected();
@@ -257,18 +294,20 @@
           const { input, missing } = overgo.controlValues(fields);
           if (missing.size) { const [name] = missing; fields.get(name).input.focus(); status.textContent = name + " is required"; return; }
           run.disabled = true;
-          cancel.disabled = false;
-          cancel.hidden = false;
           evidence.replaceChildren();
+          let accepted;
           try {
-            const accepted = await api.post("/" + definition.scope + "/run", {
-              task: capability.task, recipe: capability.recipe, input,
-            });
-            operation = accepted.operation;
-            status.textContent = "running / " + fmt.shortID(operation);
-            const completed = await overgo.waitOperation(operation, renderOperation);
-            if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
-          } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
+            accepted = await api.post("/" + definition.scope + "/run", { task: capability.task, recipe: capability.recipe, input });
+          } catch (err) { status.replaceChildren(overgo.failure(err)); run.disabled = false; return; }
+          await follow(accepted.operation);
+        });
+        // A run of this tab's recipes still going (the page was reloaded) is followed again.
+        liveOperation((item) => !terminal(item.state) && capabilities.some((capability) => capability.recipe === item.recipe)).then((live) => {
+          if (!live || operation || overgo.signal.aborted) return;
+          capabilitySelect.value = live.recipe;
+          renderControls();
+          renderOperation(live);
+          follow(live.id);
         });
       },
     });

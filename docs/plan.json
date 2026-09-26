@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-training-live",
-      "title": "Stream training step metrics over the event hub and draw progress, time remaining and loss live on the training page, re-attaching after a reload",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stream training step metrics over the event hub and draw progress, time remaining and loss live on the training page, re-attaching after a reload",
-          "status": "open",
-          "verify": "test -f internal/server/training_progress_test.go \u0026\u0026 go test ./internal/server -run '^TestTrainingStepsReachTheEventHub$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(TrainingLive|LayoutAudit)$' -leg 'training live leg'",
-          "rationale": "LlamaFactory review 2026-09-25: its board shows progress, time remaining and a live loss curve and re-attaches after a reload; the training page draws a run's trace only after it finishes. Master's guidance (2026-09-25): no hook in trainingprogram; trainingworkflow.Request already takes a Progress writer and results carry per-step losses, and trainingworkflow is outside the inference-surface closure, so structured step events extend that path and the server publishes them on the event hub the lane built; the page subscribes like every inventory, no polling."
-        }
-      ]
-    },
-    {
       "id": "gui-training-preview",
       "title": "Show a dataset record as the trainer sees it: rendered through the model's chat template and tokenizer, trained and masked tokens marked, records paged, with the token-length distribution",
       "owner": "overgo_gui_cleanup",
@@ -220,6 +205,21 @@
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestBatchFillsBareRecord$' -count=1",
           "rationale": "Held by master row store-bare-record-fill, which landed and merged into the lane at 75b235e356b5; master's check is this row's acceptance, and a merged-master record fill also slots the record into its schema's positions (8a77c2d8). Closes on the next landing that touches environment records."
+        }
+      ]
+    },
+    {
+      "id": "harness-trend-paydown",
+      "title": "Pay back the harness surface the live training trend raised: the nine harness packages return to the 180630 production nodes of docs/harness_surface_baseline.json by removing zero-consumer or test-only production code the consumer census names",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Pay back the harness surface the live training trend raised: the nine harness packages return to the 180630 production nodes of docs/harness_surface_baseline.json by removing zero-consumer or test-only production code the consumer census names",
+          "status": "open",
+          "verify": "go test ./internal/closurescan -run '^TestHarnessSurfaceRepaysTheTrend$' -count=1",
+          "rationale": "Opened by gui-training-live 2026-09-26: operation.Status gained Progress.ElapsedMS and Series (each repeated metric's bounded trend, thinned by halving past the manager's retention limit) so the training page draws progress, time remaining and loss live and redraws them after a reload; internal/operation is one of the nine harness packages, so the reviewed harness surface rose from 180630 production nodes (docs/harness_surface_baseline.json). This row owes it back: the consumer census names zero-consumer and test-only production functions in the harness packages; remove or relocate enough to return to 180630, and the named test holds the live surface there."
         }
       ]
     },

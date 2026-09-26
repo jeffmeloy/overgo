@@ -23,6 +23,74 @@ import (
 
 func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 	t.Parallel()
+	fixture := newDPOTrainingFixture(t)
+	ctx, store, roots, workspace, definition := t.Context(), fixture.store, fixture.roots, fixture.workspace, fixture.definition
+	dataset, policy, reference := fixture.dataset, fixture.policy, fixture.reference
+	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowTraining)
+	if err != nil || len(capabilities) != 1 || capabilities[0].Recipe != definition.ID ||
+		capabilities[0].Controls[0].Type != WorkflowControlDataset {
+		t.Fatalf("capabilities=%+v err=%v", capabilities, err)
+	}
+	expectedObservations := []struct{}{{}}
+	input, err := json.Marshal(map[string]any{
+		"dataset": dataset, "output": "trained", "steps": len(expectedObservations),
+		"objective_scale": 0.1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, recipe.TaskTraining, definition.ID, input, testReporter{})
+	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 3 ||
+		completion.Outputs[0].Kind() != artifact.KindCheckpoint || completion.Outputs[1].Kind() != artifact.KindEvidence ||
+		completion.Outputs[2].Kind() != artifact.KindEvidence {
+		t.Fatalf("completion=%+v err=%v", completion, err)
+	}
+	if checkpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(roots.Checkpoints, "trained")); err != nil || checkpoint.ID() != completion.Outputs[0] {
+		t.Fatalf("checkpoint=%s err=%v", checkpoint.ID(), err)
+	}
+	traceContent, ok, err := artifact.ReadContent(ctx, store, completion.Outputs[1])
+	if err != nil || !ok {
+		t.Fatalf("training trace content exists=%v err=%v", ok, err)
+	}
+	var trace runrecord.TrainingTrace
+	err = json.Unmarshal(traceContent.Data, &trace)
+	if err != nil || trace.Run != completion.Run || trace.Recipe != definition.ID ||
+		trace.Dataset != dataset || trace.Policy != policy || trace.Reference != reference ||
+		trace.Objective != trainingprogram.ObjectiveDPO || len(trace.DPO) != len(expectedObservations) {
+		t.Fatalf("trace=%+v err=%v", trace, err)
+	}
+	decisionContent, ok, err := artifact.ReadContent(ctx, store, completion.Outputs[2])
+	if err != nil || !ok {
+		t.Fatalf("training decision content exists=%v err=%v", ok, err)
+	}
+	var decision runrecord.TrainingDecision
+	err = json.Unmarshal(decisionContent.Data, &decision)
+	if err != nil || decision.State != runrecord.TrainingEvaluationRequired ||
+		decision.Run != completion.Run || decision.Recipe != definition.ID || decision.Parent != policy ||
+		decision.Checkpoint != completion.Outputs[0] || decision.Trace != completion.Outputs[1] || decision.Rollback != policy {
+		t.Fatalf("decision=%+v err=%v", decision, err)
+	}
+	champion, ok, err := store.ResolveAlias(ctx, championAlias)
+	if err != nil || !ok || champion != policy {
+		t.Fatalf("champion after training=(%s,%v,%v), want unchanged parent %s", champion, ok, err, policy)
+	}
+}
+
+// championAlias names the DPO fixture's champion, which training leaves on its parent.
+const championAlias = "models/training-workspace/champion"
+
+// dpoTrainingFixture: a tiny DPO program activated in a fresh store, its
+// training workspace over the fixture roots, and the dataset a run trains on.
+type dpoTrainingFixture struct {
+	store                      *overgodb.Store
+	roots                      dataroot.Roots
+	workspace                  *TrainingWorkspace
+	definition                 recipe.Definition
+	dataset, policy, reference artifact.ID
+}
+
+func newDPOTrainingFixture(t *testing.T) dpoTrainingFixture {
+	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
 	roots := dataroot.Roots{Models: filepath.Join(root, "models"), Datasets: filepath.Join(root, "datasets"), Checkpoints: filepath.Join(root, "checkpoints")}
@@ -30,7 +98,7 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	t.Cleanup(func() { _ = store.Close() })
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: 9,
 	})
@@ -101,7 +169,6 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 	for index, id := range authorities {
 		descriptors[index] = artifact.Descriptor{ID: id}
 	}
-	const championAlias = "models/training-workspace/champion"
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "fixture/training-workspace/artifacts",
 		Artifacts: append(descriptors, []artifact.Descriptor{
@@ -138,54 +205,7 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowTraining)
-	if err != nil || len(capabilities) != 1 || capabilities[0].Recipe != definition.ID ||
-		capabilities[0].Controls[0].Type != WorkflowControlDataset {
-		t.Fatalf("capabilities=%+v err=%v", capabilities, err)
-	}
-	expectedObservations := []struct{}{{}}
-	input, err := json.Marshal(map[string]any{
-		"dataset": dataset, "output": "trained", "steps": len(expectedObservations),
-		"objective_scale": 0.1,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, recipe.TaskTraining, definition.ID, input, testReporter{})
-	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 3 ||
-		completion.Outputs[0].Kind() != artifact.KindCheckpoint || completion.Outputs[1].Kind() != artifact.KindEvidence ||
-		completion.Outputs[2].Kind() != artifact.KindEvidence {
-		t.Fatalf("completion=%+v err=%v", completion, err)
-	}
-	if checkpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(roots.Checkpoints, "trained")); err != nil || checkpoint.ID() != completion.Outputs[0] {
-		t.Fatalf("checkpoint=%s err=%v", checkpoint.ID(), err)
-	}
-	traceContent, ok, err := artifact.ReadContent(ctx, store, completion.Outputs[1])
-	if err != nil || !ok {
-		t.Fatalf("training trace content exists=%v err=%v", ok, err)
-	}
-	var trace runrecord.TrainingTrace
-	err = json.Unmarshal(traceContent.Data, &trace)
-	if err != nil || trace.Run != completion.Run || trace.Recipe != definition.ID ||
-		trace.Dataset != dataset || trace.Policy != policy || trace.Reference != reference ||
-		trace.Objective != trainingprogram.ObjectiveDPO || len(trace.DPO) != len(expectedObservations) {
-		t.Fatalf("trace=%+v err=%v", trace, err)
-	}
-	decisionContent, ok, err := artifact.ReadContent(ctx, store, completion.Outputs[2])
-	if err != nil || !ok {
-		t.Fatalf("training decision content exists=%v err=%v", ok, err)
-	}
-	var decision runrecord.TrainingDecision
-	err = json.Unmarshal(decisionContent.Data, &decision)
-	if err != nil || decision.State != runrecord.TrainingEvaluationRequired ||
-		decision.Run != completion.Run || decision.Recipe != definition.ID || decision.Parent != policy ||
-		decision.Checkpoint != completion.Outputs[0] || decision.Trace != completion.Outputs[1] || decision.Rollback != policy {
-		t.Fatalf("decision=%+v err=%v", decision, err)
-	}
-	champion, ok, err := store.ResolveAlias(ctx, championAlias)
-	if err != nil || !ok || champion != policy {
-		t.Fatalf("champion after training=(%s,%v,%v), want unchanged parent %s", champion, ok, err, policy)
-	}
+	return dpoTrainingFixture{store: store, roots: roots, workspace: workspace, definition: definition, dataset: dataset, policy: policy, reference: reference}
 }
 
 func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {

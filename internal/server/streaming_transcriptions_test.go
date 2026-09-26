@@ -54,7 +54,7 @@ func TestStreamingTranscriptionAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { workspace.Close(context.WithoutCancel(t.Context())) })
-	runtime := &transcriptionHTTPRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: WorkflowWorkspaceSet{workspace}}
+	runtime := &workspaceTestRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: WorkflowWorkspaceSet{workspace}}
 	handler, err := New(Config{Repository: store, APIKey: testAPIKey}, runtime)
 	if err != nil {
 		t.Fatal(err)

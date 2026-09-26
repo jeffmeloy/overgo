@@ -71,7 +71,8 @@ func TestTranscriptionPolicyAndModelBindings(t *testing.T) {
 	}
 }
 
-type transcriptionHTTPRuntime struct {
+// workspaceTestRuntime: a fake chat model beside the workflow workspaces a test serves.
+type workspaceTestRuntime struct {
 	*fakeGenerator
 	WorkflowWorkspaceAPI
 }
@@ -113,7 +114,7 @@ func newTranscriptionHTTPFixture(t *testing.T, configure func(*TranscriptionPoli
 			t.Error(err)
 		}
 	})
-	runtime := &transcriptionHTTPRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: workspace}
+	runtime := &workspaceTestRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: workspace}
 	handler, err := New(Config{Repository: store, APIKey: testAPIKey}, runtime)
 	if err != nil {
 		t.Fatal(err)
@@ -324,7 +325,7 @@ func testAudioTranscriptionsCancellation(t *testing.T) {
 	}
 	defer lease.Release()
 	entered := make(chan artifact.ID, 1)
-	fixture.handler.generator.(*transcriptionHTTPRuntime).WorkflowWorkspaceAPI = observedTranscriptionWorkspace{fixture.workspace, entered}
+	fixture.handler.generator.(*workspaceTestRuntime).WorkflowWorkspaceAPI = observedTranscriptionWorkspace{fixture.workspace, entered}
 	ctx, cancel := context.WithCancelCause(t.Context())
 	defer cancel(nil)
 	request := fixture.request(t, fixture.wave, nil).WithContext(ctx)

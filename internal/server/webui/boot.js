@@ -252,6 +252,13 @@
     if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
     return String(n);
   }
+  // duration: milliseconds as whole seconds, minutes or hours and minutes.
+  function duration(ms) {
+    const seconds = Math.max(1, Math.round(Number(ms) / 1000));
+    if (seconds < 60) return seconds + "s";
+    const minutes = Math.round(seconds / 60);
+    return minutes < 60 ? minutes + "m" : Math.floor(minutes / 60) + "h " + (minutes % 60) + "m";
+  }
   function shortID(id) {
     id = String(id || "");
     const separator = id.indexOf(":");
@@ -720,7 +727,7 @@
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors,
     getKey, setKey, modelInfo,
     displayToken, stat, fold, workspace, viewsOf, requestedView,
-    fmt: { grouped, bytes, compact, shortID },
+    fmt: { grouped, bytes, compact, duration, shortID },
   };
 
   // ---- shell wiring: the server manifest owns navigation order, labels and refusal; modules register only ----

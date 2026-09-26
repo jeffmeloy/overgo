@@ -420,7 +420,7 @@
      "contains": "func TestAudioTranscriptionsAcceptance(",
      "path": "internal/server/audio_transcriptions_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:767cec4e7bb1abc712cc11fc96c9e2f43cb7ad493b9826b90e0fb95d8c68b06e"
+     "identity": "evidence:sha256:e4a6600cde7fcf27c8b147232aacdea68e832df79babbdc33d5877f5a81c9ef4"
     }
    ],
    "id": "openai-audio-transcriptions",
@@ -1549,7 +1549,7 @@
      "path": "internal/server/streaming_transcriptions_test.go",
      "contains": "func TestStreamingTranscriptionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:fa63edd1c6c624cde54f1d31e39755a3c9ebb5c8c0f1353522f2342a9e5bdc4b"
+     "identity": "evidence:sha256:3ed3d09af84e0ba62cbd91f9dd375e9fd2610f3db3e342bfaf62f0e7a381cb84"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",

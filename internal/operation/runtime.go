@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -32,15 +33,28 @@ const (
 	StateFailed     State = "failed"
 )
 
+// Progress counts completed work; ElapsedMS is the running wall at the last
+// report, so a reader projects the remainder from the server's clock.
 type Progress struct {
 	Completed uint64  `json:"completed"`
 	Total     *uint64 `json:"total,omitempty"`
+	ElapsedMS float64 `json:"elapsed_ms,omitzero"`
 }
 
 type Metric struct {
 	Name  string  `json:"name"`
 	Value float64 `json:"value"`
 	Unit  string  `json:"unit,omitzero"`
+}
+
+// Series is the trend of a metric reported again: Values[i] is report
+// i*Stride, and a full series thins so the whole run's shape stays within
+// the manager's bound.
+type Series struct {
+	Name    string    `json:"name"`
+	Reports uint64    `json:"reports"`
+	Stride  uint64    `json:"stride"`
+	Values  []float64 `json:"values"`
 }
 
 type Status struct {
@@ -50,6 +64,7 @@ type Status struct {
 	State    State                 `json:"state"`
 	Progress Progress              `json:"progress"`
 	Metrics  []Metric              `json:"metrics,omitempty"`
+	Series   []Series              `json:"series,omitempty"`
 	Outputs  []artifact.ID         `json:"outputs,omitempty"`
 	Attempts []artifact.ID         `json:"attempts,omitempty"`
 	Run      *artifact.ID          `json:"run,omitempty"`
@@ -104,6 +119,8 @@ type entry struct {
 	execute Executor
 	cancel  context.CancelFunc
 	done    chan struct{}
+	// started: when the operation began running, for Progress.ElapsedMS.
+	started time.Time
 }
 
 type ticket struct {
@@ -382,6 +399,9 @@ func (manager *Manager) setState(id artifact.ID, state State) {
 	manager.mu.Lock()
 	if current := manager.entries[id]; current != nil && !terminal(current.status.State) {
 		current.status.State = state
+		if state == StateRunning {
+			current.started = time.Now()
+		}
 		manager.publishLocked(current.status)
 	}
 	manager.mu.Unlock()
@@ -416,7 +436,37 @@ func terminal(state State) bool {
 	return state == StateCompleted || state == StateBlocked || state == StateCancelled || state == StateFailed
 }
 
+// trendThinning: a full series keeps one value in trendThinning.
+const trendThinning = 2
+
+// trend appends a repeated metric's report to its series, seeded with the
+// first report; past limit values, the series thins and Stride grows.
+func trend(series []Series, previous, next Metric, limit int) []Series {
+	index := slices.IndexFunc(series, func(value Series) bool { return value.Name == next.Name })
+	if index < 0 {
+		index = len(series)
+		series = append(series, Series{Name: next.Name, Reports: 1, Stride: 1, Values: []float64{previous.Value}})
+	}
+	current := &series[index]
+	if current.Reports%current.Stride == 0 {
+		current.Values = append(current.Values, next.Value)
+		if len(current.Values) > limit {
+			kept := make([]float64, 0, limit)
+			for position := 0; position < len(current.Values); position += trendThinning {
+				kept = append(kept, current.Values[position])
+			}
+			current.Values, current.Stride = kept, current.Stride*trendThinning
+		}
+	}
+	current.Reports++
+	return series
+}
+
 func cloneStatus(status Status) Status {
+	status.Series = slices.Clone(status.Series)
+	for index := range status.Series {
+		status.Series[index].Values = slices.Clone(status.Series[index].Values)
+	}
 	status.Metrics = slices.Clone(status.Metrics)
 	status.Outputs = slices.Clone(status.Outputs)
 	status.Attempts = slices.Clone(status.Attempts)
@@ -469,6 +519,9 @@ func (reporter operationReporter) Progress(completed uint64, total *uint64) {
 			value := *total
 			current.status.Progress.Total = &value
 		}
+		if !current.started.IsZero() {
+			current.status.Progress.ElapsedMS = float64(time.Since(current.started)) / float64(time.Millisecond)
+		}
 		reporter.manager.publishLocked(current.status)
 	}
 }
@@ -482,6 +535,7 @@ func (reporter operationReporter) Metric(metric Metric) {
 	if current := reporter.manager.entries[reporter.id]; current != nil && !terminal(current.status.State) {
 		for index := range current.status.Metrics {
 			if current.status.Metrics[index].Name == metric.Name {
+				current.status.Series = trend(current.status.Series, current.status.Metrics[index], metric, reporter.manager.limit)
 				current.status.Metrics[index] = metric
 				reporter.manager.publishLocked(current.status)
 				return

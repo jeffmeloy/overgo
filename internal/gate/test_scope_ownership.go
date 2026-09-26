@@ -1,5 +1,4 @@
-// Package testscope derives test ownership from Go package metadata.
-package testscope
+package gate
 
 import (
 	"path/filepath"
@@ -8,8 +7,8 @@ import (
 	"strings"
 )
 
-// Package binds compiler metadata and undeclared repository resources to a Go owner.
-type Package struct {
+// ownedPackage binds compiler metadata and undeclared repository resources to a Go owner.
+type ownedPackage struct {
 	ImportPath      string
 	Dir             string
 	ProductionFiles []string
@@ -20,11 +19,11 @@ type Package struct {
 	ResourceFiles []string
 }
 
-// DirectPackages returns packages directly owning changed source or resource
+// directPackages returns packages directly owning changed source or resource
 // files, and the subset whose production inputs changed. Metadata must include
 // native compiler inputs and resolved test embeds from go list -test.
 // A test source embedded in production remains a production input.
-func DirectPackages(repo string, changed []string, packages []Package) (direct, production []string) {
+func directPackages(repo string, changed []string, packages []ownedPackage) (direct, production []string) {
 	owners := map[string]bool{}
 	for _, name := range changed {
 		absolute := filepath.Join(repo, filepath.FromSlash(name))

@@ -177,21 +177,6 @@
       ]
     },
     {
-      "id": "surface-move-preflight",
-      "title": "Refuse a surface move whose reconciliation is not in the same commit",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse a surface move whose reconciliation is not in the same commit",
-          "status": "open",
-          "verify": "test -f internal/gate/surface_move_preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestSurfaceMovePreflight' -count=1",
-          "rationale": "Reuse cmd/validate surface affectedness in the gate preflight for the guard surface and compatibility claims; a landing that grows the harness production-node surface names its paydown. The media runtime part landed 2026-09-22."
-        }
-      ]
-    },
-    {
       "id": "surface-without-capability-tables",
       "title": "Keep non-text capability edits out of the inference surface",
       "owner": "master-lead",

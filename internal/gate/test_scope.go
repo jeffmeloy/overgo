@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"overgo/internal/testscope"
 )
 
 type packageTestScope struct {
@@ -45,7 +43,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	// conservatively so removing a resource cannot remove its acceptance too.
 	graph.bindResourceFiles(g.paths)
 	var roots []goPackageInput
-	var packages []testscope.Package
+	var packages []ownedPackage
 	for _, node := range graph.nodes {
 		// Match identifies real packages selected by ./...; test binaries have
 		// no match, and ForTest identifies compiler-generated test variants.
@@ -53,7 +51,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 			continue
 		}
 		roots = append(roots, node)
-		pkg := testscope.Package{
+		pkg := ownedPackage{
 			ImportPath: node.ImportPath, Dir: node.Dir, ProductionFiles: node.productionFiles(),
 			TestEmbedFiles: node.TestEmbedFiles, XTestEmbedFiles: node.XTestEmbedFiles,
 		}
@@ -76,7 +74,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		}
 		packages = append(packages, pkg)
 	}
-	direct, production := testscope.DirectPackages(graph.root, g.paths, packages)
+	direct, production := directPackages(graph.root, g.paths, packages)
 	scope := packageTestScope{direct: direct}
 	// Keep physical source edits ahead of conservatively selected readers.
 	// This changes order only; the full affected set remains required. The
@@ -89,7 +87,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 			continue
 		}
 		if strings.EqualFold(filepath.Ext(path), ".go") {
-			owners, _ := testscope.DirectPackages(graph.root, []string{path}, packages)
+			owners, _ := directPackages(graph.root, []string{path}, packages)
 			if len(owners) == 0 {
 				scope.unresolved = append(scope.unresolved, path)
 			}

@@ -182,6 +182,11 @@ func (g *gateContext) Preflight(output io.Writer) error {
 		return err
 	}
 	err := runPreflight(context.Background(), g.pipelineChecks(), output)
+	for _, note := range g.audit {
+		if note.kind == noteWarning {
+			fmt.Fprintf(output, "preflight: advisory: warning: %s\n", note.text)
+		}
+	}
 	if g.pendingGenerated != nil {
 		fmt.Fprintf(output, "preflight: dirty-generated: ok (%d generated file(s) pending commit)\n", *g.pendingGenerated)
 	}

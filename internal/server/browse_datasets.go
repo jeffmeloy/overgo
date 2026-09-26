@@ -2,8 +2,10 @@ package server
 
 import (
 	"context"
+	"encoding/binary"
 	"net/http"
 
+	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/trainingdata"
 )
@@ -36,9 +38,30 @@ type datasetPreviewRequest struct {
 	Limit    int    `json:"limit"`
 }
 
+// storeDatasetPreview opens registered datasets from the store the page browses.
+type storeDatasetPreview struct {
+	reader artifact.Reader
+	// maxSamples bounds one decoded audio record to the preview's bytes.
+	maxSamples uint64
+}
+
+// OpenDataset opens the dataset registered under name, every record.
+func (preview storeDatasetPreview) OpenDataset(ctx context.Context, name string) (*trainingdata.Dataset, error) {
+	return trainingdata.OpenRegistered(ctx, preview.reader, name, preview.maxSamples)
+}
+
+// datasetPreview: a launcher's resolver wins; otherwise the store the page browses answers.
+func (h *Handler) datasetPreview(response http.ResponseWriter, request *http.Request) (DatasetPreviewAPI, bool) {
+	if h.config.DatasetPreview != nil {
+		return h.config.DatasetPreview, true
+	}
+	store, ok := h.requireBrowseStore(response, request)
+	return storeDatasetPreview{reader: store, maxSamples: uint64(h.config.ResponseStoreBytes) / uint64(binary.Size(float32(0)))}, ok
+}
+
 func (h *Handler) previewDataset(response http.ResponseWriter, request *http.Request) {
-	if h.config.DatasetPreview == nil {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "dataset preview is not configured")
+	opener, ok := h.datasetPreview(response, request)
+	if !ok {
 		return
 	}
 	var body datasetPreviewRequest
@@ -49,7 +72,7 @@ func (h *Handler) previewDataset(response http.ResponseWriter, request *http.Req
 		writeInvalidRequestMessage(response, "invalid dataset preview request")
 		return
 	}
-	value, err := h.config.DatasetPreview.OpenDataset(request.Context(), body.Name)
+	value, err := opener.OpenDataset(request.Context(), body.Name)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return

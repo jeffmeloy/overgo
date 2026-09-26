@@ -2181,17 +2181,6 @@
     {
       "guideline": "cmp_or",
       "path": "internal/trainingdata/materializer.go",
-      "symbol": "Materialize",
-      "owner": "overgo/internal/trainingdata",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./internal/trainingdata -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "cmp_or",
-      "path": "internal/trainingdata/materializer.go",
       "symbol": "MaterializeRecords",
       "owner": "overgo/internal/trainingdata",
       "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
@@ -4676,5 +4665,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "23426f54805be8256aeb98b04bb93a3f4ebf43ac0bffafd3a4485e33ccfd3c7a"
+  "exceptions_sha256": "8b3d8f241fdfa6513779f48910c131388877b9fa6ab4be880a45f6efa1b758b4"
 }

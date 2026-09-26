@@ -1025,7 +1025,7 @@
      "contains": "func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault(",
      "path": "internal/server/media_policy_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:9178ecf9615be66be1826454f125e9100040591ae322885aa32ecaf8a40cba48"
+     "identity": "evidence:sha256:8995466d5b9bf496542b0eed781c1939b46faa46501892192e4c6032a9927c72"
     }
    ],
    "id": "bounded-remote-media",
@@ -1046,7 +1046,7 @@
      "contains": "func TestResponsesInputFileSources(",
      "path": "internal/server/resource_policy_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:11eed347ac3af0f23d05e23f0bf9bd6a4ffc508cdab7b7199982ed8e71f1d86d"
+     "identity": "evidence:sha256:ee1d99eb45333bea5aaef432884fd2fcb1f8f3237d8575d71a8a24375153115b"
     }
    ],
    "id": "responses-file-inputs",
@@ -1367,7 +1367,7 @@
      "contains": "func createArchive(",
      "path": "cmd/release/main.go",
      "role": "source",
-     "identity": "file:sha256:5df83e1b8e28e513da4c5c466ca966903d679def3a939ba460ffbd659e2f619c"
+     "identity": "file:sha256:12ad4b3a30659f5e83ff81c3ec507d47ab6606076015eeaa4498b5fd51d42649"
     },
     {
      "contains": "func TestCreateArchiveIsDeterministic(",

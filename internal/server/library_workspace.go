@@ -2,11 +2,9 @@ package server
 
 import (
 	"context"
+	_ "embed"
 	"errors"
-	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"overgo/internal/apimanifest"
@@ -16,6 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processlock"
 	"overgo/internal/recipe"
+	"overgo/internal/strictjson"
 )
 
 // The library lifecycle (professional GUI campaign, gui-library): a model
@@ -27,8 +26,8 @@ import (
 // the recipe with that evidence, so the catalog then serves it as
 // verified. Registering a dataset commits its directory under a name;
 // validating one is the preview the datasets route already answers. The
-// prompts and the token bound the validation records come from the root
-// policy document, never from a list typed into this file.
+// prompts and the token bound the validation records come from the policy
+// document embedded beside this file, never from a list typed into it.
 //
 // A projector beside the model, or one named with it, registers as the
 // model's projection candidate and validates with the model
@@ -103,9 +102,11 @@ func (intake LibraryIntake) assembled() bool {
 	return intake.ModelFiles != nil && intake.Register != nil && intake.Validate != nil
 }
 
-// libraryValidationPolicyPath names the root document with the prompts a
-// validation records and replays.
-const libraryValidationPolicyPath = "library_validation.json"
+// libraryValidationDocument holds the prompts a validation records and
+// replays.
+//
+//go:embed library_validation.json
+var libraryValidationDocument []byte
 
 type libraryValidationPolicy struct {
 	Schema    int      `json:"schema"`
@@ -114,42 +115,16 @@ type libraryValidationPolicy struct {
 	MaxTokens int      `json:"max_tokens"`
 }
 
-// loadLibraryValidationPolicy reads the policy from the nearest ancestor of
-// the working directory that holds it, the repository root, so a process
-// started from a subdirectory still finds it.
+// loadLibraryValidationPolicy decodes the embedded policy.
 func loadLibraryValidationPolicy(context.Context) (libraryValidationPolicy, error) {
-	path, err := locateRootDocument(libraryValidationPolicyPath)
-	if err != nil {
-		return libraryValidationPolicy{}, err
-	}
 	var policy libraryValidationPolicy
-	if err := loadPolicyDocument(path, &policy); err != nil {
+	if err := strictjson.DecodeBytes(libraryValidationDocument, &policy); err != nil {
 		return libraryValidationPolicy{}, err
 	}
 	if len(policy.Prompts) == 0 || policy.MaxTokens <= 0 {
 		return libraryValidationPolicy{}, errors.New("library: the validation policy is incomplete")
 	}
 	return policy, nil
-}
-
-// locateRootDocument walks up from the working directory to the first
-// directory holding the named root document.
-func locateRootDocument(name string) (string, error) {
-	directory, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	for {
-		candidate := filepath.Join(directory, name)
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			return candidate, nil
-		}
-		parent := filepath.Dir(directory)
-		if parent == directory {
-			return "", fmt.Errorf("library: %s is absent from the working directory and its ancestors", name)
-		}
-		directory = parent
-	}
 }
 
 type libraryRegisterRequest struct {

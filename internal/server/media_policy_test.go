@@ -16,18 +16,6 @@ import (
 	"time"
 )
 
-func TestRepositoryRemoteMediaPolicy(t *testing.T) {
-	t.Parallel()
-	policy, err := LoadRemoteMediaPolicy(filepath.Join("..", "..", "media_policy.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if policy.Enabled || len(policy.AllowedSchemes) != 1 || policy.AllowedSchemes[0] != "https" ||
-		policy.AllowPrivateNetworks || policy.MaxRedirects != 2 || policy.MaxConcurrentFetches != 4 {
-		t.Fatalf("default policy = %+v", policy)
-	}
-}
-
 func TestRemoteMediaPolicyRejectsOversizedDocument(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "policy.json")

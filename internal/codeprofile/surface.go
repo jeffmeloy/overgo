@@ -40,7 +40,7 @@ var surfacePrefixes = []struct {
 	prefixes []string
 }{
 	{WebUI, []string{"internal/server/webui/", "internal/server/webui_", "cmd/webui-lane/", "internal/webuilane/",
-		"internal/server/workspace_manifest.json", "internal/server/workspace_schema.json"}},
+		"internal/server/workspace_manifest.json", "internal/server/workspace_schema.json", "internal/server/library_validation.json"}},
 	{ModelJourney, []string{"cmd/server/", "internal/server/webui_browser_firstrun", "internal/server/webui_browser_library_validation",
 		"internal/server/webui_browser_preparation", "internal/server/webui_browser_store_test.go", "internal/server/webui_served_projector",
 		"internal/audioparity/webui_microphone"}},

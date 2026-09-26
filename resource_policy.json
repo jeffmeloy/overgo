@@ -1,9 +1,0 @@
-{
-  "response_files": {
-    "allowed_roots": [],
-    "enabled": false,
-    "files": {},
-    "max_file_bytes": 16777216
-  },
-  "schema": 1
-}

@@ -68,22 +68,6 @@
       ]
     },
     {
-      "id": "root-policies-beside-owners",
-      "title": "Move the root policy documents beside their owners",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move the root policy documents beside their owners",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestRootHoldsNoPolicyDocuments$' -count=1",
-          "rationale": " File consolidation (owner priority 2026-09-26: git tracks only what a person authors plus test fixtures; what is measured or generated lives in the store). The root *_policy.json files and library_validation.json each govern one owner; embed each beside its owner as the internal/ policies already are, or fold them into one policy document where several owners share it. Done when TestRootHoldsNoPolicyDocuments finds no policy document at the repository root."
-        }
-      ]
-    },
-    {
       "id": "automation-lanes-one-process",
       "title": "Run every deferred lane from one build under one device claim",
       "class": "consolidation",

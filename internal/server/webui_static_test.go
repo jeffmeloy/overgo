@@ -90,12 +90,9 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 	get := func(path string) string {
 		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
 	}
+	// The serving stream and stream lifecycle legs drive the monitor; the
+	// source keeps its polling paths banned.
 	runtime := get("/mod/runtime.js")
-	for _, token := range []string{"overgo.subscribe(", "whileShown: true", "runtime.sessions", "runtime.activity"} {
-		if !strings.Contains(runtime, token) {
-			t.Errorf("runtime module missing %q", token)
-		}
-	}
 	for _, polling := range []string{"overgo.poller", `api.get("/runtime/sessions"`, `api.get("/runtime/activity"`} {
 		if strings.Contains(runtime, polling) {
 			t.Errorf("runtime module retains polling path %q", polling)
@@ -105,11 +102,6 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 		t.Error("runtime monitor requests retained text")
 	}
 	boot := get("/boot.js")
-	for _, token := range []string{"document.hidden", "t.life.setActive(true)", "t.life.setActive(false)"} {
-		if !strings.Contains(boot, token) {
-			t.Errorf("boot lifecycle missing %q", token)
-		}
-	}
 	// Live state arrives on the one runtime stream; the shell keeps no poller and no per-tab stream.
 	for _, retired := range []string{"function poller", "function tabStream"} {
 		if strings.Contains(boot, retired) {
@@ -164,11 +156,6 @@ func TestAgentGUIUsesProjectedQueriesAndSSE(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	runtime := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String()
 	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
-	for _, token := range []string{"runtimeEvents", "/runtime/activity/stream", "operation.snapshot"} {
-		if !strings.Contains(workflow, token) {
-			t.Errorf("shared runtime stream missing %q", token)
-		}
-	}
 	for _, polling := range []string{"operationPollMilliseconds", `api.get("/operations?id="`, "overgo.poller"} {
 		if strings.Contains(workflow, polling) || strings.Contains(runtime, polling) {
 			t.Errorf("agent GUI retains polling path %q", polling)
@@ -221,26 +208,13 @@ func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
 	get := func(path string) string {
 		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
 	}
+	// The sampling, turn limit and first-run legs drive the context meter;
+	// the source keeps embedded sampling defaults banned.
 	chat := get("/mod/chat.js")
-	for _, token := range []string{
-		"overgo.capabilities(",
-		`api.post("/v1/responses/input_tokens"`,
-		"overgo.api.stream(",
-		"Context ratio",
-		"terminal.usage",
-		"terminal.timings",
-	} {
-		if !strings.Contains(chat, token) {
-			t.Errorf("chat module missing %q", token)
-		}
-	}
 	for _, embeddedDefault := range []string{`value: "0.7"`, `value: "512"`, `|| 512`} {
 		if strings.Contains(chat, embeddedDefault) {
 			t.Errorf("chat module embeds sampling default %q", embeddedDefault)
 		}
-	}
-	if !strings.Contains(get("/boot.js"), "async stream(path, body, opts)") {
-		t.Error("shared API client does not own streaming fetch")
 	}
 }
 
@@ -303,36 +277,6 @@ func TestWebUIStyleInvariants(t *testing.T) {
 	// Panels scroll their own overflow so wide tables never scroll the body.
 	if !strings.Contains(css, "overflow-x:auto") {
 		t.Error("style.css: expected a panel overflow-x:auto rule so wide tables scroll in-panel")
-	}
-}
-
-// TestWebUIAuthUX guards the centralized 401 handling: a shared friendlyError
-// helper directing the user to connection settings, and the analysis tabs
-// routing their errors through the helper instead of leaking the raw bearer
-// error.
-func TestWebUIAuthUX(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
-
-	boot := get("/boot.js")
-	for _, needle := range []string{"friendlyError", "Settings", "Connection"} {
-		if !strings.Contains(boot, needle) {
-			t.Errorf("boot.js missing %q", needle)
-		}
-	}
-	page := get("/")
-	for _, needle := range []string{`id="settings-dialog"`, `id="api-key"`} {
-		if !strings.Contains(page, needle) {
-			t.Errorf("settings missing %q", needle)
-		}
-	}
-	for _, asset := range []string{"/mod/analyze_model.js", "/mod/analyze_vocab.js", "/mod/analyze_tensors.js"} {
-		// A tab's reads report through its workspace (overgo.read / overgo.load), which renders overgo.failure.
-		if source := get(asset); !strings.Contains(source, "friendlyError") && !strings.Contains(source, "overgo.failure(") &&
-			!strings.Contains(source, "overgo.read(") && !strings.Contains(source, "overgo.load(") {
-			t.Errorf("%s does not route errors through friendlyError", asset)
-		}
 	}
 }
 
@@ -490,31 +434,10 @@ func TestWebUIChatMarkdown(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
 
-	md := get("/md.js")
-	if strings.Contains(md, ".innerHTML") {
+	// The acceptance sanitizer, reliability and conversation actions legs
+	// drive the rendering; the source keeps markup assignment banned.
+	if strings.Contains(get("/md.js"), ".innerHTML") {
 		t.Error("md.js assigns .innerHTML — model output must render as DOM text, never markup")
-	}
-	for _, needle := range []string{"md-codeblock", "clipboard.writeText", "https?:", "createTextNode"} {
-		if !strings.Contains(md, needle) {
-			t.Errorf("md.js missing %q", needle)
-		}
-	}
-	// The thread renderer in composer.js owns assistant markdown and copy for
-	// every surface; chat.js reaches it through the shared thread.
-	composer := get("/composer.js")
-	for _, needle := range []string{"overgo.md(", "overgo.copyButton"} {
-		if !strings.Contains(composer, needle) {
-			t.Errorf("composer.js does not use %q", needle)
-		}
-	}
-	if !strings.Contains(get("/mod/chat.js"), "overgo.thread(") {
-		t.Error("chat.js does not render through the shared thread")
-	}
-	// md.js must load before any module so overgo.md exists when chat renders:
-	// the loader lists it among the libraries it awaits before the modules.
-	boot := get("/boot.js")
-	if strings.Index(boot, `"/md.js"`) < 0 || strings.Index(boot, `"/md.js"`) > strings.Index(boot, "loadWorkspaceModules(") {
-		t.Error("boot.js must list /md.js among the libraries loaded before the modules")
 	}
 }
 

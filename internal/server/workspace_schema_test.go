@@ -53,15 +53,3 @@ func TestWorkspaceFormRenderer(t *testing.T) {
 		t.Fatal("workspace shell does not load schema form renderer")
 	}
 }
-
-func TestWorkspaceUnsavedChanges(t *testing.T) {
-	t.Parallel()
-	renderer := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/schema_form.js", "").Body.String()
-	for _, expected := range []string{
-		"function dirty()", "beforeunload", "event.preventDefault()", "event.returnValue", "markSaved", "dispose()",
-	} {
-		if !strings.Contains(renderer, expected) {
-			t.Errorf("unsaved-change protection lacks %q", expected)
-		}
-	}
-}

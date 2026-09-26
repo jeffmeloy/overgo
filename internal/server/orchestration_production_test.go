@@ -60,15 +60,13 @@ func TestOrchestrationProductionVerticals(t *testing.T) {
 	history := serveTestRequest(fixture.handler, http.MethodGet, "/automations/history", "")
 	manualEvidence := serveTestRequest(fixture.handler, http.MethodGet, "/operations/evidence?id="+manual.Operation.String(), "")
 	scheduledEvidence := serveTestRequest(fixture.handler, http.MethodGet, "/operations/evidence?id="+scheduled.Operation.String(), "")
-	gui := serveTestRequest(fixture.handler, http.MethodGet, "/mod/automations.js", "")
 	if history.Code != http.StatusOK || !strings.Contains(history.Body.String(), manualStatus.Run.String()) ||
 		!strings.Contains(history.Body.String(), scheduledStatus.Run.String()) || manualEvidence.Code != http.StatusOK ||
 		scheduledEvidence.Code != http.StatusOK || !strings.Contains(manualEvidence.Body.String(), `"completed":1`) ||
-		!strings.Contains(scheduledEvidence.Body.String(), `"completed":1`) || gui.Code != http.StatusOK ||
-		!strings.Contains(gui.Body.String(), "overgo.subscribe(") || !strings.Contains(gui.Body.String(), "overgo.decideOperation(") {
-		t.Fatalf("production projections history=(%d %s) manual=(%d %s) scheduled=(%d %s) gui=%d",
+		!strings.Contains(scheduledEvidence.Body.String(), `"completed":1`) {
+		t.Fatalf("production projections history=(%d %s) manual=(%d %s) scheduled=(%d %s)",
 			history.Code, history.Body.String(), manualEvidence.Code, manualEvidence.Body.String(),
-			scheduledEvidence.Code, scheduledEvidence.Body.String(), gui.Code)
+			scheduledEvidence.Code, scheduledEvidence.Body.String())
 	}
 	_, fired, err := fixture.handler.generator.(*automationWorkspaceGenerator).ScheduleAutomation(
 		t.Context(), fixture.handler.operations, AutomationExecutionInput{

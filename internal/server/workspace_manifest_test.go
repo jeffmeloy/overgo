@@ -73,12 +73,9 @@ func TestWorkspaceManifestCapabilityRefusal(t *testing.T) {
 func TestWebUIWorkspaceRoutes(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
+	// The workspace refusal and reachability legs drive the manifest; the
+	// source keeps client authority banned.
 	boot := serveTestRequest(handler, http.MethodGet, "/boot.js", "").Body.String()
-	for _, expected := range []string{"/workspace/manifest", "bindWorkspaceManifest", "tab.enabled", "tab.refusal"} {
-		if !strings.Contains(boot, expected) {
-			t.Errorf("workspace boot lacks %q", expected)
-		}
-	}
 	for _, duplicate := range []string{"SECTION_ORDER", "tab.requires", "refreshCapabilities"} {
 		if strings.Contains(boot, duplicate) {
 			t.Errorf("workspace boot retains client authority %q", duplicate)

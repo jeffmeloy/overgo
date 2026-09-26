@@ -165,12 +165,9 @@ func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 		activity.Activity[0].Model != modelID || activity.Activity[0].Recipe != recipeID {
 		t.Fatalf("activity status=%d response=%+v", response.Code, activity)
 	}
-	module := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String()
-	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
-	if !strings.Contains(workflow, "/runtime/activity/stream") || !strings.Contains(module, "runtime.sessions") {
-		t.Fatal("runtime GUI lacks shared session stream")
-	}
-	if strings.Contains(module, `api.get("/slots"`) {
+	// The serving stream leg drives the runtime tab; the source keeps the
+	// session-authority ban.
+	if module := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String(); strings.Contains(module, `api.get("/slots"`) {
 		t.Fatal("runtime module bypasses session authority")
 	}
 }

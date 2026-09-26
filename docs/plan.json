@@ -6,17 +6,92 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "arch-behaviour-tests",
-      "title": "Replace source-needle GUI tests with behaviour legs",
+      "id": "gui-legs-runtime",
+      "title": "Behaviour tests, stage 2: a browser leg drives the runtime tab's workflow stages, tool decisions, interaction replay and remote attempts, retiring their four source needles",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Replace source-needle GUI tests with behaviour legs",
+          "title": "Behaviour tests, stage 2: a browser leg drives the runtime tab's workflow stages, tool decisions, interaction replay and remote attempts, retiring their four source needles",
           "status": "open",
-          "verify": "go test ./internal/server -run '^TestWebUITestsDriveBehaviourNotSource$' -count=1",
-          "rationale": "18 test files pin string needles in the served source and broke on refactors that changed no behaviour (arch-one-event-stream repointed six of them). Needle tests give way to behaviour legs that drive the page. Bounding browser waits moved to master row browser-waits-fail-fast: a fixed per-leg deadline is a timer the fixed-timer census refuses, and master's row fails a wait when the browser stops answering instead."
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserRuntimeRecords$' -leg 'runtime records leg'",
+          "rationale": "Survey 2026-09-25: 52 server tests assert needles in the served UI source; 14 are structural ratchets, 21 stand in for behaviour a browser leg already drives (stage 1 deletes their needles, keeping their bans), and 17 stand in for behaviour no leg drives. This stage replaces TestWorkflowStageGUI, TestToolDecisionGUI, TestInteractionReplayGUI and TestRemoteAttemptGUI (webui_static_test.go) with a leg that renders those records in the runtime tab and decides a pending tool call there."
+        }
+      ]
+    },
+    {
+      "id": "gui-legs-analysis",
+      "title": "Behaviour tests, stage 3: a browser leg drives the analysis views' heatmap legend, signed series, cancelled reads and shell cache, retiring their four source needles",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Behaviour tests, stage 3: a browser leg drives the analysis views' heatmap legend, signed series, cancelled reads and shell cache, retiring their four source needles",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserAnalysisViews$' -leg 'analysis views leg'",
+          "rationale": "Survey 2026-09-25: 52 server tests assert needles in the served UI source; 14 are structural ratchets, 21 stand in for behaviour a browser leg already drives (stage 1 deletes their needles, keeping their bans), and 17 stand in for behaviour no leg drives. This stage replaces TestWebUIHeatmapLegend, TestSignedSeriesPreservesNegativeMeasurements, TestWebUICancel and TestWebUIShellCache (webui_static_test.go) with a leg that renders a legend and a signed series, abandons a read by leaving its tab, and revisits a tab without refetching its shell."
+        }
+      ]
+    },
+    {
+      "id": "gui-legs-peers",
+      "title": "Behaviour tests, stage 4: a browser leg drives the peers workspace's enrollment form, saved state and global operations, retiring its three source needles",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Behaviour tests, stage 4: a browser leg drives the peers workspace's enrollment form, saved state and global operations, retiring its three source needles",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserPeerWorkspace$' -leg 'peer workspace leg'",
+          "rationale": "Survey 2026-09-25: 52 server tests assert needles in the served UI source; 14 are structural ratchets, 21 stand in for behaviour a browser leg already drives (stage 1 deletes their needles, keeping their bans), and 17 stand in for behaviour no leg drives. This stage replaces TestPeerWorkspaceVertical, TestPeerWorkspaceUsesCommonForm and TestPeerWorkspaceUsesGlobalOperations (peer_workspace_gui_test.go) with a leg that enrolls a peer through the shared form and follows its operation into the global shell."
+        }
+      ]
+    },
+    {
+      "id": "gui-legs-tabs",
+      "title": "Behaviour tests, stage 5: a browser leg drives the compositions, recipe inspector, evaluations and preference-training evidence tabs, retiring their four source needles",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Behaviour tests, stage 5: a browser leg drives the compositions, recipe inspector, evaluations and preference-training evidence tabs, retiring their four source needles",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserStandaloneTabs$' -leg 'standalone tabs leg'",
+          "rationale": "Survey 2026-09-25: 52 server tests assert needles in the served UI source; 14 are structural ratchets, 21 stand in for behaviour a browser leg already drives (stage 1 deletes their needles, keeping their bans), and 17 stand in for behaviour no leg drives. This stage replaces TestCompositionGUIWorkflow, TestActiveRecipeInspectorUsesCompiledOrder, TestEvaluationWorkbenchUsesDeclaredCapabilities and TestRLWorkspaceRendersMeasuredEvidence with a leg that works each tab against a served fixture."
+        }
+      ]
+    },
+    {
+      "id": "gui-legs-agent",
+      "title": "Behaviour tests, stage 6: a browser leg drives the agent tab's chat, tool steps, retrieval, history and collapsible sections, retiring its last source needles",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Behaviour tests, stage 6: a browser leg drives the agent tab's chat, tool steps, retrieval, history and collapsible sections, retiring its last source needles",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserAgentTab$' -leg 'agent tab leg'",
+          "rationale": "Survey 2026-09-25: 52 server tests assert needles in the served UI source; 14 are structural ratchets, 21 stand in for behaviour a browser leg already drives (stage 1 deletes their needles, keeping their bans), and 17 stand in for behaviour no leg drives. This stage replaces TestAgentWorkspaceNoHiddenReasoning's presence needles and TestCollapsibleSections with a leg that chats, runs a manual tool step, retrieves, returns through history and opens a folded section; the hidden-reasoning ban stays as a declared ban."
+        }
+      ]
+    },
+    {
+      "id": "gui-legs-front",
+      "title": "Behaviour tests, stage 7: a browser leg drives the front page's composer and chat surfaces (agent, generation declarations, import, inspect, library, media round trip, modalities, operations, remote turns, model evidence and the picker's stale entries), retiring their source needles",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Behaviour tests, stage 7: a browser leg drives the front page's composer and chat surfaces (agent, generation declarations, import, inspect, library, media round trip, modalities, operations, remote turns, model evidence and the picker's stale entries), retiring their source needles",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserFrontSurfaces$' -leg 'front surfaces leg'",
+          "rationale": "Stage 1's census (2026-09-25) found eleven front-page tests the first survey missed, reading the served source through local helpers: TestFrontPage, TestFrontPageModelSwitch, TestFrontPageAgent, TestFrontPageGenerationDeclarations, TestFrontPageImport, TestFrontPageInspect, TestFrontPageLibrary, TestFrontPageMediaRoundtrip, TestFrontPageModalities, TestFrontPageOperations and TestFrontPageRemoteTurns. Their API checks stay; their composer, chat and boot needles give way to one leg over the front page's surfaces, including the two the first survey found no leg for: the model-evidence line, and the picker's stale entry without a Serve control and its tokens-per-second evidence."
         }
       ]
     },
@@ -248,7 +323,7 @@
           "id": "do",
           "title": "Accept the cleaned workbench: every page acceptance, every leg this lane added, and zero layout findings",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -leg 'screens leg' -leg 'artifact links leg' -leg 'hardened states leg' -leg 'typeset leg' -leg 'session continuation leg' -leg 'agent recovery leg' -leg 'speculative decoding leg' -leg 'model merge leg' -leg 'conversation control leg' -leg 'mobile interaction leg' -leg 'unoffered task leg' -leg 'one event stream leg' -leg 'training live leg' -leg 'training preview leg' -leg 'remembered settings leg' -leg 'approve in place leg' -leg 'adapter compare leg' -leg 'copy command leg' -leg 'memory estimate leg' -leg 'dataset import leg'",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -leg 'screens leg' -leg 'artifact links leg' -leg 'hardened states leg' -leg 'typeset leg' -leg 'session continuation leg' -leg 'agent recovery leg' -leg 'speculative decoding leg' -leg 'model merge leg' -leg 'conversation control leg' -leg 'mobile interaction leg' -leg 'unoffered task leg' -leg 'one event stream leg' -leg 'training live leg' -leg 'training preview leg' -leg 'remembered settings leg' -leg 'approve in place leg' -leg 'adapter compare leg' -leg 'copy command leg' -leg 'memory estimate leg' -leg 'dataset import leg' -leg 'runtime records leg' -leg 'analysis views leg' -leg 'peer workspace leg' -leg 'standalone tabs leg' -leg 'agent tab leg' -leg 'front surfaces leg'",
           "rationale": "Final acceptance for the lane before an owner-authorized merge to master.",
           "depends_on": [
             "webui-client-contract/do",

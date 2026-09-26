@@ -152,13 +152,7 @@ func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 		t.Fatalf("content status=%d type=%q body=%q", content.Code, content.Header().Get("Content-Type"), content.Body.Bytes())
 	}
 
-	module := serveTestRequest(handler, http.MethodGet, "/mod/artifacts.js", "").Body.String()
-	for _, token := range []string{"item.payload", `type.startsWith("image/")`, `type.startsWith("audio/")`, `type.startsWith("video/")`} {
-		if !strings.Contains(module, token) {
-			t.Errorf("artifact module missing %q", token)
-		}
-	}
-	if strings.Contains(module, "base64") {
+	if module := serveTestRequest(handler, http.MethodGet, "/mod/artifacts.js", "").Body.String(); strings.Contains(module, "base64") {
 		t.Error("artifact module retains encoded payloads")
 	}
 }

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,13 +15,8 @@ import (
 // next mount.
 func TestWebUITabsLoadThroughOneResource(t *testing.T) {
 	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	boot := serveTestRequest(handler, http.MethodGet, "/boot.js", "").Body.String()
-	for _, owner := range []string{"function workspace(host, parent)", "tab.life = workspace(tab.panel)", "life.release()", "t.life.setActive("} {
-		if !strings.Contains(boot, owner) {
-			t.Errorf("boot.js lacks the workspace lifecycle %q", owner)
-		}
-	}
+	// The remount and one-event-stream legs drive the workspace lifecycle;
+	// the modules keep the retired per-tab handling banned.
 	modules, err := filepath.Glob(filepath.Join("webui", "mod", "*.js"))
 	if err != nil || len(modules) == 0 {
 		t.Fatalf("tab modules = %v, %v", modules, err)

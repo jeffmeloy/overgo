@@ -241,6 +241,7 @@ func (h *Handler) operationDecision(response http.ResponseWriter, request *http.
 		writeError(response, http.StatusConflict, "decision_conflict", err.Error())
 		return
 	}
+	h.events.publish(hubRecordsChanged, nil)
 	operationID := body.Operation
 	if body.Answer == operatoraction.AnswerGrant {
 		operationID, err = h.operations.RecoverAfterDecision(context.WithoutCancel(request.Context()), decision)

@@ -70,11 +70,16 @@ func TestEventHubFansOutOnce(t *testing.T) {
 		}
 	}
 	for index, events := range queues {
+		// Each stream is told that the store gained the records a settled
+		// run writes; a settled state's later transitions may tell it again.
 		var sequence uint64
+		records := 0
 		for sequence != final {
 			event := next(index, events)
 			switch event.name {
 			case "runtime.sessions":
+			case hubRecordsChanged:
+				records++
 			case "operation":
 				transition := event.value.(operation.Event)
 				if transition.Sequence != sequence+1 {
@@ -86,7 +91,13 @@ func TestEventHubFansOutOnce(t *testing.T) {
 			}
 		}
 		for event := next(index, events); event.name != "runtime.sessions"; event = next(index, events) {
-			t.Fatalf("stream %d: %q after the last transition", index, event.name)
+			if event.name != hubRecordsChanged {
+				t.Fatalf("stream %d: %q after the last transition", index, event.name)
+			}
+			records++
+		}
+		if records == 0 {
+			t.Fatalf("stream %d: never told that a settled run wrote records", index)
 		}
 	}
 	if computed := sessions.Load(); computed < 1 || computed > int64(final) {

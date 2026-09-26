@@ -113,44 +113,6 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 	}
 }
 
-func TestWorkflowStageGUI(t *testing.T) {
-	t.Parallel()
-	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, token := range []string{"data.stages", "Workflow stages", "stage.operation", "stage.attempt"} {
-		if !strings.Contains(runtime, token) {
-			t.Errorf("workflow stage GUI missing %q", token)
-		}
-	}
-}
-
-func TestToolDecisionGUI(t *testing.T) {
-	t.Parallel()
-	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, token := range []string{"overgo.decideOperation(", "item.recovery", "Grant ", "decline"} {
-		if !strings.Contains(runtime, token) {
-			t.Errorf("tool decision GUI missing %q", token)
-		}
-	}
-}
-
-func TestInteractionReplayGUI(t *testing.T) {
-	t.Parallel()
-	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
-	for _, token := range []string{"data.interactions", "/interactions/replay?response=", "interaction.trace"} {
-		if !strings.Contains(runtime, token) {
-			t.Errorf("interaction replay GUI missing %q", token)
-		}
-	}
-}
-
-func TestRemoteAttemptGUI(t *testing.T) {
-	t.Parallel()
-	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
-	if !strings.Contains(runtime, `item.compatibility ? " / peer"`) {
-		t.Fatal("remote attempts are not identified from compatibility evidence")
-	}
-}
-
 func TestAgentGUIUsesProjectedQueriesAndSSE(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})

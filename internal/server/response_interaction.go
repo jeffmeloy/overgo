@@ -116,6 +116,7 @@ func (h *Handler) publishResponseInteraction(
 		h.observationErrors.Add(counterStep)
 		return fmt.Errorf("server: response interaction publication failed: %w", err)
 	}
+	h.events.publish(hubRecordsChanged, nil)
 	return nil
 }
 

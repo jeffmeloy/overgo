@@ -69,14 +69,23 @@ type Budget struct {
 	Reason  string `json:"reason"`
 }
 
+// A row's class decides the rules it lands under; an undeclared row is a feature.
+const (
+	// ClassConsolidation rows must shrink production lines.
+	ClassConsolidation = "consolidation"
+	// ClassMerge rows land a merge: the one plan-only lane commit, not awaited by closeout.
+	ClassMerge = "merge"
+)
+
 // Item is one rung of the ladder.
 type Item struct {
-	ID     string  `json:"id"`
-	Title  string  `json:"title"`
-	Owner  string  `json:"owner,omitzero"`
-	Status string  `json:"status"`
-	Budget *Budget `json:"budget,omitzero"`
-	Steps  []Step  `json:"steps"`
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Class  string `json:"class,omitzero"`
+	Owner  string `json:"owner,omitzero"`
+	Status string `json:"status"`
+	Budget Budget `json:"budget,omitzero"`
+	Steps  []Step `json:"steps"`
 }
 
 // Plan is the whole campaign surface.
@@ -179,8 +188,8 @@ func validatePlanGraph(d Plan) error {
 		if item.Owner != "" && !worklease.ValidAutomationText(item.Owner) {
 			return fmt.Errorf("plan item %s has invalid owner", item.ID)
 		}
-		if !validStatus(item.Status) {
-			return fmt.Errorf("plan item %s has invalid status %q", item.ID, item.Status)
+		if !validStatus(item.Status) || !slices.Contains([]string{"", ClassConsolidation, ClassMerge}, item.Class) {
+			return fmt.Errorf("plan item %s has invalid status %q or class %q", item.ID, item.Status, item.Class)
 		}
 		steps := map[string]bool{}
 		for _, step := range item.Steps {

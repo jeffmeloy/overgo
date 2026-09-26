@@ -22,7 +22,7 @@ func TestMergeDeclaresItsOwnRow(t *testing.T) {
 		closeout := preAdvance.Items[1]
 		closeout.Steps = slices.Clone(closeout.Steps)
 		for _, id := range ids {
-			preAdvance.Items = slices.Insert(preAdvance.Items, 0, Item{ID: id, Status: StatusOpen, Budget: &Budget{Reason: "the lane's code"},
+			preAdvance.Items = slices.Insert(preAdvance.Items, 0, Item{ID: id, Status: StatusOpen, Budget: Budget{Reason: "the lane's code"},
 				Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./lane"}}})
 			if awaited {
 				closeout.Steps[0].DependsOn = append(slices.Clone(closeout.Steps[0].DependsOn), id+"/do")

@@ -97,6 +97,7 @@ func main() {
 	reviewRow := flag.String("row", "", "with -review: the open plan item that addresses the candidate")
 	reviewReason := flag.String("reason", "", "with -review: why no row is filed for the candidate")
 	title := flag.String("title", "", "with -add: the task title")
+	class := flag.String("class", "", "with -add: the row class (consolidation; empty is a feature)")
 	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
@@ -105,40 +106,40 @@ func main() {
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, review: *review, reviewKind: *reviewKind, reviewRow: *reviewRow, reviewReason: *reviewReason, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, sealHorizon: *sealHorizon, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, review: *review, reviewKind: *reviewKind, reviewRow: *reviewRow, reviewReason: *reviewReason, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, sealHorizon: *sealHorizon, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
 }
 
 type cli struct {
-	resumeStop, maintenanceStop, stopMode, mode                                      string
-	phases                                                                           bool
-	historyCommit, historyResult                                                     string
-	releaseClaim, releaseReason                                                      string
-	worker                                                                           string
-	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop bool
-	move, retitle                                                                    bool
-	frontier                                                                         bool
-	judgeEfficiency                                                                  string
-	pruneDone                                                                        bool
-	title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane   string
-	review, reviewKind, reviewRow, reviewReason                                      string
-	budget, sealHorizon                                                              bool
-	nodes                                                                            int
-	paydown                                                                          string
-	assign                                                                           bool
-	owner, setLane                                                                   string
-	json                                                                             bool
-	prepareMerge                                                                     string
-	planProjection                                                                   string
-	mergeSourceStore                                                                 string
-	grantExploration, chargeExploration, recordExperiment                            string
-	localitySchedule                                                                 string
-	leaseReport                                                                      bool
-	retireLegacyLeases                                                               int
-	history                                                                          string
-	admitProposal                                                                    string
-	capacity                                                                         worklease.Resources
+	resumeStop, maintenanceStop, stopMode, mode                                           string
+	phases                                                                                bool
+	historyCommit, historyResult                                                          string
+	releaseClaim, releaseReason                                                           string
+	worker                                                                                string
+	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop      bool
+	move, retitle                                                                         bool
+	frontier                                                                              bool
+	judgeEfficiency                                                                       string
+	pruneDone                                                                             bool
+	title, class, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane string
+	review, reviewKind, reviewRow, reviewReason                                           string
+	budget, sealHorizon                                                                   bool
+	nodes                                                                                 int
+	paydown                                                                               string
+	assign                                                                                bool
+	owner, setLane                                                                        string
+	json                                                                                  bool
+	prepareMerge                                                                          string
+	planProjection                                                                        string
+	mergeSourceStore                                                                      string
+	grantExploration, chargeExploration, recordExperiment                                 string
+	localitySchedule                                                                      string
+	leaseReport                                                                           bool
+	retireLegacyLeases                                                                    int
+	history                                                                               string
+	admitProposal                                                                         string
+	capacity                                                                              worklease.Resources
 }
 
 func run(c cli, args []string) error {
@@ -250,7 +251,7 @@ func run(c cli, args []string) error {
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
 		}
-		return addItem(commandWorktree, args[0], c.title, c.before, c.verifyCmd, role)
+		return addItem(commandWorktree, args[0], c.title, c.class, c.before, c.verifyCmd, role)
 	case c.move:
 		if len(args) != 1 {
 			return errors.New("usage: plan -move <item-id> [-before <id>]")
@@ -589,9 +590,9 @@ func authoritativeReviewPriority(
 // before `before` (or at the top of the plan when empty). This is the mechanical
 // "inject a task" operation -- a merge, a fix, or any owner-requested work becomes
 // a first-class dispatched/verified/advanced task without hand-editing plan.json.
-func addItem(root, id, title, before, verifyCmd, role string) error {
+func addItem(root, id, title, class, before, verifyCmd, role string) error {
 	return withPlanMutation(root, false, func(document plan.Plan) error {
-		updated, err := insertItem(document, id, title, before, verifyCmd, true)
+		updated, err := insertItem(document, id, title, class, before, verifyCmd)
 		if err != nil {
 			return err
 		}
@@ -684,7 +685,7 @@ func declareBudget(document plan.Plan, id string, budget plan.Budget) (plan.Plan
 	case budget.Paydown != "" && (budget.Paydown == id || open(budget.Paydown) < 0):
 		return plan.Plan{}, fmt.Errorf("budget: paydown %q is not another open item", budget.Paydown)
 	}
-	document.Items[index].Budget = &budget
+	document.Items[index].Budget = budget
 	return document, nil
 }
 
@@ -747,7 +748,7 @@ func relocateItem(document plan.Plan, id, before string) (plan.Plan, error) {
 // when awaited, the campaign closeout waiting for it, as the structure policy
 // requires. A merge's own row is not awaited: the merge completes it, so the
 // merged plan equals the first-parent plan. No I/O.
-func insertItem(document plan.Plan, id, title, before, verifyCmd string, awaited bool) (plan.Plan, error) {
+func insertItem(document plan.Plan, id, title, class, before, verifyCmd string) (plan.Plan, error) {
 	pos, err := positionBefore(document.Items, before)
 	switch {
 	case slices.ContainsFunc(document.Items, itemNamed(id)):
@@ -756,10 +757,10 @@ func insertItem(document plan.Plan, id, title, before, verifyCmd string, awaited
 		return plan.Plan{}, err
 	}
 	document.Items = slices.Insert(slices.Clone(document.Items), pos, plan.Item{
-		ID: id, Title: title, Status: "open",
+		ID: id, Title: title, Class: class, Status: "open",
 		Steps: []plan.Step{{ID: "do", Title: title, Status: "open", Verify: verifyCmd}},
 	})
-	if closeout := slices.IndexFunc(document.Items, itemNamed("campaign-closeout")); awaited && closeout >= 0 {
+	if closeout := slices.IndexFunc(document.Items, itemNamed("campaign-closeout")); class != plan.ClassMerge && closeout >= 0 {
 		steps := slices.Clone(document.Items[closeout].Steps)
 		for index := range steps {
 			steps[index].DependsOn = append(slices.Clone(steps[index].DependsOn), id+"/do")

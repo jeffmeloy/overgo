@@ -28,7 +28,7 @@ func assertColibriCampaign(t *testing.T, document Plan) {
 			}
 			continue
 		}
-		if strings.HasPrefix(item.ID, MergeItemPrefix) {
+		if item.Class == ClassMerge {
 			if !preparedColibriMergeBoundary(item) {
 				t.Errorf("invalid Colibri merge boundary %s", item.ID)
 			}

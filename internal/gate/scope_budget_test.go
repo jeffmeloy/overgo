@@ -47,7 +47,7 @@ func TestScopeBudgetAdmitsDeclaredGrowth(t *testing.T) {
 	publish := func(paydownStatus string) {
 		t.Helper()
 		document := plan.Plan{Items: []plan.Item{
-			{ID: "the-row", Status: plan.StatusOpen, Budget: &plan.Budget{Nodes: 44, Paydown: "the-paydown", Reason: "schema field"}},
+			{ID: "the-row", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 44, Paydown: "the-paydown", Reason: "schema field"}},
 			{ID: "the-paydown", Status: paydownStatus},
 		}}
 		path := filepath.Join(repo, filepath.FromSlash(plan.Path))
@@ -67,7 +67,7 @@ func TestScopeBudgetAdmitsDeclaredGrowth(t *testing.T) {
 			}
 		}
 	}
-	if budget, _, err := (&gateContext{repo: repo, planRef: "the-row/do"}).rowBudget(); err != nil || budget.Nodes != 44 {
-		t.Fatalf("declared budget = %+v, %v", budget, err)
+	if row, _, err := (&gateContext{repo: repo, planRef: "the-row/do"}).row(); err != nil || row.Budget.Nodes != 44 {
+		t.Fatalf("declared budget = %+v, %v", row.Budget, err)
 	}
 }

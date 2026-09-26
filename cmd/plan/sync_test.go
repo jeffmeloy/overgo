@@ -40,7 +40,7 @@ func TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs(t *testing.T) {
 		merged.Items[0].Status != plan.StatusDone || merged.Items[1].Status != plan.StatusDone {
 		t.Fatalf("merged retained document = %v", merged.Items)
 	}
-	merged, err = insertItem(merged, "merge-0123456789ab", "Merge topic at 0123456789ab", "", "go run ./cmd/compatibility -check", false)
+	merged, err = insertItem(merged, "merge-0123456789ab", "Merge topic at 0123456789ab", plan.ClassMerge, "", "go run ./cmd/compatibility -check")
 	if err != nil || merged.Items[0].ID != "merge-0123456789ab" || merged.Items[0].Steps[0].Verify != "go run ./cmd/compatibility -check" {
 		t.Fatalf("prepared merge plan = %+v, %v", merged.Items[0], err)
 	}
@@ -117,7 +117,7 @@ func TestPrepareMergeFirstParentTargetRetainsOnlyLocalPlan(t *testing.T) {
 		t.Fatalf("target projection = %+v, want local identities only", projected.Items)
 	}
 	projected, err = insertItem(
-		projected, "merge-0123456789ab", "Merge source", "", "go run ./cmd/compatibility -check", false,
+		projected, "merge-0123456789ab", "Merge source", plan.ClassMerge, "", "go run ./cmd/compatibility -check",
 	)
 	if err != nil || projected.Items[0].ID != "merge-0123456789ab" ||
 		projected.Items[1].ID != "shared" || projected.Items[2].ID != "local-only" {

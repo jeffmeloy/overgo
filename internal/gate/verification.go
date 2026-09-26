@@ -583,7 +583,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 			baseline.DuplicateExcessNodes-profile.DuplicateExcessNodes,
 		))
 	}
-	if g.automationPlan() {
+	if row, _, err := g.row(); err == nil && row.Class == plan.ClassConsolidation {
 		movement, err := codeprofile.MeasureProductionMovement(baseSource, snapshot)
 		if err != nil {
 			return false, err
@@ -667,7 +667,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	if g.automationPlan() {
+	if row, _, err := g.row(); err == nil && row.Class == plan.ClassConsolidation {
 		movement, err := codeprofile.MeasureProductionMovement(sliceBase, candidate)
 		if err != nil {
 			return err
@@ -696,11 +696,6 @@ func impactSelectionAudit(selection codeprofile.ImpactSelection) string {
 		"impact selection: excluded=%d/%d triggered=%d unresolved=%d snapshot=%s",
 		selection.Excluded, selection.Owned, selection.Triggered, selection.Unresolved, selection.Identity,
 	)
-}
-
-func (g *gateContext) automationPlan() bool {
-	item, _, _ := strings.Cut(g.planRef, "/")
-	return strings.HasPrefix(item, "automation-")
 }
 
 func automationROIAdmission(scope string, movement codeprofile.ProductionMovement) (string, error) {

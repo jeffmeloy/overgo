@@ -53,7 +53,7 @@ func TestPrepareMergeLaneProjection(t *testing.T) {
 // owned by the lane, since the lane dispatches only rows it owns, and is
 // proven by the build.
 func insertMergeRow(document plan.Plan, mergeID, title, owner string, lane bool) (plan.Plan, error) {
-	merged, err := insertItem(document, mergeID, title, "", mergeVerify(lane), false)
+	merged, err := insertItem(document, mergeID, title, plan.ClassMerge, "", mergeVerify(lane))
 	if err != nil {
 		return plan.Plan{}, err
 	}

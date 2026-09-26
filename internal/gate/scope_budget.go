@@ -10,19 +10,16 @@ import (
 	"overgo/internal/plan"
 )
 
-// rowBudget loads the scope this gate's row declared through the plan and
-// the plan it was declared in. Undeclared is the zero budget: maintain.
-func (g *gateContext) rowBudget() (plan.Budget, plan.Plan, error) {
+// row loads this gate's row as the plan declares it, and that plan; a gate
+// with no row, or a row the plan no longer holds, declares nothing: its zero
+// budget maintains.
+func (g *gateContext) row() (plan.Item, plan.Plan, error) {
 	document, err := plan.Load(filepath.Join(g.repo, filepath.FromSlash(plan.Path)))
-	if err != nil {
-		return plan.Budget{}, plan.Plan{}, err
-	}
 	item, _, _ := strings.Cut(g.planRef, "/")
-	index := slices.IndexFunc(document.Items, func(row plan.Item) bool { return row.ID == item })
-	if index < 0 || document.Items[index].Budget == nil {
-		return plan.Budget{}, document, nil
+	if index := slices.IndexFunc(document.Items, func(row plan.Item) bool { return row.ID == item }); err == nil && index >= 0 {
+		return document.Items[index], document, nil
 	}
-	return *document.Items[index].Budget, document, nil
+	return plan.Item{}, document, err
 }
 
 // admitScopeBudget refuses production-node growth the row never declared.
@@ -34,12 +31,12 @@ func (g *gateContext) admitScopeBudget(base, candidate codeprofile.Profile) erro
 	if g.planRef == "" || g.mergeBefore != nil {
 		return nil
 	}
-	budget, _, err := g.rowBudget()
+	row, _, err := g.row()
 	if err != nil {
 		return err
 	}
 	grown := candidate.Runtime.Nodes + candidate.Automation.Nodes - base.Runtime.Nodes - base.Automation.Nodes
-	return scopeBudgetAdmission(g.planRef, budget, grown)
+	return scopeBudgetAdmission(g.planRef, row.Budget, grown)
 }
 
 // scopeBudgetAdmission admits growth a row declared: a declared reason admits
@@ -63,10 +60,12 @@ func (g *gateContext) openPaydown() (string, error) {
 	if g.planRef == "" {
 		return "", nil
 	}
-	budget, document, err := g.rowBudget()
-	open := func(row plan.Item) bool { return row.ID == budget.Paydown && row.Status == plan.StatusOpen }
+	row, document, err := g.row()
+	open := func(paying plan.Item) bool {
+		return paying.ID == row.Budget.Paydown && paying.Status == plan.StatusOpen
+	}
 	if err != nil || !slices.ContainsFunc(document.Items, open) {
 		return "", err
 	}
-	return budget.Paydown, nil
+	return row.Budget.Paydown, nil
 }

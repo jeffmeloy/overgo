@@ -132,7 +132,7 @@ func prepareMergeWithProjection(
 		mergeID := "merge-" + snapshot[:12]
 		lane := laneMerge(projection, local)
 		// The lane dispatches only rows it owns; the build proves a lane's row.
-		merged, err = insertItem(merged, mergeID, "Merge "+source+" at "+snapshot[:12], "", mergeVerify(lane), false)
+		merged, err = insertItem(merged, mergeID, "Merge "+source+" at "+snapshot[:12], plan.ClassMerge, "", mergeVerify(lane))
 		if err != nil {
 			return err
 		}

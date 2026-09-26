@@ -52,8 +52,8 @@ func (runner *stoppingRunner) Generate(ctx context.Context, prompt string, optio
 }
 
 // openSessionRunner serves the hermetic model on the host path with a chat
-// template that joins the messages' text.
-func openSessionRunner(t *testing.T, contextLength uint32) *inference.Runner {
+// template that joins the messages' text, with any adapters loaded.
+func openSessionRunner(t *testing.T, contextLength uint32, adapters ...inference.LoRAConfig) *inference.Runner {
 	t.Helper()
 	path := testutil.HermeticLlamaGGUFWith(t, contextLength,
 		testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, "{% for m in messages %}{{ m.content }}{% endfor %}"))
@@ -61,7 +61,7 @@ func openSessionRunner(t *testing.T, contextLength uint32) *inference.Runner {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{})
+	runner, err := inference.OpenWithProgram(t.Context(), &loaded, inference.OpenOptions{LoRAAdapters: adapters})
 	if err != nil {
 		t.Fatal(err)
 	}

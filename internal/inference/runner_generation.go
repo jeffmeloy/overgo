@@ -67,7 +67,7 @@ func (r *Runner) Generate(
 		return nil, "", err
 	}
 	defer r.mu.Unlock()
-	restoreLoRA, err := r.applyGenerationLoRA(options)
+	restoreLoRA, err := r.applyGenerationLoRA(&options)
 	if err != nil {
 		return nil, "", err
 	}

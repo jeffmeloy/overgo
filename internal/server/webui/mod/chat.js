@@ -197,8 +197,43 @@
       function actionsBlocked() { return overgo.signal.aborted || !!controller || !!activeTurn || actionPending || uncertainPrevious !== null || otherModel || overgo.modelSwitching(); }
       function messageActions(message) {
         if (!['user', 'assistant'].includes(message.role)) return [];
-        return [el('button', { class: 'link-button turn-action', title: 'Create a new branch using current settings', text: message.role === 'user' ? 'Edit and resend' : 'Regenerate',
+        const actions = [el('button', { class: 'link-button turn-action', title: 'Create a new branch using current settings', text: message.role === 'user' ? 'Edit and resend' : 'Regenerate',
           disabled: actionsBlocked(), onclick: () => prepareBranch(message) })];
+        if (message.role === 'assistant' && message.response && capabilities.adapters.length) actions.push(el('button', { class: 'link-button turn-action', title: 'Run this turn on the base model and each loaded adapter with one prompt, sampling and seed',
+          text: 'Compare adapter', disabled: actionsBlocked(), onclick: () => compareAdapters(message) }));
+        return actions;
+      }
+      // storedTurn: an assistant turn's stored prompt: its user input and the response it follows.
+      async function storedTurn(message) {
+        const chain = await overgo.api.get('/interactions/messages?response=' + encodeURIComponent(message.response));
+        if (mismatchedModel(chain)) throw new Error('Choose this conversation’s original model to resend it.');
+        if (chain.status === 'in_progress') throw new Error('This response is still running. Open it to resume or stop it.');
+        const turn = chain.messages.filter(item => item.response === message.response);
+        const users = turn.filter(item => item.role === 'user');
+        if (!users.length || turn.some(item => item.role === 'tool' || (item.tool_calls || []).length)) throw new Error('This turn includes tool execution. Start a new message to continue it.');
+        return { chain, users };
+      }
+      // compareAdapters: the turn's prompt under the current settings and one seed, run on the base model
+      // and on each loaded adapter, side by side under the turn; the runs are not stored.
+      async function compareAdapters(message) {
+        if (actionsBlocked()) return;
+        message.node.querySelectorAll('.adapter-compare').forEach(node => node.remove());
+        const columns = [{ title: 'Base model', lora: [] }, ...capabilities.adapters.map(adapter => ({ title: adapter.name, lora: [{ id: adapter.id, scale: adapter.scale || 1 }] }))];
+        const texts = columns.map(() => el('div', { class: 'compare-text', text: 'Waiting…' }));
+        const grid = el('div', { class: 'adapter-compare', role: 'group', 'aria-label': 'Adapter comparison' },
+          ...columns.map((column, index) => el('div', { class: 'compare-column' }, el('strong', { text: column.title }), texts[index])));
+        message.node.appendChild(grid); actionPending = true; updateBusy();
+        try {
+          const { chain, users } = await storedTurn(message);
+          const request = turnSettings({ model: modelID, input: users.map(item => branchInput(item)), store: false, seed: crypto.getRandomValues(new Uint32Array(1))[0] });
+          if (chain.previous) request.previous_response_id = chain.previous;
+          for (const [index, column] of columns.entries()) {
+            texts[index].textContent = 'Running…';
+            const result = await overgo.api.post('/v1/responses', { ...request, lora: column.lora }, { signal: overgo.signal });
+            texts[index].textContent = (result.output || []).flatMap(item => item.content || []).map(part => part.text || '').join('');
+          }
+        } catch (err) { if (!overgo.signal.aborted) grid.replaceChildren(overgo.failure(err)); }
+        finally { actionPending = false; if (!overgo.signal.aborted) updateBusy(); }
       }
       function renderConversation(messages) {
         thread.reset();
@@ -240,13 +275,8 @@
         panel.querySelectorAll('.turn-editor').forEach(node => node.remove());
         message.node.appendChild(editor); actionPending = true; updateBusy();
         try {
-          const chain = await overgo.api.get('/interactions/messages?response=' + encodeURIComponent(message.response));
+          const { chain, users } = await storedTurn(message);
           if (overgo.signal.aborted) return;
-          if (mismatchedModel(chain)) throw new Error('Choose this conversation’s original model to resend it.');
-          if (chain.status === 'in_progress') throw new Error('This response is still running. Open it to resume or stop it.');
-          const turn = chain.messages.filter(item => item.response === message.response);
-          const users = turn.filter(item => item.role === 'user');
-          if (!users.length || turn.some(item => item.role === 'tool' || (item.tool_calls || []).length)) throw new Error('This turn includes tool execution. Start a new message to continue it.');
           const editIndex = message.role === 'user' ? thread.messages.filter(item => item.role === 'user' && item.response === message.response).indexOf(message) : users.length - 1;
           if (editIndex < 0 || !users[editIndex]) throw new Error('The stored turn changed. Reopen the conversation and try again.');
           const branch = { prefix: chain.messages.filter(item => item.response !== message.response), previous: chain.previous || '', text: users[editIndex].content,
@@ -717,6 +747,14 @@
         return [{ role: "user", content: parts.length ? content : text }];
       }
 
+      // turnSettings: the settings' instructions, temperature and output limit on a Responses request.
+      function turnSettings(request) {
+        if (system.value.trim()) request.instructions = system.value.trim();
+        if (temperature.value !== "") request.temperature = Number(temperature.value);
+        if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+        return request;
+      }
+
       function streamTurn(path, body, method) { return overgo.api.stream(path, body, { signal: controller.signal, method }); }
 
       // A recovery handle belongs to this mounted conversation and model.
@@ -902,9 +940,7 @@
           assistant = thread.add("assistant", "");
           const request = { model: modelID, input: branch ? branch.input : responsesInput(text, parts), stream: true, store: true };
           if (lastResponseID) request.previous_response_id = lastResponseID;
-          if (system.value.trim()) request.instructions = system.value.trim();
-          if (temperature.value !== "") request.temperature = Number(temperature.value);
-          if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+          turnSettings(request);
           const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal }).catch(() => null) /* reviewed: a hosted model's provider tokenizes, the count route refuses, and the meter stays empty by design */;
           controller.signal.throwIfAborted();
           activeTurn = { response: "", model: modelID, previous: lastResponseID, assistant, users, branch, prompt: { text, attachments } };

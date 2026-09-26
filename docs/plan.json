@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-adapter-compare",
-      "title": "Compare base and adapter output side by side in chat on the same prompt and sampling",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compare base and adapter output side by side in chat on the same prompt and sampling",
-          "status": "open",
-          "verify": "test -f internal/server/adapter_compare_test.go \u0026\u0026 go test ./internal/server -run '^TestAdapterComparisonTurn$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(AdapterCompare|LayoutAudit)$' -leg 'adapter compare leg'",
-          "rationale": "LlamaFactory review 2026-09-25: its chat loads a fine-tuned adapter. The server already serves LoRA adapters with scales; one prompt and one sampling run against the base and the adapter side by side is the check a workbench user makes after training."
-        }
-      ]
-    },
-    {
       "id": "gui-copy-command",
       "title": "Show the command that reproduces a workflow submission beside its Run button",
       "owner": "overgo_gui_cleanup",
@@ -440,6 +425,10 @@
     },
     {
       "key": "surface-move:production-nodes:0d41ac6e0149fc766399bf4ea14807a7d0b3e758",
+      "row": "harness-trend-paydown"
+    },
+    {
+      "key": "surface-move:production-nodes:339cd35ac843fc8a89813e22bfd731a132da52bb",
       "row": "harness-trend-paydown"
     },
     {

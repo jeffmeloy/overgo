@@ -44,7 +44,7 @@ func (r *Runner) GenerateEncoderDecoder(
 		return nil, "", nil, err
 	}
 	defer r.mu.Unlock()
-	restoreLoRA, err := r.applyGenerationLoRA(options)
+	restoreLoRA, err := r.applyGenerationLoRA(&options)
 	if err != nil {
 		return nil, "", nil, err
 	}

@@ -60,6 +60,9 @@ type protocolGenerationPlan struct {
 	// held: text a stopped turn decoded but its stop filter held back; a
 	// continuation primes its filter with it.
 	held string
+	// lora: the request's adapter scales, when it named them.
+	lora           []inference.LoRAScale
+	loraConfigured bool
 }
 
 type protocolGenerationResult struct {
@@ -152,6 +155,11 @@ func (h *Handler) prepareProtocolGenerationPlan(
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
+	lora, loraConfigured, err := h.parseRequestLoRA(parameters.LoRA)
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return nil, false
+	}
 	lease, acquired := h.acquireRequestSession(request.Context(), response, -1)
 	if !acquired {
 		return nil, false
@@ -159,6 +167,7 @@ func (h *Handler) prepareProtocolGenerationPlan(
 	plan := &protocolGenerationPlan{
 		handler: h, request: request, session: lease,
 		sampler: sampler, maxTokens: maxTokens, stops: stops,
+		lora: lora, loraConfigured: loraConfigured,
 	}
 	if err := plan.admit(prompt); err != nil {
 		plan.release()
@@ -174,6 +183,7 @@ func (plan *protocolGenerationPlan) turn(prompt nativePrompt) (*protocolGenerati
 	next := &protocolGenerationPlan{
 		handler: plan.handler, request: plan.request, session: plan.session,
 		sampler: plan.sampler, maxTokens: plan.maxTokens, stops: plan.stops,
+		lora: plan.lora, loraConfigured: plan.loraConfigured,
 	}
 	return next, next.admit(prompt)
 }
@@ -255,6 +265,7 @@ func (plan *protocolGenerationPlan) runWithSampler(
 		plan.maxTokens, sampler, plan.prompt.TokenIDs, plan.prompt.ProjectedInputs,
 	)
 	options.TokenEventDecoder = plan.tokenEventDecoder
+	options.LoRA, options.LoRAConfigured = plan.lora, plan.loraConfigured
 	// The selected session may use a scheduler instead of the inspected model.
 	// Never infer scheduler support from the underlying Runner.
 	if provider, ok := plan.session.Model().(promptCacheProvider); ok {

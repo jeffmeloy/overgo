@@ -1,3 +1,5 @@
+// Package server serves the loaded model over HTTP: the generation
+// protocols, the store-backed workspace routes, and the web UI.
 package server
 
 import (

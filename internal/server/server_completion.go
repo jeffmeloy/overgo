@@ -150,6 +150,9 @@ type samplingParameters struct {
 	Samplers               []string        `json:"samplers"`
 	LogitBias              json.RawMessage `json:"logit_bias"`
 	IgnoreEOS              bool            `json:"ignore_eos"`
+	// LoRA: this request's adapter scales; an empty list is the base model,
+	// omitted keeps the loaded scales.
+	LoRA json.RawMessage `json:"lora"`
 }
 
 type completionRequest struct {

@@ -35,7 +35,6 @@ type nativeCompletionRequest struct {
 	PostSamplingProbs bool                           `json:"post_sampling_probs"`
 	ResponseFields    []string                       `json:"response_fields"`
 	JSONSchema        json.RawMessage                `json:"json_schema"`
-	LoRA              json.RawMessage                `json:"lora"`
 	ProjectedInputs   *inference.ProjectedInputsJSON `json:"projected_inputs"`
 	samplingParameters
 }

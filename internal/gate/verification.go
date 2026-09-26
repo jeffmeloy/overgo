@@ -1568,9 +1568,8 @@ func (g *gateContext) proposeClosureRows(sites []closurescan.Candidate) (propose
 // moved under the active aliases, either reported stale directly or surfacing
 // as an uncatalogued site that exact prior history still covers.
 func staleClosureAuthorityFailure(err error) bool {
-	message := err.Error()
-	return strings.Contains(message, "stale active binding") ||
-		strings.Contains(message, "uncatalogued production policy")
+	_, uncatalogued := errors.AsType[*closurescan.UncataloguedPolicyError](err)
+	return uncatalogued || errors.Is(err, closurescan.ErrStaleBinding)
 }
 
 func (g *gateContext) remediateStaleClosureBindings() error {

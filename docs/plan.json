@@ -1354,7 +1354,8 @@
             "classification-replan/do",
             "automation-gate-rule-table/do",
             "automation-typed-gate-notes/do",
-            "gate-busy-index-relands/do"
+            "gate-busy-index-relands/do",
+            "automation-typed-remediation-kinds/do"
           ]
         }
       ]

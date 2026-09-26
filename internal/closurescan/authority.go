@@ -11,6 +11,10 @@ import (
 	"overgo/internal/repoanalysis"
 )
 
+// ErrStaleBinding marks an active binding whose declaration or evidence moved;
+// a same-store rebind repairs it.
+var ErrStaleBinding = errors.New("stale active binding")
+
 // UncataloguedPolicyError names every production policy site without an
 // active closure row, one line each, so a caller proposes rows for all of
 // them in one pass.
@@ -76,7 +80,7 @@ func validatePermanentAuthority(
 	}
 	var problems []error
 	for _, issue := range issues {
-		problems = append(problems, fmt.Errorf("permanent authority: stale active binding %s %s:%s", issue.Kind, issue.File, issue.Name))
+		problems = append(problems, fmt.Errorf("permanent authority: %w %s %s:%s", ErrStaleBinding, issue.Kind, issue.File, issue.Name))
 	}
 	active := compileAuthority(documents, selected)
 	for _, document := range documents {

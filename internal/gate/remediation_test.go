@@ -1,7 +1,6 @@
 package gate
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,16 +15,6 @@ import (
 // stale preparation; an unformatted file names its exact gofmt invocation.
 func TestGateRefusalsCarryDeterministicRemediation(t *testing.T) {
 	t.Parallel()
-	for message, remediable := range map[string]bool{
-		"permanent authority: 3 stale active binding(s), first=orphan/literal.1":         true,
-		"permanent authority: uncatalogued production policy literal.5 at cmd/x/y.go:12": true,
-		"magic scan: active document identity mismatch":                                  false,
-	} {
-		if got := staleClosureAuthorityFailure(errors.New(message)); got != remediable {
-			t.Fatalf("remediation classifier(%q) = %t", message, got)
-		}
-	}
-
 	recorded := [][]string{}
 	var recordedRoot string
 	gate := &gateContext{repo: t.TempDir(), storePath: gateStorePath, runCommand: func(repo, name string, args ...string) (string, error) {

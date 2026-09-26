@@ -11,10 +11,6 @@ import (
 	"overgo/internal/codemanifest"
 )
 
-// consumerBoundaryReason prefixes the external uncertainties the consumer
-// census raises for method dispatch and command consumers.
-const consumerBoundaryReason = "consumer census boundary: "
-
 // reachabilityOnlyUncertainty reports whether every uncertainty concerns who
 // can reach a changed symbol: dynamic dispatch, reflection, cgo and the
 // consumer census boundaries, all bounded by the dependency closure with
@@ -23,13 +19,8 @@ const consumerBoundaryReason = "consumer census boundary: "
 func reachabilityOnlyUncertainty(impact codemanifest.Impact) bool {
 	for _, item := range impact.Uncertainty {
 		switch item.Kind {
-		case codemanifest.UncertaintyInterface, codemanifest.UncertaintyReflection, codemanifest.UncertaintyCgo:
+		case codemanifest.UncertaintyInterface, codemanifest.UncertaintyReflection, codemanifest.UncertaintyCgo, codemanifest.UncertaintyConsumerBoundary:
 			continue
-		case codemanifest.UncertaintyExternal:
-			if strings.HasPrefix(item.Reason, consumerBoundaryReason) {
-				continue
-			}
-			return false
 		default:
 			return false
 		}

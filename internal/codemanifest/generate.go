@@ -209,7 +209,7 @@ func declarationUncertainty(declaration codeprofile.ConsumerDeclaration, context
 	case "build-variant":
 		kind = UncertaintyBuildSelection
 	case "external", "command":
-		kind = UncertaintyExternal
+		kind = UncertaintyConsumerBoundary
 	default:
 		return Uncertainty{}, false
 	}

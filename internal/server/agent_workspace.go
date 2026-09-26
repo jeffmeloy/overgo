@@ -25,6 +25,8 @@ import (
 type agentSessions struct {
 	mu       sync.Mutex
 	sessions map[string]*agentloop.Session
+	// turns serializes a session's chat turn numbering with its publication.
+	turns sync.Mutex
 }
 
 // get returns the live session, restoring it from the durable
@@ -94,7 +96,7 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 	if len(arguments) == 0 {
 		arguments = json.RawMessage(`{}`)
 	}
-	sessionID := body.Session
+	sessionID := agentSessionID(body.Agent, body.Session)
 	var active runrecord.ActiveAgent
 	var err error
 	if body.Agent != "" {
@@ -104,7 +106,6 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 			writeError(response, http.StatusUnprocessableEntity, "agent_step_refused", "active agent model recipe differs from served runtime")
 			return
 		}
-		sessionID = body.Agent + ":" + body.Session
 	}
 	session, err := h.agentSessions.get(request.Context(), h.agentCoordinator, sessionID)
 	if err != nil {
@@ -182,10 +183,7 @@ func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *ht
 	if len(arguments) == 0 {
 		arguments = json.RawMessage(`{}`)
 	}
-	sessionID := body.Session
-	if body.Agent != "" {
-		sessionID = body.Agent + ":" + body.Session
-	}
+	sessionID := agentSessionID(body.Agent, body.Session)
 	session, err := h.agentSessions.get(request.Context(), h.agentCoordinator, sessionID)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())

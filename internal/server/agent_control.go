@@ -109,6 +109,8 @@ type agentAutomationRequest struct {
 type agentChatRequest struct {
 	Agent    string                  `json:"agent"`
 	Messages []inference.ChatMessage `json:"messages"`
+	// Session: the agent session a turn belongs to; its answered turns are kept.
+	Session string `json:"session,omitzero"`
 }
 
 // The agent routes: each serves one path of the route table under the agent runtime (agentRoute).
@@ -211,7 +213,22 @@ func (h *Handler) agentChat(response http.ResponseWriter, request *http.Request)
 	forwarded := request.Clone(request.Context())
 	forwarded.Body = io.NopCloser(bytes.NewReader(encoded))
 	forwarded.ContentLength = int64(len(encoded))
-	h.chatCompletions(response, forwarded)
+	if body.Session == "" {
+		h.chatCompletions(response, forwarded)
+		return
+	}
+	// A session keeps each answered turn beside its tool steps, so the
+	// session's thread survives a reload or a restart.
+	buffered := &bufferedResponse{header: http.Header{}}
+	h.chatCompletions(buffered, forwarded)
+	var answered chatResponse
+	if writtenStatus(buffered.status) == http.StatusOK && json.Unmarshal(buffered.body.Bytes(), &answered) == nil && len(answered.Choices) != 0 {
+		if err := h.recordAgentTurn(request.Context(), agentSessionID(body.Agent, body.Session), body.Messages[len(body.Messages)-1], answered.Choices[0].Message); err != nil {
+			writeAgentResult(response, http.StatusOK, nil, err)
+			return
+		}
+	}
+	buffered.relay(response)
 }
 
 // aliasNamesUnder lists the names bound under an alias root, reading the

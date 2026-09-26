@@ -130,6 +130,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/agents/tools", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentTools)},
 	{Path: "/agents/provenance", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentProvenance)},
 	{Path: "/agents/sessions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentSessionList)},
+	{Path: "/agents/thread", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentThread)},
 	// The workbench's own routes: the manifest, schema and route table are
 	// public like the shell they feed; the operations evidence and the
 	// automation, peer and agent workspaces take the bearer credential. They

@@ -229,6 +229,9 @@ type cachedPrompt struct {
 	LoRASignature       [32]byte
 	ProjectionSignature [32]byte
 	HasProjection       bool
+	// Decoded: the entry ends in generated tokens, and its Hidden holds only
+	// the last row, the one that predicts the pending token after Tokens.
+	Decoded bool
 }
 
 type OpenOptions struct {

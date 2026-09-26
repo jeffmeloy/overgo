@@ -41,7 +41,7 @@ func (r *Runner) StartSession(
 	if err != nil {
 		return nil, "", err
 	}
-	ids, cache, err = r.generateCachedHost(ctx, ids, hidden, cache, options, false, 0, -1)
+	ids, _, cache, err = r.generateCachedHost(ctx, ids, hidden, cache, options, false, 0, -1)
 	if err != nil {
 		return nil, "", err
 	}
@@ -83,7 +83,7 @@ func (r *Runner) ContinueSession(
 	cache := session.Cache
 	if options.MaxNewTokens > 0 && (options.ContinueAfterEOG || !r.vocab.IsEOG(ids[len(ids)-1])) {
 		var err error
-		ids, cache, err = r.generateCachedHost(
+		ids, _, cache, err = r.generateCachedHost(
 			ctx, ids, reference.Value{}, cache, options, true, 0, -1,
 		)
 		if err != nil {
@@ -110,40 +110,42 @@ func (r *Runner) generateCachedHost(
 	advanceFirst bool,
 	keep uint32,
 	discard int,
-) ([]tokenizer.TokenID, *KVCache, error) {
+) ([]tokenizer.TokenID, reference.Value, *KVCache, error) {
 	outputTable := r.outputTensor()
 	var generatedText strings.Builder
+	// A failed step returns the ids so far with the last good state: the cache
+	// then holds every id but the pending last one.
 	for generatedIndex := range options.MaxNewTokens {
 		if advanceFirst || generatedIndex > 0 {
-			var err error
-			cache, err = r.cacheForAppendKeeping(
+			appendable, err := r.cacheForAppendKeeping(
 				cache, 1, options.ContextShift, keep, discard,
 			)
 			if err != nil {
-				return nil, nil, err
+				return ids, hidden, cache, err
 			}
-			hidden, cache, err = r.forwardCachedLocked(
-				ctx, []tokenizer.TokenID{ids[len(ids)-1]}, cache,
+			nextHidden, next, err := r.forwardCachedLocked(
+				ctx, []tokenizer.TokenID{ids[len(ids)-1]}, appendable,
 			)
 			if err != nil {
-				return nil, nil, err
+				return ids, hidden, cache, err
 			}
+			hidden, cache = nextHidden, next
 		}
 		event, err := r.sampleHidden(ctx, outputTable, hidden, ids, options)
 		if err != nil {
-			return nil, nil, err
+			return ids, hidden, cache, err
 		}
 		event.Index = generatedIndex
 		ids = append(ids, event.ID)
 		stop, err := r.deliverGenerationToken(&event, options, &generatedText)
 		if err != nil {
-			return nil, nil, err
+			return ids, hidden, cache, err
 		}
 		if stop {
 			break
 		}
 	}
-	return ids, cache, nil
+	return ids, hidden, cache, nil
 }
 
 func (r *Runner) outputTensor() gguf.TensorInfo {

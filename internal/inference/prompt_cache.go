@@ -82,7 +82,8 @@ func (r *Runner) selectPromptCache(
 			continue
 		}
 		common := reusablePromptPrefix(candidate.Tokens, requested, minimum)
-		if common > best {
+		// On a tie the entry with fewer tokens past the prefix trims least.
+		if common > best || (common == best && common > 0 && len(candidate.Tokens) < len(selected.Tokens)) {
 			selected = candidate
 			selectedIndex = index
 			best = common
@@ -248,16 +249,10 @@ func (r *Runner) trimHostPromptCache(
 	cache *KVCache,
 	keep uint32,
 ) (reference.Value, *KVCache, error) {
-	if cache == nil || keep == 0 || keep >= cache.Tokens {
-		return reference.Value{}, nil, errors.New(
-			"inference: invalid host prompt cache suffix trim",
-		)
-	}
-	trimmed, err := r.RemoveCacheRange(cache, keep, cache.Tokens-keep)
+	trimmed, err := r.trimHostPromptKV(cache, keep)
 	if err != nil {
 		return reference.Value{}, nil, err
 	}
-	trimmed.Position = keep
 	_, rows, valid := hidden.MatrixExtents()
 	if !valid || uint64(rows) != uint64(cache.Tokens) {
 		return reference.Value{}, nil, fmt.Errorf(
@@ -271,6 +266,45 @@ func (r *Runner) trimHostPromptCache(
 		return reference.Value{}, nil, err
 	}
 	return result, trimmed, nil
+}
+
+// trimHostPromptKV keeps the first keep tokens of a host cache.
+func (r *Runner) trimHostPromptKV(cache *KVCache, keep uint32) (*KVCache, error) {
+	if cache == nil || keep == 0 || keep >= cache.Tokens {
+		return nil, errors.New("inference: invalid host prompt cache suffix trim")
+	}
+	trimmed, err := r.RemoveCacheRange(cache, keep, cache.Tokens-keep)
+	if err != nil {
+		return nil, err
+	}
+	trimmed.Position = keep
+	return trimmed, nil
+}
+
+// retainDecodedPromptCache keeps what a generation decoded as a prompt-cache
+// entry: every id but the pending last one, whose state is not computed yet,
+// so a continuation forwards only that token. A cache holding other than
+// those tokens (a context shift) is not kept.
+func (r *Runner) retainDecodedPromptCache(
+	ctx context.Context,
+	ids []tokenizer.TokenID,
+	hidden reference.Value,
+	host *KVCache,
+	device *deviceKVCache,
+) error {
+	decoded := len(ids) - 1
+	switch {
+	case decoded < 1:
+		return nil
+	case device != nil && device.Tokens != uint32(decoded):
+		return nil
+	case device == nil && (host == nil || host.Tokens != uint32(decoded)):
+		return nil
+	}
+	return r.storePromptCache(ctx, &cachedPrompt{
+		Tokens: slices.Clone(ids[:decoded]), Hidden: hidden, Cache: host, Device: device,
+		LoRASignature: r.currentLoRASignature(), Decoded: true,
+	})
 }
 
 func trimDeviceCacheSuffix(cache *deviceKVCache, keep uint32, session recipe.SessionPolicy) error {

@@ -913,7 +913,7 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:9c4ab7a7776e4b4ff7e71dd3bd99071f2687ad03049d5bc45a72f19ae67b478e"
+     "identity": "file:sha256:58c775daf706da1dd80f2c3bf8928c3548de15c21b73e8b2eefd3803769fc1ce"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",

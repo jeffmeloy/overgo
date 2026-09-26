@@ -37,33 +37,33 @@
     },
     {
       "id": "media-campaign-one-record",
-      "title": "Fold the media campaign's 22 files into one record",
+      "title": "Fold the media campaign's receipts into fewer committed records",
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Fold the media campaign's 22 files into one record",
+          "title": "Fold the media campaign's receipts into fewer committed records",
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestMediaCampaignIsOneRecord$' -count=1",
-          "rationale": " File consolidation (owner priority 2026-09-26). The image and video campaign spans 19 docs/image_video_*.json files, media_reviewed_deltas.json, media_report.json and MEDIA_REPORT.md, about 830 KB for one concern; 16 are frozen receipts only cmd/compatibility tests read. Keep one authored media record (protocol, validation, assertions, capacity) and move the frozen receipts into the store with lineage, repointing the pins in gate/pinned_bytes.go and gate/surface_preflight.go. Pinned media evidence moves in one landing with its runtime digest (runtime-evidence-substrate). Done when TestMediaCampaignIsOneRecord finds one tracked media record."
+          "rationale": "Owner decision 2026-09-26: evidence and reports stay committed to git, so the frozen media receipts are not moved into the store. The campaign spans 21 docs/image_video_*.json files, media_reviewed_deltas.json, media_report.json, MEDIA_REPORT.md and docs/media_samples; 15 receipts are read only by cmd/compatibility tests, each pinned by its own canonical-JSON digest constant (image_video_*_test.go via checkMediaProtocolIdentity), and image_video_merged.json carries the runtime_sha256 and runtime_paths the gate reads. Any fold is a pinned-evidence move landed in one commit with its digests (runtime-evidence-substrate); scope it only if one committed record can replace several pins without weakening them."
         }
       ]
     },
     {
       "id": "one-capability-report",
-      "title": "Replace the six generated capability reports with one rendered from the store",
+      "title": "Keep the store-derived reports committed and regenerate them at the gate",
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Replace the six generated capability reports with one rendered from the store",
+          "title": "Keep the store-derived reports committed and regenerate them at the gate",
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestOneCapabilityReport$' -count=1",
-          "rationale": " File consolidation (owner priority 2026-09-26). COMPATIBILITY.md, TRAINING_COMPATIBILITY.md, BENCHMARK.md, MEDIA_REPORT.md, media_report.json (381 KB, its totals duplicate MEDIA_REPORT.md) and model_compatibility.json (80 KB, written by -update-models, read and checked by nothing) are six generated views of one set of claims. Render one capability report from compatibility.json and the store (compatibility -report); track it only if an offline reader needs it, checked by automationcheck like the SBOM; repoint README links. Done when TestOneCapabilityReport finds one generated report and none of the six."
+          "rationale": "Owner decision 2026-09-26: the capability reports stay committed to git, where readers of the repository see them, rather than rendered on demand. The original aim (one report rendered from the store, none tracked) is therefore withdrawn. What remains is freshness: docs/model_compatibility.json (written by compatibility -update-models), docs/media_report.json and docs/MEDIA_REPORT.md (-update-media) and docs/BENCHMARK.md (benchmark-report -update) are projections of OvergoDB state that no gate check regenerates or compares -- BENCHMARK.md's -check is not wired in, the models report has no freshness check at all, and the media reports are checked only when a data root is present -- so each drifts from the store until someone reruns its writer. Regenerate each as a staged repair from the data-root store, the way the API manifest and compatibility matrix are, so a committed report is always the store's current projection."
         }
       ]
     },
@@ -1254,7 +1254,8 @@
             "selection-prose-per-path/do",
             "ratchet-ledgers-retired/do",
             "verification-unread-removed/do",
-            "verification-fixture-orphans/do"
+            "verification-fixture-orphans/do",
+            "readme-carries-main-edit/do"
           ]
         }
       ]

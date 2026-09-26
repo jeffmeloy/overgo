@@ -170,6 +170,10 @@ type gateContext struct {
 	testPlan *testGroups
 	// Protected by auditMutex; each invocation retains its own cost and profile.
 	testExecutions []packageExecutionBatch
+	// suiteCost is the suite cost this gate records; packageCosts, what the
+	// last recorded one measured, read once.
+	suiteCost    artifact.ID
+	packageCosts func() map[string]float64
 	// testStep names the check whose package executions are being recorded;
 	// the test checks run one after another.
 	testStep string
@@ -681,16 +685,20 @@ func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch
 	if err != nil {
 		return err
 	}
-	alias := artifact.AliasBinding{Name: finding.GateAdvisoriesAlias, Target: document.ID}
-	if previous, found, err := artifact.ResolveAlias(ctx, store, alias.Name); err != nil {
+	alias, err := moveAlias(ctx, store, finding.GateAdvisoriesAlias, document.ID)
+	if err != nil {
 		return err
-	} else if found {
-		alias = artifact.AliasMove(alias.Name, alias.Target, previous)
 	}
 	batch.Contents = append(batch.Contents, findingBatch.Contents...)
 	batch.Lineage = append(batch.Lineage, findingBatch.Lineage...)
 	batch.Aliases = append(batch.Aliases, alias)
 	return nil
+}
+
+// moveAlias binds name to target over whatever it named before.
+func moveAlias(ctx context.Context, store artifact.Reader, name string, target artifact.ID) (artifact.AliasBinding, error) {
+	previous, _, err := artifact.ResolveAlias(ctx, store, name)
+	return artifact.AliasMove(name, target, previous), err
 }
 
 func compactAudit(notes []auditNote) []string {

@@ -1364,7 +1364,7 @@ func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string,
 	}
 	began := time.Now()
 	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
-		Path: "go", Args: append(args, packages...), Dir: g.sourceRoot(), Env: environment,
+		Path: "go", Args: append(args, g.orderByMeasuredCost(packages)...), Dir: g.sourceRoot(), Env: environment,
 	}, options)
 	wall := time.Since(began)
 	if len(report.ClassifiedSkipped) != 0 {

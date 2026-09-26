@@ -4,22 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "automation-gate-rule-registry",
-      "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestGateRulesRunFromOneRegistry$' -count=1",
-          "rationale": "Consolidation round 1, refactor 1 (owner 2026-09-25: two or more birds with one stone; minimize to the maximum practical extent; no ledgers where construction can prevent the object). Measured: 1560 landing attempts, 844 succeeded; of 1055 failed steps about 73% (excluding the retired remote-provider check) were static or bookkeeping -- magics 276, profile 107, style 59, protection 43, claims 41, modern-go 23, scope 15, architecture 15, docs 13, fmt 12, sbom 10. internal/gate grew from 0 to 16k production and 26k test lines in 40 days, about 170 test files one per incident. Make every static check a rule in one registry (name, applies-to change set, check, and a fix for mechanical findings) run over one parse of the candidate tree, in parallel by package, each rule still reporting its own finding and evidence. Mechanical findings are fixed by the same pass in the developer loop (preflight), so the gate only confirms and the preflight result is the gate's static result. Fold closurescan, closureledger and cmd/closure-scan in as a rule; merge automationcheck, testevidence and testscope into the gate's selection. Replace the per-incident test files with one corpus of example change sets (extend false_negative_corpus_test.go). Net-negative is enforced by the automation- prefix. Done when TestGateRulesRunFromOneRegistry proves every static check runs from the registry over one parse and a mechanical finding is fixed, not refused."
-        }
-      ]
-    },
-    {
       "id": "automation-lanes-one-process",
       "title": "Run every deferred lane from one build under one device claim",
       "class": "consolidation",
@@ -31,23 +15,7 @@
           "title": "Run every deferred lane from one build under one device claim",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestDeferredLanesShareOneBuild$' -count=1",
-          "rationale": "Consolidation round 1. The device, test-device, model-journey and webui lanes each set up their own environment, compile their own binaries and take the GPU separately, so every landing builds about four near-duplicate trees (the Go build cache reached 759 GB and filled C: on 2026-09-25) and our own lanes contend for the device. Run every deferred lane in one process: one build of the candidate (with -trimpath, so worktrees share cache entries instead of each embedding its own path), one device claim, the suites in sequence, one verdict, each suite still reporting its own result. Lanes run from a frozen snapshot of their commit, not the live worktree: on 2026-09-25 starting a merge in the worktree killed the pending lane of c1b431d1 and it had to be re-run by hand. Device packages run one at a time (-p 1) in lanes and in test-lane receipts: a parallel receipt reserved the GPU against itself and timed out cuda/executor. The disk-full stop also failed a gate mid-run at checkout-index (GUI lane report, 2026-09-25): the gate refuses at admission when free space is below what its recent landings measurably consumed, naming the build cache as the usual cause, instead of failing mid-run -- a need measured from landing history, not a fixed reserve or cache cap. Absorbs device-claim-everywhere's lane half. Done when TestDeferredLanesShareOneBuild proves the lanes run from one build under one claim."
-        }
-      ]
-    },
-    {
-      "id": "automation-order-by-cost-and-yield",
-      "title": "Order gate work by measured failure yield and cost",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Order gate work by measured failure yield and cost",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestGateOrdersWorkByMeasuredCost$' -count=1",
-          "rationale": "Owner 2026-09-25: automation order can be optimized using classification. ExecuteDAG waves run in declaration order and package lists sort alphabetically (test_scope.go:253-273), while the store already records per-suite cost (package_execution_cost.go, batch_cost.go, testevidence TestCosts) and per-check failure history (1055 failed steps: magics 276, profile 107, style 59, protection 43, claims 41 ...). Order work by class and measured yield: cheap static checks first, ranked by how often each has actually refused a landing, so a doomed landing fails in seconds; then test work longest-first by measured cost within each resource class, device work under one claim. The measurements stop being report-only. GUI lane survey item 4. Done when TestGateOrdersWorkByMeasuredCost proves checks run in yield order and packages in measured-cost order."
+          "rationale": "Consolidation round 1. The device, test-device, model-journey and webui lanes each set up their own environment, compile their own binaries and take the GPU separately, so every landing builds about four near-duplicate trees (the Go build cache reached 759 GB and filled C: on 2026-09-25) and our own lanes contend for the device. Run every deferred lane in one process: one build of the candidate (with -trimpath, so worktrees share cache entries instead of each embedding its own path), one device claim, the suites in sequence, one verdict, each suite still reporting its own result. Lanes run from a frozen snapshot of their commit, not the live worktree: on 2026-09-25 starting a merge in the worktree killed the pending lane of c1b431d1 and it had to be re-run by hand. Device packages run one at a time (-p 1) in lanes and in test-lane receipts: a parallel receipt reserved the GPU against itself and timed out cuda/executor. The disk-full stop also failed a gate mid-run at checkout-index (GUI lane report, 2026-09-25): the gate refuses at admission when free space is below what its recent landings measurably consumed, naming the build cache as the usual cause, instead of failing mid-run -- a need measured from landing history, not a fixed reserve or cache cap. Absorbs device-claim-everywhere's lane half. Done when TestDeferredLanesShareOneBuild proves the lanes run from one build under one claim. Measured 2026-09-26: -trimpath cannot simply be added to the gate's builds -- under GOFLAGS=-trimpath the modern-Go census finds no candidates and runtime-input selection misreads packages (16 repoanalysis and 5 gate tests fail), because both match loaded positions by absolute file path. Path-independent cache sharing needs those analyses to key positions by module-relative path first; tests that locate the repository through runtime.Caller (plan, clioptions) would move to their working directory."
         }
       ]
     },
@@ -78,6 +46,22 @@
           "status": "open",
           "verify": "go test ./internal/testskip -run '^TestCapabilityGates$' -count=1",
           "rationale": "OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_PROBE_TEST and per-model flags gate tests, and a skip-reason classifier recovers what they lose (fd3e2549). Detect the device and the browser once, skip with a classified reason when absent, and delete the variables. 2026-09-25: the reviewed media delta for the VAE port needed its device receipt run by hand with OVERGO_CUDA_TEST=1, OVERGO_WAN_MODEL pointing at the Wan checkpoint, -tags integration and -p 1; without them the Wan device tests silently skipped and the receipt proved nothing about the changed paths. Resolve a test's model through the store by identity (models-resolve-by-identity) and its device by detection, so a receipt over a package runs its real-model tests without an operator knowing the switches."
+        }
+      ]
+    },
+    {
+      "id": "automation-gate-rule-registry",
+      "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestGateRulesRunFromOneRegistry$' -count=1",
+          "rationale": "Consolidation round 1, refactor 1 (owner 2026-09-25: two or more birds with one stone; minimize to the maximum practical extent; no ledgers where construction can prevent the object). Measured: 1560 landing attempts, 844 succeeded; of 1055 failed steps about 73% (excluding the retired remote-provider check) were static or bookkeeping -- magics 276, profile 107, style 59, protection 43, claims 41, modern-go 23, scope 15, architecture 15, docs 13, fmt 12, sbom 10. internal/gate grew from 0 to 16k production and 26k test lines in 40 days, about 170 test files one per incident. Make every static check a rule in one registry (name, applies-to change set, check, and a fix for mechanical findings) run over one parse of the candidate tree, in parallel by package, each rule still reporting its own finding and evidence. Mechanical findings are fixed by the same pass in the developer loop (preflight), so the gate only confirms and the preflight result is the gate's static result. Fold closurescan, closureledger and cmd/closure-scan in as a rule; merge automationcheck, testevidence and testscope into the gate's selection. Replace the per-incident test files with one corpus of example change sets (extend false_negative_corpus_test.go). Net-negative is enforced by the automation- prefix. Done when TestGateRulesRunFromOneRegistry proves every static check runs from the registry over one parse and a mechanical finding is fixed, not refused. Progress 2026-09-26: L1 landed (438dc817, the gateRules table), the owns column and one path catalog landed (66be7333), and the gate already rebinds drifted closure bindings in magics, so the manual rebind is not needed. Measured: one discovery and parse of the whole tree costs about 0.55 s serial (3854 files, 0.13 s read, 0.42 s parse), so sharing one parse across the static checks saves about a second of CPU in parallel steps -- low yield; re-ranked below automation-order-by-cost-and-yield. The remaining value is mechanical fixes in the developer loop and folding the per-incident tests into one corpus."
         }
       ]
     },
@@ -1624,6 +1608,10 @@
     {
       "key": "surface-move:production-nodes:cec8650046f910a364e4ec6d4ac753d4b3439b17",
       "row": "automation-harness-surface-remainder"
+    },
+    {
+      "key": "surface-move:production-nodes:d43803152afac3a469b0c849627b200f1a8a5a11",
+      "row": "automation-structured-parsing"
     },
     {
       "key": "surface-move:production-nodes:dc8d00b949a0fc3fd358fd18eeb599f64cd1fae1",

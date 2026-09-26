@@ -2,14 +2,18 @@ package gate
 
 import (
 	"cmp"
+	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 )
@@ -108,8 +112,67 @@ func (g *gateContext) appendSuiteCost(batch *artifact.Batch, result artifact.ID)
 	}
 	batch.Contents = append(batch.Contents, content)
 	batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: content.Descriptor.ID, Parent: result, Relation: artifact.RelationDependsOn})
+	g.suiteCost = content.Descriptor.ID
 	g.advise(noteSuiteCost, fmt.Sprintf("suite cost ranking: evidence=%s result=%s invocations=%d bytes=%d; query with overgodb-query -repo <store> -id %s -content", content.Descriptor.ID, result, len(record.Invocations), len(data), content.Descriptor.ID))
 	return nil
+}
+
+// suiteCostAlias names the suite cost the last finalized gate recorded.
+const suiteCostAlias = "gate-suite-cost-current"
+
+// orderByMeasuredCost starts the packages the last recorded suite cost
+// measured longest first: go test schedules earlier arguments first, so the
+// longest run no longer queues behind short ones. Unmeasured packages lead,
+// their cost unknown; with no recorded cost the order is kept.
+func (g *gateContext) orderByMeasuredCost(packages []string) []string {
+	g.auditMutex.Lock()
+	if g.packageCosts == nil {
+		g.packageCosts = sync.OnceValue(func() map[string]float64 { return recordedPackageCosts(g.storePath) })
+	}
+	costs := g.packageCosts
+	g.auditMutex.Unlock()
+	cost := func(pkg string) float64 {
+		if measured, found := costs()[pkg]; found {
+			return measured
+		}
+		return math.Inf(1)
+	}
+	ordered := slices.Clone(packages)
+	slices.SortStableFunc(ordered, func(left, right string) int { return cmp.Compare(cost(right), cost(left)) })
+	return ordered
+}
+
+// recordedPackageCosts reads each package's longest elapsed from the suite
+// cost the store's alias names; an absent or unreadable record is no cost.
+func recordedPackageCosts(storePath string) map[string]float64 {
+	costs := map[string]float64{}
+	store, err := overgodb.OpenReadOnly(storePath)
+	if err != nil {
+		return costs
+	}
+	defer store.Close()
+	ctx := context.Background()
+	id, found, err := artifact.ResolveAlias(ctx, store, suiteCostAlias)
+	if err != nil || !found {
+		return costs
+	}
+	content, found, err := artifact.ReadContent(ctx, store, id)
+	var record struct {
+		Invocations []struct {
+			Executions []testevidence.PackageExecution
+		}
+	}
+	if err != nil || !found || json.Unmarshal(content.Data, &record) != nil {
+		return costs
+	}
+	for _, invocation := range record.Invocations {
+		for _, execution := range invocation.Executions {
+			if execution.Elapsed != nil {
+				costs[execution.Package] = max(costs[execution.Package], *execution.Elapsed)
+			}
+		}
+	}
+	return costs
 }
 
 func (g *gateContext) recordPackageExecution(packages []string, short bool, wall time.Duration, report testevidence.GoTestReport, err error) {

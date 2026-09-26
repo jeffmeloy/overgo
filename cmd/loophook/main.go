@@ -18,6 +18,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -26,8 +27,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
+	"overgo/internal/gitauthority"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/repoanalysis"
@@ -372,7 +375,35 @@ func gateProcessRunning() bool {
 func nextDispatch() plan.Dispatch {
 	dispatch, err := plan.ResolveDispatch(context.Background(), ".", plan.DispatchRequest{Mode: plan.ExecutionInteractive})
 	if err != nil {
-		return plan.Dispatch{Line: "plan: " + err.Error()}
+		revision, sourcesChanged := buildRevision()
+		return plan.Dispatch{Line: cmp.Or(staleBuildNotice(revision, sourcesChanged, err), "plan: "+err.Error())}
 	}
 	return dispatch
+}
+
+// buildRevision is the commit this binary was built at, and whether the
+// tree's Go sources have changed since; an unstamped build reports neither.
+func buildRevision() (string, bool) {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "", false
+	}
+	for _, setting := range info.Settings {
+		if setting.Key == "vcs.revision" {
+			_, err := gitauthority.Query(context.Background(), ".", "diff", "--quiet", setting.Value, "--", "internal", "cmd/loophook", "go.mod")
+			changed := err != nil
+			return setting.Value, changed
+		}
+	}
+	return "", false
+}
+
+// staleBuildNotice names the rebuild when the plan could not be read by a
+// hook built before the tree's sources changed: a stale hook mis-reads newer
+// plan records, so its failure is its own, not the plan's.
+func staleBuildNotice(revision string, sourcesChanged bool, err error) string {
+	if revision == "" || !sourcesChanged {
+		return ""
+	}
+	return fmt.Sprintf("loophook: this build (%.12s) predates the tree's sources and cannot read the current plan (%v); rebuild it: go build -o bin/loophook.exe ./cmd/loophook", revision, err)
 }

@@ -437,21 +437,6 @@
       ]
     },
     {
-      "id": "loophook-stale-build",
-      "title": "Refuse a Stop hook built from older sources",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse a Stop hook built from older sources",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -run '^TestHookRefusesStaleBuild$' -count=1",
-          "rationale": "Automation friction: the Stop hook runs bin/loophook.exe, which is built by hand. After a stored-schema change (7f700241's unknown_digest) the stale binary refused the new plan record and blocked turn ends until the lead noticed and rebuilt it. Have the hook compare its embedded build identity against the sources it depends on and either rebuild, or refuse with the rebuild command, instead of mis-reading newer records. Done when TestHookRefusesStaleBuild runs a hook whose recorded identity differs from the tree and gets the rebuild instruction, not a decode failure."
-        }
-      ]
-    },
-    {
       "id": "e4b-full-parameter-trainer",
       "title": "Train Gemma-4 E4B with full-parameter gradients",
       "owner": "master-lead",

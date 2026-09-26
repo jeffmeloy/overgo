@@ -199,16 +199,24 @@ func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *ht
 	payload := map[string]any{
 		"call_id": preview.CallID, "operation": idText(preview.Operation),
 		"manual": idText(preview.Manual), "tool": preview.Tool,
-		"effect": string(preview.Effect), "arguments": preview.Arguments,
+		"effect": string(preview.Effect), "arguments": wireArguments(preview.Arguments),
 		"binds": preview.Binds,
 	}
 	if preview.Decision != nil {
 		payload["decision"] = map[string]any{
 			"id": idText(preview.Decision.ID), "answer": string(preview.Decision.Answer),
-			"tool": preview.Decision.Tool, "arguments": preview.Decision.Arguments,
+			"tool": preview.Decision.Tool, "arguments": wireArguments(preview.Decision.Arguments),
 		}
 	}
 	writeJSON(response, http.StatusOK, payload)
+}
+
+// wireArguments: arguments are lists on the wire; a call without them is [], never null.
+func wireArguments(arguments []string) []string {
+	if arguments == nil {
+		return []string{}
+	}
+	return arguments
 }
 
 // agentSessionList projects every durable agent session from the

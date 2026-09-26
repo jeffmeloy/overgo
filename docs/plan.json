@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-legs-agent-thread",
-      "title": "Behaviour tests, stage 7d: a browser leg drives agent mode in the front thread and a mutation's preview and approval card, retiring the front agent needles",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Behaviour tests, stage 7d: a browser leg drives agent mode in the front thread and a mutation's preview and approval card, retiring the front agent needles",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserAgentThread$' -leg 'agent thread leg'",
-          "rationale": "Stage 7 split 2026-09-25 by fixture: a survey of the eleven front-page needle tests found each needle's behaviour either driven by an existing leg (those needles go in the row that retires the test) or driven by no hermetic leg, and the gaps group by the fixture they need. Agent group over the agent workspace fixture: agent mode in the front thread with its tool cards and remaining steps, and a mutation previewed and approved against its bound operation. Retires TestFrontPageAgent, keeping its step and session API checks and its approval-route ban."
-        }
-      ]
-    },
-    {
       "id": "gui-legs-remote",
       "title": "Behaviour tests, stage 7e: a browser leg drives a hosted provider's turns (the remote tag, the remote marker on a turn, and the provider's usage), retiring the remote turn needles",
       "owner": "overgo_gui_cleanup",

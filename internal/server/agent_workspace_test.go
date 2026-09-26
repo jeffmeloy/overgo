@@ -115,6 +115,7 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 	if preview.Code != http.StatusOK ||
 		!strings.Contains(preview.Body.String(), `"effect":"mutation"`) ||
 		!strings.Contains(preview.Body.String(), `"binds":false`) ||
+		!strings.Contains(preview.Body.String(), `"arguments":[]`) ||
 		strings.Contains(preview.Body.String(), `"decision"`) {
 		t.Fatalf("approval preview status=%d body=%s", preview.Code, preview.Body.String())
 	}

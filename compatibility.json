@@ -1549,7 +1549,7 @@
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRModelSwitchAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:8c8648714cc4c55695e03d7c25c52c2c78f7e972eb87c959928ece2659c97260"
+     "identity": "evidence:sha256:7bc34b706d4c99013d399ef4e6ec2cb2663c13c441e48ae26ab4d2a8163c9fed"
     }
    ]
   },
@@ -1571,7 +1571,7 @@
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRLiveOperationsAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:8c8648714cc4c55695e03d7c25c52c2c78f7e972eb87c959928ece2659c97260"
+     "identity": "evidence:sha256:7bc34b706d4c99013d399ef4e6ec2cb2663c13c441e48ae26ab4d2a8163c9fed"
     }
    ]
   }

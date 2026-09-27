@@ -22,15 +22,17 @@ Every suite is scored 0-shot from the store's catalog. The raw-completion protoc
 
 | Model | Bytes | Prompt tok/s | Decode tok/s | Long prompt tok/s | Long decode tok/s | Long-form | store/dna (raw-completion) | store/ifeval (chat-template) | store/mmlu (chat-template) | store/mmlu (raw-completion) | store/mmlu-pro (chat-template) | store/mmlu-pro (raw-completion) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Qwen2.5-0.5B-f16 | 994065792 | 2.309e+04 | 333 | 2.295e+04 | 454.9 | PASS (2048→256 tok, context gain +0.22 nat, distinct 4-gram 0.34, span 100, `43c27eab4ef6`) | — | — | accuracy 0.03 | accuracy 0.42 | accuracy 0.07862 | accuracy 0.1119 |
+| Qwen2.5-0.5B-f16 | 994065792 | 2.309e+04 | 333 | 2.32e+04 | 453.7 | PASS (2048→256 tok, context gain +0.22 nat, distinct 4-gram 0.34, span 100, `478055bbf09b`) | — | — | accuracy 0.03 | accuracy 0.42 | accuracy 0.07862 | accuracy 0.1119 |
 | Carbon-500M-f16-ropefix | 1029821280 | — | — | — | — | — | perplexity 910.3 | — | — | — | — | — |
-| MiniCPM5-1B-native-chat | 2166401248 | 1160 | 321.2 | 2.421e+04 | 294.6 | PASS (2048→256 tok, context gain +0.22 nat, distinct 4-gram 0.09, span 220, `43c27eab4ef6`) | — | — | accuracy 0.26 | accuracy 0.33 | accuracy 0.2913 | accuracy 0.1378 |
-| Qwen3.5-4B-f16 | 8664046912 | 3389 | 80.82 | 3695 | 73.12 | PASS (2048→256 tok, context gain +0.58 nat, distinct 4-gram 0.89, span 7, `43c27eab4ef6`) | — | — | accuracy 0.53 | accuracy 0.55 | accuracy 0.4715 | accuracy 0.3726 |
-| Qwen3.5-9B-Q8_0 | 9527502048 | 1965 | 75.97 | 2844 | 70.29 | PASS (2048→256 tok, context gain +0.55 nat, distinct 4-gram 1.00, span 4, `43c27eab4ef6`) | — | instruction-loose 0.8981 | accuracy 0.61 | accuracy 0.59 | accuracy 0.4669 | accuracy 0.4444 |
-| gemma-4-E4B-it-bf16 | 14940816608 | 6150 | 49.32 | 8238 | 41.19 | PASS (2048→256 tok, context gain +0.88 nat, distinct 4-gram 0.96, span 5, `43c27eab4ef6`) | — | — | accuracy 0.2 | accuracy 0.44 | accuracy 0.4385 | accuracy 0.4218 |
-| gemma-4-12B-it-fp8-native | 15342646656 | 1816 | 41.47 | 3314 | 29.9 | PASS (2048→256 tok, context gain +0.56 nat, distinct 4-gram 0.63, span 45, `43c27eab4ef6`) | — | instruction-loose 0.9341 | accuracy 0.5 | accuracy 0.38 | accuracy 0.4924 | accuracy 0.2855 |
-| Qwen3.8-27B-UD-Q6_K | 21983677344 | 359.8 | 26.56 | 467.9 | 24.37 | PASS (2048→256 tok, context gain +0.50 nat, distinct 4-gram 1.00, span 4, `43c27eab4ef6`) | — | — | accuracy 0.7 | accuracy 0.65 | — | — |
-| gemma-4-12B-it-fp8-bf16 | 23829476736 | 2843 | 31.06 | 3593 | 24.29 | PASS (2048→256 tok, context gain +0.64 nat, distinct 4-gram 0.98, span 7, `43c27eab4ef6`) | — | instruction-loose 0.9353 | accuracy 0.5 | accuracy 0.38 | accuracy 0.4926 | accuracy 0.2872 |
+| MiniCPM5-1B-native-chat | 2166401248 | 1160 | 321.2 | 2.442e+04 | 293.9 | PASS (2048→256 tok, context gain +0.22 nat, distinct 4-gram 0.09, span 220, `478055bbf09b`) | — | — | accuracy 0.26 | accuracy 0.33 | accuracy 0.2913 | accuracy 0.1378 |
+| Bonsai-27B-Q1_0 | 3803452480 | 47.34 | 33.17 | 1123 | 29.29 | PASS (2048→256 tok, context gain +0.15 nat, distinct 4-gram 0.92, span 17, `478055bbf09b`) | — | — | — | — | — | — |
+| Unlimited-OCR-bf16 | 5876573312 | 23.42 | 3.931 | 366.3 | 3.91 | PASS (2048→256 tok, context gain +0.28 nat, distinct 4-gram 0.03, span 248, `478055bbf09b`) | — | — | — | — | — | — |
+| Qwen3.5-4B-f16 | 8664046912 | 3389 | 80.82 | 3698 | 71.77 | PASS (2048→256 tok, context gain +0.58 nat, distinct 4-gram 0.89, span 7, `478055bbf09b`) | — | — | accuracy 0.53 | accuracy 0.55 | accuracy 0.4715 | accuracy 0.3726 |
+| Qwen3.5-9B-Q8_0 | 9527502048 | 1965 | 75.97 | 2845 | 70.36 | PASS (2048→256 tok, context gain +0.55 nat, distinct 4-gram 1.00, span 4, `478055bbf09b`) | — | prompt-strict 0.7985 | accuracy 0.61 | accuracy 0.59 | accuracy 0.4669 | accuracy 0.4444 |
+| gemma-4-E4B-it-bf16 | 14940816608 | 6150 | 49.32 | 8282 | 39.92 | PASS (2048→256 tok, context gain +0.88 nat, distinct 4-gram 0.96, span 5, `478055bbf09b`) | — | — | accuracy 0.2 | accuracy 0.44 | accuracy 0.4385 | accuracy 0.4218 |
+| gemma-4-12B-it-fp8-native | 15342646656 | 1816 | 41.47 | 3295 | 29.28 | PASS (2048→256 tok, context gain +0.56 nat, distinct 4-gram 0.63, span 45, `478055bbf09b`) | — | prompt-strict 0.8725 | accuracy 0.5 | accuracy 0.38 | accuracy 0.4924 | accuracy 0.2855 |
+| Qwen3.8-27B-UD-Q6_K | 21983677344 | 359.8 | 26.56 | 468 | 24.36 | PASS (2048→256 tok, context gain +0.50 nat, distinct 4-gram 1.00, span 4, `478055bbf09b`) | — | — | accuracy 0.7 | accuracy 0.65 | — | — |
+| gemma-4-12B-it-fp8-bf16 | 23829476736 | 2843 | 31.06 | 3591 | 24.23 | PASS (2048→256 tok, context gain +0.64 nat, distinct 4-gram 0.98, span 7, `478055bbf09b`) | — | prompt-strict 0.8762 | accuracy 0.5 | accuracy 0.38 | accuracy 0.4926 | accuracy 0.2872 |
 
 ## Records
 
@@ -67,6 +69,18 @@ Location `C:/Users/jeffm/overgo/models/MiniCPM5-1B-native-chat.gguf`, 2166401248
 | store/mmlu (raw-completion) | accuracy=0.33 | — | `f77a5a5bfd168ce264dd0581092e5577fd583bfb` | 100 | 964ms | 10ms | `evaluation:sha256:20c8e07f42f58e964c29316d09662ff0a6cdd71b6aeeb14605b137b6c542a28e` |
 | store/mmlu-pro (chat-template) | accuracy=0.2913<br>accuracy.biology=0.5607<br>accuracy.business=0.2357<br>accuracy.chemistry=0.2032<br>accuracy.computer-science=0.2537<br>accuracy.economics=0.4348<br>accuracy.engineering=0.2786<br>accuracy.health=0.324<br>accuracy.history=0.294<br>accuracy.law=0.2352<br>accuracy.math=0.1569<br>accuracy.other=0.3247<br>accuracy.philosophy=0.3106<br>accuracy.physics=0.2086<br>accuracy.psychology=0.4662 | — | `f278ca230121df1d0bedf8fc58bf7881a9ebc475` | 12032 | 7m1.409s | 35ms | `evaluation:sha256:87e80e5a969100be3fb6569c09e6f660e5f92251f93ce4d0958c0d71332b4be7` |
 | store/mmlu-pro (raw-completion) | accuracy=0.1378<br>accuracy.biology=0.1743<br>accuracy.business=0.1217<br>accuracy.chemistry=0.1219<br>accuracy.computer-science=0.1098<br>accuracy.economics=0.154<br>accuracy.engineering=0.1197<br>accuracy.health=0.1528<br>accuracy.history=0.1732<br>accuracy.law=0.1544<br>accuracy.math=0.1192<br>accuracy.other=0.1331<br>accuracy.philosophy=0.1483<br>accuracy.physics=0.1232<br>accuracy.psychology=0.1617 | — | `f77a5a5bfd168ce264dd0581092e5577fd583bfb` | 12032 | 2m55.141s | 15ms | `evaluation:sha256:651ab1dfee7ef99a44ba668d41051c73240d40cd69a1ad09de20f6a3cb233111` |
+
+### Bonsai-27B-Q1_0
+
+Location `C:/Users/jeffm/adaptive_new/models/bonzai/Bonsai-27B-Q1_0.gguf`, 3803452480 bytes.
+
+No committed evaluation.
+
+### Unlimited-OCR-bf16
+
+Location `C:/Users/jeffm/adaptive_new/checkpoints/overgo-hfconvert/Unlimited-OCR-bf16.gguf`, 5876573312 bytes.
+
+No committed evaluation.
 
 ### Qwen3.5-4B-f16
 
@@ -147,5 +161,5 @@ Published references for suites without a committed evaluation: store/mmlu-pro a
 
 ## Audit
 
-9 servable model(s); 9 with committed evaluations; 6 with a published reference declared; 6 suite(s) with evidence.
+11 servable model(s); 9 with committed evaluations; 6 with a published reference declared; 6 suite(s) with evidence.
 Models without evidence appear with dashes rather than being omitted. A published reference is a store declaration naming its source and protocol; the measured value is not adjusted toward it.

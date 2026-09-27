@@ -1,6 +1,7 @@
 {
   "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
   "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. A consolidation row is done only when it deletes the implementations it replaces: test the shared owner's contract, keep only meaningful caller integration checks, retire tests of deleted wrappers, and report net production and test code removed, repeated executions eliminated, gate wall time and peak memory on comparable changes. Across the 197 first-parent commits to 2026-09-23, production Go grew about 9,000 net lines and tests about 11,600. OvergoDB keeps its core -- immutable content, a durable journal, aliases, rebuildable projections -- and the repository simplifies how it uses it, in order: integrity and blocking defects, one publication path, bounded queries, one record per transition, bounded memory, declared storage policy, then bounded segments. Store rows report bytes and records added per landing, records scanned per query, open and replay time, writer wait, peak memory and compaction write volume. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan. Improvement is what the user-facing scorecard measures (owner 2026-09-27): a row states the user-visible effect it predicts, naming a scorecard metric where it can, and work that moves only internal metrics states why it exists. Consolidation onto shared paths is how one fix reaches every model.",
+  "lane": "master-lead",
   "items": [
     {
       "id": "user-scorecard",
@@ -8,13 +9,6 @@
       "owner": "master-lead",
       "status": "open",
       "steps": [
-        {
-          "id": "define",
-          "title": "Define the scorecard: per model, what a user feels",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestScorecardRowsEveryServableModel$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27: one user-facing scorecard is the definition of improvement. Per registered model: time to first token and tokens per second, held-out answer quality, failure and crash rate, load time and peak VRAM, and the setup steps a user takes. One command renders it from the store (cmd/validate owns the validation circuit), one row per model, every cell measured or marked unavailable with its reason; cmd/benchmark, benchmark-report and perf-sweep feed it or fold into it."
-        },
         {
           "id": "per-landing",
           "title": "Run the scorecard's cheap slice on the landings that reach a model path",
@@ -45,6 +39,85 @@
             "user-scorecard/scheduled",
             "rae-generation-path/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "projection-serving-failures",
+      "title": "Stop the projection activation failing a quarter of its serving attempts",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop the projection activation failing a quarter of its serving attempts",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestProjectionServingRecordsItsTask$' -count=1",
+          "rationale": "Found 2026-09-27 by the user scorecard (validate -scorecard): gemma-4-E4B-it's projection activation (recipe 93a7a292) failed 324 of 1,296 serving attempts with execution_failed and 324 more were cancelled, all at zero output tokens in one environment. Its observations also record task inference under the projection recipe (internal/server/server_admin.go servingIdentity), which is how the first scorecard draft charged them to the inference row. Find what drives these attempts and why they fail, fix the cause, and record the projection task; the scorecard's failure cell for the row is the predicted effect."
+        }
+      ]
+    },
+    {
+      "id": "owner-decision-queue",
+      "title": "Make pending owner decisions typed plan data with a one-click inbox",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make pending owner decisions typed plan data with a one-click inbox",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run '^TestDecisionsListPendingOwnerDecisions$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27. Decisions sit inside rationale prose (\"OWNER DECISION: ...\"): the compatibility binding waited 09-21 to 09-27, the Gemma 12B bf16 download since 09-24, and an unattended loop stalls quietly on them. A decision becomes typed plan data: the question, the options, a recommendation and the rows it blocks. plan -decisions lists them; the GUI shows them as a short inbox answered with one click; decision latency becomes visible and measured. Migrate the open ones (the 12B bf16 and RAE downloads, redundant store backups, the self-improvement cluster's cut)."
+        }
+      ]
+    },
+    {
+      "id": "promote-on-scorecard",
+      "title": "Promote master to main only when the scorecard holds, and revert on a regression",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Promote master to main only when the scorecard holds, and revert on a regression",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestPromotionWaitsForAHoldingScorecard$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27. main mirrors master, so unattended changes reach users directly. Promote master to main automatically only when the scorecard shows no regression, and revert automatically when one appears, so users see only improvements and nobody has to watch releases. Until this lands, pushing stays on the owner's explicit request.",
+          "depends_on": [
+            "user-scorecard/scheduled"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "prose-dead-references",
+      "title": "Report dead references in memory and hook text at session start",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Report dead references in memory and hook text at session start",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -run '^TestDeadReferencesAreReported$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27: prose drifts from code mechanically (80% of the gate manual described deleted tools; closure-scan, plan -history -phases and the deferred lanes stayed in the doctrine after their deletion). At session start the hook scans the memory files and its own doctrine text for cmd/\u003cname\u003e, -\u003cflag\u003e of a named command, Test\u003cName\u003e and repository paths, and prints each that no longer exists. Cheap, deterministic, no ledger."
+        }
+      ]
+    },
+    {
+      "id": "one-command-onboarding",
+      "title": "Onboard a model from its directory to validated with one command",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Onboard a model from its directory to validated with one command",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestOneCommandOnboardsADeclaredModel$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27. Today onboarding is about six steps, each with a trap: recipe spec needs git status run first on a copied model repo, recipe verify takes JSON on stdin, goldens are copied from a mismatch error, then activate, the benchmark publish and the guard. One command from a model directory to validated, and one metric beside the scorecard's setup steps: the share of models supported by declaration alone, with no model-specific code. Each new model then becomes unintended improvement."
         }
       ]
     },
@@ -126,6 +199,39 @@
           "depends_on": [
             "loop-fitness-scorecard/chain"
           ]
+        }
+      ]
+    },
+    {
+      "id": "usage-signal-findings",
+      "title": "Turn real serving failures into findings and scorecard cells (local, opt-in)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Turn real serving failures into findings and scorecard cells (local, opt-in)",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestServingFailureBecomesAFinding$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27. Benchmarks miss what users hit. The server already records serving observations per request (time to first token via the prefill sample, outcome, peak device memory); make the recording an explicit local opt-in, feed the scorecard from it, and turn every crash or refusal into a finding automatically, so real failures become the unattended loop's work supply beside the benchmark's gaps.",
+          "depends_on": [
+            "user-scorecard/define"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dev-loop-metrics",
+      "title": "Measure the improver: wall, refusals, rework and cost per landed row, and the worst-case landing",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure the improver: wall, refusals, rework and cost per landed row, and the worst-case landing",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestDevLoopMetricsFromGit$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27. The loop's own speed decides how fast users see improvement. Beside the user scorecard, report from git (Landed-Row trailers and the Measured by the gate lines) and the loop's own records: wall time per landed row, refused landings per landed row, rework (rows reopened or reverted), agent cost per landed row, and the worst-case landing -- a change to a widely imported package such as internal/tensor or internal/artifact that invalidates most of the test cache. That is the next speed cliff: today's one-minute landings are narrow changes."
         }
       ]
     },
@@ -217,6 +323,24 @@
           "status": "open",
           "verify": "go test ./internal/repoanalysis -run '^TestEveryTrackedFileHasAReader$' -count=1",
           "rationale": "Owner 2026-09-26: once a port is locked by goldens, the reference-comparison packages go. internal/adaptiveparity, cmd/sensenovaparity and cmd/vqaparity have no production importer; each is deleted once the comparisons it runs exist as committed goldens with provenance (goldens-provenance: goldens stay in git). internal/audioparity is not pure comparison -- internal/mediacapability and cmd/webui-lane import it for ASR qualification and election -- so its production part moves to its owner and only its comparison part goes. No new rule: done when go list no longer finds the three packages and the tree still builds and vets. Check: the reader census, since deleting the packages must leave none of their fixtures or testdata behind; done also when go list no longer finds them."
+        }
+      ]
+    },
+    {
+      "id": "models-out-of-adaptive-new",
+      "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestNoTestReadsAdaptiveNew$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27. Once goldens lock the ports, move the remaining models under adaptive_new/models (Wan, the Gemma configs) into overgo/models as TabFM was, and drop the test environment variables that point there: fewer outside paths, fewer environment-dependent skips and flakes. OWNER PERMISSION needed for the moves: the guard protects model directories.",
+          "depends_on": [
+            "parity-packages-to-goldens/do"
+          ]
         }
       ]
     },
@@ -612,6 +736,22 @@
           "status": "open",
           "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
           "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
+        }
+      ]
+    },
+    {
+      "id": "rules-by-enforcement-level",
+      "title": "Move every rule to its cheapest deterministic level and keep the list short",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move every rule to its cheapest deterministic level and keep the list short",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestRuleListIsShort$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27: sort each rule (the small gate's rules, the repoanalysis tree tests, scripts/guard.sh, the doctrine prose) by the cheapest level that makes it deterministic: construction (types and API shape), a diff rule against HEAD, an auto-fix inside the landing, a tool guard, a behaviour test, or a few injected lines of judgement. A rule that asks the agent for justification text is bookkeeping: move it up or down. Candidates: no .py files and no time.Sleep around input-dependent work as diff rules; timers and store access by construction. Delete a rule that never fires or fires only wrongly; keep about 10-15; rule code counts against net production lines. Observed 2026-09-27 (user-scorecard/define): the gate's fix stage and a worker's go fix both stale derived files that pin source bytes -- compatibility claim identities (cmd/compatibility -refresh-identities) and the API manifest (cmd/api-manifest -update) -- so a landing refuses at test and reruns. Per the ladder, regenerating derived files is an auto-fix: run those regenerators inside the landing after fix, as format and fix already run."
         }
       ]
     },

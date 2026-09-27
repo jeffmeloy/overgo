@@ -147,10 +147,8 @@ func validateMultipleChoiceCase(testCase MultipleChoiceCase) error {
 	if len(testCase.CandidateCharacters) != 0 && len(testCase.CandidateCharacters) != len(testCase.Candidates) {
 		return errors.New("evaluation: candidate character extent differs")
 	}
-	for _, count := range testCase.CandidateCharacters {
-		if count == 0 {
-			return errors.New("evaluation: candidate character count is zero")
-		}
+	if slices.Contains(testCase.CandidateCharacters, 0) {
+		return errors.New("evaluation: candidate character count is zero")
 	}
 	candidates := make(map[string]struct{}, len(testCase.Candidates))
 	for _, candidate := range testCase.Candidates {

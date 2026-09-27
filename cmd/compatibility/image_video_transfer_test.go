@@ -40,7 +40,7 @@ type mediaTransferComparisonCase struct {
 	StepInputBytes uint64      `json:"step_input_bytes"`
 	Baseline       artifact.ID `json:"baseline"`
 	Candidate      artifact.ID `json:"candidate"`
-	Ablation       artifact.ID `json:"ablation,omitempty"`
+	Ablation       artifact.ID `json:"ablation"`
 }
 
 type mediaTransferRecord struct {

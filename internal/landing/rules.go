@@ -112,8 +112,10 @@ func newPolicyLiterals(base, candidate gosyntax.Snapshot) []string {
 	return findings
 }
 
-// literalCounts counts each number written inline by file, enclosing
-// declaration and value.
+// literalCounts counts each number written inline by file and value. A
+// count keyed by file, not by enclosing declaration, still rises when a
+// change adds a number, and holds when a change renames or moves the
+// function that already had it.
 func literalCounts(snapshot gosyntax.Snapshot) map[string]int {
 	counts := map[string]int{}
 	for _, file := range snapshot.Files {
@@ -125,19 +127,13 @@ func literalCounts(snapshot gosyntax.Snapshot) map[string]int {
 			continue
 		}
 		for _, declaration := range syntax.Decls {
-			scope := "package"
-			switch typed := declaration.(type) {
-			case *ast.GenDecl:
-				if typed.Tok == token.CONST {
-					continue
-				}
-			case *ast.FuncDecl:
-				scope = typed.Name.Name
+			if general, ok := declaration.(*ast.GenDecl); ok && general.Tok == token.CONST {
+				continue
 			}
 			ast.Inspect(declaration, func(node ast.Node) bool {
 				literal, ok := node.(*ast.BasicLit)
 				if ok && (literal.Kind == token.INT || literal.Kind == token.FLOAT) && literal.Value != "0" && literal.Value != "1" {
-					counts[file.Path+" "+scope+" "+literal.Value]++
+					counts[file.Path+" "+literal.Value]++
 				}
 				return true
 			})

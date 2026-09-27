@@ -50,11 +50,12 @@ func TestModelInventory(t *testing.T) {
 	recorded := map[artifact.ID][]string{converted: {"shared-digest"}, superseded: {"shared-digest"}, named: {"a-different-directory"}}
 	var standings []string
 	for _, entry := range buildInventory(directories, cells, recorded, func(ModelValidation) error { return nil }) {
-		line := filepath.Base(entry.Directory) + " " + entry.Standing
+		var line strings.Builder
+		line.WriteString(filepath.Base(entry.Directory) + " " + entry.Standing)
 		for _, tied := range entry.Models {
-			line += " " + tied.Link + ":" + tied.Standing
+			line.WriteString(" " + tied.Link + ":" + tied.Standing)
 		}
-		standings = append(standings, line+" commands="+strings.Join(entry.Commands, ";"))
+		standings = append(standings, line.String()+" commands="+strings.Join(entry.Commands, ";"))
 	}
 	want := []string{
 		"Converted validated converted-from:validated converted-from:registered commands=go run ./cmd/recipe verify -task TASK -input SUITE.json " + superseded.String(),
@@ -144,14 +145,15 @@ func TestInventoryValidatedMeansCurrentAtTheSurface(t *testing.T) {
 	}
 	var standings []string
 	for _, entry := range buildInventory(directories, cells, nil, currency) {
-		line := filepath.Base(entry.Directory) + " " + entry.Standing
+		var line strings.Builder
+		line.WriteString(filepath.Base(entry.Directory) + " " + entry.Standing)
 		for _, tied := range entry.Models {
-			line += " " + tied.Standing
+			line.WriteString(" " + tied.Standing)
 			if tied.Currency != "" {
-				line += "(guard refused)"
+				line.WriteString("(guard refused)")
 			}
 		}
-		standings = append(standings, line+" commands="+strconv.Itoa(len(entry.Commands)))
+		standings = append(standings, line.String()+" commands="+strconv.Itoa(len(entry.Commands)))
 	}
 	want := []string{
 		"Both validated activated(guard refused) validated commands=1",

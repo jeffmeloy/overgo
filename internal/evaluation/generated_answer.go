@@ -103,10 +103,8 @@ func CompileGeneratedAnswer(suite GeneratedAnswerSuite) (GeneratedAnswerPlan, er
 			return GeneratedAnswerPlan{}, errors.New("evaluation: duplicate generated-answer case")
 		}
 		names[testCase.Name] = struct{}{}
-		for _, answer := range testCase.Answers {
-			if answer == "" {
-				return GeneratedAnswerPlan{}, errors.New("evaluation: empty generated answer")
-			}
+		if slices.Contains(testCase.Answers, "") {
+			return GeneratedAnswerPlan{}, errors.New("evaluation: empty generated answer")
 		}
 	}
 	identity, err := artifact.JSONID(artifact.KindProfile, suite)

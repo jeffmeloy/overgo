@@ -145,7 +145,7 @@ func compositeGenerationQualityFixture(
 			composition.CompositeGenerationSourceAblated,
 			composition.CompositeGenerationBridgeAblated,
 		} {
-			outputContent, contentErr := outputContract.ContentBytes([]byte(fmt.Sprintf(`{"arm":%q,"seed":%d}`, arm, seed)))
+			outputContent, contentErr := outputContract.ContentBytes(fmt.Appendf(nil, `{"arm":%q,"seed":%d}`, arm, seed))
 			if contentErr != nil {
 				t.Fatal(contentErr)
 			}

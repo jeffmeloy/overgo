@@ -210,7 +210,7 @@ func EvaluateTranscriptionResources(
 	predictions := make([]TranscriptionPrediction, len(orderedInputs))
 	signatures := make(map[string]transcriptionExecutionSignature, len(orderedInputs))
 	attempts := make(map[string]bool)
-	for round := uint64(0); round < totalRounds; round++ {
+	for round := range totalRounds {
 		warmup := round < uint64(options.WarmupRuns)
 		repetition := uint32(round)
 		if !warmup {

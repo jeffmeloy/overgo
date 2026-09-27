@@ -71,6 +71,27 @@ func Keep(name, other string) string {
 	}
 }
 
+// TestNewPolicyLiteralsIgnoresRenames refuses a number a change adds and
+// passes one a change only carries into a renamed function.
+func TestNewPolicyLiteralsIgnoresRenames(t *testing.T) {
+	t.Parallel()
+	snapshot := func(source string) gosyntax.Snapshot {
+		t.Helper()
+		result, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte("package p\n\n" + source)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	base := snapshot("func half(n int) int { return n / 2 }\n")
+	if findings := newPolicyLiterals(base, snapshot("func Half(n int) int { return n / 2 }\n")); len(findings) != 0 {
+		t.Fatalf("a renamed function's number was refused: %v", findings)
+	}
+	if findings := newPolicyLiterals(base, snapshot("func Half(n int) int { return n / 2 }\n\nfunc third(n int) int { return n / 2 / 2 }\n")); len(findings) != 1 {
+		t.Fatalf("an added number was not refused once: %v", findings)
+	}
+}
+
 // TestRanPackagesNamesOnlyWhatRan counts the packages go test ran, slowest
 // first, and leaves out the ones it replayed from its cache.
 func TestRanPackagesNamesOnlyWhatRan(t *testing.T) {

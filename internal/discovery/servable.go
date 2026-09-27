@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -114,10 +115,8 @@ func matchesSelectedInput(ctx context.Context, store artifact.Reader, manifest a
 	if len(selected) == 0 {
 		return true, nil
 	}
-	for _, input := range selected {
-		if input == manifest.ID.String() {
-			return true, nil
-		}
+	if slices.Contains(selected, manifest.ID.String()) {
+		return true, nil
 	}
 	for _, component := range manifest.Components {
 		locations, err := store.Locations(ctx, component.Artifact)

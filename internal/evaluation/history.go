@@ -11,9 +11,9 @@ import (
 )
 
 type HistoryEntry struct {
-	Evaluation artifact.ID        `json:"evaluation,omitempty"`
+	Evaluation artifact.ID        `json:"evaluation"`
 	Run        artifact.ID        `json:"run"`
-	Report     artifact.ID        `json:"report,omitempty"`
+	Report     artifact.ID        `json:"report"`
 	Dataset    artifact.ID        `json:"dataset"`
 	Recipe     artifact.ID        `json:"recipe"`
 	Outcome    runrecord.Outcome  `json:"outcome"`

@@ -151,10 +151,8 @@ func validateMMLUProCase(testCase MMLUProCase, labels int) error {
 		len(testCase.Options) < 2 || len(testCase.Options) > labels || testCase.Answer < 0 || testCase.Answer >= len(testCase.Options) {
 		return errors.New("evaluation: invalid MMLU-Pro case")
 	}
-	for _, option := range testCase.Options {
-		if option == "" {
-			return errors.New("evaluation: empty MMLU-Pro option")
-		}
+	if slices.Contains(testCase.Options, "") {
+		return errors.New("evaluation: empty MMLU-Pro option")
 	}
 	return nil
 }

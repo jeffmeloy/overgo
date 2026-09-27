@@ -172,7 +172,7 @@ func loadMediaReportRows(ctx context.Context, store artifact.Reader, entries []d
 			}
 			name := names[entry.Model]
 			if name == "" && entry.Location != "" {
-				name = mediaModelName(entry.Location)
+				name = discovery.LocationName(entry.Location)
 			}
 			row := reportRow{model: cmp.Or(name, entry.Model.String()), modelID: entry.Model,
 				recipeID: capability.Recipe,
@@ -502,29 +502,6 @@ func stepPeakDeviceBytes(evidence string) (uint64, bool) {
 		return value, err == nil
 	}
 	return 0, false
-}
-
-// mediaModelName derives a distinctive name from a recorded location:
-// the deepest path segment that is not a generic weights file or a
-// standard repository component directory. The skipped names are
-// format facts of the HF and diffusers layouts, not model knowledge.
-func mediaModelName(location string) string {
-	generic := map[string]bool{
-		"text_encoder": true, "transformer": true, "vae": true,
-		"scheduler": true, "tokenizer": true,
-		"classification": true, "regression": true,
-	}
-	segments := strings.Split(filepath.ToSlash(location), "/")
-	for index := len(segments) - 1; index >= 0; index-- {
-		segment := segments[index]
-		lower := strings.ToLower(segment)
-		if strings.HasSuffix(lower, ".safetensors") || strings.HasSuffix(lower, ".gguf") ||
-			strings.HasSuffix(lower, ".pt") || generic[lower] {
-			continue
-		}
-		return segment
-	}
-	return filepath.Base(location)
 }
 
 func mediaTask(task recipe.Task) bool {

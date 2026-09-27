@@ -6,32 +6,16 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "review-environment-repair",
-      "title": "Close on master's store-bare-record-fill (merged at 75b235e356b5): a batch carrying content fills a bare store record",
+      "id": "gguf-run-binding",
+      "title": "Bind export and merge runs to the executable's clean source commit, this host's environment and the write's measured wall",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Close on master's store-bare-record-fill (merged at 75b235e356b5): a batch carrying content fills a bare store record",
+          "title": "Bind export and merge runs to the executable's clean source commit, this host's environment and the write's measured wall",
           "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestBatchFillsBareRecord$' -count=1",
-          "rationale": "Held by master row store-bare-record-fill, which landed and merged into the lane at 75b235e356b5; master's check is this row's acceptance, and a merged-master record fill also slots the record into its schema's positions (8a77c2d8). Closes on the next landing that touches environment records."
-        }
-      ]
-    },
-    {
-      "id": "harness-trend-paydown",
-      "title": "Repay the lane's own harness raise: the harness packages return from 181534 to 180690 production nodes (180630 plus master's merged +60) by consolidating where the lane grew them -- operation progress series, runrecord interaction context, agenttool output streaming, recipe tasks",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Repay the lane's own harness raise: the harness packages return from 181534 to 180690 production nodes (180630 plus master's merged +60) by consolidating where the lane grew them -- operation progress series, runrecord interaction context, agenttool output streaming, recipe tasks",
-          "status": "open",
-          "verify": "go test ./internal/closurescan -run '^TestHarnessSurfaceRepaysTheTrend$' -count=1",
-          "rationale": "Re-scoped 2026-09-27 from measurement. The harness baseline rose 180630 -\u003e 181534: the lane's own landings +844 (gui-training-live +334 and its counter fix +1 in internal/operation, chat-session-continue +405 in internal/runrecord, gui-agent-sessions +88 in internal/agenttool, gui-export-gguf and gui-model-merge +16 in internal/recipe) and master's merged work +60, which is master's to carry. code-manifest -unconsumed over the harness packages finds only 119 genuinely unconsumed nodes (runrecord review.go constructors only tests call -- an unwired capability, not dead code) plus one unreferenced constant; its 183 islands (22893 nodes) are false positives, functions a codec table holds as values (filed as a finding). So the debt cannot be paid by deleting dead code: consolidate the lane's own additions -- fold the operation progress series into the metric reports it thins, share the runrecord interaction context with the continuation record, route the agent output observer through the existing transport observer -- until the nine packages measure 180690, and the named test holds them there."
+          "verify": "go test ./internal/server -run '^TestGGUFRunsBindTheirSource$' -count=1"
         }
       ]
     },
@@ -63,6 +47,21 @@
             "gui-speculative-decoding/do",
             "gui-model-merge/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "harness-trend-paydown",
+      "title": "Repay the lane's own harness raise: the harness packages return from 181534 to 180690 production nodes (180630 plus master's merged +60) by consolidating where the lane grew them -- operation progress series, runrecord interaction context, agenttool output streaming, recipe tasks",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Repay the lane's own harness raise: the harness packages return from 181534 to 180690 production nodes (180630 plus master's merged +60) by consolidating where the lane grew them -- operation progress series, runrecord interaction context, agenttool output streaming, recipe tasks",
+          "status": "open",
+          "verify": "go test ./internal/closurescan -run '^TestHarnessSurfaceRepaysTheTrend$' -count=1",
+          "rationale": "Owner 2026-09-27: left for master (finding evidence:sha256:8b3f276f... filed). Measured: the lane raised the nine harness packages +844 production nodes (training progress series +335 internal/operation, exact chat continuation +405 runrecord, agent tool output streaming +88 agenttool, export and merge tasks +16 recipe), all consumed and compact, and master's merged work +60; only 119 nodes are genuinely unconsumed (runrecord review.go test-only constructors, an unwired capability). Repaying needs master-side consolidation of runrecord's repeated per-document canonicalize pattern or relocation out of the harness packages; the lane does not work this row."
         }
       ]
     }

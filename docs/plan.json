@@ -4,17 +4,84 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "landing-binds-candidate-bytes",
-      "title": "Commit exactly the bytes the gate validated, and recover the row after a failed commit",
+      "id": "landing-test-cache",
+      "title": "Keep suites cached when a landing only touches the plan, tmp or bin",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Commit exactly the bytes the gate validated, and recover the row after a failed commit",
+          "title": "Keep suites cached when a landing only touches the plan, tmp or bin",
           "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingCommitsTheBytesItValidated$' -count=1",
-          "rationale": "SQA-034 (P1, open): the landing validates the dirty tree and then commits whatever the tree holds at commit time, and a commit that fails after the plan advance can lose the row. Bind validation and the row verifier to the exact prepared candidate bytes, and make the plan advance recoverable against the expected parent. Keep the post-fix ship-set re-read (ee13bdab2). Reuse the existing git and process owners and small landing fixtures; no ledger, no authority service."
+          "verify": "go test ./internal/testutil -run '^TestSuitesReadNoLandingChurn$' -count=1",
+          "rationale": "Measured at 088a4774c, a plan-only landing: 17 suites re-ran, 6 min 56 s of test (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s). Every landing rewrites docs/plan.json, and the loop rebuilds bin/gate.exe; the root's mtime did not move. For each slow suite, list the inputs go rechecks (go test -c, -test.testlogfile, tmp/cache_inputs.go) and remove, at its cause, any read of a file every landing touches: read named files, never list docs/, tmp/, bin/ or the root, never chdir into the repository (as 37413eab4 did for server and validate). The test the verify names holds those suites to it. Predicted effect: a narrow landing's test stage returns to about a minute."
+        }
+      ]
+    },
+    {
+      "id": "simplify-scorecard-slice",
+      "title": "Cut the scorecard slice back to what landings use",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Cut the scorecard slice back to what landings use",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLandingMeasuresTheScorecardSlice$' -count=1",
+          "rationale": "Owner review 2026-09-27: the per-landing slice grew in three steps (ee13bdab2, de597cde9, 1cef3d9d9) to a multi-document protocol with crash continuation, per-slice HEAD blame, A B B A pairing and prose prediction parsing, for one document, and no real landing has used the pairing or the blame. Cut it back to what landings use: one inference slice, unpaired, its outputs and peak-device-memory compared with the newest measurement of its identity, one trailer. Per-modality coverage and paired timing belong to the scheduled scorecard, off the landing path. Rebuild a piece only when a real landing needs it. Make it a deletion with net production lines falling; the doctrine's prediction-naming sentence and SQA-019's prose parsing go with the pairing, and SQA-042 is moot once the gate no longer refuses on slice failures."
+        }
+      ]
+    },
+    {
+      "id": "projection-serving-failures",
+      "title": "Stop the projection activation failing a quarter of its serving attempts",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop the projection activation failing a quarter of its serving attempts",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestProjectionServingRecordsItsTask$' -count=1",
+          "rationale": "Found 2026-09-27 by the user scorecard (validate -scorecard): gemma-4-E4B-it's projection activation (recipe 93a7a292) failed 324 of 1,296 serving attempts with execution_failed and 324 more were cancelled, all at zero output tokens in one environment. Its observations also record task inference under the projection recipe (internal/server/server_admin.go servingIdentity), which is how the first scorecard draft charged them to the inference row. Find what drives these attempts and why they fail, fix the cause, and record the projection task; the scorecard's failure cell for the row is the predicted effect. Ranked 2026-09-27 as the first user-visible fix: gemma-4-E4B-it's projection recipe fails 324 of 1,296 serving attempts (25%) with 324 cancelled. A small hand change with its predicted failure-rate drop."
+        }
+      ]
+    },
+    {
+      "id": "simplify-prefill-paths",
+      "title": "Unify prefill policy where reference parity permits",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Unify prefill policy where reference parity permits",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'TensorCore|Staged' -count=1",
+          "rationale": "One policy from weight representation, column count and parity/cost evidence; keep precise staging where f16 cannot meet the bound. Measure the fp8 12B prompt-rate gap (1646 vs bf16 2850) on identical inputs. Accept kernel parity, scoped regression and before/after rate and memory curves. Moved up 2026-09-27 (owner): consolidation is what produces unintended improvement -- a speed-up or fix on one shared prefill path reaches every model on it. Judge it by how many models its shared path serves, measured on the scorecard. 2026-09-27: do this as behaviour-preserving transformations with known effect wherever possible (deadcode, gopls inline/rename/remove-unused-parameter, go fix, small go/ast programs) rather than hand edits, proven by compile, tests and the scorecard slice reading outputs identical; hand edits only where behaviour must change, each small and with its predicted effect.",
+          "depends_on": [
+            "model-regression-gate/do",
+            "modality-verification/media-report"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "simplify-execution-core",
+      "title": "Remove costly execution duplication behind the regression gate",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Remove costly execution duplication behind the regression gate",
+          "status": "open",
+          "verify": "go run ./cmd/clone-census -summary -max-excess 9927",
+          "rationale": "Duplicate excess is 9927 nodes; bind a strictly lower target before starting. Pick a real duplicated CUDA or inference mechanism by cost, preserve accepted behavior, and lower docs/clone_baseline.json through clone-census. Moving or splitting duplication is not acceptance. Moved up 2026-09-27 (owner): one execution core means a fix for one model reaches all of them. Judge it by how many models its shared path serves, measured on the scorecard. 2026-09-27: same method as simplify-prefill-paths: tool-driven, behaviour-preserving transformations proven by the slice's outputs identical; hand edits only for intended behaviour changes.",
+          "depends_on": [
+            "simplify-prefill-paths/do"
+          ]
         }
       ]
     },
@@ -30,6 +97,21 @@
           "status": "open",
           "verify": "go test ./internal/landing -run '^TestLandingRunKeepsEachStreamOwned$' -count=1",
           "rationale": "SQA-035 (open), confirmed 2026-09-27: landing.run gives stdout io.MultiWriter(\u0026output, \u0026combined) and stderr \u0026combined, and processcontrol serializes the two drains only when both streams share one sink (supervisor.go lockedWriter), so two goroutines write one bytes.Buffer, and stdout is retained twice. One owner per stream: stdout for the result, a bounded diagnostic tail for the error; stream go test events through the existing parser where the whole output is not needed. No logging framework."
+        }
+      ]
+    },
+    {
+      "id": "landing-binds-candidate-bytes",
+      "title": "Commit exactly the bytes the gate validated, and recover the row after a failed commit",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Commit exactly the bytes the gate validated, and recover the row after a failed commit",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLandingCommitsTheBytesItValidated$' -count=1",
+          "rationale": "SQA-034 (P1, open): the landing validates the dirty tree and then commits whatever the tree holds at commit time, and a commit that fails after the plan advance can lose the row. Bind validation and the row verifier to the exact prepared candidate bytes, and make the plan advance recoverable against the expected parent. Keep the post-fix ship-set re-read (ee13bdab2). Reuse the existing git and process owners and small landing fixtures; no ledger, no authority service."
         }
       ]
     },
@@ -87,32 +169,11 @@
       "status": "open",
       "steps": [
         {
-          "id": "per-modality-tasks",
-          "title": "Run each task's smallest activation through its catalog executor in the slice",
-          "status": "open",
-          "verify": "go test ./cmd/benchmark -run '^TestSliceRunsEachTaskOnItsSmallestActivation$' -count=1",
-          "rationale": "Design (ultracode, three designs and two judges, 2026-09-27): benchmark -slice runs a non-inference document through mediacapability.Catalog[task].Execute, the executor the server's generation workspace and recipe run call. The model is the task's smallest present, fresh, local activation by recorded manifest component bytes (discovery.LocalActivations, folding LocalServable and the server's executionPath into discovery.ExecutionDirectory), selected through modelrecipe.CompileCandidateExecution so no executor refreshes authority against the scratch store. Each call gets a fresh empty overgodb scratch store in the OS temp directory (no replay, nothing written to the live store; a run whose Measured.Phases count differs from the program's stages is a failure). The request is keyed by the program's entry module; a required control with declared choices takes its first choice (speech's voice). Documents: image-gen and video-gen (Un-0, frozen protocol cases), speech (pocket-tts), transcription, seq2seq (needle), forecast (timesfm), generation (Fractale) and image-embedding (webssl dino), inputs inline. Reports outputs (the published content ID, so Un-0 image-gen reads cf5dcb19...), first-output as the whole-output wall, peak where the runtime knows it, failure-rate. Edits internal/discovery and internal/server, so its landing runs the webui and model-journey lanes once."
-        },
-        {
-          "id": "load-split",
-          "title": "Report a capability run's load wall apart from its execution",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime -run '^TestMeasuredCarriesTheLoadWall$' -count=1",
-          "rationale": "capabilityruntime.Measured gains LoadNS, timed around JSONScalar's load and the session director's fresh-lease load; the slice reports load-time from the first call carrying it. capabilityruntime is in the text inference surface's closure, so this move expires every text guard record (about 80 min of GPU to re-acquire): land it batched with the next row that moves that surface."
-        },
-        {
-          "id": "typed-predictions",
-          "title": "Take a landing's predicted metrics as typed intent, not parsed prose",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingTakesTypedPredictions$' -count=1",
-          "rationale": "SQA-019 (open): the slice finds a prediction by searching the Predicted effect prose for metric names and task qualifiers. Represent the requested metric checks at the landing command's Options boundary as metric.Name per slice (for example a flag or a typed message line cmd/loop passes), render the prose from that intent, and delete the substring search and its wording rules in the turn contract."
-        },
-        {
           "id": "scheduled",
           "title": "Run the full scorecard on a schedule and publish it with its deltas",
           "status": "open",
           "verify": "go test ./cmd/validate -run '^TestScheduledScorecardPublishesDeltas$' -count=1",
-          "rationale": "The full scorecard, every model and every cell, runs on a schedule (the machine is shared: it takes the device claim) and publishes one record with deltas against the previous run. It is the fitness the unattended loop optimizes (loop-fitness-scorecard). From the per-modality design (2026-09-27), the scheduled scorecard owns what a per-landing slice cannot afford or cannot run: tabular (tabfm, 78 s for four golden cases), vqa (RxBrain, 25 GB device load, 21 s a run, and its image read from the store it executes against), projection (no capability executor; the user path is inference with a projector, 15 GB and up), training (sessions and checkpoints), activity-detection with its first activation, every model that is not its task's smallest, and scratch seeding for latent-image profiles.",
+          "rationale": "The full scorecard, every model and every cell, runs on a schedule (the machine is shared: it takes the device claim) and publishes one record with deltas against the previous run. It is the fitness the unattended loop optimizes (loop-fitness-scorecard). From the per-modality design (2026-09-27), the scheduled scorecard owns what a per-landing slice cannot afford or cannot run: tabular (tabfm, 78 s for four golden cases), vqa (RxBrain, 25 GB device load, 21 s a run, and its image read from the store it executes against), projection (no capability executor; the user path is inference with a projector, 15 GB and up), training (sessions and checkpoints), activity-detection with its first activation, every model that is not its task's smallest, and scratch seeding for latent-image profiles. 2026-09-27: per-modality-tasks, load-split and typed-predictions are retired from the landing path with the slice's simplification; the scheduled scorecard owns every modality's smallest-model run (through the catalog executor on a scratch store, as the per-modality design worked out) and any load-versus-execution split it needs.",
           "depends_on": [
             "user-scorecard/define"
           ]
@@ -127,21 +188,6 @@
             "user-scorecard/scheduled",
             "rae-generation-path/do"
           ]
-        }
-      ]
-    },
-    {
-      "id": "projection-serving-failures",
-      "title": "Stop the projection activation failing a quarter of its serving attempts",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stop the projection activation failing a quarter of its serving attempts",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestProjectionServingRecordsItsTask$' -count=1",
-          "rationale": "Found 2026-09-27 by the user scorecard (validate -scorecard): gemma-4-E4B-it's projection activation (recipe 93a7a292) failed 324 of 1,296 serving attempts with execution_failed and 324 more were cancelled, all at zero output tokens in one environment. Its observations also record task inference under the projection recipe (internal/server/server_admin.go servingIdentity), which is how the first scorecard draft charged them to the inference row. Find what drives these attempts and why they fail, fix the cause, and record the projection task; the scorecard's failure cell for the row is the predicted effect."
         }
       ]
     },
@@ -206,43 +252,6 @@
           "status": "open",
           "verify": "go test ./cmd/validate -run '^TestOneCommandOnboardsADeclaredModel$' -count=1",
           "rationale": "Owner recommendation 2026-09-27. Today onboarding is about six steps, each with a trap: recipe spec needs git status run first on a copied model repo, recipe verify takes JSON on stdin, goldens are copied from a mismatch error, then activate, the benchmark publish and the guard. One command from a model directory to validated, and one metric beside the scorecard's setup steps: the share of models supported by declaration alone, with no model-specific code. Each new model then becomes unintended improvement."
-        }
-      ]
-    },
-    {
-      "id": "simplify-prefill-paths",
-      "title": "Unify prefill policy where reference parity permits",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Unify prefill policy where reference parity permits",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'TensorCore|Staged' -count=1",
-          "rationale": "One policy from weight representation, column count and parity/cost evidence; keep precise staging where f16 cannot meet the bound. Measure the fp8 12B prompt-rate gap (1646 vs bf16 2850) on identical inputs. Accept kernel parity, scoped regression and before/after rate and memory curves. Moved up 2026-09-27 (owner): consolidation is what produces unintended improvement -- a speed-up or fix on one shared prefill path reaches every model on it. Judge it by how many models its shared path serves, measured on the scorecard.",
-          "depends_on": [
-            "model-regression-gate/do",
-            "modality-verification/media-report"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "simplify-execution-core",
-      "title": "Remove costly execution duplication behind the regression gate",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Remove costly execution duplication behind the regression gate",
-          "status": "open",
-          "verify": "go run ./cmd/clone-census -summary -max-excess 9927",
-          "rationale": "Duplicate excess is 9927 nodes; bind a strictly lower target before starting. Pick a real duplicated CUDA or inference mechanism by cost, preserve accepted behavior, and lower docs/clone_baseline.json through clone-census. Moving or splitting duplication is not acceptance. Moved up 2026-09-27 (owner): one execution core means a fix for one model reaches all of them. Judge it by how many models its shared path serves, measured on the scorecard.",
-          "depends_on": [
-            "simplify-prefill-paths/do"
-          ]
         }
       ]
     },
@@ -1056,12 +1065,12 @@
             "user-scorecard/paired",
             "user-scorecard/per-modality",
             "landing-replays-unchanged-suites/do",
-            "user-scorecard/per-modality-tasks",
-            "user-scorecard/load-split",
             "landing-binds-candidate-bytes/do",
             "landing-stream-owners/do",
-            "user-scorecard/typed-predictions",
-            "plan-rerank-2026-09-27/do"
+            "plan-rerank-2026-09-27/do",
+            "landing-test-cache/do",
+            "simplify-scorecard-slice/do",
+            "plan-subtraction-2026-09-27/do"
           ]
         }
       ]

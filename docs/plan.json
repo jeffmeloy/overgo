@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-model-merge",
-      "title": "Merge registered models from Model Builder -- task arithmetic over a shared base, or tensor passthrough -- recorded as a run with the sources as its inputs; folding an adapter into its base is refused until a GGUF fold exists",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge registered models from Model Builder -- task arithmetic over a shared base, or tensor passthrough -- recorded as a run with the sources as its inputs; folding an adapter into its base is refused until a GGUF fold exists",
-          "status": "open",
-          "verify": "test -f internal/server/model_builder_merge_test.go \u0026\u0026 go test ./internal/server -run '^TestModelBuilderMergeRun$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(ModelMerge|LayoutAudit)$' -leg 'model merge leg'",
-          "rationale": "LlamaFactory review 2026-09-25; split 2026-09-27 after the export half moved to gui-export-gguf. internal/modelmerge merges by task arithmetic (base + scaled deltas of models sharing that base) or tensor passthrough, in memory or streamed to Safetensors (reached today only through controlleraction). Model Builder gains a merge capability over registered models that records a run with its sources as inputs. Folding a trained GGUF adapter into its base has no implementation (only LoRAExtraction.Reconstruct folds an extracted in-memory adapter), so it is listed with its refusal and filed as a finding."
-        }
-      ]
-    },
-    {
       "id": "review-webui-harness",
       "title": "Close on master's browser-waits-fail-fast (merged at 75b235e356b5): a browser leg fails when the browser stops answering, and names the leg",
       "owner": "overgo_gui_cleanup",
@@ -398,6 +383,10 @@
     {
       "key": "surface-move:production-nodes:a262e84735df776b563f79591f7591131b35137f",
       "row": "arch-turn-pipeline"
+    },
+    {
+      "key": "surface-move:production-nodes:b30c3b8f87205f1910a1afddc316370b421ad6c0",
+      "row": "harness-trend-paydown"
     },
     {
       "key": "surface-move:production-nodes:b9b1107f7949575bb7c1d225f678179e49047862",

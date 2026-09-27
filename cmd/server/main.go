@@ -318,10 +318,10 @@ func run() error {
 	if workspaceStore != nil {
 		workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewStoreGenerationWorkspace(workspaceStore,
 			llamaserver.BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), generationCatalogLimit))
-		// Export rides the store too: every catalogued GGUF model exports under the models root.
+		// GGUF exports and merges ride the store too, written under the models root.
 		if rootsErr == nil {
-			workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewExportWorkspace(workspaceStore, roots.Models, generationCatalogLimit,
-				llamaserver.GGUFExporter{Types: export.GGUFTypes(), Write: export.GGUF}))
+			workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewGGUFWorkspace(workspaceStore, roots.Models, generationCatalogLimit,
+				llamaserver.GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}))
 		}
 	}
 	if len(workflowWorkspaces) > 0 {

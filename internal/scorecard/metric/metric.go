@@ -31,3 +31,29 @@ const SetupSteps Name = "setup-steps"
 
 // Columns is the column order: the order a user meets them.
 var Columns = []Name{FirstOutput, Throughput, Quality, Failures, Load, PeakMemory, SetupSteps}
+
+// Record is one scorecard slice as the benchmark prints it and a landing's
+// trailer carries it. A record with only a slice, an identity and a model
+// says what a run selected before it measured, so a crash keeps what it was
+// measuring. A measured record carries the outputs and its metrics, a failed
+// one the cause and a failure-rate of one; an unmeasured one says why the
+// slice could not run. A metric the slice does not measure is absent, never
+// zero.
+type Record struct {
+	Slice      string           `json:"slice,omitempty"`
+	Identity   string           `json:"identity,omitempty"`
+	Model      string           `json:"model,omitempty"`
+	Outputs    string           `json:"outputs,omitempty"`
+	Failure    string           `json:"failure,omitempty"`
+	Unmeasured string           `json:"unmeasured,omitempty"`
+	Metrics    map[Name]float64 `json:"metrics,omitempty"`
+}
+
+// VariedOutputs stands for the outputs of a slice whose runs disagreed:
+// there is no one output to compare.
+const VariedOutputs = "varies"
+
+// Selected reports whether the record only names what a run selected.
+func (record Record) Selected() bool {
+	return record.Outputs == "" && record.Failure == "" && record.Unmeasured == "" && len(record.Metrics) == 0
+}

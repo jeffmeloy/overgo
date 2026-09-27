@@ -66,7 +66,8 @@ type options struct {
 	LoRA           []string
 	Publish        bool
 	CPUProfile     string
-	Smallest       bool
+	Slice          bool
+	Documents      []string
 }
 
 type benchmarkOptions = options
@@ -185,17 +186,22 @@ func parseOptions(args []string) (options, error) {
 	flags.IntVar(&result.BatchSequences, "batch-sequences", 0, "continuous-batch sequence count; zero uses Generate")
 	flags.BoolVar(&result.Publish, "publish", false, "commit the result as benchmark evidence with a verification claim (requires -repo and a clean worktree)")
 	flags.StringVar(&result.CPUProfile, "cpuprofile", "", "write a Go CPU profile of the whole run to this file (host-side time between kernels)")
-	flags.BoolVar(&result.Smallest, "smallest", false, "measure the smallest local GGUF the store serves instead of a named model (requires -prompt-suite)")
+	flags.BoolVar(&result.Slice, "slice", false, "measure each scorecard slice document on its task's smallest local model: a record line naming what it selected, then one with its outcome")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
 	result.Device = *modelFlags.DeviceOrdinal
 	result.Repository = *modelFlags.Repository
 	result.LoRA = modelFlags.LoRAPaths()
-	if result.Smallest {
-		if result.PromptSuite == "" || flags.NArg() != 0 {
-			return options{}, errors.New("usage: benchmark -smallest -prompt-suite prompts.json [options]")
+	if result.Slice {
+		// A document states its own runs and warmup; a slice is printed,
+		// never published or compared.
+		stated := false
+		flags.Visit(func(set *flag.Flag) { stated = stated || set.Name == "runs" || set.Name == "warmup" })
+		if flags.NArg() == 0 || stated || result.PromptSuite != "" || result.Publish || result.CompareFactor != "" {
+			return options{}, errors.New("usage: benchmark -slice [options] <slice.json>...; a document states its runs, warmup and input")
 		}
+		result.Documents = flags.Args()
 	} else if result.PromptSuite == "" {
 		if flags.NArg() != 2 || flags.Arg(1) == "" {
 			return options{}, errors.New("usage: benchmark [options] <model.gguf> <prompt>")
@@ -253,18 +259,6 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	prompts, err := benchmarkPrompts(options)
-	if err != nil {
-		return err
-	}
-	if options.Smallest {
-		if options.Model, options.Repository, err = smallestModel(context.Background(), options.Repository); err != nil {
-			return err
-		}
-	}
-	if remoteprovider.IsRemoteLocation(options.Model) {
-		return errors.New("benchmark: a hosted model has no local decode to measure; evaluate scores it through the relay")
-	}
 	if options.CPUProfile != "" {
 		profile, profileErr := os.Create(options.CPUProfile)
 		if profileErr != nil {
@@ -276,17 +270,56 @@ func run(args []string) error {
 		}
 		defer pprof.StopCPUProfile()
 	}
-	cuda, err := driver.Open()
+	if options.Slice {
+		return runSlices(context.Background(), options, os.Stdout)
+	}
+	prompts, err := benchmarkPrompts(options)
 	if err != nil {
 		return err
+	}
+	if remoteprovider.IsRemoteLocation(options.Model) {
+		return errors.New("benchmark: a hosted model has no local decode to measure; evaluate scores it through the relay")
+	}
+	result, candidateResult, pairFirst, err := measureArms(options, prompts, nil)
+	if err != nil {
+		return err
+	}
+	if candidateResult != nil {
+		comparison, compareErr := compareBenchmarkResults(result, *candidateResult, options.CompareFactor, pairFirst)
+		if compareErr != nil {
+			return compareErr
+		}
+		return clioptions.WritePrettyJSON(os.Stdout, pairedBenchmarkResult{
+			Baseline: result, Candidate: *candidateResult, Comparison: comparison, ComparisonID: comparison.ID,
+		})
+	}
+	if err := clioptions.WritePrettyJSON(os.Stdout, result); err != nil {
+		return err
+	}
+	if !options.Publish {
+		return nil
+	}
+	return publishBenchmarkEvidence(context.Background(), options, result)
+}
+
+// measureArms loads the model, measures the baseline arm and, when a
+// comparison factor is set, the candidate arm interleaved with it, and
+// returns the validated results and which arm ran first in each pair.
+// loaded, when given, hears the result's identity once the model is loaded
+// and before any run, so a crash while measuring still says what it was
+// measuring.
+func measureArms(options options, prompts []string, loaded func(benchmarkResult)) (benchmarkResult, *benchmarkResult, []string, error) {
+	cuda, err := driver.Open()
+	if err != nil {
+		return benchmarkResult{}, nil, nil, err
 	}
 	defer cuda.Close()
 	if err := cuda.Init(); err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
 	}
 	device, err := cuda.ReserveDevice(options.Device)
 	if err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
 	}
 	var before runtime.MemStats
 	runtime.ReadMemStats(&before)
@@ -296,7 +329,7 @@ func run(args []string) error {
 		context.Background(), options.Repository, options.Model, openOptions,
 	)
 	if err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
 	}
 	defer runner.Close()
 	codeCommit, err := runrecord.ExecutableCodeCommit(".")
@@ -307,52 +340,58 @@ func run(args []string) error {
 		codeCommit, err = runrecord.HeadCommit(".")
 	}
 	if err != nil {
-		return fmt.Errorf("benchmark source identity: %w", err)
+		return benchmarkResult{}, nil, nil, fmt.Errorf("benchmark source identity: %w", err)
 	}
 	moduleDigest, err := benchmarkModuleDigest()
 	if err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
 	}
 	adapters, err := benchmarkAdapterIDs(options.LoRA)
 	if err != nil {
-		return fmt.Errorf("benchmark adapter identity: %w", err)
+		return benchmarkResult{}, nil, nil, fmt.Errorf("benchmark adapter identity: %w", err)
 	}
 	optionsDigest, err := benchmarkOptionsDigest(options, adapters)
 	if err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
 	}
 	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
 	if err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
 	}
 	environment, err := runrecord.CurrentEnvironment(device.UUID, "cuda")
 	if err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
 	}
 	driverVersion, err := cuda.DriverVersion()
 	if err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
 	}
 	environment.Driver = driverVersion.String()
 	environment, err = runrecord.NewEnvironment(environment)
 	if err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
+	}
+	if loaded != nil {
+		loaded(benchmarkResult{
+			ModelID: runner.ModelID(), RecipeID: description.Identity.Recipe, WorkloadDigest: benchmarkWorkloadDigest(prompts),
+			OptionsDigest: optionsDigest, EnvironmentID: environment.ID, ModelName: runner.ModelProperties().Name,
+		})
 	}
 	loadDuration, err := loadStarted.Elapsed()
 	if err != nil {
-		return fmt.Errorf("benchmark load measurement: %w", err)
+		return benchmarkResult{}, nil, nil, fmt.Errorf("benchmark load measurement: %w", err)
 	}
 	var afterLoad runtime.MemStats
 	runtime.ReadMemStats(&afterLoad)
 	deviceAfterLoad, err := runner.DeviceMemoryStats(context.Background())
 	if err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
 	}
 	promptIDs := make([][]tokenizer.TokenID, len(prompts))
 	for index, prompt := range prompts {
 		promptIDs[index], err = runner.TokenizeText(prompt, true, false)
 		if err != nil {
-			return fmt.Errorf("benchmark prompt %d: %w", index, err)
+			return benchmarkResult{}, nil, nil, fmt.Errorf("benchmark prompt %d: %w", index, err)
 		}
 	}
 	execute := func(index int, arm benchmarkOptions) (runMetrics, error) {
@@ -461,12 +500,12 @@ func run(args []string) error {
 	for index := range warmups {
 		warmups[index], err = execute(-(index + 1), options)
 		if err != nil {
-			return fmt.Errorf("benchmark baseline warmup %d: %w", index, err)
+			return benchmarkResult{}, nil, nil, fmt.Errorf("benchmark baseline warmup %d: %w", index, err)
 		}
 		if candidateWarmups != nil {
 			candidateWarmups[index], err = execute(-(index + 1), candidate)
 			if err != nil {
-				return fmt.Errorf("benchmark candidate warmup %d: %w", index, err)
+				return benchmarkResult{}, nil, nil, fmt.Errorf("benchmark candidate warmup %d: %w", index, err)
 			}
 		}
 	}
@@ -476,18 +515,18 @@ func run(args []string) error {
 			pairFirst[index] = "candidate"
 			candidateRuns[index], err = execute(index, candidate)
 			if err != nil {
-				return fmt.Errorf("benchmark candidate run %d: %w", index, err)
+				return benchmarkResult{}, nil, nil, fmt.Errorf("benchmark candidate run %d: %w", index, err)
 			}
 		}
 		runs[index], err = execute(index, options)
 		if err != nil {
-			return fmt.Errorf("benchmark baseline run %d: %w", index, err)
+			return benchmarkResult{}, nil, nil, fmt.Errorf("benchmark baseline run %d: %w", index, err)
 		}
 		if candidateRuns != nil && index%2 == 0 {
 			pairFirst[index] = "baseline"
 			candidateRuns[index], err = execute(index, candidate)
 			if err != nil {
-				return fmt.Errorf("benchmark candidate run %d: %w", index, err)
+				return benchmarkResult{}, nil, nil, fmt.Errorf("benchmark candidate run %d: %w", index, err)
 			}
 		}
 	}
@@ -495,7 +534,7 @@ func run(args []string) error {
 	runtime.ReadMemStats(&afterRuns)
 	deviceAfterRuns, err := runner.DeviceMemoryStats(context.Background())
 	if err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
 	}
 	properties := runner.ModelProperties()
 	result := benchmarkResult{
@@ -545,34 +584,22 @@ func run(args []string) error {
 		Summary:                summarizeRuns(runs),
 	}
 	if err := validateBenchmarkResult(result); err != nil {
-		return err
+		return benchmarkResult{}, nil, nil, err
 	}
-	if candidateRuns != nil {
-		candidateResult := result
-		candidateResult.Runs = candidateRuns
-		candidateResult.WarmupRuns = candidateWarmups
-		candidateResult.Summary = summarizeRuns(candidateRuns)
-		candidateResult.CachePrompt = candidate.CachePrompt
-		candidateResult.Speculative = candidate.Speculative
-		candidateResult.OptionsDigest, err = benchmarkOptionsDigest(candidate, adapters)
-		if err != nil {
-			return err
-		}
-		comparison, compareErr := compareBenchmarkResults(result, candidateResult, options.CompareFactor, pairFirst)
-		if compareErr != nil {
-			return compareErr
-		}
-		return clioptions.WritePrettyJSON(os.Stdout, pairedBenchmarkResult{
-			Baseline: result, Candidate: candidateResult, Comparison: comparison, ComparisonID: comparison.ID,
-		})
+	if candidateRuns == nil {
+		return result, nil, nil, nil
 	}
-	if err := clioptions.WritePrettyJSON(os.Stdout, result); err != nil {
-		return err
+	candidateResult := result
+	candidateResult.Runs = candidateRuns
+	candidateResult.WarmupRuns = candidateWarmups
+	candidateResult.Summary = summarizeRuns(candidateRuns)
+	candidateResult.CachePrompt = candidate.CachePrompt
+	candidateResult.Speculative = candidate.Speculative
+	candidateResult.OptionsDigest, err = benchmarkOptionsDigest(candidate, adapters)
+	if err != nil {
+		return benchmarkResult{}, nil, nil, err
 	}
-	if !options.Publish {
-		return nil
-	}
-	return publishBenchmarkEvidence(context.Background(), options, result)
+	return result, &candidateResult, pairFirst, nil
 }
 
 // smallestModel resolves the store and its smallest local GGUF with an

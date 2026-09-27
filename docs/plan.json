@@ -4,24 +4,68 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "landing-binds-candidate-bytes",
+      "title": "Commit exactly the bytes the gate validated, and recover the row after a failed commit",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Commit exactly the bytes the gate validated, and recover the row after a failed commit",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLandingCommitsTheBytesItValidated$' -count=1",
+          "rationale": "SQA-034 (P1, open): the landing validates the dirty tree and then commits whatever the tree holds at commit time, and a commit that fails after the plan advance can lose the row. Bind validation and the row verifier to the exact prepared candidate bytes, and make the plan advance recoverable against the expected parent. Keep the post-fix ship-set re-read (ee13bdab2). Reuse the existing git and process owners and small landing fixtures; no ledger, no authority service."
+        }
+      ]
+    },
+    {
+      "id": "landing-stream-owners",
+      "title": "Give each landing command stream one owner",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give each landing command stream one owner",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLandingRunKeepsEachStreamOwned$' -count=1",
+          "rationale": "SQA-035 (open), confirmed 2026-09-27: landing.run gives stdout io.MultiWriter(\u0026output, \u0026combined) and stderr \u0026combined, and processcontrol serializes the two drains only when both streams share one sink (supervisor.go lockedWriter), so two goroutines write one bytes.Buffer, and stdout is retained twice. One owner per stream: stdout for the result, a bounded diagnostic tail for the error; stream go test events through the existing parser where the whole output is not needed. No logging framework."
+        }
+      ]
+    },
+    {
       "id": "user-scorecard",
       "title": "One user-facing scorecard across every model, the definition of improvement",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
-          "id": "per-modality",
-          "title": "Extend the slice to the smallest servable model of each modality",
+          "id": "per-modality-tasks",
+          "title": "Run each task's smallest activation through its catalog executor in the slice",
           "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingMeasuresEachModalitySlice$' -count=1",
-          "rationale": "The first slice measures the smallest local GGUF text model only. The rationale of per-landing promised the smallest model per modality (speech, image, video, embedding, projection) and a failures cell: each modality's slice runs its own smallest active model through the path users hit, reached by that path's closure, and a run that fails is the failures cell. The slice stays bounded: one fixed input per modality."
+          "verify": "go test ./cmd/benchmark -run '^TestSliceRunsEachTaskOnItsSmallestActivation$' -count=1",
+          "rationale": "Design (ultracode, three designs and two judges, 2026-09-27): benchmark -slice runs a non-inference document through mediacapability.Catalog[task].Execute, the executor the server's generation workspace and recipe run call. The model is the task's smallest present, fresh, local activation by recorded manifest component bytes (discovery.LocalActivations, folding LocalServable and the server's executionPath into discovery.ExecutionDirectory), selected through modelrecipe.CompileCandidateExecution so no executor refreshes authority against the scratch store. Each call gets a fresh empty overgodb scratch store in the OS temp directory (no replay, nothing written to the live store; a run whose Measured.Phases count differs from the program's stages is a failure). The request is keyed by the program's entry module; a required control with declared choices takes its first choice (speech's voice). Documents: image-gen and video-gen (Un-0, frozen protocol cases), speech (pocket-tts), transcription, seq2seq (needle), forecast (timesfm), generation (Fractale) and image-embedding (webssl dino), inputs inline. Reports outputs (the published content ID, so Un-0 image-gen reads cf5dcb19...), first-output as the whole-output wall, peak where the runtime knows it, failure-rate. Edits internal/discovery and internal/server, so its landing runs the webui and model-journey lanes once."
+        },
+        {
+          "id": "load-split",
+          "title": "Report a capability run's load wall apart from its execution",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime -run '^TestMeasuredCarriesTheLoadWall$' -count=1",
+          "rationale": "capabilityruntime.Measured gains LoadNS, timed around JSONScalar's load and the session director's fresh-lease load; the slice reports load-time from the first call carrying it. capabilityruntime is in the text inference surface's closure, so this move expires every text guard record (about 80 min of GPU to re-acquire): land it batched with the next row that moves that surface."
+        },
+        {
+          "id": "typed-predictions",
+          "title": "Take a landing's predicted metrics as typed intent, not parsed prose",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLandingTakesTypedPredictions$' -count=1",
+          "rationale": "SQA-019 (open): the slice finds a prediction by searching the Predicted effect prose for metric names and task qualifiers. Represent the requested metric checks at the landing command's Options boundary as metric.Name per slice (for example a flag or a typed message line cmd/loop passes), render the prose from that intent, and delete the substring search and its wording rules in the turn contract."
         },
         {
           "id": "scheduled",
           "title": "Run the full scorecard on a schedule and publish it with its deltas",
           "status": "open",
           "verify": "go test ./cmd/validate -run '^TestScheduledScorecardPublishesDeltas$' -count=1",
-          "rationale": "The full scorecard, every model and every cell, runs on a schedule (the machine is shared: it takes the device claim) and publishes one record with deltas against the previous run. It is the fitness the unattended loop optimizes (loop-fitness-scorecard).",
+          "rationale": "The full scorecard, every model and every cell, runs on a schedule (the machine is shared: it takes the device claim) and publishes one record with deltas against the previous run. It is the fitness the unattended loop optimizes (loop-fitness-scorecard). From the per-modality design (2026-09-27), the scheduled scorecard owns what a per-landing slice cannot afford or cannot run: tabular (tabfm, 78 s for four golden cases), vqa (RxBrain, 25 GB device load, 21 s a run, and its image read from the store it executes against), projection (no capability executor; the user path is inference with a projector, 15 GB and up), training (sessions and checkpoints), activity-detection with its first activation, every model that is not its task's smallest, and scratch seeding for latent-image profiles.",
           "depends_on": [
             "user-scorecard/define"
           ]
@@ -1011,7 +1055,12 @@
             "plan-tool-plain-data/claims",
             "user-scorecard/paired",
             "user-scorecard/per-modality",
-            "landing-replays-unchanged-suites/do"
+            "landing-replays-unchanged-suites/do",
+            "user-scorecard/per-modality-tasks",
+            "user-scorecard/load-split",
+            "landing-binds-candidate-bytes/do",
+            "landing-stream-owners/do",
+            "user-scorecard/typed-predictions"
           ]
         }
       ]

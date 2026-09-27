@@ -2,11 +2,11 @@
 // is formatted, modernized by go fix, vetted and tested -- go test's own
 // cache decides what runs again -- the lanes the change reaches run, a few
 // rules compare the changed files with HEAD, the row's own check passes, and
-// a change that reaches the benchmark runs the scorecard's slice, beside
-// HEAD's benchmark when the message predicts a timed metric; then the tree
-// is committed with the row's step removed from the plan. Git holds the
-// record: the message says what the gate measured, and a trailer carries the
-// slice for the next landing to compare against.
+// a change that reaches the benchmark runs the scorecard's slices, one per
+// task, beside HEAD's benchmark when the message predicts a timed metric;
+// then the tree is committed with the row's step removed from the plan. Git
+// holds the record: the message says what the gate measured, and a trailer
+// per slice carries it for the next landing to compare against.
 package landing
 
 import (
@@ -51,8 +51,9 @@ type landing struct {
 	// details say what a stage measured beyond its time: the packages the
 	// test stage ran rather than replayed, what the scorecard slice found.
 	details map[string]string
-	// trailer is the scorecard slice's commit trailer, when it measured.
-	trailer string
+	// trailers are the scorecard slices' commit trailers, one per slice
+	// that measured or failed.
+	trailers []string
 }
 
 // Run lands the row and returns the commit. Every check runs over the dirty
@@ -350,14 +351,11 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 }
 
 // message is the authored message, what the gate measured, and the trailers:
-// the scorecard slice when it measured, then the landed row.
+// the scorecard slices, then the landed row.
 func (l *landing) message() string {
-	trailers := plan.LandedRowTrailer + ": " + l.Ref + "\n"
-	if l.trailer != "" {
-		trailers = l.trailer + "\n" + trailers
-	}
+	trailers := append(slices.Clone(l.trailers), plan.LandedRowTrailer+": "+l.Ref)
 	return strings.TrimSpace(string(l.Message)) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
-		"\n\n" + trailers
+		"\n\n" + strings.Join(trailers, "\n") + "\n"
 }
 
 // sameTree compares two dirty-tree readings by path and status; the plan,

@@ -2,40 +2,49 @@ package landing
 
 import (
 	"bytes"
+	"cmp"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"unicode"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
 	"overgo/internal/processcontrol"
+	"overgo/internal/recipe"
 	"overgo/internal/scorecard/metric"
 )
 
-// sliceWorkload is the one prompt every slice runs: the leading MMLU-Pro
-// conversations of adaptive_new's SFT content, concatenated chat-style, so
-// the slice reads a long prompt and answers it.
-const sliceWorkload = "fixtures/scorecard_slice_prompts.json"
+// sliceDirectory holds the scorecard slice documents: one fixed input per
+// task, measured on that task's smallest local model. A change to one
+// reaches the slices.
+const sliceDirectory = "fixtures/scorecard_slice"
 
-// sliceTrailer is the commit trailer that carries a landing's slice; a later
-// landing that measures the same identity compares against it.
+// inferenceSlice runs first, while the device holds no other model, and is
+// the slice a bare timed metric in a prediction names.
+const inferenceSlice = "inference"
+
+// sliceTrailer is the commit trailer that carries a landing's slices, one
+// line each; a later landing that measures the same identity compares
+// against it.
 const sliceTrailer = "Scorecard-Slice"
+
+// trailerSeparator joins a commit's slice trailers on one log line; JSON
+// always escapes it, so no record contains it.
+const trailerSeparator = "\x1f"
 
 // bytesPerMiB is the unit peak device memory is compared in.
 const bytesPerMiB = 1 << 20
-
-// variedOutputs stands for the outputs of a slice whose runs disagreed:
-// there is no one output to compare.
-const variedOutputs = "varies"
 
 // pairedRounds is how many A B B A rounds of HEAD's benchmark and the
 // tree's a predicted timed metric runs, about two minutes on the smallest
@@ -46,10 +55,6 @@ const pairedRounds = 4
 
 // percent renders a relative change as users read it.
 const percent = 100
-
-// sliceFailed opens the reason of a slice run that failed rather than found
-// its device claimed or out of memory.
-const sliceFailed = "failed: "
 
 // The two sides of a paired run: HEAD's benchmark and the tree's.
 const (
@@ -64,51 +69,55 @@ var sideNames = [sides]string{headSide: "HEAD", treeSide: "the tree"}
 // abba is one paired round's order, which cancels a drift across it.
 var abba = []int{headSide, treeSide, treeSide, headSide}
 
-// slice is what the scorecard slice depends on: the benchmark binary's
+// slice is what the scorecard slices depend on: the benchmark binary's
 // closure, which embeds the built kernels, the module versions and the
-// workload.
+// documents.
 var slice = lane{name: "scorecard", packages: []string{"./cmd/benchmark"},
-	prefixes: []string{"go.mod", "go.sum", sliceWorkload}}
+	prefixes: []string{"go.mod", "go.sum", sliceDirectory + "/"}}
 
-// timedMetric is one of the slice's timed cells and whether a user feels it
-// better when it falls.
+// timedMetric is one of a slice's timed cells, whether a user feels it
+// better when it falls, and the unit it is read in.
 type timedMetric struct {
 	name          metric.Name
 	lowerIsBetter bool
+	unit          string
 }
 
-// timedMetrics are the slice's timed cells: a shorter wait for the first
-// output, a faster stream, a quicker load.
-var timedMetrics = []timedMetric{{metric.FirstOutput, true}, {metric.Throughput, false}, {metric.Load, true}}
+// timedMetrics are the timed cells: a shorter wait for the first output, a
+// faster stream, a quicker load.
+var timedMetrics = []timedMetric{{metric.FirstOutput, true, "ms"}, {metric.Throughput, false, "tok/s"}, {metric.Load, true, "ms"}}
 
-// sliceRecord is one landing's slice as its trailer carries it: the
-// identity it was measured under, the model's name, the generated outputs,
-// and each measured metric by its scorecard name.
-type sliceRecord struct {
-	Identity string                  `json:"identity"`
-	Model    string                  `json:"model"`
-	Outputs  string                  `json:"outputs"`
-	Metrics  map[metric.Name]float64 `json:"metrics"`
+// baseline is what earlier landings recorded of one identity: the newest
+// outcome, measured or failed, and the newest measurement, which the exact
+// cells compare with even when a failure landed after it.
+type baseline struct {
+	latest, measured             metric.Record
+	latestCommit, measuredCommit string
 }
 
-// scorecard runs the scorecard's cheap slice when the change reaches what
-// it measures: the smallest local model on one fixed prompt. The exact
-// cells -- the outputs and peak device memory -- are compared with the
-// newest earlier landing that measured the same model, recipe, workload,
-// options and environment. A timed cell is reported unpaired, since one run
-// on each side cannot tell a change from noise, unless the message's
-// predicted effect names it: naming one claims it does not get worse, so
-// HEAD's benchmark runs beside the tree's and a paired worsening beyond the
-// noise of same-binary runs refuses the landing. A run that does not
-// measure says why: unavailable when the device is claimed or out of
-// memory; failed otherwise, which refuses the landing only when HEAD's
-// benchmark measures.
+// scorecard runs the scorecard's slices when the change reaches what they
+// measure: each document's task on its smallest local model, all in one
+// benchmark process. A slice's exact cells -- the outputs and peak device
+// memory -- are compared with the newest earlier landing that measured the
+// same model, recipe, workload, options and environment. A timed cell is
+// reported unpaired, since one run on each side cannot tell a change from
+// noise, unless the message's predicted effect names it: naming one claims
+// it does not get worse, so HEAD's benchmark runs that slice beside the
+// tree's and a paired worsening beyond the noise of same-binary runs
+// refuses the landing. A slice that does not measure says why: unavailable
+// when the device is claimed or out of memory; failed otherwise, which
+// refuses the landing only when HEAD's benchmark measures what the tree
+// failed to.
 func (l *landing) scorecard(ctx context.Context) error {
 	reached, err := l.reaches(ctx, slice)
 	if err != nil {
 		return err
 	}
-	if !reached {
+	documents, err := sliceDocuments(l.Repo)
+	if err != nil {
+		return err
+	}
+	if !reached || len(documents) == 0 {
 		l.details["scorecard"] = "not reached"
 		return nil
 	}
@@ -119,46 +128,88 @@ func (l *landing) scorecard(ctx context.Context) error {
 	defer os.RemoveAll(directory)
 	tree, err := l.buildBenchmark(ctx, directory, "tree", "")
 	if err != nil {
-		l.details["scorecard"] = sliceFailed + "the benchmark does not build"
+		l.details["scorecard"] = "failed: the benchmark does not build"
 		return nil
 	}
-	record, missing, err := l.runSlice(ctx, directory, tree)
+	records, err := l.runSlices(ctx, directory, tree, documents)
 	if err != nil {
 		return err
 	}
-	if missing != "" {
-		l.details["scorecard"] = missing
-		if !strings.HasPrefix(missing, sliceFailed) {
-			return nil
+	head := l.headBinary(ctx, directory)
+	notes, err := l.blame(ctx, directory, head, documents, records)
+	if err != nil {
+		return err
+	}
+	baselines, err := l.sliceBaselines(ctx)
+	if err != nil {
+		return err
+	}
+	names := make([]string, len(documents))
+	for index, document := range documents {
+		names[index] = sliceName(document)
+	}
+	predicted, absent := predictedTimed(l.Message, names)
+	var parts []string
+	for _, task := range absent {
+		parts = append(parts, "not paired: no "+task+" slice")
+	}
+	failed, counted := 0, 0
+	for index, record := range records {
+		part := describeSlice(record, baselines)
+		if note := notes[record.Slice]; note != "" {
+			part += "; " + note
 		}
-		head, err := l.buildHead(ctx, directory)
+		if metrics := predicted[record.Slice]; len(metrics) != 0 {
+			paired, err := l.pair(ctx, directory, tree, head, documents[index], record, metrics)
+			if err != nil {
+				return err
+			}
+			part += "; " + paired
+		}
+		parts = append(parts, part)
+		if record.Failure == "" && !measured(record) {
+			continue
+		}
+		counted++
+		if record.Failure != "" {
+			failed++
+		}
+		encoded, err := json.Marshal(record)
 		if err != nil {
-			return nil
-		}
-		if _, headMissing, err := l.runSlice(ctx, directory, head); err != nil || headMissing != "" {
 			return err
 		}
-		return treeFailure(missing)
+		l.trailers = append(l.trailers, sliceTrailer+": "+string(encoded))
 	}
-	baseline, commit, err := l.sliceBaseline(ctx, record.Identity)
-	if err != nil {
-		return err
-	}
-	detail := describeSlice(record, baseline, commit)
-	if predicted := predictedTimed(l.Message); len(predicted) != 0 {
-		paired, err := l.pair(ctx, directory, tree, record.Identity, predicted)
-		if err != nil {
-			return err
-		}
-		detail += "; " + paired
-	}
-	l.details["scorecard"] = detail
-	encoded, err := json.Marshal(record)
-	if err != nil {
-		return err
-	}
-	l.trailer = sliceTrailer + ": " + string(encoded)
+	l.details["scorecard"] = strings.Join(append(parts, fmt.Sprintf("%s %d of %d slices", metric.Failures, failed, counted)), " | ")
 	return nil
+}
+
+// sliceDocuments are the repository's slice documents, the inference slice
+// first, then by name.
+func sliceDocuments(repo string) ([]string, error) {
+	matches, err := filepath.Glob(filepath.Join(repo, filepath.FromSlash(sliceDirectory), "*.json"))
+	if err != nil {
+		return nil, err
+	}
+	documents := make([]string, len(matches))
+	for index, match := range matches {
+		documents[index] = path.Join(sliceDirectory, filepath.Base(match))
+	}
+	if at := slices.IndexFunc(documents, func(document string) bool { return sliceName(document) == inferenceSlice }); at > 0 {
+		first := documents[at]
+		documents = append([]string{first}, slices.Delete(documents, at, at+1)...)
+	}
+	return documents, nil
+}
+
+// sliceName is the slice a document measures: its file name.
+func sliceName(document string) string {
+	return strings.TrimSuffix(path.Base(document), path.Ext(document))
+}
+
+// measured reports whether a record is a measurement.
+func measured(record metric.Record) bool {
+	return record.Failure == "" && record.Unmeasured == "" && !record.Selected()
 }
 
 // buildBenchmark builds cmd/benchmark into the directory under name, through
@@ -176,9 +227,14 @@ func (l *landing) buildBenchmark(ctx context.Context, directory, name, overlay s
 	return binary, err
 }
 
-// buildHead builds HEAD's benchmark beside the tree: an overlay maps each
-// path the change touched to HEAD's bytes, or to nothing where HEAD lacks
-// it, so the packages the change left alone stay cached.
+// headBinary builds HEAD's benchmark beside the tree the first time it is
+// asked for, and returns the same binary after: an overlay maps each path
+// the change touched to HEAD's bytes, or to nothing where HEAD lacks it, so
+// the packages the change left alone stay cached.
+func (l *landing) headBinary(ctx context.Context, directory string) func() (string, error) {
+	return sync.OnceValues(func() (string, error) { return l.buildHead(ctx, directory) })
+}
+
 func (l *landing) buildHead(ctx context.Context, directory string) (string, error) {
 	replace := map[string]string{}
 	for index, name := range l.paths {
@@ -205,71 +261,82 @@ func (l *landing) buildHead(ctx context.Context, directory string) (string, erro
 	return l.buildBenchmark(ctx, directory, "head", overlay)
 }
 
-// runSlice runs a built benchmark once on the slice, so its exit status is
-// the benchmark's own. A run that does not measure returns why, in one
-// line; each run names its own error file, so no run reads another's.
-func (l *landing) runSlice(ctx context.Context, directory, binary string) (sliceRecord, string, error) {
+// runSlices runs the documents through one benchmark process and returns
+// one outcome per document, in order. The process prints what each slice
+// selected before it measures; when it crashes, the first document without
+// an outcome is the one it crashed on, keeping what it selected, and the
+// documents after it run in a process of their own.
+func (l *landing) runSlices(ctx context.Context, directory, binary string, documents []string) ([]metric.Record, error) {
+	var records []metric.Record
+	for len(documents) != 0 {
+		printed, ended, err := l.invokeSlices(ctx, directory, binary, documents)
+		if err != nil {
+			return nil, err
+		}
+		outcomes, selections := map[string]metric.Record{}, map[string]metric.Record{}
+		for _, record := range printed {
+			if record.Selected() {
+				selections[record.Slice] = record
+			} else {
+				outcomes[record.Slice] = record
+			}
+		}
+		next := len(documents)
+		for index, document := range documents {
+			name := sliceName(document)
+			if outcome, found := outcomes[name]; found {
+				records = append(records, outcome)
+				continue
+			}
+			crashed := ended(selections[name])
+			crashed.Slice = name
+			records = append(records, crashed)
+			next = index + 1
+			break
+		}
+		documents = documents[next:]
+	}
+	return records, nil
+}
+
+// invokeSlices runs one benchmark process over the documents and returns
+// the records it printed and how a document it printed no outcome for
+// ended: failed, with the process's own error. The runner prints a claimed
+// or exhausted device as an unavailable record, so no process exit stands
+// for one.
+func (l *landing) invokeSlices(ctx context.Context, directory, binary string, documents []string) ([]metric.Record, func(metric.Record) metric.Record, error) {
 	errorFile, err := os.CreateTemp(directory, "error-*.txt")
 	if err != nil {
-		return sliceRecord{}, "", err
+		return nil, nil, err
 	}
 	if err := errorFile.Close(); err != nil {
-		return sliceRecord{}, "", err
+		return nil, nil, err
 	}
 	var output, diagnostics bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: binary, Args: []string{"-smallest", "-prompt-suite", sliceWorkload}, Dir: l.Repo,
+		Path: binary, Args: append([]string{"-slice"}, documents...), Dir: l.Repo,
 		Env:    append(os.Environ(), clioptions.ErrorFileEnvironment+"="+errorFile.Name()),
 		Stdout: &output, Stderr: &diagnostics,
 	})
 	if err != nil {
-		return sliceRecord{}, "", err
+		return nil, nil, err
 	}
-	switch receipt.ExitCode {
-	case 0:
-	case processcontrol.ResourceBusyExitCode, processcontrol.DeviceMemoryExitCode:
-		return sliceRecord{}, "unavailable: " + failureCause(errorFile.Name(), diagnostics.String()), nil
-	default:
-		return sliceRecord{}, fmt.Sprintf("%sexit %d: %s", sliceFailed, receipt.ExitCode, failureCause(errorFile.Name(), diagnostics.String())), nil
-	}
-	var measured struct {
-		Model       string  `json:"model_id"`
-		Recipe      string  `json:"recipe_id"`
-		Workload    string  `json:"workload_digest"`
-		Options     string  `json:"options_digest"`
-		Environment string  `json:"environment_id"`
-		Name        string  `json:"model_name"`
-		LoadMS      float64 `json:"load_ms"`
-		PeakBytes   uint64  `json:"device_peak_bytes"`
-		Summary     struct {
-			FirstOutputMS   float64 `json:"ttft_ms_p50"`
-			TokensPerSecond float64 `json:"decode_tokens_per_second_p50"`
-		} `json:"summary"`
-		Runs []struct {
-			Outputs []string `json:"output_digests"`
-		} `json:"runs"`
-	}
-	if err := json.Unmarshal(output.Bytes(), &measured); err != nil || len(measured.Runs) == 0 {
-		return sliceRecord{}, sliceFailed + "the benchmark printed no measured runs", nil
-	}
-	identity := sha256.Sum256([]byte(strings.Join([]string{
-		measured.Model, measured.Recipe, measured.Workload, measured.Options, measured.Environment,
-	}, "\n")))
-	outputs := strings.Join(measured.Runs[0].Outputs, ",")
-	for _, run := range measured.Runs {
-		if !slices.Equal(run.Outputs, measured.Runs[0].Outputs) {
-			outputs = variedOutputs
+	var printed []metric.Record
+	for line := range strings.Lines(output.String()) {
+		var record metric.Record
+		if json.Unmarshal([]byte(line), &record) == nil && record.Slice != "" {
+			printed = append(printed, record)
 		}
 	}
-	return sliceRecord{
-		Identity: hex.EncodeToString(identity[:]), Model: measured.Name, Outputs: outputs,
-		Metrics: map[metric.Name]float64{
-			metric.PeakMemory:  float64(measured.PeakBytes),
-			metric.FirstOutput: measured.Summary.FirstOutputMS,
-			metric.Throughput:  measured.Summary.TokensPerSecond,
-			metric.Load:        measured.LoadMS,
-		},
-	}, "", nil
+	ended := func(selected metric.Record) metric.Record {
+		selected.Failure = "the benchmark printed no outcome"
+		if receipt.ExitCode != 0 {
+			selected.Failure = fmt.Sprintf("exit %d: %s", receipt.ExitCode, failureCause(errorFile.Name(), diagnostics.String()))
+		}
+		selected.Metrics = map[metric.Name]float64{metric.Failures: 1}
+		return selected
+	}
+	return printed, ended, nil
 }
 
 // failureCause is the benchmark's own error as it wrote it, else the panic
@@ -286,79 +353,165 @@ func failureCause(errorFile, diagnostics string) string {
 	return strings.TrimSpace(lines[len(lines)-1])
 }
 
-// treeFailure refuses a landing whose slice fails on the tree after HEAD's
-// measured: the change broke it.
-func treeFailure(missing string) error {
-	return fmt.Errorf("the slice measures on HEAD and fails on the tree (%s)", missing)
-}
-
-// predictedTimed is the timed metrics the message's predicted effect names
-// by their exact names.
-func predictedTimed(message []byte) []timedMetric {
-	predicted, found := section(message, predictedSection)
-	if !found {
-		return nil
-	}
-	var named []timedMetric
-	for _, timed := range timedMetrics {
-		if strings.Contains(predicted, string(timed.name)) {
-			named = append(named, timed)
+// blame refuses a landing whose slice fails on the tree where HEAD's
+// benchmark measures the same identity, or where the tree fails before
+// selecting a model and HEAD's selects one and measures it: the change
+// broke that path. HEAD runs only the failed documents. A failure HEAD
+// shares or cannot run refuses nothing, and HEAD measuring another
+// identity is noted as not compared.
+func (l *landing) blame(ctx context.Context, directory string, head func() (string, error), documents []string, records []metric.Record) (map[string]string, error) {
+	var failed []string
+	for index, record := range records {
+		if record.Failure != "" {
+			failed = append(failed, documents[index])
 		}
 	}
-	return named
+	if len(failed) == 0 {
+		return nil, nil
+	}
+	binary, err := head()
+	if err != nil {
+		return nil, nil
+	}
+	headRecords, err := l.runSlices(ctx, directory, binary, failed)
+	if err != nil {
+		return nil, err
+	}
+	notes := map[string]string{}
+	var refusals []string
+	for _, tree := range records {
+		at := slices.IndexFunc(headRecords, func(record metric.Record) bool { return record.Slice == tree.Slice })
+		if tree.Failure == "" || at < 0 || !measured(headRecords[at]) {
+			continue
+		}
+		switch headRecord := headRecords[at]; {
+		case tree.Identity == "":
+			refusals = append(refusals, fmt.Sprintf("the %s slice selects %s and measures it on HEAD but fails on the tree before selecting a model (%s)",
+				tree.Slice, headRecord.Model, tree.Failure))
+		case tree.Identity == headRecord.Identity:
+			refusals = append(refusals, treeFailure(tree).Error())
+		default:
+			notes[tree.Slice] = "not compared: HEAD measures " + headRecord.Model + " under another identity"
+		}
+	}
+	if len(refusals) != 0 {
+		return nil, errors.New(strings.Join(refusals, "; "))
+	}
+	return notes, nil
 }
 
-// pair runs HEAD's benchmark and the tree's in A B B A rounds and reports
-// each predicted metric's change between the sides' means against its
-// noise. A predicted metric that worsened beyond its noise refuses the
-// landing, as does a tree run that fails after HEAD's measured; a run that
-// is unavailable, a HEAD run that fails, or a run under another identity
-// leaves the metrics unpaired.
-func (l *landing) pair(ctx context.Context, directory, tree, identity string, predicted []timedMetric) (string, error) {
-	head, err := l.buildHead(ctx, directory)
+// treeFailure refuses a landing whose slice fails on the tree where HEAD's
+// benchmark measures the same identity: the change broke it.
+func treeFailure(record metric.Record) error {
+	return fmt.Errorf("the %s slice measures on HEAD and fails on the tree (%s)", record.Slice, record.Failure)
+}
+
+// predictedTimed is, per slice, the timed metrics the message's predicted
+// effect names by their exact names: a metric right after a task's name
+// belongs to that task's slice (speech first-output), and a bare one to the
+// inference slice. A task named that has no slice document is returned
+// apart, so its prediction reads as unpaired rather than as inference's.
+func predictedTimed(message []byte, names []string) (map[string][]timedMetric, []string) {
+	predicted, found := section(message, predictedSection)
+	if !found {
+		return nil, nil
+	}
+	named := map[string][]timedMetric{}
+	var absent []string
+	for _, timed := range timedMetrics {
+		for rest := predicted; ; {
+			at := strings.Index(rest, string(timed.name))
+			if at < 0 {
+				break
+			}
+			slice := inferenceSlice
+			if before := strings.Fields(rest[:at]); len(before) != 0 && strings.HasSuffix(rest[:at], " ") {
+				if task := strings.TrimFunc(before[len(before)-1], func(r rune) bool { return !unicode.IsLetter(r) && r != '-' }); recipe.Task(task).Valid() {
+					slice = task
+				}
+			}
+			rest = rest[at+len(timed.name):]
+			switch {
+			case !slices.Contains(names, slice):
+				if !slices.Contains(absent, slice) {
+					absent = append(absent, slice)
+				}
+			case !slices.Contains(named[slice], timed):
+				named[slice] = append(named[slice], timed)
+			}
+		}
+	}
+	return named, absent
+}
+
+// pair runs one slice on HEAD's benchmark and the tree's in A B B A rounds
+// and reports each predicted metric's change between the sides' means
+// against its noise. A predicted metric that worsened beyond its noise
+// refuses the landing, as does a tree run that fails where HEAD's measured
+// the same identity; a run that is unavailable, a HEAD run that fails, a
+// run under another identity, or a metric the slice does not measure leaves
+// the metrics unpaired.
+func (l *landing) pair(ctx context.Context, directory, tree string, head func() (string, error), document string, record metric.Record, predicted []timedMetric) (string, error) {
+	if !measured(record) {
+		return "not paired: " + record.Slice + " did not measure", nil
+	}
+	var absent []string
+	for _, timed := range predicted {
+		if _, found := record.Metrics[timed.name]; !found {
+			absent = append(absent, string(timed.name))
+		}
+	}
+	if len(absent) != 0 {
+		return "not paired: " + record.Slice + " measures no " + strings.Join(absent, ", "), nil
+	}
+	headBinary, err := head()
 	if err != nil {
 		return "not paired: HEAD's benchmark does not build", nil
 	}
-	binaries := [sides]string{headSide: head, treeSide: tree}
-	var runs [sides][]sliceRecord
+	binaries := [sides]string{headSide: headBinary, treeSide: tree}
+	var runs [sides][]metric.Record
 	for range pairedRounds {
 		for _, side := range abba {
-			record, missing, err := l.runSlice(ctx, directory, binaries[side])
+			results, err := l.runSlices(ctx, directory, binaries[side], []string{document})
 			if err != nil {
 				return "", err
 			}
-			if missing != "" {
-				if side == treeSide && strings.HasPrefix(missing, sliceFailed) && len(runs[headSide]) != 0 {
-					return "", treeFailure(missing)
+			run := results[0]
+			if !measured(run) {
+				// Each round runs HEAD first, so HEAD has measured this
+				// identity before any tree run is judged.
+				if side == treeSide && run.Failure != "" && run.Identity == record.Identity {
+					return "", treeFailure(run)
 				}
-				return "not paired: " + sideNames[side] + " " + missing, nil
+				return "not paired: " + sideNames[side] + " " + cmp.Or(run.Unmeasured, "failed: "+run.Failure), nil
 			}
-			if record.Identity != identity {
-				return fmt.Sprintf("not paired: %s measures %s under another identity", sideNames[side], record.Model), nil
+			if run.Identity != record.Identity {
+				return fmt.Sprintf("not paired: %s measures %s under another identity", sideNames[side], run.Model), nil
 			}
-			runs[side] = append(runs[side], record)
+			runs[side] = append(runs[side], run)
 		}
 	}
-	var measured, worse []string
+	var cells, worse []string
 	for _, timed := range predicted {
 		change, noise := pairedChange(runs, timed.name)
 		cell := fmt.Sprintf("%s %+.1f%% (noise %.1f%%)", timed.name, change*percent, noise*percent)
-		measured = append(measured, cell)
+		cells = append(cells, cell)
 		if (change > 0) == timed.lowerIsBetter && math.Abs(change) > noise {
 			worse = append(worse, cell)
 		}
 	}
 	if len(worse) != 0 {
-		return "", fmt.Errorf("the predicted effect names %s, which paired runs of HEAD and the tree measure worse beyond the noise of same-binary runs", strings.Join(worse, ", "))
+		return "", fmt.Errorf("the predicted effect names %s %s, which paired runs of HEAD and the tree measure worse beyond the noise of same-binary runs",
+			record.Slice, strings.Join(worse, ", "))
 	}
-	return fmt.Sprintf("paired over %d rounds: %s", pairedRounds, strings.Join(measured, ", ")), nil
+	return fmt.Sprintf("paired over %d rounds: %s", pairedRounds, strings.Join(cells, ", ")), nil
 }
 
 // pairedChange is the tree's relative change in the metric against HEAD,
 // between the means of each side's runs, and the noise: the wider side's
 // range over all its runs, relative to its mean. A slowdown that lands on
 // one side's runs of one round widens that side's range with it.
-func pairedChange(runs [sides][]sliceRecord, name metric.Name) (float64, float64) {
+func pairedChange(runs [sides][]metric.Record, name metric.Name) (float64, float64) {
 	var means [sides]float64
 	var noise float64
 	for side, records := range runs {
@@ -372,47 +525,96 @@ func pairedChange(runs [sides][]sliceRecord, name metric.Name) (float64, float64
 	return means[treeSide]/means[headSide] - 1, noise
 }
 
-// sliceBaseline is the newest first-parent landing whose slice has the
-// identity, and its commit; none is an empty record.
-func (l *landing) sliceBaseline(ctx context.Context, identity string) (sliceRecord, string, error) {
+// sliceBaselines indexes, by identity, the newest first-parent landing's
+// outcome and the newest one that measured, with their commits. A merged
+// branch's landings are not the mainline's baselines, and a record from
+// before slices were named is found by its identity like any other.
+func (l *landing) sliceBaselines(ctx context.Context) (map[string]baseline, error) {
 	log, err := gitauthority.Query(ctx, l.Repo, "log", "--first-parent", "--grep=^"+sliceTrailer+": ",
-		"--format=%h %(trailers:key="+sliceTrailer+",valueonly,separator=%x20)")
+		"--format=%h %(trailers:key="+sliceTrailer+",valueonly,separator=%x1f)")
 	if err != nil {
-		return sliceRecord{}, "", err
+		return nil, err
 	}
+	index := map[string]baseline{}
 	for line := range strings.Lines(string(log)) {
-		commit, value, _ := strings.Cut(strings.TrimSpace(line), " ")
-		var record sliceRecord
-		if json.Unmarshal([]byte(value), &record) == nil && record.Identity == identity {
-			return record, commit, nil
+		commit, values, _ := strings.Cut(strings.TrimSpace(line), " ")
+		for value := range strings.SplitSeq(values, trailerSeparator) {
+			var record metric.Record
+			if json.Unmarshal([]byte(value), &record) != nil || record.Identity == "" {
+				continue
+			}
+			entry := index[record.Identity]
+			if entry.latestCommit == "" {
+				entry.latest, entry.latestCommit = record, commit
+			}
+			if entry.measuredCommit == "" && measured(record) {
+				entry.measured, entry.measuredCommit = record, commit
+			}
+			index[record.Identity] = entry
 		}
 	}
-	return sliceRecord{}, "", nil
+	return index, nil
 }
 
-// describeSlice says what the slice measured: the exact cells against the
-// baseline when one exists, then the timed cells as measured.
-func describeSlice(record, baseline sliceRecord, commit string) string {
-	peak := record.Metrics[metric.PeakMemory] / bytesPerMiB
+// describeSlice says what one slice measured: a failure against the newest
+// outcome of its identity, a measurement's exact cells against the newest
+// measurement of it, then its timed cells as measured.
+func describeSlice(record metric.Record, baselines map[string]baseline) string {
+	prefix := record.Slice + ": "
+	if record.Unmeasured != "" {
+		return prefix + record.Unmeasured
+	}
+	var base baseline
+	if record.Identity != "" {
+		base = baselines[record.Identity]
+	}
+	if record.Failure != "" {
+		switch {
+		case record.Identity == "":
+			return prefix + "fails before selecting a model: " + record.Failure
+		case base.latestCommit == "":
+			return prefix + record.Model + " fails: " + record.Failure
+		case base.latest.Failure != "":
+			return fmt.Sprintf("%s%s still fails (as at %s): %s", prefix, record.Model, base.latestCommit, record.Failure)
+		default:
+			return fmt.Sprintf("%s%s fails (measured at %s): %s", prefix, record.Model, base.latestCommit, record.Failure)
+		}
+	}
+	compared := base.measuredCommit != ""
 	var outputs string
 	switch {
-	case record.Outputs == variedOutputs:
+	case record.Outputs == metric.VariedOutputs:
 		outputs = "outputs vary between runs"
-	case commit == "":
+	case !compared:
 		outputs = "outputs recorded"
-	case baseline.Outputs == variedOutputs:
+	case base.measured.Outputs == metric.VariedOutputs:
 		outputs = "outputs not compared: the baseline's varied"
-	case record.Outputs == baseline.Outputs:
+	case record.Outputs == base.measured.Outputs:
 		outputs = "outputs identical"
 	default:
 		outputs = "outputs differ"
 	}
-	exact := fmt.Sprintf("no earlier slice of this identity: %s; %s %.1f MiB", outputs, metric.PeakMemory, peak)
-	if commit != "" {
-		exact = fmt.Sprintf("against %s: %s; %s %.1f MiB (%+.1f)", commit, outputs, metric.PeakMemory, peak,
-			peak-baseline.Metrics[metric.PeakMemory]/bytesPerMiB)
+	if peak, found := record.Metrics[metric.PeakMemory]; found {
+		outputs += fmt.Sprintf("; %s %.1f MiB", metric.PeakMemory, peak/bytesPerMiB)
+		if basePeak, found := base.measured.Metrics[metric.PeakMemory]; compared && found {
+			outputs += fmt.Sprintf(" (%+.1f)", (peak-basePeak)/bytesPerMiB)
+		}
 	}
-	return fmt.Sprintf("%s, %s; unpaired %s %.0f ms, %s %.0f tok/s, %s %.0f ms", record.Model, exact,
-		metric.FirstOutput, record.Metrics[metric.FirstOutput], metric.Throughput, record.Metrics[metric.Throughput],
-		metric.Load, record.Metrics[metric.Load])
+	exact := "no earlier slice of this identity: " + outputs
+	if compared {
+		exact = fmt.Sprintf("against %s: %s", base.measuredCommit, outputs)
+	}
+	if base.latest.Failure != "" {
+		exact = fmt.Sprintf("measures (failed at %s); %s", base.latestCommit, exact)
+	}
+	var timed []string
+	for _, cell := range timedMetrics {
+		if value, found := record.Metrics[cell.name]; found {
+			timed = append(timed, fmt.Sprintf("%s %.0f %s", cell.name, value, cell.unit))
+		}
+	}
+	if len(timed) == 0 {
+		return prefix + record.Model + ", " + exact
+	}
+	return prefix + record.Model + ", " + exact + "; unpaired " + strings.Join(timed, ", ")
 }

@@ -139,7 +139,7 @@ func (g *ContinuousGenerator) Generate(
 
 func (g *ContinuousGenerator) validateOptions(options GenerateOptions) error {
 	if options.ProjectedInputs != nil || options.CachePrompt ||
-		options.MinCacheReuse != 0 || options.LoRAConfigured || len(options.LoRA) > 0 ||
+		options.MinCacheReuse != 0 || options.LoRAConfigured || len(options.LoRA) > 0 || options.SpeculativeDecode ||
 		g.runner.hasInvocationLoRA() ||
 		options.KeepTokens != int(g.options.KeepTokens) ||
 		options.DiscardTokens != g.options.DiscardTokens ||

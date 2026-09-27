@@ -63,6 +63,8 @@ type protocolGenerationPlan struct {
 	// lora: the request's adapter scales, when it named them.
 	lora           []inference.LoRAScale
 	loraConfigured bool
+	// speculative: the request drafts from the served model's draft head.
+	speculative bool
 }
 
 type protocolGenerationResult struct {
@@ -160,6 +162,10 @@ func (h *Handler) prepareProtocolGenerationPlan(
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
+	if err := h.admitSpeculation(parameters.Speculative, sampler); err != nil {
+		writeInvalidRequest(response, err)
+		return nil, false
+	}
 	lease, acquired := h.acquireRequestSession(request.Context(), response, -1)
 	if !acquired {
 		return nil, false
@@ -167,7 +173,7 @@ func (h *Handler) prepareProtocolGenerationPlan(
 	plan := &protocolGenerationPlan{
 		handler: h, request: request, session: lease,
 		sampler: sampler, maxTokens: maxTokens, stops: stops,
-		lora: lora, loraConfigured: loraConfigured,
+		lora: lora, loraConfigured: loraConfigured, speculative: parameters.Speculative,
 	}
 	if err := plan.admit(prompt); err != nil {
 		plan.release()
@@ -183,7 +189,7 @@ func (plan *protocolGenerationPlan) turn(prompt nativePrompt) (*protocolGenerati
 	next := &protocolGenerationPlan{
 		handler: plan.handler, request: plan.request, session: plan.session,
 		sampler: plan.sampler, maxTokens: plan.maxTokens, stops: plan.stops,
-		lora: plan.lora, loraConfigured: plan.loraConfigured,
+		lora: plan.lora, loraConfigured: plan.loraConfigured, speculative: plan.speculative,
 	}
 	return next, next.admit(prompt)
 }
@@ -270,6 +276,10 @@ func (plan *protocolGenerationPlan) runWithSampler(
 	// Never infer scheduler support from the underlying Runner.
 	if provider, ok := plan.session.Model().(promptCacheProvider); ok {
 		options.CachePrompt = provider.SupportsPromptCache()
+	}
+	// A speculative turn decodes greedily on the device from an uncached prompt.
+	if plan.speculative {
+		options.SpeculativeDecode, options.DeviceGreedy, options.CachePrompt = true, true, false
 	}
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
 		plan.evaluation = evaluation

@@ -221,6 +221,36 @@ type LoRAControlAPI interface {
 	SetLoRAScales(context.Context, []inference.LoRAScale) error
 }
 
+// SpeculativeDraftAPI declares the tokens a speculative verify span drafts
+// from the served model's draft head, or zero without one.
+type SpeculativeDraftAPI interface {
+	SpeculativeDraftTokens() int
+}
+
+// admitSpeculation holds a speculative request to the served model's draft
+// head and to the greedy sampling the drafts are verified under.
+func (h *Handler) admitSpeculation(speculative bool, sampler *sampling.Sampler) error {
+	switch {
+	case !speculative:
+		return nil
+	case h.speculativeDraftTokens() == 0:
+		return errors.New("speculative decoding needs a served model that declares a draft head")
+	case !sampler.IsRawGreedy():
+		return errors.New("speculative decoding verifies greedy drafts: set temperature 0 and no other sampler")
+	}
+	return nil
+}
+
+// speculativeDraftTokens is the served model's declared draft span; context
+// shifting rules speculation out, since its spans only append.
+func (h *Handler) speculativeDraftTokens() int {
+	declared, ok := h.generator.(SpeculativeDraftAPI)
+	if !ok || h.config.ContextShift {
+		return 0
+	}
+	return declared.SpeculativeDraftTokens()
+}
+
 type DeviceMemoryAPI interface {
 	DeviceMemoryStats(context.Context) (driver.MemoryStats, error)
 }
@@ -300,6 +330,8 @@ type slotRuntimeStats struct {
 	startedNanos    atomic.Int64
 	promptNanos     atomic.Int64
 	totalNanos      atomic.Int64
+	draftedTokens   atomic.Uint64
+	acceptedDrafts  atomic.Uint64
 
 	textMu    sync.RWMutex
 	prompt    string
@@ -314,6 +346,8 @@ func (stats *slotRuntimeStats) reset(started time.Time) {
 	stats.startedNanos.Store(started.UnixNano())
 	stats.promptNanos.Store(0)
 	stats.totalNanos.Store(0)
+	stats.draftedTokens.Store(0)
+	stats.acceptedDrafts.Store(0)
 	stats.textMu.Lock()
 	stats.prompt = ""
 	stats.generated.Reset()

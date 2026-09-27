@@ -252,6 +252,10 @@ type slotStatusTimings struct {
 	PredictedMS         float64 `json:"predicted_ms"`
 	PredictedPerTokenMS float64 `json:"predicted_per_token_ms"`
 	PredictedPerSecond  float64 `json:"predicted_per_second"`
+	// DraftN and DraftNAccepted count a speculative turn's drafted tokens
+	// and those the model accepted.
+	DraftN         uint64 `json:"draft_n,omitzero"`
+	DraftNAccepted uint64 `json:"draft_n_accepted,omitzero"`
 }
 
 func perTokenAndRate(tokens uint64, durationMS float64) (float64, float64) {
@@ -305,6 +309,8 @@ func (stats *slotRuntimeStats) metrics(processing bool) slotRuntimeMetrics {
 			PredictedMS:         predictedMS,
 			PredictedPerTokenMS: predictedPerTokenMS,
 			PredictedPerSecond:  predictedPerSecond,
+			DraftN:              stats.draftedTokens.Load(),
+			DraftNAccepted:      stats.acceptedDrafts.Load(),
 		},
 	}
 }
@@ -757,6 +763,17 @@ func (h *Handler) generate(
 		}
 		if onPromptEvaluated != nil {
 			onPromptEvaluated(evaluation)
+		}
+	}
+	if onDraftSpan := options.OnDraftSpan; options.SpeculativeDecode {
+		options.OnDraftSpan = func(drafted, accepted int) {
+			if stats != nil {
+				stats.draftedTokens.Add(uint64(drafted))
+				stats.acceptedDrafts.Add(uint64(accepted))
+			}
+			if onDraftSpan != nil {
+				onDraftSpan(drafted, accepted)
+			}
 		}
 	}
 	onToken := options.OnToken

@@ -511,6 +511,7 @@ dialog::backdrop { background:var(--backdrop); }
 .settings-section { padding:var(--s4) 0; border-bottom:1px solid var(--line); }
 .settings-section h3 { font-size:var(--t-base); margin:0 0 var(--s3); }
 .setting-field { display:flex; flex-direction:column; gap:var(--s2); margin-bottom:var(--s4); font-size:var(--t-base); }
+.setting-check { display:flex; align-items:flex-start; gap:var(--s2); margin-bottom:var(--s4); font-size:var(--t-base); }
 .setting-field .text, .setting-field .keyfield { width:100%; max-width:none; font-size:var(--t-lg); }
 .settings-fields { display:grid; grid-template-columns:1fr 1fr; gap:var(--s4); }
 .connection-status { margin-top:var(--s3); }

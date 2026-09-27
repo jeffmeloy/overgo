@@ -44,6 +44,8 @@
     if (record.incomplete_details?.reason === "max_output_tokens") cards.push(overgo.stat("Output limit reached", "Partial answer saved"));
     if (record.failure) cards.push(overgo.stat("Failure", record.failure));
     if (record.timings) cards.push(overgo.stat("Prefill", Number(record.timings.prompt_per_second).toFixed(2), "tok/s"), overgo.stat("Decode", Number(record.timings.predicted_per_second).toFixed(2), "tok/s"));
+    if (record.timings && record.timings.draft_n) cards.push(overgo.stat("Drafts accepted", (record.timings.draft_n_accepted || 0) + " / " + record.timings.draft_n,
+      Math.round(100 * (record.timings.draft_n_accepted || 0) / record.timings.draft_n) + "% speculative"));
     if (record.sampling) cards.push(overgo.stat("Sampling", "T " + record.sampling.temperature, record.sampling.samplers.join(" › ") || "no stage"));
     const links = ["model", "recipe", "trace", "receipt", "operation", "run"].filter((name) => record[name]).map((name) => el("span", {}, name + " ", overgo.artifactLink(record[name])));
     const host = el("div");
@@ -153,12 +155,16 @@
       system.value = typeof draft.system === "string" ? draft.system : "";
       if (draft.temperature !== "" && Number.isFinite(Math.fround(Number(draft.temperature))) && Number(draft.temperature) >= 0) temperature.value = draft.temperature;
       if (draft.tokens !== "" && Number.isFinite(Number(draft.tokens)) && Number(draft.tokens) >= 1) maxTokens.value = Math.min(Math.floor(Number(draft.tokens)), tokenLimit);
+      // Speculation is offered only when the served model declares a draft head; its drafts verify greedily.
+      const speculative = capabilities.speculative ? el("input", { type: "checkbox", "aria-label": "speculative decoding", "data-draft-setting": "speculative" }) : null;
+      if (speculative) speculative.checked = draft.speculative === true;
 
       const settings = document.getElementById("conversation-settings");
       const focusedSetting = settings.contains(document.activeElement) && document.activeElement.dataset.draftSetting;
       settings.replaceChildren(el("section", { class: "settings-section" }, el("h3", { text: "Conversation" }),
         el("label", { class: "setting-field" }, "System prompt", system),
         el("div", { class: "settings-fields" }, el("label", { class: "setting-field" }, "Temperature", temperature), el("label", { class: "setting-field" }, "Maximum output tokens", maxTokens)),
+        speculative ? el("label", { class: "setting-check" }, speculative, "Speculative decoding: draft " + capabilities.speculative.draft_tokens + " tokens a step from the model's draft head, decoding greedily (temperature 0)") : null,
         el("details", {}, el("summary", { text: "Last response usage" }), facts)));
       const exportStatus = el('div', { class: 'note', role: 'status', hidden: true });
       settings.firstChild.append(el('details', {}, el('summary', { text: 'Copy or export conversation' }),
@@ -516,12 +522,12 @@
       }
       saveDraft = () => {
         if (overgo.signal.aborted) return;
-        persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, mode: composer.mode(),
+        persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, speculative: speculative ? speculative.checked : undefined, mode: composer.mode(),
           uncertainPrevious: uncertainPrevious === null ? undefined : uncertainPrevious, uncertainText: uncertainPrevious === null ? undefined : uncertainText, uncertainKind: uncertainPrevious === null ? undefined : uncertainKind,
           attachments: composer.attachments.map(item => ({ name: item.name, mime: item.mime, size: item.size, sourceArtifact: item.sourceArtifact, sourceRun: item.sourceRun, document: item.document === true, textApplied: item.textApplied === true })) });
       };
       saveChat = saveDraft;
-      for (const field of [system, temperature, maxTokens]) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
+      for (const field of [system, temperature, maxTokens, speculative].filter(Boolean)) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
       updateSwitch = () => { modelNotice.hidden = !overgo.modelSwitching(); updateBusy(); };
       overgo.listen(document, "overgo-model-switch", updateSwitch);
       updateSwitch();
@@ -760,6 +766,7 @@
         if (system.value.trim()) request.instructions = system.value.trim();
         if (temperature.value !== "") request.temperature = Number(temperature.value);
         if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+        if (speculative && speculative.checked) Object.assign(request, { speculative: true, temperature: 0 });
         return request;
       }
 

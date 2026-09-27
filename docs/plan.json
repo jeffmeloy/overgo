@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-speculative-decoding",
-      "title": "Offer speculative decoding in Settings only when the served recipe declares a draft head, with depth taken from the declaration",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Offer speculative decoding in Settings only when the served recipe declares a draft head, with depth taken from the declaration",
-          "status": "open",
-          "verify": "test -f internal/server/speculative_option_test.go \u0026\u0026 go test ./internal/server -run '^TestSpeculativeDecodingDeclaredOption$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SpeculativeDecoding|LayoutAudit)$' -leg 'speculative decoding leg'",
-          "rationale": "Carried from professional_overgo_gui. No option appears for a recipe without a draft head; the turn inspector shows accepted draft tokens."
-        }
-      ]
-    },
-    {
       "id": "gui-model-merge",
       "title": "Merge registered models, or an adapter into its base, from Model Builder, and export the result as quantized GGUF with an Ollama Modelfile, each with lineage",
       "owner": "overgo_gui_cleanup",

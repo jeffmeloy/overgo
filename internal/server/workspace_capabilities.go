@@ -35,6 +35,14 @@ type workspaceModelCapabilities struct {
 	// Adapters: the LoRA adapters the served model loaded; a chat turn runs
 	// again on each beside its base model.
 	Adapters []workspaceAdapter `json:"adapters"`
+	// Speculative: the served model's draft head, when it declares one; a
+	// chat turn may then draft its tokens and verify them greedily.
+	Speculative *workspaceSpeculative `json:"speculative,omitempty"`
+}
+
+// workspaceSpeculative is the tokens each speculative verify span drafts.
+type workspaceSpeculative struct {
+	DraftTokens int `json:"draft_tokens"`
 }
 
 // workspaceAdapter: one loaded adapter by its request ID, file name and
@@ -110,6 +118,9 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 			MaxImageBytes: maxImageBytes, MaxMediaBytes: maxMediaBytes,
 			MaxImageDimension: maxImageDimension, MaxImagePixels: maxImagePixels,
 		},
+	}
+	if tokens := h.speculativeDraftTokens(); tokens > 0 {
+		document.Speculative = &workspaceSpeculative{DraftTokens: tokens}
 	}
 	document.Adapters = []workspaceAdapter{}
 	if controller, ok := h.generator.(LoRAControlAPI); ok {

@@ -40,9 +40,6 @@ func main() {
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	jsonFlag := flag.Bool("json", false, "with -next or -prompt: print typed JSON")
-	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
-	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
-	mergeSourceStoreFlag := flag.String("merge-source-store", "", "with -prepare-merge: explicit source OvergoDB store when several registered worktrees sit at the source commit")
 	stop := flag.Bool("stop", false, "record a scoped stop until explicit resume: -stop <user-stop|irreversible|external-prereq>: <detail>")
 	resumeStop := flag.String("resume-stop", "", "explicitly resume the exact stop ID, preserving its owner and scope")
 	maintenanceStop := flag.String("maintenance-stop", "", "authorize one supervised task while the exact stop remains active: <item/step> <reason>")
@@ -58,20 +55,19 @@ func main() {
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, add: *add, setverify: *setverify, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, admitProposal: *admitProposalFlag}, flag.Args())
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, admitProposal: *admitProposalFlag}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
 }
 
 type cli struct {
-	resumeStop, maintenanceStop, stopMode, mode    string
-	releaseClaim, releaseReason                    string
-	worker                                         string
-	next, prompt, verify, status, add, setverify   bool
-	stop, move, retitle, json                      bool
-	title, class, before, verifyCmd, role          string
-	prepareMerge, planProjection, mergeSourceStore string
-	admitProposal                                  string
+	resumeStop, maintenanceStop, stopMode, mode  string
+	releaseClaim, releaseReason                  string
+	worker                                       string
+	next, prompt, verify, status, add, setverify bool
+	stop, move, retitle, json                    bool
+	title, class, before, verifyCmd, role        string
+	admitProposal                                string
 }
 
 func run(c cli, args []string) error {
@@ -113,16 +109,6 @@ func run(c cli, args []string) error {
 		return err
 	}
 	switch {
-	case c.prepareMerge != "":
-		projection, err := plan.ParseMergeProjection(c.planProjection)
-		if err != nil {
-			return fmt.Errorf("-plan-projection: %w", err)
-		}
-		return prepareMergeWithProjection(commandWorktree, c.prepareMerge, projection, c.mergeSourceStore, os.Stdout)
-	case c.planProjection != "":
-		return errors.New("-plan-projection requires -prepare-merge")
-	case c.mergeSourceStore != "":
-		return errors.New("-merge-source-store requires -prepare-merge")
 	case c.admitProposal != "":
 		return admitProposal(commandWorktree, c.admitProposal, os.Stdout)
 	case c.add:
@@ -154,24 +140,6 @@ func run(c cli, args []string) error {
 	default:
 		return errors.New("one of -next, -prompt, -verify, -status, -add, -move, -retitle, -setverify, -stop is required")
 	}
-}
-
-// treeWithEntry writes the tree at treeish with entry replacing, or joining,
-// the entry of its name; mktree orders what it is given.
-func treeWithEntry(root, treeish, entry string) (string, error) {
-	listed, err := gitOutput(root, "ls-tree", treeish)
-	if err != nil {
-		return "", err
-	}
-	_, name, _ := strings.Cut(entry, "\t")
-	lines := []string{entry}
-	for line := range strings.SplitSeq(strings.TrimRight(string(listed), "\n"), "\n") {
-		if !strings.HasSuffix(line, "\t"+name) {
-			lines = append(lines, line)
-		}
-	}
-	written, err := commandInput(root, []byte(strings.Join(lines, "\n")+"\n"), "git", "mktree")
-	return strings.TrimSpace(string(written)), err
 }
 
 func withPlanMutation(root string, mutate func(plan.Plan) error) (err error) {

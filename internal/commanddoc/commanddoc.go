@@ -134,6 +134,8 @@ var Declared = map[string]Descriptor{
 		"an operator checking the SenseNova port"),
 	"seriesforecast-train-probe": operator("seriesforecast-train-probe", "record bounded forecast training evidence",
 		"an operator probing forecast training"),
+	"api-manifest": operator("api-manifest", "regenerate or check docs/api_manifest.json, the declared binaries, routes and contracts",
+		"a worker whose change moves the declared API surface"),
 	"swap": operator("swap", "serve every servable model in the store from one endpoint, swapping the running server",
 		"an operator serving several models"),
 	"training-objective": operator("training-objective", "bind a training objective's contract identities and evidence note",

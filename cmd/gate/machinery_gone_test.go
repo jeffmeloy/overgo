@@ -82,6 +82,15 @@ func TestPlanOrchestrationGone(t *testing.T) {
 		"internal/runrecord/review.go", "internal/runrecord/attempt_history.go")
 }
 
+// TestPrepareMergeGone holds merges to git: a merge is git merge --no-ff
+// --no-commit and a landing, so the prepare-merge flow, its source-store
+// resolution, the lane store mirror and the semantic plan merge are deleted.
+func TestPrepareMergeGone(t *testing.T) {
+	t.Parallel()
+	requireGone(t, "cmd/plan/sync.go", "cmd/plan/source_store.go", "internal/lanestore",
+		"internal/plan/sync.go", "internal/plan/merge_projection.go")
+}
+
 // TestOldGateMachineryGone closes the sweep the tests above make: the last
 // hand-run ratchet, the coverage-lanes report and its reviewed floors, goes
 // with the rest.

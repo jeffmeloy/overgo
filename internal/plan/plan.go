@@ -122,14 +122,6 @@ func parsePlan(data []byte, validate func(Plan) error) (Plan, error) {
 	return document, validate(document)
 }
 
-// ParseHistorical decodes one immutable Git plan snapshot without applying
-// current live-plan lifecycle rules. Historical rows may retain completion
-// states or old dependency syntax; git's Landed-Row trailers say what
-// landed.
-func ParseHistorical(data []byte) (Plan, error) {
-	return parsePlan(data, validatePlanGraph)
-}
-
 // Save writes the plan back to path (Path when empty).
 func Save(path string, d Plan) error {
 	if err := Validate(d); err != nil {

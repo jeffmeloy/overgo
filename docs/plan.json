@@ -10,12 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "merge",
-          "title": "Delete prepare-merge and the lane store mirror: a merge is git merge then a landing",
-          "status": "open",
-          "verify": "go test ./cmd/gate -run '^TestPrepareMergeGone$' -count=1"
-        },
-        {
           "id": "claims",
           "title": "Dispatch from the plan alone: delete dispatch claims and the readiness snapshot",
           "status": "open",

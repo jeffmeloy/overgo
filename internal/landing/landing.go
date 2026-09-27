@@ -1,9 +1,9 @@
 // Package landing lands one plan row through the small gate. The dirty tree
-// is formatted, vetted and tested -- go test's own cache decides what runs
-// again -- the lanes the change reaches run, a few rules compare the changed
-// files with HEAD, and the row's own check passes; then the tree is committed
-// with the row's step removed from the plan. Git holds the record: the
-// message says what the gate measured.
+// is formatted, modernized by go fix, vetted and tested -- go test's own
+// cache decides what runs again -- the lanes the change reaches run, a few
+// rules compare the changed files with HEAD, and the row's own check passes;
+// then the tree is committed with the row's step removed from the plan. Git
+// holds the record: the message says what the gate measured.
 package landing
 
 import (
@@ -82,6 +82,7 @@ func Run(ctx context.Context, options Options) (string, error) {
 		run  func(context.Context) error
 	}{
 		{"format", l.format},
+		{"fix", l.fix},
 		{"vet", l.vet},
 		{"rules", l.rules},
 		{"test", l.test},
@@ -182,8 +183,33 @@ func (l *landing) format(ctx context.Context) error {
 	return err
 }
 
+// buildTags are the tags vet and fix read with, so every build-tagged test
+// file is checked.
+const buildTags = "modeltest,integration"
+
+// fix applies go fix's modernizers to the changed packages, as format
+// applies gofmt: a legacy form go fix can rewrite is rewritten, not refused.
+// A directory whose files this platform's build excludes, or that does not
+// compile, has no package to fix; vet reports the latter.
+func (l *landing) fix(ctx context.Context) error {
+	directories := l.goPackages()
+	if len(directories) == 0 {
+		return nil
+	}
+	listed, err := l.run(ctx, nil, "go", append([]string{"list", "-e", "-tags", buildTags, "-f", "{{if not .Error}}{{.ImportPath}}{{end}}"}, directories...)...)
+	if err != nil {
+		return err
+	}
+	packages := strings.Fields(listed)
+	if len(packages) == 0 {
+		return nil
+	}
+	_, err = l.run(ctx, nil, "go", append([]string{"fix", "-tags", buildTags}, packages...)...)
+	return err
+}
+
 func (l *landing) vet(ctx context.Context) error {
-	_, err := l.run(ctx, nil, "go", "vet", "-tags", "modeltest,integration", "./...")
+	_, err := l.run(ctx, nil, "go", "vet", "-tags", buildTags, "./...")
 	return err
 }
 

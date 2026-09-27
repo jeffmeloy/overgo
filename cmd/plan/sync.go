@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
 	"overgo/internal/lanestore"
 	"overgo/internal/overgodb"
@@ -24,7 +23,6 @@ const (
 	compatibilityDocumentPath         = "docs/COMPATIBILITY.md"
 	trainingCompatibilityDocumentPath = "docs/TRAINING_COMPATIBILITY.md"
 	apiManifestJSONPath               = "docs/api_manifest.json"
-	modernGoBaselinePath              = "docs/modern_go_baseline.json"
 )
 
 func prepareMerge(root, source string, output io.Writer) error {
@@ -136,7 +134,7 @@ func prepareMergeWithProjection(
 				abortMerge(root)
 			}
 		}()
-		if err := regenerateMergeOwnedDocuments(root, localRevision); err != nil {
+		if err := regenerateMergeOwnedDocuments(root); err != nil {
 			return err
 		}
 		if _, err := commandOutput(root, "go", "run", "./cmd/compatibility", "-refresh-identities"); err != nil {
@@ -152,7 +150,6 @@ func prepareMergeWithProjection(
 			compatibilityDocumentPath,
 			trainingCompatibilityDocumentPath,
 			apiManifestJSONPath,
-			modernGoBaselinePath,
 		); err != nil {
 			return err
 		}
@@ -180,22 +177,6 @@ func prepareMergeWithProjection(
 		}
 		return nil
 	})
-}
-
-// restoreMergeTargetBaselines retains this lane's reviewed ratchets across a
-// generated-document conflict. The gate later recomputes them from merged code
-// and may lower a ceiling, while a raise still requires explicit paydown.
-func restoreMergeTargetBaselines(root, localRevision string) error {
-	for _, path := range []string{modernGoBaselinePath} {
-		baseline, err := gitOutput(root, "show", localRevision+":"+path)
-		if err != nil {
-			return fmt.Errorf("restore target %s: %w", path, err)
-		}
-		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(path)), baseline, clioptions.OutputFileMode); err != nil {
-			return fmt.Errorf("restore target %s: %w", path, err)
-		}
-	}
-	return nil
 }
 
 // mergeCapturedPlan performs the textual merge and restores the validated plan
@@ -293,29 +274,16 @@ func mergeOwnedDocument(path string) bool {
 	case plan.Path,
 		compatibilityDocumentPath,
 		trainingCompatibilityDocumentPath,
-		apiManifestJSONPath,
-		modernGoBaselinePath:
+		apiManifestJSONPath:
 		return true
 	default:
 		return false
 	}
 }
 
-func regenerateMergeOwnedDocuments(root, localRevision string) error {
-	if err := restoreMergeTargetBaselines(root, localRevision); err != nil {
-		return err
-	}
-	commands := []struct {
-		label string
-		args  []string
-	}{
-		{"lower merged modern-Go baseline", []string{"run", "./cmd/modern-census", "-lower-baseline"}},
-		{"refresh merged API manifest", []string{"run", "./cmd/api-manifest", "-update"}},
-	}
-	for _, command := range commands {
-		if _, err := commandOutput(root, "go", command.args...); err != nil {
-			return fmt.Errorf("%s: %w", command.label, err)
-		}
+func regenerateMergeOwnedDocuments(root string) error {
+	if _, err := commandOutput(root, "go", "run", "./cmd/api-manifest", "-update"); err != nil {
+		return fmt.Errorf("refresh merged API manifest: %w", err)
 	}
 	return nil
 }

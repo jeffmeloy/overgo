@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/plan"
@@ -74,11 +75,11 @@ func TestRelocateItemReranksWithoutLoss(t *testing.T) {
 		{ID: "a", Status: "open", Steps: step}, {ID: "b", Status: "open", Steps: step}, {ID: "c", Status: "open", Steps: step},
 	}}
 	order := func(document plan.Plan) string {
-		ids := ""
+		var ids strings.Builder
 		for _, it := range document.Items {
-			ids += it.ID
+			ids.WriteString(it.ID)
 		}
-		return ids
+		return ids.String()
 	}
 	top, err := relocateItem(base, "c", "")
 	if err != nil || order(top) != "cab" {

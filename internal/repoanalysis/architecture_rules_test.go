@@ -1,3 +1,5 @@
+// Package repoanalysis_test holds the live-tree checks of the repository's
+// architecture rules.
 package repoanalysis_test
 
 import (

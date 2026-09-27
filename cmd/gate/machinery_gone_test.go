@@ -49,3 +49,16 @@ func TestClosureLedgerGone(t *testing.T) {
 		"internal/codeprofile", "cmd/clone-census", "docs/clone_baseline.json",
 		"docs/staged_surface.json", "docs/harness_surface_baseline.json")
 }
+
+// TestCensusesGone holds the tree rules to what a landing runs: the modern-Go
+// census gives way to go fix and the gate's legacy-form rule, and the
+// ownership, family-branch, store-access, structure-budget and harness
+// censuses are deleted with their commands and documents.
+func TestCensusesGone(t *testing.T) {
+	t.Parallel()
+	requireGone(t, "internal/repoanalysis/modern_go_census.go", "internal/repoanalysis/modern_go_catalog.json",
+		"internal/repoanalysis/ownership_census.go", "internal/repoanalysis/family_branch_census.go",
+		"internal/repoanalysis/store_access_census.go", "internal/repoanalysis/structure_budgets.go",
+		"internal/repoanalysis/harness.go", "cmd/modern-census", "cmd/rsi-census",
+		"docs/modern_go_baseline.json", "docs/rsi_ownership_census.json", "docs/structure_budgets.json")
+}

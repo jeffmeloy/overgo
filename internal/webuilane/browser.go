@@ -153,9 +153,9 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 	if err != nil {
 		return nil, errors.Join(err, browser.Close())
 	}
-	// Inspector reports the renderer's crash or the target's detach, which
-	// end every wait on the page.
-	for _, domain := range []string{"Runtime.enable", "Inspector.enable"} {
+	// Inspector reports the renderer's crash or the target's detach, and Page
+	// a JavaScript dialog, each of which ends every wait on the page.
+	for _, domain := range []string{"Runtime.enable", "Inspector.enable", "Page.enable"} {
 		if err := browser.Call(ctx, domain, nil, nil); err != nil {
 			return nil, errors.Join(err, browser.Close())
 		}
@@ -394,14 +394,18 @@ type cdpEvent struct {
 const retainedEventPrefix = "Browser.download"
 
 // targetEnded reports an event after which the page never answers: its
-// renderer crashed or the target detached from this session. Any wait on
-// the page fails at once, naming it, instead of reading a reply that will
-// not come.
+// renderer crashed, the target detached from this session, or the page opened
+// a JavaScript dialog, which blocks every evaluation until someone answers
+// it. Any wait on the page fails at once, naming it, instead of reading a
+// reply that will not come.
 func targetEnded(event cdpEvent) error {
-	if event.Method != "Inspector.targetCrashed" && event.Method != "Inspector.detached" {
-		return nil
+	switch event.Method {
+	case "Inspector.targetCrashed", "Inspector.detached":
+		return fmt.Errorf("webui lane: the page target ended (%s %s)", event.Method, event.Params)
+	case "Page.javascriptDialogOpening":
+		return fmt.Errorf("webui lane: the page opened a JavaScript dialog, which blocks it (%s)", event.Params)
 	}
-	return fmt.Errorf("webui lane: the page target ended (%s %s)", event.Method, event.Params)
+	return nil
 }
 
 func dialWebSocket(ctx context.Context, rawURL string) (*webSocket, error) {

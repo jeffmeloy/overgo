@@ -1276,7 +1276,8 @@
             "deleted-files-select-by-readers/do",
             "device-lease-host-tests-inline/do",
             "lanes-never-refuse/do",
-            "admission-before-tests/do"
+            "admission-before-tests/do",
+            "browser-dialog-ends-waits/do"
           ]
         }
       ]

@@ -62,3 +62,12 @@ func TestCensusesGone(t *testing.T) {
 		"internal/repoanalysis/harness.go", "cmd/modern-census", "cmd/rsi-census",
 		"docs/modern_go_baseline.json", "docs/rsi_ownership_census.json", "docs/structure_budgets.json")
 }
+
+// TestGateRecordsGone holds the store to result records: the old gate's
+// lane obligations, selection causes and suite costs, the telemetry class
+// that retained them, and the plan history that read them are deleted.
+func TestGateRecordsGone(t *testing.T) {
+	t.Parallel()
+	requireGone(t, "internal/runrecord/lane_obligation.go", "internal/runrecord/selection_cause.go",
+		"internal/runrecord/suite_cost.go", "internal/storepolicy/telemetry.go", "cmd/plan/history_phases.go")
+}

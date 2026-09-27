@@ -10,18 +10,27 @@
       "status": "open",
       "steps": [
         {
-          "id": "records",
-          "title": "Delete the gate records from runrecord",
-          "status": "open",
-          "verify": "go test ./cmd/gate -run '^TestGateRecordsGone$' -count=1",
-          "rationale": "Target 2026-09-27 (owner review): runrecord under 5k lines of code (16.4k now, plus 10.4k of tests). plan -history -phases goes with the gate records it reads. Then re-measure store growth, most of which came from gate records, and retire every store row the new numbers do not justify: store-multi-schema-paging, store-bare-record-fill, store-small-record-horizon, store-bounded-segments and store-open-lineage-cost."
-        },
-        {
           "id": "do",
           "title": "Delete the old gate machinery the small gate replaced",
           "status": "open",
           "verify": "go test ./cmd/gate -run '^TestOldGateMachineryGone$' -count=1",
           "rationale": "Second half of the small-gate rebuild (owner 2026-09-27), landed by the small gate so each deletion does not force the old gate's complete plan. Delete: the closure ledger (internal/closurescan, cmd/closure-scan and the store bindings keyed by byte offsets), the modern-Go census, baseline and exceptions (docs/modern_go_baseline.json), the harness-surface and census ratchets and their baselines, the code-manifest impact selection (codemanifest, codeprofile, automationcheck selection, cmd/code-manifest), lane obligations, the plan completion authority and proof horizon (internal/plan completion.go, projected_merge_authority.go), and runrecord decision records. The store keeps result records only. Measured 2026-09-27: with go test's cache a plan-and-test change re-ran 16 of 269 packages, yet took longer than a cold run, bound by suites that read the live repository (internal/gate 692 s, audioparity 483 s, repoanalysis 315 s, plan 285 s); deleting the gate's own tests is where the small gate's speed comes from, and audioparity's source binding should bind its closure without re-running on every Go change. Done when TestOldGateMachineryGone finds those packages and documents absent."
+        }
+      ]
+    },
+    {
+      "id": "audioparity-binding-narrowed",
+      "title": "Bind audioparity's evidence to the code that produces it, not two commands' closures",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bind audioparity's evidence to the code that produces it, not two commands' closures",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestAudioProducerSourceBinding$' -count=1",
+          "rationale": " Measured 2026-09-27: audioparity's suite opens 33,766 Go files, the -deps closure of internal/audioparity with cmd/evaluate and cmd/recipe (internal/server, inference, evaluation, runrecord, model...). go test's cache hashes every file a test opens, so nearly any Go change reruns its 5-8 minute suite; the census landing's test phase took 10m55s on a warm cache after a one-line comment in repoanalysis. Bind the stored audio evidence to the packages that compute it (the ASR runtime and the reference session code), and let the acceptance comparison read only those, so a change elsewhere replays from cache. TestAudioProducerSourceBinding holds the narrowed closure (internal/server absent)."
         }
       ]
     },
@@ -362,7 +371,7 @@
           "title": "Page across several schemas by reading only the page",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestMultiSchemaPageReadsOnlyThePage$' -count=1",
-          "rationale": "SQA-005: 8a77c2d8 made a single-schema document read proportional to its page, but a page across several schemas still merges history-sized candidate sets, and run browsing still counts the whole history on every request. Seek independently in each schema's sorted index and lazily merge only the candidates the page needs. For runs, reuse a count bound to the same store head, or make the total an explicit request, keeping the response contract. Include setup and allocation cost in the measurement. Done when TestMultiSchemaPageReadsOnlyThePage reads a two-schema page from a store holding many older documents and touches only a page-bounded number of them. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
+          "rationale": "SQA-005: 8a77c2d8 made a single-schema document read proportional to its page, but a page across several schemas still merges history-sized candidate sets, and run browsing still counts the whole history on every request. Seek independently in each schema's sorted index and lazily merge only the candidates the page needs. For runs, reuse a count bound to the same store head, or make the total an explicit request, keeping the response contract. Include setup and allocation cost in the measurement. Done when TestMultiSchemaPageReadsOnlyThePage reads a two-schema page from a store holding many older documents and touches only a page-bounded number of them. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed. Kept 2026-09-27 after the records re-measure: store growth stopped with the old gate (86% of the last 3,558 commits were its records, 12% a test fixed in 944540a7; the sequence held at 63557 across four landings), but this is a read cost on the existing history, not a growth cost."
         }
       ]
     },
@@ -382,21 +391,6 @@
       ]
     },
     {
-      "id": "store-bare-record-fill",
-      "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestOnePublicationPath$' -count=1",
-          "rationale": "The blocking half landed as 75b235e3: a bare descriptor is filled by a later batch carrying its content. Remaining: every caller publishes through the commit coordinator (idempotent writes, content verification, alias compare-and-set, one conflict report), a caller declares whether its decision depends on the whole head, and alias-local operations take only their alias precondition. Measure writer wait before and after. Done when the per-caller publication and retry code is deleted and writer wait is measured. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
-        }
-      ]
-    },
-    {
       "id": "env-gated-tests-run-or-go",
       "title": "Run or delete tests no lane enables",
       "owner": "master-lead",
@@ -408,21 +402,6 @@
           "status": "open",
           "verify": "go test ./internal/landing -run '^TestEveryTestGateIsSetByALane$' -count=1",
           "rationale": "From consolidation-inventory (2026-09-24): 283 OVERGO_* environment reads sit in tests; 151 names appear only in tests and 145 of those are documented nowhere. 130 test functions (about 12,000 lines) skip unless a variable is set, and the lanes set only OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_WEBUI_LANE_SCREENS and OVERGO_BROWSER, so about 82 of them (about 5,800 lines, heaviest in internal/inference, adaptiveparity and projector) never run in any gate. Owner direction 2026-09-24: training and inference validation is the point of overgo, so give each a lane that runs it, with its model or data declared. Delete only a test a named running test supersedes. The same holds for modeltest-tagged suites no lane runs, such as seq2seq's GSM8K training suite. The probe is tmp/envgate_probe.go. Done when TestEveryTestGateIsSetByALane holds."
-        }
-      ]
-    },
-    {
-      "id": "store-small-record-horizon",
-      "title": "Declare storage class and retention on the document contract",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Declare storage class and retention on the document contract",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestStoragePolicyIsDeclaredOnContracts$' -count=1",
-          "rationale": "Storage classes are chosen by schema-name substrings (heartbeat, wakeup, poll, partial-output, liveness in storage_classes.go:34), a parallel registry that drifts from the contracts. Declare storage class, retention and publication owner beside each document contract, and delete the substring list. Retention separates required acceptance and recovery evidence from replaceable summaries and diagnostic detail, derives reports from retained results, and keeps explicit roots for outstanding work. Backup pruning stays operator policy. Measured 2026-09-26: declaring the class beside each document contract edits internal/artifact, which is on the inference surface, so the landing expires every model's long-form guard record; batch it with the next guard re-acquisition. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
         }
       ]
     },
@@ -442,21 +421,6 @@
       ]
     },
     {
-      "id": "store-bounded-segments",
-      "title": "Store medium payloads in immutable, size-bounded pack segments",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Store medium payloads in immutable, size-bounded pack segments",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestPackSegmentsAreBoundedAndImmutable$' -count=1",
-          "rationale": "After the publication, query and memory rows land, and only from measured record sizes, read patterns and compaction cost. Small transition records stay inline in journal entries, medium immutable payloads go to bounded pack segments, large tensors, media and logs to individually addressed blobs, indexes and checkpoints to replaceable derived generations, and live progress to bounded runtime state. Adding a small record must not rewrite an ever-growing pack, and one enormous file would trade file count for rewrite and recovery cost. Done when compaction write volume and open and replay time fall on the measured store without losing backup or recovery. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
-        }
-      ]
-    },
-    {
       "id": "store-open-lineage-cost",
       "title": "Defer decoding large store facets until first use, if opens are still slow",
       "owner": "master-lead",
@@ -467,9 +431,8 @@
           "title": "Defer decoding large store facets until first use, if opens are still slow",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1",
-          "rationale": "Re-measured 2026-09-24 after store-open-decode-cost (180a7a3c): an open takes about 1.05-1.5 s and allocates 1.8 GB; checkpoint decode is 56% of it (lineage 0.6 s) and replaying the 8,100 commits since the last checkpoint is 32%. Before that, 2026-09-22: a read-only open is 1.7 s, bounded by the largest decode (lineage 88.3 MB of 189 MB), with verification about 0.1 s. Laziness inside the facet fails (value receivers) and re-replaying the journal fails (shared file cursor). Defer at the store, which owns the lock: keep the verified payload and pending commits, apply on first load behind a double-checked write lock, and test that a deferred facet answers exactly as an eager one. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed.",
+          "rationale": "Re-measured 2026-09-24 after store-open-decode-cost (180a7a3c): an open takes about 1.05-1.5 s and allocates 1.8 GB; checkpoint decode is 56% of it (lineage 0.6 s) and replaying the 8,100 commits since the last checkpoint is 32%. Before that, 2026-09-22: a read-only open is 1.7 s, bounded by the largest decode (lineage 88.3 MB of 189 MB), with verification about 0.1 s. Laziness inside the facet fails (value receivers) and re-replaying the journal fails (shared file cursor). Defer at the store, which owns the lock: keep the verified payload and pending commits, apply on first load behind a double-checked write lock, and test that a deferred facet answers exactly as an eager one. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed. Kept 2026-09-27 after the records re-measure: growth stopped, so the open cost no longer rises, but every command and store-reading test still pays it once.",
           "depends_on": [
-            "store-small-record-horizon/do",
             "store-benchmark-record-redundancy/do"
           ]
         }
@@ -816,7 +779,6 @@
             "loop-markers-runtime-directory/do",
             "surface-aware-dispatch/do",
             "row-scope-budget-surface/do",
-            "store-small-record-horizon/do",
             "store-benchmark-record-redundancy/do",
             "store-open-lineage-cost/do",
             "compatibility-reports-leave-the-tree/do",
@@ -849,7 +811,6 @@
             "consolidation-inventory/do",
             "inference-inputs-one-definition/do",
             "goldens-provenance/do",
-            "store-bare-record-fill/do",
             "one-claim-primitive/do",
             "device-claim-everywhere/do",
             "replan-review-feedback/do",
@@ -860,7 +821,6 @@
             "pack-bounded-streaming/do",
             "replan-store-simplification/do",
             "store-queries-bounded/do",
-            "store-bounded-segments/do",
             "store-bare-descriptor-fill/do",
             "merge-38f8a354ac0f/do",
             "file-gui-merge-row/do",
@@ -998,7 +958,8 @@
             "old-gate-leftovers/do",
             "plan-tool-plain-data/do",
             "lane-commands-folded/do",
-            "nfd-table-packed/do"
+            "nfd-table-packed/do",
+            "audioparity-binding-narrowed/do"
           ]
         }
       ]

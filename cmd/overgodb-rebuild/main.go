@@ -48,7 +48,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	report, err := overgodb.Rebuild(context.Background(), source, *destination, storepolicy.DerivedCache, runrecord.GateLifecycleAtRest(source))
+	report, err := overgodb.Rebuild(context.Background(), source, *destination, storepolicy.DerivedCache, runrecord.RetiredGateAliasesAtRest)
 	closeErr := source.Close()
 	if err != nil {
 		return errors.Join(err, closeErr)

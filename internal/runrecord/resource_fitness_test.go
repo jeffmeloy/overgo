@@ -142,7 +142,7 @@ func TestResourceFitnessContract(t *testing.T) {
 	if !slices.Equal(fitness.Authorities(), wantAuthorities) {
 		t.Fatalf("authorities = %+v", fitness.Authorities())
 	}
-	if reflect.TypeOf(ResourceMeasure{}.Value).Kind() != reflect.Uint64 {
+	if reflect.TypeFor[uint64]().Kind() != reflect.Uint64 {
 		t.Fatal("resource value is not integer uint64")
 	}
 	var fractional ResourceFitness

@@ -149,7 +149,7 @@ func precheck(ctx context.Context, repository, backup, checkout, candidate strin
 		return result, err
 	}
 	defer store.Close()
-	released, err := overgodb.Release(ctx, store, runrecord.GateLifecycleAtRest(store),
+	released, err := overgodb.Release(ctx, store, runrecord.RetiredGateAliasesAtRest,
 		overgodb.RetentionPolicy{Roots: roots, FollowChildren: storepolicy.FollowChildren}, storepolicy.DerivedCache)
 	if err != nil {
 		return result, err

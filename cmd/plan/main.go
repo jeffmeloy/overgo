@@ -42,10 +42,6 @@ func main() {
 	frontier := flag.Bool("frontier", false, "print every dispatchable row (the ready frontier) and validate live worktree leases against it")
 	judgeEfficiency := flag.String("judge-efficiency", "", "judge an interaction-efficiency claim JSON ({candidate, baseline, tradeoff?}); exit code is the verdict")
 	admitProposalFlag := flag.String("admit-proposal", "", "admit one typed steering proposal from a JSON spec into the store and the plan")
-	phases := flag.Bool("phases", false, "with -history: show retained phase outcomes and costs; add -json for typed output")
-	historyCommit := flag.String("commit", "", "with -history -phases: exact full recorded commit (no revision or prefix expansion)")
-	historyResult := flag.String("result", "", "with -history -phases: exact gate-result artifact ID, preserving individual retries")
-	history := flag.String("history", "", "print attempt history from the store: aggregates and recent attempts (pass a plan item id, or all)")
 	prompt := flag.Bool("prompt", false, "claim an eligible step and print its task: -prompt [-json] [item/step]; requires -worker or OVERGO_AUTOMATION_WORKER")
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
@@ -75,7 +71,7 @@ func main() {
 	owner := flag.String("owner", "", "with -assign: the owning lane")
 	setLane := flag.String("set-lane", "", "record the lane this plan dispatches for (the unassigned role's role)")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
-	jsonFlag := flag.Bool("json", false, "with -next, -prompt or -history -phases: print typed JSON")
+	jsonFlag := flag.Bool("json", false, "with -next or -prompt: print typed JSON")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
 	mergeSourceStoreFlag := flag.String("merge-source-store", "", "with -prepare-merge: explicit source OvergoDB store when several registered worktrees sit at the source commit")
@@ -98,15 +94,13 @@ func main() {
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, reason: *reason, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, reason: *reason, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
 }
 
 type cli struct {
 	resumeStop, maintenanceStop, stopMode, mode                                           string
-	phases                                                                                bool
-	historyCommit, historyResult                                                          string
 	releaseClaim, releaseReason                                                           string
 	worker                                                                                string
 	next, prompt, verify, status, context, advance, add, setverify, stop                  bool
@@ -129,7 +123,6 @@ type cli struct {
 	localitySchedule                                                                      string
 	leaseReport                                                                           bool
 	retireLegacyLeases                                                                    int
-	history                                                                               string
 	admitProposal                                                                         string
 	capacity                                                                              worklease.Resources
 }
@@ -158,16 +151,6 @@ func run(c cli, args []string) error {
 		return releaseDispatchClaim(commandWorktree, c.releaseClaim, worker, c.releaseReason, os.Stdout)
 	}
 
-	if (c.phases || c.historyCommit != "" || c.historyResult != "") && (c.history == "" || !c.phases) {
-		return errors.New("-phases, -commit and -result require -history <item|all> -phases")
-	}
-	if c.phases {
-		query := cli{history: c.history, phases: true, historyCommit: c.historyCommit, historyResult: c.historyResult, json: c.json, retireLegacyLeases: noLegacyLeaseRetirement}
-		if len(args) != 0 || c != query {
-			return errors.New("-history -phases accepts only -commit, -result and -json; incompatible operation or positional arguments")
-		}
-		return printGatePhaseHistory(c, os.Stdout)
-	}
 	if c.next || c.prompt || c.verify {
 		return printDispatch(c, args, os.Stdout)
 	}
@@ -205,8 +188,6 @@ func run(c cli, args []string) error {
 		return recordExperimentTransition(commandWorktree, c.recordExperiment, os.Stdout)
 	case c.admitProposal != "":
 		return admitProposal(commandWorktree, c.admitProposal, os.Stdout)
-	case c.history != "":
-		return printAttemptHistory(c.history, os.Stdout)
 	case c.leaseReport:
 		return printLeaseReport(commandWorktree, c.capacity, os.Stdout)
 	case c.retireLegacyLeases >= 0:
@@ -318,7 +299,7 @@ func printAutomationContext(document plan.Plan, role string, output io.Writer) e
 		return err
 	}
 	defer store.Close()
-	facts.EvidenceDebt, facts.Workflow = authoritativeContextEvidence(store, facts.Head)
+	facts.Workflow = authoritativeContextEvidence(store, facts.Head)
 	stop, err := plan.ReadStop(context.Background(), store, facts.Worktree, facts.Head, "")
 	if err != nil {
 		return err
@@ -376,33 +357,25 @@ func collectContextFacts(role string) (plan.ContextFacts, error) {
 	}, nil
 }
 
-func authoritativeContextEvidence(store *overgodb.Store, head string) (plan.EvidenceDebt, plan.WorkflowContext) {
-	const debtSource = "overgodb:overgodb-store"
+func authoritativeContextEvidence(store *overgodb.Store, head string) plan.WorkflowContext {
 	const workflowSource = "git:HEAD+overgodb:overgodb-store"
-	unavailable := func(reason string) (plan.EvidenceDebt, plan.WorkflowContext) {
-		return plan.EvidenceDebt{State: "unknown", Source: debtSource, Reason: reason},
-			plan.WorkflowContext{Phase: string(runrecord.ReviewPhaseImplementation), Source: workflowSource, Reason: reason}
+	unavailable := func(reason string) plan.WorkflowContext {
+		return plan.WorkflowContext{Phase: string(runrecord.ReviewPhaseImplementation), Source: workflowSource, Reason: reason}
 	}
 	if store == nil {
 		return unavailable("store is unavailable")
 	}
 	ctx := context.Background()
-	var lifecycles []runrecord.GateLifecycle
 	var candidates []runrecord.ReviewCandidate
 	var verdicts []runrecord.ReviewVerdict
 	_, err := store.VisitDocuments(ctx, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{
-			{Kind: artifact.KindEvidence, MediaType: runrecord.GateLifecycleMediaType, Schema: runrecord.GateLifecycleSchema},
 			{Kind: artifact.KindEvidence, MediaType: runrecord.ReviewCandidateMediaType, Schema: runrecord.ReviewCandidateSchema},
 			{Kind: artifact.KindEvidence, MediaType: runrecord.ReviewVerdictMediaType, Schema: runrecord.ReviewVerdictSchema},
 		}, Order: overgodb.DocumentOldestFirst,
 	}, func(view overgodb.DocumentView) error {
 		var parseErr error
 		switch view.Content.Descriptor.MediaType {
-		case runrecord.GateLifecycleMediaType:
-			var value runrecord.GateLifecycle
-			value, parseErr = runrecord.ParseGateLifecycle(view.Content.Data)
-			lifecycles = append(lifecycles, value)
 		case runrecord.ReviewCandidateMediaType:
 			var value runrecord.ReviewCandidate
 			value, parseErr = runrecord.ParseReviewCandidate(view.Content.Data)
@@ -417,17 +390,7 @@ func authoritativeContextEvidence(store *overgodb.Store, head string) (plan.Evid
 	if err != nil {
 		return unavailable(err.Error())
 	}
-	debt, err := runrecord.OutstandingGateDebt(lifecycles)
-	debtContext := plan.EvidenceDebt{State: "none_observed", Source: debtSource}
-	if err != nil {
-		debtContext = plan.EvidenceDebt{State: "unknown", Source: debtSource, Reason: err.Error()}
-	} else if len(debt) > 0 {
-		debtContext = plan.EvidenceDebt{
-			State: "present", Source: debtSource, ResultID: debt[0].ID.String(),
-			Reason: fmt.Sprintf("%d prepared gate lifecycle record(s) lack finalization", len(debt)),
-		}
-	}
-	return debtContext, authoritativeReviewPriority(ctx, store, head, candidates, verdicts, workflowSource)
+	return authoritativeReviewPriority(ctx, store, head, candidates, verdicts, workflowSource)
 }
 
 func authoritativeReviewPriority(
@@ -733,10 +696,10 @@ func printPromptStep(it plan.Item, st plan.Step, output io.Writer) {
 	if len(st.DependsOn) != 0 {
 		fmt.Fprintf(output, "PREREQUISITES %s\n", strings.Join(st.DependsOn, commandWordSeparator))
 	}
-	fmt.Fprintf(output, `COMMIT go run ./cmd/loop -land %s/%s -message-file <msg> (claim, preflight, gate over the dirty tree, landing from git, lane verdict, review candidates)
+	fmt.Fprintf(output, `COMMIT go run ./cmd/loop -land %s/%s -message-file <msg> (the small gate over the dirty tree, the landing confirmed from git)
 FINDINGS park off-scope work: go run ./cmd/finding -h
 RULES skill.md; only this task; port-first; gate advances atomically; then rerun plan -prompt.
-STOP only a user stop pauses the loop (plan -stop <reason>); rationale and history stay in docs/plan.json and plan -history.
+STOP only a user stop pauses the loop (plan -stop <reason>); rationale stays in docs/plan.json and landed rows in git (Landed-Row trailers).
 `, it.ID, st.ID)
 	if st.VerificationBatch != nil {
 		for _, checkpoint := range st.VerificationBatch.Checkpoints {

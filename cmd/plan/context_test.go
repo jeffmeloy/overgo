@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
@@ -24,8 +23,7 @@ func TestAutomationContextSnapshotEncoding(t *testing.T) {
 	facts := plan.ContextFacts{
 		Head: head, Branch: "codex/automation",
 		Worktree: worktree, Role: "sqa",
-		EvidenceDebt: plan.EvidenceDebt{State: "possible", Source: "bin/gate_status.json", Reason: "fixture"},
-		Workflow:     plan.WorkflowContext{Phase: "sqa", Source: "git:HEAD+overgodb:overgodb-store"},
+		Workflow: plan.WorkflowContext{Phase: "sqa", Source: "git:HEAD+overgodb:overgodb-store"},
 	}
 	context, err := plan.BuildAutomationContext(document, facts)
 	if err != nil {
@@ -41,47 +39,6 @@ func TestAutomationContextSnapshotEncoding(t *testing.T) {
 	}
 	if decoded.Role != "sqa" || decoded.Workflow.Phase != "sqa" || decoded.CurrentTask == nil || decoded.CurrentTask.ItemID != "automation" || decoded.CurrentTask.StepID != "context" {
 		t.Fatalf("encoded context = %+v", decoded)
-	}
-}
-
-func TestGateDebtAutomationContext(t *testing.T) {
-	t.Parallel()
-	worktree := t.TempDir()
-	environment, err := runrecord.NewEnvironment(runrecord.Environment{
-		Host: "test", OS: "test", Arch: "test", Device: "host",
-		Backend: "go", Driver: "cgo=0", Runtime: "go-test",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	prepared, err := runrecord.NewGatePreparation(
-		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		environment.ID, time.Unix(100, 0),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	environmentContent, _ := environment.Content()
-	preparedContent, _ := prepared.Content()
-	batch, err := artifact.NewDocumentBatch(
-		"test/context-debt", []artifact.Content{environmentContent, preparedContent}, prepared.Lineage(), nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	store, err := overgodb.Open(filepath.Join(worktree, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
-		t.Fatal(err)
-	}
-	debt, _ := authoritativeContextEvidence(store, "0123456789abcdef0123456789abcdef01234567")
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if debt.State != "present" || debt.Source != "overgodb:overgodb-store" || debt.ResultID != prepared.ID.String() {
-		t.Fatalf("authoritative debt = %+v", debt)
 	}
 }
 
@@ -124,7 +81,7 @@ func TestReviewPriority(t *testing.T) {
 	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
-	_, workflow := authoritativeContextEvidence(store, target)
+	workflow := authoritativeContextEvidence(store, target)
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}

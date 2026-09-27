@@ -25,7 +25,6 @@ type AutomationContext struct {
 	CurrentTask   *TaskContext    `json:"current_task,omitempty"`
 	Workflow      WorkflowContext `json:"workflow"`
 	Dirty         []DirtyPath     `json:"dirty"`
-	EvidenceDebt  EvidenceDebt    `json:"evidence_debt"`
 }
 
 type TaskContext struct {
@@ -40,15 +39,6 @@ type TaskContext struct {
 
 type DirtyPath = repoanalysis.DirtyPath
 
-// EvidenceDebt is deliberately conservative and derives from authoritative
-// OvergoDB prepared/finalized lifecycle records.
-type EvidenceDebt struct {
-	State    string `json:"state"`
-	Source   string `json:"source"`
-	Reason   string `json:"reason,omitzero"`
-	ResultID string `json:"result_id,omitzero"`
-}
-
 // WorkflowContext is a Git-HEAD-derived implementation -> SQA -> priority
 // guide. CurrentTask remains the sole executable work owner.
 type WorkflowContext struct {
@@ -60,13 +50,12 @@ type WorkflowContext struct {
 }
 
 type ContextFacts struct {
-	Head         string
-	Branch       string
-	Worktree     string
-	Role         string
-	Dirty        []DirtyPath
-	EvidenceDebt EvidenceDebt
-	Workflow     WorkflowContext
+	Head     string
+	Branch   string
+	Worktree string
+	Role     string
+	Dirty    []DirtyPath
+	Workflow WorkflowContext
 }
 
 func BuildAutomationContext(document Plan, facts ContextFacts) (AutomationContext, error) {
@@ -92,13 +81,10 @@ func BuildAutomationContext(document Plan, facts ContextFacts) (AutomationContex
 		PlanDigest:    document.Digest(),
 		Head:          facts.Head, Branch: facts.Branch, Worktree: facts.Worktree,
 		Role: facts.Role, PlanState: "complete", Workflow: facts.Workflow,
-		Dirty: repoanalysis.NormalizeDirty(facts.Dirty), EvidenceDebt: facts.EvidenceDebt,
+		Dirty: repoanalysis.NormalizeDirty(facts.Dirty),
 	}
 	if ctx.Dirty == nil {
 		ctx.Dirty = []DirtyPath{}
-	}
-	if ctx.EvidenceDebt.State == "" || ctx.EvidenceDebt.Source == "" {
-		return AutomationContext{}, errors.New("automation context requires evidence-debt state and source")
 	}
 	if ctx.Workflow.Source == "" || ctx.Workflow.Phase != "implementation" && ctx.Workflow.Phase != "sqa" && ctx.Workflow.Phase != "priority" {
 		return AutomationContext{}, errors.New("automation context requires a valid workflow phase and source")

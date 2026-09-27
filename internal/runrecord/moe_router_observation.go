@@ -99,10 +99,8 @@ func canonicalizeMoERouterObservation(value *MoERouterObservation) error {
 			if expert >= value.Experts || !checked.Finite32(weight) {
 				return errors.New("run record: invalid moe router selection")
 			}
-			for _, prior := range rowSelections[:offset] {
-				if prior == expert {
-					return errors.New("run record: duplicate moe expert selection")
-				}
+			if slices.Contains(rowSelections[:offset], expert) {
+				return errors.New("run record: duplicate moe expert selection")
 			}
 		}
 	}

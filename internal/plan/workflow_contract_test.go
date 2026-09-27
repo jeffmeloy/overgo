@@ -73,8 +73,7 @@ func TestDispatchContractBinding(t *testing.T) {
 	}}
 	facts := ContextFacts{
 		Head: orchestrationHead, Branch: "codex/automation", Worktree: "C:/repo",
-		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "overgodb:overgodb-store"},
-		Workflow:     WorkflowContext{Phase: "implementation", Source: "git:HEAD+overgodb:overgodb-store"},
+		Workflow: WorkflowContext{Phase: "implementation", Source: "git:HEAD+overgodb:overgodb-store"},
 	}
 	ctx, err := BuildAutomationContext(document, facts)
 	if err != nil {
@@ -511,7 +510,7 @@ func TestStopStateContract(t *testing.T) {
 				if err := os.MkdirAll(filepath.Join(root, "docs"), 0700); err != nil {
 					t.Fatal(err)
 				}
-				raw := []byte(fmt.Sprintf("{\"reason\":\"user-stop: operator paused\",\"head\":%q}\n", orchestrationHead))
+				raw := fmt.Appendf(nil, "{\"reason\":\"user-stop: operator paused\",\"head\":%q}\n", orchestrationHead)
 				if malformed {
 					raw = []byte("{invalid stop bytes")
 				}

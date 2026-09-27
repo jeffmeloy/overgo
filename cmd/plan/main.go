@@ -19,7 +19,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
-	"overgo/internal/closurescan"
 	"overgo/internal/commanddoc"
 	"overgo/internal/extent"
 	"overgo/internal/overgodb"
@@ -63,7 +62,6 @@ func main() {
 	ramCapacity := flag.Int("ram-capacity-gib", 0, "with -lease-report: available host RAM GiB (0 unknown)")
 	vramCapacity := flag.Int("vram-capacity-gib", 0, "with -lease-report: available VRAM GiB (0 unknown)")
 	advance := flag.Bool("advance", false, "retired: cmd/gate atomically commits and prunes the current row")
-	bindCensus := flag.Bool("bind-census", false, "bind the campaign baseline to closure/census/latest in OvergoDB")
 	pruneDone := flag.Bool("prune-done", false, "retired: direct plan pruning is refused")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
@@ -100,7 +98,7 @@ func main() {
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, reason: *reason, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, reason: *reason, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
 }
@@ -111,7 +109,7 @@ type cli struct {
 	historyCommit, historyResult                                                          string
 	releaseClaim, releaseReason                                                           string
 	worker                                                                                string
-	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop      bool
+	next, prompt, verify, status, context, advance, add, setverify, stop                  bool
 	move, retitle                                                                         bool
 	frontier                                                                              bool
 	judgeEfficiency                                                                       string
@@ -176,7 +174,7 @@ func run(c cli, args []string) error {
 	if c.mode != "" {
 		return errors.New("-mode requires -next, -prompt or -verify")
 	}
-	document, err := loadCommandPlan(c.bindCensus)
+	document, err := loadCommandPlan()
 	if err != nil {
 		return err
 	}
@@ -219,8 +217,6 @@ func run(c cli, args []string) error {
 		return judgeInteractionEfficiency(c.judgeEfficiency, os.Stdout)
 	case c.localitySchedule != "":
 		return printLocalitySchedule(commandWorktree, c.localitySchedule, os.Stdout)
-	case c.bindCensus:
-		return bindCampaignCensus(commandWorktree, os.Stdout)
 	case c.pruneDone:
 		return errors.New("plan: direct pruning is retired; cmd/gate atomically commits and prunes the current row")
 	case c.budget:
@@ -296,36 +292,7 @@ func treeWithEntry(root, treeish, entry string) (string, error) {
 	return strings.TrimSpace(string(written)), err
 }
 
-func bindCampaignCensus(root string, output io.Writer) error {
-	return withPlanMutation(root, true, func(document plan.Plan) error {
-		store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-		if err != nil {
-			return err
-		}
-		defer store.Close()
-		id, found, err := artifact.ResolveAlias(context.Background(), store, closurescan.CensusEvidenceAlias)
-		if err != nil || !found {
-			return errors.Join(err, errors.New("plan: published census evidence is absent"))
-		}
-		evidence, found, err := closurescan.ReadCensusEvidence(context.Background(), store, id)
-		if err != nil || !found || evidence.ID != id {
-			return errors.Join(err, errors.New("plan: published census evidence is invalid"))
-		}
-		document.Census = &id
-		if err := plan.ValidateCampaignCensusAuthority(document); err != nil {
-			return err
-		}
-		if err := savePlanMutation(root, document); err != nil {
-			return err
-		}
-		fmt.Fprintf(output, "bound campaign census %s source=%s files=%d literals=%d assumptions=%d policy_copies=%d\n",
-			id, evidence.Source, evidence.Counts.ProductionFiles, evidence.Counts.InlineLiterals,
-			evidence.Counts.AssumptionHints, evidence.Counts.TestPolicyCopies)
-		return nil
-	})
-}
-
-func withPlanMutation(root string, allowCensusRepair bool, mutate func(plan.Plan) error) (err error) {
+func withPlanMutation(root string, mutate func(plan.Plan) error) (err error) {
 	if mutate == nil {
 		return errors.New("plan: mutation callback is required")
 	}
@@ -337,11 +304,6 @@ func withPlanMutation(root string, allowCensusRepair bool, mutate func(plan.Plan
 	document, err := plan.Load(filepath.Join(root, filepath.FromSlash(plan.Path)))
 	if err != nil {
 		return err
-	}
-	if !allowCensusRepair {
-		if err := plan.ValidateCampaignCensusAuthority(document); err != nil {
-			return err
-		}
 	}
 	return mutate(document)
 }
@@ -495,7 +457,7 @@ func authoritativeReviewPriority(
 // "inject a task" operation -- a merge, a fix, or any owner-requested work becomes
 // a first-class dispatched/verified/advanced task without hand-editing plan.json.
 func addItem(root, id, title, class, before, verifyCmd, role string) error {
-	return withPlanMutation(root, false, func(document plan.Plan) error {
+	return withPlanMutation(root, func(document plan.Plan) error {
 		updated, err := insertItem(document, id, title, class, before, verifyCmd)
 		if err != nil {
 			return err
@@ -528,7 +490,7 @@ func retitleItem(root, id, title, role string) error {
 
 // mutatePlan applies one pure plan mutation, saves it and prints what changed and the next action.
 func mutatePlan(root, role, what string, mutation func(plan.Plan) (plan.Plan, error)) error {
-	return withPlanMutation(root, false, func(document plan.Plan) error {
+	return withPlanMutation(root, func(document plan.Plan) error {
 		updated, err := mutation(document)
 		if err != nil {
 			return err
@@ -689,7 +651,7 @@ func assignVerify(document plan.Plan, itemID, stepID, cmd string) (plan.Plan, er
 // an unquoted shell metachar, a bad -run pattern -- is caught at set-time rather
 // than at the next advance.
 func setStepVerify(root, itemID, stepID, cmd, role string) error {
-	return withPlanMutation(root, false, func(document plan.Plan) error {
+	return withPlanMutation(root, func(document plan.Plan) error {
 		updated, err := assignVerify(document, itemID, stepID, cmd)
 		if err != nil {
 			return err
@@ -833,18 +795,13 @@ func recordControl(lane, kind, reason, detail string) error {
 }
 
 // All command paths use the same document and campaign validation sequence.
-func loadCommandPlan(bindingCensus bool) (plan.Plan, error) {
+func loadCommandPlan() (plan.Plan, error) {
 	document, err := plan.Load("")
 	if err != nil {
 		return document, err
 	}
 	if err := plan.Validate(document); err != nil {
 		return document, err
-	}
-	if !bindingCensus {
-		if err := plan.ValidateCampaignCensusAuthority(document); err != nil {
-			return document, err
-		}
 	}
 	return document, nil
 }

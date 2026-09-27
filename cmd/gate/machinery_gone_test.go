@@ -39,3 +39,13 @@ func TestCompletionAuthorityGone(t *testing.T) {
 	requireGone(t, "internal/plan/completion.go", "internal/plan/projected_merge_authority.go",
 		"internal/plan/completion_transitions.go", "internal/plan/proof_horizon.go", "docs/plan_proof_horizon.json")
 }
+
+// TestClosureLedgerGone holds the inline-number rule to the small gate's
+// diff check: the closure ledger, its scanner, the code profile and clone
+// census, and their baselines are deleted.
+func TestClosureLedgerGone(t *testing.T) {
+	t.Parallel()
+	requireGone(t, "internal/closurescan", "internal/closureledger", "cmd/closure-scan",
+		"internal/codeprofile", "cmd/clone-census", "docs/clone_baseline.json",
+		"docs/staged_surface.json", "docs/harness_surface_baseline.json")
+}

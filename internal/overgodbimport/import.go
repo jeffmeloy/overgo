@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/closureledger"
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/finding"
@@ -442,12 +441,6 @@ func canonicalizeKnownDocument(mediaType, schema string, data []byte) ([]byte, s
 			break
 		}
 		_, canonical, err = dataset.NormalizeMembership(data)
-	case closureledger.MediaType:
-		requireSchema(closureledger.Schema)
-		if err != nil {
-			break
-		}
-		_, canonical, err = closureledger.Normalize(data)
 	case finding.MediaType:
 		requireSchema(finding.Schema)
 		if err != nil {

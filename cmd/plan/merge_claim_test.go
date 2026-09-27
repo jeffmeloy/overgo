@@ -68,7 +68,7 @@ func TestPrepareMergeCapturedPlanConflict(t *testing.T) {
 			if err != nil || claim.Claim == nil || claim.Item != "row" {
 				t.Fatalf("claim = %+v, %v", claim, err)
 			}
-			err = withPlanMutation(root, false, func(captured plan.Plan) error {
+			err = withPlanMutation(root, func(captured plan.Plan) error {
 				// Publication must remain in the same critical section as capture.
 				if lock, lockErr := authoritylock.Acquire(root); lockErr == nil {
 					_ = lock.Close()

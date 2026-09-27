@@ -9,17 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
 	"overgo/internal/loop"
 	"overgo/internal/plan"
-	"overgo/internal/testutil"
 )
 
 func TestBlockSharesPlanGateMutationLock(t *testing.T) {
 	root := t.TempDir()
-	census := testutil.ArtifactID(t, artifact.KindEvidence, "loop block census")
-	document := plan.Plan{Census: &census, Items: []plan.Item{{
+	document := plan.Plan{Items: []plan.Item{{
 		ID: "row", Status: plan.StatusOpen,
 		Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "go test ./cmd/loop"}},
 	}}}

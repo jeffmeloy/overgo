@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/codeprofile"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 )
@@ -53,7 +52,7 @@ func TestFollowChildrenNamesTheGateLifecycleChain(t *testing.T) {
 			t.Fatalf("children of %s are not followed", schema)
 		}
 	}
-	for _, schema := range []string{"", runrecord.AttemptSchema, codeprofile.EvidenceSchema} {
+	for _, schema := range []string{"", runrecord.AttemptSchema, "overgo/code-profile/v4"} {
 		if FollowChildren(artifact.Descriptor{Schema: schema}) {
 			t.Fatalf("children of %q are followed", schema)
 		}

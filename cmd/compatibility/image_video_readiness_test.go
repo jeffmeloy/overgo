@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/closureledger"
 	"overgo/internal/cuda/kernel"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
@@ -32,7 +31,7 @@ type imageVideoBackupIdentity struct {
 	Extent   int64             `json:"extent"`
 }
 
-func checkImageVideoWorktreeReadiness(ctx context.Context, root string, roots dataroot.Roots, census artifact.ID) (imageVideoBackupIdentity, error) {
+func checkImageVideoWorktreeReadiness(ctx context.Context, root string, roots dataroot.Roots) (imageVideoBackupIdentity, error) {
 	var identity imageVideoBackupIdentity
 	canonical := filepath.Join(root, gitauthority.CanonicalOvergoDBDirectory)
 	for _, path := range []string{canonical, roots.Store, roots.Models, roots.Datasets, roots.Checkpoints} {
@@ -114,35 +113,11 @@ func checkImageVideoWorktreeReadiness(ctx context.Context, root string, roots da
 	if result.Truncated || len(result.Commits) != 1 || result.Commits[0].ID != identity.Head {
 		return identity, errors.New("media readiness: backup commit does not match local replay")
 	}
-	if census.Kind() != artifact.KindEvidence {
-		return identity, errors.New("media readiness: inherited census is not evidence")
-	}
-	if _, found, err := artifact.ReadContent(ctx, store, census); err != nil || !found {
-		return identity, fmt.Errorf("media readiness: inherited census content unavailable: %v", err)
-	}
 	return identity, nil
 }
 
 // imageVideoLane is the campaign lane whose worktree these acceptances judge.
 const imageVideoLane = "image_video_gen"
-
-// inheritedCensus reads the census identity the campaign inherits from its
-// store's latest closure census, where the plan binds it from.
-func inheritedCensus(ctx context.Context, storePath string) (artifact.ID, error) {
-	store, err := overgodb.OpenReadOnly(storePath)
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	defer store.Close()
-	id, found, err := artifact.ResolveAlias(ctx, store, closureledger.CensusEvidenceAlias)
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	if !found {
-		return artifact.ID{}, errors.New("campaign has no inherited census identity")
-	}
-	return id, nil
-}
 
 func TestImageVideoWorktreeReadiness(t *testing.T) {
 	t.Parallel()
@@ -161,17 +136,13 @@ func TestImageVideoWorktreeReadiness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	census, err := inheritedCensus(t.Context(), roots.Store)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// The gate verifies an immutable candidate checkout while explicitly
 	// binding external data to the original worktree through OVERGO_DATA_ROOT.
 	dataRoot, err := gitauthority.RepositoryRoot(t.Context(), os.Getenv(dataroot.Env))
 	if err != nil {
 		t.Fatal(err)
 	}
-	identity, err := checkImageVideoWorktreeReadiness(t.Context(), dataRoot, roots, census)
+	identity, err := checkImageVideoWorktreeReadiness(t.Context(), dataRoot, roots)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +164,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer source.Close()
-	payload := []byte("retained census")
+	payload := []byte("retained record")
 	content := artifact.Content{Descriptor: artifact.Descriptor{ID: testutil.ArtifactBytesID(t, artifact.KindEvidence, payload), Size: uint64(len(payload)), MediaType: "text/plain"}, Data: payload}
 	if _, err := source.Commit(t.Context(), artifact.Batch{Key: "readiness/source", Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
@@ -202,7 +173,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 	if _, err := source.Backup(t.Context(), roots.Store); err != nil {
 		t.Fatal(err)
 	}
-	identity, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots, content.Descriptor.ID)
+	identity, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +182,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 			bad := roots
 			fields := map[string]*string{"store": &bad.Store, "models": &bad.Models, "datasets": &bad.Datasets, "checkpoints": &bad.Checkpoints}
 			*fields[field] = filepath.Join(root, "absent")
-			if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, bad, content.Descriptor.ID); err == nil {
+			if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, bad); err == nil {
 				t.Fatal("missing root accepted")
 			}
 		})
@@ -219,7 +190,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 	t.Run("external-store", func(t *testing.T) {
 		bad := roots
 		bad.Store = identity.Source
-		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, bad, content.Descriptor.ID); err == nil || !strings.Contains(err.Error(), "canonical directory") {
+		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, bad); err == nil || !strings.Contains(err.Error(), "canonical directory") {
 			t.Fatalf("external writable store: %v", err)
 		}
 	})
@@ -235,14 +206,8 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots, content.Descriptor.ID); err == nil || !strings.Contains(err.Error(), "backup commit") {
+		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots); err == nil || !strings.Contains(err.Error(), "backup commit") {
 			t.Fatalf("mismatched snapshot: %v", err)
-		}
-	})
-	t.Run("missing-census", func(t *testing.T) {
-		missing := testutil.ArtifactBytesID(t, artifact.KindEvidence, []byte("absent"))
-		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots, missing); err == nil || !strings.Contains(err.Error(), "census content unavailable") {
-			t.Fatalf("missing inherited content: %v", err)
 		}
 	})
 	t.Run("hardlinked-file", func(t *testing.T) {
@@ -255,7 +220,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = os.Remove(linked) })
-		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots, content.Descriptor.ID); err == nil || !strings.Contains(err.Error(), "shares source storage") {
+		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots); err == nil || !strings.Contains(err.Error(), "shares source storage") {
 			t.Fatalf("hardlinked source storage: %v", err)
 		}
 	})
@@ -268,7 +233,7 @@ func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
 		if err := errors.Join(commitErr, local.Close()); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots, content.Descriptor.ID); err != nil {
+		if _, err := checkImageVideoWorktreeReadiness(t.Context(), root, roots); err != nil {
 			t.Fatalf("valid local append invalidated the imported snapshot: %v", err)
 		}
 	})

@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 )
 
@@ -175,64 +174,6 @@ func clonePlan(t *testing.T, document plan.Plan) plan.Plan {
 	return cloned
 }
 
-func TestPrepareMergeSnapshotEvidence(t *testing.T) {
-	t.Parallel()
-	root, runGit := mergeTestRepository(t)
-	snapshot := runGit("rev-parse", "HEAD")
-	source, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	first, err := source.CommitAs(t.Context(), gateDoor, mergeEvidenceBatch(t, "first"))
-	closeErr := source.Close()
-	if err != nil || closeErr != nil {
-		t.Fatalf("seed source = %s, %v, close=%v", first, err, closeErr)
-	}
-
-	frozen, err := captureClosureEvidence(t.Context(), root, "HEAD", snapshot, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer frozen.cleanup()
-	if frozen.head != first || frozen.sequence != 1 || frozen.store == "" {
-		t.Fatalf("snapshot = %+v", frozen)
-	}
-	source, err = overgodb.Open(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := source.CommitAs(t.Context(), gateDoor, mergeEvidenceBatch(t, "second"))
-	closeErr = source.Close()
-	if err != nil || closeErr != nil || second == first {
-		t.Fatalf("advance source = %s, %v, close=%v", second, err, closeErr)
-	}
-	copyStore, err := overgodb.OpenReadOnly(frozen.store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	head, sequence := copyStore.Head()
-	if err := copyStore.Close(); err != nil || head != first || sequence != 1 {
-		t.Fatalf("frozen snapshot advanced = %s@%d, close=%v", head, sequence, err)
-	}
-	frozen.cleanup()
-	advanced, err := captureClosureEvidence(t.Context(), root, "HEAD", snapshot, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if advanced.store != frozen.store || advanced.head != second {
-		t.Fatalf("workspace/extent not reused: %+v", advanced)
-	}
-	advanced.cleanup()
-	reused, err := captureClosureEvidence(t.Context(), root, "HEAD", snapshot, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer reused.cleanup()
-	if reused.backup.BytesCopied != 0 || reused.backup.FilesReused == 0 {
-		t.Fatalf("retry recopied evidence: %+v", reused.backup)
-	}
-}
-
 func mergeEvidenceBatch(t *testing.T, key string) artifact.Batch {
 	t.Helper()
 	payload := []byte(key)
@@ -342,7 +283,6 @@ func TestMergeOwnedDocumentLimitsAutomaticConflictResolution(t *testing.T) {
 		trainingCompatibilityDocumentPath,
 		apiManifestJSONPath,
 		modernGoBaselinePath,
-		harnessSurfaceBaselinePath,
 	} {
 		if !mergeOwnedDocument(path) {
 			t.Fatalf("owned generated document %q was rejected", path)

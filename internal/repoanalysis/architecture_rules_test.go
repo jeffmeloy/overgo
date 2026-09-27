@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/closurescan"
 	"overgo/internal/gosyntax"
 	"overgo/internal/repoanalysis"
 )
@@ -18,20 +17,20 @@ import (
 // runtime entry is refused.
 func TestEntryAuthoritiesHoldOverTheTree(t *testing.T) {
 	t.Parallel()
-	var rules []closurescan.EntryAuthorityRule
-	for _, domain := range []closurescan.EntryAuthorityDomain{
-		closurescan.EntryAuthorityStorage, closurescan.EntryAuthorityProcess,
-		closurescan.EntryAuthorityCapability, closurescan.EntryAuthorityTool,
-		closurescan.EntryAuthorityTrigger, closurescan.EntryAuthorityPromotion,
-		closurescan.EntryAuthorityGoOnly,
+	var rules []repoanalysis.EntryAuthorityRule
+	for _, domain := range []repoanalysis.EntryAuthorityDomain{
+		repoanalysis.EntryAuthorityStorage, repoanalysis.EntryAuthorityProcess,
+		repoanalysis.EntryAuthorityCapability, repoanalysis.EntryAuthorityTool,
+		repoanalysis.EntryAuthorityTrigger, repoanalysis.EntryAuthorityPromotion,
+		repoanalysis.EntryAuthorityGoOnly,
 	} {
-		rule, found := closurescan.EntryAuthorityRuleFor(domain)
+		rule, found := repoanalysis.EntryAuthorityRuleFor(domain)
 		if !found {
 			t.Fatalf("the entry authority table lost the %s domain", domain)
 		}
 		rules = append(rules, rule)
 	}
-	if _, err := closurescan.ValidateEntryAuthorities(architectureRSISnapshot(t), rules); err != nil {
+	if _, err := repoanalysis.ValidateEntryAuthorities(architectureRSISnapshot(t), rules); err != nil {
 		t.Fatal(err)
 	}
 	root := t.TempDir()
@@ -46,8 +45,8 @@ func TestEntryAuthoritiesHoldOverTheTree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	goOnly, _ := closurescan.EntryAuthorityRuleFor(closurescan.EntryAuthorityGoOnly)
-	if _, err := closurescan.ValidateEntryAuthorities(violation, []closurescan.EntryAuthorityRule{goOnly}); err == nil ||
+	goOnly, _ := repoanalysis.EntryAuthorityRuleFor(repoanalysis.EntryAuthorityGoOnly)
+	if _, err := repoanalysis.ValidateEntryAuthorities(violation, []repoanalysis.EntryAuthorityRule{goOnly}); err == nil ||
 		!strings.Contains(err.Error(), "internal/rogue/rogue.go bypasses the owner") {
 		t.Fatalf("runtime script literal was not refused: %v", err)
 	}

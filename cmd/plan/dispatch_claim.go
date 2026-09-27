@@ -212,7 +212,7 @@ func printDispatch(c cli, args []string, output io.Writer) error {
 	if len(args) == 1 {
 		reference = args[0]
 	}
-	document, err := loadCommandPlan(false)
+	document, err := loadCommandPlan()
 	var dispatch plan.Dispatch
 	if err != nil {
 		stop, stopErr := plan.ReadStop(context.Background(), nil, commandWorktree, "", c.mode)

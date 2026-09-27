@@ -1,4 +1,4 @@
-package closurescan
+package repoanalysis
 
 import (
 	"fmt"
@@ -186,9 +186,9 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			Owner:      "internal/overgodb owns the canonical journal layout; recovery lanes are enumerated",
 			OwnerPaths: []string{"internal/overgodb"},
 			Exceptions: map[string]string{
-				"cmd/overgodb-rebuild/main.go":            "sanctioned offline rebuild lane; reads and swaps the journal it rebuilds",
-				"cmd/overgodb-repair/main.go":             "sanctioned torn-tail repair lane; truncates the journal at the last valid frame",
-				"internal/closurescan/entry_authority.go": "single policy owner; the rule table names the journal layout it guards",
+				"cmd/overgodb-rebuild/main.go":             "sanctioned offline rebuild lane; reads and swaps the journal it rebuilds",
+				"cmd/overgodb-repair/main.go":              "sanctioned torn-tail repair lane; truncates the journal at the last valid frame",
+				"internal/repoanalysis/entry_authority.go": "single policy owner; the rule table names the journal layout it guards",
 			},
 			Detect: func(file *ast.File) int {
 				return literalSites(file, "overgodb.log")
@@ -263,7 +263,7 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			Owner:      "internal/modelrecipe owns capability activation; the recipe.active alias namespace changes only through its lifecycle",
 			OwnerPaths: []string{"internal/modelrecipe"},
 			Exceptions: map[string]string{
-				"internal/closurescan/entry_authority.go": "single policy owner; the rule table names the activation alias namespace it guards",
+				"internal/repoanalysis/entry_authority.go": "single policy owner; the rule table names the activation alias namespace it guards",
 			},
 			Detect: func(file *ast.File) int {
 				return literalSites(file, "recipe.active.")
@@ -333,7 +333,7 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				"internal/processmeasure/peak_windows.go":            "OS-ABI owner: psapi peak-memory measurement",
 				"internal/protection/protection.go":                  "protection guard verifies the harness hook configuration; it grants no capability from it",
 				"internal/repoanalysis/production_authority_rsi.go":  "typed architecture audit enumerates forbidden runtime formats; naming them grants no runtime behavior",
-				"internal/closurescan/entry_authority.go":            "single policy owner; the rule table names the plugin, library, script, and configuration patterns it guards",
+				"internal/repoanalysis/entry_authority.go":           "single policy owner; the rule table names the plugin, library, script, and configuration patterns it guards",
 			},
 			Detect: func(file *ast.File) int {
 				sites := 0

@@ -25,7 +25,6 @@ const (
 	trainingCompatibilityDocumentPath = "docs/TRAINING_COMPATIBILITY.md"
 	apiManifestJSONPath               = "docs/api_manifest.json"
 	modernGoBaselinePath              = "docs/modern_go_baseline.json"
-	harnessSurfaceBaselinePath        = "docs/harness_surface_baseline.json"
 )
 
 func prepareMerge(root, source string, output io.Writer) error {
@@ -54,7 +53,7 @@ func prepareMergeWithProjection(
 		return err
 	}
 	root = canonicalRoot
-	return withPlanMutation(root, false, func(local plan.Plan) error {
+	return withPlanMutation(root, func(local plan.Plan) error {
 		status, err := gitOutput(root, "status", "--porcelain=v1", "--untracked-files=all")
 		if err != nil {
 			return err
@@ -99,19 +98,13 @@ func prepareMergeWithProjection(
 		if err := preflightMergeConflicts(root, localRevision, snapshot); err != nil {
 			return err
 		}
-		closureSnapshot, err := captureClosureEvidence(ctx, root, source, snapshot, sourceStoreSelector)
-		if err != nil {
-			return err
-		}
-		if closureSnapshot.cleanup != nil {
-			defer closureSnapshot.cleanup()
-			fmt.Fprintf(output, "prepare-merge: evidence snapshot IO=%+v; store-file counters exclude seal IO and replay\n", closureSnapshot.backup)
-		}
 		liveSourceStore := ""
 		if projection == plan.MergeProjectionFirstParentTarget {
-			liveSourceStore, err = firstParentTargetSourceStore(
-				context.Background(), root, snapshot, closureSnapshot.source,
-			)
+			sourceStore, err := sourceOvergoDB(root, source, snapshot, sourceStoreSelector)
+			if err != nil {
+				return err
+			}
+			liveSourceStore, err = firstParentTargetSourceStore(ctx, root, snapshot, sourceStore)
 			if err != nil {
 				return err
 			}
@@ -160,30 +153,15 @@ func prepareMergeWithProjection(
 			trainingCompatibilityDocumentPath,
 			apiManifestJSONPath,
 			modernGoBaselinePath,
-			harnessSurfaceBaselinePath,
 		); err != nil {
 			return err
 		}
 		if _, err := gitOutput(root, "update-index", "--clear-resolve-undo"); err != nil {
 			return fmt.Errorf("clear resolved merge metadata: %w", err)
 		}
-		if closureSnapshot.store != "" {
-			result, err := commandOutput(root, "go", "run", "./cmd/closure-scan", "-import-store", closureSnapshot.store)
-			if err != nil {
-				return fmt.Errorf("prepare-merge closure evidence: %w", err)
-			}
-			fmt.Fprintf(output, "prepare-merge: closure evidence %s from %s@%d bound to git %s\n",
-				strings.TrimSpace(string(result)), closureSnapshot.head, closureSnapshot.sequence, snapshot)
-		} else {
-			fmt.Fprintln(output, "prepare-merge: closure evidence unavailable (source snapshot has no local OvergoDB worktree)")
-		}
 		if lane {
-			// The lane's store rebinds its own decisions over the imported
-			// ones and mirrors the source's activations, so the one gate
-			// reads the same activation truth as the source's.
-			if _, err := commandOutput(root, "go", "run", "./cmd/closure-scan", "-store", gitauthority.CanonicalOvergoDBDirectory, "-import-store", gitauthority.CanonicalOvergoDBDirectory); err != nil {
-				return fmt.Errorf("prepare-merge lane closure rebind: %w", err)
-			}
+			// The lane's store mirrors the source's activations, so the lane
+			// reads the same activation truth as the source.
 			report, err := mirrorLaneActivations(root, liveSourceStore)
 			if err != nil {
 				return fmt.Errorf("prepare-merge lane activations: %w", err)
@@ -208,7 +186,7 @@ func prepareMergeWithProjection(
 // generated-document conflict. The gate later recomputes them from merged code
 // and may lower a ceiling, while a raise still requires explicit paydown.
 func restoreMergeTargetBaselines(root, localRevision string) error {
-	for _, path := range []string{modernGoBaselinePath, harnessSurfaceBaselinePath} {
+	for _, path := range []string{modernGoBaselinePath} {
 		baseline, err := gitOutput(root, "show", localRevision+":"+path)
 		if err != nil {
 			return fmt.Errorf("restore target %s: %w", path, err)
@@ -304,7 +282,7 @@ func preflightMergeConflicts(root, target, source string) error {
 	}
 	for path := range bytes.SplitSeq(paths, []byte{0}) {
 		if len(path) != 0 && !mergeOwnedDocument(string(path)) {
-			return fmt.Errorf("prepare-merge source conflict in %q; evidence snapshot not copied", path)
+			return fmt.Errorf("prepare-merge source conflict in %q", path)
 		}
 	}
 	return nil
@@ -316,8 +294,7 @@ func mergeOwnedDocument(path string) bool {
 		compatibilityDocumentPath,
 		trainingCompatibilityDocumentPath,
 		apiManifestJSONPath,
-		modernGoBaselinePath,
-		harnessSurfaceBaselinePath:
+		modernGoBaselinePath:
 		return true
 	default:
 		return false

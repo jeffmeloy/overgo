@@ -24,9 +24,6 @@ import (
 
 	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
-	"overgo/internal/closureledger"
-	"overgo/internal/closurescan"
-	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
@@ -170,7 +167,6 @@ func precheck(ctx context.Context, repository, backup, checkout, candidate strin
 	result.Checks = runChecks([]namedCheck{
 		{"blob-identity", func() error { _, err := store.VerifyBlobs(ctx); return err }},
 		{"published-chains", func() error { return checkPublishedChains(ctx, checkout, candidate) }},
-		{"closure-ledger", func() error { return checkClosureLedger(ctx, checkout, store) }},
 	})
 	// A candidate that passed carries its proof into service; one that did
 	// not is discarded, so nothing is written to it.
@@ -246,19 +242,5 @@ func checkPublishedChains(ctx context.Context, checkout, candidate string) error
 	if err == nil && outcome.ExitCode != 0 {
 		err = fmt.Errorf("store-check: %s", strings.TrimSpace(output.String()))
 	}
-	return err
-}
-
-// checkClosureLedger validates the candidate's active closure bindings against the checkout's sources.
-func checkClosureLedger(ctx context.Context, checkout string, store *overgodb.Store) error {
-	snapshot, err := gosyntax.DiscoverGo(checkout, "internal", "cmd")
-	if err != nil {
-		return err
-	}
-	documents, aliases, err := closureledger.ActiveBindings(ctx, store)
-	if err != nil {
-		return err
-	}
-	_, err = closurescan.ValidatePermanentActiveAuthority(snapshot, documents, aliases)
 	return err
 }

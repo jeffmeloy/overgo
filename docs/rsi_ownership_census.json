@@ -5,9 +5,9 @@
     {
       "family": "storage",
       "owner": "cmd/recipe",
-      "sites": 199,
+      "sites": 189,
       "owner_sites": 24,
-      "recurrence": 175,
+      "recurrence": 165,
       "consumers": [
         "cmd/activation-cases",
         "cmd/admission",
@@ -18,7 +18,6 @@
         "cmd/audio-oracle",
         "cmd/benchmark",
         "cmd/benchmark-report",
-        "cmd/closure-scan",
         "cmd/compatibility",
         "cmd/composite-generation-lane",
         "cmd/controller-action",
@@ -77,10 +76,10 @@
     },
     {
       "family": "publication",
-      "owner": "cmd/closure-scan",
-      "sites": 74,
+      "owner": "internal/trainingworkflow",
+      "sites": 68,
       "owner_sites": 6,
-      "recurrence": 68,
+      "recurrence": 62,
       "consumers": [
         "cmd/admission",
         "cmd/advisories",
@@ -110,8 +109,7 @@
         "internal/loop",
         "internal/modelrecipetest",
         "internal/plan",
-        "internal/server",
-        "internal/trainingworkflow"
+        "internal/server"
       ]
     },
     {
@@ -227,11 +225,10 @@
     {
       "family": "query",
       "owner": "internal/server",
-      "sites": 40,
+      "sites": 39,
       "owner_sites": 24,
-      "recurrence": 16,
+      "recurrence": 15,
       "consumers": [
-        "cmd/closure-scan",
         "cmd/loop",
         "cmd/overgodb-query",
         "cmd/validate",
@@ -316,14 +313,14 @@
         "models"
       ],
       "sites": {
-        "alias": 2,
+        "alias": 1,
         "batch": 3,
         "commit": 4,
-        "open": 21,
+        "open": 19,
         "query": 8,
         "read": 2
       },
-      "total": 40
+      "total": 37
     },
     {
       "package": "cmd/recipe",
@@ -338,17 +335,6 @@
         "read": 6
       },
       "total": 32
-    },
-    {
-      "package": "cmd/closure-scan",
-      "sites": {
-        "alias": 2,
-        "batch": 4,
-        "commit": 6,
-        "open": 11,
-        "query": 7
-      },
-      "total": 30
     },
     {
       "package": "cmd/loop",
@@ -367,21 +353,6 @@
       "total": 30
     },
     {
-      "package": "cmd/overgodb-query",
-      "domains": [
-        "datasets",
-        "evidence",
-        "models"
-      ],
-      "sites": {
-        "alias": 1,
-        "open": 20,
-        "query": 3,
-        "read": 1
-      },
-      "total": 25
-    },
-    {
       "package": "cmd/compatibility",
       "domains": [
         "evidence",
@@ -392,6 +363,21 @@
         "open": 7,
         "query": 3,
         "read": 11
+      },
+      "total": 24
+    },
+    {
+      "package": "cmd/overgodb-query",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 1,
+        "open": 19,
+        "query": 3,
+        "read": 1
       },
       "total": 24
     },
@@ -940,14 +926,6 @@
       ],
       "sites": {
         "open": 3
-      },
-      "total": 3
-    },
-    {
-      "package": "internal/closureledger",
-      "sites": {
-        "alias": 2,
-        "query": 1
       },
       "total": 3
     },

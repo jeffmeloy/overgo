@@ -10,11 +10,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
-	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
 	"overgo/internal/strictjson"
 	"overgo/internal/textcheck"
@@ -96,10 +94,9 @@ type Plan struct {
 	// Lane names the worktree this plan dispatches for: under the unassigned
 	// role it is the role, so the lane's own rows come first, unowned rows
 	// after, and another lane's rows never.
-	Lane   string       `json:"lane,omitzero"`
-	Scope  string       `json:"scope,omitzero"`
-	Census *artifact.ID `json:"census_evidence,omitempty"`
-	Items  []Item       `json:"items"`
+	Lane  string `json:"lane,omitzero"`
+	Scope string `json:"scope,omitzero"`
+	Items []Item `json:"items"`
 }
 
 // Load reads the plan from path (Path when empty).
@@ -163,9 +160,6 @@ func Validate(d Plan) error {
 func validatePlanGraph(d Plan) error {
 	if d.Scope != "" && (d.Scope != ScopeLane || normalizedRole(d.Lane) == worklease.UnassignedRole) {
 		return errors.New("plan: lane scope requires an explicit lane")
-	}
-	if d.Census != nil && (!d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence) {
-		return errors.New("plan: census authority is not evidence")
 	}
 	if d.Lane != "" && !worklease.ValidAutomationText(d.Lane) {
 		return errors.New("plan: invalid lane")
@@ -287,19 +281,6 @@ func dependenciesSatisfied(d Plan, step Step) bool {
 		}
 	}
 	return true
-}
-
-var doctrineMetricLiteral = regexp.MustCompile(`(?i)\b[0-9][0-9,]*\s+(?:production\s+files?|files?|literals?|assumptions?|policy\s+copies)\b`)
-
-// ValidateCampaignCensusAuthority requires OvergoDB census identity.
-func ValidateCampaignCensusAuthority(d Plan) error {
-	if d.Census == nil || !d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence {
-		return errors.New("plan: campaign lacks census evidence authority")
-	}
-	if doctrineMetricLiteral.MatchString(d.Doctrine) {
-		return errors.New("plan: doctrine contains hand-typed census metrics")
-	}
-	return nil
 }
 
 func validStatus(status string) bool {

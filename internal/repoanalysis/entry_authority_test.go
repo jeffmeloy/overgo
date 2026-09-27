@@ -1,4 +1,4 @@
-package closurescan
+package repoanalysis
 
 import (
 	"path"
@@ -10,6 +10,7 @@ import (
 
 // Each case is independent: another violation cannot mask a broken detector.
 func TestProductionAuthorityBoundaries(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		domain        EntryAuthorityDomain

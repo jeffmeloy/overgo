@@ -423,9 +423,6 @@ func (w *execWorld) Block(step loop.Step, reason string) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := plan.ValidateCampaignCensusAuthority(document); err != nil {
-		return err
-	}
 	for index := range document.Items {
 		if document.Items[index].ID == step.Item {
 			document.Items[index].Status = "blocked:proposal-parked"

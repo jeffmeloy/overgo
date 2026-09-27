@@ -26,7 +26,6 @@ const manifestJSONPath = "docs/api_manifest.json"
 // authorityFiles are the versioned documents that govern automation;
 // each is named in the manifest with its content digest.
 var authorityFiles = []struct{ name, path string }{
-	{"staged-surface", "docs/staged_surface.json"},
 	{"build-retained", "build/RETAINED.json"},
 	{"generation-sources", "internal/modelrecipe/generation_source_profiles.json"},
 }

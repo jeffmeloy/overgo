@@ -130,7 +130,6 @@ func isProcessPrimitive(source productionAuthoritySource, selector *ast.Selector
 var directCommitAllowances = []authorityAllowance{
 	{File: "cmd/admission/main.go", Count: oneAuthoritySite},
 	{File: "cmd/advisories/main.go", Count: threeAuthoritySites},
-	{File: "cmd/closure-scan/main.go", Count: twoAuthoritySites},
 	{File: "cmd/compatibility/main.go", Count: oneAuthoritySite},
 	{File: "cmd/composite-generation-lane/run_windows.go", Count: fourAuthoritySites},
 	{File: "cmd/finding/main.go", Count: oneAuthoritySite},

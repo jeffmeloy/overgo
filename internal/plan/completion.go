@@ -337,7 +337,7 @@ func VerifyProspectiveCompletionTransitionWithProjection(
 	if err := Validate(child); err != nil {
 		return fmt.Errorf("plan: invalid prospective child plan: %w", err)
 	}
-	baseline, err := prospectiveCompletionBaseline(parents, mergeBase, projection)
+	_, err := prospectiveCompletionBaseline(parents, mergeBase, projection)
 	if err != nil {
 		return err
 	}
@@ -351,7 +351,7 @@ func VerifyProspectiveCompletionTransitionWithProjection(
 	if trailers.mergeProjection != projection {
 		return errors.New("plan: prospective completion merge projection differs from its canonical message")
 	}
-	return verifyPreparedCompletionTransition(baseline, preAdvance, child, trailers)
+	return verifyPreparedCompletionTransition(preAdvance, child, trailers)
 }
 
 // VerifyProspectiveMergeAuthorityWithProjection proves both parents and their
@@ -554,12 +554,9 @@ func verifyCompletionSnapshot(preAdvance Plan, trailers completionTrailers) erro
 	return nil
 }
 
-func verifyPreparedCompletionTransition(baseline, preAdvance, child Plan, trailers completionTrailers) error {
+func verifyPreparedCompletionTransition(preAdvance, child Plan, trailers completionTrailers) error {
 	if err := verifyCompletionSnapshot(preAdvance, trailers); err != nil {
 		return err
-	}
-	if !preservesPlanIdentities(baseline, preAdvance, true) {
-		return errors.New("plan: completion pre-advance plan deleted a baseline item or step")
 	}
 	expected, err := Advance(preAdvance, trailers.item, trailers.step)
 	if err != nil {
@@ -792,7 +789,6 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 	if err != nil {
 		return CompletionAuthority{}, err
 	}
-	validatedCompletions := make(map[string]bool, len(candidates))
 	for _, candidate := range candidates {
 		transition := transitions[candidate.commit.hash]
 		reference := candidate.trailers.item + "/" + candidate.trailers.step
@@ -826,7 +822,6 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 			resolver.evidenceLoads++
 		}
 		evidence.merge = len(candidate.commit.parents) > 1
-		validatedCompletions[candidate.commit.hash] = true
 		if candidate.trailers.mergeProjection == MergeProjectionFirstParentTarget && evidenceStore != nil {
 			// A projected receipt is an authority boundary, not a promise that a
 			// matching completion will appear somewhere later in the descendant
@@ -885,30 +880,8 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 			horizon.Commit, horizon.Completions, provenCompletions,
 		)
 	}
-	for _, commit := range protected {
-		if validatedCompletions[commit.hash] {
-			continue
-		}
-		transition := transitions[commit.hash]
-		if !preservesPlanIdentities(transition.baseline, transition.child, false) {
-			return CompletionAuthority{}, fmt.Errorf(
-				"plan: protected commit %.12s deleted a plan item or step without gated completion", commit.hash,
-			)
-		}
-	}
 	if err := validateProjectedRetirementAuthority("resolved", authority); err != nil {
 		return CompletionAuthority{}, err
-	}
-	if authority.ProtectsRevision() {
-		transition, found := transitions[revision]
-		if !found {
-			return CompletionAuthority{}, errors.New("plan: protected revision transition is absent")
-		}
-		if !preservesPlanIdentities(transition.child, document, true) {
-			return CompletionAuthority{}, fmt.Errorf(
-				"plan: live plan deleted an item or step retained at protected revision %.12s", revision,
-			)
-		}
 	}
 	for itemID := range presentItems {
 		if evidence, reused := authority.retiredItems[itemID]; reused {
@@ -1383,7 +1356,7 @@ func requireCompletionEvidence(
 		if reconstructionErr != nil {
 			return completionEvidence{}, reconstructionErr
 		}
-		if err := verifyPreparedCompletionTransition(baseline, preAdvance, child, trailers); err != nil {
+		if err := verifyPreparedCompletionTransition(preAdvance, child, trailers); err != nil {
 			return completionEvidence{}, err
 		}
 	} else {

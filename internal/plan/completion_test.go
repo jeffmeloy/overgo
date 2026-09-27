@@ -621,40 +621,6 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 			t.Fatalf("forged acceptance verdict error = %v", err)
 		}
 	})
-	t.Run("unrelated row pruning", func(t *testing.T) {
-		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
-		fixture.child.Items = []Item{{
-			ID: "observer", Status: StatusOpen, Steps: []Step{{
-				ID: "do", Status: StatusOpen, Verify: "go test ./...", DependsOn: []string{"root/do"},
-			}},
-		}}
-		fixture.commit(fixture.canonicalMessage(), true)
-		if _, err := resolveFixture(fixture, fixture.child, "HEAD"); err == nil || !strings.Contains(err.Error(), "deleted a baseline") {
-			t.Fatalf("multi-row pruning error = %v", err)
-		}
-	})
-	t.Run("unrelated empty item pruning", func(t *testing.T) {
-		parent := standardCompletionPlan()
-		parent.Items = append(parent.Items, Item{ID: "empty", Status: StatusOpen})
-		fixture := newCompletionFixture(t, parent, "root", "do")
-		fixture.child.Items = slices.Delete(fixture.child.Items, len(fixture.child.Items)-1, len(fixture.child.Items))
-		fixture.commit(fixture.canonicalMessage(), true)
-		if _, err := resolveFixture(fixture, fixture.child, "HEAD"); err == nil || !strings.Contains(err.Error(), "deleted a baseline") {
-			t.Fatalf("empty-item pruning error = %v", err)
-		}
-	})
-	t.Run("unreferenced final row cannot hide empty item pruning", func(t *testing.T) {
-		parent := Plan{Campaign: "completion", Doctrine: "fixture", Items: []Item{
-			{ID: "root", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}}},
-			{ID: "empty", Status: StatusOpen},
-		}}
-		fixture := newCompletionFixture(t, parent, "root", "do")
-		fixture.child.Items = nil
-		fixture.commit(fixture.canonicalMessage(), true)
-		if _, err := resolveFixture(fixture, fixture.child, "HEAD"); err == nil || !strings.Contains(err.Error(), "deleted a baseline") {
-			t.Fatalf("unreferenced empty-item pruning error = %v", err)
-		}
-	})
 	t.Run("unreferenced prepared format cannot omit preparation", func(t *testing.T) {
 		parent := Plan{Campaign: "completion", Doctrine: "fixture", Items: []Item{{
 			ID: "root", Status: StatusOpen,
@@ -867,51 +833,6 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 			t.Fatalf("legacy graft history error = %v", err)
 		}
 	})
-	t.Run("protected raw deletion cannot hide identity reuse", func(t *testing.T) {
-		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
-		fixture.commit(fixture.canonicalMessage(), true)
-		withVictim := fixture.child
-		withVictim.Items = append(withVictim.Items, Item{
-			ID: "victim", Status: StatusOpen,
-			Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
-		})
-		if err := Save(filepath.Join(fixture.repository, filepath.FromSlash(Path)), withVictim); err != nil {
-			t.Fatal(err)
-		}
-		runGit(t, fixture.repository, nil, "add", "--", Path)
-		runGit(t, fixture.repository, nil, "commit", "-q", "-m", "add protected row")
-		if err := Save(filepath.Join(fixture.repository, filepath.FromSlash(Path)), fixture.child); err != nil {
-			t.Fatal(err)
-		}
-		runGit(t, fixture.repository, nil, "add", "--", Path)
-		runGit(t, fixture.repository, nil, "commit", "-q", "-m", "raw row deletion")
-		if _, err := resolveFixture(fixture, withVictim, "HEAD"); err == nil || !strings.Contains(err.Error(), "without gated completion") {
-			t.Fatalf("raw deletion hid reused identity: %v", err)
-		}
-	})
-}
-
-func TestProtectedCompletionAuthorityBindsRetainedRevisionIdentities(t *testing.T) {
-	t.Parallel()
-	fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
-	fixture.commit(fixture.canonicalMessage(), true)
-
-	withoutItem := fixture.child
-	withoutItem.Items = nil
-	withoutStep := fixture.child
-	withoutStep.Items = slices.Clone(fixture.child.Items)
-	withoutStep.Items[0].Steps = nil
-	for name, document := range map[string]Plan{
-		"item": withoutItem,
-		"step": withoutStep,
-	} {
-		t.Run(name, func(t *testing.T) {
-			if _, err := resolveFixture(fixture, document, "HEAD"); err == nil ||
-				!strings.Contains(err.Error(), "live plan deleted an item or step retained at protected revision") {
-				t.Fatalf("protected live-plan deletion error = %v", err)
-			}
-		})
-	}
 }
 
 func TestLanePlanScope(t *testing.T) {
@@ -999,16 +920,6 @@ func TestLanePlanScope(t *testing.T) {
 		dependent.Items[0].Steps[0].DependsOn = []string{"foreign/do"}
 		if _, err := resolveFixture(fixture, dependent, "HEAD"); err == nil {
 			t.Fatal("omitted foreign item satisfied a prerequisite")
-		}
-	})
-	t.Run("raw projection refused", func(t *testing.T) {
-		fixture := newCompletionFixture(t, baseline, "root", "do")
-		fixture.commit(fixture.canonicalMessage(), true)
-		fixture.child.Scope = ScopeLane
-		fixture.child.Items = slices.Clone(fixture.child.Items[:1])
-		fixture.commit([]byte("raw projection"), false)
-		if _, err := resolveFixture(fixture, fixture.child, "HEAD"); err == nil || !strings.Contains(err.Error(), "without gated completion") {
-			t.Fatalf("raw projection error = %v", err)
 		}
 	})
 }
@@ -1112,13 +1023,6 @@ func TestVerifyProspectiveCompletionTransition(t *testing.T) {
 		[]Plan{parent}, nil, withAddedWork, childWithAddedWork, string(messageWithAddedWork), MergeProjectionSemanticUnion,
 	); err != nil {
 		t.Fatalf("prospective transition with added open work refused: %v", err)
-	}
-	baselineWithUnrelated := parent
-	baselineWithUnrelated.Items = append(baselineWithUnrelated.Items, Item{ID: "empty", Status: StatusOpen})
-	if err := VerifyProspectiveCompletionTransitionWithProjection(
-		[]Plan{baselineWithUnrelated}, nil, parent, child, string(message), MergeProjectionSemanticUnion,
-	); err == nil || !strings.Contains(err.Error(), "deleted a baseline") {
-		t.Fatalf("prospective unrelated deletion error = %v", err)
 	}
 	if err := VerifyProspectiveCompletionTransitionWithProjection(
 		[]Plan{parent, parent, parent}, nil, parent, child, string(message), MergeProjectionSemanticUnion,

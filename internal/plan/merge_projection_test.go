@@ -63,24 +63,6 @@ func TestFirstParentTargetProspectiveTransitionLeavesIncomingWorkSourceOwned(t *
 	}
 }
 
-func TestFirstParentTargetRejectsLocalIdentityDeletion(t *testing.T) {
-	t.Parallel()
-	base := standardCompletionPlan()
-	preAdvance := base
-	preAdvance.Items = slices.Delete(slices.Clone(base.Items), 1, 2)
-	child, err := Advance(preAdvance, "root", "do")
-	if err != nil {
-		t.Fatal(err)
-	}
-	message := targetProjectionMessage(t, preAdvance, "root", "do")
-	if err := VerifyProspectiveCompletionTransitionWithProjection(
-		[]Plan{base, base}, &base, preAdvance, child, string(message),
-		MergeProjectionFirstParentTarget,
-	); err == nil || !strings.Contains(err.Error(), "deleted a baseline") {
-		t.Fatalf("first-parent deletion error = %v", err)
-	}
-}
-
 func TestFirstParentTargetTrailerIsCanonicalAndMergeOnly(t *testing.T) {
 	t.Parallel()
 	document := standardCompletionPlan()

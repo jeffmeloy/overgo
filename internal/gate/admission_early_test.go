@@ -15,7 +15,7 @@ import (
 
 // TestAdmissionRunsBeforeTests holds the commit's completion audit to the
 // acceptance step, before the test phases: a merge whose side history
-// deleted a row without gated completion is refused by the check acceptance
+// re-adds a completed row is refused by the check acceptance
 // runs on the accepted candidate, the same refusal the commit would reach
 // only after the full run.
 func TestAdmissionRunsBeforeTests(t *testing.T) {
@@ -42,10 +42,9 @@ func TestAdmissionRunsBeforeTests(t *testing.T) {
 	runGitFixture(t, fixture.repo, "checkout", "-q", "-b", "raw-side-history")
 	side := target
 	side.Items = append(append([]plan.Item(nil), target.Items...), plan.Item{
-		ID: "hidden", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "go test ./cmd/gate"}},
+		ID: "ratchet", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "recover", Status: plan.StatusOpen, Verify: "go test ./cmd/gate"}},
 	})
-	commitPlan(side, "raw add hidden row")
-	commitPlan(target, "raw delete hidden row")
+	commitPlan(side, "raw re-add a completed row")
 	sideParent := recoveryGit(t, fixture.repo, "rev-parse", "HEAD")
 	runGitFixture(t, fixture.repo, "checkout", "-q", mainBranch)
 	runGitFixture(t, fixture.repo, "commit", "-q", "--allow-empty", "-m", "clean main parent")
@@ -62,7 +61,7 @@ func TestAdmissionRunsBeforeTests(t *testing.T) {
 		planHead:          mainParent, mergeBefore: &gateMergeIntent{Head: []byte(sideParent + "\n")},
 		acceptedTree: recoveryGit(t, fixture.repo, "rev-parse", mainParent+"^{tree}"),
 	}
-	if err := g.admitCompletionEarly(); err == nil || !strings.Contains(err.Error(), "deleted a plan item or step without gated completion") {
+	if err := g.admitCompletionEarly(); err == nil || !strings.Contains(err.Error(), "cannot be reused") {
 		t.Fatalf("acceptance admitted a completion the commit refuses: %v", err)
 	}
 }

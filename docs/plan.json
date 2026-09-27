@@ -4,32 +4,33 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "lane-debt-only-unfinished",
-      "title": "Carry only failed or unrun checks as lane debt",
+      "id": "gate-small-cutover",
+      "title": "Land through a small gate: vet, cached tests and a short rule list",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Carry only failed or unrun checks as lane debt",
+          "title": "Land through a small gate: vet, cached tests and a short rule list",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestLaneDebtCarriesOnlyUnfinishedChecks$' -count=1",
-          "rationale": "Audit of the 15 gates from 8bf6d8eff to 8ca79ae25 (2026-09-26), R4, ~4.6 min: the next gate runs every owed lane check as debt, including checks the lane run already passed for that commit. A passed check's receipt already proves it; carry only the failed or unrun ones. Prefer deleting the re-run path over adding a filter around it."
+          "verify": "go test ./cmd/gate -run '^TestSmallGateLandsAChange$' -count=1",
+          "rationale": "Owner 2026-09-27: rebuild the gate small; the store records results instead of deciding whether a commit is allowed; every product change gets cheaper; target roughly 167k lines of gate machinery down to about 25k (measured 2026-09-27: internal/gate 16.4k production + 27.3k test, runrecord 16.4k + 10.4k, repoanalysis 7.6k, plan 6.4k, closure-scan 6.7k, automationcheck/codeprofile/codemanifest 5.8k). Most of it re-derives what go test's input-keyed cache already decides: which packages a change can affect. Build the small gate beside the old one: gofmt and go fix (the modernizers) as repairs on changed files; go vet; go test ./... relying on the test cache; device, webui and model-journey as ordinary test packages that detect their capability; a short rule list as plain tests (no python, commit message states Cause and Predicted effect, pinned files protected, the inline literal rule held in source: a policy literal is a named constant whose doc comment carries its understanding, closure path and rerank trigger, checked syntactically on changed files with no store bindings); the served row removed from docs/plan.json, and plan rows otherwise plain data a landing may edit, the commit message recording why. First measure a mostly cached go test ./... against the current selected plan on the same change. Then switch cmd/loop -land to it. Done when TestSmallGateLandsAChange lands a fixture change through it and refuses a failing one."
         }
       ]
     },
     {
-      "id": "exec-taint-by-program",
-      "title": "Taint only the callers of an exec whose program the caller names",
+      "id": "gate-machinery-deleted",
+      "title": "Delete the old gate machinery the small gate replaced",
+      "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Taint only the callers of an exec whose program the caller names",
+          "title": "Delete the old gate machinery the small gate replaced",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestNamedProgramExecTaintsOnlyItsReaders$' -count=1",
-          "rationale": "Same audit, R5, 1-1.5 min every Go commit: a package whose source executes a program its caller names is treated as a Go-source reader, which taints every importer. An exec whose program is named taints only the importers that pass it go or a repository command; git or a named tool taints nothing. Also from the audit: surface is inapplicable in every gate yet runs, and magics took about 60 s in 6 of 15 gates."
+          "verify": "go test ./cmd/gate -run '^TestOldGateMachineryGone$' -count=1",
+          "rationale": "Second half of the small-gate rebuild (owner 2026-09-27), landed by the small gate so each deletion does not force the old gate's complete plan. Delete: the closure ledger (internal/closurescan, cmd/closure-scan and the store bindings keyed by byte offsets), the modern-Go census, baseline and exceptions (docs/modern_go_baseline.json), the harness-surface and census ratchets and their baselines, the code-manifest impact selection (codemanifest, codeprofile, automationcheck selection, cmd/code-manifest), lane obligations, the plan completion authority and proof horizon (internal/plan completion.go, projected_merge_authority.go), and runrecord decision records. The store keeps result records only. Measured 2026-09-27: with go test's cache a plan-and-test change re-ran 16 of 269 packages, yet took longer than a cold run, bound by suites that read the live repository (internal/gate 692 s, audioparity 483 s, repoanalysis 315 s, plan 285 s); deleting the gate's own tests is where the small gate's speed comes from, and audioparity's source binding should bind its closure without re-running on every Go change. Done when TestOldGateMachineryGone finds those packages and documents absent."
         }
       ]
     },
@@ -46,53 +47,6 @@
           "status": "open",
           "verify": "go test ./cmd/train -run '^TestTrainRoutesEveryProbe$' -count=1",
           "rationale": "Consolidation round 1, refactor 5. 102 commands (25 at the start): 10 train probes, 9 lanes, 6 parity or oracle commands, 14 model-file tools, 5 store tools. Fold them into route tables: the probes become routes of cmd/train -route (docs/training_routes.json, one objective mode for every objective kind: forecast, tabular and text fold into cmd/train -objective), the lanes become cmd/gate -lane, parity tools become cmd/validate -parity, the gguf and inspect tools become cmd/gguf subcommands, the overgodb tools cmd/overgodb subcommands. One model loader and one registry lookup for training, inference and validation. Every trainer stays reachable (capabilities are not dead code); only entry points collapse. Absorbs simplify-command-surface's command half. Done when TestTrainRoutesEveryProbe proves each former probe trains through cmd/train."
-        }
-      ]
-    },
-    {
-      "id": "plan-rows-retire-by-decision",
-      "title": "Retire or re-scope a committed row by a recorded owner decision",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire or re-scope a committed row by a recorded owner decision",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestOwnerDecisionRetiresRow$' -count=1",
-          "rationale": " Automation brittleness (owner 2026-09-26: fix it in code; it is the biggest time waster). A committed row leaves the plan only by landing, and a row's check cannot change in its own landing, so every re-scope today needed a second row and left the originals open as declined (ratchets-one-document, verification-specs-into-compatibility) for the owner to retire. Let a recorded owner decision retire a row, and let a row's check be corrected with a recorded reason, both as typed plan evidence the completion audit accepts, instead of workaround rows."
-        }
-      ]
-    },
-    {
-      "id": "ratchets-one-document",
-      "title": "Hold the gate's ratchets and baselines in one document (declined; owner to retire)",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold the gate's ratchets and baselines in one document (declined; owner to retire)",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestRatchetsLiveInOneDocument$' -count=1",
-          "rationale": "Declined 2026-09-26 after reading the owners; kept open only because a committed row leaves the plan by landing, so the owner decides whether to retire it. Folding the ten remaining ratchets into one docs/ratchets.json would add code rather than remove it: their owners use them as paths, not only as JSON -- the proof horizon's ship-set membership, merge sync regenerating each baseline, staged-surface inheritance reading its file's history, the API manifest pinning a digest -- so one file would need a section-addressing mechanism and would couple ten independent lifecycles. The part of this row that shrinks the tree, retiring the two ledgers that had emptied, landed as ratchet-ledgers-retired."
-        }
-      ]
-    },
-    {
-      "id": "verification-specs-into-compatibility",
-      "title": "Fold the per-model verification specs into compatibility.json (declined; owner to retire)",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fold the per-model verification specs into compatibility.json (declined; owner to retire)",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestModelClaimsLiveInCompatibility$' -count=1",
-          "rationale": "Declined 2026-09-26 after mapping the readers; kept open only because a committed row leaves the plan by landing, so the owner decides whether to retire it. Model claims cannot move into compatibility.json: its models section is keyed by architecture prototype and must equal model.SupportedArchitectures() exactly (cmd/compatibility/main.go:613-641), its claims need a failable test command, and refreshEvidenceIdentities byte-patches the file. The run logs are live inputs, not only records: compatibility -check requires each training claim's local evidence file (training.go:127), the DiT and MoT probes default to the stimulus texts, and one log is reachable only through a stimulus. Folding them into the store would move checks from the tree to a store the gate candidate does not hold. What did shrink landed as verification-unread-removed. The tiered-support direction (a support tier per model instead of per-model proof files) is the better route to fewer verification files, filed separately if the owner adopts it."
         }
       ]
     },
@@ -129,22 +83,6 @@
       ]
     },
     {
-      "id": "automation-lanes-one-process",
-      "title": "Run every deferred lane from one build under one device claim",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run every deferred lane from one build under one device claim",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestDeferredLanesShareOneBuild$' -count=1",
-          "rationale": "Consolidation round 1. The device, test-device, model-journey and webui lanes each set up their own environment, compile their own binaries and take the GPU separately, so every landing builds about four near-duplicate trees (the Go build cache reached 759 GB and filled C: on 2026-09-25) and our own lanes contend for the device. Run every deferred lane in one process: one build of the candidate (with -trimpath, so worktrees share cache entries instead of each embedding its own path), one device claim, the suites in sequence, one verdict, each suite still reporting its own result. Lanes run from a frozen snapshot of their commit, not the live worktree: on 2026-09-25 starting a merge in the worktree killed the pending lane of c1b431d1 and it had to be re-run by hand. Device packages run one at a time (-p 1) in lanes and in test-lane receipts: a parallel receipt reserved the GPU against itself and timed out cuda/executor. The disk-full stop also failed a gate mid-run at checkout-index (GUI lane report, 2026-09-25): the gate refuses at admission when free space is below what its recent landings measurably consumed, naming the build cache as the usual cause, instead of failing mid-run -- a need measured from landing history, not a fixed reserve or cache cap. Absorbs device-claim-everywhere's lane half. Done when TestDeferredLanesShareOneBuild proves the lanes run from one build under one claim. Measured 2026-09-26: -trimpath cannot simply be added to the gate's builds -- under GOFLAGS=-trimpath the modern-Go census finds no candidates and runtime-input selection misreads packages (16 repoanalysis and 5 gate tests fail), because both match loaded positions by absolute file path. Path-independent cache sharing needs those analyses to key positions by module-relative path first; tests that locate the repository through runtime.Caller (plan, clioptions) would move to their working directory. Found 2026-09-26: the lane runner already executes every deferred lane in one process (executeDeferredLanes, one DAG) from a frozen candidate worktree (withCandidateWorktree over the fixed tree), and the device lanes already serialize through dependencies (webui, then journey, then test-device). Remaining: path-independent builds (blocked: -trimpath blinds the census), the disk-space admission from measured landing history, and receipts' serial packages (receipt-serial-packages)."
-        }
-      ]
-    },
-    {
       "id": "device-claim-everywhere",
       "title": "Have every GPU user take the device claim lanes wait on",
       "owner": "master-lead",
@@ -175,86 +113,6 @@
       ]
     },
     {
-      "id": "automation-gate-rule-registry",
-      "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestGateRulesRunFromOneRegistry$' -count=1",
-          "rationale": "Consolidation round 1, refactor 1 (owner 2026-09-25: two or more birds with one stone; minimize to the maximum practical extent; no ledgers where construction can prevent the object). Measured: 1560 landing attempts, 844 succeeded; of 1055 failed steps about 73% (excluding the retired remote-provider check) were static or bookkeeping -- magics 276, profile 107, style 59, protection 43, claims 41, modern-go 23, scope 15, architecture 15, docs 13, fmt 12, sbom 10. internal/gate grew from 0 to 16k production and 26k test lines in 40 days, about 170 test files one per incident. Make every static check a rule in one registry (name, applies-to change set, check, and a fix for mechanical findings) run over one parse of the candidate tree, in parallel by package, each rule still reporting its own finding and evidence. Mechanical findings are fixed by the same pass in the developer loop (preflight), so the gate only confirms and the preflight result is the gate's static result. Fold closurescan, closureledger and cmd/closure-scan in as a rule; merge automationcheck, testevidence and testscope into the gate's selection. Replace the per-incident test files with one corpus of example change sets (extend false_negative_corpus_test.go). Net-negative is enforced by the automation- prefix. Done when TestGateRulesRunFromOneRegistry proves every static check runs from the registry over one parse and a mechanical finding is fixed, not refused. Progress 2026-09-26: L1 landed (438dc817, the gateRules table), the owns column and one path catalog landed (66be7333), and the gate already rebinds drifted closure bindings in magics, so the manual rebind is not needed. Measured: one discovery and parse of the whole tree costs about 0.55 s serial (3854 files, 0.13 s read, 0.42 s parse), so sharing one parse across the static checks saves about a second of CPU in parallel steps -- low yield; re-ranked below automation-order-by-cost-and-yield. The remaining value is mechanical fixes in the developer loop and folding the per-incident tests into one corpus."
-        }
-      ]
-    },
-    {
-      "id": "automation-derived-ledgers",
-      "title": "Prevent ledgered objects by construction and derive the remaining ledgers at gate time",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Prevent ledgered objects by construction and derive the remaining ledgers at gate time",
-          "status": "open",
-          "verify": "go test ./internal/ledger -run '^TestLedgersDeriveFromTheTree$' -count=1",
-          "rationale": "Consolidation round 1, refactor 2. About 48k Go lines maintain 40 committed JSON ledgers; 78% of commits touch a generated file and plan.json changed in 543 of the last 552 commits. Owner rule: no ledger where construction can prevent the object -- literals come only from one typed policy/config source, shared operations live in one package, a new export arrives with its consumer. Where construction cannot prevent it, derive the document from the tree at gate time (one internal/ledger mechanism, one cmd/census -kind command replacing modern-census, rsi-census, clone-census, mechanism-census, api-manifest, code-manifest, profile-catalog, coverage-lanes, block-check, store-check, store-precheck) and commit only reviewed floors and exceptions. Take row status out of plan.json (the commit trailer and the store already hold it). Stop committing .ptx and media_report.json. Done when TestLedgersDeriveFromTheTree proves the derived documents equal the committed ones they replace and no landing writes them."
-        }
-      ]
-    },
-    {
-      "id": "automation-one-record-table",
-      "title": "Declare every store record kind in one table",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Declare every store record kind in one table",
-          "status": "open",
-          "verify": "go test ./internal/artifact -run '^TestRecordKindsDeclaredInOneTable$' -count=1",
-          "rationale": "Consolidation round 1, refactor 3. The store has 453 distinct schema strings, 330 media-type constants, 231 contract literals, 31 codecs and 23 hand-written mirror structs (0 -\u003e 453 schemas from Aug 5 to Sep 25), mostly in runrecord and evaluation: one schema per claim. Declare every record kind once in a single kind/version table with a generic artifact.Record[T]; derive schema string and media type from it; decode and encode through struct tags and strictjson instead of hand-written mirrors and closures; merge runrecord's attempt_*, automation_*, peer_*, lane_* and resource_fitness* families into a few general records. Stored documents stay readable (versioned decode). Done when TestRecordKindsDeclaredInOneTable proves every stored kind resolves from the table and no schema literal lives outside it."
-        }
-      ]
-    },
-    {
-      "id": "automation-one-store-across-lanes",
-      "title": "Resolve lane evidence from one store without imports",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resolve lane evidence from one store without imports",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestLaneEvidenceResolvesAcrossStores$' -count=1",
-          "rationale": "Merge lesson (2026-09-25): each lane keeps its own OvergoDB store, so every merge imported closure decisions across stores (thousands of documents, with stray unmatched entries), evidence identities recorded in a lane store did not resolve in master's, and receipts had to be re-acquired. One store shared by the lanes (or content-addressed evidence that resolves in any lane's store) removes the import step and the foreign-identity class of failure. Joins automation-one-record-table. Done when TestLaneEvidenceResolvesAcrossStores resolves a lane-recorded evidence identity from master without an import."
-        }
-      ]
-    },
-    {
-      "id": "automation-one-evidence-validator",
-      "title": "Validate evidence through one schema-driven validator and one parity runner",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Validate evidence through one schema-driven validator and one parity runner",
-          "status": "open",
-          "verify": "go test ./internal/parity -run '^TestParityRunsFromFixtureManifest$' -count=1",
-          "rationale": "Consolidation round 1, refactor 4. cmd/compatibility is 4k production and 12.1k test lines, largely per-modality assertion tests; internal/audioparity (8.4k test lines) and internal/adaptiveparity (4.9k) are two golden-comparison harnesses; 20 docs/image_video_*.json files each carry their own shape. One schema-driven evidence validator replaces the per-modality assertion tests; internal/parity runs every golden comparison from the fixtures manifest; the image/video documents fold into the media report or the store. Held-out verdicts, validation and guards share one scorer set and verdict. Done when TestParityRunsFromFixtureManifest runs the audio and adaptive goldens through one runner."
-        }
-      ]
-    },
-    {
       "id": "automation-pinned-identities-reacquire",
       "title": "Re-acquire pinned identities automatically when the surface moves",
       "class": "consolidation",
@@ -266,7 +124,7 @@
           "title": "Re-acquire pinned identities automatically when the surface moves",
           "status": "open",
           "verify": "go test ./cmd/loop -run '^TestSurfaceMoveReacquiresPinnedIdentities$' -count=1",
-          "rationale": "Consolidation round 1, refactor 6. The inference-surface digest and the media runtime hash turn every file move into a delta and a re-acquisition: 35 commits were manual re-acquire or refresh work. Key guards and media deltas by the surface digest held in the store and re-acquire them automatically when the surface moves (cmd/loop surface move), in the same landing. Two further birds from 2026-09-25: (1) narrow the surface to what inference executes -- the hidden-console fix to internal/processcontrol and the audio lane's internal/optimizer restore each expired every text guard although neither runs in text inference; (2) build a reviewed media delta from its receipt in one command -- file hashes, the device receipt with its model resolved, required tests chosen from the passing tests that exercise the changed files, and the registry identity -- instead of the hand-assembled JSON and constant edit the VAE port needed. Absorbs surface-move-preflight; guards-reacquire-lane and surface-without-capability-tables follow it. Done when TestSurfaceMoveReacquiresPinnedIdentities proves a surface move lands with its identities re-acquired and no manual row."
+          "rationale": "Consolidation round 1, refactor 6. The inference-surface digest and the media runtime hash turn every file move into a delta and a re-acquisition: 35 commits were manual re-acquire or refresh work. Key guards and media deltas by the surface digest held in the store and re-acquire them automatically when the surface moves (cmd/loop surface move), in the same landing. Two further birds from 2026-09-25: (1) narrow the surface to what inference executes -- the hidden-console fix to internal/processcontrol and the audio lane's internal/optimizer restore each expired every text guard although neither runs in text inference; (2) build a reviewed media delta from its receipt in one command -- file hashes, the device receipt with its model resolved, required tests chosen from the passing tests that exercise the changed files, and the registry identity -- instead of the hand-assembled JSON and constant edit the VAE port needed. Absorbs surface-move-preflight; guards-reacquire-lane and surface-without-capability-tables follow it. Done when TestSurfaceMoveReacquiresPinnedIdentities proves a surface move lands with its identities re-acquired and no manual row. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
         }
       ]
     },
@@ -281,7 +139,7 @@
           "title": "Re-acquire expired text guards in a deferred lane",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestSurfaceMoveQueuesGuardReacquisition$' -count=1",
-          "rationale": "Automation friction: a landing that moves the inference surface expires every text guard (10 models), and re-acquisition is manual: longform -guard-coverage -all -publish at about 8 minutes per model, run from a detached scratch worktree at HEAD because -publish needs a clean tree (cc73695a). The pending GUI arch-event-hub merge had to be batched with master's next surface move for this reason alone. When a landed commit moves the surface, queue guard re-acquisition as a deferred lane at that commit. Its results publish into the store, and the next gate waits for its verdict like the device lanes. Reuse the device claim and the existing deferred-lane scheduler; add no scheduler. Done when TestSurfaceMoveQueuesGuardReacquisition shows a surface-moving landing queues the lane and a non-moving one does not."
+          "rationale": "Automation friction: a landing that moves the inference surface expires every text guard (10 models), and re-acquisition is manual: longform -guard-coverage -all -publish at about 8 minutes per model, run from a detached scratch worktree at HEAD because -publish needs a clean tree (cc73695a). The pending GUI arch-event-hub merge had to be batched with master's next surface move for this reason alone. When a landed commit moves the surface, queue guard re-acquisition as a deferred lane at that commit. Its results publish into the store, and the next gate waits for its verdict like the device lanes. Reuse the device claim and the existing deferred-lane scheduler; add no scheduler. Done when TestSurfaceMoveQueuesGuardReacquisition shows a surface-moving landing queues the lane and a non-moving one does not. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
         }
       ]
     },
@@ -296,37 +154,7 @@
           "title": "Keep non-text capability edits out of the inference surface",
           "status": "open",
           "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
-          "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not."
-        }
-      ]
-    },
-    {
-      "id": "profile-runtime-commands",
-      "title": "Refuse a landing that deletes a product entry point no declared successor reaches",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse a landing that deletes a product entry point no declared successor reaches",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestLandingKeepsProductCapabilitiesReachable$' -count=1",
-          "rationale": "Owner direction 2026-09-26: replace doctrine with deterministic code. The rule that product capability shrinks only by deduplication -- every trainer, server and converter stays reachable (a trainer only tests call is unwired, not dead) -- while tooling may also be deleted, is applied today from the worker's memory, so a lapse ships. Declare the product command set once in the path catalog (codeprofile.Classify: server, swap, train, generate, the gguf and hf tools and converters, embedding, rerank, tokenize, the probes; tooling is what only checks or records the repo -- gate, loop, plan, the censuses, the lanes), which also corrects the size profile that counts every cmd/ file as automation. The gate then refuses a landing that deletes a product command unless a declared successor reaches its capability -- a cmd/train route, as train-routes-first-probes did for oscillatorimage and tabular. Done when TestLandingKeepsProductCapabilitiesReachable refuses deleting a product command with no successor, admits one whose route is declared, and admits deleting a tooling command."
-        }
-      ]
-    },
-    {
-      "id": "consolidation-round-2",
-      "title": "Re-measure growth and gate failures, then file the next consolidation round",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Re-measure growth and gate failures, then file the next consolidation round",
-          "status": "open",
-          "verify": "go run ./cmd/census -kind consolidation -round 2",
-          "rationale": "Owner 2026-09-25: after refactor 6, step back and run the whole consolidation loop again, a few rounds, until a round finds little left to merge. Re-measure growth by pattern, gate failure causes by rule, duplicates and churn (from the rule registry, the derived ledgers and store history rather than a manual analysis), rank the patterns, file round 3's rows, and record the round's before/after counts (landing wall, rules, commands, packages, schemas, lines). Also measure the work per change: landings per delivered row (2026-09-25: 16 landings for 3 merges, one port and one fix), refusals by cause and manual re-runs, so the round ranks what costs the operator the most. Done when cmd/census -kind consolidation -round 2 prints the recorded round and its filed rows."
+          "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
         }
       ]
     },
@@ -542,7 +370,7 @@
           "title": "Page across several schemas by reading only the page",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestMultiSchemaPageReadsOnlyThePage$' -count=1",
-          "rationale": "SQA-005: 8a77c2d8 made a single-schema document read proportional to its page, but a page across several schemas still merges history-sized candidate sets, and run browsing still counts the whole history on every request. Seek independently in each schema's sorted index and lazily merge only the candidates the page needs. For runs, reuse a count bound to the same store head, or make the total an explicit request, keeping the response contract. Include setup and allocation cost in the measurement. Done when TestMultiSchemaPageReadsOnlyThePage reads a two-schema page from a store holding many older documents and touches only a page-bounded number of them."
+          "rationale": "SQA-005: 8a77c2d8 made a single-schema document read proportional to its page, but a page across several schemas still merges history-sized candidate sets, and run browsing still counts the whole history on every request. Seek independently in each schema's sorted index and lazily merge only the candidates the page needs. For runs, reuse a count bound to the same store head, or make the total an explicit request, keeping the response contract. Include setup and allocation cost in the measurement. Done when TestMultiSchemaPageReadsOnlyThePage reads a two-schema page from a store holding many older documents and touches only a page-bounded number of them. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
         }
       ]
     },
@@ -572,22 +400,7 @@
           "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestOnePublicationPath$' -count=1",
-          "rationale": "The blocking half landed as 75b235e3: a bare descriptor is filled by a later batch carrying its content. Remaining: every caller publishes through the commit coordinator (idempotent writes, content verification, alias compare-and-set, one conflict report), a caller declares whether its decision depends on the whole head, and alias-local operations take only their alias precondition. Measure writer wait before and after. Done when the per-caller publication and retry code is deleted and writer wait is measured."
-        }
-      ]
-    },
-    {
-      "id": "store-telemetry-by-reference",
-      "title": "Store gate telemetry and merge authority by reference",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Store gate telemetry and merge authority by reference",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestGateTelemetryReferencesItsGraph$' -count=1",
-          "rationale": "Follow-up of store-benchmark-record-redundancy, measured at 7f700241. A code landing still stores the suite cost (103 KB: 1,094 test rows each repeating the package; package_execution_cost.go:85) and the selection cause (52 KB, 96% of its reader graph repeated from the previous landing; batch_cost.go:205). A merge landing re-embeds the audited completions and retirements of every earlier merge (673 KB, 88% repeated; projected_merge_authority.go:175). Group suite rows under their package; store the reader graph as its own content that the cause references; have merge authority reference the previous authority and store only the entries since. Readers accept the old shapes. Done when each document stores only what changed since its predecessor, and the repeated copies are deleted from the writers."
+          "rationale": "The blocking half landed as 75b235e3: a bare descriptor is filled by a later batch carrying its content. Remaining: every caller publishes through the commit coordinator (idempotent writes, content verification, alias compare-and-set, one conflict report), a caller declares whether its decision depends on the whole head, and alias-local operations take only their alias precondition. Measure writer wait before and after. Done when the per-caller publication and retry code is deleted and writer wait is measured. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
         }
       ]
     },
@@ -617,7 +430,7 @@
           "title": "Declare storage class and retention on the document contract",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestStoragePolicyIsDeclaredOnContracts$' -count=1",
-          "rationale": "Storage classes are chosen by schema-name substrings (heartbeat, wakeup, poll, partial-output, liveness in storage_classes.go:34), a parallel registry that drifts from the contracts. Declare storage class, retention and publication owner beside each document contract, and delete the substring list. Retention separates required acceptance and recovery evidence from replaceable summaries and diagnostic detail, derives reports from retained results, and keeps explicit roots for outstanding work. Backup pruning stays operator policy. Measured 2026-09-26: declaring the class beside each document contract edits internal/artifact, which is on the inference surface, so the landing expires every model's long-form guard record; batch it with the next guard re-acquisition."
+          "rationale": "Storage classes are chosen by schema-name substrings (heartbeat, wakeup, poll, partial-output, liveness in storage_classes.go:34), a parallel registry that drifts from the contracts. Declare storage class, retention and publication owner beside each document contract, and delete the substring list. Retention separates required acceptance and recovery evidence from replaceable summaries and diagnostic detail, derives reports from retained results, and keeps explicit roots for outstanding work. Backup pruning stays operator policy. Measured 2026-09-26: declaring the class beside each document contract edits internal/artifact, which is on the inference surface, so the landing expires every model's long-form guard record; batch it with the next guard re-acquisition. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
         }
       ]
     },
@@ -652,21 +465,6 @@
       ]
     },
     {
-      "id": "generated-docs-into-store",
-      "title": "Move generated reports and baselines into OvergoDB",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move generated reports and baselines into OvergoDB",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestTreeHoldsNoGeneratedReports$' -count=1",
-          "rationale": "About 40 docs JSON documents are derived output committed as source: media_report 376 KB, modern_go_baseline 248 KB, api_manifest 172 KB, about 20 image_video documents, and the surface and clone baselines. They churn on landings, need an ordered regeneration, conflict on lane merges, and are pinned again by hash constants in tests. Make each a store record rendered on demand, and delete the pins. Order: large reports, then receipts, then baselines once lane merges carry store records."
-        }
-      ]
-    },
-    {
       "id": "store-bounded-segments",
       "title": "Store medium payloads in immutable, size-bounded pack segments",
       "owner": "master-lead",
@@ -677,22 +475,7 @@
           "title": "Store medium payloads in immutable, size-bounded pack segments",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestPackSegmentsAreBoundedAndImmutable$' -count=1",
-          "rationale": "After the publication, query and memory rows land, and only from measured record sizes, read patterns and compaction cost. Small transition records stay inline in journal entries, medium immutable payloads go to bounded pack segments, large tensors, media and logs to individually addressed blobs, indexes and checkpoints to replaceable derived generations, and live progress to bounded runtime state. Adding a small record must not rewrite an ever-growing pack, and one enormous file would trade file count for rewrite and recovery cost. Done when compaction write volume and open and replay time fall on the measured store without losing backup or recovery."
-        }
-      ]
-    },
-    {
-      "id": "gate-isolation-rule-enforced",
-      "title": "Narrow what a confined landing re-runs by a checked reach contract",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Narrow what a confined landing re-runs by a checked reach contract",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestNarrowLandingRunsNarrowly' -count=1",
-          "rationale": "A one-command landing runs about 29 packages (170 s work, 80 s wall), 28 of them for an unnamed reach inherited through overgodb, artifact, gitauthority, gosource and repoanalysis. Syntactic rules were measured unsound. Either a package declares its reach confined to caller-supplied roots and its tests fail on a read outside them, or a receipt's inputs become the files its tests opened. Keep the shadow measure and reader ranking as before and after."
+          "rationale": "After the publication, query and memory rows land, and only from measured record sizes, read patterns and compaction cost. Small transition records stay inline in journal entries, medium immutable payloads go to bounded pack segments, large tensors, media and logs to individually addressed blobs, indexes and checkpoints to replaceable derived generations, and live progress to bounded runtime state. Adding a small record must not rewrite an ever-growing pack, and one enormous file would trade file count for rewrite and recovery cost. Done when compaction write volume and open and replay time fall on the measured store without losing backup or recovery. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
         }
       ]
     },
@@ -722,7 +505,7 @@
           "title": "Defer decoding large store facets until first use, if opens are still slow",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1",
-          "rationale": "Re-measured 2026-09-24 after store-open-decode-cost (180a7a3c): an open takes about 1.05-1.5 s and allocates 1.8 GB; checkpoint decode is 56% of it (lineage 0.6 s) and replaying the 8,100 commits since the last checkpoint is 32%. Before that, 2026-09-22: a read-only open is 1.7 s, bounded by the largest decode (lineage 88.3 MB of 189 MB), with verification about 0.1 s. Laziness inside the facet fails (value receivers) and re-replaying the journal fails (shared file cursor). Defer at the store, which owns the lock: keep the verified payload and pending commits, apply on first load behind a double-checked write lock, and test that a deferred facet answers exactly as an eager one.",
+          "rationale": "Re-measured 2026-09-24 after store-open-decode-cost (180a7a3c): an open takes about 1.05-1.5 s and allocates 1.8 GB; checkpoint decode is 56% of it (lineage 0.6 s) and replaying the 8,100 commits since the last checkpoint is 32%. Before that, 2026-09-22: a read-only open is 1.7 s, bounded by the largest decode (lineage 88.3 MB of 189 MB), with verification about 0.1 s. Laziness inside the facet fails (value receivers) and re-replaying the journal fails (shared file cursor). Defer at the store, which owns the lock: keep the verified payload and pending commits, apply on first load behind a double-checked write lock, and test that a deferred facet answers exactly as an eager one. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed.",
           "depends_on": [
             "store-small-record-horizon/do",
             "store-benchmark-record-redundancy/do",
@@ -1154,7 +937,6 @@
             "loop-markers-runtime-directory/do",
             "surface-aware-dispatch/do",
             "row-scope-budget-surface/do",
-            "gate-isolation-rule-enforced/do",
             "store-small-record-horizon/do",
             "store-benchmark-record-redundancy/do",
             "store-growth-ratchet/do",
@@ -1192,7 +974,6 @@
             "consolidation-inventory/do",
             "inference-inputs-one-definition/do",
             "goldens-provenance/do",
-            "generated-docs-into-store/do",
             "store-bare-record-fill/do",
             "one-claim-primitive/do",
             "device-claim-everywhere/do",
@@ -1219,7 +1000,6 @@
             "webui-refusal-race/do",
             "modern-census-by-package/do",
             "plan-unknowns-by-digest/do",
-            "store-telemetry-by-reference/do",
             "budget-from-measured-growth/do",
             "store-open-decode-cost/do",
             "retire-plan-edit-publish/do",
@@ -1266,15 +1046,9 @@
             "guards-at-e3c53b28/do",
             "heldout-generation-slice/do",
             "text-objective-command/do",
-            "automation-gate-rule-registry/do",
-            "automation-lanes-one-process/do",
-            "automation-derived-ledgers/do",
-            "automation-one-record-table/do",
-            "automation-one-evidence-validator/do",
             "automation-command-route-tables/do",
             "automation-pinned-identities-reacquire/do",
             "models-resolve-by-identity/do",
-            "consolidation-round-2/do",
             "tabfm-heldout-proof/do",
             "merge-f4aa36bccbec/do",
             "audio-merge-replan/do",
@@ -1292,7 +1066,6 @@
             "automation-master-owned-ratchets/do",
             "automation-lane-consumer-first/do",
             "automation-hermetic-test-env/do",
-            "automation-one-store-across-lanes/do",
             "lessons-replan/do",
             "automation-gate-git-lock-per-worktree/do",
             "hurdles-replan/do",
@@ -1316,7 +1089,6 @@
             "modeltest-tag-compiles/do",
             "lanes-repair-real-text-pin/do",
             "pinned-bytes-preflight/do",
-            "profile-runtime-commands/do",
             "receipt-serial-packages/do",
             "train-routes-first-probes/do",
             "train-routes-lane-repair/do",
@@ -1324,8 +1096,6 @@
             "root-policies-beside-owners/do",
             "one-capability-report/do",
             "media-campaign-one-record/do",
-            "verification-specs-into-compatibility/do",
-            "ratchets-one-document/do",
             "tracked-files-need-readers/do",
             "selection-prose-per-path/do",
             "ratchet-ledgers-retired/do",
@@ -1345,8 +1115,8 @@
             "selection-union-not-everything/do",
             "detached-runner-leftovers/do",
             "repair-outputs-only-when-changed/do",
-            "lane-debt-only-unfinished/do",
-            "exec-taint-by-program/do"
+            "gate-small-cutover/do",
+            "gate-machinery-deleted/do"
           ]
         }
       ]

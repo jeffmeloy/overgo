@@ -374,52 +374,6 @@ func TestProspectiveGateCompletionRejectsAuditedSourceDependency(t *testing.T) {
 	}
 }
 
-func TestProspectiveGateCompletionRejectsUnrelatedPlanDeletion(t *testing.T) {
-	t.Parallel()
-	repository := t.TempDir()
-	if err := os.Mkdir(filepath.Join(repository, "docs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	baseline := plan.Plan{Campaign: "gate", Doctrine: "fixture", Items: []plan.Item{
-		{ID: "complete", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "do", Status: plan.StatusOpen, Verify: "go test ./...",
-		}}},
-		{ID: "unrelated", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "keep", Status: plan.StatusOpen, Verify: "go test ./...",
-		}}},
-	}}
-	if err := plan.Save(filepath.Join(repository, filepath.FromSlash(plan.Path)), baseline); err != nil {
-		t.Fatal(err)
-	}
-	runGitFixture(t, repository, "init", "-q")
-	runGitFixture(t, repository, "config", "user.email", "transition@example.invalid")
-	runGitFixture(t, repository, "config", "user.name", "Transition Test")
-	runGitFixture(t, repository, "add", "--", plan.Path)
-	runGitFixture(t, repository, "commit", "-q", "-m", "baseline")
-	parent := recoveryGit(t, repository, "rev-parse", "HEAD")
-	preAdvance := baseline
-	preAdvance.Items = append([]plan.Item(nil), baseline.Items[:1]...)
-	child, err := plan.Advance(preAdvance, "complete", "do")
-	if err != nil {
-		t.Fatal(err)
-	}
-	recipe := testutil.ArtifactID(t, artifact.KindRecipe, "prospective-recipe")
-	profile := testutil.ArtifactID(t, artifact.KindProfile, "prospective-profile")
-	preparation := testutil.ArtifactID(t, artifact.KindEvidence, "prospective-preparation")
-	message, err := plan.CompletionCommitMessageWithMergeAuthority(
-		[]byte("prospective completion"), preAdvance, "complete", "do", recipe, profile, preparation,
-		artifact.CommitID{1}, plan.MergeProjectionSemanticUnion, artifact.ID{},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := verifyProspectiveGateCompletion(
-		repository, gateCommitIntent{Parent: parent}, preAdvance, child, string(message), nil,
-	); err == nil {
-		t.Fatal("gate accepted completion after unrelated plan deletion")
-	}
-}
-
 func TestProjectedMergePreflightBeforeVerification(t *testing.T) {
 	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
@@ -556,59 +510,6 @@ func TestProspectiveGateCompletionRejectsAmbiguousMergeBase(t *testing.T) {
 	if err := verifyProspectiveGateCompletion(repository, forked, document, child, string(message), nil); err == nil ||
 		!strings.Contains(err.Error(), "first-parent chain, found 0 of 2") {
 		t.Fatalf("ambiguous prospective merge-base error = %v", err)
-	}
-}
-
-func TestProspectiveGateCompletionAuditsProtectedSideHistory(t *testing.T) {
-	t.Parallel()
-	fixture := newInterruptedCommitFixture(t)
-	publishSuccessfulInterruptedAttempt(t, fixture, true)
-	if err := removeGateCommitIntent(fixture.repo); err != nil {
-		t.Fatal(err)
-	}
-	mainBranch := recoveryGit(t, fixture.repo, "rev-parse", "--abbrev-ref", "HEAD")
-	target := plan.Plan{Campaign: "interrupted-commit", Doctrine: "test recovery", Items: []plan.Item{{
-		ID: "next", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "do", Status: plan.StatusOpen, Verify: "go test ./cmd/gate",
-		}},
-	}}}
-	planPath := filepath.Join(fixture.repo, filepath.FromSlash(plan.Path))
-	if err := plan.Save(planPath, target); err != nil {
-		t.Fatal(err)
-	}
-	runGitFixture(t, fixture.repo, "add", "--", plan.Path)
-	runGitFixture(t, fixture.repo, "commit", "-q", "-m", "add next row")
-	runGitFixture(t, fixture.repo, "checkout", "-q", "-b", "raw-side-history")
-	side := target
-	side.Items = append(append([]plan.Item(nil), target.Items...), plan.Item{
-		ID: "hidden", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "do", Status: plan.StatusOpen, Verify: "go test ./cmd/gate",
-		}},
-	})
-	if err := plan.Save(planPath, side); err != nil {
-		t.Fatal(err)
-	}
-	runGitFixture(t, fixture.repo, "add", "--", plan.Path)
-	runGitFixture(t, fixture.repo, "commit", "-q", "-m", "raw add hidden row")
-	if err := plan.Save(planPath, target); err != nil {
-		t.Fatal(err)
-	}
-	runGitFixture(t, fixture.repo, "add", "--", plan.Path)
-	runGitFixture(t, fixture.repo, "commit", "-q", "-m", "raw delete hidden row")
-	sideParent := recoveryGit(t, fixture.repo, "rev-parse", "HEAD")
-	runGitFixture(t, fixture.repo, "checkout", "-q", mainBranch)
-	runGitFixture(t, fixture.repo, "commit", "-q", "--allow-empty", "-m", "clean main parent")
-	mainParent := recoveryGit(t, fixture.repo, "rev-parse", "HEAD")
-	child, err := plan.Advance(target, "next", "do")
-	if err != nil {
-		t.Fatal(err)
-	}
-	store := openRecoveryStore(t, fixture)
-	defer store.Close()
-	intent := gateCommitIntent{Parent: mainParent, Merge: &gateMergeIntent{Head: []byte(sideParent + "\n")}}
-	if err := verifyProspectiveGateCompletion(fixture.repo, intent, target, child, "", store); err == nil ||
-		!strings.Contains(err.Error(), "deleted a plan item or step without gated completion") {
-		t.Fatalf("protected side-history audit error = %v", err)
 	}
 }
 

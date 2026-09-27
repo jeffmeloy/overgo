@@ -12,9 +12,8 @@ import (
 // copy of each site: the bytes a round trip allocates grow with the sites,
 // not with packages times sites, and the round trip returns the census it
 // was given without writing through the header's slices.
-// Serial: it measures the process's allocated bytes.
 func TestCensusSplitCopiesEachSiteOnce(t *testing.T) {
-	t.Parallel()
+	// Serial: it measures the process's allocated bytes.
 	const packages, findings, perPackage = 200, 8, 4
 	census := ModernGoCensus{TargetGo: "1.26", SourceIdentity: "fixture"}
 	for finding := range findings {

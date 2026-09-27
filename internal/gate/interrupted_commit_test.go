@@ -2,7 +2,6 @@ package gate
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -1476,30 +1475,6 @@ func TestPostCommitForeignAuthorityTupleIsRefused(t *testing.T) {
 	if err := validateInterruptedCommitAuthority(fixture.repo, intent, nil); err == nil ||
 		!strings.Contains(err.Error(), "expected authority tuple") {
 		t.Fatalf("foreign completion tuple validation = %v", err)
-	}
-}
-
-func TestInterruptedCommitRejectsDeletedBaselinePlan(t *testing.T) {
-	t.Parallel()
-	fixture := newInterruptedCommitFixture(t)
-	var intent gateCommitIntent
-	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
-		t.Fatal(err)
-	}
-	intent.Commit = fixture.commit
-	document, err := plan.Parse(intent.Plan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	document.Items = document.Items[:1]
-	intent.Plan, err = json.MarshalIndent(document, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	intent.Plan = append(intent.Plan, '\n')
-	if err := validateInterruptedCommitAuthority(fixture.repo, intent, nil); err == nil ||
-		!strings.Contains(err.Error(), "deleted a baseline item or step") {
-		t.Fatalf("tampered pre-advance plan validation = %v", err)
 	}
 }
 

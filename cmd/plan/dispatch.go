@@ -12,113 +12,14 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/authoritylock"
-	"overgo/internal/dispatchreadiness"
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
-	"overgo/internal/worklease"
 )
 
 // Called only inside withPlanMutation's process-owned critical section.
 func savePlanMutation(root string, document plan.Plan) error {
-	path := filepath.Join(root, filepath.FromSlash(plan.Path))
-	before, err := plan.Load(path)
-	if err != nil {
-		return err
-	}
-	return saveCapturedPlanMutation(root, before, document)
-}
-
-// Called only while holding withPlanMutation's lock, with before captured under
-// that same lock. Merge preparation can replace the live text with conflicts;
-// its claim authority remains the captured pre-merge document.
-func saveCapturedPlanMutation(root string, before, document plan.Plan) error {
-	store, err := overgodb.OpenReadOnly(filepath.Join(root, gitauthority.CanonicalOvergoDBDirectory))
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	if err := plan.ValidateClaimedPlan(context.Background(), store, root, before, document); err != nil {
-		return err
-	}
 	return plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document)
-}
-
-// claimNamed reads a claim id, or an item or item/step reference, which names
-// the one claim its steps' task aliases bind; more or none is refused with
-// what was found.
-func claimNamed(ctx context.Context, store artifact.Reader, root, raw string) (artifact.ID, error) {
-	if id, err := artifact.ParseID(raw); err == nil {
-		return id, nil
-	}
-	document, err := plan.Load(filepath.Join(root, filepath.FromSlash(plan.Path)))
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	item, step, stepNamed := strings.Cut(raw, "/")
-	var held []artifact.ID
-	for _, row := range document.Items {
-		for _, candidate := range row.Steps {
-			if row.ID != item || stepNamed && candidate.ID != step {
-				continue
-			}
-			id, found, err := artifact.ResolveAlias(ctx, store, worklease.Alias(worklease.TaskAliasRoot, row.ID+"/"+candidate.ID))
-			if err != nil {
-				return artifact.ID{}, err
-			}
-			if found {
-				held = append(held, id)
-			}
-		}
-	}
-	if len(held) != 1 {
-		return artifact.ID{}, fmt.Errorf("plan: %s names %d claims %v; release one by its claim id", raw, len(held), held)
-	}
-	return held[0], nil
-}
-
-func releaseDispatchClaim(root, rawID, worker, reason string, output io.Writer) (err error) {
-	if reason != "cancelled" && reason != "handoff" {
-		return errors.New("plan: -release-claim requires -release-reason cancelled or handoff; completion belongs to the gate")
-	}
-	lock, err := authoritylock.Acquire(root)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, lock.Close()) }()
-	store, err := overgodb.Open(filepath.Join(root, gitauthority.CanonicalOvergoDBDirectory))
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, store.Close()) }()
-	id, err := claimNamed(context.Background(), store, root, rawID)
-	if err != nil {
-		return err
-	}
-	lease, found, err := worklease.Read(context.Background(), store, id)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return fmt.Errorf("plan: claim %s is unavailable", id)
-	}
-	worktree, err := filepath.Abs(root)
-	if err != nil {
-		return err
-	}
-	if !strings.EqualFold(filepath.ToSlash(worktree), lease.Worktree) {
-		return errors.New("plan: release from the claimed worktree so its gate and plan mutation lock protects the handoff")
-	}
-	batch, err := lease.ReleaseBatch(worker, reason)
-	if err != nil {
-		return err
-	}
-	if _, err := artifact.CommitBatch(context.Background(), store, batch); err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(output, "claim=%s task=%s state=released reason=%s; evidence and outstanding checks retained\n", id, lease.Task, reason)
-	return err
 }
 
 // Stop controls remain usable when the live plan cannot load. They publish
@@ -222,7 +123,7 @@ func printDispatch(c cli, args []string, output io.Writer) error {
 		dispatch = plan.Dispatch{Stop: &stop, Waiting: stop.String(), Line: "plan waiting: " + stop.String()}
 		err = nil
 	} else {
-		request := plan.DispatchRequest{Role: c.role, Worker: c.worker, Mode: c.mode, Acquire: c.prompt || c.verify, Reference: reference}
+		request := plan.DispatchRequest{Role: c.role, Worker: c.worker, Mode: c.mode, Reference: reference}
 		dispatch, err = plan.ResolveDispatch(context.Background(), commandWorktree, request)
 	}
 	if err != nil {
@@ -244,25 +145,15 @@ func printDispatch(c cli, args []string, output io.Writer) error {
 	}
 	it, st, found := locateStep(document, dispatch)
 	if !found {
-		return errors.New("plan: claimed task changed before prompt projection")
+		return errors.New("plan: the dispatched task changed before prompt projection")
 	}
 	if c.verify {
 		return runVerify(it, st)
-	}
-	if dispatch.Claim != nil {
-		fmt.Fprintf(output, "Claim: %s worker=%s worktree=%s\n", dispatch.Claim.ID, dispatch.Claim.Worker, dispatch.Claim.Worktree)
 	}
 	if dispatch.Stop != nil {
 		fmt.Fprintln(output, dispatch.Stop.String())
 	}
 	printPromptStep(it, st, output)
-	// The readiness snapshot is a read-only advisory: it never blocks the task
-	// display, so an unresolved cheap fact prints as advice rather than a refusal.
-	if readiness, err := dispatchreadiness.Resolve(commandWorktree, nil); err != nil {
-		fmt.Fprintln(output, "readiness: unavailable: "+err.Error())
-	} else {
-		fmt.Fprintln(output, "readiness: "+readiness.String())
-	}
 	return nil
 }
 

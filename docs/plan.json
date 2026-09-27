@@ -1,26 +1,191 @@
 {
   "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. A consolidation row is done only when it deletes the implementations it replaces: test the shared owner's contract, keep only meaningful caller integration checks, retire tests of deleted wrappers, and report net production and test code removed, repeated executions eliminated, gate wall time and peak memory on comparable changes. Across the 197 first-parent commits to 2026-09-23, production Go grew about 9,000 net lines and tests about 11,600. OvergoDB keeps its core -- immutable content, a durable journal, aliases, rebuildable projections -- and the repository simplifies how it uses it, in order: integrity and blocking defects, one publication path, bounded queries, one record per transition, bounded memory, declared storage policy, then bounded segments. Store rows report bytes and records added per landing, records scanned per query, open and replay time, writer wait, peak memory and compaction write volume. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan.",
+  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. A consolidation row is done only when it deletes the implementations it replaces: test the shared owner's contract, keep only meaningful caller integration checks, retire tests of deleted wrappers, and report net production and test code removed, repeated executions eliminated, gate wall time and peak memory on comparable changes. Across the 197 first-parent commits to 2026-09-23, production Go grew about 9,000 net lines and tests about 11,600. OvergoDB keeps its core -- immutable content, a durable journal, aliases, rebuildable projections -- and the repository simplifies how it uses it, in order: integrity and blocking defects, one publication path, bounded queries, one record per transition, bounded memory, declared storage policy, then bounded segments. Store rows report bytes and records added per landing, records scanned per query, open and replay time, writer wait, peak memory and compaction write volume. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan. Improvement is what the user-facing scorecard measures (owner 2026-09-27): a row states the user-visible effect it predicts, naming a scorecard metric where it can, and work that moves only internal metrics states why it exists. Consolidation onto shared paths is how one fix reaches every model.",
   "items": [
     {
-      "id": "plan-tool-plain-data",
-      "title": "Shrink the plan tool to plain data",
+      "id": "user-scorecard",
+      "title": "One user-facing scorecard across every model, the definition of improvement",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "define",
+          "title": "Define the scorecard: per model, what a user feels",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestScorecardRowsEveryServableModel$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27: one user-facing scorecard is the definition of improvement. Per registered model: time to first token and tokens per second, held-out answer quality, failure and crash rate, load time and peak VRAM, and the setup steps a user takes. One command renders it from the store (cmd/validate owns the validation circuit), one row per model, every cell measured or marked unavailable with its reason; cmd/benchmark, benchmark-report and perf-sweep feed it or fold into it."
+        },
+        {
+          "id": "per-landing",
+          "title": "Run the scorecard's cheap slice on the landings that reach a model path",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLandingMeasuresTheScorecardSlice$' -count=1",
+          "rationale": "Every change shows its effect on users where it cheaply can: a bounded slice (the smallest model per modality, time to first token, tokens per second, peak VRAM, failures) runs when a landing reaches a model path, and the commit's measured line carries its deltas against the last recorded scorecard. That is how unintended improvements and regressions get seen and credited.",
+          "depends_on": [
+            "user-scorecard/define"
+          ]
+        },
+        {
+          "id": "scheduled",
+          "title": "Run the full scorecard on a schedule and publish it with its deltas",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestScheduledScorecardPublishesDeltas$' -count=1",
+          "rationale": "The full scorecard, every model and every cell, runs on a schedule (the machine is shared: it takes the device claim) and publishes one record with deltas against the previous run. It is the fitness the unattended loop optimizes (loop-fitness-scorecard).",
+          "depends_on": [
+            "user-scorecard/define"
+          ]
+        },
+        {
+          "id": "do",
+          "title": "Fill the scorecard: the absorbed benchmark and validation work",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestScorecardHasNoUnexplainedCell$' -count=1",
+          "rationale": "Absorbs, 2026-09-27: model-regression-baseline (full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under budgets, accepted record ids pinned), benchmark-completion (compare only cells whose checkpoint, precision, split, shots, template, scoring and extraction agree; keep the 100-case MMLU label; TestAcceptedPublishedComparison rejects omitted cells, duplicates, stale identities and failed outcomes), final-model-validation (a bounded long-lived server run: concurrency, context grow and shrink, cancellation, failure, reload, VRAM plateauing within budget), benchmark-27b (operator only, -budget 3h per launch, resuming exact remaining cases; the row reads completed evidence and never starts the pass), gemma-12b-accuracy (OWNER DECISION still open: download the unquantized google/gemma-4-12B-it? the 12B FP8 twins score 0.5-1.2 nats per token worse than E4B on the guard corpus while overgo's 12B graph matches the transformers reference, so the suspect is the third-party quant) and validate-all-models (RAE is the remaining unvalidated model, rae-generation-path). Done when every model's row has every cell measured or carrying a stated reason.",
+          "depends_on": [
+            "user-scorecard/scheduled",
+            "rae-generation-path/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "simplify-prefill-paths",
+      "title": "Unify prefill policy where reference parity permits",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Unify prefill policy where reference parity permits",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'TensorCore|Staged' -count=1",
+          "rationale": "One policy from weight representation, column count and parity/cost evidence; keep precise staging where f16 cannot meet the bound. Measure the fp8 12B prompt-rate gap (1646 vs bf16 2850) on identical inputs. Accept kernel parity, scoped regression and before/after rate and memory curves. Moved up 2026-09-27 (owner): consolidation is what produces unintended improvement -- a speed-up or fix on one shared prefill path reaches every model on it. Judge it by how many models its shared path serves, measured on the scorecard.",
+          "depends_on": [
+            "model-regression-gate/do",
+            "modality-verification/media-report"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "simplify-execution-core",
+      "title": "Remove costly execution duplication behind the regression gate",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Remove costly execution duplication behind the regression gate",
+          "status": "open",
+          "verify": "go run ./cmd/clone-census -summary -max-excess 9927",
+          "rationale": "Duplicate excess is 9927 nodes; bind a strictly lower target before starting. Pick a real duplicated CUDA or inference mechanism by cost, preserve accepted behavior, and lower docs/clone_baseline.json through clone-census. Moving or splitting duplication is not acceptance. Moved up 2026-09-27 (owner): one execution core means a fix for one model reaches all of them. Judge it by how many models its shared path serves, measured on the scorecard.",
+          "depends_on": [
+            "simplify-prefill-paths/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "automation-command-route-tables",
+      "title": "Fold per-modality commands into route tables",
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
-          "id": "claims",
-          "title": "Dispatch from the plan alone: delete dispatch claims and the readiness snapshot",
+          "id": "do",
+          "title": "Fold per-modality commands into route tables",
           "status": "open",
-          "verify": "go test ./cmd/gate -run '^TestDispatchClaimsGone$' -count=1"
+          "verify": "go test ./cmd/train -run '^TestTrainRoutesEveryProbe$' -count=1",
+          "rationale": "Consolidation round 1, refactor 5. 102 commands (25 at the start): 10 train probes, 9 lanes, 6 parity or oracle commands, 14 model-file tools, 5 store tools. Fold them into route tables: the probes become routes of cmd/train -route (docs/training_routes.json, one objective mode for every objective kind: forecast, tabular and text fold into cmd/train -objective), the lanes become cmd/gate -lane, parity tools become cmd/validate -parity, the gguf and inspect tools become cmd/gguf subcommands, the overgodb tools cmd/overgodb subcommands. One model loader and one registry lookup for training, inference and validation. Every trainer stays reachable (capabilities are not dead code); only entry points collapse. Absorbs simplify-command-surface's command half. Done when TestTrainRoutesEveryProbe proves each former probe trains through cmd/train. Owner review 2026-09-27: 97 commands, about 40 of them under 100 lines of code, many thin wrappers. Lanes are no longer cmd/gate -lane: the lanes the gate does not call go in lane-commands-folded. Moved up 2026-09-27 (owner): fewer parts means fewer ways to fail, which users notice as reliability."
+        }
+      ]
+    },
+    {
+      "id": "loop-fitness-scorecard",
+      "title": "Drive the unattended loop by the scorecard: its gaps are the work, its held-out cells the fitness",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "chain",
+          "title": "Chain strategy, experiment, held-out fitness and rollout promotion into one guarded path",
+          "status": "open",
+          "verify": "go test ./internal/loop -run '^TestLoopPromotesOnlyOnHeldOutFitness$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27: chain the existing model-loop parts (internal/loop strategy, experiment, held-out fitness, rollout promotion) into one path, with the circuit breaker and rollback as guards, whose fitness is the scorecard's held-out cells.",
+          "depends_on": [
+            "user-scorecard/scheduled"
+          ]
         },
         {
           "id": "do",
-          "title": "Shrink the plan tool to plain data",
+          "title": "Feed plan -admit-proposal from scorecard regressions and the weakest metrics",
           "status": "open",
-          "verify": "go test ./cmd/gate -run '^TestPlanMachineryGone$' -count=1",
-          "rationale": " Owner review 2026-09-27: with the completion rules gone and rows plain data, the tool needs roughly -next, -status, -add, -setverify, -verify and -stop. internal/plan is 3.2k lines plus 3.8k of tests and cmd/plan 2.6k plus tests; dispatchreadiness and lanestore exist only for cmd/plan. Delete the old machinery's flags (-admit-proposal, -charge-exploration, -grant-exploration, -contain, -budget, -assign, -record-lease, -locality-schedule, -history and its phases, -prepare-merge now that a merge is git merge --no-ff --no-commit then a landing) and what only they use. Target 6-8k lines with tests."
+          "verify": "go test ./cmd/loop -run '^TestScorecardGapsBecomeProposals$' -count=1",
+          "rationale": "A scheduled scorecard regression, or the weakest metric, becomes a typed proposal the unattended loop admits (plan -admit-proposal), so its work comes from what users feel. Keep the held-out rows high so the loop improves real quality rather than its own tests.",
+          "depends_on": [
+            "loop-fitness-scorecard/chain"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "heldout-preference-slice",
+      "title": "Gate DPO approval on held-out preference pairs",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Gate DPO approval on held-out preference pairs",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestPreferenceWorkspaceScoresHeldOutPairs$' -count=1",
+          "rationale": "Preference held-out slice (design 2026-09-24): the web UI training workspace runs DPO with no held-out check. Score held-out preference pairs with ScorePreferenceTargets from policy and reference sequence scores, judge against the reference, and gate the workspace's approval on the verdict. GRPO has no target scorer yet, so name that as its own follow-up. Done when TestPreferenceWorkspaceScoresHeldOutPairs refuses approval without a held-out gain and grants it with one."
+        }
+      ]
+    },
+    {
+      "id": "heldout-generation-slice",
+      "title": "Judge text generation objectives on held-out text targets",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Judge text generation objectives on held-out text targets",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -run '^TestGenerationObjectiveApprovesOnHeldOutAnswers$' -count=1",
+          "rationale": "The text target scorers (CompileTextTargetPlan, ScoreTextTargets: continuation likelihood, generated answer, structured validity, OCR fields, VQA rules) restored in c99544b6 judge what a text model generates, not next-token accuracy, so token-accuracy objectives do not use them. Wire them for objectives whose output is generated text: run the base and trained model's generation over held-out prompts, score with the scorer the objective declares, and judge through a text target verdict. Unlimited-OCR (OCR fields) and a generated-answer objective are the first users. Done when TestGenerationObjectiveApprovesOnHeldOutAnswers approves a tiny generation objective on a held-out answer gain."
+        }
+      ]
+    },
+    {
+      "id": "heldout-media-slice",
+      "title": "Approve media objectives on held-out signal quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Approve media objectives on held-out signal quality",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestMediaObjectiveApprovesOnHeldOutGain$' -count=1",
+          "rationale": "Media held-out slice (design 2026-09-24): CompileMediaTargetPlan and ScoreMediaTargets need output artifacts, oracles and verifier profiles, and generation through mediacapability takes minutes per record on CUDA. Wire audio-snr (Pocket-TTS) first, then image and video PSNR (Krea-2-Turbo, Wan2.1), scoring a bounded held-out subset whose size the objective declares. Done when TestMediaObjectiveApprovesOnHeldOutGain approves a tiny synthetic audio objective on a held-out SNR gain."
+        }
+      ]
+    },
+    {
+      "id": "tabfm-heldout-proof",
+      "title": "Approve a TabFM objective on held-out rows of a real table",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Approve a TabFM objective on held-out rows of a real table",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -count=1",
+          "rationale": "Owner 2026-09-25: prove held-out approval on real checkpoints one model at a time, smallest first; TabFM-1.0 classification is first (staged at models/tabfm-1.0.0-pytorch; its location is resolved by identity, not assumed). One run is the row's acceptance, the device-lane evidence, the model-journey check and the training-validation verdict at once. Register a tabular objective over a real table dataset with a group split, train through cmd/train -objective, and approve on held-out label accuracy. Follows the consolidation rounds. Done when TestTabFMObjectiveApprovesOnHeldOutRows records a passed verdict on the real checkpoint."
         }
       ]
     },
@@ -88,22 +253,6 @@
       ]
     },
     {
-      "id": "automation-command-route-tables",
-      "title": "Fold per-modality commands into route tables",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fold per-modality commands into route tables",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestTrainRoutesEveryProbe$' -count=1",
-          "rationale": "Consolidation round 1, refactor 5. 102 commands (25 at the start): 10 train probes, 9 lanes, 6 parity or oracle commands, 14 model-file tools, 5 store tools. Fold them into route tables: the probes become routes of cmd/train -route (docs/training_routes.json, one objective mode for every objective kind: forecast, tabular and text fold into cmd/train -objective), the lanes become cmd/gate -lane, parity tools become cmd/validate -parity, the gguf and inspect tools become cmd/gguf subcommands, the overgodb tools cmd/overgodb subcommands. One model loader and one registry lookup for training, inference and validation. Every trainer stays reachable (capabilities are not dead code); only entry points collapse. Absorbs simplify-command-surface's command half. Done when TestTrainRoutesEveryProbe proves each former probe trains through cmd/train. Owner review 2026-09-27: 97 commands, about 40 of them under 100 lines of code, many thin wrappers. Lanes are no longer cmd/gate -lane: the lanes the gate does not call go in lane-commands-folded."
-        }
-      ]
-    },
-    {
       "id": "media-campaign-one-record",
       "title": "Fold the media campaign's receipts into fewer committed records",
       "class": "consolidation",
@@ -165,21 +314,6 @@
       ]
     },
     {
-      "id": "tabfm-heldout-proof",
-      "title": "Approve a TabFM objective on held-out rows of a real table",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Approve a TabFM objective on held-out rows of a real table",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -count=1",
-          "rationale": "Owner 2026-09-25: prove held-out approval on real checkpoints one model at a time, smallest first; TabFM-1.0 classification is first (staged at models/tabfm-1.0.0-pytorch; its location is resolved by identity, not assumed). One run is the row's acceptance, the device-lane evidence, the model-journey check and the training-validation verdict at once. Register a tabular objective over a real table dataset with a group split, train through cmd/train -objective, and approve on held-out label accuracy. Follows the consolidation rounds. Done when TestTabFMObjectiveApprovesOnHeldOutRows records a passed verdict on the real checkpoint."
-        }
-      ]
-    },
-    {
       "id": "vae-latent-campaign",
       "title": "Carry the VAE lane's latent campaign surface until the lane closes it",
       "owner": "master-lead",
@@ -211,21 +345,6 @@
           "status": "open",
           "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/representation -run '^TestLatentStateObservationAndSampleContract$' -count=1",
           "rationale": "Superseded by the owner's decision (2026-09-25) to take the VAE lane in consumer-backed parts: vae-codec-stream-port ported the runtime part; the lane's research scaffolding (typed latent state, codec, geometry, readiness and robust-statistics contracts without production callers, runrecord experimental_* record families, campaign-history adoption in internal/plan) stays in the lane until its first latent capability has a consumer. This row merges the lane at that point, re-titled to the head then merged; its harness growth is budgeted against automation-one-record-table."
-        }
-      ]
-    },
-    {
-      "id": "heldout-preference-slice",
-      "title": "Gate DPO approval on held-out preference pairs",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Gate DPO approval on held-out preference pairs",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestPreferenceWorkspaceScoresHeldOutPairs$' -count=1",
-          "rationale": "Preference held-out slice (design 2026-09-24): the web UI training workspace runs DPO with no held-out check. Score held-out preference pairs with ScorePreferenceTargets from policy and reference sequence scores, judge against the reference, and gate the workspace's approval on the verdict. GRPO has no target scorer yet, so name that as its own follow-up. Done when TestPreferenceWorkspaceScoresHeldOutPairs refuses approval without a held-out gain and grants it with one."
         }
       ]
     },
@@ -305,51 +424,6 @@
       ]
     },
     {
-      "id": "heldout-generation-slice",
-      "title": "Judge text generation objectives on held-out text targets",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Judge text generation objectives on held-out text targets",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run '^TestGenerationObjectiveApprovesOnHeldOutAnswers$' -count=1",
-          "rationale": "The text target scorers (CompileTextTargetPlan, ScoreTextTargets: continuation likelihood, generated answer, structured validity, OCR fields, VQA rules) restored in c99544b6 judge what a text model generates, not next-token accuracy, so token-accuracy objectives do not use them. Wire them for objectives whose output is generated text: run the base and trained model's generation over held-out prompts, score with the scorer the objective declares, and judge through a text target verdict. Unlimited-OCR (OCR fields) and a generated-answer objective are the first users. Done when TestGenerationObjectiveApprovesOnHeldOutAnswers approves a tiny generation objective on a held-out answer gain."
-        }
-      ]
-    },
-    {
-      "id": "heldout-media-slice",
-      "title": "Approve media objectives on held-out signal quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Approve media objectives on held-out signal quality",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestMediaObjectiveApprovesOnHeldOutGain$' -count=1",
-          "rationale": "Media held-out slice (design 2026-09-24): CompileMediaTargetPlan and ScoreMediaTargets need output artifacts, oracles and verifier profiles, and generation through mediacapability takes minutes per record on CUDA. Wire audio-snr (Pocket-TTS) first, then image and video PSNR (Krea-2-Turbo, Wan2.1), scoring a bounded held-out subset whose size the objective declares. Done when TestMediaObjectiveApprovesOnHeldOutGain approves a tiny synthetic audio objective on a held-out SNR gain."
-        }
-      ]
-    },
-    {
-      "id": "store-multi-schema-paging",
-      "title": "Page across several schemas by reading only the page",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Page across several schemas by reading only the page",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestMultiSchemaPageReadsOnlyThePage$' -count=1",
-          "rationale": "SQA-005: 8a77c2d8 made a single-schema document read proportional to its page, but a page across several schemas still merges history-sized candidate sets, and run browsing still counts the whole history on every request. Seek independently in each schema's sorted index and lazily merge only the candidates the page needs. For runs, reuse a count bound to the same store head, or make the total an explicit request, keeping the response contract. Include setup and allocation cost in the measurement. Done when TestMultiSchemaPageReadsOnlyThePage reads a two-schema page from a store holding many older documents and touches only a page-bounded number of them. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed. Kept 2026-09-27 after the records re-measure: store growth stopped with the old gate (86% of the last 3,558 commits were its records, 12% a test fixed in 944540a7; the sequence held at 63557 across four landings), but this is a read cost on the existing history, not a growth cost."
-        }
-      ]
-    },
-    {
       "id": "e4b-full-parameter-trainer",
       "title": "Train Gemma-4 E4B with full-parameter gradients",
       "owner": "master-lead",
@@ -395,24 +469,6 @@
       ]
     },
     {
-      "id": "store-open-lineage-cost",
-      "title": "Defer decoding large store facets until first use, if opens are still slow",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Defer decoding large store facets until first use, if opens are still slow",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1",
-          "rationale": "Re-measured 2026-09-24 after store-open-decode-cost (180a7a3c): an open takes about 1.05-1.5 s and allocates 1.8 GB; checkpoint decode is 56% of it (lineage 0.6 s) and replaying the 8,100 commits since the last checkpoint is 32%. Before that, 2026-09-22: a read-only open is 1.7 s, bounded by the largest decode (lineage 88.3 MB of 189 MB), with verification about 0.1 s. Laziness inside the facet fails (value receivers) and re-replaying the journal fails (shared file cursor). Defer at the store, which owns the lock: keep the verified payload and pending commits, apply on first load behind a double-checked write lock, and test that a deferred facet answers exactly as an eager one. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed. Kept 2026-09-27 after the records re-measure: growth stopped, so the open cost no longer rises, but every command and store-reading test still pays it once.",
-          "depends_on": [
-            "store-benchmark-record-redundancy/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "failure-recovery",
       "title": "Run host recovery drills before closing reliability claims",
       "owner": "master-lead",
@@ -438,88 +494,6 @@
       ]
     },
     {
-      "id": "model-regression-baseline",
-      "title": "Publish an accepted baseline before simplification",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "full-catalog",
-          "title": "Expand and re-accept the full text-catalog baseline",
-          "status": "open",
-          "verify": "go test ./internal/longform -count=1 \u0026\u0026 test -f cmd/longform/accepted_baseline_test.go \u0026\u0026 go test ./cmd/longform -run '^TestAcceptedBaselineEvidence$' -count=1",
-          "rationale": "After the guarded defect fixes and chat rung: full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under explicit budgets, with dispositions for unavailable cells. Pin accepted record ids and bind a read-only completeness and non-regression check through longform. Training acceptance binds its own evidence; inference cannot substitute.",
-          "depends_on": [
-            "model-regression-baseline/do",
-            "device-memory-retention/do",
-            "decode-attention-per-key-cost/do",
-            "gemma-12b-accuracy/do",
-            "modality-verification/media-report"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "benchmark-completion",
-      "title": "Complete current-surface benchmarks and matched comparisons",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "published-comparison",
-          "title": "Publish benchmark results with matched references",
-          "status": "open",
-          "verify": "test -f cmd/benchmark-report/accepted_coverage_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedPublishedComparison$' -count=1 \u0026\u0026 go run ./cmd/benchmark-report -check",
-          "rationale": "Compare only cells whose checkpoint, precision, split, shots, template, scoring and extraction agree; label protocol differences. Keep the 100-case MMLU label. Rerun only invalidated slices, then generate BENCHMARK.md. TestAcceptedPublishedComparison must reject omitted cells, duplicates, stale identities and failed outcomes before this closes.",
-          "depends_on": [
-            "benchmark-completion/mmlu-pro-pass",
-            "benchmark-27b/mmlu-pro-pass",
-            "validation-automation/benchmark-protocol",
-            "modality-verification/bbh-protocol"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "simplify-prefill-paths",
-      "title": "Unify prefill policy where reference parity permits",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Unify prefill policy where reference parity permits",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'TensorCore|Staged' -count=1",
-          "rationale": "One policy from weight representation, column count and parity/cost evidence; keep precise staging where f16 cannot meet the bound. Measure the fp8 12B prompt-rate gap (1646 vs bf16 2850) on identical inputs. Accept kernel parity, scoped regression and before/after rate and memory curves.",
-          "depends_on": [
-            "model-regression-gate/do",
-            "modality-verification/media-report",
-            "benchmark-completion/mmlu-pro-pass",
-            "model-regression-baseline/full-catalog"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "simplify-execution-core",
-      "title": "Remove costly execution duplication behind the regression gate",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Remove costly execution duplication behind the regression gate",
-          "status": "open",
-          "verify": "go run ./cmd/clone-census -summary -max-excess 9927",
-          "rationale": "Duplicate excess is 9927 nodes; bind a strictly lower target before starting. Pick a real duplicated CUDA or inference mechanism by cost, preserve accepted behavior, and lower docs/clone_baseline.json through clone-census. Moving or splitting duplication is not acceptance.",
-          "depends_on": [
-            "simplify-prefill-paths/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "simplify-command-surface",
       "title": "Consolidate duplicated APIs and shipped binaries",
       "owner": "master-lead",
@@ -534,7 +508,6 @@
           "depends_on": [
             "model-regression-gate/do",
             "modality-verification/media-report",
-            "benchmark-completion/mmlu-pro-pass",
             "failure-recovery/control-plane-drills",
             "validation-gate-selection/common-owner-pilot",
             "plan-publication-cost/internal-consumer-contract"
@@ -556,30 +529,7 @@
           "rationale": "Move a checkpoint from adaptive_new into overgo/models only where a live dependency on the retired root remains. Inventory identity, bytes, references and capacity; verify the staged copy (hash, servable identity, baseline lookup, bounded inference, rollback) before switching locators; keep the original. Assert no model vanishes.",
           "depends_on": [
             "model-regression-gate/do",
-            "modality-verification/media-report",
-            "benchmark-completion/mmlu-pro-pass"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "final-model-validation",
-      "title": "Prove the final text surface and long-lived serving",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Prove the final text surface and long-lived serving",
-          "status": "open",
-          "verify": "go test ./internal/longform -run '^TestFinalServingSurface$' -count=1",
-          "rationale": "Full-catalog text regression against the pinned baseline with both framings; a bounded long-lived server run (concurrency, context grow/shrink, cancellation, failure, reload) with VRAM plateauing within budget and correct outputs. Revalidate only modalities the simplification rows invalidated, then bind read-only assertions.",
-          "depends_on": [
-            "simplify-execution-core/do",
-            "simplify-command-surface/do",
-            "simplify-checkpoint-locations/do",
-            "boundary-hardening/cross-origin",
-            "boundary-hardening/argv-output"
+            "modality-verification/media-report"
           ]
         }
       ]
@@ -597,27 +547,7 @@
           "verify": "test -f cmd/benchmark-report/accepted_capability_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedCapabilityDelta$' -count=1 \u0026\u0026 go run ./cmd/benchmark-report -check \u0026\u0026 test -f cmd/benchmark-report/controller_comparison_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedControllerComparison$' -count=1",
           "rationale": "From the fixed before-baseline and exact after evidence: quality, prefill/decode curves, VRAM, coverage and recovery beside duplicate excess, command packages, production lines and validation cost; the API and binary consolidation ledger distinguishes removal from rename, split and forwarding. TestAcceptedCapabilityDelta refuses unsupported claims without rerunning settled models.",
           "depends_on": [
-            "final-model-validation/do",
-            "benchmark-completion/published-comparison",
             "modality-verification/media-report"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "benchmark-27b",
-      "title": "Operator-launched full 27B MMLU-Pro benchmark",
-      "owner": "operator",
-      "status": "open",
-      "steps": [
-        {
-          "id": "mmlu-pro-pass",
-          "title": "Complete the operator-launched 27B MMLU-Pro pass",
-          "status": "open",
-          "verify": "test -f cmd/benchmark-report/accepted_coverage_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedOperator27BMMLUPro$' -count=1 \u0026\u0026 go run ./cmd/benchmark-report -check",
-          "rationale": "Operator only, -budget 3h per launch, resuming exact remaining cases; no truncation. The row reads completed evidence and never starts the pass. TestAcceptedOperator27BMMLUPro must reject omitted cells, duplicates, stale identities and failed outcomes before this closes.",
-          "depends_on": [
-            "benchmark-completion/mmlu-pro-pass"
           ]
         }
       ]
@@ -634,24 +564,6 @@
           "status": "open",
           "verify": "go test ./cmd/loophook -run '^TestPromptIntakeFilesRow' -count=1",
           "rationale": "Return the new row id so a request becomes the next row after the current commit instead of being folded into the row in flight."
-        }
-      ]
-    },
-    {
-      "id": "gemma-12b-accuracy",
-      "title": "Decide the 12B FP8 checkpoints on measured quantization loss",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Decide the 12B FP8 checkpoints on measured quantization loss",
-          "status": "open",
-          "verify": "go test ./internal/longform -run '^TestGemmaTwelveCheckpointVerdict$' -count=1",
-          "rationale": "OWNER DECISION: download the unquantized google/gemma-4-12B-it checkpoint? The 12B twins score 0.5-1.2 nats per token worse than E4B on the guard corpus (3.17 vs 1.48 on plain English), raw or chat-framed. overgo's 12B graph matches the transformers reference point by point (layers within 2.6e-4, logits within about 0.2 of adaptive_new's golden), so the suspect is the third-party FP8 quant both twins come from. Re-scoped per SQA-012: closure no longer requires a 12B to outscore E4B, a different model. The row answers three separate questions, with tokenization, template, scoring windows and tolerances frozen before the run: (1) runtime agreement on a matched checkpoint, already held against the golden; (2) the FP8 twins' quality loss against the bf16 original on the same windows, which needs the owner's download; (3) whether that loss is acceptable, the owner's product target. E4B stays a comparator. Done when TestGemmaTwelveCheckpointVerdict records a verdict for the FP8 twins: kept with the measured loss, or rejected as a checkpoint, with the matched-checkpoint agreement as evidence.",
-          "depends_on": [
-            "model-regression-gate/do"
-          ]
         }
       ]
     },
@@ -674,38 +586,17 @@
       ]
     },
     {
-      "id": "validate-all-models",
-      "title": "Validate every registered model",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Validate every registered model",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1",
-          "rationale": "2026-09-23: webssl-dino (image-embedding, 1943100a) and timesfm-3.0 (forecast, 83d0bb9b) are registered, verified and activated. The remaining gap is RAE (rae-generation-path). Licences block none of these: models and the store are gitignored, and registration records the licence.",
-          "depends_on": [
-            "activity-detection-capability/do",
-            "timesfm3-native-declaration/do",
-            "dinov2-embedding-capability/do",
-            "rae-generation-path/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "compatibility-reports-leave-the-tree",
-      "title": "Stop compatibility reports churning every landing (owner decision first)",
+      "title": "Re-verify compatibility claims whose source moved, and fold cmd/compatibility into validate",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Stop compatibility reports churning every landing (owner decision first)",
+          "title": "Re-verify compatibility claims whose source moved, and fold cmd/compatibility into validate",
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1",
-          "rationale": "OWNER DECISION: does a claim's file:sha256 source binding mean re-verify when the code moves (then a refresh re-runs the claim's oracle), or nothing (then it leaves both documents)? Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree, and performance_sweep_baseline.json keeps its thresholds with measurements in the store. Owner review 2026-09-27: its checks are plain tests now, so fold cmd/compatibility (4k lines of code, 12k of tests, plus compatibility.json and docs/verification/) into cmd/validate and cut its tests to behaviour. compatibility-names-its-reads is retired: go test's cache tracks what the package reads. About 10k lines."
+          "rationale": "OWNER DECISION: does a claim's file:sha256 source binding mean re-verify when the code moves (then a refresh re-runs the claim's oracle), or nothing (then it leaves both documents)? Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree, and performance_sweep_baseline.json keeps its thresholds with measurements in the store. Owner review 2026-09-27: its checks are plain tests now, so fold cmd/compatibility (4k lines of code, 12k of tests, plus compatibility.json and docs/verification/) into cmd/validate and cut its tests to behaviour. compatibility-names-its-reads is retired: go test's cache tracks what the package reads. About 10k lines. OWNER DECISION 2026-09-27: re-verify. A claim whose bound source moved is re-verified (its oracle re-runs), because a stale claim that a model works is exactly the false promise users hit."
         }
       ]
     },
@@ -721,6 +612,55 @@
           "status": "open",
           "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
           "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
+        }
+      ]
+    },
+    {
+      "id": "plan-tool-plain-data",
+      "title": "Shrink the plan tool to plain data",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Shrink the plan tool to plain data",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestPlanMachineryGone$' -count=1",
+          "rationale": " Owner review 2026-09-27: with the completion rules gone and rows plain data, the tool needs roughly -next, -status, -add, -setverify, -verify and -stop. internal/plan is 3.2k lines plus 3.8k of tests and cmd/plan 2.6k plus tests; dispatchreadiness and lanestore exist only for cmd/plan. Delete the old machinery's flags (-admit-proposal, -charge-exploration, -grant-exploration, -contain, -budget, -assign, -record-lease, -locality-schedule, -history and its phases, -prepare-merge now that a merge is git merge --no-ff --no-commit then a landing) and what only they use. Target 6-8k lines with tests."
+        }
+      ]
+    },
+    {
+      "id": "store-multi-schema-paging",
+      "title": "Page across several schemas by reading only the page",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Page across several schemas by reading only the page",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestMultiSchemaPageReadsOnlyThePage$' -count=1",
+          "rationale": "SQA-005: 8a77c2d8 made a single-schema document read proportional to its page, but a page across several schemas still merges history-sized candidate sets, and run browsing still counts the whole history on every request. Seek independently in each schema's sorted index and lazily merge only the candidates the page needs. For runs, reuse a count bound to the same store head, or make the total an explicit request, keeping the response contract. Include setup and allocation cost in the measurement. Done when TestMultiSchemaPageReadsOnlyThePage reads a two-schema page from a store holding many older documents and touches only a page-bounded number of them. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed. Kept 2026-09-27 after the records re-measure: store growth stopped with the old gate (86% of the last 3,558 commits were its records, 12% a test fixed in 944540a7; the sequence held at 63557 across four landings), but this is a read cost on the existing history, not a growth cost."
+        }
+      ]
+    },
+    {
+      "id": "store-open-lineage-cost",
+      "title": "Defer decoding large store facets until first use, if opens are still slow",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Defer decoding large store facets until first use, if opens are still slow",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1",
+          "rationale": "Re-measured 2026-09-24 after store-open-decode-cost (180a7a3c): an open takes about 1.05-1.5 s and allocates 1.8 GB; checkpoint decode is 56% of it (lineage 0.6 s) and replaying the 8,100 commits since the last checkpoint is 32%. Before that, 2026-09-22: a read-only open is 1.7 s, bounded by the largest decode (lineage 88.3 MB of 189 MB), with verification about 0.1 s. Laziness inside the facet fails (value receivers) and re-replaying the journal fails (shared file cursor). Defer at the store, which owns the lock: keep the verified payload and pending commits, apply on first load behind a double-checked write lock, and test that a deferred facet answers exactly as an eager one. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed. Kept 2026-09-27 after the records re-measure: growth stopped, so the open cost no longer rises, but every command and store-reading test still pays it once.",
+          "depends_on": [
+            "store-benchmark-record-redundancy/do"
+          ]
         }
       ]
     },
@@ -741,7 +681,6 @@
             "timesfm3-native-declaration/do",
             "surface-without-capability-tables/do",
             "rae-generation-path/do",
-            "validate-all-models/do",
             "automation-harness-surface-remainder/do",
             "surface-move-preflight/do",
             "reviewed-delta-registry/do",
@@ -758,19 +697,14 @@
             "compatibility-reports-leave-the-tree/do",
             "tmp-refuses-undeclared-entries/do",
             "decode-attention-per-key-cost/do",
-            "gemma-12b-accuracy/do",
             "failure-recovery/rollout-plan-author",
             "failure-recovery/control-plane-drills",
-            "model-regression-baseline/full-catalog",
-            "benchmark-completion/published-comparison",
             "simplify-prefill-paths/do",
             "simplify-execution-core/do",
             "simplify-command-surface/do",
             "simplify-checkpoint-locations/do",
-            "final-model-validation/do",
             "simplify-capability-report/do",
             "speech-document-admission/do",
-            "benchmark-27b/mmlu-pro-pass",
             "plan-reranked/do",
             "device-measurement-deadlock/do",
             "registry-document-class/do",

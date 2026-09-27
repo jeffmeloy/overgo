@@ -4,7 +4,6 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -32,7 +31,7 @@ func main() {
 	flag.CommandLine.Init(os.Args[0], flag.ContinueOnError)
 	next := flag.Bool("next", false, "print the top open action")
 	admitProposalFlag := flag.String("admit-proposal", "", "admit one typed steering proposal from a JSON spec into the store and the plan")
-	prompt := flag.Bool("prompt", false, "claim an eligible step and print its task: -prompt [-json] [item/step]; requires -worker or OVERGO_AUTOMATION_WORKER")
+	prompt := flag.Bool("prompt", false, "print the current step's task: -prompt [-json] [item/step]")
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]")
@@ -50,19 +49,16 @@ func main() {
 	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch (default OVERGO_AUTOMATION_ROLE, then unassigned)")
-	worker := flag.String("worker", "", "stable session identity for dispatch claims (default OVERGO_AUTOMATION_WORKER); inherit the same identity in gate subprocesses")
-	releaseClaim := flag.String("release-claim", "", "release this worker's claim, by its ID or by the item (or item/step) it holds; requires -release-reason cancelled or handoff")
-	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
+	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, admitProposal: *admitProposalFlag}, flag.Args())
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, admitProposal: *admitProposalFlag}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
 }
 
 type cli struct {
 	resumeStop, maintenanceStop, stopMode, mode  string
-	releaseClaim, releaseReason                  string
 	worker                                       string
 	next, prompt, verify, status, add, setverify bool
 	stop, move, retitle, json                    bool
@@ -80,18 +76,6 @@ func run(c cli, args []string) error {
 	}
 	if c.stopMode != "" {
 		return errors.New("-stop-mode requires a stop control operation")
-	}
-
-	if c.releaseClaim != "" || c.releaseReason != "" {
-		allowed := cli{releaseClaim: c.releaseClaim, releaseReason: c.releaseReason, worker: c.worker, role: c.role}
-		if c != allowed || len(args) != 0 {
-			return errors.New("plan: claim release cannot be combined with another operation")
-		}
-		if c.releaseClaim == "" {
-			return errors.New("-release-reason requires -release-claim")
-		}
-		worker := cmp.Or(strings.TrimSpace(c.worker), strings.TrimSpace(os.Getenv(plan.AutomationWorkerEnvironment)))
-		return releaseDispatchClaim(commandWorktree, c.releaseClaim, worker, c.releaseReason, os.Stdout)
 	}
 
 	if c.next || c.prompt || c.verify {

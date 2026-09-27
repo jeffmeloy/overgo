@@ -82,57 +82,15 @@ func TestPromptContractProjection(t *testing.T) {
 	}
 }
 
-// TestPromptAdmissionReadiness drives the real prompt path: a read-only prompt
-// shows the claimed task and then its cheap readiness snapshot, which is
-// provisional because prompt declares no write scope, distinguishing an advisory
-// fact from the executable claim.
-func TestPromptAdmissionReadiness(t *testing.T) {
+// TestPromptReadsWithoutWriting drives the real prompt path: it projects the
+// dispatched task, and neither the store nor the plan changes, however many
+// workers ask.
+func TestPromptReadsWithoutWriting(t *testing.T) {
 	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
 	t.Setenv(plan.AutomationWorkerEnvironment, "")
-	root := initializePlanTestRepository(t, mutationPlan(t, "Readiness task"))
+	root := initializePlanTestRepository(t, mutationPlan(t, "Prompt task"))
 	t.Chdir(root)
-	out := captureStdout(t, func() {
-		if err := run(cli{prompt: true, worker: "readiness-worker"}, nil); err != nil {
-			t.Fatal(err)
-		}
-	})
-	if !strings.Contains(out, "TASK row/do") {
-		t.Fatalf("prompt did not project the task:\n%s", out)
-	}
-	if !strings.Contains(out, "readiness: branch=") || !strings.Contains(out, "scope=provisional") {
-		t.Fatalf("prompt did not project a read-only readiness snapshot:\n%s", out)
-	}
-}
-
-func TestDispatchClaimProjection(t *testing.T) {
-	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
-	t.Setenv(plan.AutomationWorkerEnvironment, "")
-	document := mutationPlan(t, "claimed task")
-	root := initializePlanTestRepository(t, document)
-	t.Chdir(root)
-	source := filepath.Join(root, "worker-edits.go")
-	dirty := []byte("package pending // another worker's uncommitted source\n")
-	if err := os.WriteFile(source, dirty, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	inspection, err := plan.ResolveDispatch(t.Context(), root, plan.DispatchRequest{})
-	if err != nil || inspection.Claim != nil || inspection.Item != "row" {
-		t.Fatalf("inspection=%+v %v", inspection, err)
-	}
-	request := cli{prompt: true, worker: "session-one"}
-	output := captureStdout(t, func() {
-		if err := run(request, nil); err != nil {
-			t.Fatal(err)
-		}
-	})
-	if !strings.Contains(output, "Claim:") || !strings.Contains(output, "worker=session-one") {
-		t.Fatalf("prompt missing ownership: %s", output)
-	}
-	owned, err := plan.ResolveDispatch(t.Context(), root, plan.DispatchRequest{Worker: request.worker})
-	if err != nil || owned.Claim == nil || owned.Waiting != "" {
-		t.Fatalf("claimed inspection=%+v %v", owned, err)
-	}
-	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
+	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,75 +98,30 @@ func TestDispatchClaimProjection(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	captureStdout(t, func() {
-		if err := run(request, nil); err != nil {
-			t.Fatal(err)
-		}
-	})
-	store, err = overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if after, count := store.Head(); after != head || count != sequence {
-		t.Fatal("prompt retry duplicated claim")
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	request.worker = "session-two"
-	output = captureStdout(t, func() {
-		if err := run(request, nil); err != nil {
-			t.Fatal(err)
-		}
-	})
-	if !strings.Contains(output, "plan waiting:") || strings.Contains(output, "Claim:") {
-		t.Fatalf("competitor received executable task: %s", output)
-	}
 	before, err := os.ReadFile(filepath.Join(root, plan.Path))
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = withPlanMutation(root, func(current plan.Plan) error {
-		current.Items[0].Steps[0].Title = "replanned beneath active source"
-		return savePlanMutation(root, current)
-	})
-	if err == nil || !strings.Contains(err.Error(), "claimed by worker session-one") {
-		t.Fatalf("claimed mutation=%v", err)
-	}
-	after, err := os.ReadFile(filepath.Join(root, plan.Path))
-	if err != nil || !bytes.Equal(before, after) {
-		t.Fatal("refused mutation changed plan")
-	}
-	var released bytes.Buffer
-	if err := releaseDispatchClaim(root, owned.Claim.ID.String(), "session-two", "handoff", &released); err == nil {
-		t.Fatal("foreign worker released ownership")
-	}
-	if err := releaseDispatchClaim(root, owned.Claim.ID.String(), "session-one", "completed", &released); err == nil {
-		t.Fatal("CLI claimed completion without a gate")
-	}
-	if err := run(cli{releaseClaim: owned.Claim.ID.String(), releaseReason: "handoff", worker: "session-one", add: true}, nil); err == nil {
-		t.Fatal("mixed release and mutation options were admitted")
-	}
-	if err := releaseDispatchClaim(root, owned.Claim.ID.String(), "session-one", "handoff", &released); err != nil {
-		t.Fatal(err)
-	}
-	if err := withPlanMutation(root, func(current plan.Plan) error {
-		current.Items[0].Steps[0].Title = "reviewed after handoff"
-		return savePlanMutation(root, current)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	output = captureStdout(t, func() {
-		if err := run(request, nil); err != nil {
-			t.Fatal(err)
+	for _, worker := range []string{"session-one", "session-two"} {
+		out := captureStdout(t, func() {
+			if err := run(cli{prompt: true, worker: worker}, nil); err != nil {
+				t.Fatal(err)
+			}
+		})
+		if !strings.Contains(out, "TASK row/do") {
+			t.Fatalf("prompt for %s did not project the task:\n%s", worker, out)
 		}
-	})
-	if !strings.Contains(output, "worker=session-two") {
-		t.Fatalf("handoff failed: %s", output)
 	}
-	afterSource, err := os.ReadFile(source)
-	if err != nil || !bytes.Equal(afterSource, dirty) {
-		t.Fatal("dispatch or plan amendment changed dirty source")
+	store, err = overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if after, count := store.Head(); after != head || count != sequence {
+		t.Fatal("prompt wrote to the store")
+	}
+	if after, err := os.ReadFile(filepath.Join(root, plan.Path)); err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("prompt changed the plan: %v", err)
 	}
 }
 
@@ -239,7 +152,7 @@ func TestStopStatusProjection(t *testing.T) {
 	if err := json.Unmarshal([]byte(rendered), &status); err != nil {
 		t.Fatal(err)
 	}
-	if status.Stop == nil || !status.Stop.Blocked || status.Stop.Event.CodeCommit == status.Stop.CurrentHead || status.Complete || status.Claim != nil {
+	if status.Stop == nil || !status.Stop.Blocked || status.Stop.Event.CodeCommit == status.Stop.CurrentHead || status.Complete || status.Item != "" {
 		t.Fatalf("stop projection=%+v", status)
 	}
 	prompt := captureStdout(t, func() {
@@ -247,7 +160,7 @@ func TestStopStatusProjection(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	if !strings.Contains(prompt, "stop=active") || strings.Contains(prompt, "Claim:") {
+	if !strings.Contains(prompt, "stop=active") || strings.Contains(prompt, "TASK ") {
 		t.Fatalf("stopped executable prompt: %s", prompt)
 	}
 	raw, err := os.ReadFile(plan.Path)

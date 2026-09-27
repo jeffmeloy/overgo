@@ -91,6 +91,15 @@ func TestPrepareMergeGone(t *testing.T) {
 		"internal/plan/sync.go", "internal/plan/merge_projection.go")
 }
 
+// TestDispatchClaimsGone holds dispatch to the plan: a row is the first ready
+// one in prerequisite order, so the claim release command and the readiness
+// snapshot are deleted and prompting writes nothing.
+func TestDispatchClaimsGone(t *testing.T) {
+	t.Parallel()
+	requireGone(t, "internal/dispatchreadiness", "cmd/plan/dispatch_claim.go", "cmd/plan/release_by_item_test.go",
+		"internal/plan/campaign_test.go")
+}
+
 // TestOldGateMachineryGone closes the sweep the tests above make: the last
 // hand-run ratchet, the coverage-lanes report and its reviewed floors, goes
 // with the rest.

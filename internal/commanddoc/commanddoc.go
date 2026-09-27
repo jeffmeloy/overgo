@@ -20,11 +20,11 @@ type Descriptor struct {
 var Plan = Descriptor{
 	Command: clioptions.Command{
 		Name:     "plan",
-		Purpose:  "edit and dispatch the validated campaign in docs/plan.json; dispatch claims work while the gate verifies, publishes and advances it",
+		Purpose:  "edit and dispatch the campaign in docs/plan.json; a landing (cmd/loop -land) verifies and advances it",
 		Audience: "the master-lead session and its unattended driver working one dispatched row at a time",
 		Constraints: []string{
 			"-add takes the step's verify command through -vcmd; boolean -verify runs the top open step's verify",
-			"one operation per invocation; committing and advancing a row belong to cmd/gate, not plan",
+			"one operation per invocation; committing and advancing a row belong to cmd/loop -land, not plan",
 			"help opens no store and mutates no plan",
 			"scratch probes live in tmp (module overgo/tmp, replace overgo => ..): run one with go run ./tmp/<file>.go from the repository root or go run ./<file>.go from tmp; they stay outside ./...",
 		},

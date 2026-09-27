@@ -22,7 +22,9 @@ THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
     with the command that regenerates it: run that, then land again. The guard
     refuses a landing whose output is sent to a file.
     The message states "Cause:" and "Predicted effect:"; the gate refuses one
-    without them and writes what it measured itself, so type no numbers.
+    without them and writes what it measured itself, so type no numbers. The
+    predicted effect names the user-scorecard metric it moves where it can;
+    work that moves only internal metrics says why it exists.
     Merges: git merge --no-ff --no-commit <branch>, resolve, then land as
     above; the commit records both parents. Read the exit code UNPIPED.
  4. The successful gate removes the completed step. Do not run a separate

@@ -2,8 +2,9 @@
 // is formatted, modernized by go fix, vetted and tested -- go test's own
 // cache decides what runs again -- the lanes the change reaches run, a few
 // rules compare the changed files with HEAD, the row's own check passes, and
-// a change that reaches the benchmark runs the scorecard's slice; then the
-// tree is committed with the row's step removed from the plan. Git holds the
+// a change that reaches the benchmark runs the scorecard's slice, beside
+// HEAD's benchmark when the message predicts a timed metric; then the tree
+// is committed with the row's step removed from the plan. Git holds the
 // record: the message says what the gate measured, and a trailer carries the
 // slice for the next landing to compare against.
 package landing
@@ -114,17 +115,30 @@ func Run(ctx context.Context, options Options) (string, error) {
 	return l.commit(ctx)
 }
 
+// predictedSection opens the part of a landing message that says what the
+// change should do.
+const predictedSection = "Predicted effect:"
+
 // requireSections holds the message to the two sections every landing
 // states: why the change was needed and what it should do.
 func requireSections(message []byte) error {
-	for _, section := range []string{"Cause:", "Predicted effect:"} {
-		if !slices.ContainsFunc(strings.Split(string(message), "\n"), func(line string) bool {
-			return strings.HasPrefix(strings.TrimSpace(line), section)
-		}) {
-			return fmt.Errorf("land: the message lacks a %q section", section)
+	for _, label := range []string{"Cause:", predictedSection} {
+		if _, found := section(message, label); !found {
+			return fmt.Errorf("land: the message lacks a %q section", label)
 		}
 	}
 	return nil
+}
+
+// section is the message from the line that opens with label to its end,
+// and whether a line does.
+func section(message []byte, label string) (string, bool) {
+	lines := strings.Split(string(message), "\n")
+	at := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(strings.TrimSpace(line), label) })
+	if at < 0 {
+		return "", false
+	}
+	return strings.Join(lines[at:], "\n"), true
 }
 
 func rowVerify(document plan.Plan, item, step string) string {

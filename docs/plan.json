@@ -10,13 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "paired",
-          "title": "Pair the slice's timed cells when a landing predicts one",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingPairsPredictedTimedCells$' -count=1",
-          "rationale": "The per-landing slice reports first-output, throughput and load-time unpaired: one run on each side cannot tell a change from noise. When a Predicted effect names a timed metric by its exact name, build HEAD beside the tree (go build -overlay mapping each changed file to its HEAD bytes) and run the two binaries interleaved A B A B on the same device, reporting the paired delta and its spread; refuse only when the paired delta contradicts the prediction beyond that spread. First confirm the runs are paired-stable: a B A B run on an unchanged tree must show no delta, else the method, not the change, is measured. A slice that fails on the tree but not on HEAD refuses the landing: phase 1 only labels a failure, since one run cannot blame the change."
-        },
-        {
           "id": "per-modality",
           "title": "Extend the slice to the smallest servable model of each modality",
           "status": "open",

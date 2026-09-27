@@ -40,10 +40,14 @@ THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
     a landing whose output is sent to a file.
     The message states "Cause:" and "Predicted effect:"; the gate refuses one
     without them and writes what it measured itself, so type no numbers. The
-    predicted effect names the user-scorecard metric it moves, by its exact
-    name, where it can:
+    predicted effect names, by its exact name, each user-scorecard metric
+    it improves or holds, where it can:
       {metrics}
-    Work that moves only internal metrics says why it exists.
+    Naming a timed one claims it does not get worse: the gate then runs
+    HEAD's benchmark beside the tree's and refuses a worsening beyond the
+    noise of same-binary runs. A deliberate worsening is stated in words,
+    without the exact name. Work that moves only internal metrics says why
+    it exists.
     Merges: git merge --no-ff --no-commit <branch>, resolve, then land as
     above; the commit records both parents. Read the exit code UNPIPED.
  4. The successful gate removes the completed step. Do not run a separate

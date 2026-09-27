@@ -214,14 +214,10 @@ func prepareMergeWithProjection(
 				report.SourceActive, report.ClosureRecords, report.Copied, report.Bindings, len(report.Released))
 		}
 		keepMerge = true
-		projectionArguments, err := mergeFinalizeProjectionArguments(projection, liveSourceStore)
-		if err != nil {
-			return err
-		}
 		fmt.Fprintf(
 			output,
-			"prepare-merge: %s@%s staged; finalize with cmd/gate -merge%s -plan %s/do\n",
-			source, snapshot, projectionArguments, mergeID,
+			"prepare-merge: %s@%s staged; land it with go run ./cmd/loop -land %s/do\n",
+			source, snapshot, mergeID,
 		)
 		if lane {
 			fmt.Fprintf(output, "prepare-merge: lane merge prepared in %s from the request to the staged merge\n", time.Since(started).Round(time.Millisecond))
@@ -461,23 +457,6 @@ func firstParentTargetSourceStore(
 		return "", fmt.Errorf("prepare-merge: first-parent-target source store: %w", err)
 	}
 	return store, nil
-}
-
-func mergeFinalizeProjectionArguments(projection plan.MergeProjection, sourceStore string) (string, error) {
-	switch projection {
-	case plan.MergeProjectionSemanticUnion:
-		return "", nil
-	case plan.MergeProjectionFirstParentTarget:
-		if strings.TrimSpace(sourceStore) == "" {
-			return "", errors.New("prepare-merge: first-parent-target finalize command requires its live source store")
-		}
-		if strings.ContainsAny(sourceStore, "\"\r\n") {
-			return "", errors.New("prepare-merge: source store path cannot be rendered safely")
-		}
-		return " -plan-projection " + string(projection) + ` -merge-source-store "` + sourceStore + `"`, nil
-	default:
-		return "", errors.New("prepare-merge: invalid merge projection")
-	}
 }
 
 func verifySourceSnapshot(source, snapshot string, latest []byte, resolveErr error) error {

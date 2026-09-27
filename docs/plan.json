@@ -11,6 +11,36 @@
       "status": "open",
       "steps": [
         {
+          "id": "selection",
+          "title": "Delete the code-manifest impact selection",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestSelectionAnalyzersGone$' -count=1"
+        },
+        {
+          "id": "ledger",
+          "title": "Delete the closure ledger",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestClosureLedgerGone$' -count=1"
+        },
+        {
+          "id": "census",
+          "title": "Replace the modern-Go census and its baseline with go fix",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestModernGoCensusGone$' -count=1"
+        },
+        {
+          "id": "authority",
+          "title": "Delete the plan completion authority",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestCompletionAuthorityGone$' -count=1"
+        },
+        {
+          "id": "records",
+          "title": "Delete the gate records from runrecord",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestGateRecordsGone$' -count=1"
+        },
+        {
           "id": "do",
           "title": "Delete the old gate machinery the small gate replaced",
           "status": "open",
@@ -1101,7 +1131,13 @@
             "detached-runner-leftovers/do",
             "repair-outputs-only-when-changed/do",
             "gate-small-cutover/do",
-            "gate-machinery-deleted/do"
+            "gate-machinery-deleted/do",
+            "gate-machinery-deleted/old-gate",
+            "gate-machinery-deleted/selection",
+            "gate-machinery-deleted/ledger",
+            "gate-machinery-deleted/census",
+            "gate-machinery-deleted/authority",
+            "gate-machinery-deleted/records"
           ]
         }
       ]

@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 )
 
@@ -125,15 +124,6 @@ func TestReleaseIntegrityContract(t *testing.T) {
 		if !slices.Contains(releaseDocuments, durable) {
 			t.Errorf("durable release document missing: %s", durable)
 		}
-	}
-}
-
-func TestReleaseManifestAudit(t *testing.T) {
-	command := releaseManifestAuditCommand("repository")
-	joined := strings.Join(command.Args, " ")
-	if command.Dir != "repository" || !strings.Contains(joined, "-inspect-plan") ||
-		!strings.Contains(joined, "-paths cmd,internal") || strings.Contains(joined, "cache") {
-		t.Fatalf("release manifest audit = dir %q args %q", command.Dir, joined)
 	}
 }
 

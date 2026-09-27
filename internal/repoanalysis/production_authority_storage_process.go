@@ -61,18 +61,11 @@ func auditStorageAndProcessAuthorities(sources []productionAuthoritySource, repo
 	// kind: each site is a reviewed entry here, never a caller's choice.
 	verifyAuthoritySites(report, "storage", ".CommitAs", producerCommitSites, []authorityAllowance{
 		{File: "cmd/store-precheck/main.go", Count: oneAuthoritySite},
-		{File: "internal/gate/batch_evidence.go", Count: oneAuthoritySite},
-		{File: "internal/gate/deferred_lanes.go", Count: twoAuthoritySites},
-		{File: "internal/gate/finalization.go", Count: oneAuthoritySite},
-		{File: "internal/gate/preparation.go", Count: oneAuthoritySite},
-		{File: "internal/gate/recovery.go", Count: threeAuthoritySites},
-		{File: "internal/gate/terminal_evidence.go", Count: twoAuthoritySites},
 		{File: "internal/overgodb/rebuild.go", Count: oneAuthoritySite},
 		{File: "internal/overgodb/store.go", Function: "Store.Commit", Count: oneAuthoritySite},
 	})
 	verifyAuthoritySites(report, "storage", "overgodb.NewProducer", producerMintSites, []authorityAllowance{
 		{File: "cmd/store-precheck/main.go", Count: oneAuthoritySite},
-		{File: "internal/gate/finalization.go", Count: oneAuthoritySite},
 	})
 	verifyAuthoritySites(report, "storage", "recordLog.append", appendSites, []authorityAllowance{{
 		File: "internal/overgodb/commit_coordinator.go", Function: "commitCoordinator.commit", Count: oneAuthoritySite,
@@ -167,10 +160,9 @@ var processPrimitiveAllowances = []authorityAllowance{
 	{File: "cmd/compatibility/training.go", Count: oneAuthoritySite},
 	{File: "cmd/composite-generation-lane/run_windows.go", Count: oneAuthoritySite},
 	{File: "cmd/eval-lane/main.go", Count: oneAuthoritySite},
-	{File: "internal/gate/gate.go", Count: threeAuthoritySites},
 	{File: "cmd/loophook/main.go", Count: sixAuthoritySites},
 	{File: "cmd/plan/sync.go", Count: threeAuthoritySites},
-	{File: "cmd/release/main.go", Count: fiveAuthoritySites},
+	{File: "cmd/release/main.go", Count: fourAuthoritySites},
 	{File: "cmd/reverify/main.go", Count: twoAuthoritySites},
 	{File: "cmd/sbom/main.go", Count: oneAuthoritySite},
 	{File: "internal/clioptions/command.go", Count: oneAuthoritySite},

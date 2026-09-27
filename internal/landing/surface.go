@@ -24,11 +24,11 @@ type mediaRuntimePins struct {
 	RuntimePaths []string `json:"runtime_paths"`
 }
 
-// MediaMoves refuses shipped paths that move the pinned media runtime
+// mediaMoves refuses shipped paths that move the pinned media runtime
 // without the reconciliation that answers for the move; the media acceptance
 // finds such a move only after the commit. It reports whether no pinned path
 // moved.
-func MediaMoves(repo string, paths []string) (bool, error) {
+func mediaMoves(repo string, paths []string) (bool, error) {
 	data, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(mediaMergedDocument)))
 	if errors.Is(err, fs.ErrNotExist) {
 		return true, nil

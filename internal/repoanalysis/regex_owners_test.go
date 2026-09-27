@@ -31,7 +31,6 @@ var regexOwners = map[string]string{
 	"internal/evaluation/ifeval_text.go":              "IFEval text rules are defined as patterns",
 	"internal/evaluation/ifeval_tokenizer_profile.go": "IFEval tokenizer profile is defined as patterns",
 	"internal/evaluation/instruction_rules.go":        "instruction-following rules are defined as patterns",
-	"internal/gate/runtime_inputs.go":                 "classifies function names by verb",
 	"internal/gemma4convert/convert.go":               "reads the Hugging Face tensor-name grammar",
 	"internal/gemma4convert/tower.go":                 "reads the Hugging Face tensor-name grammar",
 	"internal/guard/guard.go":                         "scans shell command text, a pattern language by nature",

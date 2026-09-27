@@ -79,12 +79,13 @@ scope and resource ceilings. Learn from successful, rejected, and failed work.
 5. Run required checks, retain results, resolve failures. Preserve unfinished
    obligations across checkpoints, retries, and restart.
 6. Land with `go run ./cmd/loop -land <item>/<step> -message-file -`, the
-   message on standard input stating `Cause:` and `Predicted effect:`. It
-   claims, preflights, gates, confirms from Git, and awaits the deferred lanes;
-   the gate owns acceptance and removes the completed row. No raw commits.
-   A lane merge is `git merge --no-ff --no-commit <branch>`, then
-   `go run ./cmd/gate -merge -plan-projection first-parent-target
-   -merge-source-store <lane store> -plan merge-<head12>/do -message-file <f>`.
+   message on standard input stating `Cause:` and `Predicted effect:`. The
+   small gate runs go fmt, go vet, the rules against HEAD, `go test ./...`
+   with its cache, the lanes the change reaches and the row's verify, then
+   commits with the step removed and confirms from Git. A stale derived file
+   fails its test with the command that regenerates it. No raw commits.
+   A lane merge is `git merge --no-ff --no-commit <branch>`, resolved, then
+   landed the same way; the commit records both parents.
 
 Continue/resume/loop requests return to dispatch after each landing. Landings do
 not complete campaigns. A user prompt is answered, then work continues; only an

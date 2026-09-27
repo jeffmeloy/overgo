@@ -35,7 +35,7 @@ func TestPreflightNamesPinnedBytes(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	stale, err := StalePins(root, []string{"internal/a/a_test.go", "internal/b/b_test.go", "internal/c/harness_test.go", "docs/verification/fixture-coverage.json"})
+	stale, err := stalePins(root, []string{"internal/a/a_test.go", "internal/b/b_test.go", "internal/c/harness_test.go", "docs/verification/fixture-coverage.json"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestPreflightNamesPinnedBytes(t *testing.T) {
 	if !slices.Equal(stale, want) {
 		t.Fatalf("stale pins %q, want %q", stale, want)
 	}
-	if stale, err := StalePins(root, []string{"internal/b/b_test.go"}); err != nil || len(stale) != 0 {
+	if stale, err := stalePins(root, []string{"internal/b/b_test.go"}); err != nil || len(stale) != 0 {
 		t.Fatalf("an unpinned change named %q (%v)", stale, err)
 	}
 }

@@ -110,12 +110,12 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			return err
 		}
 		// One receipt per acceptance package, asked for once.
-		receipts := map[string]gateReceipt{}
+		receipts := map[string]testReport{}
 		for _, pkg := range surfacePackages {
 			if _, asked := receipts[pkg]; asked {
 				continue
 			}
-			receipt, err := gatePackageReceipt(ctx, *root, pkg)
+			receipt, err := packageTests(ctx, *root, pkg)
 			if err != nil {
 				return err
 			}

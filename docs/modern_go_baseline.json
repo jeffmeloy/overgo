@@ -7,8 +7,8 @@
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3667,
-    "typed_files": 3603
+    "inspected_files": 3692,
+    "typed_files": 3627
   },
   "guidelines": [
     {
@@ -343,50 +343,6 @@
     },
     {
       "guideline": "strings_split_seq",
-      "path": "internal/gate/gate.go",
-      "symbol": "gitLines",
-      "owner": "overgo/internal/gate",
-      "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
-      "oracle": "go test ./internal/gate -count=1",
-      "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "strings_split_seq",
-      "path": "internal/gate/gate.go",
-      "symbol": "observeDiff",
-      "owner": "overgo/internal/gate",
-      "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
-      "oracle": "go test ./internal/gate -count=1",
-      "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "strings_split_seq",
-      "path": "internal/gate/run.go",
-      "symbol": "Run",
-      "owner": "overgo/internal/gate",
-      "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
-      "oracle": "go test ./internal/gate -count=1",
-      "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "strings_split_seq",
-      "path": "internal/gate/verification.go",
-      "symbol": "changedGoPathsAtRevision",
-      "owner": "overgo/internal/gate",
-      "reason": "The owner materializes, indexes, counts, or reuses the complete split result, so an iterator is not an equivalent replacement.",
-      "oracle": "go test ./internal/gate -count=1",
-      "retirement": "Retire when the consumer becomes a single-pass range with no retained split slice or indexing contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "strings_split_seq",
       "path": "internal/sampling/json_schema.go",
       "symbol": "indexRefs",
       "owner": "overgo/internal/sampling",
@@ -557,17 +513,6 @@
       "owner": "overgo/internal/cuda/executor",
       "reason": "The owner requires an explicitly materialized key or value slice for capacity, mutation, ordering, or downstream API ownership.",
       "oracle": "go test ./internal/cuda/executor -count=1",
-      "retirement": "Retire when the downstream contract accepts an iterator directly and no concrete slice identity or mutation remains.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "maps_keys_values_iter",
-      "path": "internal/gate/package_cache.go",
-      "symbol": "dependentDirectories",
-      "owner": "overgo/internal/gate",
-      "reason": "The owner requires an explicitly materialized key or value slice for capacity, mutation, ordering, or downstream API ownership.",
-      "oracle": "go test ./internal/gate -count=1",
       "retirement": "Retire when the downstream contract accepts an iterator directly and no concrete slice identity or mutation remains.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
@@ -1041,17 +986,6 @@
       "owner": "overgo/internal/cuda/executor",
       "reason": "The owner retains explicit materialization or in-place ordering semantics that slices.Sorted would hide or change.",
       "oracle": "go test ./internal/cuda/executor -count=1",
-      "retirement": "Retire when ordering can consume an iterator directly without preserving the current buffer identity or stable staging.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sorted",
-      "path": "internal/gate/package_cache.go",
-      "symbol": "dependentDirectories",
-      "owner": "overgo/internal/gate",
-      "reason": "The owner retains explicit materialization or in-place ordering semantics that slices.Sorted would hide or change.",
-      "oracle": "go test ./internal/gate -count=1",
       "retirement": "Retire when ordering can consume an iterator directly without preserving the current buffer identity or stable staging.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
@@ -4588,5 +4522,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "029699dbd1db25b8797351ec04d27c388280f93b4aeb8aa0c0008fa3f2212659"
+  "exceptions_sha256": "39e85d0a9cacf6dff467808a5c075183048ef57ee07667f13fec57dc16c2e72e"
 }

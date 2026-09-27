@@ -125,24 +125,6 @@ func TestPrepareMergeFirstParentTargetRetainsOnlyLocalPlan(t *testing.T) {
 	}
 }
 
-func TestMergeFinalizeProjectionArguments(t *testing.T) {
-	t.Parallel()
-	if got, err := mergeFinalizeProjectionArguments(plan.MergeProjectionSemanticUnion, `C:\source lane\overgodb-store`); err != nil || got != "" {
-		t.Fatalf("semantic-union arguments = %q, %v", got, err)
-	}
-
-	source := filepath.Join(t.TempDir(), "source lane", "overgodb-store")
-	want := ` -plan-projection first-parent-target -merge-source-store "` + source + `"`
-	got, err := mergeFinalizeProjectionArguments(plan.MergeProjectionFirstParentTarget, source)
-	if err != nil || got != want {
-		t.Fatalf("first-parent-target arguments = %q, %v, want %q", got, err, want)
-	}
-	if _, err := mergeFinalizeProjectionArguments(plan.MergeProjectionFirstParentTarget, ""); err == nil ||
-		!strings.Contains(err.Error(), "requires its live source store") {
-		t.Fatalf("missing first-parent-target source store error = %v", err)
-	}
-}
-
 func TestFirstParentTargetSourceStoreRequiresRegisteredWorktree(t *testing.T) {
 	t.Parallel()
 	repository, runGit := mergeTestRepository(t)

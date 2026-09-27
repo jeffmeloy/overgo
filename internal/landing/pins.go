@@ -100,10 +100,10 @@ func relativeRecord(repo, path string) string {
 	return filepath.ToSlash(relative)
 }
 
-// StalePins names each planned path whose bytes -- raw, or with CRLF line
+// stalePins names each planned path whose bytes -- raw, or with CRLF line
 // ends normalized as a checkout may write them -- no longer match a pin,
 // with the record that pins it.
-func StalePins(repo string, paths []string) ([]string, error) {
+func stalePins(repo string, paths []string) ([]string, error) {
 	pins, err := bytePins(repo)
 	if err != nil {
 		return nil, err

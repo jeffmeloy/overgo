@@ -1,7 +1,6 @@
 package main
 
 import (
-	"strings"
 	"testing"
 
 	"overgo/internal/plan"
@@ -42,10 +41,6 @@ func TestPrepareMergeLaneProjection(t *testing.T) {
 	}
 	if row := merged.Items[0]; row.Owner != "" || row.Steps[0].Verify != "go run ./cmd/compatibility -check" {
 		t.Fatalf("target merge row = %+v", row)
-	}
-	arguments, err := mergeFinalizeProjectionArguments(plan.MergeProjectionFirstParentTarget, `C:\master\overgodb-store`)
-	if err != nil || !strings.Contains(arguments, "-merge-source-store") {
-		t.Fatalf("finalize arguments = %q, %v", arguments, err)
 	}
 }
 

@@ -44,7 +44,6 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
-	"overgo/internal/runrecord"
 )
 
 // The loop's pause marker lives in the checkout's process state; the legacy
@@ -223,12 +222,11 @@ func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {
 
 // execWorld adapts the driver to the repository's real owners.
 type execWorld struct {
-	stopStore      *overgodb.Store
-	config         config
-	strategy       loop.Strategy
-	validationDebt string
-	promptPrefix   string
-	campaign       *processcontrol.Campaign
+	stopStore    *overgodb.Store
+	config       config
+	strategy     loop.Strategy
+	promptPrefix string
+	campaign     *processcontrol.Campaign
 }
 
 func (w *execWorld) Current() (loop.Step, bool, error) {
@@ -253,74 +251,14 @@ func (w *execWorld) Current() (loop.Step, bool, error) {
 	return loop.Step{Item: dispatch.Item, ID: dispatch.Step}, true, nil
 }
 
-// awaitValidation waits for a live gate to release its mutation ownership,
-// then runs the lanes the landed commit owes in the foreground (gate -lanes),
-// resuming the durable obligation if an earlier run was interrupted.
+// awaitValidation waits for a live plan or gate mutation to release its
+// ownership before the driver reads the plan.
 func (w *execWorld) awaitValidation() error {
-	if err := authoritylock.Wait(context.Background(), loopWorktree); err != nil {
-		return err
-	}
-	if w.stopStore == nil {
-		return nil
-	}
-	if err := w.stopStore.Refresh(context.Background()); err != nil {
-		return err
-	}
-	obligation, found, err := runrecord.CurrentGateLaneObligation(context.Background(), w.stopStore)
-	w.validationDebt = ""
-	if err != nil || !found || obligation.Resolved() {
-		return err
-	}
-	if obligation.State == runrecord.LaneObligationFailed {
-		w.validationDebt = laneFailure(w.stopStore, obligation)
-		return nil
-	}
-	// A stop pauses new work; the lanes a landed commit owes finish it, so
-	// they run under a stop too, and a landing never reports ready with its
-	// lanes unrun.
-	out, err := runTool("go", "run", "./cmd/gate", "-lanes")
-	if err != nil {
-		// A recorded lane failure is work for the next repair invocation, not
-		// an invitation to rerun identical measurements until they turn green.
-		if refreshErr := w.stopStore.Refresh(context.Background()); refreshErr != nil {
-			return refreshErr
-		}
-		current, found, readErr := runrecord.CurrentGateLaneObligation(context.Background(), w.stopStore)
-		if readErr == nil && found && current.Resolved() {
-			return nil
-		}
-		if readErr == nil && found && current.State == runrecord.LaneObligationFailed {
-			w.validationDebt = laneFailure(w.stopStore, current)
-			return nil
-		}
-		return fmt.Errorf("loop: resume deferred validation: %w: %s", err, tailOf(out, 4000))
-	}
-	return nil
-}
-
-// laneFailure says what a failed lane obligation owes: the commit, the
-// result to inspect, and -- from that result -- which lane failed and what
-// it said, so the repair starts from the failure instead of from a rerun.
-func laneFailure(store artifact.Reader, obligation runrecord.GateLaneObligation) string {
-	debt := fmt.Sprintf("Deferred validation failed for commit %s; inspect result %s and repair the recorded failure before the next commit. Do not rerun unchanged tests blindly.", obligation.CodeCommit, obligation.Outcome)
-	result, err := runrecord.RequireGateResult(context.Background(), store, obligation.Outcome)
-	if err != nil {
-		return debt
-	}
-	for _, step := range result.Steps {
-		if step.Name == result.Failure && step.Detail != "" {
-			debt += "\n" + step.Name + " said: " + step.Detail
-		}
-	}
-	return debt
+	return authoritylock.Wait(context.Background(), loopWorktree)
 }
 
 func (w *execWorld) Prompt(loop.Step) (string, error) {
-	prompt, err := planCommand("-prompt")
-	if err == nil && w.validationDebt != "" {
-		prompt += "\n\n" + w.validationDebt
-	}
-	return prompt, err
+	return planCommand("-prompt")
 }
 
 func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, error) {

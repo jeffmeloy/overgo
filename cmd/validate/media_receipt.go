@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
+	"slices"
 	"strings"
 
 	"overgo/internal/processcontrol"
@@ -15,10 +17,9 @@ import (
 // Media and specialized evidence is keyed to the media runtime identity, and
 // whether it holds at a tree is decided by the acceptance tests of one package:
 // the chain of reviewed layers they walk is the only owner of that judgement.
-// The gate keeps a receipt of that package's complete run, keyed to the exact
-// inputs it ran against, so the planner asks the gate for the receipt at this
-// tree and reads the named verdicts, instead of re-running the suite or
-// duplicating the chain.
+// The planner runs those acceptances with go test at this tree and reads the
+// named verdicts; go test's cache, keyed to the exact inputs, replays a run
+// whose inputs did not change, so asking again costs nothing.
 
 // mediaAcceptancePackage is the package whose complete receipt judges media
 // and specialized evidence.
@@ -52,51 +53,58 @@ var surfaceAcceptances = map[SurfaceID]*regexp.Regexp{
 	"speech":      regexp.MustCompile(`^(TestSpeakE2EProducesReferenceAudio|TestGenerationGolden|TestMimiDecodeStagesGolden|TestBackboneStreamGolden|TestFlowOneStepGolden|TestTokenizerGoldenCases)$`),
 }
 
-// gateReceipt is what cmd/gate -package-receipt reports.
-type gateReceipt struct {
-	Package    string            `json:"package"`
-	Mode       string            `json:"mode"`
-	Obligation string            `json:"obligation"`
-	Found      bool              `json:"found"`
-	Passed     bool              `json:"passed"`
-	Tests      map[string]string `json:"tests"`
+// testReport is one go test run of an acceptance package's acceptances:
+// whether it passed, and each test's final action.
+type testReport struct {
+	Passed bool
+	Tests  map[string]string
 }
 
-// gatePackageReceipt asks the gate for a package's complete receipt at the
-// working tree.
-func gatePackageReceipt(ctx context.Context, root, packagePath string) (gateReceipt, error) {
+// packageTests runs the acceptances the judged surfaces name in one package
+// at the working tree.
+func packageTests(ctx context.Context, root, packagePath string) (testReport, error) {
+	var patterns []string
+	for surface, pkg := range surfacePackages {
+		if pkg == packagePath {
+			patterns = append(patterns, "("+surfaceAcceptances[surface].String()+")")
+		}
+	}
+	slices.Sort(patterns)
 	var stdout, stderr bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: "go", Args: []string{"run", "./cmd/gate", "-package-receipt", packagePath}, Dir: root,
+		Path: "go", Args: []string{"test", "-json", "-run", strings.Join(slices.Compact(patterns), "|"), "./" + packagePath}, Dir: root,
 		Stdout: &stdout, Stderr: &stderr,
 	})
 	if err != nil {
-		return gateReceipt{}, fmt.Errorf("validate: gate package receipt: %w", err)
+		return testReport{}, fmt.Errorf("validate: test %s: %w", packagePath, err)
 	}
-	if receipt.ExitCode != 0 {
-		return gateReceipt{}, fmt.Errorf("validate: gate package receipt: exit=%d: %s", receipt.ExitCode, strings.TrimSpace(stderr.String()))
-	}
-	var report gateReceipt
-	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
-		return gateReceipt{}, fmt.Errorf("validate: gate package receipt: %w", err)
+	report := testReport{Passed: receipt.ExitCode == 0, Tests: map[string]string{}}
+	decoder := json.NewDecoder(&stdout)
+	for {
+		var event struct{ Action, Test string }
+		if err := decoder.Decode(&event); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return testReport{}, fmt.Errorf("validate: test %s: %w: %s", packagePath, err, strings.TrimSpace(stderr.String()))
+		}
+		if event.Test != "" && (event.Action == "pass" || event.Action == "fail" || event.Action == "skip") {
+			report.Tests[event.Test] = event.Action
+		}
 	}
 	return report, nil
 }
 
 // mediaCurrent says why a surface's evidence is not current at this tree: the
-// acceptance package has no receipt for these inputs, its run failed, or the
-// surface's acceptances are not among the verdicts that passed. Nil means the
+// acceptance run failed, or the surface's acceptances are not among the
+// verdicts that passed. Nil means the
 // named acceptances passed against exactly this tree's inputs.
-func mediaCurrent(report gateReceipt, surface SurfaceID) error {
+func mediaCurrent(report testReport, surface SurfaceID) error {
 	pattern, judged := surfaceAcceptances[surface]
 	pkg := surfacePackages[surface]
 	if !judged || pkg == "" {
 		return errCellNotJudged
 	}
-	rerun := "run: go run ./cmd/gate -package-run " + pkg
-	if !report.Found {
-		return fmt.Errorf("no complete receipt for %s at this tree's inputs; %s", pkg, rerun)
-	}
+	rerun := "run: go test ./" + pkg
 	if !report.Passed {
 		return fmt.Errorf("the complete run of %s failed at this tree's inputs; repair it, then %s", pkg, rerun)
 	}

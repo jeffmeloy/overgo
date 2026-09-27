@@ -98,7 +98,7 @@ func run(args []string) error {
 	directionSpecPath := flags.String("publish-direction", "", "publish one extracted residual-direction claim from this spec")
 	attemptReceiptSpecPath := flags.String("attempt-receipt", "", "resolve and print one terminal attempt receipt from this spec")
 	resumeMediaExperimentSpec := flags.String("resume-media-experiment", "", "resume one media experiment from this spec, reusing retained acquisitions and publishing the report without opening a model")
-	landReference := flags.String("land", "", "land one authored row: claim, preflight, gate, confirm the landing from git, await the deferred lanes and list its review candidates: -land <item>/<step> -message-file <file>")
+	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step> -message-file <file>")
 	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
 	if err := flags.Parse(args); err != nil {
 		return err

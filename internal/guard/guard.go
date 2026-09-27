@@ -192,14 +192,14 @@ func ruleVerdict(command, root string) string {
 			"'dir /AL /S' for reparse points first and ask the user"
 	}
 	if os.Getenv(GateEnv) != "1" && !mergeInProgress(root) && rawCommit.MatchString(stripped) {
-		return "raw git commit bypasses cmd/gate (hygiene + derived-scope tests + store record); run " +
-			"'go run ./cmd/gate -plan <item>/<step> -message-file <path>' instead. --no-verify does not help: the gate is " +
+		return "raw git commit bypasses the small gate (format, vet, rules, tests, lanes, the row's verify); run " +
+			"'go run ./cmd/loop -land <item>/<step> -message-file -' instead. --no-verify does not help: the gate is " +
 			"the thing being skipped, not a hook"
 	}
 	if landTranscript.MatchString(harmlessSink.ReplaceAllString(stripped, "")) {
-		return "a landing's output is not kept in a file: loop -land prints the lines that decide the outcome and the " +
-			"store holds the rest -- 'go run ./cmd/plan -history <item> -phases' for phases and costs, the " +
-			"store-local/gate-lanes/current alias for the lanes; give the message on standard input with -message-file -"
+		return "a landing's output is not kept in a file: loop -land prints the lines that decide the outcome, and the " +
+			"commit's 'Measured by the gate' line holds each phase's time; give the message on standard input with " +
+			"-message-file -"
 	}
 	if heredoc.MatchString(raw) && strings.Contains(raw, `\`) && sourcePath.MatchString(raw) && writeSink.MatchString(raw) {
 		return "a Bash heredoc EATS one level of backslash escaping and will write mangled content; use the Write or " +

@@ -63,22 +63,6 @@
       ]
     },
     {
-      "id": "one-capability-report",
-      "title": "Keep the store-derived reports committed and regenerate them at the gate",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep the store-derived reports committed and regenerate them at the gate",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestOneCapabilityReport$' -count=1",
-          "rationale": "Owner decision 2026-09-26: the capability reports stay committed to git, where readers of the repository see them, rather than rendered on demand. The original aim (one report rendered from the store, none tracked) is therefore withdrawn. What remains is freshness: docs/model_compatibility.json (written by compatibility -update-models), docs/media_report.json and docs/MEDIA_REPORT.md (-update-media) and docs/BENCHMARK.md (benchmark-report -update) are projections of OvergoDB state that no gate check regenerates or compares -- BENCHMARK.md's -check is not wired in, the models report has no freshness check at all, and the media reports are checked only when a data root is present -- so each drifts from the store until someone reruns its writer. Regenerate each as a staged repair from the data-root store, the way the API manifest and compatibility matrix are, so a committed report is always the store's current projection."
-        }
-      ]
-    },
-    {
       "id": "device-claim-everywhere",
       "title": "Have every GPU user take the device claim lanes wait on",
       "owner": "master-lead",
@@ -90,52 +74,6 @@
           "status": "open",
           "verify": "go test ./internal/server -run '^TestServedModelHoldsTheDeviceClaim$' -count=1",
           "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out. 2026-09-25: the device lane of 69368990 failed 'physical resource is already reserved' in devicemath while two other gate processes held the GPU, and passed unchanged on re-run; a claim every GPU user takes turns that into a wait with a named holder instead of a failed lane and a manual re-run. Found 2026-09-26: every CUDA context already takes the shared device claim (driver.ContextCreate calls processcontrol.ShareResource), so a served model holds it for its context's life, and a timed-out exclusive wait already names its holders (01cbf544, TestResourceWaitNamesItsHolders). What remains is proof, not mechanism: a device test that a served model's context holds the claim an exclusive reservation then waits on."
-        }
-      ]
-    },
-    {
-      "id": "capability-test-gates",
-      "title": "Gate device and browser tests by detected capability, not environment variables",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Gate device and browser tests by detected capability, not environment variables",
-          "status": "open",
-          "verify": "go test ./internal/testskip -run '^TestCapabilityGates$' -count=1",
-          "rationale": "OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_PROBE_TEST and per-model flags gate tests, and a skip-reason classifier recovers what they lose (fd3e2549). Detect the device and the browser once, skip with a classified reason when absent, and delete the variables. 2026-09-25: the reviewed media delta for the VAE port needed its device receipt run by hand with OVERGO_CUDA_TEST=1, OVERGO_WAN_MODEL pointing at the Wan checkpoint, -tags integration and -p 1; without them the Wan device tests silently skipped and the receipt proved nothing about the changed paths. Resolve a test's model through the store by identity (models-resolve-by-identity) and its device by detection, so a receipt over a package runs its real-model tests without an operator knowing the switches."
-        }
-      ]
-    },
-    {
-      "id": "automation-pinned-identities-reacquire",
-      "title": "Re-acquire pinned identities automatically when the surface moves",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Re-acquire pinned identities automatically when the surface moves",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestSurfaceMoveReacquiresPinnedIdentities$' -count=1",
-          "rationale": "Consolidation round 1, refactor 6. The inference-surface digest and the media runtime hash turn every file move into a delta and a re-acquisition: 35 commits were manual re-acquire or refresh work. Key guards and media deltas by the surface digest held in the store and re-acquire them automatically when the surface moves (cmd/loop surface move), in the same landing. Two further birds from 2026-09-25: (1) narrow the surface to what inference executes -- the hidden-console fix to internal/processcontrol and the audio lane's internal/optimizer restore each expired every text guard although neither runs in text inference; (2) build a reviewed media delta from its receipt in one command -- file hashes, the device receipt with its model resolved, required tests chosen from the passing tests that exercise the changed files, and the registry identity -- instead of the hand-assembled JSON and constant edit the VAE port needed. Absorbs surface-move-preflight; guards-reacquire-lane and surface-without-capability-tables follow it. Done when TestSurfaceMoveReacquiresPinnedIdentities proves a surface move lands with its identities re-acquired and no manual row. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
-        }
-      ]
-    },
-    {
-      "id": "guards-reacquire-lane",
-      "title": "Re-acquire expired text guards in a deferred lane",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Re-acquire expired text guards in a deferred lane",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestSurfaceMoveQueuesGuardReacquisition$' -count=1",
-          "rationale": "Automation friction: a landing that moves the inference surface expires every text guard (10 models), and re-acquisition is manual: longform -guard-coverage -all -publish at about 8 minutes per model, run from a detached scratch worktree at HEAD because -publish needs a clean tree (cc73695a). The pending GUI arch-event-hub merge had to be batched with master's next surface move for this reason alone. When a landed commit moves the surface, queue guard re-acquisition as a deferred lane at that commit. Its results publish into the store, and the next gate waits for its verdict like the device lanes. Reuse the device claim and the existing deferred-lane scheduler; add no scheduler. Done when TestSurfaceMoveQueuesGuardReacquisition shows a surface-moving landing queues the lane and a non-moving one does not. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
         }
       ]
     },
@@ -410,7 +348,7 @@
           "id": "do",
           "title": "Run or delete tests no lane enables",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestEveryTestGateIsSetByALane$' -count=1",
+          "verify": "go test ./internal/landing -run '^TestEveryTestGateIsSetByALane$' -count=1",
           "rationale": "From consolidation-inventory (2026-09-24): 283 OVERGO_* environment reads sit in tests; 151 names appear only in tests and 145 of those are documented nowhere. 130 test functions (about 12,000 lines) skip unless a variable is set, and the lanes set only OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_WEBUI_LANE_SCREENS and OVERGO_BROWSER, so about 82 of them (about 5,800 lines, heaviest in internal/inference, adaptiveparity and projector) never run in any gate. Owner direction 2026-09-24: training and inference validation is the point of overgo, so give each a lane that runs it, with its model or data declared. Delete only a test a named running test supersedes. The same holds for modeltest-tagged suites no lane runs, such as seq2seq's GSM8K training suite. The probe is tmp/envgate_probe.go. Done when TestEveryTestGateIsSetByALane holds."
         }
       ]
@@ -440,7 +378,7 @@
           "id": "do",
           "title": "Retire tmp as a place tools and evidence depend on",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestTmpHoldsOnlyDeclaredState' -count=1",
+          "verify": "go test ./internal/repoanalysis -run '^TestNoToolDependsOnTmp$' -count=1",
           "rationale": "tmp holds 4.1 GB: merge-evidence 3.3 GB, qwen27-native-reference 730 MB (a source checkout), qwen27-projection 88 MB, and about 60 scratch probes and messages. The gate closure proposals, the loop proposals and the overgodb-rebuild default write there. cmd/compatibility evidence names tmp/qwen9-musr-*.json as inputs, and docs/media_report.json and text-vision-coverage.json name the qwen27 trees. Owner direction 2026-09-23: delete stale data. Move each named input into the store with lineage, point tools at os.MkdirTemp or the runtime directory, then delete what nothing names."
         }
       ]
@@ -476,21 +414,6 @@
       ]
     },
     {
-      "id": "gate-suite-longest-tests",
-      "title": "Cut the gate suite's longest tests",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Cut the gate suite's longest tests",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestGateSuiteLongestTestsBudget$' -count=1",
-          "rationale": "Measured 2026-09-23 at 83d0bb9b: suite 149-155 s. The critical path is the live fixture's single lock: ready at about 33 s, then 14 seeded plans run one at a time for about 103 s, and TestTestingReductionContract's five plans end the suite alone. Each plan recomputes whole-snapshot analyses for a one-file seed (codeprofile.Build 14 s, the consumer graph through go list 15 s, manifest identity 10 s and diff 6 s, CPU over five plans), so the content-keyed manifest cache never hits. Warming the base manifest in the fixture measured no gain. A pool of checkouts costs about 40 s of cold setup per extra slot and reverses the one-checkout budget. The structural lever is incremental analysis keyed per file or package (profile facts and consumer-graph edges reused for unchanged files), which also shortens every production gate's base-versus-candidate manifests."
-        }
-      ]
-    },
-    {
       "id": "store-open-lineage-cost",
       "title": "Defer decoding large store facets until first use, if opens are still slow",
       "owner": "master-lead",
@@ -504,8 +427,7 @@
           "rationale": "Re-measured 2026-09-24 after store-open-decode-cost (180a7a3c): an open takes about 1.05-1.5 s and allocates 1.8 GB; checkpoint decode is 56% of it (lineage 0.6 s) and replaying the 8,100 commits since the last checkpoint is 32%. Before that, 2026-09-22: a read-only open is 1.7 s, bounded by the largest decode (lineage 88.3 MB of 189 MB), with verification about 0.1 s. Laziness inside the facet fails (value receivers) and re-replaying the journal fails (shared file cursor). Defer at the store, which owns the lock: keep the verified payload and pending commits, apply on first load behind a double-checked write lock, and test that a deferred facet answers exactly as an eager one. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed.",
           "depends_on": [
             "store-small-record-horizon/do",
-            "store-benchmark-record-redundancy/do",
-            "store-growth-ratchet/do"
+            "store-benchmark-record-redundancy/do"
           ]
         }
       ]
@@ -531,16 +453,6 @@
           "rationale": "On scratch stores and peers, inject failures before and after side effects and receipt publication; assert state, lineage, idempotence and no duplicate mutations using the existing loop and agent-loop owners. Migrate service and command startup to OpenContext with the caller's cancellation; process death releases ownership without stale-file or PID heuristics. No new retry loops, timers or wrappers.",
           "depends_on": [
             "failure-recovery/rollout-plan-author"
-          ]
-        },
-        {
-          "id": "gate-recovery-drill",
-          "title": "Interrupt and recover the gate in a scratch clone",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestRecoverInterrupted(StateCrashRetryBoundaries|CommitRestoresParentAndFinalizesCancellation)$' -count=1",
-          "rationale": "Run recover-preparation, recover-interrupted and the watchdog against a scratch clone; assert source, index, HEAD, plan and receipt state at each transaction boundary with no duplicate commit. Extend evidence-commit-recovery; include a semantic failure that must not retry.",
-          "depends_on": [
-            "validation-batch-control/evidence-commit-recovery"
           ]
         }
       ]
@@ -644,7 +556,6 @@
             "modality-verification/media-report",
             "benchmark-completion/mmlu-pro-pass",
             "failure-recovery/control-plane-drills",
-            "failure-recovery/gate-recovery-drill",
             "validation-gate-selection/common-owner-pilot",
             "plan-publication-cost/internal-consumer-contract"
           ]
@@ -804,60 +715,6 @@
       ]
     },
     {
-      "id": "store-growth-ratchet",
-      "title": "Run store upkeep at rest from cmd/loop (owner decision first)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run store upkeep at rest from cmd/loop (owner decision first)",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
-          "rationale": "OWNER DECISION: may upkeep delete superseded stores and sealed backups older than the newest verified pair? store-precheck -swap already does the whole pipeline; the step is cmd/loop running it after the deferred lanes once commits since the newest sealed backup pass a threshold. Without pruning, each run adds another store copy and backup. Loose blobs grew about 373 MB over 70 landings. This row also closes overgodb-compaction-cadence and projection-generation-pruning.",
-          "depends_on": [
-            "gate-telemetry-size/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "overgodb-compaction-cadence",
-      "title": "Closes with store-growth-ratchet (shares its check)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Closes with store-growth-ratchet (shares its check)",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
-          "rationale": "Build nothing; land plan-only once store-growth-ratchet's check passes.",
-          "depends_on": [
-            "store-growth-ratchet/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "projection-generation-pruning",
-      "title": "Closes with store-growth-ratchet (shares its check)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Closes with store-growth-ratchet (shares its check)",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
-          "rationale": "Build nothing; land plan-only once store-growth-ratchet's check passes.",
-          "depends_on": [
-            "store-growth-ratchet/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "compatibility-reports-leave-the-tree",
       "title": "Stop compatibility reports churning every landing (owner decision first)",
       "owner": "master-lead",
@@ -869,21 +726,6 @@
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1",
           "rationale": "OWNER DECISION: does a claim's file:sha256 source binding mean re-verify when the code moves (then a refresh re-runs the claim's oracle), or nothing (then it leaves both documents)? Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree, and performance_sweep_baseline.json keeps its thresholds with measurements in the store."
-        }
-      ]
-    },
-    {
-      "id": "compatibility-names-its-reads",
-      "title": "Key cmd/compatibility's receipt to the files it actually reads",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Key cmd/compatibility's receipt to the files it actually reads",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1",
-          "rationale": "The input graph treats the package as an opaque reader, binding it to every root (269 packages) including docs/plan.json, so the complete receipt for ten media and specialized models expires on every landing and costs a four-minute rerun. Found 2026-09-23, three sources of the binding: (1) reads join a root parameter that production only ever passes as \".\", which in-package parameter propagation in the classifier would name; (2) the operator verbs (claim, record-verification, webui-report) read flag paths and can move to their own command; (3) -check reads the source files docs/compatibility.json binds to each claim, so part of the broad binding is correct until compatibility-reports-leave-the-tree decides what that binding means. Waits on that decision; (1) and (2) alone leave the package opaque."
         }
       ]
     },
@@ -918,8 +760,6 @@
             "plan-tightened/do",
             "timesfm3-native-declaration/do",
             "surface-without-capability-tables/do",
-            "compatibility-names-its-reads/do",
-            "gate-suite-longest-tests/do",
             "rae-generation-path/do",
             "validate-all-models/do",
             "automation-harness-surface-remainder/do",
@@ -935,9 +775,6 @@
             "row-scope-budget-surface/do",
             "store-small-record-horizon/do",
             "store-benchmark-record-redundancy/do",
-            "store-growth-ratchet/do",
-            "overgodb-compaction-cadence/do",
-            "projection-generation-pruning/do",
             "store-open-lineage-cost/do",
             "compatibility-reports-leave-the-tree/do",
             "tmp-refuses-undeclared-entries/do",
@@ -945,7 +782,6 @@
             "gemma-12b-accuracy/do",
             "failure-recovery/rollout-plan-author",
             "failure-recovery/control-plane-drills",
-            "failure-recovery/gate-recovery-drill",
             "model-regression-baseline/full-catalog",
             "benchmark-completion/published-comparison",
             "simplify-prefill-paths/do",
@@ -973,7 +809,6 @@
             "store-bare-record-fill/do",
             "one-claim-primitive/do",
             "device-claim-everywhere/do",
-            "capability-test-gates/do",
             "replan-review-feedback/do",
             "verifier-one-parser/do",
             "fsatomic-release-not-exit/do",
@@ -1017,7 +852,6 @@
             "plan-retire-in-one-landing/do",
             "media-delta-one-command/do",
             "seq2seq-trainer-to-tests/do",
-            "guards-reacquire-lane/do",
             "census-split-one-pass/do",
             "store-multi-schema-paging/do",
             "loophook-stale-build/do",
@@ -1043,7 +877,6 @@
             "heldout-generation-slice/do",
             "text-objective-command/do",
             "automation-command-route-tables/do",
-            "automation-pinned-identities-reacquire/do",
             "models-resolve-by-identity/do",
             "tabfm-heldout-proof/do",
             "merge-f4aa36bccbec/do",
@@ -1090,7 +923,6 @@
             "train-routes-lane-repair/do",
             "root-documents-refactor/do",
             "root-policies-beside-owners/do",
-            "one-capability-report/do",
             "media-campaign-one-record/do",
             "tracked-files-need-readers/do",
             "selection-prose-per-path/do",
@@ -1119,7 +951,8 @@
             "gate-machinery-deleted/census",
             "gate-machinery-deleted/authority",
             "gate-machinery-deleted/records",
-            "store-read-only-suite/do"
+            "store-read-only-suite/do",
+            "old-gate-leftovers/do"
           ]
         }
       ]

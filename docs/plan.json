@@ -7,16 +7,16 @@
   "items": [
     {
       "id": "gui-model-merge",
-      "title": "Merge registered models, or an adapter into its base, from Model Builder, and export the result as quantized GGUF with an Ollama Modelfile, each with lineage",
+      "title": "Merge registered models from Model Builder -- task arithmetic over a shared base, or tensor passthrough -- recorded as a run with the sources as its inputs; folding an adapter into its base is refused until a GGUF fold exists",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Merge registered models, or an adapter into its base, from Model Builder, and export the result as quantized GGUF with an Ollama Modelfile, each with lineage",
+          "title": "Merge registered models from Model Builder -- task arithmetic over a shared base, or tensor passthrough -- recorded as a run with the sources as its inputs; folding an adapter into its base is refused until a GGUF fold exists",
           "status": "open",
           "verify": "test -f internal/server/model_builder_merge_test.go \u0026\u0026 go test ./internal/server -run '^TestModelBuilderMergeRun$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(ModelMerge|LayoutAudit)$' -leg 'model merge leg'",
-          "rationale": "Carried from professional_overgo_gui; its launch-reachability prerequisite is complete on master (workspace reachability leg passes). Folded in from the LlamaFactory review 2026-09-25: merge an adapter into its base, and export the result as quantized GGUF with an Ollama Modelfile, so overgo's output runs outside overgo."
+          "rationale": "LlamaFactory review 2026-09-25; split 2026-09-27 after the export half moved to gui-export-gguf. internal/modelmerge merges by task arithmetic (base + scaled deltas of models sharing that base) or tensor passthrough, in memory or streamed to Safetensors (reached today only through controlleraction). Model Builder gains a merge capability over registered models that records a run with its sources as inputs. Folding a trained GGUF adapter into its base has no implementation (only LoRAExtraction.Reconstruct folds an extracted in-memory adapter), so it is listed with its refusal and filed as a finding."
         }
       ]
     },
@@ -80,7 +80,7 @@
           "id": "do",
           "title": "Accept the cleaned workbench: every page acceptance, every leg this lane added, and zero layout findings",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -leg 'screens leg' -leg 'artifact links leg' -leg 'hardened states leg' -leg 'typeset leg' -leg 'session continuation leg' -leg 'agent recovery leg' -leg 'speculative decoding leg' -leg 'model merge leg' -leg 'conversation control leg' -leg 'mobile interaction leg' -leg 'unoffered task leg' -leg 'one event stream leg' -leg 'training live leg' -leg 'training preview leg' -leg 'remembered settings leg' -leg 'approve in place leg' -leg 'adapter compare leg' -leg 'copy command leg' -leg 'memory estimate leg' -leg 'dataset import leg' -leg 'runtime records leg' -leg 'analysis views leg' -leg 'peer workspace leg' -leg 'standalone tabs leg' -leg 'agent tab leg' -leg 'front surfaces leg' -leg 'training evidence leg' -leg 'compositions leg' -leg 'model picker leg' -leg 'generated media leg' -leg 'agent thread leg' -leg 'remote turns leg' -leg 'dataset library leg' -leg 'support tier leg'",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -leg 'screens leg' -leg 'artifact links leg' -leg 'hardened states leg' -leg 'typeset leg' -leg 'session continuation leg' -leg 'agent recovery leg' -leg 'speculative decoding leg' -leg 'model merge leg' -leg 'conversation control leg' -leg 'mobile interaction leg' -leg 'unoffered task leg' -leg 'one event stream leg' -leg 'training live leg' -leg 'training preview leg' -leg 'remembered settings leg' -leg 'approve in place leg' -leg 'adapter compare leg' -leg 'copy command leg' -leg 'memory estimate leg' -leg 'dataset import leg' -leg 'runtime records leg' -leg 'analysis views leg' -leg 'peer workspace leg' -leg 'standalone tabs leg' -leg 'agent tab leg' -leg 'front surfaces leg' -leg 'training evidence leg' -leg 'compositions leg' -leg 'model picker leg' -leg 'generated media leg' -leg 'agent thread leg' -leg 'remote turns leg' -leg 'dataset library leg' -leg 'support tier leg' -leg 'export gguf leg'",
           "rationale": "Final acceptance for the lane before an owner-authorized merge to master.",
           "depends_on": [
             "webui-client-contract/do",

@@ -21,6 +21,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
+	"overgo/internal/export"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
@@ -317,6 +318,11 @@ func run() error {
 	if workspaceStore != nil {
 		workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewStoreGenerationWorkspace(workspaceStore,
 			llamaserver.BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), generationCatalogLimit))
+		// Export rides the store too: every catalogued GGUF model exports under the models root.
+		if rootsErr == nil {
+			workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewExportWorkspace(workspaceStore, roots.Models, generationCatalogLimit,
+				llamaserver.GGUFExporter{Types: export.GGUFTypes(), Write: export.GGUF}))
+		}
 	}
 	if len(workflowWorkspaces) > 0 {
 		generator = &serverRuntime{Runner: runner, WorkflowWorkspaceAPI: workflowWorkspaces}

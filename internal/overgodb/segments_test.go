@@ -208,7 +208,7 @@ func TestSealWithInlineContent(t *testing.T) {
 func querySurfaceDigestBounded(t *testing.T, store *Store, commits int) string {
 	t.Helper()
 	ctx := t.Context()
-	var out string
+	var out strings.Builder
 	for ordinal := 0; ordinal < commits; ordinal += scaleAliasStride {
 		id, err := artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal))
 		if err != nil {
@@ -218,19 +218,19 @@ func querySurfaceDigestBounded(t *testing.T, store *Store, commits int) string {
 		if err != nil || !found || target != id {
 			t.Fatalf("alias %d: found=%v err=%v", ordinal, found, err)
 		}
-		out += fmt.Sprintf("alias/%s/%s\n", aliasName(ordinal), target)
+		out.WriteString(fmt.Sprintf("alias/%s/%s\n", aliasName(ordinal), target))
 		descriptor, found, err := store.Artifact(ctx, id)
 		if err != nil || !found {
 			t.Fatalf("artifact %d: %v", ordinal, err)
 		}
-		out += fmt.Sprintf("artifact/%s/%d\n", descriptor.ID, descriptor.Size)
+		out.WriteString(fmt.Sprintf("artifact/%s/%d\n", descriptor.ID, descriptor.Size))
 		if has, err := store.HasContent(ctx, id); err != nil || !has {
 			t.Fatalf("content %d: %v", ordinal, err)
 		}
 	}
 	head, sequence := store.Head()
-	out += fmt.Sprintf("head/%s/%d\n", head, sequence)
-	return out
+	out.WriteString(fmt.Sprintf("head/%s/%d\n", head, sequence))
+	return out.String()
 }
 
 func (s *Store) sealActiveSegment(ctx context.Context) error {

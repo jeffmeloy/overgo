@@ -3,22 +3,6 @@
   "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. A consolidation row is done only when it deletes the implementations it replaces: test the shared owner's contract, keep only meaningful caller integration checks, retire tests of deleted wrappers, and report net production and test code removed, repeated executions eliminated, gate wall time and peak memory on comparable changes. Across the 197 first-parent commits to 2026-09-23, production Go grew about 9,000 net lines and tests about 11,600. OvergoDB keeps its core -- immutable content, a durable journal, aliases, rebuildable projections -- and the repository simplifies how it uses it, in order: integrity and blocking defects, one publication path, bounded queries, one record per transition, bounded memory, declared storage policy, then bounded segments. Store rows report bytes and records added per landing, records scanned per query, open and replay time, writer wait, peak memory and compaction write volume. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan.",
   "items": [
     {
-      "id": "gate-machinery-deleted",
-      "title": "Delete the old gate machinery the small gate replaced",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete the old gate machinery the small gate replaced",
-          "status": "open",
-          "verify": "go test ./cmd/gate -run '^TestOldGateMachineryGone$' -count=1",
-          "rationale": "Second half of the small-gate rebuild (owner 2026-09-27), landed by the small gate so each deletion does not force the old gate's complete plan. Delete: the closure ledger (internal/closurescan, cmd/closure-scan and the store bindings keyed by byte offsets), the modern-Go census, baseline and exceptions (docs/modern_go_baseline.json), the harness-surface and census ratchets and their baselines, the code-manifest impact selection (codemanifest, codeprofile, automationcheck selection, cmd/code-manifest), lane obligations, the plan completion authority and proof horizon (internal/plan completion.go, projected_merge_authority.go), and runrecord decision records. The store keeps result records only. Measured 2026-09-27: with go test's cache a plan-and-test change re-ran 16 of 269 packages, yet took longer than a cold run, bound by suites that read the live repository (internal/gate 692 s, audioparity 483 s, repoanalysis 315 s, plan 285 s); deleting the gate's own tests is where the small gate's speed comes from, and audioparity's source binding should bind its closure without re-running on every Go change. Done when TestOldGateMachineryGone finds those packages and documents absent."
-        }
-      ]
-    },
-    {
       "id": "audioparity-binding-narrowed",
       "title": "Bind audioparity's evidence to the code that produces it, not two commands' closures",
       "class": "consolidation",

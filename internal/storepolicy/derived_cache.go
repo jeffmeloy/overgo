@@ -31,11 +31,10 @@ func DerivedCache(descriptor artifact.Descriptor) bool {
 }
 
 // FollowChildren reports a record whose dependents are discovered downward:
-// the plan completion authority walks a gate preparation to its
-// finalizations (children), a gate result to its attempts (children), and
-// only then upward to runs, manifest analyses, recipes and profiles. A live
-// set rooted at those records must follow their children or it drops the
-// evidence every landed commit is proven by.
+// a gate preparation's finalizations and a gate result's attempts are its
+// children, and the media coverage report reaches historical acceptance
+// proofs through them. A live set rooted at those records must follow their
+// children or it drops the evidence the report cites.
 func FollowChildren(descriptor artifact.Descriptor) bool {
 	return descriptor.Schema == runrecord.GateLifecycleSchema || descriptor.Schema == runrecord.GateSchema
 }

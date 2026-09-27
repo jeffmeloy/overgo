@@ -33,13 +33,12 @@ func NewProducer(name string) Producer { return Producer{name: name} }
 // at the boundary, not with the schema owners, so a process that never links
 // an owner is held to it all the same.
 var producerKinds = []struct{ prefix, producer string }{
-	// The kinds only the gate mints. The lifecycle is what the plan
-	// completion authority discovers a landing through, and an attempt is
-	// what it counts: exactly one, so a forged second would wedge it. Gate
-	// results are absent on purpose. Model intake, the remote provider and
-	// vqaparity mint them for their own verification runs, and that is safe:
-	// the authority accepts a result only through a lifecycle finalization
-	// introduced atomically with it, which no other producer can write.
+	// The kinds only the old gate minted. Nothing mints them now; the media
+	// coverage report still reads the historical ones as acceptance proofs,
+	// so no other producer may forge one. Gate results are absent on
+	// purpose: model intake, the remote provider and vqaparity mint them for
+	// their own verification runs, and a proof is read only through a
+	// lifecycle finalization introduced atomically with its result.
 	{"overgo/gate-attempt/", "gate"},
 	{"overgo/gate-batch-evidence/", "gate"},
 	{"overgo/gate-lane-obligation/", "gate"},

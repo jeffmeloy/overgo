@@ -50,7 +50,7 @@ const (
 	legacyDispatchCache = "docs/.dispatch"
 )
 
-// Shared Git revision query used by dispatch and completion authority.
+// Shared Git revision query used by dispatch.
 const gitRevisionCommand = "rev-parse"
 
 // Git names the current worktree revision through HEAD.

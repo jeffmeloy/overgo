@@ -8,7 +8,9 @@ package landing
 
 import (
 	"bytes"
+	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -43,6 +45,8 @@ type landing struct {
 	entries    []repoanalysis.DirtyPath
 	paths      []string
 	measured   []string
+	// ran names the packages the test stage ran rather than replayed.
+	ran string
 }
 
 // Run lands the row and returns the commit. Every check runs over the dirty
@@ -94,7 +98,11 @@ func Run(ctx context.Context, options Options) (string, error) {
 			return "", fmt.Errorf("land: %s: %w", check.name, err)
 		}
 		wall := time.Since(started).Round(time.Millisecond)
-		l.measured = append(l.measured, check.name+" "+wall.String())
+		entry := check.name + " " + wall.String()
+		if check.name == "test" && l.ran != "" {
+			entry += " (" + l.ran + ")"
+		}
+		l.measured = append(l.measured, entry)
 		fmt.Fprintf(options.Log, "land: %s ok %s\n", check.name, wall)
 	}
 	return l.commit(ctx)
@@ -222,8 +230,43 @@ func (l *landing) test(ctx context.Context) error {
 		if summary := testevidence.FailureSummary(output); summary != "" {
 			return fmt.Errorf("failed tests/packages: %s", summary)
 		}
+		return err
 	}
-	return err
+	l.ran = ranPackages(output)
+	return nil
+}
+
+// reportedPackages is how many of the packages go test ran the measurement
+// names: the slowest few are where a landing's test time went.
+const reportedPackages = 5
+
+// ranPackages names the packages go test ran rather than replayed from its
+// cache, slowest first, so the measured test time says what it was spent on.
+func ranPackages(output string) string {
+	type event struct {
+		Action, Package, Test, Output string
+		Elapsed                       float64
+	}
+	cached := map[string]bool{}
+	var ran []event
+	for line := range strings.Lines(output) {
+		var parsed event
+		if json.Unmarshal([]byte(line), &parsed) != nil || parsed.Test != "" {
+			continue
+		}
+		switch {
+		case parsed.Action == "output" && strings.Contains(parsed.Output, "\t(cached)"):
+			cached[parsed.Package] = true
+		case (parsed.Action == "pass" || parsed.Action == "fail") && !cached[parsed.Package]:
+			ran = append(ran, parsed)
+		}
+	}
+	slices.SortFunc(ran, func(left, right event) int { return cmp.Compare(right.Elapsed, left.Elapsed) })
+	var slowest []string
+	for _, run := range ran[:min(len(ran), reportedPackages)] {
+		slowest = append(slowest, fmt.Sprintf("%s %.0fs", strings.TrimPrefix(run.Package, "overgo/"), run.Elapsed))
+	}
+	return fmt.Sprintf("ran %d packages: %s", len(ran), strings.Join(slowest, ", "))
 }
 
 func (l *landing) verify(ctx context.Context, command string) error {

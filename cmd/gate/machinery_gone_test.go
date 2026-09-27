@@ -71,3 +71,11 @@ func TestGateRecordsGone(t *testing.T) {
 	requireGone(t, "internal/runrecord/lane_obligation.go", "internal/runrecord/selection_cause.go",
 		"internal/runrecord/suite_cost.go", "internal/storepolicy/telemetry.go", "cmd/plan/history_phases.go")
 }
+
+// TestOldGateMachineryGone closes the sweep the tests above make: the last
+// hand-run ratchet, the coverage-lanes report and its reviewed floors, goes
+// with the rest.
+func TestOldGateMachineryGone(t *testing.T) {
+	t.Parallel()
+	requireGone(t, "cmd/coverage-lanes", "docs/coverage_lanes_baseline.json")
+}

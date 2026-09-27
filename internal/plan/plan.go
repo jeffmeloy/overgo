@@ -124,8 +124,8 @@ func parsePlan(data []byte, validate func(Plan) error) (Plan, error) {
 
 // ParseHistorical decodes one immutable Git plan snapshot without applying
 // current live-plan lifecycle rules. Historical rows may retain completion
-// states or old dependency syntax; their exact Git transition remains the
-// completion authority.
+// states or old dependency syntax; git's Landed-Row trailers say what
+// landed.
 func ParseHistorical(data []byte) (Plan, error) {
 	return parsePlan(data, validatePlanGraph)
 }
@@ -224,8 +224,8 @@ func validateDependencies(d Plan) error {
 					return fmt.Errorf("plan step %s: depends_on %q must name one exact item/step", source, reference)
 				}
 				// Only present targets join the retained cycle graph. An
-				// absent target is not presumed complete here; the runtime
-				// completion authority decides whether it may dispatch.
+				// absent target is a retired or landed step, which dispatch
+				// counts as satisfied.
 				targetItem, present := itemIndex[target]
 				if !present {
 					continue

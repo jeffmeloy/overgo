@@ -68,8 +68,6 @@ var Declared = map[string]Descriptor{
 		"an operator producing and checking Wan video clips"),
 	"mechanism-census": operator("mechanism-census", "publish the exact mechanism ownership and gap census",
 		"an operator auditing which mechanisms the tree owns"),
-	"coverage-lanes": operator("coverage-lanes", "report verification depth by lane against reviewed per-package coverage floors",
-		"an operator checking that no execution path hides behind an aggregate"),
 	"buildscrub": operator("buildscrub", "report, and with -apply remove, build/ artifacts that build/RETAINED.json does not declare",
 		"an operator keeping build/ to declared artifacts"),
 	"hf-hub": operator("hf-hub", "search the Hugging Face hub, resolve a revision's files and download them with size and digest verification",

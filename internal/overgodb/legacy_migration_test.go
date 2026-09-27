@@ -31,7 +31,7 @@ func writeLegacyInlineStore(t *testing.T, root string, commits int) []artifact.I
 	var previousArtifact artifact.ID
 	ids := make([]artifact.ID, 0, commits)
 	for ordinal := range commits {
-		payload := []byte(fmt.Sprintf("legacy-inline/%d/%s", ordinal, scaleContent(ordinal)[:64]))
+		payload := fmt.Appendf(nil, "legacy-inline/%d/%s", ordinal, scaleContent(ordinal)[:64])
 		id, err := artifact.IdentifyBytes(artifact.KindRun, payload)
 		if err != nil {
 			t.Fatal(err)

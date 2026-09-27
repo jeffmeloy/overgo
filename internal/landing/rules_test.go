@@ -70,3 +70,19 @@ func Keep(name, other string) string {
 		t.Fatalf("findings = %q, want one each in %v", findings, want)
 	}
 }
+
+// TestRanPackagesNamesOnlyWhatRan counts the packages go test ran, slowest
+// first, and leaves out the ones it replayed from its cache.
+func TestRanPackagesNamesOnlyWhatRan(t *testing.T) {
+	t.Parallel()
+	output := strings.Join([]string{
+		`{"Action":"output","Package":"overgo/internal/cached","Output":"ok  \tovergo/internal/cached\t(cached)\n"}`,
+		`{"Action":"pass","Package":"overgo/internal/cached","Elapsed":0.002}`,
+		`{"Action":"pass","Package":"overgo/internal/fast","Elapsed":2}`,
+		`{"Action":"pass","Package":"overgo/internal/fast","Test":"TestInner","Elapsed":1}`,
+		`{"Action":"pass","Package":"overgo/internal/slow","Elapsed":300}`,
+	}, "\n")
+	if got, want := ranPackages(output), "ran 2 packages: internal/slow 300s, internal/fast 2s"; got != want {
+		t.Fatalf("ranPackages = %q, want %q", got, want)
+	}
+}

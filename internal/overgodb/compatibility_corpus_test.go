@@ -31,7 +31,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		t.Fatal(err)
 	}
 	for ordinal := range corpusTail {
-		payload := []byte(fmt.Sprintf("compatibility-tail/%d", ordinal))
+		payload := fmt.Appendf(nil, "compatibility-tail/%d", ordinal)
 		id, idErr := artifact.IdentifyBytes(artifact.KindRun, payload)
 		if idErr != nil {
 			t.Fatal(idErr)

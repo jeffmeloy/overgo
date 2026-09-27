@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -16,7 +17,7 @@ import (
 func querySurfaceDigest(t *testing.T, store *Store) string {
 	t.Helper()
 	ctx := t.Context()
-	var out string
+	var out strings.Builder
 	query := Query{
 		Kind: artifact.KindRun, MaxResults: scaleAliasStride,
 		Projection:   ProjectArtifacts | ProjectContentPresence | ProjectAliases | ProjectCommits,
@@ -27,18 +28,18 @@ func querySurfaceDigest(t *testing.T, store *Store) string {
 		if err != nil {
 			t.Fatal(err)
 		}
-		out += fmt.Sprintf("page/%d/matched=%d/truncated=%v\n", page, result.Matched, result.Truncated)
+		out.WriteString(fmt.Sprintf("page/%d/matched=%d/truncated=%v\n", page, result.Matched, result.Truncated))
 		for _, descriptor := range result.Artifacts {
-			out += fmt.Sprintf("artifact/%s/%d/%s\n", descriptor.ID, descriptor.Size, descriptor.MediaType)
+			out.WriteString(fmt.Sprintf("artifact/%s/%d/%s\n", descriptor.ID, descriptor.Size, descriptor.MediaType))
 		}
 		for _, content := range result.Contents {
-			out += fmt.Sprintf("content/%s\n", content.Artifact)
+			out.WriteString(fmt.Sprintf("content/%s\n", content.Artifact))
 		}
 		for _, alias := range result.Aliases {
-			out += fmt.Sprintf("alias/%s/%s\n", alias.Name, alias.Target)
+			out.WriteString(fmt.Sprintf("alias/%s/%s\n", alias.Name, alias.Target))
 		}
 		for _, commit := range result.Commits {
-			out += fmt.Sprintf("commit/%s/%s/%d\n", commit.Key, commit.ID, commit.Sequence)
+			out.WriteString(fmt.Sprintf("commit/%s/%s/%d\n", commit.Key, commit.ID, commit.Sequence))
 		}
 		if result.Next == nil {
 			break
@@ -54,38 +55,38 @@ func querySurfaceDigest(t *testing.T, store *Store) string {
 		if err != nil || !found {
 			t.Fatalf("alias %d: %v", ordinal, err)
 		}
-		out += fmt.Sprintf("resolve/%s/%s\n", aliasName(ordinal), target)
+		out.WriteString(fmt.Sprintf("resolve/%s/%s\n", aliasName(ordinal), target))
 		parents, err := store.Parents(ctx, id)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, edge := range parents {
-			out += fmt.Sprintf("parent/%s/%s/%s\n", edge.Child, edge.Parent, edge.Relation)
+			out.WriteString(fmt.Sprintf("parent/%s/%s/%s\n", edge.Child, edge.Parent, edge.Relation))
 		}
 		children, err := store.Children(ctx, id)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, edge := range children {
-			out += fmt.Sprintf("child/%s/%s/%s\n", edge.Child, edge.Parent, edge.Relation)
+			out.WriteString(fmt.Sprintf("child/%s/%s/%s\n", edge.Child, edge.Parent, edge.Relation))
 		}
 		locations, err := store.Locations(ctx, id)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, location := range locations {
-			out += fmt.Sprintf("location/%s/%s\n", location.Kind, location.Value)
+			out.WriteString(fmt.Sprintf("location/%s/%s\n", location.Kind, location.Value))
 		}
 	}
 	if err := store.VisitAliases(ctx, "scale/", func(view AliasView) error {
-		out += fmt.Sprintf("visit-alias/%s/%s\n", view.Name, view.Target)
+		out.WriteString(fmt.Sprintf("visit-alias/%s/%s\n", view.Name, view.Target))
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
 	head, sequence := store.Head()
-	out += fmt.Sprintf("head/%s/%d\n", head, sequence)
-	return out
+	out.WriteString(fmt.Sprintf("head/%s/%d\n", head, sequence))
+	return out.String()
 }
 
 // TestProjectionRebuildEquivalence proves every derived view is

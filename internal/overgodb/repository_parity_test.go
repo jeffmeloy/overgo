@@ -5,6 +5,7 @@ import (
 	"io"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -61,11 +62,11 @@ func repositoryView(t *testing.T, repository artifact.Repository) string {
 	head, sequence := repository.Head()
 	view = append(view, fmt.Sprintf("head/%s/%d", head, sequence))
 	slices.Sort(view)
-	var joined string
+	var joined strings.Builder
 	for _, line := range view {
-		joined += line + "\n"
+		joined.WriteString(line + "\n")
 	}
-	return joined
+	return joined.String()
 }
 
 // TestModularStoreRepositoryParity proves the modular core presents

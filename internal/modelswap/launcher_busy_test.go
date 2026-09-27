@@ -63,3 +63,23 @@ func TestModelSwapStartupBusy(t *testing.T) {
 		})
 	}
 }
+
+// TestChildFailureCarriesItsOwnError holds a child that ends before serving
+// to saying why in the swap error itself: the refusal carries the child's own
+// last output, not only its exit status, so a failed start is diagnosable
+// from the record that reports it.
+func TestChildFailureCarriesItsOwnError(t *testing.T) {
+	// Serial: it sets the process environment the child reads.
+	t.Setenv("OVERGO_TEST_MODEL_STARTUP", "invalid")
+	supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer supervisor.Close()
+	proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"fixture": {Name: "fixture", Location: "fixture.gguf"}}}
+	response := httptest.NewRecorder()
+	proxy.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://localhost/health?swap=fixture", nil))
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), "invalid model bytes") {
+		t.Fatalf("failed start = %d %s; want the child's own error in the refusal", response.Code, response.Body)
+	}
+}

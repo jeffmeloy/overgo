@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "journey-child-failure-cause",
-      "title": "Carry a served child's own failure into the model-swap error, and fix the projector journey's child exit",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Carry a served child's own failure into the model-swap error, and fix the projector journey's child exit",
-          "status": "open",
-          "verify": "go test ./internal/modelswap -run '^TestChildFailureCarriesItsOwnError$' -count=1",
-          "rationale": " Automation brittleness (owner 2026-09-26: a failure is fixed in code, never by rerunning). The deferred lane of 8b09aa9c5 failed TestModelJourneyServedProjector with model_load_failed: \"gemma-4-E4B-it-bf16.gguf did not become ready: child server exited before becoming ready: server exited with status 1\"; the child's own stderr was not captured, so the cause is unknown, and it passed on the next run. Capture the child's last output in the swap error and the lane record, then find and fix why the Gemma projector child exited."
-        }
-      ]
-    },
-    {
       "id": "plan-rows-retire-by-decision",
       "title": "Retire or re-scope a committed row by a recorded owner decision",
       "owner": "master-lead",

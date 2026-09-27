@@ -68,10 +68,11 @@ func (g *gateContext) rewireDeferredLanes(definitions []automationcheck.Check) [
 
 // requireLaneObligationsResolved admits a gate against the store's current
 // lane obligation and never refuses on its bookkeeping: none or a resolved
-// one admits; a live runner is awaited on its own lock and its recorded
-// outcome read again; an open obligation no runner holds -- its runner was
-// ended before it recorded an outcome -- is debt like a failed one, so this
-// gate runs those lanes inline and supersedes it.
+// one admits; a gate -lanes run in progress is awaited on its own lock and
+// its recorded outcome read again; an obligation still owed -- the ordinary
+// state after a commit until gate -lanes runs it, or one an interrupted run
+// left open -- is debt like a failed one, so this gate runs those lanes
+// inline and supersedes it.
 func requireLaneObligationsResolved(ctx context.Context, repo string, store *overgodb.Store) (*runrecord.GateLaneObligation, error) {
 	current, found, err := runrecord.CurrentGateLaneObligation(ctx, store)
 	if err != nil {

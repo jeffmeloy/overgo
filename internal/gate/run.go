@@ -489,7 +489,7 @@ func Run(options Options) (runErr error) {
 	}
 	if pipelineErr == nil && recordErr == nil {
 		if err := g.announceLanes(); err != nil {
-			return fmt.Errorf("commit landed but its owed lanes were not announced: %w", err)
+			return fmt.Errorf("commit landed but its owed lanes were not recorded for gate -lanes; run `go run ./cmd/gate -lanes`, or the next gate runs them inline: %w", err)
 		}
 	}
 	if pipelineErr != nil {

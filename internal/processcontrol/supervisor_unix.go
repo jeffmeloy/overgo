@@ -62,12 +62,6 @@ func ProcessAlive(pid int) bool {
 	return pid > 0 && syscall.Kill(pid, 0) == nil
 }
 
-// DetachedSysProcAttr starts a child in its own session, so it outlives the
-// process that spawned it.
-func DetachedSysProcAttr() *syscall.SysProcAttr {
-	return &syscall.SysProcAttr{Setsid: true}
-}
-
 func (t processTree) wait() error { return nil }
 
 // releaseWaiter would observe a resource's holders; contention itself is Windows-only.

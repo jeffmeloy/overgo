@@ -56,11 +56,6 @@ const (
 	// JobObjectAssociateCompletionPortInformation and JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO.
 	jobCompletionPortClass = 7
 	jobActiveProcessZero   = 4
-	// createNoWindow is CREATE_NO_WINDOW: the child gets its own console with
-	// no window, so it outlives the console session of the process that
-	// started it, and every console program it starts shares that hidden
-	// console instead of opening a window of its own.
-	createNoWindow = 0x08000000
 	// processQueryLimitedInformation is PROCESS_QUERY_LIMITED_INFORMATION,
 	// the least OpenProcess right that still admits GetExitCodeProcess.
 	processQueryLimitedInformation = 0x1000
@@ -82,12 +77,6 @@ func ProcessAlive(pid int) bool {
 	var code uint32
 	ok, _, _ := procGetExitCodeProcess.Call(handle, uintptr(unsafe.Pointer(&code)))
 	return ok != 0 && code == stillActive
-}
-
-// DetachedSysProcAttr starts a child in its own process group with a hidden
-// console, so it outlives the process that spawned it and opens no windows.
-func DetachedSysProcAttr() *syscall.SysProcAttr {
-	return &syscall.SysProcAttr{CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | createNoWindow}
 }
 
 type jobBasicLimits struct {

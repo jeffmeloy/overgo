@@ -253,9 +253,9 @@ func (w *execWorld) Current() (loop.Step, bool, error) {
 	return loop.Step{Item: dispatch.Item, ID: dispatch.Step}, true, nil
 }
 
-// awaitValidation waits for a live gate to release its mutation ownership. A
-// worker's supervised exit may also have ended its detached lane child; the
-// durable obligation then resumes through the existing gate owner.
+// awaitValidation waits for a live gate to release its mutation ownership,
+// then runs the lanes the landed commit owes in the foreground (gate -lanes),
+// resuming the durable obligation if an earlier run was interrupted.
 func (w *execWorld) awaitValidation() error {
 	if err := authoritylock.Wait(context.Background(), loopWorktree); err != nil {
 		return err

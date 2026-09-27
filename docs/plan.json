@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "admission-before-tests",
-      "title": "Check commit admission before the gate's expensive phases",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Check commit admission before the gate's expensive phases",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestAdmissionRunsBeforeTests$' -count=1",
-          "rationale": "  Automation brittleness (owner 2026-09-26). Commit-admission refusals -- a merge's completion audit without the source store (needs -plan-projection first-parent-target -merge-source-store), resolve-undo index metadata after a manual conflict resolution, the merge boundary shape -- surfaced only at the commit phase, after the full test and lane run (one merge gate failed after 16 minutes). Run the admission audit on the prepared candidate before the tests, clear resolve-undo metadata where the gate stages a merge, and choose the lane projection and its source store without being told."
-        }
-      ]
-    },
-    {
       "id": "device-lease-host-tests-inline",
       "title": "Run the host-only tests of device-leased packages before the commit",
       "owner": "master-lead",

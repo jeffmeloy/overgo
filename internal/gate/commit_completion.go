@@ -13,6 +13,92 @@ import (
 	"overgo/internal/plan"
 )
 
+// admitCompletionEarly runs the commit's completion audit on the accepted
+// candidate, before the test phases: a completion the commit would refuse --
+// a merge parent whose history lacks proof, a projection without its source
+// store -- is refused while the gate has spent a minute, not the full run.
+// The commit repeats the audit under its locks.
+func (g *gateContext) admitCompletionEarly() error {
+	// Without a completion to commit -- no row, no accepted tree, no
+	// message -- there is nothing yet to audit; the commit refuses what it
+	// lacks.
+	if g.planRef == "" || g.acceptedTree == "" || g.messageFile == "" && g.authored == nil {
+		return nil
+	}
+	before, err := acceptedPlanBytes(g.repo, g.acceptedTree)
+	if err != nil {
+		return err
+	}
+	document, err := plan.Parse(before)
+	if err != nil {
+		return err
+	}
+	store, err := g.openStore()
+	if err != nil {
+		return err
+	}
+	completion, err := g.deriveCompletion(document, before, store)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(completion.messageFile)
+	intent := gateCommitIntent{
+		Parent: g.planHead, Merge: g.mergeBefore, PlanProjection: g.planProjection, PlanRef: g.planRef,
+		Preparation: g.preparation.ID, PreparationCommit: g.preparationCommit, MergeAuthority: completion.mergeAuthorityData,
+	}
+	return verifyProspectiveGateCompletion(g.repo, intent, document, completion.child, string(completion.message), store)
+}
+
+// completionDerivation is what committing the accepted plan completes: the
+// plan after the row leaves it, the projected merge authority, and the
+// structured completion message on disk and in memory.
+type completionDerivation struct {
+	after              []byte
+	child              plan.Plan
+	mergeAuthority     *plan.FirstParentTargetMergeAuthority
+	mergeAuthorityData []byte
+	messageFile        string
+	message            []byte
+}
+
+// deriveCompletion derives the completion both the early audit and the
+// commit judge, so the two cannot disagree on what is committed. The caller
+// removes the message file.
+func (g *gateContext) deriveCompletion(document plan.Plan, before []byte, store *overgodb.Store) (completionDerivation, error) {
+	var completion completionDerivation
+	after, err := advancedPlanBytes(before, g.planRef)
+	if err != nil {
+		return completion, err
+	}
+	child, err := plan.Parse(after)
+	if err != nil {
+		return completion, err
+	}
+	mergeAuthority, err := g.deriveProjectedMergeAuthority(document, child, store)
+	if err != nil {
+		return completion, fmt.Errorf("derive projected merge authority: %w", err)
+	}
+	g.mergeAuthority = mergeAuthority
+	completion = completionDerivation{after: after, child: child, mergeAuthority: mergeAuthority}
+	if mergeAuthority != nil {
+		content, err := mergeAuthority.Content()
+		if err != nil {
+			return completion, err
+		}
+		completion.mergeAuthorityData = content.Data
+	}
+	// Structured completion trailers make Git the completion record: the row
+	// leaves the plan in the same commit, and the trailers carry what
+	// completed and how it was verified.
+	if completion.messageFile, err = g.completionMessageFile(document); err != nil {
+		return completion, err
+	}
+	if completion.message, err = os.ReadFile(completion.messageFile); err != nil {
+		os.Remove(completion.messageFile)
+	}
+	return completion, err
+}
+
 func planBytesMatch(repo string, expected []byte) (bool, error) {
 	current, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(plan.Path)))
 	if err != nil {

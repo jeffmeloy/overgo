@@ -1689,6 +1689,9 @@ func (g *gateContext) verifyAcceptedCandidate(verify string, complete bool) erro
 	}
 	if complete {
 		g.acceptedTree = tree
+		if err := g.admitCompletionEarly(); err != nil {
+			return fmt.Errorf("acceptance: the commit would refuse this completion: %w", err)
+		}
 	}
 	return nil
 }

@@ -156,28 +156,12 @@ func (g *gateContext) stepCommit() (bool, error) {
 	if err := g.admitProofHorizon(completionAuthority); err != nil {
 		return false, err
 	}
-	planAfter, err := advancedPlanBytes(planBefore, g.planRef)
+	completion, err := g.deriveCompletion(document, planBefore, completionStore)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("commit admission: %w", err)
 	}
-	childDocument, err := plan.Parse(planAfter)
-	if err != nil {
-		return false, err
-	}
-	mergeAuthority, err := g.deriveProjectedMergeAuthority(document, childDocument, completionStore)
-	if err != nil {
-		return false, fmt.Errorf("commit admission: derive projected merge authority: %w", err)
-	}
-	g.mergeAuthority = mergeAuthority
-	// Structured completion trailers make Git the completion record:
-	// the row leaves the plan in this same commit, and the trailers
-	// carry what completed and how it was verified. The gate record
-	// published after commit binds the evidence by commit SHA.
-	messageFile, err := g.completionMessageFile(document)
-	if err != nil {
-		return false, err
-	}
-	defer os.Remove(messageFile)
+	defer os.Remove(completion.messageFile)
+	planAfter, childDocument, mergeAuthority, messageFile := completion.after, completion.child, completion.mergeAuthority, completion.messageFile
 	planInfo, err := os.Stat(planFile)
 	if err != nil {
 		return false, err
@@ -213,17 +197,8 @@ func (g *gateContext) stepCommit() (bool, error) {
 		PlanRef:   g.planRef, Paths: slices.Clone(g.paths),
 		Plan: planBefore, AdvancedPlan: planAfter, PlanMode: uint32(planInfo.Mode().Perm()),
 	}
-	if mergeAuthority != nil {
-		content, contentErr := mergeAuthority.Content()
-		if contentErr != nil {
-			return false, contentErr
-		}
-		intent.MergeAuthority = content.Data
-	}
-	completionMessage, err := os.ReadFile(messageFile)
-	if err != nil {
-		return false, err
-	}
+	intent.MergeAuthority = completion.mergeAuthorityData
+	completionMessage := completion.message
 	messageItem, messageStep, found := strings.Cut(g.planRef, "/")
 	if !found {
 		return false, errors.New("commit admission: invalid completion reference")

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -275,27 +276,38 @@ func (h *Handler) workflowCapabilities(workspace WorkflowWorkspaceAPI, response 
 	writeJSON(response, http.StatusOK, capabilities)
 }
 
-func (h *Handler) workflowRun(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
+// admitWorkflow decodes a submission and holds it to the checks a run
+// makes: an active capability, its controls, stored sources; a refusal
+// is written.
+func (h *Handler) admitWorkflow(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) (workflowRequest, WorkflowCapability, bool) {
 	var body workflowRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
-		return
+		return body, WorkflowCapability{}, false
 	}
 	capabilities, err := workspace.WorkflowCapabilities(request.Context(), kind)
 	if err != nil {
 		writeGenerationError(response, err)
-		return
+		return body, WorkflowCapability{}, false
 	}
 	capability, err := selectWorkflowCapability(capabilities, body.Task, body.Recipe)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return body, WorkflowCapability{}, false
 	}
 	if err := validateWorkflowInput(capability.Controls, body.Input); err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return body, WorkflowCapability{}, false
 	}
 	if err := validateWorkflowSources(request.Context(), h.repository, body.Sources); err != nil {
 		writeInvalidRequest(response, err)
+		return body, WorkflowCapability{}, false
+	}
+	return body, capability, true
+}
+
+func (h *Handler) workflowRun(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
+	body, capability, admitted := h.admitWorkflow(workspace, response, request, kind)
+	if !admitted {
 		return
 	}
 	id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), workspace, kind, capability, body.Input, body.Sources)
@@ -304,6 +316,49 @@ func (h *Handler) workflowRun(workspace WorkflowWorkspaceAPI, response http.Resp
 		return
 	}
 	writeJSON(response, http.StatusAccepted, workflowResponse{Operation: id})
+}
+
+// workflowCommand is one way to reproduce a submission outside the page:
+// "cli" runs the recipe from a command, "http" posts the submission again.
+type workflowCommand struct {
+	Kind string `json:"kind"`
+	Text string `json:"text"`
+}
+
+// workflowCommands answers the commands that reproduce an admitted
+// submission without running it: a generation recipe also runs from
+// cmd/recipe on the same executor catalog and store, and every submission
+// runs again by posting it to this server.
+func (h *Handler) workflowCommands(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
+	body, capability, admitted := h.admitWorkflow(workspace, response, request, kind)
+	if !admitted {
+		return
+	}
+	submission, err := json.Marshal(body)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	commands := []workflowCommand{}
+	if kind == WorkflowGeneration && capability.Location != "" {
+		commands = append(commands, workflowCommand{Kind: "cli", Text: "go run ./cmd/recipe run -task " + shellQuote(string(body.Task)) +
+			" -input " + shellQuote(string(body.Input)) + " " + shellQuote(capability.Location)})
+	}
+	scheme, authorization := "http", ""
+	if request.TLS != nil {
+		scheme = "https"
+	}
+	if h.config.APIKey != "" {
+		authorization = ` -H "Authorization: Bearer $OVERGO_API_KEY"`
+	}
+	commands = append(commands, workflowCommand{Kind: "http", Text: "curl -X POST " + shellQuote(scheme+"://"+request.Host+"/"+string(kind)+"/run") +
+		" -H 'Content-Type: application/json'" + authorization + " -d " + shellQuote(string(submission))})
+	writeJSON(response, http.StatusOK, map[string]any{"commands": commands})
+}
+
+// shellQuote quotes a word for a POSIX shell.
+func shellQuote(word string) string {
+	return "'" + strings.ReplaceAll(word, "'", `'\''`) + "'"
 }
 
 type workflowPreviewRequest struct {

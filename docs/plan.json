@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-copy-command",
-      "title": "Show the command that reproduces a workflow submission beside its Run button",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Show the command that reproduces a workflow submission beside its Run button",
-          "status": "open",
-          "verify": "test -f internal/server/workflow_command_test.go \u0026\u0026 go test ./internal/server -run '^TestWorkflowSubmissionCommand$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(CopyCommand|LayoutAudit)$' -leg 'copy command leg'",
-          "rationale": "LlamaFactory review 2026-09-25: its Preview command renders the exact CLI of a run. A workflow submission is a recipe; its reproducing cmd invocation beside Run ties the workbench to the unattended loop and to scripts."
-        }
-      ]
-    },
-    {
       "id": "gui-memory-estimate",
       "title": "Predict a training or serving run's peak device memory before launch from the measured device-memory records",
       "owner": "overgo_gui_cleanup",

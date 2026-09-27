@@ -281,11 +281,14 @@
         const previewHost = el("div");
         const run = el("button", { class: "btn", text: "Run" });
         const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
+        // command: the commands that reproduce this submission outside the page; a changed entry clears them.
+        const command = el("button", { class: "btn alt", text: "Show command" });
+        const commands = el("div", { class: "workflow-commands", "aria-label": "Reproducing commands" });
         // The task first, then its inputs, then the action that runs them.
         panel.append(
           el("div", { class: "section-title", text: overgo.title }),
           el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), controls, previewHost,
-          el("div", { class: "row" }, run, cancel), status,
+          el("div", { class: "row" }, run, cancel, command), commands, status,
           el("div", { class: "row" }, progress, remaining), trends, metrics, evidence);
 
         let capabilities;
@@ -350,11 +353,29 @@
             if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
           } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
         }
-        run.addEventListener("click", async () => {
+        // submission: the selected capability and its entries, or null after focusing the first missing one.
+        function submission() {
           const capability = selected();
-          if (!capability) return;
+          if (!capability) return null;
           const { input, missing } = overgo.controlValues(fields);
-          if (missing.size) { const [name] = missing; fields.get(name).input.focus(); status.textContent = name + " is required"; return; }
+          if (missing.size) { const [name] = missing; fields.get(name).input.focus(); status.textContent = name + " is required"; return null; }
+          return { capability, input };
+        }
+        controls.addEventListener("input", () => commands.replaceChildren());
+        capabilitySelect.addEventListener("change", () => commands.replaceChildren());
+        command.addEventListener("click", async () => {
+          const submitted = submission();
+          if (!submitted) return;
+          try {
+            const answer = await api.post("/" + definition.scope + "/command", { task: submitted.capability.task, recipe: submitted.capability.recipe, input: submitted.input });
+            commands.replaceChildren(...answer.commands.map((item) => el("div", { class: "workflow-command" },
+              el("span", { class: "tag", text: item.kind === "cli" ? "command line" : "HTTP" }), el("pre", { class: "mono", text: item.text }), overgo.copyButton(item.text))));
+          } catch (err) { commands.replaceChildren(overgo.failure(err)); }
+        });
+        run.addEventListener("click", async () => {
+          const submitted = submission();
+          if (!submitted) return;
+          const { capability, input } = submitted;
           run.disabled = true;
           evidence.replaceChildren();
           let accepted;

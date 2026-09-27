@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // TestCensusReportsUnusedConcreteMethods pins the audit's census finding:
@@ -14,7 +14,7 @@ import (
 // dispatch boundary (they may satisfy interfaces outside the snapshot), and
 // test-support packages are identified through imports, not names.
 func TestCensusReportsUnusedConcreteMethods(t *testing.T) {
-	snapshot, err := (repoanalysis.SourceSnapshot{}).Overlay(map[string][]byte{
+	snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{
 		"internal/api/api.go": []byte(`package api
 type sink interface{ drain() }
 type Worker struct{}

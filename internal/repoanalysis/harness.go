@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"overgo/internal/gosyntax"
 )
 
 // HarnessOwnerRule declares the sole package allowed to own one agent-harness
@@ -63,7 +65,7 @@ var supersededHarnessPackages = map[string]bool{
 // AuditAgentHarnessConsolidation proves that every harness authority still has
 // one declaration in its designated common owner and that superseded parallel
 // packages have not returned.
-func AuditAgentHarnessConsolidation(snapshot SourceSnapshot) (AgentHarnessConsolidation, error) {
+func AuditAgentHarnessConsolidation(snapshot gosyntax.Snapshot) (AgentHarnessConsolidation, error) {
 	report := AgentHarnessConsolidation{SourceIdentity: snapshot.Identity(), Rules: len(agentHarnessOwnerRules)}
 	type declaration struct{ owner, file string }
 	declarations := map[string][]declaration{}

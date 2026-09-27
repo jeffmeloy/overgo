@@ -12,8 +12,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 const (
@@ -98,7 +98,7 @@ func closureAuthorityDigest(authorityError string) string {
 func restoreClosureAliasesAtReviewedHead(
 	ctx context.Context,
 	storePath string,
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	selector closureAliasRestoreSelector,
 ) (result closureAliasRestoreResult, finalErr error) {
 	if ctx == nil {

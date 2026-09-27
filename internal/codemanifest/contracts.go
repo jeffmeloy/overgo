@@ -13,7 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 const artifactImportPath = "overgo/internal/artifact"
@@ -42,14 +42,14 @@ type constantBinding struct {
 }
 
 type contractSource struct {
-	file        repoanalysis.GoFile
+	file        gosyntax.File
 	packagePath string
 	aliases     map[string]string
 	contexts    []string
 }
 
 // DocumentDeclarations compiles package-level artifact contracts.
-func DocumentDeclarations(snapshot repoanalysis.SourceSnapshot, selections []gosource.BuildSelection) ([]DocumentDeclaration, error) {
+func DocumentDeclarations(snapshot gosyntax.Snapshot, selections []gosource.BuildSelection) ([]DocumentDeclaration, error) {
 	sources, err := contractSources(snapshot, selections)
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func DocumentDeclarations(snapshot repoanalysis.SourceSnapshot, selections []gos
 	return declarations, nil
 }
 
-func contractSources(snapshot repoanalysis.SourceSnapshot, selections []gosource.BuildSelection) ([]contractSource, error) {
+func contractSources(snapshot gosyntax.Snapshot, selections []gosource.BuildSelection) ([]contractSource, error) {
 	if len(selections) == 0 {
 		return nil, errors.New("code manifest: document census has no build selection")
 	}

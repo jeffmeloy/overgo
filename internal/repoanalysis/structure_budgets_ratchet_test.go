@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/jsonfile"
 	"overgo/internal/repoanalysis"
 )
@@ -27,7 +28,7 @@ func TestStructureBudgetRatchets(t *testing.T) {
 	if budgets.MaxStagedPathsPerCommit <= 0 {
 		t.Fatal("staged-path budget must be declared")
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

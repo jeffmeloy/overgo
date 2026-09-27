@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+
+	"overgo/internal/gosyntax"
 )
 
 // The declared pattern-language owners: a file here matches text whose
@@ -53,7 +55,7 @@ var regexOwners = map[string]string{
 // longer uses regexp is stale.
 func TestNoRegexParsesStructuredData(t *testing.T) {
 	t.Parallel()
-	snapshot, err := DiscoverGo("../..", "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo("../..", "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

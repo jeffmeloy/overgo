@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestProductionConsumerCensus(t *testing.T) {
-	snapshot, err := (repoanalysis.SourceSnapshot{}).Overlay(map[string][]byte{
+	snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{
 		"cmd/tool/main.go": []byte("package main\nfunc main() {}\n"),
 		"internal/api/api.go": []byte(`package api
 type Contract interface { Apply() }

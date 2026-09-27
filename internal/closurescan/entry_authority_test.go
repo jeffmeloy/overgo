@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // Each case is independent: another violation cannot mask a broken detector.
@@ -41,7 +41,7 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 			}
 			const rogue = "internal/rogue/rogue.go"
 			source := []byte("package rogue\n" + test.source + "\n")
-			snapshot, err := (repoanalysis.SourceSnapshot{}).Overlay(map[string][]byte{rogue: source})
+			snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{rogue: source})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -65,7 +65,7 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 			// The owner keeps its right to construct its own values.
 			rule.Exceptions = nil
 			if len(rule.OwnerPaths) != 0 {
-				owned, err := (repoanalysis.SourceSnapshot{}).Overlay(map[string][]byte{path.Join(rule.OwnerPaths[0], "owned.go"): source})
+				owned, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{path.Join(rule.OwnerPaths[0], "owned.go"): source})
 				if err != nil {
 					t.Fatal(err)
 				}

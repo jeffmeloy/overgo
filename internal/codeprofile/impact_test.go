@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestFunctionImpactChangedBodyReverseReachability(t *testing.T) {
@@ -125,7 +125,7 @@ func TestFunctionImpactBoundaryNonExclusion(t *testing.T) {
 	}
 }
 
-func impactSnapshots(t *testing.T, baseSource, candidateSource string) (repoanalysis.SourceSnapshot, repoanalysis.SourceSnapshot, gosource.BuildSelection) {
+func impactSnapshots(t *testing.T, baseSource, candidateSource string) (gosyntax.Snapshot, gosyntax.Snapshot, gosource.BuildSelection) {
 	t.Helper()
 	root := t.TempDir()
 	const sourcePath = "p/p.go"
@@ -136,7 +136,7 @@ func impactSnapshots(t *testing.T, baseSource, candidateSource string) (repoanal
 	if err := os.WriteFile(absPath, []byte(baseSource), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	base, err := repoanalysis.LoadGo(root, []string{sourcePath})
+	base, err := gosyntax.LoadGo(root, []string{sourcePath})
 	if err != nil {
 		t.Fatal(err)
 	}

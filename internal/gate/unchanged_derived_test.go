@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/closurescan"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // TestUnchangedDerivedFilesStayOutOfTheShipSet holds a repaired derived file
@@ -31,7 +31,7 @@ func TestUnchangedDerivedFilesStayOutOfTheShipSet(t *testing.T) {
 	}
 	write("internal/plan/a.go", "package x\n\nfunc A() {}\n")
 	modernMemoPublish(t, repo)
-	snapshot, err := repoanalysis.DiscoverGo(repo, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

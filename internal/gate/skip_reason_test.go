@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // skipReasonSites reports every integration skip that names the short-mode
@@ -18,7 +18,7 @@ import (
 // Every file is read, not only tests: a shared test gate such as the CUDA
 // one lives in a non-test file of a support package, and its skip decides
 // the verdict of every fixture that calls it.
-func skipReasonSites(snapshot repoanalysis.SourceSnapshot) ([]string, error) {
+func skipReasonSites(snapshot gosyntax.Snapshot) ([]string, error) {
 	var sites []string
 	for _, file := range snapshot.Files {
 		syntax, err := file.Syntax()
@@ -150,7 +150,7 @@ func TestIntegrationSkipReasonNamesItsGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(repo, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestSkippedFixtureClassification(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	fixture, err := repoanalysis.DiscoverGo(root, "internal")
+	fixture, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestSkippedFixtureClassification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	live, err := repoanalysis.DiscoverGo(repo, "internal/cuda/testutil")
+	live, err := gosyntax.DiscoverGo(repo, "internal/cuda/testutil")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"overgo/internal/gosource"
+	"overgo/internal/gosyntax"
 )
 
 func TestModernGoExceptionsAreExactOwnedAndTested(t *testing.T) {
@@ -95,7 +96,7 @@ var modernGoRepositoryCensus = sync.OnceValues(func() (ModernGoCensus, error) {
 // explicit snapshot, discovered internal before cmd.
 var modernGoSnapshotCensus = sync.OnceValues(func() (ModernGoCensus, error) {
 	root := filepath.Join("..", "..")
-	snapshot, err := DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		return ModernGoCensus{}, err
 	}

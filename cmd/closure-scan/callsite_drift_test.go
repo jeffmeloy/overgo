@@ -9,8 +9,8 @@ import (
 
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 // TestBindingSurvivesANewUse holds the ledger to keeping a reviewed decision
@@ -23,7 +23,7 @@ import (
 func TestBindingSurvivesANewUse(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "internal", "sample", "policy.go")
-	write := func(source string) repoanalysis.SourceSnapshot {
+	write := func(source string) gosyntax.Snapshot {
 		t.Helper()
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -31,7 +31,7 @@ func TestBindingSurvivesANewUse(t *testing.T) {
 		if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+		snapshot, err := gosyntax.DiscoverGo(root, "internal")
 		if err != nil {
 			t.Fatal(err)
 		}

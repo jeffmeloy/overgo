@@ -31,7 +31,7 @@ func testingReductionContract() reductionContract {
 			"the gate's own package tests, including TestChangeSelectionRequiredMatrix, remain selected for a gate change",
 		},
 		Invalidators: []string{
-			"internal/codemanifest/", "internal/codeprofile/", "internal/repoanalysis/", "cmd/code-manifest/",
+			"internal/codemanifest/", "internal/codeprofile/", "internal/gosyntax/", "internal/gosource/", "cmd/code-manifest/",
 			"internal/automationcheck/", "go.mod", "go.sum",
 			"any path an owned package of the lane compiles or names at run time",
 		},

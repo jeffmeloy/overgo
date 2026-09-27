@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // The imported function and a shadowing receiver must retain distinct owners.
@@ -12,7 +12,7 @@ import (
 func TestSurfaceOwnerFlowWitness(t *testing.T) {
 	const dependency = "internal/dependency/source.go"
 	const consumer = "internal/consumer/source.go"
-	snapshot, err := (repoanalysis.SourceSnapshot{}).Overlay(map[string][]byte{
+	snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{
 		dependency: []byte(`package dependency
 func Open(string) error { return nil }
 `),

@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 type ConsumerDeclaration struct {
@@ -97,7 +97,7 @@ type referenceCaller struct {
 // ProductionConsumerCensus classifies declarations in changed production
 // files using the repository's parsed syntax and go-list build selection.
 // A nil changed set includes every production declaration.
-func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection gosource.BuildSelection, changed map[string]bool) ([]ConsumerDeclaration, ConsumerSummary, error) {
+func ProductionConsumerCensus(snapshot gosyntax.Snapshot, selection gosource.BuildSelection, changed map[string]bool) ([]ConsumerDeclaration, ConsumerSummary, error) {
 	index, err := productionConsumerIndex(snapshot, selection, changed)
 	if err != nil {
 		return nil, ConsumerSummary{}, err
@@ -107,7 +107,7 @@ func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection go
 
 // ProductionConsumerGraph returns the complete declarations and resolved
 // edges from the existing production consumer index.
-func ProductionConsumerGraph(snapshot repoanalysis.SourceSnapshot, selection gosource.BuildSelection) ([]ConsumerDeclaration, []ConsumerReference, ConsumerSummary, error) {
+func ProductionConsumerGraph(snapshot gosyntax.Snapshot, selection gosource.BuildSelection) ([]ConsumerDeclaration, []ConsumerReference, ConsumerSummary, error) {
 	index, err := productionConsumerIndex(snapshot, selection, nil)
 	if err != nil {
 		return nil, nil, ConsumerSummary{}, err
@@ -151,13 +151,13 @@ func sortConsumerReferences(references []ConsumerReference) {
 	}
 }
 
-func productionConsumerIndex(snapshot repoanalysis.SourceSnapshot, selection gosource.BuildSelection, changed map[string]bool) (consumerIndex, error) {
+func productionConsumerIndex(snapshot gosyntax.Snapshot, selection gosource.BuildSelection, changed map[string]bool) (consumerIndex, error) {
 	index := consumerIndex{
 		keys: map[string][]int{}, methods: map[string][]int{}, objects: map[*ast.Object]int{},
 		definitions: map[*ast.Ident]int{}, reverse: map[int]map[int]map[referenceSite]bool{},
 		interfaceMethods: map[string]bool{}, testOnlyImports: map[string]bool{},
 	}
-	packageNames, err := repoanalysis.PackageNames(snapshot, selection)
+	packageNames, err := gosyntax.PackageNames(snapshot, selection)
 	if err != nil {
 		return consumerIndex{}, err
 	}
@@ -236,7 +236,7 @@ func productionConsumerIndex(snapshot repoanalysis.SourceSnapshot, selection gos
 	return index, nil
 }
 
-func (c *consumerIndex) addFile(source repoanalysis.GoFile, file *ast.File, packagePath string, active, generated bool) {
+func (c *consumerIndex) addFile(source gosyntax.File, file *ast.File, packagePath string, active, generated bool) {
 	boundary := ""
 	if c.testOnlyImports[packagePath] {
 		boundary = "test-helper"
@@ -342,7 +342,7 @@ func (c *consumerIndex) addBoundaryFields(file, packagePath string, spec *ast.Ty
 	}
 }
 
-func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, packagePath string, packageNames map[string]string, active bool) {
+func (c *consumerIndex) references(source gosyntax.File, file *ast.File, packagePath string, packageNames map[string]string, active bool) {
 	aliases := map[string]string{}
 	for _, imported := range file.Imports {
 		importPath, err := strconv.Unquote(imported.Path.Value)
@@ -369,7 +369,7 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 	}
 }
 
-func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node, packagePath string, aliases map[string]string, active bool, caller referenceCaller) {
+func (c *consumerIndex) referenceNode(source gosyntax.File, root ast.Node, packagePath string, aliases map[string]string, active bool, caller referenceCaller) {
 	selectorNames := map[*ast.Ident]bool{}
 	invocations := map[ast.Node]bool{}
 	ast.PreorderStack(root, nil, func(node ast.Node, ancestors []ast.Node) bool {
@@ -531,7 +531,7 @@ func summarizeConsumers(declarations []ConsumerDeclaration) (summary ConsumerSum
 	return summary
 }
 
-func packagePath(source repoanalysis.GoFile, file *ast.File, selection gosource.BuildSelection) string {
+func packagePath(source gosyntax.File, file *ast.File, selection gosource.BuildSelection) string {
 	if value := selection.Packages[source.Path]; value != "" {
 		return value
 	}

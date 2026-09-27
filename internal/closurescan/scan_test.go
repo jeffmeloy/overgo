@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/closureledger"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestClosureScanSnapshotConsumer(t *testing.T) {
@@ -401,7 +401,7 @@ func second(n int) bool {
 	}
 }
 
-func scanTestSnapshot(t *testing.T, files map[string]string) repoanalysis.SourceSnapshot {
+func scanTestSnapshot(t *testing.T, files map[string]string) gosyntax.Snapshot {
 	t.Helper()
 	root := t.TempDir()
 	for relative, content := range files {
@@ -413,7 +413,7 @@ func scanTestSnapshot(t *testing.T, files map[string]string) repoanalysis.Source
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -16,7 +16,7 @@ import (
 	"strings"
 	"sync"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 type Partition struct {
@@ -80,7 +80,7 @@ type Profile struct {
 	Impact               ImpactSelection `json:"impact_selection"`
 }
 
-func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
+func Build(snapshot gosyntax.Snapshot) (Profile, error) {
 	var profile Profile
 	imports := map[string]bool{}
 	type body struct {
@@ -173,7 +173,7 @@ type cloneFact struct {
 
 var fileFactsMemo sync.Map
 
-func profileFacts(source repoanalysis.GoFile) (fileFacts, error) {
+func profileFacts(source gosyntax.File) (fileFacts, error) {
 	key := source.Path + "\x00" + source.ContentID + "\x00" + strconv.FormatBool(source.Test)
 	if cached, found := fileFactsMemo.Load(key); found {
 		return cached.(fileFacts), nil
@@ -199,7 +199,7 @@ func profileFacts(source repoanalysis.GoFile) (fileFacts, error) {
 	return facts, nil
 }
 
-func (facts *fileFacts) addDeclarations(source repoanalysis.GoFile, file *ast.File) error {
+func (facts *fileFacts) addDeclarations(source gosyntax.File, file *ast.File) error {
 	packagePath := filepath.ToSlash(filepath.Dir(source.Path))
 	for _, imported := range file.Imports {
 		facts.imports = append(facts.imports, packagePath+"\x00"+imported.Path.Value)

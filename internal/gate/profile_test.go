@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/codeprofile"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestASTStructuralProfileGate(t *testing.T) {
@@ -137,7 +137,7 @@ func TestAutomationROIProjection(t *testing.T) {
 	if err := os.WriteFile(path, []byte("package p\nfunc keep() {}\nfunc remove() { println(1) }\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	base, err := repoanalysis.LoadGo(root, []string{"internal/p/p.go"})
+	base, err := gosyntax.LoadGo(root, []string{"internal/p/p.go"})
 	if err != nil {
 		t.Fatal(err)
 	}

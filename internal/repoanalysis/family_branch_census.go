@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"overgo/internal/gosyntax"
 )
 
 // FamilyBranch is one family-named branch remaining in shared execution
@@ -38,7 +40,7 @@ func familyBranchExcluded(path string) bool {
 }
 
 // FamilyBranchCensus finds family-named comparisons in the shared snapshot.
-func FamilyBranchCensus(snapshot SourceSnapshot) ([]FamilyBranch, error) {
+func FamilyBranchCensus(snapshot gosyntax.Snapshot) ([]FamilyBranch, error) {
 	counts := map[[2]string]int{}
 	for _, file := range snapshot.Files {
 		relative := file.Path

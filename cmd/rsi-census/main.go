@@ -19,6 +19,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/jsonfile"
 	"overgo/internal/repoanalysis"
 )
@@ -33,7 +34,7 @@ func run() error {
 	update := flag.Bool("update", false, "write "+censusPath)
 	check := flag.Bool("check", false, "verify "+censusPath+" matches the source tree")
 	flag.Parse()
-	snapshot, err := repoanalysis.DiscoverGo(".", "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(".", "internal", "cmd")
 	if err != nil {
 		return err
 	}

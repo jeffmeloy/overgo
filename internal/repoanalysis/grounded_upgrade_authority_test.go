@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"overgo/internal/gosyntax"
 )
 
 func TestGroundedCapabilityUpgradeUsesExistingAuthorities(t *testing.T) {
@@ -17,7 +19,7 @@ func TestGroundedCapabilityUpgradeUsesExistingAuthorities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

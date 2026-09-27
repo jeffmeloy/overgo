@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/closurescan"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // TestPreflightAppliesMechanicalRepairs pins the preflight's repairs: a Go
@@ -136,7 +136,7 @@ func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
 // holds and the repair leaves it alone.
 func liveHarnessSurface(t *testing.T, repo string) closurescan.HarnessSurface {
 	t.Helper()
-	snapshot, err := repoanalysis.DiscoverGo(repo, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

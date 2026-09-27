@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/gosyntax"
 )
 
 // TestNoFixedTimers holds the owner's rule that no wait is bound to a
@@ -70,7 +72,7 @@ func Declared(ctx context.Context, budget time.Duration, o options) {
 	time.Sleep(derived)
 }
 `)
-	snapshot, err := DiscoverGo(root, ".")
+	snapshot, err := gosyntax.DiscoverGo(root, ".")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +94,7 @@ func Declared(ctx context.Context, budget time.Duration, o options) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	live, err := DiscoverGo(repository, "internal", "cmd")
+	live, err := gosyntax.DiscoverGo(repository, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

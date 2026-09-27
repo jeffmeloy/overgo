@@ -22,7 +22,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/atomicfile"
 	"overgo/internal/automationcheck"
-	"overgo/internal/clioptions"
 	"overgo/internal/fsatomic"
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
@@ -341,15 +340,11 @@ func acceptedPlanBytes(repo, tree string) ([]byte, error) {
 func gitHashObject(repo string, content []byte) (string, error) {
 	process := newGateGitWriterCommand(repo, nil, "hash-object", "-w", "--stdin")
 	process.Stdin = bytes.NewReader(content)
-	output, err := process.CombinedOutput()
+	output, diagnostic, err := runSplit(process)
 	if err != nil {
-		return "", fmt.Errorf(
-			"git hash-object -w --stdin: %v: %s",
-			err,
-			clioptions.Tail(string(output), clioptions.DiagnosticTailBytes),
-		)
+		return "", fmt.Errorf("git hash-object -w --stdin: %v: %s", err, diagnostic)
 	}
-	object := strings.TrimSpace(string(output))
+	object := strings.TrimSpace(output)
 	if !validGitObjectID(object) {
 		return "", errors.New("git hash-object returned an invalid object identity")
 	}
@@ -627,14 +622,11 @@ func buildGateIntentKeepaliveTree(repo string, intent gateCommitIntent) (string,
 	}
 	process := newGateGitWriterCommand(repo, nil, "mktree", "-z")
 	process.Stdin = &input
-	output, err := process.CombinedOutput()
+	output, diagnostic, err := runSplit(process)
 	if err != nil {
-		return "", fmt.Errorf(
-			"gate: build interrupted commit keepalive tree: %w: %s",
-			err, clioptions.Tail(string(output), clioptions.DiagnosticTailBytes),
-		)
+		return "", fmt.Errorf("gate: build interrupted commit keepalive tree: %w: %s", err, diagnostic)
 	}
-	tree := strings.TrimSpace(string(output))
+	tree := strings.TrimSpace(output)
 	if !validGitObjectID(tree) {
 		return "", errors.New("gate: Git produced an invalid interrupted commit keepalive tree")
 	}
@@ -656,14 +648,11 @@ func buildGateIntentKeepaliveCommit(repo string, intent gateCommitIntent, tree s
 		"GIT_COMMITTER_DATE=1970-01-01T00:00:00 +0000",
 	)
 	process.Stdin = strings.NewReader("overgo interrupted commit keepalive\n")
-	output, err := process.CombinedOutput()
+	output, diagnostic, err := runSplit(process)
 	if err != nil {
-		return "", fmt.Errorf(
-			"gate: build interrupted commit keepalive commit: %w: %s",
-			err, clioptions.Tail(string(output), clioptions.DiagnosticTailBytes),
-		)
+		return "", fmt.Errorf("gate: build interrupted commit keepalive commit: %w: %s", err, diagnostic)
 	}
-	commit := strings.TrimSpace(string(output))
+	commit := strings.TrimSpace(output)
 	if !validGitObjectID(commit) {
 		return "", errors.New("gate: Git produced an invalid interrupted commit keepalive identity")
 	}

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/gosyntax"
 	"overgo/internal/jsonfile"
 )
 
@@ -61,7 +62,7 @@ type StructureFinding struct {
 // the budgets: per-file line counts, per-package direct internal imports,
 // and per-command-package production file counts. Reviewed exceptions carry
 // their own limits; everything else holds the shared ceiling.
-func MeasureStructureBudgets(snapshot SourceSnapshot, budgets StructureBudgets) []StructureFinding {
+func MeasureStructureBudgets(snapshot gosyntax.Snapshot, budgets StructureBudgets) []StructureFinding {
 	exceptionLimit := func(budget, subject string) int {
 		for _, exception := range budgets.Exceptions {
 			if exception.Budget == budget && exception.Subject == subject {
@@ -80,7 +81,7 @@ func MeasureStructureBudgets(snapshot SourceSnapshot, budgets StructureBudgets) 
 		if generated, err := file.Generated(); err != nil || generated {
 			continue
 		}
-		lines := bytes.Count(file.blob.data, []byte{'\n'}) + 1
+		lines := bytes.Count(file.Data, []byte{'\n'}) + 1
 		limit := max(budgets.MaxProductionFileLines, exceptionLimit("file-lines", file.Path))
 		if lines > limit {
 			findings = append(findings, StructureFinding{

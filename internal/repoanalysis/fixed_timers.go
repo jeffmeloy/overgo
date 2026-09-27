@@ -7,6 +7,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"overgo/internal/gosyntax"
 )
 
 // FixedTimer counts, in one function, the waits bound to a duration the
@@ -27,7 +29,7 @@ var timerCalls = map[string]map[string]bool{
 // a literal, a time unit, a constant, or a variable initialised from those.
 // A duration that arrives through a parameter, a field, a flag or another
 // computed value is the caller's declaration and is not counted.
-func FixedTimerCensus(snapshot SourceSnapshot) ([]FixedTimer, error) {
+func FixedTimerCensus(snapshot gosyntax.Snapshot) ([]FixedTimer, error) {
 	packages, err := packageValues(snapshot)
 	if err != nil {
 		return nil, err
@@ -123,7 +125,7 @@ type packageScope map[string]packageValue
 
 // packageValues indexes every package's top-level constants and variables
 // by directory, so a name declared in one file resolves in its siblings.
-func packageValues(snapshot SourceSnapshot) (map[string]packageScope, error) {
+func packageValues(snapshot gosyntax.Snapshot) (map[string]packageScope, error) {
 	packages := map[string]packageScope{}
 	for _, file := range snapshot.Files {
 		parsed, err := file.Syntax()

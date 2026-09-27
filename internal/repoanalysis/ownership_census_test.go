@@ -3,6 +3,8 @@ package repoanalysis
 import (
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/gosyntax"
 )
 
 // TestRSIOwnershipCensusContract runs the census on the real repository
@@ -13,7 +15,7 @@ import (
 func TestRSIOwnershipCensusContract(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
-	snapshot, err := DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // FunctionSymbol is one production function or method in an analyzed source
@@ -48,7 +48,7 @@ type FunctionImpact struct {
 // reverse references from both snapshots. The union preserves callers of
 // removed functions as well as callers introduced in the candidate.
 func DeriveFunctionImpact(
-	base, candidate repoanalysis.SourceSnapshot,
+	base, candidate gosyntax.Snapshot,
 	baseSelection, candidateSelection gosource.BuildSelection,
 	changedPaths []string,
 ) (FunctionImpact, error) {
@@ -100,7 +100,7 @@ func DeriveFunctionImpact(
 	return result, nil
 }
 
-func changedPackageDirectories(base, candidate repoanalysis.SourceSnapshot, changedPaths []string) []string {
+func changedPackageDirectories(base, candidate gosyntax.Snapshot, changedPaths []string) []string {
 	baseFiles, candidateFiles := snapshotFiles(base), snapshotFiles(candidate)
 	packages := map[string]bool{}
 	for _, changed := range changedPaths {
@@ -124,7 +124,7 @@ func changedPackageDirectories(base, candidate repoanalysis.SourceSnapshot, chan
 }
 
 func impactBoundaries(
-	base, candidate repoanalysis.SourceSnapshot,
+	base, candidate gosyntax.Snapshot,
 	baseSelection, candidateSelection gosource.BuildSelection,
 	changedPaths []string,
 	baseIndex, candidateIndex consumerIndex,
@@ -148,7 +148,7 @@ func impactBoundaries(
 			addImpactBoundary(boundaries, ImpactBoundary{Kind: "outside-snapshot", Path: changed})
 			continue
 		}
-		for _, source := range []repoanalysis.GoFile{baseFile, candidateFile} {
+		for _, source := range []gosyntax.File{baseFile, candidateFile} {
 			if source.Path == "" {
 				continue
 			}
@@ -218,7 +218,7 @@ func impactBoundaries(
 	return result, nil
 }
 
-func hasNonFunctionDeclarations(source repoanalysis.GoFile) (bool, error) {
+func hasNonFunctionDeclarations(source gosyntax.File) (bool, error) {
 	file, err := source.Syntax()
 	if err != nil {
 		return false, err
@@ -231,8 +231,8 @@ func hasNonFunctionDeclarations(source repoanalysis.GoFile) (bool, error) {
 	return false, nil
 }
 
-func snapshotFiles(snapshot repoanalysis.SourceSnapshot) map[string]repoanalysis.GoFile {
-	files := make(map[string]repoanalysis.GoFile, len(snapshot.Files))
+func snapshotFiles(snapshot gosyntax.Snapshot) map[string]gosyntax.File {
+	files := make(map[string]gosyntax.File, len(snapshot.Files))
 	for _, file := range snapshot.Files {
 		files[file.Path] = file
 	}
@@ -244,7 +244,7 @@ func buildSelectionUnknown(sourcePath string, selection gosource.BuildSelection)
 	return !known || !selected
 }
 
-func nonFunctionFingerprint(source repoanalysis.GoFile) (string, error) {
+func nonFunctionFingerprint(source gosyntax.File) (string, error) {
 	file, err := source.Syntax()
 	if err != nil {
 		return "", err

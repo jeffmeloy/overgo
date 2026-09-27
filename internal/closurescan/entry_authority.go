@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // EntryAuthorityDomain names one established production entry authority the
@@ -201,7 +201,6 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			OwnerPaths: []string{"internal/processcontrol"},
 			Exceptions: map[string]string{
 				"internal/runrecord/verifying_commit.go":       "read-only git fact reads; execution-semantics binds repository facts to supervised receipts",
-				"internal/repoanalysis/imports.go":             "read-only go toolchain fact reads; execution-semantics migration",
 				"internal/clioptions/command.go":               "command self-identification fact; execution-semantics migration",
 				"internal/testprocess/process.go":              "test-support process helpers consumed only by suites",
 				"cmd/plan/sync.go":                             "read-only git fact reads; execution-semantics migration",
@@ -385,7 +384,7 @@ func EntryAuthorityRuleFor(domain EntryAuthorityDomain) (EntryAuthorityRule, boo
 // the complete production source inventory and refuses any bypass around an
 // established authority, and any stale grandfathered exception.
 func ValidateEntryAuthorities(
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	rules []EntryAuthorityRule,
 ) (EntryAuthorityReport, error) {
 	report := EntryAuthorityReport{}
@@ -403,7 +402,7 @@ func ValidateEntryAuthorities(
 }
 
 func validateEntryAuthorityRule(
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	rule EntryAuthorityRule,
 ) (EntryAuthorityDomainReport, error) {
 	if rule.Domain == "" || rule.Owner == "" || rule.Detect == nil || rule.Retire == "" {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestDomainProfile(t *testing.T) {
@@ -27,7 +27,7 @@ func TestDomainProfile(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestAdvisoryCandidate(t *testing.T) {
 	if err := os.WriteFile(testPath, []byte("package p\nfunc TestShape() {}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -22,8 +22,8 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 	"overgo/internal/strictjson"
 )
 
@@ -530,7 +530,7 @@ func modelAuthorityPackage(pkg string) bool {
 	return false
 }
 
-func checkTestAuthority(snapshot repoanalysis.SourceSnapshot, requirements testRequirements) error {
+func checkTestAuthority(snapshot gosyntax.Snapshot, requirements testRequirements) error {
 	sites, err := closurescan.CensusTestLiterals(snapshot)
 	if err != nil {
 		return err
@@ -564,7 +564,7 @@ func closurePrefixes(value string) ([]string, error) {
 	return slices.Compact(prefixes), nil
 }
 
-func scopedSources(snapshot repoanalysis.SourceSnapshot, prefixes []string) []string {
+func scopedSources(snapshot gosyntax.Snapshot, prefixes []string) []string {
 	var relatives []string
 	for _, source := range snapshot.Files {
 		if !source.Test && (prefixes == nil || scopedPath(source.Path, prefixes)) {
@@ -591,7 +591,7 @@ func scopedPath(path string, prefixes []string) bool {
 	})
 }
 
-func publishCensusEvidence(ctx context.Context, store *overgodb.Store, snapshot repoanalysis.SourceSnapshot, census closurescan.Census) (closurescan.CensusEvidence, error) {
+func publishCensusEvidence(ctx context.Context, store *overgodb.Store, snapshot gosyntax.Snapshot, census closurescan.Census) (closurescan.CensusEvidence, error) {
 	active, aliases, err := activeClosureDocuments(ctx, store)
 	if err != nil {
 		return closurescan.CensusEvidence{}, err
@@ -632,7 +632,7 @@ func publishCensusEvidence(ctx context.Context, store *overgodb.Store, snapshot 
 
 func importClosureDocuments(
 	root, storePath, sourcePath string,
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	reviewCallsites, retireUnmatched bool,
 ) (count, unmatched int, first string, aliases closureAliasReview, finalErr error) {
 	return importClosureDocumentsWith(root, storePath, sourcePath, snapshot, reviewCallsites, retireUnmatched, nil, nil)
@@ -644,7 +644,7 @@ func importClosureDocuments(
 // passes' together.
 func settleClosureDocuments(
 	root, storePath, sourcePath string,
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	reviewCallsites, retireUnmatched bool,
 ) (int, int, string, closureAliasReview, error) {
 	count, unmatched, first, aliases, err := importClosureDocuments(root, storePath, sourcePath, snapshot, reviewCallsites, false)
@@ -665,7 +665,7 @@ func settleClosureDocuments(
 // same scan found land together or not at all.
 func importClosureDocumentsWith(
 	root, storePath, sourcePath string,
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	reviewCallsites, retireUnmatched bool,
 	catalogued []closureledger.Document,
 	reviewed *closureReview,
@@ -1573,8 +1573,8 @@ func reportAssumptions(hints []closurescan.AssumptionHint, limit int) {
 	}
 }
 
-func mustSnapshot(root string) repoanalysis.SourceSnapshot {
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+func mustSnapshot(root string) gosyntax.Snapshot {
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		fatal(err)
 	}

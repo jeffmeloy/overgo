@@ -11,8 +11,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 const (
@@ -124,7 +124,7 @@ type unclassifiedSelection struct {
 
 func buildUnclassifiedReport(
 	ctx context.Context,
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	store *overgodb.Store,
 ) (unclassifiedReport, error) {
 	return buildUnclassifiedHistoryReport(ctx, snapshot, store, unclassifiedSelection{
@@ -134,7 +134,7 @@ func buildUnclassifiedReport(
 
 func buildUnclassifiedPolicyReport(
 	ctx context.Context,
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	store *overgodb.Store,
 ) (unclassifiedReport, error) {
 	return buildUnclassifiedHistoryReport(ctx, snapshot, store, unclassifiedSelection{
@@ -144,7 +144,7 @@ func buildUnclassifiedPolicyReport(
 
 func buildUnclassifiedHistoryReport(
 	ctx context.Context,
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	store *overgodb.Store,
 	selection unclassifiedSelection,
 ) (unclassifiedReport, error) {

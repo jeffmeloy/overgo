@@ -11,7 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 )
@@ -97,7 +97,7 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 			t.Fatal(err)
 		}
 		newGate := func() *gateContext {
-			snapshot, err := repoanalysis.DiscoverGo(root, "app", "dep", "other")
+			snapshot, err := gosyntax.DiscoverGo(root, "app", "dep", "other")
 			if err != nil {
 				t.Fatal(err)
 			}

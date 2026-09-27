@@ -1,4 +1,4 @@
-package repoanalysis
+package gosyntax
 
 import (
 	"testing"
@@ -8,7 +8,7 @@ import (
 
 func TestPackageNamesPrefersProductionDeclaration(t *testing.T) {
 	t.Parallel()
-	snapshot, err := (SourceSnapshot{}).Overlay(map[string][]byte{
+	snapshot, err := (Snapshot{}).Overlay(map[string][]byte{
 		"internal/sample/sample.go":           []byte("package sample\n"),
 		"internal/sample/zz_external_test.go": []byte("package sample_test\n"),
 	})

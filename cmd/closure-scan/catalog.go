@@ -14,9 +14,9 @@ import (
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
 	"overgo/internal/codeprofile"
+	"overgo/internal/gosyntax"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 // catalogText is the reviewed understanding one catalogue command binds to
@@ -42,7 +42,7 @@ func (text catalogText) validate() error {
 // beside whatever drifted binding the same scan rebinds. The count is the
 // documents catalogued; rebound counts the drifted documents committed
 // with them.
-func catalogCandidates(root, storePath string, snapshot repoanalysis.SourceSnapshot, names []string, text catalogText) (catalogued, rebound int, err error) {
+func catalogCandidates(root, storePath string, snapshot gosyntax.Snapshot, names []string, text catalogText) (catalogued, rebound int, err error) {
 	if err := text.validate(); err != nil {
 		return 0, 0, err
 	}

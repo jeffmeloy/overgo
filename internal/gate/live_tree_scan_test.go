@@ -38,7 +38,7 @@ func TestLiveTreeScanRatchet(t *testing.T) {
 				return err
 			}
 			source := string(data)
-			if !strings.Contains(source, "repoanalysis.DiscoverGo(") || !strings.Contains(source, `"..", ".."`) {
+			if !strings.Contains(source, "gosyntax.DiscoverGo(") || !strings.Contains(source, `"..", ".."`) {
 				return nil
 			}
 			owner, err := filepath.Rel(root, filepath.Dir(path))

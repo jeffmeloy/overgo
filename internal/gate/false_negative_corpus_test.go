@@ -10,7 +10,7 @@ import (
 	"overgo/internal/automationcheck"
 	"overgo/internal/codemanifest"
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestManifestFalseNegativeCorpus(t *testing.T) {
@@ -82,7 +82,7 @@ func deriveBoundaryImpact(t *testing.T, baseSource, candidateSource string, sele
 	if err := os.WriteFile(abs, []byte(baseSource), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	baseSnapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	baseSnapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

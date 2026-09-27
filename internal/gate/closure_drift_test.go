@@ -11,8 +11,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 // closureFixture is one policy file under a temporary root and the single
@@ -57,7 +57,7 @@ func newClosureFixture(t *testing.T) *closureFixture {
 }
 
 // write replaces the policy file and returns the snapshot of the root.
-func (f *closureFixture) write(t *testing.T, source string) repoanalysis.SourceSnapshot {
+func (f *closureFixture) write(t *testing.T, source string) gosyntax.Snapshot {
 	t.Helper()
 	path := filepath.Join(f.root, "internal", "policy", "policy.go")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -66,7 +66,7 @@ func (f *closureFixture) write(t *testing.T, source string) repoanalysis.SourceS
 	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(f.root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(f.root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

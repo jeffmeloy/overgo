@@ -88,10 +88,12 @@ func TestWrite(t *testing.T) {
 			t.Fatalf("scope %v missed seeded failure: %s %v", targets, output, err)
 		}
 	}
-	// Deleted inputs retain broad selection until their former owner resolves.
+	// Deleting a package's only file removes its directory from the
+	// candidate graph, so the removal stays unknown and keeps broad selection.
 	if err := os.Remove(filepath.Join(g.repo, "internal/other/other.go")); err != nil {
 		t.Fatal(err)
 	}
+	g.packageGraph = nil
 	resolver, err = g.dependencyResolver()
 	if err != nil || !resolver(automationcheck.Ownership{Packages: []string{"internal/temporary"}}, "internal/other") {
 		t.Fatalf("removed input excluded a lane: %v", err)

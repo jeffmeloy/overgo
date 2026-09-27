@@ -13,7 +13,7 @@ import (
 	"overgo/internal/codemanifest"
 	"overgo/internal/codeprofile"
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
@@ -30,7 +30,7 @@ func TestSurfacePreflightComposition(t *testing.T) {
 			t.Fatalf("retired entry remains: %s %v", retired, err)
 		}
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestSurfaceProfileReuse(t *testing.T) {
 	root := t.TempDir()
 	const name = "internal/example/example.go"
 	testutil.WriteTextFile(t, root, name, "package example\nfunc Value() int { return 1 }\n")
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

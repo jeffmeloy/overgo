@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestGenerateSymbolIdentityAndReferenceGraph(t *testing.T) {
 	root := t.TempDir()
 	writeGeneratorFixture(t, root, "internal/example/apply.go", "package example\nfunc Apply(value int) int { return value + 1 }\n")
 	writeGeneratorFixture(t, root, "internal/example/run.go", "package example\nfunc Run() int { return Apply(2) }\n")
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestGenerateSeparatesSignatureAndBody(t *testing.T) {
 
 func generateSingleFile(t *testing.T, root, name string) Manifest {
 	t.Helper()
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

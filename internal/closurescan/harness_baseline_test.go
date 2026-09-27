@@ -3,7 +3,7 @@ package closurescan
 import (
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 	"overgo/internal/testutil"
 )
 
@@ -17,7 +17,7 @@ const preSessionHarnessNodes = 181732
 // paydown row owes back, and the harness may not regrow past it.
 func TestHarnessSurfaceAtPreSessionBaseline(t *testing.T) {
 	t.Parallel()
-	snapshot, err := repoanalysis.DiscoverGo(testutil.RepoRoot(t), "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(testutil.RepoRoot(t), "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

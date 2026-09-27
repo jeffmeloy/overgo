@@ -13,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/gosource"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
 	"overgo/internal/repoanalysis"
 )
@@ -26,8 +27,8 @@ type modernGoInput struct {
 	ID           artifact.ID
 	CandidateKey artifact.ID
 	BaseKey      artifact.ID
-	Source       repoanalysis.SourceSnapshot
-	Base         repoanalysis.SourceSnapshot
+	Source       gosyntax.Snapshot
+	Base         gosyntax.Snapshot
 	Selection    gosource.BuildSelection
 	TargetGo     string
 	candidate    func() (repoanalysis.ModernGoCensus, error)
@@ -87,10 +88,10 @@ func (g *gateContext) prepareModernGoInput() (*modernGoInput, error) {
 		return nil, err
 	}
 	keys := []*artifact.ID{&input.CandidateKey, &input.BaseKey}
-	for index, source := range []repoanalysis.SourceSnapshot{snapshot, base} {
+	for index, source := range []gosyntax.Snapshot{snapshot, base} {
 		*keys[index], err = artifact.JSONID(artifact.KindProfile, struct {
 			Producer artifact.ID
-			Files    []repoanalysis.GoFile
+			Files    []gosyntax.File
 		}{producer, source.Files})
 		if err != nil {
 			return nil, err

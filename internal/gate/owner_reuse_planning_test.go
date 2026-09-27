@@ -11,7 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/gitauthority"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 	"overgo/internal/testutil"
 )
 
@@ -62,7 +62,7 @@ func assertOwnerReuseRetainsDependentChecks(t *testing.T, missingMethod string) 
 	}
 	environment := mustGateValue(discoverEnvironment(root))
 	attempt := func() (*gateContext, map[string]automationcheck.DAGResult) {
-		snapshot := mustGateValue(repoanalysis.DiscoverGo(root, "app", "dep", "other", "third"))
+		snapshot := mustGateValue(gosyntax.DiscoverGo(root, "app", "dep", "other", "third"))
 		g := &gateContext{repo: root, storePath: StorePath, environment: environment,
 			paths: []string{"app/app.go"}, source: &snapshot}
 		t.Cleanup(func() { _ = g.closeStore() })

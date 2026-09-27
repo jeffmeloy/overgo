@@ -16,10 +16,10 @@ import (
 	"overgo/internal/codemanifest"
 	"overgo/internal/dataset"
 	"overgo/internal/gosource"
+	"overgo/internal/gosyntax"
 	"overgo/internal/model"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 func TestManifestSummary(t *testing.T) {
@@ -31,7 +31,7 @@ func TestManifestSummary(t *testing.T) {
 	if err := os.WriteFile(source, []byte("package example\nfunc Value() int { return 1 }\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

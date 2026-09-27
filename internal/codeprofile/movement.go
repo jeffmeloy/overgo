@@ -1,6 +1,6 @@
 package codeprofile
 
-import "overgo/internal/repoanalysis"
+import "overgo/internal/gosyntax"
 
 // ProductionMovement reports gross AST additions and deletions by file. It
 // deliberately does not collapse them into a quality score.
@@ -9,7 +9,7 @@ type ProductionMovement struct {
 	GoLinesAdded, GoLinesDeleted int
 }
 
-func MeasureProductionMovement(base, candidate repoanalysis.SourceSnapshot) (ProductionMovement, error) {
+func MeasureProductionMovement(base, candidate gosyntax.Snapshot) (ProductionMovement, error) {
 	baseNodes, baseLines, err := snapshotSurface(base)
 	if err != nil {
 		return ProductionMovement{}, err
@@ -42,7 +42,7 @@ func MeasureProductionMovement(base, candidate repoanalysis.SourceSnapshot) (Pro
 	return movement, nil
 }
 
-func snapshotSurface(snapshot repoanalysis.SourceSnapshot) (map[string]int, map[string]int, error) {
+func snapshotSurface(snapshot gosyntax.Snapshot) (map[string]int, map[string]int, error) {
 	nodes := map[string]int{}
 	lines := map[string]int{}
 	for _, source := range snapshot.Files {

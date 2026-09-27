@@ -5,6 +5,8 @@ import (
 	"path"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/gosyntax"
 )
 
 // TestRootHoldsNoPolicyDocuments holds the repository root to documents it
@@ -14,7 +16,7 @@ import (
 func TestRootHoldsNoPolicyDocuments(t *testing.T) {
 	t.Parallel()
 	root := "../.."
-	snapshot, err := DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

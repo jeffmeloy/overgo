@@ -2,7 +2,6 @@ package gate
 
 import (
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -48,11 +47,14 @@ func changedPackages(impact codemanifest.Impact) []string {
 }
 
 // dependencyResolver uses the receipt input graph for lane reachability.
-// Unknown owners retain the complete selection. A removed document is
-// resolved as a changed one is: a package that still names it is its named
-// reader in the candidate, and one whose reference the change removed is
-// itself a changed package; a removed document no one names stays unknown
-// and keeps the complete selection, as a removed Go source does.
+// Unknown owners retain the complete selection. A removed Go source reaches
+// what its package reaches: the candidate builds, so nothing that remains
+// references what it declared, and only a lane compiling its package can
+// observe the removal. A removed package leaves no directory in the graph
+// and stays unknown. A removed document is resolved as a changed one is: a
+// package that still names it is its named reader in the candidate, and one
+// whose reference the change removed is itself a changed package; a removed
+// document no one names stays unknown and keeps the complete selection.
 func (g *gateContext) dependencyResolver() (automationcheck.DependencyResolver, error) {
 	graph, err := g.inputGraph()
 	if err != nil {
@@ -70,13 +72,6 @@ func (g *gateContext) dependencyResolver() (automationcheck.DependencyResolver, 
 		}
 		relative[node.ImportPath] = filepath.ToSlash(directory)
 		known[filepath.ToSlash(directory)] = true
-	}
-	// A removed Go source leaves no trace of what it compiled into in the
-	// candidate, so it keeps the complete selection.
-	for _, name := range g.paths {
-		if _, err := os.Stat(filepath.Join(graph.root, filepath.FromSlash(name))); err != nil && strings.HasSuffix(name, ".go") {
-			return func(automationcheck.Ownership, string) bool { return true }, nil
-		}
 	}
 	inputs := map[string][]string{}
 	return func(ownership automationcheck.Ownership, changed string) bool {

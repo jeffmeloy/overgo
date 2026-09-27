@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/gosyntax"
 	"overgo/internal/processcontrol"
 )
 
@@ -67,7 +68,7 @@ const fileNameRunes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234
 
 // TrackedDocumentCensus measures which packages name, embed or write each
 // document.
-func TrackedDocumentCensus(snapshot SourceSnapshot, documents []string) ([]TrackedDocument, error) {
+func TrackedDocumentCensus(snapshot gosyntax.Snapshot, documents []string) ([]TrackedDocument, error) {
 	census := make([]TrackedDocument, len(documents))
 	for index, document := range documents {
 		census[index].Path = document

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestDeltaDetectsAddedAndRemovedSymbols(t *testing.T) {
@@ -93,7 +93,7 @@ func completeFixtureManifest(t *testing.T) Manifest {
 
 func generateForDelta(t *testing.T, root string, selection gosource.BuildSelection) Manifest {
 	t.Helper()
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

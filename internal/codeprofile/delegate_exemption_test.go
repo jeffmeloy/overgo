@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // TestDuplicateExcessExemptsPureDelegates proves the ratchet counts
@@ -30,7 +30,7 @@ func TestDuplicateExcessExemptsPureDelegates(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

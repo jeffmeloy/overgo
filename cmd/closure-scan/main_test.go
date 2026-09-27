@@ -15,8 +15,8 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 	"overgo/internal/testskip"
 )
 
@@ -78,7 +78,7 @@ func TestRepositoryGoStyleTests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestCensusEvidenceBindsCatalogAndSourceFingerprint(t *testing.T) {
 	}
 }
 
-func censusEvidenceFixture(t *testing.T) (*overgodb.Store, repoanalysis.SourceSnapshot, artifact.CommitID) {
+func censusEvidenceFixture(t *testing.T) (*overgodb.Store, gosyntax.Snapshot, artifact.CommitID) {
 	t.Helper()
 	store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
@@ -234,7 +234,7 @@ func censusEvidenceFixture(t *testing.T) (*overgodb.Store, repoanalysis.SourceSn
 	return store, censusSnapshot(t), head
 }
 
-func censusSnapshot(t *testing.T) repoanalysis.SourceSnapshot {
+func censusSnapshot(t *testing.T) gosyntax.Snapshot {
 	t.Helper()
 	root := t.TempDir()
 	files := map[string]string{
@@ -257,7 +257,7 @@ func test() { if first(3) != true { panic("fixture") } }
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,7 @@ func TestTriagePublishesAndRebindsExactBindings(t *testing.T) {
 	if err := os.WriteFile(path, moved, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,7 +379,7 @@ func TestTriagePublishesAndRebindsExactBindings(t *testing.T) {
 	if err := os.WriteFile(path, source, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err = repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err = gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,7 +402,7 @@ func TestTriagePublishesAndRebindsExactBindings(t *testing.T) {
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err = repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err = gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -526,7 +526,7 @@ func TestSameStoreImportLeavesUnprovenMatchingRetirementInactive(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -621,7 +621,7 @@ func TestSameStoreImportRecoversAutomaticTechnicalRebind(t *testing.T) {
 		t.Fatal(err)
 	}
 	writePolicy(oldPath, "policy")
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -972,7 +972,7 @@ func TestClosureRetirementRequiresSettledRebind(t *testing.T) {
 	if err := os.WriteFile(path, []byte("// reviewed source change\npackage next\nconst Policy = 7 + 0\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(fixture.root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(fixture.root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1050,7 +1050,7 @@ func TestSameStoreImportDoesNotResurrectSupersededDecision(t *testing.T) {
 		t.Fatal(err)
 	}
 	write("7")
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1120,7 +1120,7 @@ func TestSameStoreImportRejectsConflictingHistoricalAuthority(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1182,7 +1182,7 @@ func TestClosurePublicationDeltaCopiesFixtureAndSkipsRepeat(t *testing.T) {
 	if err := source.Close(); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1426,7 +1426,7 @@ func TestPermanentMagicGateAuthorityEnforcement(t *testing.T) {
 	if err := os.WriteFile(testPath, []byte("package model\nconst expectedPolicyLimit = 7\nfunc verify() { if allowed(1) == expectedPolicyLimit { panic(\"policy\") } }\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

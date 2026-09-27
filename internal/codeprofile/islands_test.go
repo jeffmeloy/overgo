@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // TestPrivateCodeReachedOnlyByTestsIsFound holds the island detector to
@@ -20,7 +20,7 @@ func TestPrivateCodeReachedOnlyByTestsIsFound(t *testing.T) {
 		"internal/lib/lib_test.go":    []byte("package lib\nimport \"testing\"\nfunc TestTrain(t *testing.T) { TrainOnlyInTests() }\n"),
 		"internal/lib/initialized.go": []byte("package lib\nfunc init() { registered() }\nfunc registered() {}\n"),
 	}
-	snapshot, err := (repoanalysis.SourceSnapshot{}).Overlay(files)
+	snapshot, err := (gosyntax.Snapshot{}).Overlay(files)
 	if err != nil {
 		t.Fatal(err)
 	}

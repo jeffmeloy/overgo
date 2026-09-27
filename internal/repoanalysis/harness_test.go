@@ -3,12 +3,14 @@ package repoanalysis
 import (
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/gosyntax"
 )
 
 func TestAgentHarnessConsolidation(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
-	snapshot, err := DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 )
@@ -44,7 +45,7 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	write("internal/plan/a.go", "package x\n\nfunc  A( ) {}\n")
 	modernMemoPublish(t, repo)
 	priorBaseline := read("docs/modern_go_baseline.json")
-	snapshot, err := repoanalysis.DiscoverGo(repo, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

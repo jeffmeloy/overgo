@@ -1,4 +1,4 @@
-package repoanalysis
+package gosyntax
 
 import (
 	"go/ast"
@@ -71,9 +71,9 @@ func TestSourceSnapshotOverlay(t *testing.T) {
 	}
 }
 
-func TestGoStylePolicyAndBaseline(t *testing.T) {
+func TestSnapshotLinesAndIdentity(t *testing.T) {
 	t.Parallel()
-	base, err := (SourceSnapshot{}).Overlay(map[string][]byte{
+	base, err := (Snapshot{}).Overlay(map[string][]byte{
 		"p/p.go": []byte("package p\nfunc before() {}\n"),
 	})
 	if err != nil {

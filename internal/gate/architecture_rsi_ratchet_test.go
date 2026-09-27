@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/repoanalysis"
 )
 
@@ -40,7 +41,7 @@ func TestArchitectureRatchetIncludesGoOnlyPolicy(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	violation, err := repoanalysis.DiscoverGo(root, "internal")
+	violation, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,20 +198,20 @@ func architectureRSIFinding(t *testing.T, path, body, family, kind string) {
 	requireArchitectureFinding(t, report, family, kind)
 }
 
-func architectureRSISnapshot(t *testing.T) repoanalysis.SourceSnapshot {
+func architectureRSISnapshot(t *testing.T) gosyntax.Snapshot {
 	t.Helper()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(repo, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}
 	return snapshot
 }
 
-func architectureRSIOverlay(t *testing.T, snapshot repoanalysis.SourceSnapshot, overlay map[string][]byte) repoanalysis.SourceSnapshot {
+func architectureRSIOverlay(t *testing.T, snapshot gosyntax.Snapshot, overlay map[string][]byte) gosyntax.Snapshot {
 	t.Helper()
 	candidate, err := snapshot.Overlay(overlay)
 	if err != nil {
@@ -219,7 +220,7 @@ func architectureRSIOverlay(t *testing.T, snapshot repoanalysis.SourceSnapshot, 
 	return candidate
 }
 
-func architectureRSIAudit(t *testing.T, snapshot repoanalysis.SourceSnapshot) repoanalysis.ProductionAuthorityReport {
+func architectureRSIAudit(t *testing.T, snapshot gosyntax.Snapshot) repoanalysis.ProductionAuthorityReport {
 	t.Helper()
 	report, err := repoanalysis.AuditProductionAuthorityBoundaries(snapshot)
 	if err != nil {

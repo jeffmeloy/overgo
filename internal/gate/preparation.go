@@ -24,10 +24,10 @@ import (
 	"overgo/internal/codeprofile"
 	"overgo/internal/dataroot"
 	"overgo/internal/gosource"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
-	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 )
 
@@ -299,8 +299,10 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 
 // requiresManifestBootstrap names the owners whose change makes the impact
 // analysis or the check definitions untrusted, so every owned check runs:
-// the manifest analyzers and the check definition and planning owner. The
-// gate's own packages are not among them: a gate change is verified by the
+// the manifest analyzers, the source snapshot they parse, and the check
+// definition and planning owner. The repository censuses are not among
+// them: the manifest owners do not import them, so a census change is an
+// ordinary one. Nor are the gate's own packages: a gate change is verified by the
 // gate's selected owner tests, including the shadow matrix that compares
 // the selector with the complete gate, and the lanes it invokes are
 // excluded only when the ownership closure proves them independent.
@@ -308,7 +310,7 @@ func requiresManifestBootstrap(paths []string) bool {
 	for _, name := range paths {
 		name = filepath.ToSlash(name)
 		for _, owner := range []string{
-			"internal/codemanifest/", "internal/codeprofile/", "internal/repoanalysis/",
+			"internal/codemanifest/", "internal/codeprofile/", "internal/gosyntax/", "internal/gosource/",
 			"internal/automationcheck/", "cmd/code-manifest/",
 		} {
 			if strings.HasPrefix(name, owner) {
@@ -380,12 +382,18 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 	manifestCache := g.manifestCache
 	g.sourceMutex.Unlock()
 	if manifestCache == nil {
-		manifestCache, err = codemanifest.NewCache(len([]repoanalysis.SourceSnapshot{base, candidate}))
+		manifestCache, err = codemanifest.NewCache(len([]gosyntax.Snapshot{base, candidate}))
 		if err != nil {
 			return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 		}
 	}
-	baseManifest, _, err := manifestCache.Generate(base, []gosource.BuildSelection{selection}, baseInputs)
+	// The selection is the candidate tree's; a file the change removed is
+	// decided by its own constraints in the package of its siblings.
+	baseSelection, err := gosyntax.Cover(selection, base)
+	if err != nil {
+		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	}
+	baseManifest, _, err := manifestCache.Generate(base, []gosource.BuildSelection{baseSelection}, baseInputs)
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}

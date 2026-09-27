@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/gosyntax"
 )
 
 // TestEveryTrackedFileHasAReader holds every document in the checkout --
@@ -18,7 +20,7 @@ import (
 func TestEveryTrackedFileHasAReader(t *testing.T) {
 	t.Parallel()
 	root := "../.."
-	snapshot, err := DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +59,7 @@ func TestEveryTrackedFileHasAReader(t *testing.T) {
 // pass off a stray as read.
 func TestTrackedDocumentCensusFollowsTheName(t *testing.T) {
 	t.Parallel()
-	snapshot, err := SourceSnapshot{}.Overlay(map[string][]byte{
+	snapshot, err := gosyntax.Snapshot{}.Overlay(map[string][]byte{
 		"cmd/report/paths.go": []byte("package main\nconst reportPath = \"docs/REPORT.md\"\n"),
 		"cmd/report/main.go": []byte(`package main
 import (

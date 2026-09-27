@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"overgo/internal/gosource"
+	"overgo/internal/gosyntax"
 )
 
 // ModernGoRisk is the strongest proof required before changing a finding.
@@ -170,7 +171,7 @@ func (c ModernGoCensus) AdoptedCount() int {
 }
 
 type modernGoParsedFile struct {
-	source    GoFile
+	source    gosyntax.File
 	syntax    *ast.File
 	fileSet   *token.FileSet
 	info      *types.Info
@@ -183,7 +184,7 @@ type modernGoParsedFile struct {
 // BuildModernGoCensus discovers source and host build ownership through the
 // repository's existing authorities, then computes the typed census.
 func BuildModernGoCensus(root, targetVersion string) (ModernGoCensus, error) {
-	snapshot, err := DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		return ModernGoCensus{}, err
 	}
@@ -196,7 +197,7 @@ func BuildModernGoCensus(root, targetVersion string) (ModernGoCensus, error) {
 
 // ModernGoCensusSnapshot computes a deterministic census over an explicit
 // snapshot and toolchain-derived build selection.
-func ModernGoCensusSnapshot(snapshot SourceSnapshot, selection gosource.BuildSelection, targetVersion string) (ModernGoCensus, error) {
+func ModernGoCensusSnapshot(snapshot gosyntax.Snapshot, selection gosource.BuildSelection, targetVersion string) (ModernGoCensus, error) {
 	guidelines, err := ModernGoApplicableGuidelines(targetVersion)
 	if err != nil {
 		return ModernGoCensus{}, err
@@ -233,7 +234,7 @@ func ModernGoCensusSnapshot(snapshot SourceSnapshot, selection gosource.BuildSel
 	}, nil
 }
 
-func parseModernGoFiles(snapshot SourceSnapshot, selection gosource.BuildSelection) ([]modernGoParsedFile, error) {
+func parseModernGoFiles(snapshot gosyntax.Snapshot, selection gosource.BuildSelection) ([]modernGoParsedFile, error) {
 	type group struct {
 		fileSet *token.FileSet
 		files   []*ast.File
@@ -243,7 +244,7 @@ func parseModernGoFiles(snapshot SourceSnapshot, selection gosource.BuildSelecti
 	var unselected []*modernGoParsedFile
 	for _, source := range snapshot.Files {
 		fileSet := token.NewFileSet()
-		syntax, err := parser.ParseFile(fileSet, source.Path, source.blob.data, parser.ParseComments)
+		syntax, err := parser.ParseFile(fileSet, source.Path, source.Data, parser.ParseComments)
 		if err != nil {
 			return nil, fmt.Errorf("modern-Go parse %s: %w", source.Path, err)
 		}
@@ -273,7 +274,7 @@ func parseModernGoFiles(snapshot SourceSnapshot, selection gosource.BuildSelecti
 			owner = &group{fileSet: token.NewFileSet()}
 			groups[key] = owner
 		}
-		groupSyntax, err := parser.ParseFile(owner.fileSet, source.Path, source.blob.data, parser.ParseComments)
+		groupSyntax, err := parser.ParseFile(owner.fileSet, source.Path, source.Data, parser.ParseComments)
 		if err != nil {
 			return nil, err
 		}

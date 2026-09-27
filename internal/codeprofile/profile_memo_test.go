@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // TestProfileBuildReusesUnchangedFileFacts holds the incremental profile to
@@ -18,7 +18,7 @@ func TestProfileBuildReusesUnchangedFileFacts(t *testing.T) {
 		"internal/memoprobe/b.go":      []byte("package memoprobe\nfunc B(v int) int { if v > 0 { return v }; return -v }\n"),
 		"internal/memoprobe/a_test.go": []byte("package memoprobe\nimport \"testing\"\nfunc TestA(t *testing.T) { A(1) }\n"),
 	}
-	base, err := (repoanalysis.SourceSnapshot{}).Overlay(files)
+	base, err := (gosyntax.Snapshot{}).Overlay(files)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestProfileBuildReusesUnchangedFileFacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	computed := func(snapshot repoanalysis.SourceSnapshot) map[string]bool {
+	computed := func(snapshot gosyntax.Snapshot) map[string]bool {
 		present := map[string]bool{}
 		for _, source := range snapshot.Files {
 			_, found := fileFactsMemo.Load(source.Path + "\x00" + source.ContentID + "\x00" + strconv.FormatBool(source.Test))

@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"overgo/internal/gosyntax"
 	"overgo/internal/jsonfile"
 	"overgo/internal/repoanalysis"
 )
 
 // The gate and its diagnostic projection use the same reviewed boundaries.
-func (g *gateContext) architectureDiagnostics(snapshot repoanalysis.SourceSnapshot) error {
+func (g *gateContext) architectureDiagnostics(snapshot gosyntax.Snapshot) error {
 	consolidation, err := repoanalysis.AuditAgentHarnessConsolidation(snapshot)
 	if err != nil {
 		return err

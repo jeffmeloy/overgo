@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"overgo/internal/gosyntax"
 )
 
 func TestModernGoRewritePublication(t *testing.T) {
@@ -43,7 +45,7 @@ func TestModernGoRewritePublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			snapshot, err := (SourceSnapshot{}).Overlay(map[string][]byte{"sample.go": []byte(source)})
+			snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"sample.go": []byte(source)})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -6,7 +6,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // closureProjection is the active closure authority the gate's own repairs
@@ -32,7 +32,7 @@ type closureProjection struct {
 // without this a catalogued literal that only moved offset reads as new
 // policy and stops the landing before the gate that rebinds it. A decision
 // whose value survives in its file stays as it was, so it is still reported.
-func projectedMagicBindings(snapshot repoanalysis.SourceSnapshot, documents []closureledger.Document, aliases map[string]artifact.ID) (closureProjection, error) {
+func projectedMagicBindings(snapshot gosyntax.Snapshot, documents []closureledger.Document, aliases map[string]artifact.ID) (closureProjection, error) {
 	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
 	if err != nil {
 		return closureProjection{}, err

@@ -8,8 +8,8 @@ import (
 
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 // TestMovedLiteralKeepsItsCatalogEntry holds the ledger to keeping a reviewed
@@ -69,7 +69,7 @@ func TestMovedLiteralKeepsItsCatalogEntry(t *testing.T) {
 
 	write("policy.go", "package sample\n\nfunc Stride() int { return 43 }\n")
 	write("window.go", "package sample\n\n"+moved)
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

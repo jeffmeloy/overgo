@@ -5,7 +5,7 @@ import (
 	"sort"
 
 	"overgo/internal/closureledger"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 const CensusSchema = "overgo/magic-census/v3"
@@ -68,7 +68,7 @@ type Census struct {
 }
 
 // BuildCensus measures source pressure; findings grant no disposition.
-func BuildCensus(snapshot repoanalysis.SourceSnapshot, authorities ...closureledger.Document) (Census, error) {
+func BuildCensus(snapshot gosyntax.Snapshot, authorities ...closureledger.Document) (Census, error) {
 	named, err := ScanSnapshot(snapshot, nil, CandidateConstants)
 	if err != nil {
 		return Census{}, err

@@ -34,6 +34,53 @@
       ]
     },
     {
+      "id": "rules-by-enforcement-level",
+      "title": "Move every rule to its cheapest deterministic level and keep the list short",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move every rule to its cheapest deterministic level and keep the list short",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestRuleListIsShort$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27: sort each rule (the small gate's rules, the repoanalysis tree tests, scripts/guard.sh, the doctrine prose) by the cheapest level that makes it deterministic: construction (types and API shape), a diff rule against HEAD, an auto-fix inside the landing, a tool guard, a behaviour test, or a few injected lines of judgement. A rule that asks the agent for justification text is bookkeeping: move it up or down. Candidates: no .py files and no time.Sleep around input-dependent work as diff rules; timers and store access by construction. Delete a rule that never fires or fires only wrongly; keep about 10-15; rule code counts against net production lines. Observed 2026-09-27 (user-scorecard/define): the gate's fix stage and a worker's go fix both stale derived files that pin source bytes -- compatibility claim identities (cmd/compatibility -refresh-identities) and the API manifest (cmd/api-manifest -update) -- so a landing refuses at test and reruns. Per the ladder, regenerating derived files is an auto-fix: run those regenerators inside the landing after fix, as format and fix already run. Re-ranked 2026-09-27 behind the landing rows: a rule that false-positives stalls every unattended landing (the owner's current focus). SQA-039 (the zero-fallback rule refuses lazy fallbacks that cmp.Or would change) and SQA-036 (the export rule counts text mentions as consumers) land here."
+        }
+      ]
+    },
+    {
+      "id": "env-gated-tests-run-or-go",
+      "title": "Run or delete tests no lane enables",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run or delete tests no lane enables",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestEveryTestGateIsSetByALane$' -count=1",
+          "rationale": "From consolidation-inventory (2026-09-24): 283 OVERGO_* environment reads sit in tests; 151 names appear only in tests and 145 of those are documented nowhere. 130 test functions (about 12,000 lines) skip unless a variable is set, and the lanes set only OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_WEBUI_LANE_SCREENS and OVERGO_BROWSER, so about 82 of them (about 5,800 lines, heaviest in internal/inference, adaptiveparity and projector) never run in any gate. Owner direction 2026-09-24: training and inference validation is the point of overgo, so give each a lane that runs it, with its model or data declared. Delete only a test a named running test supersedes. The same holds for modeltest-tagged suites no lane runs, such as seq2seq's GSM8K training suite. The probe is tmp/envgate_probe.go. Done when TestEveryTestGateIsSetByALane holds. Re-ranked 2026-09-27 behind the landing rows: SQA-037 (module-file changes can bypass the device and browser lanes), SQA-028 and SQA-023 are gate correctness defects this row owns."
+        }
+      ]
+    },
+    {
+      "id": "plan-tool-plain-data",
+      "title": "Shrink the plan tool to plain data",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Shrink the plan tool to plain data",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestPlanMachineryGone$' -count=1",
+          "rationale": "Owner review 2026-09-27: with the completion rules gone and rows plain data, the tool needs roughly -next, -status, -add, -setverify, -verify and -stop. internal/plan is 3.2k lines plus 3.8k of tests and cmd/plan 2.6k plus tests; dispatchreadiness and lanestore exist only for cmd/plan. Delete the old machinery's flags (-admit-proposal, -charge-exploration, -grant-exploration, -contain, -budget, -assign, -record-lease, -locality-schedule, -history and its phases, -prepare-merge now that a merge is git merge --no-ff --no-commit then a landing) and what only they use. Target 6-8k lines with tests. Re-ranked 2026-09-27 behind the landing rows: SQA-038 (a landed merge is invisible to the loop's progress check) and the plan-advance half of SQA-034 sit in the plan tool this row shrinks."
+        }
+      ]
+    },
+    {
       "id": "user-scorecard",
       "title": "One user-facing scorecard across every model, the definition of improvement",
       "owner": "master-lead",
@@ -604,21 +651,6 @@
       ]
     },
     {
-      "id": "env-gated-tests-run-or-go",
-      "title": "Run or delete tests no lane enables",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run or delete tests no lane enables",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestEveryTestGateIsSetByALane$' -count=1",
-          "rationale": "From consolidation-inventory (2026-09-24): 283 OVERGO_* environment reads sit in tests; 151 names appear only in tests and 145 of those are documented nowhere. 130 test functions (about 12,000 lines) skip unless a variable is set, and the lanes set only OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_WEBUI_LANE_SCREENS and OVERGO_BROWSER, so about 82 of them (about 5,800 lines, heaviest in internal/inference, adaptiveparity and projector) never run in any gate. Owner direction 2026-09-24: training and inference validation is the point of overgo, so give each a lane that runs it, with its model or data declared. Delete only a test a named running test supersedes. The same holds for modeltest-tagged suites no lane runs, such as seq2seq's GSM8K training suite. The probe is tmp/envgate_probe.go. Done when TestEveryTestGateIsSetByALane holds."
-        }
-      ]
-    },
-    {
       "id": "tmp-refuses-undeclared-entries",
       "title": "Retire tmp as a place tools and evidence depend on",
       "owner": "master-lead",
@@ -777,38 +809,6 @@
           "status": "open",
           "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
           "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
-        }
-      ]
-    },
-    {
-      "id": "rules-by-enforcement-level",
-      "title": "Move every rule to its cheapest deterministic level and keep the list short",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move every rule to its cheapest deterministic level and keep the list short",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestRuleListIsShort$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27: sort each rule (the small gate's rules, the repoanalysis tree tests, scripts/guard.sh, the doctrine prose) by the cheapest level that makes it deterministic: construction (types and API shape), a diff rule against HEAD, an auto-fix inside the landing, a tool guard, a behaviour test, or a few injected lines of judgement. A rule that asks the agent for justification text is bookkeeping: move it up or down. Candidates: no .py files and no time.Sleep around input-dependent work as diff rules; timers and store access by construction. Delete a rule that never fires or fires only wrongly; keep about 10-15; rule code counts against net production lines. Observed 2026-09-27 (user-scorecard/define): the gate's fix stage and a worker's go fix both stale derived files that pin source bytes -- compatibility claim identities (cmd/compatibility -refresh-identities) and the API manifest (cmd/api-manifest -update) -- so a landing refuses at test and reruns. Per the ladder, regenerating derived files is an auto-fix: run those regenerators inside the landing after fix, as format and fix already run."
-        }
-      ]
-    },
-    {
-      "id": "plan-tool-plain-data",
-      "title": "Shrink the plan tool to plain data",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Shrink the plan tool to plain data",
-          "status": "open",
-          "verify": "go test ./cmd/gate -run '^TestPlanMachineryGone$' -count=1",
-          "rationale": " Owner review 2026-09-27: with the completion rules gone and rows plain data, the tool needs roughly -next, -status, -add, -setverify, -verify and -stop. internal/plan is 3.2k lines plus 3.8k of tests and cmd/plan 2.6k plus tests; dispatchreadiness and lanestore exist only for cmd/plan. Delete the old machinery's flags (-admit-proposal, -charge-exploration, -grant-exploration, -contain, -budget, -assign, -record-lease, -locality-schedule, -history and its phases, -prepare-merge now that a merge is git merge --no-ff --no-commit then a landing) and what only they use. Target 6-8k lines with tests."
         }
       ]
     },
@@ -1060,7 +1060,8 @@
             "user-scorecard/load-split",
             "landing-binds-candidate-bytes/do",
             "landing-stream-owners/do",
-            "user-scorecard/typed-predictions"
+            "user-scorecard/typed-predictions",
+            "plan-rerank-2026-09-27/do"
           ]
         }
       ]

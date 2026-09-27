@@ -10,6 +10,7 @@ import (
 	"context"
 	"strings"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/overgodb"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/remoterelay"
@@ -77,8 +78,13 @@ func (intake Intake) Keys(ctx context.Context, store *overgodb.Store, reference,
 }
 
 // Library is the server's library intake over this provider intake, with
-// the local model intake's file and registration steps; the validation
-// step, which needs a served model, is the caller's.
+// the local model intake's file and registration steps and the data root's
+// datasets directory for imports; the validation step, which needs a served
+// model, is the caller's.
 func (intake Intake) Library(modelFiles func(path, explicitProjector string) (string, string, error), register func(context.Context, *overgodb.Store, string, string) (map[string]any, error)) server.LibraryIntake {
-	return server.LibraryIntake{ModelFiles: modelFiles, Register: register, DeclareProvider: intake.Declare, ListProviderModels: intake.ListModels, RetireProvider: intake.Retire}
+	library := server.LibraryIntake{ModelFiles: modelFiles, Register: register, DeclareProvider: intake.Declare, ListProviderModels: intake.ListModels, RetireProvider: intake.Retire}
+	if roots, err := dataroot.ResolveCurrent(); err == nil {
+		library.DatasetRoot = roots.Datasets
+	}
+	return library
 }

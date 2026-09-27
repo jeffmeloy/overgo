@@ -23,6 +23,9 @@ func OpenRegistered(ctx context.Context, reader artifact.Reader, name string, ma
 		return nil, fmt.Errorf("dataset %q is not registered", name)
 	}
 	modality := recipecontract.Modality(catalog.Catalog[index].Modality)
+	if catalog.Catalog[index].Modality == dataset.ModalityStructured {
+		modality = recipecontract.ModalityText // a structured record inspects as its UTF-8 text
+	}
 	var process Processor
 	switch modality {
 	case recipecontract.ModalityText:

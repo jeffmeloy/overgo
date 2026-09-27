@@ -63,6 +63,10 @@ type LibraryIntake struct {
 	// a reason, as the provider command does; absent, the retirement route
 	// answers that it needs it.
 	RetireProvider func(ctx context.Context, repository *overgodb.Store, location, reason string) error
+	// DatasetRoot is where a dataset file imported from a common chat format
+	// is written, one conversation per file; empty, an import answers that
+	// it needs it.
+	DatasetRoot string
 }
 
 // providerRetireRequest: the hosted model to retire and why.
@@ -234,14 +238,26 @@ func libraryRegisterRoute(response http.ResponseWriter, request *http.Request, r
 		receipt["kind"] = body.Kind
 		writeJSON(response, http.StatusOK, receipt)
 	case "dataset":
-		registered, err := dataset.RegisterDirectoryDatasetAs(request.Context(), repository, strings.TrimSpace(body.Name), strings.TrimSpace(body.Directory), body.Modality)
+		// A file path imports a common chat format; a directory registers as it stands.
+		var registered dataset.RegisteredDataset
+		var formats []string
+		var err error
+		switch source := strings.TrimSpace(body.Path); {
+		case source != "" && intake.DatasetRoot == "":
+			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "dataset import needs the data root's datasets directory")
+			return
+		case source != "":
+			registered, formats, err = dataset.ImportCommonFormat(request.Context(), repository, body.Name, source, intake.DatasetRoot)
+		default:
+			registered, err = dataset.RegisterDirectoryDatasetAs(request.Context(), repository, strings.TrimSpace(body.Name), strings.TrimSpace(body.Directory), body.Modality)
+		}
 		if err != nil {
 			writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
 			return
 		}
 		writeJSON(response, http.StatusOK, map[string]any{
 			"kind": body.Kind, "name": body.Name, "dataset": registered.Dataset, "commit": registered.Commit,
-			"files": registered.Files, "bytes": registered.Bytes, "changed": registered.Changed,
+			"files": registered.Files, "bytes": registered.Bytes, "changed": registered.Changed, "formats": formats,
 		})
 	case "provider":
 		declare := intake.DeclareProvider

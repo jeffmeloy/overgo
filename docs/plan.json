@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-dataset-import",
-      "title": "Register datasets from alpaca, ShareGPT and OpenAI-messages files through one converter",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Register datasets from alpaca, ShareGPT and OpenAI-messages files through one converter",
-          "status": "open",
-          "verify": "test -f internal/dataset/common_format_test.go \u0026\u0026 go test ./internal/dataset -run '^TestCommonFormatsConvert$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(DatasetImport|LayoutAudit)$' -leg 'dataset import leg'",
-          "rationale": "LlamaFactory review 2026-09-25: its registry reads alpaca, ShareGPT and OpenAI-messages files. One converter lets users register the datasets they already have. internal/dataset is in master's inference-surface closure, so this row lands batched with a master surface move, never alone."
-        }
-      ]
-    },
-    {
       "id": "gui-speculative-decoding",
       "title": "Offer speculative decoding in Settings only when the served recipe declares a draft head, with depth taken from the declaration",
       "owner": "overgo_gui_cleanup",

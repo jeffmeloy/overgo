@@ -93,19 +93,23 @@
         catch (err) { stage.host.replaceChildren(overgo.failure(err)); return false; }
         finally { stage.pending = false; redraw(job); }
       }
+      // registration: a model by its file, a dataset file importing a common chat format, or a downloaded directory.
+      function registration(job, name) {
+        if (job.kind !== "datasets") return { kind: "model", path: job.destination, projector: job.projector || "" };
+        return job.source ? { kind: "dataset", name, path: job.source } : { kind: "dataset", name, directory: job.destination };
+      }
       const register = (job) => step(job, async (stage, name) => {
         if (stage.registered) return;
-        stage.registered = await overgo.api.post("/library/register", job.kind === "datasets"
-          ? { kind: "dataset", name, directory: job.destination }
-          : { kind: "model", path: job.destination, projector: job.projector || "" });
+        stage.registered = await overgo.api.post("/library/register", registration(job, name));
+        const imported = stage.imported = (stage.registered.formats || []).length ? " · " + stage.registered.files + " conversations from " + stage.registered.formats.join(", ") : "";
         stage.host.replaceChildren(el("span", { class: "note" }, "registered ", overgo.artifactLink(stage.registered.recipe || stage.registered.dataset),
-          stage.registered.projector ? " with projector " + (stage.registered.media || []).join("/") : ""));
+          stage.registered.projector ? " with projector " + (stage.registered.media || []).join("/") : "", imported));
         refreshCatalog();
       });
       const validate = (job) => step(job, async (stage, name) => {
         if (job.kind === "datasets") {
           const preview = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 });
-          stage.host.replaceChildren(el("span", { class: "note", text: "validated: " + preview.examples.length + " example previewed" }));
+          stage.host.replaceChildren(el("span", { class: "note", text: "validated: " + preview.examples.length + " example previewed" + (stage.imported || "") }));
           return;
         }
         const admitted = await overgo.api.post("/library/validate", { path: stage.registered.path, projector: stage.registered.projector || "" });
@@ -161,6 +165,18 @@
         add(job);
       } });
       jobsNote.after(el("div", { class: "row" }, localModel, localProjector, localButton));
+
+      // ---- a dataset file in alpaca, ShareGPT or OpenAI messages form imports as conversations, one per record ----
+      const datasetSource = el("input", { "aria-label": "Chat dataset file on disk", class: "text", placeholder: "alpaca, ShareGPT or OpenAI messages file (.json or .jsonl)" });
+      const datasetName = el("input", { "aria-label": "Dataset name", class: "text", placeholder: "dataset name" });
+      const datasetButton = el("button", { class: "btn alt", text: "Import a dataset file", onclick: () => {
+        const path = datasetSource.value.trim(), name = datasetName.value.trim(); if (!path || !name) return;
+        const job = { id: "import:" + path, kind: "datasets", state: "succeeded", repository: name, source: path };
+        localBody.replaceChildren(overgo.tableRow([name, el("span", { class: "tag user_defined", text: "import" }), path, "", lifecycle(job)]));
+        add(job);
+      } });
+      localModel.parentElement.after(el("div", { class: "row" }, datasetSource, datasetName, datasetButton),
+        el("p", { class: "note", text: "Imported conversations preview under Datasets; the workbench trains preference and rollout datasets." }));
 
       // ---- a hosted provider: the declaration the CLI file carries, committed through the library route; the catalog relists ----
       const providerFields = ["name", "endpoint", "key variable", "model ids (comma-separated)", "context length (optional)"].map((placeholder) => el("input", { class: "text", placeholder, "aria-label": "provider " + placeholder }));

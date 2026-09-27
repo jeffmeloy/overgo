@@ -30,6 +30,15 @@
             el("span", { class: "note mono", text: data.catalog })),
           search, host, preview);
 
+        // previewText: a record in the OpenAI messages form reads as its conversation, any other text as written.
+        function previewText(text) {
+          let record = null;
+          try { record = JSON.parse(text); } catch (_) { /* not JSON: shown as written */ }
+          const messages = record && Array.isArray(record.messages) ? record.messages : null;
+          if (!messages) return el("pre", { class: "preview-text", text });
+          return el("div", { class: "dataset-conversation" }, ...messages.map((message) =>
+            el("div", { class: "dataset-turn" }, el("strong", { text: message.role }), el("span", { class: "preview-text", text: message.content }))));
+        }
         // The newest chosen dataset owns the preview: choosing another aborts the earlier read.
         let chosen = "";
         const showPreview = overgo.read(preview, (signal) => overgo.api.post("/datasets/preview", { name: chosen, position: 0, limit: 1 }, { signal }), (result) => {
@@ -39,7 +48,7 @@
               el("div", { class: "mono", text: example.id }),
               ...example.values.map((value) => el("div", {},
                 el("span", { class: "tag", text: value.role + " / " + value.modality }),
-                value.text ? el("pre", { class: "preview-text", text: value.text }) :
+                value.text ? previewText(value.text) :
                   el("span", { class: "note", text: value.encoding + " / " + value.bytes + " bytes" }))))));
         }, { loading: null });
 

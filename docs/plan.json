@@ -1277,7 +1277,8 @@
             "device-lease-host-tests-inline/do",
             "lanes-never-refuse/do",
             "admission-before-tests/do",
-            "browser-dialog-ends-waits/do"
+            "browser-dialog-ends-waits/do",
+            "lane-runner-foreground/do"
           ]
         }
       ]

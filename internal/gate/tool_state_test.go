@@ -26,14 +26,14 @@ func TestToolStateLivesInTheRuntimeDirectory(t *testing.T) {
 	runGitFixture(t, repo, "init", "--quiet")
 	state := []string{
 		gateDebtFile, gateCommitIntentFile, gateHeartbeatFile, gateRetryFile, gatePreparedSelectionFile,
-		gateLanesLocatorFile, gateLanesLogFile, gateLanesLockFile, gatePlanScratchDir,
+		gateLanesLockFile, gatePlanScratchDir,
 	}
 	for _, name := range state {
 		if !strings.HasPrefix(name, processlock.StateDirectory+"/") {
 			t.Errorf("%s is kept outside %s", name, processlock.StateDirectory)
 		}
 	}
-	for _, name := range []string{gateDebtFile, gateCommitIntentFile, gateHeartbeatFile, gateRetryFile, gatePreparedSelectionFile, gateLanesLocatorFile} {
+	for _, name := range []string{gateDebtFile, gateCommitIntentFile, gateHeartbeatFile, gateRetryFile, gatePreparedSelectionFile} {
 		if err := writeJSON(repo, name, map[string]string{"writer": name}, clioptions.OutputFileMode); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}

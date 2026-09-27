@@ -17,10 +17,10 @@ import (
 
 // TestNextGateResumesUnfinishedLanes holds the next gate to resolving the
 // lanes a landed commit owes, never refusing on their bookkeeping: an open
-// obligation no runner holds -- its runner ended before recording an outcome,
-// with or without a stale locator naming a live process -- is debt the gate
-// runs inline, and a live runner is awaited on its own lock, so the gate
-// reads the outcome that runner records rather than the state it began from.
+// obligation no runner holds -- its runner ended before recording an outcome
+// -- is debt the gate runs inline, and a live runner is awaited on its own
+// lock, so the gate reads the outcome that runner records rather than the
+// state it began from.
 func TestNextGateResumesUnfinishedLanes(t *testing.T) {
 	t.Parallel()
 	repo := t.TempDir()
@@ -55,14 +55,6 @@ func TestNextGateResumesUnfinishedLanes(t *testing.T) {
 	if debt, err := requireLaneObligationsResolved(t.Context(), repo, store); err != nil || debt == nil || debt.ID != pending.ID {
 		t.Fatalf("pending obligation without a runner: debt=%v err=%v", debt, err)
 	}
-	locator := gateLanesLocator{Version: artifact.InitialDocumentVersion, State: runrecord.LaneObligationRunning, Obligation: pending.ID, CodeCommit: commit, PID: os.Getpid(), Updated: now}
-	if err := writeJSON(repo, gateLanesLocatorFile, locator, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if debt, err := requireLaneObligationsResolved(t.Context(), repo, store); err != nil || debt == nil || debt.ID != pending.ID {
-		t.Fatalf("stale locator with a live unrelated PID blocked recovery: debt=%v err=%v", debt, err)
-	}
-
 	// A runner holds the lanes, records their outcome, then releases them.
 	guard, err := acquireLaneRunner(repo)
 	if err != nil {

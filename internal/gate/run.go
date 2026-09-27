@@ -488,8 +488,8 @@ func Run(options Options) (runErr error) {
 		_ = g.writeHeartbeat(runrecord.HeartbeatFinalized)
 	}
 	if pipelineErr == nil && recordErr == nil {
-		if err := g.spawnLaneRunner(cleanStore); err != nil {
-			return fmt.Errorf("commit landed but its deferred lanes did not start; run `go run ./cmd/gate -lanes`: %w", err)
+		if err := g.announceLanes(); err != nil {
+			return fmt.Errorf("commit landed but its owed lanes were not announced: %w", err)
 		}
 	}
 	if pipelineErr != nil {

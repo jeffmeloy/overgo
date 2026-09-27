@@ -4,40 +4,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/atomicfile"
 	"overgo/internal/authoritylock"
 	"overgo/internal/automationcheck"
-	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
-	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
 )
 
-const (
-	gateLanesLocatorFile = processlock.StateDirectory + "/gate_lanes.json"
-	gateLanesLogFile     = processlock.StateDirectory + "/gate_lanes.log"
-	gateLanesLockFile    = processlock.StateDirectory + "/gate_lanes.lock"
-)
-
-// gateLanesLocator is the advisory pointer to the lane runner: which
-// obligation it serves and the process that holds it.
-type gateLanesLocator struct {
-	Version    uint16                        `json:"version"`
-	State      runrecord.LaneObligationState `json:"state"`
-	Obligation artifact.ID                   `json:"obligation"`
-	CodeCommit string                        `json:"code_commit"`
-	PID        int                           `json:"pid"`
-	Updated    time.Time                     `json:"updated"`
-}
+// gateLanesLockFile is held by whichever process runs a commit's lanes.
+const gateLanesLockFile = processlock.StateDirectory + "/gate_lanes.lock"
 
 // laneDeferral lists the lane checks this gate runs after its commit.
 func (g *gateContext) laneDeferral() map[string]bool {
@@ -169,74 +151,21 @@ func (g *gateContext) appendLaneObligation(batch *artifact.Batch, codeCommit str
 	return nil
 }
 
-// spawnLaneRunner starts the detached runner for the obligation this gate
-// recorded and leaves its locator beside the lifecycle locator.
-func (g *gateContext) spawnLaneRunner(storePath string) error {
+// announceLanes leaves the composed selection for the lanes this commit owes
+// and names them. No process is started to run them behind the caller:
+// `gate -lanes` runs them in the foreground, as the loop does after every
+// landing, and the next gate runs any it still finds owed inline, so they
+// never depend on a background process outliving its launcher.
+func (g *gateContext) announceLanes() error {
 	if g.laneObligation == nil {
 		return nil
 	}
-	executable, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	executable, err = laneExecutable(g.repo, executable)
-	if err != nil {
-		return fmt.Errorf("gate: retain lane executable: %w", err)
-	}
-	// Leave the composed selection before the detached runner starts, so it
-	// resumes from retained work rather than recomposing the manifest.
 	if err := g.persistPreparedSelection(); err != nil {
 		return fmt.Errorf("gate: retain prepared selection: %w", err)
 	}
-	log, err := os.OpenFile(filepath.Join(g.repo, filepath.FromSlash(gateLanesLogFile)), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, clioptions.OutputFileMode)
-	if err != nil {
-		return err
-	}
-	defer log.Close()
-	pid, err := processcontrol.StartDetached(processcontrol.Command{
-		Path: executable, Args: []string{"-lanes", "-store", storePath}, Dir: g.repo,
-	}, log)
-	if err != nil {
-		return fmt.Errorf("gate: start lane runner: %w", err)
-	}
-	locator := gateLanesLocator{
-		Version: artifact.InitialDocumentVersion, State: runrecord.LaneObligationPending,
-		Obligation: g.laneObligation.ID, CodeCommit: g.laneObligation.CodeCommit, PID: pid, Updated: time.Now().UTC(),
-	}
-	if err := writeJSON(g.repo, gateLanesLocatorFile, locator, clioptions.OutputFileMode); err != nil {
-		return err
-	}
-	fmt.Printf("gate: lanes deferred: %s run on %.12s as pid %d; log %s; the next gate waits for them\n",
-		strings.Join(g.laneObligation.Checks, ","), g.laneObligation.CodeCommit, pid, gateLanesLogFile)
+	fmt.Printf("gate: lanes owed: %s on %.12s; `go run ./cmd/gate -lanes` runs them, and the next gate runs any still owed\n",
+		strings.Join(g.laneObligation.Checks, ","), g.laneObligation.CodeCommit)
 	return nil
-}
-
-// laneExecutable retains the running image outside go run's temporary tree.
-// Admission serializes lane obligations; one file replaces per-run snapshots.
-func laneExecutable(repo, executable string) (string, error) {
-	source, err := os.Stat(executable)
-	if err != nil {
-		return "", err
-	}
-	path := filepath.Join(repo, "bin", "gate-lanes"+filepath.Ext(executable))
-	if target, err := os.Stat(path); err == nil {
-		if os.SameFile(source, target) {
-			return path, nil
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", err
-	}
-	data, err := os.ReadFile(executable)
-	if err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), clioptions.OutputDirectoryMode); err != nil {
-		return "", err
-	}
-	if err := atomicfile.Write(path, data, source.Mode().Perm()); err != nil {
-		return "", err
-	}
-	return path, nil
 }
 
 // runDeferredLanes is `gate -lanes`: it takes the store's open obligation,
@@ -280,10 +209,6 @@ func runDeferredLanes(repo, storePath string, execute func(*gateContext, runreco
 	}
 	running, err := g.resumeLaneObligation(current)
 	if err != nil {
-		return err
-	}
-	// The locator is advisory; the OS guard owns the runner's lifetime.
-	if err := g.writeLaneLocator(running); err != nil {
 		return err
 	}
 	g.paths = slices.Clone(running.Paths)
@@ -364,7 +289,6 @@ func runDeferredLanes(repo, storePath string, execute func(*gateContext, runreco
 	if _, err := store.CommitAs(context.Background(), gateProducer, batch); err != nil {
 		return fmt.Errorf("gate: record the lane outcome: %w", err)
 	}
-	_ = g.writeLaneLocator(resolved)
 	fmt.Printf("LANES %s %.1fs commit=%.12s checks=%s result=%s\n", strings.ToUpper(string(state)),
 		time.Since(g.start).Seconds(), running.CodeCommit, strings.Join(running.Checks, ","), record.Result.ID)
 	if state == runrecord.LaneObligationFailed {
@@ -526,11 +450,4 @@ func (g *gateContext) publishLaneState(state runrecord.GateLaneObligation, previ
 	}
 	_, err = g.store.CommitAs(context.Background(), gateProducer, batch)
 	return err
-}
-
-func (g *gateContext) writeLaneLocator(obligation runrecord.GateLaneObligation) error {
-	return writeJSON(g.repo, gateLanesLocatorFile, gateLanesLocator{
-		Version: artifact.InitialDocumentVersion, State: obligation.State, Obligation: obligation.ID,
-		CodeCommit: obligation.CodeCommit, PID: os.Getpid(), Updated: time.Now().UTC(),
-	}, clioptions.OutputFileMode)
 }

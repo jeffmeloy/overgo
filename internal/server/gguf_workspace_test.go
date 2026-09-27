@@ -39,7 +39,7 @@ func TestExportQuantizedGGUF(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := t.TempDir()
-	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF})
+	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
 	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowExport)
 	if err != nil || len(capabilities) != 1 {
 		t.Fatalf("export capabilities = %+v, %v", capabilities, err)
@@ -96,5 +96,51 @@ func TestExportQuantizedGGUF(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, left)); !os.IsNotExist(err) {
 			t.Fatalf("a refused export left %s: %v", left, err)
 		}
+	}
+}
+
+// ggufTestCommit stands in for the executable's clean source revision.
+const ggufTestCommit = "0123456789abcdef0123456789abcdef01234567"
+
+// TestGGUFRunsBindTheirSource: when the launcher names the executable's clean
+// source commit, an export's run binds that commit, this host's published
+// environment and the write's measured wall; without one the run records no
+// binding.
+func TestGGUFRunsBindTheirSource(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
+		t.Fatal(err)
+	}
+	exportRun := func(commit, output string) runrecord.Run {
+		t.Helper()
+		workspace := NewGGUFWorkspace(store, t.TempDir(), 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, commit)
+		capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowExport)
+		if err != nil || len(capabilities) != 1 {
+			t.Fatalf("export capabilities = %+v, %v", capabilities, err)
+		}
+		completion, err := workspace.ExecuteWorkflow(ctx, WorkflowExport, recipe.TaskExport, capabilities[0].Recipe,
+			json.RawMessage(`{"type":"f16","output":"`+output+`"}`), &recordingReporter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		run, err := runrecord.RequireRun(ctx, store, completion.Run)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return run
+	}
+	bound := exportRun(ggufTestCommit, "bound")
+	environment, err := runrecord.RequireEnvironment(ctx, store, bound.Environment)
+	if err != nil || bound.CodeCommit != ggufTestCommit || bound.MeasuredNS == 0 || environment.Device != "host" || environment.Backend != "go" {
+		t.Fatalf("bound run = commit %q environment %s measured %d: %+v, %v", bound.CodeCommit, bound.Environment, bound.MeasuredNS, environment, err)
+	}
+	if unbound := exportRun("", "unbound"); unbound.CodeCommit != "" || unbound.Environment.Valid() || unbound.MeasuredNS != 0 {
+		t.Fatalf("unbound run = %+v", unbound)
 	}
 }

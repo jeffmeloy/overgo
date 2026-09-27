@@ -319,9 +319,14 @@ func run() error {
 		workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewStoreGenerationWorkspace(workspaceStore,
 			llamaserver.BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), generationCatalogLimit))
 		// GGUF exports and merges ride the store too, written under the models root.
+		// Their runs bind the executable's source when it names a clean commit.
 		if rootsErr == nil {
+			sourceCommit, commitErr := runrecord.ExecutableCodeCommit(".")
+			if commitErr != nil {
+				sourceCommit = ""
+			}
 			workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewGGUFWorkspace(workspaceStore, roots.Models, generationCatalogLimit,
-				llamaserver.GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}))
+				llamaserver.GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, sourceCommit))
 		}
 	}
 	if len(workflowWorkspaces) > 0 {

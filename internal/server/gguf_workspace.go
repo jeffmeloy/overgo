@@ -15,6 +15,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
@@ -39,14 +40,18 @@ type GGUFWorkspace struct {
 	root    string
 	limit   int
 	writers GGUFWriters
-	mu      sync.Mutex
-	memo    *discovery.Memo
+	// commit is the executable's clean source revision; empty, a run binds
+	// no source, environment or measured wall.
+	commit      string
+	environment runrecord.Environment
+	mu          sync.Mutex
+	memo        *discovery.Memo
 }
 
 // NewGGUFWorkspace binds the workspace to the store, the directory it writes
-// under, the catalog bound and the writers.
-func NewGGUFWorkspace(store *overgodb.Store, root string, limit int, writers GGUFWriters) *GGUFWorkspace {
-	return &GGUFWorkspace{store: store, root: root, limit: limit, writers: writers}
+// under, the catalog bound, the writers and the executable's source commit.
+func NewGGUFWorkspace(store *overgodb.Store, root string, limit int, writers GGUFWriters, commit string) *GGUFWorkspace {
+	return &GGUFWorkspace{store: store, root: root, limit: limit, writers: writers, commit: commit}
 }
 
 // The programs a capability's recipe identity derives from.
@@ -192,6 +197,7 @@ func (workspace *GGUFWorkspace) ExecuteWorkflow(ctx context.Context, kind Workfl
 	inputs := []artifact.ID{capability.Model}
 	runtime := mergeRecipeRuntime
 	var file string
+	stopwatch := processmeasure.NewStopwatch()
 	if task == recipe.TaskExport {
 		runtime = exportRecipeRuntime
 		file, err = workspace.writers.Export(capability.Location, workspace.root, input.Output, input.Type)
@@ -209,11 +215,15 @@ func (workspace *GGUFWorkspace) ExecuteWorkflow(ctx context.Context, kind Workfl
 		return operation.Completion{}, err
 	}
 	reporter.Publishing()
+	measured, err := stopwatch.Elapsed()
+	if err != nil {
+		return operation.Completion{}, errors.Join(err, os.RemoveAll(filepath.Dir(file)))
+	}
 	program, err := ggufProgram(runtime, capability.Model)
 	if err != nil {
 		return operation.Completion{}, errors.Join(err, os.RemoveAll(filepath.Dir(file)))
 	}
-	completion, err := workspace.record(ctx, program, inputs, file)
+	completion, err := workspace.record(ctx, program, inputs, file, measured)
 	if err != nil {
 		return operation.Completion{}, errors.Join(err, os.RemoveAll(filepath.Dir(file)))
 	}
@@ -240,9 +250,32 @@ func (workspace *GGUFWorkspace) fineTuned(ctx context.Context, name string) (dis
 	return matched[0], nil
 }
 
+// hostEnvironment is this process's execution platform, published once as
+// the fact its runs cite.
+func (workspace *GGUFWorkspace) hostEnvironment(ctx context.Context) (runrecord.Environment, error) {
+	workspace.mu.Lock()
+	defer workspace.mu.Unlock()
+	if workspace.environment.ID.Valid() {
+		return workspace.environment, nil
+	}
+	environment, err := runrecord.CurrentEnvironment("host", "go")
+	if err != nil {
+		return runrecord.Environment{}, err
+	}
+	batch, err := environment.Batch("gguf/environment/" + environment.ID.String())
+	if err == nil {
+		_, err = artifact.Publish(ctx, workspace.store, batch)
+	}
+	if err != nil {
+		return runrecord.Environment{}, err
+	}
+	workspace.environment = environment
+	return environment, nil
+}
+
 // record commits the run: the models in, the written file out at its
 // location, under the program's recipe.
-func (workspace *GGUFWorkspace) record(ctx context.Context, program artifact.Descriptor, inputs []artifact.ID, file string) (operation.Completion, error) {
+func (workspace *GGUFWorkspace) record(ctx context.Context, program artifact.Descriptor, inputs []artifact.ID, file string, measured uint64) (operation.Completion, error) {
 	written, err := os.Open(file)
 	if err != nil {
 		return operation.Completion{}, err
@@ -252,6 +285,13 @@ func (workspace *GGUFWorkspace) record(ctx context.Context, program artifact.Des
 		return operation.Completion{}, err
 	}
 	run, err := runrecord.NewRun(program.ID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{output}, "")
+	if workspace.commit != "" {
+		// A known source binds the run to it, to this host and to its measured wall.
+		var environment runrecord.Environment
+		if environment, err = workspace.hostEnvironment(ctx); err == nil {
+			run, err = runrecord.NewBoundRun(program.ID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{output}, "", workspace.commit, environment.ID, measured, nil)
+		}
+	}
 	if err != nil {
 		return operation.Completion{}, err
 	}

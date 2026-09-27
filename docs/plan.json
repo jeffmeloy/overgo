@@ -5,20 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gguf-run-binding",
-      "title": "Bind export and merge runs to the executable's clean source commit, this host's environment and the write's measured wall",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bind export and merge runs to the executable's clean source commit, this host's environment and the write's measured wall",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestGGUFRunsBindTheirSource$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "gui-cleanup-signoff",
       "title": "Accept the cleaned workbench: every page acceptance, every leg this lane added, and zero layout findings",
       "owner": "overgo_gui_cleanup",

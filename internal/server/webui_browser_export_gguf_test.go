@@ -35,7 +35,7 @@ func TestWebUIBrowserExportGGUF(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := t.TempDir()
-	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF})
+	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
 	handler, err := New(Config{Repository: store}, &workspaceTestRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: workspace})
 	if err != nil {
 		t.Fatal(err)

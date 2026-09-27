@@ -99,7 +99,7 @@ func TestModelBuilderMergeRun(t *testing.T) {
 	defer store.Close()
 	base, tuned := mergeFixture(t, store)
 	root := t.TempDir()
-	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF})
+	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
 	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowModelBuild)
 	if err != nil || len(capabilities) != 3 {
 		t.Fatalf("model builder capabilities = %+v, %v", capabilities, err)

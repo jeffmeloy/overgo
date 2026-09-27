@@ -15,7 +15,7 @@
           "title": "Select by the union of old and new selection logic, and by compiler reach for a removed Go file",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestSelectionStaysNarrowForGateAndRemovedCode$' -count=1",
-          "rationale": " Owner 2026-09-26: a runner-deletion landing ran 13 minutes inline plus every lane (~20 minutes) for dead code. Two blanket rules select everything: a change to the gate's own analyzer or planner forces the complete plan (requiresManifestBootstrap; uncertain=7965 on 8ca79ae25), and a removed Go source keeps the complete selection. Most of 2026-09-26's landings were gate changes, so almost all ran everything. Replace both: for an analyzer change, run the union of what the base commit's selection and the candidate's select, so a test runs if either would pick it; for a removed Go file, the compiler already proves nothing references what it declared (the package and its importers still build), so it reaches only its own package unless it declared an init function or a package-level variable with side effects. Net-negative: both blanket special cases go."
+          "rationale": " Owner 2026-09-26: a runner-deletion landing ran 13 minutes inline plus every lane (~20 minutes) for dead code. Two blanket rules select everything: a change to the gate's own analyzer or planner forces the complete plan (requiresManifestBootstrap; uncertain=7965 on 8ca79ae25), and a removed Go source keeps the complete selection. Most of 2026-09-26's landings were gate changes, so almost all ran everything. Replace both: for an analyzer change, run the union of what the base commit's selection and the candidate's select, so a test runs if either would pick it; for a removed Go file, the compiler already proves nothing references what it declared (the package and its importers still build), so it reaches only its own package unless it declared an init function or a package-level variable with side effects. Net-negative: both blanket special cases go. Audit of the 15 gates from 8bf6d8eff to 8ca79ae25 (2026-09-26), ranked by lane wall spent on checks the change could not affect: R1 any removed path forces the complete plan, ~29 min (impact_fallback.go; a removed document no one names still keeps its uncertainty, document_attribution.go and preparation.go fallback) -- narrower: a removed .go file marks its base-graph package changed and normal reach applies; a removed file nothing names or embeds selects only the tree census and document checks. R2 requiresManifestBootstrap matches the gate's own code by path prefix, ~19.5 min -- narrower: bootstrap only when a changed symbol is reachable from codemanifest, automationcheck or cmd/code-manifest in the base manifest. R3 repair outputs shipped when byte-identical, ~6 min every Go commit -- landed separately as repair-outputs-only-when-changed. R4 lane debt re-runs every owed check including passed ones, ~4.6 min -- narrower: carry only failed or unrun checks. R5 Go-source-reader taint from harmless exec, 1-1.5 min every Go commit -- narrower: an exec whose program the caller names taints only importers that pass go or a repository command. Also: surface is inapplicable in every gate yet runs; magics took ~60 s in 6 of 15."
         }
       ]
     },
@@ -1329,7 +1329,8 @@
             "parity-packages-to-goldens/do",
             "tests-pin-behaviour/do",
             "selection-union-not-everything/do",
-            "detached-runner-leftovers/do"
+            "detached-runner-leftovers/do",
+            "repair-outputs-only-when-changed/do"
           ]
         }
       ]

@@ -89,7 +89,8 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	if read(apiManifestFile) != "new manifest\n" {
 		t.Fatal("the API manifest repair did not rewrite through its command")
 	}
-	wantPaths := []string{"internal/plan/a.go", repoanalysis.ModernGoBaselineFile, apiManifestFile}
+	// Every derived file that differs from the last commit ships, whoever wrote it.
+	wantPaths := []string{"internal/plan/a.go", repoanalysis.ModernGoBaselineFile, harnessSurfaceBaselineFile, apiManifestFile}
 	if !slices.Equal(g.paths, wantPaths) {
 		t.Fatalf("planned paths = %v, want %v", g.paths, wantPaths)
 	}

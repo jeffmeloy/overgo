@@ -1,9 +1,11 @@
 // Package landing lands one plan row through the small gate. The dirty tree
 // is formatted, modernized by go fix, vetted and tested -- go test's own
 // cache decides what runs again -- the lanes the change reaches run, a few
-// rules compare the changed files with HEAD, and the row's own check passes;
-// then the tree is committed with the row's step removed from the plan. Git
-// holds the record: the message says what the gate measured.
+// rules compare the changed files with HEAD, the row's own check passes, and
+// a change that reaches the benchmark runs the scorecard's slice; then the
+// tree is committed with the row's step removed from the plan. Git holds the
+// record: the message says what the gate measured, and a trailer carries the
+// slice for the next landing to compare against.
 package landing
 
 import (
@@ -45,8 +47,11 @@ type landing struct {
 	entries    []repoanalysis.DirtyPath
 	paths      []string
 	measured   []string
-	// ran names the packages the test stage ran rather than replayed.
-	ran string
+	// details say what a stage measured beyond its time: the packages the
+	// test stage ran rather than replayed, what the scorecard slice found.
+	details map[string]string
+	// trailer is the scorecard slice's commit trailer, when it measured.
+	trailer string
 }
 
 // Run lands the row and returns the commit. Every check runs over the dirty
@@ -61,7 +66,7 @@ func Run(ctx context.Context, options Options) (string, error) {
 		return "", err
 	}
 	options.Repo = root
-	l := &landing{Options: options, item: item, step: step}
+	l := &landing{Options: options, item: item, step: step, details: map[string]string{}}
 	if err := requireSections(options.Message); err != nil {
 		return "", err
 	}
@@ -92,6 +97,7 @@ func Run(ctx context.Context, options Options) (string, error) {
 		{"test", l.test},
 		{"lanes", l.lanes},
 		{"verify", func(ctx context.Context) error { return l.verify(ctx, verify) }},
+		{"scorecard", l.scorecard},
 	} {
 		started := time.Now()
 		if err := check.run(ctx); err != nil {
@@ -99,8 +105,8 @@ func Run(ctx context.Context, options Options) (string, error) {
 		}
 		wall := time.Since(started).Round(time.Millisecond)
 		entry := check.name + " " + wall.String()
-		if check.name == "test" && l.ran != "" {
-			entry += " (" + l.ran + ")"
+		if detail := l.details[check.name]; detail != "" {
+			entry += " (" + detail + ")"
 		}
 		l.measured = append(l.measured, entry)
 		fmt.Fprintf(options.Log, "land: %s ok %s\n", check.name, wall)
@@ -139,6 +145,7 @@ func (l *landing) shipSet(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	l.paths = nil
 	tracked, err := gitauthority.Query(ctx, l.Repo, "ls-tree", "--name-only", "HEAD")
 	if err != nil {
 		return err
@@ -198,22 +205,23 @@ const buildTags = "modeltest,integration"
 // fix applies go fix's modernizers to the changed packages, as format
 // applies gofmt: a legacy form go fix can rewrite is rewritten, not refused.
 // A directory whose files this platform's build excludes, or that does not
-// compile, has no package to fix; vet reports the latter.
+// compile, has no package to fix; vet reports the latter. Both rewrite
+// whole packages, so a file they rewrote that the change left untouched
+// joins the ship set here rather than reading as a tree that moved.
 func (l *landing) fix(ctx context.Context) error {
 	directories := l.goPackages()
-	if len(directories) == 0 {
-		return nil
+	if len(directories) != 0 {
+		listed, err := l.run(ctx, nil, "go", append([]string{"list", "-e", "-tags", buildTags, "-f", "{{if not .Error}}{{.ImportPath}}{{end}}"}, directories...)...)
+		if err != nil {
+			return err
+		}
+		if packages := strings.Fields(listed); len(packages) != 0 {
+			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-tags", buildTags}, packages...)...); err != nil {
+				return err
+			}
+		}
 	}
-	listed, err := l.run(ctx, nil, "go", append([]string{"list", "-e", "-tags", buildTags, "-f", "{{if not .Error}}{{.ImportPath}}{{end}}"}, directories...)...)
-	if err != nil {
-		return err
-	}
-	packages := strings.Fields(listed)
-	if len(packages) == 0 {
-		return nil
-	}
-	_, err = l.run(ctx, nil, "go", append([]string{"fix", "-tags", buildTags}, packages...)...)
-	return err
+	return l.shipSet(ctx)
 }
 
 func (l *landing) vet(ctx context.Context) error {
@@ -232,7 +240,7 @@ func (l *landing) test(ctx context.Context) error {
 		}
 		return err
 	}
-	l.ran = ranPackages(output)
+	l.details["test"] = ranPackages(output)
 	return nil
 }
 
@@ -305,14 +313,12 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 	if err := plan.Save(filepath.Join(l.Repo, plan.Path), advanced); err != nil {
 		return "", err
 	}
-	message := strings.TrimSpace(string(l.Message)) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
-		"\n\n" + plan.LandedRowTrailer + ": " + l.Ref + "\n"
 	file, err := os.CreateTemp("", "overgo-landing-*.txt")
 	if err != nil {
 		return "", err
 	}
 	defer os.Remove(file.Name())
-	if _, err := file.WriteString(message); err != nil {
+	if _, err := file.WriteString(l.message()); err != nil {
 		file.Close()
 		return "", err
 	}
@@ -327,6 +333,17 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 	}
 	landed, err := gitauthority.Query(ctx, l.Repo, "rev-parse", "HEAD")
 	return strings.TrimSpace(string(landed)), err
+}
+
+// message is the authored message, what the gate measured, and the trailers:
+// the scorecard slice when it measured, then the landed row.
+func (l *landing) message() string {
+	trailers := plan.LandedRowTrailer + ": " + l.Ref + "\n"
+	if l.trailer != "" {
+		trailers = l.trailer + "\n" + trailers
+	}
+	return strings.TrimSpace(string(l.Message)) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
+		"\n\n" + trailers
 }
 
 // sameTree compares two dirty-tree readings by path and status; the plan,

@@ -20,34 +20,8 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/scorecard/metric"
 )
-
-// Metric names one scorecard column.
-type Metric string
-
-// FirstOutput is how long a user waits for the first output.
-const FirstOutput Metric = "first-output"
-
-// Throughput is how fast output arrives once it starts.
-const Throughput Metric = "throughput"
-
-// Quality is the headline score on held-out evaluation cases.
-const Quality Metric = "held-out-quality"
-
-// Failures is the share of attempts that failed.
-const Failures Metric = "failure-rate"
-
-// Load is how long the model takes to load.
-const Load Metric = "load-time"
-
-// PeakMemory is the most device memory the model held.
-const PeakMemory Metric = "peak-device-memory"
-
-// SetupSteps is how many steps took the model from registration to active.
-const SetupSteps Metric = "setup-steps"
-
-// Metrics is the column order: the order a user meets them.
-var Metrics = []Metric{FirstOutput, Throughput, Quality, Failures, Load, PeakMemory, SetupSteps}
 
 // catalogLimit bounds the activation listing; a truncated catalog is
 // refused rather than read as every model.
@@ -72,7 +46,7 @@ type Row struct {
 	Name   string
 	Task   recipe.Task
 	Recipe artifact.ID
-	Cells  map[Metric]Cell
+	Cells  map[metric.Name]Cell
 }
 
 // Build reads the scorecard from the store: one row for every activation
@@ -104,18 +78,18 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 		name = cmp.Or(name, entry.Model.String())
 		benchmark, benchmarked := index.BenchmarksByLocation[entry.Location]
 		for _, capability := range entry.Capabilities {
-			row := Row{Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Cells: map[Metric]Cell{}}
+			row := Row{Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Cells: map[metric.Name]Cell{}}
 			// A benchmark claim measures the weights' inference, so it
 			// speaks for the inference activation only.
 			measured := benchmarked && capability.Task == recipe.TaskInference
 			observed := serving[capability.Recipe]
-			row.Cells[FirstOutput] = firstOutputCell(capability.Task, benchmark, measured, observed)
-			row.Cells[Throughput] = throughputCell(benchmark, measured, observed)
-			row.Cells[Quality] = qualityCell(index.EvaluationsByRecipe[capability.Recipe], descriptors)
-			row.Cells[Failures] = failureCell(observed)
-			row.Cells[Load] = loadCell(benchmark, measured, observed)
-			row.Cells[PeakMemory] = peakMemoryCell(capability.Task, benchmark, measured, observed)
-			row.Cells[SetupSteps] = setupCell(ctx, store, entry.Model, capability.Task)
+			row.Cells[metric.FirstOutput] = firstOutputCell(capability.Task, benchmark, measured, observed)
+			row.Cells[metric.Throughput] = throughputCell(benchmark, measured, observed)
+			row.Cells[metric.Quality] = qualityCell(index.EvaluationsByRecipe[capability.Recipe], descriptors)
+			row.Cells[metric.Failures] = failureCell(observed)
+			row.Cells[metric.Load] = loadCell(benchmark, measured, observed)
+			row.Cells[metric.PeakMemory] = peakMemoryCell(capability.Task, benchmark, measured, observed)
+			row.Cells[metric.SetupSteps] = setupCell(ctx, store, entry.Model, capability.Task)
 			rows = append(rows, row)
 		}
 	}

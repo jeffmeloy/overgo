@@ -8,17 +8,18 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/scorecard"
+	"overgo/internal/scorecard/metric"
 )
 
 // scorecardHeadings names each scorecard column the way a user reads it.
-var scorecardHeadings = map[scorecard.Metric]string{
-	scorecard.FirstOutput: "First output",
-	scorecard.Throughput:  "Throughput",
-	scorecard.Quality:     "Held-out quality",
-	scorecard.Failures:    "Failures",
-	scorecard.Load:        "Load",
-	scorecard.PeakMemory:  "Peak memory",
-	scorecard.SetupSteps:  "Setup steps",
+var scorecardHeadings = map[metric.Name]string{
+	metric.FirstOutput: "First output",
+	metric.Throughput:  "Throughput",
+	metric.Quality:     "Held-out quality",
+	metric.Failures:    "Failures",
+	metric.Load:        "Load",
+	metric.PeakMemory:  "Peak memory",
+	metric.SetupSteps:  "Setup steps",
 }
 
 const (
@@ -39,18 +40,18 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, output io.Writer
 	}
 	var table strings.Builder
 	table.WriteString("| Model | Task |")
-	for _, metric := range scorecard.Metrics {
-		table.WriteString(" " + scorecardHeadings[metric] + " |")
+	for _, column := range metric.Columns {
+		table.WriteString(" " + scorecardHeadings[column] + " |")
 	}
-	table.WriteString("\n| --- | --- |" + strings.Repeat(" --- |", len(scorecard.Metrics)) + "\n")
+	table.WriteString("\n| --- | --- |" + strings.Repeat(" --- |", len(metric.Columns)) + "\n")
 	var gaps []string
 	for _, row := range rows {
 		fmt.Fprintf(&table, "| %s | %s |", row.Name, row.Task)
-		for _, metric := range scorecard.Metrics {
-			cell := row.Cells[metric]
-			table.WriteString(" " + cellText(metric, cell) + " |")
+		for _, column := range metric.Columns {
+			cell := row.Cells[column]
+			table.WriteString(" " + cellText(column, cell) + " |")
 			if !cell.Measured() {
-				gaps = append(gaps, fmt.Sprintf("- %s %s, %s: %s", row.Name, row.Task, scorecardHeadings[metric], cell.Reason))
+				gaps = append(gaps, fmt.Sprintf("- %s %s, %s: %s", row.Name, row.Task, scorecardHeadings[column], cell.Reason))
 			}
 		}
 		table.WriteString("\n")
@@ -66,17 +67,17 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, output io.Writer
 
 // cellText renders a measured cell with its unit and what it measures, and
 // a gap as a dash; the gap's reason prints below the table.
-func cellText(metric scorecard.Metric, cell scorecard.Cell) string {
+func cellText(column metric.Name, cell scorecard.Cell) string {
 	switch {
 	case !cell.Measured():
 		return "—"
-	case metric == scorecard.Failures:
+	case column == metric.Failures:
 		return fmt.Sprintf("%.3g%% (%s)", cell.Value*percent, cell.Label)
 	case cell.Unit == "bytes":
 		return fmt.Sprintf("%.3g GiB", cell.Value/bytesPerGiB)
 	case cell.Unit == "ms" && cell.Value >= millisecondsPerSecond:
 		return fmt.Sprintf("%.3g s", cell.Value/millisecondsPerSecond)
-	case metric == scorecard.Quality:
+	case column == metric.Quality:
 		return fmt.Sprintf("%.4g (%s)", cell.Value, cell.Label)
 	case cell.Unit == "":
 		return fmt.Sprintf("%.4g", cell.Value)

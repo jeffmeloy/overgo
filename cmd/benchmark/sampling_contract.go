@@ -93,10 +93,8 @@ func validateBenchmarkResult(result benchmarkResult) error {
 		result.WorkloadDigest != benchmarkWorkloadDigest(result.PromptSuite) {
 		return errors.New("benchmark: prompt suite or workload digest is unbound")
 	}
-	for _, prompt := range result.PromptSuite {
-		if prompt == "" {
-			return errors.New("benchmark: empty prompt in suite")
-		}
+	if slices.Contains(result.PromptSuite, "") {
+		return errors.New("benchmark: empty prompt in suite")
 	}
 	if result.TokensPerSequence < minBenchmarkTokens || result.TokensPerSequence > maxBenchmarkTokens ||
 		result.RequestedRuns < minBenchmarkRuns || result.RequestedRuns > maxBenchmarkRuns || len(result.Runs) != result.RequestedRuns ||

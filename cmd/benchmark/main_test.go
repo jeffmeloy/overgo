@@ -31,8 +31,13 @@ func TestParseOptionsBounds(t *testing.T) {
 	if got != want {
 		t.Fatalf("options = %+v, want %+v", got, want)
 	}
+	if options, err := parseOptions([]string{"-smallest", "-prompt-suite", "prompts.json"}); err != nil || !options.Smallest || options.Model != "" {
+		t.Fatalf("-smallest options = %+v, %v; want the model left to the store", options, err)
+	}
 	for _, args := range [][]string{
 		{"model.gguf"},
+		{"-smallest"},
+		{"-smallest", "-prompt-suite", "prompts.json", "model.gguf"},
 		{"-tokens", "0", "model.gguf", "hello"},
 		{"-runs", "0", "model.gguf", "hello"},
 		{"-warmup", "-1", "model.gguf", "hello"},

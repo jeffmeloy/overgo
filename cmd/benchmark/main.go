@@ -8,17 +8,21 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 	"slices"
+	"strings"
 	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/discovery"
 	"overgo/internal/inference"
 	"overgo/internal/model"
 	"overgo/internal/modelcli"
+	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
@@ -62,6 +66,7 @@ type options struct {
 	LoRA           []string
 	Publish        bool
 	CPUProfile     string
+	Smallest       bool
 }
 
 type benchmarkOptions = options
@@ -180,13 +185,18 @@ func parseOptions(args []string) (options, error) {
 	flags.IntVar(&result.BatchSequences, "batch-sequences", 0, "continuous-batch sequence count; zero uses Generate")
 	flags.BoolVar(&result.Publish, "publish", false, "commit the result as benchmark evidence with a verification claim (requires -repo and a clean worktree)")
 	flags.StringVar(&result.CPUProfile, "cpuprofile", "", "write a Go CPU profile of the whole run to this file (host-side time between kernels)")
+	flags.BoolVar(&result.Smallest, "smallest", false, "measure the smallest local GGUF the store serves instead of a named model (requires -prompt-suite)")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
 	result.Device = *modelFlags.DeviceOrdinal
 	result.Repository = *modelFlags.Repository
 	result.LoRA = modelFlags.LoRAPaths()
-	if result.PromptSuite == "" {
+	if result.Smallest {
+		if result.PromptSuite == "" || flags.NArg() != 0 {
+			return options{}, errors.New("usage: benchmark -smallest -prompt-suite prompts.json [options]")
+		}
+	} else if result.PromptSuite == "" {
 		if flags.NArg() != 2 || flags.Arg(1) == "" {
 			return options{}, errors.New("usage: benchmark [options] <model.gguf> <prompt>")
 		}
@@ -247,6 +257,11 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
+	if options.Smallest {
+		if options.Model, options.Repository, err = smallestModel(context.Background(), options.Repository); err != nil {
+			return err
+		}
+	}
 	if remoteprovider.IsRemoteLocation(options.Model) {
 		return errors.New("benchmark: a hosted model has no local decode to measure; evaluate scores it through the relay")
 	}
@@ -285,6 +300,12 @@ func run(args []string) error {
 	}
 	defer runner.Close()
 	codeCommit, err := runrecord.ExecutableCodeCommit(".")
+	if err != nil && !options.Publish && options.CompareFactor == "" {
+		// A printed run measures an uncommitted change against the HEAD it
+		// sits on; the module digest marks the build modified. Evidence
+		// and paired comparisons still require the exact revision.
+		codeCommit, err = runrecord.HeadCommit(".")
+	}
 	if err != nil {
 		return fmt.Errorf("benchmark source identity: %w", err)
 	}
@@ -552,6 +573,31 @@ func run(args []string) error {
 		return nil
 	}
 	return publishBenchmarkEvidence(context.Background(), options, result)
+}
+
+// smallestModel resolves the store and its smallest local GGUF with an
+// active inference recipe: the cheapest model that still runs the real
+// inference path.
+func smallestModel(ctx context.Context, repository string) (string, string, error) {
+	repository, err := (&modelcli.ModelFlags{Repository: &repository}).RepositoryPath()
+	if err != nil {
+		return "", "", err
+	}
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		return "", "", err
+	}
+	defer store.Close()
+	entries, err := discovery.LocalServable(ctx, store)
+	if err != nil {
+		return "", "", err
+	}
+	for _, entry := range entries {
+		if strings.EqualFold(filepath.Ext(entry.Location), ".gguf") {
+			return entry.Location, repository, nil
+		}
+	}
+	return "", "", errors.New("benchmark: the store serves no local GGUF model")
 }
 
 func subtractExecutionStats(after, before driver.ExecutionStats) driver.ExecutionStats {

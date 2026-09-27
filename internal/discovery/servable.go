@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -279,4 +280,39 @@ func identifyLocation(path string, kind artifact.Kind, identities map[string]fil
 	}
 	identities[key] = identity
 	return identity
+}
+
+// SizedEntry is a servable entry whose weights are a local file of Bytes.
+type SizedEntry struct {
+	Entry
+	Bytes int64
+}
+
+// LocalServable lists the whole servable catalog's present, fresh entries
+// with a local weights file, smallest first by bytes and then by location:
+// the order a report reads models in, and the smallest a quick measurement
+// takes. A recorded file that is missing on disk is an error.
+func LocalServable(ctx context.Context, store *overgodb.Store) ([]SizedEntry, error) {
+	// The denominator is the whole catalog: the listing bound is the
+	// widest the query accepts, never a sample.
+	entries, err := ServableWithMemo(ctx, store, math.MaxInt, LoadMemo(ctx, store))
+	if err != nil {
+		return nil, err
+	}
+	var sized []SizedEntry
+	for _, entry := range entries {
+		// A hosted model is present when its key is set, but has no weights here.
+		if !entry.Present || entry.Stale != "" || entry.Location == "" || remoteprovider.IsRemoteLocation(entry.Location) {
+			continue
+		}
+		info, err := os.Stat(entry.Location)
+		if err != nil {
+			return nil, err
+		}
+		sized = append(sized, SizedEntry{Entry: entry, Bytes: info.Size()})
+	}
+	slices.SortFunc(sized, func(left, right SizedEntry) int {
+		return cmp.Or(cmp.Compare(left.Bytes, right.Bytes), strings.Compare(left.Location, right.Location))
+	})
+	return sized, nil
 }

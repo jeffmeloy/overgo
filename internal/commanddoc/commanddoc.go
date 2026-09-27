@@ -128,8 +128,6 @@ var Declared = map[string]Descriptor{
 		"an operator backing up the store"),
 	"overgodb-import": operator("overgodb-import", "ingest a wire-format import stream into the store",
 		"an operator importing records into the store"),
-	"perf-sweep": operator("perf-sweep", "measure one servable model's prompt, generation wall and peak device memory",
-		"an operator measuring inference performance"),
 	"sensenovaparity": operator("sensenovaparity", "check SenseNova stages against their fixtures and the real checkpoint",
 		"an operator checking the SenseNova port"),
 	"seriesforecast-train-probe": operator("seriesforecast-train-probe", "record bounded forecast training evidence",

@@ -10,14 +10,18 @@
       "status": "open",
       "steps": [
         {
-          "id": "per-landing",
-          "title": "Run the scorecard's cheap slice on the landings that reach a model path",
+          "id": "paired",
+          "title": "Pair the slice's timed cells when a landing predicts one",
           "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingMeasuresTheScorecardSlice$' -count=1",
-          "rationale": "Every change shows its effect on users where it cheaply can: a bounded slice (the smallest model per modality, time to first token, tokens per second, peak VRAM, failures) runs when a landing reaches a model path, and the commit's measured line carries its deltas against the last recorded scorecard. That is how unintended improvements and regressions get seen and credited.",
-          "depends_on": [
-            "user-scorecard/define"
-          ]
+          "verify": "go test ./internal/landing -run '^TestLandingPairsPredictedTimedCells$' -count=1",
+          "rationale": "The per-landing slice reports first-output, throughput and load-time unpaired: one run on each side cannot tell a change from noise. When a Predicted effect names a timed metric by its exact name, build HEAD beside the tree (go build -overlay mapping each changed file to its HEAD bytes) and run the two binaries interleaved A B A B on the same device, reporting the paired delta and its spread; refuse only when the paired delta contradicts the prediction beyond that spread. First confirm the runs are paired-stable: a B A B run on an unchanged tree must show no delta, else the method, not the change, is measured. A slice that fails on the tree but not on HEAD refuses the landing: phase 1 only labels a failure, since one run cannot blame the change."
+        },
+        {
+          "id": "per-modality",
+          "title": "Extend the slice to the smallest servable model of each modality",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLandingMeasuresEachModalitySlice$' -count=1",
+          "rationale": "The first slice measures the smallest local GGUF text model only. The rationale of per-landing promised the smallest model per modality (speech, image, video, embedding, projection) and a failures cell: each modality's slice runs its own smallest active model through the path users hit, reached by that path's closure, and a run that fails is the failures cell. The slice stays bounded: one fixed input per modality."
         },
         {
           "id": "scheduled",
@@ -720,7 +724,7 @@
           "title": "Re-verify compatibility claims whose source moved, and fold cmd/compatibility into validate",
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1",
-          "rationale": "OWNER DECISION: does a claim's file:sha256 source binding mean re-verify when the code moves (then a refresh re-runs the claim's oracle), or nothing (then it leaves both documents)? Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree, and performance_sweep_baseline.json keeps its thresholds with measurements in the store. Owner review 2026-09-27: its checks are plain tests now, so fold cmd/compatibility (4k lines of code, 12k of tests, plus compatibility.json and docs/verification/) into cmd/validate and cut its tests to behaviour. compatibility-names-its-reads is retired: go test's cache tracks what the package reads. About 10k lines. OWNER DECISION 2026-09-27: re-verify. A claim whose bound source moved is re-verified (its oracle re-runs), because a stale claim that a model works is exactly the false promise users hit."
+          "rationale": "OWNER DECISION: does a claim's file:sha256 source binding mean re-verify when the code moves (then a refresh re-runs the claim's oracle), or nothing (then it leaves both documents)? Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree. Owner review 2026-09-27: its checks are plain tests now, so fold cmd/compatibility (4k lines of code, 12k of tests, plus compatibility.json and docs/verification/) into cmd/validate and cut its tests to behaviour. compatibility-names-its-reads is retired: go test's cache tracks what the package reads. About 10k lines. OWNER DECISION 2026-09-27: re-verify. A claim whose bound source moved is re-verified (its oracle re-runs), because a stale claim that a model works is exactly the false promise users hit."
         }
       ]
     },
@@ -1011,7 +1015,9 @@
             "lane-reach-test-files/do",
             "plan-tool-plain-data/flags",
             "plan-tool-plain-data/merge",
-            "plan-tool-plain-data/claims"
+            "plan-tool-plain-data/claims",
+            "user-scorecard/paired",
+            "user-scorecard/per-modality"
           ]
         }
       ]

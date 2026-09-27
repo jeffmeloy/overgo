@@ -9,13 +9,11 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"maps"
-	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -106,9 +104,7 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 		return nil, err
 	}
 	defer store.Close()
-	// The report's denominator is the whole servable catalog: the
-	// listing bound is the widest the query accepts, never a sample.
-	entries, err := discovery.ServableWithMemo(ctx, store, math.MaxInt, discovery.LoadMemo(ctx, store))
+	entries, err := discovery.LocalServable(ctx, store)
 	if err != nil {
 		return nil, err
 	}
@@ -119,16 +115,9 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 	longForms := longform.LatestByLocation(ctx, store, 0)
 	rows := make([]modelRow, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.Present || entry.Stale != "" || entry.Location == "" {
-			continue
-		}
-		info, err := os.Stat(entry.Location)
-		if err != nil {
-			return nil, err
-		}
 		row := modelRow{
 			name:     strings.TrimSuffix(filepath.Base(entry.Location), filepath.Ext(entry.Location)),
-			location: entry.Location, bytes: info.Size(), suites: map[string]suiteRow{},
+			location: entry.Location, bytes: entry.Bytes, suites: map[string]suiteRow{},
 		}
 		row.benchmark, row.measured = index.BenchmarksByLocation[entry.Location]
 		row.longForm, row.verified = longForms[longform.Key(entry.Location)]
@@ -162,9 +151,6 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 		}
 		rows = append(rows, row)
 	}
-	slices.SortFunc(rows, func(a, b modelRow) int {
-		return cmp.Or(cmp.Compare(a.bytes, b.bytes), strings.Compare(a.location, b.location))
-	})
 	return render(rows, descriptors), nil
 }
 

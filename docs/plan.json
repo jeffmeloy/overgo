@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "device-lease-host-tests-inline",
-      "title": "Run the host-only tests of device-leased packages before the commit",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run the host-only tests of device-leased packages before the commit",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestHostTestsRunBeforeTheCommit$' -count=1",
-          "rationale": " Automation brittleness (owner 2026-09-26). Packages under the device lease (internal/gate, internal/repoanalysis, cmd/compatibility, ...) run their tests only in the deferred test-device lane, so their host-only failures surfaced after the commit and needed repair commits twice today (the direct-trainer rule for ba617e6aa, the reader census for 53971a368). Run the tests of those packages that need no device inline, so the commit is refused instead of repaired."
-        }
-      ]
-    },
-    {
       "id": "deleted-files-select-by-readers",
       "title": "Select a deleted file's former readers instead of every lane",
       "owner": "master-lead",

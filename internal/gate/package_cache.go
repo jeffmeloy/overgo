@@ -290,7 +290,10 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 		if node.sourceReader {
 			node.inputDependencies = slices.Clone(roots)
 		}
-		if slices.Contains(edges, "os/exec") {
+		// Only a program the package runs without naming it may be any
+		// repository command; one that runs git or another named tool
+		// executes nothing of the repository's, so it takes no device lease.
+		if inputs.dynamicExec || inputs.testDynamicExec {
 			node.executionDependencies = node.inputDependencies
 		}
 		if !slices.Contains(runtimeDirectories, node.Dir) {

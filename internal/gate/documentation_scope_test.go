@@ -135,3 +135,32 @@ func TestDocumentationBoundaryAcceptance(t *testing.T) {
 		})
 	}
 }
+
+// TestProseBesideCodeSelectsNoLane holds prose to the document checks when
+// it lands beside a code change: README.md beside a test-only edit selects
+// none of the device, browser and journey lanes, while README.md beside a
+// server change still selects the browser lane that change reaches.
+func TestProseBesideCodeSelectsNoLane(t *testing.T) {
+	t.Parallel()
+	lanes := []string{"device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
+	liveRepositoryFixture(t).plan(t, []string{"README.md", "internal/commanddoc/callers_test.go"}, func(g *gateContext) {
+		planned, err := g.planPipeline()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range lanes {
+			if _, excluded := planned.impact.ExclusionReason(name); !excluded {
+				t.Errorf("README beside a test-only edit selected %s: unknown=%q", name, planned.surface.Unknown)
+			}
+		}
+	})
+	liveRepositoryFixture(t).plan(t, []string{"README.md", "internal/server/routes.go"}, func(g *gateContext) {
+		planned, err := g.planPipeline()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, excluded := planned.impact.ExclusionReason(automationcheck.WebUICheckName); excluded {
+			t.Error("README beside a server change excluded the browser lane the change reaches")
+		}
+	})
+}

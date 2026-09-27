@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestAgentHarnessBoundaryOwnership(t *testing.T) {
@@ -27,7 +27,7 @@ func TestAgentHarnessBoundaryOwnership(t *testing.T) {
 		}
 		paths = append(paths, name)
 	}
-	snapshot, err := repoanalysis.LoadGo(root, paths)
+	snapshot, err := gosyntax.LoadGo(root, paths)
 	if err != nil {
 		t.Fatal(err)
 	}

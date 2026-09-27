@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/closurescan"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // TestPreflightAppliesMechanicalRepairs pins the preflight's repairs: a Go
@@ -91,7 +91,8 @@ func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
 	if strings.Contains(output.String(), "closure rebind") || strings.Contains(output.String(), "compatibility identities") {
 		t.Fatalf("preflight output names a repair it did not apply:\n%s", output.String())
 	}
-	wantPaths := []string{"internal/plan/a.go", "docs/modern_go_baseline.json", apiManifestFile}
+	// Every derived file that differs from the last commit ships, whoever wrote it.
+	wantPaths := []string{"internal/plan/a.go", "docs/modern_go_baseline.json", harnessSurfaceBaselineFile, apiManifestFile}
 	if !slices.Equal(g.paths, wantPaths) {
 		t.Fatalf("planned paths = %v, want %v", g.paths, wantPaths)
 	}
@@ -135,7 +136,7 @@ func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
 // holds and the repair leaves it alone.
 func liveHarnessSurface(t *testing.T, repo string) closurescan.HarnessSurface {
 	t.Helper()
-	snapshot, err := repoanalysis.DiscoverGo(repo, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

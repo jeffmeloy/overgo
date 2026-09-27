@@ -4,15 +4,15 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 func TestPublishAndLoad(t *testing.T) {
 	root := t.TempDir()
 	name := "internal/example/example.go"
 	writeGeneratorFixture(t, root, name, "package example\nfunc Value() int { return 1 }\n")
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestDigestPublicationKeepsClaimNotCache(t *testing.T) {
 	root := t.TempDir()
 	name := "internal/example/example.go"
 	writeGeneratorFixture(t, root, name, "package example\nfunc Value() int { return 2 }\n")
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

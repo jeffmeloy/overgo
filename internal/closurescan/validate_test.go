@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestValidateBindingsDetectsSourceDrift(t *testing.T) {
@@ -122,7 +122,7 @@ func TestPermanentMagicGateAuthorityHasNoGrandfatheredDebt(t *testing.T) {
 	}
 }
 
-func onlyCandidate(t *testing.T, snapshot repoanalysis.SourceSnapshot) Candidate {
+func onlyCandidate(t *testing.T, snapshot gosyntax.Snapshot) Candidate {
 	t.Helper()
 	candidates, err := ScanSnapshot(snapshot, nil, CandidateConstants)
 	if err != nil || len(candidates) != 1 {

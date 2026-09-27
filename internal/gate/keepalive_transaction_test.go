@@ -178,7 +178,7 @@ func TestIntentKeepaliveRefIsLockedAcrossIndexMutation(t *testing.T) {
 	if err := installCompletionIndexForTest(repo, intent); err != nil {
 		t.Fatal(err)
 	}
-	if competingErr == nil || !strings.Contains(competingOutput, ".lock") {
+	if competingErr == nil || !strings.Contains(competingErr.Error(), ".lock") {
 		t.Fatalf("keepalive writer under transaction lock = (%v, %q)", competingErr, competingOutput)
 	}
 	if err := requireGateIntentKeepalive(repo, intent); err != nil {
@@ -232,10 +232,10 @@ func TestPreparedCompletionBlocksBranchAndHeadContendersAtIndexSeam(t *testing.T
 		t.Fatal(err)
 	}
 	gateCommitIndexInstalledHook = nil
-	if branchErr == nil || !strings.Contains(branchOutput, ".lock") {
+	if branchErr == nil || !strings.Contains(branchErr.Error(), ".lock") {
 		t.Fatalf("branch contender under prepared transaction = (%v, %q)", branchErr, branchOutput)
 	}
-	if headErr == nil || !strings.Contains(headOutput, "HEAD.lock") {
+	if headErr == nil || !strings.Contains(headErr.Error(), "HEAD.lock") {
 		t.Fatalf("HEAD contender under prepared transaction = (%v, %q)", headErr, headOutput)
 	}
 	if !exactGateHead(repo, intent.HeadReference, intent.Commit) {
@@ -292,10 +292,10 @@ func TestPreparedRecoveryBlocksBranchAndHeadContendersUntilRollbackCommit(t *tes
 		t.Fatal(err)
 	}
 	gateRecoveryAfterStepHook = nil
-	if branchErr == nil || !strings.Contains(branchOutput, ".lock") {
+	if branchErr == nil || !strings.Contains(branchErr.Error(), ".lock") {
 		t.Fatalf("recovery branch contender = (%v, %q)", branchErr, branchOutput)
 	}
-	if headErr == nil || !strings.Contains(headOutput, "HEAD.lock") {
+	if headErr == nil || !strings.Contains(headErr.Error(), "HEAD.lock") {
 		t.Fatalf("recovery HEAD contender = (%v, %q)", headErr, headOutput)
 	}
 	if !exactGateHead(fixture.repo, intent.HeadReference, intent.Parent) {

@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 // proposeTriageRows emits ready-to-apply triage rows for the named
@@ -19,7 +19,7 @@ import (
 // current unclassified candidates rather than emitting a stale row.
 func proposeTriageRows(
 	ctx context.Context,
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	store *overgodb.Store,
 	names []string,
 ) (triageFile, error) {

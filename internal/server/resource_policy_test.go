@@ -14,17 +14,6 @@ import (
 	"testing"
 )
 
-func TestRepositoryResponseFilePolicy(t *testing.T) {
-	t.Parallel()
-	policy, err := LoadResponseFilePolicy(filepath.Join("..", "..", "resource_policy.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if policy.ResponseFiles.Enabled || len(policy.files) != 0 {
-		t.Fatalf("default policy = %+v", policy)
-	}
-}
-
 func TestResponseFilePolicyRejectsToolExecutionPolicy(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

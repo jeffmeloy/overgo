@@ -52,8 +52,6 @@ var releaseDocuments = []string{
 	"docs/TRAINING_COMPATIBILITY.md",
 	"docs/OVERGODB_IMPORT.md",
 	"compatibility.json",
-	"media_policy.json",
-	"resource_policy.json",
 	"SBOM.cdx.json",
 	"kernels/manifest.json",
 }

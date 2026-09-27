@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"overgo/internal/gosyntax"
 )
 
 // ProductionAuthorityFinding is one deterministic architecture-ratchet
@@ -47,7 +49,7 @@ func (report ProductionAuthorityReport) Error() error {
 }
 
 type productionAuthoritySource struct {
-	GoFile
+	gosyntax.File
 	SyntaxFile *ast.File
 	Package    string
 	Imports    map[string]string
@@ -57,7 +59,7 @@ type productionAuthoritySource struct {
 // entry paths around storage, process, capability, tool, trigger, and
 // promotion authorities. It parses the already-discovered candidate snapshot
 // once and launches no subprocess.
-func AuditProductionAuthorityBoundaries(snapshot SourceSnapshot) (ProductionAuthorityReport, error) {
+func AuditProductionAuthorityBoundaries(snapshot gosyntax.Snapshot) (ProductionAuthorityReport, error) {
 	report := ProductionAuthorityReport{SourceIdentity: snapshot.Identity()}
 	sources, err := productionAuthoritySources(snapshot, &report)
 	if err != nil {
@@ -93,7 +95,7 @@ var protectedAuthorityImports = map[string]string{
 	"syscall":                           "process",
 }
 
-func productionAuthoritySources(snapshot SourceSnapshot, report *ProductionAuthorityReport) ([]productionAuthoritySource, error) {
+func productionAuthoritySources(snapshot gosyntax.Snapshot, report *ProductionAuthorityReport) ([]productionAuthoritySource, error) {
 	sources := make([]productionAuthoritySource, 0, len(snapshot.Files))
 	for _, source := range snapshot.Files {
 		if source.Test {
@@ -131,7 +133,7 @@ func productionAuthoritySources(snapshot SourceSnapshot, report *ProductionAutho
 			}
 		}
 		sources = append(sources, productionAuthoritySource{
-			GoFile: source, SyntaxFile: file, Package: path.Dir(source.Path), Imports: imports,
+			File: source, SyntaxFile: file, Package: path.Dir(source.Path), Imports: imports,
 		})
 	}
 	return sources, nil

@@ -12,7 +12,7 @@ func TestGeneratorBootstrap(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{
 		"internal/codemanifest/generate.go", "internal/codeprofile/profile.go",
-		"internal/repoanalysis/source.go", "internal/automationcheck/manifest.go", "cmd/code-manifest/main.go",
+		"internal/gosyntax/snapshot.go", "internal/gosource/build.go", "internal/automationcheck/manifest.go", "cmd/code-manifest/main.go",
 	} {
 		if !requiresManifestBootstrap([]string{name}) {
 			t.Errorf("analyzer-owned path %s did not force bootstrap", name)

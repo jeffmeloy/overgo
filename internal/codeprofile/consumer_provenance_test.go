@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestConsumerReferenceProvenanceAcceptance(t *testing.T) {
@@ -25,7 +25,7 @@ func Method(a A) { a.Target() }
 type Number int
 func Convert() Number { return Number(2) }
 `
-	snapshot, err := (repoanalysis.SourceSnapshot{}).Overlay(map[string][]byte{name: []byte(source)})
+	snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{name: []byte(source)})
 	if err != nil {
 		t.Fatal(err)
 	}

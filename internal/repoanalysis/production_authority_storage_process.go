@@ -175,8 +175,6 @@ var processPrimitiveAllowances = []authorityAllowance{
 	{File: "cmd/sbom/main.go", Count: oneAuthoritySite},
 	{File: "internal/clioptions/command.go", Count: oneAuthoritySite},
 	{File: "internal/processcontrol/supervisor.go", Function: "Start", Count: twoAuthoritySites},
-	{File: "internal/processcontrol/detached.go", Function: "StartDetached", Count: twoAuthoritySites},
-	{File: "internal/repoanalysis/imports.go", Count: oneAuthoritySite},
 	{File: "internal/runrecord/verifying_commit.go", Count: threeAuthoritySites},
 	{File: "internal/testprocess/process.go", Count: twoAuthoritySites},
 }

@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestDocumentDeclarationsResolvePackageConstantsAndContexts(t *testing.T) {
@@ -49,7 +49,7 @@ var directCodec = artifact.DocumentCodec[struct{}]{Contract: outputContract}
 		writeGeneratorFixture(t, root, name, content)
 		paths = append(paths, name)
 	}
-	snapshot, err := repoanalysis.LoadGo(root, paths)
+	snapshot, err := gosyntax.LoadGo(root, paths)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestRepositoryDocumentDeclarationsResolveKnownAuthorities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ import "overgo/internal/artifact"
 func schema() string { return "overgo/example/v1" }
 var codec = artifact.JSONDocumentCodec[struct{}]("result", artifact.KindOutput, artifact.JSONMediaType, schema())
 `)
-	snapshot, err := repoanalysis.LoadGo(root, []string{name})
+	snapshot, err := gosyntax.LoadGo(root, []string{name})
 	if err != nil {
 		t.Fatal(err)
 	}

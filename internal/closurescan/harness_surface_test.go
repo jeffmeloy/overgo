@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestAgentHarnessSurfaceRatchets(t *testing.T) {
@@ -33,7 +33,7 @@ var _ = recipe.Task("")
 		}
 		paths = append(paths, name)
 	}
-	baseSnapshot, err := repoanalysis.LoadGo(root, paths)
+	baseSnapshot, err := gosyntax.LoadGo(root, paths)
 	if err != nil {
 		t.Fatal(err)
 	}

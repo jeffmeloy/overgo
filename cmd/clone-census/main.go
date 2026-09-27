@@ -18,7 +18,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/codeprofile"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func main() {
@@ -32,7 +32,7 @@ func run() error {
 	maxExcess := flag.Int("max-excess", -1, "fail if duplicate-excess nodes exceed this ratchet; -1 disables")
 	updateBaseline := flag.Bool("update-baseline", false, "write the measured duplicate-excess to "+codeprofile.CloneBaselineFile)
 	flag.Parse()
-	snapshot, err := repoanalysis.DiscoverGo(".", "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(".", "cmd", "internal")
 	if err != nil {
 		return err
 	}

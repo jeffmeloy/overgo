@@ -9,8 +9,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 // shiftedCandidates scans the fixture as the import does, so a test can ask
@@ -56,7 +56,7 @@ func TestClosureRebindProjectionAcceptance(t *testing.T) {
 		if err := os.WriteFile(path, []byte("package sample\nfunc value() int { x:=0; if x==0 { return -1 }; return -1 }\n"), 0600); err != nil {
 			t.Fatal(err)
 		}
-		snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+		snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,12 +112,12 @@ func count(kind, response string, patterns []*regexp.Regexp, values []string) in
  return count
 }
 `
-			write := func(source string) repoanalysis.SourceSnapshot {
+			write := func(source string) gosyntax.Snapshot {
 				t.Helper()
 				if err := os.WriteFile(path, []byte(source), 0600); err != nil {
 					t.Fatal(err)
 				}
-				snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+				snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -27,6 +27,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
 	"overgo/internal/gosource"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
@@ -458,13 +459,13 @@ func documentationFreshness(root string) error {
 	})
 }
 
-func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
+func (g *gateContext) sourceSnapshot() (gosyntax.Snapshot, error) {
 	g.sourceMutex.Lock()
 	defer g.sourceMutex.Unlock()
 	if g.source != nil {
 		return *g.source, nil
 	}
-	snapshot, err := repoanalysis.DiscoverGo(g.sourceRoot(), "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(g.sourceRoot(), "internal", "cmd")
 	if err == nil {
 		g.source = &snapshot
 	}
@@ -473,7 +474,7 @@ func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
 
 // returns the HEAD source snapshot, computed once and shared by every check
 // of the validate wave that compares the candidate against HEAD
-func (g *gateContext) baseSnapshot(candidate repoanalysis.SourceSnapshot) (repoanalysis.SourceSnapshot, error) {
+func (g *gateContext) baseSnapshot(candidate gosyntax.Snapshot) (gosyntax.Snapshot, error) {
 	g.sourceMutex.Lock()
 	defer g.sourceMutex.Unlock()
 	if g.baseSource != nil {
@@ -486,7 +487,7 @@ func (g *gateContext) baseSnapshot(candidate repoanalysis.SourceSnapshot) (repoa
 	return base, err
 }
 
-func (g *gateContext) sourceProfile(snapshot repoanalysis.SourceSnapshot) (codeprofile.Profile, error) {
+func (g *gateContext) sourceProfile(snapshot gosyntax.Snapshot) (codeprofile.Profile, error) {
 	g.sourceMutex.Lock()
 	defer g.sourceMutex.Unlock()
 	if profile, found := g.manifestCache.Profile(snapshot); found {
@@ -607,7 +608,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 	return false, nil
 }
 
-func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSnapshot, changed []string, profile *codeprofile.Profile) error {
+func (g *gateContext) appendConsumerCensus(candidate, head gosyntax.Snapshot, changed []string, profile *codeprofile.Profile) error {
 	selection, err := gosource.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
 	if err != nil {
 		return err
@@ -788,7 +789,7 @@ func changedGoPathsAtRevision(repo, revision string, pending []string) ([]string
 	return slices.Sorted(maps.Keys(paths)), nil
 }
 
-func sourceAtRevision(repo string, candidate repoanalysis.SourceSnapshot, revision string, paths []string) (repoanalysis.SourceSnapshot, error) {
+func sourceAtRevision(repo string, candidate gosyntax.Snapshot, revision string, paths []string) (gosyntax.Snapshot, error) {
 	overlay := make(map[string][]byte, len(paths))
 	for _, path := range paths {
 		cmd := newGateGitReaderCommand(repo, "show", revision+":"+path)
@@ -798,7 +799,7 @@ func sourceAtRevision(repo string, candidate repoanalysis.SourceSnapshot, revisi
 				overlay[path] = nil
 				continue
 			}
-			return repoanalysis.SourceSnapshot{}, err
+			return gosyntax.Snapshot{}, err
 		}
 		overlay[path] = data
 	}
@@ -852,14 +853,14 @@ func cliMainClone(clone codeprofile.Clone) bool {
 	})
 }
 
-func sourceAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (repoanalysis.SourceSnapshot, error) {
+func sourceAtHEAD(repo string, candidate gosyntax.Snapshot) (gosyntax.Snapshot, error) {
 	raw, err := command(repo, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {
-		return repoanalysis.SourceSnapshot{}, err
+		return gosyntax.Snapshot{}, err
 	}
 	dirty, err := repoanalysis.ParseDirtyStatus([]byte(raw))
 	if err != nil {
-		return repoanalysis.SourceSnapshot{}, err
+		return gosyntax.Snapshot{}, err
 	}
 	paths := map[string]bool{}
 	for _, entry := range dirty {
@@ -1569,7 +1570,7 @@ func (g *gateContext) remediateStaleClosureBindings() error {
 // gone and revalidates once. It retires nothing while any unmatched decision's
 // value survives in its file: that one a person judges, and the refusal names
 // it rather than discarding a reviewed understanding.
-func (g *gateContext) retireRemovedClosures(snapshot repoanalysis.SourceSnapshot, documents []closureledger.Document, aliases map[string]artifact.ID, report closurescan.AuthorityReport, err error) (closurescan.AuthorityReport, error) {
+func (g *gateContext) retireRemovedClosures(snapshot gosyntax.Snapshot, documents []closureledger.Document, aliases map[string]artifact.ID, report closurescan.AuthorityReport, err error) (closurescan.AuthorityReport, error) {
 	projection, projectErr := projectedMagicBindings(snapshot, documents, aliases)
 	switch {
 	case projectErr != nil:
@@ -1706,6 +1707,9 @@ func (g *gateContext) verifyAcceptedCandidate(verify string, complete bool) erro
 	}
 	if complete {
 		g.acceptedTree = tree
+		if err := g.admitCompletionEarly(); err != nil {
+			return fmt.Errorf("acceptance: the commit would refuse this completion: %w", err)
+		}
 	}
 	return nil
 }

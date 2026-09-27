@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"overgo/internal/gosource"
+	"overgo/internal/gosyntax"
 )
 
 type modernGoSourceEdit struct {
@@ -34,7 +35,7 @@ type ModernGoManualRewrite struct {
 // RewriteModernGoManualIdioms replaces only eagerly safe fallback values,
 // channel-only tickers, exact append clones, and typed sort wrappers.
 func RewriteModernGoManualIdioms(root string) (ModernGoManualRewrite, error) {
-	snapshot, err := DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		return ModernGoManualRewrite{}, err
 	}
@@ -149,7 +150,7 @@ func RewriteModernGoManualIdioms(root string) (ModernGoManualRewrite, error) {
 func modernGoNodeText(file modernGoParsedFile, node ast.Node) string {
 	start := file.fileSet.Position(node.Pos()).Offset
 	end := file.fileSet.Position(node.End()).Offset
-	return string(file.source.blob.data[start:end])
+	return string(file.source.Data[start:end])
 }
 
 func modernGoManualFallback(statement *ast.IfStmt, info *types.Info) (*ast.Ident, ast.Expr, bool) {
@@ -251,7 +252,7 @@ func modernGoParentSelector(root ast.Node, identifier *ast.Ident) (*ast.Selector
 // reductions retain their existing empty-input panic because they already read
 // element zero before looping.
 func RewriteModernGoExtrema(root string) (int, []string, error) {
-	snapshot, err := DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -370,7 +371,7 @@ func RewriteModernGoExtrema(root string) (int, []string, error) {
 // matcher rejects changing bounds and induction variables before this writer
 // changes only the loop header.
 func RewriteModernGoNumericIntegerRanges(root string) (int, []string, error) {
-	snapshot, err := DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -379,7 +380,7 @@ func RewriteModernGoNumericIntegerRanges(root string) (int, []string, error) {
 		return 0, nil, err
 	}
 	if bootstrapCount != 0 {
-		snapshot, err = DiscoverGo(root, "cmd", "internal")
+		snapshot, err = gosyntax.DiscoverGo(root, "cmd", "internal")
 		if err != nil {
 			return 0, nil, err
 		}
@@ -411,7 +412,7 @@ func RewriteModernGoNumericIntegerRanges(root string) (int, []string, error) {
 				edits = append(edits, modernGoSourceEdit{
 					start:       file.fileSet.Position(counter.Pos()).Offset,
 					end:         file.fileSet.Position(loop.X.End()).Offset,
-					replacement: "range " + string(file.source.blob.data[boundStart:boundEnd]),
+					replacement: "range " + string(file.source.Data[boundStart:boundEnd]),
 				})
 				return true
 			case *ast.ForStmt:
@@ -426,7 +427,7 @@ func RewriteModernGoNumericIntegerRanges(root string) (int, []string, error) {
 				}
 				boundStart := file.fileSet.Position(condition.Y.Pos()).Offset
 				boundEnd := file.fileSet.Position(condition.Y.End()).Offset
-				replacement := "range " + string(file.source.blob.data[boundStart:boundEnd])
+				replacement := "range " + string(file.source.Data[boundStart:boundEnd])
 				if modernGoIdentifierObjectUsed(loop.Body, counter, file.info) {
 					replacement = counter.Name + " := " + replacement
 				}
@@ -466,7 +467,7 @@ func modernGoIdentifierObjectUsed(root ast.Node, declaration *ast.Ident, info *t
 	return used
 }
 
-func rewriteUnusedNumericRangeVariables(root string, snapshot SourceSnapshot) (int, []string, error) {
+func rewriteUnusedNumericRangeVariables(root string, snapshot gosyntax.Snapshot) (int, []string, error) {
 	total := 0
 	var changed []string
 	for _, source := range snapshot.Files {
@@ -481,7 +482,7 @@ func rewriteUnusedNumericRangeVariables(root string, snapshot SourceSnapshot) (i
 			continue
 		}
 		fileSet := token.NewFileSet()
-		file, err := parser.ParseFile(fileSet, source.Path, source.blob.data, parser.ParseComments)
+		file, err := parser.ParseFile(fileSet, source.Path, source.Data, parser.ParseComments)
 		if err != nil {
 			return total, changed, err
 		}
@@ -500,7 +501,7 @@ func rewriteUnusedNumericRangeVariables(root string, snapshot SourceSnapshot) (i
 			edits = append(edits, modernGoSourceEdit{
 				start:       fileSet.Position(counter.Pos()).Offset,
 				end:         fileSet.Position(loop.X.End()).Offset,
-				replacement: "range " + string(source.blob.data[boundStart:boundEnd]),
+				replacement: "range " + string(source.Data[boundStart:boundEnd]),
 			})
 			return true
 		})
@@ -639,7 +640,7 @@ func modernGoEditOverlaps(edits []modernGoSourceEdit, start, end int) bool {
 // the Go zero value and encoding/json's empty value are type-proven identical.
 // Structs and types with IsZero methods remain explicit contract decisions.
 func RewriteModernGoOmitZeroEquivalent(root string) (int, []string, error) {
-	snapshot, err := DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -729,7 +730,7 @@ func modernGoReplaceJSONTagOption(tag, oldOption, newOption string) (string, boo
 // RewriteModernGoErrorIdentityComparisons replaces direct comparisons between
 // two type-proven errors with errors.Is so wrapped sentinel identity is kept.
 func RewriteModernGoErrorIdentityComparisons(root string) (int, []string, error) {
-	snapshot, err := DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -766,8 +767,8 @@ func RewriteModernGoErrorIdentityComparisons(root string) (int, []string, error)
 			}
 			edits = append(edits, modernGoSourceEdit{
 				start: start, end: end,
-				replacement: prefix + "errors.Is(" + string(file.source.blob.data[leftStart:leftEnd]) + ", " +
-					string(file.source.blob.data[rightStart:rightEnd]) + ")",
+				replacement: prefix + "errors.Is(" + string(file.source.Data[leftStart:leftEnd]) + ", " +
+					string(file.source.Data[rightStart:rightEnd]) + ")",
 			})
 			return false
 		})
@@ -788,7 +789,7 @@ func RewriteModernGoErrorIdentityComparisons(root string) (int, []string, error)
 // with testing.B.Loop. Indexed loops are left for human review because their
 // index may be semantically significant.
 func RewriteModernGoBenchmarkLoops(root string) (int, []string, error) {
-	snapshot, err := DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -844,7 +845,7 @@ func RewriteModernGoBenchmarkLoops(root string) (int, []string, error) {
 // its testing owner. Helpers without a *testing.T or *testing.B in lexical
 // scope are deliberately left unchanged.
 func RewriteModernGoTestingContexts(root string) (int, []string, error) {
-	snapshot, err := DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -1092,13 +1093,13 @@ func modernGoUsesContextWithoutCancel(file *ast.File) bool {
 }
 
 // Apply one snapshot's edits before publishing; callers own import semantics.
-func rewriteModernGoFile(root string, source GoFile, edits []modernGoSourceEdit, kind string, finish func(string, []byte) ([]byte, error)) (bool, error) {
+func rewriteModernGoFile(root string, source gosyntax.File, edits []modernGoSourceEdit, kind string, finish func(string, []byte) ([]byte, error)) (bool, error) {
 	name := filepath.Join(root, filepath.FromSlash(source.Path))
 	current, err := os.ReadFile(name)
 	if err != nil {
 		return false, err
 	}
-	if !bytes.Equal(current, source.blob.data) {
+	if !bytes.Equal(current, source.Data) {
 		return false, fmt.Errorf("modern-Go %s source changed during rewrite: %s", kind, source.Path)
 	}
 	slices.SortFunc(edits, func(left, right modernGoSourceEdit) int { return left.start - right.start })

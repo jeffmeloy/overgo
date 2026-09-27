@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"overgo/internal/gosyntax"
 	"overgo/internal/jsonfile"
 )
 
@@ -14,7 +15,7 @@ func TestFamilyBranchSnapshot(t *testing.T) {
 func Match(a string) bool { switch a { case "gemma3": return true }; return a == "llama3" || a != "qwen2.5" }
 `)
 	const owner = "internal/shared/value.go"
-	snapshot, err := (SourceSnapshot{}).Overlay(map[string][]byte{
+	snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{
 		owner: source, "internal/model/architecture_catalog.go": source,
 		"internal/testutil/fixture.go": source, "cmd/example/main_test.go": source,
 	})
@@ -44,7 +45,7 @@ func TestArchitectureFamilyBranchCensus(t *testing.T) {
 	for _, branch := range baseline.Branches {
 		allowed[[2]string{branch.File, branch.Literal}] = branch.Count
 	}
-	snapshot, err := DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

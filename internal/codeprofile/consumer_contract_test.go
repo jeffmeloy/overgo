@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestDeclaredInternalOperationConsumer(t *testing.T) {
 	root := filepath.Join("..", "..")
 	paths := []string{"cmd/train/main.go", "internal/trainingworkflow/workflow.go", "internal/trainingworkflow/audio.go"}
-	base, err := repoanalysis.LoadGo(root, paths)
+	base, err := gosyntax.LoadGo(root, paths)
 	if err != nil {
 		t.Fatal(err)
 	}

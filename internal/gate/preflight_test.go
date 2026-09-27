@@ -15,7 +15,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 	"overgo/internal/runrecord"
 )
 
@@ -61,7 +61,7 @@ func TestPreflightStructureBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

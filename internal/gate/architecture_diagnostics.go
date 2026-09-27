@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"overgo/internal/gosyntax"
 	"overgo/internal/jsonfile"
 	"overgo/internal/repoanalysis"
 )
 
 // The gate and its diagnostic projection use the same reviewed boundaries.
-func (g *gateContext) architectureDiagnostics(snapshot repoanalysis.SourceSnapshot) error {
+func (g *gateContext) architectureDiagnostics(snapshot gosyntax.Snapshot) error {
 	consolidation, err := repoanalysis.AuditAgentHarnessConsolidation(snapshot)
 	if err != nil {
 		return err
@@ -42,13 +43,9 @@ func (g *gateContext) architectureDiagnostics(snapshot repoanalysis.SourceSnapsh
 			return fmt.Errorf("family-named branch exceeds reviewed count: %s %q %d -> %d; consult a declared profile policy", branch.File, branch.Literal, limit, branch.Count)
 		}
 	}
-	var timers repoanalysis.FixedTimerBaseline
-	if err := jsonfile.DecodeStrict(filepath.Join(g.repo, filepath.FromSlash(repoanalysis.FixedTimerBaselineFile)), &timers); err != nil {
-		return err
-	}
 	fixed, err := repoanalysis.FixedTimerCensus(snapshot)
 	if err != nil {
 		return err
 	}
-	return repoanalysis.AdmitFixedTimers(timers, fixed)
+	return repoanalysis.RefuseFixedTimers(fixed)
 }

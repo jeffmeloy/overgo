@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"path"
 	"slices"
+
+	"overgo/internal/gosyntax"
 )
 
 // The store access census computes, from syntax alone, which packages talk
@@ -46,7 +48,7 @@ type StoreAccess struct {
 
 // StoreAccessCensus reports every production package that reaches the store
 // directly, most sites first.
-func StoreAccessCensus(snapshot SourceSnapshot) ([]StoreAccess, error) {
+func StoreAccessCensus(snapshot gosyntax.Snapshot) ([]StoreAccess, error) {
 	kinds := storeAccessKinds()
 	packages := map[string]*StoreAccess{}
 	imported := map[string]map[string]bool{}

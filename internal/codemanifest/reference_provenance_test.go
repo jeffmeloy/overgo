@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestReferenceProvenanceAcceptance(t *testing.T) {
 	const name = "internal/example/probe.go"
 	const source = "package example\nfunc Target() {}\nfunc Hold() func() { return Target }\nfunc Invoke() { Target(); Target() }\n"
-	snapshot, err := (repoanalysis.SourceSnapshot{}).Overlay(map[string][]byte{name: []byte(source)})
+	snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{name: []byte(source)})
 	if err != nil {
 		t.Fatal(err)
 	}

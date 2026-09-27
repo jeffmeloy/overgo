@@ -23,7 +23,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 type Candidate struct {
@@ -255,9 +255,9 @@ type AssumptionHint struct {
 }
 
 // CensusLiterals classifies non-const numeric source literals.
-func CensusLiterals(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]LiteralSite, error) {
+func CensusLiterals(snapshot gosyntax.Snapshot, relatives []string) ([]LiteralSite, error) {
 	var sites []LiteralSite
-	err := visitProduction(snapshot, relatives, func(source repoanalysis.GoFile, parsed *ast.File) {
+	err := visitProduction(snapshot, relatives, func(source gosyntax.File, parsed *ast.File) {
 		collectLiteralSites(parsed, source, &sites)
 	})
 	if err != nil {
@@ -273,7 +273,7 @@ func CensusLiterals(snapshot repoanalysis.SourceSnapshot, relatives []string) ([
 }
 
 // CensusTestLiterals separates fixtures, assertions, and production overlaps.
-func CensusTestLiterals(snapshot repoanalysis.SourceSnapshot) ([]TestLiteralSite, error) {
+func CensusTestLiterals(snapshot gosyntax.Snapshot) ([]TestLiteralSite, error) {
 	var out []TestLiteralSite
 	err := visitTestLiterals(snapshot, func(site TestLiteralSite) { out = append(out, site) })
 	if err != nil {
@@ -288,9 +288,9 @@ func CensusTestLiterals(snapshot repoanalysis.SourceSnapshot) ([]TestLiteralSite
 	return out, nil
 }
 
-func visitTestLiterals(snapshot repoanalysis.SourceSnapshot, visit func(TestLiteralSite)) error {
+func visitTestLiterals(snapshot gosyntax.Snapshot, visit func(TestLiteralSite)) error {
 	production := map[string][]string{}
-	err := visitProduction(snapshot, nil, func(source repoanalysis.GoFile, file *ast.File) {
+	err := visitProduction(snapshot, nil, func(source gosyntax.File, file *ast.File) {
 		var candidates []Candidate
 		collect(file, source, &candidates)
 		for _, candidate := range candidates {
@@ -300,7 +300,7 @@ func visitTestLiterals(snapshot repoanalysis.SourceSnapshot, visit func(TestLite
 	if err != nil {
 		return err
 	}
-	err = visitSources(snapshot, nil, func(source repoanalysis.GoFile) bool { return source.Test }, func(source repoanalysis.GoFile, file *ast.File) {
+	err = visitSources(snapshot, nil, func(source gosyntax.File) bool { return source.Test }, func(source gosyntax.File, file *ast.File) {
 		var literals []LiteralSite
 		collectLiteralSites(file, source, &literals)
 		for _, site := range literals {
@@ -358,9 +358,9 @@ func relatedPolicyNames(testName, productionName string) bool {
 }
 
 // CensusAssumptions reports syntax-derived decision hints; it proves none.
-func CensusAssumptions(snapshot repoanalysis.SourceSnapshot, relatives []string) ([]AssumptionHint, error) {
+func CensusAssumptions(snapshot gosyntax.Snapshot, relatives []string) ([]AssumptionHint, error) {
 	var out []AssumptionHint
-	err := visitProduction(snapshot, relatives, func(source repoanalysis.GoFile, file *ast.File) {
+	err := visitProduction(snapshot, relatives, func(source gosyntax.File, file *ast.File) {
 		collectAssumptionHints(file, source, &out)
 	})
 	if err != nil {
@@ -404,7 +404,7 @@ func assumptionKinds(expression ast.Expr) []AssumptionKind {
 	return slices.Sorted(maps.Keys(kinds))
 }
 
-func collectLiteralSites(file *ast.File, source repoanalysis.GoFile, out *[]LiteralSite) {
+func collectLiteralSites(file *ast.File, source gosyntax.File, out *[]LiteralSite) {
 	inspectWithParents(file, func(node ast.Node, parents map[ast.Node]ast.Node) {
 		literal, ok := node.(*ast.BasicLit)
 		if !ok || insideConst(node, parents) || literal.Kind != token.INT && literal.Kind != token.FLOAT {
@@ -653,7 +653,7 @@ func literalContext(parent ast.Node, parents map[ast.Node]ast.Node) LiteralConte
 
 // ScanRoot walks internal/ and cmd/ under root.
 func ScanRoot(root string, kinds CandidateKinds) ([]Candidate, error) {
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		return nil, err
 	}
@@ -661,13 +661,13 @@ func ScanRoot(root string, kinds CandidateKinds) ([]Candidate, error) {
 }
 
 // ScanSnapshot reuses parsed source and optionally limits findings to paths.
-func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string, kinds CandidateKinds) ([]Candidate, error) {
+func ScanSnapshot(snapshot gosyntax.Snapshot, relatives []string, kinds CandidateKinds) ([]Candidate, error) {
 	if !kinds.valid() {
 		return nil, fmt.Errorf("closure scan: invalid candidate kinds %d", kinds)
 	}
 	var out []Candidate
 	objects := map[*ast.Object]int{}
-	err := visitProduction(snapshot, relatives, func(source repoanalysis.GoFile, parsed *ast.File) {
+	err := visitProduction(snapshot, relatives, func(source gosyntax.File, parsed *ast.File) {
 		if kinds.includes(CandidateConstants) {
 			collectObjects(parsed, source, &out, objects)
 		}
@@ -700,7 +700,7 @@ func ScanSnapshot(snapshot repoanalysis.SourceSnapshot, relatives []string, kind
 	return out, nil
 }
 
-func collectAssumptionCandidates(file *ast.File, source repoanalysis.GoFile, out *[]Candidate) {
+func collectAssumptionCandidates(file *ast.File, source gosyntax.File, out *[]Candidate) {
 	var hints []AssumptionHint
 	collectAssumptionHints(file, source, &hints)
 	for _, hint := range hints {
@@ -708,7 +708,7 @@ func collectAssumptionCandidates(file *ast.File, source repoanalysis.GoFile, out
 	}
 }
 
-func collectAssumptionHints(file *ast.File, source repoanalysis.GoFile, out *[]AssumptionHint) {
+func collectAssumptionHints(file *ast.File, source gosyntax.File, out *[]AssumptionHint) {
 	seen := map[string]bool{}
 	imports := importedNames(file)
 	receivers := importedTypedNames(file, imports)
@@ -814,11 +814,11 @@ func importedSelector(expression ast.Expr, imports, receivers map[string]bool) b
 	}
 }
 
-func visitProduction(snapshot repoanalysis.SourceSnapshot, relatives []string, visit func(repoanalysis.GoFile, *ast.File)) error {
-	return visitSources(snapshot, relatives, func(source repoanalysis.GoFile) bool { return !source.Test }, visit)
+func visitProduction(snapshot gosyntax.Snapshot, relatives []string, visit func(gosyntax.File, *ast.File)) error {
+	return visitSources(snapshot, relatives, func(source gosyntax.File) bool { return !source.Test }, visit)
 }
 
-func visitSources(snapshot repoanalysis.SourceSnapshot, relatives []string, include func(repoanalysis.GoFile) bool, visit func(repoanalysis.GoFile, *ast.File)) error {
+func visitSources(snapshot gosyntax.Snapshot, relatives []string, include func(gosyntax.File) bool, visit func(gosyntax.File, *ast.File)) error {
 	wanted := map[string]bool{}
 	for _, relative := range relatives {
 		wanted[filepath.ToSlash(relative)] = true
@@ -847,9 +847,9 @@ func visitSources(snapshot repoanalysis.SourceSnapshot, relatives []string, incl
 // in function bodies. Indexes, slice/array extents, arithmetic factors, tests,
 // and generated files are excluded to avoid recommending constants for local
 // math or structure facts.
-func RepeatedPolicyLiterals(snapshot repoanalysis.SourceSnapshot) ([]RawPolicyLiteral, error) {
+func RepeatedPolicyLiterals(snapshot gosyntax.Snapshot) ([]RawPolicyLiteral, error) {
 	groups := map[string]*rawLiteralGroup{}
-	err := visitProduction(snapshot, nil, func(source repoanalysis.GoFile, parsed *ast.File) {
+	err := visitProduction(snapshot, nil, func(source gosyntax.File, parsed *ast.File) {
 		pkg := filepath.ToSlash(filepath.Dir(source.Path))
 		for _, declaration := range parsed.Decls {
 			function, ok := declaration.(*ast.FuncDecl)
@@ -959,11 +959,11 @@ type constBinding struct {
 	scope      string
 }
 
-func collect(file *ast.File, source repoanalysis.GoFile, out *[]Candidate) {
+func collect(file *ast.File, source gosyntax.File, out *[]Candidate) {
 	collectObjects(file, source, out, nil)
 }
 
-func collectObjects(file *ast.File, source repoanalysis.GoFile, out *[]Candidate, objects map[*ast.Object]int) {
+func collectObjects(file *ast.File, source gosyntax.File, out *[]Candidate, objects map[*ast.Object]int) {
 	bindings := map[*ast.Object]ast.Expr{}
 	var declarations []constBinding
 	for _, declaration := range file.Decls {
@@ -1002,7 +1002,7 @@ func collectObjects(file *ast.File, source repoanalysis.GoFile, out *[]Candidate
 	}
 }
 
-func bindCallsites(snapshot repoanalysis.SourceSnapshot, candidates []Candidate, objects map[*ast.Object]int) error {
+func bindCallsites(snapshot gosyntax.Snapshot, candidates []Candidate, objects map[*ast.Object]int) error {
 	byPackage := map[string][]int{}
 	packages := map[string]bool{}
 	for index, candidate := range candidates {
@@ -1018,7 +1018,7 @@ func bindCallsites(snapshot repoanalysis.SourceSnapshot, candidates []Candidate,
 			hashes[index] = sha256.New()
 		}
 	}
-	err := visitProduction(snapshot, nil, func(source repoanalysis.GoFile, file *ast.File) {
+	err := visitProduction(snapshot, nil, func(source gosyntax.File, file *ast.File) {
 		pkg := filepath.ToSlash(filepath.Dir(source.Path))
 		imports := candidateImports(file, packages)
 		inspectWithParents(file, func(node ast.Node, parents map[ast.Node]ast.Node) {
@@ -1088,7 +1088,7 @@ func candidateImports(file *ast.File, packages map[string]bool) map[string]strin
 	return imports
 }
 
-func hashCallsite(destination hash.Hash, source repoanalysis.GoFile, scope string, _ token.Pos) {
+func hashCallsite(destination hash.Hash, source gosyntax.File, scope string, _ token.Pos) {
 	hashField(destination, source.Path)
 	hashField(destination, scope)
 }

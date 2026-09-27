@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // harnessBoundaryCoverage reports, for the changed shared harness owners, the tested
@@ -28,7 +28,7 @@ var sharedHarnessOwners = map[string]bool{
 
 // agentHarnessBoundaryCoverage maps each changed shared harness owner to the
 // tested packages that reach it and assemble more than one harness owner.
-func agentHarnessBoundaryCoverage(snapshot repoanalysis.SourceSnapshot, changedPaths []string) (harnessBoundaryCoverage, error) {
+func agentHarnessBoundaryCoverage(snapshot gosyntax.Snapshot, changedPaths []string) (harnessBoundaryCoverage, error) {
 	graph := map[string]map[string]bool{}
 	tested := map[string]bool{}
 	for _, source := range snapshot.Files {

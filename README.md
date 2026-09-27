@@ -111,7 +111,9 @@ The [built-in policy](internal/trainingprogram/optimizer_policy.json) specifies:
 
 - **Learning rate:** $\eta=P^{-1/2}$, where $P$ is the parameter count supplied
   to the policy; the schedule is constant.
-- **Momentum:** $\mu=(N-1)/(N+1)=29/31\approx0.9355$, with configured $N=30$.
+- **Momentum:** $\mu=(N-1)/(N+1)=29/31\approx0.9355$, with configured $N=30$,
+  the effective sample count from the rule of thumb of Cochran's
+  confidence-interval criterion.
 - **Update scale:** $\eta\sqrt{\max(m,n)}\sqrt{1-\mu^2}$ for each $m\times n$
   parameter group.
 

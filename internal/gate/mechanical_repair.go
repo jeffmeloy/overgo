@@ -41,8 +41,6 @@ type mechanicalRepair struct {
 	// applies reports whether the planned paths reach the repair's inputs;
 	// nil means a changed Go source.
 	applies func(g *gateContext) bool
-	// Retain outputs authored on every successful apply, including retries.
-	retainOutputs bool
 }
 
 // mechanicalRepairs lists the registry: the formatter first, since every
@@ -53,7 +51,6 @@ func (g *gateContext) mechanicalRepairs() []mechanicalRepair {
 		{name: "gofmt", phase: "fmt", files: (*gateContext).changedGoFiles, apply: (*gateContext).repairFormatting},
 		{
 			name: "modern-Go census", phase: "modern-go",
-			retainOutputs: true,
 			files: func(*gateContext) []string {
 				return []string{repoanalysis.ModernGoBaselineFile}
 			},
@@ -66,9 +63,8 @@ func (g *gateContext) mechanicalRepairs() []mechanicalRepair {
 		},
 		{
 			name: "API manifest", phase: "test",
-			retainOutputs: true,
-			files:         func(*gateContext) []string { return []string{apiManifestFile} },
-			apply:         (*gateContext).repairAPIManifest,
+			files: func(*gateContext) []string { return []string{apiManifestFile} },
+			apply: (*gateContext).repairAPIManifest,
 		},
 		{
 			name: "compatibility identities", phase: "claims",
@@ -187,6 +183,10 @@ func (g *gateContext) stageRepairs(repairs []mechanicalRepair) error {
 		})
 	}
 	wait.Wait()
+	dirty, err := g.dirtyStatus()
+	if err != nil {
+		return err
+	}
 	for index, repair := range repairs {
 		result := outcomes[index]
 		if result.err != nil {
@@ -196,14 +196,17 @@ func (g *gateContext) stageRepairs(repairs []mechanicalRepair) error {
 		if err != nil {
 			return err
 		}
+		// A repaired file ships when it differs from the last commit: one this
+		// run rewrote, or one an earlier attempt of this landing already
+		// rewrote, which a retry finds unchanged by its own run. A file the
+		// repair left as committed is no change, and selects nothing.
 		var changed []string
 		for _, file := range result.files {
 			if result.before[file] != after[file] {
 				changed = append(changed, file)
-			} else if !repair.retainOutputs {
-				continue
 			}
-			if !slices.Contains(g.paths, file) {
+			differs := slices.ContainsFunc(dirty, func(entry repoanalysis.DirtyPath) bool { return entry.Path == file })
+			if differs && !slices.Contains(g.paths, file) {
 				g.paths = append(g.paths, file)
 			}
 		}

@@ -5,13 +5,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/processcontrol"
 )
+
+// childOutputTailBytes bounds the child output a failed start carries: the
+// error text and the log lines just before it, while the whole stream stays
+// on the launcher's own stderr.
+const childOutputTailBytes = 2048
 
 // ServerLauncher launches the overgo server binary as the child for a
 // servable: one child at a time over the shared store, listening on a
@@ -71,13 +79,16 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 	// The child self-reports the servable's name so the GUI's model pill
 	// (and the proxy's self-identity short-circuit) track the swap.
 	arguments := append([]string{"-listen", address, "-repo", l.Store, "-model-id", servable.Name}, l.Workspaces.arguments()...)
-	// The child logs its bound listener; the announcement is the readiness signal.
-	announced := processcontrol.WatchLine(os.Stderr, processcontrol.ListeningAnnouncement+address)
+	// The child logs its bound listener; the announcement is the readiness
+	// signal. Its last output also rides a failed exit, so a child that ends
+	// before serving says why in the swap error, not only on the console.
+	output := clioptions.NewTailWriter(childOutputTailBytes)
+	announced := processcontrol.WatchLine(io.MultiWriter(os.Stderr, output), processcontrol.ListeningAnnouncement+address)
 	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
 		Path:   l.Binary,
 		Args:   append(arguments, servable.Location),
 		Dir:    l.Dir,
-		Stdout: os.Stderr,
+		Stdout: announced,
 		Stderr: announced,
 	})
 	if err != nil {
@@ -92,6 +103,10 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 			waitErr = processcontrol.ErrDeviceMemory
 		} else {
 			waitErr = cmp.Or(waitErr, fmt.Errorf("server exited with status %d", receipt.ExitCode))
+			// The drains have finished once Wait returns, so the tail is whole.
+			if last := strings.TrimSpace(output.Tail()); last != "" {
+				waitErr = fmt.Errorf("%w; its last output: %s", waitErr, last)
+			}
 		}
 		exited <- waitErr
 		close(exited)

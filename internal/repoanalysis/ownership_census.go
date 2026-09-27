@@ -6,6 +6,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"overgo/internal/gosyntax"
 )
 
 // The RSI ownership census computes, from syntax alone, which package
@@ -89,7 +91,7 @@ func rsiCensusFamilies() []CensusFamily {
 // marked sites owns the family (ties resolve to the lexically first
 // package name), every other package with a site is a consumer, and
 // recurrence counts the sites outside the owner.
-func RSIOwnershipCensus(snapshot SourceSnapshot) ([]CensusFinding, error) {
+func RSIOwnershipCensus(snapshot gosyntax.Snapshot) ([]CensusFinding, error) {
 	families := rsiCensusFamilies()
 	sites := make([]map[string]int, len(families))
 	for index := range sites {

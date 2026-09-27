@@ -10,7 +10,7 @@ import (
 	"overgo/internal/automationcheck"
 	"overgo/internal/codemanifest"
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 	"overgo/internal/runrecord"
 )
 
@@ -150,7 +150,7 @@ func mutationImpact(t *testing.T, candidate map[string]string) codemanifest.Impa
 			t.Fatal(err)
 		}
 	}
-	baseSnapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	baseSnapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func mutationImpact(t *testing.T, candidate map[string]string) codemanifest.Impa
 			t.Fatal(err)
 		}
 	}
-	candidateSnapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	candidateSnapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

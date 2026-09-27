@@ -18,7 +18,7 @@ import (
 	"overgo/internal/codemanifest"
 	"overgo/internal/commanddoc"
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 	"overgo/internal/server"
 )
 
@@ -85,7 +85,7 @@ func run() error {
 }
 
 func compile(root string) (apimanifest.Manifest, error) {
-	snapshot, err := repoanalysis.DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		return apimanifest.Manifest{}, err
 	}

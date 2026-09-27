@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestChangedPackageFailurePreventsBroadSweep(t *testing.T) {
@@ -39,7 +39,7 @@ func TestChangedPackageFailurePreventsBroadSweep(t *testing.T) {
 		t.Fatal(err)
 	}
 	newGate := func() *gateContext {
-		snapshot, err := repoanalysis.DiscoverGo(root, "app", "dep", "other")
+		snapshot, err := gosyntax.DiscoverGo(root, "app", "dep", "other")
 		if err != nil {
 			t.Fatal(err)
 		}

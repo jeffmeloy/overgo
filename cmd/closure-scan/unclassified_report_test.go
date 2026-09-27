@@ -12,8 +12,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 func TestUnclassifiedReportSeparatesPriorNewAndConflictingDecisions(t *testing.T) {
@@ -121,7 +121,7 @@ const Conflict = 13
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func localIID([]float64) bool { return true }
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.24\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

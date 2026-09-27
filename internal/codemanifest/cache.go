@@ -9,7 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/codeprofile"
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // cacheKey binds every input that can change generated manifest semantics.
@@ -122,7 +122,7 @@ func (cache *Cache) put(key cacheKey, manifest Manifest) error {
 
 // Generate reuses an exact authority match or generates and records a new
 // manifest. Reused is false on every incomplete or changed authority.
-func (cache *Cache) Generate(snapshot repoanalysis.SourceSnapshot, selections []gosource.BuildSelection, external []ExternalInput) (manifest Manifest, reused bool, err error) {
+func (cache *Cache) Generate(snapshot gosyntax.Snapshot, selections []gosource.BuildSelection, external []ExternalInput) (manifest Manifest, reused bool, err error) {
 	contexts := make([]BuildContext, 0, len(selections))
 	for _, selection := range selections {
 		context, contextErr := buildContext(selection)
@@ -140,7 +140,7 @@ func (cache *Cache) Generate(snapshot repoanalysis.SourceSnapshot, selections []
 	}
 	selected := make([]analysisSelection, len(selections))
 	for index, selection := range selections {
-		names, err := repoanalysis.PackageNames(snapshot, selection)
+		names, err := gosyntax.PackageNames(snapshot, selection)
 		if err != nil {
 			return Manifest{}, false, err
 		}
@@ -152,7 +152,7 @@ func (cache *Cache) Generate(snapshot repoanalysis.SourceSnapshot, selections []
 	})
 	selectionID, err := artifact.JSONID(artifact.KindRecipe, struct {
 		Selections []analysisSelection
-		Files      []repoanalysis.GoFile
+		Files      []gosyntax.File
 	}{selected, snapshot.Files})
 	if err != nil {
 		return Manifest{}, false, err
@@ -221,7 +221,7 @@ func (cache *Cache) attachProfile(key cacheKey, source artifact.ID, profile *cod
 // Facts share the manifest entry's lifetime and eviction; policy is not cached.
 // Files bind content identity, order, path and test classification. Analyzer
 // and toolchain identity are fixed for this in-process cache.
-func (cache *Cache) Profile(snapshot repoanalysis.SourceSnapshot) (codeprofile.Profile, bool) {
+func (cache *Cache) Profile(snapshot gosyntax.Snapshot) (codeprofile.Profile, bool) {
 	if cache == nil {
 		return codeprofile.Profile{}, false
 	}

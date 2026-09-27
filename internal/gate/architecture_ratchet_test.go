@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
+	"overgo/internal/gosyntax"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
@@ -113,7 +114,7 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(repo, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

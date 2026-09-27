@@ -8,8 +8,8 @@ import (
 
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 // TestTriageProposalCarriesExactCoordinates pins the grunt-automation
@@ -63,7 +63,7 @@ func TestTriageProposalCarriesExactCoordinates(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,14 +4,14 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestChangedCompilerSelectionInvalidatesCache(t *testing.T) {
 	root := t.TempDir()
 	name := "internal/example/example.go"
 	writeGeneratorFixture(t, root, name, "package example\nfunc Value() int { return 1 }\n")
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestChangedCompilerSelectionInvalidatesCache(t *testing.T) {
 		writeGeneratorFixture(t, root, "dependency/go.mod", "module example.com/dependency\n\ngo 1.26\n")
 		writeGeneratorFixture(t, root, "dependency/value.go", "package dependency\nfunc Value() int { return 1 }\n")
 		writeGeneratorFixture(t, root, name, "package example\nimport \"example.com/dependency\"\nfunc Value() int { return dependency.Value() }\n")
-		snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+		snapshot, err := gosyntax.DiscoverGo(root, "internal")
 		if err != nil {
 			t.Fatal(err)
 		}

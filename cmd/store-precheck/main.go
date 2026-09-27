@@ -26,10 +26,10 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
-	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/storepolicy"
 )
@@ -244,7 +244,7 @@ func checkCompletionAuthority(ctx context.Context, checkout string, store *overg
 	return err
 }
 
-// checkPublishedChains runs store-check, which owns the chain baseline, against the candidate.
+// checkPublishedChains runs store-check, which refuses every broken chain, against the candidate.
 func checkPublishedChains(ctx context.Context, checkout, candidate string) error {
 	absolute, err := filepath.Abs(candidate)
 	if err != nil {
@@ -263,7 +263,7 @@ func checkPublishedChains(ctx context.Context, checkout, candidate string) error
 
 // checkClosureLedger validates the candidate's active closure bindings against the checkout's sources.
 func checkClosureLedger(ctx context.Context, checkout string, store *overgodb.Store) error {
-	snapshot, err := repoanalysis.DiscoverGo(checkout, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(checkout, "internal", "cmd")
 	if err != nil {
 		return err
 	}

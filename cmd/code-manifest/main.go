@@ -18,7 +18,7 @@ import (
 	"overgo/internal/codemanifest"
 	"overgo/internal/codeprofile"
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func main() {
@@ -36,7 +36,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	snapshot, err := repoanalysis.DiscoverGo(resolved, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(resolved, "internal", "cmd")
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func run() error {
 // listUnconsumed prints the declarations under the prefixes that only tests
 // or nothing reference, with their node counts, costliest first: the ranked
 // paydown list for a surface that must be reduced or held.
-func listUnconsumed(snapshot repoanalysis.SourceSnapshot, selection gosource.BuildSelection, prefixes []string) error {
+func listUnconsumed(snapshot gosyntax.Snapshot, selection gosource.BuildSelection, prefixes []string) error {
 	declarations, references, _, err := codeprofile.ProductionConsumerGraph(snapshot, selection)
 	if err != nil {
 		return err

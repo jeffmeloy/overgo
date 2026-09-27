@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"overgo/internal/codeprofile"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // HarnessLayerViolation records one import pointing from a lower harness
@@ -67,7 +67,7 @@ var harnessLayers = map[string]harnessLayer{
 
 // BuildAgentHarnessSurface measures the harness-owned packages: node counts,
 // guarded scalar fields, repeated policy literals, and layer violations.
-func BuildAgentHarnessSurface(snapshot repoanalysis.SourceSnapshot) (HarnessSurface, error) {
+func BuildAgentHarnessSurface(snapshot gosyntax.Snapshot) (HarnessSurface, error) {
 	profile, err := codeprofile.Build(snapshot)
 	if err != nil {
 		return HarnessSurface{}, err

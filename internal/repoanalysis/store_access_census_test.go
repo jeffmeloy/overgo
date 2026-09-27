@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+
+	"overgo/internal/gosyntax"
 )
 
 // TestStoreAccessCensus runs the census on the real repository and holds it
@@ -17,7 +19,7 @@ import (
 // literal the package returns as a zero value builds nothing and is no site.
 func TestStoreAccessCensus(t *testing.T) {
 	t.Parallel()
-	snapshot, err := DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

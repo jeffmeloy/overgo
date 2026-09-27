@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 type BindingDrift string
@@ -24,7 +24,7 @@ type BindingIssue struct {
 	File string       `json:"file"`
 }
 
-func ValidateBindings(snapshot repoanalysis.SourceSnapshot, documents []closureledger.Document) ([]BindingIssue, error) {
+func ValidateBindings(snapshot gosyntax.Snapshot, documents []closureledger.Document) ([]BindingIssue, error) {
 	candidates, err := ScanSnapshot(snapshot, nil, CandidateAll)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func ValidateBindings(snapshot repoanalysis.SourceSnapshot, documents []closurel
 // targets the document. Selecting a multi-binding document through one alias
 // does not grant authority to its retired sibling bindings.
 func ValidateActiveBindings(
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	documents []closureledger.Document,
 	aliases map[string]artifact.ID,
 ) ([]BindingIssue, error) {

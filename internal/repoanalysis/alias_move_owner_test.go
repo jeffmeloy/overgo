@@ -5,6 +5,8 @@ import (
 	"path"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/gosyntax"
 )
 
 // TestAliasMovesHaveOneOwner holds the alias move to its owner. Naming the
@@ -19,11 +21,11 @@ import (
 // out four ways is held to being found four times.
 func TestAliasMovesHaveOneOwner(t *testing.T) {
 	t.Parallel()
-	snapshot, err := DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}
-	handwritten := func(snapshot SourceSnapshot) []string {
+	handwritten := func(snapshot gosyntax.Snapshot) []string {
 		var sites []string
 		for _, file := range snapshot.Files {
 			if file.Test || path.Dir(file.Path) == "internal/artifact" {

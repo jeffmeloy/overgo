@@ -12,6 +12,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"overgo/internal/gosyntax"
 )
 
 type goStyleKind string
@@ -45,7 +47,7 @@ type goStyleReport struct {
 }
 
 // ValidateGoStyleDelta rejects objective findings introduced by candidate.
-func ValidateGoStyleDelta(candidate, baseline SourceSnapshot) error {
+func ValidateGoStyleDelta(candidate, baseline gosyntax.Snapshot) error {
 	current, err := goStyleCensus(candidate)
 	if err != nil {
 		return err
@@ -74,9 +76,9 @@ func ValidateGoStyleDelta(candidate, baseline SourceSnapshot) error {
 	return fmt.Errorf("new Go style findings: %s", strings.Join(parts, ", "))
 }
 
-func goStyleCensus(snapshot SourceSnapshot) (goStyleReport, error) {
+func goStyleCensus(snapshot gosyntax.Snapshot) (goStyleReport, error) {
 	report := goStyleReport{Source: snapshot.Identity()}
-	packages := map[string][]GoFile{}
+	packages := map[string][]gosyntax.File{}
 	receivers := map[string]map[string]goStyleFinding{}
 	aliases := map[string]map[string]goStyleFinding{}
 	for _, source := range snapshot.Files {
@@ -95,13 +97,13 @@ func goStyleCensus(snapshot SourceSnapshot) (goStyleReport, error) {
 		}
 		packageKey := packageStyleKey(source.Path, file.Name.Name)
 		packages[packageKey] = append(packages[packageKey], source)
-		if formatted, err := format.Source(source.blob.data); err != nil || !bytes.Equal(formatted, source.blob.data) {
+		if formatted, err := format.Source(source.Data); err != nil || !bytes.Equal(formatted, source.Data) {
 			report.add(source, goStyleFormat, file.Package, file.Name.Name, "source differs from gofmt")
 		}
 		inspectStyleFile(&report, source, file, receivers, aliases)
 	}
 	for key, sources := range packages {
-		var documented *GoFile
+		var documented *gosyntax.File
 		duplicate := false
 		for _, source := range sources {
 			file, _ := source.Syntax()
@@ -146,7 +148,7 @@ func (f goStyleFinding) key() string {
 
 func inspectStyleFile(
 	report *goStyleReport,
-	source GoFile,
+	source gosyntax.File,
 	file *ast.File,
 	receivers, aliases map[string]map[string]goStyleFinding,
 ) {
@@ -172,7 +174,7 @@ func inspectStyleFile(
 	}
 }
 
-func inspectStyleFunction(report *goStyleReport, source GoFile, function *ast.FuncDecl, receivers map[string]map[string]goStyleFinding) {
+func inspectStyleFunction(report *goStyleReport, source gosyntax.File, function *ast.FuncDecl, receivers map[string]map[string]goStyleFinding) {
 	name := function.Name.Name
 	if !source.Test && ast.IsExported(name) && !validDoc(function.Doc, name) {
 		report.add(source, goStyleExportDoc, function.Pos(), name, "exported function needs a name-led sentence")
@@ -225,7 +227,7 @@ func inspectStyleFunction(report *goStyleReport, source GoFile, function *ast.Fu
 	}
 }
 
-func inspectStyleDeclaration(report *goStyleReport, source GoFile, declaration *ast.GenDecl) {
+func inspectStyleDeclaration(report *goStyleReport, source gosyntax.File, declaration *ast.GenDecl) {
 	for _, specification := range declaration.Specs {
 		var names []*ast.Ident
 		var doc *ast.CommentGroup
@@ -249,7 +251,7 @@ func inspectStyleDeclaration(report *goStyleReport, source GoFile, declaration *
 	}
 }
 
-func inspectErrorText(report *goStyleReport, source GoFile, call *ast.CallExpr, scope string) {
+func inspectErrorText(report *goStyleReport, source gosyntax.File, call *ast.CallExpr, scope string) {
 	selector, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok || len(call.Args) == 0 || (selector.Sel.Name != "New" && selector.Sel.Name != "Errorf") {
 		return
@@ -314,11 +316,11 @@ func rememberStyleName(groups map[string]map[string]goStyleFinding, owner, name 
 	groups[owner][name] = finding
 }
 
-func (r *goStyleReport) add(source GoFile, kind goStyleKind, position token.Pos, symbol, detail string) {
+func (r *goStyleReport) add(source gosyntax.File, kind goStyleKind, position token.Pos, symbol, detail string) {
 	r.Findings = append(r.Findings, r.finding(source, kind, position, symbol, detail))
 }
 
-func (r goStyleReport) finding(source GoFile, kind goStyleKind, position token.Pos, symbol, detail string) goStyleFinding {
+func (r goStyleReport) finding(source gosyntax.File, kind goStyleKind, position token.Pos, symbol, detail string) goStyleFinding {
 	return goStyleFinding{Kind: kind, File: source.Path, Line: source.Line(position), Symbol: symbol, Detail: detail}
 }
 

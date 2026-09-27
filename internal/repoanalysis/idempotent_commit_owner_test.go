@@ -5,6 +5,8 @@ import (
 	"path"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/gosyntax"
 )
 
 // noChangeTests is how many production sites outside the artifact package
@@ -22,11 +24,11 @@ const noChangeTests = 13
 // the statement out is held to being found, so the walk is not vacuous.
 func TestIdempotentCommitHasOneOwner(t *testing.T) {
 	t.Parallel()
-	snapshot, err := DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}
-	survey := func(snapshot SourceSnapshot) (written []string, tests int) {
+	survey := func(snapshot gosyntax.Snapshot) (written []string, tests int) {
 		for _, file := range snapshot.Files {
 			if file.Test || path.Dir(file.Path) == "internal/artifact" {
 				continue

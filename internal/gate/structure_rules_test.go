@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // The structure rules below parse other packages' sources. They live here
@@ -179,7 +179,7 @@ func TestRecipePlanOwnsAllTrainingExecution(t *testing.T) {
 		"overgo/internal/speechsynth":     {"NewTrainer": true},
 		"overgo/internal/thoughtbank":     {"NewTrainer": true},
 	}
-	snapshot, err := repoanalysis.DiscoverGo(repositoryRoot(t), "cmd", "internal/server")
+	snapshot, err := gosyntax.DiscoverGo(repositoryRoot(t), "cmd", "internal/server")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +242,7 @@ func TestRecipePlanOwnsAllTrainingExecution(t *testing.T) {
 // trainRouteFunctions names the trainers cmd/train's route table declares:
 // each is a bounded family trainer reached by name, as a probe command was,
 // so it may call its family's trainer directly.
-func trainRouteFunctions(t *testing.T, snapshot repoanalysis.SourceSnapshot) map[string]bool {
+func trainRouteFunctions(t *testing.T, snapshot gosyntax.Snapshot) map[string]bool {
 	t.Helper()
 	routes := map[string]bool{}
 	for _, source := range snapshot.Files {
@@ -295,7 +295,7 @@ func TestCapabilityEpisodeProjectionAuthorityRatchet(t *testing.T) {
 		"NewInteractionCallReference":         true,
 		"SelectInteractionArcsOnce":           true,
 	}
-	snapshot, err := repoanalysis.DiscoverGo(repositoryRoot(t), "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(repositoryRoot(t), "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

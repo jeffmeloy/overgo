@@ -8,7 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // ErrStaleBinding marks an active binding whose declaration or evidence moved;
@@ -38,7 +38,7 @@ type AuthorityReport struct {
 
 // ValidatePermanentAuthority rejects all literal-authority debt.
 func ValidatePermanentAuthority(
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	documents []closureledger.Document,
 ) (AuthorityReport, error) {
 	return validatePermanentAuthority(snapshot, documents, nil)
@@ -48,7 +48,7 @@ func ValidatePermanentAuthority(
 // alias target, including when only part of a multi-binding document remains
 // active.
 func ValidatePermanentActiveAuthority(
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	documents []closureledger.Document,
 	aliases map[string]artifact.ID,
 ) (AuthorityReport, error) {
@@ -66,7 +66,7 @@ func ValidatePermanentActiveAuthority(
 }
 
 func validatePermanentAuthority(
-	snapshot repoanalysis.SourceSnapshot,
+	snapshot gosyntax.Snapshot,
 	documents []closureledger.Document,
 	selected func(closureledger.Document, closureledger.SourceBinding) bool,
 ) (AuthorityReport, error) {

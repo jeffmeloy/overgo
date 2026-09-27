@@ -19,6 +19,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/jsonfile"
 	"overgo/internal/repoanalysis"
 )
@@ -33,7 +34,7 @@ func run() error {
 	update := flag.Bool("update", false, "write "+censusPath)
 	check := flag.Bool("check", false, "verify "+censusPath+" matches the source tree")
 	flag.Parse()
-	snapshot, err := repoanalysis.DiscoverGo(".", "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(".", "internal", "cmd")
 	if err != nil {
 		return err
 	}
@@ -72,7 +73,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	documents, err := repoanalysis.TrackedDocumentCensus(snapshot, tracked, repoanalysis.TrackedDocumentFamilies)
+	documents, err := repoanalysis.TrackedDocumentCensus(snapshot, tracked)
 	if err != nil {
 		return err
 	}
@@ -80,11 +81,11 @@ func run() error {
 		return err
 	}
 	for _, tracked := range documents {
-		if kind := tracked.Family.Kind; kind == repoanalysis.DocumentGenerated {
-			fmt.Printf("document %s %s writers=%v readers=%v referenced_by=%d\n", kind, tracked.Path, tracked.Writers, tracked.Readers, len(tracked.ReferencedBy))
+		if len(tracked.Writers) != 0 {
+			fmt.Printf("document generated %s writers=%v readers=%v referenced_by=%d\n", tracked.Path, tracked.Writers, tracked.Readers, len(tracked.ReferencedBy))
 		}
 	}
-	if err := repoanalysis.ValidateTrackedDocuments(documents, repoanalysis.TrackedDocumentFamilies); err != nil {
+	if err := repoanalysis.ValidateTrackedDocuments(documents); err != nil {
 		return err
 	}
 	document := struct {

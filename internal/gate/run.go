@@ -229,7 +229,7 @@ func Run(options Options) (runErr error) {
 			return err
 		}
 		if err := reportGateAdmissionPhase("validate deferred lanes", func() error {
-			laneDebt, err = requireLaneObligationsResolved(repo, admissionStore)
+			laneDebt, err = requireLaneObligationsResolved(context.Background(), repo, admissionStore)
 			return err
 		}); err != nil {
 			return err
@@ -488,8 +488,8 @@ func Run(options Options) (runErr error) {
 		_ = g.writeHeartbeat(runrecord.HeartbeatFinalized)
 	}
 	if pipelineErr == nil && recordErr == nil {
-		if err := g.spawnLaneRunner(cleanStore); err != nil {
-			return fmt.Errorf("commit landed but its deferred lanes did not start; run `go run ./cmd/gate -lanes`: %w", err)
+		if err := g.announceLanes(); err != nil {
+			return fmt.Errorf("commit landed but its owed lanes were not recorded for gate -lanes; run `go run ./cmd/gate -lanes`, or the next gate runs them inline: %w", err)
 		}
 	}
 	if pipelineErr != nil {

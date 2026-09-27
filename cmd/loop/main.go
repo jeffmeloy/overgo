@@ -253,9 +253,9 @@ func (w *execWorld) Current() (loop.Step, bool, error) {
 	return loop.Step{Item: dispatch.Item, ID: dispatch.Step}, true, nil
 }
 
-// awaitValidation waits for a live gate to release its mutation ownership. A
-// worker's supervised exit may also have ended its detached lane child; the
-// durable obligation then resumes through the existing gate owner.
+// awaitValidation waits for a live gate to release its mutation ownership,
+// then runs the lanes the landed commit owes in the foreground (gate -lanes),
+// resuming the durable obligation if an earlier run was interrupted.
 func (w *execWorld) awaitValidation() error {
 	if err := authoritylock.Wait(context.Background(), loopWorktree); err != nil {
 		return err
@@ -275,9 +275,9 @@ func (w *execWorld) awaitValidation() error {
 		w.validationDebt = laneFailure(w.stopStore, obligation)
 		return nil
 	}
-	if w.Paused() {
-		return nil
-	}
+	// A stop pauses new work; the lanes a landed commit owes finish it, so
+	// they run under a stop too, and a landing never reports ready with its
+	// lanes unrun.
 	out, err := runTool("go", "run", "./cmd/gate", "-lanes")
 	if err != nil {
 		// A recorded lane failure is work for the next repair invocation, not

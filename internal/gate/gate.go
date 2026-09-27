@@ -42,13 +42,13 @@ import (
 	"overgo/internal/codeprofile"
 	"overgo/internal/finding"
 	"overgo/internal/gitauthority"
+	"overgo/internal/gosyntax"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/processmeasure"
-	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/worklease"
 )
@@ -108,8 +108,8 @@ type gateContext struct {
 	environment         runrecord.Environment
 	preparation         runrecord.GateLifecycle
 	preparationCommit   artifact.CommitID
-	source              *repoanalysis.SourceSnapshot
-	baseSource          *repoanalysis.SourceSnapshot
+	source              *gosyntax.Snapshot
+	baseSource          *gosyntax.Snapshot
 	manifestCache       *codemanifest.Cache
 	profile             *codeprofile.Profile
 	preflight           bool
@@ -725,17 +725,21 @@ func gitWriterCommand(dir string, args ...string) (string, error) {
 }
 
 func gitWriterCommandEnvironment(dir string, environment []string, args ...string) (string, error) {
-	cmd := newGateGitWriterCommand(dir, environment, args...)
-	out, err := cmd.CombinedOutput()
+	out, diagnostic, err := runSplit(newGateGitWriterCommand(dir, environment, args...))
 	if err != nil {
-		return string(out), fmt.Errorf(
-			"git %s: %v: %s",
-			strings.Join(args, " "),
-			err,
-			clioptions.Tail(string(out), clioptions.DiagnosticTailBytes),
-		)
+		return out, fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, diagnostic)
 	}
-	return string(out), nil
+	return out, nil
+}
+
+// runSplit runs a prepared command. Callers parse its standard output; a
+// warning on standard error (git's line-ending notice) is never part of the
+// result, and the diagnostic tail carries both streams for an error.
+func runSplit(cmd *exec.Cmd) (output, diagnostic string, err error) {
+	var out, combined bytes.Buffer
+	cmd.Stdout, cmd.Stderr = io.MultiWriter(&out, &combined), &combined
+	err = cmd.Run()
+	return out.String(), clioptions.Tail(combined.String(), clioptions.DiagnosticTailBytes), err
 }
 
 func newGateGitWriterCommand(dir string, environment []string, args ...string) *exec.Cmd {
@@ -757,7 +761,7 @@ func commandEnvironment(dir string, environment []string, name string, args ...s
 	if name == "git" {
 		commandArgs = append([]string{"--no-replace-objects"}, args...)
 	}
-	var out []byte
+	var out, diagnostic string
 	var err error
 	// A child that Windows could not start (its loader failed under the
 	// parallel test load) ran nothing; starting it again at once is a retry
@@ -771,21 +775,15 @@ func commandEnvironment(dir string, environment []string, name string, args ...s
 		} else if environment != nil {
 			cmd.Env = environment
 		}
-		out, err = cmd.CombinedOutput()
+		out, diagnostic, err = runSplit(cmd)
 		if !processStartFailed(err) {
 			break
 		}
 	}
 	if err != nil {
-		return string(out), fmt.Errorf(
-			"%s %s: %v: %s",
-			name,
-			strings.Join(args, " "),
-			err,
-			clioptions.Tail(string(out), clioptions.DiagnosticTailBytes),
-		)
+		return out, fmt.Errorf("%s %s: %v: %s", name, strings.Join(args, " "), err, diagnostic)
 	}
-	return string(out), nil
+	return out, nil
 }
 
 // Windows reports STATUS_DLL_INIT_FAILED when a process could not

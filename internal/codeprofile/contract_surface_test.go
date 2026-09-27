@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 func TestOwnedPackagesHaveNoUnusedExports(t *testing.T) {
@@ -14,7 +14,7 @@ func TestOwnedPackagesHaveNoUnusedExports(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "cmd", "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "cmd", "internal")
 	if err != nil {
 		t.Fatal(err)
 	}

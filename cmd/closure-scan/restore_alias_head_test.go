@@ -10,8 +10,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 const emptyRestoreAuthorityDigest = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -27,7 +27,7 @@ const (
 
 type closureAliasRestoreFixture struct {
 	root, storePath         string
-	snapshot                repoanalysis.SourceSnapshot
+	snapshot                gosyntax.Snapshot
 	sourceHead, currentHead artifact.CommitID
 	sourceSequence          uint64
 	currentSequence         uint64
@@ -255,7 +255,7 @@ func TestReviewedClosureAliasRestoreRejectsInvalidAuthorityDigest(t *testing.T) 
 	}
 }
 
-func addUnreviewedRestorePolicy(t *testing.T, root string) repoanalysis.SourceSnapshot {
+func addUnreviewedRestorePolicy(t *testing.T, root string) gosyntax.Snapshot {
 	t.Helper()
 	path := filepath.Join(root, "internal", "unreviewed", "policy.go")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -264,7 +264,7 @@ func addUnreviewedRestorePolicy(t *testing.T, root string) repoanalysis.SourceSn
 	if err := os.WriteFile(path, []byte("package unreviewed\nconst NewPolicy = 11\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,7 +284,7 @@ func newClosureAliasRestoreFixture(t *testing.T, corruption closureAliasRestoreC
 	if err := os.WriteFile(path, []byte("package p\nconst (\n\tA = 7\n\tB = 9\n)\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +384,7 @@ func newClosureAliasRestoreFixture(t *testing.T, corruption closureAliasRestoreC
 		if err := os.WriteFile(path, []byte("package p\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		snapshot, err = repoanalysis.DiscoverGo(root, "internal", "cmd")
+		snapshot, err = gosyntax.DiscoverGo(root, "internal", "cmd")
 		if err != nil {
 			t.Fatal(err)
 		}

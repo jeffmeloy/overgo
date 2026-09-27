@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/gosyntax"
 	"overgo/internal/repoanalysis"
 )
 
@@ -24,9 +25,9 @@ func TestGoStyleChangedFileGate(t *testing.T) {
 	}
 }
 
-func styleSnapshot(t *testing.T, source string) repoanalysis.SourceSnapshot {
+func styleSnapshot(t *testing.T, source string) gosyntax.Snapshot {
 	t.Helper()
-	snapshot, err := (repoanalysis.SourceSnapshot{}).Overlay(map[string][]byte{"sample/sample.go": []byte(source)})
+	snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"sample/sample.go": []byte(source)})
 	if err != nil {
 		t.Fatal(err)
 	}

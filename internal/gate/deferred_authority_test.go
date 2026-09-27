@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -96,6 +97,8 @@ func TestDeferredAuthorityLifetime(t *testing.T) {
 			}
 			var executed bool
 			var competing runrecord.GateLaneObligation
+			var runnerDone atomic.Bool
+			waited := make(chan waitedGate, 1)
 			independent := testutil.ArtifactID(t, artifact.KindEvidence, "independent plan writer")
 			err := runDeferredLanes(repo, "store", func(g *gateContext, running runrecord.GateLaneObligation) (runrecord.Outcome, string, []runrecord.GateStep, error) {
 				executed = true
@@ -117,9 +120,12 @@ func TestDeferredAuthorityLifetime(t *testing.T) {
 				if err := store.Refresh(t.Context()); err != nil {
 					t.Fatal(err)
 				}
-				if _, err := requireLaneObligationsResolved(repo, store); err == nil || !strings.Contains(err.Error(), "still running") {
-					t.Fatalf("next gate failed to report outstanding work: %v", err)
-				}
+				// The next gate waits on this runner rather than refusing: it
+				// answers only once the runner has released its lock.
+				go func() {
+					_, err := requireLaneObligationsResolved(t.Context(), repo, store)
+					waited <- waitedGate{err: err, afterRunner: runnerDone.Load()}
+				}()
 				before, err := g.sourceEnvironment()
 				if err != nil {
 					t.Fatal(err)
@@ -181,6 +187,7 @@ func TestDeferredAuthorityLifetime(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
+				runnerDone.Store(true)
 				if scenario == "cancelled" {
 					return deferredAuthorityResult(g, context.Canceled)
 				}
@@ -188,6 +195,9 @@ func TestDeferredAuthorityLifetime(t *testing.T) {
 			})
 			if !executed {
 				t.Fatalf("runner did not execute: %v", err)
+			}
+			if gate := <-waited; gate.err != nil || !gate.afterRunner {
+				t.Fatalf("the next gate did not wait for the running lanes: %+v", gate)
 			}
 			current := deferredAuthorityCurrent(t, store)
 			if scenario != "terminal-conflict" {
@@ -281,4 +291,11 @@ func deferredAuthorityFixture(t *testing.T) (string, *overgodb.Store, runrecord.
 		t.Fatal(err)
 	}
 	return repo, store, pending
+}
+
+// waitedGate is what the next gate answered while a runner held the lanes,
+// and whether it answered only after that runner finished.
+type waitedGate struct {
+	err         error
+	afterRunner bool
 }

@@ -1,6 +1,10 @@
 package repoanalysis
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/gosyntax"
+)
 
 // TestIncrementalStaticAnalysisContracts holds the shared static-analysis
 // contract the census owners ride: one parse per file serves every rule, an
@@ -11,17 +15,17 @@ import "testing"
 // full analysis of the same content.
 func TestIncrementalStaticAnalysisContracts(t *testing.T) {
 	t.Parallel()
-	fileByPath := func(snapshot SourceSnapshot, path string) GoFile {
+	fileByPath := func(snapshot gosyntax.Snapshot, path string) gosyntax.File {
 		for _, file := range snapshot.Files {
 			if file.Path == path {
 				return file
 			}
 		}
 		t.Fatalf("snapshot lacks %s", path)
-		return GoFile{}
+		return gosyntax.File{}
 	}
 
-	base, err := (SourceSnapshot{}).Overlay(map[string][]byte{
+	base, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{
 		"a/a.go": []byte("package a\nimport \"time\"\nfunc A() { time.Sleep(2 * time.Second) }\n"),
 		"b/b.go": []byte("package b\nfunc B() {}\n"),
 	})
@@ -72,7 +76,7 @@ func TestIncrementalStaticAnalysisContracts(t *testing.T) {
 	}
 
 	// Incremental analysis equals a full analysis of the same content.
-	full, err := (SourceSnapshot{}).Overlay(map[string][]byte{
+	full, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{
 		"a/a.go": []byte("package a\nfunc A() {}\n"),
 		"b/b.go": []byte("package b\nfunc B() {}\n"),
 	})

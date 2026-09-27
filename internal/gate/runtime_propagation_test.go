@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 // runtimeReaderFixture: a library that reads a repository file at run time
@@ -44,7 +44,7 @@ func runtimeReaderFixture(t *testing.T) *gateContext {
 	}
 	runGitFixture(t, root, "init", "-q")
 	runGitFixture(t, root, "add", ".")
-	snapshot, err := repoanalysis.LoadGo(root, sources)
+	snapshot, err := gosyntax.LoadGo(root, sources)
 	if err != nil {
 		t.Fatal(err)
 	}

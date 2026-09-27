@@ -9,7 +9,7 @@ import (
 
 	"overgo/internal/codeprofile"
 	"overgo/internal/gosource"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosyntax"
 )
 
 const (
@@ -27,7 +27,7 @@ type contextGraph struct {
 // Generate composes a canonical manifest from the repository's existing
 // source snapshot, function profile, build selections, consumer graphs, and
 // caller-declared content-identified external inputs.
-func Generate(snapshot repoanalysis.SourceSnapshot, selections []gosource.BuildSelection, external []ExternalInput) (Manifest, error) {
+func Generate(snapshot gosyntax.Snapshot, selections []gosource.BuildSelection, external []ExternalInput) (Manifest, error) {
 	profile, err := codeprofile.Build(snapshot)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("code manifest: profile: %w", err)
@@ -35,7 +35,7 @@ func Generate(snapshot repoanalysis.SourceSnapshot, selections []gosource.BuildS
 	return generate(snapshot, profile, selections, external)
 }
 
-func generate(snapshot repoanalysis.SourceSnapshot, profile codeprofile.Profile, selections []gosource.BuildSelection, external []ExternalInput) (Manifest, error) {
+func generate(snapshot gosyntax.Snapshot, profile codeprofile.Profile, selections []gosource.BuildSelection, external []ExternalInput) (Manifest, error) {
 	if len(selections) == 0 || len(selections) > maxBuildContexts {
 		return Manifest{}, errors.New("code manifest: invalid build selection count")
 	}
@@ -142,7 +142,7 @@ func buildContext(selection gosource.BuildSelection) (BuildContext, error) {
 	return BuildContext{ID: selection.Context, GOOS: goos, GOARCH: goarch}, nil
 }
 
-func manifestFile(source repoanalysis.GoFile, graphs []contextGraph) (File, []Uncertainty, error) {
+func manifestFile(source gosyntax.File, graphs []contextGraph) (File, []Uncertainty, error) {
 	generated, err := source.Generated()
 	if err != nil {
 		return File{}, nil, fmt.Errorf("code manifest: generated status for %s: %w", source.Path, err)

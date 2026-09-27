@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/closurescan"
+	"overgo/internal/gosyntax"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 )
@@ -44,7 +45,7 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	write("internal/plan/a.go", "package x\n\nfunc  A( ) {}\n")
 	modernMemoPublish(t, repo)
 	priorBaseline := read("docs/modern_go_baseline.json")
-	snapshot, err := repoanalysis.DiscoverGo(repo, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(repo, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +90,8 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	if read(apiManifestFile) != "new manifest\n" {
 		t.Fatal("the API manifest repair did not rewrite through its command")
 	}
-	wantPaths := []string{"internal/plan/a.go", repoanalysis.ModernGoBaselineFile, apiManifestFile}
+	// Every derived file that differs from the last commit ships, whoever wrote it.
+	wantPaths := []string{"internal/plan/a.go", repoanalysis.ModernGoBaselineFile, harnessSurfaceBaselineFile, apiManifestFile}
 	if !slices.Equal(g.paths, wantPaths) {
 		t.Fatalf("planned paths = %v, want %v", g.paths, wantPaths)
 	}

@@ -11,8 +11,8 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/codeprofile"
 	"overgo/internal/gosource"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 func TestSurfaceManifestRoundTrip(t *testing.T) {
@@ -84,7 +84,7 @@ func TestSurfaceAnalysisReuse(t *testing.T) {
 	testName := "internal/example/example_test.go"
 	writeGeneratorFixture(t, root, name, "package example\nfunc A(x int) int { if x > 0 { return x + 1 }; return 0 }; func B(x int) int { if x > 0 { return x + 1 }; return 0 }\n")
 	writeGeneratorFixture(t, root, testName, "package example\nfunc C(x int) int { if x > 0 { return x + 1 }; return 0 }; func D(x int) int { if x > 0 { return x + 1 }; return 0 }\n")
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestSurfaceAnalysisReuse(t *testing.T) {
 		t.Fatalf("external input binding: %t %v", reused, err)
 	}
 	assertProfile()
-	classified := repoanalysis.SourceSnapshot{Files: slices.Clone(snapshot.Files)}
+	classified := gosyntax.Snapshot{Files: slices.Clone(snapshot.Files)}
 	classified.Files[0].Test = true
 	if _, found := cache.Profile(classified); found {
 		t.Fatal("changed file classification reused profile")

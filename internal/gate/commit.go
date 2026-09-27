@@ -22,7 +22,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/atomicfile"
 	"overgo/internal/automationcheck"
-	"overgo/internal/clioptions"
 	"overgo/internal/fsatomic"
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
@@ -156,28 +155,12 @@ func (g *gateContext) stepCommit() (bool, error) {
 	if err := g.admitProofHorizon(completionAuthority); err != nil {
 		return false, err
 	}
-	planAfter, err := advancedPlanBytes(planBefore, g.planRef)
+	completion, err := g.deriveCompletion(document, planBefore, completionStore)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("commit admission: %w", err)
 	}
-	childDocument, err := plan.Parse(planAfter)
-	if err != nil {
-		return false, err
-	}
-	mergeAuthority, err := g.deriveProjectedMergeAuthority(document, childDocument, completionStore)
-	if err != nil {
-		return false, fmt.Errorf("commit admission: derive projected merge authority: %w", err)
-	}
-	g.mergeAuthority = mergeAuthority
-	// Structured completion trailers make Git the completion record:
-	// the row leaves the plan in this same commit, and the trailers
-	// carry what completed and how it was verified. The gate record
-	// published after commit binds the evidence by commit SHA.
-	messageFile, err := g.completionMessageFile(document)
-	if err != nil {
-		return false, err
-	}
-	defer os.Remove(messageFile)
+	defer os.Remove(completion.messageFile)
+	planAfter, childDocument, mergeAuthority, messageFile := completion.after, completion.child, completion.mergeAuthority, completion.messageFile
 	planInfo, err := os.Stat(planFile)
 	if err != nil {
 		return false, err
@@ -213,17 +196,8 @@ func (g *gateContext) stepCommit() (bool, error) {
 		PlanRef:   g.planRef, Paths: slices.Clone(g.paths),
 		Plan: planBefore, AdvancedPlan: planAfter, PlanMode: uint32(planInfo.Mode().Perm()),
 	}
-	if mergeAuthority != nil {
-		content, contentErr := mergeAuthority.Content()
-		if contentErr != nil {
-			return false, contentErr
-		}
-		intent.MergeAuthority = content.Data
-	}
-	completionMessage, err := os.ReadFile(messageFile)
-	if err != nil {
-		return false, err
-	}
+	intent.MergeAuthority = completion.mergeAuthorityData
+	completionMessage := completion.message
 	messageItem, messageStep, found := strings.Cut(g.planRef, "/")
 	if !found {
 		return false, errors.New("commit admission: invalid completion reference")
@@ -366,15 +340,11 @@ func acceptedPlanBytes(repo, tree string) ([]byte, error) {
 func gitHashObject(repo string, content []byte) (string, error) {
 	process := newGateGitWriterCommand(repo, nil, "hash-object", "-w", "--stdin")
 	process.Stdin = bytes.NewReader(content)
-	output, err := process.CombinedOutput()
+	output, diagnostic, err := runSplit(process)
 	if err != nil {
-		return "", fmt.Errorf(
-			"git hash-object -w --stdin: %v: %s",
-			err,
-			clioptions.Tail(string(output), clioptions.DiagnosticTailBytes),
-		)
+		return "", fmt.Errorf("git hash-object -w --stdin: %v: %s", err, diagnostic)
 	}
-	object := strings.TrimSpace(string(output))
+	object := strings.TrimSpace(output)
 	if !validGitObjectID(object) {
 		return "", errors.New("git hash-object returned an invalid object identity")
 	}
@@ -652,14 +622,11 @@ func buildGateIntentKeepaliveTree(repo string, intent gateCommitIntent) (string,
 	}
 	process := newGateGitWriterCommand(repo, nil, "mktree", "-z")
 	process.Stdin = &input
-	output, err := process.CombinedOutput()
+	output, diagnostic, err := runSplit(process)
 	if err != nil {
-		return "", fmt.Errorf(
-			"gate: build interrupted commit keepalive tree: %w: %s",
-			err, clioptions.Tail(string(output), clioptions.DiagnosticTailBytes),
-		)
+		return "", fmt.Errorf("gate: build interrupted commit keepalive tree: %w: %s", err, diagnostic)
 	}
-	tree := strings.TrimSpace(string(output))
+	tree := strings.TrimSpace(output)
 	if !validGitObjectID(tree) {
 		return "", errors.New("gate: Git produced an invalid interrupted commit keepalive tree")
 	}
@@ -681,14 +648,11 @@ func buildGateIntentKeepaliveCommit(repo string, intent gateCommitIntent, tree s
 		"GIT_COMMITTER_DATE=1970-01-01T00:00:00 +0000",
 	)
 	process.Stdin = strings.NewReader("overgo interrupted commit keepalive\n")
-	output, err := process.CombinedOutput()
+	output, diagnostic, err := runSplit(process)
 	if err != nil {
-		return "", fmt.Errorf(
-			"gate: build interrupted commit keepalive commit: %w: %s",
-			err, clioptions.Tail(string(output), clioptions.DiagnosticTailBytes),
-		)
+		return "", fmt.Errorf("gate: build interrupted commit keepalive commit: %w: %s", err, diagnostic)
 	}
-	commit := strings.TrimSpace(string(output))
+	commit := strings.TrimSpace(output)
 	if !validGitObjectID(commit) {
 		return "", errors.New("gate: Git produced an invalid interrupted commit keepalive identity")
 	}

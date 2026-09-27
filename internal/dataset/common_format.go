@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/clioptions"
 )
 
 // The common chat formats a dataset arrives in -- alpaca {instruction, input,
@@ -209,7 +208,7 @@ func ImportCommonFormat(ctx context.Context, repository artifact.Repository, nam
 	if _, err := os.Stat(directory); err == nil {
 		return RegisteredDataset{}, nil, fmt.Errorf("dataset: %s already exists; import under another name", directory)
 	}
-	if err := os.MkdirAll(directory, clioptions.OutputDirectoryMode); err != nil {
+	if err := os.MkdirAll(directory, os.ModePerm); err != nil {
 		return RegisteredDataset{}, nil, err
 	}
 	registered, err := writeConversations(ctx, repository, name, directory, conversations)
@@ -229,7 +228,12 @@ func writeConversations(ctx context.Context, repository artifact.Repository, nam
 		if err != nil {
 			return RegisteredDataset{}, err
 		}
-		if err := os.WriteFile(filepath.Join(directory, fmt.Sprintf("%0*d.json", width, index+1)), data, clioptions.OutputFileMode); err != nil {
+		file, err := os.Create(filepath.Join(directory, fmt.Sprintf("%0*d.json", width, index+1)))
+		if err != nil {
+			return RegisteredDataset{}, err
+		}
+		_, err = file.Write(data)
+		if err := errors.Join(err, file.Close()); err != nil {
 			return RegisteredDataset{}, err
 		}
 	}

@@ -34,15 +34,24 @@ func (graph packageInputGraph) namedReaders(path string) []string {
 
 // attributeNamedDocuments resolves the non-Go uncertainty of each changed
 // input that some package names: the change belongs to those readers, and
-// a lane reaches it only by naming it or compiling a named reader. A
-// document no package names keeps its uncertainty and the complete plan.
-// The returned map binds each attributed path to its readers.
+// a lane reaches it only by naming it or compiling a named reader. Prose --
+// a document no compiled source, embed or declared read names -- belongs to
+// no reader even beside a code change, so it adds only the gate-owned
+// document checks. Any other document no package names keeps its
+// uncertainty and the complete plan. The returned map binds each attributed
+// path to its readers.
 func attributeNamedDocuments(impact codemanifest.Impact, graph packageInputGraph) (codemanifest.Impact, map[string][]string, []string) {
 	var notes []string
 	documents := map[string][]string{}
+	prose := map[string]bool{}
 	impact.Uncertainty = slices.DeleteFunc(slices.Clone(impact.Uncertainty), func(item codemanifest.Uncertainty) bool {
 		if item.Kind != codemanifest.UncertaintyNonGo || item.Path == "" {
 			return false
+		}
+		if documentationChanges([]string{item.Path}, graph) {
+			prose[item.Path] = true
+			notes = append(notes, fmt.Sprintf("document %s is prose: document checks only", item.Path))
+			return true
 		}
 		readers := graph.namedReaders(item.Path)
 		if len(readers) == 0 && !graph.testNamed(item.Path) {
@@ -52,8 +61,12 @@ func attributeNamedDocuments(impact codemanifest.Impact, graph packageInputGraph
 		notes = append(notes, fmt.Sprintf("document %s attributed to its named readers %s", item.Path, strings.Join(readers, ",")))
 		return true
 	})
+	// Prose changes no package's input, so it seeds no changed package.
+	impact.ExternalInputs = slices.DeleteFunc(slices.Clone(impact.ExternalInputs), func(change codemanifest.ExternalInputChange) bool {
+		return prose[change.Path]
+	})
 	if len(documents) == 0 {
-		return impact, nil, nil
+		return impact, nil, notes
 	}
 	return impact, documents, notes
 }

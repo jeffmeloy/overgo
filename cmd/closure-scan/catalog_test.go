@@ -10,8 +10,8 @@ import (
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
 	"overgo/internal/codeprofile"
+	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 )
 
 // TestCatalogBindsInOneTransaction pins the one-transaction catalogue: one
@@ -35,7 +35,7 @@ func TestCatalogBindsInOneTransaction(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module fixture\n\ngo 1.24\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	snapshot, err := gosyntax.DiscoverGo(root, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
 	}

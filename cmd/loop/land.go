@@ -5,47 +5,33 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
-	"overgo/internal/overgodb"
-	"overgo/internal/plan"
-	"overgo/internal/processcontrol"
-	"overgo/internal/runrecord"
+	"overgo/internal/landing"
 )
 
 // Landing a row is a fixed sequence around the one thing a worker authors:
-// claim the row, preflight it, gate it, confirm the landing from git, read
-// the deferred lanes' verdict, and read the landing's review candidates. The
-// sequence is code so that no step can be skipped or reordered by memory --
-// a gate launched without a claim, a lane verdict never read -- and every
-// run ends in one typed outcome.
+// the small gate lands the row over the dirty tree, and the landing is
+// believed only from git. The sequence is code so that no step can be
+// skipped by memory, and every run ends in one typed outcome.
 
 // Row sequence phases, in order.
 const (
-	phaseClaim     = "claim"
-	phasePreflight = "preflight"
-	phaseGate      = "gate"
-	phaseLanes     = "lanes"
-	phaseReview    = "review"
+	phaseGate   = "gate"
+	phaseLanded = "landed"
 )
 
 // Row sequence outcomes.
 const (
 	// outcomeRefused stops before or at the gate: nothing landed.
 	outcomeRefused = "refused"
-	// outcomeLanesFailed landed a commit whose deferred validation failed.
-	outcomeLanesFailed = "lanes-failed"
-	// outcomeReviewPending landed and validated; dispatch waits on answers.
-	outcomeReviewPending = "review-pending"
-	// outcomeReady landed, validated, and nothing is left to answer.
+	// outcomeReady landed, and git confirms it.
 	outcomeReady = "ready"
 )
 
@@ -56,101 +42,36 @@ type landOutcome struct {
 	Outcome   string `json:"outcome"`
 	Commit    string `json:"commit,omitzero"`
 	Detail    string `json:"detail,omitzero"`
-	// Lanes is the lane obligation the landing awaited, when its gate
-	// deferred lanes.
-	Lanes   *laneReport `json:"lanes,omitempty"`
-	Pending []string    `json:"pending,omitempty"`
-}
-
-// laneReport names a lane obligation: the proof a landing's deferred lanes
-// ran, readable without querying the store.
-type laneReport struct {
-	Obligation artifact.ID `json:"obligation"`
-	State      string      `json:"state"`
-	Commit     string      `json:"commit"`
-	Checks     []string    `json:"checks"`
-}
-
-// laneVerdict judges a landing's lane obligation: a gate that deferred lanes
-// must leave an obligation naming the landed commit, and that obligation is
-// reported whatever its state.
-func laneVerdict(deferred []string, commit string, obligation runrecord.GateLaneObligation, found bool) (*laneReport, string) {
-	if len(deferred) == 0 {
-		return nil, ""
-	}
-	if !found || obligation.CodeCommit != commit {
-		return nil, fmt.Sprintf("the gate deferred %s but no lane obligation names commit %.12s", strings.Join(deferred, ", "), commit)
-	}
-	return &laneReport{Obligation: obligation.ID, State: string(obligation.State), Commit: obligation.CodeCommit, Checks: obligation.Checks}, ""
 }
 
 // rowWorld is what the row sequence drives. A step that refuses returns its
 // reason as text; an error is the step being unable to run at all.
 type rowWorld interface {
-	Claim(reference string) (refusal string, err error)
-	Preflight(reference string) (findings string, err error)
 	Gate(reference, messageFile string) (failure string, err error)
 	Landed(reference string) (commit string, err error)
-	AwaitLanes() (lanes *laneReport, failure string, err error)
-	PendingReview() ([]string, error)
 }
 
 // landRow runs the sequence and stops at the first phase that does not pass.
 func landRow(world rowWorld, reference, messageFile string) (landOutcome, error) {
-	outcome := landOutcome{Reference: reference, Outcome: outcomeRefused}
-	for _, step := range []struct {
-		phase string
-		run   func() (string, error)
-	}{
-		{phaseClaim, func() (string, error) { return world.Claim(reference) }},
-		{phasePreflight, func() (string, error) { return world.Preflight(reference) }},
-		{phaseGate, func() (string, error) {
-			for {
-				// Another process held the Git index at the commit; the
-				// passed checks are reused, so the gate runs again.
-				refusal, err := world.Gate(reference, messageFile)
-				if !errors.Is(err, processcontrol.ErrResourceBusy) {
-					return refusal, err
-				}
-				fmt.Fprintf(os.Stderr, "loop: %s: the gate met a busy resource; landing again\n", reference)
-			}
-		}},
-	} {
-		outcome.Phase = step.phase
-		refusal, err := step.run()
-		if err != nil || refusal != "" {
-			outcome.Detail = refusal
-			return outcome, err
-		}
+	outcome := landOutcome{Reference: reference, Outcome: outcomeRefused, Phase: phaseGate}
+	refusal, err := world.Gate(reference, messageFile)
+	if err != nil || refusal != "" {
+		outcome.Detail = refusal
+		return outcome, err
 	}
+	outcome.Phase = phaseLanded
 	commit, err := world.Landed(reference)
 	if err != nil {
 		return outcome, err
 	}
-	outcome.Commit, outcome.Phase = commit, phaseLanes
-	lanes, failure, err := world.AwaitLanes()
-	outcome.Lanes = lanes
-	if err != nil || failure != "" {
-		outcome.Outcome, outcome.Detail = outcomeLanesFailed, failure
-		return outcome, err
-	}
-	outcome.Phase = phaseReview
-	if outcome.Pending, err = world.PendingReview(); err != nil {
-		return outcome, err
-	}
-	outcome.Outcome = outcomeReady
-	if len(outcome.Pending) != 0 {
-		outcome.Outcome = outcomeReviewPending
-	}
+	outcome.Commit, outcome.Outcome = commit, outcomeReady
 	return outcome, nil
 }
 
 // execRowWorld runs the sequence against the repository's real owners. Its
-// subprocesses keep the caller's execution mode: an interactive worker lands
-// an interactive row. The message is the gate's standard input when the worker
-// gave it on the landing's; a tool that reads none ignores it.
+// subprocesses keep the caller's execution mode. The message is the gate's
+// standard input when the worker gave it on the landing's.
 type execRowWorld struct {
-	store   *overgodb.Store
 	message []byte
 }
 
@@ -173,120 +94,50 @@ func (w execRowWorld) tool(echo io.Writer, arguments ...string) (string, error) 
 	return cmp.Or(strings.TrimSpace(string(final)), err.Error()), err
 }
 
-// Claim dispatches the row to this worker; the holder re-claims idempotently.
-func (w execRowWorld) Claim(reference string) (string, error) {
-	refusal, _ := w.tool(io.Discard, "go", "run", "./cmd/plan", "-prompt", reference)
-	return refusal, nil
-}
-
-// Preflight diagnoses the dirty tree without admission or acceptance credit.
-func (w execRowWorld) Preflight(reference string) (string, error) {
-	refusal, _ := w.tool(io.Discard, "go", "run", "./cmd/gate", "-preflight", "-plan", reference)
-	return refusal, nil
-}
-
-// Gate commits the row over the ship set the gate derives. The gate runs
-// built, not through go run, so its resource-busy status reaches the loop.
+// Gate lands the row through the small gate, built from the tree it lands.
 func (w execRowWorld) Gate(reference, messageFile string) (string, error) {
 	gate := filepath.Join(loopWorktree, "bin", "gate.exe")
 	refusal, err := w.tool(io.Discard, "go", "build", "-o", gate, "./cmd/gate")
 	if err == nil {
-		refusal, err = w.tool(os.Stderr, gate, "-plan", reference, "-message-file", messageFile)
-	}
-	if errors.Is(err, processcontrol.ErrResourceBusy) {
-		return refusal, err
+		refusal, _ = w.tool(os.Stderr, gate, "-plan", reference, "-message-file", messageFile)
 	}
 	return refusal, nil
 }
 
-// Landed confirms from git that HEAD is the completion of reference.
+// Landed confirms from git that HEAD is the landing of reference.
 func (w execRowWorld) Landed(reference string) (string, error) {
-	item, step, _ := strings.Cut(reference, "/")
 	message, err := gitauthority.Query(context.Background(), loopWorktree, "log", "-1", "--format=%H%n%B")
 	if err != nil {
 		return "", err
 	}
 	commit, body, _ := strings.Cut(string(message), "\n")
-	if !strings.Contains(body, "\nOvergo-Plan-Item: "+item+"\n") || !strings.Contains(body, "\nOvergo-Plan-Step: "+step+"\n") {
-		return "", fmt.Errorf("loop: the gate reported success but HEAD %.12s is not the completion of %s", commit, reference)
+	if !strings.Contains(body, "\n"+landing.RowTrailer+": "+reference+"\n") {
+		return "", fmt.Errorf("loop: the gate reported success but HEAD %.12s is not the landing of %s", commit, reference)
 	}
 	return commit, nil
-}
-
-// AwaitLanes waits on the lane obligation the way the driver does, then
-// reads the landed gate result's deferred lanes and the obligation owed for
-// them.
-func (w execRowWorld) AwaitLanes() (*laneReport, string, error) {
-	driver := &execWorld{stopStore: w.store}
-	if err := driver.awaitValidation(); err != nil {
-		return nil, "", err
-	}
-	if err := w.store.Refresh(context.Background()); err != nil {
-		return nil, "", err
-	}
-	result, found, err := plan.LandedGateResult(context.Background(), w.store, loopWorktree, "HEAD")
-	if err != nil || !found {
-		return nil, driver.validationDebt, err
-	}
-	var deferred []string
-	for _, step := range result.Steps {
-		if step.Outcome == runrecord.StepDeferred {
-			deferred = append(deferred, step.Name)
-		}
-	}
-	obligation, found, err := runrecord.CurrentGateLaneObligation(context.Background(), w.store)
-	if err != nil {
-		return nil, "", err
-	}
-	lanes, missing := laneVerdict(deferred, result.CodeCommit, obligation, found)
-	return lanes, cmp.Or(driver.validationDebt, missing), nil
-}
-
-// PendingReview lists the landing's unanswered optimization candidates.
-func (w execRowWorld) PendingReview() ([]string, error) {
-	if err := w.store.Refresh(context.Background()); err != nil {
-		return nil, err
-	}
-	document, err := plan.Load("")
-	if err != nil {
-		return nil, err
-	}
-	candidates, err := plan.ReviewLandedCompletion(context.Background(), w.store, loopWorktree, "HEAD")
-	if err != nil {
-		return nil, err
-	}
-	var pending []string
-	for _, candidate := range plan.UnreviewedCandidates(candidates, document) {
-		pending = append(pending, candidate.Kind+" "+candidate.Key+": "+candidate.Measure)
-	}
-	return pending, nil
 }
 
 // standardInput names the landing's own input as the message file.
 const standardInput = "-"
 
 // landCommand runs the row sequence and prints its typed outcome; anything
-// short of a validated landing is a failure exit.
+// short of a confirmed landing is a failure exit.
 func landCommand(reference, messageFile string, input io.Reader, output io.Writer) error {
 	if strings.Count(reference, "/") != 1 || strings.TrimSpace(messageFile) == "" {
 		return fmt.Errorf("usage: loop -land <item>/<step> -message-file <file, or - for standard input>")
 	}
-	store, err := overgodb.OpenReadOnly(gitauthority.CanonicalOvergoDBDirectory)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
 	var message []byte
 	if messageFile == standardInput {
+		var err error
 		if message, err = io.ReadAll(input); err != nil {
 			return err
 		}
 	}
-	outcome, err := landRow(execRowWorld{store: store, message: message}, reference, messageFile)
+	outcome, err := landRow(execRowWorld{message: message}, reference, messageFile)
 	if encodeErr := json.NewEncoder(output).Encode(outcome); err == nil {
 		err = encodeErr
 	}
-	if err == nil && outcome.Outcome != outcomeReady && outcome.Outcome != outcomeReviewPending {
+	if err == nil && outcome.Outcome != outcomeReady {
 		err = fmt.Errorf("%s %s at %s", reference, outcome.Outcome, outcome.Phase)
 	}
 	return err

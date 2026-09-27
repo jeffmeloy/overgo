@@ -11,5 +11,9 @@ if [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
   [ "$project" = "$here" ] || exit 0
 fi
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 0
+# Rebuild first: a no-op build costs under a second, and a binary built
+# before the plan's rules changed misreads the plan. A tree that does not
+# compile keeps the last good binary.
+go build -o bin/loophook.exe ./cmd/loophook 2>/dev/null
 [ -x bin/loophook.exe ] && exec bin/loophook.exe stop
 exec go run ./cmd/loophook stop

@@ -21,5 +21,8 @@ fi
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO" || exit 0
+# Rebuild first (see overgo_stop_gate.sh); a tree that does not compile
+# keeps the last good binary.
+go build -o bin/loophook.exe ./cmd/loophook 2>/dev/null
 [ -x bin/loophook.exe ] && exec bin/loophook.exe prompt
 exec go run ./cmd/loophook prompt

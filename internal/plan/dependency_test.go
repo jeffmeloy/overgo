@@ -53,26 +53,6 @@ func TestDependencyDispatchSkipsBlocked(t *testing.T) {
 	}
 }
 
-// TestPrunedDependencyRequiresExplicitAuthority pins the fail-closed scheduler
-// boundary: a syntactically valid missing row never satisfies depends_on until
-// the opaque, derived authority carries that exact completion.
-func TestPrunedDependencyRequiresExplicitAuthority(t *testing.T) {
-	t.Parallel()
-	document := dependencyFixture()
-	document.Items = document.Items[1:]
-	if _, _, open := Current(document, "gui", CompletionAuthority{}); open {
-		t.Fatal("unknown pruned dependency dispatched")
-	}
-	wrong := testCompletionAuthority(t, document, "other/do")
-	if _, _, open := Current(document, "gui", wrong); open {
-		t.Fatal("foreign completion evidence satisfied dependency")
-	}
-	exact := testCompletionAuthority(t, document, "root/do")
-	if item, step, open := Current(document, "gui", exact); !open || item.ID != "dependent" || step.ID != "do" {
-		t.Fatalf("exact completion did not dispatch dependent: %s/%s open=%v", item.ID, step.ID, open)
-	}
-}
-
 // TestDependencyValidationRefusesCycles pins the load-time contract:
 // the dependency graph must be acyclic among PRESENT rows; a reference
 // to an absent row remains representable because completion removes rows,

@@ -149,32 +149,6 @@ func TestFirstParentTargetProspectiveAuthorityKeepsIncomingRowsOffTarget(t *test
 	); err == nil {
 		t.Fatal("semantic union stopped requiring the incoming parent identity")
 	}
-	waiting := local
-	waiting.Items = slices.Clone(local.Items)
-	waiting.Items[0].Steps = slices.Clone(local.Items[0].Steps)
-	waiting.Items[0].Steps[0].DependsOn = []string{"retired/do"}
-	waitingAuthority := prospectiveMergeAuthority(t, waiting, repository, localRevision, "common")
-	if err := VerifyProspectiveMergeAuthorityWithProjection(
-		repository, localRevision, incomingRevision, waiting, incoming, waiting,
-		waitingAuthority, incomingAuthority, MergeProjectionFirstParentTarget,
-	); err == nil || !strings.Contains(err.Error(), "pruned dependency retired/do") {
-		t.Fatalf("target missing dependency evidence error = %v", err)
-	}
-	incomingAuthority.completedReferences["retired/do"] = completionEvidence{commit: incomingRevision}
-	if err := VerifyProspectiveMergeAuthorityWithProjection(
-		repository, localRevision, incomingRevision, waiting, incoming, waiting,
-		waitingAuthority, incomingAuthority, MergeProjectionFirstParentTarget,
-	); err == nil || !strings.Contains(err.Error(), "pruned dependency retired/do") {
-		t.Fatalf("incoming completion evidence entered target authority: %v", err)
-	}
-	waitingAuthority.completedReferences["retired/do"] = completionEvidence{commit: localRevision}
-	if err := VerifyProspectiveMergeAuthorityWithProjection(
-		repository, localRevision, incomingRevision, waiting, incoming, waiting,
-		waitingAuthority, incomingAuthority, MergeProjectionFirstParentTarget,
-	); err != nil {
-		t.Fatalf("local completion evidence did not authorize target dependency: %v", err)
-	}
-	delete(incomingAuthority.completedReferences, "retired/do")
 	incomingAuthority.completedReferences["local/do"] = completionEvidence{commit: incomingRevision}
 	if err := VerifyProspectiveMergeAuthorityWithProjection(
 		repository, localRevision, incomingRevision, local, incoming, local,
@@ -811,19 +785,6 @@ func TestAudioGateReplayAcceptance(t *testing.T) {
 			); err == nil || !strings.Contains(err.Error(), "adopts rows outside") {
 				t.Fatalf("source row survived target completion: %v", err)
 			}
-			ephemeral := target
-			ephemeral.Items = append(slices.Clone(target.Items), Item{
-				ID: "merge-boundary", Status: StatusOpen,
-				Steps: []Step{{
-					ID: "do", Status: StatusOpen, Verify: "go test ./...",
-					DependsOn: []string{completedSourceID + "/do"},
-				}},
-			})
-			if err := VerifyFirstParentTargetLocalAuthority(
-				fixture.repository, localRevision, target, ephemeral, target, localAuthority,
-			); err == nil || !strings.Contains(err.Error(), "pruned dependency "+completedSourceID+"/do") {
-				t.Fatalf("audited source completion authorized merge-boundary row: %v", err)
-			}
 			incoherent := mergeAuthority
 			incoherent.AuditedIncomingRetirements = slices.Clone(mergeAuthority.AuditedIncomingRetirements)
 			incoherent.AuditedIncomingRetirements[0].Evidence.ContractDigest = strings.Repeat("a", 64)
@@ -928,18 +889,6 @@ func TestAudioGateReplayAcceptance(t *testing.T) {
 					t.Fatalf("cached authority bypassed history integrity: %v", err)
 				}
 			})
-			dependent := target
-			dependent.Items = slices.Clone(target.Items)
-			secondIndex := slices.IndexFunc(dependent.Items, func(item Item) bool { return item.ID == "second" })
-			if secondIndex < 0 {
-				t.Fatal("second target row is absent")
-			}
-			dependent.Items[secondIndex].Steps = slices.Clone(dependent.Items[secondIndex].Steps)
-			dependent.Items[secondIndex].Steps[0].DependsOn = []string{completedSourceID + "/do"}
-			if _, err := resolver.resolve(t.Context(), fixture.repository, "HEAD", dependent, fixture.store); err == nil ||
-				!strings.Contains(err.Error(), "pruned dependency "+completedSourceID+"/do") {
-				t.Fatalf("source completion satisfied target dependency: %v", err)
-			}
 		}
 		if targetID == "second" {
 			late := mergeAuthority

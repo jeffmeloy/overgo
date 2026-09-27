@@ -20,10 +20,10 @@ func frontierTestPlan() Plan {
 	}}
 }
 
-// TestReadyFrontierMembership pins the complete ordered ready frontier:
-// dependencies gate frontier membership through the completion authority,
-// Current stays the first member of the frontier, and gated completion evidence
-// widens it. Lease-isolation is now the reporting concern of
+// TestReadyFrontierMembership pins the complete ordered ready frontier: a
+// step waits on a prerequisite the plan still holds unfinished, a
+// prerequisite no longer in the plan is settled, and Current stays the first
+// member of the frontier. Lease-isolation is the reporting concern of
 // frontierLeaseDiagnostics, not a frontier refusal.
 func TestReadyFrontierMembership(t *testing.T) {
 	t.Parallel()
@@ -36,20 +36,12 @@ func TestReadyFrontierMembership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(frontier) != 2 || frontier[0].String() != "alpha/one" || frontier[1].String() != "beta/solo" {
+	if len(frontier) != 3 || frontier[0].String() != "alpha/one" || frontier[1].String() != "beta/solo" || frontier[2].String() != "beta/after" {
 		t.Fatalf("ready frontier = %v", frontier)
 	}
 	item, step, ok := Current(document, "", authority)
 	if !ok || item.ID+"/"+step.ID != frontier[0].String() {
 		t.Fatalf("Current %s/%s is not the first frontier row", item.ID, step.ID)
-	}
-	proven := testCompletionAuthority(t, document, "gamma/pruned")
-	frontier, err = ReadyFrontier(document, proven)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(frontier) != 3 || frontier[2].String() != "beta/after" {
-		t.Fatalf("evidence-widened frontier = %v", frontier)
 	}
 }
 
@@ -107,9 +99,8 @@ func TestMergeAcceptsGatedPrunedCompletion(t *testing.T) {
 
 // TestMergePreservesDependencyOrder pins that an accepted pruning keeps the
 // dependency graph intact: retained steps keep their references to the pruned
-// row, document order survives the merge, and the merged frontier still
-// blocks the dependent until the completion authority proves the pruned
-// producer.
+// row, document order survives the merge, and the dependent leads the merged
+// frontier once its producer has left the plan.
 func TestMergePreservesDependencyOrder(t *testing.T) {
 	t.Parallel()
 	base := frontierTestPlan()
@@ -130,18 +121,8 @@ func TestMergePreservesDependencyOrder(t *testing.T) {
 	if dependent.ID != "two" || len(dependent.DependsOn) != 1 || dependent.DependsOn[0] != "alpha/one" {
 		t.Fatalf("merge lost the dependency on the pruned row: %+v", dependent)
 	}
-	unproven := testCompletionAuthority(t, merged)
-	frontier, err := ReadyFrontier(merged, unproven)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, ref := range frontier {
-		if ref.String() == "alpha/two" {
-			t.Fatalf("dependent row dispatched without completion evidence: %v", frontier)
-		}
-	}
 	sequenced := testCompletionAuthority(t, merged, "alpha/one")
-	frontier, err = ReadyFrontier(merged, sequenced)
+	frontier, err := ReadyFrontier(merged, sequenced)
 	if err != nil {
 		t.Fatal(err)
 	}

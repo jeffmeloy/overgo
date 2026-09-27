@@ -2,34 +2,17 @@ package gate
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"overgo/internal/inferencesurface"
+	"overgo/internal/landing"
 )
 
 // surfaceMoveShown bounds how many moved sources the warning names; the count
 // says how many there are.
 const surfaceMoveShown = 6
-
-// mediaMergedDocument names the media evidence that pins the runtime its
-// generation claims were acquired on.
-const mediaMergedDocument = "docs/image_video_merged.json"
-
-// mediaReviewedDeltas names the one registry of reviewed output-neutral
-// deltas that answers for a move of that runtime.
-const mediaReviewedDeltas = "docs/media_reviewed_deltas.json"
-
-// mediaRuntimePins is what the merged evidence says about the runtime: the
-// paths its identity is taken over, and the identity itself.
-type mediaRuntimePins struct {
-	RuntimePaths []string `json:"runtime_paths"`
-}
 
 // stepSurface refuses a candidate that moves a pinned runtime identity
 // without the reconciliation that answers for the move. The media acceptance
@@ -46,67 +29,10 @@ func (g *gateContext) stepSurface() (bool, error) {
 		g.advise(noteWarning, fmt.Sprintf("this landing moves the inference surface (%d source(s): %s): every long-form guard record keyed to it expires; batch such changes and re-acquire the guards once at the settled surface",
 			len(moves), strings.Join(moves[:min(len(moves), surfaceMoveShown)], ", ")))
 	}
-	quiet, err := g.mediaSurface()
-	stale, pinErr := stalePins(g.repo, g.paths)
+	quiet, err := landing.MediaMoves(g.repo, g.paths)
+	stale, pinErr := landing.StalePins(g.repo, g.paths)
 	if pinErr == nil && len(stale) != 0 {
 		pinErr = fmt.Errorf("changes bytes a record pins: %s; repin the record for a behaviour-neutral edit, or restore the file", strings.Join(stale, "; "))
 	}
 	return quiet && len(stale) == 0, errors.Join(err, pinErr)
-}
-
-func (g *gateContext) mediaSurface() (bool, error) {
-	data, err := os.ReadFile(filepath.Join(g.repo, filepath.FromSlash(mediaMergedDocument)))
-	if errors.Is(err, fs.ErrNotExist) {
-		return true, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	var pins mediaRuntimePins
-	if err := json.Unmarshal(data, &pins); err != nil {
-		return false, fmt.Errorf("%s: %w", mediaMergedDocument, err)
-	}
-	if len(pins.RuntimePaths) == 0 {
-		return false, fmt.Errorf("%s names no runtime paths", mediaMergedDocument)
-	}
-	moved := movedRuntimePaths(g.paths, pins.RuntimePaths)
-	if len(moved) == 0 || reconciliationShips(g.paths) {
-		return len(moved) == 0, nil
-	}
-	return false, fmt.Errorf(
-		"moves the pinned media runtime without its reconciliation: %s; land its reviewed delta in %s in this commit, or keep the change outside %s",
-		strings.Join(moved, ", "), mediaReviewedDeltas, strings.Join(pins.RuntimePaths, ", "),
-	)
-}
-
-// movedRuntimePaths names the shipped paths that lie under a pinned runtime
-// path, in the order the candidate ships them. A test file is not runtime
-// source: the pinned identity is taken over production files only.
-func movedRuntimePaths(shipped, pinned []string) []string {
-	var moved []string
-	for _, path := range shipped {
-		clean := filepath.ToSlash(path)
-		if strings.HasSuffix(clean, "_test.go") {
-			continue
-		}
-		for _, pin := range pinned {
-			if clean == pin || strings.HasPrefix(clean, pin+"/") {
-				moved = append(moved, clean)
-				break
-			}
-		}
-	}
-	return moved
-}
-
-// reconciliationShips reports whether the candidate carries the merged
-// evidence itself or the reviewed delta registry, either of which answers
-// for a move.
-func reconciliationShips(shipped []string) bool {
-	for _, path := range shipped {
-		if clean := filepath.ToSlash(path); clean == mediaMergedDocument || clean == mediaReviewedDeltas {
-			return true
-		}
-	}
-	return false
 }

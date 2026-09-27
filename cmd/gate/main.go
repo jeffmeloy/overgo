@@ -36,6 +36,13 @@ func run() error {
 	preflight := flag.Bool("preflight", false, "apply the derived-file repairs to the working tree, then diagnose its changes without admission, store repair or acceptance credit; -paths cmd,internal checks all Go sources")
 	staleAfter := flag.Duration("stale-after", runrecord.DefaultHeartbeatStaleAfter, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
+	// A plain landing -- a row and its message, no other mode -- goes through
+	// the small gate; the remaining modes serve the old gate until it is deleted.
+	if *planRef != "" && *messageFile != "" && !*merge && *checkpoint == "" && !*reconcile && !*recordFailure &&
+		!*recoverInterrupted && *admitReview == "" && !*watchdog && *packageReceipt == "" && *packageRun == "" &&
+		!*inspectPlan && !*preflight && !*lanes {
+		return land(*planRef, *messageFile)
+	}
 	return gate.Run(gate.Options{
 		MessageFile: *messageFile, PathsCSV: *pathsCSV, StorePath: *storePath,
 		Merge: *merge, PlanProjection: *planProjection, MergeSourceStore: *mergeSourceStore,

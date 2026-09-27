@@ -283,18 +283,12 @@ func validateDependencies(d Plan) error {
 }
 
 // dependenciesSatisfied reports whether every depends_on reference is
-// complete. A retained done row is self-evident; a pruned row is satisfied
-// only by the derived Git-and-store completion authority. Absence alone is
-// never completion evidence.
-func dependenciesSatisfied(d Plan, step Step, authority CompletionAuthority) bool {
+// settled: done, or no longer in the plan. A row leaves the plan when a
+// landing completes or retires it, and that commit's message says which.
+func dependenciesSatisfied(d Plan, step Step) bool {
 	for _, reference := range step.DependsOn {
 		itemID, stepID, _ := strings.Cut(reference, "/")
-		candidate, present := exactPlanStep(d, itemID, stepID)
-		satisfied := candidate.Status == StatusDone
-		if !present {
-			satisfied = authority.completed(reference)
-		}
-		if !satisfied {
+		if candidate, present := exactPlanStep(d, itemID, stepID); present && candidate.Status != StatusDone {
 			return false
 		}
 	}
@@ -356,7 +350,7 @@ func currentOwned(d Plan, owner string, authority CompletionAuthority) (Item, St
 			// depends_on is enforced, not descriptive: a step whose
 			// dependencies are not done cannot dispatch, whatever the
 			// file order says.
-			if dependenciesSatisfied(d, s, authority) {
+			if dependenciesSatisfied(d, s) {
 				return it, s, true
 			}
 			blocked = true

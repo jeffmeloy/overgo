@@ -33,8 +33,8 @@
     {
       "budget": "internal-imports",
       "subject": "internal/gate",
-      "limit": 31,
-      "reason": "The gate reads Go source through two layers: gosource for build selection and provenance, which parses nothing so its importers stay narrow readers, and gosyntax for the parsed snapshot the analyzers share. Retired by the small-gate rebuild, which removes the gate's own source analysis."
+      "limit": 32,
+      "reason": "The gate reads Go source through two layers: gosource for build selection and provenance, which parses nothing so its importers stay narrow readers, and gosyntax for the parsed snapshot the analyzers share; and it calls the surface checks the small gate owns in internal/landing. Retired by gate-machinery-deleted, which removes this package."
     }
   ]
 }

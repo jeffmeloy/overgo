@@ -517,15 +517,6 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 			t.Fatalf("missing attempt error = %v", err)
 		}
 	})
-	t.Run("unknown identity", func(t *testing.T) {
-		document := standardCompletionPlan()
-		document.Items[1].Steps[0].DependsOn = []string{"ghost/do"}
-		document.Items = document.Items[1:]
-		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
-		if _, err := resolveFixture(fixture, document, "HEAD"); err == nil || !strings.Contains(err.Error(), "ghost/do") {
-			t.Fatalf("unknown dependency error = %v", err)
-		}
-	})
 	t.Run("duplicate trailer", func(t *testing.T) {
 		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
 		message := fixture.canonicalMessage()
@@ -631,24 +622,6 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 		fixture.commit(message, true)
 		if _, err := resolveFixture(fixture, fixture.child, "HEAD"); err == nil || !strings.Contains(err.Error(), "require gate preparation") {
 			t.Fatalf("unreferenced malformed prepared format error = %v", err)
-		}
-	})
-	t.Run("non ancestor", func(t *testing.T) {
-		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
-		baseline := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD")))
-		fixture.commit(fixture.canonicalMessage(), true)
-		if _, err := resolveFixture(fixture, fixture.child, baseline); err == nil || !strings.Contains(err.Error(), "lacks gated ancestor") {
-			t.Fatalf("side-branch completion error = %v", err)
-		}
-	})
-	t.Run("cross repository evidence", func(t *testing.T) {
-		source := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
-		source.commit(source.canonicalMessage(), true)
-		other := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
-		if _, err := ResolveCompletionAuthority(
-			t.Context(), other.repository, "HEAD", source.child, source.store,
-		); err == nil || !strings.Contains(err.Error(), "lacks gated ancestor") {
-			t.Fatalf("cross-repository completion evidence error = %v", err)
 		}
 	})
 	t.Run("reserved and multiline writer input", func(t *testing.T) {
@@ -914,13 +887,6 @@ func TestLanePlanScope(t *testing.T) {
 		if !authority.completed("root/do") || authority.completed("foreign/do") {
 			t.Fatal("projection changed completion credit")
 		}
-		dependent := fixture.child
-		dependent.Items = slices.Clone(dependent.Items)
-		dependent.Items[0].Steps = slices.Clone(dependent.Items[0].Steps)
-		dependent.Items[0].Steps[0].DependsOn = []string{"foreign/do"}
-		if _, err := resolveFixture(fixture, dependent, "HEAD"); err == nil {
-			t.Fatal("omitted foreign item satisfied a prerequisite")
-		}
 	})
 }
 
@@ -1076,45 +1042,6 @@ func TestVerifyProspectiveCompletionTransition(t *testing.T) {
 		[]Plan{completedMain, base}, &base, completedMain, completedMainChild, string(staleMergeMessage), MergeProjectionSemanticUnion,
 	); err == nil || !strings.Contains(err.Error(), "merge source must be rebased onto the current protected plan") {
 		t.Fatalf("stale merge source policy error = %v", err)
-	}
-}
-
-func TestProspectiveMergeAuthorityRequiresTargetCompletionEvidence(t *testing.T) {
-	t.Parallel()
-	const repository = "test-repository"
-	const localRevision = "1111111111111111111111111111111111111111"
-	const incomingRevision = "2222222222222222222222222222222222222222"
-	local := Plan{Items: []Item{{
-		ID: "local", Status: StatusOpen,
-		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
-	}}}
-	incoming := Plan{Items: []Item{{
-		ID: "incoming", Status: StatusOpen,
-		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
-	}}}
-	merged := Plan{Items: []Item{
-		local.Items[0], incoming.Items[0], {
-			ID: "waiting", Status: StatusOpen,
-			Steps: []Step{{
-				ID: "do", Status: StatusOpen, Verify: "go test ./...",
-				DependsOn: []string{"retired/do"},
-			}},
-		},
-	}}
-	localAuthority := prospectiveMergeAuthority(t, local, repository, localRevision, "common")
-	incomingAuthority := prospectiveMergeAuthority(t, incoming, repository, incomingRevision, "common")
-	if err := VerifyProspectiveMergeAuthorityWithProjection(
-		repository, localRevision, incomingRevision,
-		local, incoming, merged, localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
-	); err == nil || !strings.Contains(err.Error(), "pruned dependency retired/do") {
-		t.Fatalf("missing target evidence error = %v", err)
-	}
-	incomingAuthority.completedReferences["retired/do"] = completionEvidence{commit: incomingRevision}
-	if err := VerifyProspectiveMergeAuthorityWithProjection(
-		repository, localRevision, incomingRevision,
-		local, incoming, merged, localAuthority, incomingAuthority, MergeProjectionSemanticUnion,
-	); err != nil {
-		t.Fatalf("target-authorized merge refused: %v", err)
 	}
 }
 

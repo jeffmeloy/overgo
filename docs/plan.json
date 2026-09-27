@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-small-cutover",
-      "title": "Land through a small gate: vet, cached tests and a short rule list",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Land through a small gate: vet, cached tests and a short rule list",
-          "status": "open",
-          "verify": "go test ./cmd/gate -run '^TestSmallGateLandsAChange$' -count=1",
-          "rationale": "Owner 2026-09-27: rebuild the gate small; the store records results instead of deciding whether a commit is allowed; every product change gets cheaper; target roughly 167k lines of gate machinery down to about 25k (measured 2026-09-27: internal/gate 16.4k production + 27.3k test, runrecord 16.4k + 10.4k, repoanalysis 7.6k, plan 6.4k, closure-scan 6.7k, automationcheck/codeprofile/codemanifest 5.8k). Most of it re-derives what go test's input-keyed cache already decides: which packages a change can affect. Build the small gate beside the old one: gofmt and go fix (the modernizers) as repairs on changed files; go vet; go test ./... relying on the test cache; device, webui and model-journey as ordinary test packages that detect their capability; a short rule list as plain tests (no python, commit message states Cause and Predicted effect, pinned files protected, the inline literal rule held in source: a policy literal is a named constant whose doc comment carries its understanding, closure path and rerank trigger, checked syntactically on changed files with no store bindings); the served row removed from docs/plan.json, and plan rows otherwise plain data a landing may edit, the commit message recording why. First measure a mostly cached go test ./... against the current selected plan on the same change. Then switch cmd/loop -land to it. Done when TestSmallGateLandsAChange lands a fixture change through it and refuses a failing one."
-        }
-      ]
-    },
-    {
       "id": "gate-machinery-deleted",
       "title": "Delete the old gate machinery the small gate replaced",
       "class": "consolidation",

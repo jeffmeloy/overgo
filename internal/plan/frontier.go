@@ -35,7 +35,7 @@ func ReadyFrontier(d Plan, authority CompletionAuthority) ([]Ref, error) {
 			if step.Status != StatusOpen {
 				continue
 			}
-			if dependenciesSatisfied(d, step, authority) {
+			if dependenciesSatisfied(d, step) {
 				frontier = append(frontier, Ref{Item: item.ID, Step: step.ID})
 			}
 		}

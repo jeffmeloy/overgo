@@ -473,7 +473,7 @@ func verifyCompletionAuthorityConstraints(
 	completed map[string]completionEvidence,
 	retired map[string]completionEvidence,
 ) error {
-	wanted, present, presentItems := completionNeeds(document)
+	_, present, presentItems := completionNeeds(document)
 	for item := range presentItems {
 		if evidence, reused := retired[item]; reused {
 			return fmt.Errorf("plan: prospective merge reuses retired item %s from %.12s", item, evidence.commit)
@@ -482,13 +482,6 @@ func verifyCompletionAuthorityConstraints(
 	for reference := range present {
 		if evidence, reused := completed[reference]; reused {
 			return fmt.Errorf("plan: prospective merge reuses completed identity %s from %.12s", reference, evidence.commit)
-		}
-	}
-	for reference := range wanted {
-		if !present[reference] {
-			if _, proven := completed[reference]; !proven {
-				return fmt.Errorf("plan: prospective merge pruned dependency %s lacks gated completion evidence", reference)
-			}
 		}
 	}
 	return nil
@@ -894,16 +887,6 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 		if evidence, reused := authority.completedReferences[reference]; reused {
 			return CompletionAuthority{}, fmt.Errorf(
 				"plan: completed identity %s from %.12s cannot be reused", reference, evidence.commit,
-			)
-		}
-	}
-	for reference := range wanted {
-		if present[reference] {
-			continue
-		}
-		if !authority.completed(reference) {
-			return CompletionAuthority{}, fmt.Errorf(
-				"plan: pruned dependency %s lacks gated ancestor completion evidence", reference,
 			)
 		}
 	}

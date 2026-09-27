@@ -155,24 +155,6 @@ func TestBudgetDeclarationGoesThroughThePlan(t *testing.T) {
 	}
 }
 
-// TestPrunedDependencyRequiresGatedCompletion pins the CLI selector as a
-// consumer of the same fail-closed authority as the plan package.
-func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
-	t.Parallel()
-	document := plan.Plan{Items: []plan.Item{{
-		ID: "dependent", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "do", Status: plan.StatusOpen, Verify: "go test ./...",
-			DependsOn: []string{"missing/do"},
-		}},
-	}}}
-	if _, err := testCompletionAuthority(t, document); err == nil {
-		t.Fatal("unknown pruned dependency produced completion authority")
-	}
-	if action, open := nextAction(document, worklease.UnassignedRole, plan.CompletionAuthority{}); open {
-		t.Fatalf("unknown pruned dependency dispatched as %q", action)
-	}
-}
-
 // TestEnforceSetVerify pins the pure verify-assignment: it replaces the named
 // step's verify (closing the hand-edit-plan.json gap) and rejects an absent
 // item or step.

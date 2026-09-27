@@ -4,79 +4,31 @@ import (
 	"errors"
 	"slices"
 	"testing"
-
-	"overgo/internal/processcontrol"
 )
 
-// fakeRowWorld scripts each step's answer and records the order of calls;
-// busy counts gate runs that meet a busy Git index first.
+// fakeRowWorld scripts each step's answer and records the order of calls.
 type fakeRowWorld struct {
-	claim, preflight, gate, lanes string
-	report                        *laneReport
-	landedErr                     error
-	pending                       []string
-	calls                         []string
-	busy                          int
-}
-
-func (w *fakeRowWorld) Claim(string) (string, error) {
-	w.calls = append(w.calls, phaseClaim)
-	return w.claim, nil
-}
-
-func (w *fakeRowWorld) Preflight(string) (string, error) {
-	w.calls = append(w.calls, phasePreflight)
-	return w.preflight, nil
+	gate      string
+	landedErr error
+	calls     []string
 }
 
 func (w *fakeRowWorld) Gate(string, string) (string, error) {
 	w.calls = append(w.calls, phaseGate)
-	if w.busy > 0 {
-		w.busy--
-		return "commit: Git lock index has partial or foreign ownership", processcontrol.ErrResourceBusy
-	}
 	return w.gate, nil
 }
 
-// TestLandRetriesAfterTransientGitLock lands a row whose gate twice met
-// another process holding the Git index: only the gate runs again, and the
-// row lands. A tool's resource-busy exit status is that contention; any
-// other status is a failure.
-func TestLandRetriesAfterTransientGitLock(t *testing.T) {
-	t.Parallel()
-	world := &fakeRowWorld{busy: 2}
-	outcome, err := landRow(world, "row/do", "message.txt")
-	if err != nil || outcome.Outcome != outcomeReady ||
-		!slices.Equal(world.calls, []string{phaseClaim, phasePreflight, phaseGate, phaseGate, phaseGate, "landed", phaseLanes, phaseReview}) {
-		t.Fatalf("outcome = %+v, %v; calls %v", outcome, err, world.calls)
-	}
-	if !errors.Is(toolExit(processcontrol.ResourceBusyExitCode), processcontrol.ErrResourceBusy) || errors.Is(toolExit(1), processcontrol.ErrResourceBusy) {
-		t.Fatal("a tool's exit status did not tell contention from failure")
-	}
-}
-
 func (w *fakeRowWorld) Landed(string) (string, error) {
-	w.calls = append(w.calls, "landed")
+	w.calls = append(w.calls, phaseLanded)
 	return "0123456789abcdef0123456789abcdef01234567", w.landedErr
 }
 
-func (w *fakeRowWorld) AwaitLanes() (*laneReport, string, error) {
-	w.calls = append(w.calls, phaseLanes)
-	return w.report, w.lanes, nil
-}
-
-func (w *fakeRowWorld) PendingReview() ([]string, error) {
-	w.calls = append(w.calls, phaseReview)
-	return w.pending, nil
-}
-
-// TestRowSequenceStateMachine binds the row sequence: every phase runs once
-// and in order, the first refusal stops it before anything later runs -- no
-// gate without a claim, no gate over preflight findings -- a landing is only
-// believed from git, a failed lane is its own outcome, and the outcome names
-// whether the landing still waits on review answers.
+// TestRowSequenceStateMachine binds the row sequence: the gate runs once, a
+// refusal stops the sequence before git is read, and a landing is only
+// believed from git.
 func TestRowSequenceStateMachine(t *testing.T) {
-	full := []string{phaseClaim, phasePreflight, phaseGate, "landed", phaseLanes, phaseReview}
+	t.Parallel()
+	full := []string{phaseGate, phaseLanded}
 	for _, scenario := range []struct {
 		name    string
 		world   fakeRowWorld
@@ -85,13 +37,9 @@ func TestRowSequenceStateMachine(t *testing.T) {
 		calls   []string
 		failed  bool
 	}{
-		{name: "unclaimable row", world: fakeRowWorld{claim: "claimed by another worker"}, phase: phaseClaim, outcome: outcomeRefused, calls: full[:1]},
-		{name: "preflight findings", world: fakeRowWorld{preflight: "magics FAIL"}, phase: phasePreflight, outcome: outcomeRefused, calls: full[:2]},
-		{name: "gate blocker", world: fakeRowWorld{gate: "blocker: test-owners"}, phase: phaseGate, outcome: outcomeRefused, calls: full[:3]},
-		{name: "gate success git does not confirm", world: fakeRowWorld{landedErr: errors.New("HEAD is not the completion")}, phase: phaseGate, outcome: outcomeRefused, calls: full[:4], failed: true},
-		{name: "deferred lane failed", world: fakeRowWorld{lanes: "Deferred validation failed"}, phase: phaseLanes, outcome: outcomeLanesFailed, calls: full[:5]},
-		{name: "landed with review pending", world: fakeRowWorld{pending: []string{"suite-cost suite-cost:pkg: 9s"}}, phase: phaseReview, outcome: outcomeReviewPending, calls: full},
-		{name: "landed and clear", phase: phaseReview, outcome: outcomeReady, calls: full},
+		{name: "gate refusal", world: fakeRowWorld{gate: "land: test: failed tests/packages: p"}, phase: phaseGate, outcome: outcomeRefused, calls: full[:1]},
+		{name: "gate success git does not confirm", world: fakeRowWorld{landedErr: errors.New("HEAD is not the landing")}, phase: phaseLanded, outcome: outcomeRefused, calls: full, failed: true},
+		{name: "landed", phase: phaseLanded, outcome: outcomeReady, calls: full},
 	} {
 		world := scenario.world
 		outcome, err := landRow(&world, "row/do", "message.txt")
@@ -99,7 +47,7 @@ func TestRowSequenceStateMachine(t *testing.T) {
 			!slices.Equal(world.calls, scenario.calls) {
 			t.Fatalf("%s: outcome=%+v err=%v calls=%v", scenario.name, outcome, err, world.calls)
 		}
-		if landed := slices.Contains(world.calls, phaseLanes); landed != (outcome.Commit != "") {
+		if (outcome.Outcome == outcomeReady) != (outcome.Commit != "") {
 			t.Fatalf("%s: commit %q does not match a confirmed landing", scenario.name, outcome.Commit)
 		}
 	}

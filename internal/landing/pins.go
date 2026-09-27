@@ -1,4 +1,4 @@
-package gate
+package landing
 
 import (
 	"bytes"
@@ -69,7 +69,7 @@ func bytePins(repo string) (map[string][]bytePin, error) {
 					continue
 				}
 				value, _ := strconv.Unquote(literal.Value)
-				if _, err := hex.DecodeString(value); err == nil && len(value) == sha256.Size*2 {
+				if _, err := hex.DecodeString(value); err == nil && len(value) == hex.EncodedLen(sha256.Size) {
 					digest = value
 				} else if strings.HasPrefix(value, "docs/") {
 					document = value
@@ -100,10 +100,10 @@ func relativeRecord(repo, path string) string {
 	return filepath.ToSlash(relative)
 }
 
-// stalePins names each planned path whose bytes -- raw, or with CRLF line
+// StalePins names each planned path whose bytes -- raw, or with CRLF line
 // ends normalized as a checkout may write them -- no longer match a pin,
 // with the record that pins it.
-func stalePins(repo string, paths []string) ([]string, error) {
+func StalePins(repo string, paths []string) ([]string, error) {
 	pins, err := bytePins(repo)
 	if err != nil {
 		return nil, err

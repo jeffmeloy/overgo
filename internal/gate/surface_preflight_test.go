@@ -28,7 +28,7 @@ func TestSurfaceRefusesAnUnreconciledRuntimeMove(t *testing.T) {
 	}
 
 	// The same move with the reviewed delta registry beside it is admitted.
-	reconciled := &gateContext{repo: repo, paths: []string{moved, mediaReviewedDeltas}}
+	reconciled := &gateContext{repo: repo, paths: []string{moved, "docs/media_reviewed_deltas.json"}}
 	if _, err := reconciled.stepSurface(); err != nil {
 		t.Fatalf("a reconciled runtime move was refused: %v", err)
 	}

@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "deleted-files-select-by-readers",
-      "title": "Select a deleted file's former readers instead of every lane",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Select a deleted file's former readers instead of every lane",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestDeletedDocumentSelectsItsReaders$' -count=1",
-          "rationale": " Automation brittleness (owner 2026-09-26). dependencyResolver answers true for every lane when any changed path is absent (internal/gate/impact_fallback.go: the candidate alone cannot establish a removed input's former readers), so each deletion landing today ran the device, browser and journey lanes (~10 extra minutes, four times). The reader census (tracked-files-need-readers) and the base commit's package graph name a removed file's readers; select those."
-        }
-      ]
-    },
-    {
       "id": "journey-child-failure-cause",
       "title": "Carry a served child's own failure into the model-swap error, and fix the projector journey's child exit",
       "owner": "master-lead",

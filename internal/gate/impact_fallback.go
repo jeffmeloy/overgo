@@ -48,17 +48,15 @@ func changedPackages(impact codemanifest.Impact) []string {
 }
 
 // dependencyResolver uses the receipt input graph for lane reachability.
-// Unknown owners and removed inputs retain the complete selection.
+// Unknown owners retain the complete selection. A removed document is
+// resolved as a changed one is: a package that still names it is its named
+// reader in the candidate, and one whose reference the change removed is
+// itself a changed package; a removed document no one names stays unknown
+// and keeps the complete selection, as a removed Go source does.
 func (g *gateContext) dependencyResolver() (automationcheck.DependencyResolver, error) {
 	graph, err := g.inputGraph()
 	if err != nil {
 		return nil, err
-	}
-	// The candidate alone cannot establish a removed input's former readers.
-	for _, name := range g.paths {
-		if _, err := os.Stat(filepath.Join(graph.root, filepath.FromSlash(name))); err != nil {
-			return func(automationcheck.Ownership, string) bool { return true }, nil
-		}
 	}
 	relative := map[string]string{}
 	known := map[string]bool{}
@@ -72,6 +70,13 @@ func (g *gateContext) dependencyResolver() (automationcheck.DependencyResolver, 
 		}
 		relative[node.ImportPath] = filepath.ToSlash(directory)
 		known[filepath.ToSlash(directory)] = true
+	}
+	// A removed Go source leaves no trace of what it compiled into in the
+	// candidate, so it keeps the complete selection.
+	for _, name := range g.paths {
+		if _, err := os.Stat(filepath.Join(graph.root, filepath.FromSlash(name))); err != nil && strings.HasSuffix(name, ".go") {
+			return func(automationcheck.Ownership, string) bool { return true }, nil
+		}
 	}
 	inputs := map[string][]string{}
 	return func(ownership automationcheck.Ownership, changed string) bool {

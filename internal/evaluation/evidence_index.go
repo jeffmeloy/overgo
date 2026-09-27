@@ -65,14 +65,38 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 }
 
 // EvidenceIndex joins the store's committed evidence back onto models:
-// benchmark claims keyed by the registered weights location (the claim
-// identifies the weights digest, catalogs identify manifests, and the
-// on-disk file is the identity both register), evaluations keyed by
-// recipe. Every consumer -- the workbench catalog, the training
+// benchmark and long-form claims keyed by the registered weights location
+// (the claim identifies the weights digest, catalogs identify manifests,
+// and the on-disk file is the identity both register), evaluations keyed
+// by recipe. Every consumer -- the workbench catalog, the training
 // bracket -- reads the same committed records.
 type EvidenceIndex struct {
 	BenchmarksByLocation map[string]BenchmarkSummary
+	GuardsByLocation     map[string]GuardSummary
 	EvaluationsByRecipe  map[artifact.ID][]EvalSummary
+}
+
+// GuardSummary is a model's latest long-form record, lifted tolerantly from
+// its result document: whether it passed its floors, and the commit and
+// inference surface it measured, which a later code change can expire.
+type GuardSummary struct {
+	Record  artifact.ID `json:"-"`
+	Commit  string      `json:"commit"`
+	Surface string      `json:"surface"`
+	Verdict struct {
+		Passed bool `json:"passed"`
+	} `json:"verdict"`
+}
+
+// readClaimEvidence decodes a claim's first evidence document into a
+// tolerant headline; an absent or differently shaped document reports false
+// and leaves the headline as it was.
+func readClaimEvidence(ctx context.Context, store *overgodb.Store, claim runrecord.CapabilityClaim, headline any) bool {
+	if len(claim.Evidence) == 0 {
+		return false
+	}
+	content, found, err := artifact.ReadContent(ctx, store, claim.Evidence[0])
+	return err == nil && found && json.Unmarshal(content.Data, headline) == nil
 }
 
 // benchmarkEvidenceHeadline tolerantly lifts the headline metric out of
@@ -98,6 +122,7 @@ func LatestEvidence(
 ) EvidenceIndex {
 	index := EvidenceIndex{
 		BenchmarksByLocation: map[string]BenchmarkSummary{},
+		GuardsByLocation:     map[string]GuardSummary{},
 		EvaluationsByRecipe:  map[artifact.ID][]EvalSummary{},
 	}
 	if store == nil {
@@ -113,32 +138,44 @@ func LatestEvidence(
 		if err != nil || len(locations) == 0 {
 			return nil
 		}
-		for _, claim := range record.Claims {
-			if claim.Capability != "benchmark" {
-				continue
-			}
-			summary := BenchmarkSummary{
-				Tier: string(claim.Tier), WallNS: claim.WallNS, PeakDeviceBytes: claim.PeakDeviceBytes,
-				Record: record.ID,
-			}
-			if len(claim.Evidence) > 0 {
-				if content, found, err := artifact.ReadContent(ctx, store, claim.Evidence[0]); err == nil && found {
-					var headline benchmarkEvidenceHeadline
-					if json.Unmarshal(content.Data, &headline) == nil {
-						summary.PromptTokensPerSecond = headline.Summary.PromptTokensPerSecondP50
-						summary.DecodeTokensPerSecond = headline.Summary.DecodeTokensPerSecondP50
-					}
-				}
-			}
+		// keep indexes a record's first claim of a kind under each weights
+		// file the model registers, unless a newer record holds the file.
+		keep := func(add func(string)) {
 			for _, location := range locations {
-				if location.Kind != artifact.LocationFile {
-					continue
-				}
-				if _, seen := index.BenchmarksByLocation[location.Value]; !seen {
-					index.BenchmarksByLocation[location.Value] = summary
+				if location.Kind == artifact.LocationFile {
+					add(location.Value)
 				}
 			}
-			break
+		}
+		benchmarked, guarded := false, false
+		for _, claim := range record.Claims {
+			switch {
+			case claim.Capability == "benchmark" && !benchmarked:
+				benchmarked = true
+				summary := BenchmarkSummary{
+					Tier: string(claim.Tier), WallNS: claim.WallNS, PeakDeviceBytes: claim.PeakDeviceBytes,
+					Record: record.ID,
+				}
+				var headline benchmarkEvidenceHeadline
+				if readClaimEvidence(ctx, store, claim, &headline) {
+					summary.PromptTokensPerSecond = headline.Summary.PromptTokensPerSecondP50
+					summary.DecodeTokensPerSecond = headline.Summary.DecodeTokensPerSecondP50
+				}
+				keep(func(location string) {
+					if _, seen := index.BenchmarksByLocation[location]; !seen {
+						index.BenchmarksByLocation[location] = summary
+					}
+				})
+			case claim.Capability == "long-form" && !guarded:
+				guarded = true
+				summary := GuardSummary{Record: record.ID}
+				readClaimEvidence(ctx, store, claim, &summary)
+				keep(func(location string) {
+					if _, seen := index.GuardsByLocation[location]; !seen {
+						index.GuardsByLocation[location] = summary
+					}
+				})
+			}
 		}
 		return nil
 	})

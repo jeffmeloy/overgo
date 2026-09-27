@@ -486,6 +486,21 @@
     for (const entry of item.evals || []) if (entry.metrics && typeof entry.metrics.accuracy === "number") facts.push((entry.suite || "").replace(/^store\//, "") + " " + entry.metrics.accuracy.toFixed(2) + (entry.reproducible === false ? " (hosted)" : ""));
     return facts.join(" · ");
   }
+  // supportTag: a catalogued model's support tier on a tag, guarded and trainable beside it, every rung and its
+  // evidence in the title.
+  function supportTag(support, node = el("span")) {
+    const beside = support.rungs.filter((rung) => rung.held && (rung.name === "guarded" || rung.name === "trainable")).map((rung) => rung.name);
+    node.className = "tag support-tier";
+    node.dataset.tier = support.tier;
+    node.textContent = [support.tier, ...beside].join(" · ");
+    node.title = support.rungs.map((rung) => (rung.held ? "✓ " : "✗ ") + rung.name + ": " + rung.detail).join("\n");
+    return node;
+  }
+  // supportRungs: every rung of a model's support ladder, held or not, with the evidence behind it.
+  function supportRungs(support) {
+    return el("ul", { class: "support-rungs", "aria-label": "Model support" }, ...support.rungs.map((rung) =>
+      el("li", { class: rung.held ? "held" : "" }, el("strong", { text: (rung.held ? "✓ " : "✗ ") + rung.name }), " " + rung.detail)));
+  }
 
   // The front page: the workbench folds to a rail; the Workbench control or any other tab unfolds it.
   function setFront(on) {
@@ -561,6 +576,12 @@
     pill.title = servedName + ' — choose a model';
     document.getElementById('model-details').textContent = name;
     document.getElementById('model-evidence').textContent = evidence;
+    // The served model's support tier stands beside its pill; the details list every rung.
+    const support = !active && servedEntry && servedEntry.support;
+    const tier = document.getElementById('model-tier');
+    tier.hidden = !support;
+    if (support) supportTag(support, tier);
+    document.getElementById('model-support').replaceChildren(support ? supportRungs(support) : []);
   }
   function bindTaskModel(picker, capability) {
     const binding = { picker, capability };
@@ -723,7 +744,7 @@
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, modelSwitching, bindTaskModel,
+    api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, supportTag, supportRungs, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors,
     getKey, setKey, modelInfo,
     displayToken, stat, fold, workspace, viewsOf, requestedView,
@@ -1042,7 +1063,7 @@
             const row = el("div", { class: "row", tabindex: "0", onkeydown: (event) => {
               if (event.key === "Enter" && event.target === row) { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "Serve"); if (serve) serve.click(); }
               else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...currentPanel.querySelectorAll(".row[tabindex]")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
-            } }, el("span", { class: "mono", text: name }));
+            } }, el("span", { class: "mono", text: name }), item.support ? supportTag(item.support) : null);
             const facts = el("details", { class: "picker-facts" }, el("summary", { text: "Details" })); row.appendChild(facts);
             facts.appendChild(el("span", { class: "mono", text: item.model }));
             if (item.location) facts.appendChild(el("span", { class: "mono", text: item.location }));

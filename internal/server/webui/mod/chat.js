@@ -49,8 +49,16 @@
     const host = el("div");
     const seed = { prompt: (record.prompt || "") + (record.completion ? "\n" + record.completion : "") };
     const inspectors = [["lens", "Logits", seed], ["states", "States", seed], ["attention", "Attention", seed], ["model", "Model"], ["vocab", "Vocabulary"], ["tensors", "Tensors"]];
-    body.append(el("div", { class: "statgrid" }, ...cards), el("div", { class: "row artifact-links" }, ...links),
+    const support = el("div", { class: "turn-support" });
+    body.append(el("div", { class: "statgrid" }, ...cards), el("div", { class: "row artifact-links" }, ...links), support,
       el("div", { class: "row" }, ...inspectors.map(([id, label, given]) => el("button", { class: "btn alt", text: label, onclick: () => overgo.embed(id, host, given) }))), host);
+    // The model that ran the turn, graded now by the catalog's evidence.
+    if (!record.model) return;
+    try {
+      const catalog = await overgo.api.get("/catalog/models", { signal: overgo.signal });
+      const entry = (catalog.models || []).find((item) => item.model === record.model);
+      support.replaceChildren(el("strong", { text: "Model support now" }), entry ? overgo.supportRungs(entry.support) : el("p", { class: "note", text: "the catalog no longer lists this model" }));
+    } catch (err) { if (!overgo.signal.aborted) support.replaceChildren(overgo.failure(err)); }
   };
 
   window.overgo.registerTab({

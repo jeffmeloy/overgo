@@ -77,6 +77,8 @@ func catalogListing(entries []discovery.CatalogEntry, evidence evaluation.Eviden
 				model.Evals = evidence.EvaluationsByRecipe[capability.Recipe]
 			}
 		}
+		guard, guarded := evidence.GuardsByLocation[entry.Location]
+		model.Support = catalogSupport(model, guard, guarded)
 		listed = append(listed, model)
 	}
 	return listed
@@ -129,6 +131,65 @@ type catalogModel struct {
 	// latest evaluation per derived suite.
 	Benchmark *evaluation.BenchmarkSummary `json:"benchmark,omitempty"`
 	Evals     []evaluation.EvalSummary     `json:"evals,omitempty"`
+	// Support grades how far the store's evidence trusts the model.
+	Support modelSupport `json:"support"`
+}
+
+// modelSupport is a model's support ladder: each rung held or not with the
+// evidence behind it, and the tier, the highest trust rung held (registered,
+// self-consistent, parity-checked); guarded and trainable stand beside it.
+type modelSupport struct {
+	Tier  string        `json:"tier"`
+	Rungs []supportRung `json:"rungs"`
+}
+
+type supportRung struct {
+	Name   string `json:"name"`
+	Held   bool   `json:"held"`
+	Detail string `json:"detail"`
+}
+
+// catalogSupport grades one catalogued model from its activations and its
+// latest long-form record. Self-consistent is the library's verification: a
+// suite replaying the model's own greedy output, which proves determinism,
+// not correctness; parity-checked needs output matched to a reference.
+func catalogSupport(model catalogModel, guard evaluation.GuardSummary, guarded bool) modelSupport {
+	verified := model.Tier != "" && model.Stale == ""
+	selfConsistent := supportRung{Name: "self-consistent", Held: verified,
+		Detail: "its verification suite replays its own greedy output: deterministic, not proven correct"}
+	switch {
+	case model.Stale != "":
+		selfConsistent.Detail = "unservable: " + model.Stale
+	case model.Tier == "":
+		selfConsistent.Detail = "no verified inference activation"
+	}
+	tier := recipe.EvidenceTier(model.Tier)
+	parity := supportRung{Name: "parity-checked", Held: verified && (tier == recipe.EvidenceParity || tier == recipe.EvidenceProduction),
+		Detail: "no evidence matching a reference implementation"}
+	if parity.Held {
+		parity.Detail = "its output matched a reference implementation exactly"
+	}
+	long := supportRung{Name: "guarded", Held: guarded && guard.Verdict.Passed, Detail: "no long-form record"}
+	switch {
+	case long.Held:
+		long.Detail = fmt.Sprintf("long-form guard passed at commit %.12s on inference surface %.12s; a later code change can expire it", guard.Commit, guard.Surface)
+	case guarded:
+		long.Detail = fmt.Sprintf("long-form guard failed its floors at commit %.12s", guard.Commit)
+	}
+	trainable := supportRung{Name: "trainable", Detail: "no training activation"}
+	for _, capability := range model.Capabilities {
+		if capability.Task == string(recipe.TaskTraining) && capability.Stale == "" {
+			trainable.Held, trainable.Detail = true, "training recipe "+capability.Recipe+" is active"
+		}
+	}
+	rungs := []supportRung{{Name: "registered", Held: true, Detail: "the store registers its weights at " + model.Location}, selfConsistent, parity, long, trainable}
+	support := modelSupport{Tier: "registered", Rungs: rungs}
+	for _, rung := range []supportRung{selfConsistent, parity} {
+		if rung.Held {
+			support.Tier = rung.Name
+		}
+	}
+	return support
 }
 
 // catalogCapability is one task activation on a catalogued model.

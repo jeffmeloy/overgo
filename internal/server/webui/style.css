@@ -215,6 +215,12 @@ table.grid td.mono { font-family:var(--mono); font-variant-numeric:tabular-nums;
 .tag.byte { color:var(--acc); border-color:color-mix(in srgb, var(--acc) 40%, transparent); }
 .tag.user_defined { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
 .tag.tag-danger { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
+/* Support tiers: registered reads as a caution, self-consistent plain, parity-checked as trusted. */
+.tag.support-tier[data-tier="registered"] { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
+.tag.support-tier[data-tier="parity-checked"] { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
+.support-rungs { list-style:none; margin:var(--s1) 0; padding:0; display:flex; flex-direction:column; gap:var(--s1); }
+.support-rungs li { color:var(--dim); overflow-wrap:anywhere; }
+.support-rungs li.held { color:var(--ink); }
 input.text, select.text, textarea.text {
   font:var(--t-md) var(--font); color:var(--ink); background:var(--bg2);
   border:1px solid var(--line); border-radius:var(--radius-s); padding:9px 11px; width:100%;

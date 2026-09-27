@@ -26,8 +26,7 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 	if top.Items[0].ID != "new" || top.Items[0].Steps[0].ID != "do" || top.Items[0].Steps[0].Verify != "go test ./..." {
 		t.Fatalf("insert-at-top produced %+v", top.Items[0])
 	}
-	authority := mustTestCompletionAuthority(t, top)
-	if it, st, ok := plan.Current(top, worklease.UnassignedRole, authority); !ok || it.ID != "new" || st.ID != "do" {
+	if it, st, ok := plan.Current(top, worklease.UnassignedRole); !ok || it.ID != "new" || st.ID != "do" {
 		t.Fatalf("new item must be the current step, got %s/%s", it.ID, st.ID)
 	}
 	mid, err := insertItem(base, "x", "t", "", "b", "")
@@ -152,24 +151,6 @@ func TestBudgetDeclarationGoesThroughThePlan(t *testing.T) {
 		if _, err := declareBudget(base, refused.id, refused.budget); err == nil {
 			t.Fatalf("a budget with %s was recorded", name)
 		}
-	}
-}
-
-// TestPrunedDependencyRequiresGatedCompletion pins the CLI selector as a
-// consumer of the same fail-closed authority as the plan package.
-func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
-	t.Parallel()
-	document := plan.Plan{Items: []plan.Item{{
-		ID: "dependent", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "do", Status: plan.StatusOpen, Verify: "go test ./...",
-			DependsOn: []string{"missing/do"},
-		}},
-	}}}
-	if _, err := testCompletionAuthority(t, document); err == nil {
-		t.Fatal("unknown pruned dependency produced completion authority")
-	}
-	if action, open := nextAction(document, worklease.UnassignedRole, plan.CompletionAuthority{}); open {
-		t.Fatalf("unknown pruned dependency dispatched as %q", action)
 	}
 }
 

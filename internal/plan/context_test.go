@@ -18,9 +18,7 @@ func TestAutomationContextHasOneCurrentTask(t *testing.T) {
 		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "overgodb:overgodb-store"},
 		Workflow:     WorkflowContext{Phase: "implementation", Source: "git:HEAD+overgodb:overgodb-store"},
 	}
-	ctx, err := BuildAutomationContext(
-		document, facts, testCompletionAuthorityAt(t, document, facts.Worktree, facts.Head),
-	)
+	ctx, err := BuildAutomationContext(document, facts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,9 +41,7 @@ func TestReviewPriority(t *testing.T) {
 		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "overgodb:overgodb-store"},
 		Workflow:     WorkflowContext{Phase: "sqa", Source: "git:HEAD+overgodb:overgodb-store", CandidateID: "evidence:fixture"},
 	}
-	ctx, err := BuildAutomationContext(
-		document, facts, testCompletionAuthorityAt(t, document, facts.Worktree, facts.Head),
-	)
+	ctx, err := BuildAutomationContext(document, facts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,45 +49,7 @@ func TestReviewPriority(t *testing.T) {
 		t.Fatalf("review priority context = %+v", ctx)
 	}
 	facts.Workflow.Phase = "review"
-	if _, err := BuildAutomationContext(
-		document, facts, testCompletionAuthorityAt(t, document, facts.Worktree, facts.Head),
-	); err == nil {
+	if _, err := BuildAutomationContext(document, facts); err == nil {
 		t.Fatal("invalid workflow phase accepted")
-	}
-}
-
-func TestAutomationContextRefusesUnresolvedOrCrossPlanAuthority(t *testing.T) {
-	t.Parallel()
-	document := Plan{Items: []Item{{
-		ID: "one", Status: StatusOpen,
-		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
-	}}}
-	facts := ContextFacts{
-		Head: "0123456789abcdef0123456789abcdef01234567", Branch: "codex/automation", Worktree: "C:/repo",
-		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "overgodb:overgodb-store"},
-		Workflow:     WorkflowContext{Phase: "implementation", Source: "git:HEAD+overgodb:overgodb-store"},
-	}
-	if _, err := BuildAutomationContext(document, facts, CompletionAuthority{}); err == nil {
-		t.Fatal("zero completion authority accepted")
-	}
-	other := Plan{Items: []Item{{
-		ID: "other", Status: StatusOpen,
-		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
-	}}}
-	if _, err := BuildAutomationContext(
-		document, facts, testCompletionAuthorityAt(t, other, facts.Worktree, facts.Head),
-	); err == nil {
-		t.Fatal("cross-plan completion authority accepted")
-	}
-	authority := testCompletionAuthorityAt(t, document, facts.Worktree, facts.Head)
-	stale := facts
-	stale.Head = "89abcdef0123456789abcdef0123456789abcdef"
-	if _, err := BuildAutomationContext(document, stale, authority); err == nil {
-		t.Fatal("stale-revision completion authority accepted")
-	}
-	foreign := facts
-	foreign.Worktree = facts.Worktree + "-other"
-	if _, err := BuildAutomationContext(document, foreign, authority); err == nil {
-		t.Fatal("cross-repository completion authority accepted")
 	}
 }

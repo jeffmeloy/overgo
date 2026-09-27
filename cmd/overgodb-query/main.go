@@ -15,8 +15,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
-	"overgo/internal/closurescan"
-	"overgo/internal/codemanifest"
 	"overgo/internal/commanddoc"
 	"overgo/internal/composition"
 	"overgo/internal/dataset"
@@ -65,8 +63,6 @@ func run(args []string, output io.Writer) error {
 	profiles := flags.Bool("profiles", false, "audit registered architecture-profile publication")
 	datasets := flags.Bool("datasets", false, "audit active dataset catalog publication")
 	contentDump := flags.Bool("content", false, "print the raw committed content bytes of the artifact named by -id")
-	magicClosures := flags.Bool("magic-closures", false, "list magic census history, owner pressure, and unresolved bindings")
-	manifestSummary := flags.String("manifest-summary", "", "print a bounded summary for one code-manifest ID")
 	if handled, err := commanddoc.OvergodbQuery.Command.ParseForHelp(flags, args, output); err != nil || handled {
 		return err
 	}
@@ -128,12 +124,6 @@ func run(args []string, output io.Writer) error {
 	if *contentDump {
 		return writeContent(output, *repository, *idText)
 	}
-	if *magicClosures {
-		return writeMagicClosures(output, *repository, *limit, *jsonOutput)
-	}
-	if *manifestSummary != "" {
-		return writeManifestSummary(output, *repository, *manifestSummary, *jsonOutput)
-	}
 	query := overgodb.Query{
 		Alias: *alias, MaxDepth: uint32(*maxDepth), MaxResults: *limit,
 		FromSequence: *from, ToSequence: *to,
@@ -176,35 +166,6 @@ func run(args []string, output io.Writer) error {
 		return clioptions.WritePrettyJSON(output, result)
 	}
 	return writeText(output, result)
-}
-
-func writeManifestSummary(output io.Writer, repository, idText string, jsonOutput bool) error {
-	id, err := artifact.ParseID(strings.TrimSpace(idText))
-	if err != nil {
-		return err
-	}
-	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	var summary codemanifest.Summary
-	if manifest, loadErr := codemanifest.Load(context.Background(), store, id); loadErr == nil {
-		if summary, err = codemanifest.Summarize(manifest); err != nil {
-			return err
-		}
-	} else if summary, err = codemanifest.LoadDigest(context.Background(), store, id); err != nil {
-		// Digest-era manifests store only their footprint; the full
-		// content is derivable from git at the recorded source identity.
-		return errors.Join(loadErr, err)
-	}
-	if jsonOutput {
-		return clioptions.WritePrettyJSON(output, summary)
-	}
-	fmt.Fprintf(output, "manifest=%s source=%s analyzer=%s/%s contexts=%d files=%d symbols=%d references=%d external_inputs=%d uncertainty=%d\n",
-		summary.ID, summary.SourceIdentity, summary.Analyzer.Name, summary.Analyzer.Version,
-		summary.BuildContexts, summary.Files, summary.Symbols, summary.References, summary.ExternalInputs, summary.Uncertainty)
-	return nil
 }
 
 func writeDatasets(output io.Writer, repository string, jsonOutput bool) error {
@@ -251,17 +212,6 @@ func writeProfiles(output io.Writer, repository string, jsonOutput bool) error {
 	return nil
 }
 
-type magicClosureRun struct {
-	ID       artifact.ID                `json:"id"`
-	Evidence closurescan.CensusEvidence `json:"evidence"`
-	Delta    *magicCensusDelta          `json:"delta,omitempty"`
-}
-
-type magicCensusDelta struct {
-	Counts   closurescan.CensusCounts    `json:"counts"`
-	Pressure closurescan.ClosurePressure `json:"closure_pressure"`
-}
-
 func visitDocuments[T any](
 	ctx context.Context,
 	store *overgodb.Store,
@@ -273,92 +223,6 @@ func visitDocuments[T any](
 		Contracts: []artifact.DocumentContract{contract}, Order: overgodb.DocumentOldestFirst,
 	}, decode, visit)
 	return err
-}
-
-type magicClosureReport struct {
-	Runs []magicClosureRun `json:"runs"`
-}
-
-func writeMagicClosures(output io.Writer, repository string, limit int, jsonOutput bool) error {
-	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	ctx := context.Background()
-	var report magicClosureReport
-	err = visitDocuments(ctx, store, artifact.DocumentContract{
-		Kind: artifact.KindEvidence, MediaType: closurescan.CensusEvidenceMediaType, Schema: closurescan.CensusEvidenceSchema,
-	}, closurescan.ParseCensusEvidence, func(_ overgodb.DocumentView, evidence closurescan.CensusEvidence) error {
-		report.Runs = append(report.Runs, magicClosureRun{ID: evidence.ID, Evidence: evidence})
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	var previous *closurescan.CensusEvidence
-	for index := range report.Runs {
-		current := &report.Runs[index]
-		if previous != nil {
-			current.Delta = censusDelta(*previous, current.Evidence)
-		}
-		previous = &current.Evidence
-	}
-	if len(report.Runs) > limit {
-		report.Runs = report.Runs[len(report.Runs)-limit:]
-	}
-	if jsonOutput {
-		return clioptions.WritePrettyJSON(output, report)
-	}
-	return writeMagicClosureText(output, report, limit)
-}
-
-func censusDelta(previous, current closurescan.CensusEvidence) *magicCensusDelta {
-	left, right := previous.Counts, current.Counts
-	return &magicCensusDelta{
-		Counts: closurescan.CensusCounts{
-			ProductionFiles: right.ProductionFiles - left.ProductionFiles, TestFiles: right.TestFiles - left.TestFiles,
-			NamedConstants: right.NamedConstants - left.NamedConstants, InlineLiterals: right.InlineLiterals - left.InlineLiterals,
-			AssumptionHints: right.AssumptionHints - left.AssumptionHints, TestLiterals: right.TestLiterals - left.TestLiterals,
-			TestFixtures: right.TestFixtures - left.TestFixtures, TestAssertions: right.TestAssertions - left.TestAssertions,
-			TestPolicyCopies: right.TestPolicyCopies - left.TestPolicyCopies,
-			RepeatedGroups:   right.RepeatedGroups - left.RepeatedGroups, RepeatedSites: right.RepeatedSites - left.RepeatedSites,
-		},
-		Pressure: closurescan.ClosurePressure{
-			ActiveDocuments: current.Pressure.ActiveDocuments - previous.Pressure.ActiveDocuments,
-			OpenDocuments:   current.Pressure.OpenDocuments - previous.Pressure.OpenDocuments,
-			StaleBindings:   current.Pressure.StaleBindings - previous.Pressure.StaleBindings,
-		},
-	}
-}
-
-func writeMagicClosureText(output io.Writer, report magicClosureReport, limit int) error {
-	for _, run := range report.Runs {
-		counts, pressure := run.Evidence.Counts, run.Evidence.Pressure
-		fmt.Fprintf(output, "census=%s source=%s catalog=%s sequence=%d\n", run.ID, run.Evidence.Source, run.Evidence.CatalogHead, run.Evidence.CatalogSequence)
-		fmt.Fprintf(output, "counts named=%d inline=%d assumptions=%d test_policy=%d repeated=%d/%d\n",
-			counts.NamedConstants, counts.InlineLiterals, counts.AssumptionHints, counts.TestPolicyCopies, counts.RepeatedGroups, counts.RepeatedSites)
-		fmt.Fprintf(output, "closures active=%d open=%d stale=%d\n", pressure.ActiveDocuments, pressure.OpenDocuments, pressure.StaleBindings)
-		if run.Delta != nil {
-			delta := run.Delta
-			fmt.Fprintf(output, "delta named=%+d inline=%+d assumptions=%+d test_policy=%+d open=%+d stale=%+d\n",
-				delta.Counts.NamedConstants, delta.Counts.InlineLiterals, delta.Counts.AssumptionHints, delta.Counts.TestPolicyCopies,
-				delta.Pressure.OpenDocuments, delta.Pressure.StaleBindings)
-		}
-		for index, owner := range run.Evidence.Owners {
-			if index >= limit {
-				break
-			}
-			fmt.Fprintf(output, "owner=%s decision=%d repeated=%d\n", owner.Package, owner.DecisionSurfaces, owner.RepeatedSites)
-		}
-		for _, row := range run.Evidence.Unresolved {
-			fmt.Fprintf(output, "open=%s tier=%s document=%s bindings=%d\n", row.Name, row.Tier, row.Document, len(row.Bindings))
-		}
-		for _, issue := range run.Evidence.Stale {
-			fmt.Fprintf(output, "stale=%s name=%s file=%s\n", issue.Kind, issue.Name, issue.File)
-		}
-	}
-	return nil
 }
 
 // writeServable renders the discovery predicate owned by internal/discovery.

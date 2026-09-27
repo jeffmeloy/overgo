@@ -168,7 +168,7 @@ func TestDispatchClaimProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = withPlanMutation(root, false, func(current plan.Plan) error {
+	err = withPlanMutation(root, func(current plan.Plan) error {
 		current.Items[0].Steps[0].Title = "replanned beneath active source"
 		return savePlanMutation(root, current)
 	})
@@ -192,7 +192,7 @@ func TestDispatchClaimProjection(t *testing.T) {
 	if err := releaseDispatchClaim(root, owned.Claim.ID.String(), "session-one", "handoff", &released); err != nil {
 		t.Fatal(err)
 	}
-	if err := withPlanMutation(root, false, func(current plan.Plan) error {
+	if err := withPlanMutation(root, func(current plan.Plan) error {
 		current.Items[0].Steps[0].Title = "reviewed after handoff"
 		return savePlanMutation(root, current)
 	}); err != nil {

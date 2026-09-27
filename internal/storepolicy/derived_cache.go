@@ -8,23 +8,21 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
-	"overgo/internal/automationcheck"
-	"overgo/internal/codemanifest"
-	"overgo/internal/codeprofile"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 )
 
 // DerivedCacheSchemas are the document schemas the owner ruled re-derivable
-// (2026-08-27): code manifests, code profiles and manifest analyses, which
-// the gate recomputes from the tree at a source identity. The modern-Go
-// computation memo is the same thing and joined them when the record census
-// found it holding 552 MB in no releasable class: its one reader takes a
-// released memo, or a released part of one, as a miss and recomputes.
+// (2026-08-27): the old gate's code manifests, code profiles and manifest
+// analyses, which the store still holds and nothing writes any more. The
+// modern-Go computation memo is the same thing and joined them when the
+// record census found it holding 552 MB in no releasable class: its one
+// reader takes a released memo, or a released part of one, as a miss and
+// recomputes.
 var DerivedCacheSchemas = []string{
-	codemanifest.Schema,
-	codeprofile.EvidenceSchema,
-	automationcheck.ManifestAnalysisSchema,
+	"overgo/code-manifest/v1",
+	"overgo/code-profile/v4",
+	"overgo/code-manifest-analysis/v1",
 	repoanalysis.ModernGoComputationSchema,
 	repoanalysis.ModernGoCensusPartSchema,
 }

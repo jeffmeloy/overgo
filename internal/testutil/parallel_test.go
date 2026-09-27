@@ -27,7 +27,6 @@ func TestSuitesRunInParallel(t *testing.T) {
 		// which keep their bytes rather than gain the parallel line.
 		bound []string
 	}{
-		{directory: "../gate", markers: []string{"liveRepositoryFixture("}},
 		{directory: "../plan"},
 		{directory: "../../cmd/plan"},
 		{directory: "../evaluation"},

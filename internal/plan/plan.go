@@ -3,17 +3,16 @@ package plan
 
 import (
 	"cmp"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
-	"overgo/internal/artifact"
 	"overgo/internal/jsonfile"
 	"overgo/internal/strictjson"
 	"overgo/internal/textcheck"
@@ -95,14 +94,9 @@ type Plan struct {
 	// Lane names the worktree this plan dispatches for: under the unassigned
 	// role it is the role, so the lane's own rows come first, unowned rows
 	// after, and another lane's rows never.
-	Lane   string       `json:"lane,omitzero"`
-	Scope  string       `json:"scope,omitzero"`
-	Census *artifact.ID `json:"census_evidence,omitempty"`
-	Items  []Item       `json:"items"`
-	// Reviews records the re-plan's answer to every optimization candidate
-	// a landed row's gate evidence named: the row that addresses it or the
-	// reason none is filed. Dispatch refuses while a candidate has neither.
-	Reviews []OptimizationDisposition `json:"optimization_reviews,omitempty"`
+	Lane  string `json:"lane,omitzero"`
+	Scope string `json:"scope,omitzero"`
+	Items []Item `json:"items"`
 }
 
 // Load reads the plan from path (Path when empty).
@@ -167,14 +161,8 @@ func validatePlanGraph(d Plan) error {
 	if d.Scope != "" && (d.Scope != ScopeLane || normalizedRole(d.Lane) == worklease.UnassignedRole) {
 		return errors.New("plan: lane scope requires an explicit lane")
 	}
-	if d.Census != nil && (!d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence) {
-		return errors.New("plan: census authority is not evidence")
-	}
 	if d.Lane != "" && !worklease.ValidAutomationText(d.Lane) {
 		return errors.New("plan: invalid lane")
-	}
-	if err := validateReviews(d.Reviews); err != nil {
-		return err
 	}
 	items := map[string]bool{}
 	for _, item := range d.Items {
@@ -283,35 +271,16 @@ func validateDependencies(d Plan) error {
 }
 
 // dependenciesSatisfied reports whether every depends_on reference is
-// complete. A retained done row is self-evident; a pruned row is satisfied
-// only by the derived Git-and-store completion authority. Absence alone is
-// never completion evidence.
-func dependenciesSatisfied(d Plan, step Step, authority CompletionAuthority) bool {
+// settled: done, or no longer in the plan. A row leaves the plan when a
+// landing completes or retires it, and that commit's message says which.
+func dependenciesSatisfied(d Plan, step Step) bool {
 	for _, reference := range step.DependsOn {
 		itemID, stepID, _ := strings.Cut(reference, "/")
-		candidate, present := exactPlanStep(d, itemID, stepID)
-		satisfied := candidate.Status == StatusDone
-		if !present {
-			satisfied = authority.completed(reference)
-		}
-		if !satisfied {
+		if candidate, present := exactPlanStep(d, itemID, stepID); present && candidate.Status != StatusDone {
 			return false
 		}
 	}
 	return true
-}
-
-var doctrineMetricLiteral = regexp.MustCompile(`(?i)\b[0-9][0-9,]*\s+(?:production\s+files?|files?|literals?|assumptions?|policy\s+copies)\b`)
-
-// ValidateCampaignCensusAuthority requires OvergoDB census identity.
-func ValidateCampaignCensusAuthority(d Plan) error {
-	if d.Census == nil || !d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence {
-		return errors.New("plan: campaign lacks census evidence authority")
-	}
-	if doctrineMetricLiteral.MatchString(d.Doctrine) {
-		return errors.New("plan: doctrine contains hand-typed census metrics")
-	}
-	return nil
 }
 
 func validStatus(status string) bool {
@@ -321,14 +290,11 @@ func validStatus(status string) bool {
 // Current returns the role-owned open step, then the first unowned step.
 // An open item with no open step yields the sentinel step "." (open the rung).
 // ok is false when no open item remains.
-func Current(d Plan, role string, authority CompletionAuthority) (Item, Step, bool) {
-	if !authority.resolves(d) {
-		return Item{}, Step{}, false
-	}
-	return currentResolved(d, role, authority)
+func Current(d Plan, role string) (Item, Step, bool) {
+	return currentResolved(d, role)
 }
 
-func currentResolved(d Plan, role string, authority CompletionAuthority) (Item, Step, bool) {
+func currentResolved(d Plan, role string) (Item, Step, bool) {
 	role = normalizedRole(role)
 	// The plan's lane is the role nobody named: the rule reads the plan, so a
 	// worktree and the gate's candidate tree dispatch the same rows.
@@ -336,14 +302,14 @@ func currentResolved(d Plan, role string, authority CompletionAuthority) (Item, 
 		role = d.Lane
 	}
 	if role != worklease.UnassignedRole {
-		if item, step, ok := currentOwned(d, role, authority); ok {
+		if item, step, ok := currentOwned(d, role); ok {
 			return item, step, true
 		}
 	}
-	return currentOwned(d, "", authority)
+	return currentOwned(d, "")
 }
 
-func currentOwned(d Plan, owner string, authority CompletionAuthority) (Item, Step, bool) {
+func currentOwned(d Plan, owner string) (Item, Step, bool) {
 	for _, it := range d.Items {
 		if it.Status != StatusOpen || it.Owner != owner {
 			continue
@@ -356,7 +322,7 @@ func currentOwned(d Plan, owner string, authority CompletionAuthority) (Item, St
 			// depends_on is enforced, not descriptive: a step whose
 			// dependencies are not done cannot dispatch, whatever the
 			// file order says.
-			if dependenciesSatisfied(d, s, authority) {
+			if dependenciesSatisfied(d, s) {
 				return it, s, true
 			}
 			blocked = true
@@ -443,9 +409,29 @@ func advancePlan(d Plan, itemID, stepID string, wholeItem bool) (Plan, error) {
 
 // Digest returns the existing canonical plan identity; unencodable state returns empty.
 func (document Plan) Digest() string {
-	digest, err := completionPlanDigest(document)
+	encoded, err := json.Marshal(document)
 	if err != nil {
 		return ""
 	}
+	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:])
+}
+
+func exactPlanItem(document Plan, itemID string) (Item, bool) {
+	for _, item := range document.Items {
+		if item.ID == itemID {
+			return item, true
+		}
+	}
+	return Item{}, false
+}
+
+func exactPlanStep(document Plan, itemID, stepID string) (Step, bool) {
+	item, _ := exactPlanItem(document, itemID)
+	for _, step := range item.Steps {
+		if step.ID == stepID {
+			return step, true
+		}
+	}
+	return Step{}, false
 }

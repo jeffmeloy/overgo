@@ -348,21 +348,6 @@ func AdmitReview(targetHead string, admission ReviewAdmission) error {
 	return nil
 }
 
-// LoadReviewAdmission resolves the complete immutable graph named by a
-// verdict. Storage mechanics live here so every consumer validates the same
-// document contracts before calling AdmitReview.
-func LoadReviewAdmission(ctx context.Context, reader artifact.Reader, verdictID artifact.ID) (ReviewAdmission, error) {
-	verdict, err := readReviewDocument(ctx, reader, verdictID, reviewVerdictCodec)
-	if err != nil {
-		return ReviewAdmission{}, err
-	}
-	candidate, err := readReviewDocument(ctx, reader, verdict.Candidate, reviewCandidateCodec)
-	if err != nil {
-		return ReviewAdmission{}, err
-	}
-	return loadReviewAdmission(ctx, reader, candidate, verdict)
-}
-
 // DeriveReviewPriority maps Git HEAD plus admitted OvergoDB review evidence to
 // implementation -> SQA -> priority. Invalid or rejected verdicts do not
 // advance the phase; incomplete evidence for the current candidate is loud.

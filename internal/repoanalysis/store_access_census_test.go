@@ -36,8 +36,8 @@ func TestStoreAccessCensus(t *testing.T) {
 			t.Fatalf("package %s: total %d, kinds sum %d, previous total %d", access.Package, access.Total, sum, census[max(index, 1)-1].Total)
 		}
 	}
-	if !slices.ContainsFunc(census, func(access StoreAccess) bool { return access.Package == "internal/gate" && access.Sites["commit"] > 0 }) {
-		t.Fatal("the census does not see the gate committing to the store")
+	if !slices.ContainsFunc(census, func(access StoreAccess) bool { return access.Sites["commit"] > 0 }) {
+		t.Fatal("the census sees no package committing to the store")
 	}
 
 	const straddler = `package straddler

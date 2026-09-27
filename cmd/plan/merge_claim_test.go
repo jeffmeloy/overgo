@@ -68,13 +68,13 @@ func TestPrepareMergeCapturedPlanConflict(t *testing.T) {
 			if err != nil || claim.Claim == nil || claim.Item != "row" {
 				t.Fatalf("claim = %+v, %v", claim, err)
 			}
-			err = withPlanMutation(root, false, func(captured plan.Plan) error {
+			err = withPlanMutation(root, func(captured plan.Plan) error {
 				// Publication must remain in the same critical section as capture.
 				if lock, lockErr := authoritylock.Acquire(root); lockErr == nil {
 					_ = lock.Close()
 					t.Fatal("capture did not retain the mutation lock")
 				}
-				projected, err := projectMergePlan(base, captured, incoming, plan.CompletionAuthority{}, plan.CompletionAuthority{}, plan.MergeProjectionFirstParentTarget)
+				projected, err := projectMergePlan(base, captured, incoming, plan.MergeProjectionFirstParentTarget)
 				if err != nil {
 					return err
 				}

@@ -34,7 +34,7 @@ type candidateProposal struct {
 // a spec citing a decision the replay cannot reproduce is refused, so the
 // plan door can never mint steering eligibility on its own.
 func admitProposal(root, specPath string, output io.Writer) error {
-	return withPlanMutation(root, false, func(document plan.Plan) error {
+	return withPlanMutation(root, func(document plan.Plan) error {
 		var proposal candidateProposal
 		if err := jsonfile.Decode(specPath, &proposal); err != nil {
 			return err
@@ -77,11 +77,6 @@ func admitProposal(root, specPath string, output io.Writer) error {
 					prediction.Cost, prediction.Unit, prediction.Uncertainty,
 				),
 			}},
-		}
-		probe := document
-		probe.Items = append([]plan.Item{row}, document.Items...)
-		if _, err := plan.ResolveCompletionAuthority(ctx, root, "HEAD", probe, store); err != nil {
-			return err
 		}
 		document.Items = append([]plan.Item{row}, document.Items...)
 		if err := savePlanMutation(root, document); err != nil {

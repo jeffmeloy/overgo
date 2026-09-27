@@ -13,12 +13,6 @@
       "reason": "The CUDA executor holds one dispatch table over every device operator; splitting it is a device-runtime decomposition, tracked separately from this budget."
     },
     {
-      "budget": "file-lines",
-      "subject": "internal/gate/commit.go",
-      "limit": 2350,
-      "reason": "The two-phase Git commit transaction keeps intent, keepalive, index authority, reference exchange, and merge metadata in one phase file by design; further splitting risks a second transaction path."
-    },
-    {
       "budget": "internal-imports",
       "subject": "internal/server",
       "limit": 43,
@@ -29,12 +23,6 @@
       "subject": "cmd/recipe",
       "limit": 24,
       "reason": "cmd/recipe aggregates the recipe lifecycle subcommands; its per-task files are thin dispatchers over internal owners."
-    },
-    {
-      "budget": "internal-imports",
-      "subject": "internal/gate",
-      "limit": 31,
-      "reason": "The gate reads Go source through two layers: gosource for build selection and provenance, which parses nothing so its importers stay narrow readers, and gosyntax for the parsed snapshot the analyzers share. Retired by the small-gate rebuild, which removes the gate's own source analysis."
     }
   ]
 }

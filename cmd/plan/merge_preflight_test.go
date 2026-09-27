@@ -68,7 +68,7 @@ func TestSnapshotReusePreflight(t *testing.T) {
 
 func TestMergePreflightOwnedDocuments(t *testing.T) {
 	t.Parallel()
-	for _, path := range []string{apiManifestJSONPath, harnessSurfaceBaselinePath, "source conflict.txt"} {
+	for _, path := range []string{apiManifestJSONPath, modernGoBaselinePath, "source conflict.txt"} {
 		t.Run(path, func(t *testing.T) {
 			root, git := mergeTestRepository(t)
 			branch := git("branch", "--show-current")
@@ -110,13 +110,13 @@ func TestMergePreflightOwnedDocuments(t *testing.T) {
 	}
 }
 
-// TestMergeHarnessBaselineConflictResolution proves a generated harness
+// TestMergeBaselineConflictResolution proves a generated modern-Go
 // ratchet conflict stays on the lane's reviewed baseline until gate repair.
-func TestMergeHarnessBaselineConflictResolution(t *testing.T) {
+func TestMergeBaselineConflictResolution(t *testing.T) {
 	t.Parallel()
 	root, git := mergeTestRepository(t)
 	branch := git("branch", "--show-current")
-	for _, path := range []string{harnessSurfaceBaselinePath, modernGoBaselinePath} {
+	for _, path := range []string{modernGoBaselinePath} {
 		file := filepath.Join(root, filepath.FromSlash(path))
 		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
 			t.Fatal(err)
@@ -128,7 +128,7 @@ func TestMergeHarnessBaselineConflictResolution(t *testing.T) {
 	git("add", ".")
 	git("commit", "-m", "base baselines")
 	git("checkout", "-b", "topic")
-	harness := filepath.Join(root, filepath.FromSlash(harnessSurfaceBaselinePath))
+	harness := filepath.Join(root, filepath.FromSlash(modernGoBaselinePath))
 	if err := os.WriteFile(harness, []byte("source\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestMergeHarnessBaselineConflictResolution(t *testing.T) {
 	if err != nil || string(raw) != "target\n" {
 		t.Fatalf("lane baseline = %q, %v", raw, err)
 	}
-	if _, err := commandOutput(root, "git", "add", "--", harnessSurfaceBaselinePath); err != nil {
+	if _, err := commandOutput(root, "git", "add", "--", modernGoBaselinePath); err != nil {
 		t.Fatal(err)
 	}
 	if unmerged := git("ls-files", "-u"); unmerged != "" {

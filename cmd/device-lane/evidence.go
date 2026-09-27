@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"overgo/internal/automationcheck"
+	"overgo/internal/devicescope"
 	"overgo/internal/testevidence"
 )
 
@@ -15,7 +15,7 @@ import (
 func verifyDeviceContracts(command []string, output string) error {
 	run, skip := stepTestPattern(command, "-run"), stepTestPattern(command, "-skip")
 	var names []string
-	for _, scope := range automationcheck.DeviceScopes(automationcheck.DeviceVerificationPlan{Full: true}) {
+	for _, scope := range devicescope.Scopes(devicescope.VerificationPlan{Full: true}) {
 		if !slices.Contains(command, scope.Package) {
 			continue
 		}

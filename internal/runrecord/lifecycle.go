@@ -226,7 +226,6 @@ const (
 	HeartbeatFinalized  GateHeartbeatState = "finalized"
 	HeartbeatRecordDebt GateHeartbeatState = "record_debt"
 	HeartbeatStale      GateHeartbeatState = "stale"
-	HeartbeatAbsent     GateHeartbeatState = "absent"
 )
 
 // GateHeartbeat is an advisory liveness mirror. OvergoDB lifecycle documents,

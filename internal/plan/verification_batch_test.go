@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/runrecord"
 	"overgo/internal/worklease"
 )
 
@@ -83,14 +82,9 @@ func TestVerificationBatchDeclaration(t *testing.T) {
 	document.Items[0].Steps = append(document.Items[0].Steps, Step{
 		ID: "train", Status: StatusOpen, Verify: "go test ./x -run '^TestTrain$'", DependsOn: []string{"audio/dataset"},
 	})
-	authority := testCompletionAuthority(t, document)
-	_, step, open := Current(document, worklease.UnassignedRole, authority)
+	_, step, open := Current(document, worklease.UnassignedRole)
 	if !open || step.ID != "dataset" {
 		t.Fatalf("batch declaration advanced parent: %+v, %t", step, open)
-	}
-	document.Items[0].Steps[0].VerificationBatch.Checkpoints[0].Verify += " -race"
-	if _, _, open := Current(document, worklease.UnassignedRole, authority); open {
-		t.Fatal("changed batch reused prior completion authority")
 	}
 }
 
@@ -114,46 +108,5 @@ func TestVerificationBatchMerge(t *testing.T) {
 	upstream.Items[0].Steps = nil
 	if _, err := MergeDocuments(base, local, upstream); err == nil {
 		t.Fatal("edited batch disappeared beside unverified deletion")
-	}
-}
-
-func TestVerificationBatchRequiresExactMemberEvidence(t *testing.T) {
-	t.Parallel()
-	checkpoint := batchPlanFixture().Items[0].Steps[0].VerificationBatch.Checkpoints[0]
-	evidence, err := runrecord.FormatCompletionAcceptanceEvidence(runrecord.CurrentVerifyPolicy, "audio/dataset", checkpoint.Verify)
-	if err != nil {
-		t.Fatal(err)
-	}
-	member := runrecord.GateStep{Name: checkpoint.GateCheckName(), Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, Evidence: evidence}
-	gate := runrecord.GateResult{Steps: []runrecord.GateStep{member}}
-	if err := requireNamedCompletionAcceptance(gate, checkpoint.GateCheckName(), "audio/dataset", checkpoint.Verify); err != nil {
-		t.Fatal(err)
-	}
-	if err := requireCompletionAcceptance(gate, "audio/dataset", checkpoint.Verify); err == nil {
-		t.Fatal("member evidence counted as parent completion")
-	}
-	for _, outcome := range []runrecord.StepOutcome{runrecord.StepSkipped, runrecord.StepInapplicable, runrecord.StepFailed, runrecord.StepCancelled} {
-		gate.Steps[0].Outcome = outcome
-		if err := requireNamedCompletionAcceptance(gate, checkpoint.GateCheckName(), "audio/dataset", checkpoint.Verify); err == nil {
-			t.Fatalf("member credited with %s", outcome)
-		}
-	}
-	gate.Steps = []runrecord.GateStep{member, member}
-	if err := requireNamedCompletionAcceptance(gate, checkpoint.GateCheckName(), "audio/dataset", checkpoint.Verify); err == nil {
-		t.Fatal("duplicate member evidence admitted")
-	}
-	gate.Steps = []runrecord.GateStep{member}
-	if err := requireNamedCompletionAcceptance(gate, checkpoint.GateCheckName(), "audio/dataset", checkpoint.Verify+" -race"); err == nil {
-		t.Fatal("old verifier evidence admitted for changed contract")
-	}
-}
-
-func TestVerificationBatchHistoryRefusesParentOnlyReceipt(t *testing.T) {
-	t.Parallel()
-	document := batchPlanFixture()
-	fixture := newCompletionFixture(t, document, "audio", "dataset")
-	fixture.commit(fixture.canonicalMessage(), true)
-	if _, err := ResolveCompletionAuthority(t.Context(), fixture.repository, fixture.completionHash, fixture.child, fixture.store); err == nil || !strings.Contains(err.Error(), "checkpoint traversal") {
-		t.Fatalf("batch completed with only parent acceptance: %v", err)
 	}
 }

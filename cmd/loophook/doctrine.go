@@ -14,19 +14,21 @@ THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
  3. Land the row with the one sequence that cannot skip a step (never raw git
     commit during a campaign):
       go run ./cmd/loop -land <item>/<step> -message-file -
-    with the message on standard input. It claims the row, preflights, gates
-    (the ship set is the dirty tree), confirms the landing from git, waits for
-    the deferred lanes' verdict and lists the landing's review candidates,
-    ending in one typed outcome. It prints only the lines that decide the
-    outcome; the rest is in the store (plan -history <item> -phases), and the
-    guard refuses a landing whose output is sent to a file.
+    with the message on standard input. The small gate runs over the dirty
+    tree (the ship set): go fmt, go vet, the rules against HEAD, go test ./...
+    with its cache, the lanes the change reaches and the row's verify; it
+    commits with the step removed from the plan and the landing is confirmed
+    from git, ending in one typed outcome. A stale derived file fails its test
+    with the command that regenerates it: run that, then land again. The guard
+    refuses a landing whose output is sent to a file.
     The message states "Cause:" and "Predicted effect:"; the gate refuses one
     without them and writes what it measured itself, so type no numbers.
-    Merges: git merge --no-ff --no-commit <branch> then go run ./cmd/gate -merge
-    -plan <item>/<step> -message-file <f>. Read the exit code UNPIPED.
- 4. The successful gate atomically removes the completed row. Do not run a
-    separate plan advance. Set a step's verify with -setverify; inject a task
-    with -add (flags BEFORE the positional id for both).
+    Merges: git merge --no-ff --no-commit <branch>, resolve, then land as
+    above; the commit records both parents. Read the exit code UNPIPED.
+ 4. The successful gate removes the completed step. Do not run a separate
+    plan advance. Set a step's verify with -setverify; inject a task with -add
+    (flags BEFORE the positional id for both). A landing may also delete rows
+    it retires; its message says why.
  5. Refactor the plan from the RESULT of the last task AND any USER INPUT:
     re-scope / re-rank / add / set-verify. A user request becomes the new #1
     AFTER the current work is committed -- it does NOT interrupt in-flight work.

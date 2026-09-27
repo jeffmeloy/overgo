@@ -2,8 +2,6 @@ package agentloop
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -170,37 +168,5 @@ func TestDelegatedCapabilityRuntimeConsumesStagedOwners(t *testing.T) {
 		ctx, store, agenttool.NewOperatorExecutor(), invocation, worker, wrongTask, "agent", t.TempDir(),
 	); err == nil {
 		t.Fatal("mismatched task contract admitted")
-	}
-}
-
-// TestAgentDelegationStagedSurfaceRetired pins the retirement: the staged
-// surface catalog no longer parks any agent-delegation owner -- every one
-// gained its production consumer in the delegated capability runtime and
-// the peer invocation path.
-func TestAgentDelegationStagedSurfaceRetired(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "staged_surface.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var catalog struct {
-		Staged []struct {
-			Name string `json:"name"`
-		} `json:"staged"`
-	}
-	if err := json.Unmarshal(data, &catalog); err != nil {
-		t.Fatal(err)
-	}
-	retired := map[string]bool{
-		"NewMutationCheckpointRuntime": true, "NewDelegatedCoordinator": true,
-		"CapabilityProxyManual": true, "RegisterCapabilityProxy": true,
-		"BindAgentTrajectoryPlan": true, "NewAgentTaskContract": true,
-		"NewDelegatedAgentInvocation": true, "NewAgentObligation": true,
-		"NewAgentObligationResolution": true, "CompileDelegatedAgentInvocation": true,
-		"PublishAutomationPolicyTransition": true,
-	}
-	for _, entry := range catalog.Staged {
-		if retired[entry.Name] {
-			t.Errorf("delegation owner %s is still staged", entry.Name)
-		}
 	}
 }

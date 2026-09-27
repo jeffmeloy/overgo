@@ -264,7 +264,7 @@ func ReadStop(ctx context.Context, reader artifact.Reader, root, head, mode stri
 		status.Event = &ControlEvent{Kind: ControlStop, ReasonCode: strings.TrimSpace(reason), Detail: strings.TrimSpace(detail), CodeCommit: marker.Head, Worktree: root, Mode: ExecutionAll, Legacy: legacy}
 	}
 	if status.Event != nil && head == "" {
-		_, current, headErr := resolveCompletionRevision(ctx, root, gitHeadRevision)
+		_, current, headErr := resolveRevision(ctx, root, gitHeadRevision)
 		if headErr == nil {
 			status.CurrentHead = current
 		}

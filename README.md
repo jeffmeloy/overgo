@@ -164,8 +164,9 @@ records priorities, dependencies, owners, and acceptance. The working cycle is:
 1. Take the next eligible row (`go run ./cmd/plan -next`) and implement a
    bounded change.
 2. Land it with `go run ./cmd/loop -land <item>/<step> -message-file -`, which
-   runs the required checks through the [gate](internal/gate/verification.go),
-   commits accepted work with its plan binding, and awaits the deferred lanes.
+   runs the [small gate](internal/landing/landing.go) -- go vet, the tests whose
+   inputs changed, the lanes the change reaches and the row's verify -- and
+   commits with the step removed from the plan.
 3. Retain results and cost in the store.
 4. Use outcomes and remaining obligations to select the next row.
 

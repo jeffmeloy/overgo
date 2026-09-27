@@ -82,8 +82,8 @@ func dispatchWorker(explicit string) (string, error) {
 }
 
 // DispatchOf resolves the current row for role under a resolved authority.
-func DispatchOf(document Plan, role string, authority CompletionAuthority) Dispatch {
-	item, step, ok := Current(document, role, authority)
+func DispatchOf(document Plan, role string) Dispatch {
+	item, step, ok := Current(document, role)
 	if !ok {
 		return finishDispatch(Dispatch{Complete: true})
 	}
@@ -143,7 +143,7 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if request.Acquire && worker == "" {
 		return Dispatch{}, fmt.Errorf("plan: executable dispatch requires -worker <stable-session-id> or %s", AutomationWorkerEnvironment)
 	}
-	repository, head, err := resolveCompletionRevision(ctx, root, gitHeadRevision)
+	repository, head, err := resolveRevision(ctx, root, gitHeadRevision)
 	if err != nil {
 		return Dispatch{}, err
 	}
@@ -160,7 +160,7 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 		}
 		defer func() { err = errors.Join(err, lock.Close()) }()
 		// HEAD and document are read under the mutation owner.
-		_, head, err = resolveCompletionRevision(ctx, repository, gitHeadRevision)
+		_, head, err = resolveRevision(ctx, repository, gitHeadRevision)
 		if err != nil {
 			return Dispatch{}, err
 		}
@@ -227,11 +227,7 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if err != nil {
 		return Dispatch{}, err
 	}
-	authority, err := ResolveCompletionAuthority(ctx, repository, gitHeadRevision, document, store)
-	if err != nil {
-		return Dispatch{}, err
-	}
-	key.Dispatch, err = selectDispatch(ctx, store, document, role, filepath.ToSlash(repository), worker, request.Reference, authority)
+	key.Dispatch, err = selectDispatch(ctx, store, document, role, filepath.ToSlash(repository), worker, request.Reference)
 	if err != nil {
 		return Dispatch{}, err
 	}
@@ -253,7 +249,7 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 		if contractErr != nil {
 			return Dispatch{}, contractErr
 		}
-		branch, branchErr := gitCompletionCommand(ctx, repository, gitRevisionCommand, "--abbrev-ref", gitHeadRevision)
+		branch, branchErr := gitCommand(ctx, repository, gitRevisionCommand, "--abbrev-ref", gitHeadRevision)
 		if branchErr != nil {
 			return Dispatch{}, branchErr
 		}
@@ -276,7 +272,7 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 				return Dispatch{}, claimErr
 			}
 			// Retry only a newly eligible row; never spin on the same claim.
-			key.Dispatch, err = selectDispatch(ctx, store, document, role, filepath.ToSlash(repository), worker, request.Reference, authority)
+			key.Dispatch, err = selectDispatch(ctx, store, document, role, filepath.ToSlash(repository), worker, request.Reference)
 			if err != nil {
 				return Dispatch{}, err
 			}
@@ -321,7 +317,7 @@ func cachedDispatch(path string, key dispatchCache) (Dispatch, bool) {
 // must not invalidate an active worker's contract.
 func dispatchContract(item Item, step Step) (string, error) {
 	item.Steps = []Step{step}
-	digest, err := completionContractDigest(item)
+	digest, err := contractDigest(item)
 	return hex.EncodeToString(digest[:]), err
 }
 
@@ -338,8 +334,8 @@ func dispatchStep(document Plan, ref string) (Item, Step, bool) {
 
 // Visit prerequisites before the blocked objective's later siblings; retain
 // document order otherwise. This changes scheduling, never dependency evidence.
-func dispatchPriority(document Plan, role string, authority CompletionAuthority) ([]Ref, error) {
-	frontier, err := ReadyFrontier(document, authority)
+func dispatchPriority(document Plan, role string) ([]Ref, error) {
+	frontier, err := ReadyFrontier(document)
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +453,7 @@ func ValidateClaimedPlan(ctx context.Context, reader artifact.Reader, root strin
 	return nil
 }
 
-func validateDispatchContract(document Plan, lease worklease.Lease, role string, authority CompletionAuthority) error {
+func validateDispatchContract(document Plan, lease worklease.Lease, role string) error {
 	if normalizedRole(role) != lease.Role {
 		return errors.New("plan: claim belongs to a different dispatch role")
 	}
@@ -465,7 +461,7 @@ func validateDispatchContract(document Plan, lease worklease.Lease, role string,
 	if !found || item.Status != StatusOpen || step.Status != StatusOpen {
 		return errors.New("plan: claimed row is no longer open; reconcile its completion or handoff")
 	}
-	ready, err := dispatchPriority(document, role, authority)
+	ready, err := dispatchPriority(document, role)
 	if err != nil {
 		return err
 	}
@@ -490,7 +486,7 @@ var errContractAmended = errors.New("plan: claimed row contract was amended; re-
 // RequireDispatch rechecks the exact executable claim at admission and commit.
 // Legacy callers retain current-row admission only while no dispatch claim owns
 // that worktree or row; they cannot overwrite an active worker's authority.
-func RequireDispatch(ctx context.Context, reader artifact.Reader, document Plan, authority CompletionAuthority, root, role, reference string) (Item, Step, *worklease.Lease, error) {
+func RequireDispatch(ctx context.Context, reader artifact.Reader, document Plan, root, role, reference string) (Item, Step, *worklease.Lease, error) {
 	mode, modeErr := ExecutionMode("")
 	if modeErr != nil {
 		return Item{}, Step{}, nil, modeErr
@@ -530,20 +526,20 @@ func RequireDispatch(ctx context.Context, reader artifact.Reader, document Plan,
 		if err := worklease.ResolveOwner(ctx, reader, *lease); err != nil {
 			return Item{}, Step{}, nil, err
 		}
-		if err := validateDispatchContract(document, *lease, role, authority); err != nil {
+		if err := validateDispatchContract(document, *lease, role); err != nil {
 			return Item{}, Step{}, nil, err
 		}
 		item, step, _ := dispatchStep(document, reference)
 		return item, step, lease, nil
 	}
-	item, step, found := Current(document, role, authority)
+	item, step, found := Current(document, role)
 	if !found || item.ID+"/"+step.ID != reference {
 		return Item{}, Step{}, nil, errors.New("plan: reference does not match the current open step")
 	}
 	return item, step, nil, nil
 }
 
-func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, role, worktree, worker, reference string, authority CompletionAuthority) (Dispatch, error) {
+func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, role, worktree, worker, reference string) (Dispatch, error) {
 	aliases := []string{worklease.WorktreeAlias(worktree)}
 	if worker != "" {
 		aliases = append(aliases, worklease.Alias(worklease.WorkerAliasRoot, worker))
@@ -565,7 +561,7 @@ func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, 
 		if err := worklease.ResolveOwner(ctx, reader, *lease); err != nil {
 			return finishDispatch(Dispatch{Claim: lease, Waiting: err.Error()}), nil
 		}
-		err = validateDispatchContract(document, *lease, role, authority)
+		err = validateDispatchContract(document, *lease, role)
 		item, step, _ := dispatchStep(document, lease.Task)
 		if errors.Is(err, errContractAmended) {
 			amended := stepDispatch(item, step, nil)
@@ -577,7 +573,7 @@ func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, 
 		}
 		return stepDispatch(item, step, lease), nil
 	}
-	ordered, err := dispatchPriority(document, role, authority)
+	ordered, err := dispatchPriority(document, role)
 	if err != nil {
 		return Dispatch{}, err
 	}
@@ -603,9 +599,9 @@ func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, 
 	if reference != "" {
 		return finishDispatch(Dispatch{Waiting: "requested row is not ready for this role"}), nil
 	}
-	if _, _, open := Current(document, role, authority); open {
+	if _, _, open := Current(document, role); open {
 		// Preserve the legacy empty-rung dispatch until it is given steps.
-		return DispatchOf(document, role, authority), nil
+		return DispatchOf(document, role), nil
 	}
 	for _, item := range document.Items {
 		if item.Status == StatusOpen {

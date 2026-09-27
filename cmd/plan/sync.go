@@ -25,7 +25,6 @@ const (
 	trainingCompatibilityDocumentPath = "docs/TRAINING_COMPATIBILITY.md"
 	apiManifestJSONPath               = "docs/api_manifest.json"
 	modernGoBaselinePath              = "docs/modern_go_baseline.json"
-	harnessSurfaceBaselinePath        = "docs/harness_surface_baseline.json"
 )
 
 func prepareMerge(root, source string, output io.Writer) error {
@@ -54,7 +53,7 @@ func prepareMergeWithProjection(
 		return err
 	}
 	root = canonicalRoot
-	return withPlanMutation(root, false, func(local plan.Plan) error {
+	return withPlanMutation(root, func(local plan.Plan) error {
 		status, err := gitOutput(root, "status", "--porcelain=v1", "--untracked-files=all")
 		if err != nil {
 			return err
@@ -99,33 +98,18 @@ func prepareMergeWithProjection(
 		if err := preflightMergeConflicts(root, localRevision, snapshot); err != nil {
 			return err
 		}
-		closureSnapshot, err := captureClosureEvidence(ctx, root, source, snapshot, sourceStoreSelector)
-		if err != nil {
-			return err
-		}
-		if closureSnapshot.cleanup != nil {
-			defer closureSnapshot.cleanup()
-			fmt.Fprintf(output, "prepare-merge: evidence snapshot IO=%+v; store-file counters exclude seal IO and replay\n", closureSnapshot.backup)
-		}
 		liveSourceStore := ""
 		if projection == plan.MergeProjectionFirstParentTarget {
-			liveSourceStore, err = firstParentTargetSourceStore(
-				context.Background(), root, snapshot, closureSnapshot.source,
-			)
+			sourceStore, err := sourceOvergoDB(root, source, snapshot, sourceStoreSelector)
+			if err != nil {
+				return err
+			}
+			liveSourceStore, err = firstParentTargetSourceStore(ctx, root, snapshot, sourceStore)
 			if err != nil {
 				return err
 			}
 		}
-		var localAuthority, incomingAuthority plan.CompletionAuthority
-		if projection == plan.MergeProjectionSemanticUnion {
-			localAuthority, incomingAuthority, err = resolveMergeAuthorities(
-				root, localRevision, snapshot, local, incoming,
-			)
-			if err != nil {
-				return fmt.Errorf("prepare-merge completion authority: %w", err)
-			}
-		}
-		merged, err := projectMergePlan(base, local, incoming, localAuthority, incomingAuthority, projection)
+		merged, err := projectMergePlan(base, local, incoming, projection)
 		if err != nil {
 			return err
 		}
@@ -138,19 +122,6 @@ func prepareMergeWithProjection(
 		}
 		if lane {
 			merged.Items[0].Owner = local.Lane
-		}
-		if projection == plan.MergeProjectionFirstParentTarget {
-			if err := verifyFirstParentTargetMergeSources(
-				context.Background(), root, localRevision, snapshot, local, incoming, merged,
-				closureSnapshot.store,
-			); err != nil {
-				return fmt.Errorf("prepare-merge completion authority: %w", err)
-			}
-		} else if err := plan.VerifyProspectiveMergeAuthorityWithProjection(
-			root, localRevision, snapshot, local, incoming, merged, localAuthority, incomingAuthority,
-			projection,
-		); err != nil {
-			return fmt.Errorf("prepare-merge completion authority: %w", err)
 		}
 		latestLocal, err := gitOutput(root, "rev-parse", "--verify", "HEAD^{commit}")
 		if err != nil || strings.TrimSpace(string(latestLocal)) != localRevision {
@@ -182,30 +153,15 @@ func prepareMergeWithProjection(
 			trainingCompatibilityDocumentPath,
 			apiManifestJSONPath,
 			modernGoBaselinePath,
-			harnessSurfaceBaselinePath,
 		); err != nil {
 			return err
 		}
 		if _, err := gitOutput(root, "update-index", "--clear-resolve-undo"); err != nil {
 			return fmt.Errorf("clear resolved merge metadata: %w", err)
 		}
-		if closureSnapshot.store != "" {
-			result, err := commandOutput(root, "go", "run", "./cmd/closure-scan", "-import-store", closureSnapshot.store)
-			if err != nil {
-				return fmt.Errorf("prepare-merge closure evidence: %w", err)
-			}
-			fmt.Fprintf(output, "prepare-merge: closure evidence %s from %s@%d bound to git %s\n",
-				strings.TrimSpace(string(result)), closureSnapshot.head, closureSnapshot.sequence, snapshot)
-		} else {
-			fmt.Fprintln(output, "prepare-merge: closure evidence unavailable (source snapshot has no local OvergoDB worktree)")
-		}
 		if lane {
-			// The lane's store rebinds its own decisions over the imported
-			// ones and mirrors the source's activations, so the one gate
-			// reads the same activation truth as the source's.
-			if _, err := commandOutput(root, "go", "run", "./cmd/closure-scan", "-store", gitauthority.CanonicalOvergoDBDirectory, "-import-store", gitauthority.CanonicalOvergoDBDirectory); err != nil {
-				return fmt.Errorf("prepare-merge lane closure rebind: %w", err)
-			}
+			// The lane's store mirrors the source's activations, so the lane
+			// reads the same activation truth as the source.
 			report, err := mirrorLaneActivations(root, liveSourceStore)
 			if err != nil {
 				return fmt.Errorf("prepare-merge lane activations: %w", err)
@@ -214,14 +170,10 @@ func prepareMergeWithProjection(
 				report.SourceActive, report.ClosureRecords, report.Copied, report.Bindings, len(report.Released))
 		}
 		keepMerge = true
-		projectionArguments, err := mergeFinalizeProjectionArguments(projection, liveSourceStore)
-		if err != nil {
-			return err
-		}
 		fmt.Fprintf(
 			output,
-			"prepare-merge: %s@%s staged; finalize with cmd/gate -merge%s -plan %s/do\n",
-			source, snapshot, projectionArguments, mergeID,
+			"prepare-merge: %s@%s staged; land it with go run ./cmd/loop -land %s/do\n",
+			source, snapshot, mergeID,
 		)
 		if lane {
 			fmt.Fprintf(output, "prepare-merge: lane merge prepared in %s from the request to the staged merge\n", time.Since(started).Round(time.Millisecond))
@@ -234,7 +186,7 @@ func prepareMergeWithProjection(
 // generated-document conflict. The gate later recomputes them from merged code
 // and may lower a ceiling, while a raise still requires explicit paydown.
 func restoreMergeTargetBaselines(root, localRevision string) error {
-	for _, path := range []string{modernGoBaselinePath, harnessSurfaceBaselinePath} {
+	for _, path := range []string{modernGoBaselinePath} {
 		baseline, err := gitOutput(root, "show", localRevision+":"+path)
 		if err != nil {
 			return fmt.Errorf("restore target %s: %w", path, err)
@@ -330,7 +282,7 @@ func preflightMergeConflicts(root, target, source string) error {
 	}
 	for path := range bytes.SplitSeq(paths, []byte{0}) {
 		if len(path) != 0 && !mergeOwnedDocument(string(path)) {
-			return fmt.Errorf("prepare-merge source conflict in %q; evidence snapshot not copied", path)
+			return fmt.Errorf("prepare-merge source conflict in %q", path)
 		}
 	}
 	return nil
@@ -342,8 +294,7 @@ func mergeOwnedDocument(path string) bool {
 		compatibilityDocumentPath,
 		trainingCompatibilityDocumentPath,
 		apiManifestJSONPath,
-		modernGoBaselinePath,
-		harnessSurfaceBaselinePath:
+		modernGoBaselinePath:
 		return true
 	default:
 		return false
@@ -369,84 +320,43 @@ func regenerateMergeOwnedDocuments(root, localRevision string) error {
 	return nil
 }
 
-func projectMergePlan(
-	base, local, incoming plan.Plan,
-	localAuthority, incomingAuthority plan.CompletionAuthority,
-	projection plan.MergeProjection,
-) (plan.Plan, error) {
+func projectMergePlan(base, local, incoming plan.Plan, projection plan.MergeProjection) (plan.Plan, error) {
 	if projection == plan.MergeProjectionFirstParentTarget {
 		return local, nil
 	}
-	return plan.MergeDocumentsWithCompletion(base, local, incoming, localAuthority, incomingAuthority)
+	return plan.MergeDocuments(base, local, incoming)
 }
 
+// uniqueMergeBase is the one merge base of the two revisions. Criss-cross
+// history with several bases takes the one on the target's first-parent
+// chain; without exactly one there, the plan merge has no base and refuses.
 func uniqueMergeBase(root, localRevision, incomingRevision string) (string, error) {
-	base, err := plan.CompletionMergeBase(context.Background(), root, localRevision, incomingRevision)
+	output, err := gitOutput(root, "merge-base", "--all", localRevision, incomingRevision)
 	if err != nil {
-		return "", fmt.Errorf("prepare-merge: %w", err)
+		return "", fmt.Errorf("prepare-merge: merge base: %w", err)
 	}
-	return base, nil
-}
-
-func resolveMergeAuthorities(
-	root, localRevision, incomingRevision string,
-	local, incoming plan.Plan,
-) (localAuthority, incomingAuthority plan.CompletionAuthority, returnErr error) {
-	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
+	bases := strings.Fields(string(output))
+	if len(bases) == 1 {
+		return bases[0], nil
+	}
+	output, err = gitOutput(root, "rev-list", "--first-parent", localRevision)
 	if err != nil {
-		return plan.CompletionAuthority{}, plan.CompletionAuthority{}, err
+		return "", err
 	}
-	defer func() { returnErr = errors.Join(returnErr, store.Close()) }()
-	localAuthority, err = plan.ResolveCompletionAuthority(
-		context.Background(), root, localRevision, local, store,
-	)
-	if err != nil {
-		return plan.CompletionAuthority{}, plan.CompletionAuthority{}, fmt.Errorf("local parent %.12s: %w", localRevision, err)
+	chain := map[string]bool{}
+	for revision := range strings.FieldsSeq(string(output)) {
+		chain[revision] = true
 	}
-	incomingAuthority, err = plan.ResolveCompletionAuthority(
-		context.Background(), root, incomingRevision, incoming, store,
-	)
-	if err != nil {
-		return plan.CompletionAuthority{}, plan.CompletionAuthority{}, fmt.Errorf(
-			"incoming parent %.12s is not proven by the target authority store: %w", incomingRevision, err,
-		)
+	var selected []string
+	for _, base := range bases {
+		if chain[base] {
+			selected = append(selected, base)
+		}
 	}
-	return localAuthority, incomingAuthority, nil
-}
-
-func verifyFirstParentTargetMergeSources(
-	ctx context.Context,
-	root, localRevision, incomingRevision string,
-	local, incoming, merged plan.Plan,
-	sourceSnapshotPath string,
-) (returnErr error) {
-	if strings.TrimSpace(sourceSnapshotPath) == "" {
-		return errors.New("first-parent-target requires a replay-verified source store snapshot")
+	if len(selected) != 1 {
+		return "", fmt.Errorf("prepare-merge: needs one merge base on the target's first-parent chain, found %d of %d", len(selected), len(bases))
 	}
-	targetStore, err := overgodb.OpenReadOnly(filepath.Join(root, gitauthority.CanonicalOvergoDBDirectory))
-	if err != nil {
-		return err
-	}
-	defer func() { returnErr = errors.Join(returnErr, targetStore.Close()) }()
-	sourceStore, err := overgodb.OpenReadOnly(sourceSnapshotPath)
-	if err != nil {
-		return err
-	}
-	defer func() { returnErr = errors.Join(returnErr, sourceStore.Close()) }()
-
-	localAuthority, err := plan.ResolveCompletionAuthority(ctx, root, localRevision, local, targetStore)
-	if err != nil {
-		return fmt.Errorf("local parent %.12s: %w", localRevision, err)
-	}
-	incomingAuthority, err := plan.ResolveCompletionAuthority(ctx, root, incomingRevision, incoming, sourceStore)
-	if err != nil {
-		return fmt.Errorf("incoming parent %.12s is not proven by its source authority store: %w", incomingRevision, err)
-	}
-	_, err = plan.VerifyFirstParentTargetMergeSources(
-		ctx, root, localRevision, incomingRevision, local, incoming, merged,
-		localAuthority, incomingAuthority, targetStore, sourceStore,
-	)
-	return err
+	return selected[0], nil
 }
 
 func firstParentTargetSourceStore(
@@ -461,23 +371,6 @@ func firstParentTargetSourceStore(
 		return "", fmt.Errorf("prepare-merge: first-parent-target source store: %w", err)
 	}
 	return store, nil
-}
-
-func mergeFinalizeProjectionArguments(projection plan.MergeProjection, sourceStore string) (string, error) {
-	switch projection {
-	case plan.MergeProjectionSemanticUnion:
-		return "", nil
-	case plan.MergeProjectionFirstParentTarget:
-		if strings.TrimSpace(sourceStore) == "" {
-			return "", errors.New("prepare-merge: first-parent-target finalize command requires its live source store")
-		}
-		if strings.ContainsAny(sourceStore, "\"\r\n") {
-			return "", errors.New("prepare-merge: source store path cannot be rendered safely")
-		}
-		return " -plan-projection " + string(projection) + ` -merge-source-store "` + sourceStore + `"`, nil
-	default:
-		return "", errors.New("prepare-merge: invalid merge projection")
-	}
 }
 
 func verifySourceSnapshot(source, snapshot string, latest []byte, resolveErr error) error {

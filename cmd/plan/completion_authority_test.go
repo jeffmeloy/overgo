@@ -6,52 +6,20 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 )
 
-func mustTestCompletionAuthority(t *testing.T, document plan.Plan) plan.CompletionAuthority {
-	t.Helper()
-	authority, err := testCompletionAuthority(t, document)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return authority
-}
-
-func testCompletionAuthority(t *testing.T, document plan.Plan) (plan.CompletionAuthority, error) {
-	t.Helper()
-	root := initializePlanTestRepository(t, document)
-	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		return plan.CompletionAuthority{}, err
-	}
-	defer store.Close()
-	return plan.ResolveCompletionAuthority(t.Context(), root, "HEAD", document, store)
-}
-
-func mustTestCompletionAuthorityBinding(
-	t *testing.T,
-	document plan.Plan,
-) (plan.CompletionAuthority, string, string) {
+// mustTestRepositoryBinding seeds a repository holding document and returns
+// its worktree and HEAD.
+func mustTestRepositoryBinding(t *testing.T, document plan.Plan) (string, string) {
 	t.Helper()
 	root := initializePlanTestRepository(t, document)
 	headRaw, err := commandOutput(root, "git", "rev-parse", "HEAD")
 	if err != nil {
 		t.Fatal(err)
 	}
-	head := strings.TrimSpace(string(headRaw))
-	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	authority, err := plan.ResolveCompletionAuthority(t.Context(), root, head, document, store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return authority, root, head
+	return root, strings.TrimSpace(string(headRaw))
 }
 
 func initializePlanTestRepository(t *testing.T, document plan.Plan) string {
@@ -82,39 +50,4 @@ func initializePlanTestRepository(t *testing.T, document plan.Plan) string {
 		t.Fatal(err)
 	}
 	return root
-}
-
-func TestNonDispatchCommandsDoNotRequireCompletionAuthority(t *testing.T) {
-	census, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("census"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	document := plan.Plan{Census: &census, Items: []plan.Item{{
-		ID: "dependent", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "do", Status: plan.StatusOpen, Verify: "go test ./...",
-			DependsOn: []string{"missing/do"},
-		}},
-	}}}
-	root := initializePlanTestRepository(t, document)
-	t.Chdir(root)
-
-	for name, invocation := range map[string]func() error{
-		"status":  func() error { return run(cli{status: true}, nil) },
-		"history": func() error { return run(cli{history: "all"}, nil) },
-		"stop": func() error {
-			return run(cli{stop: true, worker: "stop-fixture", retireLegacyLeases: noLegacyLeaseRetirement}, []string{"user-stop: fixture"})
-		},
-		"control": func() error {
-			return run(cli{contain: "device-instability", lane: "fixture"}, []string{"fixture"})
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if err := invocation(); err != nil {
-				t.Fatalf("non-dispatch command required broken completion evidence: %v", err)
-			}
-		})
-	}
-	if _, err := testCompletionAuthority(t, document); err == nil || !strings.Contains(err.Error(), "lacks gated ancestor completion evidence") {
-		t.Fatalf("fixture completion evidence is not broken: %v", err)
-	}
 }

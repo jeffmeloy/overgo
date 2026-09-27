@@ -20,14 +20,14 @@ func TestAutomationContextSnapshotEncoding(t *testing.T) {
 		ID: "automation", Title: "Automation", Status: "open",
 		Steps: []plan.Step{{ID: "context", Title: "Context", Status: "open", Verify: "go test ./..."}},
 	}}}
-	authority, worktree, head := mustTestCompletionAuthorityBinding(t, document)
+	worktree, head := mustTestRepositoryBinding(t, document)
 	facts := plan.ContextFacts{
 		Head: head, Branch: "codex/automation",
 		Worktree: worktree, Role: "sqa",
 		EvidenceDebt: plan.EvidenceDebt{State: "possible", Source: "bin/gate_status.json", Reason: "fixture"},
 		Workflow:     plan.WorkflowContext{Phase: "sqa", Source: "git:HEAD+overgodb:overgodb-store"},
 	}
-	context, err := plan.BuildAutomationContext(document, facts, authority)
+	context, err := plan.BuildAutomationContext(document, facts)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/automationcheck"
+	"overgo/internal/devicescope"
 )
 
-func inferenceDeviceStep(t *testing.T, plan automationcheck.DeviceVerificationPlan) []string {
+func inferenceDeviceStep(t *testing.T, plan devicescope.VerificationPlan) []string {
 	t.Helper()
 	for _, step := range deviceSteps(plan) {
 		if !slices.Contains(step, "./internal/inference") {
@@ -31,17 +31,17 @@ func inferenceDeviceStep(t *testing.T, plan automationcheck.DeviceVerificationPl
 }
 
 func TestDeviceDeclaredCommands(t *testing.T) {
-	full := inferenceDeviceStep(t, automationcheck.DeviceVerificationPlan{Full: true})
-	partial := inferenceDeviceStep(t, automationcheck.DeviceVerificationPlan{Packages: []string{"./internal/inference"}})
+	full := inferenceDeviceStep(t, devicescope.VerificationPlan{Full: true})
+	partial := inferenceDeviceStep(t, devicescope.VerificationPlan{Packages: []string{"./internal/inference"}})
 	if !slices.Equal(full, partial) {
 		t.Fatalf("full and partial contracts differ: %v / %v", full, partial)
 	}
 }
 
 func TestDeviceDeclaredEvidence(t *testing.T) {
-	plan := automationcheck.DeviceVerificationPlan{Packages: []string{"./internal/inference"}}
+	plan := devicescope.VerificationPlan{Packages: []string{"./internal/inference"}}
 	step := inferenceDeviceStep(t, plan)
-	names := automationcheck.DeviceScopes(plan)[0].Tests
+	names := devicescope.Scopes(plan)[0].Tests
 	stream := func(omit, skip string) string {
 		var output strings.Builder
 		encoder := json.NewEncoder(&output)

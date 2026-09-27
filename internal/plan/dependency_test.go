@@ -28,18 +28,14 @@ func TestDependencyDispatchSkipsBlocked(t *testing.T) {
 	t.Parallel()
 	document := dependencyFixture()
 	document.Items[0], document.Items[1] = document.Items[1], document.Items[0]
-	item, _, ok := Current(document, "gui", testCompletionAuthority(t, document))
+	item, _, ok := Current(document, "gui")
 	if !ok || item.ID != "root" {
 		t.Fatalf("dispatch = (%s, %t), want the unblocked root despite file order", item.ID, ok)
 	}
-	// Completion removes the root row entirely, but absence alone is not
-	// evidence. The derived completion authority must name the exact row.
+	// A landing that completes or retires the root removes it; its absence
+	// settles the dependency.
 	document.Items = document.Items[:1]
-	if _, _, ok := Current(document, "gui", CompletionAuthority{}); ok {
-		t.Fatal("dependent dispatched from absence without completion authority")
-	}
-	authority := testCompletionAuthority(t, document, "root/do")
-	item, _, ok = Current(document, "gui", authority)
+	item, _, ok = Current(document, "gui")
 	if !ok || item.ID != "dependent" {
 		t.Fatalf("dispatch = (%s, %t), want the dependent once its root completed and left", item.ID, ok)
 	}
@@ -47,29 +43,8 @@ func TestDependencyDispatchSkipsBlocked(t *testing.T) {
 	document.Items[0].Steps = append(document.Items[0].Steps,
 		Step{ID: "later", Status: StatusOpen, Verify: "go test ./..."})
 	document.Items[0].Steps[0].DependsOn = []string{"dependent/later"}
-	authority = testCompletionAuthority(t, document, "root/do")
-	if item, step, ok := Current(document, "gui", authority); !ok || step.ID != "later" {
+	if item, step, ok := Current(document, "gui"); !ok || step.ID != "later" {
 		t.Fatalf("dispatch = (%s/%s, %t), want the unblocked sibling", item.ID, step.ID, ok)
-	}
-}
-
-// TestPrunedDependencyRequiresExplicitAuthority pins the fail-closed scheduler
-// boundary: a syntactically valid missing row never satisfies depends_on until
-// the opaque, derived authority carries that exact completion.
-func TestPrunedDependencyRequiresExplicitAuthority(t *testing.T) {
-	t.Parallel()
-	document := dependencyFixture()
-	document.Items = document.Items[1:]
-	if _, _, open := Current(document, "gui", CompletionAuthority{}); open {
-		t.Fatal("unknown pruned dependency dispatched")
-	}
-	wrong := testCompletionAuthority(t, document, "other/do")
-	if _, _, open := Current(document, "gui", wrong); open {
-		t.Fatal("foreign completion evidence satisfied dependency")
-	}
-	exact := testCompletionAuthority(t, document, "root/do")
-	if item, step, open := Current(document, "gui", exact); !open || item.ID != "dependent" || step.ID != "do" {
-		t.Fatalf("exact completion did not dispatch dependent: %s/%s open=%v", item.ID, step.ID, open)
 	}
 }
 

@@ -6,10 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
 	"overgo/internal/plan"
-	"overgo/internal/testutil"
 )
 
 func TestPlanMutationRefusesSharedGateLock(t *testing.T) {
@@ -27,7 +25,7 @@ func TestPlanMutationRefusesSharedGateLock(t *testing.T) {
 	}
 	defer lock.Close()
 	called := false
-	err = withPlanMutation(root, false, func(plan.Plan) error {
+	err = withPlanMutation(root, func(plan.Plan) error {
 		called = true
 		return nil
 	})
@@ -50,7 +48,7 @@ func TestPlanMutationReloadsAfterAcquiringAuthority(t *testing.T) {
 	current := mutationPlan(t, "current")
 	saveMutationPlan(t, root, current)
 	seen := ""
-	if err := withPlanMutation(root, false, func(document plan.Plan) error {
+	if err := withPlanMutation(root, func(document plan.Plan) error {
 		seen = document.Items[0].Title
 		return nil
 	}); err != nil {
@@ -59,7 +57,7 @@ func TestPlanMutationReloadsAfterAcquiringAuthority(t *testing.T) {
 	if seen != "current" || stale.Items[0].Title != "stale" {
 		t.Fatalf("mutation saw %q from stale snapshot %+v", seen, stale.Items[0])
 	}
-	if err := withPlanMutation(root, false, nil); err == nil {
+	if err := withPlanMutation(root, nil); err == nil {
 		t.Fatal("nil mutation callback was accepted")
 	}
 }
@@ -78,8 +76,7 @@ func saveMutationPlan(t *testing.T, root string, document plan.Plan) string {
 
 func mutationPlan(t *testing.T, title string) plan.Plan {
 	t.Helper()
-	census := testutil.ArtifactID(t, artifact.KindEvidence, "plan mutation census")
-	return plan.Plan{Census: &census, Items: []plan.Item{{
+	return plan.Plan{Items: []plan.Item{{
 		ID: "row", Title: title, Status: plan.StatusOpen,
 		Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "go test ./cmd/plan"}},
 	}}}

@@ -1,4 +1,4 @@
-package automationcheck
+package devicescope
 
 import (
 	"go/parser"
@@ -50,7 +50,7 @@ func addDeviceConsumers(root string, paths []string, packages map[string]bool) e
 		}
 		return false, nil
 	}
-	for _, packagePath := range DeviceLanePackages() {
+	for _, packagePath := range Packages() {
 		if affected, err := depends(packagePath, map[string]bool{}); err != nil {
 			return err
 		} else if affected {

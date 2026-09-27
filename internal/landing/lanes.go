@@ -9,34 +9,41 @@ import (
 	"strings"
 
 	"overgo/internal/clioptions"
-	"overgo/internal/codeprofile"
+	"overgo/internal/devicescope"
 )
 
 // lane is one check that drives real hardware or a browser. It runs when the
-// change reaches the test closure of its packages, or touches a path class
-// that triggers it directly; go list, not a manifest, decides the closure.
+// change reaches the test closure of its packages, or touches a path under
+// one of its prefixes; go list, not a manifest, decides the closure.
 type lane struct {
 	name     string
 	packages []string
-	surface  codeprofile.Surface
 	prefixes []string
 	command  func(changed string) []string
 }
 
 var lanes = []lane{
 	{
-		name: "device", packages: []string{"./internal/cuda/...", "./cmd/device-lane"}, prefixes: []string{"kernels/"},
+		// The device lane runs its scopes' tests as its own processes, not as
+		// imports, so its reach is the closure of those packages.
+		name: "device", packages: append(devicePackages(), "./cmd/device-lane"), prefixes: []string{"kernels/"},
 		command: func(changed string) []string { return []string{"run", "./cmd/device-lane", "-paths-file", changed} },
 	},
 	{
-		name: "webui", packages: []string{"./internal/server", "./internal/webuilane", "./cmd/webui-lane"}, surface: codeprofile.WebUI,
+		// The page's assets, browser tests, lane and page declarations.
+		name: "webui", packages: []string{"./internal/server", "./internal/webuilane", "./cmd/webui-lane"},
+		prefixes: []string{"internal/server/webui/", "internal/server/webui_", "cmd/webui-lane/", "internal/webuilane/",
+			"internal/server/workspace_manifest.json", "internal/server/workspace_schema.json", "internal/server/library_validation.json"},
 		command: func(string) []string { return []string{"run", "./cmd/webui-lane"} },
 	},
 	{
+		// A served-model journey or the server command.
 		name:     "model-journey",
 		packages: []string{"./internal/modelswap", "./internal/libraryintake", "./internal/discovery", "./cmd/server"},
-		surface:  codeprofile.ModelJourney,
-		command:  func(string) []string { return []string{"run", "./cmd/webui-lane", "-journeys"} },
+		prefixes: []string{"cmd/server/", "internal/server/webui_browser_firstrun", "internal/server/webui_browser_library_validation",
+			"internal/server/webui_browser_preparation", "internal/server/webui_browser_store_test.go", "internal/server/webui_served_projector",
+			"internal/audioparity/webui_microphone"},
+		command: func(string) []string { return []string{"run", "./cmd/webui-lane", "-journeys"} },
 	},
 }
 
@@ -72,11 +79,8 @@ func (l *landing) lanes(ctx context.Context) error {
 }
 
 // reaches reports whether a changed path lies in a package of the lane's
-// test closure, or in a class or under a prefix that triggers it.
+// test closure, or under a prefix that triggers it.
 func (l *landing) reaches(ctx context.Context, candidate lane) (bool, error) {
-	if candidate.surface != 0 && codeprofile.Holds(l.paths, candidate.surface) {
-		return true, nil
-	}
 	if slices.ContainsFunc(l.paths, func(name string) bool {
 		return slices.ContainsFunc(candidate.prefixes, func(prefix string) bool { return strings.HasPrefix(name, prefix) })
 	}) {
@@ -97,6 +101,19 @@ func (l *landing) reaches(ctx context.Context, candidate lane) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// devicePackages are the device lane's scopes as package patterns; the cuda
+// tree is recursive.
+func devicePackages() []string {
+	var patterns []string
+	for _, packagePath := range devicescope.Packages() {
+		if packagePath == "internal/cuda" {
+			packagePath += "/..."
+		}
+		patterns = append(patterns, "./"+packagePath)
+	}
+	return patterns
 }
 
 func tail(text string) string {

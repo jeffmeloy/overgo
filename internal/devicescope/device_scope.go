@@ -1,13 +1,13 @@
-package automationcheck
+package devicescope
 
 import (
 	"slices"
 	"strings"
 )
 
-// DeviceTestScope declares a lane's package and test selection. Named Tests
+// TestScope declares a lane's package and test selection. Named Tests
 // are required individually; Run retains existing pattern-based contracts.
-type DeviceTestScope struct {
+type TestScope struct {
 	Package string
 	Run     string
 	Tests   []string
@@ -15,7 +15,7 @@ type DeviceTestScope struct {
 
 // Keep fixture-free kernel contracts separate from general host tests and
 // externally supplied model journeys in the same package.
-var deviceLaneScopes = []DeviceTestScope{
+var deviceLaneScopes = []TestScope{
 	{Package: "./internal/cuda/..."},
 	{Package: "./internal/model"},
 	{Package: "./internal/projector"},
@@ -34,9 +34,9 @@ var deviceLaneScopes = []DeviceTestScope{
 	}},
 }
 
-// DeviceLanePackages derives impact ownership from the lane's executed scopes.
+// Packages derives impact ownership from the lane's executed scopes.
 // internal/cuda is recursive; all remaining packages are exact owners.
-func DeviceLanePackages() []string {
+func Packages() []string {
 	var packages []string
 	for _, scope := range deviceLaneScopes {
 		packages = append(packages, strings.TrimSuffix(strings.TrimPrefix(scope.Package, "./"), "/..."))
@@ -44,9 +44,9 @@ func DeviceLanePackages() []string {
 	return packages
 }
 
-// DeviceScopes uses the same test contracts for full and scoped verification.
+// Scopes uses the same test contracts for full and scoped verification.
 // Additional launch owners retain package-wide verification.
-func DeviceScopes(plan DeviceVerificationPlan) []DeviceTestScope {
+func Scopes(plan VerificationPlan) []TestScope {
 	if plan.Full {
 		result := slices.Clone(deviceLaneScopes)
 		for index := range result {
@@ -54,9 +54,9 @@ func DeviceScopes(plan DeviceVerificationPlan) []DeviceTestScope {
 		}
 		return result
 	}
-	var result []DeviceTestScope
+	var result []TestScope
 	for _, packagePath := range plan.Packages {
-		scope := DeviceTestScope{Package: packagePath}
+		scope := TestScope{Package: packagePath}
 		for _, declared := range deviceLaneScopes {
 			if declared.Package == packagePath {
 				scope.Run, scope.Tests = declared.Run, slices.Clone(declared.Tests)

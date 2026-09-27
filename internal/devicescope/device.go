@@ -1,7 +1,10 @@
-package automationcheck
+// Package devicescope is what the device lane verifies: the packages and
+// tests it runs on the GPU, and which of them a change to kernels or device
+// code reaches. The device lane runs them; the small gate reads the same
+// scopes to decide when the lane must run.
+package devicescope
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,18 +13,11 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"overgo/internal/runrecord"
 )
 
-const (
-	deviceCheckName      = "device"
-	deviceImpact    Fact = "capability:device"
-)
-
-// DeviceVerificationPlan is the exact package/function scope for one device
+// VerificationPlan is the exact package/function scope for one device
 // lane. Full is the fail-closed result when ownership cannot be proven.
-type DeviceVerificationPlan struct {
+type VerificationPlan struct {
 	Packages  []string
 	Functions []string
 	Full      bool
@@ -43,53 +39,19 @@ type deviceDependency struct {
 	Path string `json:"path"`
 }
 
-// DeviceCheck returns the shared-device verification adapter.
-func DeviceCheck(root string, paths, packages []string, command LaneCommand) Check {
-	return Check{
-		Descriptor: Descriptor{
-			Name: deviceCheckName, Phase: runrecord.PhaseTest, Triggers: []Fact{deviceImpact},
-			Inapplicable: "no kernel or device implementation changed",
-			Resources:    []Resource{{Name: "device"}},
-			Requirements: Requirements{Process: ProcessDevice},
-			Ownership: Ownership{
-				Fact: deviceImpact, Packages: slices.Clone(packages),
-				PackagePrefixes: []string{"internal/cuda"},
-			},
-		},
-		Run: func(ctx context.Context, _ Invocation) (bool, string, error) {
-			// The changed-path list rides in a file: a repo-wide commit can
-			// carry more paths than the Windows command line admits.
-			list, err := os.CreateTemp("", "device-paths-*.txt")
-			if err != nil {
-				return false, "", err
-			}
-			defer os.Remove(list.Name())
-			if _, err := list.WriteString(strings.Join(paths, "\n")); err != nil {
-				list.Close()
-				return false, "", err
-			}
-			if err := list.Close(); err != nil {
-				return false, "", err
-			}
-			receipt, err := command(ctx, root, "go", "run", "./cmd/device-lane", "-paths-file", list.Name())
-			return false, receipt, err
-		},
-	}
-}
-
-// DevicePlan derives kernel-function ownership from the generated manifest and
+// PlanFor derives kernel-function ownership from the generated manifest and
 // exact Go launch-name references. Unknown device surfaces fall back to full.
-func DevicePlan(root string, paths []string) (DeviceVerificationPlan, error) {
+func PlanFor(root string, paths []string) (VerificationPlan, error) {
 	if len(paths) == 0 {
-		return DeviceVerificationPlan{Full: true, Reason: "no changed-path scope"}, nil
+		return VerificationPlan{Full: true, Reason: "no changed-path scope"}, nil
 	}
 	raw, err := os.ReadFile(filepath.Join(root, "kernels", "manifest.json"))
 	if err != nil {
-		return DeviceVerificationPlan{}, err
+		return VerificationPlan{}, err
 	}
 	var manifest deviceManifest
 	if err := json.Unmarshal(raw, &manifest); err != nil {
-		return DeviceVerificationPlan{}, fmt.Errorf("device plan manifest: %w", err)
+		return VerificationPlan{}, fmt.Errorf("device plan manifest: %w", err)
 	}
 	functions := map[string]bool{}
 	packages := map[string]bool{}
@@ -100,7 +62,7 @@ func DevicePlan(root string, paths []string) (DeviceVerificationPlan, error) {
 			continue
 		}
 		if changed == "kernels/manifest.json" || strings.HasPrefix(changed, "cmd/kernel-") || strings.HasPrefix(changed, "cmd/build-kernels/") {
-			return DeviceVerificationPlan{Full: true, Reason: "kernel catalog authority changed"}, nil
+			return VerificationPlan{Full: true, Reason: "kernel catalog authority changed"}, nil
 		}
 		matched := false
 		for _, module := range manifest.Modules {
@@ -112,26 +74,26 @@ func DevicePlan(root string, paths []string) (DeviceVerificationPlan, error) {
 			}
 		}
 		if !matched && (strings.HasPrefix(changed, "kernels/") || strings.HasPrefix(changed, "internal/cuda/")) {
-			return DeviceVerificationPlan{Full: true, Reason: "device path has no manifest ownership"}, nil
+			return VerificationPlan{Full: true, Reason: "device path has no manifest ownership"}, nil
 		}
 	}
 	functionNames := slices.Sorted(maps.Keys(functions))
 	if len(functionNames) > 0 {
 		owned, complete, err := deviceFunctionPackages(root, functionNames)
 		if err != nil {
-			return DeviceVerificationPlan{}, err
+			return VerificationPlan{}, err
 		}
 		if !complete {
-			return DeviceVerificationPlan{Full: true, Reason: "kernel function ownership is incomplete"}, nil
+			return VerificationPlan{Full: true, Reason: "kernel function ownership is incomplete"}, nil
 		}
 		for _, packagePath := range owned {
 			packages[packagePath] = true
 		}
 	}
 	if err := addDeviceConsumers(root, paths, packages); err != nil {
-		return DeviceVerificationPlan{}, err
+		return VerificationPlan{}, err
 	}
-	return DeviceVerificationPlan{Packages: slices.Sorted(maps.Keys(packages)), Functions: functionNames}, nil
+	return VerificationPlan{Packages: slices.Sorted(maps.Keys(packages)), Functions: functionNames}, nil
 }
 
 func directDevicePackage(path string) string {

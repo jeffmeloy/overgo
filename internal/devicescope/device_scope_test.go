@@ -1,4 +1,4 @@
-package automationcheck
+package devicescope
 
 import (
 	"os"
@@ -31,48 +31,48 @@ func TestDeviceDeclaredConsumers(t *testing.T) {
 		"internal/cuda/executor/launch_cuda_windows.go", "internal/modeldevice/model.go", "internal/inference/runner.go",
 	} {
 		t.Run(path, func(t *testing.T) {
-			plan, err := DevicePlan(root, []string{path})
+			plan, err := PlanFor(root, []string{path})
 			if err != nil || plan.Full || !slices.Contains(plan.Packages, "./internal/inference") {
 				t.Fatalf("device consumers = %+v, %v", plan, err)
 			}
 			if slices.Contains(plan.Packages, "./internal/optimizer") || slices.Contains(plan.Packages, "./internal/projector") {
 				t.Fatalf("non-production consumer selected: %+v", plan)
 			}
-			assertInferenceDeviceScope(t, DeviceScopes(plan))
+			assertInferenceDeviceScope(t, Scopes(plan))
 		})
 	}
 	for _, path := range []string{"internal/cuda/executor/unknown.go", "kernels/cuda/unknown.cu", "kernels/manifest.json"} {
-		plan, err := DevicePlan(root, []string{path})
+		plan, err := PlanFor(root, []string{path})
 		if err != nil || !plan.Full {
 			t.Fatalf("fallback = %+v, %v", plan, err)
 		}
-		assertInferenceDeviceScope(t, DeviceScopes(plan))
+		assertInferenceDeviceScope(t, Scopes(plan))
 	}
-	plan, err := DevicePlan(root, []string{"internal/unrelated/host.go"})
+	plan, err := PlanFor(root, []string{"internal/unrelated/host.go"})
 	if err != nil || plan.Full || len(plan.Packages) != 0 {
 		t.Fatalf("unrelated change = %+v, %v", plan, err)
 	}
 }
 
 func TestDeviceFullScopeOwnsInference(t *testing.T) {
-	plan, err := DevicePlan(t.TempDir(), nil)
+	plan, err := PlanFor(t.TempDir(), nil)
 	if err != nil || !plan.Full {
 		t.Fatalf("full plan = %+v, %v", plan, err)
 	}
-	assertInferenceDeviceScope(t, DeviceScopes(plan))
-	if !slices.Contains(DeviceLanePackages(), "internal/inference") {
+	assertInferenceDeviceScope(t, Scopes(plan))
+	if !slices.Contains(Packages(), "internal/inference") {
 		t.Fatal("impact ownership omitted inference")
 	}
-	full := DeviceScopes(plan)
+	full := Scopes(plan)
 	for _, scope := range full {
 		if len(scope.Tests) > 0 {
 			scope.Tests[0] = "mutated caller copy"
 		}
 	}
-	assertInferenceDeviceScope(t, DeviceScopes(plan))
+	assertInferenceDeviceScope(t, Scopes(plan))
 }
 
-func assertInferenceDeviceScope(t *testing.T, scopes []DeviceTestScope) {
+func assertInferenceDeviceScope(t *testing.T, scopes []TestScope) {
 	t.Helper()
 	for _, scope := range scopes {
 		if scope.Package != "./internal/inference" {

@@ -143,9 +143,10 @@ func literalCounts(snapshot gosyntax.Snapshot) map[string]int {
 	return counts
 }
 
-// newUnconsumedExports names exported top-level identifiers a changed
-// internal package gained that no other package's production code names.
-// An export only its own package uses is surface without a consumer.
+// newUnconsumedExports names exported top-level functions, variables and
+// constants a changed internal package gained that no other package's
+// production code names. An export only its own package uses is surface
+// without a consumer.
 func (l *landing) newUnconsumedExports(base, candidate gosyntax.Snapshot) ([]string, error) {
 	existing := exportedNames(base)
 	var findings []string
@@ -176,8 +177,9 @@ func (l *landing) newUnconsumedExports(base, candidate gosyntax.Snapshot) ([]str
 	return findings, nil
 }
 
-// exportedNames maps each exported top-level identifier of an internal
-// production file, keyed by directory and name, to its package name.
+// exportedNames maps each exported top-level function, variable and constant
+// of an internal production file, keyed by directory and name, to its
+// package name.
 func exportedNames(snapshot gosyntax.Snapshot) map[string]string {
 	names := map[string]string{}
 	for _, file := range snapshot.Files {
@@ -200,12 +202,12 @@ func exportedNames(snapshot gosyntax.Snapshot) map[string]string {
 					record(typed.Name)
 				}
 			case *ast.GenDecl:
+				// A type reaches its consumers through the functions and values
+				// that carry it, often without its name being written, so only
+				// those are held to a consumer.
 				for _, spec := range typed.Specs {
-					switch spec := spec.(type) {
-					case *ast.TypeSpec:
-						record(spec.Name)
-					case *ast.ValueSpec:
-						for _, identifier := range spec.Names {
+					if values, ok := spec.(*ast.ValueSpec); ok {
+						for _, identifier := range values.Names {
 							record(identifier)
 						}
 					}

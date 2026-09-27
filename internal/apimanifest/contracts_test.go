@@ -1,6 +1,7 @@
-package codemanifest
+package apimanifest
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -94,8 +95,7 @@ func TestRepositoryDocumentDeclarationsResolveKnownAuthorities(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]bool{
-		"overgo/api-manifest/v1":  false,
-		"overgo/code-manifest/v1": false,
+		"overgo/api-manifest/v1": false,
 	}
 	seen := map[string]string{}
 	for _, declaration := range declarations {
@@ -133,5 +133,16 @@ var codec = artifact.JSONDocumentCodec[struct{}]("result", artifact.KindOutput, 
 	}
 	if _, err := DocumentDeclarations(snapshot, []gosource.BuildSelection{selection}); err == nil {
 		t.Fatal("dynamic codec contract accepted")
+	}
+}
+
+func writeGeneratorFixture(t *testing.T, root, name, content string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(name))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }

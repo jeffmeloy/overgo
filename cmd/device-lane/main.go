@@ -19,8 +19,8 @@ import (
 	"time"
 	"unicode"
 
-	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
+	"overgo/internal/devicescope"
 	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
@@ -55,7 +55,7 @@ func run() error {
 		csv = string(raw)
 	}
 	paths := splitPaths(csv)
-	plan, err := automationcheck.DevicePlan(".", paths)
+	plan, err := devicescope.PlanFor(".", paths)
 	if err != nil {
 		return err
 	}
@@ -184,11 +184,11 @@ func deviceProgress(step []string, index, total int, elapsed time.Duration) stri
 	return fmt.Sprintf("[device] phase=%d/%d heartbeat=running elapsed=%.1fs command=%s", index+1, total, elapsed.Seconds(), strings.Join(step, " "))
 }
 
-func deviceSteps(plan automationcheck.DeviceVerificationPlan) [][]string {
+func deviceSteps(plan devicescope.VerificationPlan) [][]string {
 	steps := [][]string{{"go", "run", "./cmd/cuda-smoke"}}
 	var packages []string
 	var scoped [][]string
-	for _, scope := range automationcheck.DeviceScopes(plan) {
+	for _, scope := range devicescope.Scopes(plan) {
 		pattern := scope.Run
 		if len(scope.Tests) > 0 {
 			var names []string

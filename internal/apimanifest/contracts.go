@@ -1,4 +1,4 @@
-package codemanifest
+package apimanifest
 
 import (
 	"cmp"
@@ -62,7 +62,7 @@ func DocumentDeclarations(snapshot gosyntax.Snapshot, selections []gosource.Buil
 	for _, source := range sources {
 		syntax, err := source.file.Syntax()
 		if err != nil {
-			return nil, fmt.Errorf("code manifest: parse contracts in %s: %w", source.file.Path, err)
+			return nil, fmt.Errorf("api manifest: parse contracts in %s: %w", source.file.Path, err)
 		}
 		for _, declaration := range syntax.Decls {
 			general, ok := declaration.(*ast.GenDecl)
@@ -77,7 +77,7 @@ func DocumentDeclarations(snapshot gosyntax.Snapshot, selections []gosource.Buil
 					}
 					contract, name, found, err := staticContract(expression, source, constants)
 					if err != nil {
-						return nil, fmt.Errorf("code manifest: %s.%s: %w", source.packagePath, values.Names[index].Name, err)
+						return nil, fmt.Errorf("api manifest: %s.%s: %w", source.packagePath, values.Names[index].Name, err)
 					}
 					if !found {
 						continue
@@ -104,7 +104,7 @@ func DocumentDeclarations(snapshot gosyntax.Snapshot, selections []gosource.Buil
 
 func contractSources(snapshot gosyntax.Snapshot, selections []gosource.BuildSelection) ([]contractSource, error) {
 	if len(selections) == 0 {
-		return nil, errors.New("code manifest: document census has no build selection")
+		return nil, errors.New("api manifest: document census has no build selection")
 	}
 	var sources []contractSource
 	for _, file := range snapshot.Files {
@@ -123,7 +123,7 @@ func contractSources(snapshot gosyntax.Snapshot, selections []gosource.BuildSele
 				selectedPackage = "overgo/" + path.Dir(file.Path)
 			}
 			if packagePath != "" && packagePath != selectedPackage {
-				return nil, fmt.Errorf("code manifest: inconsistent package for %s", file.Path)
+				return nil, fmt.Errorf("api manifest: inconsistent package for %s", file.Path)
 			}
 			packagePath = selectedPackage
 		}

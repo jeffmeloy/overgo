@@ -4,10 +4,10 @@
   "findings": [
     {
       "family": "storage",
-      "owner": "cmd/plan",
-      "sites": 206,
-      "owner_sites": 26,
-      "recurrence": 180,
+      "owner": "cmd/recipe",
+      "sites": 199,
+      "owner_sites": 24,
+      "recurrence": 175,
       "consumers": [
         "cmd/activation-cases",
         "cmd/admission",
@@ -45,26 +45,29 @@
         "cmd/overgodb-query",
         "cmd/overgodb-rebuild",
         "cmd/overgodb-repair",
+        "cmd/plan",
         "cmd/profile-catalog",
-        "cmd/recipe",
         "cmd/remote-provider",
         "cmd/router-observation",
         "cmd/sealed-authority",
         "cmd/seam-align",
+        "cmd/seriesforecast-train-probe",
         "cmd/server",
         "cmd/smoke-lane",
         "cmd/store-check",
         "cmd/store-precheck",
         "cmd/swap",
+        "cmd/test-lane",
         "cmd/tool-workflow",
         "cmd/train",
         "cmd/train-lane",
         "cmd/training-objective",
         "cmd/validate",
         "cmd/vqaparity",
-        "internal/gate",
+        "internal/composition/compositiontest",
         "internal/modelcli",
         "internal/modelrecipetest",
+        "internal/modeltest",
         "internal/plan",
         "internal/scratchmodeltest",
         "internal/server",
@@ -74,21 +77,18 @@
     },
     {
       "family": "publication",
-      "owner": "internal/gate",
-      "sites": 108,
-      "owner_sites": 11,
-      "recurrence": 97,
+      "owner": "cmd/closure-scan",
+      "sites": 74,
+      "owner_sites": 6,
+      "recurrence": 68,
       "consumers": [
         "cmd/admission",
         "cmd/advisories",
-        "cmd/audio-inspect",
         "cmd/audio-oracle",
         "cmd/benchmark",
-        "cmd/closure-scan",
         "cmd/compatibility",
         "cmd/composite-generation-lane",
         "cmd/controller-action",
-        "cmd/evaluate",
         "cmd/finding",
         "cmd/graft-probe",
         "cmd/loop",
@@ -102,28 +102,24 @@
         "cmd/seam-align",
         "cmd/smoke-lane",
         "cmd/store-precheck",
-        "cmd/training-objective",
         "internal/composition",
+        "internal/composition/compositiontest",
         "internal/evaluation",
         "internal/lanestore",
         "internal/longform",
         "internal/loop",
-        "internal/modelintake",
-        "internal/modelrecipe",
         "internal/modelrecipetest",
         "internal/plan",
-        "internal/remoteprovider",
         "internal/server",
-        "internal/speechrecognitiontest",
         "internal/trainingworkflow"
       ]
     },
     {
       "family": "process",
       "owner": "cmd/loophook",
-      "sites": 35,
+      "sites": 29,
       "owner_sites": 6,
-      "recurrence": 29,
+      "recurrence": 23,
       "consumers": [
         "cmd/advisories",
         "cmd/build-kernels",
@@ -135,9 +131,7 @@
         "cmd/reverify",
         "cmd/sbom",
         "internal/clioptions",
-        "internal/gate",
         "internal/processcontrol",
-        "internal/repoanalysis",
         "internal/runrecord",
         "internal/testprocess"
       ]
@@ -145,9 +139,9 @@
     {
       "family": "outcome",
       "owner": "internal/runrecord",
-      "sites": 23,
+      "sites": 24,
       "owner_sites": 6,
-      "recurrence": 17,
+      "recurrence": 18,
       "consumers": [
         "cmd/loop",
         "internal/composition",
@@ -206,23 +200,22 @@
     {
       "family": "resource",
       "owner": "internal/speechrecognition",
-      "sites": 65,
+      "sites": 56,
       "owner_sites": 15,
-      "recurrence": 50,
+      "recurrence": 41,
       "consumers": [
         "cmd/benchmark",
         "cmd/hybrid-stack-train-probe",
         "cmd/longform",
         "cmd/perf-sweep",
         "cmd/sensenovaparity",
-        "internal/automationcheck",
         "internal/controllertrain",
         "internal/evaluation",
-        "internal/gate",
         "internal/hostmath",
         "internal/inference",
         "internal/latentvideo",
         "internal/longform",
+        "internal/operation",
         "internal/processcontrol",
         "internal/remoteprovider",
         "internal/server",
@@ -234,9 +227,9 @@
     {
       "family": "query",
       "owner": "internal/server",
-      "sites": 43,
-      "owner_sites": 25,
-      "recurrence": 18,
+      "sites": 40,
+      "owner_sites": 24,
+      "recurrence": 16,
       "consumers": [
         "cmd/closure-scan",
         "cmd/loop",
@@ -244,7 +237,7 @@
         "cmd/validate",
         "internal/discovery",
         "internal/evaluation",
-        "internal/plan",
+        "internal/modeltest",
         "internal/remoteprovider",
         "internal/runrecord"
       ]
@@ -261,11 +254,27 @@
       "sites": {
         "alias": 14,
         "batch": 21,
-        "commit": 28,
+        "commit": 24,
         "query": 5,
         "read": 28
       },
-      "total": 96
+      "total": 92
+    },
+    {
+      "package": "internal/runrecord",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 6,
+        "batch": 22,
+        "commit": 20,
+        "query": 5,
+        "read": 8
+      },
+      "total": 61
     },
     {
       "package": "internal/server",
@@ -276,28 +285,12 @@
       ],
       "sites": {
         "batch": 8,
-        "commit": 16,
+        "commit": 3,
         "open": 1,
-        "query": 35,
+        "query": 36,
         "read": 6
       },
-      "total": 66
-    },
-    {
-      "package": "internal/runrecord",
-      "domains": [
-        "datasets",
-        "evidence",
-        "models"
-      ],
-      "sites": {
-        "alias": 7,
-        "batch": 22,
-        "commit": 23,
-        "query": 5,
-        "read": 8
-      },
-      "total": 65
+      "total": 54
     },
     {
       "package": "internal/modelrecipe",
@@ -309,11 +302,11 @@
       "sites": {
         "alias": 15,
         "batch": 10,
-        "commit": 16,
+        "commit": 12,
         "query": 2,
         "read": 11
       },
-      "total": 54
+      "total": 50
     },
     {
       "package": "cmd/plan",
@@ -323,29 +316,14 @@
         "models"
       ],
       "sites": {
-        "alias": 1,
+        "alias": 2,
         "batch": 3,
         "commit": 4,
-        "open": 26,
+        "open": 21,
         "query": 8,
         "read": 2
       },
-      "total": 44
-    },
-    {
-      "package": "internal/gate",
-      "domains": [
-        "control",
-        "evidence"
-      ],
-      "sites": {
-        "alias": 8,
-        "batch": 7,
-        "commit": 12,
-        "open": 13,
-        "read": 3
-      },
-      "total": 43
+      "total": 40
     },
     {
       "package": "cmd/recipe",
@@ -355,25 +333,9 @@
       ],
       "sites": {
         "batch": 1,
-        "commit": 5,
+        "commit": 1,
         "open": 24,
         "read": 6
-      },
-      "total": 36
-    },
-    {
-      "package": "cmd/loop",
-      "domains": [
-        "control",
-        "evidence",
-        "models"
-      ],
-      "sites": {
-        "batch": 5,
-        "commit": 5,
-        "open": 18,
-        "query": 2,
-        "read": 2
       },
       "total": 32
     },
@@ -389,6 +351,22 @@
       "total": 30
     },
     {
+      "package": "cmd/loop",
+      "domains": [
+        "control",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 5,
+        "commit": 5,
+        "open": 17,
+        "query": 1,
+        "read": 2
+      },
+      "total": 30
+    },
+    {
       "package": "cmd/overgodb-query",
       "domains": [
         "datasets",
@@ -397,11 +375,11 @@
       ],
       "sites": {
         "alias": 1,
-        "open": 21,
+        "open": 20,
         "query": 3,
         "read": 1
       },
-      "total": 26
+      "total": 25
     },
     {
       "package": "cmd/compatibility",
@@ -410,34 +388,12 @@
         "models"
       ],
       "sites": {
-        "commit": 4,
+        "commit": 3,
         "open": 7,
         "query": 3,
         "read": 11
       },
-      "total": 25
-    },
-    {
-      "package": "internal/overgodb",
-      "sites": {
-        "alias": 2,
-        "batch": 12,
-        "commit": 6,
-        "read": 1
-      },
-      "total": 21
-    },
-    {
-      "package": "internal/dataset",
-      "domains": [
-        "datasets"
-      ],
-      "sites": {
-        "alias": 2,
-        "batch": 10,
-        "commit": 8
-      },
-      "total": 20
+      "total": 24
     },
     {
       "package": "internal/loop",
@@ -451,20 +407,6 @@
         "batch": 5,
         "commit": 5,
         "read": 8
-      },
-      "total": 20
-    },
-    {
-      "package": "internal/speechrecognition",
-      "domains": [
-        "datasets",
-        "evidence",
-        "models"
-      ],
-      "sites": {
-        "batch": 5,
-        "commit": 6,
-        "read": 9
       },
       "total": 20
     },
@@ -484,6 +426,28 @@
       "total": 19
     },
     {
+      "package": "internal/overgodb",
+      "sites": {
+        "alias": 2,
+        "batch": 10,
+        "commit": 6,
+        "read": 1
+      },
+      "total": 19
+    },
+    {
+      "package": "internal/dataset",
+      "domains": [
+        "datasets"
+      ],
+      "sites": {
+        "alias": 2,
+        "batch": 10,
+        "commit": 6
+      },
+      "total": 18
+    },
+    {
       "package": "internal/trainingworkflow",
       "domains": [
         "datasets",
@@ -491,8 +455,8 @@
         "models"
       ],
       "sites": {
-        "batch": 9,
-        "commit": 9
+        "batch": 10,
+        "commit": 8
       },
       "total": 18
     },
@@ -505,25 +469,22 @@
       ],
       "sites": {
         "batch": 4,
-        "commit": 2,
         "open": 11
       },
-      "total": 17
+      "total": 15
     },
     {
-      "package": "internal/plan",
+      "package": "internal/speechrecognition",
       "domains": [
-        "control",
-        "evidence"
+        "datasets",
+        "evidence",
+        "models"
       ],
       "sites": {
-        "batch": 1,
-        "commit": 6,
-        "open": 1,
-        "query": 4,
-        "read": 3
+        "batch": 5,
+        "read": 9
       },
-      "total": 15
+      "total": 14
     },
     {
       "package": "internal/artifact/repositorytest",
@@ -532,34 +493,6 @@
         "commit": 11
       },
       "total": 13
-    },
-    {
-      "package": "internal/agenttool",
-      "domains": [
-        "evidence",
-        "models"
-      ],
-      "sites": {
-        "batch": 4,
-        "commit": 5,
-        "read": 1
-      },
-      "total": 10
-    },
-    {
-      "package": "cmd/advisories",
-      "domains": [
-        "evidence"
-      ],
-      "sites": {
-        "alias": 2,
-        "batch": 1,
-        "commit": 3,
-        "open": 1,
-        "query": 1,
-        "read": 1
-      },
-      "total": 9
     },
     {
       "package": "cmd/composite-generation-lane",
@@ -572,6 +505,19 @@
         "batch": 2,
         "commit": 5,
         "open": 1
+      },
+      "total": 9
+    },
+    {
+      "package": "internal/agenttool",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 4,
+        "commit": 4,
+        "read": 1
       },
       "total": 9
     },
@@ -590,6 +536,21 @@
       "total": 8
     },
     {
+      "package": "cmd/advisories",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "alias": 1,
+        "batch": 1,
+        "commit": 3,
+        "open": 1,
+        "query": 1,
+        "read": 1
+      },
+      "total": 8
+    },
+    {
       "package": "internal/lanestore",
       "domains": [
         "models"
@@ -599,18 +560,6 @@
         "commit": 1,
         "query": 4,
         "read": 2
-      },
-      "total": 8
-    },
-    {
-      "package": "internal/speechactivity",
-      "domains": [
-        "models"
-      ],
-      "sites": {
-        "batch": 2,
-        "commit": 2,
-        "read": 4
       },
       "total": 8
     },
@@ -636,6 +585,18 @@
       "total": 7
     },
     {
+      "package": "cmd/longform",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "open": 6,
+        "query": 1
+      },
+      "total": 7
+    },
+    {
       "package": "cmd/mechanism-census",
       "domains": [
         "evidence"
@@ -648,39 +609,18 @@
       "total": 7
     },
     {
-      "package": "internal/codemanifest",
-      "sites": {
-        "alias": 1,
-        "batch": 2,
-        "commit": 2,
-        "read": 2
-      },
-      "total": 7
-    },
-    {
-      "package": "internal/workflowruntime",
+      "package": "internal/plan",
       "domains": [
-        "evidence",
-        "models"
+        "control",
+        "evidence"
       ],
       "sites": {
-        "batch": 2,
-        "commit": 3,
-        "read": 2
-      },
-      "total": 7
-    },
-    {
-      "package": "cmd/longform",
-      "domains": [
-        "evidence",
-        "models"
-      ],
-      "sites": {
-        "open": 5,
+        "batch": 1,
+        "commit": 4,
+        "open": 1,
         "query": 1
       },
-      "total": 6
+      "total": 7
     },
     {
       "package": "cmd/server",
@@ -690,6 +630,18 @@
       ],
       "sites": {
         "open": 6
+      },
+      "total": 6
+    },
+    {
+      "package": "cmd/validate",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "open": 1,
+        "query": 5
       },
       "total": 6
     },
@@ -706,30 +658,28 @@
       "total": 6
     },
     {
-      "package": "internal/remoteprovider",
+      "package": "internal/speechactivity",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "batch": 2,
+        "read": 4
+      },
+      "total": 6
+    },
+    {
+      "package": "internal/workflowruntime",
       "domains": [
         "evidence",
         "models"
       ],
       "sites": {
-        "batch": 1,
-        "commit": 3,
-        "query": 1,
-        "read": 1
-      },
-      "total": 6
-    },
-    {
-      "package": "cmd/audio-inspect",
-      "domains": [
-        "datasets"
-      ],
-      "sites": {
         "batch": 2,
         "commit": 2,
-        "open": 1
+        "read": 2
       },
-      "total": 5
+      "total": 6
     },
     {
       "package": "cmd/seam-align",
@@ -764,18 +714,6 @@
       "sites": {
         "batch": 4,
         "commit": 1
-      },
-      "total": 5
-    },
-    {
-      "package": "internal/discovery",
-      "domains": [
-        "models"
-      ],
-      "sites": {
-        "alias": 1,
-        "commit": 1,
-        "query": 3
       },
       "total": 5
     },
@@ -815,20 +753,6 @@
       "total": 5
     },
     {
-      "package": "internal/speechrecognitiontest",
-      "domains": [
-        "datasets",
-        "models"
-      ],
-      "sites": {
-        "batch": 1,
-        "commit": 2,
-        "open": 1,
-        "read": 1
-      },
-      "total": 5
-    },
-    {
       "package": "cmd/activation-cases",
       "domains": [
         "evidence"
@@ -852,11 +776,53 @@
       "total": 4
     },
     {
-      "package": "cmd/training-objective",
+      "package": "cmd/train",
+      "domains": [
+        "datasets"
+      ],
       "sites": {
         "batch": 1,
         "commit": 1,
-        "open": 2
+        "open": 1,
+        "query": 1
+      },
+      "total": 4
+    },
+    {
+      "package": "internal/composition/compositiontest",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 2,
+        "open": 1
+      },
+      "total": 4
+    },
+    {
+      "package": "internal/discovery",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "alias": 1,
+        "query": 3
+      },
+      "total": 4
+    },
+    {
+      "package": "internal/speechrecognitiontest",
+      "domains": [
+        "datasets",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 1,
+        "open": 1,
+        "read": 1
       },
       "total": 4
     },
@@ -871,6 +837,17 @@
         "commit": 2
       },
       "total": 4
+    },
+    {
+      "package": "cmd/audio-inspect",
+      "domains": [
+        "datasets"
+      ],
+      "sites": {
+        "batch": 2,
+        "open": 1
+      },
+      "total": 3
     },
     {
       "package": "cmd/audio-oracle",
@@ -935,14 +912,23 @@
       "total": 3
     },
     {
-      "package": "cmd/train",
+      "package": "cmd/store-check",
       "domains": [
-        "datasets"
+        "models"
       ],
       "sites": {
-        "batch": 1,
-        "commit": 1,
-        "open": 1
+        "open": 2,
+        "query": 1
+      },
+      "total": 3
+    },
+    {
+      "package": "cmd/store-precheck",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "open": 3
       },
       "total": 3
     },
@@ -954,40 +940,6 @@
       ],
       "sites": {
         "open": 3
-      },
-      "total": 3
-    },
-    {
-      "package": "cmd/validate",
-      "domains": [
-        "models"
-      ],
-      "sites": {
-        "open": 1,
-        "query": 2
-      },
-      "total": 3
-    },
-    {
-      "package": "cmd/vqaparity",
-      "domains": [
-        "evidence",
-        "models"
-      ],
-      "sites": {
-        "commit": 2,
-        "open": 1
-      },
-      "total": 3
-    },
-    {
-      "package": "internal/audioparity",
-      "domains": [
-        "models"
-      ],
-      "sites": {
-        "batch": 2,
-        "commit": 1
       },
       "total": 3
     },
@@ -1007,6 +959,19 @@
       "sites": {
         "batch": 1,
         "commit": 2
+      },
+      "total": 3
+    },
+    {
+      "package": "internal/remoteprovider",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "query": 1,
+        "read": 1
       },
       "total": 3
     },
@@ -1064,24 +1029,42 @@
       "total": 2
     },
     {
-      "package": "cmd/store-check",
-      "domains": [
-        "models"
-      ],
+      "package": "cmd/test-lane",
       "sites": {
-        "open": 1,
-        "query": 1
+        "batch": 1,
+        "open": 1
       },
       "total": 2
     },
     {
-      "package": "cmd/store-precheck",
+      "package": "cmd/training-objective",
       "domains": [
-        "control",
-        "evidence"
+        "datasets"
       ],
       "sites": {
         "open": 2
+      },
+      "total": 2
+    },
+    {
+      "package": "cmd/vqaparity",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "commit": 1,
+        "open": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "internal/audioparity",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "batch": 2
       },
       "total": 2
     },
@@ -1110,13 +1093,10 @@
       "total": 2
     },
     {
-      "package": "internal/modelintake",
-      "domains": [
-        "evidence",
-        "models"
-      ],
+      "package": "internal/modeltest",
       "sites": {
-        "commit": 2
+        "open": 1,
+        "query": 1
       },
       "total": 2
     },
@@ -1315,6 +1295,16 @@
       "total": 1
     },
     {
+      "package": "cmd/seriesforecast-train-probe",
+      "domains": [
+        "datasets"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
       "package": "cmd/swap",
       "domains": [
         "models"
@@ -1372,6 +1362,17 @@
       ],
       "sites": {
         "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/modelintake",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "commit": 1
       },
       "total": 1
     },

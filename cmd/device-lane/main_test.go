@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/automationcheck"
+	"overgo/internal/devicescope"
 )
 
 func TestDeviceLaneProgress(t *testing.T) {
@@ -19,7 +19,7 @@ func TestDeviceLaneProgress(t *testing.T) {
 }
 
 func TestDevicePlan(t *testing.T) {
-	steps := deviceSteps(automationcheck.DeviceVerificationPlan{Packages: []string{"./internal/cuda/kernel", "./internal/optimizer"}})
+	steps := deviceSteps(devicescope.VerificationPlan{Packages: []string{"./internal/cuda/kernel", "./internal/optimizer"}})
 	if len(steps) != 2 || !slices.Equal(steps[0], []string{"go", "run", "./cmd/cuda-smoke"}) {
 		t.Fatalf("scoped steps = %v", steps)
 	}
@@ -27,7 +27,7 @@ func TestDevicePlan(t *testing.T) {
 	if !slices.Equal(steps[1], want) {
 		t.Fatalf("selected packages = %v, want %v", steps[1], want)
 	}
-	full := deviceSteps(automationcheck.DeviceVerificationPlan{Full: true})
+	full := deviceSteps(devicescope.VerificationPlan{Full: true})
 	if len(full) != 4 {
 		t.Fatalf("full steps=%v", full)
 	}
@@ -42,7 +42,7 @@ func TestDevicePlan(t *testing.T) {
 }
 
 func TestDeviceLaneRunsChangedTestPackage(t *testing.T) {
-	steps := deviceSteps(automationcheck.DeviceVerificationPlan{Packages: []string{"./internal/adaptiveparity"}})
+	steps := deviceSteps(devicescope.VerificationPlan{Packages: []string{"./internal/adaptiveparity"}})
 	want := []string{
 		"go", "test", "-json", "-p=1", "-timeout=20m", "./internal/adaptiveparity", "-count=1",
 	}

@@ -11,12 +11,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "selection",
-          "title": "Delete the code-manifest impact selection",
-          "status": "open",
-          "verify": "go test ./cmd/gate -run '^TestSelectionAnalyzersGone$' -count=1"
-        },
-        {
           "id": "ledger",
           "title": "Delete the closure ledger",
           "status": "open",

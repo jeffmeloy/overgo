@@ -23,6 +23,14 @@ func TestOldGateGone(t *testing.T) {
 	requireGone(t, "internal/gate")
 }
 
+// TestSelectionAnalyzersGone holds test selection to go test's own cache:
+// the code manifest, its impact analysis and the check-planning package are
+// deleted.
+func TestSelectionAnalyzersGone(t *testing.T) {
+	t.Parallel()
+	requireGone(t, "internal/codemanifest", "internal/automationcheck", "cmd/code-manifest")
+}
+
 // TestCompletionAuthorityGone holds the plan to plain data: the completion
 // authority, its transitions and its proof horizon are deleted, and git is
 // the record of what landed.

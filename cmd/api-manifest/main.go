@@ -15,7 +15,6 @@ import (
 
 	"overgo/internal/apimanifest"
 	"overgo/internal/clioptions"
-	"overgo/internal/codemanifest"
 	"overgo/internal/commanddoc"
 	"overgo/internal/gosource"
 	"overgo/internal/gosyntax"
@@ -93,7 +92,7 @@ func compile(root string) (apimanifest.Manifest, error) {
 	if err != nil {
 		return apimanifest.Manifest{}, err
 	}
-	declarations, err := codemanifest.DocumentDeclarations(snapshot, []gosource.BuildSelection{selection})
+	declarations, err := apimanifest.DocumentDeclarations(snapshot, []gosource.BuildSelection{selection})
 	if err != nil {
 		return apimanifest.Manifest{}, err
 	}
@@ -130,7 +129,7 @@ func compile(root string) (apimanifest.Manifest, error) {
 }
 
 // Project source declarations here; the manifest owner validates every contract.
-func compileDocuments(declarations []codemanifest.DocumentDeclaration) []apimanifest.Document {
+func compileDocuments(declarations []apimanifest.DocumentDeclaration) []apimanifest.Document {
 	documents := make([]apimanifest.Document, 0, len(declarations))
 	for _, declaration := range declarations {
 		documents = append(documents, apimanifest.Document{

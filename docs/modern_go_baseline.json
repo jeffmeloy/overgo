@@ -265,17 +265,6 @@
       "candidate_ceiling": 1
     },
     {
-      "guideline": "json_omitzero",
-      "path": "internal/automationcheck/check.go",
-      "symbol": "package",
-      "owner": "overgo/internal/automationcheck",
-      "reason": "The field's established wire contract can distinguish omitempty from omitzero through composite emptiness, a named type, or custom marshaling.",
-      "oracle": "go test ./internal/automationcheck -count=1",
-      "retirement": "Retire after byte-level compatibility evidence proves omitzero preserves every supported payload for this owner.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
       "guideline": "strings_split_seq",
       "path": "cmd/agent-tool/main.go",
       "symbol": "run",
@@ -1311,33 +1300,33 @@
     },
     {
       "guideline": "cmp_or",
-      "path": "internal/codemanifest/contracts.go",
+      "path": "internal/apimanifest/contracts.go",
       "symbol": "DocumentDeclarations",
-      "owner": "overgo/internal/codemanifest",
+      "owner": "overgo/internal/apimanifest",
       "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./internal/codemanifest -count=1",
+      "oracle": "go test ./internal/apimanifest -count=1",
       "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
     },
     {
       "guideline": "cmp_or",
-      "path": "internal/codemanifest/contracts.go",
+      "path": "internal/apimanifest/contracts.go",
       "symbol": "contractSources",
-      "owner": "overgo/internal/codemanifest",
+      "owner": "overgo/internal/apimanifest",
       "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./internal/codemanifest -count=1",
+      "oracle": "go test ./internal/apimanifest -count=1",
       "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
     },
     {
       "guideline": "cmp_or",
-      "path": "internal/codemanifest/contracts.go",
+      "path": "internal/apimanifest/contracts.go",
       "symbol": "stringValue",
-      "owner": "overgo/internal/codemanifest",
+      "owner": "overgo/internal/apimanifest",
       "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./internal/codemanifest -count=1",
+      "oracle": "go test ./internal/apimanifest -count=1",
       "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
@@ -4522,5 +4511,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "39e85d0a9cacf6dff467808a5c075183048ef57ee07667f13fec57dc16c2e72e"
+  "exceptions_sha256": "b9397886074a40df44dbc270cb350c8ccf5e4c343559fd45da62067b4cccdb55"
 }

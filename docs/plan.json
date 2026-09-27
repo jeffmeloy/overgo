@@ -6,26 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "review-webui-harness",
-      "title": "Close on master's browser-waits-fail-fast (merged at 75b235e356b5): a browser leg fails when the browser stops answering, and names the leg",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "budget": {
-        "nodes": 700,
-        "paydown": "arch-route-dispatch",
-        "reason": "leg deadline helper and its census test, painted-pair contrast derivation with a colour parser, failure recoveries per tab"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Close on master's browser-waits-fail-fast (merged at 75b235e356b5): a browser leg fails when the browser stops answering, and names the leg",
-          "status": "open",
-          "verify": "go test ./internal/webuilane -run '^TestBrowserLegFailsWhenTheBrowserStopsAnswering$' -count=1",
-          "rationale": "Held by master row browser-waits-fail-fast, which landed and merged into the lane at 75b235e356b5: a browser wait fails when its page target crashes or detaches instead of hanging to the test timeout. The lane's fixed per-leg deadline was refused by the fixed-timer census; master's check is this row's acceptance. Closes on the next landing that touches the web UI harness."
-        }
-      ]
-    },
-    {
       "id": "review-environment-repair",
       "title": "Close on master's store-bare-record-fill (merged at 75b235e356b5): a batch carrying content fills a bare store record",
       "owner": "overgo_gui_cleanup",
@@ -42,16 +22,16 @@
     },
     {
       "id": "harness-trend-paydown",
-      "title": "Pay back the harness surface the live training trend raised: the nine harness packages return to the 180630 production nodes of docs/harness_surface_baseline.json by removing zero-consumer or test-only production code the consumer census names",
+      "title": "Repay the lane's own harness raise: the harness packages return from 181534 to 180690 production nodes (180630 plus master's merged +60) by consolidating where the lane grew them -- operation progress series, runrecord interaction context, agenttool output streaming, recipe tasks",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Pay back the harness surface the live training trend raised: the nine harness packages return to the 180630 production nodes of docs/harness_surface_baseline.json by removing zero-consumer or test-only production code the consumer census names",
+          "title": "Repay the lane's own harness raise: the harness packages return from 181534 to 180690 production nodes (180630 plus master's merged +60) by consolidating where the lane grew them -- operation progress series, runrecord interaction context, agenttool output streaming, recipe tasks",
           "status": "open",
           "verify": "go test ./internal/closurescan -run '^TestHarnessSurfaceRepaysTheTrend$' -count=1",
-          "rationale": "Opened by gui-training-live 2026-09-26: operation.Status gained Progress.ElapsedMS and Series (each repeated metric's bounded trend) so the training page draws progress, time remaining and loss live; internal/operation is a harness package, so the reviewed harness surface rose from 180630 production nodes. Later landings and the merge of master 8bf6d8eff7bb budgeted against this row; docs/harness_surface_baseline.json stands at 181518 after that merge, so 888 nodes are owed. Find candidates with master's consumer census and its islands finder (private code only unconsumed code reaches, d1ae6685a); remove or relocate zero-consumer and test-only production code in the harness packages until they return to 180630, and the named test holds the live surface there."
+          "rationale": "Re-scoped 2026-09-27 from measurement. The harness baseline rose 180630 -\u003e 181534: the lane's own landings +844 (gui-training-live +334 and its counter fix +1 in internal/operation, chat-session-continue +405 in internal/runrecord, gui-agent-sessions +88 in internal/agenttool, gui-export-gguf and gui-model-merge +16 in internal/recipe) and master's merged work +60, which is master's to carry. code-manifest -unconsumed over the harness packages finds only 119 genuinely unconsumed nodes (runrecord review.go constructors only tests call -- an unwired capability, not dead code) plus one unreferenced constant; its 183 islands (22893 nodes) are false positives, functions a codec table holds as values (filed as a finding). So the debt cannot be paid by deleting dead code: consolidate the lane's own additions -- fold the operation progress series into the metric reports it thins, share the runrecord interaction context with the continuation record, route the agent output observer through the existing transport observer -- until the nine packages measure 180690, and the named test holds them there."
         }
       ]
     },
@@ -350,6 +330,10 @@
     },
     {
       "key": "surface-move:production-nodes:0d41ac6e0149fc766399bf4ea14807a7d0b3e758",
+      "row": "harness-trend-paydown"
+    },
+    {
+      "key": "surface-move:production-nodes:1e0cdcf013065c93d209facb2bc629bddbbf15ec",
       "row": "harness-trend-paydown"
     },
     {

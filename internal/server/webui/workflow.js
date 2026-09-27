@@ -273,7 +273,7 @@
         const controls = el("div", { class: "control-grid" });
         // placement: where the selected capability runs, as it declares.
         const placement = el("p", { class: "note workflow-placement" });
-        const status = el("div", { class: "note" });
+        const status = el("div", { class: "note", role: "status", "aria-label": "run status" });
         const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, hidden: true });
         const remaining = el("span", { class: "note", role: "status", "aria-label": "time remaining" });
         const trends = el("div");

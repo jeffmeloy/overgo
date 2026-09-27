@@ -74,7 +74,7 @@ func TestWebUIBrowserCopyCommand(t *testing.T) {
 
 	// A missing required entry shows no command.
 	check(`(() => { commandButton().click(); return true; })()`)
-	settle(`commandPanel().querySelector(':scope > .note').textContent === 'text is required' && commandShown().length === 0`)
+	settle(`commandPanel().querySelector('[aria-label="run status"]').textContent === 'text is required' && commandShown().length === 0`)
 
 	// Typed, the submission's commands show with copy controls and nothing runs.
 	check(`(() => { commandType('text', "it's here"); commandType('seed', '17'); commandButton().click(); return true; })()`)

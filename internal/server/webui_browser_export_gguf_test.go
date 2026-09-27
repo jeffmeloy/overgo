@@ -71,7 +71,7 @@ func TestWebUIBrowserExportGGUF(t *testing.T) {
   [...panel.querySelectorAll('button')].find(button => button.textContent === 'Run').click();
   return true;
 })()`)
-	settle(`document.querySelector('#panel-export-jobs > .note').textContent.startsWith('completed / ')`)
+	settle(`document.querySelector('#panel-export-jobs [aria-label="run status"]').textContent.startsWith('completed / ')`)
 	for _, name := range []string{"hermetic.f16.gguf", "Modelfile"} {
 		if _, err := os.Stat(filepath.Join(root, "shared", name)); err != nil {
 			t.Fatalf("the export did not write %s: %v", name, err)

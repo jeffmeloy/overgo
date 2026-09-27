@@ -75,7 +75,7 @@ func TestWebUIBrowserModelMerge(t *testing.T) {
   [...panel.querySelectorAll('button')].find(button => button.textContent === 'Run').click();
   return true;
 })()`)
-	settle(`document.querySelector('#panel-model-builder > .note').textContent.startsWith('completed / ')`)
+	settle(`document.querySelector('#panel-model-builder [aria-label="run status"]').textContent.startsWith('completed / ')`)
 	if _, err := os.Stat(filepath.Join(root, "merged", "hermetic.merged.gguf")); err != nil {
 		t.Fatalf("the merge did not write its GGUF: %v", err)
 	}

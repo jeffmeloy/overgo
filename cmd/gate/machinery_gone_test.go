@@ -72,6 +72,16 @@ func TestGateRecordsGone(t *testing.T) {
 		"internal/runrecord/suite_cost.go", "internal/storepolicy/telemetry.go", "cmd/plan/history_phases.go")
 }
 
+// TestPlanOrchestrationGone holds the plan tool to plain data: the leases,
+// exploration budgets, experiments, locality schedules, efficiency judging
+// and automation context it once carried are deleted.
+func TestPlanOrchestrationGone(t *testing.T) {
+	t.Parallel()
+	requireGone(t, "cmd/plan/orchestration.go", "internal/plan/exploration.go", "internal/plan/locality_scheduler.go",
+		"internal/plan/scheduler.go", "internal/plan/legacy_lease.go", "internal/plan/context.go",
+		"internal/runrecord/review.go", "internal/runrecord/attempt_history.go")
+}
+
 // TestOldGateMachineryGone closes the sweep the tests above make: the last
 // hand-run ratchet, the coverage-lanes report and its reviewed floors, goes
 // with the rest.

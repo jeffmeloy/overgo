@@ -121,40 +121,6 @@ func TestRelocateItemReranksWithoutLoss(t *testing.T) {
 	}
 }
 
-// TestBudgetDeclarationGoesThroughThePlan pins -budget's pure core: a row's
-// scope is recorded on the open row with its reason, a re-budget replaces
-// it, and a declaration without a reason, for a row that is not open, or
-// whose paydown is itself or not an open row is refused.
-func TestBudgetDeclarationGoesThroughThePlan(t *testing.T) {
-	t.Parallel()
-	base := plan.Plan{Items: []plan.Item{
-		{ID: "row", Status: plan.StatusOpen}, {ID: "paydown", Status: plan.StatusOpen}, {ID: "landed", Status: "done"},
-	}}
-	declared := plan.Budget{Nodes: 44, Paydown: "paydown", Reason: "schema field"}
-	budgeted, err := declareBudget(base, "row", declared)
-	if err != nil || budgeted.Items[0].Budget.Nodes != 44 || budgeted.Items[0].Budget.Paydown != "paydown" {
-		t.Fatalf("declared budget = %+v, %v", budgeted.Items[0].Budget, err)
-	}
-	if again, err := declareBudget(budgeted, "row", plan.Budget{Nodes: 60, Reason: "outgrew it"}); err != nil || again.Items[0].Budget.Nodes != 60 || again.Items[0].Budget.Paydown != "" {
-		t.Fatalf("re-budget = %+v, %v", again.Items[0].Budget, err)
-	}
-	for name, refused := range map[string]struct {
-		id     string
-		budget plan.Budget
-	}{
-		"no reason":          {"row", plan.Budget{Nodes: 1}},
-		"a row not open":     {"landed", plan.Budget{Nodes: 1, Reason: "r"}},
-		"an unknown row":     {"absent", plan.Budget{Nodes: 1, Reason: "r"}},
-		"its own paydown":    {"row", plan.Budget{Nodes: 1, Reason: "r", Paydown: "row"}},
-		"a landed paydown":   {"row", plan.Budget{Nodes: 1, Reason: "r", Paydown: "landed"}},
-		"an unknown paydown": {"row", plan.Budget{Nodes: 1, Reason: "r", Paydown: "absent"}},
-	} {
-		if _, err := declareBudget(base, refused.id, refused.budget); err == nil {
-			t.Fatalf("a budget with %s was recorded", name)
-		}
-	}
-}
-
 // TestEnforceSetVerify pins the pure verify-assignment: it replaces the named
 // step's verify (closing the hand-edit-plan.json gap) and rejects an absent
 // item or step.

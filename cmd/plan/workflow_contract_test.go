@@ -92,7 +92,7 @@ func TestPromptAdmissionReadiness(t *testing.T) {
 	root := initializePlanTestRepository(t, mutationPlan(t, "Readiness task"))
 	t.Chdir(root)
 	out := captureStdout(t, func() {
-		if err := run(cli{prompt: true, worker: "readiness-worker", retireLegacyLeases: noLegacyLeaseRetirement}, nil); err != nil {
+		if err := run(cli{prompt: true, worker: "readiness-worker"}, nil); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -119,7 +119,7 @@ func TestDispatchClaimProjection(t *testing.T) {
 	if err != nil || inspection.Claim != nil || inspection.Item != "row" {
 		t.Fatalf("inspection=%+v %v", inspection, err)
 	}
-	request := cli{prompt: true, worker: "session-one", retireLegacyLeases: noLegacyLeaseRetirement}
+	request := cli{prompt: true, worker: "session-one"}
 	output := captureStdout(t, func() {
 		if err := run(request, nil); err != nil {
 			t.Fatal(err)
@@ -186,7 +186,7 @@ func TestDispatchClaimProjection(t *testing.T) {
 	if err := releaseDispatchClaim(root, owned.Claim.ID.String(), "session-one", "completed", &released); err == nil {
 		t.Fatal("CLI claimed completion without a gate")
 	}
-	if err := run(cli{releaseClaim: owned.Claim.ID.String(), releaseReason: "handoff", worker: "session-one", add: true, retireLegacyLeases: noLegacyLeaseRetirement}, nil); err == nil {
+	if err := run(cli{releaseClaim: owned.Claim.ID.String(), releaseReason: "handoff", worker: "session-one", add: true}, nil); err == nil {
 		t.Fatal("mixed release and mutation options were admitted")
 	}
 	if err := releaseDispatchClaim(root, owned.Claim.ID.String(), "session-one", "handoff", &released); err != nil {
@@ -222,7 +222,7 @@ func TestStopStatusProjection(t *testing.T) {
 	if _, err := plan.ResolveDispatch(t.Context(), root, plan.DispatchRequest{}); err != nil {
 		t.Fatal(err)
 	}
-	stopCLI := cli{stop: true, worker: "stop-command-worker", retireLegacyLeases: noLegacyLeaseRetirement}
+	stopCLI := cli{stop: true, worker: "stop-command-worker"}
 	var output bytes.Buffer
 	if err := recordStopControlCommand(root, stopCLI, []string{"user-stop: operator paused"}, &output); err != nil {
 		t.Fatal(err)
@@ -232,7 +232,7 @@ func TestStopStatusProjection(t *testing.T) {
 	}
 	var status plan.Dispatch
 	rendered := captureStdout(t, func() {
-		if err := run(cli{next: true, json: true, retireLegacyLeases: noLegacyLeaseRetirement}, nil); err != nil {
+		if err := run(cli{next: true, json: true}, nil); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -243,7 +243,7 @@ func TestStopStatusProjection(t *testing.T) {
 		t.Fatalf("stop projection=%+v", status)
 	}
 	prompt := captureStdout(t, func() {
-		if err := run(cli{prompt: true, worker: stopCLI.worker, retireLegacyLeases: noLegacyLeaseRetirement}, nil); err != nil {
+		if err := run(cli{prompt: true, worker: stopCLI.worker}, nil); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -258,11 +258,11 @@ func TestStopStatusProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	captureStdout(t, func() {
-		if err := run(cli{next: true, retireLegacyLeases: noLegacyLeaseRetirement}, nil); err != nil {
+		if err := run(cli{next: true}, nil); err != nil {
 			t.Fatalf("stop status depended on live plan: %v", err)
 		}
 	})
-	resume := cli{resumeStop: status.Stop.ID.String(), worker: stopCLI.worker, retireLegacyLeases: noLegacyLeaseRetirement}
+	resume := cli{resumeStop: status.Stop.ID.String(), worker: stopCLI.worker}
 	if err := recordStopControlCommand(root, resume, []string{"operator explicitly continued"}, &output); err != nil {
 		t.Fatal(err)
 	}

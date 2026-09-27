@@ -137,7 +137,6 @@ var directCommitAllowances = []authorityAllowance{
 	{File: "cmd/lora-extract/main.go", Count: oneAuthoritySite},
 	{File: "cmd/model-characterize/main.go", Count: twoAuthoritySites},
 	{File: "cmd/offline-artifact-validate/main.go", Count: oneAuthoritySite},
-	{File: "cmd/plan/orchestration.go", Count: threeAuthoritySites},
 	{File: "internal/artifact/repositorytest/contract.go", Count: tenAuthoritySites},
 	{File: "internal/artifact/repositorytest/counting.go", Count: oneAuthoritySite},
 	{File: "internal/artifact/schema.go", Count: oneAuthoritySite},

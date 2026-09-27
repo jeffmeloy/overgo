@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/artifact"
 	"overgo/internal/plan"
 )
 
@@ -172,18 +171,6 @@ func clonePlan(t *testing.T, document plan.Plan) plan.Plan {
 		t.Fatal(err)
 	}
 	return cloned
-}
-
-func mergeEvidenceBatch(t *testing.T, key string) artifact.Batch {
-	t.Helper()
-	payload := []byte(key)
-	id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return artifact.Batch{Key: key, Artifacts: []artifact.Descriptor{{
-		ID: id, Size: uint64(len(payload)), MediaType: "application/octet-stream",
-	}}}
 }
 
 func TestPrepareMergeSourceAdvance(t *testing.T) {

@@ -69,7 +69,7 @@ func TestPreparedMergePortability(t *testing.T) {
 		t.Setenv(plan.AutomationWorkerEnvironment, "")
 		root := initializePlanTestRepository(t, mutationPlan(t, "Portable merge"))
 		t.Chdir(root)
-		err := run(cli{mergeSourceStore: store("C:/first"), retireLegacyLeases: noLegacyLeaseRetirement}, nil)
+		err := run(cli{mergeSourceStore: store("C:/first")}, nil)
 		if err == nil || !strings.Contains(err.Error(), "requires -prepare-merge") {
 			t.Fatalf("selector accepted without -prepare-merge: %v", err)
 		}

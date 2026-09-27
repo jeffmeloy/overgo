@@ -18,7 +18,7 @@ func TestReleaseClaimByItem(t *testing.T) {
 	root := initializePlanTestRepository(t, mutationPlan(t, "claimed task"))
 	t.Chdir(root)
 	captureStdout(t, func() {
-		if err := run(cli{prompt: true, worker: "session-one", retireLegacyLeases: noLegacyLeaseRetirement}, nil); err != nil {
+		if err := run(cli{prompt: true, worker: "session-one"}, nil); err != nil {
 			t.Fatal(err)
 		}
 	})

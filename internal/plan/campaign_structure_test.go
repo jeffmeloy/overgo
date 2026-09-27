@@ -1,57 +1,11 @@
 package plan
 
 import (
-	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
 	"testing"
 )
-
-func TestSingleCanonicalCampaignPlan(t *testing.T) {
-	t.Parallel()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("campaign test path is unavailable")
-	}
-	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-	competing, err := CompetingPlans(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, path := range competing {
-		t.Errorf("competing live plan file %s; %s is the sole plan authority", path, filepath.ToSlash(Path))
-	}
-
-	// The .git-marker rule, pinned against a synthetic tree: a nested
-	// checkout (marker file, as worktrees use, or marker directory) hides
-	// its plan.json, while a plain nested directory's plan.json competes.
-	synthetic := t.TempDir()
-	write := func(relative, content string) {
-		t.Helper()
-		path := filepath.Join(synthetic, filepath.FromSlash(relative))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	write(filepath.ToSlash(Path), "{}")
-	write(".claude/worktrees/lane/.git", "gitdir: elsewhere")
-	write(".claude/worktrees/lane/docs/plan.json", "{}")
-	write("nested-checkout/.git/HEAD", "ref: refs/heads/main")
-	write("nested-checkout/docs/plan.json", "{}")
-	write("plain/docs/plan.json", "{}")
-	competing, err = CompetingPlans(synthetic)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.Equal(competing, []string{"plain/docs/plan.json"}) {
-		t.Fatalf("synthetic competing plans = %v, want only the plain nested copy", competing)
-	}
-}
 
 // campaignStructuralViolations reports the campaign policy the doctrine prose
 // used to pin -- capability freeze, the setverify machine check, and valid

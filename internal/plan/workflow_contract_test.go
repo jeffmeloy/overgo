@@ -3,7 +3,6 @@ package plan
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"os"
 	"overgo/internal/authoritylock"
@@ -57,97 +56,8 @@ func recordClaim(t *testing.T, store *overgodb.Store, lease worklease.Lease) (wo
 	return worklease.Record(t.Context(), store, content.Data)
 }
 
-// TestDispatchContractBinding holds the bounded contract projection: the
-// current-task contract carries the prerequisites and verifier while the
-// rationale history stays out of it and retained in the plan document, and a
-// legacy row without prerequisites projects a contract that simply omits them.
-func TestDispatchContractBinding(t *testing.T) {
-	t.Parallel()
-	// base/do is a completed, pruned prerequisite proven by the authority, not a
-	// retained row: the plan holds only open work.
-	document := Plan{Items: []Item{
-		{ID: "work", Title: "Work item", Status: StatusOpen, Steps: []Step{{
-			ID: "do", Title: "Bounded change", Status: StatusOpen, Verify: "go test ./x -run '^TestX$'",
-			DependsOn: []string{"base/do"}, Rationale: strings.Repeat("buried history prose ", 30),
-		}}},
-	}}
-	facts := ContextFacts{
-		Head: orchestrationHead, Branch: "codex/automation", Worktree: "C:/repo",
-		Workflow: WorkflowContext{Phase: "implementation", Source: "git:HEAD+overgodb:overgodb-store"},
-	}
-	ctx, err := BuildAutomationContext(document, facts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	task := ctx.CurrentTask
-	if task == nil || task.ItemID != "work" || task.StepID != "do" || task.Verify == "" {
-		t.Fatalf("contract missing bounded fields: %+v", task)
-	}
-	if !slices.Equal(task.Prerequisites, []string{"base/do"}) {
-		t.Fatalf("contract prerequisites = %v", task.Prerequisites)
-	}
-	contract, err := json.Marshal(task)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(contract), "prerequisites") || !strings.Contains(string(contract), "base/do") {
-		t.Fatalf("contract omits prerequisites: %s", contract)
-	}
-	if strings.Contains(string(contract), "rationale") || strings.Contains(string(contract), "buried history prose") {
-		t.Fatalf("history leaked into the contract: %s", contract)
-	}
-	if !strings.Contains(document.Items[0].Steps[0].Rationale, "buried history prose") {
-		t.Fatal("plan document lost the row rationale history")
-	}
-	legacy := Plan{Items: []Item{{ID: "legacy", Title: "Legacy", Status: StatusOpen, Steps: []Step{{ID: "do", Title: "Old", Status: StatusOpen, Verify: "go test ./x -run '^TestLegacy$'"}}}}}
-	legacyCtx, err := BuildAutomationContext(legacy, facts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encodedLegacy, err := json.Marshal(legacyCtx.CurrentTask)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if legacyCtx.CurrentTask == nil || len(legacyCtx.CurrentTask.Prerequisites) != 0 || strings.Contains(string(encodedLegacy), "prerequisites") {
-		t.Fatalf("legacy contract invented prerequisites: %s", encodedLegacy)
-	}
-}
-
 func TestAtomicDispatchClaim(t *testing.T) {
 	t.Parallel()
-	t.Run("legacy retirement cannot see dispatch claims", func(t *testing.T) {
-		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer store.Close()
-		claim := dispatchLeaseFixture(t, "alpha/one", "C:/repo/claim", "worker-one", "head")
-		if _, err := recordClaim(t, store, claim); err != nil {
-			t.Fatal(err)
-		}
-		content, err := worklease.Codec.Content(claim)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if content.Descriptor.Schema == worklease.Schema {
-			t.Fatal("dispatch claim reused the legacy wire schema")
-		}
-		if retired, err := RetireLegacyLeases(t.Context(), store, 0); err != nil || len(retired) != 0 {
-			t.Fatalf("legacy retirement consumed new claim: %v %v", retired, err)
-		}
-		if err := worklease.ResolveOwner(t.Context(), store, claim); err != nil {
-			t.Fatal(err)
-		}
-		claim.Version = worklease.Version
-		if _, err := worklease.Codec.New(claim); err == nil {
-			t.Fatal("legacy schema accepted worker-owned dispatch semantics")
-		}
-		legacy := workLeaseFixture(t, "beta/one", "C:/repo/advisory")
-		legacyContent, err := worklease.Codec.Content(legacy)
-		if err != nil || legacyContent.Descriptor.Schema != worklease.Schema {
-			t.Fatalf("legacy contract changed: %v", err)
-		}
-	})
 	t.Run("priority follows real prerequisites", func(t *testing.T) {
 		document := Plan{Items: []Item{
 			{ID: "publication", Status: StatusOpen, Steps: []Step{

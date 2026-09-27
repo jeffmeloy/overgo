@@ -486,6 +486,15 @@
     for (const entry of item.evals || []) if (entry.metrics && typeof entry.metrics.accuracy === "number") facts.push((entry.suite || "").replace(/^store\//, "") + " " + entry.metrics.accuracy.toFixed(2) + (entry.reproducible === false ? " (hosted)" : ""));
     return facts.join(" · ");
   }
+  // memoryLines: a catalogued model's measured device memory -- its benchmark's load and peak, then the peak at
+  // each prompt length its long-form run climbed -- each against the device total it ran on.
+  function memoryLines(memory) {
+    const of = (total) => total ? " of " + bytes(total) : "";
+    const lines = [];
+    if (memory.peak_bytes) lines.push("measured peak " + bytes(memory.peak_bytes) + of(memory.device_bytes) + (memory.load_bytes ? " · " + bytes(memory.load_bytes) + " after load" : "") + (memory.residency ? " · " + memory.residency : ""));
+    if ((memory.context || []).length) lines.push("peak by prompt length: " + memory.context.map((point) => grouped(point.prompt_tokens) + " tokens " + bytes(point.peak_bytes)).join(" · ") + of(memory.context_device_bytes));
+    return lines;
+  }
   // supportTag: a catalogued model's support tier on a tag, guarded and trainable beside it, every rung and its
   // evidence in the title.
   function supportTag(support, node = el("span")) {
@@ -1064,7 +1073,11 @@
               if (event.key === "Enter" && event.target === row) { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "Serve"); if (serve) serve.click(); }
               else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...currentPanel.querySelectorAll(".row[tabindex]")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
             } }, el("span", { class: "mono", text: name }), item.support ? supportTag(item.support) : null);
+            // The measured memory shows before serving: its first line on the row, the rest in the details.
+            const memory = item.memory ? memoryLines(item.memory) : [];
+            if (memory.length) row.appendChild(el("span", { class: "note model-memory", text: memory[0] }));
             const facts = el("details", { class: "picker-facts" }, el("summary", { text: "Details" })); row.appendChild(facts);
+            for (const line of memory.slice(1)) facts.appendChild(el("span", { class: "note model-memory", text: line }));
             facts.appendChild(el("span", { class: "mono", text: item.model }));
             if (item.location) facts.appendChild(el("span", { class: "mono", text: item.location }));
             if ((item.location || "").startsWith("remote://")) facts.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));

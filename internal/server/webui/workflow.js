@@ -271,6 +271,8 @@
         clear(panel);
         const capabilitySelect = el("select", { class: "text", "aria-label": "capability" });
         const controls = el("div", { class: "control-grid" });
+        // placement: where the selected capability runs, as it declares.
+        const placement = el("p", { class: "note workflow-placement" });
         const status = el("div", { class: "note" });
         const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, hidden: true });
         const remaining = el("span", { class: "note", role: "status", "aria-label": "time remaining" });
@@ -287,7 +289,7 @@
         // The task first, then its inputs, then the action that runs them.
         panel.append(
           el("div", { class: "section-title", text: overgo.title }),
-          el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), controls, previewHost,
+          el("div", { class: "workflow-task" }, el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), placement), controls, previewHost,
           el("div", { class: "row" }, run, cancel, command), commands, status,
           el("div", { class: "row" }, progress, remaining), trends, metrics, evidence);
 
@@ -308,6 +310,8 @@
         function renderControls() {
           const capability = selected();
           fields = overgo.controlInputs(controls, capability ? capability.controls : []);
+          placement.textContent = capability && capability.host ? "Runs on the host processor: it needs no device memory." : "";
+          placement.hidden = !placement.textContent;
           if (!capability) return;
           overgo.rememberedControls.apply(fields, overgo.rememberedControls.last(capability.recipe));
           if (fields.size) controls.appendChild(overgo.presetControls(capability.recipe, fields));

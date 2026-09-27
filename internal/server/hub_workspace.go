@@ -79,6 +79,7 @@ func catalogListing(entries []discovery.CatalogEntry, evidence evaluation.Eviden
 		}
 		guard, guarded := evidence.GuardsByLocation[entry.Location]
 		model.Support = catalogSupport(model, guard, guarded)
+		model.Memory = catalogMemory(model.Benchmark, guard)
 		listed = append(listed, model)
 	}
 	return listed
@@ -133,6 +134,49 @@ type catalogModel struct {
 	Evals     []evaluation.EvalSummary     `json:"evals,omitempty"`
 	// Support grades how far the store's evidence trusts the model.
 	Support modelSupport `json:"support"`
+	// Memory is the device memory the model's runs measured, before it serves.
+	Memory *modelMemory `json:"memory,omitempty"`
+}
+
+// modelMemory is a model's measured device memory: the bytes after load and
+// the peak from its latest benchmark, the peak at each prompt length its
+// latest long-form run climbed (cumulative since the model opened), and the
+// device total each ran on. Nothing here extrapolates to a length no run
+// measured.
+type modelMemory struct {
+	LoadBytes          uint64        `json:"load_bytes,omitzero"`
+	PeakBytes          uint64        `json:"peak_bytes,omitzero"`
+	DeviceBytes        uint64        `json:"device_bytes,omitzero"`
+	Residency          string        `json:"residency,omitzero"`
+	Context            []contextPeak `json:"context,omitempty"`
+	ContextDeviceBytes uint64        `json:"context_device_bytes,omitzero"`
+}
+
+type contextPeak struct {
+	PromptTokens int    `json:"prompt_tokens"`
+	PeakBytes    uint64 `json:"peak_bytes"`
+}
+
+// catalogMemory gathers a model's measured device memory, or nil when no
+// benchmark or long-form run measured any.
+func catalogMemory(benchmark *evaluation.BenchmarkSummary, guard evaluation.GuardSummary) *modelMemory {
+	var memory modelMemory
+	if benchmark != nil {
+		memory.LoadBytes, memory.PeakBytes = benchmark.DeviceAfterLoadBytes, benchmark.PeakDeviceBytes
+		memory.DeviceBytes, memory.Residency = benchmark.DeviceTotalBytes, benchmark.RealizedResidency
+	}
+	for _, rung := range guard.Rungs {
+		if rung.Measure.Memory.PeakBytes > 0 {
+			memory.Context = append(memory.Context, contextPeak{PromptTokens: rung.Measure.PromptTokens, PeakBytes: rung.Measure.Memory.PeakBytes})
+		}
+	}
+	if len(memory.Context) > 0 {
+		memory.ContextDeviceBytes = guard.Device.TotalMemoryBytes
+	}
+	if memory.LoadBytes == 0 && memory.PeakBytes == 0 && len(memory.Context) == 0 {
+		return nil
+	}
+	return &memory
 }
 
 // modelSupport is a model's support ladder: each rung held or not with the

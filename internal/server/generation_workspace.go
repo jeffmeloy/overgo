@@ -93,6 +93,8 @@ type WorkflowCapability struct {
 	Name     string      `json:"name,omitzero"`
 	Location string      `json:"location,omitzero"`
 	Refusal  string      `json:"refusal,omitzero"`
+	// Host: the run executes on the host processor and needs no device memory.
+	Host bool `json:"host,omitzero"`
 	// model is projected from the compiled recipe by native workspace owners.
 	// It must not be inferred from an unrelated co-hosted text runner.
 	model artifact.ID

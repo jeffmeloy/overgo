@@ -13,12 +13,17 @@ import (
 // weights file: tier, wall, peak, and the headline decode rate lifted
 // from the claim's evidence document.
 type BenchmarkSummary struct {
-	Tier                  string      `json:"tier"`
-	PromptTokensPerSecond float64     `json:"prompt_tokens_per_second_p50,omitzero"`
-	DecodeTokensPerSecond float64     `json:"decode_tokens_per_second_p50,omitzero"`
-	WallNS                uint64      `json:"wall_ns,omitzero"`
-	PeakDeviceBytes       uint64      `json:"peak_device_bytes,omitzero"`
-	Record                artifact.ID `json:"record,omitzero"`
+	Tier                  string  `json:"tier"`
+	PromptTokensPerSecond float64 `json:"prompt_tokens_per_second_p50,omitzero"`
+	DecodeTokensPerSecond float64 `json:"decode_tokens_per_second_p50,omitzero"`
+	WallNS                uint64  `json:"wall_ns,omitzero"`
+	PeakDeviceBytes       uint64  `json:"peak_device_bytes,omitzero"`
+	// DeviceAfterLoadBytes, DeviceTotalBytes and RealizedResidency are the
+	// device the benchmark loaded onto, as its evidence document records.
+	DeviceAfterLoadBytes uint64      `json:"device_after_load_bytes,omitzero"`
+	DeviceTotalBytes     uint64      `json:"device_total_bytes,omitzero"`
+	RealizedResidency    string      `json:"realized_residency,omitzero"`
+	Record               artifact.ID `json:"record,omitzero"`
 }
 
 // EvalSummary is one suite's latest committed evaluation for a recipe
@@ -86,6 +91,17 @@ type GuardSummary struct {
 	Verdict struct {
 		Passed bool `json:"passed"`
 	} `json:"verdict"`
+	// Rungs are the prompt lengths the run climbed, each with the device
+	// peak since the model opened, on the device total it ran on.
+	Rungs []struct {
+		Measure struct {
+			PromptTokens int `json:"prompt_tokens"`
+			Memory       struct {
+				PeakBytes uint64 `json:"peakBytes"`
+			} `json:"memory"`
+		} `json:"measure"`
+	} `json:"rungs"`
+	Device deviceMemory `json:"device"`
 }
 
 // readClaimEvidence decodes a claim's first evidence document into a
@@ -108,6 +124,14 @@ type benchmarkEvidenceHeadline struct {
 		PromptTokensPerSecondP50 float64 `json:"prompt_tokens_per_second_p50"`
 		DecodeTokensPerSecondP50 float64 `json:"decode_tokens_per_second_p50"`
 	} `json:"summary"`
+	DeviceAfterLoadBytes uint64       `json:"device_after_load_bytes"`
+	RealizedResidency    string       `json:"realized_residency"`
+	Device               deviceMemory `json:"device"`
+}
+
+// deviceMemory is the device total a run measured on.
+type deviceMemory struct {
+	TotalMemoryBytes uint64 `json:"totalMemoryBytes"`
 }
 
 // LatestEvidence scans newest-first and keeps the first summary per
@@ -160,6 +184,8 @@ func LatestEvidence(
 				if readClaimEvidence(ctx, store, claim, &headline) {
 					summary.PromptTokensPerSecond = headline.Summary.PromptTokensPerSecondP50
 					summary.DecodeTokensPerSecond = headline.Summary.DecodeTokensPerSecondP50
+					summary.DeviceAfterLoadBytes, summary.DeviceTotalBytes = headline.DeviceAfterLoadBytes, headline.Device.TotalMemoryBytes
+					summary.RealizedResidency = headline.RealizedResidency
 				}
 				keep(func(location string) {
 					if _, seen := index.BenchmarksByLocation[location]; !seen {

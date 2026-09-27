@@ -51,7 +51,7 @@ func (workspace *TrainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 	definition := workspace.program.Definition()
 	return []WorkflowCapability{{
 		Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model,
-		Inputs: definition.Inputs, Outputs: definition.Outputs,
+		Inputs: definition.Inputs, Outputs: definition.Outputs, Host: trainsOnHost,
 		Controls: []WorkflowControl{
 			{Name: "dataset", Type: WorkflowControlDataset, Required: true},
 			{Name: "resume", Type: WorkflowControlCheckpoint},
@@ -61,6 +61,10 @@ func (workspace *TrainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 		},
 	}}, nil
 }
+
+// trainsOnHost: the workbench trains on the host processor, as its
+// capability declares to the page.
+const trainsOnHost = true
 
 type trainingWorkflowInput struct {
 	Dataset        artifact.ID `json:"dataset"`
@@ -170,7 +174,7 @@ func (workspace *TrainingWorkspace) executeWorkflow(
 		ModelDirectory: policyDirectory, ReferenceDirectory: referenceDirectory,
 		DatasetPath: datasetPath, OutputDirectory: output, ResumeDirectory: resumeDirectory,
 		Steps:          input.Steps,
-		ObjectiveScale: input.ObjectiveScale, Host: true,
+		ObjectiveScale: input.ObjectiveScale, Host: trainsOnHost,
 		ObserveDPO: func(observation trainingprogram.DPOObservation) {
 			dpo = append(dpo, observation)
 			completed++

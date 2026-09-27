@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-memory-estimate",
-      "title": "Predict a training or serving run's peak device memory before launch from the measured device-memory records",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Predict a training or serving run's peak device memory before launch from the measured device-memory records",
-          "status": "open",
-          "verify": "test -f internal/server/memory_estimate_test.go \u0026\u0026 go test ./internal/server -run '^TestRunMemoryEstimateFromMeasuredRecords$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(MemoryEstimate|LayoutAudit)$' -leg 'memory estimate leg'",
-          "rationale": "LlamaFactory review 2026-09-25: it offers only a static VRAM table. Overgo records measured device memory per run (bounded attribution, nothing unattributed), so the launch form predicts peak memory from those measurements before a run starts, and says so when no measurement covers the choice."
-        }
-      ]
-    },
-    {
       "id": "gui-dataset-import",
       "title": "Register datasets from alpaca, ShareGPT and OpenAI-messages files through one converter",
       "owner": "overgo_gui_cleanup",

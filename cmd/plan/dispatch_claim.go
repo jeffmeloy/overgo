@@ -223,19 +223,7 @@ func printDispatch(c cli, args []string, output io.Writer) error {
 		err = nil
 	} else {
 		request := plan.DispatchRequest{Role: c.role, Worker: c.worker, Mode: c.mode, Acquire: c.prompt || c.verify, Reference: reference}
-		// plan -next dispatches and then reviews: one open serves both.
-		if c.next {
-			if request.Store, err = openPlanStore(); err != nil {
-				return err
-			}
-			defer request.Store.Close()
-		}
 		dispatch, err = plan.ResolveDispatch(context.Background(), commandWorktree, request)
-		// A landed row's measured evidence must be answered before the next
-		// row is dispatched; a stop or an empty plan needs no answer.
-		if err == nil && c.next && dispatch.Waiting == "" && !dispatch.Complete {
-			err = requireOptimizationReview(document, request.Store, !c.json, output)
-		}
 	}
 	if err != nil {
 		return err

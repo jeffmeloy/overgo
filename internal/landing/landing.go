@@ -27,10 +27,6 @@ import (
 	"overgo/internal/testevidence"
 )
 
-// RowTrailer marks the commit that landed a row; a caller confirms the
-// landing from Git by it.
-const RowTrailer = "Landed-Row"
-
 // Options names the row a landing serves, its authored message, and where
 // progress goes.
 type Options struct {
@@ -241,7 +237,7 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 		return "", err
 	}
 	message := strings.TrimSpace(string(l.Message)) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
-		"\n\n" + RowTrailer + ": " + l.Ref + "\n"
+		"\n\n" + plan.LandedRowTrailer + ": " + l.Ref + "\n"
 	file, err := os.CreateTemp("", "overgo-landing-*.txt")
 	if err != nil {
 		return "", err

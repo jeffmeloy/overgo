@@ -3,6 +3,7 @@ package plan
 
 import (
 	"cmp"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -99,10 +100,6 @@ type Plan struct {
 	Scope  string       `json:"scope,omitzero"`
 	Census *artifact.ID `json:"census_evidence,omitempty"`
 	Items  []Item       `json:"items"`
-	// Reviews records the re-plan's answer to every optimization candidate
-	// a landed row's gate evidence named: the row that addresses it or the
-	// reason none is filed. Dispatch refuses while a candidate has neither.
-	Reviews []OptimizationDisposition `json:"optimization_reviews,omitempty"`
 }
 
 // Load reads the plan from path (Path when empty).
@@ -172,9 +169,6 @@ func validatePlanGraph(d Plan) error {
 	}
 	if d.Lane != "" && !worklease.ValidAutomationText(d.Lane) {
 		return errors.New("plan: invalid lane")
-	}
-	if err := validateReviews(d.Reviews); err != nil {
-		return err
 	}
 	items := map[string]bool{}
 	for _, item := range d.Items {
@@ -315,14 +309,11 @@ func validStatus(status string) bool {
 // Current returns the role-owned open step, then the first unowned step.
 // An open item with no open step yields the sentinel step "." (open the rung).
 // ok is false when no open item remains.
-func Current(d Plan, role string, authority CompletionAuthority) (Item, Step, bool) {
-	if !authority.resolves(d) {
-		return Item{}, Step{}, false
-	}
-	return currentResolved(d, role, authority)
+func Current(d Plan, role string) (Item, Step, bool) {
+	return currentResolved(d, role)
 }
 
-func currentResolved(d Plan, role string, authority CompletionAuthority) (Item, Step, bool) {
+func currentResolved(d Plan, role string) (Item, Step, bool) {
 	role = normalizedRole(role)
 	// The plan's lane is the role nobody named: the rule reads the plan, so a
 	// worktree and the gate's candidate tree dispatch the same rows.
@@ -330,14 +321,14 @@ func currentResolved(d Plan, role string, authority CompletionAuthority) (Item, 
 		role = d.Lane
 	}
 	if role != worklease.UnassignedRole {
-		if item, step, ok := currentOwned(d, role, authority); ok {
+		if item, step, ok := currentOwned(d, role); ok {
 			return item, step, true
 		}
 	}
-	return currentOwned(d, "", authority)
+	return currentOwned(d, "")
 }
 
-func currentOwned(d Plan, owner string, authority CompletionAuthority) (Item, Step, bool) {
+func currentOwned(d Plan, owner string) (Item, Step, bool) {
 	for _, it := range d.Items {
 		if it.Status != StatusOpen || it.Owner != owner {
 			continue
@@ -437,9 +428,29 @@ func advancePlan(d Plan, itemID, stepID string, wholeItem bool) (Plan, error) {
 
 // Digest returns the existing canonical plan identity; unencodable state returns empty.
 func (document Plan) Digest() string {
-	digest, err := completionPlanDigest(document)
+	encoded, err := json.Marshal(document)
 	if err != nil {
 		return ""
 	}
+	digest := sha256.Sum256(encoded)
 	return hex.EncodeToString(digest[:])
+}
+
+func exactPlanItem(document Plan, itemID string) (Item, bool) {
+	for _, item := range document.Items {
+		if item.ID == itemID {
+			return item, true
+		}
+	}
+	return Item{}, false
+}
+
+func exactPlanStep(document Plan, itemID, stepID string) (Step, bool) {
+	item, _ := exactPlanItem(document, itemID)
+	for _, step := range item.Steps {
+		if step.ID == stepID {
+			return step, true
+		}
+	}
+	return Step{}, false
 }

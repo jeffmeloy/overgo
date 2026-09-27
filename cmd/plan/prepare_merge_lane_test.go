@@ -31,8 +31,7 @@ func TestPrepareMergeLaneProjection(t *testing.T) {
 	if row.ID != "merge-0123456789ab" || row.Owner != "hatchet" || len(row.Steps) != 1 || row.Steps[0].Verify != "go build ./..." || merged.Items[1].ID != "lane-row" {
 		t.Fatalf("lane merge row = %+v", row)
 	}
-	authority := mustTestCompletionAuthority(t, merged)
-	if dispatch := plan.DispatchOf(merged, worklease.UnassignedRole, authority); dispatch.Item != "merge-0123456789ab" || dispatch.Step != "do" {
+	if dispatch := plan.DispatchOf(merged, worklease.UnassignedRole); dispatch.Item != "merge-0123456789ab" || dispatch.Step != "do" {
 		t.Fatalf("the lane dispatches %+v, want its merge row", dispatch)
 	}
 	merged, err = insertMergeRow(target, "merge-0123456789ab", "Merge branch at 0123456789ab", "", false)

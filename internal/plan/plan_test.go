@@ -41,37 +41,19 @@ func TestEnforceCurrentFirstOpenStep(t *testing.T) {
 		}},
 		{ID: "c", Status: "open", Steps: []Step{{ID: "s1", Status: "open"}}},
 	}}
-	it, st, ok := Current(p, worklease.UnassignedRole, testCompletionAuthority(t, p))
+	it, st, ok := Current(p, worklease.UnassignedRole)
 	if !ok || it.ID != "b" || st.ID != "s2" {
 		t.Fatalf("Current = %s/%s ok=%v, want b/s2 ok=true", it.ID, st.ID, ok)
 	}
 
-	if _, _, ok := Current(Plan{}, worklease.UnassignedRole, CompletionAuthority{}); ok {
+	if _, _, ok := Current(Plan{}, worklease.UnassignedRole); ok {
 		t.Fatal("Current on an empty plan must return ok=false")
 	}
 
 	// An open item with no open step is itself the action (sentinel step ".").
 	openNoStep := Plan{Items: []Item{{ID: "x", Status: "open"}}}
-	if it, st, ok := Current(openNoStep, worklease.UnassignedRole, testCompletionAuthority(t, openNoStep)); !ok || it.ID != "x" || st.ID != "." {
+	if it, st, ok := Current(openNoStep, worklease.UnassignedRole); !ok || it.ID != "x" || st.ID != "." {
 		t.Fatalf("Current(open item, no steps) = %s/%s ok=%v, want x/. ok=true", it.ID, st.ID, ok)
-	}
-}
-
-func TestCurrentRefusesUnresolvedOrCrossPlanAuthority(t *testing.T) {
-	t.Parallel()
-	document := Plan{Items: []Item{{
-		ID: "one", Status: StatusOpen,
-		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
-	}}}
-	if _, _, open := Current(document, worklease.UnassignedRole, CompletionAuthority{}); open {
-		t.Fatal("zero completion authority dispatched work")
-	}
-	other := Plan{Items: []Item{{
-		ID: "other", Status: StatusOpen,
-		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
-	}}}
-	if _, _, open := Current(document, worklease.UnassignedRole, testCompletionAuthority(t, other)); open {
-		t.Fatal("completion authority was replayed across plans")
 	}
 }
 
@@ -82,12 +64,11 @@ func TestRoleOwnedDispatch(t *testing.T) {
 		{ID: "developer", Owner: "developer", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
 		{ID: "sqa", Owner: "sqa", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
 	}}
-	authority := testCompletionAuthority(t, document)
-	item, _, ok := Current(document, "sqa", authority)
+	item, _, ok := Current(document, "sqa")
 	if !ok || item.ID != "sqa" {
 		t.Fatalf("sqa dispatch = %s, ok=%v", item.ID, ok)
 	}
-	item, _, ok = Current(document, "developer", authority)
+	item, _, ok = Current(document, "developer")
 	if !ok || item.ID != "developer" {
 		t.Fatalf("developer dispatch = %s, ok=%v", item.ID, ok)
 	}
@@ -99,15 +80,14 @@ func TestUnownedDispatchFallback(t *testing.T) {
 		{ID: "shared", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
 		{ID: "developer", Owner: "developer", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
 	}}
-	authority := testCompletionAuthority(t, document)
 	for _, role := range []string{worklease.UnassignedRole, "sqa"} {
-		item, _, ok := Current(document, role, authority)
+		item, _, ok := Current(document, role)
 		if !ok || item.ID != "shared" {
 			t.Fatalf("fallback for %s = %s, ok=%v", role, item.ID, ok)
 		}
 	}
 	foreignOnly := Plan{Items: document.Items[1:]}
-	if _, _, ok := Current(foreignOnly, "sqa", testCompletionAuthority(t, foreignOnly)); ok {
+	if _, _, ok := Current(foreignOnly, "sqa"); ok {
 		t.Fatal("foreign owned work was dispatched")
 	}
 }
@@ -192,7 +172,7 @@ func TestAdvanceRemovesCompletedRows(t *testing.T) {
 	if len(advanced.Items[0].Steps) != 1 || advanced.Items[0].Steps[0].ID != "second" {
 		t.Fatalf("first advance retained the completed step: %+v", advanced.Items[0])
 	}
-	if _, step, ok := Current(advanced, worklease.UnassignedRole, testCompletionAuthority(t, advanced)); !ok || step.ID != "second" {
+	if _, step, ok := Current(advanced, worklease.UnassignedRole); !ok || step.ID != "second" {
 		t.Fatalf("current after first advance = %s, open=%v", step.ID, ok)
 	}
 	advanced, err = Advance(advanced, "item", "second")
@@ -202,7 +182,7 @@ func TestAdvanceRemovesCompletedRows(t *testing.T) {
 	if len(advanced.Items) != 0 {
 		t.Fatalf("final advance retained the completed item: %+v", advanced.Items)
 	}
-	if _, _, ok := Current(advanced, worklease.UnassignedRole, testCompletionAuthority(t, advanced)); ok {
+	if _, _, ok := Current(advanced, worklease.UnassignedRole); ok {
 		t.Fatal("completed plan remained dispatchable")
 	}
 }

@@ -13,7 +13,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
-	"overgo/internal/landing"
+	"overgo/internal/plan"
 )
 
 // Landing a row is a fixed sequence around the one thing a worker authors:
@@ -111,7 +111,7 @@ func (w execRowWorld) Landed(reference string) (string, error) {
 		return "", err
 	}
 	commit, body, _ := strings.Cut(string(message), "\n")
-	if !strings.Contains(body, "\n"+landing.RowTrailer+": "+reference+"\n") {
+	if !strings.Contains(body, "\n"+plan.LandedRowTrailer+": "+reference+"\n") {
 		return "", fmt.Errorf("loop: the gate reported success but HEAD %.12s is not the landing of %s", commit, reference)
 	}
 	return commit, nil

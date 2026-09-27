@@ -55,8 +55,8 @@ func TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs(t *testing.T) {
 	local = plan.Plan{Campaign: base.Campaign, Doctrine: base.Doctrine, Items: slices.Clone(base.Items)}
 	upstream = plan.Plan{Campaign: base.Campaign, Doctrine: base.Doctrine, Items: slices.Clone(base.Items)}
 	local.Items = local.Items[1:]
-	if _, err := plan.MergeDocuments(base, local, upstream); err == nil {
-		t.Fatal("legacy row deletion was accepted as completion")
+	if retired, err := plan.MergeDocuments(base, local, upstream); err != nil || len(retired.Items) != len(base.Items)-1 {
+		t.Fatalf("a row one side retired was kept or refused: %d items, %v", len(retired.Items), err)
 	}
 
 	base.Items[0].Steps[0].Rationale = "why"
@@ -104,10 +104,7 @@ func TestPrepareMergeFirstParentTargetRetainsOnlyLocalPlan(t *testing.T) {
 	incoming := clonePlan(t, base)
 	incoming.Items = append(incoming.Items, item("incoming-only"))
 
-	projected, err := projectMergePlan(
-		base, local, incoming, plan.CompletionAuthority{}, plan.CompletionAuthority{},
-		plan.MergeProjectionFirstParentTarget,
-	)
+	projected, err := projectMergePlan(base, local, incoming, plan.MergeProjectionFirstParentTarget)
 	if err != nil {
 		t.Fatal(err)
 	}

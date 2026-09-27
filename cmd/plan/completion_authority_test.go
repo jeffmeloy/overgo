@@ -10,47 +10,16 @@ import (
 	"overgo/internal/plan"
 )
 
-func mustTestCompletionAuthority(t *testing.T, document plan.Plan) plan.CompletionAuthority {
-	t.Helper()
-	authority, err := testCompletionAuthority(t, document)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return authority
-}
-
-func testCompletionAuthority(t *testing.T, document plan.Plan) (plan.CompletionAuthority, error) {
-	t.Helper()
-	root := initializePlanTestRepository(t, document)
-	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		return plan.CompletionAuthority{}, err
-	}
-	defer store.Close()
-	return plan.ResolveCompletionAuthority(t.Context(), root, "HEAD", document, store)
-}
-
-func mustTestCompletionAuthorityBinding(
-	t *testing.T,
-	document plan.Plan,
-) (plan.CompletionAuthority, string, string) {
+// mustTestRepositoryBinding seeds a repository holding document and returns
+// its worktree and HEAD.
+func mustTestRepositoryBinding(t *testing.T, document plan.Plan) (string, string) {
 	t.Helper()
 	root := initializePlanTestRepository(t, document)
 	headRaw, err := commandOutput(root, "git", "rev-parse", "HEAD")
 	if err != nil {
 		t.Fatal(err)
 	}
-	head := strings.TrimSpace(string(headRaw))
-	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	authority, err := plan.ResolveCompletionAuthority(t.Context(), root, head, document, store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return authority, root, head
+	return root, strings.TrimSpace(string(headRaw))
 }
 
 func initializePlanTestRepository(t *testing.T, document plan.Plan) string {

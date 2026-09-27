@@ -74,7 +74,7 @@ func TestPrepareMergeCapturedPlanConflict(t *testing.T) {
 					_ = lock.Close()
 					t.Fatal("capture did not retain the mutation lock")
 				}
-				projected, err := projectMergePlan(base, captured, incoming, plan.CompletionAuthority{}, plan.CompletionAuthority{}, plan.MergeProjectionFirstParentTarget)
+				projected, err := projectMergePlan(base, captured, incoming, plan.MergeProjectionFirstParentTarget)
 				if err != nil {
 					return err
 				}

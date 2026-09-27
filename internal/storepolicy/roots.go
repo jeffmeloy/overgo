@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -16,15 +15,13 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/gitauthority"
-	"overgo/internal/plan"
 )
 
 // CheckoutRoots collects every store identity a checkout pins without an
 // alias: the ones its committed JSON documents name (docs/**/*.json and the
-// root compatibility.json) and the ones named by its commit messages after
-// the proof horizon -- the gate's Overgo-* trailers and any identity a body
-// cites. The plan completion authority proves every landing after the
-// horizon from the latter, so both root a store's live set. The counts
+// root compatibility.json) and the ones named by its commit messages -- the
+// old gate's Overgo-* trailers and any identity a body cites -- so both root
+// a store's live set. The counts
 // report each source before the union.
 func CheckoutRoots(ctx context.Context, checkout string) (roots []artifact.ID, documents, messages int, err error) {
 	var files []string
@@ -47,17 +44,7 @@ func CheckoutRoots(ctx context.Context, checkout string) (roots []artifact.ID, d
 		}
 		committed = append(append(committed, data...), '\n')
 	}
-	// At or before a committed proof horizon the completion authority takes
-	// landings from Git alone, so their messages pin nothing: only the
-	// history after it roots evidence. The receipt is read from HEAD's tree,
-	// as the authority reads it, so an uncommitted one releases nothing; no
-	// receipt means the whole history.
-	revisions := "HEAD"
-	var horizon plan.ProofHorizon
-	if receipt, err := gitauthority.Query(ctx, checkout, "show", "HEAD:"+plan.ProofHorizonPath); err == nil && json.Unmarshal(receipt, &horizon) == nil {
-		revisions = horizon.Commit + "..HEAD"
-	}
-	history, err := gitauthority.Query(ctx, checkout, "log", "--format=%B", revisions)
+	history, err := gitauthority.Query(ctx, checkout, "log", "--format=%B", "HEAD")
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("git log for commit-message roots: %w", err)
 	}

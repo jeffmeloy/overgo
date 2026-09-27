@@ -3,69 +3,38 @@ package plan
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"overgo/internal/worklease"
 )
 
-// AcceptedProgressSince reports newly gated local prerequisites or sibling
-// substeps for an open row. It derives progress from the existing completion
-// authority, never from a second ledger or the mere movement of HEAD.
-func (authority CompletionAuthority) AcceptedProgressSince(ctx context.Context, document Plan, itemID, stepID, checkpoint string) (bool, error) {
-	if ctx == nil || !authority.resolves(document) || !worklease.ValidCommit(checkpoint) {
-		return false, errors.New("plan: progress requires resolved completion authority and an exact checkpoint")
-	}
-	item, found := exactPlanItem(document, itemID)
-	if !found {
-		return false, errors.New("plan: progress item is absent")
+// LandedRowTrailer marks the commit that landed a row; the loop confirms a
+// landing and reads progress from it.
+const LandedRowTrailer = "Landed-Row"
+
+// AcceptedProgressSince reports whether a landing on the first-parent chain
+// since the checkpoint moved an open row forward: a sibling step of its item,
+// or a prerequisite it waits on, landed. Git holds the record: each landing
+// names its row in its Landed-Row trailer.
+func AcceptedProgressSince(ctx context.Context, repository string, document Plan, itemID, stepID, checkpoint string) (bool, error) {
+	if ctx == nil || !worklease.ValidCommit(checkpoint) {
+		return false, errors.New("plan: progress requires an exact checkpoint")
 	}
 	step, found := exactPlanStep(document, itemID, stepID)
 	if !found || step.Status != StatusOpen {
 		return false, errors.New("plan: progress step is not open")
 	}
-	// A merge may import accepted work, but it is not local implementation
-	// progress. Require the checkpoint on this exact first-parent chain and
-	// consider only subsequent non-merge completion commits on that chain.
-	raw, err := gitCompletionCommand(ctx, authority.repository, "rev-list", "--first-parent", authority.revision)
+	log, err := gitCommand(ctx, repository, "log", "--first-parent", "--no-merges", "--format=%B%x00", checkpoint+"..HEAD")
 	if err != nil {
 		return false, err
 	}
-	newCommits := map[string]bool{}
-	reached := false
-	for revision := range strings.FieldsSeq(string(raw)) {
-		if revision == checkpoint {
-			reached = true
-			break
-		}
-		newCommits[revision] = true
-	}
-	if !reached {
-		return false, errors.New("plan: progress checkpoint is outside the first-parent history")
-	}
-	dependencies := map[string][]string{}
-	for reference, evidence := range authority.completedReferences {
-		dependencies[reference] = strings.Fields(evidence.dependencies)
-	}
-	for _, retained := range document.Items {
-		for _, candidate := range retained.Steps {
-			dependencies[retained.ID+"/"+candidate.ID] = candidate.DependsOn
-		}
-	}
-	relevant := map[string]bool{}
-	queue := append([]string(nil), step.DependsOn...)
-	for len(queue) > 0 {
-		reference := queue[0]
-		queue = queue[1:]
-		if relevant[reference] {
-			continue
-		}
-		relevant[reference] = true
-		queue = append(queue, dependencies[reference]...)
-	}
-	for reference, evidence := range authority.completedReferences {
-		sibling := strings.HasPrefix(reference, itemID+"/")
-		if newCommits[evidence.commit] && !evidence.merge && evidence.owner == item.Owner && (sibling || relevant[reference]) {
-			return true, nil
+	for message := range strings.SplitSeq(string(log), "\x00") {
+		for line := range strings.Lines(message) {
+			landed, found := strings.CutPrefix(strings.TrimSpace(line), LandedRowTrailer+": ")
+			if found && (strings.HasPrefix(landed, itemID+"/") || slices.Contains(step.DependsOn, landed)) {
+				return true, nil
+			}
 		}
 	}
 	return false, nil

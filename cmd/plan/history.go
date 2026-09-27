@@ -78,11 +78,6 @@ func admitProposal(root, specPath string, output io.Writer) error {
 				),
 			}},
 		}
-		probe := document
-		probe.Items = append([]plan.Item{row}, document.Items...)
-		if _, err := plan.ResolveCompletionAuthority(ctx, root, "HEAD", probe, store); err != nil {
-			return err
-		}
 		document.Items = append([]plan.Item{row}, document.Items...)
 		if err := savePlanMutation(root, document); err != nil {
 			return err

@@ -18,9 +18,8 @@ func TestCompactAgentOutput(t *testing.T) {
 			ID: "do", Title: "make the bounded change", Status: "open", Verify: "go test ./x -run '^TestX$'",
 		}},
 	}}}
-	authority := mustTestCompletionAuthority(t, document)
 	var output bytes.Buffer
-	printPrompt(document, worklease.UnassignedRole, &output, authority)
+	printPrompt(document, worklease.UnassignedRole, &output)
 	text := output.String()
 	if len(text) > 700 || !strings.Contains(text, "TASK item/do") || !strings.Contains(text, "VERIFY go test") || !strings.Contains(text, "COMMIT go run ./cmd/loop -land") {
 		t.Fatalf("prompt is not compact and decision-complete (%d bytes):\n%s", len(text), text)
@@ -40,7 +39,7 @@ func TestBatchPromptRetainsParentDispatch(t *testing.T) {
 		},
 	}}}}}
 	var output bytes.Buffer
-	printPrompt(document, worklease.UnassignedRole, &output, mustTestCompletionAuthority(t, document))
+	printPrompt(document, worklease.UnassignedRole, &output)
 	for _, want := range []string{"TASK audio/dataset", "BATCH ACCEPTANCE source:", "full gating and parent completion remain mandatory"} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("prompt lacks %q: %s", want, output.String())

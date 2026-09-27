@@ -69,7 +69,7 @@ type ContextFacts struct {
 	Workflow     WorkflowContext
 }
 
-func BuildAutomationContext(document Plan, facts ContextFacts, completions CompletionAuthority) (AutomationContext, error) {
+func BuildAutomationContext(document Plan, facts ContextFacts) (AutomationContext, error) {
 	if err := Validate(document); err != nil {
 		return AutomationContext{}, err
 	}
@@ -79,9 +79,6 @@ func BuildAutomationContext(document Plan, facts ContextFacts, completions Compl
 	facts.Role = strings.TrimSpace(facts.Role)
 	if facts.Head == "" || facts.Branch == "" || rawWorktree == "" {
 		return AutomationContext{}, errors.New("automation context requires head, branch, and worktree")
-	}
-	if !completions.resolvesAt(document, rawWorktree, facts.Head) {
-		return AutomationContext{}, errors.New("automation context requires completion authority for the exact plan, repository, and revision")
 	}
 	facts.Worktree = filepath.ToSlash(rawWorktree)
 	if strings.ContainsAny(facts.Role, "\r\n") {
@@ -106,7 +103,7 @@ func BuildAutomationContext(document Plan, facts ContextFacts, completions Compl
 	if ctx.Workflow.Source == "" || ctx.Workflow.Phase != "implementation" && ctx.Workflow.Phase != "sqa" && ctx.Workflow.Phase != "priority" {
 		return AutomationContext{}, errors.New("automation context requires a valid workflow phase and source")
 	}
-	if item, step, ok := currentResolved(document, facts.Role, completions); ok {
+	if item, step, ok := currentResolved(document, facts.Role); ok {
 		ctx.PlanState = "active"
 		ctx.CurrentTask = &TaskContext{
 			ItemID: item.ID, ItemTitle: item.Title,

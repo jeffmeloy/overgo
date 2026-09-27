@@ -28,7 +28,6 @@ import (
 	"overgo/internal/closurescan"
 	"overgo/internal/gosyntax"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
 	"overgo/internal/storepolicy"
@@ -170,7 +169,6 @@ func precheck(ctx context.Context, repository, backup, checkout, candidate strin
 	}
 	result.Checks = runChecks([]namedCheck{
 		{"blob-identity", func() error { _, err := store.VerifyBlobs(ctx); return err }},
-		{"completion-authority", func() error { return checkCompletionAuthority(ctx, checkout, store) }},
 		{"published-chains", func() error { return checkPublishedChains(ctx, checkout, candidate) }},
 		{"closure-ledger", func() error { return checkClosureLedger(ctx, checkout, store) }},
 	})
@@ -232,16 +230,6 @@ func swapStores(live, candidate, head string) (string, error) {
 		return "", errors.Join(err, os.Rename(superseded, live))
 	}
 	return superseded, nil
-}
-
-// checkCompletionAuthority resolves every landed completion against the candidate.
-func checkCompletionAuthority(ctx context.Context, checkout string, store *overgodb.Store) error {
-	document, err := plan.Load(filepath.Join(checkout, filepath.FromSlash(plan.Path)))
-	if err != nil {
-		return err
-	}
-	_, err = plan.ResolveCompletionAuthority(ctx, checkout, "HEAD", document, store)
-	return err
 }
 
 // checkPublishedChains runs store-check, which refuses every broken chain, against the candidate.

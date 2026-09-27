@@ -22,3 +22,12 @@ func TestOldGateGone(t *testing.T) {
 	t.Parallel()
 	requireGone(t, "internal/gate")
 }
+
+// TestCompletionAuthorityGone holds the plan to plain data: the completion
+// authority, its transitions and its proof horizon are deleted, and git is
+// the record of what landed.
+func TestCompletionAuthorityGone(t *testing.T) {
+	t.Parallel()
+	requireGone(t, "internal/plan/completion.go", "internal/plan/projected_merge_authority.go",
+		"internal/plan/completion_transitions.go", "internal/plan/proof_horizon.go", "docs/plan_proof_horizon.json")
+}

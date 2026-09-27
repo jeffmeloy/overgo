@@ -76,7 +76,7 @@ func TestDispatchContractBinding(t *testing.T) {
 		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "overgodb:overgodb-store"},
 		Workflow:     WorkflowContext{Phase: "implementation", Source: "git:HEAD+overgodb:overgodb-store"},
 	}
-	ctx, err := BuildAutomationContext(document, facts, testCompletionAuthorityAt(t, document, facts.Worktree, facts.Head, "base/do"))
+	ctx, err := BuildAutomationContext(document, facts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestDispatchContractBinding(t *testing.T) {
 		t.Fatal("plan document lost the row rationale history")
 	}
 	legacy := Plan{Items: []Item{{ID: "legacy", Title: "Legacy", Status: StatusOpen, Steps: []Step{{ID: "do", Title: "Old", Status: StatusOpen, Verify: "go test ./x -run '^TestLegacy$'"}}}}}
-	legacyCtx, err := BuildAutomationContext(legacy, facts, testCompletionAuthorityAt(t, legacy, facts.Worktree, facts.Head))
+	legacyCtx, err := BuildAutomationContext(legacy, facts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,11 +158,8 @@ func TestAtomicDispatchClaim(t *testing.T) {
 			}},
 			{ID: "selection", Status: StatusOpen, Steps: []Step{{ID: "source-binding", Status: StatusOpen, Verify: "go test ./internal/automationcheck"}}},
 		}}
-		before, err := completionJSONDigest(document, "unchanged priority input")
-		if err != nil {
-			t.Fatal(err)
-		}
-		ordered, err := dispatchPriority(document, worklease.UnassignedRole, testCompletionAuthority(t, document))
+		before := document.Digest()
+		ordered, err := dispatchPriority(document, worklease.UnassignedRole)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,8 +167,7 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		if !slices.Equal(ordered, want) {
 			t.Fatalf("priority=%v want=%v", ordered, want)
 		}
-		after, err := completionJSONDigest(document, "unchanged priority input")
-		if err != nil || after != before {
+		if document.Digest() != before {
 			t.Fatal("scheduling rewrote the plan")
 		}
 	})
@@ -182,9 +178,8 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		}
 		defer store.Close()
 		document := frontierTestPlan()
-		authority := testCompletionAuthority(t, document)
 		head, sequence := store.Head()
-		view, err := selectDispatch(t.Context(), store, document, worklease.UnassignedRole, "C:/repo/first", "worker-one", "", authority)
+		view, err := selectDispatch(t.Context(), store, document, worklease.UnassignedRole, "C:/repo/first", "worker-one", "")
 		if err != nil || view.Item != "alpha" || view.Step != "one" || view.Claim != nil {
 			t.Fatalf("inspection=%+v %v", view, err)
 		}
@@ -204,25 +199,25 @@ func TestAtomicDispatchClaim(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, worker := range []string{"worker-two", ""} {
-			view, err := selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, worker, "", authority)
+			view, err := selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, worker, "")
 			if err != nil || view.Waiting == "" || view.Claim == nil || view.Complete {
 				t.Fatalf("same-tree inspection=%+v %v", view, err)
 			}
 		}
-		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, "C:/repo/second", "worker-two", "", authority)
+		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, "C:/repo/second", "worker-two", "")
 		if err != nil || view.Item != "beta" || view.Step != "solo" || view.Waiting != "" {
 			t.Fatalf("independent selection=%+v %v", view, err)
 		}
-		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, lease.Worker, "", authority)
+		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, lease.Worker, "")
 		if err != nil || view.Claim == nil || view.Claim.ID != lease.ID || view.Waiting != "" {
 			t.Fatalf("resume=%+v %v", view, err)
 		}
 		document.Items[0].Steps[1].Title = "unrelated sibling edit"
-		if err := validateDispatchContract(document, lease, worklease.UnassignedRole, testCompletionAuthority(t, document)); err != nil {
+		if err := validateDispatchContract(document, lease, worklease.UnassignedRole); err != nil {
 			t.Fatalf("sibling invalidated claim: %v", err)
 		}
 		document.Items[0].Steps[0].Verify = "go test ./internal/artifact"
-		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, lease.Worker, "", testCompletionAuthority(t, document))
+		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, lease.Worker, "")
 		if err != nil || view.Claim != nil || view.amends == nil || view.amends.ID != lease.ID || view.Waiting != "" {
 			t.Fatalf("changed contract resumed without renewal: %+v %v", view, err)
 		}

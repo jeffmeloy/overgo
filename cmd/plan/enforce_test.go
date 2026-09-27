@@ -26,8 +26,7 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 	if top.Items[0].ID != "new" || top.Items[0].Steps[0].ID != "do" || top.Items[0].Steps[0].Verify != "go test ./..." {
 		t.Fatalf("insert-at-top produced %+v", top.Items[0])
 	}
-	authority := mustTestCompletionAuthority(t, top)
-	if it, st, ok := plan.Current(top, worklease.UnassignedRole, authority); !ok || it.ID != "new" || st.ID != "do" {
+	if it, st, ok := plan.Current(top, worklease.UnassignedRole); !ok || it.ID != "new" || st.ID != "do" {
 		t.Fatalf("new item must be the current step, got %s/%s", it.ID, st.ID)
 	}
 	mid, err := insertItem(base, "x", "t", "", "b", "")

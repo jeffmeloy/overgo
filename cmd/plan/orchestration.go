@@ -326,11 +326,7 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 	}
 	defer store.Close()
 	ctx := context.Background()
-	authority, err := plan.ResolveCompletionAuthority(ctx, root, "HEAD", document, store)
-	if err != nil {
-		return err
-	}
-	frontier, err := plan.ReadyFrontier(document, authority)
+	frontier, err := plan.ReadyFrontier(document)
 	if err != nil {
 		return err
 	}

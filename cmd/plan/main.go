@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -23,7 +22,6 @@ import (
 	"overgo/internal/closurescan"
 	"overgo/internal/commanddoc"
 	"overgo/internal/extent"
-	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
@@ -70,7 +68,6 @@ func main() {
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
-	sealHorizon := flag.Bool("seal-horizon", false, "write docs/plan_proof_horizon.json at HEAD with the completions the authority just proved; land it with the row in flight, after which completions at or before it are accepted from Git alone")
 	budget := flag.Bool("budget", false, "declare an open item's scope: -budget <item-id> -reason <why> [-nodes <cap>] [-paydown <open item>]; the reason admits the measured growth, and an undeclared row may not grow production nodes")
 	// The default is the zero budget: a row that declares no growth maintains.
 	var nodes int
@@ -92,10 +89,7 @@ func main() {
 	contain := flag.String("contain", "", "record typed lane containment: -contain <reason-code> -lane <lane> <detail>")
 	lane := flag.String("lane", "", "lane affected by -contain")
 	_ = flag.String("force", "", "retired with -advance")
-	review := flag.String("review", "", "record the re-plan's disposition of one optimization candidate key: -review <key> (-row <item-id> | -reason <text>)")
-	reviewKind := flag.String("review-kind", "", "record one disposition for every pending optimization candidate of this kind: -review-kind <kind> (-row <item-id> | -reason <text>)")
-	reviewRow := flag.String("row", "", "with -review: the open plan item that addresses the candidate")
-	reviewReason := flag.String("reason", "", "with -review: why no row is filed for the candidate")
+	reason := flag.String("reason", "", "with -budget: why the row grows")
 	title := flag.String("title", "", "with -add: the task title")
 	class := flag.String("class", "", "with -add: the row class (consolidation; empty is a feature)")
 	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
@@ -106,7 +100,7 @@ func main() {
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, review: *review, reviewKind: *reviewKind, reviewRow: *reviewRow, reviewReason: *reviewReason, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, sealHorizon: *sealHorizon, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, reason: *reason, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
 }
@@ -123,8 +117,8 @@ type cli struct {
 	judgeEfficiency                                                                       string
 	pruneDone                                                                             bool
 	title, class, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane string
-	review, reviewKind, reviewRow, reviewReason                                           string
-	budget, sealHorizon                                                                   bool
+	reason                                                                                string
+	budget                                                                                bool
 	nodes                                                                                 int
 	paydown                                                                               string
 	assign                                                                                bool
@@ -227,26 +221,16 @@ func run(c cli, args []string) error {
 		return printLocalitySchedule(commandWorktree, c.localitySchedule, os.Stdout)
 	case c.bindCensus:
 		return bindCampaignCensus(commandWorktree, os.Stdout)
-	case c.sealHorizon:
-		return sealProofHorizon(commandWorktree, os.Stdout)
 	case c.pruneDone:
 		return errors.New("plan: direct pruning is retired; cmd/gate atomically commits and prunes the current row")
 	case c.budget:
 		if len(args) != 1 {
 			return errors.New("usage: plan -budget <item-id> -reason <why> [-nodes <cap>] [-paydown <open item>]")
 		}
-		declared := plan.Budget{Nodes: c.nodes, Paydown: c.paydown, Reason: strings.TrimSpace(c.reviewReason)}
+		declared := plan.Budget{Nodes: c.nodes, Paydown: c.paydown, Reason: strings.TrimSpace(c.reason)}
 		return mutatePlan(commandWorktree, role, "budgeted item "+args[0], func(document plan.Plan) (plan.Plan, error) {
 			return declareBudget(document, args[0], declared)
 		})
-	case c.review != "" || c.reviewKind != "":
-		if len(args) != 0 || (c.review == "") == (c.reviewKind == "") ||
-			(strings.TrimSpace(c.reviewRow) == "") == (strings.TrimSpace(c.reviewReason) == "") {
-			return errors.New("usage: plan (-review <key> | -review-kind <kind>) (-row <item-id> | -reason <text>)")
-		}
-		return recordOptimizationReview(commandWorktree, role, c.review, c.reviewKind, c.reviewRow, c.reviewReason)
-	case c.reviewRow != "" || c.reviewReason != "":
-		return errors.New("-row and -reason require -review <key> or -review-kind <kind>")
 	case c.add:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
@@ -292,80 +276,6 @@ func run(c cli, args []string) error {
 	default:
 		return errors.New("one of -next, -prompt, -verify, -status, -context, -record-lease, -lease-report, -schedule-locality, -advance is required")
 	}
-}
-
-func resolveCompletionAuthority(root string, document plan.Plan) (plan.CompletionAuthority, error) {
-	return resolveCompletionAuthorityAt(root, "HEAD", document)
-}
-
-func resolveCompletionAuthorityAt(root, revision string, document plan.Plan) (plan.CompletionAuthority, error) {
-	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		return plan.CompletionAuthority{}, err
-	}
-	defer store.Close()
-	return plan.ResolveCompletionAuthority(context.Background(), root, revision, document, store)
-}
-
-// sealProofHorizon writes the one horizon the authority can vouch for: HEAD,
-// with the completions it has just proved. It proves the receipt before it
-// writes it, because a wrong receipt, once landed, refuses every gate
-// including the one that would fix it. The receipt takes the plan file's
-// mode and lands through the gate, which admits no other value.
-func sealProofHorizon(root string, output io.Writer) error {
-	planPath := filepath.Join(root, filepath.FromSlash(plan.Path))
-	document, err := plan.Load(planPath)
-	if err != nil {
-		return err
-	}
-	authority, err := resolveCompletionAuthority(root, document)
-	if err != nil {
-		return err
-	}
-	info, err := os.Stat(planPath)
-	if err != nil {
-		return err
-	}
-	horizon := authority.SealProofHorizon()
-	receipt, err := json.Marshal(horizon)
-	if err != nil {
-		return err
-	}
-	if err := proveProofHorizon(root, document, receipt); err != nil {
-		return fmt.Errorf("plan: the proof horizon did not survive its own dry run and was not written: %w", err)
-	}
-	if err := jsonfile.Write(filepath.Join(root, filepath.FromSlash(plan.ProofHorizonPath)), horizon, info.Mode().Perm()); err != nil {
-		return err
-	}
-	fmt.Fprintf(output, "sealed proof horizon %s completions=%d in %s\n", horizon.Commit, horizon.Completions, plan.ProofHorizonPath)
-	return nil
-}
-
-// proveProofHorizon builds the commit that would carry receipt on top of
-// HEAD as unreferenced Git objects -- no ref, index or working tree moves --
-// and resolves the completion authority at it against the store in service:
-// the state every later gate will see, tried before it exists.
-func proveProofHorizon(root string, document plan.Plan, receipt []byte) error {
-	blob, err := commandInput(root, receipt, "git", "hash-object", "-w", "--stdin")
-	if err != nil {
-		return err
-	}
-	directory, name := path.Split(plan.ProofHorizonPath)
-	directory = strings.TrimSuffix(directory, "/")
-	docs, err := treeWithEntry(root, "HEAD:"+directory, "100644 blob "+strings.TrimSpace(string(blob))+"\t"+name)
-	if err != nil {
-		return err
-	}
-	tree, err := treeWithEntry(root, "HEAD", "040000 tree "+docs+"\t"+directory)
-	if err != nil {
-		return err
-	}
-	commit, err := gitOutput(root, "commit-tree", tree, "-p", "HEAD", "-m", "proof horizon dry run")
-	if err != nil {
-		return err
-	}
-	_, err = resolveCompletionAuthorityAt(root, strings.TrimSpace(string(commit)), document)
-	return err
 }
 
 // treeWithEntry writes the tree at treeish with entry replacing, or joining,
@@ -446,18 +356,12 @@ func printAutomationContext(document plan.Plan, role string, output io.Writer) e
 		return err
 	}
 	defer store.Close()
-	completions, err := plan.ResolveCompletionAuthority(
-		context.Background(), facts.Worktree, facts.Head, document, store,
-	)
-	if err != nil {
-		return err
-	}
 	facts.EvidenceDebt, facts.Workflow = authoritativeContextEvidence(store, facts.Head)
 	stop, err := plan.ReadStop(context.Background(), store, facts.Worktree, facts.Head, "")
 	if err != nil {
 		return err
 	}
-	context, err := plan.BuildAutomationContext(document, facts, completions)
+	context, err := plan.BuildAutomationContext(document, facts)
 	if err != nil {
 		return err
 	}
@@ -599,14 +503,10 @@ func addItem(root, id, title, class, before, verifyCmd, role string) error {
 		if role != worklease.UnassignedRole {
 			updated.Items[slices.IndexFunc(updated.Items, itemNamed(id))].Owner = role
 		}
-		updatedAuthority, err := resolveCompletionAuthority(root, updated)
-		if err != nil {
-			return err
-		}
 		if err := savePlanMutation(root, updated); err != nil {
 			return err
 		}
-		action, _ := nextAction(updated, role, updatedAuthority)
+		action, _ := nextAction(updated, role)
 		fmt.Printf("added item %s (step do); next: %s\n", id, action)
 		return nil
 	})
@@ -633,14 +533,10 @@ func mutatePlan(root, role, what string, mutation func(plan.Plan) (plan.Plan, er
 		if err != nil {
 			return err
 		}
-		updatedAuthority, err := resolveCompletionAuthority(root, updated)
-		if err != nil {
-			return err
-		}
 		if err := savePlanMutation(root, updated); err != nil {
 			return err
 		}
-		action, _ := nextAction(updated, role, updatedAuthority)
+		action, _ := nextAction(updated, role)
 		fmt.Printf("%s; next: %s\n", what, action)
 		return nil
 	})
@@ -798,11 +694,7 @@ func setStepVerify(root, itemID, stepID, cmd, role string) error {
 		if err != nil {
 			return err
 		}
-		completions, err := resolveCompletionAuthority(root, updated)
-		if err != nil {
-			return err
-		}
-		it, st, current := plan.Current(updated, role, completions)
+		it, st, current := plan.Current(updated, role)
 		if err := savePlanMutation(root, updated); err != nil {
 			return err
 		}
@@ -828,8 +720,8 @@ func printStatus(document plan.Plan) {
 
 // nextAction: the one-line form of the current step, rendered from the
 // dispatch's fields.
-func nextAction(document plan.Plan, role string, completions plan.CompletionAuthority) (string, bool) {
-	dispatch := plan.DispatchOf(document, role, completions)
+func nextAction(document plan.Plan, role string) (string, bool) {
+	dispatch := plan.DispatchOf(document, role)
 	if dispatch.Complete {
 		return "", false
 	}
@@ -838,8 +730,8 @@ func nextAction(document plan.Plan, role string, completions plan.CompletionAuth
 
 // printPrompt emits the self-contained, non-negotiable task for the current
 // step. The loop feeds THIS to the agent; the agent does not author it.
-func printPrompt(document plan.Plan, role string, output io.Writer, completions plan.CompletionAuthority) {
-	it, st, ok := plan.Current(document, role, completions)
+func printPrompt(document plan.Plan, role string, output io.Writer) {
+	it, st, ok := plan.Current(document, role)
 	if !ok {
 		fmt.Fprintln(output, "PLAN COMPLETE: every item is done. Stop and tell the user.")
 		return

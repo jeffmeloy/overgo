@@ -28,72 +28,41 @@ func frontierTestPlan() Plan {
 func TestReadyFrontierMembership(t *testing.T) {
 	t.Parallel()
 	document := frontierTestPlan()
-	if _, err := ReadyFrontier(document, CompletionAuthority{}); err == nil {
-		t.Fatal("frontier without a resolved completion authority was served")
-	}
-	authority := testCompletionAuthority(t, document)
-	frontier, err := ReadyFrontier(document, authority)
+	frontier, err := ReadyFrontier(document)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(frontier) != 3 || frontier[0].String() != "alpha/one" || frontier[1].String() != "beta/solo" || frontier[2].String() != "beta/after" {
 		t.Fatalf("ready frontier = %v", frontier)
 	}
-	item, step, ok := Current(document, "", authority)
+	item, step, ok := Current(document, "")
 	if !ok || item.ID+"/"+step.ID != frontier[0].String() {
 		t.Fatalf("Current %s/%s is not the first frontier row", item.ID, step.ID)
 	}
 }
 
-// TestMergeAcceptsGatedPrunedCompletion pins evidence-gated pruning: a merge
-// accepts a row one side pruned only when the union of the parents'
-// completion authorities proves that identity landed through the gate, and
-// refuses evidence-less pruning, pruning beside concurrent edits, and item
-// pruning with an unproven step.
-func TestMergeAcceptsGatedPrunedCompletion(t *testing.T) {
+// TestMergeRetiresPrunedRows holds the plan merge to plain data: a step or a
+// whole item one side dropped and the other left unchanged is retired, and a
+// drop beside a concurrent edit of the same row is refused.
+func TestMergeRetiresPrunedRows(t *testing.T) {
 	t.Parallel()
-	base := frontierTestPlan()
-	local := frontierTestPlan()
-	upstream := frontierTestPlan()
-	upstream.Items[0].Steps = upstream.Items[0].Steps[1:] // upstream pruned alpha/one
-
-	empty := testCompletionAuthority(t, base)
-	if _, err := MergeDocumentsWithCompletion(base, local, upstream, empty, empty); err == nil ||
-		!strings.Contains(err.Error(), "without gated completion evidence") {
-		t.Fatalf("evidence-less step pruning accepted: %v", err)
+	base, local := frontierTestPlan(), frontierTestPlan()
+	prunedStep := frontierTestPlan()
+	prunedStep.Items[0].Steps = prunedStep.Items[0].Steps[1:]
+	merged, err := MergeDocuments(base, local, prunedStep)
+	if err != nil || len(merged.Items[0].Steps) != 1 || merged.Items[0].Steps[0].ID != "two" {
+		t.Fatalf("step retirement = %+v, %v", merged.Items, err)
 	}
-	proven := testCompletionAuthority(t, base, "alpha/one")
-	merged, err := MergeDocumentsWithCompletion(base, local, upstream, empty, proven)
-	if err != nil {
-		t.Fatal(err)
+	prunedItem := frontierTestPlan()
+	prunedItem.Items = prunedItem.Items[1:]
+	merged, err = MergeDocuments(base, local, prunedItem)
+	if err != nil || len(merged.Items) != 1 || merged.Items[0].ID != "beta" {
+		t.Fatalf("item retirement = %+v, %v", merged.Items, err)
 	}
-	if len(merged.Items[0].Steps) != 1 || merged.Items[0].Steps[0].ID != "two" {
-		t.Fatalf("gated pruning result = %+v", merged.Items[0])
-	}
-	if _, err := MergeDocuments(base, local, upstream); err == nil {
-		t.Fatal("authority-free MergeDocuments accepted a pruning")
-	}
-
 	edited := frontierTestPlan()
 	edited.Items[0].Steps[0].Rationale = "concurrent local edit"
-	if _, err := MergeDocumentsWithCompletion(base, edited, upstream, empty, proven); err == nil ||
-		!strings.Contains(err.Error(), "beside concurrent edits") {
-		t.Fatalf("pruning beside concurrent edits accepted: %v", err)
-	}
-
-	prunedItem := frontierTestPlan()
-	prunedItem.Items = prunedItem.Items[1:] // upstream pruned the whole alpha item
-	if _, err := MergeDocumentsWithCompletion(base, local, prunedItem, empty, proven); err == nil ||
-		!strings.Contains(err.Error(), "lacks gated completion evidence") {
-		t.Fatalf("item pruning with an unproven step accepted: %v", err)
-	}
-	fullyProven := testCompletionAuthority(t, base, "alpha/one", "alpha/two")
-	merged, err = MergeDocumentsWithCompletion(base, local, prunedItem, empty, fullyProven)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(merged.Items) != 1 || merged.Items[0].ID != "beta" {
-		t.Fatalf("gated item pruning result = %+v", merged.Items)
+	if _, err := MergeDocuments(base, edited, prunedStep); err == nil || !strings.Contains(err.Error(), "beside concurrent edits") {
+		t.Fatalf("a drop beside a concurrent edit = %v", err)
 	}
 }
 
@@ -108,9 +77,7 @@ func TestMergePreservesDependencyOrder(t *testing.T) {
 	upstream := frontierTestPlan()
 	upstream.Items[0].Steps = upstream.Items[0].Steps[1:]
 
-	empty := testCompletionAuthority(t, base)
-	proven := testCompletionAuthority(t, base, "alpha/one")
-	merged, err := MergeDocumentsWithCompletion(base, local, upstream, empty, proven)
+	merged, err := MergeDocuments(base, local, upstream)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,8 +88,7 @@ func TestMergePreservesDependencyOrder(t *testing.T) {
 	if dependent.ID != "two" || len(dependent.DependsOn) != 1 || dependent.DependsOn[0] != "alpha/one" {
 		t.Fatalf("merge lost the dependency on the pruned row: %+v", dependent)
 	}
-	sequenced := testCompletionAuthority(t, merged, "alpha/one")
-	frontier, err := ReadyFrontier(merged, sequenced)
+	frontier, err := ReadyFrontier(merged)
 	if err != nil {
 		t.Fatal(err)
 	}

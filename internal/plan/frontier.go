@@ -1,10 +1,10 @@
 package plan
 
 import (
-	"errors"
-	"overgo/internal/worklease"
 	"slices"
 	"strings"
+
+	"overgo/internal/worklease"
 )
 
 // Ref names one plan row as an exact item/step identity.
@@ -22,10 +22,7 @@ func (r Ref) String() string { return r.Item + stepReferenceSeparator + r.Step }
 // single-lane compatibility selector; its selection is always a member of
 // this frontier, so a single-lane driver and a leased multi-lane driver can
 // never disagree about what is dispatchable.
-func ReadyFrontier(d Plan, authority CompletionAuthority) ([]Ref, error) {
-	if !authority.resolves(d) {
-		return nil, errors.New("plan: ready frontier requires a resolved completion authority for this exact plan")
-	}
+func ReadyFrontier(d Plan) ([]Ref, error) {
 	frontier := []Ref{}
 	for _, item := range d.Items {
 		if item.Status != StatusOpen {

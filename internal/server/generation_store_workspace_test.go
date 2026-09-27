@@ -36,22 +36,38 @@ import (
 // can declare, with no profile and host placement.
 func activatedImageModel(t *testing.T, store *overgodb.Store) artifact.ID {
 	t.Helper()
-	return activateModel(t, store, func(modelID artifact.ID) (recipe.Definition, error) {
-		return modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, modelID, artifact.ID{})
-	})
+	location := filepath.Join(t.TempDir(), "model.safetensors")
+	if err := os.WriteFile(location, []byte("oscillator-weights"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return activateModelAt(t, store, location, oscillatorImageDefinition)
+}
+
+func oscillatorImageDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	return modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, modelID, artifact.ID{})
 }
 
 // activateModel publishes a model with bytes on disk and a verified
 // activation of the definition built over it.
 func activateModel(t *testing.T, store *overgodb.Store, define func(artifact.ID) (recipe.Definition, error)) artifact.ID {
 	t.Helper()
-	ctx := t.Context()
-	payload := []byte("oscillator-weights")
-	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 	location := filepath.Join(t.TempDir(), "model.safetensors")
-	if err := os.WriteFile(location, payload, 0o600); err != nil {
+	if err := os.WriteFile(location, []byte("oscillator-weights"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	return activateModelAt(t, store, location, define)
+}
+
+// activateModelAt publishes the weights file at location as a model and a
+// verified activation of the definition built over it.
+func activateModelAt(t *testing.T, store *overgodb.Store, location string, define func(artifact.ID) (recipe.Definition, error)) artifact.ID {
+	t.Helper()
+	ctx := t.Context()
+	payload, err := os.ReadFile(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weights := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
 		Role: artifact.ComponentWeights, Name: "weights", Artifact: weights,
 	}})
@@ -253,6 +269,9 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 // TestGenerationWorkspaceServesStoreMedia lists the lane store's media
 // activations through the real catalog and generates one image with the
 // cheapest of them, the host oscillator, publishing it as a PNG artifact.
+// The lane store is only read: the generation runs in a scratch store over
+// the oscillator's own weights, so a run adds no records to the store every
+// other suite reads.
 func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	t.Parallel()
 	testskip.Short(t, "generating from store models is integration")
@@ -260,14 +279,14 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store media unavailable: %v", err)
 	}
-	store, err := overgodb.Open(roots.Store)
+	live, err := overgodb.OpenReadOnly(roots.Store)
 	if err != nil {
 		t.Fatalf("store media unavailable: %v", err)
 	}
-	defer store.Close()
+	defer live.Close()
 	ctx := t.Context()
-	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), 256)
-	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration)
+	catalog := BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent)
+	capabilities, err := NewStoreGenerationWorkspace(live, catalog, 256).WorkflowCapabilities(ctx, WorkflowGeneration)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,6 +305,18 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	if tasks[recipe.TaskSpeech] == 0 || tasks[recipe.TaskVideoGen] == 0 {
 		t.Errorf("the store's speech and video activations are not listed: %v", tasks)
 	}
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	activateModelAt(t, store, oscillator.Location, oscillatorImageDefinition)
+	workspace := NewStoreGenerationWorkspace(store, catalog, 256)
+	scratch, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration)
+	if err != nil || len(scratch) != 1 || scratch[0].Refusal != "" {
+		t.Fatalf("scratch capabilities = %+v, %v", scratch, err)
+	}
+	oscillator.Recipe = scratch[0].Recipe
 	reporter := &recordingReporter{}
 	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskImageGen, oscillator.Recipe, json.RawMessage(`{"class":1,"seed":424242}`), reporter)
 	if err != nil {

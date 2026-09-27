@@ -1118,7 +1118,8 @@
             "gate-machinery-deleted/ledger",
             "gate-machinery-deleted/census",
             "gate-machinery-deleted/authority",
-            "gate-machinery-deleted/records"
+            "gate-machinery-deleted/records",
+            "store-read-only-suite/do"
           ]
         }
       ]

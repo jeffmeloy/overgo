@@ -17,9 +17,7 @@ import (
 // prerequisites (a registered model file, a committed Go tree). The dataset
 // library leg drives the Library tab's register and validate.
 func TestFrontPageLibrary(t *testing.T) {
-	// The validation policy is a root document the server reads from its
-	// working directory, the repository root every launcher runs it in.
-	t.Chdir(filepath.Join("..", ".."))
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
 	corpus := t.TempDir()

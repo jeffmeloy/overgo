@@ -1010,7 +1010,8 @@
             "plan-tool-plain-data/merge",
             "plan-tool-plain-data/claims",
             "user-scorecard/paired",
-            "user-scorecard/per-modality"
+            "user-scorecard/per-modality",
+            "landing-replays-unchanged-suites/do"
           ]
         }
       ]

@@ -142,8 +142,15 @@ func goStyleCensus(snapshot gosyntax.Snapshot) (goStyleReport, error) {
 	return report, nil
 }
 
+// key identifies a finding across two censuses. A package's missing or
+// repeated comment belongs to the package, not to the file it is shown at,
+// so a new file that sorts first does not make it new.
 func (f goStyleFinding) key() string {
-	return strings.Join([]string{string(f.Kind), f.File, f.Symbol, f.Detail}, "\x00")
+	file := f.File
+	if f.Kind == goStylePackageDoc {
+		file = ""
+	}
+	return strings.Join([]string{string(f.Kind), file, f.Symbol, f.Detail}, "\x00")
 }
 
 func inspectStyleFile(

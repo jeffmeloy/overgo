@@ -117,6 +117,35 @@ func (receiver Public) GetUrl()(result int) {
 	}
 }
 
+// TestGoStyleDeltaKeysPackageDocByPackage passes a file added to a package
+// that already lacked its comment, though the new file sorts first and the
+// finding is shown at it, and still refuses a change that removes a
+// package's comment.
+func TestGoStyleDeltaKeysPackageDocByPackage(t *testing.T) {
+	t.Parallel()
+	snapshot := func(files map[string]string) gosyntax.Snapshot {
+		t.Helper()
+		overlay := map[string][]byte{}
+		for name, source := range files {
+			overlay[name] = []byte(source)
+		}
+		result, err := (gosyntax.Snapshot{}).Overlay(overlay)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	undocumented := snapshot(map[string]string{"p/b.go": "package p\n"})
+	added := snapshot(map[string]string{"p/b.go": "package p\n", "p/a_test.go": "package p\n"})
+	if err := ValidateGoStyleDelta(added, undocumented); err != nil {
+		t.Fatalf("a file added to an undocumented package was refused: %v", err)
+	}
+	documented := snapshot(map[string]string{"p/b.go": "// Package p is a fixture.\npackage p\n"})
+	if err := ValidateGoStyleDelta(undocumented, documented); err == nil || !strings.Contains(err.Error(), string(goStylePackageDoc)) {
+		t.Fatalf("removing a package comment was not refused: %v", err)
+	}
+}
+
 func TestGoStyleApplicability(t *testing.T) {
 	t.Parallel()
 	snapshot, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{

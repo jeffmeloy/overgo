@@ -31,10 +31,8 @@ func (h *Handler) parseStopSequences(raw json.RawMessage) ([]string, error) {
 	if len(multiple) > limit {
 		return nil, fmt.Errorf("stop sequence count exceeds %d", limit)
 	}
-	for _, stop := range multiple {
-		if stop == "" {
-			return nil, errors.New("stop sequence must not be empty")
-		}
+	if slices.Contains(multiple, "") {
+		return nil, errors.New("stop sequence must not be empty")
 	}
 	return multiple, nil
 }

@@ -458,10 +458,7 @@ func measuredNativeTimings(
 		result.PromptPerTokenMS = result.PromptMS / float64(result.PromptN)
 		result.PromptPerSecond = float64(result.PromptN) * 1000 / result.PromptMS
 	}
-	predictedDuration := elapsed - evaluation.Duration
-	if predictedDuration < 0 {
-		predictedDuration = 0
-	}
+	predictedDuration := max(elapsed-evaluation.Duration, 0)
 	result.PredictedMS = float64(predictedDuration) / float64(time.Millisecond)
 	if generatedTokens > 0 && result.PredictedMS > 0 {
 		result.PredictedPerTokenMS = result.PredictedMS / float64(generatedTokens)

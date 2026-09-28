@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/jsonfile"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -40,6 +41,46 @@ func TestTrainRoutesFoldedProbes(t *testing.T) {
 	})
 	t.Run("oscillatorimage-un0", trainsUn0)
 }
+
+// formerProbes are the training commands the route table replaced, each by
+// the route that trains its model now.
+var formerProbes = map[string]string{
+	"adapter-train-probe": "adapter", "dit-train-probe": "dit", "flow-organ-train-probe": "flow-organ",
+	"graft-probe": "graft", "hybrid-stack-train-probe": "hybrid-stack", "mixture-train-probe": "mixture",
+	"mot-train-probe": "mot", "oscillatorimage-train-probe": "oscillatorimage",
+	"seriesforecast-train-probe": "seriesforecast", "tabular-train-probe": "tabular",
+}
+
+// TestTrainRoutesEveryProbe holds the fold complete: every training probe
+// command that existed is gone and its trainer is a cmd/train route, and
+// every route the train lane dispatches runs cmd/train, never a probe.
+func TestTrainRoutesEveryProbe(t *testing.T) {
+	t.Parallel()
+	for command, route := range formerProbes {
+		if _, err := os.Stat(filepath.Join("..", command)); !os.IsNotExist(err) {
+			t.Errorf("cmd/%s still exists (%v)", command, err)
+		}
+		if _, routed := trainRoutes[route]; !routed {
+			t.Errorf("cmd/%s's trainer is not the %s route of cmd/train", command, route)
+		}
+	}
+	var catalog struct {
+		Routes map[string]struct {
+			Argv []string `json:"argv"`
+		} `json:"routes"`
+	}
+	if err := jsonfile.Decode(filepath.Join("..", "..", "docs", "training_routes.json"), &catalog); err != nil {
+		t.Fatal(err)
+	}
+	for key, route := range catalog.Routes {
+		if !slices.Equal(route.Argv[:min(len(route.Argv), len(trainInvocation))], trainInvocation) {
+			t.Errorf("training route %s runs %v, not cmd/train", key, route.Argv)
+		}
+	}
+}
+
+// trainInvocation is how the training route table starts cmd/train.
+var trainInvocation = []string{"go", "run", "./cmd/train"}
 
 // trainsUn0 trains the real Un-0 checkpoint through the oscillatorimage
 // route and holds it to descending.

@@ -100,26 +100,6 @@
       ]
     },
     {
-      "id": "automation-command-route-tables",
-      "title": "Fold per-modality commands into route tables",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "the flow-organ fold adds no production code"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fold per-modality commands into route tables",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestTrainRoutesEveryProbe$' -count=1",
-          "rationale": "Consolidation round 1, refactor 5. 102 commands (25 at the start): 10 train probes, 9 lanes, 6 parity or oracle commands, 14 model-file tools, 5 store tools. Fold them into route tables: the probes become routes of cmd/train -route (docs/training_routes.json, one objective mode for every objective kind: forecast, tabular and text fold into cmd/train -objective), the lanes become cmd/gate -lane, parity tools become cmd/validate -parity, the gguf and inspect tools become cmd/gguf subcommands, the overgodb tools cmd/overgodb subcommands. One model loader and one registry lookup for training, inference and validation. Every trainer stays reachable (capabilities are not dead code); only entry points collapse. Absorbs simplify-command-surface's command half. Done when TestTrainRoutesEveryProbe proves each former probe trains through cmd/train. Owner review 2026-09-27: 97 commands, about 40 of them under 100 lines of code, many thin wrappers. Lanes are no longer cmd/gate -lane: the lanes the gate does not call go in lane-commands-folded. Moved up 2026-09-27 (owner): fewer parts means fewer ways to fail, which users notice as reliability."
-        }
-      ]
-    },
-    {
       "id": "compatibility-cache-inputs",
       "title": "Keep cmd/compatibility cached when a command or route changes",
       "owner": "master-lead",
@@ -131,6 +111,22 @@
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReadsNoCommandInventory$' -count=1",
           "rationale": "Measured at 0bdbff9b6 (fold of two training probes): the test stage took 3m23s and cmd/compatibility alone 170s, for a change that touched no compatibility claim. cmd/compatibility/webui_report.go reads docs/api_manifest.json (webuiManifestPath), which the gate's fix stage regenerates whenever a binary, route or contract changes, so every command fold or route edit reruns the whole compatibility package. The webui report needs only the manifest's webui routes. Find each compatibility input a command or route change moves (go test -c, then -test.testlogfile, per the gate manual), then either read the narrower source directly or split the slow acceptances into their own package so the document checks stay cheap. Predicted: a landing that adds, removes or renames a command no longer reruns cmd/compatibility; the remaining automation-command-route-tables folds each drop about 170s of test stage."
+        }
+      ]
+    },
+    {
+      "id": "command-subcommand-tables",
+      "title": "Fold the model-file, store and parity commands into subcommand tables",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fold the model-file, store and parity commands into subcommand tables",
+          "status": "open",
+          "verify": "go test ./cmd/gguf -run '^TestGGUFSubcommandsReplaceTheirCommands$' -count=1 -v",
+          "rationale": "Split from automation-command-route-tables when its training-probe half completed (the eight probes are cmd/train routes; 85 commands remain at b889bd746). The same row named three more families to fold, smallest proof first: the model-file tools into cmd/gguf subcommands (gguf-hash, gguf-merge, gguf-quantize, gguf-split, inspect-gguf, inspect-safetensors, hf-gguf-convert, gemma4-gguf-convert, audio-inspect), the store tools into cmd/overgodb subcommands (overgodb-backup, -import, -query, -rebuild, -repair, store-check, store-precheck), and the parity tools into cmd/validate -parity (audio-oracle, sensenovaparity, vqaparity). Split into one step per family when dispatched. Traps the probe folds found: move files with git mv so the gate's rules compare a moved file against its old content (literals and growth); check docs/*.json for pinned paths first (docs/media_reviewed_deltas.json, lifecycle, validation, coverage records, compatibility.json evidence) and reconcile a pinned move with a reviewed delta; keep verification receipts and stimulus files byte-identical; edit JSON through a decode/re-encode program; each command removed regenerates docs/api_manifest.json, which reruns cmd/compatibility until compatibility-cache-inputs lands."
         }
       ]
     },
@@ -985,7 +981,8 @@
             "automation-command-route-tables/fold-dit",
             "automation-command-route-tables/fold-seriesforecast",
             "automation-command-route-tables/fold-flow-organ",
-            "compatibility-cache-inputs/do"
+            "compatibility-cache-inputs/do",
+            "command-subcommand-tables/do"
           ]
         }
       ]

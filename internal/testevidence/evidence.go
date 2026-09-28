@@ -245,11 +245,13 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 			tail.append(event.Output, diagnosticBytes)
 			tails[key] = tail
 		}
-		// A recorded kind decides; a test that recorded none -- a stored
-		// receipt, a frozen harness -- is read by its skip message.
-		typed[key] = typed[key] || event.Action == "attr" && event.Key == testskip.Key
-		if typed[key] && event.Key == testskip.Key && (short && event.Value == testskip.KindShort || event.Value == testskip.KindInapplicable) ||
-			!typed[key] && (short && strings.Contains(event.Output, testskip.ShortIntegration) || strings.Contains(event.Output, testskip.Inapplicable)) {
+		// A recorded kind decides, replacing any reading of the skip text; a
+		// test that recorded none -- a stored receipt, a frozen harness -- is
+		// read by its skip message.
+		if event.Action == "attr" && event.Key == testskip.Key {
+			typed[key] = true
+			classified[key] = short && event.Value == testskip.KindShort || event.Value == testskip.KindInapplicable
+		} else if !typed[key] && (short && strings.Contains(event.Output, testskip.ShortIntegration) || strings.Contains(event.Output, testskip.Inapplicable)) {
 			classified[key] = true
 		}
 		if strings.Contains(event.Output, processcontrol.ErrResourceBusy.Error()) {

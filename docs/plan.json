@@ -990,7 +990,8 @@
             "rules-by-enforcement-level/manifest-autofix",
             "rules-by-enforcement-level/manifest-unchanged",
             "rules-by-enforcement-level/guard-root-binary",
-            "env-gated-tests-run-or-go/sqa-037"
+            "env-gated-tests-run-or-go/sqa-037",
+            "env-gated-tests-run-or-go/sqa-023"
           ]
         }
       ]

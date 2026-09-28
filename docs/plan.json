@@ -33,6 +33,68 @@
       ]
     },
     {
+      "id": "generate-declared-sampling",
+      "title": "Give cmd/generate the model's declared sampling, as the server has",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give cmd/generate the model's declared sampling, as the server has",
+          "status": "open",
+          "verify": "go vet ./cmd/generate \u0026\u0026 ! grep -q ResolveActiveExecution cmd/generate/main.go",
+          "rationale": "Review feedback 2026-09-28, verified. cmd/generate resolves the recipe a second time through modelrecipe.ResolveActiveExecution, whose policy is the catalog's alone. A model's declared sampling (its generation_config or model card, withDeclaredSampling) is applied only in LoadedProgram, which the runner's RuntimePolicy carries and cmd/server uses. So a command-line user samples differently from a server user for the same model. Fix: take the defaults from runner.RuntimePolicy().Interactive, and delete the second resolution and its extra read-only store open. Predicted effect: held-out-quality at the command line matches the server's for every model that declares its sampling."
+        }
+      ]
+    },
+    {
+      "id": "small-dead-code",
+      "title": "Delete TrainProbeMain and ExecutePlaced, which nothing calls",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete TrainProbeMain and ExecutePlaced, which nothing calls",
+          "status": "open",
+          "verify": "! grep -rqE 'TrainProbeMain|ExecutePlaced' --include=*.go internal cmd",
+          "rationale": "Review feedback 2026-09-28, verified.\n- clioptions.TrainProbeMain has had no caller since the train probes folded into cmd/train; that fold left it behind.\n- capabilityruntime.ExecutorCatalog.ExecutePlaced is called only by tests. repoanalysis's capability authority table pins it, and both entries go with it.\n\nRefuted items from the same review:\n- Server slotBusy is read by /slots. It mirrors the session director's per-slot leases; derive it from the director only if that deletes code.\n- hybridtrain's Checkpoint option is read, but no production caller sets it. It becomes live when trainer-shared-run publishes hybrid-stack checkpoints.\n- The NewForProgram-then-ExecuteProgram wrapper has three copies, not six: tool_workflow, model_builder and capabilityruntime/measured. Share it only if that nets a deletion."
+        }
+      ]
+    },
+    {
+      "id": "authority-rules-earn-keep",
+      "title": "Keep only the repoanalysis authority rules that catch what no test or construction does",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep only the repoanalysis authority rules that catch what no test or construction does",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -count=1 \u0026\u0026 test $(cat internal/repoanalysis/*authority*.go 2\u003e/dev/null | wc -l) -lt 2226",
+          "rationale": "Review feedback 2026-09-28. internal/repoanalysis's production_authority_* and entry_authority ratchets are about 2,200 lines with their tests, dating from the governed-snapshot era (d38908b96 ratcheted the RSI authorities). They pin symbols to owner packages, files and site counts, and every consolidation below trips them (ExecutePlaced sits in one table). A rule earns its keep only when it catches a defect that no test or construction would. Review each family: capability and tool, RSI, storage and process, trigger and promotion, entry. Delete the bookkeeping pins. Keep a rule that guards a real invariant, with the invariant stated in its comment. The landing message names what each family protected and why it went or stayed."
+        }
+      ]
+    },
+    {
+      "id": "trainer-shared-run",
+      "title": "Give every train route one shared run that bounds the loop, observes the session and publishes a checkpoint",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give every train route one shared run that bounds the loop, observes the session and publishes a checkpoint",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestEveryTrainRoutePublishesACheckpoint$' -count=1",
+          "rationale": "Review feedback 2026-09-28, verified; the review ranked it the largest gap for the purpose.\n\nWhat publishes today:\n- Only the dense workflow (trainingworkflow/workflow.go) and the audio input projection (audio.go, then PublishInputProjection) publish through trainingprogram.PublishCheckpoint.\n- mixture, flow-organ, dit, mot, graft, hybrid-stack, seriesforecast, tabular and oscillatorimage train, print a loss and discard the weights.\n- adapter writes plain safetensors, and only with -out.\n- The held-out objective paths (RunHeldout) publish a verdict, not weights.\nSo the loop cannot judge or promote what those routes train.\n\nThe bounded loop has ten copies in cmd/train, about 350 lines:\n- Five near-identical: mixture, flow-organ's head stimulus, latent bridge and flow head, and seriesforecast. Each steps, checks for finite values, requires a first-step gradient, calls AdmitStepWall and requires the loss below the first.\n- Two variants with per-step observation: mot and dit.\n- Three materially different: flow-organ's ternary with two descents, hybrid-stack's in-trainer callback, and oscillatorimage.\n- workflow.go's stepGuard reimplements AdmitStepWall.\nSession admit and finish has three near-identical route copies (mot, dit, hybrid-stack) and heldout_run's variant, about 150 lines.\n\nThe change:\n- One shared run owns the bound, the observer session and the checkpoint publish, and every route calls it.\n- The three different loops keep their bodies and use the shared run for the session and the publish only.\n- hybridtrain's Checkpoint option, read but set by no production caller, gets its caller.\n- The routes share one flag set; cmd/train carries 76 flags.\n- Net-deleting, no framework first.\nWiring each test-only trainer is then a short route: seq2seq-trainer-to-tests, wire-bank-trainer, retire-controller-cluster, wire-media-trainers.\n\nPredicted effect: every trained route leaves a checkpoint the loop can evaluate on held-out cells and promote, so held-out-quality becomes measurable for what they train."
+        }
+      ]
+    },
+    {
       "id": "owner-decision-queue",
       "title": "Make pending owner decisions typed plan data with a one-click inbox",
       "owner": "master-lead",
@@ -78,6 +140,37 @@
           "status": "open",
           "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/compatibility ./cmd/longform -run '^(TestAcceptedCapabilityCensus|TestAcceptedE4BResourceRefresh|TestAcceptedFP8Guard|TestRetiredGuardRecords|TestAcceptedGuardCatalog)$' -count=1 -v",
           "rationale": "Split from env-gated-tests-run-or-go on 2026-09-28, once every CUDA-gated package had a lane. What remains needs the owner's call or a long evidence run.\n(1) The five accepted-evidence audits fail against the live store, run with OVERGO_STORE_ACCEPTANCE=1:\n- TestAcceptedE4BResourceRefresh: the resource evidence does not bind the current inference surface. Refresh it by running TestE4BMediaResourceRecovery with OVERGO_E4B_PUBLISH_RESOURCES=1, about 220 s.\n- TestAcceptedCapabilityCensus: snapshot 209 identities, live 220. The owner records a disposition before the denominator is replaced.\n- TestAcceptedFP8Guard, TestRetiredGuardRecords and TestAcceptedGuardCatalog: the guard evidence lacks realized residency, and the cohort is empty. That needs the long-form guard run, about 80 minutes on the GPU.\n(2) Tests that need a reference the Go-only rule cannot produce: the Fractale leadership tests (OVERGO_FRACTALE_BASELINE), Krea (OVERGO_KREA_BASELINE), Pocket TTS (OVERGO_POCKET_TTS_BASELINE) and the Qwen3.5 projector fixture (a golden of its internal activations). The owner decides whether to keep each and wait for a reference, or delete it if a running test covers it.\n(3) The full-length runs, Wan's 81-frame clip (OVERGO_WAN_FULL) and SenseNova's full generation (OVERGO_SENSENOVA_FULL): the lane budget for each once measured.\nDone when the audits pass."
+        }
+      ]
+    },
+    {
+      "id": "media-request-resolves-once",
+      "title": "Resolve a media request's capability once and stop routing media through the text generator",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resolve a media request's capability once and stop routing media through the text generator",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestMediaRequestResolvesItsCapabilityOnce$' -count=1",
+          "rationale": "Review feedback 2026-09-28, verified in part.\n\nListings per request:\n- In cmd/server, one native image, video or speech request lists the generation capabilities three times:\n  - nativeWorkflowRequest;\n  - WorkflowWorkspaceSet.ExecuteWorkflow, which re-lists every workspace until one matches;\n  - StoreGenerationWorkspace.ExecuteWorkflow.\n- cmd/swap's idle runtime lists them twice.\n- generation_store_workspace.go then resolves the selected capability once more, unconditionally.\n\nCost of a listing: it is limited to the media tasks, with file presence memoized, not every model as the review said. Per generation model it still runs, under the workspace lock:\n- a store refresh;\n- the alias query;\n- the active-record read;\n- the runtime policy and active execution resolutions;\n- the controls.\n\nRouting:\n- Media reaches the handler only through h.generator.(WorkflowWorkspaceAPI) on the text Generator.\n- That forces the serverRuntime, remoteRuntime and idleRuntime wrappers; idleRuntime embeds GenerationRefused to pose as a generator.\n- The same assertion appears in four more handlers.\n\nThe change:\n1. Measure the listings' share of a real media request's first output.\n2. Resolve once and pass the selection through.\n3. Give the handler the workspace directly.\n\nPredicted effect: first-output on media requests improves by the measured listing cost, and about 150 lines go."
+        }
+      ]
+    },
+    {
+      "id": "training-internals-shared",
+      "title": "Share the dense optimizer scaffold, the held-out example source and TensorPack across trainers",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Share the dense optimizer scaffold, the held-out example source and TensorPack across trainers",
+          "status": "open",
+          "verify": "go test ./internal/densecausal ./internal/routedlm ./internal/latentimage ./internal/optimizer -count=1",
+          "rationale": "Review feedback 2026-09-28, verified in part.\n\nParameter packing:\n- optimizer.TensorPack is used by six trainers.\n- Six more pack by hand the same way (sorted names, geometry, one slab): densecausal/train.go, latentimage/train.go, routedlm's flowtrain, mottrain and latentbridge, and cmd/train's mixture route. These adopt TensorPack.\n- latentvideo/dittrain keeps declaration order and frees the loader tensors, and hybridtrain splits matrix and vector plans. Both stay unless TensorPack serves them unchanged.\n\nDense optimizer scaffold:\n- Dense Train, DPO and GRPO (densecausal train.go, dpo.go, grpo.go) repeat the same sequence: setup, the rate check, optimizer construction, restore, the scatter-and-gather calling sequence and the snapshot.\n- DPO and GRPO also duplicate the stream-authority checks and the observation fields.\n- One scaffold puts Muon's derived settings in one place.\n\nHeld-out examples: they are materialized three times (text_heldout.go, route_tabular.go, route_seriesforecast_objective.go), each running memberships, then Materialize, ReadAll and Close per split. One source takes the decode step as its parameter.\n\ndensecausal is on the inference surface, so its part expires the text guards; land it with the next evidence refresh, not alone. Net-deleting, about 350 lines."
         }
       ]
     },
@@ -243,6 +336,38 @@
           "status": "open",
           "verify": "go test ./cmd/train -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -count=1",
           "rationale": "Owner 2026-09-25: prove held-out approval on real checkpoints one model at a time, smallest first; TabFM-1.0 classification is first (staged at models/tabfm-1.0.0-pytorch; its location is resolved by identity, not assumed). One run is the row's acceptance, the device-lane evidence, the model-journey check and the training-validation verdict at once. Register a tabular objective over a real table dataset with a group split, train through cmd/train -objective, and approve on held-out label accuracy. Follows the consolidation rounds. Done when TestTabFMObjectiveApprovesOnHeldOutRows records a passed verdict on the real checkpoint."
+        }
+      ]
+    },
+    {
+      "id": "unexport-unconsumed-names",
+      "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
+          "status": "open",
+          "verify": "go build ./... \u0026\u0026 go vet ./internal/evaluation ./internal/server",
+          "rationale": "Review feedback 2026-09-28. About half the exported names in several core packages are never named outside their own package (upper bounds, since a returned type can be used without being named):\n\n| Package | Never named outside | Exported |\n|---|---|---|\n| evaluation | 158 | 319 |\n| server | 88 | 107 |\n| projector | 86 | 120 |\n| model | 80 | 160 |\n| latentvideo | 71 | 122 |\n\nOnce unexported, unused code is reported by standard Go analysis: golang.org/x/tools/cmd/deadcode run through go run, not added to go.mod. Dead code is then found without building a tool.\n\nHow to land it:\n- Rename with gopls, a deterministic tool rather than hand edits.\n- Go package by package, largest share first, each a net-deleting landing: evaluation and server first.\n- model and projector are on the inference surface, and latentvideo is a pinned media runtime path. Each of those lands with its evidence refresh and a reviewed delta.\n- The rules stage's unconsumed-exports check already keeps new exports from growing the set."
+        }
+      ]
+    },
+    {
+      "id": "test-models-from-store",
+      "title": "Resolve test models through store registrations instead of per-model environment variables",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resolve test models through store registrations instead of per-model environment variables",
+          "status": "open",
+          "verify": "test -z \"$(grep -rhoE 'OVERGO_[A-Z0-9_]+_MODEL' --include=*_test.go . | sort -u)\"",
+          "rationale": "Review feedback 2026-09-28, verified. Tests read 145 distinct OVERGO_* variables. 27 of them name a model: OVERGO_QWEN3_MODEL, OVERGO_QWEN35_MODEL, OVERGO_GEMMA4_TARGET_MODEL, OVERGO_WAN_MODEL and the rest. Each is a skip that depends on the environment and a path the machine must be told. internal/modeltest.Directory already resolves a model from the store's registrations. Move each test to it, one variable per slice, and delete the variable.\n\nThis overlaps models-out-of-adaptive-new, which drops the variables that point into adaptive_new; this row takes the rest. The review also counted 608 command flags (cmd/recipe 78, cmd/train 76). cmd/train's flags consolidate with trainer-shared-run's shared flag set, and the rest with simplify-command-surface."
         }
       ]
     },
@@ -514,6 +639,21 @@
       ]
     },
     {
+      "id": "wire-media-trainers",
+      "title": "Wire the diffusion-image and joint speech trainers to train routes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Wire the diffusion-image and joint speech trainers to train routes",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestTrainRoutesReachTheMediaTrainers$' -count=1",
+          "rationale": "Verified 2026-09-28: diffusionimage.NewTrainer (train.go) and speechsynth.NewJointTrainer (trainer.go) are production code that only tests call. mediacapability imports both packages for inference only. Under the capabilities-not-dead-code rule, each gets a route through trainer-shared-run's shared run, for the image and speech models it serves, and its tests get a lane."
+        }
+      ]
+    },
+    {
       "id": "e4b-full-parameter-trainer",
       "title": "Train Gemma-4 E4B with full-parameter gradients",
       "owner": "master-lead",
@@ -647,12 +787,22 @@
       "title": "Add a generation path for the RAE collection",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 2027,
+        "reason": "the RAE ViT decoder, read from its checkpoint's own tensors and the reviewed decoder configurations, and the gate's host-wide lane turn"
+      },
       "steps": [
+        {
+          "id": "rae-dit",
+          "title": "Port the RAE DiT-DH-XL velocity and hold it to the reference",
+          "status": "open",
+          "verify": "go test ./internal/rae -run '^TestRAEDiTVelocityMatchesReference$' -count=1 -v"
+        },
         {
           "id": "do",
           "title": "Add a generation path for the RAE collection",
           "status": "open",
-          "verify": "test -f internal/latentimage/representation_autoencoder_test.go \u0026\u0026 go test ./internal/latentimage -run '^TestRepresentationAutoencoderGeneration$' -count=1",
+          "verify": "go test ./internal/rae -run '^TestRepresentationAutoencoderGeneration$' -count=1 -v",
           "rationale": "A two-stage representation-autoencoder generator (frozen encoder, trained ViT decoder, stage-2 diffusion transformer over its latents), MIT. BLOCKED on owner-provided inputs (found 2026-09-23): models/RAE-collections holds decoders, DiTs and latent statistics for DINOv2-with-registers (small/base/large), MAE base and SigLIP2 base, but neither the reference code (github.com/bytetriper/RAE) nor those encoder checkpoints; fetching either is a download that needs the owner's yes. With them: port against reference goldens, reusing internal/vitencoder for the DINOv2 encoders (registers added to its declaration).",
           "depends_on": [
             "dinov2-embedding-capability/do"
@@ -981,7 +1131,18 @@
             "command-subcommand-tables/fold-gguf-tools",
             "command-subcommand-tables/fold-gguf-converters",
             "command-subcommand-tables/fold-store-tools",
-            "command-subcommand-tables/fold-parity-tools"
+            "command-subcommand-tables/fold-parity-tools",
+            "rae-generation-path/rae-decoder",
+            "rae-generation-path/rae-dit",
+            "generate-declared-sampling/do",
+            "small-dead-code/do",
+            "authority-rules-earn-keep/do",
+            "trainer-shared-run/do",
+            "media-request-resolves-once/do",
+            "training-internals-shared/do",
+            "wire-media-trainers/do",
+            "unexport-unconsumed-names/do",
+            "test-models-from-store/do"
           ]
         }
       ]

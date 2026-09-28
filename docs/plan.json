@@ -100,17 +100,17 @@
       ]
     },
     {
-      "id": "one-command-onboarding",
-      "title": "Onboard a model from its directory to validated with one command",
+      "id": "declaration-alone-share",
+      "title": "Report the share of served models supported by declaration alone, beside setup steps",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Onboard a model from its directory to validated with one command",
+          "title": "Report the share of served models supported by declaration alone, beside setup steps",
           "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestOneCommandOnboardsADeclaredModel$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27. Today onboarding is about six steps, each with a trap: recipe spec needs git status run first on a copied model repo, recipe verify takes JSON on stdin, goldens are copied from a mismatch error, then activate, the benchmark publish and the guard. One command from a model directory to validated, and one metric beside the scorecard's setup steps: the share of models supported by declaration alone, with no model-specific code. Each new model then becomes unintended improvement."
+          "verify": "go test ./internal/scorecard -run '^TestDeclarationAloneShare$' -count=1",
+          "rationale": "Split from one-command-onboarding (landed validate -onboard). The owner review's second half: beside the scorecard's setup steps, report the share of served models supported by declaration alone, with no model-specific code, so each new model is visibly unintended improvement. Define 'declaration alone' from facts the repository already holds (the architecture profile a recipe resolves through, internal/model/architecture_profiles.json, against code paths selected by a model family's name) before counting; build the count from the store's activated recipes. Real-model proof of validate -onboard waits on the first new model directory: every text directory on disk is already registered and onboard refuses an activated one."
         }
       ]
     },
@@ -971,7 +971,8 @@
             "loop-closure-machinery/do",
             "owner-decision-queue/records",
             "owner-decision-queue/dispatch",
-            "owner-decision-queue/answer"
+            "owner-decision-queue/answer",
+            "declaration-alone-share/do"
           ]
         }
       ]

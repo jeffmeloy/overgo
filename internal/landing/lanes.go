@@ -36,7 +36,7 @@ var lanes = []lane{
 		// The page's assets, browser tests, lane and page declarations.
 		name: "webui", packages: []string{"./internal/server", "./internal/webuilane", "./cmd/webui-lane"},
 		prefixes: []string{"internal/server/webui/", "internal/server/webui_", "cmd/webui-lane/", "internal/webuilane/",
-			"internal/server/workspace_manifest.json", "internal/server/workspace_schema.json", "internal/server/library_validation.json"},
+			"internal/server/workspace_manifest.json", "internal/server/workspace_schema.json"},
 		command: func(string) []string { return []string{"run", "./cmd/webui-lane"} },
 	},
 	{

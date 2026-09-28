@@ -59,9 +59,6 @@ var weightExtensions = []string{".safetensors", ".gguf", ".bin", ".pt", ".pth", 
 // modelConfigFile declares a checkpoint's architecture.
 const modelConfigFile = "config.json"
 
-// registrationSuffix names the declaration recipe spec writes for a directory.
-const registrationSuffix = "-registration.json"
-
 // verifyCommand is the form recipe verify takes, as its own usage states it:
 // a task and an input suite come before the model, and neither is guessed.
 const verifyCommand = "go run ./cmd/recipe verify -task TASK -input SUITE.json "
@@ -210,19 +207,14 @@ func buildInventory(directories []modelDirectory, cells []ModelValidation, conve
 }
 
 // directoryStanding states the standing and the commands that would advance
-// it: registering an unregistered directory, re-acquiring a cell with no
+// it: onboarding an unregistered directory, re-acquiring a cell with no
 // accepted evidence. It states each model's own standing in place.
 func directoryStanding(directory modelDirectory, models []InventoryModel, currency func(cell ModelValidation) error) (string, []string) {
 	if len(models) == 0 {
 		if !directory.Weights {
 			return standingNotAModel, nil
 		}
-		root, name := filepath.Split(filepath.ToSlash(directory.Path))
-		specification := name + registrationSuffix
-		return standingUnregistered, []string{
-			"go run ./cmd/recipe spec -root " + root + " -output " + specification + " " + name,
-			"go run ./cmd/recipe register -repo STORE -root " + root + " -spec " + specification,
-		}
+		return standingUnregistered, []string{onboardCommand + filepath.ToSlash(directory.Path)}
 	}
 	var commands []string
 	advance := func(cell ModelValidation, model artifact.ID) {

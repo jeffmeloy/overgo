@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	_ "embed"
 	"errors"
 	"net/http"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processlock"
 	"overgo/internal/recipe"
-	"overgo/internal/strictjson"
 )
 
 // The library lifecycle (professional GUI campaign, gui-library): a model
@@ -26,8 +24,8 @@ import (
 // the recipe with that evidence, so the catalog then serves it as
 // verified. Registering a dataset commits its directory under a name;
 // validating one is the preview the datasets route already answers. The
-// prompts and the token bound the validation records come from the policy
-// document embedded beside this file, never from a list typed into it.
+// prompts and the token bound the validation records are the intake's own
+// embedded policy, which validate -onboard shares.
 //
 // A projector beside the model, or one named with it, registers as the
 // model's projection candidate and validates with the model
@@ -49,7 +47,7 @@ import (
 type LibraryIntake struct {
 	ModelFiles func(path, explicitProjector string) (model, projectorPath string, err error)
 	Register   func(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (map[string]any, error)
-	Validate   func(ctx context.Context, repository *overgodb.Store, path, projectorPath string, prompts []string, maxTokens int) (artifact.ID, operation.Executor, error)
+	Validate   func(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (artifact.ID, operation.Executor, error)
 	// DeclareProvider declares a hosted provider's models in the store as
 	// the provider command does; absent, the provider kind answers that it
 	// needs it.
@@ -100,31 +98,6 @@ type DeclaredProvider struct {
 
 func (intake LibraryIntake) assembled() bool {
 	return intake.ModelFiles != nil && intake.Register != nil && intake.Validate != nil
-}
-
-// libraryValidationDocument holds the prompts a validation records and
-// replays.
-//
-//go:embed library_validation.json
-var libraryValidationDocument []byte
-
-type libraryValidationPolicy struct {
-	Schema    int      `json:"schema"`
-	Doc       string   `json:"doc,omitzero"`
-	Prompts   []string `json:"prompts"`
-	MaxTokens int      `json:"max_tokens"`
-}
-
-// loadLibraryValidationPolicy decodes the embedded policy.
-func loadLibraryValidationPolicy(context.Context) (libraryValidationPolicy, error) {
-	var policy libraryValidationPolicy
-	if err := strictjson.DecodeBytes(libraryValidationDocument, &policy); err != nil {
-		return libraryValidationPolicy{}, err
-	}
-	if len(policy.Prompts) == 0 || policy.MaxTokens <= 0 {
-		return libraryValidationPolicy{}, errors.New("library: the validation policy is incomplete")
-	}
-	return policy, nil
 }
 
 type libraryRegisterRequest struct {
@@ -321,17 +294,12 @@ func (h *Handler) libraryValidate(response http.ResponseWriter, request *http.Re
 	if !requireLibraryStore(response, request, h.repository) {
 		return
 	}
-	policy, err := loadLibraryValidationPolicy(request.Context())
-	if err != nil {
-		writeError(response, http.StatusServiceUnavailable, "library_unavailable", "the library validation policy is absent or incomplete")
-		return
-	}
 	path, projectorPath, err := intake.ModelFiles(body.Path, body.Projector)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return
 	}
-	recipeID, execute, err := intake.Validate(request.Context(), h.repository, path, projectorPath, policy.Prompts, policy.MaxTokens)
+	recipeID, execute, err := intake.Validate(request.Context(), h.repository, path, projectorPath)
 	if err != nil {
 		writeLibraryError(response, err)
 		return
@@ -343,6 +311,6 @@ func (h *Handler) libraryValidate(response http.ResponseWriter, request *http.Re
 		return
 	}
 	writeJSON(response, http.StatusAccepted, map[string]any{
-		"operation": id, "path": path, "projector": projectorPath, "recipe": recipeID, "prompts": len(policy.Prompts),
+		"operation": id, "path": path, "projector": projectorPath, "recipe": recipeID,
 	})
 }

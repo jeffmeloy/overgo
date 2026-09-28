@@ -7,6 +7,7 @@ package libraryintake
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"os"
@@ -25,6 +26,7 @@ import (
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/strictjson"
 )
 
 // refusal marks an intake error the request itself caused (an artifact the
@@ -115,14 +117,34 @@ func Register(ctx context.Context, repository *overgodb.Store, path, projectorPa
 	return receipt, nil
 }
 
+// validationDocument holds the prompts a validation records from a freshly
+// registered model's greedy output and replays exactly before activating it.
+//
+//go:embed validation.json
+var validationDocument []byte
+
+type validationPolicy struct {
+	Schema    int      `json:"schema"`
+	Doc       string   `json:"doc,omitzero"`
+	Prompts   []string `json:"prompts"`
+	MaxTokens int      `json:"max_tokens"`
+}
+
 // Validate prepares text validation of a model under
 // the clean source revision and returns the candidate recipe it runs under
 // with the operation body that registers, records, replays, publishes and
-// activates; the prompts and the token bound are the caller's policy. A
+// activates, under the embedded prompts and token bound. A
 // projector beside the model registers as its projection candidate; the
 // text validation runs on the model alone, and the projection activates
 // once a media suite executes.
-func Validate(ctx context.Context, repository *overgodb.Store, path, projectorPath string, prompts []string, maxTokens int) (artifact.ID, operation.Executor, error) {
+func Validate(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (artifact.ID, operation.Executor, error) {
+	var policy validationPolicy
+	if err := strictjson.DecodeBytes(validationDocument, &policy); err != nil {
+		return artifact.ID{}, nil, err
+	}
+	if len(policy.Prompts) == 0 || policy.MaxTokens <= 0 {
+		return artifact.ID{}, nil, errors.New("library: the validation policy is incomplete")
+	}
 	projectorPath = strings.TrimSpace(projectorPath)
 	if projectorPath != "" {
 		if describes, err := projector.DescribesProjection(projectorPath); err != nil || !describes {
@@ -138,7 +160,7 @@ func Validate(ctx context.Context, repository *overgodb.Store, path, projectorPa
 		return artifact.ID{}, nil, refusal{err}
 	}
 	execute := func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
-		return validate(ctx, repository, reporter, path, projectorPath, candidate, revision, prompts, maxTokens)
+		return validate(ctx, repository, reporter, path, projectorPath, candidate, revision, policy.Prompts, policy.MaxTokens)
 	}
 	return candidate.Definition.ID, execute, nil
 }

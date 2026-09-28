@@ -5,21 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gui-memory-tiers",
-      "title": "Show the served model's live device memory by owner -- committed arena, buffer pool, cuBLAS, attention and staging -- as a VRAM bar beside its pill, polled from the runner's execution metrics",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Show the served model's live device memory by owner -- committed arena, buffer pool, cuBLAS, attention and staging -- as a VRAM bar beside its pill, polled from the runner's execution metrics",
-          "status": "open",
-          "verify": "test -f internal/server/memory_tiers_test.go \u0026\u0026 go test ./internal/server -run '^TestLiveMemoryTiers$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(MemoryTiers|LayoutAudit)$' -leg 'memory tiers leg'",
-          "rationale": "colibri review 2026-09-27, scoped by owner review: Runner.ExecutionMetrics already reports live device memory by owner (committed arena, buffer pool, cuBLAS, attention and Q8 staging); poll it, instrument nothing new. RAM and disk tiers matter only for models streaming weights from host or disk and wait until one does."
-        }
-      ]
-    },
-    {
       "id": "gui-phase-profile",
       "title": "Show a turn's tokens per forward and the recent turns' trend of rate and tokens per forward in the inspector and runtime records",
       "owner": "overgo_gui_cleanup",

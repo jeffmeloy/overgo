@@ -911,6 +911,27 @@
     // The dot speaks its state; its colour and tooltip show it.
     if (node) { node.className = "dot " + state; node.title = title; node.setAttribute("aria-label", title); }
   }
+  // memoryBar: the device's memory beside the pill, as a share of its total: the served model's bytes by
+  // owner, largest first, then other processes; the track is free. A device that reports no total hides it.
+  function memoryBar(device) {
+    const bar = document.getElementById("memory-bar");
+    const total = device && device.total_bytes;
+    bar.hidden = !total;
+    if (!total) return;
+    const owners = device.owners || [];
+    const others = Math.max(0, total - device.free_bytes - owners.reduce((sum, owner) => sum + owner.bytes, 0));
+    const parts = owners.map((owner, index) => ({ name: owner.name, bytes: owner.bytes, tone: "owner-" + Math.min(index, 3) }))
+      .concat([{ name: "other processes", bytes: others, tone: "other" }]).filter((part) => part.bytes > 0);
+    bar.replaceChildren(...parts.map((part) => {
+      const node = el("span", { class: "memory-part " + part.tone, "data-owner": part.name });
+      node.style.width = (100 * part.bytes / total).toFixed(2) + "%";
+      return node;
+    }));
+    const fmt = window.overgo.fmt.bytes;
+    const facts = parts.map((part) => part.name + " " + fmt(part.bytes)).concat(["free " + fmt(device.free_bytes) + " of " + fmt(total)]).join(" · ");
+    bar.title = facts;
+    bar.setAttribute("aria-label", "device memory: " + facts);
+  }
   let statusAttempt = 0;
   async function refreshStatus() {
     const attempt = ++statusAttempt;
@@ -928,6 +949,7 @@
       statusPill.className = "pill ok";
       dot("server-dot", "ok", "server online");
       dot("device-dot", health.device ? "ok" : "off", health.device ? "device peak " + window.overgo.fmt.bytes(health.device.peak_bytes) + " · current " + window.overgo.fmt.bytes(health.device.current_bytes) : "no device");
+      memoryBar(health.device);
       // The pill names the served file, which the swap proxy reports; a model served directly reports its
       // API identifier ("overgo"), which names no model, so there the manifest's name stands in for it.
       const apiIdentifier = !proxied && capabilityDocument && health.model === capabilityDocument.id;

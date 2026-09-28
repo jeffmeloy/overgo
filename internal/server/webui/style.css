@@ -218,6 +218,15 @@ table.grid td.mono { font-family:var(--mono); font-variant-numeric:tabular-nums;
 /* Support tiers: registered reads as a caution, self-consistent plain, parity-checked as trusted. */
 .tag.support-tier[data-tier="registered"] { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
 .tag.support-tier[data-tier="parity-checked"] { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
+/* The device memory bar beside the pill: the model's owners in the accent, largest darkest, other processes
+   in amber, and the track is free. */
+.memory-bar { display:flex; flex:none; width:min(96px, 16vw); height:var(--s2); border-radius:var(--radius-s); overflow:hidden; background:var(--bg3); border:1px solid var(--line); }
+.memory-part { flex:none; height:100%; }
+.memory-part.owner-0 { background:var(--acc); }
+.memory-part.owner-1 { background:color-mix(in srgb, var(--acc) 65%, var(--bg3)); }
+.memory-part.owner-2 { background:color-mix(in srgb, var(--acc) 45%, var(--bg3)); }
+.memory-part.owner-3 { background:color-mix(in srgb, var(--acc) 30%, var(--bg3)); }
+.memory-part.other { background:var(--amber); }
 .support-rungs { list-style:none; margin:var(--s1) 0; padding:0; display:flex; flex-direction:column; gap:var(--s1); }
 .support-rungs li { color:var(--dim); overflow-wrap:anywhere; }
 .support-rungs li.held { color:var(--ink); }

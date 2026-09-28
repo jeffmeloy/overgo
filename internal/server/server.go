@@ -255,6 +255,12 @@ type DeviceMemoryAPI interface {
 	DeviceMemoryStats(context.Context) (driver.MemoryStats, error)
 }
 
+// DeviceMemoryOwnersAPI reports the device's total and free memory and the
+// runner's live bytes by owner, for the header's memory bar.
+type DeviceMemoryOwnersAPI interface {
+	DeviceMemory(context.Context) (inference.DeviceMemory, error)
+}
+
 type DeviceExecutionAPI interface {
 	DeviceExecutionStats(context.Context) (driver.ExecutionStats, error)
 }

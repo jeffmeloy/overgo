@@ -181,10 +181,7 @@ func firstDiff(a, b string) string {
 	for i < len(a) && i < len(b) && a[i] == b[i] {
 		i++
 	}
-	lo := i - 30
-	if lo < 0 {
-		lo = 0
-	}
+	lo := max(i-30, 0)
 	sa := a[lo:min(i+40, len(a))]
 	sb := b[lo:min(i+40, len(b))]
 	return "  first diff at byte " + itoa(i) + "\n   ...want: " + quoteDiff(sa) + "\n   ...got:  " + quoteDiff(sb)

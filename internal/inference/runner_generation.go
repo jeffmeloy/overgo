@@ -496,10 +496,8 @@ func validateStopSequences(stops []string, limit int) error {
 	if len(stops) > limit {
 		return fmt.Errorf("inference: stop sequence count exceeds %d", limit)
 	}
-	for _, stop := range stops {
-		if stop == "" {
-			return errors.New("inference: stop sequence is empty")
-		}
+	if slices.Contains(stops, "") {
+		return errors.New("inference: stop sequence is empty")
 	}
 	return nil
 }

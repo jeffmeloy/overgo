@@ -875,12 +875,18 @@ func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
 
 // health answers the public liveness probe with the served model and, when
 // the generator runs on a device, its current and peak memory for the
-// shell's device status dot.
+// shell's device status dot, and the device's memory by owner for its bar.
 func (h *Handler) health(response http.ResponseWriter, request *http.Request) {
 	payload := map[string]any{"status": "ok", "model": h.config.ModelID}
 	if api, ok := h.generator.(DeviceMemoryAPI); ok {
 		if stats, err := api.DeviceMemoryStats(request.Context()); err == nil {
-			payload["device"] = map[string]uint64{"current_bytes": stats.CurrentBytes, "peak_bytes": stats.PeakBytes}
+			device := map[string]any{"current_bytes": stats.CurrentBytes, "peak_bytes": stats.PeakBytes}
+			if owners, ok := h.generator.(DeviceMemoryOwnersAPI); ok {
+				if memory, err := owners.DeviceMemory(request.Context()); err == nil {
+					device["total_bytes"], device["free_bytes"], device["owners"] = memory.TotalBytes, memory.FreeBytes, memory.Owners
+				}
+			}
+			payload["device"] = device
 		}
 	}
 	writeJSON(response, http.StatusOK, payload)

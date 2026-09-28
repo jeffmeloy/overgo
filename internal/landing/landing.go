@@ -277,6 +277,13 @@ func (l *landing) fix(ctx context.Context) error {
 				return err
 			}
 		}
+		// The API manifest is derived from the source: regenerating it is a
+		// fix, like go fix, not a refusal to land again after.
+		if _, err := os.Stat(filepath.Join(l.Repo, "cmd", "api-manifest")); err == nil {
+			if _, err := l.run(ctx, nil, "go", "run", "./cmd/api-manifest", "-update"); err != nil {
+				return err
+			}
+		}
 	}
 	return l.shipSet(ctx)
 }

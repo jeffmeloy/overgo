@@ -10,8 +10,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 119,
-        "reason": "SQA-036: the export rule counts only code that selects a new export as its consumer, not a comment or a string"
+        "nodes": 41,
+        "reason": "the fix stage regenerates the derived API manifest instead of refusing the landing"
       },
       "steps": [
         {
@@ -1002,7 +1002,8 @@
             "audio-acceptance-lane/do",
             "fp8-prefill-tensorcore/do",
             "rules-by-enforcement-level/sqa-039",
-            "rules-by-enforcement-level/sqa-036"
+            "rules-by-enforcement-level/sqa-036",
+            "rules-by-enforcement-level/manifest-autofix"
           ]
         }
       ]

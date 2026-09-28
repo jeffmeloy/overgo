@@ -5,11 +5,37 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"overgo/internal/plan"
 )
+
+// TestLandingFixRegeneratesTheAPIManifest holds the fix stage to the
+// derived API manifest: a Go change regenerates it with the repository's own
+// command, and the regenerated file joins the ship set the checks validate.
+func TestLandingFixRegeneratesTheAPIManifest(t *testing.T) {
+	t.Parallel()
+	fixture := newSliceFixture(t, map[string]string{
+		"cmd/api-manifest/main.go": "package main\n\nimport \"os\"\n\nfunc main() { os.WriteFile(\"docs/api_manifest.json\", []byte(\"regenerated\\n\"), 0o644) }\n",
+		"internal/p/p.go":          "package p\n",
+	})
+	fixture.write("internal/p/p.go", "// Package p is the fixture.\npackage p\n")
+	l := &landing{Options: Options{Repo: fixture.repo, Log: io.Discard}, details: map[string]string{}}
+	if err := l.shipSet(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.fix(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(filepath.Join(fixture.repo, "docs", "api_manifest.json")); err != nil || string(data) != "regenerated\n" {
+		t.Fatalf("the manifest after the fix stage = %q, %v", data, err)
+	}
+	if !slices.Contains(l.paths, "docs/api_manifest.json") {
+		t.Fatalf("the ship set after the fix stage = %q, want the regenerated manifest in it", l.paths)
+	}
+}
 
 // TestLandingCommitsTheBytesItValidated holds the commit to the ship set
 // the checks validated: bytes edited after validation are refused with HEAD

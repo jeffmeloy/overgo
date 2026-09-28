@@ -34,9 +34,9 @@ const trailerSeparator = "\x1f"
 const bytesPerMiB = 1 << 20
 
 // slice is what the scorecard slice depends on: the benchmark binary's
-// closure, which embeds the built kernels, the module versions and the
-// document.
-var slice = lane{packages: []string{"./cmd/benchmark"}, prefixes: []string{"go.mod", "go.sum", sliceDocument}}
+// closure, which embeds the built kernels, and the document; the module
+// files reach every lane.
+var slice = lane{packages: []string{"./cmd/benchmark"}, prefixes: []string{sliceDocument}}
 
 // timedMetrics are the timed cells, reported as measured: one run cannot
 // tell a change from noise.

@@ -53,7 +53,9 @@ var lanes = []lane{
 	{
 		// The audio acceptances run the recorded speech models against the
 		// reference store; the landing's go test skips them.
-		name: "audio", packages: []string{"./internal/audioparity"},
+		// cmd/evaluate and cmd/recipe are the producers the acceptances
+		// build and run as their own processes.
+		name: "audio", packages: []string{"./internal/audioparity", "./cmd/evaluate", "./cmd/recipe"},
 		command:     func(string) []string { return []string{"test", "./internal/audioparity"} },
 		environment: []string{testskip.StoreAcceptanceEnv + "=1"},
 	},
@@ -95,10 +97,12 @@ func (l *landing) lanes(ctx context.Context) error {
 }
 
 // reaches reports whether a changed path lies in a package of the lane's
-// test closure, or under a prefix that triggers it.
+// test closure, or under a prefix that triggers it. The module files reach
+// every lane: a dependency change can move any of them.
 func (l *landing) reaches(ctx context.Context, candidate lane) (bool, error) {
 	if slices.ContainsFunc(l.paths, func(name string) bool {
-		return slices.ContainsFunc(candidate.prefixes, func(prefix string) bool { return strings.HasPrefix(name, prefix) })
+		return name == "go.mod" || name == "go.sum" ||
+			slices.ContainsFunc(candidate.prefixes, func(prefix string) bool { return strings.HasPrefix(name, prefix) })
 	}) {
 		return true, nil
 	}
@@ -123,6 +127,15 @@ func (l *landing) reaches(ctx context.Context, candidate lane) (bool, error) {
 		}
 		if closure[directory] {
 			return true, nil
+		}
+		// A data file nested under a closure package, testdata or an
+		// embedded recipe, is that package's input; a Go file belongs to its
+		// own package, so only data walks up.
+		for parent := directory; !strings.HasSuffix(name, ".go") && parent != root && parent != path.Dir(parent); {
+			parent = path.Dir(parent)
+			if closure[parent] {
+				return true, nil
+			}
 		}
 	}
 	return false, nil

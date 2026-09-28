@@ -68,6 +68,11 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 		"a/a_test.go": true,
 		"b/b_test.go": false,
 		"c/c.go":      false,
+		// Data nested under a closure package, such as testdata or an
+		// embedded recipe, reaches the lane; under another package it does
+		// not.
+		"b/testdata/golden.json": true,
+		"c/testdata/golden.json": false,
 	} {
 		l := &landing{Options: Options{Repo: repo, Log: io.Discard}, paths: []string{changed}}
 		reached, err := l.reaches(t.Context(), candidate)

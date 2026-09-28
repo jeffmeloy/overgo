@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"io/fs"
@@ -312,7 +313,7 @@ func (l *landing) newUnconsumedExports(base, candidate gosyntax.Snapshot) ([]str
 		reference := []byte(pkg + "." + name)
 		consumed := false
 		for file, data := range corpus {
-			if path.Dir(file) != directory && bytes.Contains(data, reference) {
+			if path.Dir(file) != directory && bytes.Contains(data, reference) && selects(data, pkg, name) {
 				consumed = true
 				break
 			}
@@ -366,6 +367,26 @@ func exportedNames(snapshot gosyntax.Snapshot) map[string]string {
 }
 
 // productionSources reads every non-test Go file under cmd and internal.
+// selects reports whether Go source selects pkg.name in code: a comment or
+// a string that mentions it is no consumer. A file that does not parse
+// counts as one, since the rule cannot read it.
+func selects(source []byte, pkg, name string) bool {
+	syntax, err := parser.ParseFile(token.NewFileSet(), "", source, parser.SkipObjectResolution)
+	if err != nil {
+		return true
+	}
+	found := false
+	ast.Inspect(syntax, func(node ast.Node) bool {
+		if selector, ok := node.(*ast.SelectorExpr); ok {
+			if qualifier, ok := selector.X.(*ast.Ident); ok && qualifier.Name == pkg && selector.Sel.Name == name {
+				found = true
+			}
+		}
+		return !found
+	})
+	return found
+}
+
 func (l *landing) productionSources() (map[string][]byte, error) {
 	sources := map[string][]byte{}
 	for _, top := range []string{"cmd", "internal"} {

@@ -1,6 +1,8 @@
 package landing
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -8,6 +10,45 @@ import (
 	"overgo/internal/gosyntax"
 	"overgo/internal/plan"
 )
+
+// TestNewExportsNeedACodeConsumer holds the export rule to consumers in
+// code: another package that names a new export only in a comment or a
+// string leaves it refused, and one that calls it lets it land.
+func TestNewExportsNeedACodeConsumer(t *testing.T) {
+	t.Parallel()
+	const exported = "package p\n\nfunc New() int { return 1 }\n"
+	repo := t.TempDir()
+	write := func(name, content string) {
+		t.Helper()
+		full := filepath.Join(repo, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	snapshot := func(source string) gosyntax.Snapshot {
+		t.Helper()
+		result, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	write("cmd/x/main.go", "package main\n\nfunc main() {}\n")
+	write("internal/p/p.go", exported)
+	write("internal/q/q.go", "package q\n\n// Built by p.New once the model loads.\nconst note = \"p.New\"\n")
+	l := &landing{Options: Options{Repo: repo}}
+	findings, err := l.newUnconsumedExports(snapshot("package p\n"), snapshot(exported))
+	if err != nil || len(findings) != 1 || !strings.Contains(findings[0], "p.New") {
+		t.Fatalf("an export named only in a comment and a string: findings = %q, %v", findings, err)
+	}
+	write("internal/r/r.go", "package r\n\nimport \"fixture/internal/p\"\n\nvar value = p.New()\n")
+	if findings, err := l.newUnconsumedExports(snapshot("package p\n"), snapshot(exported)); err != nil || len(findings) != 0 {
+		t.Fatalf("an export another package calls: findings = %q, %v", findings, err)
+	}
+}
 
 // TestNewLegacyFormsNamesOnlyWhatAChangeAdds refuses the three forms go fix
 // leaves when a change adds them, and passes a file that already held them.

@@ -79,11 +79,12 @@ var lanes = []lane{
 		environment: []string{"OVERGO_CUDA_TEST=1"},
 	},
 	{
-		// Wan's lifecycle acceptance, behind the integration tag, on the
-		// local Wan2.1-T2V-1.3B the data roots declare.
-		name: "wan", packages: []string{"./internal/latentvideo"},
+		// The integration-tagged suites: Wan's real-model runtime and
+		// reference edit on the local Wan2.1-T2V-1.3B and the retained
+		// capture beside the data, and the quantizer's pinned checks.
+		name: "integration", packages: []string{"./internal/latentvideo", "./internal/quant"},
 		command: func(string) []string {
-			return []string{"test", "-tags", "integration", "./internal/latentvideo", "-run", "^TestWanLifecycleAcceptance$"}
+			return []string{"test", "-tags", "integration", "./internal/latentvideo", "./internal/quant"}
 		},
 		environment: []string{"OVERGO_CUDA_TEST=1"},
 	},

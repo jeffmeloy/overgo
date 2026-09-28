@@ -8,10 +8,6 @@
       "title": "Run or delete tests no lane enables",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 38,
-        "reason": "a wan lane runs Wan's lifecycle acceptance behind the integration tag"
-      },
       "steps": [
         {
           "id": "do",
@@ -994,7 +990,8 @@
             "env-gated-tests-run-or-go/sqa-023",
             "env-gated-tests-run-or-go/parity-model",
             "env-gated-tests-run-or-go/thoughtbank",
-            "env-gated-tests-run-or-go/wan"
+            "env-gated-tests-run-or-go/wan",
+            "env-gated-tests-run-or-go/integration"
           ]
         }
       ]

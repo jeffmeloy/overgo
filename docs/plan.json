@@ -38,8 +38,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 319,
-        "reason": "owner decisions become typed plan data that plan -decisions lists with their wait"
+        "nodes": 104,
+        "reason": "dispatch passes over rows an unanswered owner decision blocks"
       },
       "steps": [
         {
@@ -985,7 +985,8 @@
             "env-gated-tests-run-or-go/e4b",
             "refresh-accepted-evidence/do",
             "loop-closure-machinery/do",
-            "owner-decision-queue/records"
+            "owner-decision-queue/records",
+            "owner-decision-queue/dispatch"
           ]
         }
       ]

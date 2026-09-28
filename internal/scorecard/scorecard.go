@@ -134,7 +134,11 @@ type servingSummary struct {
 // summary per recipe, so a row counts its own activation's attempts and a
 // fix shipped as a new recipe starts clean. A cancelled attempt counts as
 // neither success nor failure and contributes no samples: the server
-// records both a user's cancel and its own deadline that way.
+// records both a user's cancel and its own deadline that way. An
+// observation a gate result depends on is a validation run's measurement,
+// deliberate interrupts included, not an attempt a user made, and is left
+// out: E4B's media resource proof published 324 deliberate failures under
+// its projection recipe.
 func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.ID]*servingSummary, error) {
 	summaries := map[artifact.ID]*servingSummary{}
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
@@ -142,7 +146,10 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
 		}},
 		Order: overgodb.DocumentNewestFirst,
-	}, runrecord.ParseServingObservation, func(_ overgodb.DocumentView, observation runrecord.ServingObservation) error {
+	}, runrecord.ParseServingObservation, func(view overgodb.DocumentView, observation runrecord.ServingObservation) error {
+		if validation, err := validationMeasured(ctx, store, view.Content.Descriptor.ID); err != nil || validation {
+			return err
+		}
 		summary := summaries[observation.Recipe]
 		if summary == nil {
 			summary = &servingSummary{latest: observation.ID}
@@ -178,6 +185,27 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		return nil
 	})
 	return summaries, err
+}
+
+// validationMeasured reports whether a gate result depends on the artifact.
+func validationMeasured(ctx context.Context, store *overgodb.Store, id artifact.ID) (bool, error) {
+	children, err := store.Children(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	for _, edge := range children {
+		if edge.Relation != artifact.RelationDependsOn {
+			continue
+		}
+		child, found, err := store.Artifact(ctx, edge.Child)
+		if err != nil {
+			return false, err
+		}
+		if found && child.Schema == runrecord.GateSchema {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func gap(reason string) Cell { return Cell{Reason: reason} }

@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "projection-serving-failures",
-      "title": "Stop the projection activation failing a quarter of its serving attempts",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stop the projection activation failing a quarter of its serving attempts",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestProjectionServingRecordsItsTask$' -count=1",
-          "rationale": "Found 2026-09-27 by the user scorecard (validate -scorecard): gemma-4-E4B-it's projection activation (recipe 93a7a292) failed 324 of 1,296 serving attempts with execution_failed and 324 more were cancelled, all at zero output tokens in one environment. Its observations also record task inference under the projection recipe (internal/server/server_admin.go servingIdentity), which is how the first scorecard draft charged them to the inference row. Find what drives these attempts and why they fail, fix the cause, and record the projection task; the scorecard's failure cell for the row is the predicted effect. Ranked 2026-09-27 as the first user-visible fix: gemma-4-E4B-it's projection recipe fails 324 of 1,296 serving attempts (25%) with 324 cancelled. A small hand change with its predicted failure-rate drop."
-        }
-      ]
-    },
-    {
       "id": "landing-hermetic-tests",
       "title": "Move live-evidence acceptance tests off the landing path",
       "owner": "master-lead",

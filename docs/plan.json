@@ -100,22 +100,6 @@
       ]
     },
     {
-      "id": "prose-dead-references",
-      "title": "Report dead references in memory and hook text at session start",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Report dead references in memory and hook text at session start",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -run '^TestDeadReferencesAreReported$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27: prose drifts from code mechanically (80% of the gate manual described deleted tools; closure-scan, plan -history -phases and the deferred lanes stayed in the doctrine after their deletion). At session start the hook scans the memory files and its own doctrine text for cmd/\u003cname\u003e, -\u003cflag\u003e of a named command, Test\u003cName\u003e and repository paths, and prints each that no longer exists. Cheap, deterministic, no ledger."
-        }
-      ]
-    },
-    {
       "id": "one-command-onboarding",
       "title": "Onboard a model from its directory to validated with one command",
       "owner": "master-lead",
@@ -1072,6 +1056,20 @@
       "recommendation": "When the plan empties, from the loop",
       "blocks": [
         "user-scorecard"
+      ],
+      "asked": "2026-09-28"
+    },
+    {
+      "id": "decision-inbox-placement",
+      "question": "Where does the one-click decision inbox live? The web UI serves users their models; the decisions are the development plan's. plan -decisions and plan -answer already cover the command line.",
+      "options": [
+        "A Decisions panel in the web UI's workspace",
+        "A separate page served by the plan command",
+        "The command line only"
+      ],
+      "recommendation": "A Decisions panel in the web UI's workspace",
+      "blocks": [
+        "owner-decision-queue"
       ],
       "asked": "2026-09-28"
     }

@@ -163,6 +163,17 @@ func runDoctrine() {
 	fmt.Println()
 	fmt.Println("Dispatched now (go run ./cmd/plan -next):")
 	fmt.Println(nextDispatch().Line)
+	if root, err := os.Getwd(); err == nil {
+		texts := memoryTexts(root)
+		texts["doctrine"] = doctrineText
+		if dead := deadReferences(root, texts); len(dead) != 0 {
+			fmt.Println()
+			fmt.Println("Dead references (the prose names what the repository no longer holds; fix the prose):")
+			for _, reference := range dead {
+				fmt.Println("  " + reference)
+			}
+		}
+	}
 }
 
 func runPrompt(hookJSON string) {

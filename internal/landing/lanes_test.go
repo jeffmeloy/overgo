@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/devicescope"
 	"overgo/internal/testskip"
 )
 
@@ -86,51 +85,38 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 	}
 }
 
-// TestEveryCUDATestPackageIsRunByALane holds the CUDA-gated tests to a
-// runner: a package whose tests call cudatest.Require is a device lane
-// scope, or a lane that sets OVERGO_CUDA_TEST runs it. A new real-device
-// suite lands with its lane, never behind a variable nothing sets.
-func TestEveryCUDATestPackageIsRunByALane(t *testing.T) {
+// TestCUDATestsNeedALane holds the rules stage to the CUDA-gated tests'
+// runner: a package whose tests call cudatest.Require is named unless a
+// device lane scope covers it or a lane that opts into the device runs it,
+// once however many of its tests call it. Production source that quotes the
+// call is not a test and names nothing. The rule walks a fixture tree here,
+// so this package's tests read none of the repository's.
+func TestCUDATestsNeedALane(t *testing.T) {
 	t.Parallel()
-	root := filepath.Join("..", "..")
-	covered := func(directory string) bool {
-		for _, scope := range devicescope.Packages() {
-			if directory == scope || scope == "internal/cuda" && strings.HasPrefix(directory, "internal/cuda/") {
-				return true
-			}
+	repo := t.TempDir()
+	gated := "package fixture\n\nfunc TestDevice(t *testing.T) { " + cudaRequirement + "t) }\n"
+	for name, content := range map[string]string{
+		"internal/unlaned/a_test.go":      gated,
+		"internal/unlaned/b_test.go":      gated,
+		"internal/inference/c_test.go":    gated,
+		"internal/cuda/kernels/d_test.go": gated,
+		"internal/quoting/e.go":           gated,
+		"cmd/hostonly/f_test.go":          "package main\n",
+	} {
+		file := filepath.Join(repo, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatal(err)
 		}
-		return slices.ContainsFunc(lanes, func(candidate lane) bool {
-			return slices.Contains(candidate.environment, "OVERGO_CUDA_TEST=1") && slices.Contains(candidate.packages, "./"+directory)
-		})
-	}
-	gated := map[string]bool{}
-	for _, top := range []string{"internal", "cmd"} {
-		err := filepath.WalkDir(filepath.Join(root, top), func(name string, entry os.DirEntry, err error) error {
-			if err != nil || entry.IsDir() || !strings.HasSuffix(name, "_test.go") {
-				return err
-			}
-			data, err := os.ReadFile(name)
-			if err != nil {
-				return err
-			}
-			// Split so this file does not name the call it looks for.
-			if strings.Contains(string(data), "cudatest"+".Require(") {
-				relative, err := filepath.Rel(root, filepath.Dir(name))
-				if err != nil {
-					return err
-				}
-				gated[filepath.ToSlash(relative)] = true
-			}
-			return nil
-		})
-		if err != nil {
+		if err := os.WriteFile(file, []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for directory := range gated {
-		if !covered(directory) {
-			t.Errorf("%s has CUDA-gated tests that no lane runs; add it to a lane that sets OVERGO_CUDA_TEST", directory)
-		}
+	uncovered, err := uncoveredCUDATests(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(uncovered, []string{"internal/unlaned"}) {
+		t.Fatalf("uncovered CUDA tests = %q, want only internal/unlaned", uncovered)
 	}
 }
 

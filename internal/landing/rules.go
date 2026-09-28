@@ -26,7 +26,7 @@ import (
 // rules compares the changed files with HEAD: no bytes a record pins move,
 // the pinned media runtime moves only with its reconciliation, no new style
 // finding, no new inline policy number, no new legacy form go fix leaves,
-// and no new export without a consumer.
+// no new export without a consumer, and no CUDA-gated test no lane runs.
 func (l *landing) rules(ctx context.Context) error {
 	stale, err := stalePins(l.Repo, l.paths)
 	if err != nil {
@@ -51,6 +51,13 @@ func (l *landing) rules(ctx context.Context) error {
 		return err
 	}
 	findings = append(findings, exports...)
+	uncovered, err := uncoveredCUDATests(l.Repo)
+	if err != nil {
+		return err
+	}
+	for _, directory := range uncovered {
+		findings = append(findings, directory+" has CUDA-gated tests that no lane runs; add it to a lane that sets "+cudaTestEnvironment)
+	}
 	if growth := productionNodes(candidate) - productionNodes(base); !admits(l.budget, growth) {
 		findings = append(findings, fmt.Sprintf("adds %d production syntax nodes beyond row %s's budget %+v; pay for them with deletions, or declare the growth in the row's budget", growth, l.item, l.budget))
 	}

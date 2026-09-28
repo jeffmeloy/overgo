@@ -1,10 +1,14 @@
 package landing
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -65,7 +69,7 @@ var lanes = []lane{
 		// local Fractale checkpoint.
 		name: "thoughtbank", packages: []string{"./internal/thoughtbank"},
 		command:     func(string) []string { return []string{"test", "-tags", "modeltest", "./internal/thoughtbank"} },
-		environment: []string{"OVERGO_CUDA_TEST=1"},
+		environment: []string{cudaTestEnvironment},
 	},
 	{
 		// The integration-tagged suites: Wan's real-model runtime and
@@ -75,7 +79,7 @@ var lanes = []lane{
 		command: func(string) []string {
 			return []string{"test", "-tags", "integration", "./internal/latentvideo", "./internal/quant"}
 		},
-		environment: []string{"OVERGO_CUDA_TEST=1"},
+		environment: []string{cudaTestEnvironment},
 	},
 	{
 		// E4B served over every HTTP route with text, image and audio input.
@@ -83,7 +87,7 @@ var lanes = []lane{
 		// evidence producer, run when its evidence is refreshed.
 		name: "e4b", packages: []string{"./internal/server"},
 		command:     func(string) []string { return []string{"test", "./internal/server", "-run", "^TestE4BHTTPModalities$"} },
-		environment: []string{"OVERGO_CUDA_TEST=1"},
+		environment: []string{cudaTestEnvironment},
 	},
 	{
 		// The CUDA suites the device lane's fixture-free scopes leave out:
@@ -97,8 +101,63 @@ var lanes = []lane{
 		// adaptiveparity alone runs about 11 minutes, past go test's
 		// default per-binary timeout.
 		command:     func(string) []string { return append([]string{"test", "-p=1", "-timeout=0"}, cudaPackages...) },
-		environment: []string{"OVERGO_CUDA_TEST=1"},
+		environment: []string{cudaTestEnvironment},
 	},
+}
+
+// cudaTestEnvironment opts a lane's tests into the real device; without it
+// cudatest.Require skips them.
+const cudaTestEnvironment = "OVERGO_CUDA_TEST=1"
+
+// cudaRequirement is the call a real-device test opens with, split so that
+// source quoting it is not read as calling it.
+const cudaRequirement = "cudatest" + ".Require("
+
+// uncoveredCUDATests names each package under internal/ or cmd/ whose tests
+// call cudatest.Require but that no device lane scope covers and no lane
+// runs with cudaTestEnvironment: a real-device suite lands with its runner,
+// never behind a variable nothing sets. It walks the tree at every landing;
+// as a test it would make the directory listings a cache input of this
+// package and rerun it on every edit anywhere.
+func uncoveredCUDATests(repo string) ([]string, error) {
+	var uncovered []string
+	for _, top := range []string{"internal", "cmd"} {
+		err := filepath.WalkDir(filepath.Join(repo, top), func(name string, entry fs.DirEntry, err error) error {
+			// A repository without the top directory holds no tests there.
+			if errors.Is(err, fs.ErrNotExist) && name == filepath.Join(repo, top) {
+				return fs.SkipDir
+			}
+			if err != nil || entry.IsDir() || !strings.HasSuffix(name, "_test.go") {
+				return err
+			}
+			data, err := os.ReadFile(name)
+			if err != nil || !bytes.Contains(data, []byte(cudaRequirement)) {
+				return err
+			}
+			relative, err := filepath.Rel(repo, filepath.Dir(name))
+			if directory := filepath.ToSlash(relative); err == nil && !cudaCovered(directory) && !slices.Contains(uncovered, directory) {
+				uncovered = append(uncovered, directory)
+			}
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return uncovered, nil
+}
+
+// cudaCovered reports whether a device lane scope covers the package
+// directory or a lane runs it with the device opted in.
+func cudaCovered(directory string) bool {
+	for _, scope := range devicescope.Packages() {
+		if directory == scope || scope == "internal/cuda" && strings.HasPrefix(directory, "internal/cuda/") {
+			return true
+		}
+	}
+	return slices.ContainsFunc(lanes, func(candidate lane) bool {
+		return slices.Contains(candidate.environment, cudaTestEnvironment) && slices.Contains(candidate.packages, "./"+directory)
+	})
 }
 
 // cudaPackages are the packages whose CUDA tests the cuda lane runs.

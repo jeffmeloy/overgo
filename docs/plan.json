@@ -973,7 +973,8 @@
             "owner-decision-queue/dispatch",
             "owner-decision-queue/answer",
             "declaration-alone-share/do",
-            "architecture-names-out-of-serving/do"
+            "architecture-names-out-of-serving/do",
+            "cuda-lane-rule/do"
           ]
         }
       ]

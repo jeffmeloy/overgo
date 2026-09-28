@@ -1,14 +1,44 @@
 package landing
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	"overgo/internal/testskip"
 )
+
+// streamChild makes this test binary the command landing.run starts: it
+// writes a result and a diagnostic and exits with the code it is given.
+const streamChild = "OVERGO_LANDING_STREAM_CHILD"
+
+// TestLandingRunKeepsEachStreamOwned holds the gate's command runner to one
+// owner per stream: standard output comes back once, as the command wrote
+// it, and a failure carries the diagnostic from standard error.
+func TestLandingRunKeepsEachStreamOwned(t *testing.T) {
+	if code := os.Getenv(streamChild); code != "" {
+		fmt.Print("result")
+		fmt.Fprint(os.Stderr, "diagnostic")
+		exit, _ := strconv.Atoi(code)
+		os.Exit(exit)
+	}
+	t.Parallel()
+	l := &landing{Options: Options{Repo: t.TempDir()}}
+	for _, code := range []string{"0", "3"} {
+		output, err := l.run(t.Context(), append(os.Environ(), streamChild+"="+code), os.Args[0], "-test.run=^TestLandingRunKeepsEachStreamOwned$")
+		if output != "result" {
+			t.Errorf("exit %s: standard output = %q, want the result once", code, output)
+		}
+		if failed := code != "0"; failed != (err != nil) || failed && !strings.Contains(err.Error(), "diagnostic") {
+			t.Errorf("exit %s: error = %v, want a failure to carry the diagnostic", code, err)
+		}
+	}
+}
 
 // TestLaneReachSkipsOtherPackagesTests reaches a lane from production code
 // in its closure and from its own packages' tests, never from another

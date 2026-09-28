@@ -4,36 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "fp8-prefill-tensorcore",
-      "title": "Prefill fp8 weights on the FP8 tensor cores instead of expanding them to f16",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Prefill fp8 weights on the FP8 tensor cores instead of expanding them to f16",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorFp8TensorCoreMulMatMatchesReference$' -count=1 -v",
-          "rationale": "Measured 2026-09-28 with cmd/benchmark, 1,163-token prompt, one warm-up and three runs, p50, RTX 4090 D:\n- gemma-4-12B-it-fp8-native.gguf: 3,036 prompt tok/s;\n- its bf16 twin gemma-4-12B-it-fp8-bf16.gguf: 3,837.\nFp8 prefill is 21% slower. The prefill policy is already one decision (the node's MulMatComputeNativeTensorCore, simplify-prefill-paths). The gap is the fp8 path expanding every weight chunk to f16 in staging on each forward, where bf16 multiplies its resident weights directly. The Ada GPU has FP8 tensor cores: multiply the resident e4m3 weights without the f16 expansion, folding the per-row scale into the output, and hold parity against the exact e4m3-times-scale reference. Target: fp8 prefill at or above the bf16 twin's rate at the same prompt, decode unchanged, peak memory no higher. Serves every fp8 model on the shared path."
-        }
-      ]
-    },
-    {
-      "id": "landing-stream-owners",
-      "title": "Give each landing command stream one owner",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give each landing command stream one owner",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingRunKeepsEachStreamOwned$' -count=1",
-          "rationale": "SQA-035 (open), confirmed 2026-09-27: landing.run gives stdout io.MultiWriter(\u0026output, \u0026combined) and stderr \u0026combined, and processcontrol serializes the two drains only when both streams share one sink (supervisor.go lockedWriter), so two goroutines write one bytes.Buffer, and stdout is retained twice. One owner per stream: stdout for the result, a bounded diagnostic tail for the error; stream go test events through the existing parser where the whole output is not needed. No logging framework."
-        }
-      ]
-    },
-    {
       "id": "landing-binds-candidate-bytes",
       "title": "Commit exactly the bytes the gate validated, and recover the row after a failed commit",
       "owner": "master-lead",
@@ -107,6 +77,21 @@
           "status": "open",
           "verify": "go test ./cmd/gate -run '^TestPlanMachineryGone$' -count=1",
           "rationale": "Owner review 2026-09-27: with the completion rules gone and rows plain data, the tool needs roughly -next, -status, -add, -setverify, -verify and -stop. internal/plan is 3.2k lines plus 3.8k of tests and cmd/plan 2.6k plus tests; dispatchreadiness and lanestore exist only for cmd/plan. Delete the old machinery's flags (-admit-proposal, -charge-exploration, -grant-exploration, -contain, -budget, -assign, -record-lease, -locality-schedule, -history and its phases, -prepare-merge now that a merge is git merge --no-ff --no-commit then a landing) and what only they use. Target 6-8k lines with tests. Re-ranked 2026-09-27 behind the landing rows: SQA-038 (a landed merge is invisible to the loop's progress check) and the plan-advance half of SQA-034 sit in the plan tool this row shrinks."
+        }
+      ]
+    },
+    {
+      "id": "fp8-prefill-tensorcore",
+      "title": "Prefill fp8 weights on the FP8 tensor cores instead of expanding them to f16",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prefill fp8 weights on the FP8 tensor cores instead of expanding them to f16",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorFp8TensorCoreMulMatMatchesReference$' -count=1 -v",
+          "rationale": "Measured 2026-09-28 with cmd/benchmark, 1,163-token prompt, one warm-up and three runs, p50, RTX 4090 D:\n- gemma-4-12B-it-fp8-native.gguf: 3,036 prompt tok/s;\n- its bf16 twin gemma-4-12B-it-fp8-bf16.gguf: 3,837.\nFp8 prefill is 21% slower. The prefill policy is already one decision (the node's MulMatComputeNativeTensorCore, simplify-prefill-paths). The gap is the fp8 path expanding every weight chunk to f16 in staging on each forward, where bf16 multiplies its resident weights directly. The Ada GPU has FP8 tensor cores: multiply the resident e4m3 weights without the f16 expansion, folding the per-row scale into the output, and hold parity against the exact e4m3-times-scale reference. Target: fp8 prefill at or above the bf16 twin's rate at the same prompt, decode unchanged, peak memory no higher. Serves every fp8 model on the shared path. Approach needs a decision first. An FP8-by-FP8 cuBLASLt GEMM quantizes activations to e4m3: a numerics change that needs held-out quality evaluation. A kernel that expands e4m3 to f16 in registers inside the GEMM keeps the numbers of today's staged path, but it is custom tensor-core kernel work. Ranked below the smaller rows until the approach is chosen."
         }
       ]
     },

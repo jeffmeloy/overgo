@@ -387,15 +387,15 @@ func (l *landing) git(ctx context.Context, arguments ...string) (string, error) 
 }
 
 // run executes one command at the repository root and returns its standard
-// output; a failure carries the tail of both streams.
+// output; a failure carries the tail of both streams. Each stream has its
+// own buffer: the two are drained concurrently.
 func (l *landing) run(ctx context.Context, environment []string, name string, arguments ...string) (string, error) {
-	var output, combined bytes.Buffer
+	var output, diagnostics bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: name, Args: arguments, Dir: l.Repo, Env: environment,
-		Stdout: io.MultiWriter(&output, &combined), Stderr: &combined,
+		Path: name, Args: arguments, Dir: l.Repo, Env: environment, Stdout: &output, Stderr: &diagnostics,
 	})
 	if err == nil && receipt.ExitCode != 0 {
-		err = fmt.Errorf("%s %s: exit %d: %s", name, strings.Join(arguments, " "), receipt.ExitCode, tail(combined.String()))
+		err = fmt.Errorf("%s %s: exit %d: %s", name, strings.Join(arguments, " "), receipt.ExitCode, tail(output.String()+diagnostics.String()))
 	}
 	return output.String(), err
 }

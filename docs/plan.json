@@ -106,16 +106,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 121,
-        "reason": "one subcommand dispatcher replaces the folded commands' entry points"
+        "nodes": 0,
+        "reason": "the converter fold adds no production code"
       },
       "steps": [
-        {
-          "id": "fold-gguf-converters",
-          "title": "Fold inspect-safetensors, hf-gguf-convert and gemma4-gguf-convert into cmd/gguf subcommands",
-          "status": "open",
-          "verify": "go test ./cmd/gguf -run '^TestGGUFSubcommandsReplaceTheirCommands$/^(safetensors|convert|convert-gemma4)$' -count=1 -v"
-        },
         {
           "id": "fold-store-tools",
           "title": "Fold the overgodb and store tools into cmd/overgodb subcommands",

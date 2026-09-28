@@ -4,43 +4,44 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"os"
 
 	"overgo/internal/hfconvert"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 )
 
-func main() {
-	source := flag.String("source", "", "HF checkpoint directory")
-	output := flag.String("output", "", "GGUF output path")
-	projector := flag.String("mmproj", "", "multimodal-projector GGUF output")
-	name := flag.String("name", "", "GGUF model name; defaults to the source basename")
-	record := flag.String("record", "", "OvergoDB root: commit the extracted model-config declaration bound to the converted artifact")
-	flag.Parse()
-	if *source == "" || (*output == "" && *projector == "") || flag.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "usage: hf-gguf-convert -source checkpoint-directory [-output model.gguf] [-mmproj mmproj.gguf] [-name name] [-record overgodb]")
-		os.Exit(2)
+// convertCommand is gguf convert: it converts a Hugging Face checkpoint
+// directory to GGUF and, with -record, commits the model-config declaration
+// that ties the conversion back to the directory.
+func convertCommand(flags *flag.FlagSet, args []string) error {
+	source := flags.String("source", "", "HF checkpoint directory")
+	output := flags.String("output", "", "GGUF output path")
+	projector := flags.String("mmproj", "", "multimodal-projector GGUF output")
+	name := flags.String("name", "", "GGUF model name; defaults to the source basename")
+	record := flags.String("record", "", "OvergoDB root: commit the extracted model-config declaration bound to the converted artifact")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *source == "" || (*output == "" && *projector == "") || flags.NArg() != 0 {
+		return fmt.Errorf("usage: %s -source checkpoint-directory [-output model.gguf] [-mmproj mmproj.gguf] [-name name] [-record overgodb]", flags.Name())
 	}
 	if *record != "" && *output == "" {
-		fmt.Fprintln(os.Stderr, "hf-gguf-convert: -record requires -output (the declaration binds to the converted model artifact)")
-		os.Exit(2)
+		return fmt.Errorf("%s: -record requires -output (the declaration binds to the converted model artifact)", flags.Name())
 	}
 	report, err := hfconvert.Convert(hfconvert.Options{
 		Directory: *source, OutputPath: *output, ProjectorPath: *projector, Name: *name,
 	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 	fmt.Printf("wrote %d model tensors, %d projector tensors, vocab %d, %d bytes\n",
 		report.Tensors, report.ProjectorTensors, report.VocabSize, report.OutputBytes)
 	if *record != "" {
 		if err := recordModelConfig(*source, *output, *record); err != nil {
-			fmt.Fprintln(os.Stderr, "hf-gguf-convert:", err)
-			os.Exit(1)
+			return fmt.Errorf("%s: %w", flags.Name(), err)
 		}
 	}
+	return nil
 }
 
 // recordModelConfig commits the checkpoint directory's inference- and

@@ -9,8 +9,9 @@ import (
 
 // formerCommands are the model-file commands each subcommand replaced.
 var formerCommands = map[string]string{
-	"hash": "gguf-hash", "inspect": "inspect-gguf", "merge": "gguf-merge",
-	"quantize": "gguf-quantize", "split": "gguf-split",
+	"convert": "hf-gguf-convert", "convert-gemma4": "gemma4-gguf-convert", "hash": "gguf-hash",
+	"inspect": "inspect-gguf", "merge": "gguf-merge", "quantize": "gguf-quantize",
+	"safetensors": "inspect-safetensors", "split": "gguf-split",
 }
 
 // TestGGUFSubcommandsReplaceTheirCommands holds each subcommand, one subtest
@@ -36,7 +37,7 @@ func TestGGUFSubcommandsReplaceTheirCommands(t *testing.T) {
 	}
 	t.Run("unknown", func(t *testing.T) {
 		t.Parallel()
-		if err := runSubcommand([]string{"absent"}); err == nil || !strings.Contains(err.Error(), "hash, inspect, merge") {
+		if err := runSubcommand([]string{"absent"}); err == nil || !strings.Contains(err.Error(), "convert, convert-gemma4, hash") {
 			t.Errorf("unknown subcommand = %v, want the subcommands listed", err)
 		}
 	})

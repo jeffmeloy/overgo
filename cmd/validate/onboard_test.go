@@ -64,7 +64,7 @@ func TestOneCommandOnboardsADeclaredModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"go run ./cmd/hf-gguf-convert -source " + directory + " -output " + converted + " -record STORE",
+		"go run ./cmd/gguf convert -source " + directory + " -output " + converted + " -record STORE",
 		guard + " " + strings.Join(arguments, " "),
 	}
 	if !slices.Equal(ran, want) || !slices.Equal(validated, []string{converted + "|"}) {

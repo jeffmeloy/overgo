@@ -1,5 +1,6 @@
-// Command gguf holds the GGUF model-file tools as subcommands, each with its
-// own flags: gguf <subcommand> [flags] [arguments].
+// Command gguf holds the model-file tools as subcommands, each with its own
+// flags: gguf <subcommand> [flags] [arguments]. They convert Hugging Face
+// checkpoints to GGUF and hash, inspect, merge, split or quantize GGUF files.
 package main
 
 import (
@@ -15,11 +16,14 @@ import (
 
 // subcommands are the model-file tools, each once its own command.
 var subcommands = map[string]func(flags *flag.FlagSet, args []string) error{
-	"hash":     hashCommand,
-	"inspect":  inspectCommand,
-	"merge":    mergeCommand,
-	"quantize": quantizeCommand,
-	"split":    splitCommand,
+	"convert":        convertCommand,
+	"convert-gemma4": convertGemma4Command,
+	"hash":           hashCommand,
+	"inspect":        inspectCommand,
+	"merge":          mergeCommand,
+	"quantize":       quantizeCommand,
+	"safetensors":    safetensorsCommand,
+	"split":          splitCommand,
 }
 
 func main() {

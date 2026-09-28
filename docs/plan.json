@@ -38,8 +38,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 104,
-        "reason": "dispatch passes over rows an unanswered owner decision blocks"
+        "nodes": 247,
+        "reason": "plan -answer records the owner's answer, one of the decision's options, once"
       },
       "steps": [
         {
@@ -986,7 +986,8 @@
             "refresh-accepted-evidence/do",
             "loop-closure-machinery/do",
             "owner-decision-queue/records",
-            "owner-decision-queue/dispatch"
+            "owner-decision-queue/dispatch",
+            "owner-decision-queue/answer"
           ]
         }
       ]

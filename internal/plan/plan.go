@@ -108,6 +108,23 @@ type Plan struct {
 // no choice.
 const decisionOptions = 2
 
+// Answer records the owner's answer to an open decision. The answer is
+// one of its options, given once.
+func Answer(document Plan, id, option string) (Plan, error) {
+	at := slices.IndexFunc(document.Decisions, func(decision Decision) bool { return decision.ID == id })
+	switch {
+	case at < 0:
+		return document, fmt.Errorf("plan: no decision %q", id)
+	case document.Decisions[at].Answer != "":
+		return document, fmt.Errorf("plan: decision %q is already answered: %s", id, document.Decisions[at].Answer)
+	case !slices.Contains(document.Decisions[at].Options, option):
+		return document, fmt.Errorf("plan: %q is not one of decision %q's options: %s", option, id, strings.Join(document.Decisions[at].Options, " | "))
+	}
+	document.Decisions = slices.Clone(document.Decisions)
+	document.Decisions[at].Answer = option
+	return document, nil
+}
+
 // Decision is one question for the owner: its options, the recommended
 // one, the items it blocks, the day it was asked (YYYY-MM-DD) and, once
 // given, the answer.

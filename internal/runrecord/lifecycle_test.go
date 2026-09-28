@@ -9,7 +9,7 @@ import (
 	"overgo/internal/testutil"
 )
 
-func TestGateLifecycleAndDebt(t *testing.T) {
+func TestGateLifecycleConstruction(t *testing.T) {
 	environment, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("lifecycle-environment"))
 	if err != nil {
 		t.Fatal(err)
@@ -26,21 +26,12 @@ func TestGateLifecycleAndDebt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	debt, err := OutstandingGateDebt([]GateLifecycle{prepared})
-	if err != nil || len(debt) != 1 || debt[0].ID != prepared.ID {
-		t.Fatalf("prepared debt = (%+v, %v)", debt, err)
-	}
-	finalized, err := NewGateFinalization(prepared, "0123456789abcdef0123456789abcdef01234567", result, OutcomeSucceeded)
-	if err != nil {
+	if _, err := NewGateFinalization(prepared, "0123456789abcdef0123456789abcdef01234567", result, OutcomeSucceeded); err != nil {
 		t.Fatal(err)
-	}
-	debt, err = OutstandingGateDebt([]GateLifecycle{prepared, finalized})
-	if err != nil || len(debt) != 0 {
-		t.Fatalf("finalized debt = (%+v, %v)", debt, err)
 	}
 }
 
-func TestGateLifecycleStoreScanAndDebt(t *testing.T) {
+func TestGateLifecycleStoreScan(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -82,10 +73,6 @@ func TestGateLifecycleStoreScanAndDebt(t *testing.T) {
 	if err != nil || len(records) != 1 || records[0].ID != prepared.ID {
 		t.Fatalf("stored prepared records = (%+v, %v)", records, err)
 	}
-	debt, err := OutstandingGateDebt(records)
-	if err != nil || len(debt) != 1 || debt[0].ID != prepared.ID {
-		t.Fatalf("stored prepared debt = (%+v, %v)", debt, err)
-	}
 
 	testutil.PublishArtifact(t, store, result)
 	finalized, err := NewGateFinalization(
@@ -110,10 +97,6 @@ func TestGateLifecycleStoreScanAndDebt(t *testing.T) {
 	records, err = GateLifecyclesInStore(ctx, store)
 	if err != nil || len(records) != 2 || records[0].ID != prepared.ID || records[1].ID != finalized.ID {
 		t.Fatalf("stored finalized records = (%+v, %v)", records, err)
-	}
-	debt, err = OutstandingGateDebt(records)
-	if err != nil || len(debt) != 0 {
-		t.Fatalf("stored finalized debt = (%+v, %v)", debt, err)
 	}
 	if _, err := GateLifecyclesInStore(nil, store); err == nil {
 		t.Fatal("nil lifecycle context accepted")

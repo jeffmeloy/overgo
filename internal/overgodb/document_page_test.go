@@ -27,7 +27,7 @@ func TestQueryScansProportionalToItsPage(t *testing.T) {
 	}
 	queried, other := contract("test/paged/v1"), contract("test/crowd/v1")
 	document := func(c artifact.DocumentContract, body string) artifact.Content {
-		data := []byte(fmt.Sprintf("{%q:%q}", c.Schema, body))
+		data := fmt.Appendf(nil, "{%q:%q}", c.Schema, body)
 		id, err := artifact.IdentifyBytes(c.Kind, data)
 		if err != nil {
 			t.Fatal(err)

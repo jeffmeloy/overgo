@@ -16,7 +16,7 @@ func TestProjectionContractIsClosedAndVersioned(t *testing.T) {
 	t.Parallel()
 	state := newCatalogState()
 	views := projections(&state)
-	facetFields := reflect.TypeOf(state).NumField()
+	facetFields := reflect.TypeFor[catalogState]().NumField()
 	if len(views) != facetFields {
 		t.Fatalf("registry enumerates %d projections; catalogState composes %d facets", len(views), facetFields)
 	}

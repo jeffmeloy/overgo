@@ -3,6 +3,8 @@ package evaluation
 import (
 	"context"
 	"encoding/json"
+	"maps"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
@@ -10,12 +12,14 @@ import (
 )
 
 // BenchmarkSummary is the latest committed benchmark claim for one
-// weights file: tier, wall, peak, and the headline decode rate lifted
-// from the claim's evidence document.
+// weights file: tier, wall, peak, and the headline rates, time to first
+// token and load time lifted from the claim's evidence document.
 type BenchmarkSummary struct {
 	Tier                  string  `json:"tier"`
 	PromptTokensPerSecond float64 `json:"prompt_tokens_per_second_p50,omitzero"`
 	DecodeTokensPerSecond float64 `json:"decode_tokens_per_second_p50,omitzero"`
+	FirstTokenMS          float64 `json:"ttft_ms_p50,omitzero"`
+	LoadMS                float64 `json:"load_ms,omitzero"`
 	WallNS                uint64  `json:"wall_ns,omitzero"`
 	PeakDeviceBytes       uint64  `json:"peak_device_bytes,omitzero"`
 	// DeviceAfterLoadBytes, DeviceTotalBytes and RealizedResidency are the
@@ -24,6 +28,26 @@ type BenchmarkSummary struct {
 	DeviceTotalBytes     uint64      `json:"device_total_bytes,omitzero"`
 	RealizedResidency    string      `json:"realized_residency,omitzero"`
 	Record               artifact.ID `json:"record,omitzero"`
+}
+
+// headlineMetrics orders the metric that stands for an evaluation: an
+// accuracy when the suite scores one, else the suite's own aggregate.
+var headlineMetrics = []string{"accuracy", "prompt-strict", "perplexity", "mean"}
+
+// HeadlineMetric names the metric that stands for an evaluation and its
+// value: the first of the ordered headline names the metrics carry, else
+// the alphabetically first. ok is false when there are no metrics.
+func HeadlineMetric(metrics map[string]float64) (name string, value float64, ok bool) {
+	for _, name := range headlineMetrics {
+		if value, found := metrics[name]; found {
+			return name, value, true
+		}
+	}
+	names := slices.Sorted(maps.Keys(metrics))
+	if len(names) == 0 {
+		return "", 0, false
+	}
+	return names[0], metrics[names[0]], true
 }
 
 // EvalSummary is one suite's latest committed evaluation for a recipe
@@ -120,9 +144,11 @@ func readClaimEvidence(ctx context.Context, store *overgodb.Store, claim runreco
 // JSON); an absent or differently shaped document leaves the claim's
 // own fields standing.
 type benchmarkEvidenceHeadline struct {
+	LoadMS  float64 `json:"load_ms"`
 	Summary struct {
 		PromptTokensPerSecondP50 float64 `json:"prompt_tokens_per_second_p50"`
 		DecodeTokensPerSecondP50 float64 `json:"decode_tokens_per_second_p50"`
+		FirstTokenMSP50          float64 `json:"ttft_ms_p50"`
 	} `json:"summary"`
 	DeviceAfterLoadBytes uint64       `json:"device_after_load_bytes"`
 	RealizedResidency    string       `json:"realized_residency"`
@@ -186,6 +212,7 @@ func LatestEvidence(
 					summary.DecodeTokensPerSecond = headline.Summary.DecodeTokensPerSecondP50
 					summary.DeviceAfterLoadBytes, summary.DeviceTotalBytes = headline.DeviceAfterLoadBytes, headline.Device.TotalMemoryBytes
 					summary.RealizedResidency = headline.RealizedResidency
+					summary.FirstTokenMS, summary.LoadMS = headline.Summary.FirstTokenMSP50, headline.LoadMS
 				}
 				keep(func(location string) {
 					if _, seen := index.BenchmarksByLocation[location]; !seen {
@@ -258,37 +285,22 @@ func ListingAuthorities() ExactAuthorities {
 	}
 }
 
-// DerivedSuiteDescriptors compiles the store's benchmark catalog and keys
-// every suite's descriptor by its source name, so a report can state each
-// suite's kind and case count beside the records that ran it.
-func DerivedSuiteDescriptors(ctx context.Context, store *overgodb.Store, authorities ExactAuthorities) map[string]SuiteDescriptor {
-	descriptors := map[string]SuiteDescriptor{}
+// DerivedSuiteCatalog compiles the store's benchmark catalog once, without
+// binding a model, and returns its suites' source names keyed by dataset
+// identity and their descriptors keyed by source name: a report reads which
+// records ran which suite, and each suite's kind and case count.
+func DerivedSuiteCatalog(ctx context.Context, store *overgodb.Store, authorities ExactAuthorities) (map[artifact.ID]string, map[string]SuiteDescriptor) {
+	names, descriptors := map[artifact.ID]string{}, map[string]SuiteDescriptor{}
 	suites, _, err := DeriveStoreSuites(ctx, store, authorities)
 	if err != nil {
-		return descriptors
+		return names, descriptors
 	}
 	for _, suite := range suites {
 		descriptor := suite.Descriptor()
 		descriptors[descriptor.Source] = descriptor
-	}
-	return descriptors
-}
-
-// DerivedSuiteNames maps the store's derived suite dataset identities
-// to their source names without binding a model: the same catalog
-// derivation the workspace performs, compiled under listing
-// authorities purely to read descriptors.
-func DerivedSuiteNames(ctx context.Context, store *overgodb.Store, authorities ExactAuthorities) map[artifact.ID]string {
-	names := map[artifact.ID]string{}
-	suites, _, err := DeriveStoreSuites(ctx, store, authorities)
-	if err != nil {
-		return names
-	}
-	for _, suite := range suites {
-		descriptor := suite.Descriptor()
 		if descriptor.Dataset.Valid() {
 			names[descriptor.Dataset] = descriptor.Source
 		}
 	}
-	return names
+	return names, descriptors
 }

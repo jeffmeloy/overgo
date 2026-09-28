@@ -5,17 +5,16 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 )
 
-// TestDerivedCacheCoversModernGoComputation holds the gate's modern-Go memo
+// TestDerivedCacheCoversModernGoComputation holds the old gate's modern-Go memo
 // in the releasable classes, where the record census found it missing with
 // 552 MB held, and holds every class clear of the gate's own evidence kinds:
 // a cache is recomputable, and nothing under the gate's prefix is.
 func TestDerivedCacheCoversModernGoComputation(t *testing.T) {
-	if !DerivedCache(artifact.Descriptor{Schema: repoanalysis.ModernGoComputationSchema}) {
-		t.Fatalf("%s is not a releasable derived cache", repoanalysis.ModernGoComputationSchema)
+	if !DerivedCache(artifact.Descriptor{Schema: "overgo/modern-go-computation/v1"}) {
+		t.Fatalf("%s is not a releasable derived cache", "overgo/modern-go-computation/v1")
 	}
 	for _, schema := range DerivedCacheSchemas {
 		if strings.HasPrefix(schema, "overgo/gate-") {

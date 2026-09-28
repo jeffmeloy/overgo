@@ -9,13 +9,11 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"maps"
-	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -106,30 +104,20 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 		return nil, err
 	}
 	defer store.Close()
-	// The report's denominator is the whole servable catalog: the
-	// listing bound is the widest the query accepts, never a sample.
-	entries, err := discovery.ServableWithMemo(ctx, store, math.MaxInt, discovery.LoadMemo(ctx, store))
+	entries, err := discovery.LocalServable(ctx, store)
 	if err != nil {
 		return nil, err
 	}
-	names := evaluation.DerivedSuiteNames(ctx, store, evaluation.ListingAuthorities())
-	descriptors := evaluation.DerivedSuiteDescriptors(ctx, store, evaluation.ListingAuthorities())
+	names, descriptors := evaluation.DerivedSuiteCatalog(ctx, store, evaluation.ListingAuthorities())
 	// A zero bound visits the complete history; newest-first keeps the
 	// latest record per suite, so every row is the current evidence.
 	index := evaluation.LatestEvidence(ctx, store, names, 0)
 	longForms := longform.LatestByLocation(ctx, store, 0)
 	rows := make([]modelRow, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.Present || entry.Stale != "" || entry.Location == "" {
-			continue
-		}
-		info, err := os.Stat(entry.Location)
-		if err != nil {
-			return nil, err
-		}
 		row := modelRow{
 			name:     strings.TrimSuffix(filepath.Base(entry.Location), filepath.Ext(entry.Location)),
-			location: entry.Location, bytes: info.Size(), suites: map[string]suiteRow{},
+			location: entry.Location, bytes: entry.Bytes, suites: map[string]suiteRow{},
 		}
 		row.benchmark, row.measured = index.BenchmarksByLocation[entry.Location]
 		row.longForm, row.verified = longForms[longform.Key(entry.Location)]
@@ -163,9 +151,6 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 		}
 		rows = append(rows, row)
 	}
-	slices.SortFunc(rows, func(a, b modelRow) int {
-		return cmp.Or(cmp.Compare(a.bytes, b.bytes), strings.Compare(a.location, b.location))
-	})
 	return render(rows, descriptors), nil
 }
 
@@ -303,24 +288,14 @@ func promptCell(row modelRow) string {
 	return fmt.Sprintf(metricFormat, row.benchmark.PromptTokensPerSecond)
 }
 
-// headlineMetrics orders the metric a suite cell shows: an accuracy
-// when the suite scores one, else the suite's own aggregate.
-var headlineMetrics = []string{"accuracy", "prompt_strict", "perplexity", "mean"}
-
+// headlineCell shows the suite's headline metric, the one that stands for
+// an evaluation everywhere it is reported.
 func headlineCell(record suiteRow) string {
-	if record.metrics == nil {
+	name, value, ok := evaluation.HeadlineMetric(record.metrics)
+	if !ok {
 		return "—"
 	}
-	for _, name := range headlineMetrics {
-		if value, found := record.metrics[name]; found {
-			return name + " " + fmt.Sprintf(metricFormat, value)
-		}
-	}
-	names := slices.Sorted(maps.Keys(record.metrics))
-	if len(names) == 0 {
-		return "—"
-	}
-	return names[0] + " " + fmt.Sprintf(metricFormat, record.metrics[names[0]])
+	return name + " " + fmt.Sprintf(metricFormat, value)
 }
 
 func metricsCell(metrics map[string]float64) string {

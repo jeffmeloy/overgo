@@ -210,12 +210,12 @@ func projectModalityCoverage(ctx context.Context, root string, store *overgodb.S
 					}
 					source, sourceKind = document.Proofs[proof].Commit, "acceptance gate; run source unrecorded"
 				}
-				protocols[declared.Model] = append(protocols[declared.Model], modalityProtocolProjection{Name: declared.ID, InputMode: "declared request", Source: source, SourceKind: sourceKind, Unit: "generation case", Recipe: declared.Recipe, Evidence: []artifact.ID{binding.Run, binding.Output, binding.Review}, Required: &required, Recorded: &recorded, Gap: declared.Scope + " Native and lifecycle acceptance only; broader quality remains unestablished.", RepairOwner: "final-model-validation/do"})
+				protocols[declared.Model] = append(protocols[declared.Model], modalityProtocolProjection{Name: declared.ID, InputMode: "declared request", Source: source, SourceKind: sourceKind, Unit: "generation case", Recipe: declared.Recipe, Evidence: []artifact.ID{binding.Run, binding.Output, binding.Review}, Required: &required, Recorded: &recorded, Gap: declared.Scope + " Native and lifecycle acceptance only; broader quality remains unestablished.", RepairOwner: "user-scorecard/do"})
 			}
 		}
 	}
 	for _, entry := range entries {
-		row := modalityModelProjection{Model: entry.Model, Name: cmp.Or(names[entry.Model], mediaModelName(entry.Location)), Present: entry.Present, Execution: "local"}
+		row := modalityModelProjection{Model: entry.Model, Name: cmp.Or(names[entry.Model], discovery.LocationName(entry.Location)), Present: entry.Present, Execution: "local"}
 		row.Protocols = protocols[entry.Model]
 		slices.SortFunc(row.Protocols, func(a, b modalityProtocolProjection) int { return strings.Compare(a.Name, b.Name) })
 		if entry.KeyEnvironment != "" {
@@ -227,10 +227,10 @@ func projectModalityCoverage(ctx context.Context, root string, store *overgodb.S
 		}
 		if len(entry.Capabilities) == 0 {
 			row.Gap = "Registered without task activation or accepted protocol."
-			row.RepairOwner = "final-model-validation/do"
+			row.RepairOwner = "user-scorecard/do"
 		}
 		for _, capability := range entry.Capabilities {
-			cell := modalityCellProjection{acceptedCell: acceptedCell{Task: capability.Task, Recipe: capability.Recipe}, Activated: capability.Stale == "", Gap: "No accepted protocol bound to this activation.", RepairOwner: "final-model-validation/do"}
+			cell := modalityCellProjection{acceptedCell: acceptedCell{Task: capability.Task, Recipe: capability.Recipe}, Activated: capability.Stale == "", Gap: "No accepted protocol bound to this activation.", RepairOwner: "user-scorecard/do"}
 			cell.HistoricalVerifier = measurements[key{entry.Model, capability.Task}]
 			cell.Measured = cell.HistoricalVerifier != nil
 			definition, err := recipe.RequireDefinition(ctx, store, capability.Recipe)
@@ -487,7 +487,7 @@ func collectModalityProtocols(ctx context.Context, reader artifact.Reader, data 
 		value.RepairOwner = "modality-verification/experiment-resume"
 		if value.Recorded != nil {
 			value.Gap = "Native protocol case accepted at the recorded source; no current performance claim."
-			value.RepairOwner = "final-model-validation/do"
+			value.RepairOwner = "user-scorecard/do"
 		}
 		if err := projectProtocolCounts(ctx, reader, &value); err != nil {
 			return err
@@ -536,7 +536,7 @@ func projectProtocolCounts(ctx context.Context, reader artifact.Reader, value *m
 			value.Recorded = &recorded
 			value.Report = id
 			value.Gap = "Recorded transcription examples match the frozen selection; WER and CER remain separate quality metrics."
-			value.RepairOwner = "final-model-validation/do"
+			value.RepairOwner = "user-scorecard/do"
 			return nil
 		}
 		if content.Descriptor.Schema != "overgo/evaluation-evidence/v1" {
@@ -613,7 +613,7 @@ func projectProtocolCounts(ctx context.Context, reader artifact.Reader, value *m
 				return errors.New("coverage: recorded case count differs from required profile")
 			}
 			value.Gap = "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim."
-			value.RepairOwner = "final-model-validation/do"
+			value.RepairOwner = "user-scorecard/do"
 		}
 		return nil
 	}

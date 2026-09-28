@@ -375,13 +375,7 @@ func validateStoredPlanAuthorities(ctx context.Context, reader artifact.Reader, 
 		return err
 	}
 	for _, want := range plan.Lineage() {
-		found := false
-		for _, parent := range parents {
-			if parent == want {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(parents, want)
 		if !found {
 			return fmt.Errorf("evaluation: plan lineage omits authority %s", want.Parent)
 		}

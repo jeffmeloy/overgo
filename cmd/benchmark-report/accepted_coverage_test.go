@@ -39,11 +39,11 @@ func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 	}
 	defer store.Close()
 	ctx := t.Context()
-	descriptors := evaluation.DerivedSuiteDescriptors(ctx, store, evaluation.ListingAuthorities())
+	names, descriptors := evaluation.DerivedSuiteCatalog(ctx, store, evaluation.ListingAuthorities())
 	if descriptors[mmluProSuite].Cases == 0 {
 		t.Fatalf("%s carries no declared denominator", mmluProSuite)
 	}
-	index := evaluation.LatestEvidence(ctx, store, evaluation.DerivedSuiteNames(ctx, store, evaluation.ListingAuthorities()), 0)
+	index := evaluation.LatestEvidence(ctx, store, names, 0)
 	entries, err := discovery.ServableWithMemo(ctx, store, 100000, discovery.LoadMemo(ctx, store))
 	if err != nil {
 		t.Fatal(err)

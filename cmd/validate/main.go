@@ -41,6 +41,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	baseline := flags.String("baseline", "HEAD~1", "commit to diff against; the change set is baseline..HEAD")
 	execute := flags.Bool("run", false, "execute the selected validations (default: dry run prints the plan only)")
 	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as validated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
+	scorecardView := flags.Bool("scorecard", false, "print the user scorecard: for every activated model and task, time to first output, throughput, held-out quality, failures, load time, peak device memory and setup steps, each read from the store or listed as a gap with its reason; runs nothing")
 	command := clioptions.Command{
 		Name:     "validate",
 		Purpose:  "select the minimal sufficient end-to-end validation for a commit and, with -run, execute it",
@@ -50,6 +51,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"a cell runs only when the commit's changes move its surface or it has no accepted evidence",
 			"every registered model is accounted for; each available model is dispatched by its declared functions",
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
+			"-scorecard reads the store only: it loads no model, opens no device and needs no commit range",
 			"help opens no store and reads nothing",
 		},
 	}
@@ -58,6 +60,18 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("validate: unexpected arguments %v", flags.Args())
+	}
+	if *scorecardView {
+		storeRoot, err := dataroot.StoreRoot(*repository)
+		if err != nil {
+			return err
+		}
+		store, err := overgodb.OpenReadOnly(storeRoot)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		return writeScorecard(ctx, store, output)
 	}
 
 	head, err := revParse(ctx, *root, "HEAD")

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"overgo/internal/loop"
-	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/worklease"
@@ -17,12 +16,7 @@ import (
 func TestCampaignActiveWorkerStop(t *testing.T) {
 	const helperRoot = "OVERGO_CAMPAIGN_STOP_TEST_ROOT"
 	if root := os.Getenv(helperRoot); root != "" {
-		writer, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer writer.Close()
-		_, err = plan.RecordControlEvent(t.Context(), writer, plan.ControlEvent{Kind: plan.ControlStop, Lane: worklease.UnassignedRole, Worker: "operator", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, CodeCommit: strings.Repeat("a", 40), ReasonCode: "user-stop", Detail: "active worker fixture"})
+		_, err := plan.RecordStop(t.Context(), plan.ControlEvent{Kind: plan.ControlStop, Lane: worklease.UnassignedRole, Worker: "operator", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, CodeCommit: strings.Repeat("a", 40), ReasonCode: "user-stop", Detail: "active worker fixture"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -37,25 +31,13 @@ func TestCampaignActiveWorkerStop(t *testing.T) {
 	}
 	root := t.TempDir()
 	t.Chdir(root)
-	writer, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
-	reader, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer reader.Close()
 	campaign, err := processcontrol.BeginCampaign(root, "worker")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer campaign.Close()
 	t.Setenv(helperRoot, root)
-	world := &execWorld{stopStore: reader, campaign: campaign, config: config{Worker: []string{os.Args[0], "-test.run=^TestCampaignActiveWorkerStop$"}, WorkerTimeoutMinutes: 1}}
+	world := &execWorld{campaign: campaign, config: config{Worker: []string{os.Args[0], "-test.run=^TestCampaignActiveWorkerStop$"}, WorkerTimeoutMinutes: 1}}
 	_, err = world.RunWorker(loop.Step{Item: "fixture", ID: "do"}, "fixture", "")
 	if err != nil || !world.Paused() {
 		t.Fatalf("active worker stop: %v", err)

@@ -87,26 +87,3 @@ func TestVerificationBatchDeclaration(t *testing.T) {
 		t.Fatalf("batch declaration advanced parent: %+v, %t", step, open)
 	}
 }
-
-func TestVerificationBatchMerge(t *testing.T) {
-	t.Parallel()
-	base, local, upstream := batchPlanFixture(), batchPlanFixture(), batchPlanFixture()
-	local.Items[0].Steps[0].VerificationBatch.Rationale = "Local measured batch cost."
-	upstream.Items[0].Steps[0].Title = "Updated parent title"
-	merged, err := MergeDocuments(base, local, upstream)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if merged.Items[0].Steps[0].Title != upstream.Items[0].Steps[0].Title ||
-		!reflect.DeepEqual(merged.Items[0].Steps[0].VerificationBatch, local.Items[0].Steps[0].VerificationBatch) {
-		t.Fatal("merge discarded batch beside independent parent edits")
-	}
-	upstream.Items[0].Steps[0].VerificationBatch.Checkpoints[0].Verify += " -race"
-	if _, err := MergeDocuments(base, local, upstream); err == nil {
-		t.Fatal("concurrent batch authorities silently combined")
-	}
-	upstream.Items[0].Steps = nil
-	if _, err := MergeDocuments(base, local, upstream); err == nil {
-		t.Fatal("edited batch disappeared beside unverified deletion")
-	}
-}

@@ -128,13 +128,7 @@ func TestParseRejectsRawDoneFlip(t *testing.T) {
 			if _, err := Parse([]byte(raw)); err == nil || !strings.Contains(err.Error(), "retains completed state") {
 				t.Fatalf("raw done flip error = %v", err)
 			}
-			if _, err := ParseHistorical([]byte(raw)); err != nil {
-				t.Fatalf("historical done row was not readable: %v", err)
-			}
 		})
-	}
-	if _, err := ParseHistorical([]byte(`{"items":[],"unknown":true}`)); err == nil {
-		t.Fatal("historical parser accepted an unknown field")
 	}
 }
 

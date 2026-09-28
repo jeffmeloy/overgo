@@ -1,9 +1,27 @@
 package main
 
+import (
+	"strings"
+
+	"overgo/internal/scorecard/metric"
+)
+
 // doctrineText is the overgo turn contract emitted at SessionStart so a session
 // is driven by OVERGO's loop and plan, never adaptive_new's. adaptive_new is a
 // reference / comparison / port-source tree only -- read it, never drive from it.
-const doctrineText = `OVERGO TURN CONTRACT. This repo is the whole world. adaptive_new is a
+var doctrineText = strings.Replace(doctrineTemplate, "{metrics}", metricNames(), 1)
+
+// metricNames lists the scorecard's columns by the names a message predicts
+// them with; the scorecard owns the names.
+func metricNames() string {
+	names := make([]string, len(metric.Columns))
+	for index, name := range metric.Columns {
+		names[index] = string(name)
+	}
+	return strings.Join(names, ", ")
+}
+
+const doctrineTemplate = `OVERGO TURN CONTRACT. This repo is the whole world. adaptive_new is a
 reference / comparison / port-source tree ONLY -- read it to compare or port
 from, never as the control plane, and never modify it.
 
@@ -14,15 +32,24 @@ THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
  3. Land the row with the one sequence that cannot skip a step (never raw git
     commit during a campaign):
       go run ./cmd/loop -land <item>/<step> -message-file -
-    with the message on standard input. The small gate runs over the dirty
-    tree (the ship set): go fmt, go vet, the rules against HEAD, go test ./...
-    with its cache, the lanes the change reaches and the row's verify; it
-    commits with the step removed from the plan and the landing is confirmed
-    from git, ending in one typed outcome. A stale derived file fails its test
-    with the command that regenerates it: run that, then land again. The guard
-    refuses a landing whose output is sent to a file.
+    with the message on standard input. The small gate checks the dirty tree
+    (the ship set) through the stages internal/landing's package doc lists;
+    it commits with the step removed from the plan and the landing is
+    confirmed from git, ending in one typed outcome. A stale derived file fails its test with the
+    command that regenerates it: run that, then land again. The guard refuses
+    a landing whose output is sent to a file.
     The message states "Cause:" and "Predicted effect:"; the gate refuses one
-    without them and writes what it measured itself, so type no numbers.
+    without them and writes what it measured itself, so type no numbers. The
+    predicted effect names, by its exact name, each user-scorecard metric
+    it improves or holds, where it can:
+      {metrics}
+    Naming a timed one claims it does not get worse: the gate then runs
+    HEAD's benchmark beside the tree's and refuses a worsening beyond the
+    noise of same-binary runs. A timed metric belongs to the slice named
+    right before it (speech first-output); a bare name means the inference
+    slice. A deliberate worsening is stated in words, without the exact
+    name. Work that moves only internal metrics says why
+    it exists.
     Merges: git merge --no-ff --no-commit <branch>, resolve, then land as
     above; the commit records both parents. Read the exit code UNPIPED.
  4. The successful gate removes the completed step. Do not run a separate

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -54,12 +55,7 @@ func recordsSomething(value any) bool {
 	case string:
 		return typed != ""
 	case []any:
-		for _, element := range typed {
-			if recordsSomething(element) {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(typed, recordsSomething)
 	case map[string]any:
 		for _, element := range typed {
 			if recordsSomething(element) {

@@ -15,7 +15,6 @@ import (
 var regexOwners = map[string]string{
 	"cmd/build-kernels/main.go":                       "rewrites a generated digest constant in Go source text; follow-up: go/ast edit",
 	"cmd/compatibility/webui_report.go":               "scans the shell's JavaScript and HTML text; the GUI lane replaces it with a browser census",
-	"cmd/coverage-lanes/main.go":                      "reads go test's coverage summary line; follow-up: -coverprofile",
 	"cmd/device-lane/admission.go":                    "compiles a go test -run selector, which is a regular expression",
 	"cmd/device-lane/main.go":                         "compiles a go test -run selector, which is a regular expression",
 	"cmd/gen-iq-tables/main.go":                       "generator reading C table source",
@@ -37,7 +36,6 @@ var regexOwners = map[string]string{
 	"internal/hfgguf/qwen35_projector.go":             "reads the Hugging Face tensor-name grammar",
 	"internal/inference/chat_tool_grammar.go":         "validates a tool-name grammar",
 	"internal/repoanalysis/docs_inventory.go":         "reads markdown links and command references in prose",
-	"internal/repoanalysis/family_branch_census.go":   "classifies model-family stems",
 	"internal/runrecord/verify_selector.go":           "compiles a go test -run selector, which is a regular expression",
 	"internal/sampling/json_schema.go":                "JSON Schema pattern and format keywords are regular expressions",
 	"internal/server/document_text.go":                "locates PDF stream dictionaries in raw PDF bytes",

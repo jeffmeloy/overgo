@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -37,25 +38,20 @@ import (
 // real server execution and source-bound library acceptance.
 // Candidate verification worktrees intentionally differ from HEAD;
 // attributing their executable to that parent would falsify run provenance.
-// Only tracked and nonignored candidate files are copied, never model stores.
+// Only the build closure of the commands the acceptances run is copied,
+// never model stores: the copy is this package's test input, so a plan
+// row, a document or another command's code does not rerun the suite.
 // The fixture commit changes no campaign refs and no campaign worktree bytes.
 func snapshotAudioSource(t *testing.T) (string, string) {
 	t.Helper()
 	root := testutil.RepoRoot(t)
 	directory := filepath.Join(t.TempDir(), "source")
 	baselineCommand(t, root, "git", "clone", "--quiet", "--shared", "--no-checkout", root, directory)
-	files := baselineCommand(t, root, "git", "ls-files", "-z", "--cached", "--others", "--exclude-standard")
-	for name := range strings.SplitSeq(files, "\x00") {
-		if name == "" {
-			continue
-		}
+	for _, name := range audioSourceClosure(t, root) {
 		if !filepath.IsLocal(name) {
 			t.Fatalf("nonlocal source path %q", name)
 		}
 		data, err := os.ReadFile(filepath.Join(root, name))
-		if errors.Is(err, os.ErrNotExist) {
-			continue // A candidate deletion must stay deleted in the fixture.
-		}
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -76,6 +72,62 @@ func snapshotAudioSource(t *testing.T) (string, string) {
 		t.Fatal(err)
 	}
 	return directory, commit
+}
+
+// audioSourceCommands are the commands the acceptances build or run from
+// the source snapshot.
+var audioSourceCommands = []string{"./cmd/server", "./cmd/evaluate"}
+
+// audioSourceClosure lists, relative to root, the main module's files the
+// audio source commands build from: every Go, cgo, C, header, assembly,
+// embedded and syso file of the packages they import, with go.mod and
+// go.sum. Test files, documents and other commands are not in it.
+func audioSourceClosure(t *testing.T, root string) []string {
+	t.Helper()
+	listed := baselineCommand(t, root, "go", append([]string{"list", "-deps", "-json"}, audioSourceCommands...)...)
+	names := []string{"go.mod", "go.sum"}
+	decoder := json.NewDecoder(strings.NewReader(listed))
+	for decoder.More() {
+		var listing struct {
+			Dir                                                              string
+			Module                                                           *struct{ Main bool }
+			GoFiles, CgoFiles, CFiles, HFiles, SFiles, EmbedFiles, SysoFiles []string
+		}
+		if err := decoder.Decode(&listing); err != nil {
+			t.Fatal(err)
+		}
+		if listing.Module == nil || !listing.Module.Main {
+			continue
+		}
+		directory, err := filepath.Rel(root, listing.Dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, files := range [][]string{listing.GoFiles, listing.CgoFiles, listing.CFiles, listing.HFiles, listing.SFiles, listing.EmbedFiles, listing.SysoFiles} {
+			for _, file := range files {
+				names = append(names, filepath.ToSlash(filepath.Join(directory, file)))
+			}
+		}
+	}
+	return names
+}
+
+// TestAudioSourceSnapshotCopiesOnlyTheBuildClosure holds the snapshot to
+// the code the acceptances run: the commands' sources and the module files
+// are in it, while the plan, documents and test files are not.
+func TestAudioSourceSnapshotCopiesOnlyTheBuildClosure(t *testing.T) {
+	t.Parallel()
+	closure := audioSourceClosure(t, testutil.RepoRoot(t))
+	for _, want := range []string{"go.mod", "go.sum", "cmd/server/main.go", "cmd/evaluate/main.go"} {
+		if !slices.Contains(closure, want) {
+			t.Errorf("snapshot lacks %s", want)
+		}
+	}
+	for _, name := range closure {
+		if strings.HasSuffix(name, "_test.go") || strings.HasPrefix(name, "docs/") {
+			t.Errorf("snapshot copies %s, which no acceptance command builds from", name)
+		}
+	}
 }
 
 func buildLiveASRServer(t *testing.T) (string, string, string) {

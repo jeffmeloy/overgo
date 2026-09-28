@@ -3,71 +3,44 @@ package plan
 import (
 	"cmp"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
-	"overgo/internal/artifact"
-	"overgo/internal/authoritylock"
-	"overgo/internal/gitauthority"
-	"overgo/internal/jsonfile"
-	"overgo/internal/overgodb"
-	"overgo/internal/processcontrol"
-	"overgo/internal/processlock"
 	"overgo/internal/worklease"
 )
 
 // Dispatch is the current row as data: the harness reads its fields and
 // Line is the one-line prose rendered from the same fields.
 type Dispatch struct {
-	Stop      *StopStatus      `json:"stop,omitempty"`
-	Complete  bool             `json:"complete"`
-	Item      string           `json:"item,omitzero"`
-	Step      string           `json:"step,omitzero"`
-	ItemTitle string           `json:"item_title,omitzero"`
-	StepTitle string           `json:"step_title,omitzero"`
-	Verify    string           `json:"verify,omitzero"`
-	Line      string           `json:"line"`
-	Claim     *worklease.Lease `json:"claim,omitempty"`
-	ClaimID   artifact.ID      `json:"claim_id,omitzero"`
-	Waiting   string           `json:"waiting,omitzero"`
-	// amends is the holder's own claim on the dispatched row, whose contract
-	// the holder amended: acquisition renews it rather than claiming anew.
-	amends *worklease.Lease
+	Stop      *StopStatus `json:"stop,omitempty"`
+	Complete  bool        `json:"complete"`
+	Item      string      `json:"item,omitzero"`
+	Step      string      `json:"step,omitzero"`
+	ItemTitle string      `json:"item_title,omitzero"`
+	StepTitle string      `json:"step_title,omitzero"`
+	Verify    string      `json:"verify,omitzero"`
+	Line      string      `json:"line"`
+	Waiting   string      `json:"waiting,omitzero"`
 }
 
-// dispatchCacheFile keeps the last resolved dispatch in the checkout's
-// process state, so a turn's several readers resolve the completion
-// authority once; legacyDispatchCache is where it lived before.
-const (
-	dispatchCacheFile   = "dispatch"
-	legacyDispatchCache = "docs/.dispatch"
-)
-
-// Shared Git revision query used by dispatch and completion authority.
+// Shared Git revision query used by dispatch.
 const gitRevisionCommand = "rev-parse"
 
 // Git names the current worktree revision through HEAD.
 const gitHeadRevision = "HEAD"
 
-// DispatchRequest separates read-only inspection from executable acquisition.
-// Worker is a stable session identity, never the shared role or command PID.
+// DispatchRequest names whose row is resolved: the role and worker a stop
+// is scoped by, the execution mode, a maintenance grant, and optionally the
+// one row the caller asks for.
 type DispatchRequest struct {
 	Mode        string
 	Maintenance string
 	Role        string
 	Worker      string
-	Acquire     bool
 	Reference   string
-	// Store is the caller's open store; dispatch opens and closes its own
-	// when absent. An open costs seconds, so a command opens once.
-	Store *overgodb.Store
 }
 
 // AutomationWorkerEnvironment is inherited by a driver and its gate subprocesses.
@@ -87,17 +60,14 @@ func DispatchOf(document Plan, role string) Dispatch {
 	if !ok {
 		return finishDispatch(Dispatch{Complete: true})
 	}
-	return stepDispatch(item, step, nil)
+	return stepDispatch(item, step)
 }
 
-func stepDispatch(item Item, step Step, claim *worklease.Lease) Dispatch {
-	return finishDispatch(Dispatch{Item: item.ID, Step: step.ID, ItemTitle: item.Title, StepTitle: step.Title, Verify: step.Verify, Claim: claim})
+func stepDispatch(item Item, step Step) Dispatch {
+	return finishDispatch(Dispatch{Item: item.ID, Step: step.ID, ItemTitle: item.Title, StepTitle: step.Title, Verify: step.Verify})
 }
 
 func finishDispatch(dispatch Dispatch) Dispatch {
-	if dispatch.Claim != nil {
-		dispatch.ClaimID = dispatch.Claim.ID
-	}
 	dispatch.Line = dispatchLine(dispatch)
 	return dispatch
 }
@@ -115,23 +85,10 @@ func dispatchLine(dispatch Dispatch) string {
 	}
 }
 
-// dispatchCache binds a dispatch to every input it was resolved from.
-type dispatchCache struct {
-	Head          string            `json:"head"`
-	PlanDigest    string            `json:"plan_digest"`
-	StoreHead     artifact.CommitID `json:"store_head"`
-	StoreSequence uint64            `json:"store_sequence"`
-	Role          string            `json:"role"`
-	Worker        string            `json:"worker"`
-	Reference     string            `json:"reference"`
-	Policy        string            `json:"policy"`
-	Dispatch      Dispatch          `json:"dispatch"`
-}
-
 // ResolveDispatch resolves the current row for the repository at root and
-// role, reusing the cached dispatch when HEAD, the plan bytes, the store
-// head and the role are the ones it was resolved from.
-func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) (dispatch Dispatch, err error) {
+// role: the first ready row in prerequisite order, unless a scoped stop
+// holds the loop. It reads the plan and the stop file and writes neither.
+func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) (Dispatch, error) {
 	role, err := AutomationRole(request.Role)
 	if err != nil {
 		return Dispatch{}, err
@@ -140,53 +97,15 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if err != nil {
 		return Dispatch{}, err
 	}
-	if request.Acquire && worker == "" {
-		return Dispatch{}, fmt.Errorf("plan: executable dispatch requires -worker <stable-session-id> or %s", AutomationWorkerEnvironment)
-	}
 	repository, head, err := resolveRevision(ctx, root, gitHeadRevision)
 	if err != nil {
 		return Dispatch{}, err
-	}
-	if request.Acquire {
-		if err := processcontrol.RequireCampaign(repository, worker); err != nil {
-			return Dispatch{}, err
-		}
-		lock, lockErr := authoritylock.Acquire(repository)
-		if errors.Is(lockErr, processlock.ErrBusy) {
-			return finishDispatch(Dispatch{Waiting: "another plan or gate mutation owns this worktree; resume after its release"}), nil
-		}
-		if lockErr != nil {
-			return Dispatch{}, lockErr
-		}
-		defer func() { err = errors.Join(err, lock.Close()) }()
-		// HEAD and document are read under the mutation owner.
-		_, head, err = resolveRevision(ctx, repository, gitHeadRevision)
-		if err != nil {
-			return Dispatch{}, err
-		}
-	}
-	openStore := overgodb.OpenReadOnly
-	if request.Acquire {
-		openStore = overgodb.Open
-	}
-	store := request.Store
-	if store == nil {
-		store, err = openStore(filepath.Join(repository, gitauthority.CanonicalOvergoDBDirectory))
-		if err != nil {
-			return Dispatch{}, err
-		}
-		defer func() { err = errors.Join(err, store.Close()) }()
-	}
-	if request.Acquire {
-		if _, err := gitauthority.RequireRegisteredWorktreeStore(ctx, repository, filepath.Join(repository, gitauthority.CanonicalOvergoDBDirectory), head); err != nil {
-			return Dispatch{}, err
-		}
 	}
 	mode, err := ExecutionMode(request.Mode)
 	if err != nil {
 		return Dispatch{}, err
 	}
-	stop, err := ReadStop(ctx, store, repository, head, mode)
+	stop, err := ReadStop(ctx, repository, head, mode)
 	if err != nil {
 		return Dispatch{}, err
 	}
@@ -194,131 +113,22 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if stop.Blocked && grant == "" {
 		return finishDispatch(Dispatch{Stop: &stop, Waiting: stop.String()}), nil
 	}
-	planPath := filepath.Join(repository, filepath.FromSlash(Path))
-	raw, err := os.ReadFile(planPath)
+	document, err := Load(filepath.Join(repository, filepath.FromSlash(Path)))
 	if err != nil {
 		return Dispatch{}, err
 	}
-	// The cache takes the plan file's own permissions.
-	planInfo, err := os.Stat(planPath)
+	dispatch, err := selectDispatch(document, role, request.Reference)
 	if err != nil {
 		return Dispatch{}, err
 	}
-	digest := sha256.Sum256(raw)
-	projectStop := func(value Dispatch) Dispatch {
-		if stop.State != stopAbsent {
-			value.Stop = &stop
-		}
-		if stopErr := stop.RequireExecution(ctx, store, role, worker, mode, value.Item+"/"+value.Step, grant); stopErr != nil {
-			value.Waiting = stopErr.Error()
-			value = finishDispatch(value)
-		}
-		return value
+	if stop.State != stopAbsent {
+		dispatch.Stop = &stop
 	}
-	storeHead, sequence := store.Head()
-	key := dispatchCache{Head: head, PlanDigest: hex.EncodeToString(digest[:]), StoreHead: storeHead, StoreSequence: sequence, Role: role, Worker: worker, Reference: request.Reference, Policy: "claimed-prerequisite-frontier/v1"}
-	// The cache is best-effort, as its write is: a state directory that
-	// cannot be made leaves no path, and dispatch resolves uncached.
-	cachePath, _ := processlock.StateFile(repository, dispatchCacheFile, legacyDispatchCache)
-	if cached, ok := cachedDispatch(cachePath, key); ok && !request.Acquire {
-		return projectStop(cached), nil
+	if stopErr := stop.RequireExecution(role, worker, mode, dispatch.Item+"/"+dispatch.Step, grant); stopErr != nil {
+		dispatch.Waiting = stopErr.Error()
+		dispatch = finishDispatch(dispatch)
 	}
-	document, err := Load(planPath)
-	if err != nil {
-		return Dispatch{}, err
-	}
-	key.Dispatch, err = selectDispatch(ctx, store, document, role, filepath.ToSlash(repository), worker, request.Reference)
-	if err != nil {
-		return Dispatch{}, err
-	}
-	if stopped := projectStop(key.Dispatch); stopped.Waiting != "" && stopped.Stop != nil {
-		return stopped, nil
-	}
-	attempted := map[string]bool{}
-	for request.Acquire && key.Dispatch.Waiting == "" && !key.Dispatch.Complete && key.Dispatch.Claim == nil {
-		if key.Dispatch.Step == "." {
-			return Dispatch{}, errors.New("plan: define the empty rung before claiming executable work")
-		}
-		item, step, _ := dispatchStep(document, key.Dispatch.Item+"/"+key.Dispatch.Step)
-		reference := item.ID + "/" + step.ID
-		if attempted[reference] {
-			return finishDispatch(Dispatch{Waiting: "ownership changed repeatedly; resume after claim release"}), nil
-		}
-		attempted[reference] = true
-		contract, contractErr := dispatchContract(item, step)
-		if contractErr != nil {
-			return Dispatch{}, contractErr
-		}
-		branch, branchErr := gitCommand(ctx, repository, gitRevisionCommand, "--abbrev-ref", gitHeadRevision)
-		if branchErr != nil {
-			return Dispatch{}, branchErr
-		}
-		acquisition, _ := store.Head()
-		var previous artifact.ID
-		if key.Dispatch.amends != nil {
-			previous = key.Dispatch.amends.ID
-		}
-		lease, leaseErr := worklease.New(worklease.Lease{Task: reference, Worktree: filepath.ToSlash(repository), Branch: strings.TrimSpace(string(branch)), Role: role, Worker: worker, TargetHead: head, Contract: contract, Acquisition: acquisition.String(), Previous: previous, ConflictsWith: []string{}, Claims: worklease.WorkspaceClaims{WholeWorktree: true}})
-		if leaseErr != nil {
-			return Dispatch{}, leaseErr
-		}
-		content, contentErr := worklease.Codec.Content(lease)
-		if contentErr != nil {
-			return Dispatch{}, contentErr
-		}
-		claimed, claimErr := worklease.Record(ctx, store, content.Data)
-		if claimErr != nil {
-			if !errors.Is(claimErr, overgodb.ErrAliasConflict) {
-				return Dispatch{}, claimErr
-			}
-			// Retry only a newly eligible row; never spin on the same claim.
-			key.Dispatch, err = selectDispatch(ctx, store, document, role, filepath.ToSlash(repository), worker, request.Reference)
-			if err != nil {
-				return Dispatch{}, err
-			}
-			continue
-		}
-		key.Dispatch.Claim = &claimed
-		key.Dispatch.ClaimID = claimed.ID
-		key.StoreHead, key.StoreSequence = store.Head()
-	}
-	// The cache is a convenience: a write that fails leaves the next reader resolving again.
-	_ = jsonfile.Write(cachePath, key, planInfo.Mode().Perm())
-	return projectStop(key.Dispatch), nil
-}
-
-// cachedDispatch returns the cached dispatch when every input matches key.
-func cachedDispatch(path string, key dispatchCache) (Dispatch, bool) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return Dispatch{}, false
-	}
-	var cached dispatchCache
-	if err := json.Unmarshal(raw, &cached); err != nil {
-		return Dispatch{}, false
-	}
-	if cached.Dispatch.Claim != nil {
-		claim, err := worklease.New(*cached.Dispatch.Claim)
-		if err != nil || claim.ID != cached.Dispatch.ClaimID {
-			return Dispatch{}, false
-		}
-		cached.Dispatch.Claim = &claim
-	} else if cached.Dispatch.ClaimID.Valid() {
-		return Dispatch{}, false
-	}
-	key.Dispatch = cached.Dispatch
-	if cached != key || cached.Dispatch.Line == "" {
-		return Dispatch{}, false
-	}
-	return cached.Dispatch, true
-}
-
-// Bind only this row and its item metadata. Finishing an unrelated sibling
-// must not invalidate an active worker's contract.
-func dispatchContract(item Item, step Step) (string, error) {
-	item.Steps = []Step{step}
-	digest, err := contractDigest(item)
-	return hex.EncodeToString(digest[:]), err
+	return dispatch, nil
 }
 
 func dispatchStep(document Plan, ref string) (Item, Step, bool) {
@@ -387,220 +197,25 @@ func dispatchPriority(document Plan, role string) ([]Ref, error) {
 	return ordered, nil
 }
 
-func readDispatchAlias(ctx context.Context, reader artifact.Reader, alias string) (*worklease.Lease, error) {
-	id, found, err := reader.ResolveAlias(ctx, alias)
-	if err != nil || !found {
-		return nil, err
-	}
-	lease, found, err := worklease.Read(ctx, reader, id)
-	if err != nil {
-		return nil, err
-	}
-	if !found {
-		return nil, fmt.Errorf("plan: ownership alias %s has no readable lease; explicit recovery required", alias)
-	}
-	return &lease, nil
-}
-
-// ValidateClaimedPlan refuses contract edits beneath another worker's active
-// work: that worker's release or handoff precedes amendment. The claim's own
-// holder, in its own worktree, amends its row directly; its next dispatch
-// renews the claim to the amended contract. Unclaimed steps remain editable.
-func ValidateClaimedPlan(ctx context.Context, reader artifact.Reader, root string, before, after Plan) error {
-	if err := Validate(after); err != nil {
-		return err
-	}
-	worker, err := dispatchWorker("")
-	if err != nil {
-		return err
-	}
-	worktree, err := filepath.Abs(root)
-	if err != nil {
-		return err
-	}
-	visited := map[string]bool{}
-	for _, document := range []Plan{before, after} {
-		for _, item := range document.Items {
-			for _, step := range item.Steps {
-				ref := item.ID + "/" + step.ID
-				if visited[ref] {
-					continue
-				}
-				visited[ref] = true
-				oldItem, oldStep, oldFound := dispatchStep(before, ref)
-				newItem, newStep, newFound := dispatchStep(after, ref)
-				oldContract, err := dispatchContract(oldItem, oldStep)
-				if err != nil {
-					return err
-				}
-				newContract, err := dispatchContract(newItem, newStep)
-				if err != nil {
-					return err
-				}
-				if oldFound == newFound && oldContract == newContract {
-					continue
-				}
-				lease, err := readDispatchAlias(ctx, reader, worklease.Alias(worklease.TaskAliasRoot, ref))
-				if err != nil {
-					return err
-				}
-				if lease != nil && (worker == "" || lease.Worker != worker || !strings.EqualFold(lease.Worktree, filepath.ToSlash(worktree))) {
-					return fmt.Errorf("plan: %s is claimed by worker %s; release exact claim %s for handoff before editing its contract", ref, lease.Worker, lease.ID)
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func validateDispatchContract(document Plan, lease worklease.Lease, role string) error {
-	if normalizedRole(role) != lease.Role {
-		return errors.New("plan: claim belongs to a different dispatch role")
-	}
-	item, step, found := dispatchStep(document, lease.Task)
-	if !found || item.Status != StatusOpen || step.Status != StatusOpen {
-		return errors.New("plan: claimed row is no longer open; reconcile its completion or handoff")
-	}
-	ready, err := dispatchPriority(document, role)
-	if err != nil {
-		return err
-	}
-	if !slices.ContainsFunc(ready, func(ref Ref) bool { return ref.String() == lease.Task }) {
-		return errors.New("plan: claimed row is no longer eligible for this role")
-	}
-	contract, err := dispatchContract(item, step)
-	if err != nil {
-		return err
-	}
-	if contract != lease.Contract {
-		return errContractAmended
-	}
-	return nil
-}
-
-// errContractAmended is a claim whose open, eligible row was amended after
-// it was claimed: only the holder can amend it, and its next dispatch renews
-// the claim to the amended contract.
-var errContractAmended = errors.New("plan: claimed row contract was amended; re-claim the row to renew its claim")
-
-// RequireDispatch rechecks the exact executable claim at admission and commit.
-// Legacy callers retain current-row admission only while no dispatch claim owns
-// that worktree or row; they cannot overwrite an active worker's authority.
-func RequireDispatch(ctx context.Context, reader artifact.Reader, document Plan, root, role, reference string) (Item, Step, *worklease.Lease, error) {
-	mode, modeErr := ExecutionMode("")
-	if modeErr != nil {
-		return Item{}, Step{}, nil, modeErr
-	}
-	stop, stopErr := ReadStop(ctx, reader, root, "", mode)
-	if stopErr != nil {
-		return Item{}, Step{}, nil, stopErr
-	}
-
-	worker, err := dispatchWorker("")
-	if err != nil {
-		return Item{}, Step{}, nil, err
-	}
-	if err := processcontrol.RequireCampaign(root, worker); err != nil {
-		return Item{}, Step{}, nil, err
-	}
-	if err := stop.RequireExecution(ctx, reader, role, worker, mode, reference, strings.TrimSpace(os.Getenv(AutomationMaintenanceEnvironment))); err != nil {
-		return Item{}, Step{}, nil, err
-	}
-	worktree, err := filepath.Abs(root)
-	if err != nil {
-		return Item{}, Step{}, nil, err
-	}
-	worktree = filepath.ToSlash(worktree)
-	lease, err := readDispatchAlias(ctx, reader, worklease.WorktreeAlias(worktree))
-	if err != nil {
-		return Item{}, Step{}, nil, err
-	}
-	rowLease, err := readDispatchAlias(ctx, reader, worklease.Alias(worklease.TaskAliasRoot, reference))
-	if err != nil {
-		return Item{}, Step{}, nil, err
-	}
-	if lease != nil && lease.Worker != "" || rowLease != nil || worker != "" {
-		if lease == nil || rowLease == nil || worker == "" || lease.ID != rowLease.ID || lease.Worker != worker || lease.Task != reference {
-			return Item{}, Step{}, nil, errors.New("plan: executable admission requires the exact worker's current worktree and row claim")
-		}
-		if err := worklease.ResolveOwner(ctx, reader, *lease); err != nil {
-			return Item{}, Step{}, nil, err
-		}
-		if err := validateDispatchContract(document, *lease, role); err != nil {
-			return Item{}, Step{}, nil, err
-		}
-		item, step, _ := dispatchStep(document, reference)
-		return item, step, lease, nil
-	}
-	item, step, found := Current(document, role)
-	if !found || item.ID+"/"+step.ID != reference {
-		return Item{}, Step{}, nil, errors.New("plan: reference does not match the current open step")
-	}
-	return item, step, nil, nil
-}
-
-func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, role, worktree, worker, reference string) (Dispatch, error) {
-	aliases := []string{worklease.WorktreeAlias(worktree)}
-	if worker != "" {
-		aliases = append(aliases, worklease.Alias(worklease.WorkerAliasRoot, worker))
-	}
-	for _, alias := range aliases {
-		lease, err := readDispatchAlias(ctx, reader, alias)
-		if err != nil {
-			return Dispatch{}, err
-		}
-		if lease == nil {
-			continue
-		}
-		if reference != "" && lease.Task != reference {
-			return finishDispatch(Dispatch{Claim: lease, Waiting: "release the existing claim before requesting another row"}), nil
-		}
-		if worker == "" || lease.Worker != worker || !strings.EqualFold(lease.Worktree, worktree) {
-			return finishDispatch(Dispatch{Claim: lease, Waiting: fmt.Sprintf("%s owns %s in %s; inspect or use an isolated worktree", lease.Worker, lease.Task, lease.Worktree)}), nil
-		}
-		if err := worklease.ResolveOwner(ctx, reader, *lease); err != nil {
-			return finishDispatch(Dispatch{Claim: lease, Waiting: err.Error()}), nil
-		}
-		err = validateDispatchContract(document, *lease, role)
-		item, step, _ := dispatchStep(document, lease.Task)
-		if errors.Is(err, errContractAmended) {
-			amended := stepDispatch(item, step, nil)
-			amended.amends = lease
-			return amended, nil
-		}
-		if err != nil {
-			return finishDispatch(Dispatch{Claim: lease, Waiting: err.Error()}), nil
-		}
-		return stepDispatch(item, step, lease), nil
-	}
+// selectDispatch picks the first ready row in prerequisite order, or the
+// requested row when it is ready.
+func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 	ordered, err := dispatchPriority(document, role)
 	if err != nil {
 		return Dispatch{}, err
 	}
-	var held *worklease.Lease
 	for _, ref := range ordered {
 		if reference != "" && ref.String() != reference {
 			continue
 		}
-		lease, err := readDispatchAlias(ctx, reader, worklease.Alias(worklease.TaskAliasRoot, ref.String()))
-		if err != nil {
-			return Dispatch{}, err
-		}
-		if lease != nil {
-			held = lease
-			continue
-		}
 		item, step, _ := dispatchStep(document, ref.String())
-		return stepDispatch(item, step, nil), nil
-	}
-	if held != nil {
-		return finishDispatch(Dispatch{Claim: held, Waiting: "eligible rows are claimed; resume when an owner completes or hands off"}), nil
+		return stepDispatch(item, step), nil
 	}
 	if reference != "" {
 		return finishDispatch(Dispatch{Waiting: "requested row is not ready for this role"}), nil
 	}
 	if _, _, open := Current(document, role); open {
-		// Preserve the legacy empty-rung dispatch until it is given steps.
+		// Preserve the empty-rung dispatch until the rung is given steps.
 		return DispatchOf(document, role), nil
 	}
 	for _, item := range document.Items {

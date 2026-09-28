@@ -300,10 +300,8 @@ func compileInstructionRule(source InstructionRule) (compiledInstructionRule, er
 			return compiledInstructionRule{}, err
 		}
 	}
-	for _, value := range source.Values {
-		if value == "" {
-			return compiledInstructionRule{}, errors.New("evaluation: empty instruction rule value")
-		}
+	if slices.Contains(source.Values, "") {
+		return compiledInstructionRule{}, errors.New("evaluation: empty instruction rule value")
 	}
 
 	if source.Loose != nil {

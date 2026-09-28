@@ -1,14 +1,19 @@
 // Package landing lands one plan row through the small gate. The dirty tree
-// is formatted, vetted and tested -- go test's own cache decides what runs
-// again -- the lanes the change reaches run, a few rules compare the changed
-// files with HEAD, and the row's own check passes; then the tree is committed
-// with the row's step removed from the plan. Git holds the record: the
-// message says what the gate measured.
+// is formatted, modernized by go fix, vetted and tested -- go test's own
+// cache decides what runs again -- a few rules compare the changed files
+// with HEAD, the row's own check passes, and
+// a change that reaches the benchmark runs the scorecard's slices, one per
+// task, beside HEAD's benchmark when the message predicts a timed metric;
+// then the tree is committed with the row's step removed from the plan. Git
+// holds the record: the message says what the gate measured, and a trailer
+// per slice carries it for the next landing to compare against.
 package landing
 
 import (
 	"bytes"
+	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -43,6 +48,12 @@ type landing struct {
 	entries    []repoanalysis.DirtyPath
 	paths      []string
 	measured   []string
+	// details say what a stage measured beyond its time: the packages the
+	// test stage ran rather than replayed, what the scorecard slice found.
+	details map[string]string
+	// trailers are the scorecard slices' commit trailers, one per slice
+	// that measured or failed.
+	trailers []string
 }
 
 // Run lands the row and returns the commit. Every check runs over the dirty
@@ -57,7 +68,7 @@ func Run(ctx context.Context, options Options) (string, error) {
 		return "", err
 	}
 	options.Repo = root
-	l := &landing{Options: options, item: item, step: step}
+	l := &landing{Options: options, item: item, step: step, details: map[string]string{}}
 	if err := requireSections(options.Message); err != nil {
 		return "", err
 	}
@@ -77,39 +88,69 @@ func Run(ctx context.Context, options Options) (string, error) {
 	if err := l.shipSet(ctx); err != nil {
 		return "", err
 	}
-	for _, check := range []struct {
+	checks := []struct {
 		name string
 		run  func(context.Context) error
 	}{
 		{"format", l.format},
+		{"fix", l.fix},
 		{"vet", l.vet},
 		{"rules", l.rules},
 		{"test", l.test},
-		{"lanes", l.lanes},
 		{"verify", func(ctx context.Context) error { return l.verify(ctx, verify) }},
-	} {
+		{"scorecard", l.scorecard},
+	}
+	// A change to the plan alone is data the load above has validated;
+	// nothing compiles it, so only the row's verify can speak to it, and
+	// the tests that read the plan run with the next code landing.
+	if !slices.ContainsFunc(l.paths, func(changed string) bool { return changed != plan.Path }) {
+		checks = slices.DeleteFunc(checks, func(check struct {
+			name string
+			run  func(context.Context) error
+		}) bool {
+			return check.name != "verify"
+		})
+	}
+	for _, check := range checks {
 		started := time.Now()
 		if err := check.run(ctx); err != nil {
 			return "", fmt.Errorf("land: %s: %w", check.name, err)
 		}
 		wall := time.Since(started).Round(time.Millisecond)
-		l.measured = append(l.measured, check.name+" "+wall.String())
+		entry := check.name + " " + wall.String()
+		if detail := l.details[check.name]; detail != "" {
+			entry += " (" + detail + ")"
+		}
+		l.measured = append(l.measured, entry)
 		fmt.Fprintf(options.Log, "land: %s ok %s\n", check.name, wall)
 	}
 	return l.commit(ctx)
 }
 
+// predictedSection opens the part of a landing message that says what the
+// change should do.
+const predictedSection = "Predicted effect:"
+
 // requireSections holds the message to the two sections every landing
 // states: why the change was needed and what it should do.
 func requireSections(message []byte) error {
-	for _, section := range []string{"Cause:", "Predicted effect:"} {
-		if !slices.ContainsFunc(strings.Split(string(message), "\n"), func(line string) bool {
-			return strings.HasPrefix(strings.TrimSpace(line), section)
-		}) {
-			return fmt.Errorf("land: the message lacks a %q section", section)
+	for _, label := range []string{"Cause:", predictedSection} {
+		if _, found := section(message, label); !found {
+			return fmt.Errorf("land: the message lacks a %q section", label)
 		}
 	}
 	return nil
+}
+
+// section is the message from the line that opens with label to its end,
+// and whether a line does.
+func section(message []byte, label string) (string, bool) {
+	lines := strings.Split(string(message), "\n")
+	at := slices.IndexFunc(lines, func(line string) bool { return strings.HasPrefix(strings.TrimSpace(line), label) })
+	if at < 0 {
+		return "", false
+	}
+	return strings.Join(lines[at:], "\n"), true
 }
 
 func rowVerify(document plan.Plan, item, step string) string {
@@ -130,6 +171,7 @@ func (l *landing) shipSet(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	l.paths = nil
 	tracked, err := gitauthority.Query(ctx, l.Repo, "ls-tree", "--name-only", "HEAD")
 	if err != nil {
 		return err
@@ -182,8 +224,34 @@ func (l *landing) format(ctx context.Context) error {
 	return err
 }
 
+// buildTags are the tags vet and fix read with, so every build-tagged test
+// file is checked.
+const buildTags = "modeltest,integration"
+
+// fix applies go fix's modernizers to the changed packages, as format
+// applies gofmt: a legacy form go fix can rewrite is rewritten, not refused.
+// A directory whose files this platform's build excludes, or that does not
+// compile, has no package to fix; vet reports the latter. Both rewrite
+// whole packages, so a file they rewrote that the change left untouched
+// joins the ship set here rather than reading as a tree that moved.
+func (l *landing) fix(ctx context.Context) error {
+	directories := l.goPackages()
+	if len(directories) != 0 {
+		listed, err := l.run(ctx, nil, "go", append([]string{"list", "-e", "-tags", buildTags, "-f", "{{if not .Error}}{{.ImportPath}}{{end}}"}, directories...)...)
+		if err != nil {
+			return err
+		}
+		if packages := strings.Fields(listed); len(packages) != 0 {
+			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-tags", buildTags}, packages...)...); err != nil {
+				return err
+			}
+		}
+	}
+	return l.shipSet(ctx)
+}
+
 func (l *landing) vet(ctx context.Context) error {
-	_, err := l.run(ctx, nil, "go", "vet", "-tags", "modeltest,integration", "./...")
+	_, err := l.run(ctx, nil, "go", "vet", "-tags", buildTags, "./...")
 	return err
 }
 
@@ -196,8 +264,43 @@ func (l *landing) test(ctx context.Context) error {
 		if summary := testevidence.FailureSummary(output); summary != "" {
 			return fmt.Errorf("failed tests/packages: %s", summary)
 		}
+		return err
 	}
-	return err
+	l.details["test"] = ranPackages(output)
+	return nil
+}
+
+// reportedPackages is how many of the packages go test ran the measurement
+// names: the slowest few are where a landing's test time went.
+const reportedPackages = 5
+
+// ranPackages names the packages go test ran rather than replayed from its
+// cache, slowest first, so the measured test time says what it was spent on.
+func ranPackages(output string) string {
+	type event struct {
+		Action, Package, Test, Output string
+		Elapsed                       float64
+	}
+	cached := map[string]bool{}
+	var ran []event
+	for line := range strings.Lines(output) {
+		var parsed event
+		if json.Unmarshal([]byte(line), &parsed) != nil || parsed.Test != "" {
+			continue
+		}
+		switch {
+		case parsed.Action == "output" && strings.Contains(parsed.Output, "\t(cached)"):
+			cached[parsed.Package] = true
+		case (parsed.Action == "pass" || parsed.Action == "fail") && !cached[parsed.Package]:
+			ran = append(ran, parsed)
+		}
+	}
+	slices.SortFunc(ran, func(left, right event) int { return cmp.Compare(right.Elapsed, left.Elapsed) })
+	var slowest []string
+	for _, run := range ran[:min(len(ran), reportedPackages)] {
+		slowest = append(slowest, fmt.Sprintf("%s %.0fs", strings.TrimPrefix(run.Package, "overgo/"), run.Elapsed))
+	}
+	return fmt.Sprintf("ran %d packages: %s", len(ran), strings.Join(slowest, ", "))
 }
 
 func (l *landing) verify(ctx context.Context, command string) error {
@@ -236,14 +339,12 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 	if err := plan.Save(filepath.Join(l.Repo, plan.Path), advanced); err != nil {
 		return "", err
 	}
-	message := strings.TrimSpace(string(l.Message)) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
-		"\n\n" + plan.LandedRowTrailer + ": " + l.Ref + "\n"
 	file, err := os.CreateTemp("", "overgo-landing-*.txt")
 	if err != nil {
 		return "", err
 	}
 	defer os.Remove(file.Name())
-	if _, err := file.WriteString(message); err != nil {
+	if _, err := file.WriteString(l.message()); err != nil {
 		file.Close()
 		return "", err
 	}
@@ -258,6 +359,14 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 	}
 	landed, err := gitauthority.Query(ctx, l.Repo, "rev-parse", "HEAD")
 	return strings.TrimSpace(string(landed)), err
+}
+
+// message is the authored message, what the gate measured, and the trailers:
+// the scorecard slices, then the landed row.
+func (l *landing) message() string {
+	trailers := append(slices.Clone(l.trailers), plan.LandedRowTrailer+": "+l.Ref)
+	return strings.TrimSpace(string(l.Message)) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
+		"\n\n" + strings.Join(trailers, "\n") + "\n"
 }
 
 // sameTree compares two dirty-tree readings by path and status; the plan,

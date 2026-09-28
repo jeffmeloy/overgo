@@ -78,7 +78,7 @@ func captureBracketSlice(
 	store *overgodb.Store,
 	model, recipeID artifact.ID,
 ) BracketSlice {
-	names := evaluation.DerivedSuiteNames(ctx, store, evaluation.ListingAuthorities())
+	names, _ := evaluation.DerivedSuiteCatalog(ctx, store, evaluation.ListingAuthorities())
 	index := evaluation.LatestEvidence(ctx, store, names, bracketEvidenceScanLimit)
 	slice := BracketSlice{Evals: index.EvaluationsByRecipe[recipeID]}
 	if locations, err := store.Locations(ctx, model); err == nil {

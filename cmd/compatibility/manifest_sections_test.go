@@ -24,8 +24,8 @@ func TestManifestHoldsOnlyDecodedSections(t *testing.T) {
 	}
 	decoded := map[string]bool{}
 	fields := reflect.TypeFor[manifest]()
-	for index := range fields.NumField() {
-		name, _, _ := strings.Cut(fields.Field(index).Tag.Get("json"), ",")
+	for field := range fields.Fields() {
+		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
 		decoded[name] = true
 	}
 	for section := range sections {

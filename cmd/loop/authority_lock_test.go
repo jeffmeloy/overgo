@@ -3,7 +3,7 @@ package main
 import (
 	"crypto/sha1"
 	"os"
-	"overgo/internal/overgodb"
+	"overgo/internal/processlock"
 	"overgo/internal/worklease"
 	"path/filepath"
 	"strings"
@@ -53,22 +53,12 @@ func TestBlockSharesPlanGateMutationLock(t *testing.T) {
 func TestPersistentLoopStop(t *testing.T) {
 	root := t.TempDir()
 	t.Chdir(root)
-	writer, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer writer.Close()
-	reader, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer reader.Close()
-	world := &execWorld{stopStore: reader}
+	world := &execWorld{}
 	if world.Paused() {
 		t.Fatal("absent stop paused loop")
 	}
 	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "loop-stop-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionInteractive, ReasonCode: "user-stop", Detail: "pause interactive session", CodeCommit: strings.Repeat("a", sha1.Size*2)}
-	stopped, err := plan.RecordControlEvent(t.Context(), writer, event)
+	stopped, err := plan.RecordStop(t.Context(), event)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,12 +67,12 @@ func TestPersistentLoopStop(t *testing.T) {
 	}
 	event.Previous = stopped.ID
 	event.Mode = plan.ExecutionAll
-	stopped, err = plan.RecordControlEvent(t.Context(), writer, event)
+	stopped, err = plan.RecordStop(t.Context(), event)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !world.Paused() {
-		t.Fatal("existing loop reader missed new operator stop")
+		t.Fatal("running loop missed new operator stop")
 	}
 	outcome, err := loop.Run(world, loop.Config{MaxInvocations: 1, MaxAttemptsPerStep: 1})
 	if err != nil || outcome.Reason != loop.ReasonPaused || outcome.Invocations != 0 {
@@ -92,7 +82,7 @@ func TestPersistentLoopStop(t *testing.T) {
 	event.ReasonCode = "operator-resume"
 	event.Detail = "operator continued"
 	event.Previous = stopped.ID
-	if _, err := plan.RecordControlEvent(t.Context(), writer, event); err != nil {
+	if _, err := plan.RecordStop(t.Context(), event); err != nil {
 		t.Fatal(err)
 	}
 	if world.Paused() {
@@ -109,13 +99,10 @@ func TestPersistentLoopStop(t *testing.T) {
 	if last != plan.AutomationModeEnvironment+"="+plan.ExecutionUnattended {
 		t.Fatal("worker can inherit interactive scope")
 	}
-	if err := os.MkdirAll("docs", 0700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile("docs/plan_stop.json", []byte("{invalid"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(processlock.StateDirectory, "stop.json"), []byte("{invalid"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if !world.Paused() {
-		t.Fatal("contradictory legacy marker did not pause loop")
+		t.Fatal("an unreadable stop file did not pause the loop")
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -31,8 +32,18 @@ func TestParseOptionsBounds(t *testing.T) {
 	if got != want {
 		t.Fatalf("options = %+v, want %+v", got, want)
 	}
+	if options, err := parseOptions([]string{"-slice", "inference.json", "speech.json"}); err != nil || !options.Slice ||
+		!slices.Equal(options.Documents, []string{"inference.json", "speech.json"}) || options.Model != "" {
+		t.Fatalf("-slice options = %+v, %v; want the documents and the model left to the store", options, err)
+	}
 	for _, args := range [][]string{
 		{"model.gguf"},
+		{"-slice"},
+		{"-slice", "-runs", "5", "inference.json"},
+		{"-slice", "-warmup", "1", "inference.json"},
+		{"-slice", "-prompt-suite", "prompts.json", "inference.json"},
+		{"-slice", "-publish", "-repo", "store", "inference.json"},
+		{"-slice", "-compare", "cache_prompt", "inference.json"},
 		{"-tokens", "0", "model.gguf", "hello"},
 		{"-runs", "0", "model.gguf", "hello"},
 		{"-warmup", "-1", "model.gguf", "hello"},

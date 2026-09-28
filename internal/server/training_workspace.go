@@ -68,7 +68,7 @@ const trainsOnHost = true
 
 type trainingWorkflowInput struct {
 	Dataset        artifact.ID `json:"dataset"`
-	Resume         artifact.ID `json:"resume,omitempty"`
+	Resume         artifact.ID `json:"resume"`
 	Output         string      `json:"output"`
 	Steps          int         `json:"steps"`
 	ObjectiveScale float64     `json:"objective_scale"`

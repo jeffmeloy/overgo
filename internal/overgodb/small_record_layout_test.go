@@ -103,10 +103,7 @@ func TestSmallRecordLayoutDecision(t *testing.T) {
 	// packing buys no byte saving. Reopen trigger: per-record overhead beyond the
 	// bound would make packing worth revisiting.
 	logical := int64(smallRecords*smallPad + largeRecords*largePad)
-	overhead := report.BytesCopied - logical
-	if overhead < 0 {
-		overhead = 0
-	}
+	overhead := max(report.BytesCopied-logical, 0)
 	const perRecordOverheadBound = 2048
 	if perRecord := overhead / int64(smallRecords+largeRecords); perRecord > perRecordOverheadBound {
 		t.Fatalf("retained layout adds %d bytes/record overhead (copied %d for %d logical); packing may be justified -- reopen the decision", perRecord, report.BytesCopied, logical)

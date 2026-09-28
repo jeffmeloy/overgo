@@ -6,7 +6,6 @@ import (
 	"io"
 	"path/filepath"
 	"slices"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
@@ -85,64 +84,4 @@ func admitProposal(root, specPath string, output io.Writer) error {
 		_, err = fmt.Fprintf(output, "admitted candidate %s as plan row %s\n", candidate.ID(), row.ID)
 		return err
 	})
-}
-
-// printAttemptHistory renders the store's attempt measurements for
-// steering: one strategy-aware summary row per plan step, then the
-// matched attempts with their accumulated direction observations, so a
-// repeated unsuccessful direction surfaces its pivot recommendation in
-// the same readout. The selector "all" admits every item.
-func printAttemptHistory(selector string, output io.Writer) error {
-	store, err := overgodb.OpenReadOnly("overgodb-store")
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	filter := runrecord.AttemptFilter{}
-	if selector != "all" {
-		filter.PlanItem = selector
-	}
-	history, err := runrecord.LoadAttemptHistory(context.Background(), store, filter)
-	if err != nil {
-		return err
-	}
-	if len(history.Attempts) == 0 {
-		_, err = fmt.Fprintln(output, "no attempt records match")
-		return err
-	}
-	fmt.Fprintln(output, "step                                attempts  ok  total wall  churn  recoveries")
-	for _, step := range runrecord.SummarizeAttemptHistory(history.Attempts, runrecord.AttemptHistoryFilter{}) {
-		fmt.Fprintf(output, "%-34s %8d %3d %11s %6d %11d\n",
-			step.PlanItem+"/"+step.PlanStep, step.Attempts, step.Succeeded,
-			time.Duration(step.WallNS).Round(time.Millisecond).String(), step.Churn, step.Recoveries)
-	}
-	fmt.Fprintln(output)
-	var directions []runrecord.AttemptDirection
-	for _, attempt := range history.Attempts {
-		outcome := string(attempt.Outcome)
-		if attempt.Failure != "" {
-			outcome += ":" + attempt.Failure
-		}
-		if attempt.Strategy != "" {
-			outcome += " strategy=" + attempt.Strategy
-		}
-		if attempt.BaseManifest.Valid() && attempt.CandidateManifest.Valid() &&
-			(attempt.Outcome == runrecord.OutcomeSucceeded || attempt.Outcome == runrecord.OutcomeFailed) {
-			direction, directionErr := runrecord.ObserveAttemptDirection(runrecord.AttemptDirectionInput{
-				Strategy: attempt.StrategyID, BaseManifest: attempt.BaseManifest,
-				CandidateManifest: attempt.CandidateManifest, Objective: attempt.TaskContract,
-			}, attempt, directions)
-			if directionErr == nil {
-				directions = append(directions, direction)
-				if direction.Pivot {
-					outcome += fmt.Sprintf(" pivot=%q after %d", direction.PivotReason, direction.Count)
-				}
-			}
-		}
-		fmt.Fprintf(output, "%s/%s %s wall=%s commit=%.8s selected=%d/%d files=%d\n",
-			attempt.PlanItem, attempt.PlanStep, outcome,
-			time.Duration(attempt.WallNS).Round(time.Millisecond).String(), attempt.CodeCommit,
-			attempt.Selection.Selected, attempt.Selection.Defined, attempt.Diff.Files)
-	}
-	return nil
 }

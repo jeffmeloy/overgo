@@ -37,15 +37,20 @@ func benchmarkPrompts(options options) ([]string, error) {
 	if err := json.Unmarshal(data, &prompts); err != nil {
 		return nil, fmt.Errorf("benchmark: parse prompt suite: %w", err)
 	}
+	return prompts, validPrompts(prompts)
+}
+
+// validPrompts bounds a suite's count and refuses a blank prompt.
+func validPrompts(prompts []string) error {
 	if len(prompts) == 0 || len(prompts) > maxPromptSuitePrompts {
-		return nil, errors.New("benchmark: prompt suite count is out of bounds")
+		return errors.New("benchmark: prompt suite count is out of bounds")
 	}
 	for index, prompt := range prompts {
 		if strings.TrimSpace(prompt) == "" {
-			return nil, fmt.Errorf("benchmark: prompt %d is empty", index)
+			return fmt.Errorf("benchmark: prompt %d is empty", index)
 		}
 	}
-	return prompts, nil
+	return nil
 }
 
 func benchmarkPromptIndex(run, count int) int {

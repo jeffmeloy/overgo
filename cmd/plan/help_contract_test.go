@@ -19,14 +19,14 @@ func TestPlanHelpContract(t *testing.T) {
 			t.Fatalf("plan %s exited non-zero: %v\n%s", arg, err, out)
 		}
 		text := string(out)
-		for _, want := range []string{"plan:", "-add", "-vcmd", "-verify", "-budget", "-prepare-merge"} {
+		for _, want := range []string{"plan:", "-add", "-vcmd", "-verify", "-stop"} {
 			if !strings.Contains(text, want) {
 				t.Fatalf("plan %s help missing %q in:\n%s", arg, want, text)
 			}
 		}
 		// Plan edits land through the gate like any change; the separate
-		// edit-and-publish path is retired.
-		for _, retired := range []string{"-edit", "-publish", "-vehicle"} {
+		// edit-and-publish path and the old orchestration commands are retired.
+		for _, retired := range []string{"-edit", "-publish", "-vehicle", "-budget", "-frontier", "-context", "-record-lease"} {
 			if strings.Contains(text, retired) {
 				t.Fatalf("plan %s help still offers the retired %s", arg, retired)
 			}

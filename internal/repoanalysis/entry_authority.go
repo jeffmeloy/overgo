@@ -203,7 +203,7 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				"internal/runrecord/verifying_commit.go":       "read-only git fact reads; execution-semantics binds repository facts to supervised receipts",
 				"internal/clioptions/command.go":               "command self-identification fact; execution-semantics migration",
 				"internal/testprocess/process.go":              "test-support process helpers consumed only by suites",
-				"cmd/plan/sync.go":                             "read-only git fact reads; execution-semantics migration",
+				"cmd/plan/git.go":                              "read-only git fact reads; execution-semantics migration",
 				"cmd/loophook/main.go":                         "hook-time tooling; execution-semantics migration",
 				"cmd/release/main.go":                          "release lane tooling; execution-semantics migration",
 				"cmd/reverify/main.go":                         "reverify lane tooling; execution-semantics migration",

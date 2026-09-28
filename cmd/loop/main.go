@@ -98,7 +98,7 @@ func run(args []string) error {
 	directionSpecPath := flags.String("publish-direction", "", "publish one extracted residual-direction claim from this spec")
 	attemptReceiptSpecPath := flags.String("attempt-receipt", "", "resolve and print one terminal attempt receipt from this spec")
 	resumeMediaExperimentSpec := flags.String("resume-media-experiment", "", "resume one media experiment from this spec, reusing retained acquisitions and publishing the report without opening a model")
-	landReference := flags.String("land", "", "land one authored row: claim, preflight, gate, confirm the landing from git, await the deferred lanes and list its review candidates: -land <item>/<step> -message-file <file>")
+	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step> -message-file <file>")
 	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -183,16 +183,16 @@ func run(args []string) error {
 			_ = os.Unsetenv(processcontrol.CampaignEnvironment)
 		}
 	}()
-	stopStore, err := overgodb.OpenReadOnly(gitauthority.CanonicalOvergoDBDirectory)
+	store, err := overgodb.OpenReadOnly(gitauthority.CanonicalOvergoDBDirectory)
 	if err != nil {
 		return err
 	}
-	defer stopStore.Close()
-	prompt, found, err := artifact.ReadContent(context.Background(), stopStore, strategy.Prompt)
+	defer store.Close()
+	prompt, found, err := artifact.ReadContent(context.Background(), store, strategy.Prompt)
 	if err != nil || !found {
 		return errors.Join(errors.New("loop: configured strategy prompt is unavailable"), err)
 	}
-	world := &execWorld{config: loaded, strategy: strategy, stopStore: stopStore, promptPrefix: string(prompt.Data), campaign: campaign}
+	world := &execWorld{config: loaded, strategy: strategy, promptPrefix: string(prompt.Data), campaign: campaign}
 	outcome, err := loop.Run(world, strategy.Loop)
 	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
 		outcome.Reason, outcome.Invocations, outcome.Parked)
@@ -222,7 +222,6 @@ func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {
 
 // execWorld adapts the driver to the repository's real owners.
 type execWorld struct {
-	stopStore    *overgodb.Store
 	config       config
 	strategy     loop.Strategy
 	promptPrefix string
@@ -356,11 +355,7 @@ func (w *execWorld) Paused() bool {
 	if _, err := os.Stat(marker); err == nil {
 		return true
 	}
-	var reader artifact.Reader
-	if w.stopStore != nil {
-		reader = w.stopStore
-	}
-	stop, err := plan.ReadStop(context.Background(), reader, loopWorktree, "", plan.ExecutionUnattended)
+	stop, err := plan.ReadStop(context.Background(), loopWorktree, "", plan.ExecutionUnattended)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "loop stop authority:", err)
 		return true

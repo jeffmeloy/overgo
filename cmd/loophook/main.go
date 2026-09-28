@@ -131,7 +131,7 @@ func stopMessage(verdict string, progressed bool, dispatch plan.Dispatch) string
 	switch verdict {
 	case stopOrphan:
 		b.WriteString("overgo loop gate: this turn would orphan uncommitted work.\n")
-		b.WriteString("  * commit via 'go run ./cmd/gate -plan <item>/<step> ...' or revert it.\n")
+		b.WriteString("  * land it via 'go run ./cmd/loop -land <item>/<step> -message-file -' or revert it.\n")
 	case stopContinue:
 		if progressed {
 			b.WriteString("overgo loop gate: the row landed, but the plan still holds open rows.\n")

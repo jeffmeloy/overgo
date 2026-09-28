@@ -227,7 +227,7 @@ func phaseDeltas(baseline []Observation, latest Observation) []PhaseDelta {
 		if !ok || len(phaseValues) != len(baseline) {
 			continue
 		}
-		median := medianUint(phaseValues)
+		median := MedianUint(phaseValues)
 		deltas = append(deltas, PhaseDelta{
 			Phase: metric.Phase, LatestNS: metric.DurationNS,
 			BaselineMedianNS: median, DeltaNS: int64(metric.DurationNS) - int64(median),
@@ -245,7 +245,9 @@ func medianFloat(values []float64) float64 {
 	return values[middle-1]/2 + values[middle]/2
 }
 
-func medianUint(values []uint64) uint64 {
+// MedianUint is the middle of values, the mean of the two middle values
+// for an even count; values must not be empty.
+func MedianUint(values []uint64) uint64 {
 	values = slices.Clone(values)
 	slices.Sort(values)
 	middle := len(values) / 2

@@ -42,6 +42,10 @@ func TestSmallGateLandsAChange(t *testing.T) {
 	write("go.mod", "module fixture\n\ngo 1.26\n")
 	write("internal/p/p.go", "// Package p is the fixture.\npackage p\n\n// Value is the fixture's value.\nfunc Value() int { return 1 }\n")
 	write("internal/p/p_test.go", "package p\n\nimport \"testing\"\n\nfunc TestValue(t *testing.T) {\n\tif Value() != 1 {\n\t\tt.Fatal(Value())\n\t}\n}\n")
+	// An unchanged file of the changed package that go fix rewrites.
+	const legacy = "internal/p/legacy.go"
+	write(legacy, "package p\n\n// Has reports whether values holds value.\nfunc Has(values []string, value string) bool {\n"+
+		"\tfor _, candidate := range values {\n\t\tif candidate == value {\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n}\n")
 	row := func(id string) plan.Item {
 		return plan.Item{ID: id, Title: id, Status: plan.StatusOpen, Steps: []plan.Step{{
 			ID: "do", Title: id, Status: plan.StatusOpen, Verify: "go test ./internal/p -run '^TestValue$' -count=1",
@@ -87,6 +91,9 @@ func TestSmallGateLandsAChange(t *testing.T) {
 	if status := git("status", "--porcelain"); status != "" {
 		t.Fatalf("the landing left the tree dirty: %q", status)
 	}
+	if fixed := git("show", "HEAD:"+legacy); !strings.Contains(fixed, "slices.Contains") {
+		t.Fatalf("the file go fix rewrote did not land with the change:\n%s", fixed)
+	}
 
 	write("internal/p/p_test.go", "package p\n\nimport \"testing\"\n\nfunc TestValue(t *testing.T) {\n\tif Value() == 1 {\n\t\tt.Fatal(Value())\n\t}\n}\n")
 	if _, err := land("second/do", message); err == nil || !strings.Contains(err.Error(), "test") {
@@ -99,5 +106,22 @@ func TestSmallGateLandsAChange(t *testing.T) {
 	}
 	if head := git("rev-parse", "HEAD"); head != commit {
 		t.Fatalf("a refused landing moved HEAD to %s", head)
+	}
+
+	// A change to the plan alone runs only the row's verify.
+	git("checkout", "--", "internal/p")
+	edited, err := plan.Load(filepath.Join(repo, filepath.FromSlash(plan.Path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited.Items[0].Title = "second, retitled"
+	if err := plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), edited); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := land("second/do", message); err != nil {
+		t.Fatalf("a plan-only change was refused: %v", err)
+	}
+	if body := git("log", "-1", "--format=%B"); !strings.Contains(body, "Measured by the gate: verify ") || strings.Contains(body, "test ") {
+		t.Fatalf("a plan-only landing ran more than the verify: %q", body)
 	}
 }

@@ -134,13 +134,7 @@ func defaultNeighborCount(n int) int {
 	if n < 3 {
 		return 1
 	}
-	k := int(math.Round(math.Log2(float64(n))))
-	if k < 1 {
-		k = 1
-	}
-	if k > n-1 {
-		k = n - 1
-	}
+	k := min(max(int(math.Round(math.Log2(float64(n)))), 1), n-1)
 	return k
 }
 

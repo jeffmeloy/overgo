@@ -1582,7 +1582,7 @@
         "current_recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/2",
@@ -1608,7 +1608,7 @@
         "current_recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/3",
@@ -1634,7 +1634,7 @@
         "current_recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "Un-0/image-gen/1",
@@ -1660,7 +1660,7 @@
         "current_recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "Un-0/image-gen/2",
@@ -1686,7 +1686,7 @@
         "current_recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "Un-0/video-gen/1",
@@ -1715,7 +1715,7 @@
         "current_recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "Un-0/video-gen/2",
@@ -1744,7 +1744,7 @@
         "current_recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "SimpleDiffusion-TensorProductAttentionRope/image-gen/1",
@@ -1770,7 +1770,7 @@
         "current_recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "SimpleDiffusion-TensorProductAttentionRope/image-gen/2",
@@ -1796,7 +1796,7 @@
         "current_recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "LiveEdit/video-gen/1",
@@ -1825,7 +1825,7 @@
         "current_recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "LiveEdit/video-gen/2",
@@ -1854,7 +1854,7 @@
         "current_recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "Wan2.1-T2V-1.3B/video-gen/1",
@@ -1882,7 +1882,7 @@
         "current_recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "Wan2.1-T2V-1.3B/video-gen/2",
@@ -1910,7 +1910,7 @@
         "current_recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "Wan2.1-T2V-1.3B/video-gen/3",
@@ -1938,7 +1938,7 @@
         "current_recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       },
       {
         "id": "Krea-2-Turbo/image-gen/1",
@@ -1964,7 +1964,7 @@
         "current_recipe": "recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9",
         "retained_run_lineage": true,
         "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
-        "repair_owner": "final-model-validation/do"
+        "repair_owner": "user-scorecard/do"
       }
     ],
     "retained_run_lineages": 15
@@ -1983,7 +1983,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:00120f44681f9843e72913f29127b066020075c21edd13eaf6503fcc35770167",
@@ -1994,7 +1994,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:0228208e2837168c7bed1c3b7bc787bdfa7f20a584507588acfe15667100e7d2",
@@ -2005,7 +2005,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
@@ -2057,7 +2057,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -2076,7 +2076,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/2",
@@ -2093,7 +2093,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "visual-review Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/3",
@@ -2110,7 +2110,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Gap": "",
@@ -2162,7 +2162,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Task": "video-gen",
@@ -2199,7 +2199,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -2218,7 +2218,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "Un-0/image-gen/2",
@@ -2235,7 +2235,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "Un-0/video-gen/1",
@@ -2252,7 +2252,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "Un-0/video-gen/2",
@@ -2269,7 +2269,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Gap": "",
@@ -2284,7 +2284,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:04e117c24c7749e8a71a8d5ee92492265f6c38cb069f42c3a727bc50fc06fb61",
@@ -2295,7 +2295,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:05e3027c1225a0d3346e863202e59ff1257619c90afa428c0c84158b53327147",
@@ -2306,7 +2306,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:071d61cd587df776491609669cb551627f02580c1ff0c95bfc9978f4bc2ae256",
@@ -2344,7 +2344,7 @@
               ]
             },
             "Gap": "No accepted protocol bound to this activation.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -2353,7 +2353,7 @@
       },
       {
         "Model": "model:sha256:0754fb8aca4227b773ea6690df0e188d360d71b71d6d103dfcd970648406fc9a",
-        "Name": "overgo-hfconvert",
+        "Name": "Carbon-500M-f16-ropefix",
         "Present": true,
         "Execution": "local",
         "Domains": [
@@ -2389,7 +2389,7 @@
               ]
             },
             "Gap": "No accepted protocol bound to this activation.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -2405,7 +2405,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:096c968efe9d0b1726a9ae121bf525e0e3d7402355bb8330351031e5792cfade",
@@ -2416,18 +2416,18 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:0bff105f0d15de8cfce729bd3093d943773eda6c858ff4826fef030062a81811",
-        "Name": "overgo-hfconvert",
+        "Name": "Qwen2.5-0.5B-f16",
         "Present": false,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:0c31686704ece29b72f261ad5550bad7964a7cdf5b6c144a949bafdb989cf4f5",
@@ -2438,7 +2438,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:0e5fd19812291e13bc08d88ea9c7d5b563282f9dd9eae0928564d88236fcf214",
@@ -2449,7 +2449,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:1206b7c288a90b0a958427ad5a779dd81dc6e10307fe73c634be505197051113",
@@ -2460,7 +2460,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:127ad48856519e932017fedeed3e9c09a6f12ea726f496ac1c97abeaa1bf30b5",
@@ -2500,7 +2500,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -2547,7 +2547,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -2563,7 +2563,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:174647859c21eabf032db0d16ee6f552e37598dd7af9dbdf77058a2c4ba15670",
@@ -2574,7 +2574,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:1772ca69b4a276c0de7f61bec0478c5d7d6b886aa2dfbbaf98dbed48ab738f1c",
@@ -2585,7 +2585,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:17ef842e47450caeb8eaa3ebfbbab5d2f2278b62b79be107985fb69a2f819aa0",
@@ -2596,7 +2596,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:1831361e384c46b75a2c72242843151253db42f36b553a6b7a66c22e92009c00",
@@ -2607,7 +2607,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:18f216b9d5a3c84fd577d07c09f36aa8eab659ae9734de9fc609230b84acbb21",
@@ -2618,7 +2618,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:1abf71300a7d632a5a1149ad315ee122613fb1d9766c920e5b9950aa1ecf334f",
@@ -2629,7 +2629,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:1b7acc66c8e9c396e08a8145009a3db39c52fd500db2c4df11dd26c040073df2",
@@ -2640,7 +2640,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:1b8ae1f88829b7434d2b909acf9a395fc43021405da395266b9d3c60a875c1c6",
@@ -2651,7 +2651,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:212f6ab64523bb971e886e82e17259798dfc68d5c7992736b918b27dbc80c8bd",
@@ -2662,11 +2662,11 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:2164ee6535ced88ef8f705243eecaad686de45521f7a33e84bff5ba7643587e8",
-        "Name": "overgo-hfconvert",
+        "Name": "Qwen2.5-0.5B-f16",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -2702,7 +2702,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -2718,7 +2718,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:2436ae0fb1a618f6d3254d2a07737f2ca9f47947097b99df90e4e67026462732",
@@ -2729,7 +2729,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:26aded26193b7129e1bf799c5e25ff74a9bdc8c78158bf87d9dc8e25095e1259",
@@ -2740,7 +2740,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:28462119c525a97658deb6d48bb1b5bdc35f5b1cb8bfd862dcb5ed48c82c1c63",
@@ -2751,7 +2751,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:2928aabcbb4c9f8a11e1ca47fcac873dcae5f4032e26529ada55affbaf9014ad",
@@ -2791,7 +2791,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -2807,7 +2807,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:2dbfaf8dbf4ab4cd95bb03cc6d86cc51ba51ca59575144696f1015ce2d82112a",
@@ -2818,7 +2818,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:2f8909624b5ee648c33441ece2b7d046ec5b22187f9fd821683eac84b4786336",
@@ -2829,7 +2829,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:2fd32cf5f0d1699f308b9f03d2a36d0a4c8ee29d83419ea95d02909807aa11e5",
@@ -2840,11 +2840,11 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32",
-        "Name": "models",
+        "Name": "MiniCPM5-1B-native-chat",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -2881,7 +2881,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -2890,14 +2890,14 @@
       },
       {
         "Model": "model:sha256:31188925754900e6728b2cbe30c75b6524a4b95aecaaedf44eef9b53fbc61db6",
-        "Name": "overgo-hfconvert",
+        "Name": "Qwen3.5-4B-f16",
         "Present": false,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:31f578555a82588e373f695c5f6a27f508922f0fc94de70264ef35b2e26b6db3",
@@ -2908,7 +2908,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:32c207617ee8e0aae32fddbb467d164142185209c9de0dd4e7539f4733721c1c",
@@ -2919,7 +2919,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:330c8a71f0e1e4e6f14d0e4dd22516a69a2d44845527991630260eeeb921830a",
@@ -2930,7 +2930,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:3443690a7befb212c64f89c9ef8310f7024d35917f92101ad3ca858c5faddd24",
@@ -2941,18 +2941,18 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:353fb1a59060ee2152e2ac34bc25bb3127038869c0ff3b70b0aa7d1132781a56",
-        "Name": "overgo-hfconvert",
+        "Name": "MiniCPM5-1B-f16",
         "Present": true,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:35e33bf0d07b9a6010dbd5f9d9871b099212a5fe0c4749ce40533c7144ecbe63",
@@ -2963,7 +2963,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:3600f9774577d40d81e3283438656b721955fca3d9461919b43635a7aaabe93d",
@@ -2974,7 +2974,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:36f3056d152cae14de001e2c2db98e2dd675d5c96ead5463a525fad5281ae749",
@@ -2985,7 +2985,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:37bbbb794bcb495e027862a31b2d339c3fabb42c99f6ea707e8f76dc3893ce4b",
@@ -2996,7 +2996,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:38ff6e0c7f786b2931223f1098593b1b438314cd067aab33725f73fca92218fe",
@@ -3007,7 +3007,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:3b2ab8f08276ec1458433bc71df352767f61e14b9b89978ab2b43330f11d1881",
@@ -3018,7 +3018,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:3c797a269e47b1d9fba6168571298c7942213d2d8a3eb73662669793b1a1a3e2",
@@ -3029,7 +3029,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:3ced4af7b688a0f013dbd69649a36c0cc9553761090c018040a3c44a9830807a",
@@ -3040,7 +3040,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:3dd2b6b1299c19eecdf4f4a1c38fe8c6524c37d0eb59e4869aaf76b423c552a4",
@@ -3051,7 +3051,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:3f5b9f6be7bbba0bdf5429ae393a19b3ab407df3e48fa134a42bf368d25a073c",
@@ -3062,7 +3062,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:3f69d4e3859ff6cf1f294e21c3d2d1a45de383d218a27c12b4201785fadbec08",
@@ -3073,7 +3073,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:3f792b2503c35dff2bb43a7ae5ecdec6d2898fa613af336d9f327297347d89cf",
@@ -3084,7 +3084,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:4034debebdfd937b4cc83cd635fd1f5c5277c353f0ab78a485e4fbf7d7ed9758",
@@ -3095,7 +3095,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:41e4717f6a2204cda17a5782f39519f1f85a2be151daf53462da5a45b65483a6",
@@ -3106,7 +3106,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:427f4b11b98736275ed1d3ed72424f2b27fb0677657fed6ea30776ccb3cbdbc1",
@@ -3117,7 +3117,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:4416df8532cb335e1c30f79a6c639e0ce71e06a700ee5bba5aeaccdb445b77fa",
@@ -3128,7 +3128,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:458f3590a1e703298a9d50153096232ea13dc86f8acddd3bad41ef83c892353a",
@@ -3139,7 +3139,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:4712dff96f83102689cd5ab78da63ec91a2a4975ce7983e82e0c90255f63fc26",
@@ -3150,18 +3150,18 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:471fc8c4e83f4bf524a14bb71be0b757639d9a1e60515152514afeda0e0c8091",
-        "Name": "overgo-hfconvert",
+        "Name": "Carbon-500M-f16",
         "Present": false,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:47c801c8717f60d3af3659e3651023e43d5074462db3d82ff9e77c71bfb5e32f",
@@ -3172,7 +3172,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:47fdf02c43fe6eae840c0ef8e555699531dc6a5a08917001ef5e4f9c174f3f0c",
@@ -3183,7 +3183,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:49686887afd324e1fffdce8950cca7381842b3e45428b8503b8f5e19ccc6c41d",
@@ -3194,7 +3194,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:4a46b25a53697927991d8ff2f6a4237d83766a895c1561436776671cc6b8767a",
@@ -3205,7 +3205,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:4a8e2d8a35c0fbaa3c262de93a3d474f1ed225e32606471fa482dabf73b1f989",
@@ -3245,7 +3245,7 @@
               ]
             },
             "Gap": "No accepted protocol bound to this activation.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -3261,7 +3261,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:4c97ba081f523b0946af04819aab34b0fbff26ad463c73e6e540b66ab72d60f2",
@@ -3272,7 +3272,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:4e27935eec4d2e002ba69cd3fca98bb80a55427d69e00f45745adcbae58a291e",
@@ -3283,7 +3283,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:52f57ade151acb5e8fae10c0cd0ddf8fc1dd4a56bd12782f5e7d6b8d86a653da",
@@ -3294,18 +3294,18 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:55f23e065a62cf5a831359aa9ef7856cbb27bf8dee8439dcfe351a7e9be2eb8f",
-        "Name": "models",
+        "Name": "MiniCPM5-1B-native-chat",
         "Present": true,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:56277ef6b294956569993519998dc11210899a9f6c807818ff789af1ee17b07b",
@@ -3316,7 +3316,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:5641a228dd9f9991ede664f1988615c62839896e51016777d1d301766278b939",
@@ -3364,7 +3364,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -3383,7 +3383,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "SimpleDiffusion-TensorProductAttentionRope/image-gen/2",
@@ -3400,7 +3400,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Gap": "",
@@ -3415,7 +3415,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:5af952e228ed6ec31bcca2e77ae55c7271e8e05523e14f461eeb3786771febfe",
@@ -3426,7 +3426,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:5b042df5e5e6768c6917cde779a7b5493f009be7f7af354badb26c7bb38e029a",
@@ -3437,7 +3437,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:5b6effeb7458ab469234823380df0a8da23a6de26707bd0dd29b3ca8e40adc23",
@@ -3448,7 +3448,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:5b9f463db6760908b0711ddc6b33b11ab3fd709d0cc36339e58d7301f84e5d20",
@@ -3459,7 +3459,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:5df7bae0614c37f11e40fa6659d0cb0e6621812c24831d862d20061036ed51ba",
@@ -3501,7 +3501,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -3517,7 +3517,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:5e884086288427ad7396cd1d1b81c0eb03e66527f82fd2b4f316a50342977602",
@@ -3528,7 +3528,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:60e04f2739ddcd16bf64d4677d107c441ac43d877b5fc0df2b24e75ac01cc627",
@@ -3539,7 +3539,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:6158c8f2fb7ab7a81b3e7b8d3b8aac8f0cf7a14156b10ddcfde49714da34fb17",
@@ -3550,7 +3550,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:636ba6624981c5b0a77a551ea39fc8d7867fedf7302e06838e7e4f19bbab8a60",
@@ -3561,7 +3561,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:6377b600111cf4b60da45f9c9dd24db9a4a40b2c227716e2a191bbf3afa4f027",
@@ -3572,7 +3572,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:64fb17f3c324dcbf9f83861e5d2ea1534a66ea0970223047e788a482b080853c",
@@ -3583,7 +3583,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:67c7b0c56742b6f7477ec2c414ae8a337ace22e311b4f03f55860916706314df",
@@ -3630,7 +3630,7 @@
               "peak_step_device_bytes": 3260313344
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -3649,7 +3649,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "LiveEdit/video-gen/2",
@@ -3666,7 +3666,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Gap": "",
@@ -3718,7 +3718,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -3734,7 +3734,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:6fa35feab0fe1ef208de6d131e2311f07864fa5e10c26315153d75ced083de68",
@@ -3745,7 +3745,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:6fb93183bfeac7e2de58cfe92bd8fb2bd810060a1c322a61839d7a275a831f77",
@@ -3756,7 +3756,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:70512f880f1916c05621a070fc2f52fd1ba1a07eb12319429189de95a87c8920",
@@ -3767,7 +3767,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:72de387c73641aedc3ad63bc13df185be38b9e4992104ad4dfc6d794718e1951",
@@ -3778,7 +3778,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:730e9b5e31213cdaa607e0a8ea9a2e69825206b7fdd8ff91a1499fe6f73710a6",
@@ -3789,7 +3789,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6",
@@ -3829,7 +3829,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Task": "projection",
@@ -3862,7 +3862,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -3882,7 +3882,7 @@
             "Required": 5761,
             "Recorded": 5761,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "ifeval-recorded-subset",
@@ -3900,7 +3900,7 @@
             "Required": 131,
             "Recorded": 131,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "mmlu-recorded-generated-chat-subset",
@@ -3918,7 +3918,7 @@
             "Required": 100,
             "Recorded": 100,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "mmlu-recorded-raw-subset",
@@ -3936,7 +3936,7 @@
             "Required": 100,
             "Recorded": 100,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "projection-grounded-colors-positions",
@@ -3968,7 +3968,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:7406a105abd72a286bf98cc3a8f3810812bc4baaac4804635de574e50b38921b",
@@ -4010,7 +4010,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -4026,7 +4026,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:764daf929f9d93ae9b2ffe886e6bb5871dd5cb85ebb5e0d94700c2158931e471",
@@ -4037,7 +4037,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:787b660f010dd367d2935ccafd05ea0163b6acc8f36f44f441c600ffbfabbf66",
@@ -4048,7 +4048,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:7907f358bb03d82d0adf21a2c9e9c8f706881f55893cfff1acb842b1aa571f08",
@@ -4059,7 +4059,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:7a1863fcb28251090cd940652595dbefac587b5b82543cf5e379d5513d88efff",
@@ -4070,11 +4070,11 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:7a7c9de1d98b63289b5287a2b8f6280c306b535570ea87c090c962aba94298e1",
-        "Name": "overgo-hfconvert",
+        "Name": "Unlimited-OCR-bf16",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -4110,7 +4110,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -4126,7 +4126,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:7b7c630d88557572a6bea90a5a64a2590b7bc437fae7fd2154c5b203f551da91",
@@ -4137,7 +4137,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
@@ -4188,7 +4188,7 @@
               "peak_step_device_bytes": 10329897932
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -4207,7 +4207,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "Wan2.1-T2V-1.3B/video-gen/2",
@@ -4224,7 +4224,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "Wan2.1-T2V-1.3B/video-gen/3",
@@ -4241,7 +4241,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "visual-review Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Gap": "",
@@ -4256,7 +4256,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:7f18fe2069a0e0ae5c444d3d3fa64ed6894d6b55df9fa67e606b273239930fa6",
@@ -4267,7 +4267,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:8036bdca9475a5d601dbdc525752fc1b8147ebe849c3f25fcb0c1bf9c3cdec8c",
@@ -4278,7 +4278,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4",
@@ -4316,7 +4316,7 @@
               ]
             },
             "Gap": "No accepted protocol bound to this activation.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -4332,7 +4332,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:8400fbdec374acf97d92b1e7544cb6f69bca9ec4e0af5eb273732bb063490048",
@@ -4343,7 +4343,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:84ad75f7726d10b000c4370ed43e442e5a293aeeaed680ba66a35a9b1838da13",
@@ -4354,7 +4354,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:84faac48ff3d717ed40000ddf1e5a34ae3236b5608c4f68f7d9871abbc4896c2",
@@ -4365,7 +4365,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:859b63241d72ffd6a92adfb5b3d8e0322d188550ce7343c1f4945e6df106441f",
@@ -4376,7 +4376,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:87ba5ab1494959dbda53b89800fc95b034aa50bc54a5aa6f257632b691e38577",
@@ -4387,7 +4387,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b",
@@ -4428,7 +4428,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -4464,7 +4464,7 @@
             "Required": 12032,
             "Recorded": 12032,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "native-text",
@@ -4520,7 +4520,7 @@
               ]
             },
             "Gap": "No accepted protocol bound to this activation.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -4565,7 +4565,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -4586,7 +4586,7 @@
             "Required": 541,
             "Recorded": 541,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "mmlu-pro-generated-chat",
@@ -4604,7 +4604,7 @@
             "Required": 12032,
             "Recorded": 12032,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "mmlu-pro-raw",
@@ -4622,7 +4622,7 @@
             "Required": 12032,
             "Recorded": 12032,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Gap": "",
@@ -4637,7 +4637,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:8c3fd233bebcf1cd06ad3a1adeaf97793415a2105766d4c512ee747905a80d1b",
@@ -4648,7 +4648,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:8ebbc81f4bbc8cdbb49856b934194b0fe68dc5340c7490c39e82ede19feeeedf",
@@ -4659,7 +4659,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:8f2e2c875364a9c71bac996c899547a706b44fbc4f65dd9c368ff2ed03fb757c",
@@ -4670,7 +4670,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:92e8d118bc317b67145a43efaee171e44e3704ed263080d2962e059ccaff186d",
@@ -4716,7 +4716,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -4732,7 +4732,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:93c8a146d1677f35405fd205781ca035e975287a37e40ea1e77ecdecaa9e6bee",
@@ -4743,7 +4743,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:943acac2c3e324a363b04962c17d5a0ae6deb103dc93f5bddf5b80f06e62328a",
@@ -4754,18 +4754,18 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:9539931ee8c9c6e6d08f861daed151f1599daea49b31d69b282116871ce611da",
-        "Name": "overgo-hfconvert",
+        "Name": "Qwen3.5-4B-f16",
         "Present": false,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:958c4e9ed54871f65bbb3a3d09b1d326761dc945b37d29178498abf81c3dbd99",
@@ -4776,7 +4776,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:961b7d67e8fb6bf4e7a262895390b5300fb530d367e3432cb92aa7f829766a43",
@@ -4787,7 +4787,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f",
@@ -4825,7 +4825,7 @@
               ]
             },
             "Gap": "No accepted protocol bound to this activation.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -4841,7 +4841,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:9765d2a5d7cb546c01d77932e9a62d41dde25010f44f343e9d6e613308763907",
@@ -4852,7 +4852,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:9a0f8aa0f795c8e8f232a6c882c1551d8951fe4a5ac693cbf5636cd4f54e8d43",
@@ -4863,7 +4863,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:9a2d2606f0ad1643c09b00e4d352ef4e3a0e44f5543f93012d8e2150641a995d",
@@ -4874,18 +4874,18 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:9a5e1dbfe1176160bbb63d9f7de6abded977d4f63f1bb02a53e725dd726a5020",
-        "Name": "overgo-hfconvert",
+        "Name": "Qwen3.5-4B-f16",
         "Present": false,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:9adacea936d5545e2dcf48bb7b8150003a2458fdd1828787d3b70f82891810d4",
@@ -4896,7 +4896,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:9b8eedde770bfcf37c4b463ea201656485b4d2ec05a428c1dd785f3f31a2fbfb",
@@ -4907,7 +4907,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:9cc837230e968e7b14acf5df9d602e2898a609c737e083f4f6d434b7812fdf57",
@@ -4918,7 +4918,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:9dcc3961459017c8bcb8149df736d731cb4a0be7d0c1b2dfcf1230e5e04d7ace",
@@ -4929,7 +4929,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:9e448ba9c0a8f293aa4e3b9e33cc53cc729ce5e9997bcf198559f8ddaf5aa21c",
@@ -4940,7 +4940,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:9fd51c9a222d5f7efdf5a5988958bb2636d5111d7da5e7f45883104a30972087",
@@ -4951,7 +4951,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:a0713f05de553e1e53d553c0ba0591853fdcfcfbb2759d59cc1f5d4a6c1ab968",
@@ -4962,7 +4962,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:a1b5919001898472406f567c5cb68ed054f764f22675add2c7389595afd16fbd",
@@ -4973,7 +4973,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:a4428d5534154479cb311dfb82bcc07b636e8be1085000d8b6adddf02541dcbe",
@@ -4984,7 +4984,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:a4c9312e903c702f83e5966813a0c8dbdfade2d6dacf78ad7ddfdf6f9fe48596",
@@ -4995,7 +4995,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:a6695a6ce643a630cb3cc6ee3abc8db6079629732498740da8dae006c603b4db",
@@ -5006,7 +5006,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:a87a9d6e5ed5d4bc735451bcee757c50fef7c77ada345ca89fe2d81ec66d5803",
@@ -5017,7 +5017,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:aae1381832adc9bbc03a348868fcf23937df66120e6a7f802a80919fee901ff8",
@@ -5028,7 +5028,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:ab46f7156a1f392118946e96add73ed79ded27a33b7ef83a324f7e42ff4ec925",
@@ -5039,18 +5039,18 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:ad489bbc15ec9bc5c61abdc317223a5ba27b99afd5e67d098b6d63ae34eb838e",
-        "Name": "overgo-hfconvert",
+        "Name": "Carbon-500M-f16-ropefix",
         "Present": false,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:ad72d518e747eb86ef2e96ae117e32858e328cb19287514e1ca746baa2facc23",
@@ -5061,7 +5061,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:afc93e73e2c7351a4e37fc1a926a6d2b36a87681432ddd63093eed7fa80c8bfe",
@@ -5072,7 +5072,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:b23062277773be6dfb4fb8201526ea8c4d322c1a8d86dff8c3c964b5a5502c34",
@@ -5083,11 +5083,11 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:b2b6dd89ad8c1fc473bd266c9fa7a7c5c212c07233872aa922d379aba566785c",
-        "Name": "bonzai",
+        "Name": "Bonsai-27B-Q1_0",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -5123,7 +5123,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -5139,7 +5139,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:b45b8f191872f29394df96363ac3f633d4dd4ce78dde9dc7a0c50a626633a8b3",
@@ -5150,7 +5150,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:b5207a249fa197e41f23003d9ed50ff62815bb63bbe3e9c819a4622ef14b15b7",
@@ -5161,7 +5161,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:b53c178de43b6a5dcf11dc24b76cc1316591a1f2a79d75761f929e6ecd4a01f9",
@@ -5172,7 +5172,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:b66e583be9dac1cd6ed9b67bbe264a92d871ab71699882b4d8e126cf00fe3fe6",
@@ -5183,7 +5183,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:b6965e43a350538d05e4c515d8175e06625302851fe4437fd513adf3a9abe7e9",
@@ -5194,7 +5194,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:b92c1b0fa27246fffaebaad8633638166fce0780c75f13ed7a5b5aff988ddc33",
@@ -5205,7 +5205,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:b9f4738d6ef3a0e8d5443a53cf7b37cb00f2eecdd51e109b70c342c3ee8c018c",
@@ -5216,7 +5216,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:baabe0894067bdce20189b42f9bb6f233e24bcaaad1f0ad9242e0d4264884c24",
@@ -5227,7 +5227,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:bbe45f15023f9a0ea018cbc8e1558965022681bf897f6ea4d497d5bd1cd551c0",
@@ -5238,7 +5238,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:bd42d2cdaee87995ae59c7ba7503aee8486c8f21512b7dd58238f2aa6f6ea024",
@@ -5249,7 +5249,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:c391791c625c6607373609650f83308a5ce5a525af2a148760b3fbb4abbe2afc",
@@ -5260,7 +5260,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec",
@@ -5298,7 +5298,7 @@
               ]
             },
             "Gap": "No accepted protocol bound to this activation.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -5314,7 +5314,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:c593ea07c10cf8f00b86ce54cd85264941cbc1ade55c78943433446a078c28d1",
@@ -5325,7 +5325,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:c7bb04fbfb2c548b4687d86e01bb743b7f06e9dd57ce25c2cfadbc7332af803c",
@@ -5336,7 +5336,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:c85b4a85a28001344f623568c37f46adb5c2da58dc6add8f6491bcee98ff1691",
@@ -5347,7 +5347,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:c8ddf214837deb1355bf7c5afc3f2637b140a561369d8e48ad1ea064952d1db6",
@@ -5358,7 +5358,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:c9c206812fbe4ac7b76a729e25928b63f2ae89d37f69da7a71c20aec763cd436",
@@ -5369,7 +5369,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:ca03adf63e0a9b70e3265ae4a401cad2816c6d75e4b309014ae84cbd8b5c4b38",
@@ -5380,7 +5380,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:cb7fe81f91033e3841e95aca42d9caa3e31bdf192ae2a9d81b48459dd4ee7268",
@@ -5391,7 +5391,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:cd15f3a0bfa22d766ed0bc9ffd6d3ed3cc4cc076712e469fc328bb62a6da6229",
@@ -5402,7 +5402,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501",
@@ -5413,7 +5413,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:cdb1566010a7cc442d28c4a29929c1d41e771768d05d71953694d9caa2e64e69",
@@ -5424,7 +5424,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:ce5df197bc1b339428767b5333819ae945e4601679b3dece526b6b9cabb05701",
@@ -5435,7 +5435,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
@@ -5476,7 +5476,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -5497,7 +5497,7 @@
             "Required": 541,
             "Recorded": 541,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "mmlu-pro-generated-chat",
@@ -5515,7 +5515,7 @@
             "Required": 12032,
             "Recorded": 12032,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "mmlu-pro-raw",
@@ -5533,7 +5533,7 @@
             "Required": 12032,
             "Recorded": 12032,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Gap": "",
@@ -5541,14 +5541,14 @@
       },
       {
         "Model": "model:sha256:d112ec5d8564b6321b7f06fcd1ef9399c667c8ca2f4074798beb250d780ae77b",
-        "Name": "overgo-hfconvert",
+        "Name": "gemma-4-12B-it-fp8-bf16",
         "Present": true,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:d2003d23f69739621e39d1daf3b25d2c55a93b0ad5d03115c7e4668beac3fdf9",
@@ -5559,18 +5559,18 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:d4d2dff7c1988e5eb6900599158f78cf04e836fbf957176d186d2c97edf5c8b9",
-        "Name": "overgo-hfconvert",
+        "Name": "Unlimited-OCR-bf16",
         "Present": true,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:d53a6ecbe84acda6f6b3da21240fefd25bc606d8c0fb9cf63a6fb7698ceaa37a",
@@ -5581,7 +5581,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:d5778b759aa7a3e3fbdfcb03ade46d34746ce46343f65f931a25637ba9e69e3d",
@@ -5592,7 +5592,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:da5f55cc24353072aceae342181c6870399c12b043d9d279cbd2128c5d4b93bb",
@@ -5603,7 +5603,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:da736936344ef409c73ba9f6372dccb175416db59536acb78986fb629fcc3330",
@@ -5614,7 +5614,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:da9167d573b319ed5875800027382707f5d239d0dfec3c0f00a1672ee5f4aff3",
@@ -5625,7 +5625,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:dada2a725d2147ff5a4516c297528ce02a138ec8f87b332118bd05292c959d65",
@@ -5636,7 +5636,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:dc235001f0345ee995fcac73a066565acedcdf0186c3e3d163992bfa80194f33",
@@ -5647,7 +5647,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:ddbe8dec39b731bf8b1f356e819c57f48c78857ee8348ab4c7cbec90bdc12018",
@@ -5658,7 +5658,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:dec6b9ffefc0576318a39ec6b2c0fecb33fd0b92cd2f18df7c65dc7da9bf05d4",
@@ -5669,7 +5669,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:e1e4e374f7c8072e39f5c6cf816198346fd860eadc577c83e848580f82728926",
@@ -5680,7 +5680,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:e23aa3ef8cd715040993bfeb2db3063a494ed3760ebf0d6414143f69a5121fd5",
@@ -5691,7 +5691,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:e2c0b9cd68657465f9dc7612ad8a1619a63353175b0edcfc7b4da0caacf919f4",
@@ -5702,7 +5702,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:e2e5f69dc8d5c157d9762ff0418dd9048b965160516e8e6319f3b48129f0c183",
@@ -5742,7 +5742,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -5758,7 +5758,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:e37577c45aec2255ac437ae6e86518ea99745d6616dd8c59b1fe7e26a04606f7",
@@ -5769,7 +5769,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:e381f0746029431e27fb376dc25273b7cbe48fea9ac8e44ad6764127c7fa9db1",
@@ -5780,7 +5780,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:e384ce5a7ff89dab915e5e636393f93e2a8f2cde2f0923e2e5df4363dda481c5",
@@ -5833,7 +5833,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -5852,7 +5852,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "visual-review Native and lifecycle acceptance only; broader quality remains unestablished.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Gap": "",
@@ -5867,7 +5867,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:e4a194ca36050be6ca48099f447db8baef33789dd66783b248312a4a81ac068f",
@@ -5878,7 +5878,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
@@ -5889,7 +5889,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:e686cefa2ddc9fa602e295c27da7b1bca98bbbea44262556dd7ae7b7cb0a137b",
@@ -5937,7 +5937,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -5969,7 +5969,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:ea08dcf8508dcedf28bd31546a7f95d0f639df18dc8314b16c9f878077459c47",
@@ -5980,7 +5980,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:eab95eeb398d2e6844f3f6450faa3bd1716b090adb84155aa6c363a777bcb435",
@@ -5991,7 +5991,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:ee1d268c5ac4270ee84e0ddac701567fef0924cbe7452add9973d820e5167585",
@@ -6002,7 +6002,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:f2a1c235c30f0d8875ab3454678c5338310516567c36bd0e9b6fb13c86990b4f",
@@ -6013,7 +6013,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:f3ba850aa60126c50c53c7db0cc1510c93c7603fc3acf81ba4ba67bf538c2649",
@@ -6024,7 +6024,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:f56d447bad2b83262f85476f3dd3b33be2ca5700bee7010dbc620212837f8d77",
@@ -6035,7 +6035,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401",
@@ -6075,7 +6075,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -6096,7 +6096,7 @@
             "Required": 541,
             "Recorded": 541,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "mmlu-pro-generated-chat",
@@ -6114,7 +6114,7 @@
             "Required": 12032,
             "Recorded": 12032,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "mmlu-pro-raw",
@@ -6132,7 +6132,7 @@
             "Required": 12032,
             "Recorded": 12032,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Gap": "",
@@ -6147,7 +6147,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:f8b932cdc72a739cb65d0d99e81c6f9c761372d7df26ca970b6a084e4e55b19d",
@@ -6158,7 +6158,7 @@
         "Cells": null,
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "RepairOwner": "user-scorecard/do"
       },
       {
         "Model": "model:sha256:fa8d2cf13e6056494f89fb49ace96057dd9008371def50641c36a7d05e29d936",
@@ -6196,7 +6196,7 @@
               ]
             },
             "Gap": "No accepted protocol bound to this activation.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": null,
@@ -6205,7 +6205,7 @@
       },
       {
         "Model": "model:sha256:fb09299dd00edd7ffdcf8cb48e475d2a9c9e30a22c51f79f6d4d793e983c557b",
-        "Name": "overgo-hfconvert",
+        "Name": "gemma-4-E4B-it-bf16",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -6241,7 +6241,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Task": "projection",
@@ -6274,7 +6274,7 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           }
         ],
         "Protocols": [
@@ -6291,7 +6291,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/audio/native",
@@ -6306,7 +6306,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/audio/responses",
@@ -6321,7 +6321,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/image/chat",
@@ -6336,7 +6336,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/image/native",
@@ -6351,7 +6351,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/image/responses",
@@ -6366,7 +6366,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/mixed-history/chat",
@@ -6381,7 +6381,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/mixed-history/native",
@@ -6396,7 +6396,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/mixed-history/responses",
@@ -6411,7 +6411,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/multi-image/chat",
@@ -6426,7 +6426,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/multi-image/native",
@@ -6441,7 +6441,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/multi-image/responses",
@@ -6456,7 +6456,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/text/chat",
@@ -6471,7 +6471,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/text/native",
@@ -6486,7 +6486,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/text/responses",
@@ -6501,7 +6501,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/video/chat",
@@ -6516,7 +6516,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/video/native",
@@ -6531,7 +6531,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "protocol/video/responses",
@@ -6546,7 +6546,7 @@
             "Required": 1,
             "Recorded": 1,
             "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "quality/audio/native",
@@ -6563,7 +6563,7 @@
             "Required": 32,
             "Recorded": 32,
             "Gap": "Recorded transcription examples match the frozen selection; WER and CER remain separate quality metrics.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "quality/image/native",
@@ -6581,7 +6581,7 @@
             "Required": 16,
             "Recorded": 16,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "quality/mixed-history/native",
@@ -6599,7 +6599,7 @@
             "Required": 16,
             "Recorded": 16,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "quality/multi-image/native",
@@ -6617,7 +6617,7 @@
             "Required": 16,
             "Recorded": 16,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "quality/text/native",
@@ -6635,7 +6635,7 @@
             "Required": 100,
             "Recorded": 100,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "quality/video/native",
@@ -6653,7 +6653,7 @@
             "Required": 16,
             "Recorded": 16,
             "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
-            "RepairOwner": "final-model-validation/do"
+            "RepairOwner": "user-scorecard/do"
           },
           {
             "Name": "resources/audio/native",

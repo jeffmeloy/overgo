@@ -1,425 +1,41 @@
 package plan
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/json"
-	"fmt"
 	"os"
 	"overgo/internal/authoritylock"
 	"overgo/internal/worklease"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
-	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/processlock"
 )
 
 const orchestrationHead = "0123456789abcdef0123456789abcdef01234567"
 
-// workLeaseFixture is an advisory v1 lease; the dispatch tests below need one
-// beside their claims.
-func workLeaseFixture(t *testing.T, task, worktree string) worklease.Lease {
+func stopFixture(t *testing.T) (string, ControlEvent) {
 	t.Helper()
-	lease, err := worklease.Codec.New(worklease.Lease{
-		Version: worklease.Version, Task: task, Worktree: worktree, Branch: "codex/" + task, Role: "developer", TargetHead: orchestrationHead,
-		ConflictsWith: []string{}, Resources: worklease.Resources{CPUThreads: 8, HostRAMGiB: 16, VRAMGiB: 12}, ExpiresAt: "2026-08-15T00:00:00Z",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return lease
+	root := t.TempDir()
+	return root, ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "stop-worker", Worktree: filepath.ToSlash(root), Mode: ExecutionAll, ReasonCode: "user-stop", Detail: "operator asked to stop", CodeCommit: orchestrationHead}
 }
 
-func dispatchLeaseFixture(t *testing.T, task, worktree, worker, acquisition string) worklease.Lease {
+func recordStop(t *testing.T, event ControlEvent) ControlEvent {
 	t.Helper()
-	lease, err := worklease.New(worklease.Lease{
-		Task: task, Worktree: worktree, Worker: worker, Role: worklease.UnassignedRole,
-		Branch: "codex/dispatch", TargetHead: orchestrationHead,
-		ConflictsWith: []string{}, Claims: worklease.WorkspaceClaims{WholeWorktree: true},
-		Contract:    fmt.Sprintf("%x", sha256.Sum256([]byte(task))),
-		Acquisition: fmt.Sprintf("%x", sha256.Sum256([]byte(acquisition))),
-	})
+	got, err := RecordStop(t.Context(), event)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return lease
-}
-
-func recordClaim(t *testing.T, store *overgodb.Store, lease worklease.Lease) (worklease.Lease, error) {
-	t.Helper()
-	content, err := worklease.Codec.Content(lease)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return worklease.Record(t.Context(), store, content.Data)
-}
-
-// TestDispatchContractBinding holds the bounded contract projection: the
-// current-task contract carries the prerequisites and verifier while the
-// rationale history stays out of it and retained in the plan document, and a
-// legacy row without prerequisites projects a contract that simply omits them.
-func TestDispatchContractBinding(t *testing.T) {
-	t.Parallel()
-	// base/do is a completed, pruned prerequisite proven by the authority, not a
-	// retained row: the plan holds only open work.
-	document := Plan{Items: []Item{
-		{ID: "work", Title: "Work item", Status: StatusOpen, Steps: []Step{{
-			ID: "do", Title: "Bounded change", Status: StatusOpen, Verify: "go test ./x -run '^TestX$'",
-			DependsOn: []string{"base/do"}, Rationale: strings.Repeat("buried history prose ", 30),
-		}}},
-	}}
-	facts := ContextFacts{
-		Head: orchestrationHead, Branch: "codex/automation", Worktree: "C:/repo",
-		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "overgodb:overgodb-store"},
-		Workflow:     WorkflowContext{Phase: "implementation", Source: "git:HEAD+overgodb:overgodb-store"},
-	}
-	ctx, err := BuildAutomationContext(document, facts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	task := ctx.CurrentTask
-	if task == nil || task.ItemID != "work" || task.StepID != "do" || task.Verify == "" {
-		t.Fatalf("contract missing bounded fields: %+v", task)
-	}
-	if !slices.Equal(task.Prerequisites, []string{"base/do"}) {
-		t.Fatalf("contract prerequisites = %v", task.Prerequisites)
-	}
-	contract, err := json.Marshal(task)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(contract), "prerequisites") || !strings.Contains(string(contract), "base/do") {
-		t.Fatalf("contract omits prerequisites: %s", contract)
-	}
-	if strings.Contains(string(contract), "rationale") || strings.Contains(string(contract), "buried history prose") {
-		t.Fatalf("history leaked into the contract: %s", contract)
-	}
-	if !strings.Contains(document.Items[0].Steps[0].Rationale, "buried history prose") {
-		t.Fatal("plan document lost the row rationale history")
-	}
-	legacy := Plan{Items: []Item{{ID: "legacy", Title: "Legacy", Status: StatusOpen, Steps: []Step{{ID: "do", Title: "Old", Status: StatusOpen, Verify: "go test ./x -run '^TestLegacy$'"}}}}}
-	legacyCtx, err := BuildAutomationContext(legacy, facts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encodedLegacy, err := json.Marshal(legacyCtx.CurrentTask)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if legacyCtx.CurrentTask == nil || len(legacyCtx.CurrentTask.Prerequisites) != 0 || strings.Contains(string(encodedLegacy), "prerequisites") {
-		t.Fatalf("legacy contract invented prerequisites: %s", encodedLegacy)
-	}
-}
-
-func TestAtomicDispatchClaim(t *testing.T) {
-	t.Parallel()
-	t.Run("legacy retirement cannot see dispatch claims", func(t *testing.T) {
-		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer store.Close()
-		claim := dispatchLeaseFixture(t, "alpha/one", "C:/repo/claim", "worker-one", "head")
-		if _, err := recordClaim(t, store, claim); err != nil {
-			t.Fatal(err)
-		}
-		content, err := worklease.Codec.Content(claim)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if content.Descriptor.Schema == worklease.Schema {
-			t.Fatal("dispatch claim reused the legacy wire schema")
-		}
-		if retired, err := RetireLegacyLeases(t.Context(), store, 0); err != nil || len(retired) != 0 {
-			t.Fatalf("legacy retirement consumed new claim: %v %v", retired, err)
-		}
-		if err := worklease.ResolveOwner(t.Context(), store, claim); err != nil {
-			t.Fatal(err)
-		}
-		claim.Version = worklease.Version
-		if _, err := worklease.Codec.New(claim); err == nil {
-			t.Fatal("legacy schema accepted worker-owned dispatch semantics")
-		}
-		legacy := workLeaseFixture(t, "beta/one", "C:/repo/advisory")
-		legacyContent, err := worklease.Codec.Content(legacy)
-		if err != nil || legacyContent.Descriptor.Schema != worklease.Schema {
-			t.Fatalf("legacy contract changed: %v", err)
-		}
-	})
-	t.Run("priority follows real prerequisites", func(t *testing.T) {
-		document := Plan{Items: []Item{
-			{ID: "publication", Status: StatusOpen, Steps: []Step{
-				{ID: "memoize", Status: StatusOpen, Verify: "go test ./internal/gate", DependsOn: []string{"publication/measure", "selection/source-binding"}},
-				{ID: "measure", Status: StatusOpen, Verify: "go test ./internal/gate"},
-				{ID: "tooling", Status: StatusOpen, Verify: "go test ./cmd/plan"},
-			}},
-			{ID: "selection", Status: StatusOpen, Steps: []Step{{ID: "source-binding", Status: StatusOpen, Verify: "go test ./internal/automationcheck"}}},
-		}}
-		before := document.Digest()
-		ordered, err := dispatchPriority(document, worklease.UnassignedRole)
-		if err != nil {
-			t.Fatal(err)
-		}
-		want := []Ref{{Item: "publication", Step: "measure"}, {Item: "selection", Step: "source-binding"}, {Item: "publication", Step: "tooling"}}
-		if !slices.Equal(ordered, want) {
-			t.Fatalf("priority=%v want=%v", ordered, want)
-		}
-		if document.Digest() != before {
-			t.Fatal("scheduling rewrote the plan")
-		}
-	})
-	t.Run("inspection selection and contract changes", func(t *testing.T) {
-		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer store.Close()
-		document := frontierTestPlan()
-		head, sequence := store.Head()
-		view, err := selectDispatch(t.Context(), store, document, worklease.UnassignedRole, "C:/repo/first", "worker-one", "")
-		if err != nil || view.Item != "alpha" || view.Step != "one" || view.Claim != nil {
-			t.Fatalf("inspection=%+v %v", view, err)
-		}
-		if after, count := store.Head(); after != head || count != sequence {
-			t.Fatal("inspection acquired ownership")
-		}
-		lease := dispatchLeaseFixture(t, "alpha/one", "C:/repo/first", "worker-one", "head")
-		lease.Contract, err = dispatchContract(document.Items[0], document.Items[0].Steps[0])
-		if err != nil {
-			t.Fatal(err)
-		}
-		lease, err = worklease.New(lease)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := recordClaim(t, store, lease); err != nil {
-			t.Fatal(err)
-		}
-		for _, worker := range []string{"worker-two", ""} {
-			view, err := selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, worker, "")
-			if err != nil || view.Waiting == "" || view.Claim == nil || view.Complete {
-				t.Fatalf("same-tree inspection=%+v %v", view, err)
-			}
-		}
-		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, "C:/repo/second", "worker-two", "")
-		if err != nil || view.Item != "beta" || view.Step != "solo" || view.Waiting != "" {
-			t.Fatalf("independent selection=%+v %v", view, err)
-		}
-		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, lease.Worker, "")
-		if err != nil || view.Claim == nil || view.Claim.ID != lease.ID || view.Waiting != "" {
-			t.Fatalf("resume=%+v %v", view, err)
-		}
-		document.Items[0].Steps[1].Title = "unrelated sibling edit"
-		if err := validateDispatchContract(document, lease, worklease.UnassignedRole); err != nil {
-			t.Fatalf("sibling invalidated claim: %v", err)
-		}
-		document.Items[0].Steps[0].Verify = "go test ./internal/artifact"
-		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, lease.Worker, "")
-		if err != nil || view.Claim != nil || view.amends == nil || view.amends.ID != lease.ID || view.Waiting != "" {
-			t.Fatalf("changed contract resumed without renewal: %+v %v", view, err)
-		}
-	})
-	t.Run("competing workers share one atomic winner", func(t *testing.T) {
-		for _, sharedTree := range []bool{false, true} {
-			t.Run(fmt.Sprint(sharedTree), func(t *testing.T) {
-				store, err := overgodb.Open(t.TempDir())
-				if err != nil {
-					t.Fatal(err)
-				}
-				defer store.Close()
-				first := dispatchLeaseFixture(t, "alpha/one", "C:/repo/first", "worker-one", "head")
-				second := dispatchLeaseFixture(t, "alpha/one", "C:/repo/second", "worker-two", "head")
-				if sharedTree {
-					second.Worktree = first.Worktree
-					second, err = worklease.New(second)
-					if err != nil {
-						t.Fatal(err)
-					}
-				}
-				start := make(chan struct{})
-				type result struct {
-					lease worklease.Lease
-					err   error
-				}
-				results := make(chan result, 2)
-				for _, lease := range []worklease.Lease{first, second} {
-					content, err := worklease.Codec.Content(lease)
-					if err != nil {
-						t.Fatal(err)
-					}
-					go func() {
-						<-start
-						actual, err := worklease.Record(t.Context(), store, content.Data)
-						results <- result{actual, err}
-					}()
-				}
-				close(start)
-				var winners []worklease.Lease
-				for range []worklease.Lease{first, second} {
-					result := <-results
-					if result.err == nil {
-						winners = append(winners, result.lease)
-					}
-				}
-				if len(winners) != 1 {
-					t.Fatalf("atomic winner count = %d", len(winners))
-				}
-				if err := worklease.ResolveOwner(t.Context(), store, winners[0]); err != nil {
-					t.Fatal(err)
-				}
-				loser := first
-				if winners[0].ID == first.ID {
-					loser = second
-				}
-				for _, alias := range worklease.Aliases(loser)[1:] {
-					id, found, err := artifact.ResolveAlias(t.Context(), store, alias)
-					if err != nil || found && id == loser.ID {
-						t.Fatalf("loser published partial ownership: %s %v", alias, err)
-					}
-				}
-			})
-		}
-	})
-	t.Run("restart release replay and reacquisition", func(t *testing.T) {
-		path := filepath.Join(t.TempDir(), "store")
-		store, err := overgodb.Open(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		lease := dispatchLeaseFixture(t, "alpha/one", "C:/repo/first", "worker-one", "first-head")
-		if _, err := recordClaim(t, store, lease); err != nil {
-			t.Fatal(err)
-		}
-		head, sequence := store.Head()
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
-		store, err = overgodb.Open(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer store.Close()
-		if resumed, err := recordClaim(t, store, lease); err != nil || resumed.ID != lease.ID {
-			t.Fatalf("resume = %s %v", resumed.ID, err)
-		}
-		if after, count := store.Head(); after != head || count != sequence {
-			t.Fatal("retry duplicated acquisition")
-		}
-		if err := releaseClaim(t, store, lease.ID, "other-worker", "cancelled"); err == nil {
-			t.Fatal("foreign worker released claim")
-		}
-		if err := releaseClaim(t, store, lease.ID, lease.Worker, "expired"); err == nil {
-			t.Fatal("time-based release admitted")
-		}
-		if err := releaseClaim(t, store, lease.ID, lease.Worker, "cancelled"); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := recordClaim(t, store, lease); err == nil {
-			t.Fatal("released acquisition replay pretended to own work")
-		}
-		if _, found, err := worklease.Read(t.Context(), store, lease.ID); err != nil || !found {
-			t.Fatalf("released evidence lost: %v", err)
-		}
-		next := dispatchLeaseFixture(t, lease.Task, lease.Worktree, lease.Worker, "after-release")
-		if _, err := recordClaim(t, store, next); err != nil {
-			t.Fatal(err)
-		}
-		if err := releaseClaim(t, store, lease.ID, lease.Worker, "cancelled"); err != nil {
-			t.Fatal(err)
-		}
-		if err := worklease.ResolveOwner(t.Context(), store, next); err != nil {
-			t.Fatalf("old release displaced successor: %v", err)
-		}
-	})
-	t.Run("renewal and legacy writes preserve exact ownership", func(t *testing.T) {
-		store, err := overgodb.Open(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer store.Close()
-		lease := dispatchLeaseFixture(t, "alpha/one", "C:/repo/first", "worker-one", "head")
-		if _, err := recordClaim(t, store, lease); err != nil {
-			t.Fatal(err)
-		}
-		legacy := workLeaseFixture(t, lease.Task, lease.Worktree)
-		if _, err := recordClaim(t, store, legacy); err == nil {
-			t.Fatal("legacy write displaced dispatch claim")
-		}
-		next := lease
-		next.Previous = lease.ID
-		next.Contract = fmt.Sprintf("%x", sha256.Sum256([]byte("reviewed amendment")))
-		next, err = worklease.New(next)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := recordClaim(t, store, next); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := recordClaim(t, store, lease); err == nil {
-			t.Fatal("stale claim displaced renewal")
-		}
-		if err := releaseClaim(t, store, lease.ID, lease.Worker, "handoff"); err == nil {
-			t.Fatal("old owner released renewal")
-		}
-		if err := worklease.ResolveOwner(t.Context(), store, next); err != nil {
-			t.Fatal(err)
-		}
-		otherTask := dispatchLeaseFixture(t, "beta/one", lease.Worktree, "worker-two", "head")
-		if _, err := recordClaim(t, store, otherTask); err == nil {
-			t.Fatal("different task permitted simultaneous worktree mutation")
-		}
-		otherTree := dispatchLeaseFixture(t, "beta/one", "C:/repo/second", "worker-two", "head")
-		if _, err := recordClaim(t, store, otherTree); err != nil {
-			t.Fatalf("independent claim refused: %v", err)
-		}
-	})
-}
-
-func releaseClaim(t *testing.T, store *overgodb.Store, id artifact.ID, worker, reason string) error {
-	t.Helper()
-	lease, found, err := worklease.Read(t.Context(), store, id)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return fmt.Errorf("lease %s missing", id)
-	}
-	batch, err := lease.ReleaseBatch(worker, reason)
-	if err != nil {
-		return err
-	}
-	_, err = store.CommitAs(t.Context(), gateDoor, batch)
-	return err
+	return got
 }
 
 func TestStopStateContract(t *testing.T) {
 	t.Parallel()
-	fixture := func(t *testing.T) (string, *overgodb.Store, ControlEvent) {
-		t.Helper()
-		root := t.TempDir()
-		store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { store.Close() })
-		return root, store, ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "stop-worker", Worktree: filepath.ToSlash(root), Mode: ExecutionAll, ReasonCode: "user-stop", Detail: "operator asked to stop", CodeCommit: orchestrationHead}
-	}
-	record := func(t *testing.T, store *overgodb.Store, event ControlEvent) ControlEvent {
-		t.Helper()
-		got, err := RecordControlEvent(t.Context(), store, event)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return got
-	}
 	t.Run("persistent scope and exact maintenance", func(t *testing.T) {
-		root, store, event := fixture(t)
-		stop := record(t, store, event)
+		root, event := stopFixture(t)
+		stop := recordStop(t, event)
 		changed := strings.Repeat("b", len(orchestrationHead))
-		current, err := ReadStop(t.Context(), store, root, changed, ExecutionInteractive)
+		current, err := ReadStop(t.Context(), root, changed, ExecutionInteractive)
 		if err != nil || !current.Blocked || current.ID != stop.ID {
 			t.Fatalf("foreign commit resumed stop: %+v %v", current, err)
 		}
@@ -430,33 +46,28 @@ func TestStopStateContract(t *testing.T) {
 		grant.Task = "row/do"
 		grant.Previous = stop.ID
 		grant.CodeCommit = changed
-		granted := record(t, store, grant)
-		if err := current.RequireExecution(t.Context(), store, event.Lane, event.Worker, ExecutionInteractive, grant.Task, granted.ID.String()); err != nil {
+		granted := recordStop(t, grant)
+		current, err = ReadStop(t.Context(), root, changed, ExecutionInteractive)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := current.RequireExecution(event.Lane, event.Worker, ExecutionInteractive, grant.Task, granted.ID.String()); err != nil {
 			t.Fatal(err)
 		}
 		for _, mutate := range []func(*ControlEvent){func(e *ControlEvent) { e.Worker = "another-worker" }, func(e *ControlEvent) { e.Task = "row/other" }, func(e *ControlEvent) { e.Lane = "other-owner" }} {
 			wrong := event
 			wrong.Task = grant.Task
 			mutate(&wrong)
-			if err := current.RequireExecution(t.Context(), store, wrong.Lane, wrong.Worker, ExecutionInteractive, wrong.Task, granted.ID.String()); err == nil {
+			if err := current.RequireExecution(wrong.Lane, wrong.Worker, ExecutionInteractive, wrong.Task, granted.ID.String()); err == nil {
 				t.Fatal("maintenance escaped owner/task scope")
 			}
 		}
-		if err := current.RequireExecution(t.Context(), store, event.Lane, event.Worker, ExecutionUnattended, grant.Task, granted.ID.String()); err == nil {
+		if err := current.RequireExecution(event.Lane, event.Worker, ExecutionUnattended, grant.Task, granted.ID.String()); err == nil {
 			t.Fatal("maintenance resumed unattended work")
 		}
-		persisted, err := ReadStop(t.Context(), store, root, changed, ExecutionUnattended)
+		persisted, err := ReadStop(t.Context(), root, changed, ExecutionUnattended)
 		if err != nil || !persisted.Blocked || persisted.ID != stop.ID {
 			t.Fatalf("grant moved stop: %+v %v", persisted, err)
-		}
-		reopened, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer reopened.Close()
-		restarted, err := ReadStop(t.Context(), reopened, root, changed, ExecutionInteractive)
-		if err != nil || restarted.ID != stop.ID || !restarted.Blocked {
-			t.Fatal("restart lost stop")
 		}
 		resumed := event
 		resumed.Kind = "resume"
@@ -467,86 +78,58 @@ func TestStopStateContract(t *testing.T) {
 		for _, mutate := range []func(*ControlEvent){func(e *ControlEvent) { e.Lane = "other-owner" }, func(e *ControlEvent) { e.Mode = ExecutionUnattended }, func(e *ControlEvent) { e.Previous = granted.ID }} {
 			wrong := resumed
 			mutate(&wrong)
-			if _, err := RecordControlEvent(t.Context(), store, wrong); err == nil {
+			if _, err := RecordStop(t.Context(), wrong); err == nil {
 				t.Fatal("resume ignored owner/scope/identity mismatch")
 			}
 		}
-		done := record(t, store, resumed)
-		after, err := ReadStop(t.Context(), reopened, root, orchestrationHead, ExecutionUnattended)
+		done := recordStop(t, resumed)
+		after, err := ReadStop(t.Context(), root, orchestrationHead, ExecutionUnattended)
 		if err != nil || after.Blocked || after.State != "resumed" || after.ID != done.ID {
-			t.Fatalf("explicit resume not visible to existing reader: %+v %v", after, err)
+			t.Fatalf("explicit resume not visible: %+v %v", after, err)
 		}
-		if err := after.RequireExecution(t.Context(), store, event.Lane, event.Worker, ExecutionInteractive, grant.Task, granted.ID.String()); err == nil {
+		if err := after.RequireExecution(event.Lane, event.Worker, ExecutionInteractive, grant.Task, granted.ID.String()); err == nil {
 			t.Fatal("stale maintenance survived explicit resume")
 		}
 	})
 	t.Run("stop while gate mutation owner runs", func(t *testing.T) {
-		root, store, event := fixture(t)
+		root, event := stopFixture(t)
 		lock, err := authoritylock.Acquire(root)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer lock.Close()
-		record(t, store, event)
-		status, err := ReadStop(t.Context(), store, root, event.CodeCommit, ExecutionUnattended)
+		recordStop(t, event)
+		status, err := ReadStop(t.Context(), root, event.CodeCommit, ExecutionUnattended)
 		if err != nil || !status.Blocked {
 			t.Fatal("running gate prevented stop")
 		}
 	})
 	t.Run("scope leaves unrelated mode eligible", func(t *testing.T) {
-		root, store, event := fixture(t)
+		root, event := stopFixture(t)
 		event.Mode = ExecutionUnattended
-		record(t, store, event)
+		recordStop(t, event)
 		for _, mode := range []string{ExecutionInteractive, ExecutionUnattended} {
-			got, err := ReadStop(t.Context(), store, root, event.CodeCommit, mode)
+			got, err := ReadStop(t.Context(), root, event.CodeCommit, mode)
 			if err != nil || got.Blocked != (mode == ExecutionUnattended) {
 				t.Fatalf("scope=%s %+v %v", mode, got, err)
 			}
 		}
 	})
-	t.Run("legacy mismatch migration and malformed repair", func(t *testing.T) {
-		for _, malformed := range []bool{false, true} {
-			t.Run(fmt.Sprint(malformed), func(t *testing.T) {
-				root, store, event := fixture(t)
-				if err := os.MkdirAll(filepath.Join(root, "docs"), 0700); err != nil {
-					t.Fatal(err)
-				}
-				raw := []byte(fmt.Sprintf("{\"reason\":\"user-stop: operator paused\",\"head\":%q}\n", orchestrationHead))
-				if malformed {
-					raw = []byte("{invalid stop bytes")
-				}
-				path := filepath.Join(root, legacyStopPath)
-				if err := os.WriteFile(path, raw, 0600); err != nil {
-					t.Fatal(err)
-				}
-				got, err := ReadStop(t.Context(), store, root, strings.Repeat("b", len(orchestrationHead)), ExecutionUnattended)
-				if err != nil || !got.Blocked || (!malformed && !got.LegacyMismatch) {
-					t.Fatalf("legacy projection: %+v %v", got, err)
-				}
-				event.Previous = got.ID
-				if !malformed {
-					event.Kind = "resume"
-					event.ReasonCode = "operator-resume"
-					event.Detail = "operator explicitly continued"
-				}
-				migrated := record(t, store, event)
-				actual, err := os.ReadFile(path)
-				if err != nil || !bytes.Equal(actual, raw) {
-					t.Fatal("migration rewrote legacy marker")
-				}
-				content, found, err := artifact.ReadContent(t.Context(), store, got.ID)
-				if err != nil || !found || !bytes.Equal(content.Data, raw) {
-					t.Fatal("migration did not retain exact legacy bytes")
-				}
-				final, err := ReadStop(t.Context(), store, root, event.CodeCommit, ExecutionUnattended)
-				if err != nil || final.ID != migrated.ID || final.Blocked != malformed {
-					t.Fatalf("migration state: %+v %v", final, err)
-				}
-			})
+	t.Run("malformed stop file blocks for repair", func(t *testing.T) {
+		root, _ := stopFixture(t)
+		if err := processlock.EnsureStateDirectory(root); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, processlock.StateDirectory, stopFile), []byte("{invalid stop bytes"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := ReadStop(t.Context(), root, orchestrationHead, ExecutionUnattended)
+		if err != nil || !got.Blocked || got.State != "invalid" {
+			t.Fatalf("malformed stop file: %+v %v", got, err)
 		}
 	})
 	t.Run("concurrent writers cannot replace unseen stop", func(t *testing.T) {
-		_, store, event := fixture(t)
+		_, event := stopFixture(t)
 		start := make(chan struct{})
 		results := make(chan error, 2)
 		for _, worker := range []string{"worker-one", "worker-two"} {
@@ -554,7 +137,7 @@ func TestStopStateContract(t *testing.T) {
 				next := event
 				next.Worker = worker
 				<-start
-				_, err := RecordControlEvent(t.Context(), store, next)
+				_, err := RecordStop(t.Context(), next)
 				results <- err
 			}()
 		}
@@ -569,4 +152,39 @@ func TestStopStateContract(t *testing.T) {
 			t.Fatalf("stop winners=%d", wins)
 		}
 	})
+}
+
+// TestStopStateLivesOutsideTheStore records a stop and its resume in a
+// checkout that holds a store: the decisions land in the checkout's process
+// state and the store's head does not move, so an operator toggle neither
+// churns the evidence every store-reading suite depends on nor needs the
+// store to be read.
+func TestStopStateLivesOutsideTheStore(t *testing.T) {
+	t.Parallel()
+	root, event := stopFixture(t)
+	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, sequence := store.Head()
+	stop := recordStop(t, event)
+	resume := event
+	resume.Kind, resume.ReasonCode, resume.Detail, resume.Previous = "resume", "operator-resume", "operator continued", stop.ID
+	recordStop(t, resume)
+	if after, afterSequence := store.Head(); after != before || afterSequence != sequence {
+		t.Fatalf("recording a stop moved the store head from %v/%d to %v/%d", before, sequence, after, afterSequence)
+	}
+	if _, err := os.Stat(filepath.Join(root, processlock.StateDirectory, stopFile)); err != nil {
+		t.Fatalf("stop state is not in the checkout's process state: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(root, "overgodb-store")); err != nil {
+		t.Fatal(err)
+	}
+	status, err := ReadStop(t.Context(), root, orchestrationHead, ExecutionUnattended)
+	if err != nil || status.State != "resumed" || status.Blocked {
+		t.Fatalf("stop state unreadable without the store: %+v %v", status, err)
+	}
 }

@@ -1,9 +1,8 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/plan"
@@ -74,11 +73,11 @@ func TestRelocateItemReranksWithoutLoss(t *testing.T) {
 		{ID: "a", Status: "open", Steps: step}, {ID: "b", Status: "open", Steps: step}, {ID: "c", Status: "open", Steps: step},
 	}}
 	order := func(document plan.Plan) string {
-		ids := ""
+		var ids strings.Builder
 		for _, it := range document.Items {
-			ids += it.ID
+			ids.WriteString(it.ID)
 		}
-		return ids
+		return ids.String()
 	}
 	top, err := relocateItem(base, "c", "")
 	if err != nil || order(top) != "cab" {
@@ -120,40 +119,6 @@ func TestRelocateItemReranksWithoutLoss(t *testing.T) {
 	}
 }
 
-// TestBudgetDeclarationGoesThroughThePlan pins -budget's pure core: a row's
-// scope is recorded on the open row with its reason, a re-budget replaces
-// it, and a declaration without a reason, for a row that is not open, or
-// whose paydown is itself or not an open row is refused.
-func TestBudgetDeclarationGoesThroughThePlan(t *testing.T) {
-	t.Parallel()
-	base := plan.Plan{Items: []plan.Item{
-		{ID: "row", Status: plan.StatusOpen}, {ID: "paydown", Status: plan.StatusOpen}, {ID: "landed", Status: "done"},
-	}}
-	declared := plan.Budget{Nodes: 44, Paydown: "paydown", Reason: "schema field"}
-	budgeted, err := declareBudget(base, "row", declared)
-	if err != nil || budgeted.Items[0].Budget.Nodes != 44 || budgeted.Items[0].Budget.Paydown != "paydown" {
-		t.Fatalf("declared budget = %+v, %v", budgeted.Items[0].Budget, err)
-	}
-	if again, err := declareBudget(budgeted, "row", plan.Budget{Nodes: 60, Reason: "outgrew it"}); err != nil || again.Items[0].Budget.Nodes != 60 || again.Items[0].Budget.Paydown != "" {
-		t.Fatalf("re-budget = %+v, %v", again.Items[0].Budget, err)
-	}
-	for name, refused := range map[string]struct {
-		id     string
-		budget plan.Budget
-	}{
-		"no reason":          {"row", plan.Budget{Nodes: 1}},
-		"a row not open":     {"landed", plan.Budget{Nodes: 1, Reason: "r"}},
-		"an unknown row":     {"absent", plan.Budget{Nodes: 1, Reason: "r"}},
-		"its own paydown":    {"row", plan.Budget{Nodes: 1, Reason: "r", Paydown: "row"}},
-		"a landed paydown":   {"row", plan.Budget{Nodes: 1, Reason: "r", Paydown: "landed"}},
-		"an unknown paydown": {"row", plan.Budget{Nodes: 1, Reason: "r", Paydown: "absent"}},
-	} {
-		if _, err := declareBudget(base, refused.id, refused.budget); err == nil {
-			t.Fatalf("a budget with %s was recorded", name)
-		}
-	}
-}
-
 // TestEnforceSetVerify pins the pure verify-assignment: it replaces the named
 // step's verify (closing the hand-edit-plan.json gap) and rejects an absent
 // item or step.
@@ -177,44 +142,6 @@ func TestEnforceSetVerify(t *testing.T) {
 	}
 	if _, err := assignVerify(base, "nope", "s1", "x"); err == nil {
 		t.Fatal("unknown item must be rejected")
-	}
-}
-
-func TestSetVerifyResolvesUpdatedAuthorityBeforeSaving(t *testing.T) {
-	document := plan.Plan{Items: []plan.Item{{
-		ID: "item", Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: "do", Status: plan.StatusOpen, Verify: "old verifier",
-		}},
-	}}}
-	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(root, filepath.FromSlash(plan.Path))
-	if err := plan.Save(path, document); err != nil {
-		t.Fatal(err)
-	}
-	previous, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(root); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chdir(previous); err != nil {
-			t.Errorf("restore working directory: %v", err)
-		}
-	})
-	if err := setStepVerify(root, "item", "do", "new verifier", worklease.UnassignedRole); err == nil {
-		t.Fatal("setverify saved without resolving the updated plan authority")
-	}
-	stored, err := plan.Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := stored.Items[0].Steps[0].Verify; got != "old verifier" {
-		t.Fatalf("verify changed before authority resolved: %q", got)
 	}
 }
 

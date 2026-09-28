@@ -39,7 +39,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 	var work runrecord.InteractionWork
 	var lastID artifact.ID
 	for ordinal := range baselineCommits {
-		payload := []byte(fmt.Sprintf("interaction-baseline/%d", ordinal))
+		payload := fmt.Appendf(nil, "interaction-baseline/%d", ordinal)
 		id, err := artifact.IdentifyBytes(artifact.KindRun, payload)
 		if err != nil {
 			t.Fatal(err)
@@ -57,7 +57,7 @@ func TestInteractionEfficiencyBaseline(t *testing.T) {
 		lastID = id
 	}
 	for ordinal := range baselineReadSample {
-		payload := []byte(fmt.Sprintf("interaction-baseline/%d", ordinal))
+		payload := fmt.Appendf(nil, "interaction-baseline/%d", ordinal)
 		id, err := artifact.IdentifyBytes(artifact.KindRun, payload)
 		if err != nil {
 			t.Fatal(err)

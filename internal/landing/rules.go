@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"overgo/internal/gitauthority"
@@ -21,7 +23,8 @@ import (
 
 // rules compares the changed files with HEAD: no bytes a record pins move,
 // the pinned media runtime moves only with its reconciliation, no new style
-// finding, no new inline policy number, and no new export without a consumer.
+// finding, no new inline policy number, no new legacy form go fix leaves,
+// and no new export without a consumer.
 func (l *landing) rules(ctx context.Context) error {
 	stale, err := stalePins(l.Repo, l.paths)
 	if err != nil {
@@ -40,7 +43,7 @@ func (l *landing) rules(ctx context.Context) error {
 	if err := repoanalysis.ValidateGoStyleDelta(candidate, base); err != nil {
 		return err
 	}
-	findings := newPolicyLiterals(base, candidate)
+	findings := append(newPolicyLiterals(base, candidate), newLegacyForms(base, candidate)...)
 	exports, err := l.newUnconsumedExports(base, candidate)
 	if err != nil {
 		return err
@@ -109,8 +112,10 @@ func newPolicyLiterals(base, candidate gosyntax.Snapshot) []string {
 	return findings
 }
 
-// literalCounts counts each number written inline by file, enclosing
-// declaration and value.
+// literalCounts counts each number written inline by file and value. A
+// count keyed by file, not by enclosing declaration, still rises when a
+// change adds a number, and holds when a change renames or moves the
+// function that already had it.
 func literalCounts(snapshot gosyntax.Snapshot) map[string]int {
 	counts := map[string]int{}
 	for _, file := range snapshot.Files {
@@ -122,25 +127,114 @@ func literalCounts(snapshot gosyntax.Snapshot) map[string]int {
 			continue
 		}
 		for _, declaration := range syntax.Decls {
-			scope := "package"
-			switch typed := declaration.(type) {
-			case *ast.GenDecl:
-				if typed.Tok == token.CONST {
-					continue
-				}
-			case *ast.FuncDecl:
-				scope = typed.Name.Name
+			if general, ok := declaration.(*ast.GenDecl); ok && general.Tok == token.CONST {
+				continue
 			}
 			ast.Inspect(declaration, func(node ast.Node) bool {
 				literal, ok := node.(*ast.BasicLit)
 				if ok && (literal.Kind == token.INT || literal.Kind == token.FLOAT) && literal.Value != "0" && literal.Value != "1" {
-					counts[file.Path+" "+scope+" "+literal.Value]++
+					counts[file.Path+" "+literal.Value]++
 				}
 				return true
 			})
 		}
 	}
 	return counts
+}
+
+// newLegacyForms names the forms go fix does not rewrite that a changed
+// file gained: sort.Slice where slices.SortFunc serves, sync.Once where
+// sync.OnceFunc or sync.OnceValue serves, and an if that falls back from an
+// empty string or zero where cmp.Or serves.
+func newLegacyForms(base, candidate gosyntax.Snapshot) []string {
+	before := legacyFormCounts(base)
+	var findings []string
+	for key, count := range legacyFormCounts(candidate) {
+		if count > before[key] {
+			findings = append(findings, key)
+		}
+	}
+	return findings
+}
+
+// legacyFormCounts counts each legacy form by file and enclosing
+// declaration.
+func legacyFormCounts(snapshot gosyntax.Snapshot) map[string]int {
+	counts := map[string]int{}
+	for _, file := range snapshot.Files {
+		syntax, err := file.Syntax()
+		if generated, _ := file.Generated(); err != nil || generated {
+			continue
+		}
+		imports := map[string]string{}
+		for _, spec := range syntax.Imports {
+			importPath, _ := strconv.Unquote(spec.Path.Value)
+			name := path.Base(importPath)
+			if spec.Name != nil {
+				name = spec.Name.Name
+			}
+			imports[name] = importPath
+		}
+		for _, declaration := range syntax.Decls {
+			scope := "package"
+			if function, ok := declaration.(*ast.FuncDecl); ok {
+				scope = function.Name.Name
+			}
+			ast.Inspect(declaration, func(node ast.Node) bool {
+				if form := legacyForm(node, imports); form != "" {
+					counts["new "+form+" in "+file.Path+" "+scope]++
+				}
+				return true
+			})
+		}
+	}
+	return counts
+}
+
+// legacyForm names the legacy form node is, if any.
+func legacyForm(node ast.Node, imports map[string]string) string {
+	switch typed := node.(type) {
+	case *ast.SelectorExpr:
+		qualifier, ok := typed.X.(*ast.Ident)
+		if !ok {
+			return ""
+		}
+		switch imports[qualifier.Name] + "." + typed.Sel.Name {
+		case "sort.Slice", "sort.SliceStable":
+			return "sort." + typed.Sel.Name + " (use slices.SortFunc or slices.SortStableFunc)"
+		case "sync.Once":
+			return "sync.Once (use sync.OnceFunc, sync.OnceValue or sync.OnceValues)"
+		}
+	case *ast.IfStmt:
+		if zeroFallback(typed) {
+			return "zero-value fallback if (use cmp.Or)"
+		}
+	}
+	return ""
+}
+
+// zeroFallback reports an if with no init or else whose one statement
+// assigns the value it compared with "" or 0.
+func zeroFallback(statement *ast.IfStmt) bool {
+	if statement.Init != nil || statement.Else != nil || len(statement.Body.List) != 1 {
+		return false
+	}
+	comparison, ok := statement.Cond.(*ast.BinaryExpr)
+	assignment, assigns := statement.Body.List[0].(*ast.AssignStmt)
+	if !ok || comparison.Op != token.EQL || !assigns || assignment.Tok != token.ASSIGN || len(assignment.Lhs) != 1 {
+		return false
+	}
+	zero := func(expression ast.Expr) bool {
+		literal, ok := expression.(*ast.BasicLit)
+		return ok && (literal.Value == `""` || literal.Value == "``" || literal.Value == "0")
+	}
+	value := comparison.X
+	if zero(value) {
+		value = comparison.Y
+	} else if !zero(comparison.Y) {
+		return false
+	}
+	return types.ExprString(assignment.Lhs[0]) == types.ExprString(value)
 }
 
 // newUnconsumedExports names exported top-level functions, variables and

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"time"
 
 	"overgo/internal/artifact"
@@ -125,75 +124,20 @@ func canonicalizeGateLifecycle(lifecycle *GateLifecycle) error {
 	return nil
 }
 
-// GateLifecycleAtRest builds the store-local admission a physical store
-// rewrite (rebuild or compaction) needs. The gate lifecycle head may cross
-// only while it is finalized, because a prepared lifecycle is an in-flight
-// gate whose receipts are still being written; the deferred lane obligation
-// may cross in any state but running, because a running obligation is a
-// lane runner still writing its receipts. The documents themselves are
-// content-addressed evidence and survive the rewrite with identical
-// identities; only an in-flight authority blocks it. Any store-local alias
-// this package does not own is refused as unknown.
-func GateLifecycleAtRest(reader artifact.Reader) func(name string, target artifact.ID) error {
-	return func(name string, target artifact.ID) error {
-		switch name {
-		case GateLifecycleCurrentAlias:
-			lifecycle, err := RequireGateLifecycle(context.Background(), reader, target)
-			if err != nil {
-				return err
-			}
-			if lifecycle.State != GateFinalized {
-				return fmt.Errorf("run record: gate lifecycle %s is %s, not at rest", target, lifecycle.State)
-			}
-			return nil
-		case GateLaneObligationAlias:
-			obligation, err := RequireGateLaneObligation(context.Background(), reader, target)
-			if err != nil {
-				return err
-			}
-			if obligation.State == LaneObligationRunning {
-				return fmt.Errorf("run record: gate lane obligation %s is %s, not at rest", target, obligation.State)
-			}
-			return nil
-		default:
-			return fmt.Errorf("run record: unknown store-local authority %q", name)
-		}
-	}
-}
+// retiredGateLaneAlias is the old gate's deferred-lane obligation head.
+const retiredGateLaneAlias = overgodb.StoreLocalAliasPrefix + "gate-lanes/current"
 
-// OutstandingGateDebt derives preparations lacking a finalization.
-func OutstandingGateDebt(records []GateLifecycle) ([]GateLifecycle, error) {
-	prepared := map[artifact.ID]GateLifecycle{}
-	var finalizations []GateLifecycle
-	for _, lifecycle := range records {
-		if err := lifecycle.ValidateIdentity(); err != nil {
-			return nil, err
-		}
-		if lifecycle.State == GatePrepared {
-			prepared[lifecycle.ID] = lifecycle
-		} else {
-			finalizations = append(finalizations, lifecycle)
-		}
+// RetiredGateAliasesAtRest is the store-local admission a physical store
+// rewrite (rebuild or release) needs. The only store-local aliases are the
+// old gate's lifecycle and lane obligation heads, and nothing writes either
+// any more, so both are at rest; their documents are content-addressed and
+// cross the rewrite unchanged. Any other store-local alias is refused as
+// unknown.
+func RetiredGateAliasesAtRest(name string, _ artifact.ID) error {
+	if name == GateLifecycleCurrentAlias || name == retiredGateLaneAlias {
+		return nil
 	}
-	finalized := map[artifact.ID]bool{}
-	for _, lifecycle := range finalizations {
-		preparation, ok := prepared[*lifecycle.Preparation]
-		if !ok {
-			continue
-		}
-		if lifecycle.TreeKey != preparation.TreeKey || lifecycle.Environment != preparation.Environment || lifecycle.Started != preparation.Started {
-			return nil, errors.New("run record: gate finalization contradicts its preparation")
-		}
-		finalized[preparation.ID] = true
-	}
-	debt := make([]GateLifecycle, 0, len(prepared))
-	for id, lifecycle := range prepared {
-		if !finalized[id] {
-			debt = append(debt, lifecycle)
-		}
-	}
-	sort.Slice(debt, func(i, j int) bool { return debt[i].ID.String() < debt[j].ID.String() })
-	return debt, nil
+	return fmt.Errorf("run record: unknown store-local authority %q", name)
 }
 
 // GateLifecyclesInStore returns every exact typed lifecycle in durable order

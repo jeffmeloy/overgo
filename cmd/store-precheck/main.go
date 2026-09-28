@@ -1,13 +1,13 @@
 // store-precheck proves a store maintenance operation on a candidate before
 // it goes into service. It clones the sealed backup of the live store with
 // hard-linked blobs, releases the unreachable derived caches on the clone,
-// and runs the consumers that bind to the store against it: the plan
-// completion authority, the published recipe chains and the closure ledger.
-// It prints a typed receipt and, with -swap, renames the candidate into
-// service only when every check passed, keeping the superseded store beside
-// it. Two stores that passed hand-picked checks went into service and broke
-// the plan authority within minutes; this command is the check that would
-// have refused them, run by the operation rather than chosen by its operator.
+// and runs the checks that bind to the store against it: blob identity and
+// the published recipe chains. It prints a typed receipt and, with -swap,
+// renames the candidate into service only when every check passed, keeping
+// the superseded store beside it. Two stores that passed hand-picked checks
+// went into service and broke their readers within minutes; this command is
+// the check that would have refused them, run by the operation rather than
+// chosen by its operator.
 package main
 
 import (
@@ -149,7 +149,7 @@ func precheck(ctx context.Context, repository, backup, checkout, candidate strin
 		return result, err
 	}
 	defer store.Close()
-	released, err := overgodb.Release(ctx, store, runrecord.GateLifecycleAtRest(store),
+	released, err := overgodb.Release(ctx, store, runrecord.RetiredGateAliasesAtRest,
 		overgodb.RetentionPolicy{Roots: roots, FollowChildren: storepolicy.FollowChildren}, storepolicy.DerivedCache)
 	if err != nil {
 		return result, err

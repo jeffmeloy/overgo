@@ -17,7 +17,7 @@ func BenchmarkSnapshotReplay(b *testing.B) {
 		b.Fatal(err)
 	}
 	for sequence := range benchmarkReplayCommits {
-		payload := []byte(fmt.Sprintf("benchmark-artifact-%d", sequence))
+		payload := fmt.Appendf(nil, "benchmark-artifact-%d", sequence)
 		id := testutil.ArtifactBytesID(b, artifact.KindRun, payload)
 		_, err = store.Commit(b.Context(), artifact.Batch{
 			Key: fmt.Sprintf("benchmark/%d", sequence),
@@ -57,7 +57,7 @@ func BenchmarkCompaction(b *testing.B) {
 	defer source.Close()
 	var previous artifact.ID
 	for sequence := range benchmarkReplayCommits {
-		data := []byte(fmt.Sprintf("benchmark-content-%d", sequence))
+		data := fmt.Appendf(nil, "benchmark-content-%d", sequence)
 		id := testutil.ArtifactBytesID(b, artifact.KindEvidence, data)
 		batch := artifact.Batch{
 			Key: fmt.Sprintf("benchmark/compact/%d", sequence),

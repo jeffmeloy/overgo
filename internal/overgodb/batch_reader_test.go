@@ -26,7 +26,7 @@ func TestHighFanoutReadsAreBatched(t *testing.T) {
 	const fanout = 48
 	ids := make([]artifact.ID, fanout)
 	for ordinal := range fanout {
-		payload := []byte(fmt.Sprintf("fanout/%d", ordinal))
+		payload := fmt.Appendf(nil, "fanout/%d", ordinal)
 		id, err := artifact.IdentifyBytes(artifact.KindEvidence, payload)
 		if err != nil {
 			t.Fatal(err)

@@ -90,7 +90,7 @@ func aliasName(ordinal int) string { return fmt.Sprintf("scale/alias/%d", ordina
 
 func scaleContent(ordinal int) []byte {
 	content := make([]byte, 0, scaleContentBytes)
-	seed := sha256.Sum256([]byte(fmt.Sprintf("scale-corpus/%d", ordinal)))
+	seed := sha256.Sum256(fmt.Appendf(nil, "scale-corpus/%d", ordinal))
 	for len(content) < scaleContentBytes {
 		seed = sha256.Sum256(seed[:])
 		content = append(content, seed[:]...)

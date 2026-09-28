@@ -498,6 +498,8 @@ type Handler struct {
 	observationErrors  atomic.Uint64
 	servingEvents      servingEvents
 	events             *eventHub
+	// templateReasoning: the chat template's reasoning control, found once by rendering.
+	templateReasoning func() *workspaceReasoning
 	servingWorkspace
 	operatorWorkspace
 	agentWorkspace
@@ -671,6 +673,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 			browseRepository: browseRepository,
 		},
 	}
+	handler.templateReasoning = sync.OnceValue(handler.probeTemplateReasoning)
 	handler.tensorLifetime, handler.stopTensorLifetime = context.WithCancelCause(context.Background())
 	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
 		handler.modelArtifact = identity.ModelID()

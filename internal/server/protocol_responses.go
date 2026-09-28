@@ -13,6 +13,7 @@ import (
 
 	"strconv"
 
+	"slices"
 	"strings"
 
 	"time"
@@ -391,6 +392,9 @@ func (h *Handler) streamResponses(
 			return
 		}
 		defer turnBuffer.stop()
+		// A continuation's reply is the stopped words and then its own, as it
+		// is stored, so a reader following it mid-turn sees the whole reply.
+		turnBuffer.append(session.prefix)
 		// Reserve the response identity and prompt before the client can observe
 		// it. A restart leaves an inconclusive record, never a reused ID.
 		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, turn, runrecord.OutcomeInconclusive, "", turnRecord{continues: session.continues}); err != nil {
@@ -826,6 +830,10 @@ func (h *Handler) responsesChatTurn(response http.ResponseWriter, request *http.
 	chat := chatCompletionRequest{Messages: messages}
 	if len(tools.prompt) != 0 || body.Reasoning != nil {
 		chat.TemplateKwargs = map[string]any{templateThinkingKwarg: thinking}
+	}
+	// A level the template admits reaches it as reasoning_effort.
+	if body.Reasoning != nil && slices.Contains(reasoningEfforts, body.Reasoning.Effort) {
+		chat.TemplateKwargs["reasoning_effort"] = body.Reasoning.Effort
 	}
 	if chatMediaCount(messages) != 0 {
 		chat.Tools = tools.active

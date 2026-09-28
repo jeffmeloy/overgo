@@ -158,12 +158,23 @@
       // Speculation is offered only when the served model declares a draft head; its drafts verify greedily.
       const speculative = capabilities.speculative ? el("input", { type: "checkbox", "aria-label": "speculative decoding", "data-draft-setting": "speculative" }) : null;
       if (speculative) speculative.checked = draft.speculative === true;
+      // A reasoning level is offered only when the chat template reads one, with the settings that change its prompt.
+      function reasoningChoices(declared) {
+        if (!declared) return [];
+        const choices = [["", "model default"]];
+        if (declared.off) choices.push(["off", "off"]);
+        return choices.concat((declared.levels || []).map((level) => [level, level]));
+      }
+      const reasoningOptions = reasoningChoices(capabilities.reasoning);
+      const reasoning = reasoningOptions.length ? el("select", { class: "keyfield", "aria-label": "reasoning level", "data-draft-setting": "reasoning" }, ...reasoningOptions.map(([value, label]) => el("option", { value, text: label }))) : null;
+      if (reasoning && reasoningOptions.some(([value]) => value === draft.reasoning)) reasoning.value = draft.reasoning;
 
       const settings = document.getElementById("conversation-settings");
       const focusedSetting = settings.contains(document.activeElement) && document.activeElement.dataset.draftSetting;
       settings.replaceChildren(el("section", { class: "settings-section" }, el("h3", { text: "Conversation" }),
         el("label", { class: "setting-field" }, "System prompt", system),
         el("div", { class: "settings-fields" }, el("label", { class: "setting-field" }, "Temperature", temperature), el("label", { class: "setting-field" }, "Maximum output tokens", maxTokens)),
+        reasoning ? el("label", { class: "setting-field" }, "Reasoning level", reasoning) : null,
         speculative ? el("label", { class: "setting-check" }, speculative, "Speculative decoding: draft " + capabilities.speculative.draft_tokens + " tokens a step from the model's draft head, decoding greedily (temperature 0)") : null,
         el("details", {}, el("summary", { text: "Last response usage" }), facts)));
       const exportStatus = el('div', { class: 'note', role: 'status', hidden: true });
@@ -522,12 +533,12 @@
       }
       saveDraft = () => {
         if (overgo.signal.aborted) return;
-        persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, speculative: speculative ? speculative.checked : undefined, mode: composer.mode(),
+        persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, speculative: speculative ? speculative.checked : undefined, reasoning: reasoning ? reasoning.value : undefined, mode: composer.mode(),
           uncertainPrevious: uncertainPrevious === null ? undefined : uncertainPrevious, uncertainText: uncertainPrevious === null ? undefined : uncertainText, uncertainKind: uncertainPrevious === null ? undefined : uncertainKind,
           attachments: composer.attachments.map(item => ({ name: item.name, mime: item.mime, size: item.size, sourceArtifact: item.sourceArtifact, sourceRun: item.sourceRun, document: item.document === true, textApplied: item.textApplied === true })) });
       };
       saveChat = saveDraft;
-      for (const field of [system, temperature, maxTokens, speculative].filter(Boolean)) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
+      for (const field of [system, temperature, maxTokens, speculative, reasoning].filter(Boolean)) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
       updateSwitch = () => { modelNotice.hidden = !overgo.modelSwitching(); updateBusy(); };
       overgo.listen(document, "overgo-model-switch", updateSwitch);
       updateSwitch();
@@ -766,6 +777,7 @@
         if (system.value.trim()) request.instructions = system.value.trim();
         if (temperature.value !== "") request.temperature = Number(temperature.value);
         if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+        if (reasoning && reasoning.value) request.reasoning = { effort: reasoning.value === "off" ? "none" : reasoning.value };
         if (speculative && speculative.checked) Object.assign(request, { speculative: true, temperature: 0 });
         return request;
       }

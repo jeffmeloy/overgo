@@ -38,6 +38,56 @@ type workspaceModelCapabilities struct {
 	// Speculative: the served model's draft head, when it declares one; a
 	// chat turn may then draft its tokens and verify them greedily.
 	Speculative *workspaceSpeculative `json:"speculative,omitempty"`
+	// Reasoning: the reasoning control the chat template honours, when it
+	// reads one.
+	Reasoning *workspaceReasoning `json:"reasoning,omitempty"`
+}
+
+// workspaceReasoning is the reasoning control the served model's chat
+// template honours, found by rendering it: Off when the thinking switch
+// changes the prompt, and each effort level whose prompt no earlier level
+// renders.
+type workspaceReasoning struct {
+	Off    bool     `json:"off,omitzero"`
+	Levels []string `json:"levels,omitempty"`
+}
+
+// reasoningEfforts are the levels a template receives as reasoning_effort,
+// least first.
+var reasoningEfforts = []string{"low", "medium", "high", "xhigh"}
+
+// probeTemplateReasoning renders a one-message probe through the chat template
+// with each reasoning setting and keeps those that change what the model
+// sees; a template that reads none, or no template, offers no control.
+func (h *Handler) probeTemplateReasoning() *workspaceReasoning {
+	formatter, ok := h.generator.(ToolAwareChatFormatter)
+	if !ok {
+		return nil
+	}
+	probe := []inference.ChatMessage{{Role: inference.ChatRoleUser, Content: "?"}}
+	render := func(thinking bool, kwargs map[string]any) (string, bool) {
+		text, err := formatter.FormatChatWithOptions(probe, inference.ChatFormatOptions{
+			AddGenerationPrompt: true, EnableThinking: thinking, TemplateKwargs: kwargs,
+		})
+		return text, err == nil
+	}
+	thinking, thinks := render(true, nil)
+	plain, rendered := render(false, nil)
+	reasoning := workspaceReasoning{Off: thinks && rendered && thinking != plain}
+	seen := map[string]bool{}
+	for _, level := range reasoningEfforts {
+		if text, ok := render(true, map[string]any{"reasoning_effort": level}); ok && !seen[text] {
+			seen[text] = true
+			reasoning.Levels = append(reasoning.Levels, level)
+		}
+	}
+	if len(seen) <= 1 { // a template that ignores the level renders one prompt
+		reasoning.Levels = nil
+	}
+	if !reasoning.Off && len(reasoning.Levels) == 0 {
+		return nil
+	}
+	return &reasoning
 }
 
 // workspaceSpeculative is the tokens each speculative verify span drafts.
@@ -122,6 +172,7 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 	if tokens := h.speculativeDraftTokens(); tokens > 0 {
 		document.Speculative = &workspaceSpeculative{DraftTokens: tokens}
 	}
+	document.Reasoning = h.templateReasoning()
 	document.Adapters = []workspaceAdapter{}
 	if controller, ok := h.generator.(LoRAControlAPI); ok {
 		for _, adapter := range controller.LoRAAdapters() {

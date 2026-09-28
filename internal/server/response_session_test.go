@@ -51,12 +51,22 @@ func (runner *stoppingRunner) Generate(ctx context.Context, prompt string, optio
 	return runner.Runner.Generate(ctx, prompt, options)
 }
 
+// joinedMessagesTemplate is a chat template that joins the messages' text.
+const joinedMessagesTemplate = "{% for m in messages %}{{ m.content }}{% endfor %}"
+
 // openSessionRunner serves the hermetic model on the host path with a chat
 // template that joins the messages' text, with any adapters loaded.
 func openSessionRunner(t *testing.T, contextLength uint32, adapters ...inference.LoRAConfig) *inference.Runner {
 	t.Helper()
+	return openTemplateRunner(t, contextLength, joinedMessagesTemplate, adapters...)
+}
+
+// openTemplateRunner serves the hermetic model on the host path with the
+// chat template and any adapters loaded.
+func openTemplateRunner(t *testing.T, contextLength uint32, template string, adapters ...inference.LoRAConfig) *inference.Runner {
+	t.Helper()
 	path := testutil.HermeticLlamaGGUFWith(t, contextLength,
-		testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, "{% for m in messages %}{{ m.content }}{% endfor %}"))
+		testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, template))
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference)
 	if err != nil {
 		t.Fatal(err)
@@ -166,6 +176,26 @@ func TestResponsesContinueSavedSession(t *testing.T) {
 	continuedTokens, continuedText := stored(continued["id"].(string))
 	if !slices.Equal(continuedTokens.Tokens, referenceTokens.Tokens) || continuedText != referenceText {
 		t.Fatalf("continued %v %q, uninterrupted %v %q", continuedTokens.Tokens, continuedText, referenceTokens.Tokens, referenceText)
+	}
+
+	// Followed mid-turn, a continuation shows the reply it stores: the
+	// stopped words, then its own.
+	runner.reached = make(chan struct{})
+	runner.armed.Store(true)
+	followed := make(chan struct{})
+	go func() {
+		defer close(followed)
+		serveTestRequest(handler, http.MethodPost, "/v1/responses",
+			`{"model":"`+testModelID+`","previous_response_id":"`+stoppedID+`","continue":true,"stream":true,"store":true,"max_output_tokens":5}`)
+	}()
+	<-runner.reached
+	runningID := runningResponse(t, handler)
+	following, _ := handler.inflight.lookup(runningID)
+	text, _, _, _, _ := following.snapshot()
+	serveTestRequest(handler, http.MethodPost, "/interactions/cancel", `{"response":"`+runningID+`","model":"`+testModelID+`"}`)
+	<-followed
+	if _, storedText := stored(runningID); text != storedText {
+		t.Fatalf("a followed continuation showed %q, and stopped there it stored %q", text, storedText)
 	}
 }
 

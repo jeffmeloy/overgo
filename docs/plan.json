@@ -3,5 +3,66 @@
   "doctrine": "GUI cleanup lane (overgo_gui_cleanup), branched from master 3a331e81 on 2026-09-22. Scope: validate, harden and simplify the embedded HTML workbench (internal/server/webui and the server contracts it calls). Capability freeze enforced by structure: no new model family, workflow, optimizer or orchestration framework; rows that need native audio, speech-document admission (master row speech-document-admission) or training-loop producers stay with their owning lanes and are not carried. Baseline measured at 3a331e81: every page acceptance passes and the screens walk captures 104 states at 2 viewports in 2 colour schemes with 0 layout findings, so the order is correctness of client contracts, stream and listener lifecycle, per-tab mount health, accessibility, consolidation, then style and the four GUI improvements that consume capabilities master already serves. Every layout or interaction change is reviewed in the browser pane at desktop and phone widths in both colour schemes before landing, and its acceptance is a browser leg or Go test that fails without the change; a consolidation that removes code holds a ratchet instead. A step's machine check is set with plan -setverify; a check whose real prerequisite cannot run records UNAVAILABLE rather than a pass. Preserve the conversation-first design: flat messages, lists and separators, no cards, reachable Send/Stop, one compact model selector, mobile drawer, settings on demand, status only for progress, failure or required action; keep the same-origin client, CSP and authenticated transport. Lane cycle: merge current master (never its plan.json) before each row when master has moved, re-plan from the merged tree, execute one row, gate. The lane plan never merges into master; publishing lane commits to master needs separate owner authorization. Bind read-only reference stores with OVERGO_SMOKE_REFERENCE_STORE and OVERGO_AUDIO_REFERENCE_STORE at C:/Users/jeffm/overgo/overgodb-store; the data root and browser output stay in this worktree. Merged master 79f5dd18 on 2026-09-23 (8b77d24e): suites now run in parallel (TestSuitesRunInParallel), so every browser leg awaits the state it asserts instead of relying on serial timing, and the catalog gained an image-embedding task the workbench offers no surface for yet (row gui-declared-task-output names it rather than building one: capability freeze). Owner direction 2026-09-23: architecture that runs the system with fewer components, more efficiency and more robustness outranks features; each arch- row deletes a component (one event stream, one event hub, the route table as sole dispatcher, store reads that scale with their answer, one text turn pipeline, one tab resource primitive) and is measured before and after. The lane edits the server, serving and client stack; overgodb, the gate and the closure ledger are master's active substrates, where the lane files evidence-backed proposals instead of edits. Master merged the lane at ff9acf5f2 (78e0cb48) and the lane merged master back at 0aa9853d (7f0a84144). Master rows browser-waits-fail-fast and store-bare-record-fill own the browser-leg deadline and the bare environment record; the lane rows that named them wait before signoff and close on master's checks once a merge brings the fixes (a lane-scoped plan retires a row only by landing it). Owner direction 2026-09-23, relayed by master: one workspace lifecycle owner in the client (loading, error and empty states, cancellation, polling, subscriptions, recovery) replaces every tab's own handling, and a consolidation counts only when it deletes what it replaces, reported as net code removed and repeated work eliminated; arch-tab-resource carries it next after the event stream. Owner direction 2026-09-24: reduce the effort common GUI tasks take. The browser lane measures each common task first (gui-task-effort-baseline) and every effort row (places, one-action onboarding, approve in place, remembered settings) is judged by lowering those counts. Owner direction 2026-09-25 after a LlamaFactory review: adopt its workflow ideas in the current stack only, plain HTML, JavaScript and Go with no framework, build step or Python. Rows gui-training-live, gui-training-preview, gui-adapter-compare, gui-copy-command, gui-memory-estimate and gui-dataset-import carry them, and gui-remember-settings and gui-model-merge absorb presets and export; its optimizer zoo, distributed stacks and hand-kept model and template registries are not adopted, and its preference-loss variants (ORPO, SimPO, KTO) belong to master's training plan. Owner direction 2026-09-25: more classification decisions throughout so automation selects, orders and judges from declared kinds rather than brittle regex or text matching; the lane classifies its own tooling (webui-typed-legs, webui-census-parsed) and relayed the gate, loop, plan and evidence items to master, which owns them.",
   "lane": "overgo_gui_cleanup",
   "scope": "lane",
-  "items": []
+  "items": [
+    {
+      "id": "gui-memory-tiers",
+      "title": "Show the served model's live device memory by owner -- committed arena, buffer pool, cuBLAS, attention and staging -- as a VRAM bar beside its pill, polled from the runner's execution metrics",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Show the served model's live device memory by owner -- committed arena, buffer pool, cuBLAS, attention and staging -- as a VRAM bar beside its pill, polled from the runner's execution metrics",
+          "status": "open",
+          "verify": "test -f internal/server/memory_tiers_test.go \u0026\u0026 go test ./internal/server -run '^TestLiveMemoryTiers$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(MemoryTiers|LayoutAudit)$' -leg 'memory tiers leg'",
+          "rationale": "colibri review 2026-09-27, scoped by owner review: Runner.ExecutionMetrics already reports live device memory by owner (committed arena, buffer pool, cuBLAS, attention and Q8 staging); poll it, instrument nothing new. RAM and disk tiers matter only for models streaming weights from host or disk and wait until one does."
+        }
+      ]
+    },
+    {
+      "id": "gui-phase-profile",
+      "title": "Show a turn's tokens per forward and the recent turns' trend of rate and tokens per forward in the inspector and runtime records",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Show a turn's tokens per forward and the recent turns' trend of rate and tokens per forward in the inspector and runtime records",
+          "status": "open",
+          "verify": "test -f internal/server/turn_profile_test.go \u0026\u0026 go test ./internal/server -run '^TestTurnPhaseProfile$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(PhaseProfile|LayoutAudit)$' -leg 'phase profile leg'",
+          "rationale": "colibri review 2026-09-27, scoped by owner review: tokens per forward (speculation acceptance) and a recent-turn trend are cheap and useful; the matmul, attention and LM-head split is skipped -- timing each phase needs a GPU timestamp around every phase, costs time and does not work inside captured CUDA graphs -- and I/O wait belongs to disk-streaming engines."
+        }
+      ]
+    },
+    {
+      "id": "gui-loop-status",
+      "title": "Show the unattended loop's status -- running or stopped, the row it works, its last landing -- with a stop button that records a user stop",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Show the unattended loop's status -- running or stopped, the row it works, its last landing -- with a stop button that records a user stop",
+          "status": "open",
+          "verify": "test -f internal/server/loop_status_test.go \u0026\u0026 go test ./internal/server -run '^TestLoopStatusAndStop$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(LoopStatus|LayoutAudit)$' -leg 'loop status leg'",
+          "rationale": "Owner goals 2026-09-27: unattended runs need their status visible and a way to stop them from the GUI. The loop supervisor keeps its state under .overgo-runtime (loop.json, loop_supervisor.json); the page shows whether it runs, the row it works and its last landing, and a stop button records the user stop the loop honours. Master has just removed the plan tool's orchestration commands, so the stop's recording path is settled when this row starts."
+        }
+      ]
+    },
+    {
+      "id": "gui-what-got-better",
+      "title": "Show what got better between versions from master's published scorecard -- per model, each cell's delta against the previous run, improvements and regressions named, including gains nobody targeted",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Show what got better between versions from master's published scorecard -- per model, each cell's delta against the previous run, improvements and regressions named, including gains nobody targeted",
+          "status": "open",
+          "verify": "test -f internal/server/version_delta_test.go \u0026\u0026 go test ./internal/server -run '^TestWhatGotBetterBetweenVersions$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(WhatGotBetter|LayoutAudit)$' -leg 'what got better leg'",
+          "rationale": "Owner goals 2026-09-27: the GUI shows the user the improvement, and this is where unintended improvements surface. Master's drafted user-scorecard campaign defines the scorecard (per model: time to first token, tokens per second, held-out quality, failures, load time, peak VRAM, setup steps), runs its cheap slice on landings that reach a model path, and publishes the full run on a schedule as one record with deltas against the previous run. This row renders that record -- it adds no second comparison -- so it waits for user-scorecard/scheduled to land on master and reach the lane by merge; until then it stays behind the loop status row."
+        }
+      ]
+    }
+  ]
 }

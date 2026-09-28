@@ -94,7 +94,9 @@ var lanes = []lane{
 		// shares the device; go test's cache replays each until code it
 		// reads changes.
 		name: "cuda", packages: cudaPackages,
-		command:     func(string) []string { return append([]string{"test", "-p=1"}, cudaPackages...) },
+		// adaptiveparity alone runs about 11 minutes, past go test's
+		// default per-binary timeout.
+		command:     func(string) []string { return append([]string{"test", "-p=1", "-timeout=0"}, cudaPackages...) },
 		environment: []string{"OVERGO_CUDA_TEST=1"},
 	},
 }

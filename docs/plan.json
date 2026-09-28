@@ -4,24 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "simplify-execution-core",
-      "title": "Remove costly execution duplication behind the regression gate",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Remove costly execution duplication behind the regression gate",
-          "status": "open",
-          "verify": "go run ./cmd/clone-census -summary -max-excess 9927",
-          "rationale": "Duplicate excess is 9927 nodes; bind a strictly lower target before starting. Pick a real duplicated CUDA or inference mechanism by cost, preserve accepted behavior, and lower docs/clone_baseline.json through clone-census. Moving or splitting duplication is not acceptance. Moved up 2026-09-27 (owner): one execution core means a fix for one model reaches all of them. Judge it by how many models its shared path serves, measured on the scorecard. 2026-09-27: same method as simplify-prefill-paths: tool-driven, behaviour-preserving transformations proven by the slice's outputs identical; hand edits only for intended behaviour changes.",
-          "depends_on": [
-            "simplify-prefill-paths/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "fp8-prefill-tensorcore",
       "title": "Prefill fp8 weights on the FP8 tensor cores instead of expanding them to f16",
       "owner": "master-lead",

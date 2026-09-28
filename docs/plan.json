@@ -499,6 +499,21 @@
       ]
     },
     {
+      "id": "rae-image-capability",
+      "title": "Serve RAE generation through the image-gen capability",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Serve RAE generation through the image-gen capability",
+          "status": "open",
+          "verify": "go test ./internal/mediacapability -run '^TestRAEImageCapabilityGenerates$' -count=1",
+          "rationale": "internal/rae generates class-conditional ImageNet images, matched to the PyTorch reference: the ViT-XL decoder, the DiT-DH velocity, and Euler over the reference's shifted grid. Only tests call it. Serve it through the image-gen capability, as the other image models are:\n- a module in the recipe catalog;\n- a resolver for the collection directory: the DiT checkpoint, decoder, latent statistics and the DINOv2 encoder's image processor;\n- a request naming an ImageNet class and a seed;\n- classifier-free guidance when the reference's sampler config uses it.\ncmd/validate then gives RAE its image proof, and user-scorecard's validate-all-models loses its last unvalidated model.\n\nRegistering the module edits internal/modelrecipe, an inference-surface root, which would expire every text model's guard. So this row waits on surface-without-capability-tables. Predicted effect: first-output and held-out-quality become measurable for RAE on the image route."
+        }
+      ]
+    },
+    {
       "id": "landing-hermetic-tests",
       "title": "Move live-evidence acceptance tests off the landing path",
       "owner": "master-lead",
@@ -779,28 +794,6 @@
           "status": "open",
           "verify": "go test ./cmd/loophook -run '^TestPromptIntakeFilesRow' -count=1",
           "rationale": "Return the new row id so a request becomes the next row after the current commit instead of being folded into the row in flight."
-        }
-      ]
-    },
-    {
-      "id": "rae-generation-path",
-      "title": "Add a generation path for the RAE collection",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2475,
-        "reason": "the RAE DiT-DH velocity, read from its checkpoint's own tensors"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add a generation path for the RAE collection",
-          "status": "open",
-          "verify": "go test ./internal/rae -run '^TestRepresentationAutoencoderGeneration$' -count=1 -v",
-          "rationale": "A two-stage representation-autoencoder generator (frozen encoder, trained ViT decoder, stage-2 diffusion transformer over its latents), MIT. BLOCKED on owner-provided inputs (found 2026-09-23): models/RAE-collections holds decoders, DiTs and latent statistics for DINOv2-with-registers (small/base/large), MAE base and SigLIP2 base, but neither the reference code (github.com/bytetriper/RAE) nor those encoder checkpoints; fetching either is a download that needs the owner's yes. With them: port against reference goldens, reusing internal/vitencoder for the DINOv2 encoders (registers added to its declaration).",
-          "depends_on": [
-            "dinov2-embedding-capability/do"
-          ]
         }
       ]
     },
@@ -1136,7 +1129,8 @@
             "training-internals-shared/do",
             "wire-media-trainers/do",
             "unexport-unconsumed-names/do",
-            "test-models-from-store/do"
+            "test-models-from-store/do",
+            "rae-image-capability/do"
           ]
         }
       ]

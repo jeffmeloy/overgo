@@ -1,18 +1,3 @@
-// Command dit-train-probe executes full video-diffusion (DiT) training as a
-// director-supervised model-session: the trainable surface is EVERY tensor
-// of the conditioned diffusion transformer (all 30 blocks, patch embedding,
-// text/time embeddings, time projection, modulated head) as f32 masters over
-// the shared Muon stepper with fully derived hyperparameters, the frozen
-// text encoder and VAE sit outside the surface, and the objective is real
-// flow matching — MSE against v = noise - x0 on the committed shifted
-// schedule. Conditioning is real: raw umt5-xxl rows for the committed g1
-// prompt through the streamed host encoder, x0 seeded from the committed
-// sha-pinned g3/g4 final latents, noise from the golden Philox plan. The run
-// publishes one typed session observation. With -checkpoint it trains the
-// reference-edit (.pt) variant whose 32-channel patch embedding concatenates
-// a real source latent (gradient stops at the source channels). This is the
-// full video-diffusion training run the organ cells named as their
-// promotion gate.
 package main
 
 import (
@@ -39,10 +24,6 @@ import (
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
-
-func main() {
-	clioptions.MainNamed("dit-train-probe", run)
-}
 
 // fixtureTensor: one sha256-pinned committed f32le fixture.
 type fixtureTensor struct {
@@ -193,27 +174,44 @@ func contextDiff(got, want []float32) (maxDiff, meanDiff float64) {
 	return maxDiff, sum / float64(len(want))
 }
 
-func run() error {
-	modelDir := flag.String("model-dir", "", "video checkpoint dir")
-	checkpoint := flag.String("checkpoint", "", "reference-edit .pt checkpoint (empty: train the safetensors DiT)")
-	fixturesDir := flag.String("fixtures", "fixtures/wan", "committed golden fixture dir (real conditioning and latent seeds)")
-	frames := clioptions.IntOverride(flag.CommandLine, "frames", "video frames; omitted uses fixture request")
-	width := clioptions.IntOverride(flag.CommandLine, "width", "video width; omitted uses fixture request")
-	height := clioptions.IntOverride(flag.CommandLine, "height", "video height; omitted uses fixture request")
-	scheduleIndex := clioptions.IntOverride(flag.CommandLine, "schedule-index", "required committed schedule index")
-	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed training steps")
-	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
-	storePath := flag.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
-	stimulus := flag.String("stimulus", "docs/verification/wan-dit-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
-	objectiveAlias := flag.String("objective-alias", "", "registered objective alias to train under; empty uses the token bootstrap")
-	t5Cache := flag.String("t5-cache", "", "optional cache base path for the streamed raw text rows")
-	vidgenRoot := flag.String("vidgen-root", "", "VidGen corpus directory; set to train on real VAE-encoded captioned clips instead of fixture latents")
-	clipCount := flag.Int("clips", 4, "captioned clips to train over when -vidgen-root is set")
-	flag.Parse()
-	overrides := clioptions.ExplicitOverrides(flag.CommandLine)
+// trainDiT is the dit route: full video-diffusion (DiT) training as a
+// director-supervised model-session. The trainable surface is every tensor
+// of the conditioned diffusion transformer (all 30 blocks, patch embedding,
+// text/time embeddings, time projection, modulated head) as f32 masters over
+// the shared Muon stepper with derived hyperparameters; the frozen text
+// encoder and VAE sit outside the surface, and the objective is real flow
+// matching, MSE against v = noise - x0 on the committed shifted schedule.
+// Conditioning is real: raw umt5-xxl rows for the committed g1 prompt
+// through the streamed host encoder, x0 seeded from the committed sha-pinned
+// g3/g4 final latents, noise from the golden Philox plan. The run publishes
+// one typed session observation. With -checkpoint it trains the
+// reference-edit (.pt) variant whose 32-channel patch embedding concatenates
+// a real source latent (gradient stops at the source channels): the full
+// video-diffusion training run the organ cells named as their promotion
+// gate.
+func trainDiT(flags *flag.FlagSet, args []string) error {
+	modelDir := flags.String("model-dir", "", "video checkpoint dir")
+	checkpoint := flags.String("checkpoint", "", "reference-edit .pt checkpoint (empty: train the safetensors DiT)")
+	fixturesDir := flags.String("fixtures", "fixtures/wan", "committed golden fixture dir (real conditioning and latent seeds)")
+	frames := clioptions.IntOverride(flags, "frames", "video frames; omitted uses fixture request")
+	width := clioptions.IntOverride(flags, "width", "video width; omitted uses fixture request")
+	height := clioptions.IntOverride(flags, "height", "video height; omitted uses fixture request")
+	scheduleIndex := clioptions.IntOverride(flags, "schedule-index", "required committed schedule index")
+	steps := clioptions.IntOverride(flags, "steps", "required observed training steps")
+	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
+	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
+	stimulus := flags.String("stimulus", "docs/verification/wan-dit-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
+	objectiveAlias := flags.String("objective-alias", "", "registered objective alias to train under; empty uses the token bootstrap")
+	t5Cache := flags.String("t5-cache", "", "optional cache base path for the streamed raw text rows")
+	vidgenRoot := flags.String("vidgen-root", "", "VidGen corpus directory; set to train on real VAE-encoded captioned clips instead of fixture latents")
+	clipCount := flags.Int("clips", 4, "captioned clips to train over when -vidgen-root is set")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	overrides := clioptions.ExplicitOverrides(flags)
 	ctx := context.Background()
 	if *modelDir == "" || *steps <= 0 || !overrides.Has("schedule-index") {
-		return fmt.Errorf("dit train probe: model, positive steps, and schedule index required")
+		return fmt.Errorf("%s: model, positive steps, and schedule index required", flags.Name())
 	}
 	var fixture ditProbeFixture
 	if err := jsonfile.Decode(filepath.Join(*fixturesDir, "g3_denoise.json"), &fixture); err != nil {
@@ -329,7 +327,7 @@ func run() error {
 		return err
 	}
 	if textDim != rawTextDim {
-		return fmt.Errorf("dit train probe: text projection width %d != encoder width %d", textDim, rawTextDim)
+		return fmt.Errorf("train -route dit:text projection width %d != encoder width %d", textDim, rawTextDim)
 	}
 	geometry, err := cfg.CompileLatentGeometry(*frames, *width, *height)
 	if err != nil {
@@ -367,7 +365,7 @@ func run() error {
 	// golden Philox noise, the committed shifted schedule.
 	timesteps, sigmas := fixture.Timesteps, fixture.Sigmas
 	if *scheduleIndex < 0 || *scheduleIndex >= len(timesteps) {
-		return fmt.Errorf("dit train probe: schedule index %d outside %d timesteps", *scheduleIndex, len(timesteps))
+		return fmt.Errorf("train -route dit:schedule index %d outside %d timesteps", *scheduleIndex, len(timesteps))
 	}
 
 	noiseChannels := cfg.OutDim
@@ -377,7 +375,7 @@ func run() error {
 	// shifted schedule.
 	mixBatch := func(x0, source, text []float32, tokens, index int, seed uint64) (latentvideo.DiTTrainBatch, error) {
 		if len(x0) != noiseElements {
-			return latentvideo.DiTTrainBatch{}, fmt.Errorf("dit train probe: x0 has %d elements, need %d", len(x0), noiseElements)
+			return latentvideo.DiTTrainBatch{}, fmt.Errorf("train -route dit:x0 has %d elements, need %d", len(x0), noiseElements)
 		}
 		step := timesteps[index]
 		mix := float64(sigmas[index])
@@ -412,7 +410,7 @@ func run() error {
 		// from the declared index and the golden plan seed -- deterministic,
 		// no free knobs.
 		if *checkpoint != "" {
-			return fmt.Errorf("dit train probe: -vidgen-root trains the text-to-video surface; it does not compose with -checkpoint source editing")
+			return fmt.Errorf("train -route dit:-vidgen-root trains the text-to-video surface; it does not compose with -checkpoint source editing")
 		}
 		clips, err := latentvideo.ListCaptionedClips(*vidgenRoot, *clipCount)
 		if err != nil {
@@ -441,7 +439,7 @@ func run() error {
 		}
 		if sourcePlan.Latent.Frames != geometry.LatentFrames ||
 			sourcePlan.Latent.Height != geometry.LatentHeight || sourcePlan.Latent.Width != geometry.LatentWidth {
-			return fmt.Errorf("dit train probe: encoder latent %dx%dx%d differs from trainer geometry %dx%dx%d",
+			return fmt.Errorf("train -route dit:encoder latent %dx%dx%d differs from trainer geometry %dx%dx%d",
 				sourcePlan.Latent.Frames, sourcePlan.Latent.Height, sourcePlan.Latent.Width,
 				geometry.LatentFrames, geometry.LatentHeight, geometry.LatentWidth)
 		}
@@ -464,7 +462,7 @@ func run() error {
 				return err
 			}
 			if clipTextDim != textDim {
-				return fmt.Errorf("dit train probe: clip %q text width %d != projection width %d", clip.Name, clipTextDim, textDim)
+				return fmt.Errorf("train -route dit:clip %q text width %d != projection width %d", clip.Name, clipTextDim, textDim)
 			}
 			batch, err := mixBatch(x0, nil, text, tokens,
 				(*scheduleIndex+clipIndex)%len(timesteps), fixture.NoisePlan.Seed+uint64(clipIndex))
@@ -530,11 +528,11 @@ func run() error {
 			fmt.Printf("step %d/%d loss %.6f grad_l2 %.6f lr %.6g wall %s\n",
 				result.Step, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, wall.Round(time.Millisecond))
 			if result.GradientL2 <= 0 {
-				return fmt.Errorf("dit train probe: step %d gradient norm %g", result.Step, result.GradientL2)
+				return fmt.Errorf("train -route dit:step %d gradient norm %g", result.Step, result.GradientL2)
 			}
 			if step == 0 {
 				if err := session.AdmitStepWall(wall); err != nil {
-					return fmt.Errorf("dit train probe: %w", err)
+					return fmt.Errorf("train -route dit:%w", err)
 				}
 			}
 		}
@@ -544,7 +542,7 @@ func run() error {
 		}
 		fmt.Printf("after-evaluation loss %.6f (initial %.6f)\n", final, initial)
 		if !(final < initial) {
-			return fmt.Errorf("dit train probe: no descent: %.6f -> %.6f", initial, final)
+			return fmt.Errorf("train -route dit:no descent: %.6f -> %.6f", initial, final)
 		}
 		return nil
 	}()

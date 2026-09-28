@@ -111,12 +111,6 @@
       },
       "steps": [
         {
-          "id": "fold-dit",
-          "title": "Fold dit-train-probe into a cmd/train route",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestTrainRoutesFoldedProbes$/^(dit)$' -count=1 -v"
-        },
-        {
           "id": "do",
           "title": "Fold per-modality commands into route tables",
           "status": "open",

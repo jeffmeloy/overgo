@@ -86,7 +86,7 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 	}) {
 		t.Fatal("the lifecycle patch is not a reviewed delta")
 	}
-	paths := append(slices.Clone(merged.RuntimePaths), "internal/workflowruntime", "cmd/dit-train-probe")
+	paths := append(slices.Clone(merged.RuntimePaths), "internal/workflowruntime", "cmd/dit-train-probe", "cmd/train/route_dit.go")
 	if unreviewed, err := mediaUnreviewedChanges(root, registry, "", paths); err != nil || len(unreviewed) != 0 {
 		t.Fatal("lifecycle sources exceed the reviewed chain", unreviewed, err)
 	}

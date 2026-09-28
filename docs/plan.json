@@ -5,21 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gui-loop-status",
-      "title": "Show the unattended loop's status -- running or stopped, the row it works, its last landing -- with a stop button that records a user stop",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Show the unattended loop's status -- running or stopped, the row it works, its last landing -- with a stop button that records a user stop",
-          "status": "open",
-          "verify": "test -f internal/server/loop_status_test.go \u0026\u0026 go test ./internal/server -run '^TestLoopStatusAndStop$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(LoopStatus|LayoutAudit)$' -leg 'loop status leg'",
-          "rationale": "Owner goals 2026-09-27: unattended runs need their status visible and a way to stop them from the GUI. The loop supervisor keeps its state under .overgo-runtime (loop.json, loop_supervisor.json); the page shows whether it runs, the row it works and its last landing, and a stop button records the user stop the loop honours. Master has just removed the plan tool's orchestration commands, so the stop's recording path is settled when this row starts."
-        }
-      ]
-    },
-    {
       "id": "gui-what-got-better",
       "title": "Show what got better between versions from master's published scorecard -- per model, each cell's delta against the previous run, improvements and regressions named, including gains nobody targeted",
       "owner": "overgo_gui_cleanup",

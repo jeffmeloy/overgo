@@ -12,7 +12,32 @@
       const error = el("div");
       const slots = el("div");
       const trend = el("div");
-      panel.append(el("div", { class: "section-title", text: "Runtime" }), identity, summary, error, slots, trend);
+      const loop = el("section", { class: "loop-status", role: "region", "aria-label": "unattended loop", hidden: true });
+      panel.append(el("div", { class: "section-title", text: "Runtime" }), loop, identity, summary, error, slots, trend);
+
+      // The unattended loop of the checkout the server runs from: whether it runs, the row it works, its
+      // last landing, and a stop it honours. A server that runs from no such checkout shows none.
+      function renderLoop(status, failed) {
+        loop.hidden = false;
+        const state = status.stopped ? "stopped" : status.running ? "running" : "not running";
+        const stop = el("button", { class: "btn alt", text: "Stop the loop", disabled: status.stopped, onclick: async () => {
+          stop.disabled = true;
+          try { renderLoop(await overgo.api.post("/loop/stop", {}, { signal: overgo.signal })); }
+          catch (err) { if (!overgo.signal.aborted) renderLoop(status, err); }
+        } });
+        const landing = status.landing || {};
+        loop.replaceChildren(...[
+          el("div", { class: "row" }, el("h3", { text: "Unattended loop" }), el("span", { class: "tag loop-state", "data-state": state.replace(" ", "-"), text: state }), el("span", { class: "grow" }), stop),
+          el("p", { class: "loop-row", text: status.complete ? "The plan is complete." : "Works " + status.row + ": " + status.row_title }),
+          status.stopped ? el("p", { class: "note loop-stop", text: "Stopped (" + status.stop_reason + "). Resume from the checkout with plan -resume-stop." }) : null,
+          landing.commit ? el("p", { class: "note loop-landing", text: "Last landing: " + landing.subject + " (" + landing.row + ", " + landing.commit.slice(0, 12) + ", " + new Date(landing.at).toLocaleString() + ")" }) : null,
+          failed ? overgo.failure(failed) : null].filter(Boolean));
+      }
+      async function readLoop() {
+        try { renderLoop(await overgo.api.get("/loop/status", { signal: overgo.signal })); }
+        catch (err) { if (!overgo.signal.aborted && err.status !== 404) { loop.hidden = false; loop.replaceChildren(overgo.failure(err)); } }
+      }
+      readLoop();
 
       await overgo.read(error, () => overgo.modelInfo(), (info) => { identity.textContent = info.model.name || info.model.id || ""; }, { loading: null })();
 
@@ -53,7 +78,7 @@
       }
 
       // The sessions view listens only while it shows.
-      overgo.subscribe((name, value) => { if (name === "runtime.sessions") render(value); if (name === "stream.error") error.replaceChildren(overgo.failure(value)); }, { whileShown: true });
+      overgo.subscribe((name, value) => { if (name === "runtime.sessions") { render(value); readLoop(); } if (name === "stream.error") error.replaceChildren(overgo.failure(value)); }, { whileShown: true });
     },
   });
 

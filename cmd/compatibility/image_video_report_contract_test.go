@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"flag"
 	"image"
 	"image/png"
 	"os"
@@ -21,13 +20,9 @@ import (
 )
 
 func TestImageVideoReportContract(t *testing.T) {
-	// Serial: a subtest replaces the global flag set and os.Args to drive run.
+	t.Parallel()
 	t.Run("focused update refuses before store access", func(t *testing.T) {
-		savedFlags, savedArgs := flag.CommandLine, os.Args
-		defer func() { flag.CommandLine, os.Args = savedFlags, savedArgs }()
-		flag.CommandLine = flag.NewFlagSet("compatibility", flag.ContinueOnError)
-		os.Args = []string{"compatibility", "-update-media", "-media-scope", "image-video", "-models-repo", filepath.Join(t.TempDir(), "absent")}
-		if err := run(); err == nil || !strings.Contains(err.Error(), "always writes the complete docs/MEDIA_REPORT.md") {
+		if err := run([]string{"-update-media", "-media-scope", "image-video", "-models-repo", filepath.Join(t.TempDir(), "absent")}); err == nil || !strings.Contains(err.Error(), "always writes the complete docs/MEDIA_REPORT.md") {
 			t.Fatalf("focused update must preserve complete report: %v", err)
 		}
 	})

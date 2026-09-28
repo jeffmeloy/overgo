@@ -156,6 +156,29 @@ func NotifyCampaignStop(ctx context.Context, root string) error {
 	return nil
 }
 
+// CampaignRunning reports whether a live cmd/loop supervisor owns the
+// worktree at root: its locator names a live process that holds the lock.
+func CampaignRunning(root string) (bool, error) {
+	var owner campaignLocator
+	if err := jsonfile.DecodeStrict(filepath.Join(root, campaignLocatorPath), &owner); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	if !ProcessAlive(owner.PID) {
+		return false, nil
+	}
+	lock, err := processlock.Acquire(filepath.Join(root, campaignLockPath), campaignFileMode)
+	if err == nil {
+		return false, lock.Close()
+	}
+	if errors.Is(err, processlock.ErrBusy) {
+		return true, nil
+	}
+	return false, err
+}
+
 // RequireCampaign refuses executable admission outside a configured campaign's
 // live session. Unconfigured worktrees retain ordinary interactive operation.
 func RequireCampaign(root, worker string) error {

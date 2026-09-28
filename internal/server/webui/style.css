@@ -227,6 +227,12 @@ table.grid td.mono { font-family:var(--mono); font-variant-numeric:tabular-nums;
 .memory-part.owner-2 { background:color-mix(in srgb, var(--acc) 45%, var(--bg3)); }
 .memory-part.owner-3 { background:color-mix(in srgb, var(--acc) 30%, var(--bg3)); }
 .memory-part.other { background:var(--amber); }
+/* The unattended loop on the Runtime tab: running reads as live, stopped as a caution. */
+.loop-status { border:1px solid var(--line); border-radius:var(--radius-m); padding:var(--s3) var(--s4); margin:var(--s3) 0; }
+.loop-status h3 { margin:0; }
+.loop-status p { margin:var(--s2) 0 0; overflow-wrap:anywhere; }
+.tag.loop-state[data-state="running"] { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
+.tag.loop-state[data-state="stopped"] { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
 /* The recent turns' trend: one labelled sparkline per measure. */
 .turn-trend { display:grid; gap:var(--s2); margin:var(--s2) 0; }
 .turn-trend-line svg { display:block; }

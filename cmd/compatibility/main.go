@@ -106,38 +106,43 @@ type modelClaim struct {
 }
 
 func main() {
-	clioptions.Main(run)
+	clioptions.Main(func() error { return run(os.Args[1:]) })
 }
 
-func run() error {
-	check := flag.Bool("check", false, "verify compatibility claims and generated matrix")
-	update := flag.Bool("update", false, "write generated compatibility matrix")
-	checkTraining := flag.Bool("check-training", false, "verify training specifications and generated matrix")
-	updateTraining := flag.Bool("update-training", false, "write generated training matrix")
-	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
-	updateModels := flag.Bool("update-models", false, "write the nested model compatibility report joined against the store")
-	updateMedia := flag.Bool("update-media", false, "write JSON measurements and the media capability report from store activations and verification claims")
-	mediaScopeName := flag.String("media-scope", "all", "sample export tasks: all or image-video; the report always includes all media")
-	publishCensus := flag.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
-	checkCensus := flag.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
-	exportSamples := flag.Bool("export-samples", false, "export healthy media activations' generation outputs as decodable files under docs/media_samples")
-	modelsRepo := flag.String("models-repo", "overgodb-store", "OvergoDB store for -update-models prototype resolution")
-	recordVerification := flag.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims)")
-	recordStore := flag.String("record", "", "OvergoDB root for -record-verification/-claim")
-	claimFlag := flag.Bool("claim", false, "build and commit one verification claim from flags: -claim -model-file <weights> -name <n> -capability <c> -tier <t> -evidence-file <doc> [-wall <dur>] [-context <tokens>] [-peak <bytes>] -record <overgodb>")
-	claimModelFile := flag.String("model-file", "", "claim: weights file; its digest is the model identity")
-	claimName := flag.String("name", "", "claim: human model name")
-	claimCapability := flag.String("capability", "inference", "claim: capability (lowercase kebab)")
-	claimTier := flag.String("tier", "real-artifact-smoke", "claim: verification tier")
-	claimEvidenceFile := flag.String("evidence-file", "", "claim: evidence document; committed by content and referenced by the claim")
-	claimWall := flag.Duration("wall", 0, "claim: measured wall")
-	claimContext := flag.Uint64("context", 0, "claim: context tokens (requires -wall)")
-	claimPeak := flag.Uint64("peak", 0, "claim: peak device bytes (requires -wall)")
-	webuiReport := flag.String("webui-report", "", "emit source census comparison JSON from a strict spec with before/after root and label")
-	flag.Parse()
+// run parses the command's own flag set from arguments, so a caller never
+// swaps the process's global flags to drive it.
+func run(arguments []string) error {
+	flags := flag.NewFlagSet("compatibility", flag.ExitOnError)
+	check := flags.Bool("check", false, "verify compatibility claims and generated matrix")
+	update := flags.Bool("update", false, "write generated compatibility matrix")
+	checkTraining := flags.Bool("check-training", false, "verify training specifications and generated matrix")
+	updateTraining := flags.Bool("update-training", false, "write generated training matrix")
+	refresh := flags.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
+	updateModels := flags.Bool("update-models", false, "write the nested model compatibility report joined against the store")
+	updateMedia := flags.Bool("update-media", false, "write JSON measurements and the media capability report from store activations and verification claims")
+	mediaScopeName := flags.String("media-scope", "all", "sample export tasks: all or image-video; the report always includes all media")
+	publishCensus := flags.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
+	checkCensus := flags.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
+	exportSamples := flags.Bool("export-samples", false, "export healthy media activations' generation outputs as decodable files under docs/media_samples")
+	modelsRepo := flags.String("models-repo", "overgodb-store", "OvergoDB store for -update-models prototype resolution")
+	recordVerification := flags.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims)")
+	recordStore := flags.String("record", "", "OvergoDB root for -record-verification/-claim")
+	claimFlag := flags.Bool("claim", false, "build and commit one verification claim from flags: -claim -model-file <weights> -name <n> -capability <c> -tier <t> -evidence-file <doc> [-wall <dur>] [-context <tokens>] [-peak <bytes>] -record <overgodb>")
+	claimModelFile := flags.String("model-file", "", "claim: weights file; its digest is the model identity")
+	claimName := flags.String("name", "", "claim: human model name")
+	claimCapability := flags.String("capability", "inference", "claim: capability (lowercase kebab)")
+	claimTier := flags.String("tier", "real-artifact-smoke", "claim: verification tier")
+	claimEvidenceFile := flags.String("evidence-file", "", "claim: evidence document; committed by content and referenced by the claim")
+	claimWall := flags.Duration("wall", 0, "claim: measured wall")
+	claimContext := flags.Uint64("context", 0, "claim: context tokens (requires -wall)")
+	claimPeak := flags.Uint64("peak", 0, "claim: peak device bytes (requires -wall)")
+	webuiReport := flags.String("webui-report", "", "emit source census comparison JSON from a strict spec with before/after root and label")
+	if err := flags.Parse(arguments); err != nil {
+		return err
+	}
 	if *webuiReport != "" {
-		exclusive := flag.NArg() == 0
-		flag.Visit(func(value *flag.Flag) { exclusive = exclusive && value.Name == "webui-report" })
+		exclusive := flags.NArg() == 0
+		flags.Visit(func(value *flag.Flag) { exclusive = exclusive && value.Name == "webui-report" })
 		if !exclusive {
 			return errors.New("usage: compatibility -webui-report <spec.json>")
 		}
@@ -151,13 +156,13 @@ func run() error {
 		return errors.New("usage: compatibility -update-media [-models-repo <overgodb>] or -export-samples [-media-scope all|image-video] [-models-repo <overgodb>]; -update-media always writes the complete docs/MEDIA_REPORT.md")
 	}
 	if *publishCensus || *checkCensus != "" {
-		if flag.NArg() != 0 || *publishCensus && *checkCensus != "" || *check || *update || *refresh || *checkTraining || *updateTraining || *updateModels || *updateMedia || *exportSamples || *claimFlag || *recordVerification != "" {
+		if flags.NArg() != 0 || *publishCensus && *checkCensus != "" || *check || *update || *refresh || *checkTraining || *updateTraining || *updateModels || *updateMedia || *exportSamples || *claimFlag || *recordVerification != "" {
 			return errors.New("usage: compatibility [-publish-census|-check-census <id>] [-models-repo <overgodb>]")
 		}
 		return runCapabilityCensus(*modelsRepo, *publishCensus, *checkCensus, os.Stdout)
 	}
 	if *checkTraining || *updateTraining {
-		if len(flag.Args()) != len([]string(nil)) || *checkTraining && *updateTraining || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
+		if len(flags.Args()) != len([]string(nil)) || *checkTraining && *updateTraining || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
 			return errors.New("usage: compatibility [-check-training|-update-training]")
 		}
 		data, err := generateTraining(".")
@@ -171,13 +176,13 @@ func run() error {
 		)
 	}
 	if *exportSamples {
-		if flag.NArg() != 0 || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
+		if flags.NArg() != 0 || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
 			return errors.New("usage: compatibility -export-samples [-models-repo <overgodb>]")
 		}
 		return exportMediaSamples(".", *modelsRepo, mediaScope)
 	}
 	if *updateMedia {
-		if flag.NArg() != 0 || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
+		if flags.NArg() != 0 || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
 			return errors.New("usage: compatibility -update-media [-models-repo <overgodb>]")
 		}
 		data, err := generateMediaReport(".", *modelsRepo)
@@ -194,7 +199,7 @@ func run() error {
 		return nil
 	}
 	if *updateModels {
-		if flag.NArg() != 0 || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
+		if flags.NArg() != 0 || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
 			return errors.New("usage: compatibility -update-models [-models-repo <overgodb>]")
 		}
 		data, err := generateModelsReport(".", *modelsRepo)
@@ -208,7 +213,7 @@ func run() error {
 		return nil
 	}
 	if *claimFlag {
-		if flag.NArg() != 0 || *claimModelFile == "" || *claimName == "" || *claimEvidenceFile == "" || *recordStore == "" {
+		if flags.NArg() != 0 || *claimModelFile == "" || *claimName == "" || *claimEvidenceFile == "" || *recordStore == "" {
 			return errors.New("usage: compatibility -claim -model-file <weights> -name <n> -evidence-file <doc> -record <overgodb> [-capability c] [-tier t] [-wall d] [-context n] [-peak b]")
 		}
 		return runClaim(claimInput{
@@ -218,12 +223,12 @@ func run() error {
 		}, *recordStore, os.Stdout)
 	}
 	if *recordVerification != "" {
-		if flag.NArg() != 0 || *check || *update || *refresh || *recordStore == "" {
+		if flags.NArg() != 0 || *check || *update || *refresh || *recordStore == "" {
 			return errors.New("usage: compatibility -record-verification <spec.json> -record <overgodb>")
 		}
 		return runRecordVerification(*recordVerification, *recordStore, os.Stdout)
 	}
-	if flag.NArg() != 0 || *check && (*update || *refresh) {
+	if flags.NArg() != 0 || *check && (*update || *refresh) {
 		return errors.New("usage: compatibility [-check|-update|-refresh-identities]")
 	}
 	if *refresh {

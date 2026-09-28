@@ -322,6 +322,10 @@ type Config struct {
 	// LibraryIntake is the model intake the library routes drive, assembled
 	// by the launcher; absent, those routes answer that they need it.
 	LibraryIntake LibraryIntake
+	// Loop reads and stops the unattended loop of the checkout the server
+	// runs from, assembled by the launcher; absent, the loop routes answer
+	// that no loop is here.
+	Loop LoopControl
 	// ProviderKeys places a hosted provider's key in this process for the
 	// model a reference names and returns the variable that holds it;
 	// assembled by the launcher, absent the key route answers that it

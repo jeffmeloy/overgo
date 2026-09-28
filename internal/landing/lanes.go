@@ -70,6 +70,14 @@ var lanes = []lane{
 		},
 		environment: []string{"OVERGO_CUDA_TEST=1"},
 	},
+	{
+		// Thoughtbank's real-checkpoint suite, behind the modeltest tag:
+		// training parity, code completion and the process probe on the
+		// local Fractale checkpoint.
+		name: "thoughtbank", packages: []string{"./internal/thoughtbank"},
+		command:     func(string) []string { return []string{"test", "-tags", "modeltest", "./internal/thoughtbank"} },
+		environment: []string{"OVERGO_CUDA_TEST=1"},
+	},
 }
 
 // lanes runs every lane the change reaches, one after another: they share

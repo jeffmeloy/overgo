@@ -10,7 +10,7 @@
       "status": "open",
       "budget": {
         "nodes": 36,
-        "reason": "a model lane runs the continuation-scoring parity tests on the store's smallest local GGUF"
+        "reason": "a thoughtbank lane runs the real-checkpoint suite behind the modeltest tag"
       },
       "steps": [
         {
@@ -992,7 +992,8 @@
             "rules-by-enforcement-level/guard-root-binary",
             "env-gated-tests-run-or-go/sqa-037",
             "env-gated-tests-run-or-go/sqa-023",
-            "env-gated-tests-run-or-go/parity-model"
+            "env-gated-tests-run-or-go/parity-model",
+            "env-gated-tests-run-or-go/thoughtbank"
           ]
         }
       ]

@@ -4,7 +4,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+
+	"overgo/internal/testskip"
 )
 
 // TestLaneReachSkipsOtherPackagesTests reaches a lane from production code
@@ -44,5 +47,19 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 		if reached != want {
 			t.Errorf("a change to %s reached the lane = %t, want %t", changed, reached, want)
 		}
+	}
+}
+
+// TestAudioLaneOptsIntoTheStoreAcceptance holds the audio acceptances to a
+// runner: go test skips them without the store-acceptance opt-in, so the lane
+// that reaches internal/audioparity must set it.
+func TestAudioLaneOptsIntoTheStoreAcceptance(t *testing.T) {
+	t.Parallel()
+	index := slices.IndexFunc(lanes, func(candidate lane) bool { return slices.Contains(candidate.packages, "./internal/audioparity") })
+	if index < 0 {
+		t.Fatal("no lane reaches internal/audioparity; its acceptances would run nowhere")
+	}
+	if !slices.Contains(lanes[index].environment, testskip.StoreAcceptanceEnv+"=1") {
+		t.Fatalf("lane %s runs internal/audioparity without %s=1; its acceptances would skip", lanes[index].name, testskip.StoreAcceptanceEnv)
 	}
 }

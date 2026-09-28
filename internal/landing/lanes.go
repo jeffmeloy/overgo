@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/devicescope"
+	"overgo/internal/testskip"
 )
 
 // lane is one check that drives real hardware or a browser. It runs when the
@@ -20,6 +21,8 @@ type lane struct {
 	packages []string
 	prefixes []string
 	command  func(changed string) []string
+	// environment is added to the gate's own for the lane's command.
+	environment []string
 }
 
 var lanes = []lane{
@@ -44,6 +47,13 @@ var lanes = []lane{
 			"internal/server/webui_browser_preparation", "internal/server/webui_browser_store_test.go", "internal/server/webui_served_projector",
 			"internal/audioparity/webui_microphone"},
 		command: func(string) []string { return []string{"run", "./cmd/webui-lane", "-journeys"} },
+	},
+	{
+		// The audio acceptances run the recorded speech models against the
+		// reference store; the landing's go test skips them.
+		name: "audio", packages: []string{"./internal/audioparity"},
+		command:     func(string) []string { return []string{"test", "./internal/audioparity"} },
+		environment: []string{testskip.StoreAcceptanceEnv + "=1"},
 	},
 }
 
@@ -71,7 +81,11 @@ func (l *landing) lanes(ctx context.Context) error {
 			continue
 		}
 		fmt.Fprintf(l.Log, "land: lane %s runs\n", candidate.name)
-		if _, err := l.run(ctx, nil, "go", candidate.command(changed.Name())...); err != nil {
+		var environment []string
+		if len(candidate.environment) > 0 {
+			environment = append(os.Environ(), candidate.environment...)
+		}
+		if _, err := l.run(ctx, environment, "go", candidate.command(changed.Name())...); err != nil {
 			return fmt.Errorf("lane %s: %w", candidate.name, err)
 		}
 	}

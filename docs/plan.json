@@ -4,6 +4,21 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "data-outside-module",
+      "title": "Move models, datasets and the store out of the module folder",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move models, datasets and the store out of the module folder",
+          "status": "open",
+          "verify": "test ! -e models \u0026\u0026 test ! -e datasets \u0026\u0026 test ! -e overgodb-store",
+          "rationale": "Measured 2026-09-27: go test's cache rechecks every path a test opens or stats inside the module folder. models/, datasets/ and overgodb-store/ live there, and resolving a path to them stats the repository root (925 times in one audioparity run). So a store write or a replaced root file re-runs every evidence suite with no code change: audioparity took 593 s in af56be31b and about 12.5 min in d836b7deb, after a root file was rewritten. Paths outside the module are never rechecked. Move: wait until no test uses the folders; rename the three into C:/Users/jeffm/overgo-data (same drive, seconds); point OVERGO_DATA_ROOT, OVERGO_AUDIO_REFERENCE_STORE and local-models.json there; repin the records that hold absolute paths under C:/Users/jeffm/overgo (grep finds them); land once, when the suites re-run one last time. Afterwards they re-run only when their code changes. Left over: about 25 root stats from tests that run git or go in the repository."
+        }
+      ]
+    },
+    {
       "id": "landing-wall-budget",
       "title": "A slow landing is a defect: remove or speed up what makes it slow",
       "owner": "master-lead",
@@ -1104,7 +1119,9 @@
             "stop-state-out-of-store/do",
             "landing-growth-ratchet/do",
             "landing-wall-budget/do",
-            "lanes-in-gate/do"
+            "lanes-in-gate/do",
+            "data-outside-module/do",
+            "plan-data-move-2026-09-27/do"
           ]
         }
       ]

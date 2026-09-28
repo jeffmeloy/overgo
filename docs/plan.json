@@ -15,7 +15,7 @@
           "title": "Show what got better between versions from master's published scorecard -- per model, each cell's delta against the previous run, improvements and regressions named, including gains nobody targeted",
           "status": "open",
           "verify": "test -f internal/server/version_delta_test.go \u0026\u0026 go test ./internal/server -run '^TestWhatGotBetterBetweenVersions$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(WhatGotBetter|LayoutAudit)$' -leg 'what got better leg'",
-          "rationale": "Owner goals 2026-09-27: the GUI shows the user the improvement, and this is where unintended improvements surface. Master's drafted user-scorecard campaign defines the scorecard (per model: time to first token, tokens per second, held-out quality, failures, load time, peak VRAM, setup steps), runs its cheap slice on landings that reach a model path, and publishes the full run on a schedule as one record with deltas against the previous run. This row renders that record -- it adds no second comparison -- so it waits for user-scorecard/scheduled to land on master and reach the lane by merge; until then it stays behind the loop status row."
+          "rationale": "Owner goals 2026-09-27: the GUI shows the user the improvement, and this is where unintended improvements surface. Master publishes the full scorecard on a schedule as one record with deltas against the previous run (user-scorecard/scheduled). This row adds those deltas to the scorecard view gui-scorecard-view builds -- improvements and regressions named per cell, including gains nobody targeted -- and computes no second comparison, so it waits for user-scorecard/scheduled to land on master and reach the lane by merge."
         }
       ]
     }

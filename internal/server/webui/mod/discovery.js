@@ -144,10 +144,44 @@
         for (const job of data || []) if (job.state === "succeeded" && chained.delete(job.repository)) add(job);
       }, { whileShown: true });
 
+      // ---- the user scorecard: per model and task, what a user feels; an unmeasured cell names why ----
+      const scorecardColumns = [["first-output", "First output"], ["throughput", "Throughput"], ["held-out-quality", "Quality"], ["failure-rate", "Failures"],
+        ["load-time", "Load"], ["peak-device-memory", "Peak memory"], ["setup-steps", "Setup steps"]];
+      const unitFormats = { bytes: (value) => fmt.bytes(value), ms: (value) => value.toFixed(1) + " ms", "tok/s": (value) => value.toFixed(1) + " tok/s" };
+      const metricFormats = { "failure-rate": (value) => (100 * value).toFixed(1) + "%", "setup-steps": (value) => String(value) };
+      const scorecardCell = (cell) => cell.reason ? el("span", { class: "scorecard-gap", title: cell.reason, text: "not measured" })
+        : el("span", { title: cell.label || "", text: (unitFormats[cell.unit] || metricFormats[cell.metric] || ((value) => value.toFixed(3)))(Number(cell.value)) });
+      const scorecardBody = el("tbody"), scorecardNote = el("div", { class: "note" });
+      const scorecard = el("section", { class: "scorecard", role: "region", "aria-label": "scorecard", hidden: true }, el("div", { class: "section-title", text: "Scorecard" }), scorecardNote,
+        el("table", { class: "grid stack" }, el("thead", null, overgo.headerRow(["Model", "Task", ...scorecardColumns.map(([, label]) => label)])), scorecardBody));
+      async function refreshScorecard() {
+        let read;
+        try { read = await overgo.api.get("/scorecard", { signal: overgo.signal }); }
+        catch (err) {
+          // A server without the launcher's scorecard reader has no scorecard to show.
+          if (overgo.signal.aborted || err.status === 404) return;
+          scorecard.hidden = false;
+          scorecardNote.replaceChildren(overgo.failure(err));
+          return;
+        }
+        scorecard.hidden = false;
+        const rows = read.rows || [];
+        scorecardNote.textContent = rows.length ? "What a user feels of each activated model; hover a cell for what measured it." : "No activated model to score yet.";
+        scorecardBody.replaceChildren(...rows.map((row) => {
+          const cells = new Map((row.cells || []).map((cell) => [cell.metric, cell]));
+          const line = overgo.tableRow([el("span", { text: row.name }), el("span", { text: row.task }),
+            ...scorecardColumns.map(([metric]) => cells.has(metric) ? scorecardCell(cells.get(metric)) : el("span", { class: "scorecard-gap", text: "not measured" }))]);
+          ["Model", "Task", ...scorecardColumns.map(([, label]) => label)].forEach((label, index) => { line.children[index].dataset.label = label; });
+          return line;
+        }));
+      }
+      refreshScorecard();
+
       panel.append(
-        el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: refreshCatalog })),
+        el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: () => { refreshCatalog(); refreshScorecard(); } })),
         catalogNote,
         el("table", { class: "grid stack" }, el("thead", null, overgo.headerRow(["Model", "Identity", "Capabilities", ""])), catalogBody),
+        scorecard,
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),
         el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),

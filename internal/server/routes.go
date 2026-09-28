@@ -116,6 +116,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/library/providers/models", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).libraryProviderModels},
 	{Path: "/library/providers/retire", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryProviderRetire, Inventory: true},
 	{Path: "/runtime/sessions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeSessions},
+	{Path: "/scorecard", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).scorecardView},
 	{Path: "/loop/status", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).loopStatus},
 	{Path: "/loop/stop", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).loopStop},
 	{Path: "/runtime/activity", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeActivity},

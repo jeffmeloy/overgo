@@ -447,6 +447,7 @@ func run() error {
 		AgentReranker:      agentRetrieval,
 		LibraryIntake:      serverLibraryIntake(),
 		Loop:               serverLoop(shutdownContext),
+		Scorecard:          serverScorecard,
 		ProviderKeys:       providerIntake.Keys,
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,

@@ -233,6 +233,8 @@ table.grid td.mono { font-family:var(--mono); font-variant-numeric:tabular-nums;
 .loop-status p { margin:var(--s2) 0 0; overflow-wrap:anywhere; }
 .tag.loop-state[data-state="running"] { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
 .tag.loop-state[data-state="stopped"] { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
+/* The scorecard: an unmeasured cell reads quieter than a measured one, its reason in its title. */
+.scorecard-gap { color:var(--faint); }
 /* The recent turns' trend: one labelled sparkline per measure. */
 .turn-trend { display:grid; gap:var(--s2); margin:var(--s2) 0; }
 .turn-trend-line svg { display:block; }
@@ -463,7 +465,8 @@ button.pill { font:inherit; cursor:pointer; }
 .picker-facts .note { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .picker-facts .keyfield { flex:1 1 120px; min-width:0; }
 .composer-params { gap:var(--s2); flex-wrap:nowrap; }
-.stack { display:flex; flex-direction:column; gap:4px; }
+/* A stacked list; a stacking table keeps its columns until a phone stacks its rows. */
+.stack:not(table) { display:flex; flex-direction:column; gap:4px; }
 .neighbour-row { display:flex; gap:12px; align-items:center; font-size:var(--t-sm); padding:4px 8px; border:1px solid var(--line-soft); border-radius:8px; cursor:pointer; }
 .meter { display:flex; align-items:center; gap:6px; justify-content:flex-end; }
 .meter-track { width:64px; height:8px; border-radius:4px; background:var(--bg2); overflow:hidden; }

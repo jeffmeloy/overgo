@@ -326,6 +326,9 @@ type Config struct {
 	// runs from, assembled by the launcher; absent, the loop routes answer
 	// that no loop is here.
 	Loop LoopControl
+	// Scorecard reads the user scorecard from the store, assembled by the
+	// launcher; absent, the scorecard route answers that it needs it.
+	Scorecard ScorecardReader
 	// ProviderKeys places a hosted provider's key in this process for the
 	// model a reference names and returns the variable that holds it;
 	// assembled by the launcher, absent the key route answers that it

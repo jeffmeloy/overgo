@@ -100,21 +100,6 @@
       ]
     },
     {
-      "id": "compatibility-cache-inputs",
-      "title": "Keep cmd/compatibility cached when a command or route changes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep cmd/compatibility cached when a command or route changes",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReadsNoCommandInventory$' -count=1",
-          "rationale": "Measured at 0bdbff9b6 (fold of two training probes): the test stage took 3m23s and cmd/compatibility alone 170s, for a change that touched no compatibility claim. cmd/compatibility/webui_report.go reads docs/api_manifest.json (webuiManifestPath), which the gate's fix stage regenerates whenever a binary, route or contract changes, so every command fold or route edit reruns the whole compatibility package. The webui report needs only the manifest's webui routes. Find each compatibility input a command or route change moves (go test -c, then -test.testlogfile, per the gate manual), then either read the narrower source directly or split the slow acceptances into their own package so the document checks stay cheap. Predicted: a landing that adds, removes or renames a command no longer reruns cmd/compatibility; the remaining automation-command-route-tables folds each drop about 170s of test stage."
-        }
-      ]
-    },
-    {
       "id": "command-subcommand-tables",
       "title": "Fold the model-file, store and parity commands into subcommand tables",
       "class": "consolidation",

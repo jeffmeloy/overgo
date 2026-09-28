@@ -2,11 +2,10 @@
 // is formatted, modernized by go fix, vetted and tested -- go test's own
 // cache decides what runs again -- the lanes the change reaches run, a few
 // rules compare the changed files with HEAD, the row's own check passes, and
-// a change that reaches the benchmark runs the scorecard's slices, one per
-// task, beside HEAD's benchmark when the message predicts a timed metric;
+// a change that reaches the benchmark runs the scorecard's inference slice;
 // then the tree is committed with the row's step removed from the plan. Git
-// holds the record: the message says what the gate measured, and a trailer
-// per slice carries it for the next landing to compare against.
+// holds the record: the message says what the gate measured, and the
+// slice's trailer carries it for the next landing to compare against.
 package landing
 
 import (

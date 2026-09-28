@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "simplify-scorecard-slice",
-      "title": "Cut the scorecard slice back to what landings use",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Cut the scorecard slice back to what landings use",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingMeasuresTheScorecardSlice$' -count=1",
-          "rationale": "Owner review 2026-09-27: the per-landing slice grew in three steps (ee13bdab2, de597cde9, 1cef3d9d9) to a multi-document protocol with crash continuation, per-slice HEAD blame, A B B A pairing and prose prediction parsing, for one document, and no real landing has used the pairing or the blame. Cut it back to what landings use: one inference slice, unpaired, its outputs and peak-device-memory compared with the newest measurement of its identity, one trailer. Per-modality coverage and paired timing belong to the scheduled scorecard, off the landing path. Rebuild a piece only when a real landing needs it. Make it a deletion with net production lines falling; the doctrine's prediction-naming sentence and SQA-019's prose parsing go with the pairing, and SQA-042 is moot once the gate no longer refuses on slice failures."
-        }
-      ]
-    },
-    {
       "id": "projection-serving-failures",
       "title": "Stop the projection activation failing a quarter of its serving attempts",
       "owner": "master-lead",

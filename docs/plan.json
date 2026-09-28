@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "landing-wall-budget",
-      "title": "A slow landing is a defect: remove or speed up what makes it slow",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "A slow landing is a defect: remove or speed up what makes it slow",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingNamesAWallOverBudget$' -count=1",
-          "rationale": "Owner 2026-09-27: a landing that takes more than about a minute is wrong (the number is a stand-in; the point is that slowness is a defect to remove, not a cost to accept). Measured today on the blocking path: the device and webui lanes (about 5 min whenever a change reaches them; removed from the landing with stop-state-out-of-store and run on the schedule), live-evidence acceptance suites re-running on any store write or dependency change (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s), cmd/gate's own landing test 61 s, commanddoc 32 s, vet up to 23 s. The gate's measured line names a landing over the budget and its slowest stages (a measurement; refusing after the run would only waste it), and each such landing's cause becomes the next fix: take it off the blocking path, make it fast, or delete it. Nothing joins the blocking path that breaks the budget for a narrow change. Owner 2026-09-27: unnecessary testing is a failure to fix, throughout: a check runs only when the change can alter its verdict. Done with stop-state-out-of-store: the lanes left the blocking path, and a change to the plan alone runs only the row's verify. Left: vet over the whole module on every landing (scope it to the changed packages and their importers), live-evidence suites (landing-hermetic-tests), and the slow checks that are relevant but slow (cmd/gate's own landing test, commanddoc)."
-        }
-      ]
-    },
-    {
       "id": "landing-hermetic-tests",
       "title": "Move live-evidence acceptance tests off the landing path",
       "owner": "master-lead",

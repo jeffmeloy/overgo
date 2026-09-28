@@ -78,6 +78,15 @@ var lanes = []lane{
 		command:     func(string) []string { return []string{"test", "-tags", "modeltest", "./internal/thoughtbank"} },
 		environment: []string{"OVERGO_CUDA_TEST=1"},
 	},
+	{
+		// Wan's lifecycle acceptance, behind the integration tag, on the
+		// local Wan2.1-T2V-1.3B the data roots declare.
+		name: "wan", packages: []string{"./internal/latentvideo"},
+		command: func(string) []string {
+			return []string{"test", "-tags", "integration", "./internal/latentvideo", "-run", "^TestWanLifecycleAcceptance$"}
+		},
+		environment: []string{"OVERGO_CUDA_TEST=1"},
+	},
 }
 
 // lanes runs every lane the change reaches, one after another: they share

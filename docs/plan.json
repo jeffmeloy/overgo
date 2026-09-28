@@ -5,6 +5,21 @@
   "scope": "lane",
   "items": [
     {
+      "id": "lane-data-outside-worktree",
+      "title": "Move the lane's store out of the worktree into C:/Users/jeffm/overgo_gui_cleanup_data and point OVERGO_DATA_ROOT there",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move the lane's store out of the worktree into C:/Users/jeffm/overgo_gui_cleanup_data and point OVERGO_DATA_ROOT there",
+          "status": "open",
+          "verify": "test ! -e overgodb-store \u0026\u0026 test -d C:/Users/jeffm/overgo_gui_cleanup_data/overgodb-store \u0026\u0026 test -f C:/Users/jeffm/overgo_gui_cleanup_data/local-models.json \u0026\u0026 go test ./internal/dataroot -count=1",
+          "rationale": "Owner 2026-09-27: follow master's data-outside-module move (master row data-outside-module, commit 142ff7dd5): go test's cache rechecks every path a test opens or stats inside the module folder, so a store write or a rewritten root file re-runs every evidence suite with no code change (master measured audioparity at 593 s, then about 12.5 min). Master moved models, datasets and its store into C:/Users/jeffm/overgo_data; the lane's reference stores were repointed there on 2026-09-27. The lane still keeps its own 2.1 GB overgodb-store inside the worktree with OVERGO_DATA_ROOT set to the worktree. Steps: (1) the owner renames C:/Users/jeffm/overgo_gui_cleanup/overgodb-store to C:/Users/jeffm/overgo_gui_cleanup_data/overgodb-store (same drive, seconds; the guard blocks moving store folders, so this is the owner's action) while no lane gate or test runs; (2) write C:/Users/jeffm/overgo_gui_cleanup_data/local-models.json with the lane's roots (models and checkpoints at adaptive_new, datasets at overgo_data/datasets) and point OVERGO_DATA_ROOT in .claude/settings.local.json there; (3) repin any record or config holding an absolute path under the worktree store (grep finds them); (4) land once, when the suites re-run one last time. The preview's disposable .overgo-runtime/gui-dev-store follows to the data folder too. Merge master's dataroot StoreModels change first if it has landed, so models beside the store resolve."
+        }
+      ]
+    },
+    {
       "id": "gui-what-got-better",
       "title": "Show what got better between versions from master's published scorecard -- per model, each cell's delta against the previous run, improvements and regressions named, including gains nobody targeted",
       "owner": "overgo_gui_cleanup",

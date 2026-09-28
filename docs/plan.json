@@ -4,26 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "rules-by-enforcement-level",
-      "title": "Move every rule to its cheapest deterministic level and keep the list short",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 183,
-        "reason": "a tool guard refuses a go build that writes a command's binary into the working directory"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move every rule to its cheapest deterministic level and keep the list short",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestRuleListIsShort$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27: sort each rule (the small gate's rules, the repoanalysis tree tests, scripts/guard.sh, the doctrine prose) by the cheapest level that makes it deterministic: construction (types and API shape), a diff rule against HEAD, an auto-fix inside the landing, a tool guard, a behaviour test, or a few injected lines of judgement. A rule that asks the agent for justification text is bookkeeping: move it up or down. Candidates: no .py files and no time.Sleep around input-dependent work as diff rules; timers and store access by construction. Delete a rule that never fires or fires only wrongly; keep about 10-15; rule code counts against net production lines. Observed 2026-09-27 (user-scorecard/define): the gate's fix stage and a worker's go fix both stale derived files that pin source bytes -- compatibility claim identities (cmd/compatibility -refresh-identities) and the API manifest (cmd/api-manifest -update) -- so a landing refuses at test and reruns. Per the ladder, regenerating derived files is an auto-fix: run those regenerators inside the landing after fix, as format and fix already run. Re-ranked 2026-09-27 behind the landing rows: a rule that false-positives stalls every unattended landing (the owner's current focus). SQA-039 (the zero-fallback rule refuses lazy fallbacks that cmp.Or would change) and SQA-036 (the export rule counts text mentions as consumers) land here."
-        }
-      ]
-    },
-    {
       "id": "env-gated-tests-run-or-go",
       "title": "Run or delete tests no lane enables",
       "owner": "master-lead",

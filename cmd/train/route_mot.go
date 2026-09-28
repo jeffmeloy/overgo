@@ -1,11 +1,3 @@
-// Command mot-train-probe executes full modality-transformer training as a
-// director-supervised model-session: the real vision/text forward supplies
-// the hidden rows (the same golden-verified prefill splice the VQA parity
-// ladder runs), the trainable surface is the vision-branch fork of EVERY
-// layer as f32 masters from the BF16 serving storage, the objective is the
-// pipeline's own next-token cross-entropy at the prompt's text positions,
-// and the run publishes one typed session observation. This is the
-// full-pipeline run the organ cells named as their promotion gate.
 package main
 
 import (
@@ -31,23 +23,27 @@ import (
 	"overgo/internal/trainingworkflow"
 )
 
-func main() {
-	clioptions.MainNamed("mot-train-probe", run)
-}
+// The image grid's axes, in the order the vision golden records them.
+const (
+	gridTime = iota
+	gridHeight
+	gridWidth
+	gridAxes
+)
 
-// bindingByName: the declaration lookup — model facts live in the named
+// motBinding: the declaration lookup — model facts live in the named
 // binding, generic code selects it.
-func bindingByName(name string) (routedlm.BranchBinding, error) {
+func motBinding(name string) (routedlm.BranchBinding, error) {
 	switch name {
 	case "rxbrain":
 		return routedlm.RxBrainBinding(), nil
 	case "sensenova":
 		return routedlm.SenseNovaBinding(), nil
 	}
-	return routedlm.BranchBinding{}, fmt.Errorf("mot train probe: unknown binding %q", name)
+	return routedlm.BranchBinding{}, fmt.Errorf("train -route mot: unknown binding %q", name)
 }
 
-type prefillGolden struct {
+type motPrefillGolden struct {
 	InputIDs       []int `json:"input_ids"`
 	PromptLen      int   `json:"prompt_len"`
 	PrefillTensors struct {
@@ -56,18 +52,18 @@ type prefillGolden struct {
 	} `json:"prefill_tensors"`
 }
 
-type goldenTensor struct {
+type motGoldenTensor struct {
 	Sha256 string `json:"sha256"`
 	Shape  []int  `json:"shape"`
 }
 
-type visionGolden struct {
-	ImageGridTHW   []int                   `json:"image_grid_thw"`
-	BlockLastAsset string                  `json:"block_last_asset"`
-	VisionTensors  map[string]goldenTensor `json:"vision_tensors"`
+type motVisionGolden struct {
+	ImageGridTHW   []int                      `json:"image_grid_thw"`
+	BlockLastAsset string                     `json:"block_last_asset"`
+	VisionTensors  map[string]motGoldenTensor `json:"vision_tensors"`
 }
 
-func loadTensorAsset(fixturesDir, asset string, golden goldenTensor) ([]float32, error) {
+func loadMotTensorAsset(fixturesDir, asset string, golden motGoldenTensor) ([]float32, error) {
 	elements := 1
 	for _, dim := range golden.Shape {
 		elements *= dim
@@ -75,21 +71,31 @@ func loadTensorAsset(fixturesDir, asset string, golden goldenTensor) ([]float32,
 	return fixtureasset.LoadF32(fixturesDir, asset, golden.Sha256, elements)
 }
 
-func run() error {
-	modelDir := flag.String("model", "", "branch-routed checkpoint dir")
-	fixturesDir := flag.String("fixtures", "", "golden fixture dir")
-	bindingName := flag.String("binding", "", "branch binding name")
-	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed training steps")
-	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
-	storePath := flag.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
-	stimulus := flag.String("stimulus", "docs/verification/rxbrain-mot-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
-	flag.Parse()
+// trainMot is the mot route: full modality-transformer training as a
+// director-supervised model-session. The real vision/text forward supplies
+// the hidden rows (the same golden-verified prefill splice the VQA parity
+// ladder runs), the trainable surface is the vision-branch fork of every
+// layer as f32 masters from the BF16 serving storage, the objective is the
+// pipeline's own next-token cross-entropy at the prompt's text positions,
+// and the run publishes one typed session observation: the full-pipeline run
+// the organ cells named as their promotion gate.
+func trainMot(flags *flag.FlagSet, args []string) error {
+	modelDir := flags.String("model", "", "branch-routed checkpoint dir")
+	fixturesDir := flags.String("fixtures", "", "golden fixture dir")
+	bindingName := flags.String("binding", "", "branch binding name")
+	steps := clioptions.IntOverride(flags, "steps", "required observed training steps")
+	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
+	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
+	stimulus := flags.String("stimulus", "docs/verification/rxbrain-mot-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 	ctx := context.Background()
 	if *modelDir == "" || *fixturesDir == "" || *bindingName == "" || *steps <= 0 {
-		return fmt.Errorf("mot train probe: model, fixtures, binding, and positive steps required")
+		return fmt.Errorf("train -route mot: model, fixtures, binding, and positive steps required")
 	}
 
-	binding, err := bindingByName(*bindingName)
+	binding, err := motBinding(*bindingName)
 	if err != nil {
 		return err
 	}
@@ -103,7 +109,7 @@ func run() error {
 	// weight touches memory.
 	shards, err := filepath.Glob(filepath.Join(*modelDir, "model-*-of-*.safetensors"))
 	if err != nil || len(shards) == 0 {
-		return fmt.Errorf("mot train probe: no shards under %s", *modelDir)
+		return fmt.Errorf("train -route mot: no shards under %s", *modelDir)
 	}
 	modelFile, err := os.Open(shards[0])
 	if err != nil {
@@ -139,22 +145,22 @@ func run() error {
 		return err
 	}
 	defer src.Close()
-	var vg visionGolden
+	var vg motVisionGolden
 	if err := jsonfile.Decode(filepath.Join(*fixturesDir, "rxbrain_vqa_vision_golden.json"), &vg); err != nil {
 		return err
 	}
-	var fg prefillGolden
+	var fg motPrefillGolden
 	if err := jsonfile.Decode(filepath.Join(*fixturesDir, "rxbrain_vqa_prefill_golden.json"), &fg); err != nil {
 		return err
 	}
-	if len(vg.ImageGridTHW) != 3 {
-		return fmt.Errorf("mot train probe: vision golden grid %v", vg.ImageGridTHW)
+	if len(vg.ImageGridTHW) != gridAxes {
+		return fmt.Errorf("train -route mot: vision golden grid %v", vg.ImageGridTHW)
 	}
 	spec, err := patchtower.LoadSpec(*modelDir)
 	if err != nil {
 		return err
 	}
-	blockLast, err := loadTensorAsset(*fixturesDir, vg.BlockLastAsset, vg.VisionTensors["block_last"])
+	blockLast, err := loadMotTensorAsset(*fixturesDir, vg.BlockLastAsset, vg.VisionTensors["block_last"])
 	if err != nil {
 		return err
 	}
@@ -162,7 +168,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	gridT, gridH, gridW := vg.ImageGridTHW[0], vg.ImageGridTHW[1], vg.ImageGridTHW[2]
+	gridT, gridH, gridW := vg.ImageGridTHW[gridTime], vg.ImageGridTHW[gridHeight], vg.ImageGridTHW[gridWidth]
 	imageRows, err := patchtower.ValidateMergerInputs(blockLast, gridT, gridH, gridW, spec)
 	if err != nil {
 		return err
@@ -187,7 +193,7 @@ func run() error {
 		}
 	}
 	if len(targets) == 0 {
-		return fmt.Errorf("mot train probe: no supervised text positions")
+		return fmt.Errorf("train -route mot: no supervised text positions")
 	}
 
 	// Every layer's dual-branch weights + the terminal (frozen).
@@ -204,7 +210,7 @@ func run() error {
 	scalarBytes := binary.Size(uint16(0))
 	headRaw := make([]byte, cfg.VocabSize*cfg.HiddenSize*int(scalarBytes))
 	if terminal.Head.DType != "BF16" {
-		return fmt.Errorf("mot train probe: head dtype %s, want BF16", terminal.Head.DType)
+		return fmt.Errorf("train -route mot: head dtype %s, want BF16", terminal.Head.DType)
 	}
 	if _, err := terminal.Head.ReadAt(headRaw, int64(tensor.FirstOffset)); err != nil {
 		return err
@@ -255,11 +261,11 @@ func run() error {
 			fmt.Printf("step %d/%d loss %.6f grad_l2 %.6f lr %.6g wall %s\n",
 				result.Step, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, wall.Round(time.Millisecond))
 			if result.GradientL2 <= 0 {
-				return fmt.Errorf("mot train probe: step %d gradient norm %g", result.Step, result.GradientL2)
+				return fmt.Errorf("train -route mot: step %d gradient norm %g", result.Step, result.GradientL2)
 			}
 			if step == 0 {
 				if err := session.AdmitStepWall(wall); err != nil {
-					return fmt.Errorf("mot train probe: %w", err)
+					return fmt.Errorf("train -route mot: %w", err)
 				}
 			}
 		}
@@ -269,7 +275,7 @@ func run() error {
 		}
 		fmt.Printf("after-evaluation loss %.6f (initial %.6f)\n", final, initial)
 		if !(final < initial) {
-			return fmt.Errorf("mot train probe: no descent: %.6f -> %.6f", initial, final)
+			return fmt.Errorf("train -route mot: no descent: %.6f -> %.6f", initial, final)
 		}
 		return nil
 	}()

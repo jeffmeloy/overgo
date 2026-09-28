@@ -17,7 +17,9 @@ const routeFlag = "-route"
 // A route that needs a platform's device registers itself from that
 // platform's file.
 var trainRoutes = map[string]func(flags *flag.FlagSet, args []string) error{
+	"graft":           trainGraft,
 	"mixture":         trainMixture,
+	"mot":             trainMot,
 	"oscillatorimage": trainOscillatorImage,
 	"tabular":         trainTabular,
 }

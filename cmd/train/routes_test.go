@@ -21,8 +21,12 @@ import (
 func TestTrainRoutesFoldedProbes(t *testing.T) {
 	for name := range trainRoutes {
 		t.Run(name, func(t *testing.T) {
-			if _, err := os.Stat(filepath.Join("..", name+"-train-probe")); !os.IsNotExist(err) {
-				t.Errorf("cmd/%s-train-probe still exists beside its cmd/train route (%v)", name, err)
+			former := name + "-train-probe"
+			if name == "graft" {
+				former = "graft-probe"
+			}
+			if _, err := os.Stat(filepath.Join("..", former)); !os.IsNotExist(err) {
+				t.Errorf("cmd/%s still exists beside its cmd/train route (%v)", former, err)
 			}
 			if err := runRoute([]string{name}); err == nil || !strings.Contains(err.Error(), routeFlag+" "+name) {
 				t.Errorf("route %s without its flags = %v, want a refusal naming the route", name, err)

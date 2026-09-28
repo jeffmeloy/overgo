@@ -133,7 +133,7 @@ var directCommitAllowances = []authorityAllowance{
 	{File: "cmd/compatibility/main.go", Count: oneAuthoritySite},
 	{File: "cmd/composite-generation-lane/run_windows.go", Count: fourAuthoritySites},
 	{File: "cmd/finding/main.go", Count: oneAuthoritySite},
-	{File: "cmd/graft-probe/main.go", Count: oneAuthoritySite},
+	{File: "cmd/train/route_graft.go", Count: oneAuthoritySite},
 	{File: "cmd/lora-extract/main.go", Count: oneAuthoritySite},
 	{File: "cmd/model-characterize/main.go", Count: twoAuthoritySites},
 	{File: "cmd/offline-artifact-validate/main.go", Count: oneAuthoritySite},

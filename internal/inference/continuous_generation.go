@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -419,7 +418,7 @@ func sortedContinuousStateIDs(
 	for id := range active {
 		ids = append(ids, id)
 	}
-	sort.Slice(ids, func(left, right int) bool { return ids[left] < ids[right] })
+	slices.Sort(ids)
 	return ids
 }
 

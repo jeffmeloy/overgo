@@ -626,7 +626,7 @@ func unmarshalCache(data []byte) (*KVCache, error) {
 		}
 		seen := make(map[string]struct{})
 		layer := LayerCache{}
-		for stateIndex := uint32(0); stateIndex < stateCount; stateIndex++ {
+		for range stateCount {
 			name := decoder.String32(decoder.Remaining())
 			if decoder.Err() != nil || name == "" {
 				return nil, fmt.Errorf("inference: KV cache layer %d state name is invalid", index)

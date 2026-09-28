@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 48,
-        "reason": "SQA-037: lanes are reached by data nested under their packages, by the module files, and the audio lane by its producer commands"
+        "nodes": 36,
+        "reason": "a model lane runs the continuation-scoring parity tests on the store's smallest local GGUF"
       },
       "steps": [
         {
@@ -991,7 +991,8 @@
             "rules-by-enforcement-level/manifest-unchanged",
             "rules-by-enforcement-level/guard-root-binary",
             "env-gated-tests-run-or-go/sqa-037",
-            "env-gated-tests-run-or-go/sqa-023"
+            "env-gated-tests-run-or-go/sqa-023",
+            "env-gated-tests-run-or-go/parity-model"
           ]
         }
       ]

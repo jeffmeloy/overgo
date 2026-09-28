@@ -22,9 +22,6 @@ func cachePageCapacity(tokens, limit uint32, session recipe.SessionPolicy) uint3
 	if pageTokens == 0 {
 		return 0
 	}
-	capacity := (uint64(tokens) + uint64(pageTokens) - 1) / uint64(pageTokens) * uint64(pageTokens)
-	if capacity > uint64(limit) {
-		capacity = uint64(limit)
-	}
+	capacity := min((uint64(tokens)+uint64(pageTokens)-1)/uint64(pageTokens)*uint64(pageTokens), uint64(limit))
 	return uint32(capacity)
 }

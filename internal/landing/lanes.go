@@ -59,6 +59,17 @@ var lanes = []lane{
 		command:     func(string) []string { return []string{"test", "./internal/audioparity"} },
 		environment: []string{testskip.StoreAcceptanceEnv + "=1"},
 	},
+	{
+		// Real-model checks: the device paths held to references on the
+		// store's own models. The device lane keeps its fixture-free
+		// kernel contracts apart from them. go test's cache replays them
+		// until code they read changes.
+		name: "model", packages: []string{"./internal/inference"},
+		command: func(string) []string {
+			return []string{"test", "./internal/inference", "-run", "^(TestContinuationScoringMatchesReferenceBackend|TestContinuationScoringPathsAgreeOnAModel)$"}
+		},
+		environment: []string{"OVERGO_CUDA_TEST=1"},
+	},
 }
 
 // lanes runs every lane the change reaches, one after another: they share

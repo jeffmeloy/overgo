@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "env-gated-tests-run-or-go",
-      "title": "Run or delete tests no lane enables",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 36,
-        "reason": "an e4b lane runs E4B's HTTP modalities test"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run or delete tests no lane enables",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestEveryTestGateIsSetByALane$' -count=1",
-          "rationale": "From consolidation-inventory (2026-09-24): 283 OVERGO_* environment reads sit in tests; 151 names appear only in tests and 145 of those are documented nowhere. 130 test functions (about 12,000 lines) skip unless a variable is set, and the lanes set only OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_WEBUI_LANE_SCREENS and OVERGO_BROWSER, so about 82 of them (about 5,800 lines, heaviest in internal/inference, adaptiveparity and projector) never run in any gate. Owner direction 2026-09-24: training and inference validation is the point of overgo, so give each a lane that runs it, with its model or data declared. Delete only a test a named running test supersedes. The same holds for modeltest-tagged suites no lane runs, such as seq2seq's GSM8K training suite. The probe is tmp/envgate_probe.go. Done when TestEveryTestGateIsSetByALane holds. Re-ranked 2026-09-27 behind the landing rows: SQA-037 (module-file changes can bypass the device and browser lanes), SQA-028 and SQA-023 are gate correctness defects this row owns. Status 2026-09-28. Now run by a lane: the audio acceptances (audio lane, 780d83550), the continuation-scoring parity tests (model lane, 9fd52aafb) and Thoughtbank's modeltest suite (thoughtbank lane, 6b37b2d6e). Still unrun, local model present: Wan (OVERGO_WAN_MODEL, OVERGO_WAN_FULL; internal/latentvideo) and SenseNova (OVERGO_SENSENOVA_FULL; internal/sensenovarecipe), both long full-generation runs. Unrun because a reference is missing: the Fractale leadership tests (OVERGO_FRACTALE_BASELINE), Krea (OVERGO_KREA_BASELINE; internal/latentimage, internal/mediacapability), Pocket TTS (OVERGO_POCKET_TTS_BASELINE; internal/adaptiveparity) and the Qwen3.5 projector fixture (OVERGO_QWEN35_MMPROJ, which also needs a golden of its internal activations). Producing any of those references means running the Python originals, which the Go-only rule excludes, so each is the owner's call: keep and wait for a reference, or delete it if a running test covers it. Also unrun: cudatest.Require tests in packages outside the device lane's scopes, and three more users of testskip.StoreAcceptance. Measured 2026-09-28, OVERGO_STORE_ACCEPTANCE=1 against the live store: all five accepted-evidence checks fail. TestAcceptedE4BResourceRefresh: the resource evidence does not bind the current inference surface. TestAcceptedCapabilityCensus: the census changed (snapshot 209 identities, live 220), and a new disposition has to be recorded before the denominator is replaced. TestAcceptedFP8Guard, TestRetiredGuardRecords and TestAcceptedGuardCatalog: the guard comparison evidence lacks realized residency, and the accepted cohort is empty. These audit recorded evidence, so a lane for them would refuse every landing until the evidence is refreshed. The census disposition is the owner's call; the guard refresh is about 80 minutes on the GPU. internal/server with OVERGO_CUDA_TEST=1 (2026-09-28): 419 pass and 62 skip, but TestAnalyzeAttentionEndToEnd and TestE4BHTTPModalities fail inside the whole-package run and pass alone (4 s and 42 s). Likely device contention between parallel tests; server stays out of the cuda lane until that is fixed."
-        }
-      ]
-    },
-    {
       "id": "landing-hermetic-tests",
       "title": "Move live-evidence acceptance tests off the landing path",
       "owner": "master-lead",
@@ -65,6 +46,21 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorFp8TensorCoreMulMatMatchesReference$' -count=1 -v",
           "rationale": "Measured 2026-09-28 with cmd/benchmark, 1,163-token prompt, one warm-up and three runs, p50, RTX 4090 D:\n- gemma-4-12B-it-fp8-native.gguf: 3,036 prompt tok/s;\n- its bf16 twin gemma-4-12B-it-fp8-bf16.gguf: 3,837.\nFp8 prefill is 21% slower. The prefill policy is already one decision (the node's MulMatComputeNativeTensorCore, simplify-prefill-paths). The gap is the fp8 path expanding every weight chunk to f16 in staging on each forward, where bf16 multiplies its resident weights directly. The Ada GPU has FP8 tensor cores: multiply the resident e4m3 weights without the f16 expansion, folding the per-row scale into the output, and hold parity against the exact e4m3-times-scale reference. Target: fp8 prefill at or above the bf16 twin's rate at the same prompt, decode unchanged, peak memory no higher. Serves every fp8 model on the shared path. Approach needs a decision first. An FP8-by-FP8 cuBLASLt GEMM quantizes activations to e4m3: a numerics change that needs held-out quality evaluation. A kernel that expands e4m3 to f16 in registers inside the GEMM keeps the numbers of today's staged path, but it is custom tensor-core kernel work. Ranked below the smaller rows until the approach is chosen."
+        }
+      ]
+    },
+    {
+      "id": "refresh-accepted-evidence",
+      "title": "Refresh the stale accepted evidence and decide the reference-dependent tests",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refresh the stale accepted evidence and decide the reference-dependent tests",
+          "status": "open",
+          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/compatibility ./cmd/longform -run '^(TestAcceptedCapabilityCensus|TestAcceptedE4BResourceRefresh|TestAcceptedFP8Guard|TestRetiredGuardRecords|TestAcceptedGuardCatalog)$' -count=1 -v",
+          "rationale": "Split from env-gated-tests-run-or-go on 2026-09-28, once every CUDA-gated package had a lane. What remains needs the owner's call or a long evidence run.\n(1) The five accepted-evidence audits fail against the live store, run with OVERGO_STORE_ACCEPTANCE=1:\n- TestAcceptedE4BResourceRefresh: the resource evidence does not bind the current inference surface. Refresh it by running TestE4BMediaResourceRecovery with OVERGO_E4B_PUBLISH_RESOURCES=1, about 220 s.\n- TestAcceptedCapabilityCensus: snapshot 209 identities, live 220. The owner records a disposition before the denominator is replaced.\n- TestAcceptedFP8Guard, TestRetiredGuardRecords and TestAcceptedGuardCatalog: the guard evidence lacks realized residency, and the cohort is empty. That needs the long-form guard run, about 80 minutes on the GPU.\n(2) Tests that need a reference the Go-only rule cannot produce: the Fractale leadership tests (OVERGO_FRACTALE_BASELINE), Krea (OVERGO_KREA_BASELINE), Pocket TTS (OVERGO_POCKET_TTS_BASELINE) and the Qwen3.5 projector fixture (a golden of its internal activations). The owner decides whether to keep each and wait for a reference, or delete it if a running test covers it.\n(3) The full-length runs, Wan's 81-frame clip (OVERGO_WAN_FULL) and SenseNova's full generation (OVERGO_SENSENOVA_FULL): the lane budget for each once measured.\nDone when the audits pass."
         }
       ]
     },
@@ -998,7 +994,8 @@
             "env-gated-tests-run-or-go/integration",
             "env-gated-tests-run-or-go/cuda",
             "env-gated-tests-run-or-go/cuda-rest",
-            "env-gated-tests-run-or-go/e4b"
+            "env-gated-tests-run-or-go/e4b",
+            "refresh-accepted-evidence/do"
           ]
         }
       ]

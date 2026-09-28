@@ -1,11 +1,3 @@
-// overgodb-rebuild writes the store's projected state into a fresh
-// journal, stripping derived caches whose identities stay registered:
-// the store keeps recipes, prototypes, activations, and evaluated
-// performance; it stops carrying recomputable snapshots (owner ruling
-// 2026-08-27, measured: 6.07 GB of code manifests against ~450 MB of
-// knowledge). -swap moves the rebuilt journal into place, keeping the
-// old journal alongside; -discard-old removes the old journal after a
-// verified swap.
 package main
 
 import (
@@ -16,28 +8,33 @@ import (
 	"os"
 	"path/filepath"
 
-	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/storepolicy"
 )
 
-func main() {
-	clioptions.MainNamed("overgodb-rebuild", run)
-}
-
-func run() error {
-	repo := flag.String("repo", "overgodb-store", "OvergoDB store directory")
-	destination := flag.String("destination", "tmp/store-rebuild", "directory for the rebuilt store; must not already hold a journal")
-	swap := flag.Bool("swap", false, "move the rebuilt journal into the store directory, keeping the old journal alongside")
-	discardOld := flag.Bool("discard-old", false, "with -swap: remove the old journal after the swap")
-	flag.Parse()
+// rebuild is overgodb rebuild: it writes the store's projected state into a
+// fresh journal, stripping derived caches whose identities stay registered.
+// The store keeps recipes, prototypes, activations, and evaluated
+// performance; it stops carrying recomputable snapshots (owner ruling
+// 2026-08-27, measured: 6.07 GB of code manifests against ~450 MB of
+// knowledge). -swap moves the rebuilt journal into place, keeping the old
+// journal alongside; -discard-old removes the old journal after a verified
+// swap.
+func rebuild(flags *flag.FlagSet, args []string) error {
+	repo := flags.String("repo", "overgodb-store", "OvergoDB store directory")
+	destination := flags.String("destination", "tmp/store-rebuild", "directory for the rebuilt store; must not already hold a journal")
+	swap := flags.Bool("swap", false, "move the rebuilt journal into the store directory, keeping the old journal alongside")
+	discardOld := flags.Bool("discard-old", false, "with -swap: remove the old journal after the swap")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 	rebuiltExists := false
 	if _, err := os.Stat(filepath.Join(*destination, "overgodb.log")); err == nil {
 		rebuiltExists = true
 	}
 	if rebuiltExists && !*swap {
-		return fmt.Errorf("overgodb-rebuild: %s already holds a journal; use a fresh destination", *destination)
+		return fmt.Errorf("overgodb rebuild:%s already holds a journal; use a fresh destination", *destination)
 	}
 	if rebuiltExists && *swap {
 		// A verified rebuilt journal already stands; swap it without
@@ -76,7 +73,7 @@ func swapJournals(repo, destination string, discardOld bool) error {
 	rebuiltJournal := filepath.Join(destination, "overgodb.log")
 	previous := journal + ".pre-rebuild"
 	if _, err := os.Stat(previous); err == nil {
-		return fmt.Errorf("overgodb-rebuild: %s already exists; resolve it before another swap", previous)
+		return fmt.Errorf("overgodb rebuild:%s already exists; resolve it before another swap", previous)
 	}
 	if err := os.Rename(journal, previous); err != nil {
 		return err

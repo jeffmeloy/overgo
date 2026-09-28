@@ -40,7 +40,13 @@ func TestEveryCommandHasACaller(t *testing.T) {
 	}
 	for _, command := range commands {
 		name := command.Name()
-		if !command.IsDir() || Declared[name].Command.Purpose != "" || namedOutside(texts, name) {
+		// A command is a directory holding Go source; one left holding only
+		// ignored files, a store a test wrote there, is none.
+		sources, err := filepath.Glob(filepath.Join(root, "cmd", name, "*.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !command.IsDir() || len(sources) == 0 || Declared[name].Command.Purpose != "" || namedOutside(texts, name) {
 			continue
 		}
 		t.Errorf("cmd/%s has no caller the tree shows and no declared identity in commanddoc.Declared", name)

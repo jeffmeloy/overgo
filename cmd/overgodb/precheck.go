@@ -1,13 +1,3 @@
-// store-precheck proves a store maintenance operation on a candidate before
-// it goes into service. It clones the sealed backup of the live store with
-// hard-linked blobs, releases the unreachable derived caches on the clone,
-// and runs the checks that bind to the store against it: blob identity and
-// the published recipe chains. It prints a typed receipt and, with -swap,
-// renames the candidate into service only when every check passed, keeping
-// the superseded store beside it. Two stores that passed hand-picked checks
-// went into service and broke their readers within minutes; this command is
-// the check that would have refused them, run by the operation rather than
-// chosen by its operator.
 package main
 
 import (
@@ -32,9 +22,10 @@ import (
 
 type check = overgodb.ConsumerCheck
 
-// producer is this command's capability to commit a store operation proof:
-// the store admits that kind from nothing else, so the gate never reads a
-// proof someone typed.
+// producer is precheck's capability to commit a store operation proof: the
+// store admits that kind from nothing else, so the gate never reads a proof
+// someone typed. Its name is the identity the store's frames record and its
+// write admission names, so it keeps the command name it was minted under.
 var producer = overgodb.NewProducer("store-precheck")
 
 // receipt is the proof the candidate carries plus what became of the
@@ -46,21 +37,29 @@ type receipt struct {
 	Superseded string `json:"superseded,omitzero"`
 }
 
-func main() {
-	clioptions.MainNamed("store-precheck", run)
-}
-
-func run() error {
-	repository := flag.String("repo", "overgodb-store", "OvergoDB store in service")
-	backup := flag.String("backup", "", "published backup whose seal names the store's current head (default: this command seals one under -backups)")
-	backups := flag.String("backups", "", "directory this command seals its own backup under (default: overgo-backups beside the checkout)")
-	checkout := flag.String("checkout", ".", "checkout whose plan, committed documents and commit messages the candidate must satisfy")
-	candidate := flag.String("candidate", "", "fresh candidate store directory (default: <repo>.candidate)")
-	swap := flag.Bool("swap", false, "rename the candidate into service when every check passed, keeping the superseded store beside it")
-	leftovers := flag.Bool("leftovers", false, "list the superseded stores and sealed backups earlier operations left and which the newest of each are; removes nothing")
-	flag.Parse()
-	if flag.NArg() != 0 {
-		return errors.New("usage: store-precheck [-backup <published-backup> | -backups <dir>] [-repo <store>] [-checkout <dir>] [-candidate <dir>] [-swap] | -leftovers")
+// precheckStore is overgodb precheck: it proves a store maintenance operation on
+// a candidate before it goes into service. It clones the sealed backup of
+// the live store with hard-linked blobs, releases the unreachable derived
+// caches on the clone, and runs the checks that bind to the store against
+// it: blob identity and the published recipe chains. It prints a typed
+// receipt and, with -swap, renames the candidate into service only when
+// every check passed, keeping the superseded store beside it. Two stores
+// that passed hand-picked checks went into service and broke their readers
+// within minutes; this is the check that would have refused them, run by
+// the operation rather than chosen by its operator.
+func precheckStore(flags *flag.FlagSet, args []string) error {
+	repository := flags.String("repo", "overgodb-store", "OvergoDB store in service")
+	backup := flags.String("backup", "", "published backup whose seal names the store's current head (default: this command seals one under -backups)")
+	backups := flags.String("backups", "", "directory this command seals its own backup under (default: overgo-backups beside the checkout)")
+	checkout := flags.String("checkout", ".", "checkout whose plan, committed documents and commit messages the candidate must satisfy")
+	candidate := flags.String("candidate", "", "fresh candidate store directory (default: <repo>.candidate)")
+	swap := flags.Bool("swap", false, "rename the candidate into service when every check passed, keeping the superseded store beside it")
+	leftovers := flags.Bool("leftovers", false, "list the superseded stores and sealed backups earlier operations left and which the newest of each are; removes nothing")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return fmt.Errorf("usage: %s [-backup <published-backup> | -backups <dir>] [-repo <store>] [-checkout <dir>] [-candidate <dir>] [-swap] | -leftovers", flags.Name())
 	}
 	absolute, err := filepath.Abs(*checkout)
 	if err != nil {
@@ -131,7 +130,7 @@ func precheck(ctx context.Context, repository, backup, checkout, candidate strin
 		return result, err
 	}
 	if seal.Head != head || seal.Sequence != sequence {
-		return result, fmt.Errorf("store-precheck: backup %s seals head %s at sequence %d; the store in service is at %s sequence %d",
+		return result, fmt.Errorf("overgodb precheck:backup %s seals head %s at sequence %d; the store in service is at %s sequence %d",
 			backup, seal.Head, seal.Sequence, head, sequence)
 	}
 	result.HeadBefore, result.SequenceBefore = head.String(), sequence
@@ -202,7 +201,7 @@ func runChecks(checks []namedCheck) []check {
 // conclude settles the verdict and swaps only on a clean one.
 func conclude(result *receipt, swap bool, swapStores func() (string, error)) error {
 	if !result.Verdict() {
-		return errors.New("store-precheck: the candidate failed a consumer check; nothing was swapped")
+		return errors.New("overgodb precheck:the candidate failed a consumer check; nothing was swapped")
 	}
 	if !swap {
 		return nil
@@ -217,7 +216,7 @@ func conclude(result *receipt, swap bool, swapStores func() (string, error)) err
 func swapStores(live, candidate, head string) (string, error) {
 	superseded := fmt.Sprintf("%s.superseded-%.12s", filepath.Clean(live), head)
 	if _, err := os.Lstat(superseded); err == nil {
-		return "", fmt.Errorf("store-precheck: superseded path %q already exists", superseded)
+		return "", fmt.Errorf("overgodb precheck:superseded path %q already exists", superseded)
 	}
 	if err := os.Rename(live, superseded); err != nil {
 		return "", err
@@ -228,7 +227,8 @@ func swapStores(live, candidate, head string) (string, error) {
 	return superseded, nil
 }
 
-// checkPublishedChains runs store-check, which refuses every broken chain, against the candidate.
+// checkPublishedChains runs overgodb check, which refuses every broken
+// chain, against the candidate, as its own process.
 func checkPublishedChains(ctx context.Context, checkout, candidate string) error {
 	absolute, err := filepath.Abs(candidate)
 	if err != nil {
@@ -236,11 +236,11 @@ func checkPublishedChains(ctx context.Context, checkout, candidate string) error
 	}
 	var output bytes.Buffer
 	outcome, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: "go", Args: []string{"run", "./cmd/store-check", "-repo", absolute}, Dir: checkout,
+		Path: "go", Args: []string{"run", "./cmd/overgodb", "check", "-repo", absolute}, Dir: checkout,
 		Env: os.Environ(), Stdout: &output, Stderr: &output,
 	})
 	if err == nil && outcome.ExitCode != 0 {
-		err = fmt.Errorf("store-check: %s", strings.TrimSpace(output.String()))
+		err = fmt.Errorf("overgodb check: %s", strings.TrimSpace(output.String()))
 	}
 	return err
 }

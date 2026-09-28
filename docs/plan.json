@@ -106,16 +106,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "the converter fold adds no production code"
+        "nodes": 157,
+        "reason": "one subcommand dispatcher replaces the store commands' entry points"
       },
       "steps": [
-        {
-          "id": "fold-store-tools",
-          "title": "Fold the overgodb and store tools into cmd/overgodb subcommands",
-          "status": "open",
-          "verify": "go test ./cmd/overgodb -run '^TestOvergoDBSubcommandsReplaceTheirCommands$' -count=1 -v"
-        },
         {
           "id": "fold-parity-tools",
           "title": "Fold audio-oracle, sensenovaparity and vqaparity into validate -parity",
@@ -1005,7 +999,8 @@
       "blocks": [
         "user-scorecard"
       ],
-      "asked": "2026-09-24"
+      "asked": "2026-09-24",
+      "answer": "Download it"
     },
     {
       "id": "rae-downloads",
@@ -1018,7 +1013,8 @@
       "blocks": [
         "rae-generation-path"
       ],
-      "asked": "2026-09-23"
+      "asked": "2026-09-23",
+      "answer": "Fetch both"
     },
     {
       "id": "fp8-prefill-approach",
@@ -1032,7 +1028,8 @@
       "blocks": [
         "fp8-prefill-tensorcore"
       ],
-      "asked": "2026-09-28"
+      "asked": "2026-09-28",
+      "answer": "FP8-by-FP8 GEMM, then held-out evaluation"
     },
     {
       "id": "capability-census-disposition",
@@ -1059,7 +1056,8 @@
       "blocks": [
         "refresh-accepted-evidence"
       ],
-      "asked": "2026-09-28"
+      "asked": "2026-09-28",
+      "answer": "Allow one Python run to produce the references"
     },
     {
       "id": "scorecard-schedule",

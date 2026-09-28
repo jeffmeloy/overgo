@@ -1,11 +1,3 @@
-//overgo:runtime-inputs caller
-
-// overgodb-repair truncates a torn or corrupt journal tail. The journal
-// is an append-only chain of checksummed frames; corruption that enters
-// through a dying or memory-corrupted writer can only live in the final
-// frames, so the repair walks the chain, finds the last frame whose
-// transaction still decodes, and swaps in a copy cut at that boundary.
-// The corrupt original is renamed alongside, never deleted.
 package main
 
 import (
@@ -20,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"overgo/internal/clioptions"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 )
@@ -32,15 +23,19 @@ const (
 	crcBytes         = 4
 )
 
-func main() {
-	clioptions.MainNamed("overgodb-repair", run)
-}
-
-func run() error {
-	repo := flag.String("repo", "overgodb-store", "OvergoDB store directory")
-	apply := flag.Bool("apply", false, "perform the repair; default reports only")
-	lineage := flag.Bool("lineage", false, "commit the lineage edges committed lifecycle events declare but the store lacks (additive typed-document repair)")
-	flag.Parse()
+// repair is overgodb repair: it truncates a torn or corrupt journal tail.
+// The journal is an append-only chain of checksummed frames; corruption that
+// enters through a dying or memory-corrupted writer can only live in the
+// final frames, so the repair walks the chain, finds the last frame whose
+// transaction still decodes, and swaps in a copy cut at that boundary. The
+// corrupt original is renamed alongside, never deleted.
+func repair(flags *flag.FlagSet, args []string) error {
+	repo := flags.String("repo", "overgodb-store", "OvergoDB store directory")
+	apply := flags.Bool("apply", false, "perform the repair; default reports only")
+	lineage := flags.Bool("lineage", false, "commit the lineage edges committed lifecycle events declare but the store lacks (additive typed-document repair)")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 	if *lineage {
 		return reconcileLineage(*repo)
 	}
@@ -99,7 +94,7 @@ func scanJournal(path string) (validEnd, total int64, frames, badFrames int, err
 	total = info.Size()
 	reader := bufio.NewReaderSize(file, 1<<20)
 	if _, err := io.CopyN(io.Discard, reader, storeHeaderBytes); err != nil {
-		return 0, total, 0, 0, fmt.Errorf("overgodb-repair: store header: %w", err)
+		return 0, total, 0, 0, fmt.Errorf("overgodb repair:store header: %w", err)
 	}
 	validEnd = storeHeaderBytes
 	header := make([]byte, frameHeaderBytes)

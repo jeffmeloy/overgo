@@ -25,7 +25,7 @@ func TestProfileCatalogQueryReportsExactCoverage(t *testing.T) {
 		t.Fatal(err)
 	}
 	var emptyOutput bytes.Buffer
-	if err := run([]string{"-repo", repository, "-profiles", "-json"}, &emptyOutput); err != nil {
+	if err := runQuery([]string{"-repo", repository, "-profiles", "-json"}, &emptyOutput); err != nil {
 		t.Fatal(err)
 	}
 	var empty modelrecipe.ProfileCatalogCoverage
@@ -46,7 +46,7 @@ func TestProfileCatalogQueryReportsExactCoverage(t *testing.T) {
 		t.Fatal(err)
 	}
 	var output bytes.Buffer
-	if err := run([]string{"-repo", repository, "-profiles", "-json"}, &output); err != nil {
+	if err := runQuery([]string{"-repo", repository, "-profiles", "-json"}, &output); err != nil {
 		t.Fatal(err)
 	}
 	var coverage modelrecipe.ProfileCatalogCoverage
@@ -99,7 +99,7 @@ func TestDatasetCatalogQueryReportsExactCoverage(t *testing.T) {
 		t.Fatal(err)
 	}
 	var output bytes.Buffer
-	if err := run([]string{"-repo", root, "-datasets", "-json"}, &output); err != nil {
+	if err := runQuery([]string{"-repo", root, "-datasets", "-json"}, &output); err != nil {
 		t.Fatal(err)
 	}
 	var coverage dataset.CatalogCoverage
@@ -129,14 +129,14 @@ func TestRunQueriesSeededStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	var text bytes.Buffer
-	if err := run([]string{"-repo", root, "-kind", "dataset"}, &text); err != nil {
+	if err := runQuery([]string{"-repo", root, "-kind", "dataset"}, &text); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(text.String(), id.String()) || !strings.Contains(text.String(), "dataset/current") {
 		t.Fatalf("text output = %q", text.String())
 	}
 	var encoded bytes.Buffer
-	if err := run([]string{"-repo", root, "-alias", "dataset/current", "-json"}, &encoded); err != nil {
+	if err := runQuery([]string{"-repo", root, "-alias", "dataset/current", "-json"}, &encoded); err != nil {
 		t.Fatal(err)
 	}
 	var result overgodb.QueryResult
@@ -149,10 +149,10 @@ func TestRunQueriesSeededStore(t *testing.T) {
 }
 
 func TestRunRejectsUnboundedAndInvalidFilters(t *testing.T) {
-	if err := run(nil, &bytes.Buffer{}); err == nil {
+	if err := runQuery(nil, &bytes.Buffer{}); err == nil {
 		t.Fatal("missing repository accepted")
 	}
-	if err := run([]string{"-repo", "x", "-limit", "0"}, &bytes.Buffer{}); err == nil {
+	if err := runQuery([]string{"-repo", "x", "-limit", "0"}, &bytes.Buffer{}); err == nil {
 		t.Fatal("zero result bound accepted")
 	}
 	if _, err := parseFollow("sideways"); err == nil {

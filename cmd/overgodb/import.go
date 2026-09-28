@@ -1,16 +1,10 @@
-//overgo:runtime-inputs caller
-
-// Command overgodb-import ingests a wire-format import stream into the
-// catalog through streaming object storage.
 package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 
 	"overgo/internal/objectstore"
@@ -18,15 +12,9 @@ import (
 	"overgo/internal/overgodbimport"
 )
 
-func main() {
-	if err := run(os.Args[1:], os.Stdin, os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-}
-
-func run(args []string, input io.Reader, output io.Writer) error {
-	flags := flag.NewFlagSet("overgodb-import", flag.ContinueOnError)
+// importStream is overgodb import: it ingests a wire-format import stream
+// into the catalog through streaming object storage.
+func importStream(flags *flag.FlagSet, args []string, input io.Reader, output io.Writer) error {
 	flags.SetOutput(io.Discard)
 	repositoryPath := flags.String("repo", "", "OvergoDB root")
 	artifactRoot := flags.String("root", "", "root for relative artifact paths")
@@ -34,7 +22,7 @@ func run(args []string, input io.Reader, output io.Writer) error {
 		return err
 	}
 	if flags.NArg() != 0 || *repositoryPath == "" || *artifactRoot == "" {
-		return errors.New("usage: overgodb-import -repo <path> -root <path> < export.jsonl")
+		return fmt.Errorf("usage: %s -repo <path> -root <path> < export.jsonl", flags.Name())
 	}
 	store, err := overgodb.Open(*repositoryPath)
 	if err != nil {

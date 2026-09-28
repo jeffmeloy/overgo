@@ -32,11 +32,11 @@ var Plan = Descriptor{
 	Classification: "both",
 }
 
-// OvergodbQuery describes the overgodb-query command: an operator or an agent
-// reads the committed catalog through it without mutating anything.
+// OvergodbQuery describes the overgodb query subcommand: an operator or an
+// agent reads the committed catalog through it without mutating anything.
 var OvergodbQuery = Descriptor{
 	Command: clioptions.Command{
-		Name:     "overgodb-query",
+		Name:     "overgodb query",
 		Purpose:  "read the catalog: filtered artifact listings, lineage traversals, and the derived operational ledgers",
 		Audience: "an operator or agent inspecting committed OvergoDB state without mutating it",
 		Constraints: []string{
@@ -58,8 +58,9 @@ func operator(name, purpose, audience string) Descriptor {
 // the manifest projects each identity, and a command nothing names and
 // nothing declares is refused by TestEveryCommandHasACaller.
 var Declared = map[string]Descriptor{
-	"plan":           Plan,
-	"overgodb-query": OvergodbQuery,
+	"plan": Plan,
+	"overgodb": operator("overgodb", "back up, check, import, precheck, query, rebuild or repair an OvergoDB store, one subcommand each",
+		"an operator maintaining or inspecting the store"),
 	"seam-align": operator("seam-align", "compute a seam's alignment residual, the causal proxy for whether a linear adapter composes it, and bias-audit recorded residuals against measured bridge parity",
 		"an operator studying model composition before training a bridge"),
 	"audio-inspect": operator("audio-inspect", "measure local WAV or FLAC audio and publish its admission record",
@@ -108,10 +109,6 @@ var Declared = map[string]Descriptor{
 		"an operator electing an audio reference"),
 	"controller-action": operator("controller-action", "compile one allowlisted controller action into its artifacts and commit them",
 		"an operator executing a controller emission"),
-	"overgodb-backup": operator("overgodb-backup", "publish a verified copy of an OvergoDB store",
-		"an operator backing up the store"),
-	"overgodb-import": operator("overgodb-import", "ingest a wire-format import stream into the store",
-		"an operator importing records into the store"),
 	"sensenovaparity": operator("sensenovaparity", "check SenseNova stages against their fixtures and the real checkpoint",
 		"an operator checking the SenseNova port"),
 	"api-manifest": operator("api-manifest", "regenerate or check docs/api_manifest.json, the declared binaries, routes and contracts",

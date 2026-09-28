@@ -60,12 +60,12 @@ func auditStorageAndProcessAuthorities(sources []productionAuthoritySource, repo
 	// A producer's door and its mint are the capability to commit a guarded
 	// kind: each site is a reviewed entry here, never a caller's choice.
 	verifyAuthoritySites(report, "storage", ".CommitAs", producerCommitSites, []authorityAllowance{
-		{File: "cmd/store-precheck/main.go", Count: oneAuthoritySite},
+		{File: "cmd/overgodb/precheck.go", Count: oneAuthoritySite},
 		{File: "internal/overgodb/rebuild.go", Count: oneAuthoritySite},
 		{File: "internal/overgodb/store.go", Function: "Store.Commit", Count: oneAuthoritySite},
 	})
 	verifyAuthoritySites(report, "storage", "overgodb.NewProducer", producerMintSites, []authorityAllowance{
-		{File: "cmd/store-precheck/main.go", Count: oneAuthoritySite},
+		{File: "cmd/overgodb/precheck.go", Count: oneAuthoritySite},
 	})
 	verifyAuthoritySites(report, "storage", "recordLog.append", appendSites, []authorityAllowance{{
 		File: "internal/overgodb/commit_coordinator.go", Function: "commitCoordinator.commit", Count: oneAuthoritySite,

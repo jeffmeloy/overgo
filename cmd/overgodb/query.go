@@ -1,14 +1,10 @@
-// Command overgodb-query reads the catalog: filtered artifact listings,
-// lineage traversals, and the derived operational ledgers.
 package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 	"strings"
 	"time"
@@ -28,12 +24,9 @@ import (
 	"overgo/internal/runrecord"
 )
 
-func main() {
-	clioptions.Main(func() error { return run(os.Args[1:], os.Stdout) })
-}
-
-func run(args []string, output io.Writer) error {
-	flags := flag.NewFlagSet("overgodb-query", flag.ContinueOnError)
+// query is overgodb query: it reads the catalog, giving filtered artifact
+// listings, lineage traversals and the derived operational ledgers.
+func query(flags *flag.FlagSet, args []string, output io.Writer) error {
 	repository := flags.String("repo", "", "OvergoDB root")
 	kindText := flags.String("kind", "", "artifact kind")
 	idText := flags.String("id", "", "artifact ID")
@@ -68,7 +61,7 @@ func run(args []string, output io.Writer) error {
 	}
 	var emptyResultBound int
 	if flags.NArg() != emptyResultBound || strings.TrimSpace(*repository) == "" || *limit <= emptyResultBound {
-		return errors.New("usage: overgodb-query -repo <path> [filters]")
+		return fmt.Errorf("usage: %s -repo <path> [filters]", flags.Name())
 	}
 	if *servable {
 		return writeServable(output, *repository, *limit)
@@ -587,7 +580,7 @@ func writeContent(output io.Writer, repository, idText string) error {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("overgodb-query: no committed content for %s", id)
+		return fmt.Errorf("overgodb query:no committed content for %s", id)
 	}
 	_, err = output.Write(content.Data)
 	return err
@@ -838,7 +831,7 @@ func parseFollow(value string) (overgodb.FollowDirection, error) {
 	case "both":
 		return overgodb.FollowBoth, nil
 	default:
-		return overgodb.FollowNone, fmt.Errorf("overgodb-query: invalid follow direction %q", value)
+		return overgodb.FollowNone, fmt.Errorf("overgodb query:invalid follow direction %q", value)
 	}
 }
 

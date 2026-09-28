@@ -18,8 +18,6 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 		exceptions    bool
 	}{
 		{"storage", EntryAuthorityStorage, "internal/overgodb", `import "os";func bypass()error{return os.WriteFile("overgodb.log",nil,0o644)}`, false},
-		{"process", EntryAuthorityProcess, "internal/processcontrol", `import "os/exec";func bypass()error{return exec.Command("git","status").Run()}`, true},
-		{"capability", EntryAuthorityCapability, "internal/inference", `import "overgo/internal/inference";func bypass()*inference.Runner{return &inference.Runner{}}`, false},
 		{"tool", EntryAuthorityTool, "internal/agenttool", `import "overgo/internal/agenttool";func bypass()agenttool.Manual{return agenttool.Manual{Name:"unregistered"}}`, false},
 		{"trigger", EntryAuthorityTrigger, "internal/workflowruntime", `import "overgo/internal/runrecord";func bypass()runrecord.WebhookDelivery{return runrecord.WebhookDelivery{}}`, false},
 		{"promotion", EntryAuthorityPromotion, "internal/modelrecipe", `func bypass()string{return "recipe.active."+"model/task"}`, false},

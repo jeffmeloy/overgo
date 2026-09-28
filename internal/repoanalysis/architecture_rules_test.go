@@ -14,15 +14,13 @@ import (
 )
 
 // TestEntryAuthoritiesHoldOverTheTree holds the whole tree to the entry
-// authorities: storage, processes, capabilities, tools, triggers, promotion
-// and the Go-only runtime each have one owner, and a script named as a
-// runtime entry is refused.
+// authorities: storage, tools, triggers, promotion and the Go-only runtime
+// each have one owner, and a script named as a runtime entry is refused.
 func TestEntryAuthoritiesHoldOverTheTree(t *testing.T) {
 	t.Parallel()
 	var rules []repoanalysis.EntryAuthorityRule
 	for _, domain := range []repoanalysis.EntryAuthorityDomain{
-		repoanalysis.EntryAuthorityStorage, repoanalysis.EntryAuthorityProcess,
-		repoanalysis.EntryAuthorityCapability, repoanalysis.EntryAuthorityTool,
+		repoanalysis.EntryAuthorityStorage, repoanalysis.EntryAuthorityTool,
 		repoanalysis.EntryAuthorityTrigger, repoanalysis.EntryAuthorityPromotion,
 		repoanalysis.EntryAuthorityGoOnly,
 	} {
@@ -79,16 +77,13 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 		overlay map[string][]byte
 	}{
 		{name: "storage", family: "storage", overlay: map[string][]byte{
-			"internal/server/rogue_commit.go": []byte("package server\nfunc rogueCommit(value interface{ Commit() error }) { _ = value.Commit() }\n"),
+			"internal/server/rogue_producer.go": []byte("package server\nimport \"overgo/internal/overgodb\"\nfunc rogueProducer() { _ = overgodb.NewProducer() }\n"),
 		}},
 		{name: "aliased process", family: "process", overlay: map[string][]byte{
 			"internal/server/rogue_process.go": []byte("package server\nimport runner \"os/exec\"\nfunc rogueProcess() { _ = runner.Command(\"probe\") }\n"),
 		}},
 		{name: "capability", family: "capability", overlay: map[string][]byte{
-			"internal/server/rogue_capability.go": []byte("package server\nimport capability \"overgo/internal/capabilityruntime\"\nfunc rogueCapability(c capability.ExecutorCatalog) { _ = c.Execute() }\n"),
-		}},
-		{name: "tool", family: "tool", overlay: map[string][]byte{
-			"internal/server/rogue_tool.go": []byte("package server\nimport tools \"overgo/internal/agenttool\"\nfunc rogueTool(e *tools.Executor) { _, _ = e.Invoke(nil, tools.Manual{}, nil) }\n"),
+			"internal/server/rogue_capability.go": []byte("package server\nimport capability \"overgo/internal/capabilityruntime\"\nvar roguePlacement = capability.ExactCapabilityPlacement{Task: \"rogue\"}\n"),
 		}},
 		{name: "active catalog bound through the alias owner", family: "tool", overlay: map[string][]byte{
 			"internal/server/rogue_catalog.go": []byte("package server\nimport (\"overgo/internal/agenttool\"; \"overgo/internal/artifact\")\nfunc rogueCatalog(target, held artifact.ID) artifact.AliasBinding { return artifact.AliasMove(agenttool.ActiveCatalogAlias, target, held) }\n"),
@@ -98,9 +93,6 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 		}},
 		{name: "promotion", family: "promotion", overlay: map[string][]byte{
 			"internal/server/rogue_promotion.go": []byte("package server\nimport comp \"overgo/internal/composition\"\nfunc roguePromotion() { _, _, _, _ = comp.ActiveCompositeGeneration(nil, nil, artifact.ID{}, artifact.ID{}, recipe.Task{}) }\n"),
-		}},
-		{name: "missing owner", family: "promotion", overlay: map[string][]byte{
-			"internal/inference/composite_generation_surface.go": nil,
 		}},
 		{name: "stale allowance", family: "process", overlay: map[string][]byte{
 			"cmd/eval-lane/main.go": nil,
@@ -136,99 +128,6 @@ func TestArchitectureRatchetClassifiesCapabilityInvocationBoundaries(t *testing.
 func TestInternalOrchestrationDoesNotInvokeUTCPTransport(t *testing.T) {
 	t.Parallel()
 	architectureRSIFinding(t, "internal/loop/rogue_transport.go", "package loop\nimport tools \"overgo/internal/agenttool\"\nfunc routeInternally(e *tools.Executor) { _, _, _ = e.InvokeWithEffect(nil, tools.Manual{}, nil) }\n", "direct-go", "transport-bypass")
-}
-
-func TestCrossDomainCandidateHasSingleAdmissionOwner(t *testing.T) {
-	t.Parallel()
-	snapshot := architectureRSISnapshot(t)
-	clean := architectureRSIAudit(t, snapshot)
-	if err := clean.Error(); err != nil {
-		t.Fatal(err)
-	}
-	candidate := architectureRSIOverlay(t, snapshot, map[string][]byte{
-		"internal/controlleraction/duplicate_admission.go": []byte("package controlleraction\ntype CandidateAdmission struct{}\nfunc AdmitCandidate() {}\n"),
-	})
-	report := architectureRSIAudit(t, candidate)
-	requireArchitectureFinding(t, report, "candidate-admission", "owner")
-	bypass := architectureRSIOverlay(t, snapshot, map[string][]byte{
-		"internal/loop/bypass_candidate_admission.go": []byte("package loop\nimport \"overgo/internal/runrecord\"\nfunc bypassCandidateAdmission() { _, _ = runrecord.AdmitCandidate() }\n"),
-	})
-	requireArchitectureFinding(t, architectureRSIAudit(t, bypass), "candidate-admission", "bypass")
-}
-
-func TestCrossDomainPromotionLifecycleHasOneTransitionOwner(t *testing.T) {
-	t.Parallel()
-	architectureRSIFinding(t, "internal/composition/duplicate_transition.go", "package composition\nfunc Transition() {}\n", "promotion-lifecycle", "owner")
-}
-
-func TestEvidenceDriverHasSingleDecisionOwner(t *testing.T) {
-	t.Parallel()
-	snapshot := architectureRSISnapshot(t)
-	owned := architectureRSIOverlay(t, snapshot, map[string][]byte{
-		"internal/runrecord/driver_decision.go": []byte("package runrecord\ntype DriverDecision struct{}\nfunc NewDriverDecision() DriverDecision { return DriverDecision{} }\n"),
-	})
-	if report := architectureRSIAudit(t, owned); report.Error() != nil {
-		t.Fatalf("reserved owner was refused: %v", report.Error())
-	}
-	duplicate := architectureRSIOverlay(t, owned, map[string][]byte{
-		"internal/loop/driver_decision.go": []byte("package loop\ntype DriverDecision struct{}\n"),
-	})
-	report := architectureRSIAudit(t, duplicate)
-	requireArchitectureFinding(t, report, "evidence-driver", "reserved-owner")
-	bypass := architectureRSIOverlay(t, snapshot, map[string][]byte{
-		"internal/loop/bypass_driver_decision.go": []byte("package loop\nimport \"overgo/internal/runrecord\"\nfunc bypassDriverDecision() { _, _ = runrecord.NewDriverDecision(nil, nil, runrecord.DriverDecisionFacts{}) }\n"),
-	})
-	requireArchitectureFinding(t, architectureRSIAudit(t, bypass), "evidence-driver", "bypass")
-}
-
-func TestTrainingEvidenceSinglePublicationAuthority(t *testing.T) {
-	t.Parallel()
-	requireReservedArchitectureOwner(t, "training-evidence-publication")
-}
-
-func TestSequentialControlHasSingleOwner(t *testing.T) {
-	t.Parallel()
-	requireReservedArchitectureOwner(t, "sequential-control")
-}
-
-type reservedArchitectureOwnerCase struct {
-	ownerPath, ownerBody         string
-	duplicatePath, duplicateBody string
-}
-
-var reservedArchitectureOwnerCases = map[string]reservedArchitectureOwnerCase{
-	"training-evidence-publication": {
-		duplicatePath: "internal/runrecord/evidence_publication.go",
-		duplicateBody: "package runrecord\ntype TrainingEvidencePublication struct{}\nfunc PublishTrainingEvidence() {}\n",
-	},
-	"sequential-control": {
-		ownerPath:     "internal/sequentialcontrol/plan.go",
-		ownerBody:     "package sequentialcontrol\ntype SequentialControlPlan struct{}\nfunc CalibrateSequentialControl() {}\nfunc EvaluateSequentialControl() {}\n",
-		duplicatePath: "internal/trainingworkflow/sequential_control.go",
-		duplicateBody: "package trainingworkflow\ntype SequentialControlPlan struct{}\nfunc CalibrateSequentialControl() {}\nfunc EvaluateSequentialControl() {}\n",
-	},
-}
-
-func requireReservedArchitectureOwner(t *testing.T, family string) {
-	t.Helper()
-	test, found := reservedArchitectureOwnerCases[family]
-	if !found {
-		t.Fatalf("unknown reserved architecture family %q", family)
-	}
-	snapshot := architectureRSISnapshot(t)
-	owned := snapshot
-	if test.ownerPath != "" {
-		owned = architectureRSIOverlay(t, snapshot, map[string][]byte{
-			test.ownerPath: []byte(test.ownerBody),
-		})
-	}
-	if report := architectureRSIAudit(t, owned); report.Error() != nil {
-		t.Fatalf("reserved %s owner was refused: %v", family, report.Error())
-	}
-	duplicate := architectureRSIOverlay(t, owned, map[string][]byte{
-		test.duplicatePath: []byte(test.duplicateBody),
-	})
-	requireArchitectureFinding(t, architectureRSIAudit(t, duplicate), family, "reserved-owner")
 }
 
 func TestRSIRuntimeIsGoOnly(t *testing.T) {

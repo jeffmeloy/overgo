@@ -13,8 +13,8 @@ import (
 )
 
 // ProductionAuthorityFinding is one deterministic architecture-ratchet
-// refusal. Family names the protected authority; Kind distinguishes an owner,
-// bypass, import, or stale-allowance failure.
+// refusal. Family names the protected authority; Kind distinguishes a bypass,
+// import, or stale-allowance failure.
 type ProductionAuthorityFinding struct {
 	Family   string
 	Kind     string
@@ -143,76 +143,6 @@ func addAuthorityFinding(report *ProductionAuthorityReport, finding ProductionAu
 	report.Findings = append(report.Findings, finding)
 }
 
-type authorityOwnerRule struct {
-	Family   string
-	Kind     string
-	Symbol   string
-	Owner    string
-	Receiver string
-}
-
-func requireAuthorityOwners(sources []productionAuthoritySource, report *ProductionAuthorityReport, rules ...authorityOwnerRule) {
-	for _, rule := range rules {
-		report.Rules++
-		var matches []ProductionAuthorityFinding
-		for _, source := range sources {
-			for _, declaration := range source.SyntaxFile.Decls {
-				switch typed := declaration.(type) {
-				case *ast.FuncDecl:
-					kind := "func"
-					receiver := ""
-					if typed.Recv != nil && len(typed.Recv.List) != 0 {
-						kind, receiver = "method", authorityReceiverName(typed.Recv.List[0].Type)
-					}
-					if rule.Kind == kind && rule.Symbol == typed.Name.Name && rule.Receiver == receiver {
-						matches = append(matches, ProductionAuthorityFinding{Actual: source.Package, File: source.Path, Line: source.Line(typed.Pos())})
-					}
-				case *ast.GenDecl:
-					for _, spec := range typed.Specs {
-						name, kind := "", ""
-						switch value := spec.(type) {
-						case *ast.TypeSpec:
-							name, kind = value.Name.Name, "type"
-						case *ast.ValueSpec:
-							kind = "var"
-							for _, candidate := range value.Names {
-								if candidate.Name == rule.Symbol {
-									name = candidate.Name
-									break
-								}
-							}
-						}
-						if rule.Kind == kind && rule.Symbol == name {
-							matches = append(matches, ProductionAuthorityFinding{Actual: source.Package, File: source.Path, Line: source.Line(spec.Pos())})
-						}
-					}
-				}
-			}
-		}
-		report.Sites += len(matches)
-		if len(matches) == 0 {
-			addAuthorityFinding(report, ProductionAuthorityFinding{
-				Family: rule.Family, Kind: "missing-owner", Symbol: authorityOwnerSymbol(rule),
-				Expected: rule.Owner, Actual: "absent",
-			})
-			continue
-		}
-		for _, match := range matches {
-			if match.Actual != rule.Owner || len(matches) != 1 {
-				match.Family, match.Kind, match.Symbol, match.Expected = rule.Family, "owner", authorityOwnerSymbol(rule), rule.Owner
-				addAuthorityFinding(report, match)
-			}
-		}
-	}
-}
-
-func authorityOwnerSymbol(rule authorityOwnerRule) string {
-	if rule.Receiver != "" {
-		return rule.Receiver + "." + rule.Symbol
-	}
-	return rule.Symbol
-}
-
 func authorityReceiverName(expression ast.Expr) string {
 	switch typed := expression.(type) {
 	case *ast.Ident:
@@ -249,8 +179,6 @@ const (
 	fourAuthoritySites  = threeAuthoritySites + oneAuthoritySite
 	fiveAuthoritySites  = fourAuthoritySites + oneAuthoritySite
 	sixAuthoritySites   = fiveAuthoritySites + oneAuthoritySite
-	sevenAuthoritySites = sixAuthoritySites + oneAuthoritySite
-	tenAuthoritySites   = sevenAuthoritySites + threeAuthoritySites
 )
 
 func recordAuthoritySite(sites map[authoritySiteKey][]int, source productionAuthoritySource, function string, position token.Pos) {

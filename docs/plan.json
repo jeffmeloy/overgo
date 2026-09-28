@@ -4,57 +4,21 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "user-scorecard",
-      "title": "One user-facing scorecard across every model, the definition of improvement",
+      "id": "owner-decision-queue",
+      "title": "Record owner decisions as typed plan data answered from the command line",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 904,
-        "reason": "the whole-output attempt recorder, recipe measure, and validate -run's media binding"
+        "nodes": 247,
+        "reason": "plan -answer records the owner's answer, one of the decision's options, once"
       },
       "steps": [
         {
           "id": "do",
-          "title": "Fill the scorecard: the absorbed benchmark and validation work",
+          "title": "Record owner decisions as typed plan data answered from the command line",
           "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestScorecardHasNoUnexplainedCell$' -count=1",
-          "rationale": "Absorbs, 2026-09-27: model-regression-baseline (full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under budgets, accepted record ids pinned), benchmark-completion (compare only cells whose checkpoint, precision, split, shots, template, scoring and extraction agree; keep the 100-case MMLU label; TestAcceptedPublishedComparison rejects omitted cells, duplicates, stale identities and failed outcomes), final-model-validation (a bounded long-lived server run: concurrency, context grow and shrink, cancellation, failure, reload, VRAM plateauing within budget), benchmark-27b (operator only, -budget 3h per launch, resuming exact remaining cases; the row reads completed evidence and never starts the pass), gemma-12b-accuracy (OWNER DECISION still open: download the unquantized google/gemma-4-12B-it? the 12B FP8 twins score 0.5-1.2 nats per token worse than E4B on the guard corpus while overgo's 12B graph matches the transformers reference, so the suspect is the third-party quant) and validate-all-models (RAE is the remaining unvalidated model, rae-generation-path). Done when every model's row has every cell measured or carrying a stated reason. Correction 2026-09-28: the lanes are not off the landing path. d836b7deb put them back, and the landing now runs eight lanes (device, webui, model-journey, audio, thoughtbank, integration, cuda, e4b) when a change reaches them. Owner answer 2026-09-28: the full scorecard runs from the loop when the plan empties, not on a schedule. The scheduled step landed that path: validate -run, then validate -scorecard -publish writes a record beside the store with what moved since the previous one. What it still lacks, taken on here: validate -run binds a re-acquisition command only for the guard. Each modality run the scheduled step named needs its own command before the loop's scorecard measures it rather than reads old records: tabular, vqa, projection, training, activity detection, every model that is not its task's smallest, and latent-image scratch seeding.",
-          "depends_on": [
-            "user-scorecard/scheduled",
-            "rae-generation-path/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "small-dead-code",
-      "title": "Delete TrainProbeMain and ExecutePlaced, which nothing calls",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete TrainProbeMain and ExecutePlaced, which nothing calls",
-          "status": "open",
-          "verify": "! grep -rqE 'TrainProbeMain|ExecutePlaced' --include=*.go internal cmd",
-          "rationale": "Review feedback 2026-09-28, verified.\n- clioptions.TrainProbeMain has had no caller since the train probes folded into cmd/train; that fold left it behind.\n- capabilityruntime.ExecutorCatalog.ExecutePlaced is called only by tests. repoanalysis's capability authority table pins it, and both entries go with it.\n\nRefuted items from the same review:\n- Server slotBusy is read by /slots. It mirrors the session director's per-slot leases; derive it from the director only if that deletes code.\n- hybridtrain's Checkpoint option is read, but no production caller sets it. It becomes live when trainer-shared-run publishes hybrid-stack checkpoints.\n- The NewForProgram-then-ExecuteProgram wrapper has three copies, not six: tool_workflow, model_builder and capabilityruntime/measured. Share it only if that nets a deletion."
-        }
-      ]
-    },
-    {
-      "id": "authority-rules-earn-keep",
-      "title": "Keep only the repoanalysis authority rules that catch what no test or construction does",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep only the repoanalysis authority rules that catch what no test or construction does",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -count=1 \u0026\u0026 test $(cat internal/repoanalysis/*authority*.go 2\u003e/dev/null | wc -l) -lt 2226",
-          "rationale": "Review feedback 2026-09-28. internal/repoanalysis's production_authority_* and entry_authority ratchets are about 2,200 lines with their tests, dating from the governed-snapshot era (d38908b96 ratcheted the RSI authorities). They pin symbols to owner packages, files and site counts, and every consolidation below trips them (ExecutePlaced sits in one table). A rule earns its keep only when it catches a defect that no test or construction would. Review each family: capability and tool, RSI, storage and process, trigger and promotion, entry. Delete the bookkeeping pins. Keep a rule that guards a real invariant, with the invariant stated in its comment. The landing message names what each family protected and why it went or stayed."
+          "verify": "! grep -q 'OWNER DECISION' docs/plan.json \u0026\u0026 go run ./cmd/plan -decisions",
+          "rationale": "Owner recommendation 2026-09-27: decisions sat inside rationale prose, and an unattended loop stalled quietly on them. The compatibility binding waited from 09-21 to 09-27, and the Gemma 12B bf16 download from 09-24.\n\nDecisions are now typed plan data: the question, the options, a recommendation and the rows each blocks. plan -decisions lists them and plan -answer records the owner's answer.\n\nOwner answer 2026-09-28 (decision-inbox-placement): the inbox stays on the command line, so no web UI panel is built, and the previous verify, a browser inbox test, is retired.\n\nDone when no decision sits in prose (the last two were answered and now read as answers) and plan -decisions runs. The loop does not wait on a decision: it takes the recommended option, records it, and the owner may override (owner, 2026-09-28)."
         }
       ]
     },
@@ -70,7 +34,7 @@
           "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
           "status": "open",
           "verify": "go build ./... \u0026\u0026 go vet ./internal/evaluation ./internal/server",
-          "rationale": "Review feedback 2026-09-28. About half the exported names in several core packages are never named outside their own package (upper bounds, since a returned type can be used without being named):\n\n| Package | Never named outside | Exported |\n|---|---|---|\n| evaluation | 158 | 319 |\n| server | 88 | 107 |\n| projector | 86 | 120 |\n| model | 80 | 160 |\n| latentvideo | 71 | 122 |\n\nOnce unexported, unused code is reported by standard Go analysis: golang.org/x/tools/cmd/deadcode run through go run, not added to go.mod. Dead code is then found without building a tool.\n\nHow to land it:\n- Rename with gopls, a deterministic tool rather than hand edits.\n- Go package by package, largest share first, each a net-deleting landing: evaluation and server first.\n- model and projector are on the inference surface, and latentvideo is a pinned media runtime path. Each of those lands with its evidence refresh and a reviewed delta.\n- The rules stage's unconsumed-exports check already keeps new exports from growing the set."
+          "rationale": "Review feedback 2026-09-28. About half the exported names in several core packages are never named outside their own package (upper bounds, since a returned type can be used without being named):\n\n| Package | Never named outside | Exported |\n|---|---|---|\n| evaluation | 158 | 319 |\n| server | 88 | 107 |\n| projector | 86 | 120 |\n| model | 80 | 160 |\n| latentvideo | 71 | 122 |\n\nOnce unexported, unused code is reported by standard Go analysis. Both gopls and deadcode are installed in ~/go/bin. A deadcode run over ./... on 2026-09-28 found 836 functions no command reaches, 493 of them exported. The largest counts:\n\n| Package | Unreachable | Kind |\n|---|---|---|\n| repoanalysis | 80 | the authority ratchets, run only as tests |\n| runrecord | 57 | |\n| diffusionimage | 52 | unwired trainer |\n| controllertrain | 37 | unwired trainer |\n| seq2seq | 33 | unwired trainer |\n| adaptiveparity | 32 | test-only reference |\n| trainingprogram | 31 | |\n| devicemath | 31 | |\n| testutil | 30 | test helpers |\n| server | 28 | |\n| workflowruntime | 23 | |\n| webuilane | 22 | |\n| rae | 22 | until rae-image-capability serves it |\n\nAn unwired trainer or inference path is wired, never deleted (capabilities-not-dead-code). Everything else deadcode reports is deleted.\n\nHow to land it:\n- Rename with gopls, package by package, largest share first, each a net-deleting landing: evaluation and server first.\n- model and projector are on the inference surface, and latentvideo is a pinned media runtime path. Each of those lands with its evidence refresh and a reviewed delta.\n- The rules stage's unconsumed-exports check already keeps new exports from growing the set."
         }
       ]
     },
@@ -86,7 +50,7 @@
           "title": "Resolve test models through store registrations instead of per-model environment variables",
           "status": "open",
           "verify": "test -z \"$(grep -rhoE 'OVERGO_[A-Z0-9_]+_MODEL' --include=*_test.go . | sort -u)\"",
-          "rationale": "Review feedback 2026-09-28, verified. Tests read 145 distinct OVERGO_* variables. 27 of them name a model: OVERGO_QWEN3_MODEL, OVERGO_QWEN35_MODEL, OVERGO_GEMMA4_TARGET_MODEL, OVERGO_WAN_MODEL and the rest. Each is a skip that depends on the environment and a path the machine must be told. internal/modeltest.Directory already resolves a model from the store's registrations. Move each test to it, one variable per slice, and delete the variable.\n\nThis overlaps models-out-of-adaptive-new, which drops the variables that point into adaptive_new; this row takes the rest. The review also counted 608 command flags (cmd/recipe 78, cmd/train 76). cmd/train's flags consolidate with trainer-shared-run's shared flag set, and the rest with simplify-command-surface."
+          "rationale": "Review feedback 2026-09-28, verified. Tests read 145 distinct OVERGO_* variables. 27 of them name a model (OVERGO_QWEN3_MODEL, OVERGO_QWEN35_MODEL, OVERGO_GEMMA4_TARGET_MODEL, OVERGO_WAN_MODEL and the rest), mostly in internal/inference's runner_integration_test.go and chat_test.go. Each test is skipped unless someone sets its variable, so in practice these tests do not run.\n\nThe construction:\n- internal/modeltest.Directory already resolves a model by directory name from the store's registrations.\n- Add modeltest.GGUF(t, architecture): the smallest registered GGUF whose header declares that architecture. Headers are read once per process, about 30 s for the whole store.\n- It was drafted and probed on the real store 2026-09-28: qwen35, qwen2, gemma4 and llama resolve; gemma3, t5, kimi-linear, cohere2, step35, wavtokenizer-dec and hunyuan-v3 have no registered GGUF and skip as not applicable.\n- Caution: the smallest qwen35 is the 1-bit Bonsai-27B quant. A test that checks one model's outputs names that model through Directory rather than asking for the architecture.\n\nMigrate each test to modeltest and delete its variable, one variable per slice. This overlaps models-out-of-adaptive-new, which drops the variables that point into adaptive_new; this row takes the rest.\n\nThe review also counted 608 command flags (cmd/recipe 78, cmd/train 76). cmd/train's flags consolidate with trainer-shared-run's shared flag set, and the rest with simplify-command-surface."
         }
       ]
     },
@@ -106,21 +70,25 @@
       ]
     },
     {
-      "id": "owner-decision-queue",
-      "title": "Make pending owner decisions typed plan data with a one-click inbox",
+      "id": "user-scorecard",
+      "title": "One user-facing scorecard across every model, the definition of improvement",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 247,
-        "reason": "plan -answer records the owner's answer, one of the decision's options, once"
+        "nodes": 904,
+        "reason": "the whole-output attempt recorder, recipe measure, and validate -run's media binding"
       },
       "steps": [
         {
           "id": "do",
-          "title": "Make pending owner decisions typed plan data with a one-click inbox",
+          "title": "Fill the scorecard: the absorbed benchmark and validation work",
           "status": "open",
-          "verify": "go test ./internal/server -run '^TestDecisionInboxAnswersWithOneClick$' -count=1 -v",
-          "rationale": "Owner recommendation 2026-09-27. Decisions sit inside rationale prose (\"OWNER DECISION: ...\"): the compatibility binding waited 09-21 to 09-27, the Gemma 12B bf16 download since 09-24, and an unattended loop stalls quietly on them. A decision becomes typed plan data: the question, the options, a recommendation and the rows it blocks. plan -decisions lists them; the GUI shows them as a short inbox answered with one click; decision latency becomes visible and measured. Migrate the open ones (the 12B bf16 and RAE downloads, redundant store backups, the self-improvement cluster's cut)."
+          "verify": "go test ./cmd/validate -run '^TestScorecardHasNoUnexplainedCell$' -count=1",
+          "rationale": "Absorbs, 2026-09-27: model-regression-baseline (full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under budgets, accepted record ids pinned), benchmark-completion (compare only cells whose checkpoint, precision, split, shots, template, scoring and extraction agree; keep the 100-case MMLU label; TestAcceptedPublishedComparison rejects omitted cells, duplicates, stale identities and failed outcomes), final-model-validation (a bounded long-lived server run: concurrency, context grow and shrink, cancellation, failure, reload, VRAM plateauing within budget), benchmark-27b (operator only, -budget 3h per launch, resuming exact remaining cases; the row reads completed evidence and never starts the pass), gemma-12b-accuracy (the unquantized google/gemma-4-12B-it was downloaded 2026-09-28 on the owner's answer, to compare with the 12B FP8 twins, which score 0.5-1.2 nats per token worse than E4B on the guard corpus while overgo's 12B graph matches the transformers reference, so the suspect is the third-party quant) and validate-all-models (RAE is the remaining unvalidated model, rae-generation-path). Done when every model's row has every cell measured or carrying a stated reason. Correction 2026-09-28: the lanes are not off the landing path. d836b7deb put them back, and the landing now runs eight lanes (device, webui, model-journey, audio, thoughtbank, integration, cuda, e4b) when a change reaches them. Owner answer 2026-09-28: the full scorecard runs from the loop when the plan empties, not on a schedule. The scheduled step landed that path: validate -run, then validate -scorecard -publish writes a record beside the store with what moved since the previous one. What it still lacks, taken on here: validate -run binds a re-acquisition command only for the guard. Each modality run the scheduled step named needs its own command before the loop's scorecard measures it rather than reads old records: tabular, vqa, projection, training, activity detection, every model that is not its task's smallest, and latent-image scratch seeding.",
+          "depends_on": [
+            "user-scorecard/scheduled",
+            "rae-generation-path/do"
+          ]
         }
       ]
     },
@@ -136,6 +104,22 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorFp8TensorCoreMulMatMatchesReference$' -count=1 -v",
           "rationale": "Measured 2026-09-28 with cmd/benchmark, 1,163-token prompt, one warm-up and three runs, p50, RTX 4090 D:\n- gemma-4-12B-it-fp8-native.gguf: 3,036 prompt tok/s;\n- its bf16 twin gemma-4-12B-it-fp8-bf16.gguf: 3,837.\nFp8 prefill is 21% slower. The prefill policy is already one decision (the node's MulMatComputeNativeTensorCore, simplify-prefill-paths). The gap is the fp8 path expanding every weight chunk to f16 in staging on each forward, where bf16 multiplies its resident weights directly. The Ada GPU has FP8 tensor cores: multiply the resident e4m3 weights without the f16 expansion, folding the per-row scale into the output, and hold parity against the exact e4m3-times-scale reference. Target: fp8 prefill at or above the bf16 twin's rate at the same prompt, decode unchanged, peak memory no higher. Serves every fp8 model on the shared path. Approach needs a decision first. An FP8-by-FP8 cuBLASLt GEMM quantizes activations to e4m3: a numerics change that needs held-out quality evaluation. A kernel that expands e4m3 to f16 in registers inside the GEMM keeps the numbers of today's staged path, but it is custom tensor-core kernel work. Ranked below the smaller rows until the approach is chosen."
+        }
+      ]
+    },
+    {
+      "id": "small-dead-code",
+      "title": "Delete TrainProbeMain and ExecutePlaced with the next landing that reruns every lane",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete TrainProbeMain and ExecutePlaced with the next landing that reruns every lane",
+          "status": "open",
+          "verify": "! grep -rqE 'TrainProbeMain|ExecutePlaced' --include=*.go internal cmd",
+          "rationale": "Review feedback 2026-09-28, verified. Both deletions are small, but each reaches far:\n- clioptions.TrainProbeMain has had no caller since the train probes folded into cmd/train; that fold left it behind. Nearly every command imports clioptions, so deleting it reruns every lane, about an hour (a landing of it alone was stopped for that reason on 2026-09-28).\n- capabilityruntime.ExecutorCatalog.ExecutePlaced is called only by tests, and repoanalysis's capability authority pins it. capabilityruntime is on the inference surface, so deleting it expires every text model's guard. Drop its placement_test drift check (that method's own behaviour), have the production-probe test execute through catalog.Execute with the placement's selection, and remove its authority entries if authority-rules-earn-keep has not already.\n\nBoth land with the next change that reruns every lane and moves the surface anyway; fp8-prefill-tensorcore is the next.\n\nRefuted items from the same review:\n- Server slotBusy is read by /slots. It mirrors the session director's per-slot leases; derive it from the director only if that deletes code.\n- hybridtrain's Checkpoint option is read, but no production caller sets it. It becomes live when trainer-shared-run publishes hybrid-stack checkpoints.\n- The NewForProgram-then-ExecuteProgram wrapper has three copies, not six: tool_workflow, model_builder and capabilityruntime/measured."
         }
       ]
     },
@@ -787,7 +771,7 @@
           "title": "Re-verify compatibility claims whose source moved, and fold cmd/compatibility into validate",
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1",
-          "rationale": "OWNER DECISION: does a claim's file:sha256 source binding mean re-verify when the code moves (then a refresh re-runs the claim's oracle), or nothing (then it leaves both documents)? Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree. Owner review 2026-09-27: its checks are plain tests now, so fold cmd/compatibility (4k lines of code, 12k of tests, plus compatibility.json and docs/verification/) into cmd/validate and cut its tests to behaviour. compatibility-names-its-reads is retired: go test's cache tracks what the package reads. About 10k lines. OWNER DECISION 2026-09-27: re-verify. A claim whose bound source moved is re-verified (its oracle re-runs), because a stale claim that a model works is exactly the false promise users hit."
+          "rationale": "Owner answer 2026-09-27: a claim's file:sha256 source binding means re-verify. A claim whose bound source moved is re-verified (its oracle re-runs), because a stale claim that a model works is exactly the false promise users hit. Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree. Owner review 2026-09-27: its checks are plain tests now, so fold cmd/compatibility (4k lines of code, 12k of tests, plus compatibility.json and docs/verification/) into cmd/validate and cut its tests to behaviour. compatibility-names-its-reads is retired: go test's cache tracks what the package reads. About 10k lines."
         }
       ]
     },

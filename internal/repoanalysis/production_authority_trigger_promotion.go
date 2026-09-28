@@ -15,33 +15,10 @@ const (
 // The audit is deliberately syntax-only: it is cheap enough to run for every
 // candidate snapshot and conservative when a protected selector is ambiguous.
 func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, report *ProductionAuthorityReport) {
-	requireAuthorityOwners(sources, report,
-		authorityOwnerRule{Family: "trigger", Kind: "type", Symbol: "CausalContext", Owner: "internal/runrecord"},
-		authorityOwnerRule{Family: "trigger", Kind: "func", Symbol: "NewCausalRoot", Owner: "internal/runrecord"},
-		authorityOwnerRule{Family: "trigger", Kind: "method", Symbol: "Derive", Owner: "internal/runrecord", Receiver: "CausalContext"},
-		authorityOwnerRule{Family: "trigger", Kind: "var", Symbol: "TriggerRegistry", Owner: "internal/runrecord"},
-		authorityOwnerRule{Family: "trigger", Kind: "func", Symbol: "ValidateTriggerRegistry", Owner: "internal/runrecord"},
-		authorityOwnerRule{Family: "trigger", Kind: "var", Symbol: "ExecutionTriggers", Owner: "internal/workflowruntime"},
-		authorityOwnerRule{Family: "trigger", Kind: "method", Symbol: "DispatchWebhook", Owner: "internal/workflowruntime", Receiver: "AutomationRuntime"},
-		authorityOwnerRule{Family: "trigger", Kind: "method", Symbol: "admitCausal", Owner: "internal/workflowruntime", Receiver: "AutomationRuntime"},
-		authorityOwnerRule{Family: "trigger", Kind: "type", Symbol: "StimulusFollowupAuthority", Owner: "internal/runrecord"},
-		authorityOwnerRule{Family: "trigger", Kind: "method", Symbol: "Admit", Owner: "internal/runrecord", Receiver: "StimulusFollowupAuthority"},
-		authorityOwnerRule{Family: "trigger", Kind: "func", Symbol: "ReconcileLateStimuli", Owner: "internal/workflowruntime"},
-		authorityOwnerRule{Family: "promotion", Kind: "func", Symbol: "ActiveCompositeGeneration", Owner: "internal/composition"},
-		authorityOwnerRule{Family: "promotion", Kind: "type", Symbol: "CompositeGenerationSurface", Owner: "internal/inference"},
-		authorityOwnerRule{Family: "promotion", Kind: "func", Symbol: "ResolveCompositeGenerationSurface", Owner: "internal/inference"},
-		authorityOwnerRule{Family: "promotion", Kind: "method", Symbol: "PromotedGeneration", Owner: "internal/inference", Receiver: "ProductionComposition"},
-		authorityOwnerRule{Family: "promotion", Kind: "type", Symbol: "ModelBuildSession", Owner: "internal/workflowruntime"},
-		authorityOwnerRule{Family: "promotion", Kind: "func", Symbol: "ExecuteModelBuild", Owner: "internal/workflowruntime"},
-		authorityOwnerRule{Family: "promotion", Kind: "type", Symbol: "StrategyComparison", Owner: "internal/loop"},
-		authorityOwnerRule{Family: "promotion", Kind: "func", Symbol: "CompareStrategyExperiment", Owner: "internal/loop"},
-	)
-
 	newCausalRoots := map[authoritySiteKey][]int{}
 	causalDerivations := map[authoritySiteKey][]int{}
 	causalConstructions := map[authoritySiteKey][]int{}
 	webhookDispatches := map[authoritySiteKey][]int{}
-	causalAdmissions := map[authoritySiteKey][]int{}
 	stimulusAdmissions := map[authoritySiteKey][]int{}
 	activeCompositeResolutions := map[authoritySiteKey][]int{}
 	compositeSurfaceConstructions := map[authoritySiteKey][]int{}
@@ -87,7 +64,7 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 					auditTriggerPromotionCall(
 						source, functionName, locals, typed,
 						newCausalRoots, causalDerivations, webhookDispatches,
-						causalAdmissions, stimulusAdmissions, activeCompositeResolutions,
+						stimulusAdmissions, activeCompositeResolutions,
 					)
 				case *ast.CompositeLit:
 					if len(typed.Elts) == 0 {
@@ -137,10 +114,6 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 	verifyAuthoritySites(report, "trigger", "workflowruntime.AutomationRuntime.DispatchWebhook", webhookDispatches, []authorityAllowance{
 		{File: "internal/server/automation_webhook.go", Function: "AutomationWorkspace.receiveAutomationWebhook", Count: oneAuthoritySite},
 	})
-	verifyAuthoritySites(report, "trigger", "workflowruntime.AutomationRuntime.admitCausal", causalAdmissions, []authorityAllowance{
-		{File: "internal/workflowruntime/automation.go", Function: "AutomationRuntime.admit", Count: oneAuthoritySite},
-		{File: "internal/workflowruntime/automation_webhook.go", Function: "AutomationRuntime.DispatchWebhook", Count: oneAuthoritySite},
-	})
 	verifyAuthoritySites(report, "trigger", "runrecord.StimulusFollowupAuthority.Admit", stimulusAdmissions, []authorityAllowance{
 		{File: "internal/workflowruntime/stimulus_reconciliation.go", Function: "ReconcileLateStimuli", Count: oneAuthoritySite},
 	})
@@ -170,7 +143,6 @@ func auditTriggerPromotionCall(
 	newCausalRoots,
 	causalDerivations,
 	webhookDispatches,
-	causalAdmissions,
 	stimulusAdmissions,
 	activeCompositeResolutions map[authoritySiteKey][]int,
 ) {
@@ -191,8 +163,6 @@ func auditTriggerPromotionCall(
 			recordAuthoritySite(causalDerivations, source, function, called.Sel.Pos())
 		case called.Sel.Name == "DispatchWebhook":
 			recordAuthoritySite(webhookDispatches, source, function, called.Sel.Pos())
-		case called.Sel.Name == "admitCausal":
-			recordAuthoritySite(causalAdmissions, source, function, called.Sel.Pos())
 		case called.Sel.Name == "Admit" && triggerPromotionTypeMatches(
 			source,
 			triggerPromotionExpressionType(source, called.X, locals),

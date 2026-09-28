@@ -116,8 +116,6 @@ var Declared = map[string]Descriptor{
 		"an operator electing an audio reference"),
 	"controller-action": operator("controller-action", "compile one allowlisted controller action into its artifacts and commit them",
 		"an operator executing a controller emission"),
-	"flow-organ-train-probe": operator("flow-organ-train-probe", "run a bounded observed training smoke for a routed-LM flow-head organ",
-		"an operator probing flow-head training"),
 	"hf-gguf-convert": operator("hf-gguf-convert", "convert a Hugging Face checkpoint to GGUF and register the result",
 		"an operator onboarding a model"),
 	"overgodb-backup": operator("overgodb-backup", "publish a verified copy of an OvergoDB store",

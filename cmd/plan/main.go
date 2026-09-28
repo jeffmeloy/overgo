@@ -30,7 +30,6 @@ const commandWorktree = "."
 func main() {
 	flag.CommandLine.Init(os.Args[0], flag.ContinueOnError)
 	next := flag.Bool("next", false, "print the top open action")
-	admitProposalFlag := flag.String("admit-proposal", "", "admit one typed steering proposal from a JSON spec into the store and the plan")
 	prompt := flag.Bool("prompt", false, "print the current step's task: -prompt [-json] [item/step]")
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
@@ -52,7 +51,7 @@ func main() {
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, admitProposal: *admitProposalFlag}, flag.Args())
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
 }
@@ -63,7 +62,6 @@ type cli struct {
 	next, prompt, verify, status, add, setverify bool
 	stop, move, retitle, json                    bool
 	title, class, before, verifyCmd, role        string
-	admitProposal                                string
 }
 
 func run(c cli, args []string) error {
@@ -93,8 +91,6 @@ func run(c cli, args []string) error {
 		return err
 	}
 	switch {
-	case c.admitProposal != "":
-		return admitProposal(commandWorktree, c.admitProposal, os.Stdout)
 	case c.add:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")

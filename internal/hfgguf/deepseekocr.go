@@ -17,6 +17,7 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
+	"overgo/internal/tensorcatalog"
 )
 
 // The DeepSeek-OCR family: a DeepseekV2 mixture-of-experts decoder under a
@@ -36,8 +37,8 @@ const (
 // deepSeekOCRLayerNames extends the dense layer table with the router and
 // the shared experts; the routed experts are stacked, not mapped one by one.
 var deepSeekOCRLayerNames = func() map[string]string {
-	names := make(map[string]string, len(denseLayerNames)+4)
-	maps.Copy(names, denseLayerNames)
+	names := make(map[string]string, len(tensorcatalog.DenseLayerNames)+4)
+	maps.Copy(names, tensorcatalog.DenseLayerNames)
 	names["mlp.gate.weight"] = "ffn_gate_inp.weight"
 	names["mlp.shared_experts.gate_proj.weight"] = "ffn_gate_shexp.weight"
 	names["mlp.shared_experts.up_proj.weight"] = "ffn_up_shexp.weight"

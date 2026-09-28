@@ -1,15 +1,3 @@
-// flow-organ-train-probe: bounded observed training smoke for a routed-LM
-// flow-head organ (the SenseNova-family fm_head MLP). The probe is the
-// production driver of the flow-head trainer and the reproducible generator
-// of its verification evidence: it compiles the flow plan from the real
-// artifact's own declarations, packs the fm_head organ as f32 masters
-// decoded from the BF16 serving storage, trains on a deterministic committed
-// stimulus with fully DERIVED hyperparameters (base LR n_params^-1/2,
-// momentum from the CLT effective-samples rule), observes every step with a
-// first-step projection guard, and proves descent by re-evaluating the same
-// pair's loss after the observed steps. Full-pipeline MoT training remains
-// the promotion gate beyond the organ; this claim covers the organ's
-// training machinery at real-artifact-smoke tier.
 package main
 
 import (
@@ -17,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"math"
-	"os"
 	"strings"
 	"time"
 
@@ -38,36 +25,34 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-func main() {
-	model := flag.String("model", "", "model directory (safetensors + config.json)")
-	organ := flag.String("organ", "flow-head", "trainable organ: flow-head (SenseNova fm_head), latent-bridge (RxBrain llm2vae/vae2llm), denoiser-final (Krea-2 MMDiT output head), or video-head (Wan2.1 head)")
-	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed Muon steps")
-	rows := clioptions.IntOverride(flag.CommandLine, "rows", "required stimulus rows")
-	timestep := flag.Float64("timestep", 0.25, "flow timestep in [0,1)")
-	tensorName := flag.String("tensor", "blk.0.ffn_gate.weight", "ternary-master: the quantized matrix to train")
-	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
-	flag.Parse()
-	var err error
+// trainFlowOrgan is the flow-organ route: bounded observed training of one
+// trainable organ of a real artifact, chosen by -organ.
+func trainFlowOrgan(flags *flag.FlagSet, args []string) error {
+	model := flags.String("model", "", "model directory (safetensors + config.json)")
+	organ := flags.String("organ", "flow-head", "trainable organ: flow-head (SenseNova fm_head), latent-bridge (RxBrain llm2vae/vae2llm), denoiser-final (Krea-2 MMDiT output head), video-head (Wan2.1 head), edit-head, or ternary-master")
+	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
+	rows := clioptions.IntOverride(flags, "rows", "required stimulus rows")
+	timestep := flags.Float64("timestep", 0.25, "flow timestep in [0,1)")
+	tensorName := flags.String("tensor", "blk.0.ffn_gate.weight", "ternary-master: the quantized matrix to train")
+	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 	switch *organ {
 	case "flow-head":
-		err = run(*model, *steps, *rows, *timestep, *maxWall)
+		return trainFlowHead(*model, *steps, *rows, *timestep, *maxWall)
 	case "latent-bridge":
-		err = runLatentBridge(*model, *steps, *rows, *maxWall)
+		return runLatentBridge(*model, *steps, *rows, *maxWall)
 	case "denoiser-final":
-		err = runDenoiserFinal(*model, latentimage.KreaFinalLayerBinding(), *steps, *rows, *maxWall)
+		return runDenoiserFinal(*model, latentimage.KreaFinalLayerBinding(), *steps, *rows, *maxWall)
 	case "video-head":
-		err = runDenoiserFinal(*model, latentimage.WanHeadBinding(), *steps, *rows, *maxWall)
+		return runDenoiserFinal(*model, latentimage.WanHeadBinding(), *steps, *rows, *maxWall)
 	case "edit-head":
-		err = runEditHead(*model, *steps, *rows, *maxWall)
+		return runEditHead(*model, *steps, *rows, *maxWall)
 	case "ternary-master":
-		err = runTernaryMaster(*model, *tensorName, *steps, *rows, *maxWall)
-	default:
-		err = fmt.Errorf("flow-organ-train-probe: unknown organ %q (flow-head, latent-bridge)", *organ)
+		return runTernaryMaster(*model, *tensorName, *steps, *rows, *maxWall)
 	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	return fmt.Errorf("%s: unknown organ %q (flow-head, latent-bridge, denoiser-final, video-head, edit-head, ternary-master)", flags.Name(), *organ)
 }
 
 func probeSession(objective trainingprogram.ObjectiveKind, steps, parameters int, maxWall time.Duration) (trainingprogram.TrainingSessionPlan, error) {
@@ -81,7 +66,7 @@ func probeSession(objective trainingprogram.ObjectiveKind, steps, parameters int
 // MSE objective on a deterministic committed stimulus.
 func runDenoiserFinal(modelDir string, binding latentimage.FinalLayerBinding, steps, rows int, maxWall time.Duration) error {
 	if modelDir == "" || steps <= 0 || rows <= 0 {
-		return fmt.Errorf("flow-organ-train-probe: -model is required; -steps and -rows must be positive")
+		return fmt.Errorf("train -route flow-organ:-model is required; -steps and -rows must be positive")
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -141,17 +126,17 @@ func trainHeadStimulus(trainer *latentimage.FinalLayerTrainer, hiddenDim, outDim
 			return err
 		}
 		if !checked.Finite64(result.Loss) {
-			return fmt.Errorf("flow-organ-train-probe: step %d loss is non-finite", step+1)
+			return fmt.Errorf("train -route flow-organ:step %d loss is non-finite", step+1)
 		}
 		fmt.Printf("step %d/%d: loss=%.6f grad_l2=%.4g lr=%.4g wall=%s\n",
 			step+1, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, time.Since(stepStart).Round(time.Millisecond))
 		if step == 0 {
 			first = result.Loss
 			if result.GradientL2 <= 0 {
-				return fmt.Errorf("flow-organ-train-probe: first step carried no gradient")
+				return fmt.Errorf("train -route flow-organ:first step carried no gradient")
 			}
 			if err := session.AdmitStepWall(time.Since(start)); err != nil {
-				return fmt.Errorf("flow-organ-train-probe: %w", err)
+				return fmt.Errorf("train -route flow-organ:%w", err)
 			}
 		}
 	}
@@ -160,7 +145,7 @@ func trainHeadStimulus(trainer *latentimage.FinalLayerTrainer, hiddenDim, outDim
 		return err
 	}
 	if !checked.Finite64(after) || !(after < first) {
-		return fmt.Errorf("flow-organ-train-probe: loss did not descend: before=%.6f after=%.6f", first, after)
+		return fmt.Errorf("train -route flow-organ:loss did not descend: before=%.6f after=%.6f", first, after)
 	}
 	fmt.Printf("descent: steps=%d loss %.6f -> %.6f total_wall=%s\n",
 		session.Updates(), first, after, time.Since(start).Round(time.Millisecond))
@@ -171,7 +156,7 @@ func trainHeadStimulus(trainer *latentimage.FinalLayerTrainer, hiddenDim, outDim
 // checkpoint through the same LayerNorm head trainer as Wan.
 func runEditHead(modelPath string, steps, rows int, maxWall time.Duration) error {
 	if modelPath == "" || steps <= 0 || rows <= 0 {
-		return fmt.Errorf("flow-organ-train-probe: -model is required; -steps and -rows must be positive")
+		return fmt.Errorf("train -route flow-organ:-model is required; -steps and -rows must be positive")
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -199,7 +184,7 @@ func runEditHead(modelPath string, steps, rows int, maxWall time.Duration) error
 		}
 	}
 	if found != len(wanted) {
-		return fmt.Errorf("flow-organ-train-probe: checkpoint has %d of %d head tensors", found, len(wanted))
+		return fmt.Errorf("train -route flow-organ:checkpoint has %d of %d head tensors", found, len(wanted))
 	}
 	names := []string{metas[0].Name, metas[1].Name, metas[2].Name}
 	bindings, err := pytorchzip.CompileBindings(catalog.Tensors, names)
@@ -217,7 +202,7 @@ func runEditHead(modelPath string, steps, rows int, maxWall time.Duration) error
 	}
 	linearShape := metas[1].Shape
 	if len(linearShape) != 2 {
-		return fmt.Errorf("flow-organ-train-probe: head weight shape %v", linearShape)
+		return fmt.Errorf("train -route flow-organ:head weight shape %v", linearShape)
 	}
 	weights := latentimage.FinalLayerWeights{
 		Hidden: int(linearShape[1]), Out: int(linearShape[0]),
@@ -246,7 +231,7 @@ func runEditHead(modelPath string, steps, rows int, maxWall time.Duration) error
 // serving artifact's behavior rather than a float shadow.
 func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall time.Duration) error {
 	if modelPath == "" || tensorName == "" || steps <= 0 || rows <= 0 {
-		return fmt.Errorf("flow-organ-train-probe: -model and -tensor are required; -steps and -rows must be positive")
+		return fmt.Errorf("train -route flow-organ:-model and -tensor are required; -steps and -rows must be positive")
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -260,10 +245,10 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 	defer file.Close()
 	info, ok := file.Tensor(tensorName)
 	if !ok {
-		return fmt.Errorf("flow-organ-train-probe: tensor %q not in artifact", tensorName)
+		return fmt.Errorf("train -route flow-organ:tensor %q not in artifact", tensorName)
 	}
 	if info.Dimensions != 2 {
-		return fmt.Errorf("flow-organ-train-probe: tensor %q has %d dimensions, need a matrix", tensorName, info.Dimensions)
+		return fmt.Errorf("train -route flow-organ:tensor %q has %d dimensions, need a matrix", tensorName, info.Dimensions)
 	}
 	in, out := int(info.Shape[0]), int(info.Shape[1])
 	elements := uint64(in) * uint64(out)
@@ -318,7 +303,7 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 			return quant.Quantize(servingType, values)
 		}
 		if _, err := requantize(masters); err != nil {
-			return fmt.Errorf("flow-organ-train-probe: %q is not requantizable to %s: %w", tensorName, servingType, err)
+			return fmt.Errorf("train -route flow-organ:%q is not requantizable to %s: %w", tensorName, servingType, err)
 		}
 	}
 
@@ -392,7 +377,7 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 		stepStart := time.Now()
 		loss := evaluate(masters)
 		if !checked.Finite64(loss) {
-			return fmt.Errorf("flow-organ-train-probe: step %d loss is non-finite", step+1)
+			return fmt.Errorf("train -route flow-organ:step %d loss is non-finite", step+1)
 		}
 		y := make([]float32, rows*out)
 		hostmath.Linear(y, xF32, masters, rows, in, out)
@@ -416,10 +401,10 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 		if step == 0 {
 			first = loss
 			if gradientSquared == 0 {
-				return fmt.Errorf("flow-organ-train-probe: first step carried no gradient")
+				return fmt.Errorf("train -route flow-organ:first step carried no gradient")
 			}
 			if err := session.AdmitStepWall(time.Since(start)); err != nil {
-				return fmt.Errorf("flow-organ-train-probe: %w", err)
+				return fmt.Errorf("train -route flow-organ:%w", err)
 			}
 		}
 	}
@@ -429,10 +414,10 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 		return err
 	}
 	if !(masterAfter < first) {
-		return fmt.Errorf("flow-organ-train-probe: master loss did not descend: %.6f -> %.6f", first, masterAfter)
+		return fmt.Errorf("train -route flow-organ:master loss did not descend: %.6f -> %.6f", first, masterAfter)
 	}
 	if !checked.Finite64(servingAfter) || !(servingAfter < servingBefore) {
-		return fmt.Errorf("flow-organ-train-probe: serving round-trip loss did not descend: %.6f -> %.6f", servingBefore, servingAfter)
+		return fmt.Errorf("train -route flow-organ:serving round-trip loss did not descend: %.6f -> %.6f", servingBefore, servingAfter)
 	}
 	fmt.Printf("descent: steps=%d master %.6f -> %.6f; serving round-trip %.6f -> %.6f total_wall=%s"+"\n",
 		session.Updates(), first, masterAfter, servingBefore, servingAfter, time.Since(start).Round(time.Millisecond))
@@ -443,7 +428,7 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 // reconstruction objective on a deterministic committed stimulus.
 func runLatentBridge(modelDir string, steps, rows int, maxWall time.Duration) error {
 	if modelDir == "" || steps <= 0 || rows <= 0 {
-		return fmt.Errorf("flow-organ-train-probe: -model is required; -steps and -rows must be positive")
+		return fmt.Errorf("train -route flow-organ:-model is required; -steps and -rows must be positive")
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -485,17 +470,17 @@ func runLatentBridge(modelDir string, steps, rows int, maxWall time.Duration) er
 			return err
 		}
 		if !checked.Finite64(result.Loss) {
-			return fmt.Errorf("flow-organ-train-probe: step %d loss is non-finite", step+1)
+			return fmt.Errorf("train -route flow-organ:step %d loss is non-finite", step+1)
 		}
 		fmt.Printf("step %d/%d: loss=%.6f grad_l2=%.4g lr=%.4g wall=%s\n",
 			step+1, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, time.Since(stepStart).Round(time.Millisecond))
 		if step == 0 {
 			first = result.Loss
 			if result.GradientL2 <= 0 {
-				return fmt.Errorf("flow-organ-train-probe: first step carried no gradient")
+				return fmt.Errorf("train -route flow-organ:first step carried no gradient")
 			}
 			if err := session.AdmitStepWall(time.Since(start)); err != nil {
-				return fmt.Errorf("flow-organ-train-probe: %w", err)
+				return fmt.Errorf("train -route flow-organ:%w", err)
 			}
 		}
 	}
@@ -504,7 +489,7 @@ func runLatentBridge(modelDir string, steps, rows int, maxWall time.Duration) er
 		return err
 	}
 	if !checked.Finite64(after) || !(after < first) {
-		return fmt.Errorf("flow-organ-train-probe: loss did not descend: before=%.6f after=%.6f", first, after)
+		return fmt.Errorf("train -route flow-organ:loss did not descend: before=%.6f after=%.6f", first, after)
 	}
 	fmt.Printf("descent: steps=%d loss %.6f -> %.6f total_wall=%s\n",
 		session.Updates(), first, after, time.Since(start).Round(time.Millisecond))
@@ -538,9 +523,19 @@ func stimulus(session trainingprogram.TrainingSessionPlan, rows, hidden, flowDim
 	return x, z, target, nil
 }
 
-func run(modelDir string, steps, rows int, timestep float64, maxWall time.Duration) error {
+// trainFlowHead is bounded observed training of a routed-LM flow-head organ
+// (the SenseNova-family fm_head MLP), the production driver of the flow-head
+// trainer and the reproducible generator of its verification evidence: it
+// compiles the flow plan from the real artifact's own declarations, packs
+// the fm_head organ as f32 masters decoded from the BF16 serving storage,
+// trains on a deterministic committed stimulus with derived hyperparameters
+// (base LR n_params^-1/2, momentum from the CLT effective-samples rule),
+// observes every step with a first-step projection guard, and proves descent
+// by re-evaluating the same pair's loss after the observed steps.
+// Full-pipeline MoT training remains the promotion gate beyond the organ.
+func trainFlowHead(modelDir string, steps, rows int, timestep float64, maxWall time.Duration) error {
 	if modelDir == "" || steps <= 0 || rows <= 0 {
-		return fmt.Errorf("flow-organ-train-probe: -model is required; -steps and -rows must be positive")
+		return fmt.Errorf("train -route flow-organ:-model is required; -steps and -rows must be positive")
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -614,17 +609,17 @@ func run(modelDir string, steps, rows int, timestep float64, maxWall time.Durati
 			return err
 		}
 		if !checked.Finite64(result.Loss) {
-			return fmt.Errorf("flow-organ-train-probe: step %d loss is non-finite", step+1)
+			return fmt.Errorf("train -route flow-organ:step %d loss is non-finite", step+1)
 		}
 		fmt.Printf("step %d/%d: loss=%.6f grad_l2=%.4g lr=%.4g wall=%s\n",
 			step+1, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, time.Since(stepStart).Round(time.Millisecond))
 		if step == 0 {
 			first = result.Loss
 			if result.GradientL2 <= 0 {
-				return fmt.Errorf("flow-organ-train-probe: first step carried no gradient")
+				return fmt.Errorf("train -route flow-organ:first step carried no gradient")
 			}
 			if err := session.AdmitStepWall(time.Since(start)); err != nil {
-				return fmt.Errorf("flow-organ-train-probe: %w", err)
+				return fmt.Errorf("train -route flow-organ:%w", err)
 			}
 		}
 	}
@@ -633,7 +628,7 @@ func run(modelDir string, steps, rows int, timestep float64, maxWall time.Durati
 		return err
 	}
 	if !checked.Finite64(after) || !(after < first) {
-		return fmt.Errorf("flow-organ-train-probe: loss did not descend: before=%.6f after=%.6f", first, after)
+		return fmt.Errorf("train -route flow-organ:loss did not descend: before=%.6f after=%.6f", first, after)
 	}
 	fmt.Printf("descent: steps=%d loss %.6f -> %.6f total_wall=%s\n",
 		session.Updates(), first, after, time.Since(start).Round(time.Millisecond))

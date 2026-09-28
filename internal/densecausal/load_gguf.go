@@ -6,9 +6,9 @@ import (
 	"math"
 
 	"overgo/internal/gguf"
-	"overgo/internal/hfgguf"
 	"overgo/internal/model"
 	"overgo/internal/quant"
+	"overgo/internal/tensorcatalog"
 )
 
 // LoadGGUF opens one GGUF model file and materializes the same trainable
@@ -30,8 +30,11 @@ func LoadGGUF(path string) (*Model, error) {
 	if err != nil {
 		return nil, fmt.Errorf("densecausal: read GGUF spec: %w", err)
 	}
-	if spec.Architecture == "llama" {
-		return nil, errors.New("densecausal: llama-family GGUF stores rope-permuted attention rows; training load requires unpermutation, which is not yet implemented")
+	// A profile that declares the normal (interleaved) rotary layout is one
+	// whose GGUF conversion permuted the query and key rows from the HF
+	// layout the trainer indexes.
+	if spec.Profile().Position == model.PositionNormal {
+		return nil, fmt.Errorf("densecausal: %s declares the normal rotary layout, so its GGUF stores rope-permuted attention rows; training load requires unpermutation, which is not yet implemented", spec.Architecture)
 	}
 	if spec.HasExperts() {
 		return nil, errors.New("densecausal: mixture GGUF training load requires the expert tensor mapping, which is not yet implemented")
@@ -42,7 +45,7 @@ func LoadGGUF(path string) (*Model, error) {
 		if info.Name == "rope_freqs.weight" {
 			continue
 		}
-		name, ok := hfgguf.HFDenseTensorName(info.Name)
+		name, ok := tensorcatalog.HFDenseTensorName(info.Name)
 		if !ok {
 			return nil, fmt.Errorf("densecausal: GGUF tensor %q has no dense training mapping", info.Name)
 		}

@@ -14,8 +14,15 @@ const routeFlag = "-route"
 
 // trainRoutes are the bounded family trainers that were once their own
 // *-train-probe commands; the trainer is reached through cmd/train by name.
+// A route that needs a platform's device registers itself from that
+// platform's file.
 var trainRoutes = map[string]func(flags *flag.FlagSet, args []string) error{
+	"flow-organ":      trainFlowOrgan,
+	"graft":           trainGraft,
+	"mixture":         trainMixture,
+	"mot":             trainMot,
 	"oscillatorimage": trainOscillatorImage,
+	"seriesforecast":  trainSeriesForecast,
 	"tabular":         trainTabular,
 }
 

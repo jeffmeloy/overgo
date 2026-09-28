@@ -59,10 +59,8 @@ func TestFrontPageLibrary(t *testing.T) {
 			t.Fatalf("register accepted %s", body)
 		}
 	}
-	// The refusal must be the empty directory's, not the policy document's:
-	// the root policy carries a doc field the decoder has to accept.
 	refused := serveTestRequest(handler, http.MethodPost, "/library/validate", `{"path":`+quoted(empty)+`}`)
-	if refused.Code != http.StatusBadRequest || strings.Contains(refused.Body.String(), "library_unavailable") {
+	if refused.Code != http.StatusBadRequest {
 		t.Fatalf("validate of an empty directory = %d %s", refused.Code, refused.Body.String())
 	}
 

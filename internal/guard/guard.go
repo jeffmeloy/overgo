@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -205,7 +206,39 @@ func ruleVerdict(command, root string) string {
 		return "a Bash heredoc EATS one level of backslash escaping and will write mangled content; use the Write or " +
 			"Edit tool for anything containing a backslash"
 	}
+	if buildsCommandHere(stripped) {
+		return "go build of one command without -o writes its binary into the working directory; at the repository " +
+			"root that moves the root folder's time, and go test reruns every suite that stats it; build with -o tmp/<name>.exe"
+	}
 	return ""
+}
+
+// buildsCommandHere reports whether a command segment runs go build on
+// exactly one ./cmd package without -o, which writes that command's binary
+// into the working directory. Several packages, or a library, write nothing.
+func buildsCommandHere(command string) bool {
+	for segment := range strings.FieldsFuncSeq(command, func(r rune) bool { return strings.ContainsRune(";&|\n", r) }) {
+		fields := strings.Fields(segment)
+		at := slices.Index(fields, "build")
+		if at < 1 || fields[at-1] != "go" {
+			continue
+		}
+		var packages []string
+		output := false
+		for _, field := range fields[at+1:] {
+			switch {
+			case field == "-o" || strings.HasPrefix(field, "-o="):
+				output = true
+			case strings.HasPrefix(field, "./") || strings.HasPrefix(field, "overgo/"):
+				packages = append(packages, field)
+			}
+		}
+		if !output && len(packages) == 1 && strings.Count(strings.TrimSuffix(strings.TrimPrefix(packages[0], "./"), "/"), "/") == 1 &&
+			strings.HasPrefix(strings.TrimPrefix(packages[0], "./"), "cmd/") {
+			return true
+		}
+	}
+	return false
 }
 
 // mergeInProgress: MERGE_HEAD exists only while a merge is actually in

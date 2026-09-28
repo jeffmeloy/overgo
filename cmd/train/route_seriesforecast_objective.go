@@ -44,7 +44,7 @@ func runObjective(storeRoot, alias, modelDir string, steps int, maxWall time.Dur
 		return err
 	}
 	if objective.Kind != trainingprogram.ObjectiveForecast {
-		return fmt.Errorf("seriesforecast-train-probe: objective %q trains %q, not forecasting", alias, objective.Kind)
+		return fmt.Errorf("train -route seriesforecast:objective %q trains %q, not forecasting", alias, objective.Kind)
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -61,7 +61,7 @@ func runObjective(storeRoot, alias, modelDir string, steps int, maxWall time.Dur
 	}
 	weights, err := filepath.Glob(filepath.Join(modelDir, "*.safetensors"))
 	if err != nil || len(weights) != 1 {
-		return fmt.Errorf("seriesforecast-train-probe: %s holds %d safetensors files, want one to record", modelDir, len(weights))
+		return fmt.Errorf("train -route seriesforecast:%s holds %d safetensors files, want one to record", modelDir, len(weights))
 	}
 	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
 		Objective: trainingprogram.ObjectiveForecast, Updates: steps, MaxProjectedWall: maxWall,
@@ -102,7 +102,7 @@ func objectiveExamples(ctx context.Context, store *overgodb.Store, objective tra
 	if err != nil {
 		return nil, err
 	}
-	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, []byte(fmt.Sprintf("light-curve-train-v1/%d/%d", patchLen, horizon)))
+	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, fmt.Appendf(nil, "light-curve-train-v1/%d/%d", patchLen, horizon))
 	if err != nil {
 		return nil, err
 	}
@@ -123,12 +123,12 @@ func objectiveExamples(ctx context.Context, store *overgodb.Store, objective tra
 		batch, err := trainingworkflow.ReadAll(ctx, materialized)
 		closeErr := materialized.Close()
 		if err != nil || closeErr != nil {
-			return nil, fmt.Errorf("seriesforecast-train-probe: %s membership: %w", membership.Partition, errors.Join(err, closeErr))
+			return nil, fmt.Errorf("train -route seriesforecast:%s membership: %w", membership.Partition, errors.Join(err, closeErr))
 		}
 		for _, example := range batch {
 			input, target, err := seriesforecast.TrainingPair(example)
 			if err != nil {
-				return nil, fmt.Errorf("seriesforecast-train-probe: record %s: %w", example.ID, err)
+				return nil, fmt.Errorf("train -route seriesforecast:record %s: %w", example.ID, err)
 			}
 			examples[example.ID] = trainingworkflow.HeldoutExample{Input: dtype.ConvertSlice[float64](input), Target: dtype.ConvertSlice[float64](target)}
 		}
@@ -140,7 +140,7 @@ func objectiveExamples(ctx context.Context, store *overgodb.Store, objective tra
 // turn, refusing a step whose loss is not finite.
 func trainForecast(trainer *seriesforecast.Trainer, shown []trainingworkflow.HeldoutExample, updates int) error {
 	if len(shown) == 0 {
-		return fmt.Errorf("seriesforecast-train-probe: the training membership holds no examples")
+		return fmt.Errorf("train -route seriesforecast:the training membership holds no examples")
 	}
 	for step := range updates {
 		example := shown[step%len(shown)]
@@ -149,7 +149,7 @@ func trainForecast(trainer *seriesforecast.Trainer, shown []trainingworkflow.Hel
 			return err
 		}
 		if !checked.Finite64(result.Total) {
-			return fmt.Errorf("seriesforecast-train-probe: step %d loss is non-finite", step+1)
+			return fmt.Errorf("train -route seriesforecast:step %d loss is non-finite", step+1)
 		}
 		fmt.Printf("step %d/%d: total=%.6f grad_l2=%.4g\n", step+1, updates, result.Total, result.GradientL2)
 	}
@@ -164,7 +164,7 @@ func pointForecast(model *seriesforecast.Model, example trainingworkflow.Heldout
 		return trainingworkflow.HeldoutPrediction{}, err
 	}
 	if len(example.Target) > model.Dims.Horizon {
-		return trainingworkflow.HeldoutPrediction{}, fmt.Errorf("seriesforecast-train-probe: target covers %d of horizon %d", len(example.Target), model.Dims.Horizon)
+		return trainingworkflow.HeldoutPrediction{}, fmt.Errorf("train -route seriesforecast:target covers %d of horizon %d", len(example.Target), model.Dims.Horizon)
 	}
 	values := make([]float64, len(example.Target))
 	for step := range values {

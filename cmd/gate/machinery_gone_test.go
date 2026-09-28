@@ -60,7 +60,8 @@ func TestCensusesGone(t *testing.T) {
 		"internal/repoanalysis/ownership_census.go", "internal/repoanalysis/family_branch_census.go",
 		"internal/repoanalysis/store_access_census.go", "internal/repoanalysis/structure_budgets.go",
 		"internal/repoanalysis/harness.go", "cmd/modern-census", "cmd/rsi-census",
-		"docs/modern_go_baseline.json", "docs/rsi_ownership_census.json", "docs/structure_budgets.json")
+		"docs/modern_go_baseline.json", "docs/rsi_ownership_census.json", "docs/structure_budgets.json",
+		"docs/family_branch_baseline.json")
 }
 
 // TestGateRecordsGone holds the store to result records: the old gate's

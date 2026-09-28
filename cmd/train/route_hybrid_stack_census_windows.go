@@ -1,8 +1,3 @@
-//overgo:runtime-inputs caller
-
-//go:build windows
-
-// Census helpers over the real artifact.
 package main
 
 import (

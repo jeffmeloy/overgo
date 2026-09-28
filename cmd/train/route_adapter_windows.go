@@ -1,4 +1,3 @@
-// Command adapter-train-probe runs bounded artifact-declared adapter training.
 package main
 
 import (
@@ -18,7 +17,14 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-type output struct {
+// The adapter route steps through the CUDA worker, which only the Windows
+// build carries, so it registers itself here.
+func init() { trainRoutes["adapter"] = trainAdapter }
+
+// adapterTraining is what the adapter route reports: the layer trained, the
+// example rows, the adapter's parameters, every step's loss and where the
+// weights were written.
+type adapterTraining struct {
 	Layer      uint32    `json:"layer"`
 	Rows       int       `json:"rows"`
 	Parameters int       `json:"parameters"`
@@ -26,17 +32,19 @@ type output struct {
 	Weights    string    `json:"weights,omitzero"`
 }
 
-func main() { clioptions.MainNamed("adapter-train-probe", run) }
-
-func run() (err error) {
-	modelPath := flag.String("model", "", "GGUF model")
-	text := flag.String("text", "", "teacher-forced text")
-	layer := flag.Uint("layer", 0, "adapter layer")
-	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required update steps")
-	weights := flag.String("out", "", "optional adapter safetensors")
-	flag.Parse()
+// trainAdapter is the adapter route: bounded artifact-declared adapter
+// training of one layer of a GGUF model on teacher-forced text.
+func trainAdapter(flags *flag.FlagSet, args []string) (err error) {
+	modelPath := flags.String("model", "", "GGUF model")
+	text := flags.String("text", "", "teacher-forced text")
+	layer := flags.Uint("layer", 0, "adapter layer")
+	steps := clioptions.IntOverride(flags, "steps", "required update steps")
+	weights := flags.String("out", "", "optional adapter safetensors")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 	if *modelPath == "" || *text == "" || *steps <= 0 || uint64(*layer) > uint64(^uint32(0)) {
-		return fmt.Errorf("model, text, valid layer, and positive steps required")
+		return fmt.Errorf("%s: model, text, valid layer, and positive steps required", flags.Name())
 	}
 	file, err := gguf.Open(*modelPath)
 	if err != nil {
@@ -77,7 +85,7 @@ func run() (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, worker.Close()) }()
-	result := output{Layer: uint32(*layer), Rows: example.Rows, Parameters: trained.ParameterCount(), Losses: make([]float64, plan.Updates()), Weights: *weights}
+	result := adapterTraining{Layer: uint32(*layer), Rows: example.Rows, Parameters: trained.ParameterCount(), Losses: make([]float64, plan.Updates()), Weights: *weights}
 	for index := range result.Losses {
 		result.Losses[index], err = trained.Step(worker, example)
 		if err != nil {

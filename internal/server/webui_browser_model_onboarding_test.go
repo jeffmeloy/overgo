@@ -50,7 +50,7 @@ func TestWebUIBrowserModelOnboarding(t *testing.T) {
 		Register: func(_ context.Context, _ *overgodb.Store, path, _ string) (map[string]any, error) {
 			return map[string]any{"recipe": recipeID.String(), "path": path}, nil
 		},
-		Validate: func(context.Context, *overgodb.Store, string, string, []string, int) (artifact.ID, operation.Executor, error) {
+		Validate: func(context.Context, *overgodb.Store, string, string) (artifact.ID, operation.Executor, error) {
 			return recipeID, func(context.Context, operation.Reporter) (operation.Completion, error) {
 				return operation.Completion{Run: runID}, nil
 			}, nil

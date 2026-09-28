@@ -28,11 +28,11 @@ func writeProjectorFixture(t *testing.T, name string, projector bool) string {
 // lets validation proceed to the model itself.
 func TestValidateTextWithProjector(t *testing.T) {
 	model := filepath.Join(t.TempDir(), "model.gguf")
-	_, execute, err := Validate(t.Context(), nil, model, writeProjectorFixture(t, "not-a-projector.gguf", false), []string{"hello"}, 16)
+	_, execute, err := Validate(t.Context(), nil, model, writeProjectorFixture(t, "not-a-projector.gguf", false))
 	if _, rejected := errors.AsType[refusal](err); !rejected || !strings.Contains(err.Error(), "does not declare a projector") || execute != nil {
 		t.Fatalf("undeclared projector: %v", err)
 	}
-	_, execute, err = Validate(t.Context(), nil, model, writeProjectorFixture(t, "projector.gguf", true), []string{"hello"}, 16)
+	_, execute, err = Validate(t.Context(), nil, model, writeProjectorFixture(t, "projector.gguf", true))
 	if err == nil || execute != nil {
 		t.Fatalf("validation over an absent model returned an executable: %v", err)
 	}

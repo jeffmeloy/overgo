@@ -40,13 +40,16 @@ type Cell struct {
 // Measured reports whether a record measures the cell.
 func (c Cell) Measured() bool { return c.Reason == "" }
 
-// Row is one activated model and task.
+// Row is one activated model and task. Architecture is the architecture the
+// recipe's profile dependency declares; a recipe that resolves no
+// architecture profile, a media or specialized one, leaves it empty.
 type Row struct {
-	Model  artifact.ID
-	Name   string
-	Task   recipe.Task
-	Recipe artifact.ID
-	Cells  map[metric.Name]Cell
+	Model        artifact.ID
+	Name         string
+	Task         recipe.Task
+	Recipe       artifact.ID
+	Architecture string
+	Cells        map[metric.Name]Cell
 }
 
 // Build reads the scorecard from the store: one row for every activation
@@ -78,7 +81,11 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 		name = cmp.Or(name, entry.Model.String())
 		benchmark, benchmarked := index.BenchmarksByLocation[entry.Location]
 		for _, capability := range entry.Capabilities {
-			row := Row{Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Cells: map[metric.Name]Cell{}}
+			architecture, err := declaredArchitecture(ctx, store, capability.Recipe)
+			if err != nil {
+				return nil, err
+			}
+			row := Row{Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}}
 			// A benchmark claim measures the weights' inference, so it
 			// speaks for the inference activation only.
 			measured := benchmarked && capability.Task == recipe.TaskInference
@@ -97,6 +104,30 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 		return cmp.Or(strings.Compare(left.Name, right.Name), strings.Compare(string(left.Task), string(right.Task)))
 	})
 	return rows, nil
+}
+
+// declaredArchitecture is the architecture the recipe's profile dependency
+// declares. A recipe with no profile dependency, or whose profile is a
+// media or specialized contract rather than an architecture profile,
+// declares none.
+func declaredArchitecture(ctx context.Context, store *overgodb.Store, id artifact.ID) (string, error) {
+	definition, err := recipe.RequireDefinition(ctx, store, id)
+	if err != nil {
+		return "", err
+	}
+	profileID, ok := definition.PrimaryDependency(recipe.DependencyProfile)
+	if !ok {
+		return "", nil
+	}
+	content, found, err := artifact.ReadContent(ctx, store, profileID)
+	if err != nil || !found {
+		return "", cmp.Or(err, fmt.Errorf("scorecard: recipe %s names an absent profile %s", id, profileID))
+	}
+	profile, err := modelrecipe.ParseProfileDocument(content.Data)
+	if err != nil {
+		return "", nil
+	}
+	return profile.Architecture, nil
 }
 
 // verifiedNames maps each model to the name the verification records give
@@ -134,7 +165,11 @@ type servingSummary struct {
 // summary per recipe, so a row counts its own activation's attempts and a
 // fix shipped as a new recipe starts clean. A cancelled attempt counts as
 // neither success nor failure and contributes no samples: the server
-// records both a user's cancel and its own deadline that way.
+// records both a user's cancel and its own deadline that way. An
+// observation a gate result depends on is a validation run's measurement,
+// deliberate interrupts included, not an attempt a user made, and is left
+// out: E4B's media resource proof published 324 deliberate failures under
+// its projection recipe.
 func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.ID]*servingSummary, error) {
 	summaries := map[artifact.ID]*servingSummary{}
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
@@ -142,7 +177,10 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
 		}},
 		Order: overgodb.DocumentNewestFirst,
-	}, runrecord.ParseServingObservation, func(_ overgodb.DocumentView, observation runrecord.ServingObservation) error {
+	}, runrecord.ParseServingObservation, func(view overgodb.DocumentView, observation runrecord.ServingObservation) error {
+		if validation, err := validationMeasured(ctx, store, view.Content.Descriptor.ID); err != nil || validation {
+			return err
+		}
 		summary := summaries[observation.Recipe]
 		if summary == nil {
 			summary = &servingSummary{latest: observation.ID}
@@ -178,6 +216,27 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		return nil
 	})
 	return summaries, err
+}
+
+// validationMeasured reports whether a gate result depends on the artifact.
+func validationMeasured(ctx context.Context, store *overgodb.Store, id artifact.ID) (bool, error) {
+	children, err := store.Children(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	for _, edge := range children {
+		if edge.Relation != artifact.RelationDependsOn {
+			continue
+		}
+		child, found, err := store.Artifact(ctx, edge.Child)
+		if err != nil {
+			return false, err
+		}
+		if found && child.Schema == runrecord.GateSchema {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func gap(reason string) Cell { return Cell{Reason: reason} }

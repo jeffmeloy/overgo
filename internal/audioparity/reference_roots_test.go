@@ -13,6 +13,7 @@ import (
 	"overgo/internal/gosource"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -52,8 +53,12 @@ func audioSources(t *testing.T, root string) gosource.Snapshot {
 	return source
 }
 
+// The acceptances judge the recorded models, corpus and reference store, not
+// a change: go test skips them unless the store acceptance is opted into,
+// and the landing's audio lane opts in when a change reaches this package.
 func resolveReferenceRoots(t *testing.T) referenceRoots {
 	t.Helper()
+	testskip.StoreAcceptance(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
@@ -72,6 +77,7 @@ func TestAudioReferenceRootsUseDeclaredStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv(dataroot.Env, root)
+	t.Setenv(testskip.StoreAcceptanceEnv, "1")
 	for _, test := range []struct{ name, override string }{
 		{"declared", ""},
 		{"override", filepath.Join(root, "override", "overgodb-store")},
@@ -96,6 +102,7 @@ func librispeechPath(t *testing.T, elements ...string) string {
 // Resolve retained content independently of the checkout and verify its identity.
 func retainedAudioFile(t *testing.T, digest string, size uint64) string {
 	t.Helper()
+	testskip.StoreAcceptance(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

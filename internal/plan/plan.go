@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"overgo/internal/jsonfile"
 	"overgo/internal/strictjson"
@@ -97,6 +98,44 @@ type Plan struct {
 	Lane  string `json:"lane,omitzero"`
 	Scope string `json:"scope,omitzero"`
 	Items []Item `json:"items"`
+	// Decisions are the questions only the owner answers, as plain data
+	// rather than prose in a rationale: plan -decisions lists the open
+	// ones with how long they have waited.
+	Decisions []Decision `json:"decisions,omitempty"`
+}
+
+// decisionOptions is the fewest options a decision offers: one option is
+// no choice.
+const decisionOptions = 2
+
+// Answer records the owner's answer to an open decision. The answer is
+// one of its options, given once.
+func Answer(document Plan, id, option string) (Plan, error) {
+	at := slices.IndexFunc(document.Decisions, func(decision Decision) bool { return decision.ID == id })
+	switch {
+	case at < 0:
+		return document, fmt.Errorf("plan: no decision %q", id)
+	case document.Decisions[at].Answer != "":
+		return document, fmt.Errorf("plan: decision %q is already answered: %s", id, document.Decisions[at].Answer)
+	case !slices.Contains(document.Decisions[at].Options, option):
+		return document, fmt.Errorf("plan: %q is not one of decision %q's options: %s", option, id, strings.Join(document.Decisions[at].Options, " | "))
+	}
+	document.Decisions = slices.Clone(document.Decisions)
+	document.Decisions[at].Answer = option
+	return document, nil
+}
+
+// Decision is one question for the owner: its options, the recommended
+// one, the items it blocks, the day it was asked (YYYY-MM-DD) and, once
+// given, the answer.
+type Decision struct {
+	ID             string   `json:"id"`
+	Question       string   `json:"question"`
+	Options        []string `json:"options"`
+	Recommendation string   `json:"recommendation"`
+	Blocks         []string `json:"blocks,omitempty"`
+	Asked          string   `json:"asked"`
+	Answer         string   `json:"answer,omitzero"`
 }
 
 // Load reads the plan from path (Path when empty).
@@ -145,6 +184,16 @@ func Validate(d Plan) error {
 				return fmt.Errorf("plan step %s/%s retains completed state", item.ID, step.ID)
 			}
 		}
+	}
+	seen := map[string]bool{}
+	for _, decision := range d.Decisions {
+		// The recommendation is one of the options, so an answer is one
+		// choice; the items it blocks may land and leave the plan.
+		if _, err := time.Parse(time.DateOnly, decision.Asked); err != nil || decision.ID == "" || seen[decision.ID] ||
+			decision.Question == "" || len(decision.Options) < decisionOptions || !slices.Contains(decision.Options, decision.Recommendation) {
+			return fmt.Errorf("plan decision %q needs a unique id, a question, two or more options, one of them recommended, and the day it was asked", decision.ID)
+		}
+		seen[decision.ID] = true
 	}
 	return validateDependencies(d)
 }

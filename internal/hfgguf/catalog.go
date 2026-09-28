@@ -17,26 +17,8 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/safetensors"
 	"overgo/internal/strictjson"
+	"overgo/internal/tensorcatalog"
 )
-
-var denseLayerNames = map[string]string{
-	"input_layernorm.weight":          "attn_norm.weight",
-	"post_attention_layernorm.weight": "ffn_norm.weight",
-	"self_attn.q_proj.weight":         "attn_q.weight",
-	"self_attn.q_proj.bias":           "attn_q.bias",
-	"self_attn.k_proj.weight":         "attn_k.weight",
-	"self_attn.k_proj.bias":           "attn_k.bias",
-	"self_attn.v_proj.weight":         "attn_v.weight",
-	"self_attn.v_proj.bias":           "attn_v.bias",
-	"self_attn.o_proj.weight":         "attn_output.weight",
-	"self_attn.o_proj.bias":           "attn_output.bias",
-	"mlp.gate_proj.weight":            "ffn_gate.weight",
-	"mlp.gate_proj.bias":              "ffn_gate.bias",
-	"mlp.up_proj.weight":              "ffn_up.weight",
-	"mlp.up_proj.bias":                "ffn_up.bias",
-	"mlp.down_proj.weight":            "ffn_down.weight",
-	"mlp.down_proj.bias":              "ffn_down.bias",
-}
 
 // ValidateDenseRepository: adapt standard Llama/Qwen2 metadata and catalogs.
 func ValidateDenseRepository(repository *hfrepo.Repository) (model.Spec, error) {
@@ -270,49 +252,6 @@ func transformPayload(
 	return bytes.NewReader(encoded), nil
 }
 
-// hfDenseLayerNames inverts denseLayerNames once: the GGUF-to-HF
-// direction the training loader consumes.
-var hfDenseLayerNames = func() map[string]string {
-	inverted := make(map[string]string, len(denseLayerNames))
-	for hf, gguf := range denseLayerNames {
-		inverted[gguf] = hf
-	}
-	return inverted
-}()
-
-// HFDenseTensorName inverts denseTensorName: it maps one GGUF tensor name
-// back to the HF catalog name the dense trainer indexes by. The mapping is
-// the same table conversion writes with, so a round trip is exact; a GGUF
-// name outside the dense vocabulary reports false rather than guessing.
-func HFDenseTensorName(name string) (string, bool) {
-	switch name {
-	case "token_embd.weight":
-		return "model.embed_tokens.weight", true
-	case "output_norm.weight":
-		return "model.norm.weight", true
-	case "output.weight":
-		return "lm_head.weight", true
-	case "output.bias":
-		return "lm_head.bias", true
-	}
-	rest, ok := strings.CutPrefix(name, "blk.")
-	if !ok {
-		return "", false
-	}
-	block, suffix, ok := strings.Cut(rest, ".")
-	if !ok {
-		return "", false
-	}
-	if _, err := strconv.ParseUint(block, binaryschema.DecimalRadix, binaryschema.Width32Bits); err != nil {
-		return "", false
-	}
-	hfSuffix, ok := hfDenseLayerNames[suffix]
-	if !ok {
-		return "", false
-	}
-	return "model.layers." + block + "." + hfSuffix, true
-}
-
 func denseTensorName(name string) (string, bool, error) {
 	switch name {
 	case "model.embed_tokens.weight":
@@ -329,7 +268,7 @@ func denseTensorName(name string) (string, bool, error) {
 	if strings.HasSuffix(name, ".self_attn.rotary_emb.inv_freq") {
 		return "", false, nil
 	}
-	mapped, _, err := mapLayerTensor(name, "model.layers.", 0, denseLayerNames)
+	mapped, _, err := mapLayerTensor(name, "model.layers.", 0, tensorcatalog.DenseLayerNames)
 	if err != nil {
 		return "", false, fmt.Errorf("HF/GGUF adapter: tensor %q has no dense mapping", name)
 	}

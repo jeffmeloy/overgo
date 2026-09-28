@@ -1,4 +1,3 @@
-// graft-probe: composition viability CLI.
 package main
 
 import (
@@ -11,7 +10,6 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/clioptions"
 	"overgo/internal/composition"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
@@ -20,20 +18,49 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-func main() {
-	clioptions.MainNamed("graft-probe", func() error { return run(os.Args[1:], os.Stdout) })
+// Graft viability's window layout and defaults: two train windows and one
+// held-out window cut from the token stream, the bridge steps each seed
+// trains, and the chain probe's context, draft and scored tokens per window
+// and its window count.
+const (
+	graftTrainWindows = 2
+	graftWindows      = graftTrainWindows + 1
+	graftSteps        = 6
+	graftWindowTokens = 64
+	chainPrefixTokens = 64
+	chainDraftTokens  = 8
+	chainTargetTokens = 32
+	chainWindows      = 3
+)
+
+// The bridge seeds each viability run trains, so a verdict is never one
+// seed's luck.
+const (
+	graftSeedFirst  = 7
+	graftSeedSecond = 11
+	graftSeedThird  = 13
+)
+
+var graftSeeds = []int64{graftSeedFirst, graftSeedSecond, graftSeedThird}
+
+// trainGraft is the graft route: the composition viability probe. It grafts a
+// donor component into a target layer and trains the bridge on held-out
+// windows (-target, -donor), or runs the whole-model chain probe (-chain),
+// commits a promotion-blocked bridge proposal (-propose), or runs the bridge
+// synthesis for a committed proposal (-synthesize).
+func trainGraft(flags *flag.FlagSet, args []string) error {
+	return graftViability(flags, args, os.Stdout)
 }
 
-func run(args []string, output io.Writer) error {
-	flags := flag.NewFlagSet("graft-probe", flag.ContinueOnError)
+func graftViability(flags *flag.FlagSet, args []string, output io.Writer) error {
 	flags.SetOutput(io.Discard)
 	targetDir := flags.String("target", "", "target model directory (safetensors)")
 	donorDir := flags.String("donor", "", "donor model directory (safetensors)")
 	tokensPath := flags.String("tokens", "", "JSON array of token IDs; sliced into train and held-out windows")
 	graftLayer := flags.Int("layer", -1, "target graft layer (-1 = middle)")
 	donorLayer := flags.Int("donor-layer", -1, "donor component layer (-1 = middle)")
-	steps := flags.Int("steps", 6, "bridge Muon steps per seed")
-	window := flags.Int("window", 64, "tokens per batch window")
+	steps := flags.Int("steps", graftSteps, "bridge Muon steps per seed")
+	window := flags.Int("window", graftWindowTokens, "tokens per batch window")
 	learningRate := flags.Float64("lr", 0, "bridge learning rate (<=0 derives n_params^-1/2)")
 	lrScale := flags.Float64("lr-scale", 0, "scale the derived learning rate (retrial protocol; effective only when -lr is unset)")
 	momentum := flags.Float64("mu", trainingprogram.BuiltinOptimizerPolicy().Momentum(), "Muon momentum")
@@ -45,10 +72,10 @@ func run(args []string, output io.Writer) error {
 	proposeBlocker := flags.String("propose-blocker", "no recorded experiment evidence; promotion requires the experiment plane's admission", "propose: why the candidates are blocked")
 	scorerDir := flags.String("scorer", "", "chain probe: scorer model directory (safetensors + tokenizer.json)")
 	drafterDir := flags.String("drafter", "", "chain probe: drafter model directory (safetensors + tokenizer.json)")
-	prefix := flags.Int("chain-prefix", 64, "chain probe: context tokens per window")
-	draft := flags.Int("chain-draft", 8, "chain probe: generated gap tokens per arm")
-	heldOut := flags.Int("chain-target", 32, "chain probe: held-out tokens scored per window")
-	windows := flags.Int("chain-windows", 3, "chain probe: disjoint windows sliced from the token stream")
+	prefix := flags.Int("chain-prefix", chainPrefixTokens, "chain probe: context tokens per window")
+	draft := flags.Int("chain-draft", chainDraftTokens, "chain probe: generated gap tokens per arm")
+	heldOut := flags.Int("chain-target", chainTargetTokens, "chain probe: held-out tokens scored per window")
+	windows := flags.Int("chain-windows", chainWindows, "chain probe: disjoint windows sliced from the token stream")
 	synthesize := flags.String("synthesize", "", "run the full bridge-synthesis pipeline for a committed blocked proposal (artifact ID); emits a typed decision")
 	deciderIdentity := flags.String("decider", "", "synthesize: the decider authority evidence artifact ID")
 	if err := flags.Parse(args); err != nil {
@@ -56,39 +83,39 @@ func run(args []string, output io.Writer) error {
 	}
 	if *propose != "" {
 		if flags.NArg() != 0 || *proposeTarget == "" || *proposeVerifier == "" || *recordStore == "" {
-			return errors.New("usage: graft-probe -propose <retrieval.json> -propose-target <model-id> -propose-verifier <cmd> -record <overgodb>")
+			return errors.New("usage: train -route graft -propose <retrieval.json> -propose-target <model-id> -propose-verifier <cmd> -record <overgodb>")
 		}
 		return runPropose(*propose, *proposeTarget, *proposeVerifier, *proposeBlocker, *recordStore, output)
 	}
 	if *synthesize != "" {
 		if flags.NArg() != 0 || *targetDir == "" || *donorDir == "" || *tokensPath == "" || *recordStore == "" || *deciderIdentity == "" {
-			return errors.New("usage: graft-probe -synthesize <proposal-id> -decider <evidence-id> -target <dir> -donor <dir> -tokens <ids.json> -record <overgodb>")
+			return errors.New("usage: train -route graft -synthesize <proposal-id> -decider <evidence-id> -target <dir> -donor <dir> -tokens <ids.json> -record <overgodb>")
 		}
 		return runSynthesize(*synthesize, *deciderIdentity, *targetDir, *donorDir, *tokensPath, *recordStore, *steps, *window, *lrScale, *momentum, output)
 	}
 	if *chain {
 		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" || *recordStore == "" {
-			return errors.New("usage: graft-probe -chain -scorer <dir> -drafter <dir> -tokens <ids.json> -record <overgodb> [options]")
+			return errors.New("usage: train -route graft -chain -scorer <dir> -drafter <dir> -tokens <ids.json> -record <overgodb> [options]")
 		}
 		return runChain(*scorerDir, *drafterDir, *tokensPath, *recordStore, *prefix, *draft, *heldOut, *windows, output)
 	}
 	if flags.NArg() != 0 || *targetDir == "" || *donorDir == "" || *tokensPath == "" {
-		return errors.New("usage: graft-probe -target <dir> -donor <dir> -tokens <ids.json> [options]")
+		return errors.New("usage: train -route graft -target <dir> -donor <dir> -tokens <ids.json> [options]")
 	}
 	var tokens []int
 	if err := jsonfile.Decode(*tokensPath, &tokens); err != nil {
 		return err
 	}
-	if len(tokens) < 3*(*window) {
-		return fmt.Errorf("need at least %d tokens for two train windows and one held-out window, got %d", 3*(*window), len(tokens))
+	if len(tokens) < graftWindows*(*window) {
+		return fmt.Errorf("need at least %d tokens for two train windows and one held-out window, got %d", graftWindows*(*window), len(tokens))
 	}
 	probeConfig := composition.Config{
 		TargetDir: *targetDir, DonorDir: *donorDir,
 		GraftLayer: *graftLayer, DonorLayer: *donorLayer,
-		Seeds: []int64{7, 11, 13}, Steps: *steps,
+		Seeds: graftSeeds, Steps: *steps,
 		BaseLR: *learningRate, LRScale: *lrScale, Momentum: *momentum,
-		Train:   [][]int{tokens[:*window], tokens[*window : 2*(*window)]},
-		HeldOut: tokens[2*(*window) : 3*(*window)],
+		Train:   [][]int{tokens[:*window], tokens[*window : graftTrainWindows*(*window)]},
+		HeldOut: tokens[graftTrainWindows*(*window) : graftWindows*(*window)],
 	}
 	result, err := composition.RunViability(probeConfig)
 	if err != nil {
@@ -203,8 +230,8 @@ func runSynthesize(
 	if err := jsonfile.Decode(tokensPath, &tokens); err != nil {
 		return err
 	}
-	if len(tokens) < 3*window {
-		return fmt.Errorf("need at least %d tokens, got %d", 3*window, len(tokens))
+	if len(tokens) < graftWindows*window {
+		return fmt.Errorf("need at least %d tokens, got %d", graftWindows*window, len(tokens))
 	}
 	proposalID, err := artifact.ParseID(proposalText)
 	if err != nil {
@@ -237,10 +264,10 @@ func runSynthesize(
 	outcome, err := composition.SynthesizeBridge(store, proposal, composition.Config{
 		TargetDir: targetDir, DonorDir: donorDir,
 		GraftLayer: -1, DonorLayer: -1,
-		Seeds: []int64{7, 11, 13}, Steps: steps,
+		Seeds: graftSeeds, Steps: steps,
 		BaseLR: 0, LRScale: lrScale, Momentum: momentum,
-		Train:   [][]int{tokens[:window], tokens[window : 2*window]},
-		HeldOut: tokens[2*window : 3*window],
+		Train:   [][]int{tokens[:window], tokens[window : graftTrainWindows*window]},
+		HeldOut: tokens[graftTrainWindows*window : graftWindows*window],
 	}, recipe.Decider{CodeCommit: revision, Derivation: deciderID})
 	if err != nil {
 		return err

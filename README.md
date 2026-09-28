@@ -170,10 +170,9 @@ records priorities, dependencies, owners, and acceptance. The working cycle is:
 4. Use outcomes and remaining obligations to select the next row.
 
 The [loop driver](cmd/loop/main.go) supervises workers under configured limits
-and operator stops. [Attempt history](cmd/plan/history.go) reports outcomes,
-cost, and recovery. Prepared proposals can enter the plan when configured;
-automatically generating the next useful proposal from observations remains
-part of the [development plan](docs/plan.json).
+and operator stops. Each landed row's commit records what the gate measured
+and names the row it landed. Generating the next useful row from
+observations remains part of the [development plan](docs/plan.json).
 
 The broader improvement cycle is **propose → admit → execute → evaluate →
 decide → observe**. Compare candidates with matched baselines and fixed task

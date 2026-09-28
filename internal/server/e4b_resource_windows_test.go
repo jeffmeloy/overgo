@@ -35,7 +35,8 @@ import (
 // six-mode cycle sets the retention ceiling; neither subsequent cycles nor
 // reloads may grow it. The separate 32768-token text guard remains required.
 func TestE4BMediaResourceRecovery(t *testing.T) {
-	t.Parallel()
+	// Serial: its measurement child holds the device exclusively, which
+	// refuses every sibling test that shares the device while it runs.
 	cudatest.Require(t)
 	if cudatest.MeasurementProcess(t, 0) {
 		return

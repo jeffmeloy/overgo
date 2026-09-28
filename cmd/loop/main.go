@@ -28,14 +28,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
-	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
@@ -65,9 +62,7 @@ type config struct {
 	StrategyID artifact.ID `json:"strategy_id"`
 	// Repository contains the strategy profile. Empty uses the same local
 	// default as gate.
-	Repository string `json:"repository"`
-	// Proposals is the pending-proposal queue directory.
-	Proposals            string `json:"proposals"`
+	Repository           string `json:"repository"`
 	WorkerTimeoutMinutes int    `json:"worker_timeout_minutes"`
 }
 
@@ -158,9 +153,6 @@ func run(args []string) error {
 	}
 	if loaded.WorkerTimeoutMinutes <= 0 {
 		loaded.WorkerTimeoutMinutes = 90
-	}
-	if loaded.Proposals == "" {
-		loaded.Proposals = "docs/proposals"
 	}
 	strategy, err := resolveConfiguredStrategy(loaded)
 	if err != nil {
@@ -364,75 +356,6 @@ func (w *execWorld) Paused() bool {
 		fmt.Fprintln(os.Stderr, stop.String())
 	}
 	return stop.Blocked
-}
-
-// AdmitNext admits the lexically first pending proposal through
-// deterministic admission and consumes its spec file into tmp/ so the
-// queue drains exactly once per proposal.
-func (w *execWorld) AdmitNext() (string, bool, error) {
-	entries, err := os.ReadDir(w.config.Proposals)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", false, nil
-		}
-		return "", false, err
-	}
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
-			names = append(names, entry.Name())
-		}
-	}
-	if len(names) == 0 {
-		return "", false, nil
-	}
-	slices.Sort(names)
-	spec := filepath.Join(w.config.Proposals, names[0])
-	out, err := runTool("go", "run", "./cmd/plan", "-admit-proposal", spec)
-	if err != nil {
-		// A refused proposal is consumed, never retried forever: the
-		// refusal moves with the spec for the operator to read.
-		_ = consumeProposal(spec, "refused")
-		return "", false, fmt.Errorf("admit %s: %w: %s", names[0], err, tailOf(out, 500))
-	}
-	item := strings.TrimSpace(string(out))
-	if index := strings.LastIndex(item, "as plan row "); index >= 0 {
-		item = strings.TrimSpace(item[index+len("as plan row "):])
-	}
-	if err := consumeProposal(spec, "admitted"); err != nil {
-		return "", false, err
-	}
-	fmt.Printf("loop: admitted proposal %s as %s\n", names[0], item)
-	return item, true, nil
-}
-
-// Block marks a parked proposal row blocked so dispatch moves past it
-// to the next proposal; the row and its finding stay for the operator.
-func (w *execWorld) Block(step loop.Step, reason string) (err error) {
-	lock, err := authoritylock.Acquire(loopWorktree)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, lock.Close()) }()
-	document, err := plan.Load("")
-	if err != nil {
-		return err
-	}
-	for index := range document.Items {
-		if document.Items[index].ID == step.Item {
-			document.Items[index].Status = "blocked:proposal-parked"
-			return plan.Save("", document)
-		}
-	}
-	return fmt.Errorf("block: plan item %q is absent", step.Item)
-}
-
-func consumeProposal(spec, disposition string) error {
-	target := filepath.Join("tmp", "proposals-"+disposition)
-	if err := os.MkdirAll(target, clioptions.OutputDirectoryMode); err != nil {
-		return err
-	}
-	return os.Rename(spec, filepath.Join(target, filepath.Base(spec)))
 }
 
 func planCommand(verbs ...string) (string, error) {

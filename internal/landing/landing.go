@@ -1,22 +1,24 @@
 // Package landing lands one plan row through the small gate. The dirty tree
 // is formatted, modernized by go fix, vetted and tested -- go test's own
-// cache decides what runs again -- a few rules compare the changed files
-// with HEAD, the row's own check passes, and
-// a change that reaches the benchmark runs the scorecard's slices, one per
-// task, beside HEAD's benchmark when the message predicts a timed metric;
+// cache decides what runs again -- the lanes the change reaches run, a few
+// rules compare the changed files with HEAD, the row's own check passes, and
+// a change that reaches the benchmark runs the scorecard's inference slice;
 // then the tree is committed with the row's step removed from the plan. Git
-// holds the record: the message says what the gate measured, and a trailer
-// per slice carries it for the next landing to compare against.
+// holds the record: the message says what the gate measured, and the
+// slice's trailer carries it for the next landing to compare against.
 package landing
 
 import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -24,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
@@ -54,6 +57,10 @@ type landing struct {
 	// trailers are the scorecard slices' commit trailers, one per slice
 	// that measured or failed.
 	trailers []string
+	// budget is the growth the landed row declared in the plan.
+	budget plan.Budget
+	// digests are the ship set's bytes as the checks validated them.
+	digests map[string]string
 }
 
 // Run lands the row and returns the commit. Every check runs over the dirty
@@ -85,6 +92,9 @@ func Run(ctx context.Context, options Options) (string, error) {
 		return "", fmt.Errorf("land: %s is not an open step of the plan: %w", options.Ref, err)
 	}
 	verify := rowVerify(document, item, step)
+	if at := slices.IndexFunc(document.Items, func(candidate plan.Item) bool { return candidate.ID == item }); at >= 0 {
+		l.budget = document.Items[at].Budget
+	}
 	if err := l.shipSet(ctx); err != nil {
 		return "", err
 	}
@@ -97,6 +107,7 @@ func Run(ctx context.Context, options Options) (string, error) {
 		{"vet", l.vet},
 		{"rules", l.rules},
 		{"test", l.test},
+		{"lanes", l.lanes},
 		{"verify", func(ctx context.Context) error { return l.verify(ctx, verify) }},
 		{"scorecard", l.scorecard},
 	}
@@ -188,7 +199,27 @@ func (l *landing) shipSet(ctx context.Context) error {
 		}
 	}
 	l.entries = entries
-	return nil
+	l.digests, err = shipDigests(l.Repo, l.paths)
+	return err
+}
+
+// shipDigests is each ship-set path's content digest, empty for a path the
+// tree no longer holds: the bytes the checks validate, which the commit
+// must still find.
+func shipDigests(repo string, paths []string) (map[string]string, error) {
+	digests := map[string]string{}
+	for _, name := range paths {
+		data, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(name)))
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			digests[name] = ""
+		case err != nil:
+			return nil, err
+		default:
+			digests[name] = fmt.Sprintf("%x", sha256.Sum256(data))
+		}
+	}
+	return digests, nil
 }
 
 func dirtyTree(ctx context.Context, repo string) ([]repoanalysis.DirtyPath, error) {
@@ -243,6 +274,13 @@ func (l *landing) fix(ctx context.Context) error {
 		}
 		if packages := strings.Fields(listed); len(packages) != 0 {
 			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-tags", buildTags}, packages...)...); err != nil {
+				return err
+			}
+		}
+		// The API manifest is derived from the source: regenerating it is a
+		// fix, like go fix, not a refusal to land again after.
+		if _, err := os.Stat(filepath.Join(l.Repo, "cmd", "api-manifest")); err == nil {
+			if _, err := l.run(ctx, nil, "go", "run", "./cmd/api-manifest", "-update"); err != nil {
 				return err
 			}
 		}
@@ -325,10 +363,19 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if !sameTree(now, l.entries) {
+	digests, err := shipDigests(l.Repo, l.paths)
+	if err != nil {
+		return "", err
+	}
+	if !sameTree(now, l.entries) || !maps.Equal(digests, l.digests) {
 		return "", errors.New("land: the tree changed during the landing; land again once it is settled")
 	}
-	document, err := plan.Load(filepath.Join(l.Repo, plan.Path))
+	planPath := filepath.Join(l.Repo, plan.Path)
+	original, err := os.ReadFile(planPath)
+	if err != nil {
+		return "", err
+	}
+	document, err := plan.Load(planPath)
 	if err != nil {
 		return "", err
 	}
@@ -336,9 +383,17 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := plan.Save(filepath.Join(l.Repo, plan.Path), advanced); err != nil {
+	if err := plan.Save(planPath, advanced); err != nil {
 		return "", err
 	}
+	// A commit that does not happen gives the row back: the plan returns to
+	// the bytes it held, so the row can land again.
+	committed := false
+	defer func() {
+		if !committed {
+			_ = os.WriteFile(planPath, original, clioptions.PrivateFileMode)
+		}
+	}()
 	file, err := os.CreateTemp("", "overgo-landing-*.txt")
 	if err != nil {
 		return "", err
@@ -357,6 +412,7 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 	if _, err := l.git(ctx, "commit", "-q", "-F", file.Name()); err != nil {
 		return "", err
 	}
+	committed = true
 	landed, err := gitauthority.Query(ctx, l.Repo, "rev-parse", "HEAD")
 	return strings.TrimSpace(string(landed)), err
 }
@@ -382,15 +438,15 @@ func (l *landing) git(ctx context.Context, arguments ...string) (string, error) 
 }
 
 // run executes one command at the repository root and returns its standard
-// output; a failure carries the tail of both streams.
+// output; a failure carries the tail of both streams. Each stream has its
+// own buffer: the two are drained concurrently.
 func (l *landing) run(ctx context.Context, environment []string, name string, arguments ...string) (string, error) {
-	var output, combined bytes.Buffer
+	var output, diagnostics bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: name, Args: arguments, Dir: l.Repo, Env: environment,
-		Stdout: io.MultiWriter(&output, &combined), Stderr: &combined,
+		Path: name, Args: arguments, Dir: l.Repo, Env: environment, Stdout: &output, Stderr: &diagnostics,
 	})
 	if err == nil && receipt.ExitCode != 0 {
-		err = fmt.Errorf("%s %s: exit %d: %s", name, strings.Join(arguments, " "), receipt.ExitCode, tail(combined.String()))
+		err = fmt.Errorf("%s %s: exit %d: %s", name, strings.Join(arguments, " "), receipt.ExitCode, tail(output.String()+diagnostics.String()))
 	}
 	return output.String(), err
 }

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"io/fs"
@@ -18,13 +19,14 @@ import (
 
 	"overgo/internal/gitauthority"
 	"overgo/internal/gosyntax"
+	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 )
 
 // rules compares the changed files with HEAD: no bytes a record pins move,
 // the pinned media runtime moves only with its reconciliation, no new style
 // finding, no new inline policy number, no new legacy form go fix leaves,
-// and no new export without a consumer.
+// no new export without a consumer, and no CUDA-gated test no lane runs.
 func (l *landing) rules(ctx context.Context) error {
 	stale, err := stalePins(l.Repo, l.paths)
 	if err != nil {
@@ -49,10 +51,57 @@ func (l *landing) rules(ctx context.Context) error {
 		return err
 	}
 	findings = append(findings, exports...)
+	uncovered, err := uncoveredCUDATests(l.Repo)
+	if err != nil {
+		return err
+	}
+	for _, directory := range uncovered {
+		findings = append(findings, directory+" has CUDA-gated tests that no lane runs; add it to a lane that sets "+cudaTestEnvironment)
+	}
+	if growth := productionNodes(candidate) - productionNodes(base); !admits(l.budget, growth) {
+		findings = append(findings, fmt.Sprintf("adds %d production syntax nodes beyond row %s's budget %+v; pay for them with deletions, or declare the growth in the row's budget", growth, l.item, l.budget))
+	}
 	if len(findings) != 0 {
 		return errors.New(strings.Join(findings, "; "))
 	}
 	return nil
+}
+
+// productionNodes counts the syntax nodes of a snapshot's production Go
+// files; tests, testdata and generated files are not the code a row grows.
+func productionNodes(snapshot gosyntax.Snapshot) int {
+	nodes := 0
+	for _, file := range snapshot.Files {
+		if file.Test || strings.Contains("/"+file.Path, "/testdata/") {
+			continue
+		}
+		syntax, err := file.Syntax()
+		if generated, _ := file.Generated(); err != nil || generated {
+			continue
+		}
+		ast.Inspect(syntax, func(node ast.Node) bool {
+			if node != nil {
+				nodes++
+			}
+			return true
+		})
+	}
+	return nodes
+}
+
+// admits reports whether a row's budget admits a change that grows
+// production code by growth nodes: a row without a budget may not grow, a
+// stated reason admits the growth, and declared nodes cap it (negative for a
+// row that must shrink).
+func admits(budget plan.Budget, growth int) bool {
+	switch {
+	case budget.Nodes != 0:
+		return growth <= budget.Nodes
+	case budget.Reason != "":
+		return true
+	default:
+		return growth <= 0
+	}
 }
 
 // changedSource is every Go file of the changed packages as the tree holds
@@ -234,7 +283,19 @@ func zeroFallback(statement *ast.IfStmt) bool {
 	} else if !zero(comparison.Y) {
 		return false
 	}
-	return types.ExprString(assignment.Lhs[0]) == types.ExprString(value)
+	// cmp.Or evaluates its fallback whether or not it is needed: only a
+	// fallback without a call or a receive reads the same either way.
+	eager := true
+	ast.Inspect(assignment.Rhs[0], func(node ast.Node) bool {
+		switch expression := node.(type) {
+		case *ast.CallExpr:
+			eager = false
+		case *ast.UnaryExpr:
+			eager = eager && expression.Op != token.ARROW
+		}
+		return eager
+	})
+	return eager && types.ExprString(assignment.Lhs[0]) == types.ExprString(value)
 }
 
 // newUnconsumedExports names exported top-level functions, variables and
@@ -259,7 +320,7 @@ func (l *landing) newUnconsumedExports(base, candidate gosyntax.Snapshot) ([]str
 		reference := []byte(pkg + "." + name)
 		consumed := false
 		for file, data := range corpus {
-			if path.Dir(file) != directory && bytes.Contains(data, reference) {
+			if path.Dir(file) != directory && bytes.Contains(data, reference) && selects(data, pkg, name) {
 				consumed = true
 				break
 			}
@@ -313,6 +374,26 @@ func exportedNames(snapshot gosyntax.Snapshot) map[string]string {
 }
 
 // productionSources reads every non-test Go file under cmd and internal.
+// selects reports whether Go source selects pkg.name in code: a comment or
+// a string that mentions it is no consumer. A file that does not parse
+// counts as one, since the rule cannot read it.
+func selects(source []byte, pkg, name string) bool {
+	syntax, err := parser.ParseFile(token.NewFileSet(), "", source, parser.SkipObjectResolution)
+	if err != nil {
+		return true
+	}
+	found := false
+	ast.Inspect(syntax, func(node ast.Node) bool {
+		if selector, ok := node.(*ast.SelectorExpr); ok {
+			if qualifier, ok := selector.X.(*ast.Ident); ok && qualifier.Name == pkg && selector.Sel.Name == name {
+				found = true
+			}
+		}
+		return !found
+	})
+	return found
+}
+
 func (l *landing) productionSources() (map[string][]byte, error) {
 	sources := map[string][]byte{}
 	for _, top := range []string{"cmd", "internal"} {

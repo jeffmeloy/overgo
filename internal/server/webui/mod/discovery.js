@@ -113,7 +113,7 @@
           return;
         }
         const admitted = await overgo.api.post("/library/validate", { path: stage.registered.path, projector: stage.registered.projector || "" });
-        stage.host.replaceChildren(el("span", { class: "note" }, "validating in operation ", overgo.artifactLink(admitted.operation), " · " + admitted.prompts + " prompts" + (admitted.projector ? " · projector" : "")));
+        stage.host.replaceChildren(el("span", { class: "note" }, "validating in operation ", overgo.artifactLink(admitted.operation), admitted.projector ? " · projector" : ""));
         if (!overgo.signal.aborted && panel.classList.contains('active')) overgo.showOperation(admitted.operation);
       });
       async function add(job) { if (await register(job) && stageOf(job).registered) await validate(job); }

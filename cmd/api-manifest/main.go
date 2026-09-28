@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"flag"
@@ -75,11 +76,26 @@ func run() error {
 		fmt.Printf("api-manifest: current at %s\n", manifest.ID)
 		return nil
 	}
-	if err := clioptions.WriteOutputFile(filepath.FromSlash(manifestJSONPath), content.Data); err != nil {
+	written, err := writeChanged(filepath.FromSlash(manifestJSONPath), content.Data)
+	if err != nil {
 		return err
+	}
+	if !written {
+		fmt.Printf("api-manifest: current at %s\n", manifest.ID)
+		return nil
 	}
 	fmt.Printf("wrote %s (%s)\n", manifestJSONPath, manifest.ID)
 	return nil
+}
+
+// writeChanged writes data to the file unless the file already holds it,
+// and reports whether it wrote: rewriting the same bytes moves the file's
+// time, and go test reruns every suite that reads it.
+func writeChanged(file string, data []byte) (bool, error) {
+	if previous, err := os.ReadFile(file); err == nil && bytes.Equal(previous, data) {
+		return false, nil
+	}
+	return true, clioptions.WriteOutputFile(file, data)
 }
 
 func compile(root string) (apimanifest.Manifest, error) {

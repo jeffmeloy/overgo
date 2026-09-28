@@ -25,6 +25,11 @@ func TestShortProfilePackageEvidence(t *testing.T) {
 		{"duplicate exclusion", start + passed + excluded + packageEvent("skip", "example", "TestIntegration", "") + terminal, true, false},
 		{"late classification", start + passed + packageEvent("run", "example", "TestIntegration", "") + packageEvent("skip", "example", "TestIntegration", "") + skipEvent("example", "TestIntegration", testskip.KindShort) + terminal, true, false},
 		{"failure before exclusion", start + passed + packageEvent("run", "example", "TestIntegration", "") + packageEvent("fail", "example", "TestIntegration", "") + excluded + terminal, true, false},
+		// A typed kind decides even after legacy skip text classified the
+		// test: a kind that justifies no exclusion leaves the skip counted.
+		{"typed kind after legacy text", start + passed + packageEvent("run", "example", "TestIntegration", "") +
+			packageEvent("output", "example", "TestIntegration", "    x_test.go:1: "+testskip.Inapplicable+": no model\n") +
+			skipEvent("example", "TestIntegration", "fixture missing") + packageEvent("skip", "example", "TestIntegration", "") + terminal, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var updates []bool

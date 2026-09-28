@@ -81,7 +81,8 @@ func TestSmallGateLandsAChange(t *testing.T) {
 	if head := git("rev-parse", "HEAD"); head != commit {
 		t.Fatalf("landed %s, HEAD is %s", commit, head)
 	}
-	if body := git("log", "-1", "--format=%B"); !strings.Contains(body, plan.LandedRowTrailer+": first/do") || !strings.Contains(body, "Measured by the gate:") {
+	if body := git("log", "-1", "--format=%B"); !strings.Contains(body, plan.LandedRowTrailer+": first/do") || !strings.Contains(body, "Measured by the gate:") ||
+		!strings.Contains(body, ", lanes ") {
 		t.Fatalf("landing message = %q", body)
 	}
 	landed, err := plan.Load(filepath.Join(repo, filepath.FromSlash(plan.Path)))

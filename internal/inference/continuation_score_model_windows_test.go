@@ -5,15 +5,51 @@ package inference
 import (
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/dataroot"
+	"overgo/internal/discovery"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
 	"overgo/internal/testskip"
+	"overgo/internal/testutil"
 )
+
+// parityModel is the GGUF the parity tests score: OVERGO_PARITY_MODEL when
+// it is set, else the store's smallest local servable GGUF, the model the
+// scorecard slice measures. The device lane runs these tests with no
+// variable of their own.
+func parityModel(t *testing.T) string {
+	t.Helper()
+	if path := os.Getenv("OVERGO_PARITY_MODEL"); path != "" {
+		return path
+	}
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.OpenReadOnly(roots.Store)
+	if err != nil {
+		testskip.NotApplicable(t, "no store to find a local model in: "+err.Error())
+	}
+	defer store.Close()
+	entries, err := discovery.LocalServable(t.Context(), store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.EqualFold(filepath.Ext(entry.Location), ".gguf") {
+			return entry.Location
+		}
+	}
+	testskip.NotApplicable(t, "the store serves no local GGUF")
+	return ""
+}
 
 // TestContinuationScoringPathsAgreeOnAModel: the device-cache scoring
 // path and the host-cache path agree on a real model, at native
@@ -75,10 +111,7 @@ func openParityRunner(t *testing.T, path string, residency recipe.ResidencyPolic
 func TestContinuationScoringMatchesReferenceBackend(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := os.Getenv("OVERGO_PARITY_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "set OVERGO_PARITY_MODEL to a GGUF path")
-	}
+	path := parityModel(t)
 	// The host-reference residency runs every operator on the CPU
 	// reference backend; the device runner scores through its kernels.
 	// The two must agree on a long single sequence from the model's
@@ -111,10 +144,7 @@ func TestContinuationScoringMatchesReferenceBackend(t *testing.T) {
 func TestContinuationScoringPathsAgreeOnAModel(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := os.Getenv("OVERGO_PARITY_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "set OVERGO_PARITY_MODEL to a GGUF path")
-	}
+	path := parityModel(t)
 	runner := openParityRunner(t, path, recipe.ResidencyHybridNative)
 	if !runner.hasPreloadedWeights() || !runner.forwardProgram().PersistentDeviceCache() {
 		t.Skip("model holds no resident device cache")

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -180,12 +181,13 @@ func commitForecastObjective(t *testing.T, ctx context.Context, store *overgodb.
 }
 
 func jsonFloats(values []float64) string {
-	text := "["
+	var text strings.Builder
+	text.WriteString("[")
 	for index, value := range values {
 		if index > 0 {
-			text += ","
+			text.WriteString(",")
 		}
-		text += fmt.Sprint(value)
+		text.WriteString(fmt.Sprint(value))
 	}
-	return text + "]"
+	return text.String() + "]"
 }

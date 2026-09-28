@@ -28,7 +28,7 @@ func TestLoopConfigResolvesStrategyAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := loop.NewStrategy(worker, testutil.ArtifactID(t, artifact.KindProfile, "catalog"), loop.Config{MaxAttemptsPerStep: 3, MaxInvocations: 11, SaturationLimit: 2})
+	want, err := loop.NewStrategy(worker, testutil.ArtifactID(t, artifact.KindProfile, "catalog"), loop.Config{MaxAttemptsPerStep: 3, MaxInvocations: 11})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestLoopConfigResolvesStrategyAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ID != want.ID || got.Loop.MaxAttemptsPerStep != 3 || got.Loop.MaxInvocations != 11 || got.Loop.SaturationLimit != 2 {
+	if got.ID != want.ID || got.Loop.MaxAttemptsPerStep != 3 || got.Loop.MaxInvocations != 11 {
 		t.Fatalf("resolved strategy = %+v", got)
 	}
 }

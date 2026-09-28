@@ -157,8 +157,9 @@ func dispatchPriority(document Plan, role string) ([]Ref, error) {
 	if role == worklease.UnassignedRole && document.Lane != "" {
 		role = document.Lane
 	}
+	awaiting := awaitingDecision(document)
 	eligible := func(item Item) bool {
-		return item.Owner == "" || role != worklease.UnassignedRole && item.Owner == role
+		return !awaiting[item.ID] && (item.Owner == "" || role != worklease.UnassignedRole && item.Owner == role)
 	}
 	visited := map[string]bool{}
 	var ordered []Ref
@@ -214,9 +215,15 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 	if reference != "" {
 		return finishDispatch(Dispatch{Waiting: "requested row is not ready for this role"}), nil
 	}
-	if _, _, open := Current(document, role); open {
+	awaiting := awaitingDecision(document)
+	if item, _, open := Current(document, role); open && !awaiting[item.ID] {
 		// Preserve the empty-rung dispatch until the rung is given steps.
 		return DispatchOf(document, role), nil
+	}
+	for _, item := range document.Items {
+		if item.Status == StatusOpen && awaiting[item.ID] {
+			return finishDispatch(Dispatch{Waiting: "remaining rows wait on owner decisions; see plan -decisions"}), nil
+		}
 	}
 	for _, item := range document.Items {
 		if item.Status == StatusOpen {
@@ -224,4 +231,18 @@ func selectDispatch(document Plan, role, reference string) (Dispatch, error) {
 		}
 	}
 	return finishDispatch(Dispatch{Complete: true}), nil
+}
+
+// awaitingDecision are the items an unanswered owner decision blocks:
+// dispatch moves past them until the owner answers.
+func awaitingDecision(document Plan) map[string]bool {
+	blocked := map[string]bool{}
+	for _, decision := range document.Decisions {
+		if decision.Answer == "" {
+			for _, item := range decision.Blocks {
+				blocked[item] = true
+			}
+		}
+	}
+	return blocked
 }

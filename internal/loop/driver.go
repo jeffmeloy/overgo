@@ -55,17 +55,6 @@ type ProgressWorld interface {
 	AcceptedProgress(step Step, checkpoint string) (bool, error)
 }
 
-// ProposalSource is the optional world extension that feeds the driver
-// admitted steering proposals once the plan drains: the loop closure.
-// AdmitNext admits the next pending proposal into the plan through
-// deterministic admission and returns its plan item id; ok=false means
-// the queue is empty. Block marks a parked proposal row blocked so
-// dispatch moves past it to the next proposal.
-type ProposalSource interface {
-	AdmitNext() (item string, ok bool, err error)
-	Block(step Step, reason string) error
-}
-
 // Config bounds the driver. Every limit is mechanical: no prose persuasion.
 type Config struct {
 	// MaxAttemptsPerStep parks the step after this many worker exits
@@ -73,36 +62,7 @@ type Config struct {
 	// refuses to run: unbounded retries on a stuck step are forbidden.
 	MaxAttemptsPerStep int `json:"max_attempts_per_step"`
 	// MaxInvocations bounds total worker launches for one Run call.
-	MaxInvocations int            `json:"max_invocations"`
-	Closure        *ClosureConfig `json:"closure,omitempty"`
-	// SaturationLimit supports the compatibility proposal source when no
-	// evidence-bound Closure is configured.
-	SaturationLimit int `json:"saturation_limit,omitzero"`
-}
-
-// ClosureConfig bounds evidence-gated proposal consumption after the plan
-// drains. Every budget must be nonzero; a zero budget stops the loop as
-// budget-exhausted rather than running unbounded.
-type ClosureConfig struct {
-	MaxWallNS      uint64 `json:"max_wall_ns"`
-	MaxCostUnits   uint64 `json:"max_cost_units"`
-	MaxMutations   uint64 `json:"max_mutations"`
-	MaxExperiments uint64 `json:"max_experiments"`
-	MaxProposals   uint64 `json:"max_proposals"`
-}
-
-// ClosureFacts are the measured world facts the closure stop decision
-// consumes; they are observed, never predicted.
-type ClosureFacts struct {
-	WallNS                 uint64
-	CostUnits              uint64
-	Mutations              uint64
-	Experiments            uint64
-	OutstandingObligations uint64
-	LeaseConflicts         uint64
-	RepeatedDirections     uint64
-	MeasuredGain           bool
-	OperatorStop           bool
+	MaxInvocations int `json:"max_invocations"`
 }
 
 // ObligationWorld is the optional world extension that replays durable
@@ -114,14 +74,6 @@ type ObligationWorld interface {
 	// ReplayObligations completes every obligation whose predicate now
 	// holds and returns how many follow-ups remain due.
 	ReplayObligations() (due uint64, err error)
-}
-
-// ProposalWorld is an optional extension of the same deterministic driver.
-// Admission mutates only the plan; strategy activation remains external and evidence-gated.
-type ProposalWorld interface {
-	World
-	ClosureFacts() (ClosureFacts, error)
-	AdmitNextProposal() (bool, error)
 }
 
 // Outcome reports why Run returned.
@@ -140,13 +92,6 @@ const (
 	ReasonPaused      = "paused"
 	ReasonBudget      = "invocation-budget-exhausted"
 	ReasonParked      = "step-parked"
-	// ReasonClosureBlocked reports outstanding obligations or lease
-	// conflicts blocking further proposal consumption.
-	ReasonClosureBlocked = "proposal-closure-blocked"
-	// ReasonSaturated reports repeated directions or absent measured gain.
-	ReasonSaturated = "proposal-saturated"
-	// ReasonOperatorStop reports an explicit operator stop fact.
-	ReasonOperatorStop = "operator-stop"
 )
 
 // ErrWorkWaiting marks expected ownership contention, not a failed task.
@@ -160,13 +105,8 @@ func Run(world World, config Config) (Outcome, error) {
 		return Outcome{}, errors.New("loop: attempt and invocation budgets are required")
 	}
 	outcome := Outcome{}
-	var proposals uint64
 	attempts := 0
-	saturation := 0
-	proposalItems := map[string]bool{}
-	source, feeds := world.(ProposalSource)
 	progress, observesProgress := world.(ProgressWorld)
-	feeds = feeds && config.SaturationLimit > 0
 	obligations, replays := world.(ObligationWorld)
 	var lastKey, feedback string
 	for {
@@ -194,51 +134,8 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, fmt.Errorf("loop: read plan: %w", err)
 		}
 		if !open {
-			if config.Closure != nil {
-				proposalWorld, capable := world.(ProposalWorld)
-				if !capable {
-					return outcome, errors.New("loop: closure configured without proposal world")
-				}
-				facts, factErr := proposalWorld.ClosureFacts()
-				if factErr != nil {
-					return outcome, factErr
-				}
-				if reason := closureStopReason(*config.Closure, facts, proposals); reason != "" {
-					outcome.Reason = reason
-					return outcome, nil
-				}
-				admitted, admitErr := proposalWorld.AdmitNextProposal()
-				if admitErr != nil {
-					return outcome, admitErr
-				}
-				if !admitted {
-					outcome.Reason = ReasonPlanComplete
-					return outcome, nil
-				}
-				proposals++
-				continue
-			}
-			// The closure: a drained plan consumes the next admitted
-			// proposal instead of stopping, until the queue empties or
-			// saturation proves further consumption unmeasured.
-			if !feeds {
-				outcome.Reason = ReasonPlanComplete
-				return outcome, nil
-			}
-			if saturation >= config.SaturationLimit {
-				outcome.Reason = ReasonSaturated
-				return outcome, nil
-			}
-			item, pending, err := source.AdmitNext()
-			if err != nil {
-				return outcome, fmt.Errorf("loop: admit proposal: %w", err)
-			}
-			if !pending {
-				outcome.Reason = ReasonPlanComplete
-				return outcome, nil
-			}
-			proposalItems[item] = true
-			continue
+			outcome.Reason = ReasonPlanComplete
+			return outcome, nil
 		}
 		if step.Key() != lastKey {
 			lastKey, attempts, feedback = step.Key(), 0, ""
@@ -250,17 +147,6 @@ func Run(world World, config Config) (Outcome, error) {
 				return outcome, fmt.Errorf("loop: park %s: %w", step.Key(), err)
 			}
 			outcome.Parked = append(outcome.Parked, step.Key())
-			if feeds && proposalItems[step.Item] {
-				// A parked proposal row is no measured improvement: it
-				// blocks out of dispatch, counts toward saturation, and
-				// the loop moves to the next proposal instead of ending.
-				if err := source.Block(step, reason); err != nil {
-					return outcome, fmt.Errorf("loop: block %s: %w", step.Key(), err)
-				}
-				saturation++
-				lastKey, attempts, feedback = "", 0, ""
-				continue
-			}
 			outcome.Reason = ReasonParked
 			return outcome, nil
 		}
@@ -298,12 +184,7 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, fmt.Errorf("loop: re-read plan: %w", err)
 		}
 		if !open || after.Key() != step.Key() {
-			// The worker advanced the step through the gate. An advanced
-			// proposal-driven row passed its falsifiable check: measured
-			// improvement, saturation streak reset.
-			if proposalItems[step.Item] {
-				saturation = 0
-			}
+			// The worker advanced the step through the gate.
 			continue
 		}
 		if observesProgress {
@@ -332,23 +213,6 @@ func Run(world World, config Config) (Outcome, error) {
 		feedback = "attempt " + fmt.Sprint(attempts) + " verify failure:\n" + truncate(failure, 2000) +
 			"\nworker tail:\n" + truncate(tail, 1000)
 	}
-}
-
-func closureStopReason(config ClosureConfig, facts ClosureFacts, proposals uint64) string {
-	if facts.OperatorStop {
-		return ReasonOperatorStop
-	}
-	if facts.OutstandingObligations != 0 || facts.LeaseConflicts != 0 {
-		return ReasonClosureBlocked
-	}
-	if facts.RepeatedDirections != 0 || !facts.MeasuredGain {
-		return ReasonSaturated
-	}
-	if config.MaxWallNS == 0 || config.MaxCostUnits == 0 || config.MaxMutations == 0 || config.MaxExperiments == 0 || config.MaxProposals == 0 ||
-		facts.WallNS >= config.MaxWallNS || facts.CostUnits >= config.MaxCostUnits || facts.Mutations >= config.MaxMutations || facts.Experiments >= config.MaxExperiments || proposals >= config.MaxProposals {
-		return ReasonBudget
-	}
-	return ""
 }
 
 // LaunchError marks a worker that could not start at all, as distinct from a

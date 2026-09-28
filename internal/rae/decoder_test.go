@@ -47,6 +47,20 @@ func loadReference(t *testing.T, directory string, tensor referenceTensor) []flo
 	return values
 }
 
+// compareReference is the largest difference of got from the reference's
+// values and the largest magnitude the reference holds.
+func compareReference(t *testing.T, got, want []float32) (worst, scale float64) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("produced %d values, the reference has %d", len(got), len(want))
+	}
+	for index := range got {
+		worst = max(worst, math.Abs(float64(got[index]-want[index])))
+		scale = max(scale, math.Abs(float64(want[index])))
+	}
+	return worst, scale
+}
+
 // TestRAEDecoderMatchesReference decodes the reference's seeded latent with
 // the DINOv2-with-registers ViT-XL decoder and its ImageNet latent
 // statistics, and holds every pixel to the image the reference decoder made
@@ -76,19 +90,11 @@ func TestRAEDecoderMatchesReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	latent := loadReference(t, fixtures, reference.Latent)
-	want := loadReference(t, fixtures, reference.Image)
-	got, err := decoder.decode(latent)
+	got, err := decoder.decode(loadReference(t, fixtures, reference.Latent))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != len(want) {
-		t.Fatalf("decoded %d pixels, reference has %d", len(got), len(want))
-	}
-	var worst float64
-	for index := range got {
-		worst = max(worst, math.Abs(float64(got[index]-want[index])))
-	}
+	worst, _ := compareReference(t, got, loadReference(t, fixtures, reference.Image))
 	t.Logf("max |decoded - reference| = %.3g over %d pixels", worst, len(got))
 	if worst > 1e-3 {
 		t.Fatalf("decoded image differs from the reference by up to %.3g", worst)

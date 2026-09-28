@@ -788,16 +788,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 2027,
-        "reason": "the RAE ViT decoder, read from its checkpoint's own tensors and the reviewed decoder configurations, and the gate's host-wide lane turn"
+        "nodes": 2475,
+        "reason": "the RAE DiT-DH velocity, read from its checkpoint's own tensors"
       },
       "steps": [
-        {
-          "id": "rae-dit",
-          "title": "Port the RAE DiT-DH-XL velocity and hold it to the reference",
-          "status": "open",
-          "verify": "go test ./internal/rae -run '^TestRAEDiTVelocityMatchesReference$' -count=1 -v"
-        },
         {
           "id": "do",
           "title": "Add a generation path for the RAE collection",

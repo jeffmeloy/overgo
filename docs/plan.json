@@ -10,8 +10,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 68,
-        "reason": "api-manifest -update writes only a changed manifest, so its time moves only with its bytes"
+        "nodes": 183,
+        "reason": "a tool guard refuses a go build that writes a command's binary into the working directory"
       },
       "steps": [
         {
@@ -1004,7 +1004,8 @@
             "rules-by-enforcement-level/sqa-039",
             "rules-by-enforcement-level/sqa-036",
             "rules-by-enforcement-level/manifest-autofix",
-            "rules-by-enforcement-level/manifest-unchanged"
+            "rules-by-enforcement-level/manifest-unchanged",
+            "rules-by-enforcement-level/guard-root-binary"
           ]
         }
       ]

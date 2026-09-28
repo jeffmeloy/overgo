@@ -297,6 +297,36 @@
       "command": "tail -20 /tmp/gate.log",
       "expect": "ALLOW",
       "rule": "baseline"
+    },
+    {
+      "name": "go-build-command-into-root",
+      "command": "go build ./cmd/api-manifest",
+      "expect": "DENY",
+      "rule": "binary-into-root"
+    },
+    {
+      "name": "go-build-command-after-cd",
+      "command": "cd /c/Users/jeffm/overgo \u0026\u0026 go build ./cmd/plan",
+      "expect": "DENY",
+      "rule": "binary-into-root"
+    },
+    {
+      "name": "go-build-command-with-output",
+      "command": "go build -o tmp/api-manifest.exe ./cmd/api-manifest",
+      "expect": "ALLOW",
+      "rule": "binary-into-root"
+    },
+    {
+      "name": "go-build-every-package",
+      "command": "go build ./...",
+      "expect": "ALLOW",
+      "rule": "binary-into-root"
+    },
+    {
+      "name": "go-build-library",
+      "command": "go build ./internal/landing ./cmd/loophook",
+      "expect": "ALLOW",
+      "rule": "binary-into-root"
     }
   ]
 }

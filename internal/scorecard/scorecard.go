@@ -40,13 +40,16 @@ type Cell struct {
 // Measured reports whether a record measures the cell.
 func (c Cell) Measured() bool { return c.Reason == "" }
 
-// Row is one activated model and task.
+// Row is one activated model and task. Architecture is the architecture the
+// recipe's profile dependency declares; a recipe that resolves no
+// architecture profile, a media or specialized one, leaves it empty.
 type Row struct {
-	Model  artifact.ID
-	Name   string
-	Task   recipe.Task
-	Recipe artifact.ID
-	Cells  map[metric.Name]Cell
+	Model        artifact.ID
+	Name         string
+	Task         recipe.Task
+	Recipe       artifact.ID
+	Architecture string
+	Cells        map[metric.Name]Cell
 }
 
 // Build reads the scorecard from the store: one row for every activation
@@ -78,7 +81,11 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 		name = cmp.Or(name, entry.Model.String())
 		benchmark, benchmarked := index.BenchmarksByLocation[entry.Location]
 		for _, capability := range entry.Capabilities {
-			row := Row{Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Cells: map[metric.Name]Cell{}}
+			architecture, err := declaredArchitecture(ctx, store, capability.Recipe)
+			if err != nil {
+				return nil, err
+			}
+			row := Row{Model: entry.Model, Name: name, Task: capability.Task, Recipe: capability.Recipe, Architecture: architecture, Cells: map[metric.Name]Cell{}}
 			// A benchmark claim measures the weights' inference, so it
 			// speaks for the inference activation only.
 			measured := benchmarked && capability.Task == recipe.TaskInference
@@ -97,6 +104,30 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 		return cmp.Or(strings.Compare(left.Name, right.Name), strings.Compare(string(left.Task), string(right.Task)))
 	})
 	return rows, nil
+}
+
+// declaredArchitecture is the architecture the recipe's profile dependency
+// declares. A recipe with no profile dependency, or whose profile is a
+// media or specialized contract rather than an architecture profile,
+// declares none.
+func declaredArchitecture(ctx context.Context, store *overgodb.Store, id artifact.ID) (string, error) {
+	definition, err := recipe.RequireDefinition(ctx, store, id)
+	if err != nil {
+		return "", err
+	}
+	profileID, ok := definition.PrimaryDependency(recipe.DependencyProfile)
+	if !ok {
+		return "", nil
+	}
+	content, found, err := artifact.ReadContent(ctx, store, profileID)
+	if err != nil || !found {
+		return "", cmp.Or(err, fmt.Errorf("scorecard: recipe %s names an absent profile %s", id, profileID))
+	}
+	profile, err := modelrecipe.ParseProfileDocument(content.Data)
+	if err != nil {
+		return "", nil
+	}
+	return profile.Architecture, nil
 }
 
 // verifiedNames maps each model to the name the verification records give

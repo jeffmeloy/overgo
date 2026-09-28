@@ -100,17 +100,17 @@
       ]
     },
     {
-      "id": "declaration-alone-share",
-      "title": "Report the share of served models supported by declaration alone, beside setup steps",
+      "id": "architecture-names-out-of-serving",
+      "title": "Replace the serving code that architecture names select with profile declarations",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Report the share of served models supported by declaration alone, beside setup steps",
+          "title": "Replace the serving code that architecture names select with profile declarations",
           "status": "open",
-          "verify": "go test ./internal/scorecard -run '^TestDeclarationAloneShare$' -count=1",
-          "rationale": "Split from one-command-onboarding (landed validate -onboard). The owner review's second half: beside the scorecard's setup steps, report the share of served models supported by declaration alone, with no model-specific code, so each new model is visibly unintended improvement. Define 'declaration alone' from facts the repository already holds (the architecture profile a recipe resolves through, internal/model/architecture_profiles.json, against code paths selected by a model family's name) before counting; build the count from the store's activated recipes. Real-model proof of validate -onboard waits on the first new model directory: every text directory on disk is already registered and onboard refuses an activated one."
+          "verify": "go test ./cmd/validate -run '^TestServingCodeNamesNoArchitecture$' -count=1",
+          "rationale": "Measured by validate -scorecard at declaration-alone-share: 3 of 11 served models are supported by declaration alone (the gemma4 ones). The others' architecture names select serving-surface code: llama in internal/densecausal/load_gguf.go and internal/hfgguf/catalog.go and qwen35.go; qwen2 in internal/hfgguf/catalog.go and qwen35.go; qwen35 in internal/hfgguf/qwen35.go; deepseek2-ocr in internal/hfgguf/deepseekocr.go. Read each site first: what the name selects (a metadata default, a tensor layout, a conversion rule) and whether internal/model/architecture_profiles.json can declare it. Move what it can into the profile, delete the name comparison, and hold the result with a test that no serving-surface literal outside the tokenizer equals a declared architecture name. The owner doctrine is no model-specific code; each site removed is a family a new model of that architecture no longer needs code for."
         }
       ]
     },
@@ -972,7 +972,8 @@
             "owner-decision-queue/records",
             "owner-decision-queue/dispatch",
             "owner-decision-queue/answer",
-            "declaration-alone-share/do"
+            "declaration-alone-share/do",
+            "architecture-names-out-of-serving/do"
           ]
         }
       ]

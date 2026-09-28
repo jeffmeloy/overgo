@@ -105,7 +105,41 @@
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 94,
+        "reason": "each folded probe's trainer takes its flags from the route's flag set"
+      },
       "steps": [
+        {
+          "id": "fold-mot-graft",
+          "title": "Fold mot-train-probe and graft-probe into cmd/train routes",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestTrainRoutesFoldedProbes$/^(mot|graft)$' -count=1 -v"
+        },
+        {
+          "id": "fold-hybrid-stack",
+          "title": "Fold hybrid-stack-train-probe into a cmd/train route",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestTrainRoutesFoldedProbes$/^(hybrid-stack)$' -count=1 -v"
+        },
+        {
+          "id": "fold-dit",
+          "title": "Fold dit-train-probe into a cmd/train route",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestTrainRoutesFoldedProbes$/^(dit)$' -count=1 -v"
+        },
+        {
+          "id": "fold-seriesforecast",
+          "title": "Fold seriesforecast-train-probe into a cmd/train route",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestTrainRoutesFoldedProbes$/^(seriesforecast)$' -count=1 -v"
+        },
+        {
+          "id": "fold-flow-organ",
+          "title": "Fold flow-organ-train-probe into a cmd/train route",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestTrainRoutesFoldedProbes$/^(flow-organ)$' -count=1 -v"
+        },
         {
           "id": "do",
           "title": "Fold per-modality commands into route tables",
@@ -959,7 +993,13 @@
             "owner-decision-queue/answer",
             "declaration-alone-share/do",
             "architecture-names-out-of-serving/do",
-            "cuda-lane-rule/do"
+            "cuda-lane-rule/do",
+            "automation-command-route-tables/fold-adapter-mixture",
+            "automation-command-route-tables/fold-mot-graft",
+            "automation-command-route-tables/fold-hybrid-stack",
+            "automation-command-route-tables/fold-dit",
+            "automation-command-route-tables/fold-seriesforecast",
+            "automation-command-route-tables/fold-flow-organ"
           ]
         }
       ]

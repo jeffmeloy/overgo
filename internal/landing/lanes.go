@@ -88,6 +88,24 @@ var lanes = []lane{
 		},
 		environment: []string{"OVERGO_CUDA_TEST=1"},
 	},
+	{
+		// The CUDA suites outside the device lane's fixture-free scopes:
+		// image and video generation, media capability, the trainers, the
+		// scratch and routed models, long-form evaluation and the recipe
+		// and evaluate commands. One package at a time shares the device;
+		// go test's cache replays each until code it reads changes.
+		name: "cuda", packages: cudaPackages,
+		command:     func(string) []string { return append([]string{"test", "-p=1"}, cudaPackages...) },
+		environment: []string{"OVERGO_CUDA_TEST=1"},
+	},
+}
+
+// cudaPackages are the packages whose CUDA tests the cuda lane runs.
+var cudaPackages = []string{
+	"./internal/diffusionimage", "./internal/latentimage", "./internal/mediacapability", "./internal/scratchmodel",
+	"./internal/modeldevice", "./internal/hybridtrain", "./internal/controllertrain", "./internal/trainingprogram",
+	"./internal/torchrng", "./internal/routedlm", "./internal/longform", "./internal/sensenovarecipe",
+	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe",
 }
 
 // lanes runs every lane the change reaches, one after another: they share

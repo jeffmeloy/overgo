@@ -8,6 +8,10 @@
       "title": "Run or delete tests no lane enables",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 57,
+        "reason": "a cuda lane runs the CUDA suites of 15 packages no lane ran"
+      },
       "steps": [
         {
           "id": "do",
@@ -991,7 +995,8 @@
             "env-gated-tests-run-or-go/parity-model",
             "env-gated-tests-run-or-go/thoughtbank",
             "env-gated-tests-run-or-go/wan",
-            "env-gated-tests-run-or-go/integration"
+            "env-gated-tests-run-or-go/integration",
+            "env-gated-tests-run-or-go/cuda"
           ]
         }
       ]

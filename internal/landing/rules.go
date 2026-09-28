@@ -275,7 +275,19 @@ func zeroFallback(statement *ast.IfStmt) bool {
 	} else if !zero(comparison.Y) {
 		return false
 	}
-	return types.ExprString(assignment.Lhs[0]) == types.ExprString(value)
+	// cmp.Or evaluates its fallback whether or not it is needed: only a
+	// fallback without a call or a receive reads the same either way.
+	eager := true
+	ast.Inspect(assignment.Rhs[0], func(node ast.Node) bool {
+		switch expression := node.(type) {
+		case *ast.CallExpr:
+			eager = false
+		case *ast.UnaryExpr:
+			eager = eager && expression.Op != token.ARROW
+		}
+		return eager
+	})
+	return eager && types.ExprString(assignment.Lhs[0]) == types.ExprString(value)
 }
 
 // newUnconsumedExports names exported top-level functions, variables and

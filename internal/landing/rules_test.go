@@ -49,6 +49,15 @@ func Keep(name, other string) string {
 	}
 	return other
 }
+
+func Lazy(name string) string {
+	if name == "" {
+		name = load()
+	}
+	return name
+}
+
+func load() string { return "loaded" }
 `
 	snapshot := func(source string) gosyntax.Snapshot {
 		t.Helper()

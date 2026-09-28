@@ -9,6 +9,10 @@
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 59,
+        "reason": "SQA-039: the zero-fallback rule admits only fallbacks that eager cmp.Or evaluation reads the same"
+      },
       "steps": [
         {
           "id": "do",
@@ -996,7 +1000,8 @@
             "data-outside-module/do",
             "plan-data-move-2026-09-27/do",
             "audio-acceptance-lane/do",
-            "fp8-prefill-tensorcore/do"
+            "fp8-prefill-tensorcore/do",
+            "rules-by-enforcement-level/sqa-039"
           ]
         }
       ]

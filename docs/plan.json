@@ -5,21 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gui-phase-profile",
-      "title": "Show a turn's tokens per forward and the recent turns' trend of rate and tokens per forward in the inspector and runtime records",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Show a turn's tokens per forward and the recent turns' trend of rate and tokens per forward in the inspector and runtime records",
-          "status": "open",
-          "verify": "test -f internal/server/turn_profile_test.go \u0026\u0026 go test ./internal/server -run '^TestTurnPhaseProfile$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(PhaseProfile|LayoutAudit)$' -leg 'phase profile leg'",
-          "rationale": "colibri review 2026-09-27, scoped by owner review: tokens per forward (speculation acceptance) and a recent-turn trend are cheap and useful; the matmul, attention and LM-head split is skipped -- timing each phase needs a GPU timestamp around every phase, costs time and does not work inside captured CUDA graphs -- and I/O wait belongs to disk-streaming engines."
-        }
-      ]
-    },
-    {
       "id": "gui-loop-status",
       "title": "Show the unattended loop's status -- running or stopped, the row it works, its last landing -- with a stop button that records a user stop",
       "owner": "overgo_gui_cleanup",

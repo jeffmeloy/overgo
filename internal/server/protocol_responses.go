@@ -772,6 +772,8 @@ func (h *Handler) streamResponses(
 			return
 		}
 		turnBuffer.finish(final, "")
+		// The finished turn joins the recent turns the runtime snapshot profiles.
+		h.events.sessionsMoved()
 	}
 	finished = true
 	_ = writeEvent("response."+final.Status, responsesStreamEvent{

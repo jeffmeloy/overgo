@@ -256,6 +256,19 @@ type slotStatusTimings struct {
 	// and those the model accepted.
 	DraftN         uint64 `json:"draft_n,omitzero"`
 	DraftNAccepted uint64 `json:"draft_n_accepted,omitzero"`
+	// TokensPerForward is the generated tokens per model forward: one each,
+	// and each accepted draft saves a forward.
+	TokensPerForward float64 `json:"tokens_per_forward,omitzero"`
+}
+
+// tokensPerForward is generated tokens over the forwards that produced them:
+// each accepted draft rides on its verifying forward.
+func tokensPerForward(generated, accepted uint64) float64 {
+	forwards := generated - min(accepted, generated)
+	if forwards == 0 {
+		return 0
+	}
+	return float64(generated) / float64(forwards)
 }
 
 func perTokenAndRate(tokens uint64, durationMS float64) (float64, float64) {
@@ -294,6 +307,7 @@ func (stats *slotRuntimeStats) metrics(processing bool) slotRuntimeMetrics {
 	predictedMS := float64(predictedNanos) / float64(time.Millisecond)
 	promptPerTokenMS, promptPerSecond := perTokenAndRate(processedTokens, promptMS)
 	predictedPerTokenMS, predictedPerSecond := perTokenAndRate(generatedTokens, predictedMS)
+	accepted := stats.acceptedDrafts.Load()
 	return slotRuntimeMetrics{
 		PromptTokens:    promptTokens,
 		ProcessedTokens: processedTokens,
@@ -310,7 +324,8 @@ func (stats *slotRuntimeStats) metrics(processing bool) slotRuntimeMetrics {
 			PredictedPerTokenMS: predictedPerTokenMS,
 			PredictedPerSecond:  predictedPerSecond,
 			DraftN:              stats.draftedTokens.Load(),
-			DraftNAccepted:      stats.acceptedDrafts.Load(),
+			DraftNAccepted:      accepted,
+			TokensPerForward:    tokensPerForward(generatedTokens, accepted),
 		},
 	}
 }

@@ -52,6 +52,9 @@ type turnInspection struct {
 	// environment records the remote backend, and nothing about the
 	// hosted model can be replayed from the store.
 	Reproducible bool `json:"reproducible"`
+	// Recent profiles the finished turns the server holds, oldest first,
+	// the trend this turn stands in.
+	Recent []turnProfile `json:"recent"`
 }
 
 // turnFailureStatus reads a failed turn's message into the vocabulary.
@@ -72,7 +75,7 @@ func turnFailureStatus(failure string) string {
 // turn's run record.
 func (h *Handler) conversationInspect(response http.ResponseWriter, request *http.Request) {
 	responseID := request.URL.Query().Get("response")
-	result := turnInspection{Response: responseID, Statuses: turnStatuses, Reproducible: h.environment.Reproducible()}
+	result := turnInspection{Response: responseID, Statuses: turnStatuses, Reproducible: h.environment.Reproducible(), Recent: h.inflight.recent()}
 	if turn, found := h.inflight.lookup(responseID); found {
 		text, done, final, failed, _ := turn.snapshot()
 		result.Completion, result.Status = text, turnStatusRunning

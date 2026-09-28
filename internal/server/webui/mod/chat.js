@@ -34,7 +34,7 @@
     const { el } = overgo;
     const body = el("div");
     aside.hidden = false;
-    const close = el("button", { class: "btn alt", text: "×", "aria-label": "close the inspector", onclick: closeInspector });
+    const close = el("button", { class: "btn alt", text: "Close", "aria-label": "close the inspector", onclick: closeInspector });
     aside.replaceChildren(el("div", { class: "row" }, el("strong", { text: "Inspect turn" }), el("span", { class: "grow" }), close), body);
     close.focus();
     let record;
@@ -44,6 +44,7 @@
     if (record.incomplete_details?.reason === "max_output_tokens") cards.push(overgo.stat("Output limit reached", "Partial answer saved"));
     if (record.failure) cards.push(overgo.stat("Failure", record.failure));
     if (record.timings) cards.push(overgo.stat("Prefill", Number(record.timings.prompt_per_second).toFixed(2), "tok/s"), overgo.stat("Decode", Number(record.timings.predicted_per_second).toFixed(2), "tok/s"));
+    if (record.timings && record.timings.tokens_per_forward) cards.push(overgo.stat("Per forward", Number(record.timings.tokens_per_forward).toFixed(2), "tokens"));
     if (record.timings && record.timings.draft_n) cards.push(overgo.stat("Drafts accepted", (record.timings.draft_n_accepted || 0) + " / " + record.timings.draft_n,
       Math.round(100 * (record.timings.draft_n_accepted || 0) / record.timings.draft_n) + "% speculative"));
     if (record.sampling) cards.push(overgo.stat("Sampling", "T " + record.sampling.temperature, record.sampling.samplers.join(" › ") || "no stage"));
@@ -52,7 +53,7 @@
     const seed = { prompt: (record.prompt || "") + (record.completion ? "\n" + record.completion : "") };
     const inspectors = [["lens", "Logits", seed], ["states", "States", seed], ["attention", "Attention", seed], ["model", "Model"], ["vocab", "Vocabulary"], ["tensors", "Tensors"]];
     const support = el("div", { class: "turn-support" });
-    body.append(el("div", { class: "statgrid" }, ...cards), el("div", { class: "row artifact-links" }, ...links), support,
+    body.append(el("div", { class: "statgrid" }, ...cards), ...[overgo.turnTrend(record.recent)].filter(Boolean), el("div", { class: "row artifact-links" }, ...links), support,
       el("div", { class: "row" }, ...inspectors.map(([id, label, given]) => el("button", { class: "btn alt", text: label, onclick: () => overgo.embed(id, host, given) }))), host);
     // The model that ran the turn, graded now by the catalog's evidence.
     if (!record.model) return;
@@ -754,6 +755,7 @@
           cards.push(overgo.stat("Cached", fmt.grouped(timings.cache_n), "tokens"));
           if (timings.prompt_n && timings.prompt_ms > 0) cards.push(overgo.stat("Prefill", Number(timings.prompt_per_second).toFixed(2), "tok/s"));
           if (timings.predicted_n && timings.predicted_ms > 0) cards.push(overgo.stat("Decode", Number(timings.predicted_per_second).toFixed(2), "tok/s"));
+          if (timings.tokens_per_forward) cards.push(overgo.stat("Per forward", Number(timings.tokens_per_forward).toFixed(2), "tokens"));
           if (Number(timings.prompt_ms) + Number(timings.predicted_ms) > 0) cards.push(overgo.stat("Elapsed", (Number(timings.prompt_ms) + Number(timings.predicted_ms)).toFixed(2), "ms"));
         }
         facts.replaceChildren(...cards);

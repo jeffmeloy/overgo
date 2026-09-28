@@ -11,7 +11,8 @@
       const summary = el("div", { class: "statgrid" });
       const error = el("div");
       const slots = el("div");
-      panel.append(el("div", { class: "section-title", text: "Runtime" }), identity, summary, error, slots);
+      const trend = el("div");
+      panel.append(el("div", { class: "section-title", text: "Runtime" }), identity, summary, error, slots, trend);
 
       await overgo.read(error, () => overgo.modelInfo(), (info) => { identity.textContent = info.model.name || info.model.id || ""; }, { loading: null })();
 
@@ -32,7 +33,7 @@
           overgo.stat("Recipe stages", authority ? authority.stages : "—"),
           overgo.stat("Evidence", authority ? (authority.evidence || []).length : "—"),
           overgo.stat("Device", session.device));
-        const table = el("table", { class: "grid" }, overgo.headerRow(["slot", "task", "state", "context", "prompt", "cached", "completion", "prefill", "decode", "elapsed"]));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["slot", "task", "state", "context", "prompt", "cached", "completion", "prefill", "decode", "per forward", "elapsed"]));
         for (const slot of data.slots) {
           const timing = slot.timings || null;
           const elapsed = timing ? Number(timing.prompt_ms) + Number(timing.predicted_ms) : null;
@@ -40,9 +41,12 @@
             el("span", { class: "tag " + (slot.is_processing ? "user_defined" : ""), text: slot.is_processing ? "running" : "idle" }),
             present(slot.n_ctx, fmt.grouped), present(slot.n_prompt_tokens_processed, fmt.grouped), present(slot.n_prompt_tokens_cache, fmt.grouped),
             present(timing && timing.predicted_n, fmt.grouped), present(timing && timing.prompt_per_second, (v) => Number(v).toFixed(2) + " tok/s"),
-            present(timing && timing.predicted_per_second, (v) => Number(v).toFixed(2) + " tok/s"), present(elapsed, (v) => v.toFixed(2) + " ms")]));
+            present(timing && timing.predicted_per_second, (v) => Number(v).toFixed(2) + " tok/s"), present(timing && timing.tokens_per_forward, (v) => Number(v).toFixed(2)),
+            present(elapsed, (v) => v.toFixed(2) + " ms")]));
         }
         slots.replaceChildren(table);
+        const recent = overgo.turnTrend(data.recent);
+        trend.replaceChildren(...(recent ? [el("div", { class: "section-title", text: "Recent turns" }), recent] : []));
         summary.append(
           overgo.stat("Requested residency", authority ? authority.residency : "unknown"),
           overgo.stat("Actual residency", authority ? (authority.realized_residency || "unknown") : "unknown"));

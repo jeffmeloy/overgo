@@ -227,6 +227,9 @@ table.grid td.mono { font-family:var(--mono); font-variant-numeric:tabular-nums;
 .memory-part.owner-2 { background:color-mix(in srgb, var(--acc) 45%, var(--bg3)); }
 .memory-part.owner-3 { background:color-mix(in srgb, var(--acc) 30%, var(--bg3)); }
 .memory-part.other { background:var(--amber); }
+/* The recent turns' trend: one labelled sparkline per measure. */
+.turn-trend { display:grid; gap:var(--s2); margin:var(--s2) 0; }
+.turn-trend-line svg { display:block; }
 .support-rungs { list-style:none; margin:var(--s1) 0; padding:0; display:flex; flex-direction:column; gap:var(--s1); }
 .support-rungs li { color:var(--dim); overflow-wrap:anywhere; }
 .support-rungs li.held { color:var(--ink); }
@@ -275,6 +278,7 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .token-run span.trained { border-color:var(--acc); background:var(--acc-soft); color:var(--ink); }
 .series-legend .swatch { width:12px; height:2px; display:inline-block; }
 .artifact-links { margin:12px 0; }
+.artifact-links a { display:inline-flex; align-items:center; min-height:24px; }
 .signed-series { display:block; min-width:0; }
 .artifact-gallery { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin-top:12px; }
 .artifact { border:1px solid var(--line); border-radius:var(--radius-s); padding:10px; min-width:0; background:var(--bg1); }

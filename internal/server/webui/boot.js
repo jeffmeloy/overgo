@@ -296,6 +296,18 @@
     return el("div", { class: "stat" }, el("div", { class: "k", text: label }), el("div", { class: "v" }, String(value), unit ? el("small", { text: " " + unit }) : null));
   }
 
+  // turnTrend: the recent finished turns' decode rate and tokens per forward, oldest first, each line with its
+  // latest value; tokens per forward reads against one, a forward per token. A trend needs two turns.
+  function turnTrend(recent) {
+    if (!recent || recent.length < 2) return null;
+    const line = (label, values, unit, reference) => el("div", { class: "turn-trend-line" },
+      el("div", { class: "note", text: label + ": " + values[values.length - 1].toFixed(2) + unit + " latest over " + values.length + " turns" }),
+      window.overgo.viz.sparkline(values, { height: 36, label, reference }));
+    return el("div", { class: "turn-trend", role: "group", "aria-label": "recent turns" },
+      line("Decode", recent.map((turn) => turn.predicted_per_second), " tok/s"),
+      line("Tokens per forward", recent.map((turn) => turn.tokens_per_forward), "", 1));
+  }
+
   // fold: a collapsible section, closed unless open is passed.
   function fold(title, open, ...children) {
     const details = el("details", { class: "fold" }, el("summary", { class: "section-title", text: title }), ...children);
@@ -756,7 +768,7 @@
     api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, supportTag, supportRungs, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors,
     getKey, setKey, modelInfo,
-    displayToken, stat, fold, workspace, viewsOf, requestedView,
+    displayToken, stat, turnTrend, fold, workspace, viewsOf, requestedView,
     fmt: { grouped, bytes, compact, duration, shortID },
   };
 

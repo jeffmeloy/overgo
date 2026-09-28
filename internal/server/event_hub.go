@@ -103,6 +103,11 @@ func (hub *eventHub) observeOperation(event operation.Event) {
 	if slices.Contains(settledStates, event.Status.State) {
 		hub.publish(hubRecordsChanged, nil)
 	}
+	hub.sessionsMoved()
+}
+
+// sessionsMoved asks for one sessions snapshot, coalesced with any pending.
+func (hub *eventHub) sessionsMoved() {
 	select {
 	case hub.sessionsChanged <- struct{}{}:
 	default:

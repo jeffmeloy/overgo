@@ -4,36 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "landing-hermetic-tests",
-      "title": "Move live-evidence acceptance tests off the landing path",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move live-evidence acceptance tests off the landing path",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingTestsRunWithoutTheLiveStore$' -count=1",
-          "rationale": "Owner review 2026-09-27. Measured: 088a4774c's test stage re-ran 17 suites for 6 min 56 s (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s) because plan -stop had written a record into the live store at 17:56:23; the next plan-only landing, with no store write before it, ran 4 packages in 40 s. Suites that read the live store re-run on every store write, and their verdict depends on the machine's store rather than the commit. The gate runs go test with OVERGO_DATA_ROOT pointing at an empty scratch directory and OVERGO_AUDIO_REFERENCE_STORE unset (construction: no test can reach the live store through the environment); the 16 test files that name the store by path (overgodb-store, gitauthority.CanonicalOvergoDBDirectory) become hermetic on fixtures or scratch stores, or move off the landing path to the scheduled scorecard and validate, where live-store checks belong. Predicted effect: landings stop paying for store writes; a narrow landing's test stage stays near a minute. Measured 2026-09-27 before starting: with the data root pointed at an empty directory, 133 tests in 77 files across 12 packages fail (cmd/compatibility 32 files, internal/audioparity 19, internal/evaluation 10, speechsynth, server and others): retained-evidence acceptance tests and a few live model-file tests. They re-run when the evidence changes, which is correct; the measured 7-minute landing came from a control record (plan -stop) written into the evidence store, which stop-state-out-of-store removes. Moving them means splitting mixed files across 12 packages and a scheduled evidence run. Do it only if dev-loop measurement shows real evidence writes costing landings. Re-raised 2026-09-27 under landing-wall-budget: the four slowest suites a landing re-runs are these, and they re-run on dependency changes as well as store writes, so the stop-file fix alone does not bring landings under the budget."
-        }
-      ]
-    },
-    {
-      "id": "landing-growth-ratchet",
-      "title": "Refuse production growth beyond the row's declared budget",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse production growth beyond the row's declared budget",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestNewProductionCodeStaysWithinTheRowBudget$' -count=1",
-          "rationale": "Owner review 2026-09-27: prose rules against growth did not bind; this week's scorecard rows added 586 Go lines with no row declaring it. A diff rule in internal/landing/rules.go counts production Go AST nodes the change adds against HEAD (tests, testdata and generated files excluded; no baseline or ledger) and refuses growth beyond the landed row's plan Budget, whose default is zero: a row without a budget must pay its additions with deletions. A capability row declares its growth in plan data before the work. Keep the rule small; it is itself held to its budget."
-        }
-      ]
-    },
-    {
       "id": "simplify-scorecard-slice",
       "title": "Cut the scorecard slice back to what landings use",
       "owner": "master-lead",
@@ -60,6 +30,21 @@
           "status": "open",
           "verify": "go test ./internal/server -run '^TestProjectionServingRecordsItsTask$' -count=1",
           "rationale": "Found 2026-09-27 by the user scorecard (validate -scorecard): gemma-4-E4B-it's projection activation (recipe 93a7a292) failed 324 of 1,296 serving attempts with execution_failed and 324 more were cancelled, all at zero output tokens in one environment. Its observations also record task inference under the projection recipe (internal/server/server_admin.go servingIdentity), which is how the first scorecard draft charged them to the inference row. Find what drives these attempts and why they fail, fix the cause, and record the projection task; the scorecard's failure cell for the row is the predicted effect. Ranked 2026-09-27 as the first user-visible fix: gemma-4-E4B-it's projection recipe fails 324 of 1,296 serving attempts (25%) with 324 cancelled. A small hand change with its predicted failure-rate drop."
+        }
+      ]
+    },
+    {
+      "id": "landing-hermetic-tests",
+      "title": "Move live-evidence acceptance tests off the landing path",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move live-evidence acceptance tests off the landing path",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLandingTestsRunWithoutTheLiveStore$' -count=1",
+          "rationale": "Owner review 2026-09-27. Measured: 088a4774c's test stage re-ran 17 suites for 6 min 56 s (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s) because plan -stop had written a record into the live store at 17:56:23; the next plan-only landing, with no store write before it, ran 4 packages in 40 s. Suites that read the live store re-run on every store write, and their verdict depends on the machine's store rather than the commit. The gate runs go test with OVERGO_DATA_ROOT pointing at an empty scratch directory and OVERGO_AUDIO_REFERENCE_STORE unset (construction: no test can reach the live store through the environment); the 16 test files that name the store by path (overgodb-store, gitauthority.CanonicalOvergoDBDirectory) become hermetic on fixtures or scratch stores, or move off the landing path to the scheduled scorecard and validate, where live-store checks belong. Predicted effect: landings stop paying for store writes; a narrow landing's test stage stays near a minute. Measured 2026-09-27 before starting: with the data root pointed at an empty directory, 133 tests in 77 files across 12 packages fail (cmd/compatibility 32 files, internal/audioparity 19, internal/evaluation 10, speechsynth, server and others): retained-evidence acceptance tests and a few live model-file tests. They re-run when the evidence changes, which is correct; the measured 7-minute landing came from a control record (plan -stop) written into the evidence store, which stop-state-out-of-store removes. Moving them means splitting mixed files across 12 packages and a scheduled evidence run. Do it only if dev-loop measurement shows real evidence writes costing landings. Re-raised 2026-09-27 under landing-wall-budget: the four slowest suites a landing re-runs are these, and they re-run on dependency changes as well as store writes, so the stop-file fix alone does not bring landings under the budget. Updated 2026-09-27 after 32ad2b892: the store-write cause is gone. The data lives outside the module folder, so a store write re-runs nothing. The audio acceptances run in their own lane (780d83550). What remains is hermeticity: these suites' verdicts depend on the machine's data. That does not speed up landings, because a lane would run exactly when their code changes, as go test does now. So the row ranks after the user-visible fixes."
         }
       ]
     },

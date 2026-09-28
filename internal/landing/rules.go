@@ -18,6 +18,7 @@ import (
 
 	"overgo/internal/gitauthority"
 	"overgo/internal/gosyntax"
+	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 )
 
@@ -49,10 +50,50 @@ func (l *landing) rules(ctx context.Context) error {
 		return err
 	}
 	findings = append(findings, exports...)
+	if growth := productionNodes(candidate) - productionNodes(base); !admits(l.budget, growth) {
+		findings = append(findings, fmt.Sprintf("adds %d production syntax nodes beyond row %s's budget %+v; pay for them with deletions, or declare the growth in the row's budget", growth, l.item, l.budget))
+	}
 	if len(findings) != 0 {
 		return errors.New(strings.Join(findings, "; "))
 	}
 	return nil
+}
+
+// productionNodes counts the syntax nodes of a snapshot's production Go
+// files; tests, testdata and generated files are not the code a row grows.
+func productionNodes(snapshot gosyntax.Snapshot) int {
+	nodes := 0
+	for _, file := range snapshot.Files {
+		if file.Test || strings.Contains("/"+file.Path, "/testdata/") {
+			continue
+		}
+		syntax, err := file.Syntax()
+		if generated, _ := file.Generated(); err != nil || generated {
+			continue
+		}
+		ast.Inspect(syntax, func(node ast.Node) bool {
+			if node != nil {
+				nodes++
+			}
+			return true
+		})
+	}
+	return nodes
+}
+
+// admits reports whether a row's budget admits a change that grows
+// production code by growth nodes: a row without a budget may not grow, a
+// stated reason admits the growth, and declared nodes cap it (negative for a
+// row that must shrink).
+func admits(budget plan.Budget, growth int) bool {
+	switch {
+	case budget.Nodes != 0:
+		return growth <= budget.Nodes
+	case budget.Reason != "":
+		return true
+	default:
+		return growth <= 0
+	}
 }
 
 // changedSource is every Go file of the changed packages as the tree holds

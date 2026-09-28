@@ -54,6 +54,8 @@ type landing struct {
 	// trailers are the scorecard slices' commit trailers, one per slice
 	// that measured or failed.
 	trailers []string
+	// budget is the growth the landed row declared in the plan.
+	budget plan.Budget
 }
 
 // Run lands the row and returns the commit. Every check runs over the dirty
@@ -85,6 +87,9 @@ func Run(ctx context.Context, options Options) (string, error) {
 		return "", fmt.Errorf("land: %s is not an open step of the plan: %w", options.Ref, err)
 	}
 	verify := rowVerify(document, item, step)
+	if at := slices.IndexFunc(document.Items, func(candidate plan.Item) bool { return candidate.ID == item }); at >= 0 {
+		l.budget = document.Items[at].Budget
+	}
 	if err := l.shipSet(ctx); err != nil {
 		return "", err
 	}

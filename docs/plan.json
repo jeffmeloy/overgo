@@ -106,16 +106,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 60,
+        "nodes": 32,
         "reason": "each folded probe's trainer takes its flags from the route's flag set, with its literals named"
       },
       "steps": [
-        {
-          "id": "fold-hybrid-stack",
-          "title": "Fold hybrid-stack-train-probe into a cmd/train route",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestTrainRoutesFoldedProbes$/^(hybrid-stack)$' -count=1 -v"
-        },
         {
           "id": "fold-dit",
           "title": "Fold dit-train-probe into a cmd/train route",

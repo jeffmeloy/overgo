@@ -1,16 +1,3 @@
-//go:build windows
-
-// hybrid-stack-train-probe: bounded observed full-stack training smoke for a
-// real hybrid artifact (mixed full-attention + gated-delta decoder stack).
-// The probe is the production driver of the host-master streamed training
-// lane and the reproducible generator of its verification evidence: it binds
-// EVERY layer of the artifact as f32 masters decoded from the serving
-// storage, derives the stack geometry and the Muon hyperparameters entirely
-// from the artifact's own declarations (base LR from the parameter count,
-// momentum from the CLT effective-samples rule, constant schedule — no free
-// knobs), trains the Model's hidden-state objective on real token rows, and
-// requires a strictly decreasing finite loss trajectory. A first-step wall
-// projection guard aborts runs that cannot finish inside -max-wall.
 package main
 
 import (
@@ -39,6 +26,19 @@ import (
 	"overgo/internal/trainingworkflow"
 )
 
+// The hybrid-stack route trains through the CUDA worker, which only the
+// Windows build carries, so it registers itself here.
+func init() { trainRoutes["hybrid-stack"] = trainHybridStack }
+
+// The layer-streamed memory budget's arithmetic: an f32 is four bytes, the
+// bounded lane keeps masters and momentum as two full slabs, and full
+// triplication keeps masters, gradients and momentum, as vectors always do.
+const (
+	f32Bytes           = 4
+	boundedMasterSlabs = 2
+	tripledSlabs       = 3
+)
+
 type servingFixture struct {
 	Cases []struct {
 		Name      string   `json:"name"`
@@ -58,8 +58,8 @@ func promptTokens(path, caseName string) ([]uint32, error) {
 	}
 	for _, item := range fixture.Cases {
 		if item.Name == caseName {
-			if len(item.PromptIDs) < 2 {
-				return nil, fmt.Errorf("fixture case %q has %d token IDs, need at least 2", caseName, len(item.PromptIDs))
+			if len(item.PromptIDs) < shortestNextTokenWindow {
+				return nil, fmt.Errorf("fixture case %q has %d token IDs, need at least %d", caseName, len(item.PromptIDs), shortestNextTokenWindow)
 			}
 			return item.PromptIDs, nil
 		}
@@ -67,22 +67,35 @@ func promptTokens(path, caseName string) ([]uint32, error) {
 	return nil, fmt.Errorf("fixture %s has no case %q", path, caseName)
 }
 
-func run() error {
-	modelPath := flag.String("model", "", "GGUF artifact path")
-	fixturePath := flag.String("fixture", filepath.Join("fixtures", "qwen35_4b_serving_golden.json"), "serving fixture holding the prompt token IDs")
-	caseName := flag.String("case", "capital", "fixture case whose prompt IDs feed the objective")
-	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required observed training steps")
-	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
-	inspect := flag.Bool("inspect", false, "print the artifact census and exit without training")
-	storePath := flag.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
-	lane := flag.String("lane", "full-slab", "training lane: full-slab (masters+gradients+momentum all full host slabs) or layer-streamed (bounded host triplication: gradients never exceed one layer)")
-	roundTrip := flag.Bool("serving-roundtrip", false, "after training, requantize layer 0's mlp gate masters to their declared serving dtype and re-evaluate the objective through the round trip")
-	flag.Parse()
+// trainHybridStack is the hybrid-stack route: bounded observed full-stack
+// training of a real hybrid artifact (a mixed full-attention and gated-delta
+// decoder stack). It is the production driver of the host-master streamed
+// training lane and the reproducible generator of its verification
+// evidence: it binds every layer of the artifact as f32 masters decoded from
+// the serving storage, derives the stack geometry and the Muon
+// hyperparameters from the artifact's own declarations (base LR from the
+// parameter count, momentum from the CLT effective-samples rule, a constant
+// schedule), trains the model's hidden-state objective on real token rows,
+// and requires a strictly decreasing finite loss trajectory. A first-step
+// wall projection guard aborts a run that cannot finish inside -max-wall.
+func trainHybridStack(flags *flag.FlagSet, args []string) error {
+	modelPath := flags.String("model", "", "GGUF artifact path")
+	fixturePath := flags.String("fixture", filepath.Join("fixtures", "qwen35_4b_serving_golden.json"), "serving fixture holding the prompt token IDs")
+	caseName := flags.String("case", "capital", "fixture case whose prompt IDs feed the objective")
+	steps := clioptions.IntOverride(flags, "steps", "required observed training steps")
+	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
+	inspect := flags.Bool("inspect", false, "print the artifact census and exit without training")
+	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
+	lane := flags.String("lane", "full-slab", "training lane: full-slab (masters+gradients+momentum all full host slabs) or layer-streamed (bounded host triplication: gradients never exceed one layer)")
+	roundTrip := flags.Bool("serving-roundtrip", false, "after training, requantize layer 0's mlp gate masters to their declared serving dtype and re-evaluate the objective through the round trip")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 	if *lane != "full-slab" && *lane != "layer-streamed" {
-		return fmt.Errorf("-lane must be full-slab or layer-streamed, got %q", *lane)
+		return fmt.Errorf("%s: -lane must be full-slab or layer-streamed, got %q", flags.Name(), *lane)
 	}
 	if *modelPath == "" {
-		return fmt.Errorf("-model is required")
+		return fmt.Errorf("%s: -model is required", flags.Name())
 	}
 	if *inspect {
 		return printCensus(*modelPath)
@@ -168,15 +181,14 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		const f32 = 4
 		fmt.Printf("memory budget (%s, bounded host triplication):\n", *lane)
-		fmt.Printf("  masters       %14d bytes (%d f32, full host slab — the forward needs it)\n", f32*budget.MasterElems, budget.MasterElems)
-		fmt.Printf("  momentum      %14d bytes (%d f32, full host slab — persists across steps)\n", f32*budget.MomentumElems, budget.MomentumElems)
-		fmt.Printf("  grad scratch  %14d bytes (largest layer, %d f32 — gradients NEVER triplicate)\n", f32*budget.ScratchElems, budget.ScratchElems)
-		fmt.Printf("  vectors       %14d bytes (%d f32, params+grads+momentum host-side)\n", 3*f32*budget.VectorElems, budget.VectorElems)
+		fmt.Printf("  masters       %14d bytes (%d f32, full host slab — the forward needs it)\n", f32Bytes*budget.MasterElems, budget.MasterElems)
+		fmt.Printf("  momentum      %14d bytes (%d f32, full host slab — persists across steps)\n", f32Bytes*budget.MomentumElems, budget.MomentumElems)
+		fmt.Printf("  grad scratch  %14d bytes (largest layer, %d f32 — gradients NEVER triplicate)\n", f32Bytes*budget.ScratchElems, budget.ScratchElems)
+		fmt.Printf("  vectors       %14d bytes (%d f32, params+grads+momentum host-side)\n", tripledSlabs*f32Bytes*budget.VectorElems, budget.VectorElems)
 		fmt.Printf("  bounded total %14d bytes vs %d bytes full triplication\n",
-			f32*(2*budget.MasterElems+budget.ScratchElems+3*budget.VectorElems),
-			f32*(3*budget.MasterElems+3*budget.VectorElems))
+			f32Bytes*(boundedMasterSlabs*budget.MasterElems+budget.ScratchElems+tripledSlabs*budget.VectorElems),
+			f32Bytes*(tripledSlabs*budget.MasterElems+tripledSlabs*budget.VectorElems))
 	}
 	printPeakRSS("after artifact load")
 
@@ -297,5 +309,3 @@ func servingRoundTrip(modelPath string, trained *hybridtrain.Model) error {
 	}
 	return nil
 }
-
-func main() { clioptions.MainNamed("hybrid-stack-train-probe", run) }

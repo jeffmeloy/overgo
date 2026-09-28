@@ -63,11 +63,13 @@
       ]
     },
     "gguf:qwen35": {
-      "trainer": "hybrid-stack-train-probe",
+      "trainer": "train -route hybrid-stack",
       "argv": [
         "go",
         "run",
-        "./cmd/hybrid-stack-train-probe",
+        "./cmd/train",
+        "-route",
+        "hybrid-stack",
         "-store",
         "{store}",
         "-model",

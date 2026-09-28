@@ -9,10 +9,22 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 931,
-        "reason": "the published scorecard record, its comparison with the previous one, and the loop running it when the plan empties"
+        "nodes": 435,
+        "reason": "the media serving observation and the scorecard's whole-output first output"
       },
       "steps": [
+        {
+          "id": "task-metrics",
+          "title": "State each scorecard metric a task's output cannot have, so no cell is blank without a reason",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -run '^TestScorecardStatesInapplicableMetrics$' -count=1"
+        },
+        {
+          "id": "loop-measures-media",
+          "title": "Bind validate -run to measure each media model through its capability",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestRunBindsMediaMeasurement$' -count=1"
+        },
         {
           "id": "do",
           "title": "Fill the scorecard: the absorbed benchmark and validation work",
@@ -1109,7 +1121,10 @@
             "wire-media-trainers/do",
             "unexport-unconsumed-names/do",
             "test-models-from-store/do",
-            "rae-image-capability/do"
+            "rae-image-capability/do",
+            "user-scorecard/media-serving",
+            "user-scorecard/task-metrics",
+            "user-scorecard/loop-measures-media"
           ]
         }
       ]

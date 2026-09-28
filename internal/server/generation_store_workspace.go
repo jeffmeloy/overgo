@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
@@ -15,6 +16,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -88,12 +90,22 @@ type StoreGenerationWorkspace struct {
 	limit   int
 	mu      sync.Mutex
 	memo    *discovery.Memo
+	// environment is the evidence serving observations are recorded
+	// under, published once on the first execution; an invalid identity
+	// records none.
+	environment func() artifact.ID
 }
 
 // NewStoreGenerationWorkspace binds the workspace to the store and to the
 // capability catalog the recipe command shares.
 func NewStoreGenerationWorkspace(store *overgodb.Store, catalog GenerationCatalog, limit int) *StoreGenerationWorkspace {
-	return &StoreGenerationWorkspace{store: store, catalog: catalog, limit: limit}
+	return &StoreGenerationWorkspace{store: store, catalog: catalog, limit: limit, environment: sync.OnceValue(func() artifact.ID {
+		environment, err := runrecord.CurrentEnvironment("process", "go")
+		if err != nil || publishServingEnvironment(context.Background(), store, environment) != nil {
+			return artifact.ID{}
+		}
+		return environment.ID
+	})}
 }
 
 // generationTasks are the tasks a generation capability serves: the media
@@ -219,13 +231,19 @@ func (workspace *StoreGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	// The submission's sources (a prompt enhancement the page accepted) are
 	// the run's inputs beside its request, so the original stays its source.
 	sources := workflowSources(ctx)
+	started := time.Now()
+	begin, _ := processmeasure.Counter()
 	output, err := workspace.catalog.Execute[task](ctx, workspace.store, path, selection, string(raw))
-	if err != nil {
-		return failWorkflow(ctx, workspace.store, recipeID, sources, "generation_failed", err)
+	end, _ := processmeasure.Counter()
+	measured, _ := output.(capabilityruntime.Measured)
+	var content artifact.Content
+	if err == nil {
+		content, err = workspace.catalog.OutputContent(capabilityruntime.Unwrap(output))
 	}
-	content, err := workspace.catalog.OutputContent(capabilityruntime.Unwrap(output))
 	if err != nil {
-		return failWorkflow(ctx, workspace.store, recipeID, sources, "generation_failed", err)
+		completion, failed := failWorkflow(ctx, workspace.store, recipeID, sources, generationFailure, err)
+		workspace.observe(ctx, selected.Model, recipeID, completion.Run, task, started, end-begin, measured, failed)
+		return completion, failed
 	}
 	// The recorded request is the run's input: the record a gallery opens.
 	inputs := slices.Clone(sources)
@@ -248,8 +266,38 @@ func (workspace *StoreGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	if _, err := artifact.Publish(ctx, workspace.store, batch); err != nil {
 		return operation.Completion{}, err
 	}
+	workspace.observe(ctx, selected.Model, recipeID, run.ID, task, started, end-begin, measured, nil)
 	reporter.Publishing()
 	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{content.Descriptor.ID}}, nil
+}
+
+// generationFailure is the failure code a failed media execution records.
+const generationFailure = "generation_failed"
+
+// observe records one media execution as the serving attempt the scorecard
+// counts: its outcome, the time its whole output took and the device memory
+// it peaked at. The output is already made or refused, so a record the
+// store refuses fails nothing.
+func (workspace *StoreGenerationWorkspace) observe(ctx context.Context, model, recipeID, run artifact.ID, task recipe.Task, started time.Time, wall time.Duration, measured capabilityruntime.Measured, cause error) {
+	if workspace.environment == nil {
+		return
+	}
+	environment := workspace.environment()
+	if !environment.Valid() {
+		return
+	}
+	observation := runrecord.ServingObservation{
+		Version: artifact.InitialDocumentVersion, Model: model, Recipe: recipeID, Environment: environment,
+		Run: run, Task: task, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: started.UnixNano(),
+		MeasuredNS: uint64(max(wall, 0)), Resources: runrecord.ServingResources{PeakDeviceBytes: measured.PeakDeviceBytes},
+	}
+	switch {
+	case errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded):
+		observation.Outcome = runrecord.OutcomeCancelled
+	case cause != nil:
+		observation.Outcome, observation.Failure = runrecord.OutcomeFailed, generationFailure
+	}
+	_, _ = runrecord.PublishServingObservation(context.WithoutCancel(ctx), workspace.store, observation)
 }
 
 // executionPath names the model directory an executor reads: every media

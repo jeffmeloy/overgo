@@ -154,11 +154,11 @@ func verifiedNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]
 // servingSummary aggregates the serving attempts recorded under one recipe:
 // what users actually hit.
 type servingSummary struct {
-	attempts, failures, cancelled int
-	firstOutputNS, loadNS         []uint64
-	decodeTokens, decodeNS        uint64
-	peakDeviceBytes               uint64
-	latest                        artifact.ID
+	attempts, failures, cancelled        int
+	firstOutputNS, wholeOutputNS, loadNS []uint64
+	decodeTokens, decodeNS               uint64
+	peakDeviceBytes                      uint64
+	latest                               artifact.ID
 }
 
 // servingByRecipe reads every serving observation, newest first, into one
@@ -196,11 +196,18 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 			summary.cancelled++
 			return nil
 		}
+		prefilled := false
 		for _, sample := range observation.Hardware {
 			if sample.Stage == runrecord.ServingHardwarePrefill {
 				summary.firstOutputNS = append(summary.firstOutputNS, sample.ElapsedNS)
+				prefilled = true
 			}
 			summary.peakDeviceBytes = max(summary.peakDeviceBytes, sample.DevicePeakBytes)
+		}
+		// A capability that returns its output whole, an image or a
+		// clip, first outputs when it finishes.
+		if !prefilled && observation.Outcome == runrecord.OutcomeSucceeded && observation.MeasuredNS != 0 {
+			summary.wholeOutputNS = append(summary.wholeOutputNS, observation.MeasuredNS)
 		}
 		summary.peakDeviceBytes = max(summary.peakDeviceBytes, observation.Resources.PeakDeviceBytes)
 		for _, phase := range observation.Phases {
@@ -257,6 +264,10 @@ func firstOutputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, be
 	if observed != nil && len(observed.firstOutputNS) != 0 {
 		return Cell{Value: milliseconds(runrecord.MedianUint(observed.firstOutputNS)), Unit: "ms",
 			Label: fmt.Sprintf("serving time to prefill, median of %d", len(observed.firstOutputNS)), Source: observed.latest}
+	}
+	if observed != nil && len(observed.wholeOutputNS) != 0 {
+		return Cell{Value: milliseconds(runrecord.MedianUint(observed.wholeOutputNS)), Unit: "ms",
+			Label: fmt.Sprintf("serving time to the whole output, median of %d", len(observed.wholeOutputNS)), Source: observed.latest}
 	}
 	return gap("no benchmark time to first token and no serving prefill sample")
 }

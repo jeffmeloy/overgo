@@ -4,40 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "landing-hermetic-tests",
-      "title": "Move live-evidence acceptance tests off the landing path",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move live-evidence acceptance tests off the landing path",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingTestsRunWithoutTheLiveStore$' -count=1",
-          "rationale": "Owner review 2026-09-27. Measured: 088a4774c's test stage re-ran 17 suites for 6 min 56 s (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s) because plan -stop had written a record into the live store at 17:56:23; the next plan-only landing, with no store write before it, ran 4 packages in 40 s. Suites that read the live store re-run on every store write, and their verdict depends on the machine's store rather than the commit. The gate runs go test with OVERGO_DATA_ROOT pointing at an empty scratch directory and OVERGO_AUDIO_REFERENCE_STORE unset (construction: no test can reach the live store through the environment); the 16 test files that name the store by path (overgodb-store, gitauthority.CanonicalOvergoDBDirectory) become hermetic on fixtures or scratch stores, or move off the landing path to the scheduled scorecard and validate, where live-store checks belong. Predicted effect: landings stop paying for store writes; a narrow landing's test stage stays near a minute. Measured 2026-09-27 before starting: with the data root pointed at an empty directory, 133 tests in 77 files across 12 packages fail (cmd/compatibility 32 files, internal/audioparity 19, internal/evaluation 10, speechsynth, server and others): retained-evidence acceptance tests and a few live model-file tests. They re-run when the evidence changes, which is correct; the measured 7-minute landing came from a control record (plan -stop) written into the evidence store, which stop-state-out-of-store removes. Moving them means splitting mixed files across 12 packages and a scheduled evidence run. Do it only if dev-loop measurement shows real evidence writes costing landings. Re-raised 2026-09-27 under landing-wall-budget: the four slowest suites a landing re-runs are these, and they re-run on dependency changes as well as store writes, so the stop-file fix alone does not bring landings under the budget. Updated 2026-09-27 after 32ad2b892: the store-write cause is gone. The data lives outside the module folder, so a store write re-runs nothing. The audio acceptances run in their own lane (780d83550). What remains is hermeticity: these suites' verdicts depend on the machine's data. That does not speed up landings, because a lane would run exactly when their code changes, as go test does now. So the row ranks after the user-visible fixes."
-        }
-      ]
-    },
-    {
-      "id": "simplify-prefill-paths",
-      "title": "Unify prefill policy where reference parity permits",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Unify prefill policy where reference parity permits",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'TensorCore|Staged' -count=1",
-          "rationale": "One policy from weight representation, column count and parity/cost evidence; keep precise staging where f16 cannot meet the bound. Measure the fp8 12B prompt-rate gap (1646 vs bf16 2850) on identical inputs. Accept kernel parity, scoped regression and before/after rate and memory curves. Moved up 2026-09-27 (owner): consolidation is what produces unintended improvement -- a speed-up or fix on one shared prefill path reaches every model on it. Judge it by how many models its shared path serves, measured on the scorecard. 2026-09-27: do this as behaviour-preserving transformations with known effect wherever possible (deadcode, gopls inline/rename/remove-unused-parameter, go fix, small go/ast programs) rather than hand edits, proven by compile, tests and the scorecard slice reading outputs identical; hand edits only where behaviour must change, each small and with its predicted effect.",
-          "depends_on": [
-            "model-regression-gate/do",
-            "modality-verification/media-report"
-          ]
-        }
-      ]
-    },
-    {
       "id": "simplify-execution-core",
       "title": "Remove costly execution duplication behind the regression gate",
       "owner": "master-lead",
@@ -52,6 +18,21 @@
           "depends_on": [
             "simplify-prefill-paths/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "fp8-prefill-tensorcore",
+      "title": "Prefill fp8 weights on the FP8 tensor cores instead of expanding them to f16",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prefill fp8 weights on the FP8 tensor cores instead of expanding them to f16",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorFp8TensorCoreMulMatMatchesReference$' -count=1 -v",
+          "rationale": "Measured 2026-09-28 with cmd/benchmark, 1,163-token prompt, one warm-up and three runs, p50, RTX 4090 D:\n- gemma-4-12B-it-fp8-native.gguf: 3,036 prompt tok/s;\n- its bf16 twin gemma-4-12B-it-fp8-bf16.gguf: 3,837.\nFp8 prefill is 21% slower. The prefill policy is already one decision (the node's MulMatComputeNativeTensorCore, simplify-prefill-paths). The gap is the fp8 path expanding every weight chunk to f16 in staging on each forward, where bf16 multiplies its resident weights directly. The Ada GPU has FP8 tensor cores: multiply the resident e4m3 weights without the f16 expansion, folding the per-row scale into the output, and hold parity against the exact e4m3-times-scale reference. Target: fp8 prefill at or above the bf16 twin's rate at the same prompt, decode unchanged, peak memory no higher. Serves every fp8 model on the shared path."
         }
       ]
     },
@@ -113,6 +94,21 @@
           "status": "open",
           "verify": "go test ./internal/landing -run '^TestEveryTestGateIsSetByALane$' -count=1",
           "rationale": "From consolidation-inventory (2026-09-24): 283 OVERGO_* environment reads sit in tests; 151 names appear only in tests and 145 of those are documented nowhere. 130 test functions (about 12,000 lines) skip unless a variable is set, and the lanes set only OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_WEBUI_LANE_SCREENS and OVERGO_BROWSER, so about 82 of them (about 5,800 lines, heaviest in internal/inference, adaptiveparity and projector) never run in any gate. Owner direction 2026-09-24: training and inference validation is the point of overgo, so give each a lane that runs it, with its model or data declared. Delete only a test a named running test supersedes. The same holds for modeltest-tagged suites no lane runs, such as seq2seq's GSM8K training suite. The probe is tmp/envgate_probe.go. Done when TestEveryTestGateIsSetByALane holds. Re-ranked 2026-09-27 behind the landing rows: SQA-037 (module-file changes can bypass the device and browser lanes), SQA-028 and SQA-023 are gate correctness defects this row owns."
+        }
+      ]
+    },
+    {
+      "id": "landing-hermetic-tests",
+      "title": "Move live-evidence acceptance tests off the landing path",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move live-evidence acceptance tests off the landing path",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLandingTestsRunWithoutTheLiveStore$' -count=1",
+          "rationale": "Owner review 2026-09-27. Measured: 088a4774c's test stage re-ran 17 suites for 6 min 56 s (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s) because plan -stop had written a record into the live store at 17:56:23; the next plan-only landing, with no store write before it, ran 4 packages in 40 s. Suites that read the live store re-run on every store write, and their verdict depends on the machine's store rather than the commit. The gate runs go test with OVERGO_DATA_ROOT pointing at an empty scratch directory and OVERGO_AUDIO_REFERENCE_STORE unset (construction: no test can reach the live store through the environment); the 16 test files that name the store by path (overgodb-store, gitauthority.CanonicalOvergoDBDirectory) become hermetic on fixtures or scratch stores, or move off the landing path to the scheduled scorecard and validate, where live-store checks belong. Predicted effect: landings stop paying for store writes; a narrow landing's test stage stays near a minute. Measured 2026-09-27 before starting: with the data root pointed at an empty directory, 133 tests in 77 files across 12 packages fail (cmd/compatibility 32 files, internal/audioparity 19, internal/evaluation 10, speechsynth, server and others): retained-evidence acceptance tests and a few live model-file tests. They re-run when the evidence changes, which is correct; the measured 7-minute landing came from a control record (plan -stop) written into the evidence store, which stop-state-out-of-store removes. Moving them means splitting mixed files across 12 packages and a scheduled evidence run. Do it only if dev-loop measurement shows real evidence writes costing landings. Re-raised 2026-09-27 under landing-wall-budget: the four slowest suites a landing re-runs are these, and they re-run on dependency changes as well as store writes, so the stop-file fix alone does not bring landings under the budget. Updated 2026-09-27 after 32ad2b892: the store-write cause is gone. The data lives outside the module folder, so a store write re-runs nothing. The audio acceptances run in their own lane (780d83550). What remains is hermeticity: these suites' verdicts depend on the machine's data. That does not speed up landings, because a lane would run exactly when their code changes, as go test does now. So the row ranks after the user-visible fixes."
         }
       ]
     },
@@ -1047,7 +1043,8 @@
             "lanes-in-gate/do",
             "data-outside-module/do",
             "plan-data-move-2026-09-27/do",
-            "audio-acceptance-lane/do"
+            "audio-acceptance-lane/do",
+            "fp8-prefill-tensorcore/do"
           ]
         }
       ]

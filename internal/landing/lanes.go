@@ -60,17 +60,6 @@ var lanes = []lane{
 		environment: []string{testskip.StoreAcceptanceEnv + "=1"},
 	},
 	{
-		// Real-model checks: the device paths held to references on the
-		// store's own models. The device lane keeps its fixture-free
-		// kernel contracts apart from them. go test's cache replays them
-		// until code they read changes.
-		name: "model", packages: []string{"./internal/inference"},
-		command: func(string) []string {
-			return []string{"test", "./internal/inference", "-run", "^(TestContinuationScoringMatchesReferenceBackend|TestContinuationScoringPathsAgreeOnAModel)$"}
-		},
-		environment: []string{"OVERGO_CUDA_TEST=1"},
-	},
-	{
 		// Thoughtbank's real-checkpoint suite, behind the modeltest tag:
 		// training parity, code completion and the process probe on the
 		// local Fractale checkpoint.
@@ -89,11 +78,13 @@ var lanes = []lane{
 		environment: []string{"OVERGO_CUDA_TEST=1"},
 	},
 	{
-		// The CUDA suites outside the device lane's fixture-free scopes:
-		// image and video generation, media capability, the trainers, the
-		// scratch and routed models, long-form evaluation and the recipe
-		// and evaluate commands. One package at a time shares the device;
-		// go test's cache replays each until code it reads changes.
+		// The CUDA suites the device lane's fixture-free scopes leave out:
+		// the real-model inference and dense-causal checks, image and video
+		// generation, media capability, the trainers, the scratch and routed
+		// models, adaptive parity, long-form evaluation and the recipe,
+		// evaluate and composite-generation commands. One package at a time
+		// shares the device; go test's cache replays each until code it
+		// reads changes.
 		name: "cuda", packages: cudaPackages,
 		command:     func(string) []string { return append([]string{"test", "-p=1"}, cudaPackages...) },
 		environment: []string{"OVERGO_CUDA_TEST=1"},
@@ -105,7 +96,8 @@ var cudaPackages = []string{
 	"./internal/diffusionimage", "./internal/latentimage", "./internal/mediacapability", "./internal/scratchmodel",
 	"./internal/modeldevice", "./internal/hybridtrain", "./internal/controllertrain", "./internal/trainingprogram",
 	"./internal/torchrng", "./internal/routedlm", "./internal/longform", "./internal/sensenovarecipe",
-	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe",
+	"./internal/inference", "./internal/densecausal", "./internal/adaptiveparity",
+	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/composite-generation-lane",
 }
 
 // lanes runs every lane the change reaches, one after another: they share

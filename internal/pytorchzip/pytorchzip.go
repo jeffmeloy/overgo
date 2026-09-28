@@ -217,6 +217,10 @@ func (p *pickleTensorParser) parse() error {
 				return err
 			}
 			p.push(v)
+		case 'N': // NONE
+			// A statistics save can map a key to None (RAE's latent statistics
+			// carry no mean); the value is no tensor and the walk moves past it.
+			p.push(nil)
 		case 0x89: // NEWFALSE
 			p.push(false)
 		case 0x88: // NEWTRUE

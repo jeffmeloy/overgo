@@ -487,6 +487,32 @@
         ]
       },
       "scope": "The typed skip kinds: the test-support gate every device fixture calls skips through the typed testskip calls instead of citing marker text. The receipt re-runs the driver, cuBLAS and kernel packages on the device with the gate opted in, so their fixtures pass through the changed gate instead of skipping."
+    },
+    {
+      "changes": {
+        "cmd/dit-train-probe/main.go": {
+          "after_sha256": "",
+          "before_sha256": "25d972785e23a99d675a5c0d5b7c25194de00097eb0466a9da31ca83fe798e15",
+          "reason": "the DiT training command folds into cmd/train as its dit route; the file moves to cmd/train/route_dit.go."
+        },
+        "cmd/train/route_dit.go": {
+          "after_sha256": "3e8ebfa2b3068736f6c1cd2a31b999b865bcdc2fd47e755622910aec06054186",
+          "before_sha256": "",
+          "reason": "the dit route is the moved trainer body: its flags parse from the route's flag set, its refusals name the route and its description moves to the function; training arithmetic, conditioning, schedule and policy are unchanged."
+        }
+      },
+      "evidence": "evidence:sha256:fd189ea24dd49e537acca85be26ad6ba9da876fe8de5ab699c8576c4bbeb53a8",
+      "id": "dit-trainer-route",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/latentvideo": [
+          "TestDiTTrainerCheckpointedForwardMatchesRetained",
+          "TestDiTTrainerDerivedHyperparameters",
+          "TestDiTTrainerGradientMatchesFiniteDifference",
+          "TestDiTTrainerStepDescends"
+        ]
+      },
+      "scope": "The DiT trainer's entry point: the command that drove latentvideo.DiTTrainer becomes the dit route of cmd/train with its body unchanged. The receipt re-runs the DiT trainer's device tests with the CUDA gate opted in: derived hyperparameters, finite-difference gradients, step descent and the checkpointed forward against the retained result."
     }
   ],
   "paths": [
@@ -508,7 +534,8 @@
     "kernels",
     "internal/processmeasure",
     "internal/workflowruntime",
-    "cmd/dit-train-probe"
+    "cmd/dit-train-probe",
+    "cmd/train/route_dit.go"
   ],
   "version": 1
 }

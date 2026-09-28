@@ -1,0 +1,27 @@
+{
+  "source": "bytetriper/RAE stage2.models.DDT.DiTwDDTHead.forward, torch 2.12.0+cu126, float32 on the CPU",
+  "reference_commit": "a4d18c4db766419cbe7cb8c02cd9f7ceb0ec9041",
+  "generator_sha256": "eb46bece69ec3ae1bf6f99c3f0799b2c66931b9aea1a60e9916a3549ad9cd804",
+  "checkpoint": "DiTs/Dinov2/wReg_base/ImageNet256/DiTDH-S_ep20/stage2_model.pt",
+  "seed": 11,
+  "time": 0.37,
+  "label": 207,
+  "latent": {
+    "file": "raw/dit_latent.f32le",
+    "shape": [
+      768,
+      16,
+      16
+    ],
+    "sha256": "41777e92a782d3639fb2c4a9b1d6c31de8ac85791365818876cf005944d6c1d4"
+  },
+  "velocity": {
+    "file": "raw/dit_velocity.f32le",
+    "shape": [
+      768,
+      16,
+      16
+    ],
+    "sha256": "43c52a9fadb6c80fa3855b516662142b632669df3104e7cd01d0b15a24193c52"
+  }
+}

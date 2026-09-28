@@ -22,13 +22,13 @@ import (
 	"overgo/internal/processcontrol"
 )
 
-// Match the gate's host batch admission budget; a lane cannot wait forever.
+// A step cannot wait forever for the device.
 const deviceAdmissionBudget = 10 * time.Minute
 
 // names the exhausted budget as the cancellation cause the report carries
 var errAdmissionBudget = errors.New("device admission budget exhausted")
 
-// names the host's device the way the gate's host batch admission does
+// names the host's device by its UUID, the name every device claim uses
 func deviceIdentity() (string, error) {
 	library, err := driver.Open()
 	if err != nil {
@@ -85,7 +85,7 @@ func runStepAdmitted(ctx context.Context, output io.Writer, name string, budget 
 }
 
 // holds a shared lease around the correctness tests of a step, waiting for
-// admission under the budget the way the gate's host batches do, so an
+// admission under the budget, so an
 // exclusive holder is waited out instead of refusing every context the tests
 // open, and a later exclusive claim waits for the step to release; the
 // measurement tests never run beneath it, since their exclusive children

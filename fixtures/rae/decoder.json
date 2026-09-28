@@ -1,0 +1,27 @@
+{
+  "source": "bytetriper/RAE stage1.RAE.decode, torch 2.12.0+cu126, float32 on the CPU",
+  "reference_commit": "a4d18c4db766419cbe7cb8c02cd9f7ceb0ec9041",
+  "generator_sha256": "ea85bb50619db05cb1c45f23e20800ef58a1e15374bc1e43bc0e6d9e43bb670a",
+  "encoder": "facebook/dinov2-with-registers-base",
+  "decoder": "decoders/dinov2/wReg_base/ViTXL_n08/model.pt",
+  "statistics": "stats/dinov2/wReg_base/imagenet1k/stat.pt",
+  "seed": 7,
+  "latent": {
+    "file": "raw/decoder_latent.f32le",
+    "shape": [
+      768,
+      16,
+      16
+    ],
+    "sha256": "d580e9abdff63979c90a2a0764283f50fb58c9bc7dbb2cf375ef2292ca24ebad"
+  },
+  "image": {
+    "file": "raw/decoder_image.f32le",
+    "shape": [
+      3,
+      256,
+      256
+    ],
+    "sha256": "158c4881903cf8ff9e9b90dd53d34f22751da96426d5028d9a8acbdf04907118"
+  }
+}

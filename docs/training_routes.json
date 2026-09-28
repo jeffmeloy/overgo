@@ -3,11 +3,13 @@
   "doctrine": "Model facts live in declarations: each route maps an architecture the model input itself declares (GGUF general.architecture, config.json model_type, or a checkpoint file form) to the production trainer that owns it, with the bounded recorded invocation the trainer's verification run established. The lane substitutes only recorded facts: {input} is the model's recorded weights path, {store} the OvergoDB root, and {t2v-dir} the unique recorded t2v video-stack directory a raw DiT checkpoint conditions on. Architectures without a route train through the dense workflow when their input is a dense representation, and are refused by name otherwise.",
   "routes": {
     "dir:t2v": {
-      "trainer": "dit-train-probe",
+      "trainer": "train -route dit",
       "argv": [
         "go",
         "run",
-        "./cmd/dit-train-probe",
+        "./cmd/train",
+        "-route",
+        "dit",
         "-store",
         "{store}",
         "-model-dir",
@@ -43,11 +45,13 @@
       ]
     },
     "file:pt": {
-      "trainer": "dit-train-probe",
+      "trainer": "train -route dit",
       "argv": [
         "go",
         "run",
-        "./cmd/dit-train-probe",
+        "./cmd/train",
+        "-route",
+        "dit",
         "-store",
         "{store}",
         "-model-dir",

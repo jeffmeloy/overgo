@@ -14,7 +14,6 @@ import (
 // decoder owns. Removing the last regexp from a file removes it here.
 var regexOwners = map[string]string{
 	"cmd/build-kernels/main.go":                       "rewrites a generated digest constant in Go source text; follow-up: go/ast edit",
-	"cmd/compatibility/webui_report.go":               "scans the shell's JavaScript and HTML text; the GUI lane replaces it with a browser census",
 	"cmd/device-lane/admission.go":                    "compiles a go test -run selector, which is a regular expression",
 	"cmd/device-lane/main.go":                         "compiles a go test -run selector, which is a regular expression",
 	"cmd/gen-iq-tables/main.go":                       "generator reading C table source",

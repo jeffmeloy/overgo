@@ -136,17 +136,8 @@ func run(arguments []string) error {
 	claimWall := flags.Duration("wall", 0, "claim: measured wall")
 	claimContext := flags.Uint64("context", 0, "claim: context tokens (requires -wall)")
 	claimPeak := flags.Uint64("peak", 0, "claim: peak device bytes (requires -wall)")
-	webuiReport := flags.String("webui-report", "", "emit source census comparison JSON from a strict spec with before/after root and label")
 	if err := flags.Parse(arguments); err != nil {
 		return err
-	}
-	if *webuiReport != "" {
-		exclusive := flags.NArg() == 0
-		flags.Visit(func(value *flag.Flag) { exclusive = exclusive && value.Name == "webui-report" })
-		if !exclusive {
-			return errors.New("usage: compatibility -webui-report <spec.json>")
-		}
-		return writeWebUIReport(*webuiReport, os.Stdout)
 	}
 	mediaScope, err := resolveMediaReportScope(*mediaScopeName)
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/devicescope"
+	"overgo/internal/processcontrol"
 	"overgo/internal/testskip"
 )
 
@@ -169,8 +170,15 @@ var cudaPackages = []string{
 	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/composite-generation-lane",
 }
 
+// laneTurn names the host-wide turn a landing holds while its lanes run.
+const laneTurn = "overgo-landing-lanes"
+
 // lanes runs every lane the change reaches, one after another: they share
-// the device.
+// the device. They run in the host's lane turn, so another landing on this
+// machine waits for it rather than running its lanes beside these on the
+// one GPU. A turn, not a claim on the device: a claim would make every lane
+// process its member and erase the process identities the device's own
+// admission tests exercise.
 func (l *landing) lanes(ctx context.Context) error {
 	changed, err := os.CreateTemp("", "overgo-landing-paths-*.txt")
 	if err != nil {
@@ -184,24 +192,33 @@ func (l *landing) lanes(ctx context.Context) error {
 	if err := changed.Close(); err != nil {
 		return err
 	}
+	var reached []lane
 	for _, candidate := range lanes {
-		reached, err := l.reaches(ctx, candidate)
+		reaches, err := l.reaches(ctx, candidate)
 		if err != nil {
 			return err
 		}
-		if !reached {
-			continue
-		}
-		fmt.Fprintf(l.Log, "land: lane %s runs\n", candidate.name)
-		var environment []string
-		if len(candidate.environment) > 0 {
-			environment = append(os.Environ(), candidate.environment...)
-		}
-		if _, err := l.run(ctx, environment, "go", candidate.command(changed.Name())...); err != nil {
-			return fmt.Errorf("lane %s: %w", candidate.name, err)
+		if reaches {
+			reached = append(reached, candidate)
 		}
 	}
-	return nil
+	if len(reached) == 0 {
+		return nil
+	}
+	fmt.Fprintln(l.Log, "land: lanes wait for the host's lane turn")
+	return processcontrol.ResourceTransaction(laneTurn, func() error {
+		for _, candidate := range reached {
+			fmt.Fprintf(l.Log, "land: lane %s runs\n", candidate.name)
+			var environment []string
+			if len(candidate.environment) > 0 {
+				environment = append(os.Environ(), candidate.environment...)
+			}
+			if _, err := l.run(ctx, environment, "go", candidate.command(changed.Name())...); err != nil {
+				return fmt.Errorf("lane %s: %w", candidate.name, err)
+			}
+		}
+		return nil
+	})
 }
 
 // reaches reports whether a changed path lies in a package of the lane's

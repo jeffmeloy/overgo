@@ -10,10 +10,20 @@ import (
 	"testing"
 )
 
+// TestReleaseCommandsIncludeDiffusion holds the release to commands that
+// exist: every one it builds is a command directory holding Go source, the
+// diffusion command among them and the store and model-file tools as their
+// one command each.
 func TestReleaseCommandsIncludeDiffusion(t *testing.T) {
-	if len(releaseCommands) != 19 || !slices.Contains(releaseCommands, "overgodb-import") ||
-		!slices.Contains(releaseCommands, "overgodb-query") {
-		t.Fatalf("release commands = %v", releaseCommands)
+	for _, want := range []string{"diffusion", "gguf", "overgodb"} {
+		if !slices.Contains(releaseCommands, want) {
+			t.Errorf("release commands %v lack %s", releaseCommands, want)
+		}
+	}
+	for _, command := range releaseCommands {
+		if sources, _ := filepath.Glob(filepath.Join("..", command, "*.go")); len(sources) == 0 {
+			t.Errorf("release command %s has no source under cmd/%s", command, command)
+		}
 	}
 }
 

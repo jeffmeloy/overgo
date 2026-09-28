@@ -1,0 +1,29 @@
+{
+  "source": "bytetriper/RAE DiTwDDTHead velocity integrated by Euler over the sample_ode time grid, stage1.RAE.decode, torch 2.12.0+cu126, float32 on the CPU",
+  "reference_commit": "a4d18c4db766419cbe7cb8c02cd9f7ceb0ec9041",
+  "generator_sha256": "24e4022e793eb84badee2b31056ab972f001849d77388e97c87a9fefb628c79c",
+  "checkpoint": "DiTs/Dinov2/wReg_base/ImageNet256/DiTDH-S_ep20/stage2_model.pt",
+  "decoder": "decoders/dinov2/wReg_base/ViTXL_n08/model.pt",
+  "statistics": "stats/dinov2/wReg_base/imagenet1k/stat.pt",
+  "seed": 3,
+  "label": 207,
+  "steps": 4,
+  "noise": {
+    "file": "raw/generation_noise.f32le",
+    "shape": [
+      768,
+      16,
+      16
+    ],
+    "sha256": "ae67e0cdb65f48dac1a2ac07af9439d5f39a2228599cab4149be395fcda7245f"
+  },
+  "image": {
+    "file": "raw/generation_image.f32le",
+    "shape": [
+      3,
+      256,
+      256
+    ],
+    "sha256": "71b0cd49704d5844eccea427b0cc2ef423228cd32a6302c8fd0e771e6da0ae72"
+  }
+}

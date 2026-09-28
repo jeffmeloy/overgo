@@ -32,11 +32,11 @@ var Plan = Descriptor{
 	Classification: "both",
 }
 
-// OvergodbQuery describes the overgodb-query command: an operator or an agent
-// reads the committed catalog through it without mutating anything.
+// OvergodbQuery describes the overgodb query subcommand: an operator or an
+// agent reads the committed catalog through it without mutating anything.
 var OvergodbQuery = Descriptor{
 	Command: clioptions.Command{
-		Name:     "overgodb-query",
+		Name:     "overgodb query",
 		Purpose:  "read the catalog: filtered artifact listings, lineage traversals, and the derived operational ledgers",
 		Audience: "an operator or agent inspecting committed OvergoDB state without mutating it",
 		Constraints: []string{
@@ -58,8 +58,9 @@ func operator(name, purpose, audience string) Descriptor {
 // the manifest projects each identity, and a command nothing names and
 // nothing declares is refused by TestEveryCommandHasACaller.
 var Declared = map[string]Descriptor{
-	"plan":           Plan,
-	"overgodb-query": OvergodbQuery,
+	"plan": Plan,
+	"overgodb": operator("overgodb", "back up, check, import, precheck, query, rebuild or repair an OvergoDB store, one subcommand each",
+		"an operator maintaining or inspecting the store"),
 	"seam-align": operator("seam-align", "compute a seam's alignment residual, the causal proxy for whether a linear adapter composes it, and bias-audit recorded residuals against measured bridge parity",
 		"an operator studying model composition before training a bridge"),
 	"audio-inspect": operator("audio-inspect", "measure local WAV or FLAC audio and publish its admission record",
@@ -74,8 +75,6 @@ var Declared = map[string]Descriptor{
 		"an operator bringing models in from the hub"),
 	"activation-cases": operator("activation-cases", "publish and inspect typed behavioral case denominators",
 		"an operator curating activation behaviour cases"),
-	"inspect-safetensors": operator("inspect-safetensors", "list a safetensors model directory's tensors and configuration",
-		"an operator examining a checkpoint before conversion"),
 	"dataset-catalog": operator("dataset-catalog", "publish the legacy dataset inventory into OvergoDB",
 		"an operator migrating dataset records into the store"),
 	"remote-provider": operator("remote-provider", "declare hosted OpenAI-compatible models in the store and list them",
@@ -98,16 +97,10 @@ var Declared = map[string]Descriptor{
 	"tokenize":  operator("tokenize", "tokenize text with a GGUF model's tokenizer", "an operator inspecting tokenization"),
 	"perplexity": operator("perplexity", "measure a GGUF model's perplexity over UTF-8 text",
 		"an operator comparing model quality on a text"),
-	"model-info":   operator("model-info", "print a GGUF model's metadata and architecture", "an operator inspecting a model file"),
-	"inspect-gguf": operator("inspect-gguf", "report a GGUF file's tensors and organ classification", "an operator examining a model file's layout"),
-	"block-check":  operator("block-check", "check a GGUF model's blocks against their declared shapes and types", "an operator validating a model file"),
-	"gguf-hash":    operator("gguf-hash", "hash a GGUF file's tensors the way llama-gguf-hash does", "an operator checking conversion parity"),
-	"gguf-merge":   operator("gguf-merge", "merge split GGUF shards into one file", "an operator assembling a sharded model"),
-	"gguf-split":   operator("gguf-split", "split a GGUF file into shards of a target size", "an operator distributing a large model"),
-	"gguf-quantize": operator("gguf-quantize", "quantize a GGUF model to a target type, optionally guided by an importance matrix",
-		"an operator producing smaller model files"),
-	"gemma4-gguf-convert": operator("gemma4-gguf-convert", "convert a Gemma 4 checkpoint into language-model and projector GGUF files",
-		"an operator onboarding a Gemma 4 checkpoint"),
+	"model-info":  operator("model-info", "print a GGUF model's metadata and architecture", "an operator inspecting a model file"),
+	"block-check": operator("block-check", "check a GGUF model's blocks against their declared shapes and types", "an operator validating a model file"),
+	"gguf": operator("gguf", "convert a Hugging Face checkpoint to GGUF, inspect its safetensors, or hash, inspect, merge, split or quantize a GGUF file, one subcommand each",
+		"an operator handling model files"),
 	"json-schema-grammar": operator("json-schema-grammar", "compile a JSON schema into the sampling grammar that constrains generation",
 		"an operator checking structured-output constraints"),
 	"agent-loop": operator("agent-loop", "propose one agent tool step through the coordinator and print its recorded result",
@@ -116,12 +109,6 @@ var Declared = map[string]Descriptor{
 		"an operator electing an audio reference"),
 	"controller-action": operator("controller-action", "compile one allowlisted controller action into its artifacts and commit them",
 		"an operator executing a controller emission"),
-	"hf-gguf-convert": operator("hf-gguf-convert", "convert a Hugging Face checkpoint to GGUF and register the result",
-		"an operator onboarding a model"),
-	"overgodb-backup": operator("overgodb-backup", "publish a verified copy of an OvergoDB store",
-		"an operator backing up the store"),
-	"overgodb-import": operator("overgodb-import", "ingest a wire-format import stream into the store",
-		"an operator importing records into the store"),
 	"sensenovaparity": operator("sensenovaparity", "check SenseNova stages against their fixtures and the real checkpoint",
 		"an operator checking the SenseNova port"),
 	"api-manifest": operator("api-manifest", "regenerate or check docs/api_manifest.json, the declared binaries, routes and contracts",

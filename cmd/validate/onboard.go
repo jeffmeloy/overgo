@@ -122,7 +122,7 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 	}
 	if convert {
 		fmt.Fprintf(output, "onboard: convert %s to %s\n", directory, model)
-		if err := steps.run(ctx, "go", []string{"run", "./cmd/hf-gguf-convert", "-source", directory, "-output", model, "-record", steps.store}); err != nil {
+		if err := steps.run(ctx, "go", []string{"run", "./cmd/gguf", "convert", "-source", directory, "-output", model, "-record", steps.store}); err != nil {
 			return fmt.Errorf("onboard: convert %s: %w", directory, err)
 		}
 	}

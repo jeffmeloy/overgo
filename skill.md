@@ -238,7 +238,7 @@ requires restart.
 | --- | --- |
 | [skill.md](skill.md) | Intent and operating principles; sole root agent-instruction document |
 | [docs/plan.json](docs/plan.json) | Priorities, dependencies, lanes, acceptance, outstanding work |
-| OvergoDB | Artifacts, lineage, runs, decisions, findings, receipts; query via `cmd/overgodb-query` |
+| OvergoDB | Artifacts, lineage, runs, decisions, findings, receipts; query via `go run ./cmd/overgodb query` |
 | [compatibility.json](compatibility.json) | Model/capability verification contracts |
 | [kernels/manifest.json](kernels/manifest.json) | Kernel ABI, source/binary identities |
 | [API manifest](docs/api_manifest.json) | Public commands, routes, document contracts |

@@ -45,6 +45,18 @@ func TestCheckpointNamespaceMetadata(t *testing.T) {
 			}
 		})
 	}
+	// A statistics save maps a key to None beside a tensor (RAE's latent
+	// statistics carry a variance and no mean): the None is no tensor.
+	var w pickleWriter
+	w.raw([]byte{0x80, 2, '}', '('})
+	w.str("mean")
+	w.op('N')
+	w.tensorEntry("var", "FloatStorage", "0", 6, 0, []int64{2, 3}, []int64{3, 1})
+	w.raw([]byte{'u', '.'})
+	catalog, err := ParseCatalog(w.buf.Bytes())
+	if err != nil || len(catalog.Tensors) != 1 || catalog.Tensors[0].Name != "var" {
+		t.Fatalf("a None value beside a tensor: %+v, %v", catalog, err)
+	}
 	for _, truncated := range [][]byte{{0x80, 2, 0x81}, {0x80, 2, ')', 0x81}} {
 		if _, err := ParseCatalog(truncated); err == nil {
 			t.Fatal("accepted truncated NEWOBJ stack")

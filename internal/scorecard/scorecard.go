@@ -28,13 +28,24 @@ import (
 const catalogLimit = 4096
 
 // Cell is one measured value with its unit, what it measures and the record
-// it came from, or the reason no record measures it.
+// it came from, or the reason no record measures it. NotApplicable marks a
+// metric the task's output cannot have: its reason says why, and no
+// measurement is missing.
 type Cell struct {
-	Value  float64
-	Unit   string
-	Label  string
-	Source artifact.ID
-	Reason string
+	Value         float64
+	Unit          string
+	Label         string
+	Source        artifact.ID
+	Reason        string
+	NotApplicable bool
+}
+
+// wholeOutputTasks return their output whole, an image, a clip or a
+// prediction, rather than as a stream of tokens: their time to first output
+// is their rate.
+var wholeOutputTasks = []recipe.Task{
+	recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskForecast,
+	recipe.TaskTabular, recipe.TaskImageEmbedding, recipe.TaskActivityDetection,
 }
 
 // Measured reports whether a record measures the cell.
@@ -91,7 +102,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			measured := benchmarked && capability.Task == recipe.TaskInference
 			observed := serving[capability.Recipe]
 			row.Cells[metric.FirstOutput] = firstOutputCell(capability.Task, benchmark, measured, observed)
-			row.Cells[metric.Throughput] = throughputCell(benchmark, measured, observed)
+			row.Cells[metric.Throughput] = throughputCell(capability.Task, benchmark, measured, observed)
 			row.Cells[metric.Quality] = qualityCell(index.EvaluationsByRecipe[capability.Recipe], descriptors)
 			row.Cells[metric.Failures] = failureCell(observed)
 			row.Cells[metric.Load] = loadCell(benchmark, measured, observed)
@@ -248,6 +259,8 @@ func validationMeasured(ctx context.Context, store *overgodb.Store, id artifact.
 
 func gap(reason string) Cell { return Cell{Reason: reason} }
 
+func inapplicable(reason string) Cell { return Cell{Reason: reason, NotApplicable: true} }
+
 func milliseconds(nanoseconds uint64) float64 {
 	return float64(nanoseconds) / float64(time.Millisecond)
 }
@@ -256,7 +269,7 @@ func firstOutputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, be
 	if task == recipe.TaskTraining {
 		// A training session's prefill sample marks its first step, not an
 		// answer a user waits for.
-		return gap("a training session has no first output")
+		return inapplicable("a training session has no first output")
 	}
 	if benchmarked && benchmark.FirstTokenMS != 0 {
 		return Cell{Value: benchmark.FirstTokenMS, Unit: "ms", Label: "benchmark time to first token, median", Source: benchmark.Record}
@@ -272,13 +285,16 @@ func firstOutputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, be
 	return gap("no benchmark time to first token and no serving prefill sample")
 }
 
-func throughputCell(benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
+func throughputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
 	if benchmarked && benchmark.DecodeTokensPerSecond != 0 {
 		return Cell{Value: benchmark.DecodeTokensPerSecond, Unit: "tok/s", Label: "benchmark decode rate, median", Source: benchmark.Record}
 	}
 	if observed != nil && observed.decodeTokens != 0 && observed.decodeNS != 0 {
 		rate := float64(observed.decodeTokens) / time.Duration(observed.decodeNS).Seconds()
 		return Cell{Value: rate, Unit: "tok/s", Label: "serving output tokens over decode time", Source: observed.latest}
+	}
+	if slices.Contains(wholeOutputTasks, task) {
+		return inapplicable(fmt.Sprintf("%s returns its output whole, so its rate is its first-output time", task))
 	}
 	return gap("no benchmark decode rate and no served decode phase with output tokens")
 }

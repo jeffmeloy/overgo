@@ -59,11 +59,12 @@ type recordedRow struct {
 }
 
 // recordedCell is a cell's measured value and unit, or the reason it has
-// none.
+// none and whether the metric does not apply to the task.
 type recordedCell struct {
-	Value  float64 `json:"value,omitzero"`
-	Unit   string  `json:"unit,omitzero"`
-	Reason string  `json:"reason,omitzero"`
+	Value         float64 `json:"value,omitzero"`
+	Unit          string  `json:"unit,omitzero"`
+	Reason        string  `json:"reason,omitzero"`
+	NotApplicable bool    `json:"not_applicable,omitzero"`
 }
 
 const (
@@ -122,7 +123,7 @@ func publishScorecard(directory, name, commit string, rows []scorecard.Row) (mov
 	for _, row := range rows {
 		recorded := recordedRow{Name: row.Name, Task: string(row.Task), Cells: map[metric.Name]recordedCell{}}
 		for column, cell := range row.Cells {
-			recorded.Cells[column] = recordedCell{Value: cell.Value, Unit: cell.Unit, Reason: cell.Reason}
+			recorded.Cells[column] = recordedCell{Value: cell.Value, Unit: cell.Unit, Reason: cell.Reason, NotApplicable: cell.NotApplicable}
 		}
 		current.Rows = append(current.Rows, recorded)
 	}
@@ -218,25 +219,30 @@ func printScorecard(ctx context.Context, rows []scorecard.Row, root string, outp
 		table.WriteString(" " + scorecardHeadings[column] + " |")
 	}
 	table.WriteString("\n| --- | --- |" + strings.Repeat(" --- |", len(metric.Columns)) + "\n")
-	var gaps []string
+	var gaps, inapplicable []string
 	for _, row := range rows {
 		fmt.Fprintf(&table, "| %s | %s |", row.Name, row.Task)
 		for _, column := range metric.Columns {
 			cell := row.Cells[column]
 			table.WriteString(" " + cellText(column, cell) + " |")
-			if !cell.Measured() {
-				gaps = append(gaps, fmt.Sprintf("- %s %s, %s: %s", row.Name, row.Task, scorecardHeadings[column], cell.Reason))
+			line := fmt.Sprintf("- %s %s, %s: %s", row.Name, row.Task, scorecardHeadings[column], cell.Reason)
+			switch {
+			case cell.NotApplicable:
+				inapplicable = append(inapplicable, line)
+			case !cell.Measured():
+				gaps = append(gaps, line)
 			}
 		}
 		table.WriteString("\n")
 	}
-	if _, err := io.WriteString(output, table.String()+share); err != nil {
-		return err
+	text := table.String() + share
+	if len(gaps) != 0 {
+		text += "\nGaps:\n" + strings.Join(gaps, "\n") + "\n"
 	}
-	if len(gaps) == 0 {
-		return nil
+	if len(inapplicable) != 0 {
+		text += "\nNot applicable:\n" + strings.Join(inapplicable, "\n") + "\n"
 	}
-	_, err := io.WriteString(output, "\nGaps:\n"+strings.Join(gaps, "\n")+"\n")
+	_, err := io.WriteString(output, text)
 	return err
 }
 
@@ -276,6 +282,8 @@ func declarationShare(rows []scorecard.Row, named map[string][]string) string {
 // a gap as a dash; the gap's reason prints below the table.
 func cellText(column metric.Name, cell scorecard.Cell) string {
 	switch {
+	case cell.NotApplicable:
+		return "n/a"
 	case !cell.Measured():
 		return "—"
 	case column == metric.Failures:

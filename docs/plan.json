@@ -9,16 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 435,
-        "reason": "the media serving observation and the scorecard's whole-output first output"
+        "nodes": 120,
+        "reason": "the scorecard's stated inapplicability and its view"
       },
       "steps": [
-        {
-          "id": "task-metrics",
-          "title": "State each scorecard metric a task's output cannot have, so no cell is blank without a reason",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -run '^TestScorecardStatesInapplicableMetrics$' -count=1"
-        },
         {
           "id": "loop-measures-media",
           "title": "Bind validate -run to measure each media model through its capability",
@@ -67,6 +61,38 @@
           "status": "open",
           "verify": "go test ./internal/repoanalysis -count=1 \u0026\u0026 test $(cat internal/repoanalysis/*authority*.go 2\u003e/dev/null | wc -l) -lt 2226",
           "rationale": "Review feedback 2026-09-28. internal/repoanalysis's production_authority_* and entry_authority ratchets are about 2,200 lines with their tests, dating from the governed-snapshot era (d38908b96 ratcheted the RSI authorities). They pin symbols to owner packages, files and site counts, and every consolidation below trips them (ExecutePlaced sits in one table). A rule earns its keep only when it catches a defect that no test or construction would. Review each family: capability and tool, RSI, storage and process, trigger and promotion, entry. Delete the bookkeeping pins. Keep a rule that guards a real invariant, with the invariant stated in its comment. The landing message names what each family protected and why it went or stayed."
+        }
+      ]
+    },
+    {
+      "id": "unexport-unconsumed-names",
+      "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
+          "status": "open",
+          "verify": "go build ./... \u0026\u0026 go vet ./internal/evaluation ./internal/server",
+          "rationale": "Review feedback 2026-09-28. About half the exported names in several core packages are never named outside their own package (upper bounds, since a returned type can be used without being named):\n\n| Package | Never named outside | Exported |\n|---|---|---|\n| evaluation | 158 | 319 |\n| server | 88 | 107 |\n| projector | 86 | 120 |\n| model | 80 | 160 |\n| latentvideo | 71 | 122 |\n\nOnce unexported, unused code is reported by standard Go analysis: golang.org/x/tools/cmd/deadcode run through go run, not added to go.mod. Dead code is then found without building a tool.\n\nHow to land it:\n- Rename with gopls, a deterministic tool rather than hand edits.\n- Go package by package, largest share first, each a net-deleting landing: evaluation and server first.\n- model and projector are on the inference surface, and latentvideo is a pinned media runtime path. Each of those lands with its evidence refresh and a reviewed delta.\n- The rules stage's unconsumed-exports check already keeps new exports from growing the set."
+        }
+      ]
+    },
+    {
+      "id": "test-models-from-store",
+      "title": "Resolve test models through store registrations instead of per-model environment variables",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resolve test models through store registrations instead of per-model environment variables",
+          "status": "open",
+          "verify": "test -z \"$(grep -rhoE 'OVERGO_[A-Z0-9_]+_MODEL' --include=*_test.go . | sort -u)\"",
+          "rationale": "Review feedback 2026-09-28, verified. Tests read 145 distinct OVERGO_* variables. 27 of them name a model: OVERGO_QWEN3_MODEL, OVERGO_QWEN35_MODEL, OVERGO_GEMMA4_TARGET_MODEL, OVERGO_WAN_MODEL and the rest. Each is a skip that depends on the environment and a path the machine must be told. internal/modeltest.Directory already resolves a model from the store's registrations. Move each test to it, one variable per slice, and delete the variable.\n\nThis overlaps models-out-of-adaptive-new, which drops the variables that point into adaptive_new; this row takes the rest. The review also counted 608 command flags (cmd/recipe 78, cmd/train 76). cmd/train's flags consolidate with trainer-shared-run's shared flag set, and the rest with simplify-command-surface."
         }
       ]
     },
@@ -327,38 +353,6 @@
           "status": "open",
           "verify": "go test ./cmd/train -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -count=1",
           "rationale": "Owner 2026-09-25: prove held-out approval on real checkpoints one model at a time, smallest first; TabFM-1.0 classification is first (staged at models/tabfm-1.0.0-pytorch; its location is resolved by identity, not assumed). One run is the row's acceptance, the device-lane evidence, the model-journey check and the training-validation verdict at once. Register a tabular objective over a real table dataset with a group split, train through cmd/train -objective, and approve on held-out label accuracy. Follows the consolidation rounds. Done when TestTabFMObjectiveApprovesOnHeldOutRows records a passed verdict on the real checkpoint."
-        }
-      ]
-    },
-    {
-      "id": "unexport-unconsumed-names",
-      "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
-          "status": "open",
-          "verify": "go build ./... \u0026\u0026 go vet ./internal/evaluation ./internal/server",
-          "rationale": "Review feedback 2026-09-28. About half the exported names in several core packages are never named outside their own package (upper bounds, since a returned type can be used without being named):\n\n| Package | Never named outside | Exported |\n|---|---|---|\n| evaluation | 158 | 319 |\n| server | 88 | 107 |\n| projector | 86 | 120 |\n| model | 80 | 160 |\n| latentvideo | 71 | 122 |\n\nOnce unexported, unused code is reported by standard Go analysis: golang.org/x/tools/cmd/deadcode run through go run, not added to go.mod. Dead code is then found without building a tool.\n\nHow to land it:\n- Rename with gopls, a deterministic tool rather than hand edits.\n- Go package by package, largest share first, each a net-deleting landing: evaluation and server first.\n- model and projector are on the inference surface, and latentvideo is a pinned media runtime path. Each of those lands with its evidence refresh and a reviewed delta.\n- The rules stage's unconsumed-exports check already keeps new exports from growing the set."
-        }
-      ]
-    },
-    {
-      "id": "test-models-from-store",
-      "title": "Resolve test models through store registrations instead of per-model environment variables",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resolve test models through store registrations instead of per-model environment variables",
-          "status": "open",
-          "verify": "test -z \"$(grep -rhoE 'OVERGO_[A-Z0-9_]+_MODEL' --include=*_test.go . | sort -u)\"",
-          "rationale": "Review feedback 2026-09-28, verified. Tests read 145 distinct OVERGO_* variables. 27 of them name a model: OVERGO_QWEN3_MODEL, OVERGO_QWEN35_MODEL, OVERGO_GEMMA4_TARGET_MODEL, OVERGO_WAN_MODEL and the rest. Each is a skip that depends on the environment and a path the machine must be told. internal/modeltest.Directory already resolves a model from the store's registrations. Move each test to it, one variable per slice, and delete the variable.\n\nThis overlaps models-out-of-adaptive-new, which drops the variables that point into adaptive_new; this row takes the rest. The review also counted 608 command flags (cmd/recipe 78, cmd/train 76). cmd/train's flags consolidate with trainer-shared-run's shared flag set, and the rest with simplify-command-surface."
         }
       ]
     },

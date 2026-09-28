@@ -19,10 +19,8 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/model"
 	"overgo/internal/modelcli"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
-	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
@@ -164,22 +162,9 @@ func run() error {
 		return err
 	}
 	defer runner.Close()
-	repository, err := modelFlags.RepositoryPath()
-	if err != nil {
-		return err
-	}
-	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		return fmt.Errorf("generate: open model recipe repository: %w", err)
-	}
-	defer store.Close()
-	execution, err := modelrecipe.ResolveActiveExecution(
-		context.Background(), store, runner.ModelID(), recipe.TaskInference, modelrecipe.SessionWarm,
-	)
-	if err != nil {
-		return fmt.Errorf("generate: resolve runtime policy: %w", err)
-	}
-	policy := execution.Policy.Interactive
+	// The runner's policy carries the model's declared sampling, as the
+	// server's does.
+	policy := runner.RuntimePolicy().Interactive
 	clioptions.ApplyDefault(explicit, "n", maxNewTokens, policy.OutputTokens)
 	clioptions.ApplyDefault(explicit, "temp", temperature, float64(policy.Sampling.Temperature))
 	clioptions.ApplyDefault(explicit, "dynatemp-range", dynatempRange, float64(policy.Sampling.DynatempRange))
@@ -418,6 +403,15 @@ func run() error {
 		if runner.Spec().Profile().Forward.Session == model.ForwardSessionEncoderDecoder {
 			return errors.New("generate: multimodal projection is unavailable for encoder-decoder programs")
 		}
+		repository, err := modelFlags.RepositoryPath()
+		if err != nil {
+			return err
+		}
+		store, err := overgodb.OpenReadOnly(repository)
+		if err != nil {
+			return fmt.Errorf("generate: open the projector's repository: %w", err)
+		}
+		defer store.Close()
 		var promptIDs []tokenizer.TokenID
 		var projected inference.ProjectedInputs
 		var projectedErr error
@@ -452,7 +446,7 @@ func run() error {
 		if mediaInputs > 0 {
 			return errors.New("generate: -prompt-ids and media inputs are mutually exclusive")
 		}
-		for _, raw := range strings.Split(*promptIDsFlag, ",") {
+		for raw := range strings.SplitSeq(*promptIDsFlag, ",") {
 			value, parseErr := tokenizer.ParseTokenID(strings.TrimSpace(raw))
 			if parseErr != nil || value < 0 {
 				return fmt.Errorf("generate: invalid prompt token id %q", raw)

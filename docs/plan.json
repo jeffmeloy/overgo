@@ -33,21 +33,6 @@
       ]
     },
     {
-      "id": "generate-declared-sampling",
-      "title": "Give cmd/generate the model's declared sampling, as the server has",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give cmd/generate the model's declared sampling, as the server has",
-          "status": "open",
-          "verify": "go vet ./cmd/generate \u0026\u0026 ! grep -q ResolveActiveExecution cmd/generate/main.go",
-          "rationale": "Review feedback 2026-09-28, verified. cmd/generate resolves the recipe a second time through modelrecipe.ResolveActiveExecution, whose policy is the catalog's alone. A model's declared sampling (its generation_config or model card, withDeclaredSampling) is applied only in LoadedProgram, which the runner's RuntimePolicy carries and cmd/server uses. So a command-line user samples differently from a server user for the same model. Fix: take the defaults from runner.RuntimePolicy().Interactive, and delete the second resolution and its extra read-only store open. Predicted effect: held-out-quality at the command line matches the server's for every model that declares its sampling."
-        }
-      ]
-    },
-    {
       "id": "small-dead-code",
       "title": "Delete TrainProbeMain and ExecutePlaced, which nothing calls",
       "class": "consolidation",
@@ -1191,7 +1176,8 @@
       "blocks": [
         "refresh-accepted-evidence"
       ],
-      "asked": "2026-09-28"
+      "asked": "2026-09-28",
+      "answer": "Review the 11 new identities, then accept"
     },
     {
       "id": "reference-dependent-tests",
@@ -1220,7 +1206,8 @@
       "blocks": [
         "user-scorecard"
       ],
-      "asked": "2026-09-28"
+      "asked": "2026-09-28",
+      "answer": "When the plan empties, from the loop"
     },
     {
       "id": "decision-inbox-placement",
@@ -1234,7 +1221,8 @@
       "blocks": [
         "owner-decision-queue"
       ],
-      "asked": "2026-09-28"
+      "asked": "2026-09-28",
+      "answer": "The command line only"
     }
   ]
 }

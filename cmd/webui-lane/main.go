@@ -24,6 +24,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
+	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -59,7 +60,9 @@ func run() error {
 		if *run == "^"+webuilane.BrowserTestPrefix {
 			*run = "^" + webuilane.ModelJourneyPrefix
 		}
-		extra = append(extra, webuilane.ModelJourneyEnvironment+"=1")
+		// A journey runs the recorded models and stores it names, so it
+		// opts into the store acceptances its fixtures are held behind.
+		extra = append(extra, webuilane.ModelJourneyEnvironment+"=1", testskip.StoreAcceptanceEnv+"=1")
 	}
 	if *screens != "" {
 		absolute, err := filepath.Abs(*screens)

@@ -76,20 +76,21 @@ type Roots struct {
 	// beside it; a checkout that keeps those in another checkout's home
 	// declares that store here. Unset, it is the checkout's own store.
 	AudioReference string `json:"audio_reference_store,omitzero"`
-	// CheckoutModels is the checkout's own models directory when
+	// StoreModels is the models directory beside the store when
 	// local-models.json points Models elsewhere: models are found there too,
-	// so a model moved into the checkout resolves without editing the
+	// as the audio acceptances find theirs beside the reference store, so a
+	// model moved beside the store resolves without editing the
 	// configuration.
-	CheckoutModels string `json:"checkout_models,omitzero"`
-	Source         string `json:"-"`
+	StoreModels string `json:"store_models,omitzero"`
+	Source      string `json:"-"`
 }
 
 // ModelRoots lists every directory a model is found under, Models first.
 func (r Roots) ModelRoots() []string {
-	if r.CheckoutModels == "" {
+	if r.StoreModels == "" {
 		return []string{r.Models}
 	}
-	return []string{r.Models, r.CheckoutModels}
+	return []string{r.Models, r.StoreModels}
 }
 
 // ResolveCurrent returns roots for the process working directory.
@@ -195,8 +196,8 @@ func resolveIn(workingDirectory string) (Roots, error) {
 	} else {
 		roots.AudioReference = configuredRoot(workingDirectory, roots.AudioReference)
 	}
-	if checkout := configuredRoot(workingDirectory, defaults.Models); checkout != roots.Models {
-		roots.CheckoutModels = checkout
+	if beside := filepath.Join(filepath.Dir(roots.Store), "models"); beside != roots.Models {
+		roots.StoreModels = beside
 	}
 	roots.Source = ConfigFile
 	return roots, nil

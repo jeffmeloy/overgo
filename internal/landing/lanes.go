@@ -45,7 +45,9 @@ var lanes = []lane{
 		packages: []string{"./internal/modelswap", "./internal/libraryintake", "./internal/discovery", "./cmd/server"},
 		prefixes: []string{"cmd/server/", "internal/server/webui_browser_firstrun", "internal/server/webui_browser_library_validation",
 			"internal/server/webui_browser_preparation", "internal/server/webui_browser_store_test.go", "internal/server/webui_served_projector",
-			"internal/audioparity/webui_microphone"},
+			// The microphone journey lives in audioparity with the fixtures
+			// it shares, so any file there reaches it.
+			"internal/audioparity/"},
 		command: func(string) []string { return []string{"run", "./cmd/webui-lane", "-journeys"} },
 	},
 	{

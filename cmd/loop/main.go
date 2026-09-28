@@ -192,16 +192,19 @@ func run(args []string) error {
 		return err
 	}
 	// An empty plan runs the full scorecard: the validations the last
-	// commit made stale are acquired again, then the scorecard is
-	// published with what moved since the previous one.
+	// commit made stale are measured again, then the scorecard is published
+	// with what moved since the previous one. A measurement that fails does
+	// not withhold the others' numbers: the scorecard publishes regardless
+	// and the failure is reported beside it.
+	var failed []error
 	for _, command := range [][]string{{"go", "run", "./cmd/validate", "-run"}, {"go", "run", "./cmd/validate", "-scorecard", "-publish"}} {
 		out, err := runTool(command...)
 		fmt.Print(out)
 		if err != nil {
-			return fmt.Errorf("loop: the plan is empty, but %s failed: %w", strings.Join(command[1:], " "), err)
+			failed = append(failed, fmt.Errorf("loop: the plan is empty, but %s failed: %w", strings.Join(command[1:], " "), err))
 		}
 	}
-	return nil
+	return errors.Join(failed...)
 }
 
 func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {

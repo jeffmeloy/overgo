@@ -9,16 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 120,
-        "reason": "the scorecard's stated inapplicability and its view"
+        "nodes": 904,
+        "reason": "the whole-output attempt recorder, recipe measure, and validate -run's media binding"
       },
       "steps": [
-        {
-          "id": "loop-measures-media",
-          "title": "Bind validate -run to measure each media model through its capability",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestRunBindsMediaMeasurement$' -count=1"
-        },
         {
           "id": "do",
           "title": "Fill the scorecard: the absorbed benchmark and validation work",

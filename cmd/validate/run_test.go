@@ -27,7 +27,28 @@ func TestReacquireCommand(t *testing.T) {
 		t.Fatal("guard without a location bound a command")
 	}
 	if _, _, err := reacquireCommand(ModelValidation{Kind: recipe.TaskImageGen, Validation: "image-proof"}); err == nil {
-		t.Fatal("unbound image-proof produced a command")
+		t.Fatal("an image proof without a location bound a command")
+	}
+}
+
+// TestRunBindsMediaMeasurement holds each media and specialized validation
+// to one measurement of the model through its active capability, so the
+// loop's empty-plan run fills those models' scorecard rows.
+func TestRunBindsMediaMeasurement(t *testing.T) {
+	t.Parallel()
+	for _, cell := range []ModelValidation{
+		{Kind: recipe.TaskImageGen, Validation: "image-proof", Location: "C:/models/image"},
+		{Kind: recipe.TaskSpeech, Validation: "speech-proof", Location: "C:/models/speech"},
+		{Kind: recipe.TaskTabular, Validation: "specialized-proof", Location: "C:/models/tabular"},
+	} {
+		name, args, err := reacquireCommand(cell)
+		if err != nil || name != "go" {
+			t.Fatalf("%s command = (%q, %v)", cell.Validation, name, err)
+		}
+		want := []string{"run", "./cmd/recipe", "measure", "-task", string(cell.Kind), cell.Location}
+		if !slices.Equal(args, want) {
+			t.Fatalf("%s args = %v, want %v", cell.Validation, args, want)
+		}
 	}
 }
 

@@ -37,39 +37,55 @@ func reacquireCommand(cell ModelValidation) (string, []string, error) {
 			"-corpus", guardCorpus, "-budget", guardBudget, "-model-budget", guardModelBudget,
 			cell.Location,
 		}, nil
+	case "image-proof", "video-proof", "speech-proof", "vqa-proof", "specialized-proof":
+		// A media or specialized model is measured the way its users meet
+		// it: its active capability runs the request its verification ran,
+		// and the run is recorded as the serving attempt the scorecard reads.
+		if cell.Location == "" {
+			return "", nil, errors.New("a capability measurement needs the model's location")
+		}
+		return "go", []string{"run", "./cmd/recipe", "measure", "-task", string(cell.Kind), cell.Location}, nil
 	default:
 		return "", nil, fmt.Errorf("no re-acquisition command bound for %s/%s", cell.Kind, cell.Validation)
 	}
 }
 
 // executeRun runs the selected cells' re-acquisition commands smallest-first
-// through the process owner, stopping on the first failure so a broken run never
-// masquerades as accepted. Cells without a bound command are reported as
-// incomplete coverage. An empty run set is the clean "nothing to re-acquire"
-// result the dry run predicts for a commit that moves no surface.
+// through the process owner. A cell that fails is reported, not accepted, and
+// the rest still run: one model's broken measurement withholds no other's.
+// Cells without a bound command are reported as incomplete coverage. An
+// empty run set is the clean "nothing to re-acquire" result the dry run
+// predicts for a commit that moves no surface.
 func executeRun(ctx context.Context, output io.Writer, root string, plan Plan) error {
 	if len(plan.Run) == 0 {
 		fmt.Fprintf(output, "validate -run: nothing to re-acquire; %d reused, %d operator-owned, %d registered-inactive\n",
 			len(plan.Reuse), len(plan.OperatorOwned), len(plan.RegisteredInactive))
 		return nil
 	}
-	var unbound []string
+	var unbound, failed []string
 	acquired := 0
-	for _, sel := range plan.Run {
+	for index, sel := range plan.Run {
 		name, args, err := reacquireCommand(sel.ModelValidation)
 		if err != nil {
 			unbound = append(unbound, fmt.Sprintf("%s %s: %v", displayName(sel.ModelValidation), sel.Validation, err))
 			continue
 		}
-		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s)\n", acquired+1, len(plan.Run), sel.Validation, displayName(sel.ModelValidation), sel.Reason)
+		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s)\n", index+1, len(plan.Run), sel.Validation, displayName(sel.ModelValidation), sel.Reason)
 		if err := runCell(ctx, output, root, name, args); err != nil {
-			return fmt.Errorf("validate -run: %s %s failed: %w", displayName(sel.ModelValidation), sel.Validation, err)
+			failed = append(failed, fmt.Sprintf("%s %s: %v", displayName(sel.ModelValidation), sel.Validation, err))
+			continue
 		}
 		acquired++
 	}
+	var problems []string
+	if len(failed) > 0 {
+		problems = append(problems, fmt.Sprintf("%d failed:\n  %s", len(failed), strings.Join(failed, "\n  ")))
+	}
 	if len(unbound) > 0 {
-		return fmt.Errorf("validate -run: re-acquired %d cell(s); %d have no bound command yet:\n  %s",
-			acquired, len(unbound), strings.Join(unbound, "\n  "))
+		problems = append(problems, fmt.Sprintf("%d have no bound command yet:\n  %s", len(unbound), strings.Join(unbound, "\n  ")))
+	}
+	if len(problems) > 0 {
+		return fmt.Errorf("validate -run: re-acquired %d cell(s); %s", acquired, strings.Join(problems, "; "))
 	}
 	fmt.Fprintf(output, "validate -run: re-acquired %d cell(s); re-run the dry run to confirm coverage\n", acquired)
 	return nil

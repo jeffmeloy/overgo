@@ -21,6 +21,7 @@ var trainRoutes = map[string]func(flags *flag.FlagSet, args []string) error{
 	"mixture":         trainMixture,
 	"mot":             trainMot,
 	"oscillatorimage": trainOscillatorImage,
+	"seriesforecast":  trainSeriesForecast,
 	"tabular":         trainTabular,
 }
 

@@ -1,6 +1,3 @@
-//overgo:runtime-inputs caller
-
-// seriesforecast-train-probe: bounded forecast training evidence.
 package main
 
 import (
@@ -21,29 +18,42 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-func main() {
-	storeRoot := flag.String("store", "", "OvergoDB root; with -objective, train under that objective and publish its held-out verdict")
-	objectiveAlias := flag.String("objective", "", "registered forecast objective alias (requires -store): train on its training membership, one light-curve JSON per dataset file, and judge on its held-out one; -dataset and -records are unused")
-	clioptions.TrainProbeMain(
-		"forecast model directory (safetensors + config.json)",
-		"light-curve JSONL shard",
-		"records", "leading record scan bound; omitted scans the shard",
-		func(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Duration) error {
-			if *objectiveAlias != "" {
-				if *storeRoot == "" || modelDir == "" || steps <= 0 {
-					return fmt.Errorf("seriesforecast-train-probe: -objective requires -store, a model, and positive steps")
-				}
-				return runObjective(*storeRoot, *objectiveAlias, modelDir, steps, maxWall)
-			}
-			return run(modelDir, datasetPath, steps, recordLimit, maxWall)
-		},
-	)
+// A light-curve shard line's scanner buffer: it starts at a megabyte and
+// grows to at most sixteen, the longest record a shard holds.
+const (
+	shardLineBuffer = 1 << 20
+	shardLineLimit  = 1 << 24
+)
+
+// trainSeriesForecast is the seriesforecast route: bounded forecast training
+// evidence on a light-curve shard, or, with -objective, training under a
+// registered forecast objective whose held-out verdict it publishes.
+func trainSeriesForecast(flags *flag.FlagSet, args []string) error {
+	modelDir := flags.String("model", "", "forecast model directory (safetensors + config.json)")
+	datasetPath := flags.String("dataset", "", "light-curve JSONL shard")
+	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
+	recordLimit := clioptions.IntOverride(flags, "records", "leading record scan bound; omitted scans the shard")
+	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
+	storeRoot := flags.String("store", "", "OvergoDB root; with -objective, train under that objective and publish its held-out verdict")
+	objectiveAlias := flags.String("objective", "", "registered forecast objective alias (requires -store): train on its training membership, one light-curve JSON per dataset file, and judge on its held-out one; -dataset and -records are unused")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *objectiveAlias != "" {
+		if *storeRoot == "" || *modelDir == "" || *steps <= 0 {
+			return fmt.Errorf("%s: -objective requires -store, a model, and positive steps", flags.Name())
+		}
+		return runObjective(*storeRoot, *objectiveAlias, *modelDir, *steps, *maxWall)
+	}
+	if *modelDir == "" || *datasetPath == "" || *steps <= 0 || *recordLimit < 0 {
+		return fmt.Errorf("%s: model, dataset, positive steps, and nonnegative record bound required", flags.Name())
+	}
+	return forecastShard(*modelDir, *datasetPath, *steps, *recordLimit, *maxWall)
 }
 
-func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Duration) error {
-	if modelDir == "" || datasetPath == "" || steps <= 0 || recordLimit < 0 {
-		return fmt.Errorf("seriesforecast-train-probe: model, dataset, positive steps, and nonnegative record bound required")
-	}
+// forecastShard trains the forecast model on the first trainable pair of a
+// light-curve shard's leading records and proves the loss descends.
+func forecastShard(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Duration) error {
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return err
@@ -88,7 +98,7 @@ func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Dura
 			return err
 		}
 		if !checked.Finite64(result.Total) {
-			return fmt.Errorf("seriesforecast-train-probe: step %d loss is non-finite", step+1)
+			return fmt.Errorf("train -route seriesforecast:step %d loss is non-finite", step+1)
 		}
 		fmt.Printf("step %d/%d: total=%.6f mse=%.6f quantile=%.6f lr=%.4g grad_l2=%.4g wall=%s\n",
 			step+1, plan.Updates(), result.Total, result.MSE, result.Quantile,
@@ -96,10 +106,10 @@ func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Dura
 		if step == 0 {
 			before = result.Total
 			if result.GradientL2 <= 0 {
-				return fmt.Errorf("seriesforecast-train-probe: first step carried no gradient")
+				return fmt.Errorf("train -route seriesforecast:first step carried no gradient")
 			}
 			if err := plan.AdmitStepWall(time.Since(start)); err != nil {
-				return fmt.Errorf("seriesforecast-train-probe: %w", err)
+				return fmt.Errorf("train -route seriesforecast:%w", err)
 			}
 		}
 	}
@@ -108,7 +118,7 @@ func run(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Dura
 		return err
 	}
 	if !checked.Finite64(after) || !(after < before) {
-		return fmt.Errorf("seriesforecast-train-probe: loss did not descend: before=%.6f after=%.6f", before, after)
+		return fmt.Errorf("train -route seriesforecast:loss did not descend: before=%.6f after=%.6f", before, after)
 	}
 	fmt.Printf("descent: steps=%d span_tokens=%d loss %.6f -> %.6f total_wall=%s\n",
 		plan.Updates(), plan.Updates()*len(input), before, after, time.Since(start).Round(time.Millisecond))
@@ -123,7 +133,7 @@ func firstTrainablePair(model *seriesforecast.Model, datasetID artifact.ID, reco
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, []byte(fmt.Sprintf("light-curve-train-v1/%d/%d", model.Dims.PatchLen, model.Dims.Horizon)))
+	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, fmt.Appendf(nil, "light-curve-train-v1/%d/%d", model.Dims.PatchLen, model.Dims.Horizon))
 	if err != nil {
 		return nil, nil, 0, err
 	}
@@ -151,7 +161,7 @@ func firstTrainablePair(model *seriesforecast.Model, datasetID artifact.ID, reco
 		fmt.Printf("training record ordinal=%d input_spread=%.6g\n", index, inputSpread(input))
 		return input, target, index, nil
 	}
-	return nil, nil, 0, fmt.Errorf("seriesforecast-train-probe: no trainable record in the first %d of the shard", len(records))
+	return nil, nil, 0, fmt.Errorf("train -route seriesforecast:no trainable record in the first %d of the shard", len(records))
 }
 
 func materializePair(authority trainingdata.Authority, processorID artifact.ID, processor trainingdata.Processor, record string) ([]float32, []float32, error) {
@@ -196,7 +206,7 @@ func leadingRecords(path string, limit int) ([]string, error) {
 	defer file.Close()
 	var records []string
 	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 0, 1<<20), 1<<24)
+	scanner.Buffer(make([]byte, 0, shardLineBuffer), shardLineLimit)
 	for (limit == 0 || len(records) < limit) && scanner.Scan() {
 		records = append(records, scanner.Text())
 	}
@@ -204,7 +214,7 @@ func leadingRecords(path string, limit int) ([]string, error) {
 		return nil, err
 	}
 	if len(records) == 0 {
-		return nil, fmt.Errorf("seriesforecast-train-probe: dataset %s is empty", path)
+		return nil, fmt.Errorf("train -route seriesforecast:dataset %s is empty", path)
 	}
 	return records, nil
 }

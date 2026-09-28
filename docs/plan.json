@@ -10,8 +10,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 41,
-        "reason": "the fix stage regenerates the derived API manifest instead of refusing the landing"
+        "nodes": 68,
+        "reason": "api-manifest -update writes only a changed manifest, so its time moves only with its bytes"
       },
       "steps": [
         {
@@ -1003,7 +1003,8 @@
             "fp8-prefill-tensorcore/do",
             "rules-by-enforcement-level/sqa-039",
             "rules-by-enforcement-level/sqa-036",
-            "rules-by-enforcement-level/manifest-autofix"
+            "rules-by-enforcement-level/manifest-autofix",
+            "rules-by-enforcement-level/manifest-unchanged"
           ]
         }
       ]

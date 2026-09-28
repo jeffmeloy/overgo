@@ -12,8 +12,6 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/gitauthority"
-	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 )
 
@@ -41,12 +39,7 @@ func recordStopControlCommand(root string, c cli, args []string, output io.Write
 	if err != nil {
 		return err
 	}
-	store, err := overgodb.Open(filepath.Join(root, gitauthority.CanonicalOvergoDBDirectory))
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	current, err := plan.ReadStop(context.Background(), store, root, strings.TrimSpace(string(head)), plan.ExecutionInteractive)
+	current, err := plan.ReadStop(context.Background(), root, strings.TrimSpace(string(head)), plan.ExecutionInteractive)
 	if err != nil {
 		return err
 	}
@@ -87,7 +80,7 @@ func recordStopControlCommand(root string, c cli, args []string, output io.Write
 			return errors.New("plan: explicit resume requires an operator reason")
 		}
 	}
-	recorded, err := plan.RecordControlEvent(context.Background(), store, event)
+	recorded, err := plan.RecordStop(context.Background(), event)
 	if err != nil {
 		return err
 	}
@@ -116,7 +109,7 @@ func printDispatch(c cli, args []string, output io.Writer) error {
 	document, err := loadCommandPlan()
 	var dispatch plan.Dispatch
 	if err != nil {
-		stop, stopErr := plan.ReadStop(context.Background(), nil, commandWorktree, "", c.mode)
+		stop, stopErr := plan.ReadStop(context.Background(), commandWorktree, "", c.mode)
 		if stopErr != nil || !stop.Blocked {
 			return err
 		}

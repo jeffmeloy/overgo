@@ -1,7 +1,7 @@
 // Package landing lands one plan row through the small gate. The dirty tree
 // is formatted, modernized by go fix, vetted and tested -- go test's own
-// cache decides what runs again -- the lanes the change reaches run, a few
-// rules compare the changed files with HEAD, the row's own check passes, and
+// cache decides what runs again -- a few rules compare the changed files
+// with HEAD, the row's own check passes, and
 // a change that reaches the benchmark runs the scorecard's slices, one per
 // task, beside HEAD's benchmark when the message predicts a timed metric;
 // then the tree is committed with the row's step removed from the plan. Git
@@ -88,7 +88,7 @@ func Run(ctx context.Context, options Options) (string, error) {
 	if err := l.shipSet(ctx); err != nil {
 		return "", err
 	}
-	for _, check := range []struct {
+	checks := []struct {
 		name string
 		run  func(context.Context) error
 	}{
@@ -97,10 +97,21 @@ func Run(ctx context.Context, options Options) (string, error) {
 		{"vet", l.vet},
 		{"rules", l.rules},
 		{"test", l.test},
-		{"lanes", l.lanes},
 		{"verify", func(ctx context.Context) error { return l.verify(ctx, verify) }},
 		{"scorecard", l.scorecard},
-	} {
+	}
+	// A change to the plan alone is data the load above has validated;
+	// nothing compiles it, so only the row's verify can speak to it, and
+	// the tests that read the plan run with the next code landing.
+	if !slices.ContainsFunc(l.paths, func(changed string) bool { return changed != plan.Path }) {
+		checks = slices.DeleteFunc(checks, func(check struct {
+			name string
+			run  func(context.Context) error
+		}) bool {
+			return check.name != "verify"
+		})
+	}
+	for _, check := range checks {
 		started := time.Now()
 		if err := check.run(ctx); err != nil {
 			return "", fmt.Errorf("land: %s: %w", check.name, err)

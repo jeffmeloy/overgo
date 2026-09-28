@@ -72,7 +72,7 @@ var abba = []int{headSide, treeSide, treeSide, headSide}
 // slice is what the scorecard slices depend on: the benchmark binary's
 // closure, which embeds the built kernels, the module versions and the
 // documents.
-var slice = lane{name: "scorecard", packages: []string{"./cmd/benchmark"},
+var slice = lane{packages: []string{"./cmd/benchmark"},
 	prefixes: []string{"go.mod", "go.sum", sliceDirectory + "/"}}
 
 // timedMetric is one of a slice's timed cells, whether a user feels it

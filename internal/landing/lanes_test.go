@@ -29,7 +29,7 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	candidate := lane{name: "fixture", packages: []string{"./a"}}
+	candidate := lane{packages: []string{"./a"}}
 	for changed, want := range map[string]bool{
 		"b/b.go":      true,
 		"a/a_test.go": true,

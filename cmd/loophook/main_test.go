@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"os/exec"
-	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/worklease"
 	"path/filepath"
@@ -132,13 +131,8 @@ func TestPersistentStopHook(t *testing.T) {
 	git("config", "user.email", "stop@example.invalid")
 	git("config", "user.name", "Stop Fixture")
 	git("commit", "--allow-empty", "-qm", "baseline")
-	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
 	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "hook-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, ReasonCode: "user-stop", Detail: "operator stopped", CodeCommit: gitHead()}
-	stopped, err := plan.RecordControlEvent(t.Context(), store, event)
+	stopped, err := plan.RecordStop(t.Context(), event)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,10 +155,10 @@ func TestPersistentStopHook(t *testing.T) {
 	event.Detail = "operator continued"
 	event.Previous = stopped.ID
 	event.CodeCommit = gitHead()
-	if _, err := plan.RecordControlEvent(t.Context(), store, event); err != nil {
+	if _, err := plan.RecordStop(t.Context(), event); err != nil {
 		t.Fatal(err)
 	}
-	status, err := plan.ReadStop(t.Context(), store, root, gitHead(), plan.ExecutionInteractive)
+	status, err := plan.ReadStop(t.Context(), root, gitHead(), plan.ExecutionInteractive)
 	if err != nil || status.Blocked || status.State != "resumed" {
 		t.Fatalf("hook scope did not resume: %+v %v", status, err)
 	}

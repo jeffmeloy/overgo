@@ -4,17 +4,47 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "landing-test-cache",
-      "title": "Keep suites cached when a landing only touches the plan, tmp or bin",
+      "id": "landing-wall-budget",
+      "title": "A slow landing is a defect: remove or speed up what makes it slow",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Keep suites cached when a landing only touches the plan, tmp or bin",
+          "title": "A slow landing is a defect: remove or speed up what makes it slow",
           "status": "open",
-          "verify": "go test ./internal/testutil -run '^TestSuitesReadNoLandingChurn$' -count=1",
-          "rationale": "Measured at 088a4774c, a plan-only landing: 17 suites re-ran, 6 min 56 s of test (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s). Every landing rewrites docs/plan.json, and the loop rebuilds bin/gate.exe; the root's mtime did not move. For each slow suite, list the inputs go rechecks (go test -c, -test.testlogfile, tmp/cache_inputs.go) and remove, at its cause, any read of a file every landing touches: read named files, never list docs/, tmp/, bin/ or the root, never chdir into the repository (as 37413eab4 did for server and validate). The test the verify names holds those suites to it. Predicted effect: a narrow landing's test stage returns to about a minute."
+          "verify": "go test ./internal/landing -run '^TestLandingNamesAWallOverBudget$' -count=1",
+          "rationale": "Owner 2026-09-27: a landing that takes more than about a minute is wrong (the number is a stand-in; the point is that slowness is a defect to remove, not a cost to accept). Measured today on the blocking path: the device and webui lanes (about 5 min whenever a change reaches them; removed from the landing with stop-state-out-of-store and run on the schedule), live-evidence acceptance suites re-running on any store write or dependency change (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s), cmd/gate's own landing test 61 s, commanddoc 32 s, vet up to 23 s. The gate's measured line names a landing over the budget and its slowest stages (a measurement; refusing after the run would only waste it), and each such landing's cause becomes the next fix: take it off the blocking path, make it fast, or delete it. Nothing joins the blocking path that breaks the budget for a narrow change. Owner 2026-09-27: unnecessary testing is a failure to fix, throughout: a check runs only when the change can alter its verdict. Done with stop-state-out-of-store: the lanes left the blocking path, and a change to the plan alone runs only the row's verify. Left: vet over the whole module on every landing (scope it to the changed packages and their importers), live-evidence suites (landing-hermetic-tests), and the slow checks that are relevant but slow (cmd/gate's own landing test, commanddoc)."
+        }
+      ]
+    },
+    {
+      "id": "landing-hermetic-tests",
+      "title": "Move live-evidence acceptance tests off the landing path",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move live-evidence acceptance tests off the landing path",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLandingTestsRunWithoutTheLiveStore$' -count=1",
+          "rationale": "Owner review 2026-09-27. Measured: 088a4774c's test stage re-ran 17 suites for 6 min 56 s (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s) because plan -stop had written a record into the live store at 17:56:23; the next plan-only landing, with no store write before it, ran 4 packages in 40 s. Suites that read the live store re-run on every store write, and their verdict depends on the machine's store rather than the commit. The gate runs go test with OVERGO_DATA_ROOT pointing at an empty scratch directory and OVERGO_AUDIO_REFERENCE_STORE unset (construction: no test can reach the live store through the environment); the 16 test files that name the store by path (overgodb-store, gitauthority.CanonicalOvergoDBDirectory) become hermetic on fixtures or scratch stores, or move off the landing path to the scheduled scorecard and validate, where live-store checks belong. Predicted effect: landings stop paying for store writes; a narrow landing's test stage stays near a minute. Measured 2026-09-27 before starting: with the data root pointed at an empty directory, 133 tests in 77 files across 12 packages fail (cmd/compatibility 32 files, internal/audioparity 19, internal/evaluation 10, speechsynth, server and others): retained-evidence acceptance tests and a few live model-file tests. They re-run when the evidence changes, which is correct; the measured 7-minute landing came from a control record (plan -stop) written into the evidence store, which stop-state-out-of-store removes. Moving them means splitting mixed files across 12 packages and a scheduled evidence run. Do it only if dev-loop measurement shows real evidence writes costing landings. Re-raised 2026-09-27 under landing-wall-budget: the four slowest suites a landing re-runs are these, and they re-run on dependency changes as well as store writes, so the stop-file fix alone does not bring landings under the budget."
+        }
+      ]
+    },
+    {
+      "id": "landing-growth-ratchet",
+      "title": "Refuse production growth beyond the row's declared budget",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse production growth beyond the row's declared budget",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestNewProductionCodeStaysWithinTheRowBudget$' -count=1",
+          "rationale": "Owner review 2026-09-27: prose rules against growth did not bind; this week's scorecard rows added 586 Go lines with no row declaring it. A diff rule in internal/landing/rules.go counts production Go AST nodes the change adds against HEAD (tests, testdata and generated files excluded; no baseline or ledger) and refuses growth beyond the landed row's plan Budget, whose default is zero: a row without a budget must pay its additions with deletions. A capability row declares its growth in plan data before the work. Keep the rule small; it is itself held to its budget."
         }
       ]
     },
@@ -173,7 +203,7 @@
           "title": "Run the full scorecard on a schedule and publish it with its deltas",
           "status": "open",
           "verify": "go test ./cmd/validate -run '^TestScheduledScorecardPublishesDeltas$' -count=1",
-          "rationale": "The full scorecard, every model and every cell, runs on a schedule (the machine is shared: it takes the device claim) and publishes one record with deltas against the previous run. It is the fitness the unattended loop optimizes (loop-fitness-scorecard). From the per-modality design (2026-09-27), the scheduled scorecard owns what a per-landing slice cannot afford or cannot run: tabular (tabfm, 78 s for four golden cases), vqa (RxBrain, 25 GB device load, 21 s a run, and its image read from the store it executes against), projection (no capability executor; the user path is inference with a projector, 15 GB and up), training (sessions and checkpoints), activity-detection with its first activation, every model that is not its task's smallest, and scratch seeding for latent-image profiles. 2026-09-27: per-modality-tasks, load-split and typed-predictions are retired from the landing path with the slice's simplification; the scheduled scorecard owns every modality's smallest-model run (through the catalog executor on a scratch store, as the per-modality design worked out) and any load-versus-execution split it needs.",
+          "rationale": "The full scorecard, every model and every cell, runs on a schedule (the machine is shared: it takes the device claim) and publishes one record with deltas against the previous run. It is the fitness the unattended loop optimizes (loop-fitness-scorecard). From the per-modality design (2026-09-27), the scheduled scorecard owns what a per-landing slice cannot afford or cannot run: tabular (tabfm, 78 s for four golden cases), vqa (RxBrain, 25 GB device load, 21 s a run, and its image read from the store it executes against), projection (no capability executor; the user path is inference with a projector, 15 GB and up), training (sessions and checkpoints), activity-detection with its first activation, every model that is not its task's smallest, and scratch seeding for latent-image profiles. 2026-09-27: per-modality-tasks, load-split and typed-predictions are retired from the landing path with the slice's simplification; the scheduled scorecard owns every modality's smallest-model run (through the catalog executor on a scratch store, as the per-modality design worked out) and any load-versus-execution split it needs. Since stop-state-out-of-store (2026-09-27) the device, webui and model-journey lanes are off the landing path: the schedule runs them, and a failure becomes a row.",
           "depends_on": [
             "user-scorecard/define"
           ]
@@ -1068,9 +1098,12 @@
             "landing-binds-candidate-bytes/do",
             "landing-stream-owners/do",
             "plan-rerank-2026-09-27/do",
-            "landing-test-cache/do",
             "simplify-scorecard-slice/do",
-            "plan-subtraction-2026-09-27/do"
+            "plan-subtraction-2026-09-27/do",
+            "landing-hermetic-tests/do",
+            "stop-state-out-of-store/do",
+            "landing-growth-ratchet/do",
+            "landing-wall-budget/do"
           ]
         }
       ]

@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"overgo/internal/gitauthority"
-	"overgo/internal/overgodb"
 	"overgo/internal/worklease"
 )
 
@@ -43,9 +41,6 @@ type DispatchRequest struct {
 	Role        string
 	Worker      string
 	Reference   string
-	// Store is the caller's open store; dispatch opens and closes its own
-	// when absent. An open costs seconds, so a command opens once.
-	Store *overgodb.Store
 }
 
 // AutomationWorkerEnvironment is inherited by a driver and its gate subprocesses.
@@ -92,8 +87,8 @@ func dispatchLine(dispatch Dispatch) string {
 
 // ResolveDispatch resolves the current row for the repository at root and
 // role: the first ready row in prerequisite order, unless a scoped stop
-// holds the loop. It reads the plan and the store and writes neither.
-func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) (dispatch Dispatch, err error) {
+// holds the loop. It reads the plan and the stop file and writes neither.
+func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) (Dispatch, error) {
 	role, err := AutomationRole(request.Role)
 	if err != nil {
 		return Dispatch{}, err
@@ -106,19 +101,11 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if err != nil {
 		return Dispatch{}, err
 	}
-	store := request.Store
-	if store == nil {
-		store, err = overgodb.OpenReadOnly(filepath.Join(repository, gitauthority.CanonicalOvergoDBDirectory))
-		if err != nil {
-			return Dispatch{}, err
-		}
-		defer func() { err = errors.Join(err, store.Close()) }()
-	}
 	mode, err := ExecutionMode(request.Mode)
 	if err != nil {
 		return Dispatch{}, err
 	}
-	stop, err := ReadStop(ctx, store, repository, head, mode)
+	stop, err := ReadStop(ctx, repository, head, mode)
 	if err != nil {
 		return Dispatch{}, err
 	}
@@ -130,14 +117,14 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if err != nil {
 		return Dispatch{}, err
 	}
-	dispatch, err = selectDispatch(document, role, request.Reference)
+	dispatch, err := selectDispatch(document, role, request.Reference)
 	if err != nil {
 		return Dispatch{}, err
 	}
 	if stop.State != stopAbsent {
 		dispatch.Stop = &stop
 	}
-	if stopErr := stop.RequireExecution(ctx, store, role, worker, mode, dispatch.Item+"/"+dispatch.Step, grant); stopErr != nil {
+	if stopErr := stop.RequireExecution(role, worker, mode, dispatch.Item+"/"+dispatch.Step, grant); stopErr != nil {
 		dispatch.Waiting = stopErr.Error()
 		dispatch = finishDispatch(dispatch)
 	}

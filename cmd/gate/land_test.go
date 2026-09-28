@@ -107,4 +107,21 @@ func TestSmallGateLandsAChange(t *testing.T) {
 	if head := git("rev-parse", "HEAD"); head != commit {
 		t.Fatalf("a refused landing moved HEAD to %s", head)
 	}
+
+	// A change to the plan alone runs only the row's verify.
+	git("checkout", "--", "internal/p")
+	edited, err := plan.Load(filepath.Join(repo, filepath.FromSlash(plan.Path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited.Items[0].Title = "second, retitled"
+	if err := plan.Save(filepath.Join(repo, filepath.FromSlash(plan.Path)), edited); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := land("second/do", message); err != nil {
+		t.Fatalf("a plan-only change was refused: %v", err)
+	}
+	if body := git("log", "-1", "--format=%B"); !strings.Contains(body, "Measured by the gate: verify ") || strings.Contains(body, "test ") {
+		t.Fatalf("a plan-only landing ran more than the verify: %q", body)
+	}
 }

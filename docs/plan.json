@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "owner-decision-queue",
-      "title": "Record owner decisions as typed plan data answered from the command line",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 247,
-        "reason": "plan -answer records the owner's answer, one of the decision's options, once"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Record owner decisions as typed plan data answered from the command line",
-          "status": "open",
-          "verify": "! grep -q 'OWNER DECISION' docs/plan.json \u0026\u0026 go run ./cmd/plan -decisions",
-          "rationale": "Owner recommendation 2026-09-27: decisions sat inside rationale prose, and an unattended loop stalled quietly on them. The compatibility binding waited from 09-21 to 09-27, and the Gemma 12B bf16 download from 09-24.\n\nDecisions are now typed plan data: the question, the options, a recommendation and the rows each blocks. plan -decisions lists them and plan -answer records the owner's answer.\n\nOwner answer 2026-09-28 (decision-inbox-placement): the inbox stays on the command line, so no web UI panel is built, and the previous verify, a browser inbox test, is retired.\n\nDone when no decision sits in prose (the last two were answered and now read as answers) and plan -decisions runs. The loop does not wait on a decision: it takes the recommended option, records it, and the owner may override (owner, 2026-09-28)."
-        }
-      ]
-    },
-    {
       "id": "unexport-unconsumed-names",
       "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
       "class": "consolidation",

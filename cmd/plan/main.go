@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
@@ -33,6 +34,7 @@ func main() {
 	prompt := flag.Bool("prompt", false, "print the current step's task: -prompt [-json] [item/step]")
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
+	decisions := flag.Bool("decisions", false, "the owner decisions still open, with how long each has waited")
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
@@ -51,7 +53,7 @@ func main() {
 	worker := flag.String("worker", "", "stable session identity a stop is scoped by (default OVERGO_AUTOMATION_WORKER)")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker}, flag.Args())
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, next: *next, prompt: *prompt, verify: *verify, status: *status, decisions: *decisions, add: *add, setverify: *setverify, stop: *stop, title: *title, class: *class, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker}, flag.Args())
 	}
 	clioptions.MainNamed("plan", func() error { return err })
 }
@@ -60,6 +62,7 @@ type cli struct {
 	resumeStop, maintenanceStop, stopMode, mode  string
 	worker                                       string
 	next, prompt, verify, status, add, setverify bool
+	decisions                                    bool
 	stop, move, retitle, json                    bool
 	title, class, before, verifyCmd, role        string
 }
@@ -117,8 +120,11 @@ func run(c cli, args []string) error {
 	case c.status:
 		printStatus(document)
 		return nil
+	case c.decisions:
+		printDecisions(os.Stdout, document, time.Now())
+		return nil
 	default:
-		return errors.New("one of -next, -prompt, -verify, -status, -add, -move, -retitle, -setverify, -stop is required")
+		return errors.New("one of -next, -prompt, -verify, -status, -decisions, -add, -move, -retitle, -setverify, -stop is required")
 	}
 }
 
@@ -310,6 +316,33 @@ func setStepVerify(root, itemID, stepID, cmd, role string) error {
 		return nil
 	})
 }
+
+// printDecisions lists the owner decisions still open, oldest first as the
+// plan holds them, with the days each has waited: a decision that sits
+// stalls the rows it blocks.
+func printDecisions(output io.Writer, document plan.Plan, now time.Time) {
+	for _, decision := range document.Decisions {
+		if decision.Answer != "" {
+			continue
+		}
+		asked, _ := time.Parse(time.DateOnly, decision.Asked)
+		days := int(now.Sub(asked).Hours() / hoursPerDay)
+		fmt.Fprintf(output, "%s (asked %s, %d days): %s\n", decision.ID, decision.Asked, days, decision.Question)
+		for _, option := range decision.Options {
+			mark := " "
+			if option == decision.Recommendation {
+				mark = "*"
+			}
+			fmt.Fprintf(output, "  %s %s\n", mark, option)
+		}
+		if len(decision.Blocks) != 0 {
+			fmt.Fprintf(output, "  blocks: %s\n", strings.Join(decision.Blocks, ", "))
+		}
+	}
+}
+
+// hoursPerDay turns a wait into days.
+const hoursPerDay = 24
 
 func printStatus(document plan.Plan) {
 	for _, entry := range document.Items {

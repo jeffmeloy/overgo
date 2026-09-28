@@ -4,6 +4,54 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "user-scorecard",
+      "title": "One user-facing scorecard across every model, the definition of improvement",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "scheduled",
+          "title": "Run the full scorecard on a schedule and publish it with its deltas",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestScheduledScorecardPublishesDeltas$' -count=1",
+          "rationale": "The full scorecard, every model and every cell, runs on a schedule (the machine is shared: it takes the device claim) and publishes one record with deltas against the previous run. It is the fitness the unattended loop optimizes (loop-fitness-scorecard). From the per-modality design (2026-09-27), the scheduled scorecard owns what a per-landing slice cannot afford or cannot run: tabular (tabfm, 78 s for four golden cases), vqa (RxBrain, 25 GB device load, 21 s a run, and its image read from the store it executes against), projection (no capability executor; the user path is inference with a projector, 15 GB and up), training (sessions and checkpoints), activity-detection with its first activation, every model that is not its task's smallest, and scratch seeding for latent-image profiles. 2026-09-27: per-modality-tasks, load-split and typed-predictions are retired from the landing path with the slice's simplification; the scheduled scorecard owns every modality's smallest-model run (through the catalog executor on a scratch store, as the per-modality design worked out) and any load-versus-execution split it needs. Since stop-state-out-of-store (2026-09-27) the device, webui and model-journey lanes are off the landing path: the schedule runs them, and a failure becomes a row.",
+          "depends_on": [
+            "user-scorecard/define"
+          ]
+        },
+        {
+          "id": "do",
+          "title": "Fill the scorecard: the absorbed benchmark and validation work",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestScorecardHasNoUnexplainedCell$' -count=1",
+          "rationale": "Absorbs, 2026-09-27: model-regression-baseline (full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under budgets, accepted record ids pinned), benchmark-completion (compare only cells whose checkpoint, precision, split, shots, template, scoring and extraction agree; keep the 100-case MMLU label; TestAcceptedPublishedComparison rejects omitted cells, duplicates, stale identities and failed outcomes), final-model-validation (a bounded long-lived server run: concurrency, context grow and shrink, cancellation, failure, reload, VRAM plateauing within budget), benchmark-27b (operator only, -budget 3h per launch, resuming exact remaining cases; the row reads completed evidence and never starts the pass), gemma-12b-accuracy (OWNER DECISION still open: download the unquantized google/gemma-4-12B-it? the 12B FP8 twins score 0.5-1.2 nats per token worse than E4B on the guard corpus while overgo's 12B graph matches the transformers reference, so the suspect is the third-party quant) and validate-all-models (RAE is the remaining unvalidated model, rae-generation-path). Done when every model's row has every cell measured or carrying a stated reason. Correction 2026-09-28: the lanes are not off the landing path. d836b7deb put them back, and the landing now runs eight lanes (device, webui, model-journey, audio, thoughtbank, integration, cuda, e4b) when a change reaches them. The scheduled step needs the owner's permission, since a schedule is persistent system configuration, and a check against the no-timers rule.",
+          "depends_on": [
+            "user-scorecard/scheduled",
+            "rae-generation-path/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "owner-decision-queue",
+      "title": "Make pending owner decisions typed plan data with a one-click inbox",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 319,
+        "reason": "owner decisions become typed plan data that plan -decisions lists with their wait"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make pending owner decisions typed plan data with a one-click inbox",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestDecisionInboxAnswersWithOneClick$' -count=1 -v",
+          "rationale": "Owner recommendation 2026-09-27. Decisions sit inside rationale prose (\"OWNER DECISION: ...\"): the compatibility binding waited 09-21 to 09-27, the Gemma 12B bf16 download since 09-24, and an unattended loop stalls quietly on them. A decision becomes typed plan data: the question, the options, a recommendation and the rows it blocks. plan -decisions lists them; the GUI shows them as a short inbox answered with one click; decision latency becomes visible and measured. Migrate the open ones (the 12B bf16 and RAE downloads, redundant store backups, the self-improvement cluster's cut)."
+        }
+      ]
+    },
+    {
       "id": "fp8-prefill-tensorcore",
       "title": "Prefill fp8 weights on the FP8 tensor cores instead of expanding them to f16",
       "owner": "master-lead",
@@ -30,50 +78,6 @@
           "status": "open",
           "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/compatibility ./cmd/longform -run '^(TestAcceptedCapabilityCensus|TestAcceptedE4BResourceRefresh|TestAcceptedFP8Guard|TestRetiredGuardRecords|TestAcceptedGuardCatalog)$' -count=1 -v",
           "rationale": "Split from env-gated-tests-run-or-go on 2026-09-28, once every CUDA-gated package had a lane. What remains needs the owner's call or a long evidence run.\n(1) The five accepted-evidence audits fail against the live store, run with OVERGO_STORE_ACCEPTANCE=1:\n- TestAcceptedE4BResourceRefresh: the resource evidence does not bind the current inference surface. Refresh it by running TestE4BMediaResourceRecovery with OVERGO_E4B_PUBLISH_RESOURCES=1, about 220 s.\n- TestAcceptedCapabilityCensus: snapshot 209 identities, live 220. The owner records a disposition before the denominator is replaced.\n- TestAcceptedFP8Guard, TestRetiredGuardRecords and TestAcceptedGuardCatalog: the guard evidence lacks realized residency, and the cohort is empty. That needs the long-form guard run, about 80 minutes on the GPU.\n(2) Tests that need a reference the Go-only rule cannot produce: the Fractale leadership tests (OVERGO_FRACTALE_BASELINE), Krea (OVERGO_KREA_BASELINE), Pocket TTS (OVERGO_POCKET_TTS_BASELINE) and the Qwen3.5 projector fixture (a golden of its internal activations). The owner decides whether to keep each and wait for a reference, or delete it if a running test covers it.\n(3) The full-length runs, Wan's 81-frame clip (OVERGO_WAN_FULL) and SenseNova's full generation (OVERGO_SENSENOVA_FULL): the lane budget for each once measured.\nDone when the audits pass."
-        }
-      ]
-    },
-    {
-      "id": "user-scorecard",
-      "title": "One user-facing scorecard across every model, the definition of improvement",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "scheduled",
-          "title": "Run the full scorecard on a schedule and publish it with its deltas",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestScheduledScorecardPublishesDeltas$' -count=1",
-          "rationale": "The full scorecard, every model and every cell, runs on a schedule (the machine is shared: it takes the device claim) and publishes one record with deltas against the previous run. It is the fitness the unattended loop optimizes (loop-fitness-scorecard). From the per-modality design (2026-09-27), the scheduled scorecard owns what a per-landing slice cannot afford or cannot run: tabular (tabfm, 78 s for four golden cases), vqa (RxBrain, 25 GB device load, 21 s a run, and its image read from the store it executes against), projection (no capability executor; the user path is inference with a projector, 15 GB and up), training (sessions and checkpoints), activity-detection with its first activation, every model that is not its task's smallest, and scratch seeding for latent-image profiles. 2026-09-27: per-modality-tasks, load-split and typed-predictions are retired from the landing path with the slice's simplification; the scheduled scorecard owns every modality's smallest-model run (through the catalog executor on a scratch store, as the per-modality design worked out) and any load-versus-execution split it needs. Since stop-state-out-of-store (2026-09-27) the device, webui and model-journey lanes are off the landing path: the schedule runs them, and a failure becomes a row.",
-          "depends_on": [
-            "user-scorecard/define"
-          ]
-        },
-        {
-          "id": "do",
-          "title": "Fill the scorecard: the absorbed benchmark and validation work",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestScorecardHasNoUnexplainedCell$' -count=1",
-          "rationale": "Absorbs, 2026-09-27: model-regression-baseline (full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under budgets, accepted record ids pinned), benchmark-completion (compare only cells whose checkpoint, precision, split, shots, template, scoring and extraction agree; keep the 100-case MMLU label; TestAcceptedPublishedComparison rejects omitted cells, duplicates, stale identities and failed outcomes), final-model-validation (a bounded long-lived server run: concurrency, context grow and shrink, cancellation, failure, reload, VRAM plateauing within budget), benchmark-27b (operator only, -budget 3h per launch, resuming exact remaining cases; the row reads completed evidence and never starts the pass), gemma-12b-accuracy (OWNER DECISION still open: download the unquantized google/gemma-4-12B-it? the 12B FP8 twins score 0.5-1.2 nats per token worse than E4B on the guard corpus while overgo's 12B graph matches the transformers reference, so the suspect is the third-party quant) and validate-all-models (RAE is the remaining unvalidated model, rae-generation-path). Done when every model's row has every cell measured or carrying a stated reason.",
-          "depends_on": [
-            "user-scorecard/scheduled",
-            "rae-generation-path/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "owner-decision-queue",
-      "title": "Make pending owner decisions typed plan data with a one-click inbox",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make pending owner decisions typed plan data with a one-click inbox",
-          "status": "open",
-          "verify": "go test ./cmd/plan -run '^TestDecisionsListPendingOwnerDecisions$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27. Decisions sit inside rationale prose (\"OWNER DECISION: ...\"): the compatibility binding waited 09-21 to 09-27, the Gemma 12B bf16 download since 09-24, and an unattended loop stalls quietly on them. A decision becomes typed plan data: the question, the options, a recommendation and the rows it blocks. plan -decisions lists them; the GUI shows them as a short inbox answered with one click; decision latency becomes visible and measured. Migrate the open ones (the 12B bf16 and RAE downloads, redundant store backups, the self-improvement cluster's cut)."
         }
       ]
     },
@@ -980,10 +984,94 @@
             "env-gated-tests-run-or-go/cuda-rest",
             "env-gated-tests-run-or-go/e4b",
             "refresh-accepted-evidence/do",
-            "loop-closure-machinery/do"
+            "loop-closure-machinery/do",
+            "owner-decision-queue/records"
           ]
         }
       ]
+    }
+  ],
+  "decisions": [
+    {
+      "id": "gemma-12b-bf16-download",
+      "question": "Download the unquantized google/gemma-4-12B-it? The 12B FP8 twins score 0.5-1.2 nats per token worse than E4B on the guard corpus while overgo's 12B graph matches the transformers reference, so the third-party quant is the suspect.",
+      "options": [
+        "Download it",
+        "Keep only the FP8 twins and record the gap"
+      ],
+      "recommendation": "Download it",
+      "blocks": [
+        "user-scorecard"
+      ],
+      "asked": "2026-09-24"
+    },
+    {
+      "id": "rae-downloads",
+      "question": "Fetch RAE's reference code (github.com/bytetriper/RAE) and its encoder checkpoints? models/RAE-collections holds the decoders, DiTs and latent statistics but neither of those.",
+      "options": [
+        "Fetch both",
+        "Leave RAE unvalidated"
+      ],
+      "recommendation": "Fetch both",
+      "blocks": [
+        "rae-generation-path"
+      ],
+      "asked": "2026-09-23"
+    },
+    {
+      "id": "fp8-prefill-approach",
+      "question": "Close fp8 prefill's 21% gap to bf16 (3,036 against 3,837 prompt tok/s on the 12B) how? An FP8-by-FP8 GEMM quantizes activations to e4m3, a numerics change that needs held-out evaluation; a kernel that expands e4m3 to f16 in registers keeps today's numbers but is custom tensor-core work.",
+      "options": [
+        "Fused kernel, numbers unchanged",
+        "FP8-by-FP8 GEMM, then held-out evaluation",
+        "Leave the gap"
+      ],
+      "recommendation": "Fused kernel, numbers unchanged",
+      "blocks": [
+        "fp8-prefill-tensorcore"
+      ],
+      "asked": "2026-09-28"
+    },
+    {
+      "id": "capability-census-disposition",
+      "question": "The capability census changed from 209 recorded identities to 220 live ones. Record a disposition that accepts the live census as the new denominator?",
+      "options": [
+        "Review the 11 new identities, then accept",
+        "Accept the live census as it stands"
+      ],
+      "recommendation": "Review the 11 new identities, then accept",
+      "blocks": [
+        "refresh-accepted-evidence"
+      ],
+      "asked": "2026-09-28"
+    },
+    {
+      "id": "reference-dependent-tests",
+      "question": "Four test groups need references only the Python originals produce: the Fractale leadership tests, Krea, Pocket TTS and the Qwen3.5 projector fixture. What happens to them?",
+      "options": [
+        "Delete those a running test covers, keep the rest waiting",
+        "Allow one Python run to produce the references",
+        "Keep all waiting"
+      ],
+      "recommendation": "Delete those a running test covers, keep the rest waiting",
+      "blocks": [
+        "refresh-accepted-evidence"
+      ],
+      "asked": "2026-09-28"
+    },
+    {
+      "id": "scorecard-schedule",
+      "question": "How does the full scorecard run? A scheduled task is persistent system configuration and sits against the no-timers rule.",
+      "options": [
+        "When the plan empties, from the loop",
+        "A scheduled task",
+        "By hand"
+      ],
+      "recommendation": "When the plan empties, from the loop",
+      "blocks": [
+        "user-scorecard"
+      ],
+      "asked": "2026-09-28"
     }
   ]
 }

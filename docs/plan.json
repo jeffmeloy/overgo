@@ -100,21 +100,6 @@
       ]
     },
     {
-      "id": "architecture-names-out-of-serving",
-      "title": "Replace the serving code that architecture names select with profile declarations",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Replace the serving code that architecture names select with profile declarations",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestServingCodeNamesNoArchitecture$' -count=1",
-          "rationale": "Measured by validate -scorecard at declaration-alone-share: 3 of 11 served models are supported by declaration alone (the gemma4 ones). The others' architecture names select serving-surface code: llama in internal/densecausal/load_gguf.go and internal/hfgguf/catalog.go and qwen35.go; qwen2 in internal/hfgguf/catalog.go and qwen35.go; qwen35 in internal/hfgguf/qwen35.go; deepseek2-ocr in internal/hfgguf/deepseekocr.go. Read each site first: what the name selects (a metadata default, a tensor layout, a conversion rule) and whether internal/model/architecture_profiles.json can declare it. Move what it can into the profile, delete the name comparison, and hold the result with a test that no serving-surface literal outside the tokenizer equals a declared architecture name. The owner doctrine is no model-specific code; each site removed is a family a new model of that architecture no longer needs code for."
-        }
-      ]
-    },
-    {
       "id": "automation-command-route-tables",
       "title": "Fold per-modality commands into route tables",
       "class": "consolidation",

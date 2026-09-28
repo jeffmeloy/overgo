@@ -109,10 +109,8 @@ func ValidateInfo(info gguf.TensorInfo, requirement Requirement) error {
 		return fmt.Errorf("tensor %q rank %d, want one of %v", info.Name, info.Dimensions, requirement.Ranks)
 	}
 	if requirement.NonEmpty {
-		for _, extent := range shape {
-			if extent == 0 {
-				return fmt.Errorf("tensor %q shape %v is empty", info.Name, shape)
-			}
+		if slices.Contains(shape, 0) {
+			return fmt.Errorf("tensor %q shape %v is empty", info.Name, shape)
 		}
 	}
 	if len(requirement.Shapes) > 0 {

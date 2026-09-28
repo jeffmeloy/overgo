@@ -3,15 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"go/scanner"
-	"go/token"
 	"io"
 	"maps"
-	"os"
-	"path"
-	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -56,7 +50,7 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, root string, out
 		if err != nil {
 			return err
 		}
-		named, err := servingNames(packages)
+		named, err := inferencesurface.ServingNames(packages)
 		if err != nil {
 			return err
 		}
@@ -89,45 +83,6 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, root string, out
 	return err
 }
 
-// tokenizerPackage keys on a model's declared tokenizer type and
-// pre-tokenizer, whose names can coincide with an architecture's ("llama"
-// names SentencePiece there): they select a vocabulary, not the architecture.
-const tokenizerPackage = "/internal/tokenizer"
-
-// servingNames maps each string literal in the serving packages' non-test Go
-// files, outside the tokenizer, to the files that hold it: an architecture
-// whose name is among them has serving code selected by that name.
-func servingNames(packages []inferencesurface.Package) (map[string][]string, error) {
-	named := map[string][]string{}
-	for _, pkg := range packages {
-		if strings.HasSuffix(pkg.ImportPath, tokenizerPackage) {
-			continue
-		}
-		files, err := filepath.Glob(filepath.Join(pkg.Dir, "*.go"))
-		if err != nil {
-			return nil, err
-		}
-		for _, file := range files {
-			if strings.HasSuffix(file, "_test.go") {
-				continue
-			}
-			source, err := os.ReadFile(file)
-			if err != nil {
-				return nil, err
-			}
-			var scan scanner.Scanner
-			scan.Init(token.NewFileSet().AddFile(file, -1, len(source)), source, nil, 0)
-			name := path.Join(pkg.ImportPath, filepath.Base(file))
-			for _, kind, literal := scan.Scan(); kind != token.EOF; _, kind, literal = scan.Scan() {
-				if value, err := strconv.Unquote(literal); kind == token.STRING && err == nil && !slices.Contains(named[value], name) {
-					named[value] = append(named[value], name)
-				}
-			}
-		}
-	}
-	return named, nil
-}
-
 // declarationShare states how many served models a declaration alone
 // supports: of the models whose activated recipe declares an architecture,
 // those whose architecture name selects no serving code. Each architecture
@@ -149,7 +104,11 @@ func declarationShare(rows []scorecard.Row, named map[string][]string) string {
 		models[row.Architecture] = append(models[row.Architecture], row.Name)
 	}
 	var text strings.Builder
-	text.WriteString(fmt.Sprintf("Supported by declaration alone: %d of %d served models; the architecture of each other selects serving code by name:\n", alone, len(served)))
+	fmt.Fprintf(&text, "Supported by declaration alone: %d of %d served models", alone, len(served))
+	if len(models) == 0 {
+		return text.String() + ".\n"
+	}
+	text.WriteString("; the architecture of each other selects serving code by name:\n")
 	for _, architecture := range slices.Sorted(maps.Keys(models)) {
 		text.WriteString(fmt.Sprintf("- %s (%s): %s\n", architecture, strings.Join(models[architecture], ", "), strings.Join(named[architecture], ", ")))
 	}

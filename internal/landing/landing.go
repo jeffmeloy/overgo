@@ -12,10 +12,13 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -23,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
@@ -55,6 +59,8 @@ type landing struct {
 	trailers []string
 	// budget is the growth the landed row declared in the plan.
 	budget plan.Budget
+	// digests are the ship set's bytes as the checks validated them.
+	digests map[string]string
 }
 
 // Run lands the row and returns the commit. Every check runs over the dirty
@@ -193,7 +199,27 @@ func (l *landing) shipSet(ctx context.Context) error {
 		}
 	}
 	l.entries = entries
-	return nil
+	l.digests, err = shipDigests(l.Repo, l.paths)
+	return err
+}
+
+// shipDigests is each ship-set path's content digest, empty for a path the
+// tree no longer holds: the bytes the checks validate, which the commit
+// must still find.
+func shipDigests(repo string, paths []string) (map[string]string, error) {
+	digests := map[string]string{}
+	for _, name := range paths {
+		data, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(name)))
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			digests[name] = ""
+		case err != nil:
+			return nil, err
+		default:
+			digests[name] = fmt.Sprintf("%x", sha256.Sum256(data))
+		}
+	}
+	return digests, nil
 }
 
 func dirtyTree(ctx context.Context, repo string) ([]repoanalysis.DirtyPath, error) {
@@ -330,10 +356,19 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if !sameTree(now, l.entries) {
+	digests, err := shipDigests(l.Repo, l.paths)
+	if err != nil {
+		return "", err
+	}
+	if !sameTree(now, l.entries) || !maps.Equal(digests, l.digests) {
 		return "", errors.New("land: the tree changed during the landing; land again once it is settled")
 	}
-	document, err := plan.Load(filepath.Join(l.Repo, plan.Path))
+	planPath := filepath.Join(l.Repo, plan.Path)
+	original, err := os.ReadFile(planPath)
+	if err != nil {
+		return "", err
+	}
+	document, err := plan.Load(planPath)
 	if err != nil {
 		return "", err
 	}
@@ -341,9 +376,17 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := plan.Save(filepath.Join(l.Repo, plan.Path), advanced); err != nil {
+	if err := plan.Save(planPath, advanced); err != nil {
 		return "", err
 	}
+	// A commit that does not happen gives the row back: the plan returns to
+	// the bytes it held, so the row can land again.
+	committed := false
+	defer func() {
+		if !committed {
+			_ = os.WriteFile(planPath, original, clioptions.PrivateFileMode)
+		}
+	}()
 	file, err := os.CreateTemp("", "overgo-landing-*.txt")
 	if err != nil {
 		return "", err
@@ -362,6 +405,7 @@ func (l *landing) commit(ctx context.Context) (string, error) {
 	if _, err := l.git(ctx, "commit", "-q", "-F", file.Name()); err != nil {
 		return "", err
 	}
+	committed = true
 	landed, err := gitauthority.Query(ctx, l.Repo, "rev-parse", "HEAD")
 	return strings.TrimSpace(string(landed)), err
 }

@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "landing-binds-candidate-bytes",
-      "title": "Commit exactly the bytes the gate validated, and recover the row after a failed commit",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Commit exactly the bytes the gate validated, and recover the row after a failed commit",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingCommitsTheBytesItValidated$' -count=1",
-          "rationale": "SQA-034 (P1, open): the landing validates the dirty tree and then commits whatever the tree holds at commit time, and a commit that fails after the plan advance can lose the row. Bind validation and the row verifier to the exact prepared candidate bytes, and make the plan advance recoverable against the expected parent. Keep the post-fix ship-set re-read (ee13bdab2). Reuse the existing git and process owners and small landing fixtures; no ledger, no authority service."
-        }
-      ]
-    },
-    {
       "id": "rules-by-enforcement-level",
       "title": "Move every rule to its cheapest deterministic level and keep the list short",
       "class": "consolidation",

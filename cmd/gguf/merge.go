@@ -1,5 +1,3 @@
-//overgo:runtime-inputs caller
-
 package main
 
 import (
@@ -13,17 +11,16 @@ import (
 	"overgo/internal/gguf"
 )
 
-func main() {
-	output := flag.String("out", "", "new single-file GGUF output path")
-	flag.Parse()
-	if flag.NArg() != 1 || *output == "" {
-		fmt.Fprintln(os.Stderr, "usage: gguf-merge -out output.gguf input.gguf")
-		os.Exit(2)
+// mergeCommand is gguf merge: it merges split GGUF shards into one file.
+func mergeCommand(flags *flag.FlagSet, args []string) error {
+	output := flags.String("out", "", "new single-file GGUF output path")
+	if err := flags.Parse(args); err != nil {
+		return err
 	}
-	if err := merge(flag.Arg(0), *output); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	if flags.NArg() != 1 || *output == "" {
+		return fmt.Errorf("usage: %s -out output.gguf input.gguf", flags.Name())
 	}
+	return merge(flags.Arg(0), *output)
 }
 
 func merge(inputPath, outputPath string) error {
@@ -36,11 +33,11 @@ func merge(inputPath, outputPath string) error {
 		return err
 	}
 	if strings.EqualFold(filepath.Clean(inputAbsolute), filepath.Clean(outputAbsolute)) {
-		return errors.New("gguf-merge: input and output paths are identical")
+		return errors.New("gguf merge:input and output paths are identical")
 	}
 	source, err := gguf.Open(inputAbsolute)
 	if err != nil {
-		return fmt.Errorf("gguf-merge: open input: %w", err)
+		return fmt.Errorf("gguf merge:open input: %w", err)
 	}
 	defer source.Close()
 
@@ -50,7 +47,7 @@ func merge(inputPath, outputPath string) error {
 		0o644,
 	)
 	if err != nil {
-		return fmt.Errorf("gguf-merge: create output: %w", err)
+		return fmt.Errorf("gguf merge:create output: %w", err)
 	}
 	succeeded := false
 	defer func() {
@@ -60,13 +57,13 @@ func merge(inputPath, outputPath string) error {
 		}
 	}()
 	if err := source.WriteTo(destination, gguf.WriteOptions{}); err != nil {
-		return fmt.Errorf("gguf-merge: write output: %w", err)
+		return fmt.Errorf("gguf merge:write output: %w", err)
 	}
 	if err := destination.Sync(); err != nil {
-		return fmt.Errorf("gguf-merge: sync output: %w", err)
+		return fmt.Errorf("gguf merge:sync output: %w", err)
 	}
 	if err := destination.Close(); err != nil {
-		return fmt.Errorf("gguf-merge: close output: %w", err)
+		return fmt.Errorf("gguf merge:close output: %w", err)
 	}
 	succeeded = true
 	return nil

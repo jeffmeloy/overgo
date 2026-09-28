@@ -36,22 +36,26 @@ type manifestData struct {
 	algorithms map[string]bool
 }
 
-func main() {
+// hashCommand is gguf hash: it hashes a GGUF file's tensors the way
+// llama-gguf-hash does, or checks them against a manifest, exiting with
+// llama.cpp's codes for a manifest that disagrees.
+func hashCommand(flags *flag.FlagSet, args []string) error {
 	var params parameters
-	all := flag.Bool("all", false, "use xxh64, sha1, and sha256")
-	flag.BoolVar(&params.xxh64, "xxh64", false, "use xxh64")
-	flag.BoolVar(&params.sha1, "sha1", false, "use sha1")
-	flag.BoolVar(&params.sha256, "sha256", false, "use sha256")
-	flag.BoolVar(&params.uuid, "uuid", false, "generate llama.cpp UUIDv5")
-	flag.BoolVar(&params.noLayer, "no-layer", false, "exclude per-tensor hashes")
-	flag.StringVar(&params.manifest, "check", "", "verify against a manifest")
-	flag.StringVar(&params.manifest, "c", "", "verify against a manifest")
-	flag.Parse()
-	if flag.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "usage: gguf-hash [options] input.gguf")
-		os.Exit(2)
+	all := flags.Bool("all", false, "use xxh64, sha1, and sha256")
+	flags.BoolVar(&params.xxh64, "xxh64", false, "use xxh64")
+	flags.BoolVar(&params.sha1, "sha1", false, "use sha1")
+	flags.BoolVar(&params.sha256, "sha256", false, "use sha256")
+	flags.BoolVar(&params.uuid, "uuid", false, "generate llama.cpp UUIDv5")
+	flags.BoolVar(&params.noLayer, "no-layer", false, "exclude per-tensor hashes")
+	flags.StringVar(&params.manifest, "check", "", "verify against a manifest")
+	flags.StringVar(&params.manifest, "c", "", "verify against a manifest")
+	if err := flags.Parse(args); err != nil {
+		return err
 	}
-	params.input = flag.Arg(0)
+	if flags.NArg() != 1 {
+		return fmt.Errorf("usage: %s [options] input.gguf", flags.Name())
+	}
+	params.input = flags.Arg(0)
 	if *all {
 		params.xxh64 = true
 		params.sha1 = true
@@ -64,6 +68,7 @@ func main() {
 	if code != 0 {
 		os.Exit(code)
 	}
+	return nil
 }
 
 func execute(params parameters, output io.Writer) (int, error) {
@@ -76,7 +81,7 @@ func execute(params parameters, output io.Writer) (int, error) {
 		}
 		if len(manifest.algorithms) == 0 {
 			return exitManifestUnknownHash, fmt.Errorf(
-				"gguf-hash: manifest %q has no known hash format",
+				"gguf hash:manifest %q has no known hash format",
 				params.manifest,
 			)
 		}
@@ -106,7 +111,7 @@ func execute(params parameters, output io.Writer) (int, error) {
 
 	file, err := gguf.Open(params.input)
 	if err != nil {
-		return exitFailure, fmt.Errorf("gguf-hash: open input: %w", err)
+		return exitFailure, fmt.Errorf("gguf hash:open input: %w", err)
 	}
 	defer file.Close()
 	result, err := file.Hash(gguf.HashOptions{
@@ -117,7 +122,7 @@ func execute(params parameters, output io.Writer) (int, error) {
 		PerTensor: !params.noLayer,
 	})
 	if err != nil {
-		return exitFailure, fmt.Errorf("gguf-hash: %w", err)
+		return exitFailure, fmt.Errorf("gguf hash:%w", err)
 	}
 
 	verification := verificationState{}
@@ -230,7 +235,7 @@ func (v verificationState) exitCode() int {
 func readManifest(path string) (manifestData, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return manifestData{}, fmt.Errorf("gguf-hash: open manifest: %w", err)
+		return manifestData{}, fmt.Errorf("gguf hash:open manifest: %w", err)
 	}
 	defer file.Close()
 	result := manifestData{

@@ -14,46 +14,42 @@ import (
 	"overgo/internal/gguf"
 )
 
-func main() {
-	outputPrefix := flag.String("out-prefix", "", "output path prefix")
-	maxTensors := flag.Int("max-tensors", 128, "maximum tensors per shard")
-	maxSize := flag.String("max-size", "", "target tensor bytes per shard (K, M, or G suffix)")
-	noTensorFirst := flag.Bool(
+// splitCommand is gguf split: it splits a GGUF file into shards of a target
+// size or tensor count.
+func splitCommand(flags *flag.FlagSet, args []string) error {
+	outputPrefix := flags.String("out-prefix", "", "output path prefix")
+	maxTensors := flags.Int("max-tensors", 128, "maximum tensors per shard")
+	maxSize := flags.String("max-size", "", "target tensor bytes per shard (K, M, or G suffix)")
+	noTensorFirst := flags.Bool(
 		"no-tensor-first-split",
 		false,
 		"write metadata-only first shard",
 	)
-	flag.Parse()
-	if flag.NArg() != 1 || *outputPrefix == "" {
-		fmt.Fprintln(
-			os.Stderr,
-			"usage: gguf-split -out-prefix prefix [-max-tensors 128] [-max-size 4G] input.gguf",
-		)
-		os.Exit(2)
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 1 || *outputPrefix == "" {
+		return fmt.Errorf("usage: %s -out-prefix prefix [-max-tensors 128] [-max-size 4G] input.gguf", flags.Name())
 	}
 	bytes, err := parseSize(*maxSize)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
+		return err
 	}
-	if err := split(
-		flag.Arg(0),
+	return split(
+		flags.Arg(0),
 		*outputPrefix,
 		gguf.SplitOptions{
 			MaxTensors:           *maxTensors,
 			MaxBytes:             bytes,
 			NoTensorsInFirstFile: *noTensorFirst,
 		},
-	); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	)
 }
 
 func split(inputPath, outputPrefix string, options gguf.SplitOptions) error {
 	source, err := gguf.Open(inputPath)
 	if err != nil {
-		return fmt.Errorf("gguf-split: open input: %w", err)
+		return fmt.Errorf("gguf split:open input: %w", err)
 	}
 	defer source.Close()
 
@@ -89,7 +85,7 @@ func split(inputPath, outputPrefix string, options gguf.SplitOptions) error {
 		options,
 	)
 	if err != nil {
-		return fmt.Errorf("gguf-split: %w", err)
+		return fmt.Errorf("gguf split:%w", err)
 	}
 	succeeded = true
 	return nil
@@ -124,10 +120,10 @@ func parseSize(value string) (uint64, error) {
 	value = strings.TrimSpace(value)
 	number, err := strconv.ParseUint(value, binaryschema.DecimalRadix, binaryschema.Width64Bits)
 	if err != nil || number == 0 {
-		return 0, fmt.Errorf("gguf-split: invalid max size %q", original)
+		return 0, fmt.Errorf("gguf split:invalid max size %q", original)
 	}
 	if number > math.MaxUint64/multiplier {
-		return 0, errors.New("gguf-split: max size overflows uint64")
+		return 0, errors.New("gguf split:max size overflows uint64")
 	}
 	return number * multiplier, nil
 }

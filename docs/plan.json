@@ -105,12 +105,34 @@
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 121,
+        "reason": "one subcommand dispatcher replaces the folded commands' entry points"
+      },
       "steps": [
+        {
+          "id": "fold-gguf-converters",
+          "title": "Fold inspect-safetensors, hf-gguf-convert and gemma4-gguf-convert into cmd/gguf subcommands",
+          "status": "open",
+          "verify": "go test ./cmd/gguf -run '^TestGGUFSubcommandsReplaceTheirCommands$/^(safetensors|convert|convert-gemma4)$' -count=1 -v"
+        },
+        {
+          "id": "fold-store-tools",
+          "title": "Fold the overgodb and store tools into cmd/overgodb subcommands",
+          "status": "open",
+          "verify": "go test ./cmd/overgodb -run '^TestOvergoDBSubcommandsReplaceTheirCommands$' -count=1 -v"
+        },
+        {
+          "id": "fold-parity-tools",
+          "title": "Fold audio-oracle, sensenovaparity and vqaparity into validate -parity",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestParitySubcommandsReplaceTheirCommands$' -count=1 -v"
+        },
         {
           "id": "do",
           "title": "Fold the model-file, store and parity commands into subcommand tables",
           "status": "open",
-          "verify": "go test ./cmd/gguf -run '^TestGGUFSubcommandsReplaceTheirCommands$' -count=1 -v",
+          "verify": "go test ./cmd/gguf ./cmd/overgodb ./cmd/validate -run '^Test(GGUF|OvergoDB|Parity)SubcommandsReplaceTheirCommands$' -count=1 -v",
           "rationale": "Split from automation-command-route-tables when its training-probe half completed (the eight probes are cmd/train routes; 85 commands remain at b889bd746). The same row named three more families to fold, smallest proof first: the model-file tools into cmd/gguf subcommands (gguf-hash, gguf-merge, gguf-quantize, gguf-split, inspect-gguf, inspect-safetensors, hf-gguf-convert, gemma4-gguf-convert, audio-inspect), the store tools into cmd/overgodb subcommands (overgodb-backup, -import, -query, -rebuild, -repair, store-check, store-precheck), and the parity tools into cmd/validate -parity (audio-oracle, sensenovaparity, vqaparity). Split into one step per family when dispatched. Traps the probe folds found: move files with git mv so the gate's rules compare a moved file against its old content (literals and growth); check docs/*.json for pinned paths first (docs/media_reviewed_deltas.json, lifecycle, validation, coverage records, compatibility.json evidence) and reconcile a pinned move with a reviewed delta; keep verification receipts and stimulus files byte-identical; edit JSON through a decode/re-encode program; each command removed regenerates docs/api_manifest.json, which reruns cmd/compatibility until compatibility-cache-inputs lands."
         }
       ]
@@ -967,7 +989,11 @@
             "automation-command-route-tables/fold-seriesforecast",
             "automation-command-route-tables/fold-flow-organ",
             "compatibility-cache-inputs/do",
-            "command-subcommand-tables/do"
+            "command-subcommand-tables/do",
+            "command-subcommand-tables/fold-gguf-tools",
+            "command-subcommand-tables/fold-gguf-converters",
+            "command-subcommand-tables/fold-store-tools",
+            "command-subcommand-tables/fold-parity-tools"
           ]
         }
       ]

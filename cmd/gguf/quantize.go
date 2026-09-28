@@ -1,5 +1,3 @@
-//overgo:runtime-inputs caller
-
 package main
 
 import (
@@ -15,30 +13,28 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-func main() {
-	all := flag.Bool(
+// quantizeCommand is gguf quantize: it quantizes a GGUF model to a target
+// type, optionally guided by an importance matrix.
+func quantizeCommand(flags *flag.FlagSet, args []string) error {
+	all := flags.Bool(
 		"all",
 		false,
 		"convert eligible one-dimensional tensors as well as matrices",
 	)
-	imatrixPath := flag.String("imatrix", "", "pinned GGUF or legacy importance matrix")
-	flag.Parse()
-	if flag.NArg() != 3 {
-		fmt.Fprintln(
-			os.Stderr,
-			"usage: gguf-quantize [-all] [-imatrix file] input.gguf output.gguf type",
-		)
-		os.Exit(2)
+	imatrixPath := flags.String("imatrix", "", "pinned GGUF or legacy importance matrix")
+	if err := flags.Parse(args); err != nil {
+		return err
 	}
-	target, err := parseQuantizationType(flag.Arg(2))
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
+	if flags.NArg() != 3 {
+		return fmt.Errorf("usage: %s [-all] [-imatrix file] input.gguf output.gguf type", flags.Name())
 	}
-	report, err := quantizeModel(flag.Arg(0), flag.Arg(1), target, *all, *imatrixPath)
+	target, err := parseQuantizationType(flags.Arg(2))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
+	}
+	report, err := quantizeModel(flags.Arg(0), flags.Arg(1), target, *all, *imatrixPath)
+	if err != nil {
+		return err
 	}
 	fmt.Printf(
 		"converted %d tensors, preserved %d; tensor bytes %d -> %d\n",
@@ -47,6 +43,7 @@ func main() {
 		report.InputBytes,
 		report.OutputBytes,
 	)
+	return nil
 }
 
 func quantizeModel(
@@ -65,13 +62,13 @@ func quantizeModel(
 	}
 	if strings.EqualFold(filepath.Clean(inputAbsolute), filepath.Clean(outputAbsolute)) {
 		return gguf.QuantizeReport{}, errors.New(
-			"gguf-quantize: input and output paths are identical",
+			"gguf quantize:input and output paths are identical",
 		)
 	}
 	source, err := gguf.Open(inputAbsolute)
 	if err != nil {
 		return gguf.QuantizeReport{}, fmt.Errorf(
-			"gguf-quantize: open input: %w",
+			"gguf quantize:open input: %w",
 			err,
 		)
 	}
@@ -79,15 +76,15 @@ func quantizeModel(
 	options := gguf.QuantizeOptions{}
 	imatrixPath = strings.TrimSpace(imatrixPath)
 	if quant.RequiresImportance(target) && imatrixPath == "" {
-		return gguf.QuantizeReport{}, fmt.Errorf("gguf-quantize: %s requires -imatrix", target)
+		return gguf.QuantizeReport{}, fmt.Errorf("gguf quantize:%s requires -imatrix", target)
 	}
 	if imatrixPath != "" && !quant.RequiresImportance(target) {
-		return gguf.QuantizeReport{}, fmt.Errorf("gguf-quantize: -imatrix is unsupported for %s", target)
+		return gguf.QuantizeReport{}, fmt.Errorf("gguf quantize:-imatrix is unsupported for %s", target)
 	}
 	if imatrixPath != "" {
 		matrix, loadErr := gguf.LoadImportanceMatrix(imatrixPath)
 		if loadErr != nil {
-			return gguf.QuantizeReport{}, fmt.Errorf("gguf-quantize: load imatrix: %w", loadErr)
+			return gguf.QuantizeReport{}, fmt.Errorf("gguf quantize:load imatrix: %w", loadErr)
 		}
 		options.Importance = matrix.Entries
 		options.ImportanceFile = imatrixPath
@@ -105,7 +102,7 @@ func quantizeModel(
 	)
 	if err != nil {
 		return gguf.QuantizeReport{}, fmt.Errorf(
-			"gguf-quantize: create output: %w",
+			"gguf quantize:create output: %w",
 			err,
 		)
 	}
@@ -118,13 +115,13 @@ func quantizeModel(
 	}()
 	report, err := source.QuantizeTo(destination, target, options)
 	if err != nil {
-		return report, fmt.Errorf("gguf-quantize: write output: %w", err)
+		return report, fmt.Errorf("gguf quantize:write output: %w", err)
 	}
 	if err := destination.Sync(); err != nil {
-		return report, fmt.Errorf("gguf-quantize: sync output: %w", err)
+		return report, fmt.Errorf("gguf quantize:sync output: %w", err)
 	}
 	if err := destination.Close(); err != nil {
-		return report, fmt.Errorf("gguf-quantize: close output: %w", err)
+		return report, fmt.Errorf("gguf quantize:close output: %w", err)
 	}
 	succeeded = true
 	return report, nil
@@ -148,7 +145,7 @@ func parseQuantizationType(value string) (dtype.Type, error) {
 		return dataType, nil
 	}
 	return 0, fmt.Errorf(
-		"gguf-quantize: unsupported type %q (use %s)",
+		"gguf quantize:unsupported type %q (use %s)",
 		value, strings.Join(quant.TypeNames(), ", "),
 	)
 }

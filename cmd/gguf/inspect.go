@@ -1,8 +1,8 @@
 package main
 
 import (
-	"errors"
 	"flag"
+	"fmt"
 	"os"
 
 	"overgo/internal/clioptions"
@@ -115,8 +115,9 @@ func buildReport(path string, file *gguf.File, includeMetadata, includeTensors, 
 	return result
 }
 
-func run(arguments []string) error {
-	flags := flag.NewFlagSet("inspect-gguf", flag.ContinueOnError)
+// inspectCommand is gguf inspect: it reports a GGUF file's metadata, tensors
+// and organ classification as JSON.
+func inspectCommand(flags *flag.FlagSet, arguments []string) error {
 	includeMetadata := flags.Bool("metadata", true, "include metadata keys and scalar values")
 	includeTensors := flags.Bool("tensors", false, "include every tensor descriptor")
 	includeOrgans := flags.Bool("organs", false, "classify each tensor into the eight-axis organ contract (implies per-tensor output with -tensors)")
@@ -125,7 +126,7 @@ func run(arguments []string) error {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: inspect-gguf [options] <model.gguf>")
+		return fmt.Errorf("usage: %s [options] <model.gguf>", flags.Name())
 	}
 	path := flags.Arg(0)
 	file, err := gguf.Open(path)
@@ -135,8 +136,4 @@ func run(arguments []string) error {
 	defer file.Close()
 
 	return clioptions.WritePrettyJSON(os.Stdout, buildReport(path, file, *includeMetadata, *includeTensors || *includeOrgans, *includeOrgans, *maxString))
-}
-
-func main() {
-	clioptions.MainNamed("inspect-gguf", func() error { return run(os.Args[1:]) })
 }

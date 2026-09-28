@@ -1103,7 +1103,8 @@
             "landing-hermetic-tests/do",
             "stop-state-out-of-store/do",
             "landing-growth-ratchet/do",
-            "landing-wall-budget/do"
+            "landing-wall-budget/do",
+            "lanes-in-gate/do"
           ]
         }
       ]

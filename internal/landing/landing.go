@@ -1,7 +1,7 @@
 // Package landing lands one plan row through the small gate. The dirty tree
 // is formatted, modernized by go fix, vetted and tested -- go test's own
-// cache decides what runs again -- a few rules compare the changed files
-// with HEAD, the row's own check passes, and
+// cache decides what runs again -- the lanes the change reaches run, a few
+// rules compare the changed files with HEAD, the row's own check passes, and
 // a change that reaches the benchmark runs the scorecard's slices, one per
 // task, beside HEAD's benchmark when the message predicts a timed metric;
 // then the tree is committed with the row's step removed from the plan. Git
@@ -97,6 +97,7 @@ func Run(ctx context.Context, options Options) (string, error) {
 		{"vet", l.vet},
 		{"rules", l.rules},
 		{"test", l.test},
+		{"lanes", l.lanes},
 		{"verify", func(ctx context.Context) error { return l.verify(ctx, verify) }},
 		{"scorecard", l.scorecard},
 	}

@@ -78,6 +78,14 @@ var lanes = []lane{
 		environment: []string{"OVERGO_CUDA_TEST=1"},
 	},
 	{
+		// E4B served over every HTTP route with text, image and audio input.
+		// The package's resource-recovery proof (about 220 s) is an
+		// evidence producer, run when its evidence is refreshed.
+		name: "e4b", packages: []string{"./internal/server"},
+		command:     func(string) []string { return []string{"test", "./internal/server", "-run", "^TestE4BHTTPModalities$"} },
+		environment: []string{"OVERGO_CUDA_TEST=1"},
+	},
+	{
 		// The CUDA suites the device lane's fixture-free scopes leave out:
 		// the real-model inference and dense-causal checks, image and video
 		// generation, media capability, the trainers, the scratch and routed

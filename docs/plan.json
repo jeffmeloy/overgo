@@ -8,6 +8,10 @@
       "title": "Run or delete tests no lane enables",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 36,
+        "reason": "an e4b lane runs E4B's HTTP modalities test"
+      },
       "steps": [
         {
           "id": "do",
@@ -993,7 +997,8 @@
             "env-gated-tests-run-or-go/wan",
             "env-gated-tests-run-or-go/integration",
             "env-gated-tests-run-or-go/cuda",
-            "env-gated-tests-run-or-go/cuda-rest"
+            "env-gated-tests-run-or-go/cuda-rest",
+            "env-gated-tests-run-or-go/e4b"
           ]
         }
       ]

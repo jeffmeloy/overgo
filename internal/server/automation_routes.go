@@ -15,7 +15,7 @@ type automationActivationRequest struct {
 
 // The automation routes: each serves one path of the route table over the automation workspace (automationRoute).
 
-func (h *Handler) automationInventory(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+func (h *Handler) automationInventory(workspace automationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
 	inventory, err := workspace.AutomationInventory(request.Context())
 	if err != nil {
 		writeGenerationError(response, err)
@@ -24,8 +24,8 @@ func (h *Handler) automationInventory(workspace AutomationWorkspaceAPI, response
 	writeJSON(response, http.StatusOK, inventory)
 }
 
-func (h *Handler) automationDefine(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
-	var body AutomationDefinitionInput
+func (h *Handler) automationDefine(workspace automationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+	var body automationDefinitionInput
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
@@ -36,7 +36,7 @@ func (h *Handler) automationDefine(workspace AutomationWorkspaceAPI, response ht
 	}{ID: definition.ID, Definition: definition}, err)
 }
 
-func (h *Handler) automationActivate(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+func (h *Handler) automationActivate(workspace automationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
 	var body automationActivationRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
@@ -45,8 +45,8 @@ func (h *Handler) automationActivate(workspace AutomationWorkspaceAPI, response 
 	writeAutomationResult(response, http.StatusOK, active, err)
 }
 
-func (h *Handler) automationRun(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
-	var body AutomationExecutionInput
+func (h *Handler) automationRun(workspace automationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+	var body automationExecutionInput
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
@@ -54,8 +54,8 @@ func (h *Handler) automationRun(workspace AutomationWorkspaceAPI, response http.
 	writeAutomationResult(response, http.StatusAccepted, execution, err)
 }
 
-func (h *Handler) automationSchedule(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
-	var body AutomationExecutionInput
+func (h *Handler) automationSchedule(workspace automationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+	var body automationExecutionInput
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
@@ -66,7 +66,7 @@ func (h *Handler) automationSchedule(workspace AutomationWorkspaceAPI, response 
 	}{Execution: execution, Fired: fired}, err)
 }
 
-func (h *Handler) automationHistory(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+func (h *Handler) automationHistory(workspace automationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
 	history, err := workspace.AutomationHistory(request.Context())
 	writeAutomationResult(response, http.StatusOK, history, err)
 }

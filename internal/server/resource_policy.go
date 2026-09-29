@@ -13,20 +13,20 @@ import (
 	"overgo/internal/media"
 )
 
-type ResponseFile struct {
+type responseFile struct {
 	Data      []byte
 	Filename  string
 	MediaType string
 }
 
-type ResponseFileResolver interface {
-	ResolveResponseFile(string) (ResponseFile, bool)
+type responseFileResolver interface {
+	ResolveResponseFile(string) (responseFile, bool)
 }
 
 type ResponseFilePolicy struct {
 	Schema        int                        `json:"schema"`
 	ResponseFiles responseFilePolicySettings `json:"response_files"`
-	files         map[string]ResponseFile
+	files         map[string]responseFile
 }
 
 type responseFilePolicySettings struct {
@@ -55,7 +55,7 @@ func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 		if len(policy.ResponseFiles.Files) != 0 || len(policy.ResponseFiles.AllowedRoots) != 0 {
 			return nil, errors.New("disabled response resource policy must not declare roots or files")
 		}
-		policy.files = map[string]ResponseFile{}
+		policy.files = map[string]responseFile{}
 		return &policy, nil
 	}
 	if policy.ResponseFiles.MaxFileBytes <= 0 {
@@ -76,7 +76,7 @@ func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 	if len(roots) == 0 && len(policy.ResponseFiles.Files) != 0 {
 		return nil, errors.New("response resource files require an allowed root")
 	}
-	policy.files = make(map[string]ResponseFile, len(policy.ResponseFiles.Files))
+	policy.files = make(map[string]responseFile, len(policy.ResponseFiles.Files))
 	for id, record := range policy.ResponseFiles.Files {
 		if !responseFileIDPattern.MatchString(id) {
 			return nil, fmt.Errorf("response resource ID %q is invalid", id)
@@ -96,20 +96,20 @@ func LoadResponseFilePolicy(path string) (*ResponseFilePolicy, error) {
 		if !supportedResponseFileType(mediaType) {
 			return nil, fmt.Errorf("response resource %q media type %q is unsupported", id, mediaType)
 		}
-		policy.files[id] = ResponseFile{
+		policy.files[id] = responseFile{
 			Data: content, Filename: filepath.Base(resolved), MediaType: mediaType,
 		}
 	}
 	return &policy, nil
 }
 
-func (p *ResponseFilePolicy) ResolveResponseFile(id string) (ResponseFile, bool) {
+func (p *ResponseFilePolicy) ResolveResponseFile(id string) (responseFile, bool) {
 	if p == nil {
-		return ResponseFile{}, false
+		return responseFile{}, false
 	}
 	file, ok := p.files[id]
 	if !ok {
-		return ResponseFile{}, false
+		return responseFile{}, false
 	}
 	file.Data = slices.Clone(file.Data)
 	return file, true

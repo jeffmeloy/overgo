@@ -96,7 +96,7 @@ func TestWorkbenchAPIDownloadJob(t *testing.T) {
 		recorder = httptest.NewRecorder()
 		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/hub/downloads", nil))
 		var listed struct {
-			Downloads []DownloadJob `json:"downloads"`
+			Downloads []downloadJob `json:"downloads"`
 		}
 		if err := json.Unmarshal(recorder.Body.Bytes(), &listed); err != nil {
 			t.Fatal(err)

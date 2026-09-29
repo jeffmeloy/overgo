@@ -91,9 +91,9 @@ func TestResponseFilePolicyRejectsEscapesAndOversizedFiles(t *testing.T) {
 	}
 }
 
-type responseFileMap map[string]ResponseFile
+type responseFileMap map[string]responseFile
 
-func (files responseFileMap) ResolveResponseFile(id string) (ResponseFile, bool) {
+func (files responseFileMap) ResolveResponseFile(id string) (responseFile, bool) {
 	file, ok := files[id]
 	return file, ok
 }

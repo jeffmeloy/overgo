@@ -8,9 +8,9 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// VocabularyInspectionAPI: read-only enumeration of the loaded vocabulary for
+// vocabularyInspectionAPI: read-only enumeration of the loaded vocabulary for
 // the analysis workbench. Implemented by the inference Runner.
-type VocabularyInspectionAPI interface {
+type vocabularyInspectionAPI interface {
 	VocabularyLen() int
 	VocabularyToken(tokenizer.TokenID) (tokenizer.Token, bool)
 }
@@ -40,7 +40,7 @@ type analyzeVocabToken struct {
 // vocabulary. Pure enumeration of raw GGUF facts (id, text, type, score) — no
 // statistics, nothing assumed about the data.
 func (h *Handler) analyzeVocab(response http.ResponseWriter, request *http.Request) {
-	api, ok := h.generator.(VocabularyInspectionAPI)
+	api, ok := h.generator.(vocabularyInspectionAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "vocabulary inspection is unavailable")
 		return

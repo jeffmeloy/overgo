@@ -31,7 +31,7 @@ const (
 
 type peerWorkspaceGenerator struct {
 	*fakeGenerator
-	*PeerWorkspace
+	*peerWorkspace
 }
 
 type peerWorkspaceBackend struct{}
@@ -50,7 +50,7 @@ func (peerWorkspaceBackend) Unload(context.Context, modelrecipe.PeerReplicaPlace
 type peerWorkspaceFixture struct {
 	handler     *Handler
 	store       *overgodb.Store
-	workspace   *PeerWorkspace
+	workspace   *peerWorkspace
 	environment artifact.ID
 }
 
@@ -108,7 +108,7 @@ func TestPeerControlProjectionBounds(t *testing.T) {
 	publishPeerControlFixture(t, fixture, "bounded-one")
 	publishPeerControlFixture(t, fixture, "bounded-two")
 	response := serveTestRequest(fixture.handler, http.MethodGet, "/peers?limit=1", "")
-	var projection PeerInventoryProjection
+	var projection peerInventoryProjection
 	if err := json.Unmarshal(response.Body.Bytes(), &projection); err != nil || response.Code != http.StatusOK ||
 		len(projection.Peers) != 1 || !projection.Truncated {
 		t.Fatalf("bounded projection=%+v status=%d err=%v", projection, response.Code, err)
@@ -145,7 +145,7 @@ func newPeerWorkspaceFixture(t *testing.T, name, apiKey string) peerWorkspaceFix
 	}); err != nil {
 		t.Fatal(err)
 	}
-	workspace, err := (PeerWorkspaceConfig{Store: store, Backend: peerWorkspaceBackend{}, Limit: peerWorkspaceLimit}).Open()
+	workspace, err := (peerWorkspaceConfig{Store: store, Backend: peerWorkspaceBackend{}, Limit: peerWorkspaceLimit}).Open()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func newPeerWorkspaceFixture(t *testing.T, name, apiKey string) peerWorkspaceFix
 		ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
 		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Repository: store, APIKey: apiKey,
 		MaxStoredResponses: peerWorkspaceLimit,
-	}, &peerWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, PeerWorkspace: workspace})
+	}, &peerWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, peerWorkspace: workspace})
 	if err != nil {
 		t.Fatal(err)
 	}

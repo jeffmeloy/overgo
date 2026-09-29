@@ -1056,7 +1056,8 @@
             "user-scorecard/task-metrics",
             "user-scorecard/loop-measures-media",
             "unexport-unconsumed-names/evaluation",
-            "device-claim-everywhere/launcher-waits"
+            "device-claim-everywhere/launcher-waits",
+            "unexport-unconsumed-names/server"
           ]
         }
       ]

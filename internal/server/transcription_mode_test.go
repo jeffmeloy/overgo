@@ -42,7 +42,7 @@ func TestTranscriptionModeRunsThroughGenericRoute(t *testing.T) {
 		t.Fatalf("capabilities status=%d body=%s", capabilities.Code, capabilities.Body.String())
 	}
 	control := declared[0].Controls[0]
-	if control.Name != "audio" || control.Type != WorkflowControlArtifact || !control.Required || control.Label != "audio clip" || control.Media != "audio" || control.Audio == nil || *control.Audio != fixture.workspace.audio {
+	if control.Name != "audio" || control.Type != workflowControlArtifact || !control.Required || control.Label != "audio clip" || control.Media != "audio" || control.Audio == nil || *control.Audio != fixture.workspace.audio {
 		t.Fatalf("audio control differs from transcription input requirements: %+v", control)
 	}
 	var stored attachmentIntake

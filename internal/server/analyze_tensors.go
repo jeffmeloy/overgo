@@ -207,7 +207,7 @@ func (h *Handler) characterizeLoadedModel(ctx context.Context, response http.Res
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "tensor analysis policy is unavailable")
 		return nil, "", nil, false
 	}
-	api, ok := h.generator.(ModelPropertiesAPI)
+	api, ok := h.generator.(modelPropertiesAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "model properties are unavailable")
 		return nil, "", nil, false
@@ -243,7 +243,7 @@ type tensorFile struct {
 // model, by its inventory's owner, from the cached inventory; empty when no
 // model file is served.
 func (h *Handler) servedTensorModel() string {
-	api, ok := h.generator.(ModelPropertiesAPI)
+	api, ok := h.generator.(modelPropertiesAPI)
 	if !ok || api.ModelProperties().Path == "" {
 		return ""
 	}

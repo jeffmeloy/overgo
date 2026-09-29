@@ -84,7 +84,7 @@ func streamingAgentFixture(t *testing.T, store *overgodb.Store) (agentWorkspaceF
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, append(manuals, stream)); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		t.Fatal(err)
 	}
-	definition := AgentDefinitionInput{
+	definition := agentDefinitionInput{
 		Name: "research-agent", Prompt: fixture.prompt, ModelRecipe: fixture.generator.description.Identity.Recipe,
 		ToolManuals: []artifact.ID{fixture.manual, stream.ID}, Policies: []artifact.ID{fixture.policy},
 	}

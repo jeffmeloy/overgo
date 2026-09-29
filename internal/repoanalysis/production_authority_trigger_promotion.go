@@ -112,7 +112,7 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 		{File: "internal/runrecord/causal_context.go", Function: "CausalContext.Derive", Count: oneAuthoritySite},
 	})
 	verifyAuthoritySites(report, "trigger", "workflowruntime.AutomationRuntime.DispatchWebhook", webhookDispatches, []authorityAllowance{
-		{File: "internal/server/automation_webhook.go", Function: "AutomationWorkspace.receiveAutomationWebhook", Count: oneAuthoritySite},
+		{File: "internal/server/automation_webhook.go", Function: "automationWorkspace.receiveAutomationWebhook", Count: oneAuthoritySite},
 	})
 	verifyAuthoritySites(report, "trigger", "runrecord.StimulusFollowupAuthority.Admit", stimulusAdmissions, []authorityAllowance{
 		{File: "internal/workflowruntime/stimulus_reconciliation.go", Function: "ReconcileLateStimuli", Count: oneAuthoritySite},

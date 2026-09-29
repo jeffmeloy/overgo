@@ -158,7 +158,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	} else if reasoningSummary {
 		parserFeature = "reasoning"
 	}
-	var parser ChatOutputParser
+	var parser chatOutputParser
 	if parserFeature != "" {
 		parser, ok = h.requireChatOutputParser(response, parserFeature)
 		if !ok {
@@ -250,7 +250,7 @@ func (h *Handler) runResponseTurn(
 	turn []inference.ChatMessage,
 	parent artifact.ID,
 	reasoningSummary bool,
-	parser ChatOutputParser,
+	parser chatOutputParser,
 	session turnSession,
 ) {
 	idNumber := h.nextID.Add(1)
@@ -341,7 +341,7 @@ func (h *Handler) streamResponses(
 	parent artifact.ID,
 	store bool,
 	reasoningSummary bool,
-	parser ChatOutputParser,
+	parser chatOutputParser,
 	session turnSession,
 ) {
 	var output strings.Builder

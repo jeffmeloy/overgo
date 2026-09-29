@@ -25,15 +25,15 @@ func TestWebUIBrowserGeneratedMedia(t *testing.T) {
 	}
 	handler, workspace, _, _ := nativeMediaProtocolFixture(t)
 	// The speech capability reads its text from the composer, as a synthesizer declares it.
-	workspace.capabilities[1].Controls = []WorkflowControl{{Name: "text", Type: WorkflowControlText, Required: true}}
+	workspace.capabilities[1].Controls = []workflowControl{{Name: "text", Type: workflowControlText, Required: true}}
 	// An image capability with an image slot, which a reused output fills.
 	editRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "native-image-edit-recipe")
 	workspace.capabilities = append(workspace.capabilities, WorkflowCapability{
 		Task: recipe.TaskImageGen, Recipe: editRecipe, Name: "image edit", Outputs: []recipe.Output{{Name: "image", Data: recipe.DataImage}},
 		Stages: []recipe.Stage{{Node: recipe.Node{ID: "edit", Module: "test.edit"}}},
-		Controls: []WorkflowControl{
-			{Name: "prompt", Type: WorkflowControlText, Required: true},
-			{Name: "image", Type: WorkflowControlArtifact, Label: "source image", Media: "image"},
+		Controls: []workflowControl{
+			{Name: "prompt", Type: workflowControlText, Required: true},
+			{Name: "image", Type: workflowControlArtifact, Label: "source image", Media: "image"},
 		},
 	})
 	server := httptest.NewServer(handler)

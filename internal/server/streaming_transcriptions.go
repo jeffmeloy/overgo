@@ -123,7 +123,7 @@ func (h *Handler) nativeStreamingTranscriptions(response http.ResponseWriter, re
 		writeInvalidRequest(response, err)
 		return
 	}
-	capabilities, err := workspace.WorkflowCapabilities(request.Context(), WorkflowGeneration)
+	capabilities, err := workspace.WorkflowCapabilities(request.Context(), workflowGeneration)
 	if err != nil {
 		writeGenerationError(response, err)
 		return

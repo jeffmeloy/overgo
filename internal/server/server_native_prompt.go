@@ -377,7 +377,7 @@ func (h *Handler) projectNativeMultimodalPrompt(
 	ctx context.Context,
 	prompt nativePrompt,
 ) (nativePrompt, inference.ProjectedInputs, error) {
-	tokenizerAPI, ok := h.generator.(TokenizationAPI)
+	tokenizerAPI, ok := h.generator.(tokenizationAPI)
 	if !ok {
 		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: generator cannot tokenize multimodal prompt")
 	}
@@ -485,7 +485,7 @@ func (h *Handler) projectNativeMultimodalPrompt(
 	if err != nil {
 		return nativePrompt{}, inference.ProjectedInputs{}, fmt.Errorf("server: project media: %w", err)
 	}
-	properties, ok := h.generator.(ModelPropertiesAPI)
+	properties, ok := h.generator.(modelPropertiesAPI)
 	if !ok {
 		return nativePrompt{}, inference.ProjectedInputs{}, errors.New("server: model properties unavailable for projected prompt")
 	}
@@ -561,7 +561,7 @@ func (h *Handler) preparePrompt(
 	// A generator without a tokenizer (a relay to a remote provider)
 	// carries the text itself; the prompt passes through untokenized and
 	// the counts that need its tokens report their absence.
-	tokenizerAPI, ok := h.generator.(TokenizationAPI)
+	tokenizerAPI, ok := h.generator.(tokenizationAPI)
 	if !ok {
 		return result, nil
 	}
@@ -605,7 +605,7 @@ func (h *Handler) parseNativePrompt(raw json.RawMessage) (nativePrompt, error) {
 	if allStrings {
 		return nativePrompt{}, errors.New("multiple string prompts are not supported")
 	}
-	api, ok := h.generator.(TokenizationAPI)
+	api, ok := h.generator.(tokenizationAPI)
 	if !ok {
 		return nativePrompt{}, errors.New("generator cannot expand mixed prompt strings")
 	}

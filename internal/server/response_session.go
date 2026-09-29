@@ -178,7 +178,7 @@ func (h *Handler) continuedResponse(response http.ResponseWriter, request *http.
 	for index, token := range tokens.Tokens {
 		ids[index] = tokenizer.TokenID(token)
 	}
-	if vocabulary, ok := h.generator.(SamplingVocabulary); ok && slices.Contains(vocabulary.SamplingEOGTokens(), ids[len(ids)-1]) {
+	if vocabulary, ok := h.generator.(samplingVocabulary); ok && slices.Contains(vocabulary.SamplingEOGTokens(), ids[len(ids)-1]) {
 		sessionRefusal(response, "response "+id+" already ended its turn")
 		return continuedTurn{}, false
 	}

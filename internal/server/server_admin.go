@@ -98,7 +98,7 @@ type propertiesResponse struct {
 }
 
 func (h *Handler) properties(response http.ResponseWriter, request *http.Request) {
-	api, ok := h.generator.(ModelPropertiesAPI)
+	api, ok := h.generator.(modelPropertiesAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "model properties are unavailable")
 		return
@@ -320,7 +320,7 @@ func (h *Handler) slotStatus(response http.ResponseWriter, request *http.Request
 
 func (h *Handler) sessionStatus(includeText bool) []slotStatusItem {
 	var contextLength uint32
-	if api, ok := h.generator.(ModelPropertiesAPI); ok {
+	if api, ok := h.generator.(modelPropertiesAPI); ok {
 		contextLength = api.ModelProperties().ContextLength
 	}
 	result := make([]slotStatusItem, len(h.slotBusy))
@@ -363,7 +363,7 @@ func (h *Handler) sessionStatus(includeText bool) []slotStatusItem {
 func (h *Handler) loraAdapters(response http.ResponseWriter, request *http.Request) {
 	switch request.Method {
 	case http.MethodGet:
-		if controller, ok := h.generator.(LoRAControlAPI); ok {
+		if controller, ok := h.generator.(loRAControlAPI); ok {
 			writeJSON(response, http.StatusOK, controller.LoRAAdapters())
 			return
 		}
@@ -373,7 +373,7 @@ func (h *Handler) loraAdapters(response http.ResponseWriter, request *http.Reque
 		if !h.decodeJSONWithLimit(response, request, &adapters, maxRequestBytes) {
 			return
 		}
-		controller, ok := h.generator.(LoRAControlAPI)
+		controller, ok := h.generator.(loRAControlAPI)
 		if !ok && len(adapters) != 0 {
 			writeError(
 				response,
@@ -406,7 +406,7 @@ type tokenPieceResponse struct {
 }
 
 func (h *Handler) tokenize(response http.ResponseWriter, request *http.Request) {
-	api, ok := h.generator.(TokenizationAPI)
+	api, ok := h.generator.(tokenizationAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "tokenization is unavailable")
 		return
@@ -425,7 +425,7 @@ func (h *Handler) tokenize(response http.ResponseWriter, request *http.Request) 
 		return
 	}
 	if body.WithPieces {
-		pieceAPI, ok := h.generator.(TokenPieceAPI)
+		pieceAPI, ok := h.generator.(tokenPieceAPI)
 		if !ok {
 			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "token pieces are unavailable")
 			return
@@ -454,7 +454,7 @@ func (h *Handler) tokenize(response http.ResponseWriter, request *http.Request) 
 }
 
 func tokenizeMixed(
-	api TokenizationAPI,
+	api tokenizationAPI,
 	raw json.RawMessage,
 	addSpecial, parseSpecial bool,
 ) ([]tokenizer.TokenID, error) {
@@ -506,7 +506,7 @@ type detokenizeRequest struct {
 }
 
 func (h *Handler) detokenize(response http.ResponseWriter, request *http.Request) {
-	api, ok := h.generator.(TokenizationAPI)
+	api, ok := h.generator.(tokenizationAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "detokenization is unavailable")
 		return
@@ -524,7 +524,7 @@ func (h *Handler) detokenize(response http.ResponseWriter, request *http.Request
 		tokens[index] = tokenizer.TokenID(token)
 	}
 	content := ""
-	if pieceAPI, ok := h.generator.(TokenPieceAPI); ok {
+	if pieceAPI, ok := h.generator.(tokenPieceAPI); ok {
 		var result strings.Builder
 		for _, token := range tokens {
 			piece, err := pieceAPI.TokenPiece(token)
@@ -596,7 +596,7 @@ type applyTemplateRequest struct {
 }
 
 func (h *Handler) applyTemplate(response http.ResponseWriter, request *http.Request) {
-	formatter, ok := h.generator.(ChatFormatter)
+	formatter, ok := h.generator.(chatFormatter)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "chat formatting is unavailable")
 		return
@@ -671,7 +671,7 @@ func (h *Handler) metrics(response http.ResponseWriter, request *http.Request) {
 		h.generatedTokens.Load(),
 		time.Since(h.started).Seconds(),
 	)
-	if api, ok := h.generator.(DeviceMemoryAPI); ok {
+	if api, ok := h.generator.(deviceMemoryAPI); ok {
 		if stats, err := api.DeviceMemoryStats(request.Context()); err == nil {
 			_, _ = fmt.Fprintf(
 				response,
@@ -689,7 +689,7 @@ func (h *Handler) metrics(response http.ResponseWriter, request *http.Request) {
 			)
 		}
 	}
-	if api, ok := h.generator.(DeviceExecutionAPI); ok {
+	if api, ok := h.generator.(deviceExecutionAPI); ok {
 		if stats, err := api.DeviceExecutionStats(request.Context()); err == nil {
 			_, _ = fmt.Fprintf(
 				response,
@@ -732,7 +732,7 @@ func (h *Handler) generate(
 	var promptTokens, outputTokens atomic.Uint64
 	var promptDuration atomic.Int64
 	before := driver.ExecutionStats{}
-	if api, ok := h.generator.(DeviceExecutionAPI); ok {
+	if api, ok := h.generator.(deviceExecutionAPI); ok {
 		before, _ = api.DeviceExecutionStats(ctx)
 	}
 	h.generationRequests.Add(1)
@@ -779,7 +779,7 @@ func (h *Handler) generate(
 	}
 	if modelID, recipeID, ok := h.servingIdentity(recipe.TaskInference); ok {
 		after := before
-		if api, available := h.generator.(DeviceExecutionAPI); available {
+		if api, available := h.generator.(deviceExecutionAPI); available {
 			after, _ = api.DeviceExecutionStats(ctx)
 		}
 		wall, wallErr := clock.Elapsed()
@@ -805,7 +805,7 @@ func (h *Handler) generate(
 
 func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
 	model := inference.ModelProperties{}
-	if api, ok := h.generator.(ModelPropertiesAPI); ok {
+	if api, ok := h.generator.(modelPropertiesAPI); ok {
 		model = api.ModelProperties()
 	}
 	created := time.Now().Unix()
@@ -861,7 +861,7 @@ func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
 // shell's device status dot.
 func (h *Handler) health(response http.ResponseWriter, request *http.Request) {
 	payload := map[string]any{"status": "ok", "model": h.config.ModelID}
-	if api, ok := h.generator.(DeviceMemoryAPI); ok {
+	if api, ok := h.generator.(deviceMemoryAPI); ok {
 		if stats, err := api.DeviceMemoryStats(request.Context()); err == nil {
 			payload["device"] = map[string]uint64{"current_bytes": stats.CurrentBytes, "peak_bytes": stats.PeakBytes}
 		}

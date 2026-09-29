@@ -197,7 +197,7 @@ func (plan *protocolGenerationPlan) admit(prompt nativePrompt) error {
 	if err != nil {
 		return err
 	}
-	if properties, ok := plan.handler.generator.(ModelPropertiesAPI); ok {
+	if properties, ok := plan.handler.generator.(modelPropertiesAPI); ok {
 		limit := uint64(properties.ModelProperties().ContextLength)
 		if limit > 0 && uint64(len(prepared.TokenIDs)) > limit {
 			return contextLengthError{tokens: len(prepared.TokenIDs), limit: limit}
@@ -342,8 +342,8 @@ type toolDeltaSink struct {
 
 func (h *Handler) requireChatFormatter(
 	response http.ResponseWriter,
-) (ChatFormatter, bool) {
-	formatter, ok := h.generator.(ChatFormatter)
+) (chatFormatter, bool) {
+	formatter, ok := h.generator.(chatFormatter)
 	if !ok {
 		writeError(
 			response,
@@ -358,7 +358,7 @@ func (h *Handler) requireChatFormatter(
 func (h *Handler) requireProtocolTokenCounting(
 	response http.ResponseWriter,
 	request *http.Request,
-) (ChatFormatter, bool) {
+) (chatFormatter, bool) {
 	formatter, ok := h.requireChatFormatter(response)
 	if !ok || !h.requireTokenCounting(response) {
 		return nil, false
@@ -369,8 +369,8 @@ func (h *Handler) requireProtocolTokenCounting(
 func (h *Handler) requireChatOutputParser(
 	response http.ResponseWriter,
 	feature string,
-) (ChatOutputParser, bool) {
-	parser, ok := h.generator.(ChatOutputParser)
+) (chatOutputParser, bool) {
+	parser, ok := h.generator.(chatOutputParser)
 	if !ok {
 		writeError(
 			response, http.StatusNotImplemented, errorCodeUnsupportedOperation,
@@ -381,7 +381,7 @@ func (h *Handler) requireChatOutputParser(
 }
 
 func (h *Handler) requireTokenCounting(response http.ResponseWriter) bool {
-	if _, ok := h.generator.(TokenizationAPI); ok {
+	if _, ok := h.generator.(tokenizationAPI); ok {
 		return true
 	}
 	writeError(
@@ -398,7 +398,7 @@ func newPromptChatDeltaStream(plan *protocolGenerationPlan, tools []inference.Ch
 	if plan.constrainedContent {
 		return nil, nil
 	}
-	provider, ok := plan.handler.generator.(PromptChatOutputStreamProvider)
+	provider, ok := plan.handler.generator.(promptChatOutputStreamProvider)
 	if !ok {
 		return nil, nil
 	}
@@ -423,7 +423,7 @@ func newToolDeltaStream(
 	if len(tools) == 0 {
 		return result, nil
 	}
-	provider, ok := generator.(ChatOutputStreamProvider)
+	provider, ok := generator.(chatOutputStreamProvider)
 	if !ok {
 		return result, nil
 	}
@@ -499,7 +499,7 @@ func (s *toolDeltaStream) route(piece string, sink toolDeltaSink) error {
 	return nil
 }
 
-func (s *toolDeltaStream) parse(parser ChatOutputParser, tools []inference.ChatTool) (inference.ChatMessage, error) {
+func (s *toolDeltaStream) parse(parser chatOutputParser, tools []inference.ChatTool) (inference.ChatMessage, error) {
 	if s.promptAware {
 		return s.output.Finish()
 	}
@@ -590,7 +590,7 @@ func (h *Handler) configureChatToolGrammar(
 	if len(tools) == 0 {
 		return true
 	}
-	provider, ok := h.generator.(ChatToolGrammarProvider)
+	provider, ok := h.generator.(chatToolGrammarProvider)
 	if !ok {
 		writeError(
 			response,

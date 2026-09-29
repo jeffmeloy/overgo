@@ -102,12 +102,12 @@ func TestNextStepsFollowDeclaredSlots(t *testing.T) {
 	edit := testutil.ArtifactID(t, artifact.KindRecipe, "edit")
 	refused := testutil.ArtifactID(t, artifact.KindRecipe, "refused")
 	capabilities := []WorkflowCapability{
-		{Task: recipe.TaskVQA, Recipe: vqa, Name: "vqa.safetensors", Controls: []WorkflowControl{
-			{Name: "image", Type: WorkflowControlArtifact, Label: "image", Media: "image"}, {Name: "question", Type: WorkflowControlText}}},
-		{Task: recipe.TaskVideoGen, Recipe: edit, Name: "edit.safetensors", Controls: []WorkflowControl{
-			{Name: "source_artifact", Type: WorkflowControlArtifact, Label: "source clip", Media: "video"}}},
-		{Task: recipe.TaskVQA, Recipe: refused, Name: "refused.safetensors", Refusal: "its request carries a tensor", Controls: []WorkflowControl{
-			{Name: "image", Type: WorkflowControlArtifact, Label: "image", Media: "image"}}},
+		{Task: recipe.TaskVQA, Recipe: vqa, Name: "vqa.safetensors", Controls: []workflowControl{
+			{Name: "image", Type: workflowControlArtifact, Label: "image", Media: "image"}, {Name: "question", Type: workflowControlText}}},
+		{Task: recipe.TaskVideoGen, Recipe: edit, Name: "edit.safetensors", Controls: []workflowControl{
+			{Name: "source_artifact", Type: workflowControlArtifact, Label: "source clip", Media: "video"}}},
+		{Task: recipe.TaskVQA, Recipe: refused, Name: "refused.safetensors", Refusal: "its request carries a tensor", Controls: []workflowControl{
+			{Name: "image", Type: workflowControlArtifact, Label: "image", Media: "image"}}},
 	}
 	images := nextSteps(capabilities, "image/png")
 	if len(images) != 1 || images[0].Recipe != vqa || images[0].Task != recipe.TaskVQA || images[0].Control != "image" || images[0].Label != "image" || images[0].Name != "vqa.safetensors" {

@@ -73,12 +73,12 @@ func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, 
 			{
 				Task: recipe.TaskImageGen, Recipe: imageRecipe, Outputs: []recipe.Output{{Name: "image", Data: recipe.DataImage}},
 				Stages:   []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.image"}}},
-				Controls: []WorkflowControl{{Name: "prompt", Type: WorkflowControlText, Required: true}},
+				Controls: []workflowControl{{Name: "prompt", Type: workflowControlText, Required: true}},
 			},
 			{
 				Task: recipe.TaskSpeech, Recipe: audioRecipe, Outputs: []recipe.Output{{Name: "audio", Data: recipe.DataAudio}},
 				Stages:   []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.audio"}}},
-				Controls: []WorkflowControl{{Name: "input", Type: WorkflowControlText, Required: true}},
+				Controls: []workflowControl{{Name: "input", Type: workflowControlText, Required: true}},
 			},
 		},
 		completion: map[recipe.Task]operation.Completion{

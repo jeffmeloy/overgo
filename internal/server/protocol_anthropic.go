@@ -89,7 +89,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 	} else if len(toolSelection.active) != 0 {
 		parserFeature = "tool-call"
 	}
-	var parser ChatOutputParser
+	var parser chatOutputParser
 	if parserFeature != "" {
 		parser, ok = h.requireChatOutputParser(response, parserFeature)
 		if !ok {
@@ -204,7 +204,7 @@ func (h *Handler) streamAnthropicMessages(
 	messageID string,
 	tools []inference.ChatTool,
 	thinkingEnabled bool,
-	parser ChatOutputParser,
+	parser chatOutputParser,
 ) {
 	flusher, ok := beginSSE(response)
 	if !ok {

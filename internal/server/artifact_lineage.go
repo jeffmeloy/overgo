@@ -91,7 +91,7 @@ func (h *Handler) artifactLineage(response http.ResponseWriter, request *http.Re
 		return
 	}
 	if workspace, declared := h.generator.(WorkflowWorkspaceAPI); declared {
-		capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration)
+		capabilities, err := workspace.WorkflowCapabilities(ctx, workflowGeneration)
 		if err != nil {
 			writeGenerationError(response, err)
 			return
@@ -137,7 +137,7 @@ func nextSteps(capabilities []WorkflowCapability, mediaType string) []artifactNe
 			continue
 		}
 		for _, control := range capability.Controls {
-			if control.Type == WorkflowControlArtifact && control.Media != "" && strings.HasPrefix(mediaType, control.Media+"/") {
+			if control.Type == workflowControlArtifact && control.Media != "" && strings.HasPrefix(mediaType, control.Media+"/") {
 				steps = append(steps, artifactNextStep{Task: capability.Task, Recipe: capability.Recipe, Name: capability.Name, Control: control.Name, Label: control.Label})
 			}
 		}

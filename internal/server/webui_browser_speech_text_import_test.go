@@ -25,12 +25,12 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 	generator := &speechSurfaceGenerator{generationWorkspaceGenerator: &generationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "speech-surface"), capability: WorkflowCapability{
 		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface"), Name: "Pocket-TTS (UI fixture)", Outputs: []recipe.Output{{Name: "audio", Data: recipe.DataAudio}},
 		Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}},
-		Controls: []WorkflowControl{
-			{Name: "text", Type: WorkflowControlText, Required: true},
-			{Name: "max_frames", Type: WorkflowControlInteger, Required: true},
-			{Name: "seed", Type: WorkflowControlInteger, Required: true},
-			{Name: "voice", Type: WorkflowControlText, Required: true, Choices: []string{"alba", "marius"}},
-			{Name: "temperature", Type: WorkflowControlNumber},
+		Controls: []workflowControl{
+			{Name: "text", Type: workflowControlText, Required: true},
+			{Name: "max_frames", Type: workflowControlInteger, Required: true},
+			{Name: "seed", Type: workflowControlInteger, Required: true},
+			{Name: "voice", Type: workflowControlText, Required: true, Choices: []string{"alba", "marius"}},
+			{Name: "temperature", Type: workflowControlNumber},
 		},
 	}}}
 	generator.secondRecipe = testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface-alternate")

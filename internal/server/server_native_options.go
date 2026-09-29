@@ -66,7 +66,7 @@ func (h *Handler) parseRequestLoRA(raw json.RawMessage) ([]inference.LoRAScale, 
 	if trimmed == "" || trimmed == "null" {
 		return nil, false, nil
 	}
-	controller, ok := h.generator.(LoRAControlAPI)
+	controller, ok := h.generator.(loRAControlAPI)
 	if !ok {
 		return nil, false, errors.New("per-request lora is unavailable")
 	}
@@ -216,7 +216,7 @@ func (h *Handler) nativeGenerationSettings(
 	stops []string,
 ) map[string]any {
 	contextLength := uint32(0)
-	if api, ok := h.generator.(ModelPropertiesAPI); ok {
+	if api, ok := h.generator.(modelPropertiesAPI); ok {
 		contextLength = api.ModelProperties().ContextLength
 	}
 	return map[string]any{

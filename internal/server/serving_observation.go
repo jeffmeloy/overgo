@@ -158,13 +158,13 @@ func servingTransferDelta(before, after uint64) uint64 {
 type servingHardwareCollector struct {
 	clock   processmeasure.Stopwatch
 	walls   processmeasure.Walls
-	api     DeviceMemoryAPI
+	api     deviceMemoryAPI
 	samples []runrecord.ServingHardwareSample
 	prefill bool
 }
 
 func newServingHardwareCollector(generator Generator, clock processmeasure.Stopwatch) *servingHardwareCollector {
-	api, _ := generator.(DeviceMemoryAPI)
+	api, _ := generator.(deviceMemoryAPI)
 	return &servingHardwareCollector{clock: clock, api: api}
 }
 

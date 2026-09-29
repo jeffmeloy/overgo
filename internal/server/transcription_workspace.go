@@ -130,7 +130,7 @@ func (workspace *TranscriptionWorkspace) Close(ctx context.Context) error {
 
 // WorkflowCapabilities exposes only the configured offline transcription recipe.
 func (workspace *TranscriptionWorkspace) WorkflowCapabilities(_ context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
-	if workspace == nil || workspace.sessions == nil || kind != WorkflowGeneration {
+	if workspace == nil || workspace.sessions == nil || kind != workflowGeneration {
 		return nil, nil
 	}
 	definition := workspace.program.Definition()
@@ -139,7 +139,7 @@ func (workspace *TranscriptionWorkspace) WorkflowCapabilities(_ context.Context,
 		Inputs:              definition.Inputs, Outputs: definition.Outputs,
 		// The audio control names a stored file artifact: an attachment the
 		// page stored through the intake route, or a card's stored id.
-		Controls: []WorkflowControl{{Name: "audio", Type: WorkflowControlArtifact, Required: true, Label: "audio clip", Media: "audio", Audio: &workspace.audio}},
+		Controls: []workflowControl{{Name: "audio", Type: workflowControlArtifact, Required: true, Label: "audio clip", Media: "audio", Audio: &workspace.audio}},
 	}}, nil
 }
 
@@ -149,7 +149,7 @@ type transcriptionWorkflowInput struct {
 
 // ExecuteWorkflow performs fresh inference using the existing component lease.
 func (workspace *TranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (completion operation.Completion, err error) {
-	if workspace == nil || workspace.sessions == nil || ctx == nil || reporter == nil || kind != WorkflowGeneration || task != recipe.TaskTranscription || recipeID != workspace.policy.Recipe {
+	if workspace == nil || workspace.sessions == nil || ctx == nil || reporter == nil || kind != workflowGeneration || task != recipe.TaskTranscription || recipeID != workspace.policy.Recipe {
 		return completion, errors.New("transcription workspace: workflow is not admitted")
 	}
 	defer func() {

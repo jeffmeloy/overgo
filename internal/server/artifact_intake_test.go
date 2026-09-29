@@ -47,7 +47,7 @@ func TestArtifactIntakeStoresAcceptedFiles(t *testing.T) {
 	if err != nil || !found || string(content.Data) != "an attached note" || content.Descriptor.MediaType != "text/plain" || content.Descriptor.Schema != attachmentSchema {
 		t.Fatalf("stored content = %+v found=%v err=%v", content.Descriptor, found, err)
 	}
-	if err := validateWorkflowValue(WorkflowControlArtifact, json.RawMessage(`"`+stored.ID+`"`)); err != nil {
+	if err := validateWorkflowValue(workflowControlArtifact, json.RawMessage(`"`+stored.ID+`"`)); err != nil {
 		t.Fatalf("the stored id fails the artifact control: %v", err)
 	}
 	if again := intakeRequest(handler, "text/plain", "an attached note"); again.Code != http.StatusOK || !strings.Contains(again.Body.String(), stored.ID) {

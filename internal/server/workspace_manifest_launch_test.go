@@ -22,7 +22,7 @@ func launchWorkspaceGenerator(t testing.TB, kinds ...WorkflowKind) *trainingExpo
 			Task:     recipe.TaskTraining,
 			Recipe:   testutil.ArtifactID(t, artifact.KindRecipe, string(kind)+"-launch-recipe"),
 			Stages:   []recipe.Stage{{Node: recipe.Node{ID: "execute", Module: recipe.ModuleID(kind + ".execute")}}},
-			Controls: []WorkflowControl{{Name: "source", Type: WorkflowControlText, Required: true}},
+			Controls: []workflowControl{{Name: "source", Type: workflowControlText, Required: true}},
 		}
 	}
 	return &trainingExportGenerator{fakeGenerator: &fakeGenerator{}, capabilities: capabilities}
@@ -51,7 +51,7 @@ func launchEvaluationWorkspace(t testing.TB) *evaluationWorkspaceFixture {
 		t.Fatal(err)
 	}
 	return &evaluationWorkspaceFixture{
-		capability: EvaluationCapability{Model: modelID, Recipe: recipeID, Suite: compiled.Descriptor()},
+		capability: evaluationCapability{Model: modelID, Recipe: recipeID, Suite: compiled.Descriptor()},
 		run:        testutil.ArtifactID(t, artifact.KindRun, "launch-evaluation-run"),
 	}
 }
@@ -75,7 +75,7 @@ func workspaceTabsByID(t testing.TB, handler *Handler) map[string]workspaceTab {
 // launch enabled them, and refuses each with its reason when it did not.
 func TestWorkspaceManifestShippedLaunch(t *testing.T) {
 	t.Parallel()
-	enabled, err := New(Config{Evaluation: launchEvaluationWorkspace(t)}, launchWorkspaceGenerator(t, WorkflowTraining, WorkflowModelBuild))
+	enabled, err := New(Config{Evaluation: launchEvaluationWorkspace(t)}, launchWorkspaceGenerator(t, WorkflowTraining, workflowModelBuild))
 	if err != nil {
 		t.Fatal(err)
 	}

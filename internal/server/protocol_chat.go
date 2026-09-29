@@ -41,7 +41,7 @@ type chatCompletionRequest struct {
 }
 
 func formatChatRequest(
-	formatter ChatFormatter,
+	formatter chatFormatter,
 	messages []inference.ChatMessage,
 	tools []inference.ChatTool,
 	addGenerationPrompt *bool,
@@ -58,7 +58,7 @@ func formatChatRequest(
 	if len(tools) == 0 && addPrompt && enableThinking && len(extras) == 0 {
 		return formatter.FormatChat(messages)
 	}
-	extended, ok := formatter.(ToolAwareChatFormatter)
+	extended, ok := formatter.(toolAwareChatFormatter)
 	if !ok {
 		return "", errors.New("tool-aware chat formatting is unavailable")
 	}
@@ -193,7 +193,7 @@ const templateThinkingKwarg = "enable_thinking"
 
 func (h *Handler) parseChatMultimodalPrompt(
 	ctx context.Context,
-	formatter ChatFormatter,
+	formatter chatFormatter,
 	body chatCompletionRequest,
 	promptTools []inference.ChatTool,
 ) (nativePrompt, error) {
@@ -332,7 +332,7 @@ func chatSingleMediaCompatible(media []inference.ChatMediaPart) bool {
 
 func (h *Handler) normalizeChatPrompt(
 	ctx context.Context,
-	formatter ChatFormatter,
+	formatter chatFormatter,
 	body chatCompletionRequest,
 	promptTools []inference.ChatTool,
 	executeTools bool,
@@ -449,7 +449,7 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		writeInvalidRequest(response, err)
 		return
 	}
-	var parser ChatOutputParser
+	var parser chatOutputParser
 	if len(toolSelection.active) != 0 {
 		parser, ok = h.requireChatOutputParser(response, "tool-call")
 		if !ok {
@@ -662,7 +662,7 @@ func (h *Handler) completeChat(
 	id string,
 	n int,
 	tools []inference.ChatTool,
-	parser ChatOutputParser,
+	parser chatOutputParser,
 ) {
 	choices := make([]chatChoice, 0, n)
 	promptTokens := 0
@@ -767,7 +767,7 @@ func (h *Handler) streamChatCompletion(
 	id string,
 	n int,
 	tools []inference.ChatTool,
-	parser ChatOutputParser,
+	parser chatOutputParser,
 ) {
 	flusher, ok := beginSSE(response)
 	if !ok {

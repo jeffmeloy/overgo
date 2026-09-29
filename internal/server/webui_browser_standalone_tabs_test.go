@@ -19,15 +19,15 @@ import (
 // finished runs that compare, over the launch workspace's campaign.
 type standaloneEvaluationFixture struct {
 	*evaluationWorkspaceFixture
-	history []EvaluationHistoryEntry
+	history []evaluationHistoryEntry
 }
 
-func (fixture *standaloneEvaluationFixture) EvaluationHistory(context.Context, artifact.ID) ([]EvaluationHistoryEntry, error) {
+func (fixture *standaloneEvaluationFixture) EvaluationHistory(context.Context, artifact.ID) ([]evaluationHistoryEntry, error) {
 	return fixture.history, nil
 }
 
-func (fixture *standaloneEvaluationFixture) CompareEvaluations(_ context.Context, left, right artifact.ID) (EvaluationComparison, error) {
-	return EvaluationComparison{Left: left, Right: right, Metrics: []EvaluationMetricDelta{{
+func (fixture *standaloneEvaluationFixture) CompareEvaluations(_ context.Context, left, right artifact.ID) (evaluationComparison, error) {
+	return evaluationComparison{Left: left, Right: right, Metrics: []evaluationMetricDelta{{
 		Name: "accuracy", Left: 0.5, Right: 0.75, Delta: 0.25, Direction: runrecord.DirectionMaximize, Improved: true,
 	}}}, nil
 }
@@ -91,7 +91,7 @@ func TestWebUIBrowserStandaloneTabs(t *testing.T) {
 	id := func(label string) artifact.ID { return testutil.ArtifactID(t, artifact.KindEvaluation, label) }
 	fixture := &standaloneEvaluationFixture{evaluationWorkspaceFixture: campaign}
 	for _, label := range []string{"standalone baseline", "standalone candidate"} {
-		fixture.history = append(fixture.history, EvaluationHistoryEntry{
+		fixture.history = append(fixture.history, evaluationHistoryEntry{
 			Evaluation: id(label), Run: testutil.ArtifactID(t, artifact.KindRun, label), Report: id(label + " report"),
 			Dataset: campaign.capability.Suite.Dataset, Recipe: campaign.capability.Recipe,
 			Outcome: runrecord.OutcomeSucceeded, CodeCommit: evaluationTestCommit,

@@ -24,12 +24,12 @@ type peerStateRequest struct {
 
 // The peer routes: each serves one path of the route table over the peer workspace (peerRoute).
 
-func (h *Handler) peerInventory(workspace PeerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+func (h *Handler) peerInventory(workspace peerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
 	value, err := workspace.PeerInventory(request.Context(), boundedPeerProjectionLimit(request, h.config.MaxStoredResponses))
 	writePeerResult(response, http.StatusOK, value, err)
 }
 
-func (h *Handler) peerEnroll(workspace PeerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+func (h *Handler) peerEnroll(workspace peerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
 	var body runrecord.PeerEnrollment
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
@@ -43,7 +43,7 @@ func (h *Handler) peerEnroll(workspace PeerWorkspaceAPI, response http.ResponseW
 	}{enrollment.ID, enrollment, state.ID, state}, err)
 }
 
-func (h *Handler) peerCapability(workspace PeerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+func (h *Handler) peerCapability(workspace peerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
 	var body peerCapabilityRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
@@ -56,7 +56,7 @@ func (h *Handler) peerCapability(workspace PeerWorkspaceAPI, response http.Respo
 	}{publication.ID, publication, capability}, err)
 }
 
-func (h *Handler) peerHeartbeat(workspace PeerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+func (h *Handler) peerHeartbeat(workspace peerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
 	var body runrecord.PeerHeartbeat
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
@@ -68,7 +68,7 @@ func (h *Handler) peerHeartbeat(workspace PeerWorkspaceAPI, response http.Respon
 	}{value.ID, value}, err)
 }
 
-func (h *Handler) peerState(workspace PeerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+func (h *Handler) peerState(workspace peerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
 	var body peerStateRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
@@ -80,7 +80,7 @@ func (h *Handler) peerState(workspace PeerWorkspaceAPI, response http.ResponseWr
 	}{value.ID, value}, err)
 }
 
-func (h *Handler) peerPlacement(workspace PeerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+func (h *Handler) peerPlacement(workspace peerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
 	var body modelrecipe.PeerPlacementRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
@@ -89,7 +89,7 @@ func (h *Handler) peerPlacement(workspace PeerWorkspaceAPI, response http.Respon
 	writePeerResult(response, http.StatusOK, value, err)
 }
 
-func (h *Handler) peerReconcile(workspace PeerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+func (h *Handler) peerReconcile(workspace peerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
 	var body capabilityruntime.PeerReconcileRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
@@ -100,7 +100,7 @@ func (h *Handler) peerReconcile(workspace PeerWorkspaceAPI, response http.Respon
 	}{id}, err)
 }
 
-func (h *Handler) peerEvidence(workspace PeerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+func (h *Handler) peerEvidence(workspace peerWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
 	id, err := artifact.ParseID(request.URL.Query().Get("operation"))
 	if err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_operation", "peer operation identity is required")

@@ -14,12 +14,12 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-type ModelBuilderWorkspace struct {
+type modelBuilderWorkspace struct {
 	store  artifact.Repository
 	recipe artifact.ID
 }
 
-func NewModelBuilderWorkspace(ctx context.Context, store artifact.Repository) (*ModelBuilderWorkspace, error) {
+func NewModelBuilderWorkspace(ctx context.Context, store artifact.Repository) (*modelBuilderWorkspace, error) {
 	if store == nil {
 		return nil, errors.New("model builder workspace: repository required")
 	}
@@ -27,11 +27,11 @@ func NewModelBuilderWorkspace(ctx context.Context, store artifact.Repository) (*
 	if err != nil {
 		return nil, err
 	}
-	return &ModelBuilderWorkspace{store: store, recipe: recipeID}, nil
+	return &modelBuilderWorkspace{store: store, recipe: recipeID}, nil
 }
 
-func (workspace *ModelBuilderWorkspace) WorkflowCapabilities(_ context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
-	if workspace == nil || kind != WorkflowModelBuild {
+func (workspace *modelBuilderWorkspace) WorkflowCapabilities(_ context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
+	if workspace == nil || kind != workflowModelBuild {
 		return nil, nil
 	}
 	return []WorkflowCapability{{
@@ -41,10 +41,10 @@ func (workspace *ModelBuilderWorkspace) WorkflowCapabilities(_ context.Context, 
 			{Name: "model", Data: recipe.DataArtifact, Source: recipe.Endpoint{Node: "construct", Port: "model"}},
 			{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "construct", Port: "checkpoint"}},
 		},
-		Controls: []WorkflowControl{
-			{Name: "corpus", Type: WorkflowControlText, Required: true},
-			{Name: "seed", Type: WorkflowControlInteger, Required: true},
-			{Name: "steps", Type: WorkflowControlInteger, Required: true},
+		Controls: []workflowControl{
+			{Name: "corpus", Type: workflowControlText, Required: true},
+			{Name: "seed", Type: workflowControlInteger, Required: true},
+			{Name: "steps", Type: workflowControlInteger, Required: true},
 		},
 	}}, nil
 }
@@ -55,8 +55,8 @@ type modelBuildInput struct {
 	Steps  int    `json:"steps"`
 }
 
-func (workspace *ModelBuilderWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
-	if workspace == nil || ctx == nil || reporter == nil || kind != WorkflowModelBuild ||
+func (workspace *modelBuilderWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
+	if workspace == nil || ctx == nil || reporter == nil || kind != workflowModelBuild ||
 		task != recipe.TaskTraining || recipeID != workspace.recipe {
 		return operation.Completion{}, errors.New("model builder workspace: workflow is not admitted")
 	}

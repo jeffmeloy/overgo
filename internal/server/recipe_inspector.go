@@ -8,7 +8,7 @@ import (
 	"overgo/internal/recipe"
 )
 
-type RecipeInspectionAPI interface {
+type recipeInspectionAPI interface {
 	RecipeRuntimeDescription(recipe.Task) (modelrecipe.RuntimeDescription, error)
 }
 
@@ -24,7 +24,7 @@ func (h *Handler) activeRecipe(response http.ResponseWriter, request *http.Reque
 		writeInvalidRequest(response, fmt.Errorf("invalid recipe task %q", task))
 		return
 	}
-	inspector, ok := h.generator.(RecipeInspectionAPI)
+	inspector, ok := h.generator.(recipeInspectionAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "recipe inspection is unavailable")
 		return

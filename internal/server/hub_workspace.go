@@ -178,8 +178,8 @@ func (h *Handler) hubSearch(response http.ResponseWriter, request *http.Request)
 	writeJSON(response, http.StatusOK, map[string]any{"results": listings})
 }
 
-// DownloadJob is one hub download's observable state.
-type DownloadJob struct {
+// downloadJob is one hub download's observable state.
+type downloadJob struct {
 	ID          uint64 `json:"id"`
 	Kind        string `json:"kind"`
 	Repository  string `json:"repository"`
@@ -212,7 +212,7 @@ var errDownloadsShutDown = errors.New("download workspace is shut down")
 type downloadRegistry struct {
 	mu                      sync.Mutex
 	next                    atomic.Uint64
-	jobs                    map[uint64]*DownloadJob
+	jobs                    map[uint64]*downloadJob
 	cancels                 map[uint64]context.CancelFunc
 	maxRunning, maxRetained int
 	// transfers tracks every running transfer goroutine so shutdown
@@ -227,7 +227,7 @@ type downloadRegistry struct {
 // observe records a transfer's progress; the jobs publish only when this one
 // reads differently (another file, another whole percent), so a transfer
 // publishes at most one change per percent of each file.
-func (r *downloadRegistry) observe(job *DownloadJob, progress hfhub.Progress) {
+func (r *downloadRegistry) observe(job *downloadJob, progress hfhub.Progress) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	changed := job.File != progress.Path || wholePercent(job.Received, job.Total) != wholePercent(progress.Received, progress.Total)
@@ -251,7 +251,7 @@ func newDownloadRegistry(maxRunning, maxRetained int, publish func(string, any))
 // admit registers a new job under the concurrency and retention
 // bounds; a full running set is a refusal, and the oldest finished
 // jobs make room for history.
-func (r *downloadRegistry) admit(job *DownloadJob, cancel context.CancelFunc) error {
+func (r *downloadRegistry) admit(job *downloadJob, cancel context.CancelFunc) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
@@ -267,7 +267,7 @@ func (r *downloadRegistry) admit(job *DownloadJob, cancel context.CancelFunc) er
 		return fmt.Errorf("download backlog is full: %d transfer(s) already running", running)
 	}
 	if r.jobs == nil {
-		r.jobs, r.cancels = map[uint64]*DownloadJob{}, map[uint64]context.CancelFunc{}
+		r.jobs, r.cancels = map[uint64]*downloadJob{}, map[uint64]context.CancelFunc{}
 	}
 	for len(r.jobs) >= r.maxRetained {
 		oldest := uint64(0)
@@ -333,18 +333,18 @@ func (r *downloadRegistry) cancel(id uint64) (string, bool) {
 	return job.State, true
 }
 
-func (r *downloadRegistry) snapshot() []DownloadJob {
+func (r *downloadRegistry) snapshot() []downloadJob {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.snapshotLocked()
 }
 
-func (r *downloadRegistry) snapshotLocked() []DownloadJob {
-	listed := make([]DownloadJob, 0, len(r.jobs))
+func (r *downloadRegistry) snapshotLocked() []downloadJob {
+	listed := make([]downloadJob, 0, len(r.jobs))
 	for _, job := range r.jobs {
 		listed = append(listed, *job)
 	}
-	slices.SortFunc(listed, func(left, right DownloadJob) int { return cmp.Compare(right.ID, left.ID) })
+	slices.SortFunc(listed, func(left, right downloadJob) int { return cmp.Compare(right.ID, left.ID) })
 	return listed
 }
 
@@ -414,7 +414,7 @@ func (h *Handler) startHubDownload(response http.ResponseWriter, request *http.R
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
-	job := &DownloadJob{
+	job := &downloadJob{
 		ID: h.downloads.next.Add(1), Kind: string(kind), Repository: body.Repository,
 		Revision: body.Revision, Destination: destination, State: downloadStateRunning,
 	}
@@ -459,7 +459,7 @@ func (h *Handler) cancelHubDownload(response http.ResponseWriter, request *http.
 	writeJSON(response, http.StatusOK, map[string]any{"id": id, "state": state})
 }
 
-func (h *Handler) runHubDownload(ctx context.Context, client *hfhub.Client, kind hfhub.RepoKind, body downloadRequestBody, destination string, job *DownloadJob) {
+func (h *Handler) runHubDownload(ctx context.Context, client *hfhub.Client, kind hfhub.RepoKind, body downloadRequestBody, destination string, job *downloadJob) {
 	defer h.downloads.transfers.Done()
 	resolved, err := client.Download(ctx, hfhub.DownloadRequest{
 		Kind: kind, Repository: body.Repository, Revision: body.Revision, Destination: destination,

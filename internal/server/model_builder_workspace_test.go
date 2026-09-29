@@ -26,7 +26,7 @@ func TestModelBuilderWorkspaceUsesSharedCampaign(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowModelBuild)
+	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowModelBuild)
 	if err != nil || len(capabilities) != 1 {
 		t.Fatalf("capabilities=%+v err=%v", capabilities, err)
 	}
@@ -34,7 +34,7 @@ func TestModelBuilderWorkspaceUsesSharedCampaign(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowModelBuild, recipe.TaskTraining,
+	completion, err := workspace.ExecuteWorkflow(ctx, workflowModelBuild, recipe.TaskTraining,
 		capabilities[0].Recipe, input, testReporter{id: testutil.ArtifactID(t, artifact.KindEvidence, "model-builder-operation")})
 	if err != nil {
 		t.Fatal(err)

@@ -22,7 +22,7 @@ import (
 const evaluationTestCommit = "0123456789abcdef0123456789abcdef01234567"
 
 type evaluationWorkspaceFixture struct {
-	capability EvaluationCapability
+	capability evaluationCapability
 	run        artifact.ID
 	mu         sync.Mutex
 	model      artifact.ID
@@ -30,8 +30,8 @@ type evaluationWorkspaceFixture struct {
 	replay     *evaluation.SupervisedGroundedReplayRequest
 }
 
-func (fixture *evaluationWorkspaceFixture) EvaluationCapabilities(context.Context) ([]EvaluationCapability, error) {
-	return []EvaluationCapability{fixture.capability}, nil
+func (fixture *evaluationWorkspaceFixture) EvaluationCapabilities(context.Context) ([]evaluationCapability, error) {
+	return []evaluationCapability{fixture.capability}, nil
 }
 
 func (fixture *evaluationWorkspaceFixture) ExecuteEvaluation(
@@ -62,20 +62,20 @@ func (fixture *evaluationWorkspaceFixture) ExecuteSupervisedGroundedReplay(
 	return operation.Completion{Run: fixture.run}, nil
 }
 
-func (*evaluationWorkspaceFixture) EvaluationHistory(context.Context, artifact.ID) ([]EvaluationHistoryEntry, error) {
+func (*evaluationWorkspaceFixture) EvaluationHistory(context.Context, artifact.ID) ([]evaluationHistoryEntry, error) {
 	return nil, nil
 }
 
-func (*evaluationWorkspaceFixture) EvaluationReport(context.Context, artifact.ID) (EvaluationReport, error) {
-	return EvaluationReport{}, nil
+func (*evaluationWorkspaceFixture) EvaluationReport(context.Context, artifact.ID) (evaluationReport, error) {
+	return evaluationReport{}, nil
 }
 
-func (*evaluationWorkspaceFixture) EvaluationFailures(context.Context, artifact.ID) ([]EvaluationFailure, error) {
+func (*evaluationWorkspaceFixture) EvaluationFailures(context.Context, artifact.ID) ([]evaluationFailure, error) {
 	return nil, nil
 }
 
-func (*evaluationWorkspaceFixture) CompareEvaluations(context.Context, artifact.ID, artifact.ID) (EvaluationComparison, error) {
-	return EvaluationComparison{}, nil
+func (*evaluationWorkspaceFixture) CompareEvaluations(context.Context, artifact.ID, artifact.ID) (evaluationComparison, error) {
+	return evaluationComparison{}, nil
 }
 
 func TestEvaluationCampaignAPIUsesCompiledPlans(t *testing.T) {
@@ -102,7 +102,7 @@ func TestEvaluationCampaignAPIUsesCompiledPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixture := &evaluationWorkspaceFixture{
-		capability: EvaluationCapability{Model: modelID, Recipe: recipeID, Suite: compiled.Descriptor()},
+		capability: evaluationCapability{Model: modelID, Recipe: recipeID, Suite: compiled.Descriptor()},
 		run:        testutil.ArtifactID(t, artifact.KindRun, "evaluation-api-run"),
 	}
 	handler, err := New(Config{Evaluation: fixture}, &fakeGenerator{})
@@ -147,7 +147,7 @@ func TestEvaluationCampaignAPIRunsSupervisedGroundedReplay(t *testing.T) {
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "grounded-replay-api-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "grounded-replay-api-recipe")
 	fixture := &evaluationWorkspaceFixture{
-		capability: EvaluationCapability{
+		capability: evaluationCapability{
 			Model: modelID, Recipe: recipeID,
 			Suite: evaluation.SuiteDescriptor{Plan: testutil.ArtifactID(t, artifact.KindProfile, "grounded-replay-api-plan")},
 		},
@@ -188,7 +188,7 @@ func TestEvaluationCampaignAPIRejectsMixedOrUnboundedGroundedReplay(t *testing.T
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "grounded-replay-refusal-recipe")
 	planID := testutil.ArtifactID(t, artifact.KindProfile, "grounded-replay-refusal-plan")
 	fixture := &evaluationWorkspaceFixture{
-		capability: EvaluationCapability{Model: modelID, Recipe: recipeID, Suite: evaluation.SuiteDescriptor{Plan: planID}},
+		capability: evaluationCapability{Model: modelID, Recipe: recipeID, Suite: evaluation.SuiteDescriptor{Plan: planID}},
 		run:        testutil.ArtifactID(t, artifact.KindRun, "grounded-replay-refusal-run"),
 	}
 	handler, err := New(Config{Evaluation: fixture, MaxStoredResponses: 2}, &fakeGenerator{})

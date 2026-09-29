@@ -56,7 +56,7 @@ func TestWorkbenchAPIDownloadAdmissionAndCancellation(t *testing.T) {
 	if refused := start(strconv.Itoa(len(accepted))); refused.Code != http.StatusTooManyRequests {
 		t.Fatalf("backlog status = %d body=%s", refused.Code, refused.Body.String())
 	}
-	var job DownloadJob
+	var job downloadJob
 	if err := json.Unmarshal(accepted[0].Body.Bytes(), &job); err != nil {
 		t.Fatal(err)
 	}

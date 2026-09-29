@@ -14,14 +14,14 @@ import (
 
 var errOperationEvidenceNotFound = errors.New("server: operation evidence not found")
 
-// OperationEvidenceDocument preserves immutable evidence identity in a projection.
-type OperationEvidenceDocument[T any] struct {
+// operationEvidenceDocument preserves immutable evidence identity in a projection.
+type operationEvidenceDocument[T any] struct {
 	ID    artifact.ID `json:"id"`
 	Value T           `json:"value"`
 }
 
-// OperationStageSummary counts the current durable lifecycle state of every stage.
-type OperationStageSummary struct {
+// operationStageSummary counts the current durable lifecycle state of every stage.
+type operationStageSummary struct {
 	Admitted  int `json:"admitted"`
 	Running   int `json:"running"`
 	Waiting   int `json:"waiting"`
@@ -29,10 +29,10 @@ type OperationStageSummary struct {
 	Failed    int `json:"failed"`
 }
 
-// OperationEvidenceSummary is a payload-free aggregate of one operation's evidence.
-type OperationEvidenceSummary struct {
+// operationEvidenceSummary is a payload-free aggregate of one operation's evidence.
+type operationEvidenceSummary struct {
 	State             operation.State            `json:"state,omitempty"`
-	Stages            OperationStageSummary      `json:"stages"`
+	Stages            operationStageSummary      `json:"stages"`
 	StageAttempts     uint64                     `json:"stage_attempts"`
 	OperationAttempts int                        `json:"operation_attempts"`
 	ServingAttempts   int                        `json:"serving_attempts"`
@@ -43,15 +43,15 @@ type OperationEvidenceSummary struct {
 	TotalMeasuredNS   uint64                     `json:"total_measured_ns"`
 }
 
-// OperationEvidenceProjection joins bounded immutable facts without transcript payloads.
-type OperationEvidenceProjection struct {
+// operationEvidenceProjection joins bounded immutable facts without transcript payloads.
+type operationEvidenceProjection struct {
 	ID           artifact.ID                                               `json:"id"`
 	Operation    *operation.Status                                         `json:"operation,omitempty"`
-	Summary      OperationEvidenceSummary                                  `json:"summary"`
-	Stages       []OperationEvidenceDocument[runrecord.StageReceipt]       `json:"stages"`
-	Serving      []OperationEvidenceDocument[runrecord.ServingObservation] `json:"serving"`
-	Interactions []OperationEvidenceDocument[runrecord.Interaction]        `json:"interactions"`
-	Decisions    []OperationEvidenceDocument[runrecord.HumanDecision]      `json:"decisions"`
+	Summary      operationEvidenceSummary                                  `json:"summary"`
+	Stages       []operationEvidenceDocument[runrecord.StageReceipt]       `json:"stages"`
+	Serving      []operationEvidenceDocument[runrecord.ServingObservation] `json:"serving"`
+	Interactions []operationEvidenceDocument[runrecord.Interaction]        `json:"interactions"`
+	Decisions    []operationEvidenceDocument[runrecord.HumanDecision]      `json:"decisions"`
 	Runtime      runtimeSessionsResponse                                   `json:"runtime"`
 	Truncated    bool                                                      `json:"truncated"`
 }
@@ -86,34 +86,34 @@ func (h *Handler) operationEvidenceSnapshot(
 	ctx context.Context,
 	id artifact.ID,
 	limit int,
-) (OperationEvidenceProjection, error) {
+) (operationEvidenceProjection, error) {
 	store, err := h.browseStore(ctx)
 	if err != nil {
-		return OperationEvidenceProjection{}, err
+		return operationEvidenceProjection{}, err
 	}
 	stages, stagePage, err := collectOperationEvidence(ctx, store, artifact.DocumentContract{
 		Kind: artifact.KindEvidence, MediaType: runrecord.StageReceiptMediaType, Schema: runrecord.StageReceiptSchema,
 	}, runrecord.StageReceiptAliasRoot+id.String()+"/", limit, runrecord.ParseStageReceipt)
 	if err != nil {
-		return OperationEvidenceProjection{}, err
+		return operationEvidenceProjection{}, err
 	}
 	serving, servingPage, err := collectOperationEvidence(ctx, store, artifact.DocumentContract{
 		Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
 	}, runrecord.ServingAttemptAliasRoot+id.String()+"/", limit, runrecord.ParseServingObservation)
 	if err != nil {
-		return OperationEvidenceProjection{}, err
+		return operationEvidenceProjection{}, err
 	}
 	interactions, interactionPage, err := collectOperationEvidence(ctx, store, artifact.DocumentContract{
 		Kind: artifact.KindEvidence, MediaType: runrecord.InteractionMediaType, Schema: runrecord.InteractionSchema,
 	}, runrecord.InteractionOperationAliasRoot+id.String()+"/", limit, runrecord.ParseInteraction)
 	if err != nil {
-		return OperationEvidenceProjection{}, err
+		return operationEvidenceProjection{}, err
 	}
 	decisions, decisionsTruncated, err := operationDecisions(ctx, store, id, limit)
 	if err != nil {
-		return OperationEvidenceProjection{}, err
+		return operationEvidenceProjection{}, err
 	}
-	projection := OperationEvidenceProjection{
+	projection := operationEvidenceProjection{
 		ID: id, Stages: stages, Serving: serving, Interactions: interactions, Decisions: decisions,
 		Runtime:   h.runtimeSessionsSnapshot(),
 		Truncated: stagePage.Truncated || servingPage.Truncated || interactionPage.Truncated || decisionsTruncated,
@@ -122,7 +122,7 @@ func (h *Handler) operationEvidenceSnapshot(
 		projection.Operation = &status
 	}
 	if projection.Operation == nil && len(stages) == 0 && len(serving) == 0 && len(interactions) == 0 && len(decisions) == 0 {
-		return OperationEvidenceProjection{}, errOperationEvidenceNotFound
+		return operationEvidenceProjection{}, errOperationEvidenceNotFound
 	}
 	projection.Summary, err = summarizeOperationEvidence(projection)
 	return projection, err
@@ -135,13 +135,13 @@ func collectOperationEvidence[T any](
 	aliasPrefix string,
 	limit int,
 	decode func([]byte) (T, error),
-) ([]OperationEvidenceDocument[T], overgodb.DocumentPage, error) {
-	documents := make([]OperationEvidenceDocument[T], 0, limit)
+) ([]operationEvidenceDocument[T], overgodb.DocumentPage, error) {
+	documents := make([]operationEvidenceDocument[T], 0, limit)
 	page, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{contract}, AliasPrefixes: []string{aliasPrefix},
 		Order: overgodb.DocumentNewestFirst, MaxResults: limit,
 	}, decode, func(view overgodb.DocumentView, value T) error {
-		documents = append(documents, OperationEvidenceDocument[T]{ID: view.Content.Descriptor.ID, Value: value})
+		documents = append(documents, operationEvidenceDocument[T]{ID: view.Content.Descriptor.ID, Value: value})
 		return nil
 	})
 	return documents, page, err
@@ -152,15 +152,15 @@ func operationDecisions(
 	reader artifact.Reader,
 	operationID artifact.ID,
 	limit int,
-) ([]OperationEvidenceDocument[runrecord.HumanDecision], bool, error) {
+) ([]operationEvidenceDocument[runrecord.HumanDecision], bool, error) {
 	latest, found, err := runrecord.ResolveHumanDecision(ctx, reader, operationID)
 	if err != nil || !found {
 		return nil, false, err
 	}
-	decisions := make([]OperationEvidenceDocument[runrecord.HumanDecision], 0, limit)
+	decisions := make([]operationEvidenceDocument[runrecord.HumanDecision], 0, limit)
 	current := latest
 	for len(decisions) < limit {
-		decisions = append(decisions, OperationEvidenceDocument[runrecord.HumanDecision]{ID: current.ID, Value: current})
+		decisions = append(decisions, operationEvidenceDocument[runrecord.HumanDecision]{ID: current.ID, Value: current})
 		if !current.Prior.Valid() {
 			return decisions, false, nil
 		}
@@ -172,15 +172,15 @@ func operationDecisions(
 	return decisions, current.Prior.Valid(), nil
 }
 
-func summarizeOperationEvidence(projection OperationEvidenceProjection) (OperationEvidenceSummary, error) {
-	var summary OperationEvidenceSummary
+func summarizeOperationEvidence(projection operationEvidenceProjection) (operationEvidenceSummary, error) {
+	var summary operationEvidenceSummary
 	if projection.Operation != nil {
 		summary.State = projection.Operation.State
 		summary.OperationAttempts = len(projection.Operation.Attempts)
 	}
 	for _, document := range projection.Stages {
 		if err := addOperationEvidenceMetric(&summary.StageAttempts, uint64(document.Value.Attempt)); err != nil {
-			return OperationEvidenceSummary{}, errors.New("server: operation stage summary overflow")
+			return operationEvidenceSummary{}, errors.New("server: operation stage summary overflow")
 		}
 		switch document.Value.State {
 		case runrecord.StageAdmitted:
@@ -207,7 +207,7 @@ func summarizeOperationEvidence(projection OperationEvidenceProjection) (Operati
 			addOperationEvidenceMetric(&summary.Resources.HostToDeviceBytes, observation.Resources.HostToDeviceBytes) != nil ||
 			addOperationEvidenceMetric(&summary.Resources.DeviceToHostBytes, observation.Resources.DeviceToHostBytes) != nil ||
 			addOperationEvidenceMetric(&summary.TotalMeasuredNS, observation.MeasuredNS) != nil {
-			return OperationEvidenceSummary{}, errors.New("server: operation evidence summary overflow")
+			return operationEvidenceSummary{}, errors.New("server: operation evidence summary overflow")
 		}
 		summary.Resources.PeakHostBytes = max(summary.Resources.PeakHostBytes, observation.Resources.PeakHostBytes)
 		summary.Resources.PeakDeviceBytes = max(summary.Resources.PeakDeviceBytes, observation.Resources.PeakDeviceBytes)

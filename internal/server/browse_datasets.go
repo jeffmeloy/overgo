@@ -28,7 +28,7 @@ type browseDatasetsResponse struct {
 	Datasets []datasetEntry `json:"datasets"`
 }
 
-type DatasetPreviewAPI interface {
+type datasetPreviewAPI interface {
 	OpenDataset(context.Context, string) (*trainingdata.Dataset, error)
 }
 
@@ -51,7 +51,7 @@ func (preview storeDatasetPreview) OpenDataset(ctx context.Context, name string)
 }
 
 // datasetPreview: a launcher's resolver wins; otherwise the store the page browses answers.
-func (h *Handler) datasetPreview(response http.ResponseWriter, request *http.Request) (DatasetPreviewAPI, bool) {
+func (h *Handler) datasetPreview(response http.ResponseWriter, request *http.Request) (datasetPreviewAPI, bool) {
 	if h.config.DatasetPreview != nil {
 		return h.config.DatasetPreview, true
 	}

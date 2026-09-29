@@ -5,14 +5,13 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
-	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/fixtureasset"
 	"overgo/internal/jsonfile"
+	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/patchtower"
 	"overgo/internal/routedlm"
@@ -20,7 +19,6 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
 	"overgo/internal/trainingprogram"
-	"overgo/internal/trainingworkflow"
 )
 
 // The image grid's axes, in the order the vision golden records them.
@@ -105,33 +103,14 @@ func trainMot(flags *flag.FlagSet, args []string) error {
 	}
 	defer store.Close()
 
-	// Recipe authority + model identity, then session admission BEFORE any
-	// weight touches memory.
 	shards, err := filepath.Glob(filepath.Join(*modelDir, "model-*-of-*.safetensors"))
 	if err != nil || len(shards) == 0 {
 		return fmt.Errorf("train -route mot: no shards under %s", *modelDir)
 	}
-	modelFile, err := os.Open(shards[0])
+	session, err := openSession(ctx, store, shards[0], *stimulus)
 	if err != nil {
 		return err
 	}
-	modelID, _, err := artifact.Identify(artifact.KindModel, modelFile)
-	modelFile.Close()
-	if err != nil {
-		return err
-	}
-	recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, shards[0], *stimulus)
-	if err != nil {
-		return err
-	}
-	observer, err := trainingworkflow.NewObserver(store, false)
-	if err != nil {
-		return err
-	}
-	if err := observer.Admit(ctx, modelID, recipeID); err != nil {
-		return err
-	}
-	fmt.Printf("session admitted: model=%s recipe=%s\n", modelID, recipeID)
 
 	// Real prompt: golden-verified token ids, modality mask, and vision rows
 	// through the real merger — the exact splice the serving prefill runs.
@@ -220,74 +199,25 @@ func trainMot(flags *flag.FlagSet, args []string) error {
 		head[i] = binary.LittleEndian.Uint16(headRaw[i*int(scalarBytes):])
 	}
 	headRaw = nil
-	authority, err := trainingworkflow.ResolveSessionAuthority(ctx, store, modelID, recipeID)
-	if err != nil {
-		return err
-	}
-	trainer, err := routedlm.NewModalityTransformerTrainer(cfg, layers, terminal.FinalNorm[0], head, authority.Optimizer)
+	trainer, err := routedlm.NewModalityTransformerTrainer(cfg, layers, terminal.FinalNorm[0], head, session.authority.Optimizer)
 	if err != nil {
 		return err
 	}
 	defer trainer.Close()
-	session, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
-		Objective: authority.Objective, Updates: *steps, MaximumSequence: fg.PromptLen,
-		MaxProjectedWall: *maxWall, Parameters: trainer.ParameterCount(), Optimizer: authority.Optimizer,
+	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: session.authority.Objective, Updates: *steps, MaximumSequence: fg.PromptLen,
+		MaxProjectedWall: *maxWall, Parameters: trainer.ParameterCount(), Optimizer: session.authority.Optimizer,
 	})
 	if err != nil {
 		return err
 	}
-	observer.Phase(runrecord.PhaseLoad, time.Since(loadStarted))
+	session.observer.Phase(runrecord.PhaseLoad, time.Since(loadStarted))
 	fmt.Printf("full modality-transformer: layers=%d trainable_parameters=%d prompt_tokens=%d image_rows=%d supervised_positions=%d\n",
 		cfg.NumHiddenLayers, trainer.ParameterCount(), fg.PromptLen, imageRows, len(targets))
 	fmt.Printf("derived_lr=%.6g derived_momentum=%.10g load_wall=%s\n",
 		trainer.Config().BaseLearningRate, trainer.Config().Momentum, time.Since(loadStarted).Round(time.Millisecond))
-
-	initial, err := trainer.Loss(hidden, mask, targets)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("initial loss %.6f (next-token cross-entropy over %d real positions)\n", initial, len(targets))
-
-	trainStarted := time.Now()
-	runErr := func() error {
-		for step := 0; step < session.Updates(); step++ {
-			stepStarted := time.Now()
-			result, err := trainer.Step(hidden, mask, targets)
-			if err != nil {
-				return err
-			}
-			observer.SampleStep()
-			wall := time.Since(stepStarted)
-			fmt.Printf("step %d/%d loss %.6f grad_l2 %.6f lr %.6g wall %s\n",
-				result.Step, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, wall.Round(time.Millisecond))
-			if result.GradientL2 <= 0 {
-				return fmt.Errorf("train -route mot: step %d gradient norm %g", result.Step, result.GradientL2)
-			}
-			if step == 0 {
-				if err := session.AdmitStepWall(wall); err != nil {
-					return fmt.Errorf("train -route mot: %w", err)
-				}
-			}
-		}
-		final, err := trainer.Loss(hidden, mask, targets)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("after-evaluation loss %.6f (initial %.6f)\n", final, initial)
-		if !(final < initial) {
-			return fmt.Errorf("train -route mot: no descent: %.6f -> %.6f", initial, final)
-		}
-		return nil
-	}()
-	observer.Phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
-	streamed := uint64(session.Updates()) * uint64(fg.PromptLen)
-	observation, observeErr := observer.Finish(ctx, modelID, recipeID, runErr, streamed)
-	if runErr != nil {
-		return runErr
-	}
-	if observeErr != nil {
-		return observeErr
-	}
-	fmt.Printf("session observation: %s\n", observation)
-	return nil
+	return boundedRun{name: "train -route mot", plan: plan, session: session,
+		step: func(int) (optimizer.ObservedStepResult, error) { return trainer.Step(hidden, mask, targets) },
+		loss: func() (float64, error) { return trainer.Loss(hidden, mask, targets) },
+	}.train(ctx)
 }

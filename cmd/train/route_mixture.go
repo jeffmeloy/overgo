@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"math"
@@ -8,7 +9,6 @@ import (
 	"slices"
 	"time"
 
-	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/densecausal"
@@ -107,11 +107,6 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 		groups[group.Name] = group.GroupSpec
 		copy(weights[group.Start:group.End], model.Weights[group.Name])
 	}
-	scatter := func() {
-		for tensor, span := range groups {
-			copy(model.Weights[tensor], weights[span.Start:span.End])
-		}
-	}
 	stepper, err := optimizer.NewStepper(weights, gradients, plan, config)
 	if err != nil {
 		return err
@@ -120,59 +115,40 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 	fmt.Printf("trainable parameters=%d groups=%d derived_lr=%.4g derived_momentum=%.4f mixture_top_k=%d window=%d load_wall=%s\n",
 		plan.ParameterCount(), plan.GroupCount(), config.BaseLearningRate, config.Momentum, model.Dims.MoE.TopK, window, time.Since(loadStart).Round(time.Millisecond))
 
-	start := time.Now()
-	var first float64
-	for step := 0; step < session.Updates(); step++ {
-		stepStart := time.Now()
-		loss, _, grads, err := model.LossAndGrads(trainingWindow)
-		if err != nil {
-			return err
-		}
-		if !checked.Finite64(loss) {
-			return fmt.Errorf("%s: step %d loss is non-finite", name, step+1)
-		}
-		clear(gradients)
-		var missing []string
-		var gradientSquared float64
-		for group, values := range grads {
-			span, ok := groups[group]
-			if !ok {
-				missing = append(missing, group)
-				continue
+	var updates int
+	return boundedRun{name: name, plan: session,
+		step: func(int) (optimizer.ObservedStepResult, error) {
+			loss, _, grads, err := model.LossAndGrads(trainingWindow)
+			if err != nil {
+				return optimizer.ObservedStepResult{}, err
 			}
-			copy(gradients[span.Start:span.End], values)
-			for _, g := range values {
-				gradientSquared += float64(g) * float64(g)
+			clear(gradients)
+			var missing []string
+			var gradientSquared float64
+			for group, values := range grads {
+				span, ok := groups[group]
+				if !ok {
+					missing = append(missing, group)
+					continue
+				}
+				copy(gradients[span.Start:span.End], values)
+				for _, g := range values {
+					gradientSquared += float64(g) * float64(g)
+				}
 			}
-		}
-		if len(missing) > 0 {
-			slices.Sort(missing)
-			return fmt.Errorf("%s: gradients outside the compiled plan: %v", name, missing)
-		}
-		if err := stepper.Step(); err != nil {
-			return err
-		}
-		scatter()
-		fmt.Printf("step %d/%d: loss=%.6f grad_l2=%.4g wall=%s\n",
-			step+1, session.Updates(), loss, math.Sqrt(gradientSquared), time.Since(stepStart).Round(time.Millisecond))
-		if step == 0 {
-			first = loss
-			if gradientSquared == 0 {
-				return fmt.Errorf("%s: first step carried no gradient", name)
+			if len(missing) > 0 {
+				slices.Sort(missing)
+				return optimizer.ObservedStepResult{}, fmt.Errorf("%s: gradients outside the compiled plan: %v", name, missing)
 			}
-			if err := session.AdmitStepWall(time.Since(start)); err != nil {
-				return fmt.Errorf("%s: %w", name, err)
+			result, err := optimizer.Advance(stepper, config, &updates, loss, math.Sqrt(gradientSquared))
+			for tensor, span := range groups {
+				copy(model.Weights[tensor], weights[span.Start:span.End])
 			}
-		}
-	}
-	after, _, err := model.Loss(trainingWindow)
-	if err != nil {
-		return err
-	}
-	if !checked.Finite64(after) || !(after < first) {
-		return fmt.Errorf("%s: loss did not descend: before=%.6f after=%.6f", name, first, after)
-	}
-	fmt.Printf("descent: steps=%d span_tokens=%d loss %.6f -> %.6f total_wall=%s\n",
-		session.Updates(), session.Updates()*window, first, after, time.Since(start).Round(time.Millisecond))
-	return nil
+			return result, err
+		},
+		loss: func() (float64, error) {
+			loss, _, err := model.Loss(trainingWindow)
+			return loss, err
+		},
+	}.train(context.Background())
 }

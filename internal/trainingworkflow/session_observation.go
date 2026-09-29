@@ -30,7 +30,7 @@ func PublishTrainingEvidence(ctx context.Context, repository artifact.Repository
 	if ctx == nil || repository == nil || !strings.HasPrefix(publication.Batch.Key, "training/evidence/") {
 		return errors.New("training workflow: training evidence publication is incomplete")
 	}
-	_, err := artifact.CommitBatch(ctx, repository, publication.Batch)
+	_, err := artifact.Publish(ctx, repository, publication.Batch)
 	return err
 }
 

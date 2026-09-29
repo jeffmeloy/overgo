@@ -293,9 +293,5 @@ func executeAudioTraining(ctx context.Context, request Request) (result Result, 
 
 func publishAudioTrainingFacts(ctx context.Context, repository artifact.Repository, batch artifact.Batch) error {
 	batch.Key = "training/evidence/audio/" + batch.Key
-	err := PublishTrainingEvidence(ctx, repository, TrainingEvidencePublication{Batch: batch})
-	if errors.Is(err, artifact.ErrNoChange) {
-		return nil
-	}
-	return err
+	return PublishTrainingEvidence(ctx, repository, TrainingEvidencePublication{Batch: batch})
 }

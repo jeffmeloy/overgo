@@ -120,8 +120,9 @@ func directoryModelType(directory string) (string, error) {
 // resolveRoute maps one trainable input to its trainer: a declared route
 // when the input's architecture has one, the dense workflow when the
 // input is a dense representation, and a named refusal otherwise. The
-// dense argv comes from the caller because its bounds are lane flags.
-func resolveRoute(catalog routeCatalog, input, storePath, t2vDir string, dense []string) (trainerRoute, error) {
+// dense argv comes from the caller because its bounds are lane flags;
+// target is the checkpoint directory the step publishes to.
+func resolveRoute(catalog routeCatalog, input, storePath, t2vDir, target string, dense []string) (trainerRoute, error) {
 	key, err := routeKey(input)
 	if err != nil {
 		return trainerRoute{}, err
@@ -134,6 +135,7 @@ func resolveRoute(catalog routeCatalog, input, storePath, t2vDir string, dense [
 	for index, argument := range declaration.Argv {
 		substituted := strings.ReplaceAll(argument, "{input}", input)
 		substituted = strings.ReplaceAll(substituted, "{store}", storePath)
+		substituted = strings.ReplaceAll(substituted, "{out}", target)
 		if strings.Contains(substituted, "{t2v-dir}") {
 			if t2vDir == "" {
 				return trainerRoute{}, fmt.Errorf("train-lane: route %q needs the recorded t2v stack directory and none resolves", key)

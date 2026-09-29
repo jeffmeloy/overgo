@@ -6,13 +6,15 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/optimizer"
+	"overgo/internal/safetensors"
 )
 
 // TrainingOptions controls optional optimizer continuation and observations.
 // Resume requires the matching model weights, input and execution backend.
 // Checkpoint runs at the final complete update boundary, including an Observe
 // stop, after resident weights have been read back. It owns a portable optimizer
-// snapshot; callers retain responsibility for weight and dataset/RNG publication.
+// snapshot; SaveWeights writes the weights it pairs with, and callers retain
+// responsibility for their publication and the dataset/RNG state.
 // An execution failure inside an update cannot publish a checkpoint.
 type TrainingOptions struct {
 	Resume     *optimizer.State
@@ -71,6 +73,24 @@ func (m *Model) checkpoint(options TrainingOptions, mat optimizer.State, vec *op
 		return err
 	}
 	return options.Checkpoint(mat)
+}
+
+// SaveWeights writes every trainable group of the compiled program as a named
+// F32 safetensors tensor with its [rows, cols] geometry, the weights a
+// Checkpoint snapshot's momentum pairs with.
+func (m *Model) SaveWeights(path string) error {
+	tensors := make(map[string][]float32, m.matPlan.GroupCount()+m.vecPlan.GroupCount())
+	shapes := make(map[string][]int, len(tensors))
+	for _, slab := range []struct {
+		plan   optimizer.Plan
+		values []float32
+	}{{m.matPlan, m.matW}, {m.vecPlan, m.vecW}} {
+		for _, group := range slab.plan.Groups() {
+			tensors[group.Name] = slab.values[group.Start:group.End]
+			shapes[group.Name] = []int{group.Rows, group.Cols}
+		}
+	}
+	return safetensors.Save(path, tensors, shapes, map[string]string{"program": m.program.ID().String()})
 }
 
 func (m *Model) checkpointF32(options TrainingOptions, momentum []float32, step int, cfg optimizer.Config, vec *optimizer.Optimizer) error {

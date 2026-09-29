@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 
-	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
+	"overgo/internal/optimizer"
 	"overgo/internal/oscillatorimage"
 	"overgo/internal/trainingprogram"
 )
@@ -31,10 +32,7 @@ func trainOscillatorImage(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
-		Objective: trainingprogram.ObjectiveLatentL2, Updates: *steps,
-		Parameters: real.TrainableParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
-	})
+	plan, err := probeSession(trainingprogram.ObjectiveLatentL2, *steps, real.TrainableParameterCount(), 0)
 	if err != nil {
 		return err
 	}
@@ -62,21 +60,11 @@ func trainOscillatorImage(flags *flag.FlagSet, args []string) error {
 		return err
 	}
 	defer trainer.Close()
-	before := trainer.Loss(evalSeed)
-	for step := 0; step < plan.Updates(); step++ {
-		result, err := trainer.Step()
-		if err != nil {
-			return err
-		}
-		if !checked.Finite64(result.Loss) {
-			return fmt.Errorf("%s: step %d loss is non-finite", flags.Name(), step+1)
-		}
-		fmt.Printf("step %d/%d: loss=%.6f lr=%.4g grad_l2=%.4g\n", step+1, plan.Updates(), result.Loss, result.LearningRate, result.GradientL2)
-	}
-	after := trainer.Loss(evalSeed)
-	if !(after < before) {
-		return fmt.Errorf("%s: scratch bootstrap did not descend: %.6f -> %.6f", flags.Name(), before, after)
-	}
-	fmt.Printf("descent: steps=%d loss %.6f -> %.6f\n", plan.Updates(), before, after)
-	return nil
+	return boundedRun{name: flags.Name(), plan: plan,
+		step: func(int) (optimizer.ObservedStepResult, error) {
+			result, err := trainer.Step()
+			return optimizer.ObservedStepResult(result), err
+		},
+		loss: func() (float64, error) { return trainer.Loss(evalSeed), nil },
+	}.train(context.Background())
 }

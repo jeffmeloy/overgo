@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
+	"overgo/internal/optimizer"
 	"overgo/internal/recipecontract"
 	"overgo/internal/seriesforecast"
 	"overgo/internal/trainingdata"
@@ -74,10 +74,7 @@ func forecastShard(modelDir, datasetPath string, steps, recordLimit int, maxWall
 	if err != nil {
 		return err
 	}
-	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
-		Objective: trainingprogram.ObjectiveForecast, Updates: steps, MaxProjectedWall: maxWall,
-		Parameters: model.TrainableParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
-	})
+	plan, err := probeSession(trainingprogram.ObjectiveForecast, steps, model.TrainableParameterCount(), maxWall)
 	if err != nil {
 		return err
 	}
@@ -88,41 +85,13 @@ func forecastShard(modelDir, datasetPath string, steps, recordLimit int, maxWall
 	defer trainer.Close()
 	fmt.Printf("trainable parameters=%d dataset=%s record=%d context=%d covered_horizon=%d/%d\n",
 		trainer.ParameterCount(), datasetID, ordinal, len(input), len(target), model.Dims.Horizon)
-
-	start := time.Now()
-	var before float64
-	for step := 0; step < plan.Updates(); step++ {
-		stepStart := time.Now()
-		result, err := trainer.Step(input, target)
-		if err != nil {
-			return err
-		}
-		if !checked.Finite64(result.Total) {
-			return fmt.Errorf("train -route seriesforecast:step %d loss is non-finite", step+1)
-		}
-		fmt.Printf("step %d/%d: total=%.6f mse=%.6f quantile=%.6f lr=%.4g grad_l2=%.4g wall=%s\n",
-			step+1, plan.Updates(), result.Total, result.MSE, result.Quantile,
-			result.LearningRate, result.GradientL2, time.Since(stepStart).Round(time.Millisecond))
-		if step == 0 {
-			before = result.Total
-			if result.GradientL2 <= 0 {
-				return fmt.Errorf("train -route seriesforecast:first step carried no gradient")
-			}
-			if err := plan.AdmitStepWall(time.Since(start)); err != nil {
-				return fmt.Errorf("train -route seriesforecast:%w", err)
-			}
-		}
-	}
-	after, err := trainer.Loss(input, target)
-	if err != nil {
-		return err
-	}
-	if !checked.Finite64(after) || !(after < before) {
-		return fmt.Errorf("train -route seriesforecast:loss did not descend: before=%.6f after=%.6f", before, after)
-	}
-	fmt.Printf("descent: steps=%d span_tokens=%d loss %.6f -> %.6f total_wall=%s\n",
-		plan.Updates(), plan.Updates()*len(input), before, after, time.Since(start).Round(time.Millisecond))
-	return nil
+	return boundedRun{name: "train -route seriesforecast", plan: plan,
+		step: func(int) (optimizer.ObservedStepResult, error) {
+			result, err := trainer.Step(input, target)
+			return optimizer.ObservedStepResult{Loss: result.Total, LearningRate: result.LearningRate, GradientL2: result.GradientL2}, err
+		},
+		loss: func() (float64, error) { return trainer.Loss(input, target) },
+	}.train(context.Background())
 }
 
 // firstTrainablePair scans the leading records for the first varying

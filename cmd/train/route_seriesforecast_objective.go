@@ -63,10 +63,7 @@ func runObjective(storeRoot, alias, modelDir string, steps int, maxWall time.Dur
 	if err != nil || len(weights) != 1 {
 		return fmt.Errorf("train -route seriesforecast:%s holds %d safetensors files, want one to record", modelDir, len(weights))
 	}
-	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
-		Objective: trainingprogram.ObjectiveForecast, Updates: steps, MaxProjectedWall: maxWall,
-		Parameters: model.TrainableParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
-	})
+	plan, err := probeSession(trainingprogram.ObjectiveForecast, steps, model.TrainableParameterCount(), maxWall)
 	if err != nil {
 		return err
 	}

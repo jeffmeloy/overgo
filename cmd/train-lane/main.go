@@ -116,11 +116,11 @@ func run() error {
 			return err
 		}
 		// The checkpoint target must not exist yet: publication owns its
-		// creation, so the dense route gets a fresh subpath of the lane's
+		// creation, so the route gets a fresh subpath of the lane's
 		// temporary directory.
-		route, routeErr := resolveRoute(catalog, modelInput, roots.Store, t2vDir,
-			denseArgv(roots.Store, training.Recipe.String(), modelInput, corpus,
-				filepath.Join(output, "checkpoint"), *steps, *sequence, *maxWall))
+		target := filepath.Join(output, "checkpoint")
+		route, routeErr := resolveRoute(catalog, modelInput, roots.Store, t2vDir, target,
+			denseArgv(roots.Store, training.Recipe.String(), modelInput, corpus, target, *steps, *sequence, *maxWall))
 		if routeErr != nil {
 			unavailable++
 			fmt.Printf("[train] %s UNAVAILABLE (%s)\n", entry.Model, routeErr)

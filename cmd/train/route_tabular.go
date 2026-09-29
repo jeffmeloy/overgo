@@ -68,10 +68,7 @@ func trainTabular(flags *flag.FlagSet, args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
-		Objective: trainingprogram.ObjectiveTablePrediction, Updates: *steps,
-		Parameters: head.TrainableParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
-	})
+	plan, err := probeSession(trainingprogram.ObjectiveTablePrediction, *steps, head.TrainableParameterCount(), 0)
 	if err != nil {
 		return err
 	}
@@ -112,10 +109,7 @@ func trainTableObjective(ctx context.Context, store *overgodb.Store, run objecti
 	if err != nil || len(weights) != 1 {
 		return trainingworkflow.HeldoutResult{}, fmt.Errorf("%s holds %d safetensors files, want one to record", headDir, len(weights))
 	}
-	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
-		Objective: trainingprogram.ObjectiveTablePrediction, Updates: run.Steps,
-		Parameters: head.TrainableParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
-	})
+	plan, err := probeSession(trainingprogram.ObjectiveTablePrediction, run.Steps, head.TrainableParameterCount(), 0)
 	if err != nil {
 		return trainingworkflow.HeldoutResult{}, err
 	}

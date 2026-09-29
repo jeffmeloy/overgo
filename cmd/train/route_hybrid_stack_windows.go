@@ -10,18 +10,19 @@ import (
 	"runtime"
 	"time"
 
-	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/cuda/device"
 	"overgo/internal/gguf"
 	"overgo/internal/hybridtrain"
 	"overgo/internal/model"
+	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/quant"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor"
+	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
@@ -47,11 +48,7 @@ type servingFixture struct {
 }
 
 // promptTokens returns the named case's token IDs from the serving fixture.
-func promptTokens(path, caseName string) ([]uint32, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
+func promptTokens(path string, raw []byte, caseName string) ([]uint32, error) {
 	var fixture servingFixture
 	if err := json.Unmarshal(raw, &fixture); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
@@ -76,8 +73,9 @@ func promptTokens(path, caseName string) ([]uint32, error) {
 // hyperparameters from the artifact's own declarations (base LR from the
 // parameter count, momentum from the CLT effective-samples rule, a constant
 // schedule), trains the model's hidden-state objective on real token rows,
-// and requires a strictly decreasing finite loss trajectory. A first-step
-// wall projection guard aborts a run that cannot finish inside -max-wall.
+// requires a strictly decreasing finite loss trajectory, and publishes the
+// trained stack as a checkpoint. A first-step wall projection guard aborts a
+// run that cannot finish inside -max-wall.
 func trainHybridStack(flags *flag.FlagSet, args []string) error {
 	modelPath := flags.String("model", "", "GGUF artifact path")
 	fixturePath := flags.String("fixture", filepath.Join("fixtures", "qwen35_4b_serving_golden.json"), "serving fixture holding the prompt token IDs")
@@ -85,7 +83,8 @@ func trainHybridStack(flags *flag.FlagSet, args []string) error {
 	steps := clioptions.IntOverride(flags, "steps", "required observed training steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
 	inspect := flags.Bool("inspect", false, "print the artifact census and exit without training")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
+	out := flags.String("out", "", "directory the trained stack's checkpoint publishes to")
+	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
 	lane := flags.String("lane", "full-slab", "training lane: full-slab (masters+gradients+momentum all full host slabs) or layer-streamed (bounded host triplication: gradients never exceed one layer)")
 	roundTrip := flags.Bool("serving-roundtrip", false, "after training, requantize layer 0's mlp gate masters to their declared serving dtype and re-evaluate the objective through the round trip")
 	if err := flags.Parse(args); err != nil {
@@ -94,8 +93,8 @@ func trainHybridStack(flags *flag.FlagSet, args []string) error {
 	if *lane != "full-slab" && *lane != "layer-streamed" {
 		return fmt.Errorf("%s: -lane must be full-slab or layer-streamed, got %q", flags.Name(), *lane)
 	}
-	if *modelPath == "" {
-		return fmt.Errorf("%s: -model is required", flags.Name())
+	if *modelPath == "" || (*out == "" && !*inspect) {
+		return fmt.Errorf("%s: -model, and -out to train, are required", flags.Name())
 	}
 	if *inspect {
 		return printCensus(*modelPath)
@@ -104,49 +103,30 @@ func trainHybridStack(flags *flag.FlagSet, args []string) error {
 		return fmt.Errorf("-steps must be at least %d to observe a loss decrease", tensor.PairedExtent)
 	}
 
-	tokens, err := promptTokens(*fixturePath, *caseName)
+	fixture, err := os.ReadFile(*fixturePath)
+	if err != nil {
+		return err
+	}
+	tokens, err := promptTokens(*fixturePath, fixture, *caseName)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("artifact: %s\n", *modelPath)
 	fmt.Printf("objective tokens: case=%q ids=%v (%d prediction rows)\n", *caseName, tokens, len(tokens)-1)
 
-	// The whole run executes as a model-session: recipe authority, then lease
-	// admission BEFORE any weight touches memory.
 	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	modelFile, err := os.Open(*modelPath)
+	session, err := openSession(ctx, store, *modelPath, *fixturePath)
 	if err != nil {
 		return err
 	}
-	modelID, _, err := artifact.Identify(artifact.KindModel, modelFile)
-	modelFile.Close()
-	if err != nil {
-		return err
-	}
-	recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, *modelPath, *fixturePath)
-	if err != nil {
-		return err
-	}
-	observer, err := trainingworkflow.NewObserver(store, false)
-	if err != nil {
-		return err
-	}
-	if err := observer.Admit(ctx, modelID, recipeID); err != nil {
-		return err
-	}
-	authority, err := trainingworkflow.ResolveSessionAuthority(ctx, store, modelID, recipeID)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("session admitted: model=%s recipe=%s\n", modelID, recipeID)
 
 	loadStart := time.Now()
-	trained, err := hybridtrain.LoadStackArtifact(context.Background(), *modelPath, tokens)
+	trained, err := hybridtrain.LoadStackArtifact(ctx, *modelPath, tokens)
 	if err != nil {
 		return err
 	}
@@ -160,21 +140,21 @@ func trainHybridStack(flags *flag.FlagSet, args []string) error {
 		}
 	}
 	total := trained.MatrixParamCount() + trained.VectorParamCount()
-	session, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
-		Objective: authority.Objective, Updates: *steps, MaximumSequence: len(tokens),
-		MaxProjectedWall: *maxWall, Parameters: total, Optimizer: authority.Optimizer,
+	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: session.authority.Objective, Updates: *steps, MaximumSequence: len(tokens),
+		MaxProjectedWall: *maxWall, Parameters: total, Optimizer: session.authority.Optimizer,
 	})
 	if err != nil {
 		return err
 	}
-	config := session.Optimizer()
+	config := plan.Optimizer()
 	fmt.Printf("stack census: %d layers (%d attention, %d recurrent)\n", len(trained.Cfg.Types), attention, recurrent)
 	fmt.Printf("trainable parameters: %d matrix + %d vector = %d total\n",
 		trained.MatrixParamCount(), trained.VectorParamCount(), total)
 	fmt.Printf("derived hyperparameters: baseLR=%.6g momentum=%.6g schedule=constant (no free knobs)\n",
 		config.BaseLearningRate, config.Momentum)
 	fmt.Printf("load wall: %s  program=%s\n", loadWall.Round(time.Millisecond), trained.Program().ID())
-	observer.Phase(runrecord.PhaseLoad, loadWall)
+	session.observer.Phase(runrecord.PhaseLoad, loadWall)
 	runtime.GC()
 	if *lane == "layer-streamed" {
 		budget, err := trained.LayerStreamedBudget()
@@ -204,27 +184,31 @@ func trainHybridStack(flags *flag.FlagSet, args []string) error {
 	}
 	trainStart := time.Now()
 	previous := trainStart
-	trajectory, err := train(worker, session.Updates(), config, hybridtrain.TrainingOptions{Observe: func(step int, loss float64) error {
+	var state optimizer.State
+	trajectory, err := train(worker, plan.Updates(), config, hybridtrain.TrainingOptions{Checkpoint: func(final optimizer.State) error {
+		state = final
+		return nil
+	}, Observe: func(step int, loss float64) error {
 		now := time.Now()
 		wall := now.Sub(previous)
 		previous = now
-		observer.SampleStep()
-		fmt.Printf("step %d/%d  loss=%.6f  wall=%s\n", step+1, session.Updates(), loss, wall.Round(time.Millisecond))
+		session.observer.SampleStep()
+		fmt.Printf("step %d/%d  loss=%.6f  wall=%s\n", step+1, plan.Updates(), loss, wall.Round(time.Millisecond))
 		if !checked.Finite64(loss) {
 			return fmt.Errorf("step %d loss is not finite: %g", step+1, loss)
 		}
 		if step == tensor.FirstOffset {
-			projected := time.Duration(session.Updates()) * wall
+			projected := time.Duration(plan.Updates()) * wall
 			fmt.Printf("projection: %d steps x %s = %s (guard %s)\n",
-				session.Updates(), wall.Round(time.Millisecond), projected.Round(time.Second), session.MaxProjectedWall())
-			if err := session.AdmitStepWall(wall); err != nil {
+				plan.Updates(), wall.Round(time.Millisecond), projected.Round(time.Second), plan.MaxProjectedWall())
+			if err := plan.AdmitStepWall(wall); err != nil {
 				return err
 			}
 		}
 		return nil
 	}})
 	trainWall := time.Since(trainStart)
-	observer.Phase(runrecord.PhaseForwardBackward, trainWall)
+	session.observer.Phase(runrecord.PhaseForwardBackward, trainWall)
 	runErr := err
 	if runErr == nil {
 		for index, loss := range trajectory {
@@ -238,20 +222,28 @@ func trainHybridStack(flags *flag.FlagSet, args []string) error {
 			}
 		}
 	}
+	var checkpoint trainingprogram.Checkpoint
+	if runErr == nil {
+		// The fixture is the one record every update trains on, so the run
+		// consumed as many records as it took updates. The checkpoint
+		// publishes before the serving round trip requantizes a trained gate.
+		var stream trainingdata.StreamState
+		stream, runErr = trainingworkflow.TextStream(fixture, uint64(state.Step))
+		if runErr == nil {
+			checkpoint, runErr = session.publish(ctx, *out, trained.Program(), state, stream, func(stage string) error {
+				return trained.SaveWeights(filepath.Join(stage, trainingprogram.CheckpointWeights))
+			})
+		}
+	}
 	if runErr == nil && *roundTrip {
 		runErr = servingRoundTrip(*modelPath, trained)
 	}
 	printPeakRSS("after training")
-	streamed := uint64(session.Updates()) * uint64(len(tokens))
-	observation, observeErr := observer.Finish(ctx, modelID, recipeID, runErr, streamed)
-	if runErr != nil {
-		return runErr
-	}
-	if observeErr != nil {
-		return observeErr
+	if err := session.finish(ctx, plan, runErr); err != nil {
+		return err
 	}
 	fmt.Printf("trajectory: %v\n", trajectory)
-	fmt.Printf("session observation: %s\n", observation)
+	fmt.Printf("checkpoint: %s at %s\n", checkpoint.ID(), *out)
 	fmt.Printf("PASS: finite loss decreased over %d full-stack steps in %s\n", len(trajectory), trainWall.Round(time.Millisecond))
 	return nil
 }

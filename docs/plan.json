@@ -54,12 +54,6 @@
       },
       "steps": [
         {
-          "id": "shared-run",
-          "title": "Run the train routes through one bounded run and session",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestEveryTrainRoutePublishesACheckpoint$' -count=1"
-        },
-        {
           "id": "do",
           "title": "Give every train route one shared run that bounds the loop, observes the session and publishes a checkpoint",
           "status": "open",

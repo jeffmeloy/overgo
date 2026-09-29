@@ -9,13 +9,23 @@
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "renames: unexported names only"
+      },
       "steps": [
+        {
+          "id": "evaluation",
+          "title": "Unexport internal/evaluation's names no other package uses",
+          "status": "open",
+          "verify": "go build ./... \u0026\u0026 go vet ./internal/evaluation"
+        },
         {
           "id": "do",
           "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
           "status": "open",
           "verify": "go build ./... \u0026\u0026 go vet ./internal/evaluation ./internal/server",
-          "rationale": "Review feedback 2026-09-28. About half the exported names in several core packages are never named outside their own package (upper bounds, since a returned type can be used without being named):\n\n| Package | Never named outside | Exported |\n|---|---|---|\n| evaluation | 158 | 319 |\n| server | 88 | 107 |\n| projector | 86 | 120 |\n| model | 80 | 160 |\n| latentvideo | 71 | 122 |\n\nOnce unexported, unused code is reported by standard Go analysis. Both gopls and deadcode are installed in ~/go/bin. A deadcode run over ./... on 2026-09-28 found 836 functions no command reaches, 493 of them exported. The largest counts:\n\n| Package | Unreachable | Kind |\n|---|---|---|\n| repoanalysis | 80 | the authority ratchets, run only as tests |\n| runrecord | 57 | |\n| diffusionimage | 52 | unwired trainer |\n| controllertrain | 37 | unwired trainer |\n| seq2seq | 33 | unwired trainer |\n| adaptiveparity | 32 | test-only reference |\n| trainingprogram | 31 | |\n| devicemath | 31 | |\n| testutil | 30 | test helpers |\n| server | 28 | |\n| workflowruntime | 23 | |\n| webuilane | 22 | |\n| rae | 22 | until rae-image-capability serves it |\n\nAn unwired trainer or inference path is wired, never deleted (capabilities-not-dead-code). Everything else deadcode reports is deleted.\n\nHow to land it:\n- Rename with gopls, package by package, largest share first, each a net-deleting landing: evaluation and server first.\n- model and projector are on the inference surface, and latentvideo is a pinned media runtime path. Each of those lands with its evidence refresh and a reviewed delta.\n- The rules stage's unconsumed-exports check already keeps new exports from growing the set."
+          "rationale": "Review feedback 2026-09-28. About half the exported names in several core packages are never named outside their own package (upper bounds, since a returned type can be used without being named):\n\n| Package | Never named outside | Exported |\n|---|---|---|\n| evaluation | 158 | 319 |\n| server | 88 | 107 |\n| projector | 86 | 120 |\n| model | 80 | 160 |\n| latentvideo | 71 | 122 |\n\nOnce unexported, unused code is reported by standard Go analysis. Both gopls and deadcode are installed in ~/go/bin. A deadcode run over ./... on 2026-09-28 found 836 functions no command reaches, 493 of them exported. The largest counts:\n\n| Package | Unreachable | Kind |\n|---|---|---|\n| repoanalysis | 80 | the authority ratchets, run only as tests |\n| runrecord | 57 | |\n| diffusionimage | 52 | unwired trainer |\n| controllertrain | 37 | unwired trainer |\n| seq2seq | 33 | unwired trainer |\n| adaptiveparity | 32 | test-only reference |\n| trainingprogram | 31 | |\n| devicemath | 31 | |\n| testutil | 30 | test helpers |\n| server | 28 | |\n| workflowruntime | 23 | |\n| webuilane | 22 | |\n| rae | 22 | until rae-image-capability serves it |\n\nAn unwired trainer or inference path is wired, never deleted (capabilities-not-dead-code). Everything else deadcode reports is deleted.\n\nHow to land it:\n- Rename with gopls, package by package, largest share first, each a net-deleting landing: evaluation and server first.\n- model and projector are on the inference surface, and latentvideo is a pinned media runtime path. Each of those lands with its evidence refresh and a reviewed delta.\n- The rules stage's unconsumed-exports check already keeps new exports from growing the set.\n\nProgress 2026-09-28, the evaluation slice:\n- scratchpad/unexport's finder (standard library: the package's declarations against every importing file's selectors) listed 397 names, and gopls renamed 395. Two conflicts were refused: FailedObservation and RetrievalMetrics collide with same-named functions.\n- deadcode then reports 17 unreachable evaluation functions. The media, preference and text target-plan compilers and scorers are the unwired held-out objective paths the heldout-*-slice rows wire in, so they are not deleted. compositeGenerationQualityAuthority.Evaluate/Parse, PublishEvaluationEvidence, ExactPlan.Identity and productionCapabilityEntry.surface have test callers only; decide each with its owning row.\n- Next slices: server (567 candidates), runrecord (366, on the inference surface), then model, projector and latentvideo with their evidence refresh."
         }
       ]
     },
@@ -115,7 +125,7 @@
           "title": "Refresh the stale accepted evidence and decide the reference-dependent tests",
           "status": "open",
           "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/compatibility ./cmd/longform -run '^(TestAcceptedCapabilityCensus|TestAcceptedE4BResourceRefresh|TestAcceptedFP8Guard|TestRetiredGuardRecords|TestAcceptedGuardCatalog)$' -count=1 -v",
-          "rationale": "Split from env-gated-tests-run-or-go on 2026-09-28, once every CUDA-gated package had a lane. What remains needs the owner's call or a long evidence run.\n(1) The five accepted-evidence audits fail against the live store, run with OVERGO_STORE_ACCEPTANCE=1:\n- TestAcceptedE4BResourceRefresh: the resource evidence does not bind the current inference surface. Refresh it by running TestE4BMediaResourceRecovery with OVERGO_E4B_PUBLISH_RESOURCES=1, about 220 s.\n- TestAcceptedCapabilityCensus: snapshot 209 identities, live 220. The owner records a disposition before the denominator is replaced.\n- TestAcceptedFP8Guard, TestRetiredGuardRecords and TestAcceptedGuardCatalog: the guard evidence lacks realized residency, and the cohort is empty. That needs the long-form guard run, about 80 minutes on the GPU.\n(2) Tests that need a reference the Go-only rule cannot produce: the Fractale leadership tests (OVERGO_FRACTALE_BASELINE), Krea (OVERGO_KREA_BASELINE), Pocket TTS (OVERGO_POCKET_TTS_BASELINE) and the Qwen3.5 projector fixture (a golden of its internal activations). The owner decides whether to keep each and wait for a reference, or delete it if a running test covers it.\n(3) The full-length runs, Wan's 81-frame clip (OVERGO_WAN_FULL) and SenseNova's full generation (OVERGO_SENSENOVA_FULL): the lane budget for each once measured.\nDone when the audits pass."
+          "rationale": "Split from env-gated-tests-run-or-go on 2026-09-28, once every CUDA-gated package had a lane. What remains needs the owner's call or a long evidence run.\n(1) The five accepted-evidence audits fail against the live store, run with OVERGO_STORE_ACCEPTANCE=1:\n- TestAcceptedE4BResourceRefresh: the resource evidence does not bind the current inference surface. Refresh it by running TestE4BMediaResourceRecovery with OVERGO_E4B_PUBLISH_RESOURCES=1, about 220 s.\n- TestAcceptedCapabilityCensus: snapshot 209 identities, live 220. The owner records a disposition before the denominator is replaced.\n- TestAcceptedFP8Guard, TestRetiredGuardRecords and TestAcceptedGuardCatalog: the guard evidence lacks realized residency, and the cohort is empty. That needs the long-form guard run, about 80 minutes on the GPU.\n(2) Tests that need a reference the Go-only rule cannot produce: the Fractale leadership tests (OVERGO_FRACTALE_BASELINE), Krea (OVERGO_KREA_BASELINE), Pocket TTS (OVERGO_POCKET_TTS_BASELINE) and the Qwen3.5 projector fixture (a golden of its internal activations). The owner decides whether to keep each and wait for a reference, or delete it if a running test covers it.\n(3) The full-length runs, Wan's 81-frame clip (OVERGO_WAN_FULL) and SenseNova's full generation (OVERGO_SENSENOVA_FULL): the lane budget for each once measured.\nDone when the audits pass.\nProgress 2026-09-28:\n- The E4B resource proof was refreshed on the current surface (TestE4BMediaResourceRecovery with OVERGO_E4B_PUBLISH_RESOURCES=1, 262 s): gate evidence:sha256:31c095ade3464244d1fe11b8ac62f50a17c66026c1c52eeca47cb9422d3d1ea8, run run:sha256:bca22c0744a247457d617cf64541d1f3e18429cd8be1ae03c75bdf5efa611f2a. TestAcceptedE4BResourceRefresh still fails because it reads docs/verification/e4b-resource-refresh.json, a hand-assembled binding (the surface digest and 24 protocol and resource cell identities) that no producer writes, so it expires on every surface move. Derive the current binding from the store's newest proofs for the E4B recipe on the current surface, or retire the audit; do not hand-edit the ledger.\n- Census: the owner answered \"review the 11 new identities, then accept\". The acceptance takes compatibility -publish-census from a clean tree, then a finding and a closed disposition bound in cmd/compatibility/testdata/accepted_census.json, as bf765bc07 did for 209.\n- Python goldens are always allowed (owner), so the reference-dependent tests in (2) get their references from Python."
         }
       ]
     },
@@ -417,6 +427,10 @@
       "title": "Have every GPU user take the device claim lanes wait on",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 282,
+        "reason": "the swap launcher's wait for device admission"
+      },
       "steps": [
         {
           "id": "do",
@@ -1077,7 +1091,9 @@
             "rae-image-capability/do",
             "user-scorecard/media-serving",
             "user-scorecard/task-metrics",
-            "user-scorecard/loop-measures-media"
+            "user-scorecard/loop-measures-media",
+            "unexport-unconsumed-names/evaluation",
+            "device-claim-everywhere/launcher-waits"
           ]
         }
       ]

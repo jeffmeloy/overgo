@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"overgo/internal/inference"
@@ -70,6 +71,16 @@ type protocolGenerationPlan struct {
 type protocolGenerationResult struct {
 	ids  []tokenizer.TokenID
 	pump *generationPump
+	// ended: the model's last token ended its turn, though it may also have
+	// been the last one the limit allowed.
+	ended bool
+}
+
+// endedTurn reports whether the generated ids end on a token that ends the
+// model's turn.
+func (h *Handler) endedTurn(ids []tokenizer.TokenID) bool {
+	vocabulary, ok := h.generator.(SamplingVocabulary)
+	return ok && len(ids) != 0 && slices.Contains(vocabulary.SamplingEOGTokens(), ids[len(ids)-1])
 }
 
 // turnEnd is how a generated turn ended, classified once for every
@@ -95,6 +106,8 @@ func (result protocolGenerationResult) end(maxTokens int, message inference.Chat
 		return turnCalledTools
 	case result.pump.stopped():
 		return turnStopped
+	case result.ended:
+		return turnEnded
 	case result.pump.completion >= maxTokens:
 		return turnLimited
 	}
@@ -287,7 +300,7 @@ func (plan *protocolGenerationPlan) runWithSampler(
 	pump := newGenerationPump(plan.stops, emit)
 	pump.filter.prime(plan.held)
 	ids, err := plan.handler.pumpGeneration(plan.context(), plan.session, plan.prompt.Text, options, pump)
-	return protocolGenerationResult{ids: ids, pump: pump}, err
+	return protocolGenerationResult{ids: ids, pump: pump, ended: plan.handler.endedTurn(ids)}, err
 }
 
 // countTurn is every protocol's input-token count: the protocol's turn

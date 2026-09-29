@@ -209,7 +209,7 @@ func (h *Handler) runNativeCompletion(
 	}
 	// The pump's accounting: the provider's counts for a hosted turn, the
 	// ids for a local runner.
-	result := protocolGenerationResult{ids: ids, pump: pump}
+	result := protocolGenerationResult{ids: ids, pump: pump, ended: h.endedTurn(ids)}
 	promptTokens, predicted := result.promptTokens(), result.outputTokens()
 	stopType := "eos"
 	if pump.stopped() {

@@ -101,6 +101,9 @@
       const params = capabilities.generation;
       const contextLength = capabilities.context_length;
       const tokenLimit = capabilities.max_output_tokens;
+      // A chat reply may run to the output the server accepts, within the context; the API's default
+      // budget is for a request that names none, and would cut a reply off mid-sentence.
+      const chatTokens = Math.min(tokenLimit || params.max_tokens, contextLength || Infinity);
       // Unassigned drafts have their own scope and never replace a recipe's draft.
       const draftScope = capabilities.recipe || 'unassigned';
       const draftKey = () => DRAFT_STORAGE + JSON.stringify([draftScope, conversationRoot]);
@@ -151,7 +154,7 @@
       const system = el("textarea", { "aria-label": "System prompt", class: "text system-prompt", placeholder: "system prompt (optional)" });
       const facts = el("div", { class: "statgrid", role: "group", "aria-label": "Context meter" });
       const temperature = el("input", { class: "keyfield w-80", type: "number", min: 0, step: "any", value: params.temperature, "aria-label": "temperature", "data-draft-setting": "temperature" });
-      const maxTokens = el("input", { class: "keyfield w-90", type: "number", min: 1, step: 1, value: Math.min(params.max_tokens, tokenLimit), max: tokenLimit, "aria-label": "max tokens", "data-draft-setting": "tokens" });
+      const maxTokens = el("input", { class: "keyfield w-90", type: "number", min: 1, step: 1, value: chatTokens, max: tokenLimit, "aria-label": "max tokens", "data-draft-setting": "tokens" });
       system.dataset.draftSetting = "system";
       system.value = typeof draft.system === "string" ? draft.system : "";
       if (draft.temperature !== "" && Number.isFinite(Math.fround(Number(draft.temperature))) && Number(draft.temperature) >= 0) temperature.value = draft.temperature;
@@ -529,7 +532,7 @@
         drafts.set(key, value);
         try { sessionStorage.setItem(key, JSON.stringify(value)); storageUnavailable = false; }
         catch (_) { storageUnavailable = true; }
-        draftNotice.hidden = !storageUnavailable || !(value.text || value.system || value.attachments.length || value.temperature !== String(params.temperature) || value.tokens !== String(Math.min(params.max_tokens, tokenLimit)));
+        draftNotice.hidden = !storageUnavailable || !(value.text || value.system || value.attachments.length || value.temperature !== String(params.temperature) || value.tokens !== String(chatTokens));
         draftNotice.textContent = "Couldn't save draft. Copy it before reloading.";
       }
       saveDraft = () => {
@@ -1027,10 +1030,13 @@
           lastResponseID = chain.status === "failed" ? (chain.previous || "") : chain.response;
           if (uncertainPrevious !== null && uncertainKind !== 'operation' && chain.response !== uncertainPrevious) { uncertainPrevious = null; uncertainText = ''; saveDraft(); showUncertainty(); }
           if (chain.status === "failed" && !lastResponseID) { moveDraft(""); overgo.rememberConversation(null); }
-          if (!inflight && chain.status === 'cancelled') {
-            const note = el('div', { class: 'note', role: 'status', text: 'Stopped' });
+          // A stopped turn, or one cut at its output limit, reopens with Continue.
+          const last = thread.messages.findLast(message => message.role === 'assistant' && message.response === chain.response);
+          const limited = chain.status === 'incomplete' && last && last.incompleteReason === 'max_output_tokens';
+          if (!inflight && (chain.status === 'cancelled' || limited)) {
+            const note = el('div', { class: 'note', role: 'status', text: limited ? 'Output limit reached.' : 'Stopped' });
             thread.node.appendChild(note);
-            offerContinue(note, chain.response, thread.messages.findLast(message => message.role === 'assistant' && message.response === chain.response));
+            offerContinue(note, chain.response, last);
           } else if (!inflight && chain.failure) thread.errorRow(chain.failure);
         } catch (err) {
           if (overgo.signal.aborted) return;

@@ -337,6 +337,12 @@
               if (event.status === "incomplete") {
                 if (!assistant) assistant = add("assistant", "");
                 assistant.incompleteReason = event.reason;
+                // A reply cut at its output limit continues as a stopped one does.
+                if (event.reason === "max_output_tokens" && options && options.stopped) {
+                  const note = el("div", { class: "note", role: "status", text: "Output limit reached." });
+                  log.appendChild(note);
+                  options.stopped(note);
+                }
               }
               announcement.textContent = event.status === "incomplete" ? "Output limit reached. Partial answer saved." : "Response ready.";
               break;

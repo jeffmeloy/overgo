@@ -124,8 +124,12 @@ button, input, select, textarea, summary { touch-action:manipulation; }
 }
 .tab:hover { color:var(--ink); background:var(--bg2); }
 .tab.active { color:var(--ink); background:var(--acc-soft); font-weight:600; }
-/* A refused workspace stays readable in the faint tone; its click says why. */
+/* A refused workspace stays listed, marked off; its click says why and how to turn it on. */
 .tab.refused { color:var(--faint); }
+.tab.refused::after { content:"off"; margin-left:var(--s2); padding:0 var(--s1); border:1px solid var(--line); border-radius:var(--radius-s); font:var(--t-xs) var(--font); color:var(--faint); }
+.workspace-refusal { max-width:var(--measure); padding:var(--s5) 0; }
+.workspace-refusal h2 { margin:0 0 var(--s2); font-size:var(--t-h); }
+.workspace-refusal p { margin:var(--s1) 0; }
 .workspace-refusal { padding:16px; }
 .sidebar .foot { margin-top:auto; padding:12px 10px 2px; }
 

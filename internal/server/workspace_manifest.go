@@ -76,29 +76,38 @@ type workspaceTab struct {
 	Action string `json:"action,omitzero"`
 }
 
-// workspaceEnablingAction says what enables the capability a refused tab needs.
-func workspaceEnablingAction(capability string) string {
+// workspaceRefusal says in plain words why a refused tab's workspace is
+// closed on this server and what opens it, naming no flag or command.
+func workspaceRefusal(capability string) (reason, action string) {
 	switch capability {
+	case "conversation":
+		return "No model that can chat is being served.", "Choose a model to serve from the model picker."
 	case "analysis", "analysis.logits", "analysis.vocabulary", "analysis.hidden-states", "analysis.attention", "analysis.tensors", "model.properties":
-		return "Serve a local model; analysis reads its logits, states and tensors."
+		return "This server is not serving a local model to look inside.", "Serve a local model to inspect its logits, states and tensors."
 	case "agent":
-		return "Define an agent in the store; the coordinator opens with it."
+		return "No agent is defined yet.", "Define an agent in the store and it opens here."
 	case "repository", "operations", "explorer":
-		return "Run the server over a store (-repo)."
+		return "This server runs without a store, so it keeps no conversations, runs or operations.", "Restart the server over a store to keep them."
 	case "embeddings":
-		return "Serve a model activated for embedding."
+		return "The served model does not make embeddings.", "Serve a model activated for embedding."
 	case "rerank":
-		return "Serve a model activated for rerank."
+		return "The served model does not rerank.", "Serve a model activated for reranking."
 	case "evaluation":
-		return "Launch from a clean checkout or pass -evaluation-commit."
+		return "Evaluations need to know exactly which code ran them, and this server cannot tell.", "Start the server from a clean checkout to run evaluations."
 	case "workflow.training":
-		return "Launch with -training."
+		return "Training is not turned on for this server.", "Restart the server with training turned on."
 	case "workflow.model-builder":
-		return "Launch with -model-builder."
-	case "workflow.export", "workflow.generation", "workflow.image", "workflow.video", "workflow.speech", "workflow.vqa", "workflow.transcription":
-		return "Register a media model activated for the task; the workspace opens over the store."
+		return "The model builder is not turned on for this server.", "Restart the server with the model builder turned on."
+	case "workflow.export":
+		return "No model is registered for export yet.", "Register and activate a model in the Library to export it."
+	case "workflow.generation", "workflow.image", "workflow.video", "workflow.speech", "workflow.vqa", "workflow.transcription":
+		return "No model is registered and activated for this kind of generation.", "Register and activate one in the Library."
+	case "automation":
+		return "Automations are not turned on for this server.", "Restart the server with automations turned on."
+	case "peer":
+		return "Peer workspaces are not turned on for this server.", "Restart the server with peers turned on."
 	}
-	return "The documented launch does not open this workspace."
+	return "This server was started without this workspace.", "Restart the server with it turned on."
 }
 
 type workspaceManifestResponse struct {
@@ -119,12 +128,12 @@ func (h *Handler) workspaceManifest(response http.ResponseWriter, request *http.
 		Tabs: make([]workspaceTab, len(declaration.Tabs)),
 	}
 	for index, tab := range declaration.Tabs {
-		enabled, refusal := h.workspaceCapability(request.Context(), tab.Capability)
+		enabled := h.workspaceCapability(request.Context(), tab.Capability)
 		result.Tabs[index] = workspaceTab{
-			ID: tab.ID, Label: tab.Label, Section: tab.Section, Module: tab.module(), ViewOf: tab.ViewOf, Enabled: enabled, Refusal: refusal,
+			ID: tab.ID, Label: tab.Label, Section: tab.Section, Module: tab.module(), ViewOf: tab.ViewOf, Enabled: enabled,
 		}
 		if !enabled {
-			result.Tabs[index].Action = workspaceEnablingAction(tab.Capability)
+			result.Tabs[index].Refusal, result.Tabs[index].Action = workspaceRefusal(tab.Capability)
 		}
 	}
 	if document, ok := h.workspaceModelCapabilities(request.Context()); ok {
@@ -178,7 +187,7 @@ func parseWorkspaceManifest() (workspaceManifestDeclaration, error) {
 	return declaration, nil
 }
 
-func (h *Handler) workspaceCapability(ctx context.Context, capability string) (bool, string) {
+func (h *Handler) workspaceCapability(ctx context.Context, capability string) bool {
 	analysis := h.analysisCapabilities()
 	supported := false
 	switch capability {
@@ -237,10 +246,7 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 	case "workflow.transcription":
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskTranscription)
 	}
-	if supported {
-		return true, ""
-	}
-	return false, "Server capability " + capability + " is unavailable"
+	return supported
 }
 
 func (h *Handler) hasWorkspaceCapability(ctx context.Context, kind WorkflowKind, task recipe.Task) bool {

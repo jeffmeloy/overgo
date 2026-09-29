@@ -5,21 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gui-nav-availability",
-      "title": "The navigation shows which workspaces this launch serves: an unavailable tab is marked and its page says in plain words what it does and how to enable it, naming no flag or command",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "The navigation shows which workspaces this launch serves: an unavailable tab is marked and its page says in plain words what it does and how to enable it, naming no flag or command",
-          "status": "open",
-          "verify": "test -f internal/server/nav_availability_test.go \u0026\u0026 go test ./internal/server -run '^TestNavAvailability$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(NavAvailability|LayoutAudit|Screens)$' -leg 'nav availability leg'",
-          "rationale": "GUI review 2026-09-28: the nav lists 20 tabs with equal weight; in a default launch Generate, Train, Model Builder, Automations (and Export, Evaluations unless launched with them) open to one line of developer text naming a capability id and a CLI flag, and Datasets tells the user to run go run ./cmd/dataset-catalog. The manifest already declares each tab's enabled state and refusal; the nav must show it and the refusal page must describe the workspace and how to enable it in plain words."
-        }
-      ]
-    },
-    {
       "id": "gui-secondary-buttons",
       "title": "Every secondary action looks clickable: one bordered secondary button style across the workbench, each action beside the form it acts on",
       "owner": "overgo_gui_cleanup",

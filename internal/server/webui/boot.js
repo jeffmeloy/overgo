@@ -914,8 +914,13 @@
     const sentence = !reason || reason.endsWith(".") ? reason : reason + ".";
     return sentence + (tab.action ? " " + tab.action : "");
   }
-  // renderRefusal: a refused workspace answers a click or a fragment with its reason and the action that enables it.
-  function renderRefusal(tab, host) { (host || tab.panel).replaceChildren(el("p", { class: "note workspace-refusal", role: "status", text: refusalLine(tab) })); }
+  // renderRefusal: a refused workspace answers a click or a fragment with what is missing and how to turn it on.
+  function renderRefusal(tab, host) {
+    (host || tab.panel).replaceChildren(el("section", { class: "workspace-refusal", role: "status" },
+      el("h2", { text: tab.label + " isn't available on this server" }),
+      tab.refusal ? el("p", { text: tab.refusal }) : null,
+      tab.action ? el("p", { class: "note", text: tab.action }) : null));
+  }
 
   // dot: one header status dot (server, swap proxy, device) with its state and its fact as the title.
   function dot(id, state, title) {

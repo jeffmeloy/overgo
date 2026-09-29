@@ -197,7 +197,10 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 		{"rerank", "Rerank", "rerank"},
 	}
 	for _, mode := range modes {
-		enabled, refusal := h.workspaceCapability(ctx, mode.capability)
+		enabled, refusal := h.workspaceCapability(ctx, mode.capability), ""
+		if !enabled {
+			refusal, _ = workspaceRefusal(mode.capability)
+		}
 		document.Modes = append(document.Modes, workspaceMode{ID: mode.id, Label: mode.label, Enabled: enabled, Refusal: refusal})
 	}
 	// Agent mode is declared with the rest: enabled when an active agent

@@ -22,7 +22,7 @@ func TestLauncherForwardsWorkspaceEnablement(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			record := filepath.Join(t.TempDir(), "arguments")
-			t.Setenv("OVERGO_TEST_MODEL_STARTUP", "arguments")
+			t.Setenv("OVERGO_TEST_CHILD_STARTUP", "arguments")
 			t.Setenv("OVERGO_TEST_ARGUMENT_RECORD", record)
 			supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir(), Workspaces: workspaces}, 0)
 			if err != nil {

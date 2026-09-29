@@ -29,12 +29,16 @@
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 583,
+        "reason": "modeltest's store resolver by architecture and the test-helper consumer rule"
+      },
       "steps": [
         {
           "id": "do",
           "title": "Resolve test models through store registrations instead of per-model environment variables",
           "status": "open",
-          "verify": "test -z \"$(grep -rhoE 'OVERGO_[A-Z0-9_]+_MODEL' --include=*_test.go . | sort -u)\"",
+          "verify": "test -z \"$(grep -rhoE 'OVERGO_[A-Z0-9_]+_MODEL' --include=*_test.go --exclude-dir=.claude . | grep -v OVERGO_THOUGHTBANK_MODEL | sort -u)\"",
           "rationale": "Review feedback 2026-09-28, verified. Tests read 145 distinct OVERGO_* variables. 27 of them name a model (OVERGO_QWEN3_MODEL, OVERGO_QWEN35_MODEL, OVERGO_GEMMA4_TARGET_MODEL, OVERGO_WAN_MODEL and the rest), mostly in internal/inference's runner_integration_test.go and chat_test.go. Each test is skipped unless someone sets its variable, so in practice these tests do not run.\n\nThe construction:\n- internal/modeltest.Directory already resolves a model by directory name from the store's registrations.\n- Add modeltest.GGUF(t, architecture): the smallest registered GGUF whose header declares that architecture. Headers are read once per process, about 30 s for the whole store.\n- It was drafted and probed on the real store 2026-09-28: qwen35, qwen2, gemma4 and llama resolve; gemma3, t5, kimi-linear, cohere2, step35, wavtokenizer-dec and hunyuan-v3 have no registered GGUF and skip as not applicable.\n- Caution: the smallest qwen35 is the 1-bit Bonsai-27B quant. A test that checks one model's outputs names that model through Directory rather than asking for the architecture.\n\nMigrate each test to modeltest and delete its variable, one variable per slice. This overlaps models-out-of-adaptive-new, which drops the variables that point into adaptive_new; this row takes the rest.\n\nThe review also counted 608 command flags (cmd/recipe 78, cmd/train 76). cmd/train's flags consolidate with trainer-shared-run's shared flag set, and the rest with simplify-command-surface."
         }
       ]
@@ -44,12 +48,22 @@
       "title": "Give every train route one shared run that bounds the loop, observes the session and publishes a checkpoint",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 231,
+        "reason": "the shared bounded run, session and checkpoint publish, hybrid-stack's weight writer, and the loop's per-landing gate directory"
+      },
       "steps": [
+        {
+          "id": "shared-run",
+          "title": "Run the train routes through one bounded run and session",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestEveryTrainRoutePublishesACheckpoint$' -count=1"
+        },
         {
           "id": "do",
           "title": "Give every train route one shared run that bounds the loop, observes the session and publishes a checkpoint",
           "status": "open",
-          "verify": "go test ./cmd/train -run '^TestEveryTrainRoutePublishesACheckpoint$' -count=1",
+          "verify": "go test ./cmd/train -run '^TestEveryTrainRoutePublishesACheckpoint$' -count=1 \u0026\u0026 ! grep -q 'var checkpointless' cmd/train/shared_run_test.go",
           "rationale": "Review feedback 2026-09-28, verified; the review ranked it the largest gap for the purpose.\n\nWhat publishes today:\n- Only the dense workflow (trainingworkflow/workflow.go) and the audio input projection (audio.go, then PublishInputProjection) publish through trainingprogram.PublishCheckpoint.\n- mixture, flow-organ, dit, mot, graft, hybrid-stack, seriesforecast, tabular and oscillatorimage train, print a loss and discard the weights.\n- adapter writes plain safetensors, and only with -out.\n- The held-out objective paths (RunHeldout) publish a verdict, not weights.\nSo the loop cannot judge or promote what those routes train.\n\nThe bounded loop has ten copies in cmd/train, about 350 lines:\n- Five near-identical: mixture, flow-organ's head stimulus, latent bridge and flow head, and seriesforecast. Each steps, checks for finite values, requires a first-step gradient, calls AdmitStepWall and requires the loss below the first.\n- Two variants with per-step observation: mot and dit.\n- Three materially different: flow-organ's ternary with two descents, hybrid-stack's in-trainer callback, and oscillatorimage.\n- workflow.go's stepGuard reimplements AdmitStepWall.\nSession admit and finish has three near-identical route copies (mot, dit, hybrid-stack) and heldout_run's variant, about 150 lines.\n\nThe change:\n- One shared run owns the bound, the observer session and the checkpoint publish, and every route calls it.\n- The three different loops keep their bodies and use the shared run for the session and the publish only.\n- hybridtrain's Checkpoint option, read but set by no production caller, gets its caller.\n- The routes share one flag set; cmd/train carries 76 flags.\n- Net-deleting, no framework first.\nWiring each test-only trainer is then a short route: seq2seq-trainer-to-tests, wire-bank-trainer, retire-controller-cluster, wire-media-trainers.\n\nPredicted effect: every trained route leaves a checkpoint the loop can evaluate on held-out cells and promote, so held-out-quality becomes measurable for what they train."
         }
       ]
@@ -1057,7 +1071,9 @@
             "user-scorecard/loop-measures-media",
             "unexport-unconsumed-names/evaluation",
             "device-claim-everywhere/launcher-waits",
-            "unexport-unconsumed-names/server"
+            "unexport-unconsumed-names/server",
+            "trainer-shared-run/shared-run",
+            "test-models-from-store/store-slice"
           ]
         }
       ]

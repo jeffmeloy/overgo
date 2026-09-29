@@ -59,11 +59,11 @@ func countLayers(shapes map[string][]int64) int {
 			continue
 		}
 		rest := name[len("blocks."):]
-		dot := strings.IndexByte(rest, '.')
-		if dot < 0 {
+		before, _, ok := strings.Cut(rest, ".")
+		if !ok {
 			continue
 		}
-		if l, err := strconv.Atoi(rest[:dot]); err == nil {
+		if l, err := strconv.Atoi(before); err == nil {
 			seen[l] = true
 		}
 	}

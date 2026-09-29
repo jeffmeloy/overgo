@@ -14,7 +14,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if mode := os.Getenv("OVERGO_TEST_MODEL_STARTUP"); mode != "" {
+	if mode := os.Getenv("OVERGO_TEST_CHILD_STARTUP"); mode != "" {
 		clioptions.Main(func() error {
 			if mode == "busy" {
 				return fmt.Errorf("load device: %w", processcontrol.ErrResourceBusy)
@@ -43,7 +43,7 @@ func TestMain(m *testing.M) {
 func TestModelSwapStartupBusy(t *testing.T) {
 	for mode, code := range map[string]string{"busy": "resource_busy", "memory": "insufficient_memory", "invalid": "model_load_failed", "misleading-text": "model_load_failed"} {
 		t.Run(mode, func(t *testing.T) {
-			t.Setenv("OVERGO_TEST_MODEL_STARTUP", mode)
+			t.Setenv("OVERGO_TEST_CHILD_STARTUP", mode)
 			supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0)
 			if err != nil {
 				t.Fatal(err)
@@ -70,7 +70,7 @@ func TestModelSwapStartupBusy(t *testing.T) {
 // from the record that reports it.
 func TestChildFailureCarriesItsOwnError(t *testing.T) {
 	// Serial: it sets the process environment the child reads.
-	t.Setenv("OVERGO_TEST_MODEL_STARTUP", "invalid")
+	t.Setenv("OVERGO_TEST_CHILD_STARTUP", "invalid")
 	supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0)
 	if err != nil {
 		t.Fatal(err)

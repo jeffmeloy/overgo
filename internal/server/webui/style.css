@@ -465,9 +465,12 @@ button.pill { font:inherit; cursor:pointer; }
 .picker-card > .note:first-child { padding-bottom:var(--s1); }
 .picker-card > .row[tabindex] { display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:var(--s3); row-gap:2px; align-items:center;
   padding:var(--s2) 0; border-bottom:1px solid var(--line-soft); }
-.picker-card > .row[tabindex] > .mono { grid-column:1; grid-row:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.picker-card > .row[tabindex] > .btn { grid-column:2; grid-row:1 / span 2; }
-.picker-facts { grid-column:1; grid-row:2; min-width:0; }
+/* A picker row stacks its name, tier, summary, memory and details down the first column at their own widths;
+   its control stands in the second. */
+.picker-card > .row[tabindex] > * { grid-column:1; justify-self:start; max-width:100%; }
+.picker-card > .row[tabindex] > .mono { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.picker-card > .row[tabindex] > .btn, .picker-card > .row[tabindex] > .tag.user_defined { grid-column:2; grid-row:1 / span 3; justify-self:end; }
+.picker-facts { min-width:0; }
 .picker-facts .note { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .picker-facts .keyfield { flex:1 1 120px; min-width:0; }
 .composer-params { gap:var(--s2); flex-wrap:nowrap; }

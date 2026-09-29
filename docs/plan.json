@@ -5,21 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gui-plain-summaries",
-      "title": "Recipe, Library, Runs and the model picker lead with a plain-language summary and keep identifiers second, as Inspect does",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Recipe, Library, Runs and the model picker lead with a plain-language summary and keep identifiers second, as Inspect does",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(PlainSummaries|LayoutAudit|Screens)$' -leg 'plain summaries leg'",
-          "rationale": "GUI review 2026-09-28: Recipe shows raw ids with empty fields, Library says profiles 0/136, Runs shows commit hashes and In/out 0/1, model rows lead with model:... ids. Inspect is the pattern: plain facts first, identifiers as secondary detail."
-        }
-      ]
-    },
-    {
       "id": "gui-ia-restructure",
       "title": "Dataset import lives in Datasets, the Library's sections name what they do, and Settings separates Conversation from Connection with labelled actions",
       "owner": "overgo_gui_cleanup",

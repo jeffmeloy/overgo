@@ -1112,6 +1112,10 @@
               if (event.key === "Enter" && event.target === row) { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "Serve"); if (serve) serve.click(); }
               else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...currentPanel.querySelectorAll(".row[tabindex]")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
             } }, el("span", { class: "mono", text: name }), item.support ? supportTag(item.support) : null);
+            // What the model does and what was measured of it read on the row; its identities wait in the details.
+            const does = (item.capabilities || []).map((capability) => capability.task === "inference" ? "text" : capability.task).join(", ");
+            const summary = [does, evidenceLine(item)].filter(Boolean).join(" · ");
+            if (summary) row.appendChild(el("span", { class: "note picker-summary", text: summary }));
             // The measured memory shows before serving: its first line on the row, the rest in the details.
             const memory = item.memory ? memoryLines(item.memory) : [];
             if (memory.length) row.appendChild(el("span", { class: "note model-memory", text: memory[0] }));
@@ -1120,8 +1124,6 @@
             facts.appendChild(el("span", { class: "mono", text: item.model }));
             if (item.location) facts.appendChild(el("span", { class: "mono", text: item.location }));
             if ((item.location || "").startsWith("remote://")) facts.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
-            const evidence = evidenceLine(item);
-            if (evidence) facts.appendChild(el("span", { class: "note", text: evidence }));
             for (const capability of item.capabilities || []) facts.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier && capability.tier !== "verified" ? " · " + capability.tier : "") }));
             if (item.stale) {
               facts.open = true;

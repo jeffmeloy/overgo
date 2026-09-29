@@ -219,14 +219,16 @@
         prev.disabled = prior.length === 0;
         next.disabled = !nextCursor;
 
-        const table = el("table", { class: "grid" }, overgo.headerRow(["outcome", "recipe", "commit", "wall", "heaviest phases", "in/out"]));
+        // A run reads as how it ended, how long it took and what it used and made; its commit is reference.
+        const took = (ms) => ms < 1000 ? ms.toFixed(0) + " ms" : fmt.duration(ms);
+        const table = el("table", { class: "grid" }, overgo.headerRow(["outcome", "recipe", "took", "slowest phases", "inputs and outputs", "commit"]));
         for (const run of data.runs) {
           const phases = [...(run.phases || [])].sort((a, b) => b.ms - a.ms).slice(0, 3)
-            .map((phase) => phase.phase + " " + phase.ms.toFixed(0) + "ms").join(", ");
+            .map((phase) => phase.phase + " " + took(phase.ms)).join(", ");
           table.appendChild(overgo.tableRow([el("span", { class: "tag " + outcomeClass(run.outcome), text: run.outcome }),
             el("button", { class: "link-button mono", title: run.recipe, text: fmt.shortID(run.recipe), onclick: () => { chosen = run.id; showDetail(); } }),
-            (run.code_commit || "").slice(0, 10) || "-", run.measured_ms ? run.measured_ms.toFixed(0) + " ms" : "-",
-            el("span", { class: "dim", text: phases || "-" }), run.inputs + "/" + run.outputs]));
+            run.measured_ms ? took(run.measured_ms) : "-", el("span", { class: "dim", text: phases || "-" }),
+            run.inputs + " in · " + run.outputs + " out", el("span", { class: "note mono", text: (run.code_commit || "").slice(0, 10) || "-" })]));
         }
         host.replaceChildren(table);
       }, { loading: "Loading runs…" });

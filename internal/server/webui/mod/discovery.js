@@ -16,25 +16,27 @@
         overgo.clear(catalogBody);
         const models = catalog.models || [];
         const { profiles = {}, datasets = {} } = catalog.coverage || {};
-        const parts = [models.length && models.length + (models.length === 1 ? " activated model" : " activated models"), profiles.registered && "profiles " + profiles.published + "/" + profiles.registered,
-          datasets.registered && "datasets " + datasets.available + "/" + datasets.registered + " on disk", catalog.truncated && "listing truncated — not every activation is shown"].filter(Boolean);
+        const parts = [models.length && models.length + (models.length === 1 ? " model is ready to serve" : " models are ready to serve"),
+          profiles.registered && profiles.published + " of " + profiles.registered + " architecture profiles published",
+          datasets.registered && datasets.available + " of " + datasets.registered + " datasets on disk", catalog.truncated && "the listing is truncated, so not every model is shown"].filter(Boolean);
         catalogNote.textContent = parts.length ? parts.join(" · ") :
-          "No activated models yet — download one below, then activate it with cmd/reverify.";
+          "No model is ready to serve yet. Search Hugging Face or add a model from disk below, then validate it.";
         // Verified is the norm the listing states once; a tag names only a state that differs from it.
         const standing = (capability) => {
           if (capability.stale) return " · stale";
           return capability.tier && capability.tier !== "verified" ? " · " + capability.tier : "";
         };
         for (const entry of models) {
-          const capabilities = el("td", {}, ...(entry.capabilities || []).map((capability) => el("span", {
+          const capabilities = el("span", {}, ...(entry.capabilities || []).map((capability) => el("span", {
             class: "tag mr-4", title: capability.stale || capability.recipe, text: capability.task + standing(capability) })));
           // A hosted model retires from its row with the section's reason; the catalog relists without it.
           const retire = (entry.location || "").startsWith("remote://") ? el("button", { class: "btn alt", text: "Retire", onclick: async () => {
             try { await overgo.api.post("/library/providers/retire", { location: entry.location, reason: providerReason.value.trim() || "retired from the Library tab" }); refreshCatalog(); } catch (err) { catalogNote.replaceChildren(overgo.failure(err)); }
           } }) : "";
-          // A model reads by its file; its identity stands beside it for reference.
-          const line = overgo.tableRow([el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), fmt.shortID(entry.model), capabilities, entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]);
-          ["Model", "Identity", "Capabilities", ""].forEach((label, index) => { line.children[index].dataset.label = label; });
+          // A model reads by its file and what it does; its identity follows for reference.
+          const line = overgo.tableRow([el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), capabilities,
+            el("span", { class: "note mono", title: entry.model, text: fmt.shortID(entry.model) }), entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]);
+          ["Model", "Capabilities", "Identity", ""].forEach((label, index) => { line.children[index].dataset.label = label; });
           catalogBody.appendChild(line);
         }
       }, { loading: "Loading the catalog…" });
@@ -180,7 +182,7 @@
       panel.append(
         el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: () => { refreshCatalog(); refreshScorecard(); } })),
         catalogNote,
-        el("table", { class: "grid stack" }, el("thead", null, overgo.headerRow(["Model", "Identity", "Capabilities", ""])), catalogBody),
+        el("table", { class: "grid stack" }, el("thead", null, overgo.headerRow(["Model", "Capabilities", "Identity", ""])), catalogBody),
         scorecard,
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),

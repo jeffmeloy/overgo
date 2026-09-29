@@ -90,19 +90,6 @@ func (pump *generationPump) stoppingWord() string {
 	return pump.filter.StoppingWord()
 }
 
-func (h *Handler) generateWithPump(
-	ctx context.Context,
-	session *requestSession,
-	prompt string,
-	options inference.GenerateOptions,
-	stops []string,
-	emit func(string) error,
-) ([]tokenizer.TokenID, *generationPump, error) {
-	pump := newGenerationPump(stops, emit)
-	ids, err := h.pumpGeneration(ctx, session, prompt, options, pump)
-	return ids, pump, err
-}
-
 // pumpGeneration runs one generation through a caller's pump. A caller's
 // OnToken sees each token before the pump filters and counts it.
 func (h *Handler) pumpGeneration(

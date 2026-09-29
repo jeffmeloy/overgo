@@ -539,19 +539,6 @@ func (entry productionCapabilityEntry) valid() bool {
 		entry == productionEntryAgentCoordinator
 }
 
-func (entry productionCapabilityEntry) surface() runrecord.InteractionSurface {
-	switch entry {
-	case productionEntryLocalPlacement:
-		return runrecord.SurfaceServing
-	case productionEntryPeerPlacement:
-		return runrecord.SurfacePeer
-	case productionEntryAgentCoordinator:
-		return runrecord.SurfaceAgent
-	default:
-		return ""
-	}
-}
-
 func cloneCapabilityProbeResult(value capabilityProbeResult) capabilityProbeResult {
 	value.Resources.Measures = slices.Clone(value.Resources.Measures)
 	if value.Resources.Interactions != nil {

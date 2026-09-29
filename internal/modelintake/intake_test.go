@@ -57,12 +57,8 @@ func TestRecordExactSuiteReplays(t *testing.T) {
 	if len(suite.Cases) != 2 || suite.Cases[0].Text != "three two one " || suite.Cases[0].PromptTokens != 3 || suite.Cases[0].GeneratedTokens != 3 {
 		t.Fatalf("recorded suite = %+v", suite.Cases)
 	}
-	plan, err := evaluation.CompileExact(suite)
-	if err != nil {
+	if _, err := evaluation.CompileExact(suite); err != nil {
 		t.Fatalf("recorded suite does not compile: %v", err)
-	}
-	if !plan.Identity().Valid() {
-		t.Fatal("recorded suite has no identity")
 	}
 	if _, err := RecordExactSuite(t.Context(), recordingGenerator{}, "", nil, 0); err == nil {
 		t.Fatal("an empty recording request was accepted")

@@ -30,7 +30,7 @@ func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 	}
 	if plan.Identity().Kind() != artifact.KindProfile ||
 		plan.body.Dataset != exact.dataset || plan.body.Split != exact.split ||
-		plan.body.CaseProfile != exact.Identity() || plan.body.Scorer.Kind() != artifact.KindProfile ||
+		plan.body.CaseProfile != exact.identity || plan.body.Scorer.Kind() != artifact.KindProfile ||
 		plan.body.Execution.Kind() != artifact.KindProfile {
 		t.Fatalf("plan authorities = %+v", plan.body)
 	}

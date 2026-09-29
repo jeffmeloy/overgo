@@ -11,7 +11,7 @@
       "status": "open",
       "budget": {
         "nodes": 0,
-        "reason": "renames: unexported names only"
+        "reason": "a deletion: what deadcode finds in evaluation and server"
       },
       "steps": [
         {
@@ -19,7 +19,7 @@
           "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
           "status": "open",
           "verify": "go build ./... \u0026\u0026 go vet ./internal/evaluation ./internal/server",
-          "rationale": "Review feedback 2026-09-28. About half the exported names in several core packages are never named outside their own package (upper bounds, since a returned type can be used without being named):\n\n| Package | Never named outside | Exported |\n|---|---|---|\n| evaluation | 158 | 319 |\n| server | 88 | 107 |\n| projector | 86 | 120 |\n| model | 80 | 160 |\n| latentvideo | 71 | 122 |\n\nOnce unexported, unused code is reported by standard Go analysis. Both gopls and deadcode are installed in ~/go/bin. A deadcode run over ./... on 2026-09-28 found 836 functions no command reaches, 493 of them exported. The largest counts:\n\n| Package | Unreachable | Kind |\n|---|---|---|\n| repoanalysis | 80 | the authority ratchets, run only as tests |\n| runrecord | 57 | |\n| diffusionimage | 52 | unwired trainer |\n| controllertrain | 37 | unwired trainer |\n| seq2seq | 33 | unwired trainer |\n| adaptiveparity | 32 | test-only reference |\n| trainingprogram | 31 | |\n| devicemath | 31 | |\n| testutil | 30 | test helpers |\n| server | 28 | |\n| workflowruntime | 23 | |\n| webuilane | 22 | |\n| rae | 22 | until rae-image-capability serves it |\n\nAn unwired trainer or inference path is wired, never deleted (capabilities-not-dead-code). Everything else deadcode reports is deleted.\n\nHow to land it:\n- Rename with gopls, package by package, largest share first, each a net-deleting landing: evaluation and server first.\n- model and projector are on the inference surface, and latentvideo is a pinned media runtime path. Each of those lands with its evidence refresh and a reviewed delta.\n- The rules stage's unconsumed-exports check already keeps new exports from growing the set.\n\nProgress 2026-09-28, the evaluation slice:\n- scratchpad/unexport's finder (standard library: the package's declarations against every importing file's selectors) listed 397 names, and gopls renamed 395. Two conflicts were refused: FailedObservation and RetrievalMetrics collide with same-named functions.\n- deadcode then reports 17 unreachable evaluation functions. The media, preference and text target-plan compilers and scorers are the unwired held-out objective paths the heldout-*-slice rows wire in, so they are not deleted. compositeGenerationQualityAuthority.Evaluate/Parse, PublishEvaluationEvidence, ExactPlan.Identity and productionCapabilityEntry.surface have test callers only; decide each with its owning row.\n- Next slices: server (567 candidates), runrecord (366, on the inference surface), then model, projector and latentvideo with their evidence refresh."
+          "rationale": "Review feedback 2026-09-28. About half the exported names in several core packages are never named outside their own package (upper bounds, since a returned type can be used without being named):\n\n| Package | Never named outside | Exported |\n|---|---|---|\n| evaluation | 158 | 319 |\n| server | 88 | 107 |\n| projector | 86 | 120 |\n| model | 80 | 160 |\n| latentvideo | 71 | 122 |\n\nOnce unexported, unused code is reported by standard Go analysis. Both gopls and deadcode are installed in ~/go/bin. A deadcode run over ./... on 2026-09-28 found 836 functions no command reaches, 493 of them exported. The largest counts:\n\n| Package | Unreachable | Kind |\n|---|---|---|\n| repoanalysis | 80 | the authority ratchets, run only as tests |\n| runrecord | 57 | |\n| diffusionimage | 52 | unwired trainer |\n| controllertrain | 37 | unwired trainer |\n| seq2seq | 33 | unwired trainer |\n| adaptiveparity | 32 | test-only reference |\n| trainingprogram | 31 | |\n| devicemath | 31 | |\n| testutil | 30 | test helpers |\n| server | 28 | |\n| workflowruntime | 23 | |\n| webuilane | 22 | |\n| rae | 22 | until rae-image-capability serves it |\n\nAn unwired trainer or inference path is wired, never deleted (capabilities-not-dead-code). Everything else deadcode reports is deleted.\n\nHow to land it:\n- Rename with gopls, package by package, largest share first, each a net-deleting landing: evaluation and server first.\n- model and projector are on the inference surface, and latentvideo is a pinned media runtime path. Each of those lands with its evidence refresh and a reviewed delta.\n- The rules stage's unconsumed-exports check already keeps new exports from growing the set.\n\nProgress 2026-09-28, the evaluation slice:\n- scratchpad/unexport's finder (standard library: the package's declarations against every importing file's selectors) listed 397 names, and gopls renamed 395. Two conflicts were refused: FailedObservation and RetrievalMetrics collide with same-named functions.\n- deadcode then reports 17 unreachable evaluation functions. The media, preference and text target-plan compilers and scorers are the unwired held-out objective paths the heldout-*-slice rows wire in, so they are not deleted. compositeGenerationQualityAuthority.Evaluate/Parse, PublishEvaluationEvidence, ExactPlan.Identity and productionCapabilityEntry.surface have test callers only; decide each with its owning row.\n- Landed: evaluation (259 renamed) and server (84; the earlier 567 counted test-file declarations). Next: runrecord (on the inference surface), then model, projector and latentvideo with their evidence refresh.\n\nOwner direction 2026-09-28:\n- Unexporting is only the means; the value is the deletion. This row does not close on renames. Its deadcode step deleted what the analysis found in evaluation and server: 351 production and 240 test lines, including the whole unused composite-generation-quality authority.\n- A behaviour-neutral rename across many files reaches every lane's closure; the evaluation and server renames cost 51 minutes of lanes. Each remaining package's rename and dead-code deletion therefore land together, paying the lane cost once per package, and no further package is unexported until the previous deletion has landed.\n- The finder, rename script and legacy-form probe are in the session scratchpad (unexport/). Before a package's landing, run compatibility -refresh-identities, go test ./internal/repoanalysis and go fix on the package."
         }
       ]
     },
@@ -293,6 +293,22 @@
           "status": "open",
           "verify": "go test ./cmd/train -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -count=1",
           "rationale": "Owner 2026-09-25: prove held-out approval on real checkpoints one model at a time, smallest first; TabFM-1.0 classification is first (staged at models/tabfm-1.0.0-pytorch; its location is resolved by identity, not assumed). One run is the row's acceptance, the device-lane evidence, the model-journey check and the training-validation verdict at once. Register a tabular objective over a real table dataset with a group split, train through cmd/train -objective, and approve on held-out label accuracy. Follows the consolidation rounds. Done when TestTabFMObjectiveApprovesOnHeldOutRows records a passed verdict on the real checkpoint."
+        }
+      ]
+    },
+    {
+      "id": "automation-peer-workspaces",
+      "title": "Wire or delete the automation and peer workspaces no command opens",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Wire or delete the automation and peer workspaces no command opens",
+          "status": "open",
+          "verify": "test -z \"$(deadcode ./... 2\u003e/dev/null | grep -E '^internal.server.(automation_(workspace|webhook)|peer_workspace).go')\"",
+          "rationale": "Found 2026-09-28 by the unexport-and-deadcode pass on internal/server.\n\nTwo whole server features have never been opened by any command:\n- the automation workspace (automation_workspace.go and automation_webhook.go): webhook-triggered automations with inventory, define, activate, run, schedule and history;\n- the peer workspace (peer_workspace.go): enroll, heartbeat, placement and reconcile of spillover peers.\n\nautomation_routes.go serves their HTTP routes by asserting h.generator.(automationWorkspaceAPI), which nothing implements, so each route answers that the workspace is absent. Once their config types were unexported, deadcode reports every method unreachable.\n\nDecide by what they front. If the workflow runtime's automation and peer placement (workflowruntime, capabilityruntime's peer invocation) have users the product needs, wire each workspace into cmd/server's launch declaration (Workspaces) with a journey test. Otherwise delete the workspaces, their routes and the runtime parts only they reach. Recommendation: delete. Neither has been reachable since it was written, and no model capability depends on them. The kept trigger authority rule that names receiveAutomationWebhook goes with them."
         }
       ]
     },
@@ -1067,7 +1083,9 @@
             "device-claim-everywhere/launcher-waits",
             "unexport-unconsumed-names/server",
             "trainer-shared-run/shared-run",
-            "test-models-from-store/store-slice"
+            "test-models-from-store/store-slice",
+            "unexport-unconsumed-names/deadcode",
+            "automation-peer-workspaces/do"
           ]
         }
       ]

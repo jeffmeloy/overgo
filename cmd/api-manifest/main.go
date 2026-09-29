@@ -165,6 +165,18 @@ func hostPart(context string, index int) string {
 	return context
 }
 
+// holdsGoSource reports whether a command directory holds Go source: one a
+// fold emptied can keep a store's lock and log, and is no command.
+func holdsGoSource(directory string) bool {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(entries, func(entry os.DirEntry) bool {
+		return !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go")
+	})
+}
+
 func commandBinaries(root, context string) ([]apimanifest.Binary, error) {
 	entries, err := os.ReadDir(filepath.Join(root, "cmd"))
 	if err != nil {
@@ -176,7 +188,7 @@ func commandBinaries(root, context string) ([]apimanifest.Binary, error) {
 	declared := commanddoc.Declared
 	binaries := make([]apimanifest.Binary, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || !holdsGoSource(filepath.Join(root, "cmd", entry.Name())) {
 			continue
 		}
 		name := entry.Name()

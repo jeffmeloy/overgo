@@ -581,12 +581,6 @@ func (h *Handler) parseAnthropicMessages(
 	return messages, nil
 }
 
-func parseAnthropicMessages(
-	rawSystem, rawMessages json.RawMessage,
-) ([]inference.ChatMessage, error) {
-	return (&Handler{}).parseAnthropicMessages(context.Background(), rawSystem, rawMessages)
-}
-
 func parseAnthropicContent(raw json.RawMessage, label string) (string, error) {
 	var text string
 	if err := json.Unmarshal(raw, &text); err == nil {

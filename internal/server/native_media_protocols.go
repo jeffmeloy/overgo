@@ -158,7 +158,7 @@ func (h *Handler) nativeWorkflowRequest(
 		writeInvalidRequest(response, err)
 		return nil, WorkflowCapability{}, nil, false
 	}
-	capabilities, err := workspace.WorkflowCapabilities(request.Context(), WorkflowGeneration)
+	capabilities, err := workspace.WorkflowCapabilities(request.Context(), workflowGeneration)
 	if err != nil {
 		writeGenerationError(response, err)
 		return nil, WorkflowCapability{}, nil, false
@@ -171,7 +171,7 @@ func (h *Handler) nativeWorkflowRequest(
 	return workspace, capability, fields, true
 }
 
-func marshalWorkflowInput(controls []WorkflowControl, fields map[string]json.RawMessage) (json.RawMessage, error) {
+func marshalWorkflowInput(controls []workflowControl, fields map[string]json.RawMessage) (json.RawMessage, error) {
 	input, err := json.Marshal(fields)
 	if err == nil {
 		err = validateWorkflowInput(controls, input)
@@ -218,7 +218,7 @@ func (h *Handler) runNativeWorkflow(
 }
 
 func (h *Handler) waitNativeWorkflow(ctx context.Context, workspace WorkflowWorkspaceAPI, capability WorkflowCapability, input json.RawMessage) (operation.Status, error) {
-	id, err := h.submitWorkflow(ctx, workspace, WorkflowGeneration, capability, input, nil)
+	id, err := h.submitWorkflow(ctx, workspace, workflowGeneration, capability, input, nil)
 	if err != nil {
 		return operation.Status{}, err
 	}

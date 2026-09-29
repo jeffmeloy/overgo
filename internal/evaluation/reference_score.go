@@ -30,8 +30,8 @@ type ReferenceScore struct {
 	Source   string  `json:"source"`
 }
 
-// ReferenceScoreDeclaration binds one model to its published results.
-type ReferenceScoreDeclaration struct {
+// referenceScoreDeclaration binds one model to its published results.
+type referenceScoreDeclaration struct {
 	ID         artifact.ID      `json:"-"`
 	Version    uint16           `json:"version"`
 	Model      artifact.ID      `json:"model"`
@@ -40,9 +40,9 @@ type ReferenceScoreDeclaration struct {
 
 var referenceScoreCodec = artifact.JSONDocumentCodec(
 	"evaluation references", artifact.KindEvidence, referenceScoresMediaType, referenceScoresSchema,
-	canonicalizeReferenceScores, func(value ReferenceScoreDeclaration) artifact.ID { return value.ID },
-	func(value *ReferenceScoreDeclaration, id artifact.ID) { value.ID = id },
-	func(value ReferenceScoreDeclaration) ReferenceScoreDeclaration {
+	canonicalizeReferenceScores, func(value referenceScoreDeclaration) artifact.ID { return value.ID },
+	func(value *referenceScoreDeclaration, id artifact.ID) { value.ID = id },
+	func(value referenceScoreDeclaration) referenceScoreDeclaration {
 		value.References = slices.Clone(value.References)
 		return value
 	},
@@ -58,7 +58,7 @@ func compareReferenceScores(a, b ReferenceScore) int {
 	return strings.Compare(a.Source, b.Source)
 }
 
-func canonicalizeReferenceScores(value *ReferenceScoreDeclaration) error {
+func canonicalizeReferenceScores(value *referenceScoreDeclaration) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion ||
 		value.Model.Kind() != artifact.KindModel || len(value.References) == 0 {
 		return errors.New("evaluation: invalid reference declaration")
@@ -105,7 +105,7 @@ func DeclareReferenceScores(
 			merged = append(merged, reference)
 		}
 	}
-	declaration, err := referenceScoreCodec.New(ReferenceScoreDeclaration{
+	declaration, err := referenceScoreCodec.New(referenceScoreDeclaration{
 		Version: artifact.InitialDocumentVersion, Model: model, References: merged,
 	})
 	if err != nil {

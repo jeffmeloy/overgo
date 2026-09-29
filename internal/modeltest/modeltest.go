@@ -26,9 +26,11 @@ import (
 // models a store registers, as the media census bounds its own read.
 const registeredBound = 4096
 
-// Directory returns the directory named name that holds a registered model's
-// recorded files. A test whose model this checkout's store has not registered
-// cannot apply here and says so.
+// Directory returns the location named name that holds or is a registered
+// model's recorded files: a model's directory, or a GGUF file by its own
+// name, since a directory such as a models root holds many models. A test
+// whose model this checkout's store has not registered cannot apply here and
+// says so.
 func Directory(t testing.TB, name string) string {
 	t.Helper()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
@@ -43,13 +45,13 @@ func Directory(t testing.TB, name string) string {
 		t.Fatal(err)
 	}
 	if directory == "" {
-		testskip.NotApplicable(t, "no model registered here sits in a directory named "+name)
+		testskip.NotApplicable(t, "no model registered here is or sits in a location named "+name)
 	}
 	return directory
 }
 
-// registeredDirectory finds the directory named name above any registered
-// model's recorded location, or reports none.
+// registeredDirectory finds the location named name at or above any
+// registered model's recorded location, or reports none.
 func registeredDirectory(ctx context.Context, storePath, name string) (string, error) {
 	locations, err := registeredLocations(ctx, storePath)
 	if err != nil {

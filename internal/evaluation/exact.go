@@ -171,7 +171,7 @@ func Record(
 // recordInstruction applies declared conversation framing once before recording
 // generated instruction answers. Raw generators retain their original prompt.
 func recordInstruction(ctx context.Context, generator Generator, name, prompt string, maxTokens int) (ExactResult, error) {
-	if chat, ok := generator.(ChatChoiceRuntime); ok {
+	if chat, ok := generator.(chatChoiceRuntime); ok {
 		framed, err := chat.ShapeChatPrompt(prompt)
 		if err != nil {
 			return ExactResult{}, err

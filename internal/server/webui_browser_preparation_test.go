@@ -25,20 +25,11 @@ type browserJourneyConfig struct {
 }
 
 // Model preparation belongs to the test that consumes it. Filtered browser
-// tests neither build a model server nor inspect or mutate its catalog.
+// tests neither build a model server nor inspect or mutate its catalog. The
+// journey serves what the store's registrations hold, never a model named
+// from the environment.
 func prepareBrowserJourney(t *testing.T) (browserJourneyConfig, error) {
 	t.Helper()
-	configured := browserJourneyConfig{
-		binary: os.Getenv("OVERGO_WEBUI_LANE_SERVER"), store: os.Getenv("OVERGO_WEBUI_LANE_STORE"),
-		model: os.Getenv("OVERGO_WEBUI_LANE_MODEL"), location: os.Getenv("OVERGO_WEBUI_LANE_MODEL_LOCATION"),
-		multimodal: os.Getenv("OVERGO_WEBUI_LANE_MULTIMODAL_MODEL"),
-	}
-	if configured.binary != "" || configured.store != "" || configured.model != "" || configured.location != "" {
-		if configured.binary == "" || configured.store == "" || configured.model == "" || configured.location == "" {
-			return browserJourneyConfig{}, errors.New("first-run journey: incomplete explicit server/store/model/location configuration")
-		}
-		return configured, nil
-	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	if err != nil {
@@ -68,7 +59,7 @@ func prepareBrowserJourney(t *testing.T) (browserJourneyConfig, error) {
 	if receipt.ExitCode != 0 {
 		return browserJourneyConfig{}, fmt.Errorf("first-run journey: server build exited %d", receipt.ExitCode)
 	}
-	configured = browserJourneyConfig{binary: binary, store: privateStore, model: filepath.Base(servables[0]), location: servables[0]}
+	configured := browserJourneyConfig{binary: binary, store: privateStore, model: filepath.Base(servables[0]), location: servables[0]}
 	if len(multimodal) > 0 {
 		configured.multimodal = filepath.Base(multimodal[0])
 	}

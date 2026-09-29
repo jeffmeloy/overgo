@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	// CrossDomainEvaluationContractMediaType identifies a predeclared shared evaluator contract.
-	CrossDomainEvaluationContractMediaType = "application/vnd.overgo.cross-domain-evaluation-contract+json"
-	// CrossDomainEvaluationContractSchema identifies the evaluator contract wire schema.
-	CrossDomainEvaluationContractSchema = "overgo/cross-domain-evaluation-contract/v1"
-	// CrossDomainCandidateEvaluationMediaType identifies an immutable evaluator outcome.
-	CrossDomainCandidateEvaluationMediaType = "application/vnd.overgo.cross-domain-candidate-evaluation+json"
-	// CrossDomainCandidateEvaluationSchema identifies the evaluator outcome wire schema.
-	CrossDomainCandidateEvaluationSchema = "overgo/cross-domain-candidate-evaluation/v1"
+	// crossDomainEvaluationContractMediaType identifies a predeclared shared evaluator contract.
+	crossDomainEvaluationContractMediaType = "application/vnd.overgo.cross-domain-evaluation-contract+json"
+	// crossDomainEvaluationContractSchema identifies the evaluator contract wire schema.
+	crossDomainEvaluationContractSchema = "overgo/cross-domain-evaluation-contract/v1"
+	// crossDomainCandidateEvaluationMediaType identifies an immutable evaluator outcome.
+	crossDomainCandidateEvaluationMediaType = "application/vnd.overgo.cross-domain-candidate-evaluation+json"
+	// crossDomainCandidateEvaluationSchema identifies the evaluator outcome wire schema.
+	crossDomainCandidateEvaluationSchema = "overgo/cross-domain-candidate-evaluation/v1"
 
 	minimumCandidateFitnessDimensions = 2
 )
@@ -30,20 +30,20 @@ const (
 type CandidateDeltaDimension string
 
 const (
-	// CandidateDeltaModel attributes a model-prototype change.
-	CandidateDeltaModel CandidateDeltaDimension = "model"
+	// candidateDeltaModel attributes a model-prototype change.
+	candidateDeltaModel CandidateDeltaDimension = "model"
 	// CandidateDeltaComposition attributes a model-composition change.
 	CandidateDeltaComposition CandidateDeltaDimension = "composition"
-	// CandidateDeltaRouting attributes a routing-policy change.
-	CandidateDeltaRouting CandidateDeltaDimension = "routing"
-	// CandidateDeltaSteering attributes an inference-time steering change.
-	CandidateDeltaSteering CandidateDeltaDimension = "steering"
-	// CandidateDeltaData attributes a dataset-transform change.
-	CandidateDeltaData CandidateDeltaDimension = "data"
-	// CandidateDeltaRecipe attributes a mechanism or recipe change.
-	CandidateDeltaRecipe CandidateDeltaDimension = "recipe"
-	// CandidateDeltaSystem attributes a compiled system-code change.
-	CandidateDeltaSystem CandidateDeltaDimension = "system"
+	// candidateDeltaRouting attributes a routing-policy change.
+	candidateDeltaRouting CandidateDeltaDimension = "routing"
+	// candidateDeltaSteering attributes an inference-time steering change.
+	candidateDeltaSteering CandidateDeltaDimension = "steering"
+	// candidateDeltaData attributes a dataset-transform change.
+	candidateDeltaData CandidateDeltaDimension = "data"
+	// candidateDeltaRecipe attributes a mechanism or recipe change.
+	candidateDeltaRecipe CandidateDeltaDimension = "recipe"
+	// candidateDeltaSystem attributes a compiled system-code change.
+	candidateDeltaSystem CandidateDeltaDimension = "system"
 )
 
 // CandidateEvaluationRole names one mandatory controlled-comparison arm.
@@ -60,15 +60,15 @@ const (
 	CandidateEvaluationAblation CandidateEvaluationRole = "ablation"
 )
 
-// CandidateEvaluationVerdict is evidence only; it is deliberately not a
+// candidateEvaluationVerdict is evidence only; it is deliberately not a
 // lifecycle, alias, placement, or promotion transition.
-type CandidateEvaluationVerdict string
+type candidateEvaluationVerdict string
 
 const (
 	// CandidateEvaluationImproved records a policy-satisfying improvement.
-	CandidateEvaluationImproved CandidateEvaluationVerdict = "improved"
-	// CandidateEvaluationRefused records an evidentiary or fitness refusal.
-	CandidateEvaluationRefused CandidateEvaluationVerdict = "refused"
+	CandidateEvaluationImproved candidateEvaluationVerdict = "improved"
+	// candidateEvaluationRefused records an evidentiary or fitness refusal.
+	candidateEvaluationRefused candidateEvaluationVerdict = "refused"
 )
 
 // CandidateFitnessRequirement declares a measurable directional threshold
@@ -90,18 +90,18 @@ type CandidateAcceptedTradeoff struct {
 	Authority          artifact.ID `json:"authority"`
 }
 
-// CandidateAblationContract binds every compiler-declared omitted delta to
+// candidateAblationContract binds every compiler-declared omitted delta to
 // the causal dimension its plugin owns.
-type CandidateAblationContract struct {
+type candidateAblationContract struct {
 	Ablation  artifact.ID             `json:"ablation"`
 	Omitted   artifact.ID             `json:"omitted"`
 	Dimension CandidateDeltaDimension `json:"dimension"`
 }
 
-// CrossDomainEvaluationContract freezes the exact driver choice, candidate
+// crossDomainEvaluationContract freezes the exact driver choice, candidate
 // compilation, promotion inputs, arm population, and vector fitness policy
 // before measurements exist.
-type CrossDomainEvaluationContract struct {
+type crossDomainEvaluationContract struct {
 	Version             uint16                        `json:"version"`
 	Decision            artifact.ID                   `json:"decision"`
 	Candidate           artifact.ID                   `json:"candidate"`
@@ -110,7 +110,7 @@ type CrossDomainEvaluationContract struct {
 	EvaluationPlan      artifact.ID                   `json:"evaluation_plan"`
 	Incumbent           artifact.ID                   `json:"incumbent"`
 	Parents             []artifact.ID                 `json:"parents"`
-	Ablations           []CandidateAblationContract   `json:"ablations"`
+	Ablations           []candidateAblationContract   `json:"ablations"`
 	CandidateDimensions []CandidateDeltaDimension     `json:"candidate_dimensions"`
 	PromotionSplit      artifact.ID                   `json:"promotion_split"`
 	PromotionBudget     artifact.ID                   `json:"promotion_budget"`
@@ -139,9 +139,9 @@ type CandidateEvaluationArm struct {
 	Total      uint64                    `json:"total"`
 }
 
-// CandidateAblationContribution records the joint-minus-dropped-delta vector.
+// candidateAblationContribution records the joint-minus-dropped-delta vector.
 // It is attribution evidence, not a scalar contribution score.
-type CandidateAblationContribution struct {
+type candidateAblationContribution struct {
 	Ablation artifact.ID        `json:"ablation"`
 	Omitted  artifact.ID        `json:"omitted"`
 	Delta    []runrecord.Metric `json:"delta"`
@@ -152,10 +152,10 @@ type CandidateAblationContribution struct {
 // cannot disappear as transient errors.
 type CrossDomainCandidateEvaluation struct {
 	Version             uint16                          `json:"version"`
-	Contract            CrossDomainEvaluationContract   `json:"contract"`
+	Contract            crossDomainEvaluationContract   `json:"contract"`
 	Arms                []CandidateEvaluationArm        `json:"arms"`
-	Contributions       []CandidateAblationContribution `json:"contributions,omitempty"`
-	Verdict             CandidateEvaluationVerdict      `json:"verdict"`
+	Contributions       []candidateAblationContribution `json:"contributions,omitempty"`
+	Verdict             candidateEvaluationVerdict      `json:"verdict"`
 	Reasons             []string                        `json:"reasons,omitempty"`
 	AcceptedAuthorities []artifact.ID                   `json:"accepted_authorities,omitempty"`
 	ID                  artifact.ID                     `json:"-"`
@@ -163,16 +163,16 @@ type CrossDomainCandidateEvaluation struct {
 
 var crossDomainEvaluationContractCodec = artifact.JSONDocumentCodec(
 	"cross-domain evaluation contract", artifact.KindProfile,
-	CrossDomainEvaluationContractMediaType, CrossDomainEvaluationContractSchema,
+	crossDomainEvaluationContractMediaType, crossDomainEvaluationContractSchema,
 	canonicalizeCrossDomainEvaluationContract,
-	func(value CrossDomainEvaluationContract) artifact.ID { return value.ID },
-	func(value *CrossDomainEvaluationContract, id artifact.ID) { value.ID = id },
+	func(value crossDomainEvaluationContract) artifact.ID { return value.ID },
+	func(value *crossDomainEvaluationContract, id artifact.ID) { value.ID = id },
 	cloneCrossDomainEvaluationContract,
 )
 
 var crossDomainCandidateEvaluationCodec = artifact.JSONDocumentCodec(
 	"cross-domain candidate evaluation", artifact.KindEvidence,
-	CrossDomainCandidateEvaluationMediaType, CrossDomainCandidateEvaluationSchema,
+	crossDomainCandidateEvaluationMediaType, crossDomainCandidateEvaluationSchema,
 	canonicalizeCrossDomainCandidateEvaluation,
 	func(value CrossDomainCandidateEvaluation) artifact.ID { return value.ID },
 	func(value *CrossDomainCandidateEvaluation, id artifact.ID) { value.ID = id },
@@ -187,18 +187,18 @@ func NewCrossDomainEvaluationContract(
 	evaluator, inputs artifact.ID,
 	requirements []CandidateFitnessRequirement,
 	tradeoffs []CandidateAcceptedTradeoff,
-) (CrossDomainEvaluationContract, error) {
+) (crossDomainEvaluationContract, error) {
 	if _, err := decision.Content(); err != nil {
-		return CrossDomainEvaluationContract{}, err
+		return crossDomainEvaluationContract{}, err
 	}
 	if err := compiled.ValidateIdentity(); err != nil {
-		return CrossDomainEvaluationContract{}, err
+		return crossDomainEvaluationContract{}, err
 	}
 	trial, plan := compiled.Trial, compiled.EvaluationPlan
 	if decision.Stop != runrecord.DriverStopContinue ||
 		decision.Action != runrecord.DriverActionRealize && decision.Action != runrecord.DriverActionEvaluate &&
 			decision.Action != runrecord.DriverActionAblate || decision.Subject != trial.Candidate {
-		return CrossDomainEvaluationContract{}, errors.New("evaluation: driver decision does not select this candidate spine")
+		return crossDomainEvaluationContract{}, errors.New("evaluation: driver decision does not select this candidate spine")
 	}
 	selected := false
 	for _, option := range decision.Options {
@@ -208,27 +208,27 @@ func NewCrossDomainEvaluationContract(
 		}
 	}
 	if !selected {
-		return CrossDomainEvaluationContract{}, errors.New("evaluation: driver decision omits the candidate admission")
+		return crossDomainEvaluationContract{}, errors.New("evaluation: driver decision omits the candidate admission")
 	}
 	dimensions := make([]CandidateDeltaDimension, len(compiled.Components))
 	bySpecification := make(map[artifact.ID]CandidateDeltaDimension, len(compiled.Components))
 	for index, component := range compiled.Components {
 		dimension, err := candidateDimension(component.Domain)
 		if err != nil {
-			return CrossDomainEvaluationContract{}, err
+			return crossDomainEvaluationContract{}, err
 		}
 		dimensions[index] = dimension
 		bySpecification[component.Specification] = dimension
 	}
 	dimensions = canonicalCandidateDimensions(dimensions)
-	ablative := make([]CandidateAblationContract, len(compiled.Ablations))
+	ablative := make([]candidateAblationContract, len(compiled.Ablations))
 	for index, ablation := range compiled.Ablations {
-		ablative[index] = CandidateAblationContract{
+		ablative[index] = candidateAblationContract{
 			Ablation: ablation.ID, Omitted: ablation.Omitted,
 			Dimension: bySpecification[ablation.Specification],
 		}
 	}
-	return crossDomainEvaluationContractCodec.New(CrossDomainEvaluationContract{
+	return crossDomainEvaluationContractCodec.New(crossDomainEvaluationContract{
 		Version:  artifact.InitialDocumentVersion,
 		Decision: decision.ID, Candidate: trial.Candidate, Admission: trial.Admission,
 		Trial: trial.ID, EvaluationPlan: plan.ID, Incumbent: decision.Incumbent,
@@ -243,7 +243,7 @@ func NewCrossDomainEvaluationContract(
 // failure returns a content-addressed refusal; only malformed authorities
 // return an error.
 func EvaluateCrossDomainCandidate(
-	contract CrossDomainEvaluationContract,
+	contract crossDomainEvaluationContract,
 	decision runrecord.DriverDecision,
 	compiled modelrecipe.CandidateCompilation,
 	arms []CandidateEvaluationArm,
@@ -268,7 +268,7 @@ func EvaluateCrossDomainCandidate(
 	contributions := candidateAblationContributions(contract, arms)
 	verdict := CandidateEvaluationImproved
 	if len(reasons) != 0 {
-		verdict = CandidateEvaluationRefused
+		verdict = candidateEvaluationRefused
 	}
 	return crossDomainCandidateEvaluationCodec.New(CrossDomainCandidateEvaluation{
 		Version: artifact.InitialDocumentVersion, Contract: contract, Arms: arms,
@@ -278,12 +278,12 @@ func EvaluateCrossDomainCandidate(
 }
 
 // Content returns the immutable pre-execution evaluator contract.
-func (value CrossDomainEvaluationContract) Content() (artifact.Content, error) {
+func (value crossDomainEvaluationContract) Content() (artifact.Content, error) {
 	return crossDomainEvaluationContractCodec.Content(value)
 }
 
 // Lineage binds the contract to every input authority available before measurement.
-func (value CrossDomainEvaluationContract) Lineage() []artifact.Lineage {
+func (value crossDomainEvaluationContract) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{
 		value.Decision, value.Candidate, value.Admission, value.Trial, value.EvaluationPlan,
 		value.Incumbent, value.PromotionSplit, value.PromotionBudget, value.Evaluator, value.Inputs,
@@ -314,7 +314,7 @@ func (value CrossDomainCandidateEvaluation) Lineage() []artifact.Lineage {
 }
 
 func evaluateCandidateArms(
-	contract CrossDomainEvaluationContract,
+	contract crossDomainEvaluationContract,
 	arms []CandidateEvaluationArm,
 ) ([]string, []artifact.ID) {
 	var reasons []string
@@ -366,7 +366,7 @@ func evaluateCandidateArms(
 }
 
 func evaluateCandidateFitness(
-	contract CrossDomainEvaluationContract,
+	contract crossDomainEvaluationContract,
 	baseline, candidate CandidateEvaluationArm,
 ) ([]string, []artifact.ID) {
 	if !slices.Equal(candidate.Dimensions, contract.CandidateDimensions) {
@@ -409,7 +409,7 @@ func evaluateCandidateFitness(
 }
 
 func acceptedCandidateTradeoff(
-	contract CrossDomainEvaluationContract,
+	contract crossDomainEvaluationContract,
 	regressed string,
 	regression float64,
 	baseline, candidate map[string]runrecord.Metric,
@@ -427,9 +427,9 @@ func acceptedCandidateTradeoff(
 }
 
 func candidateAblationContributions(
-	contract CrossDomainEvaluationContract,
+	contract crossDomainEvaluationContract,
 	arms []CandidateEvaluationArm,
-) []CandidateAblationContribution {
+) []candidateAblationContribution {
 	var joint *CandidateEvaluationArm
 	byAblation := make(map[artifact.ID]CandidateEvaluationArm)
 	for index := range arms {
@@ -444,7 +444,7 @@ func candidateAblationContributions(
 		return nil
 	}
 	jointMetrics := metricsByName(joint.Fitness)
-	result := make([]CandidateAblationContribution, 0, len(contract.Ablations))
+	result := make([]candidateAblationContribution, 0, len(contract.Ablations))
 	for _, declared := range contract.Ablations {
 		arm, found := byAblation[declared.Ablation]
 		if !found {
@@ -463,14 +463,14 @@ func candidateAblationContributions(
 				Value: directionalDelta(requirement.Direction, without.Value, with.Value),
 			})
 		}
-		result = append(result, CandidateAblationContribution{
+		result = append(result, candidateAblationContribution{
 			Ablation: declared.Ablation, Omitted: declared.Omitted, Delta: delta,
 		})
 	}
 	return result
 }
 
-func canonicalizeCrossDomainEvaluationContract(value *CrossDomainEvaluationContract) error {
+func canonicalizeCrossDomainEvaluationContract(value *crossDomainEvaluationContract) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion ||
 		value.Decision.Kind() != artifact.KindEvidence || value.Candidate.Kind() != artifact.KindRecipe ||
 		value.Admission.Kind() != artifact.KindEvidence || value.Trial.Kind() != artifact.KindProfile ||
@@ -483,7 +483,7 @@ func canonicalizeCrossDomainEvaluationContract(value *CrossDomainEvaluationContr
 	}
 	value.Parents = uniqueCandidateEvaluationIDs(value.Parents)
 	value.CandidateDimensions = canonicalCandidateDimensions(value.CandidateDimensions)
-	slices.SortFunc(value.Ablations, func(left, right CandidateAblationContract) int {
+	slices.SortFunc(value.Ablations, func(left, right candidateAblationContract) int {
 		return artifact.CompareID(left.Ablation, right.Ablation)
 	})
 	for index, ablation := range value.Ablations {
@@ -545,8 +545,8 @@ func canonicalizeCrossDomainCandidateEvaluation(value *CrossDomainCandidateEvalu
 	value.Reasons = slices.Compact(value.Reasons)
 	value.AcceptedAuthorities = uniqueCandidateEvaluationIDs(value.AcceptedAuthorities)
 	if value.Verdict == CandidateEvaluationImproved && len(value.Reasons) != 0 ||
-		value.Verdict == CandidateEvaluationRefused && len(value.Reasons) == 0 ||
-		value.Verdict != CandidateEvaluationImproved && value.Verdict != CandidateEvaluationRefused {
+		value.Verdict == candidateEvaluationRefused && len(value.Reasons) == 0 ||
+		value.Verdict != CandidateEvaluationImproved && value.Verdict != candidateEvaluationRefused {
 		return errors.New("evaluation: candidate evaluation verdict differs from reasons")
 	}
 	for index := range value.Contributions {
@@ -558,7 +558,7 @@ func canonicalizeCrossDomainCandidateEvaluation(value *CrossDomainCandidateEvalu
 			return err
 		}
 	}
-	slices.SortFunc(value.Contributions, func(left, right CandidateAblationContribution) int {
+	slices.SortFunc(value.Contributions, func(left, right candidateAblationContribution) int {
 		return artifact.CompareID(left.Ablation, right.Ablation)
 	})
 	return nil
@@ -608,19 +608,19 @@ func canonicalizeCandidateMetrics(values *[]runrecord.Metric) error {
 func candidateDimension(domain modelrecipe.CandidateDomain) (CandidateDeltaDimension, error) {
 	switch domain {
 	case modelrecipe.CandidateModelPrototype:
-		return CandidateDeltaModel, nil
+		return candidateDeltaModel, nil
 	case modelrecipe.CandidateComposition:
 		return CandidateDeltaComposition, nil
 	case modelrecipe.CandidateRouting:
-		return CandidateDeltaRouting, nil
+		return candidateDeltaRouting, nil
 	case modelrecipe.CandidateSteering:
-		return CandidateDeltaSteering, nil
+		return candidateDeltaSteering, nil
 	case modelrecipe.CandidateDatasetTransform:
-		return CandidateDeltaData, nil
+		return candidateDeltaData, nil
 	case modelrecipe.CandidateMechanism:
-		return CandidateDeltaRecipe, nil
+		return candidateDeltaRecipe, nil
 	case modelrecipe.CandidateCode:
-		return CandidateDeltaSystem, nil
+		return candidateDeltaSystem, nil
 	default:
 		return "", fmt.Errorf("evaluation: unsupported candidate evaluation domain %q", domain)
 	}
@@ -628,8 +628,8 @@ func candidateDimension(domain modelrecipe.CandidateDomain) (CandidateDeltaDimen
 
 func validCandidateDimension(value CandidateDeltaDimension) bool {
 	return slices.Contains([]CandidateDeltaDimension{
-		CandidateDeltaModel, CandidateDeltaComposition, CandidateDeltaRouting, CandidateDeltaSteering,
-		CandidateDeltaData, CandidateDeltaRecipe, CandidateDeltaSystem,
+		candidateDeltaModel, CandidateDeltaComposition, candidateDeltaRouting, candidateDeltaSteering,
+		candidateDeltaData, candidateDeltaRecipe, candidateDeltaSystem,
 	}, value)
 }
 
@@ -682,7 +682,7 @@ func uniqueCandidateEvaluationIDs(values []artifact.ID) []artifact.ID {
 	return uniqueArtifactIDs(values)
 }
 
-func cloneCrossDomainEvaluationContract(value CrossDomainEvaluationContract) CrossDomainEvaluationContract {
+func cloneCrossDomainEvaluationContract(value crossDomainEvaluationContract) crossDomainEvaluationContract {
 	value.Parents = slices.Clone(value.Parents)
 	value.Ablations = slices.Clone(value.Ablations)
 	value.CandidateDimensions = slices.Clone(value.CandidateDimensions)

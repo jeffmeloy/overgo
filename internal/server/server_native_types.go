@@ -55,7 +55,7 @@ func (h *Handler) infill(
 	response http.ResponseWriter,
 	request *http.Request,
 ) {
-	formatter, ok := h.generator.(InfillFormatter)
+	formatter, ok := h.generator.(infillFormatter)
 	if !ok {
 		writeError(
 			response,
@@ -65,7 +65,7 @@ func (h *Handler) infill(
 		)
 		return
 	}
-	api, ok := h.generator.(TokenizationAPI)
+	api, ok := h.generator.(tokenizationAPI)
 	if !ok {
 		writeError(
 			response,

@@ -20,8 +20,8 @@ const (
 	retrievalEvaluationSchema    = "overgo/retrieval-evaluation/v1"
 )
 
-// RetrievalJudgment identifies one exact relevant source span and its ordinal relevance.
-type RetrievalJudgment struct {
+// retrievalJudgment identifies one exact relevant source span and its ordinal relevance.
+type retrievalJudgment struct {
 	Chunk     artifact.ID `json:"chunk"`
 	Source    artifact.ID `json:"source"`
 	StartRune uint64      `json:"start_rune"`
@@ -35,21 +35,21 @@ type RetrievalCase struct {
 	Query         artifact.ID         `json:"query"`
 	Split         artifact.ID         `json:"split"`
 	Group         string              `json:"group"`
-	Judgments     []RetrievalJudgment `json:"judgments,omitempty"`
+	Judgments     []retrievalJudgment `json:"judgments,omitempty"`
 	ExpectAbstain bool                `json:"expect_abstain,omitzero"`
 	ID            artifact.ID         `json:"-"`
 }
 
-// RetrievalRankedResult is the evaluator's provider-neutral citation view.
-type RetrievalRankedResult struct {
+// retrievalRankedResult is the evaluator's provider-neutral citation view.
+type retrievalRankedResult struct {
 	Chunk     artifact.ID `json:"chunk"`
 	Source    artifact.ID `json:"source"`
 	StartRune uint64      `json:"start_rune"`
 	EndRune   uint64      `json:"end_rune"`
 }
 
-// RetrievalWork reports the exact work bound by the consumed retrieval receipt.
-type RetrievalWork struct {
+// retrievalWork reports the exact work bound by the consumed retrieval receipt.
+type retrievalWork struct {
 	InspectedFacts uint64 `json:"inspected_facts"`
 	LoadedFacts    uint64 `json:"loaded_facts"`
 	LoadedBytes    uint64 `json:"loaded_bytes"`
@@ -70,15 +70,15 @@ type RetrievalMetrics struct {
 	Returned          uint64  `json:"returned"`
 }
 
-// RetrievalEvaluation is immutable evidence over one case and consumed receipt.
-type RetrievalEvaluation struct {
+// retrievalEvaluation is immutable evidence over one case and consumed receipt.
+type retrievalEvaluation struct {
 	Version uint16           `json:"version"`
 	Case    artifact.ID      `json:"case"`
 	Receipt artifact.ID      `json:"receipt"`
 	Results artifact.ID      `json:"results"`
 	Split   artifact.ID      `json:"split"`
 	Metrics RetrievalMetrics `json:"metrics"`
-	Work    RetrievalWork    `json:"work"`
+	Work    retrievalWork    `json:"work"`
 	ID      artifact.ID      `json:"-"`
 }
 
@@ -96,9 +96,9 @@ var retrievalCaseCodec = artifact.JSONDocumentCodec(
 var retrievalEvaluationCodec = artifact.JSONDocumentCodec(
 	"retrieval evaluation", artifact.KindEvaluation, retrievalEvaluationMediaType, retrievalEvaluationSchema,
 	canonicalizeRetrievalEvaluation,
-	func(value RetrievalEvaluation) artifact.ID { return value.ID },
-	func(value *RetrievalEvaluation, id artifact.ID) { value.ID = id },
-	func(value RetrievalEvaluation) RetrievalEvaluation { return value },
+	func(value retrievalEvaluation) artifact.ID { return value.ID },
+	func(value *retrievalEvaluation, id artifact.ID) { value.ID = id },
+	func(value retrievalEvaluation) retrievalEvaluation { return value },
 )
 
 // NewRetrievalCase validates and identifies one ranking or abstention case.
@@ -114,7 +114,7 @@ func canonicalizeRetrievalCase(value *RetrievalCase) error {
 		return errors.New("evaluation: invalid retrieval case")
 	}
 	value.Judgments = slices.Clone(value.Judgments)
-	slices.SortFunc(value.Judgments, func(left, right RetrievalJudgment) int { return artifact.CompareID(left.Chunk, right.Chunk) })
+	slices.SortFunc(value.Judgments, func(left, right retrievalJudgment) int { return artifact.CompareID(left.Chunk, right.Chunk) })
 	for index, judgment := range value.Judgments {
 		if judgment.Chunk.Kind() != artifact.KindDatasetShard ||
 			(judgment.Source.Kind() != artifact.KindFile && judgment.Source.Kind() != artifact.KindDatasetShard) ||
@@ -126,22 +126,22 @@ func canonicalizeRetrievalCase(value *RetrievalCase) error {
 	return nil
 }
 
-// EvaluateRetrievalCase loads the consumed receipt and derives citation-aware
+// evaluateRetrievalCase loads the consumed receipt and derives citation-aware
 // ranking and work metrics without accepting caller-authored results.
-func EvaluateRetrievalCase(
+func evaluateRetrievalCase(
 	ctx context.Context,
 	reader artifact.Reader,
 	caseValue RetrievalCase,
 	receipt artifact.ID,
-) (RetrievalEvaluation, error) {
+) (retrievalEvaluation, error) {
 	validated, err := NewRetrievalCase(caseValue)
 	consumed, receiptErr := runrecord.RequireConsumedRetrievalReceipt(ctx, reader, receipt)
 	if err != nil || receiptErr != nil || caseValue.ID.Valid() && caseValue.ID != validated.ID || consumed.Query != validated.Query {
-		return RetrievalEvaluation{}, errors.Join(errors.New("evaluation: invalid retrieval evidence"), err, receiptErr)
+		return retrievalEvaluation{}, errors.Join(errors.New("evaluation: invalid retrieval evidence"), err, receiptErr)
 	}
-	results := make([]RetrievalRankedResult, len(consumed.Results))
+	results := make([]retrievalRankedResult, len(consumed.Results))
 	for index, result := range consumed.Results {
-		results[index] = RetrievalRankedResult{
+		results[index] = retrievalRankedResult{
 			Chunk: result.Chunk, Source: result.Source, StartRune: result.StartRune, EndRune: result.EndRune,
 		}
 	}
@@ -150,23 +150,23 @@ func EvaluateRetrievalCase(
 		if result.Chunk.Kind() != artifact.KindDatasetShard ||
 			(result.Source.Kind() != artifact.KindFile && result.Source.Kind() != artifact.KindDatasetShard) ||
 			result.EndRune <= result.StartRune || seen[result.Chunk] {
-			return RetrievalEvaluation{}, errors.New("evaluation: invalid ranked retrieval result")
+			return retrievalEvaluation{}, errors.New("evaluation: invalid ranked retrieval result")
 		}
 		seen[result.Chunk] = true
 	}
 	resultsID, err := artifact.JSONID(artifact.KindEvidence, results)
 	if err != nil {
-		return RetrievalEvaluation{}, err
+		return retrievalEvaluation{}, err
 	}
 	metrics := retrievalMetrics(validated, results)
-	work := RetrievalWork{
+	work := retrievalWork{
 		InspectedFacts: consumed.Work.EntriesInspected,
 		LoadedFacts:    consumed.Work.ChunksLoaded + consumed.Work.EmbeddingsLoaded,
 		LoadedBytes:    consumed.Work.ChunkBytesLoaded + consumed.Work.EmbeddingBytesLoaded,
 		ContextBytes:   consumed.ContextBytes,
 		ProviderCost:   consumed.Work.QueryEmbeddings + consumed.Work.RerankCalls,
 	}
-	return retrievalEvaluationCodec.New(RetrievalEvaluation{
+	return retrievalEvaluationCodec.New(retrievalEvaluation{
 		Version: artifact.InitialDocumentVersion, Case: validated.ID, Receipt: receipt, Split: validated.Split,
 		Results: resultsID, Metrics: metrics, Work: work,
 	})
@@ -189,86 +189,86 @@ func (value RetrievalCase) Lineage() []artifact.Lineage {
 }
 
 // Content returns the canonical evaluation evidence document.
-func (value RetrievalEvaluation) Content() (artifact.Content, error) {
+func (value retrievalEvaluation) Content() (artifact.Content, error) {
 	return retrievalEvaluationCodec.Content(value)
 }
 
-// RequireRetrievalEvaluation loads exact citation-aware evaluation evidence.
-func RequireRetrievalEvaluation(ctx context.Context, reader artifact.Reader, id artifact.ID) (RetrievalEvaluation, error) {
-	value, err := retrievalEvaluationCodec.RequireExactLineage(ctx, reader, id, RetrievalEvaluation.Lineage)
+// requireRetrievalEvaluation loads exact citation-aware evaluation evidence.
+func requireRetrievalEvaluation(ctx context.Context, reader artifact.Reader, id artifact.ID) (retrievalEvaluation, error) {
+	value, err := retrievalEvaluationCodec.RequireExactLineage(ctx, reader, id, retrievalEvaluation.Lineage)
 	if err != nil {
-		return RetrievalEvaluation{}, err
+		return retrievalEvaluation{}, err
 	}
 	caseValue, err := retrievalCaseCodec.RequireExactLineage(ctx, reader, value.Case, RetrievalCase.Lineage)
 	if err != nil {
-		return RetrievalEvaluation{}, err
+		return retrievalEvaluation{}, err
 	}
-	replayed, err := EvaluateRetrievalCase(ctx, reader, caseValue, value.Receipt)
+	replayed, err := evaluateRetrievalCase(ctx, reader, caseValue, value.Receipt)
 	if err != nil || replayed.ID != value.ID {
-		return RetrievalEvaluation{}, errors.Join(errors.New("evaluation: retrieval evaluation differs from consumed evidence"), err)
+		return retrievalEvaluation{}, errors.Join(errors.New("evaluation: retrieval evaluation differs from consumed evidence"), err)
 	}
 	return value, nil
 }
 
 // ValidateIdentity proves aggregate evidence and ordered-result identity did not change.
-func (value RetrievalEvaluation) ValidateIdentity() error {
+func (value retrievalEvaluation) ValidateIdentity() error {
 	return retrievalEvaluationCodec.ValidateIdentity(value)
 }
 
 // Lineage binds the evaluation to the case and consumed receipt. The Results
 // field is a value digest, not a synthetic catalog parent.
-func (value RetrievalEvaluation) Lineage() []artifact.Lineage {
+func (value retrievalEvaluation) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, value.Case, value.Receipt, value.Split)
 }
 
-// PublishRetrievalEvaluation stores the sealed case and evidence atomically,
+// publishRetrievalEvaluation stores the sealed case and evidence atomically,
 // without an alias or mutable evaluation lifecycle.
-func PublishRetrievalEvaluation(
+func publishRetrievalEvaluation(
 	ctx context.Context,
 	repository artifact.Repository,
 	caseValue RetrievalCase,
 	receipt artifact.ID,
-) (RetrievalEvaluation, error) {
+) (retrievalEvaluation, error) {
 	if ctx == nil || repository == nil {
-		return RetrievalEvaluation{}, errors.New("evaluation: retrieval evaluation repository is absent")
+		return retrievalEvaluation{}, errors.New("evaluation: retrieval evaluation repository is absent")
 	}
 	head, _ := repository.Head()
 	validated, err := NewRetrievalCase(caseValue)
 	if err != nil || caseValue.ID.Valid() && caseValue.ID != validated.ID {
-		return RetrievalEvaluation{}, errors.Join(errors.New("evaluation: invalid retrieval case publication"), err)
+		return retrievalEvaluation{}, errors.Join(errors.New("evaluation: invalid retrieval case publication"), err)
 	}
-	value, err := EvaluateRetrievalCase(ctx, repository, validated, receipt)
+	value, err := evaluateRetrievalCase(ctx, repository, validated, receipt)
 	if err != nil {
-		return RetrievalEvaluation{}, err
+		return retrievalEvaluation{}, err
 	}
 	if _, found, readErr := retrievalEvaluationCodec.Read(ctx, repository, value.ID); readErr != nil {
-		return RetrievalEvaluation{}, readErr
+		return retrievalEvaluation{}, readErr
 	} else if found {
-		return RequireRetrievalEvaluation(ctx, repository, value.ID)
+		return requireRetrievalEvaluation(ctx, repository, value.ID)
 	}
 	caseContent, err := validated.Content()
 	if err != nil {
-		return RetrievalEvaluation{}, err
+		return retrievalEvaluation{}, err
 	}
 	evaluationContent, err := value.Content()
 	if err != nil {
-		return RetrievalEvaluation{}, err
+		return retrievalEvaluation{}, err
 	}
 	lineage := append(validated.Lineage(), value.Lineage()...)
 	batch, err := artifact.NewDocumentBatch(
 		"evaluation/retrieval/"+value.ID.String(), []artifact.Content{caseContent, evaluationContent}, lineage, nil,
 	)
 	if err != nil {
-		return RetrievalEvaluation{}, err
+		return retrievalEvaluation{}, err
 	}
 	batch.ExpectedHead = &head
 	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
-		return RetrievalEvaluation{}, err
+		return retrievalEvaluation{}, err
 	}
 	return value, nil
 }
 
-func canonicalizeRetrievalEvaluation(value *RetrievalEvaluation) error {
+func canonicalizeRetrievalEvaluation(value *retrievalEvaluation) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Case.Kind() != artifact.KindRecipe ||
 		value.Receipt.Kind() != artifact.KindEvidence || value.Results.Kind() != artifact.KindEvidence ||
 		value.Split.Kind() != artifact.KindDatasetShard || !finiteRetrievalMetric(value.Metrics.Recall) ||
@@ -284,8 +284,8 @@ func finiteRetrievalMetric(value float64) bool {
 	return checked.UnitInterval64(value)
 }
 
-func retrievalMetrics(caseValue RetrievalCase, results []RetrievalRankedResult) RetrievalMetrics {
-	byChunk := make(map[artifact.ID]RetrievalJudgment, len(caseValue.Judgments))
+func retrievalMetrics(caseValue RetrievalCase, results []retrievalRankedResult) RetrievalMetrics {
+	byChunk := make(map[artifact.ID]retrievalJudgment, len(caseValue.Judgments))
 	for _, judgment := range caseValue.Judgments {
 		byChunk[judgment.Chunk] = judgment
 	}
@@ -301,7 +301,7 @@ func retrievalMetrics(caseValue RetrievalCase, results []RetrievalRankedResult) 
 		dcg += (math.Pow(2, float64(judgment.Relevance)) - 1) / math.Log2(float64(index)+2)
 	}
 	ideal := slices.Clone(caseValue.Judgments)
-	slices.SortFunc(ideal, func(left, right RetrievalJudgment) int {
+	slices.SortFunc(ideal, func(left, right retrievalJudgment) int {
 		return cmp.Compare(right.Relevance, left.Relevance)
 	})
 	var idealDCG float64

@@ -61,9 +61,9 @@ func (s *prefixedFixtureScorer) ScoringPrefix() string { return s.prefix }
 // and one without scores from the empty context.
 func TestSequenceScoringUsesDeclaredPrefix(t *testing.T) {
 	t.Parallel()
-	compiled, err := CompileSequenceScoring(SequenceScoringSuite{
-		Kind: SequenceScoringKind, Schema: "carbon/dna-corpus/v1", Source: "store/dna",
-		Cases: []SequenceScoringCase{{Name: "seq-1", Group: "mrna_evo2", Text: "ACGTACGT"}},
+	compiled, err := compileSequenceScoring(sequenceScoringSuite{
+		Kind: sequenceScoringKind, Schema: "carbon/dna-corpus/v1", Source: "store/dna",
+		Cases: []sequenceScoringCase{{Name: "seq-1", Group: "mrna_evo2", Text: "ACGTACGT"}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +74,7 @@ func TestSequenceScoringUsesDeclaredPrefix(t *testing.T) {
 		Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution:   ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
-	plan, err := BindSequenceScoring(compiled, authorities)
+	plan, err := bindSequenceScoring(compiled, authorities)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestSequenceScoringUsesDeclaredPrefix(t *testing.T) {
 	publishPlanFixtureAuthorities(t, store, plan)
 	scorer := &prefixedFixtureScorer{prefix: "<dna>"}
 	scorer.scores = []sequencescore.Score{{LogProbability: -4, Tokens: 4}}
-	if _, err := EvaluateSequenceScoring(t.Context(), store, scorer, compiled, plan); err != nil {
+	if _, err := evaluateSequenceScoring(t.Context(), store, scorer, compiled, plan); err != nil {
 		t.Fatal(err)
 	}
 	if len(scorer.prompts) != 1 || scorer.prompts[0] != "<dna>" {
@@ -94,7 +94,7 @@ func TestSequenceScoringUsesDeclaredPrefix(t *testing.T) {
 	}
 
 	bare := &sequenceFixtureScorer{scores: []sequencescore.Score{{LogProbability: -4, Tokens: 4}}}
-	if _, err := EvaluateSequenceScoring(t.Context(), store, bare, compiled, plan); err != nil {
+	if _, err := evaluateSequenceScoring(t.Context(), store, bare, compiled, plan); err != nil {
 		t.Fatal(err)
 	}
 	if len(bare.prompts) != 1 || bare.prompts[0] != "" {

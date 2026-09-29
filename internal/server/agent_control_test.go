@@ -169,7 +169,7 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 
 type agentAutomationGenerator struct {
 	*recipeInspectorGenerator
-	*AutomationWorkspace
+	*automationWorkspace
 }
 
 func TestAgentWorkspaceAutomationAttachment(t *testing.T) {
@@ -186,7 +186,7 @@ func TestAgentWorkspaceAutomationAttachment(t *testing.T) {
 	inspector := responseRecipeGenerator(t, &fakeGenerator{})
 	generator := &agentAutomationGenerator{
 		recipeInspectorGenerator: inspector,
-		AutomationWorkspace:      automation.handler.generator.(*automationWorkspaceGenerator).AutomationWorkspace,
+		automationWorkspace:      automation.handler.generator.(*automationWorkspaceGenerator).automationWorkspace,
 	}
 	fixture := newAgentWorkspaceFixtureWithGenerator(t, automation.store, generator, nil, nil)
 	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, []artifact.ID{automationID}), "/agents/activate")
@@ -302,7 +302,7 @@ func publishAgentFromAPI(
 	datasets, automations []artifact.ID,
 ) artifact.ID {
 	t.Helper()
-	request := AgentDefinitionInput{
+	request := agentDefinitionInput{
 		Name: "research-agent", Prompt: fixture.prompt, ModelRecipe: fixture.generator.description.Identity.Recipe,
 		ToolManuals: []artifact.ID{fixture.manual}, Datasets: datasets, Automations: automations,
 		Policies: []artifact.ID{fixture.policy},

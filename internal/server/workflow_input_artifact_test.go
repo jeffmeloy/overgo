@@ -11,10 +11,10 @@ import (
 // artifact id is refused before any run, while a well-formed id passes.
 func TestWorkflowInputArtifactControl(t *testing.T) {
 	t.Parallel()
-	if !WorkflowControlArtifact.valid() {
+	if !workflowControlArtifact.valid() {
 		t.Fatal("the artifact control type is not a valid capability control")
 	}
-	controls := []WorkflowControl{{Name: "source_artifact", Type: WorkflowControlArtifact}, {Name: "seed", Type: WorkflowControlInteger}}
+	controls := []workflowControl{{Name: "source_artifact", Type: workflowControlArtifact}, {Name: "seed", Type: workflowControlInteger}}
 	valid := json.RawMessage(`{"source_artifact": "file:sha256:` + strings.Repeat("ab", 32) + `", "seed": 7}`)
 	if err := validateWorkflowInput(controls, valid); err != nil {
 		t.Fatal(err)

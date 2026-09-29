@@ -15,7 +15,7 @@ import (
 func TestTranscriptionCaptureDeclaration(t *testing.T) {
 	t.Parallel()
 	fixture := newTranscriptionHTTPFixture(t, nil)
-	caps, err := fixture.workspace.WorkflowCapabilities(t.Context(), WorkflowGeneration)
+	caps, err := fixture.workspace.WorkflowCapabilities(t.Context(), workflowGeneration)
 	if err != nil || len(caps) != 1 {
 		t.Fatalf("capabilities: %v %v", caps, err)
 	}
@@ -38,7 +38,7 @@ func TestTranscriptionCaptureDeclaration(t *testing.T) {
 	for _, name := range []string{"rate", "bytes", "samples", "type", "media"} {
 		t.Run(name, func(t *testing.T) {
 			changed := caps[0]
-			changed.Controls = append([]WorkflowControl(nil), changed.Controls...)
+			changed.Controls = append([]workflowControl(nil), changed.Controls...)
 			audio := *control.Audio
 			changed.Controls[0].Audio = &audio
 			switch name {
@@ -49,7 +49,7 @@ func TestTranscriptionCaptureDeclaration(t *testing.T) {
 			case "samples":
 				audio.MaximumSamples = 0
 			case "type":
-				changed.Controls[0].Type = WorkflowControlText
+				changed.Controls[0].Type = workflowControlText
 			case "media":
 				changed.Controls[0].Media = "image"
 			}

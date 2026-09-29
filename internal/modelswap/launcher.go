@@ -11,8 +11,10 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/processcontrol"
 )
 
@@ -20,6 +22,46 @@ import (
 // error text and the log lines just before it, while the whole stream stays
 // on the launcher's own stderr.
 const childOutputTailBytes = 2048
+
+// deviceIdentity names the host's GPU the way every device claim does. A
+// host without CUDA has none, and its children fail on their own.
+var deviceIdentity = sync.OnceValue(func() string {
+	library, err := driver.Open()
+	if err != nil {
+		return ""
+	}
+	defer library.Close()
+	if library.Init() != nil {
+		return ""
+	}
+	info, err := library.DeviceInfo(0)
+	if err != nil {
+		return ""
+	}
+	return info.UUID
+})
+
+// awaitDevice waits for shared admission to the host's GPU and returns its
+// release. A measurement or test holding the device exclusively is waited
+// out rather than failing the child's model load, and holding admission
+// until the child is ready keeps a new exclusive claim from starting in
+// between.
+func awaitDevice(ctx context.Context) (func() error, error) {
+	device := deviceIdentity()
+	if device == "" {
+		return func() error { return nil }, nil
+	}
+	var release func() error
+	err := processcontrol.AwaitResource(ctx, func() error {
+		var err error
+		release, err = processcontrol.ShareResource(device)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sync.OnceValue(release), nil
+}
 
 // ServerLauncher launches the overgo server binary as the child for a
 // servable: one child at a time over the shared store, listening on a
@@ -67,6 +109,20 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 	if servable.Location == "" {
 		return nil, fmt.Errorf("model swap: servable %q has no on-disk location", servable.Name)
 	}
+	admission, err := awaitDevice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	process, err := l.launch(ctx, servable)
+	if err != nil {
+		return nil, errors.Join(err, admission())
+	}
+	process.admission = admission
+	return process, nil
+}
+
+// launch starts the child under the launcher's device admission.
+func (l ServerLauncher) launch(ctx context.Context, servable Servable) (*serverProcess, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
@@ -115,6 +171,9 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 }
 
 type serverProcess struct {
+	// admission is the launcher's shared device admission, released once
+	// the child is ready or stopped: by then the child holds its own.
+	admission  func() error
 	supervised *processcontrol.Supervised
 	// exited delivers the child's Wait result; a child that dies during
 	// startup fails Ready at once.
@@ -131,6 +190,7 @@ func (p *serverProcess) URL() string { return p.url }
 // context's end, then confirms the bound listener answers health once --
 // model load time is the wait, and the child itself reports its end.
 func (p *serverProcess) Ready(ctx context.Context) error {
+	defer p.releaseAdmission()
 	select {
 	case <-p.announced:
 	case exit := <-p.exited:
@@ -154,8 +214,16 @@ func (p *serverProcess) Ready(ctx context.Context) error {
 	return nil
 }
 
+// releaseAdmission lets go of the launcher's device admission, once.
+func (p *serverProcess) releaseAdmission() {
+	if p.admission != nil {
+		_ = p.admission()
+	}
+}
+
 // Stop terminates the child process tree and reaps it.
 func (p *serverProcess) Stop() error {
+	p.releaseAdmission()
 	if p.supervised == nil {
 		return nil
 	}

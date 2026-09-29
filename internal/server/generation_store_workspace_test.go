@@ -136,7 +136,7 @@ func TestGenerationWorkspaceIdentityRefresh(t *testing.T) {
 	defer store.Close()
 	activatedImageModel(t, store)
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
-	capabilities, err := workspace.WorkflowCapabilities(t.Context(), WorkflowGeneration)
+	capabilities, err := workspace.WorkflowCapabilities(t.Context(), workflowGeneration)
 	if err != nil || len(capabilities) != 1 {
 		t.Fatalf("initial capabilities = %+v, %v", capabilities, err)
 	}
@@ -148,7 +148,7 @@ func TestGenerationWorkspaceIdentityRefresh(t *testing.T) {
 		for range 4 {
 			t.Run("listing", func(t *testing.T) {
 				t.Parallel()
-				listed, err := workspace.WorkflowCapabilities(t.Context(), WorkflowGeneration)
+				listed, err := workspace.WorkflowCapabilities(t.Context(), workflowGeneration)
 				if err != nil || len(listed) != 1 {
 					t.Fatalf("repeat capabilities = %+v, %v", listed, err)
 				}
@@ -161,12 +161,12 @@ func TestGenerationWorkspaceIdentityRefresh(t *testing.T) {
 	if err := os.WriteFile(capabilities[0].Location, []byte("changed oscillator weights"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if listed, err := workspace.WorkflowCapabilities(t.Context(), WorkflowGeneration); err != nil || len(listed) != 0 {
+	if listed, err := workspace.WorkflowCapabilities(t.Context(), workflowGeneration); err != nil || len(listed) != 0 {
 		t.Fatalf("changed bytes must not remain present: %+v, %v", listed, err)
 	}
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(nil)
-	if _, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration); !errors.Is(err, context.Canceled) {
+	if _, err := workspace.WorkflowCapabilities(ctx, workflowGeneration); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled listing = %v", err)
 	}
 }
@@ -199,7 +199,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 		},
 	}}
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
-	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration)
+	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowGeneration)
 	if err != nil || len(capabilities) != 1 {
 		t.Fatalf("capabilities = %+v, %v", capabilities, err)
 	}
@@ -222,7 +222,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	}
 
 	reporter := &recordingReporter{}
-	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskImageGen, capability.Recipe, json.RawMessage(`{"class":1,"seed":7}`), reporter)
+	completion, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, recipe.TaskImageGen, capability.Recipe, json.RawMessage(`{"class":1,"seed":7}`), reporter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +253,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{Key: "fixture/generation/enhancement", Contents: []artifact.Content{enhancement}}); err != nil {
 		t.Fatal(err)
 	}
-	sourced, err := workspace.ExecuteWorkflow(withWorkflowSources(ctx, []artifact.ID{enhancement.Descriptor.ID}), WorkflowGeneration, recipe.TaskImageGen, capability.Recipe, json.RawMessage(`{"class":1,"seed":8}`), reporter)
+	sourced, err := workspace.ExecuteWorkflow(withWorkflowSources(ctx, []artifact.ID{enhancement.Descriptor.ID}), workflowGeneration, recipe.TaskImageGen, capability.Recipe, json.RawMessage(`{"class":1,"seed":8}`), reporter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 	if err != nil || len(run.Inputs) != 2 || !slices.Contains(run.Inputs, enhancement.Descriptor.ID) || slices.Contains(run.Inputs, request.ID) {
 		t.Fatalf("sourced run = %+v, %v", run, err)
 	}
-	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskSpeech, capability.Recipe, json.RawMessage(`{}`), reporter); err == nil {
+	if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, recipe.TaskSpeech, capability.Recipe, json.RawMessage(`{}`), reporter); err == nil {
 		t.Fatal("a recipe ran under a task it does not serve")
 	}
 }
@@ -286,7 +286,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	defer live.Close()
 	ctx := t.Context()
 	catalog := BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent)
-	capabilities, err := NewStoreGenerationWorkspace(live, catalog, 256).WorkflowCapabilities(ctx, WorkflowGeneration)
+	capabilities, err := NewStoreGenerationWorkspace(live, catalog, 256).WorkflowCapabilities(ctx, workflowGeneration)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,13 +312,13 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	defer store.Close()
 	activateModelAt(t, store, oscillator.Location, oscillatorImageDefinition)
 	workspace := NewStoreGenerationWorkspace(store, catalog, 256)
-	scratch, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration)
+	scratch, err := workspace.WorkflowCapabilities(ctx, workflowGeneration)
 	if err != nil || len(scratch) != 1 || scratch[0].Refusal != "" {
 		t.Fatalf("scratch capabilities = %+v, %v", scratch, err)
 	}
 	oscillator.Recipe = scratch[0].Recipe
 	reporter := &recordingReporter{}
-	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskImageGen, oscillator.Recipe, json.RawMessage(`{"class":1,"seed":424242}`), reporter)
+	completion, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, recipe.TaskImageGen, oscillator.Recipe, json.RawMessage(`{"class":1,"seed":424242}`), reporter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +336,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	// Replay: the recorded request resubmitted unchanged answers with the
 	// same output behind the same request document (a page's regenerate),
 	// and the request with another seed answers with a different output.
-	replayed, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskImageGen, oscillator.Recipe, json.RawMessage(`{"class":1,"seed":424242}`), reporter)
+	replayed, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, recipe.TaskImageGen, oscillator.Recipe, json.RawMessage(`{"class":1,"seed":424242}`), reporter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,7 +344,7 @@ func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	if err != nil || again.ID != request.ID || replayed.Outputs[0] != completion.Outputs[0] {
 		t.Fatalf("replay = %+v request %s, %v; want output %s behind %s", replayed, again.ID, err, completion.Outputs[0], request.ID)
 	}
-	varied, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskImageGen, oscillator.Recipe, json.RawMessage(`{"class":1,"seed":424243}`), reporter)
+	varied, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, recipe.TaskImageGen, oscillator.Recipe, json.RawMessage(`{"class":1,"seed":424243}`), reporter)
 	if err != nil || varied.Outputs[0] == completion.Outputs[0] {
 		t.Fatalf("varied = %+v, %v", varied, err)
 	}

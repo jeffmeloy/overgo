@@ -87,7 +87,7 @@ func TestRolloutProjectionEvidenceReproduces(t *testing.T) {
 		t.Fatal(err)
 	}
 	if reading.Coverage != 2 || len(reading.Sources) != 2 ||
-		reading.Projector != RolloutProjectorVersion || reading.Query != RolloutProjectionQuery {
+		reading.Projector != rolloutProjectorVersion || reading.Query != rolloutProjectionQuery {
 		t.Fatalf("projection = %+v", reading)
 	}
 	cited := map[artifact.ID]bool{}

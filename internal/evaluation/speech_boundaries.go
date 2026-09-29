@@ -9,20 +9,20 @@ import (
 	"overgo/internal/recipecontract"
 )
 
-// SpeechBoundaryError reports directional nearest same-kind (start or end),
+// speechBoundaryError reports directional nearest same-kind (start or end),
 // same-mapped-speaker endpoint distances. Several endpoints may select the
 // same target; this is not a one-to-one turn accuracy score. Every raw input
 // endpoint is either matched or explicitly unmatched. TotalErrorSamples and
 // MaximumErrorSamples cover only matched endpoints; the denominator is Matched,
 // never Matched+Unmatched. Fragmentation is visible in the reverse direction.
-type SpeechBoundaryError struct {
+type speechBoundaryError struct {
 	Matched             uint64 `json:"matched"`
 	Unmatched           uint64 `json:"unmatched"`
 	TotalErrorSamples   uint64 `json:"total_error_samples"`
 	MaximumErrorSamples uint64 `json:"maximum_error_samples"`
 }
 
-func scoreSpeechBoundaries(ctx context.Context, from, to []recipecontract.SpeechTurn, mapping map[string]string) (SpeechBoundaryError, error) {
+func scoreSpeechBoundaries(ctx context.Context, from, to []recipecontract.SpeechTurn, mapping map[string]string) (speechBoundaryError, error) {
 	type endpoints struct{ starts, ends []uint64 }
 	counts := make(map[string]int)
 	for _, turn := range to {
@@ -41,10 +41,10 @@ func scoreSpeechBoundaries(ctx context.Context, from, to []recipecontract.Speech
 		slices.Sort(points.starts)
 		slices.Sort(points.ends)
 	}
-	var result SpeechBoundaryError
+	var result speechBoundaryError
 	for _, turn := range from {
 		if err := ctx.Err(); err != nil {
-			return SpeechBoundaryError{}, err
+			return speechBoundaryError{}, err
 		}
 		points := index[mapping[turn.Speaker]]
 		if points == nil {
@@ -67,7 +67,7 @@ func scoreSpeechBoundaries(ctx context.Context, from, to []recipecontract.Speech
 			var ok bool
 			result.TotalErrorSamples, ok = checked.Add64(result.TotalErrorSamples, delta)
 			if !ok {
-				return SpeechBoundaryError{}, errors.New("speaker evaluation: boundary error overflows")
+				return speechBoundaryError{}, errors.New("speaker evaluation: boundary error overflows")
 			}
 			result.MaximumErrorSamples = max(result.MaximumErrorSamples, delta)
 			result.Matched++

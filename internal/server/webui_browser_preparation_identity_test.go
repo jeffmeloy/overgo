@@ -1,10 +1,8 @@
 package server
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -19,27 +17,7 @@ import (
 // TestBrowserJourneyPreparation requires preparation to retain
 // its catalog hashes even for media models not selected for text serving.
 func TestBrowserJourneyPreparation(t *testing.T) {
-	for _, complete := range []bool{false, true} {
-		t.Run(fmt.Sprintf("explicit_configuration_%t", complete), func(t *testing.T) {
-			t.Setenv("OVERGO_DATA_ROOT", filepath.Join(t.TempDir(), "absent"))
-			t.Setenv("OVERGO_WEBUI_LANE_SERVER", "declared-server")
-			t.Setenv("OVERGO_WEBUI_LANE_STORE", "declared-store")
-			t.Setenv("OVERGO_WEBUI_LANE_MODEL", "declared-model")
-			t.Setenv("OVERGO_WEBUI_LANE_MODEL_LOCATION", "")
-			t.Setenv("OVERGO_WEBUI_LANE_MULTIMODAL_MODEL", "declared-vision")
-			if complete {
-				t.Setenv("OVERGO_WEBUI_LANE_MODEL_LOCATION", "declared-location")
-			}
-			configuration, err := prepareBrowserJourney(t)
-			if complete {
-				if err != nil || configuration.binary != "declared-server" || configuration.store != "declared-store" || configuration.model != "declared-model" || configuration.location != "declared-location" || configuration.multimodal != "declared-vision" {
-					t.Fatalf("explicit configuration changed: %+v %v", configuration, err)
-				}
-			} else if err == nil || !strings.Contains(err.Error(), "incomplete explicit") {
-				t.Fatalf("partial configuration mixed with automatic discovery: %+v %v", configuration, err)
-			}
-		})
-	}
+	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)

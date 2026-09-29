@@ -28,9 +28,9 @@ type analyzeCapabilities struct {
 	Tensors      bool `json:"tensors"`
 }
 
-// HiddenStateCaptureSupportAPI: reports whether per-layer hidden-state capture is
+// hiddenStateCaptureSupportAPI: reports whether per-layer hidden-state capture is
 // available for the loaded architecture.
-type HiddenStateCaptureSupportAPI interface {
+type hiddenStateCaptureSupportAPI interface {
 	SupportsHiddenStateCapture() bool
 }
 
@@ -67,7 +67,7 @@ type analyzeModelDerived struct {
 }
 
 func (h *Handler) analyzeModel(response http.ResponseWriter, request *http.Request) {
-	api, ok := h.generator.(ModelPropertiesAPI)
+	api, ok := h.generator.(modelPropertiesAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "model properties are unavailable")
 		return
@@ -105,15 +105,15 @@ func (h *Handler) analyzeModel(response http.ResponseWriter, request *http.Reque
 func (h *Handler) analysisCapabilities() analyzeCapabilities {
 	_, refused := h.generator.(interface{ textGenerationRefused() })
 	capabilities := analyzeCapabilities{Logits: !refused}
-	if _, ok := h.generator.(ModelPropertiesAPI); ok {
+	if _, ok := h.generator.(modelPropertiesAPI); ok {
 		capabilities.Tensors = true
 	}
-	if _, ok := h.generator.(VocabularyInspectionAPI); ok {
+	if _, ok := h.generator.(vocabularyInspectionAPI); ok {
 		capabilities.Vocabulary = true
 	}
-	if support, ok := h.generator.(HiddenStateCaptureSupportAPI); ok {
+	if support, ok := h.generator.(hiddenStateCaptureSupportAPI); ok {
 		capabilities.HiddenStates = support.SupportsHiddenStateCapture()
-		if attention, ok := h.generator.(AttentionCaptureAPI); ok {
+		if attention, ok := h.generator.(attentionCaptureAPI); ok {
 			capabilities.Attention = len(attention.AttentionCaptureLayers()) > 0
 		}
 	}

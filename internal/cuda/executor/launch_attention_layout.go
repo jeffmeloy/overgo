@@ -348,7 +348,7 @@ func launchBlasFullAttention(
 				keys := min(keyChunk, keyEnd-keyStart)
 				kTile := kBase + driver.DevicePtr(uint64(keyStart)*kvRowBytes)
 				vTile := vBase + driver.DevicePtr(uint64(keyStart)*kvRowBytes)
-				for keyValueHead := uint32(0); keyValueHead < keyValueHeads; keyValueHead++ {
+				for keyValueHead := range keyValueHeads {
 					kHead := kTile + driver.DevicePtr(uint64(keyValueHead)*headBytes)
 					qHead := qChunk + driver.DevicePtr(uint64(keyValueHead)*uint64(group)*headBytes)
 					scoreHead := scores + driver.DevicePtr(uint64(keyValueHead)*uint64(group)*scoreBytes)
@@ -380,7 +380,7 @@ func launchBlasFullAttention(
 				); err != nil {
 					return err
 				}
-				for keyValueHead := uint32(0); keyValueHead < keyValueHeads; keyValueHead++ {
+				for keyValueHead := range keyValueHeads {
 					vHead := vTile + driver.DevicePtr(uint64(keyValueHead)*headBytes)
 					oHead := oChunk + driver.DevicePtr(uint64(keyValueHead)*uint64(group)*headBytes)
 					scoreHead := scores + driver.DevicePtr(uint64(keyValueHead)*uint64(group)*scoreBytes)

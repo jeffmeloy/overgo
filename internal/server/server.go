@@ -82,7 +82,7 @@ type runtimePolicyProvider interface {
 	RuntimePolicy() modelrecipe.RuntimePolicy
 }
 
-type ContinuousGeneratorFactory interface {
+type continuousGeneratorFactory interface {
 	NewContinuousGenerator(
 		inference.ContinuousGeneratorOptions,
 	) (*inference.ContinuousGenerator, error)
@@ -96,11 +96,11 @@ type Embedder interface {
 	Embed(context.Context, string) ([]float32, int, error)
 }
 
-type TokenEmbedder interface {
+type tokenEmbedder interface {
 	EmbedTokens(context.Context, []tokenizer.TokenID) ([]float32, int, error)
 }
 
-type AdvancedEmbedder interface {
+type advancedEmbedder interface {
 	EmbedAdvanced(
 		context.Context,
 		string,
@@ -121,38 +121,38 @@ type RankCapability interface {
 	SupportsRank() bool
 }
 
-type ChatFormatter interface {
+type chatFormatter interface {
 	FormatChat([]inference.ChatMessage) (string, error)
 }
 
-type ToolAwareChatFormatter interface {
+type toolAwareChatFormatter interface {
 	FormatChatWithOptions(
 		[]inference.ChatMessage,
 		inference.ChatFormatOptions,
 	) (string, error)
 }
 
-type ChatOutputParser interface {
+type chatOutputParser interface {
 	ParseChatOutput(
 		string,
 		[]inference.ChatTool,
 	) (inference.ChatMessage, error)
 }
 
-type ChatOutputStreamProvider interface {
+type chatOutputStreamProvider interface {
 	NewChatOutputStream(
 		[]inference.ChatTool,
 	) (inference.ChatOutputStream, error)
 }
 
-// PromptChatOutputStreamProvider separates output using the actual prepared
+// promptChatOutputStreamProvider separates output using the actual prepared
 // prompt, including projected token IDs. Providers without it retain their
 // existing content and tool parsing paths.
-type PromptChatOutputStreamProvider interface {
+type promptChatOutputStreamProvider interface {
 	NewChatOutputStreamForPrompt(string, []tokenizer.TokenID, []inference.ChatTool) (inference.ChatOutputStream, error)
 }
 
-type ChatToolGrammarProvider interface {
+type chatToolGrammarProvider interface {
 	ChatToolGrammar(
 		[]inference.ChatTool,
 		bool,
@@ -161,19 +161,19 @@ type ChatToolGrammarProvider interface {
 	) (source, root string, triggerPatterns []string, err error)
 }
 
-type DryBreakerTokenizer interface {
+type dryBreakerTokenizer interface {
 	TokenizeDryBreakers([]string) ([][]int, error)
 }
 
-type GrammarChoiceTokenizer interface {
+type grammarChoiceTokenizer interface {
 	TokenizeGrammarChoices([]string) (*sampling.TokenGrammar, error)
 }
 
-type GBNFCompiler interface {
+type gbnfCompiler interface {
 	CompileGBNF(string, string) (*sampling.GBNFGrammar, error)
 }
 
-type LazyGBNFCompiler interface {
+type lazyGBNFCompiler interface {
 	CompileLazyGBNF(
 		string,
 		string,
@@ -182,17 +182,17 @@ type LazyGBNFCompiler interface {
 	) (*sampling.GBNFGrammar, error)
 }
 
-type SamplingVocabulary interface {
+type samplingVocabulary interface {
 	TokenizeSamplingText(string) ([]tokenizer.TokenID, error)
 	SamplingEOGTokens() []tokenizer.TokenID
 	SamplingVocabularySize() int
 }
 
-type InfillVocabularyProvider interface {
+type infillVocabularyProvider interface {
 	SamplingInfillVocabulary() (*sampling.InfillVocabulary, error)
 }
 
-type InfillFormatter interface {
+type infillFormatter interface {
 	FormatInfillTokens(
 		[]tokenizer.TokenID,
 		[]tokenizer.TokenID,
@@ -202,28 +202,28 @@ type InfillFormatter interface {
 	) ([]tokenizer.TokenID, error)
 }
 
-type TokenizationAPI interface {
+type tokenizationAPI interface {
 	TokenizeText(string, bool, bool) ([]tokenizer.TokenID, error)
 	Detokenize([]tokenizer.TokenID, inference.TokenRenderMode) (string, error)
 	SamplingVocabularySize() int
 }
 
-type TokenPieceAPI interface {
+type tokenPieceAPI interface {
 	TokenPiece(tokenizer.TokenID) (string, error)
 }
 
-type ModelPropertiesAPI interface {
+type modelPropertiesAPI interface {
 	ModelProperties() inference.ModelProperties
 }
 
-type LoRAControlAPI interface {
+type loRAControlAPI interface {
 	LoRAAdapters() []inference.LoRAAdapterInfo
 	SetLoRAScales(context.Context, []inference.LoRAScale) error
 }
 
-// SpeculativeDraftAPI declares the tokens a speculative verify span drafts
+// speculativeDraftAPI declares the tokens a speculative verify span drafts
 // from the served model's draft head, or zero without one.
-type SpeculativeDraftAPI interface {
+type speculativeDraftAPI interface {
 	SpeculativeDraftTokens() int
 }
 
@@ -244,24 +244,24 @@ func (h *Handler) admitSpeculation(speculative bool, sampler *sampling.Sampler) 
 // speculativeDraftTokens is the served model's declared draft span; context
 // shifting rules speculation out, since its spans only append.
 func (h *Handler) speculativeDraftTokens() int {
-	declared, ok := h.generator.(SpeculativeDraftAPI)
+	declared, ok := h.generator.(speculativeDraftAPI)
 	if !ok || h.config.ContextShift {
 		return 0
 	}
 	return declared.SpeculativeDraftTokens()
 }
 
-type DeviceMemoryAPI interface {
+type deviceMemoryAPI interface {
 	DeviceMemoryStats(context.Context) (driver.MemoryStats, error)
 }
 
-// DeviceMemoryOwnersAPI reports the device's total and free memory and the
+// deviceMemoryOwnersAPI reports the device's total and free memory and the
 // runner's live bytes by owner, for the header's memory bar.
-type DeviceMemoryOwnersAPI interface {
+type deviceMemoryOwnersAPI interface {
 	DeviceMemory(context.Context) (inference.DeviceMemory, error)
 }
 
-type DeviceExecutionAPI interface {
+type deviceExecutionAPI interface {
 	DeviceExecutionStats(context.Context) (driver.ExecutionStats, error)
 }
 
@@ -291,12 +291,12 @@ type Config struct {
 	ImageProjector     projector.Session
 	AudioProjector     projector.Session
 	RemoteMediaPolicy  *RemoteMediaPolicy
-	ResponseFiles      ResponseFileResolver
+	ResponseFiles      responseFileResolver
 	ToolProgram        recipe.Program
 	ToolAdapter        func(context.Context, recipe.ToolCall) (recipe.ToolResult, error)
 	MaxStoredResponses int
 	ResponseStoreBytes int
-	DatasetPreview     DatasetPreviewAPI
+	DatasetPreview     datasetPreviewAPI
 	FFmpegPath         string
 	VideoFPS           float64
 	VideoMaxFrames     int
@@ -449,7 +449,7 @@ type servingWorkspace struct {
 	nextID              atomic.Uint64
 	generatedTokens     atomic.Uint64
 	mediaFetcher        *remoteMediaFetcher
-	responseFiles       ResponseFileResolver
+	responseFiles       responseFileResolver
 	thinkingSigner      *anthropicThinkingSigner
 }
 
@@ -627,7 +627,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 	}
 	generation := generator
 	if config.MaxConcurrent > 1 {
-		if factory, ok := generator.(ContinuousGeneratorFactory); ok {
+		if factory, ok := generator.(continuousGeneratorFactory); ok {
 			candidate, schedulerErr := factory.NewContinuousGenerator(
 				inference.ContinuousGeneratorOptions{
 					MaxSequences: config.MaxConcurrent,
@@ -857,7 +857,7 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 		breakerStrings = h.config.RuntimePolicy.Serving.Sampling.DryBreakers
 	}
 	if len(breakerStrings) > 0 {
-		breakerTokenizer, ok := h.generator.(DryBreakerTokenizer)
+		breakerTokenizer, ok := h.generator.(dryBreakerTokenizer)
 		if !ok {
 			return nil, errors.New("server: generator does not support DRY string breakers")
 		}
@@ -869,7 +869,7 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 	}
 	var grammar *sampling.TokenGrammar
 	if len(body.GrammarChoices) > 0 {
-		grammarTokenizer, ok := h.generator.(GrammarChoiceTokenizer)
+		grammarTokenizer, ok := h.generator.(grammarChoiceTokenizer)
 		if !ok {
 			return nil, errors.New("server: generator does not support grammar choices")
 		}
@@ -883,7 +883,7 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 	if body.Grammar != "" {
 		var err error
 		if body.GrammarLazy {
-			compiler, ok := h.generator.(LazyGBNFCompiler)
+			compiler, ok := h.generator.(lazyGBNFCompiler)
 			if !ok {
 				return nil, errors.New("server: generator does not support lazy GBNF")
 			}
@@ -905,7 +905,7 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 				len(body.GrammarTriggerTokens) > 0 {
 				return nil, errors.New("server: grammar triggers require grammar_lazy")
 			}
-			compiler, ok := h.generator.(GBNFCompiler)
+			compiler, ok := h.generator.(gbnfCompiler)
 			if !ok {
 				return nil, errors.New("server: generator does not support GBNF")
 			}
@@ -931,7 +931,7 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 	}
 	var infillVocabulary *sampling.InfillVocabulary
 	if slices.Contains(samplerOrder, sampling.SamplerInfill) {
-		provider, ok := h.generator.(InfillVocabularyProvider)
+		provider, ok := h.generator.(infillVocabularyProvider)
 		if !ok {
 			return nil, errors.New("server: generator does not expose infill vocabulary")
 		}
@@ -946,7 +946,7 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 		return nil, err
 	}
 	if body.IgnoreEOS {
-		vocabulary, ok := h.generator.(SamplingVocabulary)
+		vocabulary, ok := h.generator.(samplingVocabulary)
 		if !ok {
 			return nil, errors.New("server: generator does not expose EOG tokens")
 		}
@@ -1007,7 +1007,7 @@ func (h *Handler) parseLogitBias(raw json.RawMessage) ([]sampling.LogitBias, err
 	if !strictjson.HasValue(raw) {
 		return nil, nil
 	}
-	vocabulary, _ := h.generator.(SamplingVocabulary)
+	vocabulary, _ := h.generator.(samplingVocabulary)
 	add := func(
 		result []sampling.LogitBias,
 		key json.RawMessage,

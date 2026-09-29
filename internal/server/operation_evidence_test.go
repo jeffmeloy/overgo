@@ -26,7 +26,7 @@ func TestOperationEvidenceProjection(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("projection status=%d body=%s", response.Code, response.Body.String())
 	}
-	var projection OperationEvidenceProjection
+	var projection operationEvidenceProjection
 	if err := json.Unmarshal(response.Body.Bytes(), &projection); err != nil {
 		t.Fatal(err)
 	}
@@ -40,13 +40,13 @@ func TestOperationEvidenceProjection(t *testing.T) {
 
 func TestOperationSummary(t *testing.T) {
 	t.Parallel()
-	projection := OperationEvidenceProjection{
+	projection := operationEvidenceProjection{
 		Operation: &operation.Status{State: operation.StateCompleted, Attempts: []artifact.ID{{}, {}}},
-		Stages: []OperationEvidenceDocument[runrecord.StageReceipt]{
+		Stages: []operationEvidenceDocument[runrecord.StageReceipt]{
 			{Value: runrecord.StageReceipt{Attempt: 2, State: runrecord.StageCompleted}},
 			{Value: runrecord.StageReceipt{Attempt: 3, State: runrecord.StageFailed}},
 		},
-		Serving: []OperationEvidenceDocument[runrecord.ServingObservation]{
+		Serving: []operationEvidenceDocument[runrecord.ServingObservation]{
 			{Value: runrecord.ServingObservation{
 				MeasuredNS: 5, Usage: runrecord.ServingUsage{InputTokens: 2, OutputTokens: 3},
 				Resources: runrecord.ServingResources{PeakHostBytes: 7, PeakDeviceBytes: 11, HostToDeviceBytes: 13},
@@ -56,8 +56,8 @@ func TestOperationSummary(t *testing.T) {
 				Resources: runrecord.ServingResources{PeakHostBytes: 29, PeakDeviceBytes: 5, HostToDeviceBytes: 31},
 			}},
 		},
-		Interactions: make([]OperationEvidenceDocument[runrecord.Interaction], 2),
-		Decisions:    make([]OperationEvidenceDocument[runrecord.HumanDecision], 1),
+		Interactions: make([]operationEvidenceDocument[runrecord.Interaction], 2),
+		Decisions:    make([]operationEvidenceDocument[runrecord.HumanDecision], 1),
 	}
 	summary, err := summarizeOperationEvidence(projection)
 	if err != nil || summary.State != operation.StateCompleted || summary.OperationAttempts != 2 ||

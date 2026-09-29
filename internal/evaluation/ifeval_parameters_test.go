@@ -16,11 +16,11 @@ func TestIFEvalNativeParameterAcceptance(t *testing.T) {
 	t.Parallel()
 	t.Run("legacy omitted operands retain identity", func(t *testing.T) {
 		legacy := json.RawMessage(`{"kind":"instruction-rules","schema":"legacy","source":"fixture","cases":[{"name":"one","prompt":"Count cats.","max_tokens":1,"rules":[{"name":"cats","kind":"substring-count","values":["cat"],"count":{"relation":"at-least","value":2}}]}]}`)
-		var suite InstructionRulesSuite
+		var suite instructionRulesSuite
 		if err := json.Unmarshal(legacy, &suite); err != nil {
 			t.Fatal(err)
 		}
-		compiled, err := CompileInstructionRules(suite)
+		compiled, err := compileInstructionRules(suite)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,13 +62,13 @@ func TestIFEvalNativeParameterAcceptance(t *testing.T) {
 		}
 	}
 	t.Run("views and owned criteria", func(t *testing.T) {
-		makeRule := func(letter string) InstructionRule {
-			return InstructionRule{Name: "letter", Kind: ifevalLetters, Values: []string{letter}, Count: &CountRule{Relation: RelationAtLeast, Value: 2}}
+		makeRule := func(letter string) instructionRule {
+			return instructionRule{Name: "letter", Kind: ifevalLetters, Values: []string{letter}, Count: &countRule{Relation: relationAtLeast, Value: 2}}
 		}
 		strict, loose := makeRule("a"), makeRule("b")
 		strict.Loose = &loose
-		suite := InstructionRulesSuite{Kind: InstructionRulesKind, Schema: "resolved-views", Source: "fixture", Cases: []InstructionRulesCase{{Name: "one", Prompt: "Count letters.", MaxTokens: 1, Rules: []InstructionRule{strict}}}}
-		compiled, err := CompileInstructionRules(suite)
+		suite := instructionRulesSuite{Kind: instructionRulesKind, Schema: "resolved-views", Source: "fixture", Cases: []instructionRulesCase{{Name: "one", Prompt: "Count letters.", MaxTokens: 1, Rules: []instructionRule{strict}}}}
+		compiled, err := compileInstructionRules(suite)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -100,7 +100,7 @@ func TestIFEvalNativeParameterAcceptance(t *testing.T) {
 				case "name":
 					b.Name = "other"
 				case "kind":
-					b.Kind = RuleSuffix
+					b.Kind = ruleSuffix
 				case "nested":
 					c := makeRule("c")
 					b.Loose = &c

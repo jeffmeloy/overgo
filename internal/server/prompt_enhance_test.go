@@ -23,14 +23,14 @@ func TestPromptEnhanceRewritesUnderTheInstruction(t *testing.T) {
 	if page.Code != http.StatusOK || json.Unmarshal(page.Body.Bytes(), &answer) != nil {
 		t.Fatalf("status=%d body=%s", page.Code, page.Body.String())
 	}
-	if answer.Original != "a red square" || answer.Enhanced != "a red square, studio lighting" || answer.Instruction != PromptEnhanceInstruction ||
+	if answer.Original != "a red square" || answer.Enhanced != "a red square, studio lighting" || answer.Instruction != promptEnhanceInstruction ||
 		answer.Model != testModelID || answer.Record == "" {
 		t.Fatalf("answer = %+v", answer)
 	}
 	generator.mu.Lock()
 	messages := generator.chatMessages
 	generator.mu.Unlock()
-	if len(messages) != 2 || messages[0].Role != inference.ChatRoleSystem || messages[0].Content != PromptEnhanceInstruction ||
+	if len(messages) != 2 || messages[0].Role != inference.ChatRoleSystem || messages[0].Content != promptEnhanceInstruction ||
 		messages[1].Role != inference.ChatRoleUser || messages[1].Content != "a red square" {
 		t.Fatalf("the served model saw %+v", messages)
 	}

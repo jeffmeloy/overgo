@@ -37,7 +37,7 @@ func videoOutputFixture(t *testing.T, mediaType string, output []byte) (*Handler
 		capabilities: []WorkflowCapability{{
 			Task: recipe.TaskVideoGen, Recipe: recipeID,
 			Stages:   []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.video"}}},
-			Controls: []WorkflowControl{{Name: "prompt", Type: WorkflowControlText, Required: true}},
+			Controls: []workflowControl{{Name: "prompt", Type: workflowControlText, Required: true}},
 		}},
 		completion: map[recipe.Task]operation.Completion{recipe.TaskVideoGen: {Run: runID, Outputs: []artifact.ID{outputID}}},
 	}

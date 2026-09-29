@@ -18,14 +18,14 @@ type Campaign struct {
 	identity    modelrecipe.ProgramIdentity
 	environment runrecord.Environment
 	commit      string
-	lifecycle   Lifecycle
-	prompting   Prompting
+	lifecycle   lifecycle
+	prompting   prompting
 }
 
 // WithPrompting binds the prompt-shaping protocol every plan this
 // campaign compiles will carry; the campaign's runtime must shape
 // prompts the same way, since the record describes what ran.
-func (campaign *Campaign) WithPrompting(prompting Prompting) *Campaign {
+func (campaign *Campaign) WithPrompting(prompting prompting) *Campaign {
 	if campaign != nil {
 		campaign.prompting = prompting
 	}
@@ -70,7 +70,7 @@ func newCampaign(
 	identity modelrecipe.ProgramIdentity,
 	environment runrecord.Environment,
 	commit string,
-	lifecycle Lifecycle,
+	lifecycle lifecycle,
 ) (*Campaign, error) {
 	if repository == nil || runtime == nil {
 		return nil, errors.New("evaluation: campaign dependencies are absent")
@@ -115,7 +115,7 @@ func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (Ca
 	if err != nil {
 		return CampaignResult{}, err
 	}
-	result, evaluateErr := ExecuteSuite(ctx, campaign.repository, campaign.runtime, suite)
+	result, evaluateErr := executeSuite(ctx, campaign.repository, campaign.runtime, suite)
 	finished, err := processmeasure.Counter()
 	if err != nil {
 		return CampaignResult{}, errors.Join(evaluateErr, err)
@@ -159,7 +159,7 @@ func (campaign *Campaign) publishEnvironment(ctx context.Context) error {
 func (campaign *Campaign) publishSuccess(
 	ctx context.Context,
 	suite CompiledSuite,
-	result SuiteResult,
+	result suiteResult,
 	measured uint64,
 ) (CampaignResult, error) {
 	plan := suite.plan

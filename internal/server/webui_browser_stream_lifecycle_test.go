@@ -22,8 +22,8 @@ import (
 // carries operations) with the automation and peer workspaces beside it.
 type streamLifecycleGenerator struct {
 	*recipeInspectorGenerator
-	*AutomationWorkspace
-	*PeerWorkspace
+	*automationWorkspace
+	*peerWorkspace
 }
 
 // TestWebUIBrowserStreamLifecycle remounts the live workspaces in a real
@@ -41,13 +41,13 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()
 	defer fixture.handler.Close()
-	automation := fixture.handler.generator.(*automationWorkspaceGenerator).AutomationWorkspace
-	generator := &streamLifecycleGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), AutomationWorkspace: automation}
+	automation := fixture.handler.generator.(*automationWorkspaceGenerator).automationWorkspace
+	generator := &streamLifecycleGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), automationWorkspace: automation}
 	handler := newTestHandlerForRepository(t, fixture.store, generator)
 	defer handler.Close()
 	// The peer workspace answers the handler's own inventory bound.
 	var err error
-	generator.PeerWorkspace, err = (PeerWorkspaceConfig{Store: fixture.store, Backend: peerWorkspaceBackend{}, Limit: handler.config.MaxStoredResponses}).Open()
+	generator.peerWorkspace, err = (peerWorkspaceConfig{Store: fixture.store, Backend: peerWorkspaceBackend{}, Limit: handler.config.MaxStoredResponses}).Open()
 	if err != nil {
 		t.Fatal(err)
 	}

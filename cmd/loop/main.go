@@ -188,7 +188,23 @@ func run(args []string) error {
 	outcome, err := loop.Run(world, strategy.Loop)
 	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
 		outcome.Reason, outcome.Invocations, outcome.Parked)
-	return err
+	if err != nil || outcome.Reason != loop.ReasonPlanComplete {
+		return err
+	}
+	// An empty plan runs the full scorecard: the validations the last
+	// commit made stale are measured again, then the scorecard is published
+	// with what moved since the previous one. A measurement that fails does
+	// not withhold the others' numbers: the scorecard publishes regardless
+	// and the failure is reported beside it.
+	var failed []error
+	for _, command := range [][]string{{"go", "run", "./cmd/validate", "-run"}, {"go", "run", "./cmd/validate", "-scorecard", "-publish"}} {
+		out, err := runTool(command...)
+		fmt.Print(out)
+		if err != nil {
+			failed = append(failed, fmt.Errorf("loop: the plan is empty, but %s failed: %w", strings.Join(command[1:], " "), err))
+		}
+	}
+	return errors.Join(failed...)
 }
 
 func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {

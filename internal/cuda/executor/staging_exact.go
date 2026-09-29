@@ -36,9 +36,10 @@ func (c *CompiledGraph) ReserveExactWeightStaging() error {
 			// Single-token decode reads the native weight directly; no staging.
 			continue
 		}
-		if tensorCoreMulMat(node) {
-			// Tensor-core mul_mat stages the half-precision activation, not
-			// the weight, and is already reserved at full extent by Compile.
+		if tensorCoreMulMat(node) || fp8TensorCoreMulMat(node) {
+			// Tensor-core mul_mat stages the half-precision or e4m3
+			// activation, not the weight, and is already reserved at full
+			// extent by Compile.
 			continue
 		}
 		inner, rows := node.Inputs[0].Shape.Dims[0], node.Inputs[0].Shape.Dims[1]

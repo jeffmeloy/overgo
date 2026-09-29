@@ -14,11 +14,11 @@ import (
 	"overgo/internal/textcheck"
 )
 
-const ExactGenerationKind = "exact-generation"
+const exactGenerationKind = "exact-generation"
 
 type Runtime interface {
 	Generator
-	ContinuationScorer
+	continuationScorer
 }
 
 type SuiteDescriptor struct {
@@ -29,7 +29,7 @@ type SuiteDescriptor struct {
 	Cases   uint64      `json:"cases"`
 }
 
-type SuiteResult struct {
+type suiteResult struct {
 	Report  artifact.ID
 	Metrics []runrecord.Metric
 }
@@ -39,7 +39,7 @@ type CompiledSuite struct {
 	plan       Plan
 	acceptance AcceptancePolicy
 	evaluator  Evaluator
-	execute    func(context.Context, artifact.Repository, Runtime) (SuiteResult, error)
+	execute    func(context.Context, artifact.Repository, Runtime) (suiteResult, error)
 }
 
 func (suite CompiledSuite) Descriptor() SuiteDescriptor { return suite.descriptor }
@@ -65,25 +65,25 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 		}
 		plan, err := BindMultipleChoice(compiled, authorities)
 		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetrics(0, nil),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
-				report, err := EvaluateMultipleChoice(ctx, repository, runtime, compiled, plan)
-				return SuiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+				report, err := evaluateMultipleChoice(ctx, repository, runtime, compiled, plan)
+				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
 			})
-	case SequenceScoringKind:
-		var source SequenceScoringSuite
+	case sequenceScoringKind:
+		var source sequenceScoringSuite
 		if err := strictjson.DecodeBytes(data, &source); err != nil {
 			return CompiledSuite{}, err
 		}
-		compiled, err := CompileSequenceScoring(source)
+		compiled, err := compileSequenceScoring(source)
 		if err != nil {
 			return CompiledSuite{}, err
 		}
-		plan, err := BindSequenceScoring(compiled, authorities)
+		plan, err := bindSequenceScoring(compiled, authorities)
 		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err,
 			sequenceScoringMetrics(0, 1),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
-				report, err := EvaluateSequenceScoring(ctx, repository, runtime, compiled, plan)
-				return SuiteResult{
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+				report, err := evaluateSequenceScoring(ctx, repository, runtime, compiled, plan)
+				return suiteResult{
 					Report:  report.ID,
 					Metrics: sequenceScoringMetrics(report.MeanNLLPerToken, report.Perplexity),
 				}, err
@@ -97,26 +97,26 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 		if err != nil {
 			return CompiledSuite{}, err
 		}
-		plan, err := BindGeneratedAnswer(compiled, authorities)
+		plan, err := bindGeneratedAnswer(compiled, authorities)
 		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetrics(0, nil),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
-				report, err := EvaluateGeneratedAnswer(ctx, repository, runtime, compiled, plan)
-				return SuiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+				report, err := evaluateGeneratedAnswer(ctx, repository, runtime, compiled, plan)
+				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
 			})
-	case MMLUProKind:
-		var source MMLUProSuite
+	case mmluProKind:
+		var source mmluProSuite
 		if err := strictjson.DecodeBytes(data, &source); err != nil {
 			return CompiledSuite{}, err
 		}
-		compiled, err := CompileMMLUPro(source)
+		compiled, err := compileMMLUPro(source)
 		if err != nil {
 			return CompiledSuite{}, err
 		}
-		plan, err := BindMMLUPro(compiled, authorities)
+		plan, err := bindMMLUPro(compiled, authorities)
 		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetricContract(compiled.categories),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
-				report, err := EvaluateMMLUPro(ctx, repository, runtime, compiled, plan)
-				return SuiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Categories)}, err
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+				report, err := evaluateMMLUPro(ctx, repository, runtime, compiled, plan)
+				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Categories)}, err
 			})
 	case GroupedChoiceKind:
 		var source GroupedChoiceSuite
@@ -129,67 +129,67 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 		}
 		plan, err := BindGroupedChoice(compiled, authorities)
 		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetricContract(compiled.groups),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
 				report, err := EvaluateGroupedChoice(ctx, repository, runtime, compiled, plan)
-				return SuiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Groups)}, err
+				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Groups)}, err
 			})
-	case ProbabilityMassKind:
-		var source ProbabilityMassSuite
+	case probabilityMassKind:
+		var source probabilityMassSuite
 		if err := strictjson.DecodeBytes(data, &source); err != nil {
 			return CompiledSuite{}, err
 		}
-		compiled, err := CompileProbabilityMass(source)
+		compiled, err := compileProbabilityMass(source)
 		if err != nil {
 			return CompiledSuite{}, err
 		}
-		plan, err := BindProbabilityMass(compiled, authorities)
+		plan, err := bindProbabilityMass(compiled, authorities)
 		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, []runrecord.Metric{{
 			Name: "positive-probability-mass", Direction: runrecord.DirectionMaximize,
 		}},
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
-				report, err := EvaluateProbabilityMass(ctx, repository, runtime, compiled, plan)
-				return SuiteResult{Report: report.ID, Metrics: []runrecord.Metric{{
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+				report, err := evaluateProbabilityMass(ctx, repository, runtime, compiled, plan)
+				return suiteResult{Report: report.ID, Metrics: []runrecord.Metric{{
 					Name: "positive-probability-mass", Value: report.Mean, Direction: runrecord.DirectionMaximize,
 				}}}, err
 			})
-	case StructuredGeneratedKind:
-		var source StructuredGeneratedSuite
+	case structuredGeneratedKind:
+		var source structuredGeneratedSuite
 		if err := strictjson.DecodeBytes(data, &source); err != nil {
 			return CompiledSuite{}, err
 		}
-		compiled, err := CompileStructuredGenerated(source)
+		compiled, err := compileStructuredGenerated(source)
 		if err != nil {
 			return CompiledSuite{}, err
 		}
-		plan, err := BindStructuredGenerated(compiled, authorities)
+		plan, err := bindStructuredGenerated(compiled, authorities)
 		groups := make([]string, len(source.Cases))
 		for index, testCase := range source.Cases {
 			groups[index] = testCase.Group
 		}
 		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetricContract(groups),
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
-				report, err := EvaluateStructuredGenerated(ctx, repository, runtime, compiled, plan)
-				return SuiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Groups)}, err
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+				report, err := evaluateStructuredGenerated(ctx, repository, runtime, compiled, plan)
+				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, report.Groups)}, err
 			})
-	case InstructionRulesKind:
-		var source InstructionRulesSuite
+	case instructionRulesKind:
+		var source instructionRulesSuite
 		if err := strictjson.DecodeBytes(data, &source); err != nil {
 			return CompiledSuite{}, err
 		}
-		compiled, err := CompileInstructionRules(source)
+		compiled, err := compileInstructionRules(source)
 		if err != nil {
 			return CompiledSuite{}, err
 		}
-		plan, err := BindInstructionRules(compiled, authorities)
+		plan, err := bindInstructionRules(compiled, authorities)
 		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, []runrecord.Metric{
 			{Name: "prompt-strict", Direction: runrecord.DirectionMaximize},
 			{Name: "instruction-strict", Direction: runrecord.DirectionMaximize},
 			{Name: "prompt-loose", Direction: runrecord.DirectionMaximize},
 			{Name: "instruction-loose", Direction: runrecord.DirectionMaximize},
 		},
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
-				report, err := EvaluateInstructionRules(ctx, repository, runtime, compiled, plan)
-				return SuiteResult{Report: report.ID, Metrics: []runrecord.Metric{
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+				report, err := evaluateInstructionRules(ctx, repository, runtime, compiled, plan)
+				return suiteResult{Report: report.ID, Metrics: []runrecord.Metric{
 					{Name: "prompt-strict", Value: report.PromptStrict, Direction: runrecord.DirectionMaximize},
 					{Name: "instruction-strict", Value: report.InstructionStrict, Direction: runrecord.DirectionMaximize},
 					{Name: "prompt-loose", Value: report.PromptLoose, Direction: runrecord.DirectionMaximize},
@@ -206,12 +206,12 @@ func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 			return CompiledSuite{}, err
 		}
 		plan, err := BindExact(compiled, authorities)
-		return newCompiledSuite(ExactGenerationKind, source.Source, uint64(len(source.Cases)), plan, err, []runrecord.Metric{{
+		return newCompiledSuite(exactGenerationKind, source.Source, uint64(len(source.Cases)), plan, err, []runrecord.Metric{{
 			Name: exactMetricName, Direction: runrecord.DirectionMaximize,
 		}},
-			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (SuiteResult, error) {
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
 				report, err := EvaluateExactSharded(ctx, repository, runtime, compiled, plan, nil)
-				return SuiteResult{Report: report, Metrics: []runrecord.Metric{{
+				return suiteResult{Report: report, Metrics: []runrecord.Metric{{
 					Name: exactMetricName, Value: 1, Direction: runrecord.DirectionMaximize,
 				}}}, err
 			})
@@ -226,7 +226,7 @@ func newCompiledSuite(
 	plan Plan,
 	bindErr error,
 	metrics []runrecord.Metric,
-	execute func(context.Context, artifact.Repository, Runtime) (SuiteResult, error),
+	execute func(context.Context, artifact.Repository, Runtime) (suiteResult, error),
 ) (CompiledSuite, error) {
 	if bindErr != nil {
 		return CompiledSuite{}, bindErr
@@ -248,14 +248,14 @@ func newCompiledSuite(
 	}, nil
 }
 
-func ExecuteSuite(ctx context.Context, repository artifact.Repository, runtime Runtime, suite CompiledSuite) (SuiteResult, error) {
+func executeSuite(ctx context.Context, repository artifact.Repository, runtime Runtime, suite CompiledSuite) (suiteResult, error) {
 	if ctx == nil || repository == nil || runtime == nil || suite.execute == nil {
-		return SuiteResult{}, errors.New("evaluation: incomplete suite execution")
+		return suiteResult{}, errors.New("evaluation: incomplete suite execution")
 	}
 	return suite.execute(ctx, repository, runtime)
 }
 
-func accuracyMetrics(accuracy float64, groups []AccuracyGroup) []runrecord.Metric {
+func accuracyMetrics(accuracy float64, groups []accuracyGroup) []runrecord.Metric {
 	metrics := make([]runrecord.Metric, 1, len(groups)+1)
 	metrics[0] = runrecord.Metric{Name: "accuracy", Value: accuracy, Direction: runrecord.DirectionMaximize}
 	for _, group := range groups {

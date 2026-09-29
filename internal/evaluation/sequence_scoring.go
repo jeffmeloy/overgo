@@ -18,8 +18,8 @@ import (
 // labeled answers -- a DNA corpus slice -- scores in-domain: the
 // model either predicts its domain's sequences or it does not.
 const (
-	// SequenceScoringKind names the held-out-corpus suite envelope.
-	SequenceScoringKind        = "sequence-scoring"
+	// sequenceScoringKind names the held-out-corpus suite envelope.
+	sequenceScoringKind        = "sequence-scoring"
 	sequenceScoringMediaType   = "application/vnd.overgo.sequence-scoring-dataset+json"
 	sequenceScoringSchema      = "overgo/sequence-scoring-dataset/v1"
 	sequenceScoringSplitMedia  = "application/vnd.overgo.sequence-scoring-split+json"
@@ -40,109 +40,109 @@ var (
 	}
 )
 
-// SequenceScoringCase is one held-out sequence.
-type SequenceScoringCase struct {
+// sequenceScoringCase is one held-out sequence.
+type sequenceScoringCase struct {
 	Name  string `json:"name"`
 	Group string `json:"group"`
 	Text  string `json:"text"`
 }
 
-// SequenceScoringSuite scores every case's full text.
-type SequenceScoringSuite struct {
+// sequenceScoringSuite scores every case's full text.
+type sequenceScoringSuite struct {
 	Kind   string                `json:"kind"`
 	Schema string                `json:"schema"`
 	Source string                `json:"source"`
-	Cases  []SequenceScoringCase `json:"cases"`
+	Cases  []sequenceScoringCase `json:"cases"`
 }
 
-// SequenceScoringPlan is the compiled suite with its authorities.
-type SequenceScoringPlan struct {
+// sequenceScoringPlan is the compiled suite with its authorities.
+type sequenceScoringPlan struct {
 	identity artifact.ID
 	dataset  artifact.ID
 	split    artifact.ID
-	suite    SequenceScoringSuite
+	suite    sequenceScoringSuite
 }
 
-// SequenceObservation is one scored sequence.
-type SequenceObservation struct {
+// sequenceObservation is one scored sequence.
+type sequenceObservation struct {
 	Name           string  `json:"name"`
 	Group          string  `json:"group"`
 	LogProbability float64 `json:"log_probability"`
 	Tokens         uint64  `json:"tokens"`
 }
 
-// SequenceScoringReport aggregates held-out likelihoods: mean NLL per
+// sequenceScoringReport aggregates held-out likelihoods: mean NLL per
 // token across every scored token, and its exponential as perplexity.
-type SequenceScoringReport struct {
+type sequenceScoringReport struct {
 	ID              artifact.ID           `json:"-"`
 	Version         uint16                `json:"version"`
 	Plan            artifact.ID           `json:"plan"`
 	Dataset         artifact.ID           `json:"dataset"`
-	Observations    []SequenceObservation `json:"observations"`
+	Observations    []sequenceObservation `json:"observations"`
 	TokensScored    uint64                `json:"tokens_scored"`
 	MeanNLLPerToken float64               `json:"mean_nll_per_token"`
 	Perplexity      float64               `json:"perplexity"`
 }
 
-// CompileSequenceScoring validates and identifies the suite.
-func CompileSequenceScoring(suite SequenceScoringSuite) (SequenceScoringPlan, error) {
-	if suite.Kind != SequenceScoringKind || strings.TrimSpace(suite.Schema) == "" ||
+// compileSequenceScoring validates and identifies the suite.
+func compileSequenceScoring(suite sequenceScoringSuite) (sequenceScoringPlan, error) {
+	if suite.Kind != sequenceScoringKind || strings.TrimSpace(suite.Schema) == "" ||
 		strings.TrimSpace(suite.Source) == "" || len(suite.Cases) == 0 {
-		return SequenceScoringPlan{}, errors.New("evaluation: invalid sequence-scoring suite")
+		return sequenceScoringPlan{}, errors.New("evaluation: invalid sequence-scoring suite")
 	}
 	suite.Cases = slices.Clone(suite.Cases)
 	names := make(map[string]struct{}, len(suite.Cases))
 	for _, testCase := range suite.Cases {
 		if strings.TrimSpace(testCase.Name) == "" || testCase.Text == "" || strings.TrimSpace(testCase.Group) == "" {
-			return SequenceScoringPlan{}, errors.New("evaluation: invalid sequence-scoring case")
+			return sequenceScoringPlan{}, errors.New("evaluation: invalid sequence-scoring case")
 		}
 		if _, duplicate := names[testCase.Name]; duplicate {
-			return SequenceScoringPlan{}, errors.New("evaluation: duplicate sequence-scoring case")
+			return sequenceScoringPlan{}, errors.New("evaluation: duplicate sequence-scoring case")
 		}
 		names[testCase.Name] = struct{}{}
 	}
 	identity, err := artifact.JSONID(artifact.KindProfile, suite)
 	if err != nil {
-		return SequenceScoringPlan{}, err
+		return sequenceScoringPlan{}, err
 	}
 	dataset, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
 	if err != nil {
-		return SequenceScoringPlan{}, err
+		return sequenceScoringPlan{}, err
 	}
 	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
 		Dataset artifact.ID `json:"dataset"`
 	}{Dataset: dataset})
 	if err != nil {
-		return SequenceScoringPlan{}, err
+		return sequenceScoringPlan{}, err
 	}
-	return SequenceScoringPlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
+	return sequenceScoringPlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
 }
 
-// BindSequenceScoring binds the compiled suite to its authorities.
-func BindSequenceScoring(compiled SequenceScoringPlan, authorities ExactAuthorities) (Plan, error) {
-	return bindKindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, SequenceScoringKind, authorities)
+// bindSequenceScoring binds the compiled suite to its authorities.
+func bindSequenceScoring(compiled sequenceScoringPlan, authorities ExactAuthorities) (Plan, error) {
+	return bindKindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, sequenceScoringKind, authorities)
 }
 
-// EvaluateSequenceScoring scores every sequence and publishes the
+// evaluateSequenceScoring scores every sequence and publishes the
 // report through the campaign ledger.
-func EvaluateSequenceScoring(
+func evaluateSequenceScoring(
 	ctx context.Context,
 	repository artifact.Repository,
-	scorer ContinuationScorer,
-	compiled SequenceScoringPlan,
+	scorer continuationScorer,
+	compiled sequenceScoringPlan,
 	plan Plan,
-) (SequenceScoringReport, error) {
+) (sequenceScoringReport, error) {
 	if ctx == nil || repository == nil || scorer == nil || compiled.identity != plan.body.CaseProfile {
-		return SequenceScoringReport{}, errors.New("evaluation: sequence-scoring authority differs")
+		return sequenceScoringReport{}, errors.New("evaluation: sequence-scoring authority differs")
 	}
 	contents, err := compiled.contents()
 	if err != nil {
-		return SequenceScoringReport{}, err
+		return sequenceScoringReport{}, err
 	}
 	if err := publishPlanAuthorities(ctx, repository, plan, contents); err != nil {
-		return SequenceScoringReport{}, err
+		return sequenceScoringReport{}, err
 	}
-	report := SequenceScoringReport{
+	report := sequenceScoringReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
 	}
 	// The model's declared scoring prefix shapes pure-sequence input --
@@ -155,14 +155,14 @@ func EvaluateSequenceScoring(
 	for _, testCase := range compiled.suite.Cases {
 		scores, err := scorer.ScoreContinuations(ctx, prefix, []string{testCase.Text})
 		if err != nil {
-			return SequenceScoringReport{}, err
+			return sequenceScoringReport{}, err
 		}
 		progress.advance()
 		if len(scores) != 1 || scores[0].Tokens == 0 || scores[0].LogProbability > 0 ||
 			math.IsNaN(scores[0].LogProbability) || math.IsInf(scores[0].LogProbability, 0) {
-			return SequenceScoringReport{}, errors.New("evaluation: sequence score is not a finite likelihood")
+			return sequenceScoringReport{}, errors.New("evaluation: sequence score is not a finite likelihood")
 		}
-		report.Observations = append(report.Observations, SequenceObservation{
+		report.Observations = append(report.Observations, sequenceObservation{
 			Name: testCase.Name, Group: testCase.Group,
 			LogProbability: scores[0].LogProbability, Tokens: scores[0].Tokens,
 		})
@@ -172,22 +172,22 @@ func EvaluateSequenceScoring(
 	report.MeanNLLPerToken = totalNLL / float64(report.TokensScored)
 	report.Perplexity = math.Exp(report.MeanNLLPerToken)
 	if math.IsNaN(report.Perplexity) || math.IsInf(report.Perplexity, 0) {
-		return SequenceScoringReport{}, errors.New("evaluation: perplexity is not finite")
+		return sequenceScoringReport{}, errors.New("evaluation: perplexity is not finite")
 	}
 	id, err := artifact.JSONID(artifact.KindEvaluation, report)
 	if err != nil {
-		return SequenceScoringReport{}, err
+		return sequenceScoringReport{}, err
 	}
 	report.ID = id
 	if err := publishCampaignDocument(
 		ctx, repository, report.Plan, report.Dataset, report.ID, sequenceScoringReportContract, report,
 	); err != nil {
-		return SequenceScoringReport{}, err
+		return sequenceScoringReport{}, err
 	}
 	return report, nil
 }
 
-func (p SequenceScoringPlan) contents() ([]artifact.Content, error) {
+func (p sequenceScoringPlan) contents() ([]artifact.Content, error) {
 	return datasetContents(
 		p.dataset, p.split, p.suite.Cases, sequenceScoringDatasetContract, sequenceScoringSplitContract,
 	)

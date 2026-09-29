@@ -28,15 +28,15 @@ func TestIFEvalTextContractAcceptance(t *testing.T) {
 	if oracle.ReferenceVersion != "0.4.9.1" || len(oracle.Cases) != 25 || oracle.Sources["instructions.py"] != "1556285b56cb81a7a1ada79327cd8797681aed004160c7f87b3a94f3e10bae32" || oracle.Sources["utils.py"] != "1ab8f14808c826f93f2364883487ed63cf4267980bf4761fda8053899c013632" {
 		t.Fatal("native checker or denominator changed")
 	}
-	legacyKinds := map[string]string{"keywords:existence": RuleContainsAll, "keywords:forbidden_words": RuleExcludesAll, "startend:end_checker": RuleSuffix}
+	legacyKinds := map[string]string{"keywords:existence": ruleContainsAll, "keywords:forbidden_words": ruleExcludesAll, "startend:end_checker": ruleSuffix}
 	corrected := 0
 	for index, c := range oracle.Cases {
 		assembled, dropped, err := assembleIFEvalSuite([]storeCase{{entry: "ifeval/default/train", subset: "default", ordinal: index, fields: rawFields(t, map[string]any{"prompt": "Follow the stated instruction.", "instruction_id_list": []string{c.Instruction}, "kwargs": []map[string]json.RawMessage{c.Kwargs}})}})
 		if err != nil || dropped != 0 {
 			t.Fatalf("assemble: dropped=%d error=%v", dropped, err)
 		}
-		suite := assembled.(InstructionRulesSuite)
-		compiled, err := CompileInstructionRules(suite)
+		suite := assembled.(instructionRulesSuite)
+		compiled, err := compileInstructionRules(suite)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -54,7 +54,7 @@ func TestIFEvalTextContractAcceptance(t *testing.T) {
 		legacy.Cases = slices.Clone(suite.Cases)
 		legacy.Cases[0].Rules = slices.Clone(suite.Cases[0].Rules)
 		legacy.Cases[0].Rules[0].Kind = legacyKinds[c.Instruction]
-		prior, err := CompileInstructionRules(legacy)
+		prior, err := compileInstructionRules(legacy)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -72,7 +72,7 @@ func TestIFEvalTextContractAcceptance(t *testing.T) {
 	if corrected != 14 {
 		t.Fatalf("native counterexample denominator=%d want 14", corrected)
 	}
-	for _, c := range []InstructionRule{
+	for _, c := range []instructionRule{
 		{Name: "unsupported", Kind: ifevalKeywordsRule, Values: []string{"a[bc]"}},
 		{Name: "unsupported", Kind: ifevalKeywordsRule, Values: []string{"a|b"}},
 		{Name: "unsupported", Kind: ifevalKeywordsRule, Values: []string{`cat\b`}},

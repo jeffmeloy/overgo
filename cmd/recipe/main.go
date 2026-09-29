@@ -23,7 +23,10 @@ import (
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
+	"overgo/internal/servingattempt"
 )
 
 func main() {
@@ -226,6 +229,11 @@ func run() error {
 			repository, path, strings.TrimSpace(*alias), strings.TrimSpace(*compatibility),
 			selectedSession, selectedTask, capability, rawInput,
 		)
+	case "measure":
+		if !capabilityKnown || capability.Execute == nil {
+			return fmt.Errorf("task %q has no registered runtime", selectedTask)
+		}
+		return measureCapability(repository, path, selectedTask, capability)
 	case "status":
 		return status(repository, path, selectedTask)
 	case "policy":
@@ -473,13 +481,132 @@ func executeCapability(
 			return err
 		}
 	}
-	output, err := capability.Execute(ctx, store, path, selected, input)
+	output, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, input)
 	if err != nil {
 		return err
 	}
 	// The run verb serves the output itself; measured decompositions
 	// belong to verification evidence, not the serving contract.
 	return json.NewEncoder(os.Stdout).Encode(capabilityruntime.Unwrap(output))
+}
+
+// attemptCapability executes the capability and records the execution as
+// the serving attempt the scorecard counts, the way the server records a
+// page's generation.
+func attemptCapability(
+	ctx context.Context,
+	store *overgodb.Store,
+	path string,
+	modelID artifact.ID,
+	task recipe.Task,
+	selected modelrecipe.CapabilityEvidenceSelection,
+	capability mediacapability.Capability,
+	input string,
+) (any, error) {
+	started := time.Now()
+	begin, _ := processmeasure.Counter()
+	output, err := capability.Execute(ctx, store, path, selected, input)
+	end, _ := processmeasure.Counter()
+	measured, _ := output.(capabilityruntime.Measured)
+	recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
+		Model: modelID, Recipe: selected.Activation.Definition.ID, Task: task, Started: started, Wall: end - begin,
+		PeakDeviceBytes: measured.PeakDeviceBytes, Cause: err,
+	})
+	return output, errors.Join(err, recordErr)
+}
+
+// measureCapability runs the active capability once on the request its
+// verification ran, so the scorecard measures the model the way its users
+// meet it, and prints the output.
+func measureCapability(repository, path string, task recipe.Task, capability mediacapability.Capability) error {
+	ctx := context.Background()
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	source, err := capability.Resolve(path)
+	if err != nil {
+		return err
+	}
+	modelID := source.Inventory.Manifest.ID
+	request, err := verifiedRequest(ctx, store, modelID, task)
+	if err != nil {
+		return err
+	}
+	selected, err := modelrecipe.ResolveActiveExecution(ctx, store, modelID, task, modelrecipe.SessionWarm)
+	if err != nil {
+		return err
+	}
+	output, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request)
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(os.Stdout).Encode(capabilityruntime.Unwrap(output))
+}
+
+// verifiedRequest is the request the capability's verification ran: the
+// recorded input of a run the activation's lifecycle chain cites, newest
+// first.
+func verifiedRequest(ctx context.Context, store *overgodb.Store, model artifact.ID, task recipe.Task) (string, error) {
+	activation, found, err := modelrecipe.ActiveRecord(ctx, store, model, task)
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		return "", fmt.Errorf("recipe: %s has no active %s capability", model, task)
+	}
+	for event := activation.Event; ; {
+		for _, evidence := range event.Evidence {
+			if evidence.Kind() != artifact.KindRun {
+				continue
+			}
+			verification, err := runrecord.RequireRun(ctx, store, evidence)
+			if err != nil {
+				return "", err
+			}
+			for _, input := range verification.Inputs {
+				content, found, err := artifact.ReadContent(ctx, store, input)
+				if err != nil {
+					return "", err
+				}
+				if found {
+					return string(content.Data), nil
+				}
+			}
+		}
+		if event.PreviousEvent == nil {
+			break
+		}
+		previous, found, err := recipe.ReadLifecycleEvent(ctx, store, *event.PreviousEvent)
+		if err != nil {
+			return "", err
+		}
+		if !found {
+			break
+		}
+		event = previous
+	}
+	// A run of the recipe from the page records its request as its last
+	// input; the newest one stands in for a verification that recorded none.
+	var request string
+	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema}},
+		Order:     overgodb.DocumentNewestFirst,
+	}, runrecord.ParseRun, func(_ overgodb.DocumentView, run runrecord.Run) error {
+		if request != "" || run.Recipe != activation.Definition.ID || len(run.Inputs) == 0 {
+			return nil
+		}
+		content, found, err := artifact.ReadContent(ctx, store, run.Inputs[len(run.Inputs)-1])
+		if found {
+			request = string(content.Data)
+		}
+		return err
+	})
+	if err != nil || request != "" {
+		return request, err
+	}
+	return "", fmt.Errorf("recipe: no run of %s's %s capability recorded its request: run it once from the page, or verify it again with -input", model, task)
 }
 
 func parseSessionOverride(text string) (modelintake.SessionOverride, error) {

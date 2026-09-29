@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	StructuredGeneratedKind          = "structured-generated"
-	ExtractorDollarSpan              = "dollar-span-or-full"
-	EquivalenceLatexSurface          = "latex-surface"
+	structuredGeneratedKind          = "structured-generated"
+	extractorDollarSpan              = "dollar-span-or-full"
+	equivalenceLatexSurface          = "latex-surface"
 	structuredGeneratedDatasetMedia  = "application/vnd.overgo.structured-generated-dataset+json"
 	structuredGeneratedDatasetSchema = "overgo/structured-generated-dataset/v1"
 	structuredGeneratedSplitMedia    = "application/vnd.overgo.structured-generated-split+json"
@@ -38,7 +38,7 @@ var (
 	)
 )
 
-type StructuredGeneratedCase struct {
+type structuredGeneratedCase struct {
 	Name      string   `json:"name"`
 	Group     string   `json:"group"`
 	Prompt    string   `json:"prompt"`
@@ -46,23 +46,23 @@ type StructuredGeneratedCase struct {
 	Answers   []string `json:"answers"`
 }
 
-type StructuredGeneratedSuite struct {
+type structuredGeneratedSuite struct {
 	Kind        string                    `json:"kind"`
 	Schema      string                    `json:"schema"`
 	Source      string                    `json:"source"`
 	Extractor   string                    `json:"extractor"`
 	Equivalence string                    `json:"equivalence"`
-	Cases       []StructuredGeneratedCase `json:"cases"`
+	Cases       []structuredGeneratedCase `json:"cases"`
 }
 
-type StructuredGeneratedPlan struct {
+type structuredGeneratedPlan struct {
 	identity artifact.ID
 	dataset  artifact.ID
 	split    artifact.ID
-	suite    StructuredGeneratedSuite
+	suite    structuredGeneratedSuite
 }
 
-type StructuredGeneratedObservation struct {
+type structuredGeneratedObservation struct {
 	Name       string `json:"name"`
 	Raw        string `json:"raw"`
 	Extracted  string `json:"extracted"`
@@ -72,20 +72,20 @@ type StructuredGeneratedObservation struct {
 	Generated  int    `json:"generated_tokens"`
 }
 
-type StructuredGeneratedReport struct {
+type structuredGeneratedReport struct {
 	ID           artifact.ID                      `json:"-"`
 	Version      uint16                           `json:"version"`
 	Plan         artifact.ID                      `json:"plan"`
 	Dataset      artifact.ID                      `json:"dataset"`
-	Observations []StructuredGeneratedObservation `json:"observations"`
-	Groups       []AccuracyGroup                  `json:"groups"`
+	Observations []structuredGeneratedObservation `json:"observations"`
+	Groups       []accuracyGroup                  `json:"groups"`
 	Accuracy     float64                          `json:"accuracy"`
 }
 
-func CompileStructuredGenerated(suite StructuredGeneratedSuite) (StructuredGeneratedPlan, error) {
-	if suite.Kind != StructuredGeneratedKind || strings.TrimSpace(suite.Schema) == "" || strings.TrimSpace(suite.Source) == "" ||
-		suite.Extractor != ExtractorDollarSpan || suite.Equivalence != EquivalenceLatexSurface || len(suite.Cases) == 0 {
-		return StructuredGeneratedPlan{}, errors.New("evaluation: invalid structured-generated suite")
+func compileStructuredGenerated(suite structuredGeneratedSuite) (structuredGeneratedPlan, error) {
+	if suite.Kind != structuredGeneratedKind || strings.TrimSpace(suite.Schema) == "" || strings.TrimSpace(suite.Source) == "" ||
+		suite.Extractor != extractorDollarSpan || suite.Equivalence != equivalenceLatexSurface || len(suite.Cases) == 0 {
+		return structuredGeneratedPlan{}, errors.New("evaluation: invalid structured-generated suite")
 	}
 	suite.Cases = slices.Clone(suite.Cases)
 	names := make(map[string]struct{}, len(suite.Cases))
@@ -94,77 +94,77 @@ func CompileStructuredGenerated(suite StructuredGeneratedSuite) (StructuredGener
 		testCase.Answers = slices.Clone(testCase.Answers)
 		if strings.TrimSpace(testCase.Name) == "" || strings.TrimSpace(testCase.Group) != testCase.Group || testCase.Group == "" ||
 			testCase.Prompt == "" || testCase.MaxTokens <= 0 || len(testCase.Answers) == 0 {
-			return StructuredGeneratedPlan{}, errors.New("evaluation: invalid structured-generated case")
+			return structuredGeneratedPlan{}, errors.New("evaluation: invalid structured-generated case")
 		}
 		if _, duplicate := names[testCase.Name]; duplicate {
-			return StructuredGeneratedPlan{}, errors.New("evaluation: duplicate structured-generated case")
+			return structuredGeneratedPlan{}, errors.New("evaluation: duplicate structured-generated case")
 		}
 		names[testCase.Name] = struct{}{}
 		for _, answer := range testCase.Answers {
 			if normalizeLatexSurface(answer) == "" {
-				return StructuredGeneratedPlan{}, errors.New("evaluation: empty structured-generated answer")
+				return structuredGeneratedPlan{}, errors.New("evaluation: empty structured-generated answer")
 			}
 		}
 	}
 	identity, err := artifact.JSONID(artifact.KindProfile, suite)
 	if err != nil {
-		return StructuredGeneratedPlan{}, err
+		return structuredGeneratedPlan{}, err
 	}
 	datasetID, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
 	if err != nil {
-		return StructuredGeneratedPlan{}, err
+		return structuredGeneratedPlan{}, err
 	}
 	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
 		Dataset artifact.ID `json:"dataset"`
 	}{Dataset: datasetID})
 	if err != nil {
-		return StructuredGeneratedPlan{}, err
+		return structuredGeneratedPlan{}, err
 	}
-	return StructuredGeneratedPlan{identity: identity, dataset: datasetID, split: split, suite: suite}, nil
+	return structuredGeneratedPlan{identity: identity, dataset: datasetID, split: split, suite: suite}, nil
 }
 
-func BindStructuredGenerated(compiled StructuredGeneratedPlan, authorities ExactAuthorities) (Plan, error) {
+func bindStructuredGenerated(compiled structuredGeneratedPlan, authorities ExactAuthorities) (Plan, error) {
 	scorer := struct {
 		Version     uint16 `json:"version"`
 		Kind        string `json:"kind"`
 		Extractor   string `json:"extractor"`
 		Equivalence string `json:"equivalence"`
 	}{
-		Version: artifact.InitialDocumentVersion, Kind: StructuredGeneratedKind,
+		Version: artifact.InitialDocumentVersion, Kind: structuredGeneratedKind,
 		Extractor: compiled.suite.Extractor, Equivalence: compiled.suite.Equivalence,
 	}
 	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }
 
-func EvaluateStructuredGenerated(
+func evaluateStructuredGenerated(
 	ctx context.Context,
 	repository artifact.Repository,
 	generator Generator,
-	compiled StructuredGeneratedPlan,
+	compiled structuredGeneratedPlan,
 	plan Plan,
-) (StructuredGeneratedReport, error) {
+) (structuredGeneratedReport, error) {
 	if ctx == nil || repository == nil || generator == nil || compiled.identity != plan.body.CaseProfile {
-		return StructuredGeneratedReport{}, errors.New("evaluation: structured-generated authority differs")
+		return structuredGeneratedReport{}, errors.New("evaluation: structured-generated authority differs")
 	}
 	contents, err := datasetContents(
 		compiled.dataset, compiled.split, compiled.suite.Cases,
 		structuredGeneratedDatasetContract, structuredGeneratedSplitContract,
 	)
 	if err != nil {
-		return StructuredGeneratedReport{}, err
+		return structuredGeneratedReport{}, err
 	}
 	if err := publishPlanAuthorities(ctx, repository, plan, contents); err != nil {
-		return StructuredGeneratedReport{}, err
+		return structuredGeneratedReport{}, err
 	}
-	report := StructuredGeneratedReport{
+	report := structuredGeneratedReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
-		Observations: make([]StructuredGeneratedObservation, len(compiled.suite.Cases)),
+		Observations: make([]structuredGeneratedObservation, len(compiled.suite.Cases)),
 	}
 	groups, accepted := make([]string, len(compiled.suite.Cases)), make([]bool, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
 		result, err := recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
 		if err != nil {
-			return StructuredGeneratedReport{}, err
+			return structuredGeneratedReport{}, err
 		}
 		extracted := extractDollarSpan(result.Text)
 		normalized := normalizeLatexSurface(extracted)
@@ -175,14 +175,14 @@ func EvaluateStructuredGenerated(
 			}
 		}
 		groups[index] = testCase.Group
-		report.Observations[index] = StructuredGeneratedObservation{
+		report.Observations[index] = structuredGeneratedObservation{
 			Name: testCase.Name, Raw: result.Text, Extracted: extracted, Normalized: normalized, Accepted: accepted[index],
 			Prompt: result.PromptTokens, Generated: result.GeneratedTokens,
 		}
 	}
 	report.Groups, err = aggregateAccuracy(groups, accepted)
 	if err != nil {
-		return StructuredGeneratedReport{}, err
+		return structuredGeneratedReport{}, err
 	}
 	correct := 0
 	for _, value := range accepted {
@@ -193,11 +193,11 @@ func EvaluateStructuredGenerated(
 	report.Accuracy = float64(correct) / float64(len(accepted))
 	id, err := artifact.JSONID(artifact.KindEvaluation, report)
 	if err != nil {
-		return StructuredGeneratedReport{}, err
+		return structuredGeneratedReport{}, err
 	}
 	report.ID = id
 	if err := publishCampaignDocument(ctx, repository, report.Plan, report.Dataset, report.ID, structuredGeneratedReportContract, report); err != nil {
-		return StructuredGeneratedReport{}, err
+		return structuredGeneratedReport{}, err
 	}
 	return report, nil
 }

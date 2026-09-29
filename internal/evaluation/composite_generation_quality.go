@@ -14,21 +14,21 @@ import (
 )
 
 const (
-	// CompositeGenerationQualityVersion is the immutable quality document version.
-	CompositeGenerationQualityVersion = artifact.InitialDocumentVersion
-	// CompositeGenerationQualityMediaType identifies held-out quality evidence.
-	CompositeGenerationQualityMediaType = "application/vnd.overgo.composite-generation-quality+json"
-	// CompositeGenerationQualitySchema identifies the held-out quality wire schema.
-	CompositeGenerationQualitySchema = "overgo/composite-generation-quality/v1"
-	// CompositeGenerationQualityPolicyMediaType identifies recipe-owned admission parameters.
-	CompositeGenerationQualityPolicyMediaType = "application/vnd.overgo.composite-generation-quality-policy+json"
-	// CompositeGenerationQualityPolicySchema identifies the policy wire schema.
-	CompositeGenerationQualityPolicySchema = "overgo/composite-generation-quality-policy/v1"
+	// compositeGenerationQualityVersion is the immutable quality document version.
+	compositeGenerationQualityVersion = artifact.InitialDocumentVersion
+	// compositeGenerationQualityMediaType identifies held-out quality evidence.
+	compositeGenerationQualityMediaType = "application/vnd.overgo.composite-generation-quality+json"
+	// compositeGenerationQualitySchema identifies the held-out quality wire schema.
+	compositeGenerationQualitySchema = "overgo/composite-generation-quality/v1"
+	// compositeGenerationQualityPolicyMediaType identifies recipe-owned admission parameters.
+	compositeGenerationQualityPolicyMediaType = "application/vnd.overgo.composite-generation-quality-policy+json"
+	// compositeGenerationQualityPolicySchema identifies the policy wire schema.
+	compositeGenerationQualityPolicySchema = "overgo/composite-generation-quality-policy/v1"
 )
 
-// CompositeGenerationQualityPolicy declares named metrics and the complete
+// compositeGenerationQualityPolicy declares named metrics and the complete
 // held-out evidence envelope required for admission.
-type CompositeGenerationQualityPolicy struct {
+type compositeGenerationQualityPolicy struct {
 	Version                  uint16              `json:"version"`
 	QualityMetric            string              `json:"quality_metric"`
 	NondegeneracyMetric      string              `json:"nondegeneracy_metric"`
@@ -43,13 +43,13 @@ type CompositeGenerationQualityPolicy struct {
 	ID                       artifact.ID         `json:"-"`
 }
 
-// CompositeGenerationQuality is derived, immutable admission evidence for one
+// compositeGenerationQuality is derived, immutable admission evidence for one
 // exact composite-generation execution matrix.
-type CompositeGenerationQuality struct {
+type compositeGenerationQuality struct {
 	Version              uint16                           `json:"version"`
 	GenerationEvidence   artifact.ID                      `json:"generation_evidence"`
 	PolicyID             artifact.ID                      `json:"policy_id"`
-	Policy               CompositeGenerationQualityPolicy `json:"policy"`
+	Policy               compositeGenerationQualityPolicy `json:"policy"`
 	WorstComposedQuality float64                          `json:"worst_composed_quality"`
 	WorstHeldOutGain     float64                          `json:"worst_held_out_gain"`
 	WorstSourceEffect    float64                          `json:"worst_source_effect"`
@@ -59,48 +59,48 @@ type CompositeGenerationQuality struct {
 	ID                   artifact.ID                      `json:"-"`
 }
 
-// CompositeGenerationQualityAuthority owns validation but cannot execute or
+// compositeGenerationQualityAuthority owns validation but cannot execute or
 // mutate either model.
-type CompositeGenerationQualityAuthority struct{}
+type compositeGenerationQualityAuthority struct{}
 
 var compositeGenerationQualityPolicyCodec = artifact.JSONDocumentCodec(
 	"composite generation quality policy", artifact.KindProfile,
-	CompositeGenerationQualityPolicyMediaType, CompositeGenerationQualityPolicySchema,
+	compositeGenerationQualityPolicyMediaType, compositeGenerationQualityPolicySchema,
 	canonicalizeCompositeGenerationQualityPolicy,
-	func(value CompositeGenerationQualityPolicy) artifact.ID { return value.ID },
-	func(value *CompositeGenerationQualityPolicy, id artifact.ID) { value.ID = id },
-	func(value CompositeGenerationQualityPolicy) CompositeGenerationQualityPolicy { return value },
+	func(value compositeGenerationQualityPolicy) artifact.ID { return value.ID },
+	func(value *compositeGenerationQualityPolicy, id artifact.ID) { value.ID = id },
+	func(value compositeGenerationQualityPolicy) compositeGenerationQualityPolicy { return value },
 )
 
 var compositeGenerationQualityCodec = artifact.JSONDocumentCodec(
 	"composite generation quality", artifact.KindEvidence,
-	CompositeGenerationQualityMediaType, CompositeGenerationQualitySchema,
+	compositeGenerationQualityMediaType, compositeGenerationQualitySchema,
 	canonicalizeCompositeGenerationQuality,
-	func(value CompositeGenerationQuality) artifact.ID { return value.ID },
-	func(value *CompositeGenerationQuality, id artifact.ID) { value.ID = id },
-	func(value CompositeGenerationQuality) CompositeGenerationQuality { return value },
+	func(value compositeGenerationQuality) artifact.ID { return value.ID },
+	func(value *compositeGenerationQuality, id artifact.ID) { value.ID = id },
+	func(value compositeGenerationQuality) compositeGenerationQuality { return value },
 )
 
 // NewPolicy validates and identifies recipe-owned quality parameters.
-func (CompositeGenerationQualityAuthority) NewPolicy(
-	value CompositeGenerationQualityPolicy,
-) (CompositeGenerationQualityPolicy, error) {
+func (compositeGenerationQualityAuthority) NewPolicy(
+	value compositeGenerationQualityPolicy,
+) (compositeGenerationQualityPolicy, error) {
 	return compositeGenerationQualityPolicyCodec.NewInitial(value)
 }
 
 // Evaluate loads exact execution records and derives worst-case quality evidence.
-func (CompositeGenerationQualityAuthority) Evaluate(
+func (compositeGenerationQualityAuthority) Evaluate(
 	ctx context.Context,
 	reader artifact.Reader,
 	generationEvidence artifact.ID,
-	policy CompositeGenerationQualityPolicy,
-) (CompositeGenerationQuality, error) {
+	policy compositeGenerationQualityPolicy,
+) (compositeGenerationQuality, error) {
 	if ctx == nil || reader == nil || compositeGenerationQualityPolicyCodec.ValidateIdentity(policy) != nil {
-		return CompositeGenerationQuality{}, errors.New("evaluation: composite generation quality authority is absent")
+		return compositeGenerationQuality{}, errors.New("evaluation: composite generation quality authority is absent")
 	}
 	evidence, err := (composition.CompositeGenerationEvidenceAuthority{}).Load(ctx, reader, generationEvidence)
 	if err != nil {
-		return CompositeGenerationQuality{}, err
+		return compositeGenerationQuality{}, err
 	}
 	type caseSeed struct {
 		Input artifact.ID
@@ -115,7 +115,7 @@ func (CompositeGenerationQualityAuthority) Evaluate(
 	for _, trial := range evidence.Trials {
 		quality, nondegeneracy, err := loadCompositeGenerationTrialScores(ctx, reader, evidence, policy, trial)
 		if err != nil {
-			return CompositeGenerationQuality{}, err
+			return compositeGenerationQuality{}, err
 		}
 		key := caseSeed{Input: trial.Input, Seed: trial.Seed}
 		group := groups[key]
@@ -132,11 +132,11 @@ func (CompositeGenerationQualityAuthority) Evaluate(
 	}
 	for _, seeds := range inputSeeds {
 		if uint64(len(seeds)) < policy.MinimumSeeds {
-			return CompositeGenerationQuality{}, errors.New("evaluation: composite generation lacks repeated held-out seeds")
+			return compositeGenerationQuality{}, errors.New("evaluation: composite generation lacks repeated held-out seeds")
 		}
 	}
 	first := true
-	var result CompositeGenerationQuality
+	var result compositeGenerationQuality
 	composedByInput := make(map[artifact.ID][]float64)
 	for key, group := range groups {
 		composed := group.quality[composition.CompositeGenerationComposed]
@@ -147,7 +147,7 @@ func (CompositeGenerationQualityAuthority) Evaluate(
 		if !policy.Direction.Admits(composed, policy.ComposedQualityThreshold) || gain < policy.MinimumHeldOutGain ||
 			sourceEffect < policy.MinimumSourceEffect || bridgeEffect < policy.MinimumBridgeEffect ||
 			nondegeneracy < policy.MinimumNondegeneracy {
-			return CompositeGenerationQuality{}, errors.New("evaluation: composite generation quality envelope was not met")
+			return compositeGenerationQuality{}, errors.New("evaluation: composite generation quality envelope was not met")
 		}
 		if first {
 			result.WorstComposedQuality, result.WorstHeldOutGain = composed, gain
@@ -166,42 +166,42 @@ func (CompositeGenerationQualityAuthority) Evaluate(
 		slices.Sort(values)
 		spread := values[len(values)-tensor.SingletonExtent] - values[tensor.FirstOffset]
 		if spread > policy.MaximumSeedSpread {
-			return CompositeGenerationQuality{}, errors.New("evaluation: composite generation repeated-seed stability is insufficient")
+			return compositeGenerationQuality{}, errors.New("evaluation: composite generation repeated-seed stability is insufficient")
 		}
 		result.WorstSeedSpread = max(result.WorstSeedSpread, spread)
 	}
-	result.Version, result.GenerationEvidence = CompositeGenerationQualityVersion, evidence.ID
+	result.Version, result.GenerationEvidence = compositeGenerationQualityVersion, evidence.ID
 	result.PolicyID, result.Policy = policy.ID, policy
 	return compositeGenerationQualityCodec.New(result)
 }
 
 // Parse admits canonical serialized quality evidence.
-func (CompositeGenerationQualityAuthority) Parse(data []byte) (CompositeGenerationQuality, error) {
+func (compositeGenerationQualityAuthority) Parse(data []byte) (compositeGenerationQuality, error) {
 	return compositeGenerationQualityCodec.Parse(data)
 }
 
 // ValidateIdentity verifies derived fields and exact content identity.
-func (value CompositeGenerationQuality) ValidateIdentity() error {
+func (value compositeGenerationQuality) ValidateIdentity() error {
 	return compositeGenerationQualityCodec.ValidateIdentity(value)
 }
 
 // Content returns exact quality evidence content.
-func (value CompositeGenerationQuality) Content() (artifact.Content, error) {
+func (value compositeGenerationQuality) Content() (artifact.Content, error) {
 	return compositeGenerationQualityCodec.Content(value)
 }
 
 // Lineage binds quality admission to the execution evidence and recipe policy.
-func (value CompositeGenerationQuality) Lineage() []artifact.Lineage {
+func (value compositeGenerationQuality) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, value.GenerationEvidence, value.PolicyID)
 }
 
 // Batch prepares atomic quality-evidence publication.
-func (value CompositeGenerationQuality) Batch(key string) (artifact.Batch, error) {
+func (value compositeGenerationQuality) Batch(key string) (artifact.Batch, error) {
 	return compositeGenerationQualityCodec.Batch(key, value, value.Lineage(), nil)
 }
 
 // Content returns exact policy content.
-func (policy CompositeGenerationQualityPolicy) Content() (artifact.Content, error) {
+func (policy compositeGenerationQualityPolicy) Content() (artifact.Content, error) {
 	return compositeGenerationQualityPolicyCodec.Content(policy)
 }
 
@@ -209,7 +209,7 @@ func loadCompositeGenerationTrialScores(
 	ctx context.Context,
 	reader artifact.Reader,
 	evidence composition.CompositeGenerationEvidence,
-	policy CompositeGenerationQualityPolicy,
+	policy compositeGenerationQualityPolicy,
 	trial composition.CompositeGenerationTrial,
 ) (float64, float64, error) {
 	content, found, err := artifact.ReadContent(ctx, reader, trial.Output)
@@ -260,7 +260,7 @@ func compositeGenerationTrialRecipe(
 	}
 }
 
-func canonicalizeCompositeGenerationQualityPolicy(value *CompositeGenerationQualityPolicy) error {
+func canonicalizeCompositeGenerationQualityPolicy(value *compositeGenerationQualityPolicy) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion ||
 		!textcheck.LowerIdentifier(value.QualityMetric, len(value.QualityMetric)) ||
 		!textcheck.LowerIdentifier(value.NondegeneracyMetric, len(value.NondegeneracyMetric)) ||
@@ -278,12 +278,12 @@ func canonicalizeCompositeGenerationQualityPolicy(value *CompositeGenerationQual
 	return nil
 }
 
-func canonicalizeCompositeGenerationQuality(value *CompositeGenerationQuality) error {
-	if value == nil || value.Version != CompositeGenerationQualityVersion ||
+func canonicalizeCompositeGenerationQuality(value *compositeGenerationQuality) error {
+	if value == nil || value.Version != compositeGenerationQualityVersion ||
 		value.GenerationEvidence.Kind() != artifact.KindEvidence || value.PolicyID.Kind() != artifact.KindProfile {
 		return errors.New("evaluation: invalid composite generation quality evidence")
 	}
-	policy, err := (CompositeGenerationQualityAuthority{}).NewPolicy(value.Policy)
+	policy, err := (compositeGenerationQualityAuthority{}).NewPolicy(value.Policy)
 	if err != nil || policy.ID != value.PolicyID {
 		return errors.Join(err, errors.New("evaluation: composite generation quality policy differs"))
 	}

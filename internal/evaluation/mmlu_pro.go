@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	MMLUProKind         = "mmlu-pro"
+	mmluProKind         = "mmlu-pro"
 	mmluProReportMedia  = "application/vnd.overgo.mmlu-pro-report+json"
 	mmluProReportSchema = "overgo/mmlu-pro-report/v1"
 )
@@ -20,7 +20,7 @@ var mmluProReportContract = artifact.DocumentContract{
 	Kind: artifact.KindEvaluation, MediaType: mmluProReportMedia, Schema: mmluProReportSchema,
 }
 
-type MMLUProCase struct {
+type mmluProCase struct {
 	Name     string   `json:"name"`
 	Category string   `json:"category"`
 	Question string   `json:"question"`
@@ -28,46 +28,46 @@ type MMLUProCase struct {
 	Answer   int      `json:"answer"`
 }
 
-type MMLUProSuite struct {
+type mmluProSuite struct {
 	Kind           string                      `json:"kind"`
 	Schema         string                      `json:"schema"`
 	Source         string                      `json:"source"`
 	Labels         []string                    `json:"labels"`
 	FewShotCount   int                         `json:"few_shot_count"`
-	Demonstrations []MMLUProCase               `json:"demonstrations"`
-	Cases          []MMLUProCase               `json:"cases"`
+	Demonstrations []mmluProCase               `json:"demonstrations"`
+	Cases          []mmluProCase               `json:"cases"`
 	Normalization  sequencescore.Normalization `json:"normalization"`
 }
 
-type MMLUProPlan struct {
-	choice     MultipleChoicePlan
+type mmluProPlan struct {
+	choice     multipleChoicePlan
 	categories []string
 }
 
-type MMLUProReport struct {
+type mmluProReport struct {
 	ID           artifact.ID         `json:"-"`
 	Version      uint16              `json:"version"`
 	Plan         artifact.ID         `json:"plan"`
 	Dataset      artifact.ID         `json:"dataset"`
-	Observations []ChoiceObservation `json:"observations"`
-	Categories   []AccuracyGroup     `json:"categories"`
+	Observations []choiceObservation `json:"observations"`
+	Categories   []accuracyGroup     `json:"categories"`
 	Accuracy     float64             `json:"accuracy"`
 }
 
-func CompileMMLUPro(suite MMLUProSuite) (MMLUProPlan, error) {
-	if suite.Kind != MMLUProKind || strings.TrimSpace(suite.Schema) == "" || strings.TrimSpace(suite.Source) == "" ||
+func compileMMLUPro(suite mmluProSuite) (mmluProPlan, error) {
+	if suite.Kind != mmluProKind || strings.TrimSpace(suite.Schema) == "" || strings.TrimSpace(suite.Source) == "" ||
 		len(suite.Labels) < 2 || suite.FewShotCount < 0 || suite.FewShotCount > len(suite.Demonstrations) || len(suite.Cases) == 0 ||
 		suite.Normalization != sequencescore.NormalizationSum && suite.Normalization != sequencescore.NormalizationMean {
-		return MMLUProPlan{}, errors.New("evaluation: invalid MMLU-Pro suite")
+		return mmluProPlan{}, errors.New("evaluation: invalid MMLU-Pro suite")
 	}
 	labels := slices.Clone(suite.Labels)
 	seenLabels := make(map[string]struct{}, len(labels))
 	for _, label := range labels {
 		if strings.TrimSpace(label) != label || label == "" {
-			return MMLUProPlan{}, errors.New("evaluation: invalid MMLU-Pro label")
+			return mmluProPlan{}, errors.New("evaluation: invalid MMLU-Pro label")
 		}
 		if _, exists := seenLabels[label]; exists {
-			return MMLUProPlan{}, errors.New("evaluation: duplicate MMLU-Pro label")
+			return mmluProPlan{}, errors.New("evaluation: duplicate MMLU-Pro label")
 		}
 		seenLabels[label] = struct{}{}
 	}
@@ -75,7 +75,7 @@ func CompileMMLUPro(suite MMLUProSuite) (MMLUProPlan, error) {
 	demonstrations := strings.Builder{}
 	for _, example := range selected {
 		if err := validateMMLUProCase(example, len(labels)); err != nil {
-			return MMLUProPlan{}, err
+			return mmluProPlan{}, err
 		}
 		renderMMLUProCase(&demonstrations, example, labels)
 		demonstrations.WriteString(labels[example.Answer])
@@ -85,7 +85,7 @@ func CompileMMLUPro(suite MMLUProSuite) (MMLUProPlan, error) {
 	categories := make([]string, len(suite.Cases))
 	for index, testCase := range suite.Cases {
 		if err := validateMMLUProCase(testCase, len(labels)); err != nil {
-			return MMLUProPlan{}, err
+			return mmluProPlan{}, err
 		}
 		prompt := strings.Builder{}
 		prompt.Grow(demonstrations.Len() + len(testCase.Question))
@@ -101,52 +101,52 @@ func CompileMMLUPro(suite MMLUProSuite) (MMLUProPlan, error) {
 		Normalization: suite.Normalization, Aggregation: AggregationAccuracy, Cases: cases,
 	})
 	if err != nil {
-		return MMLUProPlan{}, err
+		return mmluProPlan{}, err
 	}
-	return MMLUProPlan{choice: choice, categories: categories}, nil
+	return mmluProPlan{choice: choice, categories: categories}, nil
 }
 
-func BindMMLUPro(compiled MMLUProPlan, authorities ExactAuthorities) (Plan, error) {
+func bindMMLUPro(compiled mmluProPlan, authorities ExactAuthorities) (Plan, error) {
 	return BindMultipleChoice(compiled.choice, authorities)
 }
 
-func EvaluateMMLUPro(
+func evaluateMMLUPro(
 	ctx context.Context,
 	repository artifact.Repository,
-	scorer ContinuationScorer,
-	compiled MMLUProPlan,
+	scorer continuationScorer,
+	compiled mmluProPlan,
 	plan Plan,
-) (MMLUProReport, error) {
+) (mmluProReport, error) {
 	if ctx == nil || repository == nil || scorer == nil || compiled.choice.identity != plan.body.CaseProfile {
-		return MMLUProReport{}, errors.New("evaluation: MMLU-Pro authority differs")
+		return mmluProReport{}, errors.New("evaluation: MMLU-Pro authority differs")
 	}
 	contents, err := compiled.choice.contents()
 	if err != nil {
-		return MMLUProReport{}, err
+		return mmluProReport{}, err
 	}
 	if err := publishPlanAuthorities(ctx, repository, plan, contents); err != nil {
-		return MMLUProReport{}, err
+		return mmluProReport{}, err
 	}
 	observations, categories, accuracy, err := scoreChoiceGroups(ctx, scorer, compiled.choice.suite, compiled.categories)
 	if err != nil {
-		return MMLUProReport{}, err
+		return mmluProReport{}, err
 	}
-	report := MMLUProReport{
+	report := mmluProReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.choice.dataset,
 		Observations: observations, Categories: categories, Accuracy: accuracy,
 	}
 	id, err := artifact.JSONID(artifact.KindEvaluation, report)
 	if err != nil {
-		return MMLUProReport{}, err
+		return mmluProReport{}, err
 	}
 	report.ID = id
 	if err := publishCampaignDocument(ctx, repository, report.Plan, report.Dataset, report.ID, mmluProReportContract, report); err != nil {
-		return MMLUProReport{}, err
+		return mmluProReport{}, err
 	}
 	return report, nil
 }
 
-func validateMMLUProCase(testCase MMLUProCase, labels int) error {
+func validateMMLUProCase(testCase mmluProCase, labels int) error {
 	if strings.TrimSpace(testCase.Name) == "" || strings.TrimSpace(testCase.Category) == "" || testCase.Question == "" ||
 		len(testCase.Options) < 2 || len(testCase.Options) > labels || testCase.Answer < 0 || testCase.Answer >= len(testCase.Options) {
 		return errors.New("evaluation: invalid MMLU-Pro case")
@@ -157,7 +157,7 @@ func validateMMLUProCase(testCase MMLUProCase, labels int) error {
 	return nil
 }
 
-func renderMMLUProCase(prompt *strings.Builder, testCase MMLUProCase, labels []string) {
+func renderMMLUProCase(prompt *strings.Builder, testCase mmluProCase, labels []string) {
 	prompt.WriteString(testCase.Question)
 	prompt.WriteByte('\n')
 	for index, option := range testCase.Options {

@@ -22,10 +22,10 @@ const (
 	knowledgePromotionSchema          = "overgo/knowledge-promotion-evidence/v1"
 )
 
-// EpisodeKnowledgeProposal is a stored projection of an admitted candidate.
+// episodeKnowledgeProposal is a stored projection of an admitted candidate.
 // Its transform, source, citation, and hygiene fields are derived from the
 // candidate's typed decisions rather than supplied by the promotion caller.
-type EpisodeKnowledgeProposal struct {
+type episodeKnowledgeProposal struct {
 	Version         uint16        `json:"version"`
 	Admission       artifact.ID   `json:"admission"`
 	Candidate       artifact.ID   `json:"candidate"`
@@ -40,9 +40,9 @@ type EpisodeKnowledgeProposal struct {
 	ID              artifact.ID   `json:"-"`
 }
 
-// KnowledgeHygieneObservation names the exact stored record evidence scanned
+// knowledgeHygieneObservation names the exact stored record evidence scanned
 // by the hygiene evaluator. Aggregate counts are deliberately absent.
-type KnowledgeHygieneObservation struct {
+type knowledgeHygieneObservation struct {
 	Transform          artifact.ID
 	DevelopmentSplit   artifact.ID
 	PromotionSplit     artifact.ID
@@ -52,10 +52,10 @@ type KnowledgeHygieneObservation struct {
 	PromotionRecordIDs []artifact.ID
 }
 
-// KnowledgeHygieneReport stores the record-level observation and the
+// knowledgeHygieneReport stores the record-level observation and the
 // canonical aggregates derived from it. Requiring the report replays those
 // aggregates against the dataset transform and stored record identities.
-type KnowledgeHygieneReport struct {
+type knowledgeHygieneReport struct {
 	Version            uint16        `json:"version"`
 	Transform          artifact.ID   `json:"transform"`
 	Output             artifact.ID   `json:"output"`
@@ -75,9 +75,9 @@ type KnowledgeHygieneReport struct {
 	ID                 artifact.ID   `json:"-"`
 }
 
-// KnowledgePromotionEvidence is emitted only for a strict held-out Pareto
+// knowledgePromotionEvidence is emitted only for a strict held-out Pareto
 // benefit with no quality or work regression.
-type KnowledgePromotionEvidence struct {
+type knowledgePromotionEvidence struct {
 	Version   uint16      `json:"version"`
 	Proposal  artifact.ID `json:"proposal"`
 	Admission artifact.ID `json:"admission"`
@@ -96,8 +96,8 @@ var episodeKnowledgeProposalCodec = artifact.JSONDocumentCodec(
 	"episode knowledge proposal", artifact.KindEvidence,
 	episodeKnowledgeProposalMediaType, episodeKnowledgeProposalSchema,
 	canonicalizeEpisodeKnowledgeProposal,
-	func(value EpisodeKnowledgeProposal) artifact.ID { return value.ID },
-	func(value *EpisodeKnowledgeProposal, id artifact.ID) { value.ID = id },
+	func(value episodeKnowledgeProposal) artifact.ID { return value.ID },
+	func(value *episodeKnowledgeProposal, id artifact.ID) { value.ID = id },
 	cloneEpisodeKnowledgeProposal,
 )
 
@@ -105,8 +105,8 @@ var knowledgeHygieneCodec = artifact.JSONDocumentCodec(
 	"knowledge hygiene report", artifact.KindEvidence,
 	knowledgeHygieneMediaType, knowledgeHygieneSchema,
 	canonicalizeKnowledgeHygieneReport,
-	func(value KnowledgeHygieneReport) artifact.ID { return value.ID },
-	func(value *KnowledgeHygieneReport, id artifact.ID) { value.ID = id },
+	func(value knowledgeHygieneReport) artifact.ID { return value.ID },
+	func(value *knowledgeHygieneReport, id artifact.ID) { value.ID = id },
 	cloneKnowledgeHygieneReport,
 )
 
@@ -114,33 +114,33 @@ var knowledgePromotionCodec = artifact.JSONDocumentCodec(
 	"knowledge promotion evidence", artifact.KindEvidence,
 	knowledgePromotionMediaType, knowledgePromotionSchema,
 	canonicalizeKnowledgePromotionEvidence,
-	func(value KnowledgePromotionEvidence) artifact.ID { return value.ID },
-	func(value *KnowledgePromotionEvidence, id artifact.ID) { value.ID = id },
-	func(value KnowledgePromotionEvidence) KnowledgePromotionEvidence {
+	func(value knowledgePromotionEvidence) artifact.ID { return value.ID },
+	func(value *knowledgePromotionEvidence, id artifact.ID) { value.ID = id },
+	func(value knowledgePromotionEvidence) knowledgePromotionEvidence {
 		value.Benefits = slices.Clone(value.Benefits)
 		return value
 	},
 )
 
-// EvaluateKnowledgeHygiene derives transform, policy, scan, and aggregate
+// evaluateKnowledgeHygiene derives transform, policy, scan, and aggregate
 // facts from the exact stored transform and record-level observation.
-func EvaluateKnowledgeHygiene(
+func evaluateKnowledgeHygiene(
 	ctx context.Context,
 	reader artifact.Reader,
-	observation KnowledgeHygieneObservation,
-) (KnowledgeHygieneReport, error) {
+	observation knowledgeHygieneObservation,
+) (knowledgeHygieneReport, error) {
 	if ctx == nil || reader == nil {
-		return KnowledgeHygieneReport{}, errors.New("evaluation: knowledge hygiene authority is absent")
+		return knowledgeHygieneReport{}, errors.New("evaluation: knowledge hygiene authority is absent")
 	}
 	transform, err := dataset.RequireDatasetTransform(ctx, reader, observation.Transform)
 	if err != nil {
-		return KnowledgeHygieneReport{}, err
+		return knowledgeHygieneReport{}, err
 	}
 	spec := transform.Spec()
 	if len(spec.Outputs) != 1 || observation.DevelopmentSplit.Kind() != artifact.KindDatasetShard ||
 		observation.PromotionSplit.Kind() != artifact.KindDatasetShard ||
 		observation.DevelopmentSplit == observation.PromotionSplit {
-		return KnowledgeHygieneReport{}, errors.New("evaluation: invalid knowledge hygiene observation authority")
+		return knowledgeHygieneReport{}, errors.New("evaluation: invalid knowledge hygiene observation authority")
 	}
 	required := []artifact.ID{observation.DevelopmentSplit, observation.PromotionSplit}
 	required = append(required, observation.InputRecordIDs...)
@@ -148,17 +148,17 @@ func EvaluateKnowledgeHygiene(
 	required = append(required, observation.ConflictEvidence...)
 	required = append(required, observation.PromotionRecordIDs...)
 	if err := requireStoredKnowledgeArtifacts(ctx, reader, required); err != nil {
-		return KnowledgeHygieneReport{}, err
+		return knowledgeHygieneReport{}, err
 	}
 	if _, err := artifact.RequireTypedContent(ctx, reader, spec.ReplayEvidence); err != nil {
-		return KnowledgeHygieneReport{}, fmt.Errorf("evaluation: hygiene scan evidence: %w", err)
+		return knowledgeHygieneReport{}, fmt.Errorf("evaluation: hygiene scan evidence: %w", err)
 	}
 	for _, evidence := range observation.ConflictEvidence {
 		if _, err := artifact.RequireTypedContent(ctx, reader, evidence); err != nil {
-			return KnowledgeHygieneReport{}, fmt.Errorf("evaluation: conflict evidence: %w", err)
+			return knowledgeHygieneReport{}, fmt.Errorf("evaluation: conflict evidence: %w", err)
 		}
 	}
-	return knowledgeHygieneCodec.New(KnowledgeHygieneReport{
+	return knowledgeHygieneCodec.New(knowledgeHygieneReport{
 		Version: artifact.InitialDocumentVersion, Transform: transform.ID(), Output: spec.Outputs[0],
 		DevelopmentSplit: observation.DevelopmentSplit, PromotionSplit: observation.PromotionSplit,
 		RedactionPolicy: spec.Parameters, ScanEvidence: spec.ReplayEvidence,
@@ -169,12 +169,12 @@ func EvaluateKnowledgeHygiene(
 }
 
 // Content returns canonical hygiene evidence.
-func (value KnowledgeHygieneReport) Content() (artifact.Content, error) {
+func (value knowledgeHygieneReport) Content() (artifact.Content, error) {
 	return knowledgeHygieneCodec.Content(value)
 }
 
 // Lineage binds the report to every authority from which its facts derive.
-func (value KnowledgeHygieneReport) Lineage() []artifact.Lineage {
+func (value knowledgeHygieneReport) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{
 		value.Transform, value.Output, value.DevelopmentSplit, value.PromotionSplit,
 		value.RedactionPolicy, value.ScanEvidence,
@@ -188,73 +188,73 @@ func (value KnowledgeHygieneReport) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, parents...)
 }
 
-// RequireKnowledgeHygieneReport cold-loads and replays exact hygiene facts.
-func RequireKnowledgeHygieneReport(
+// requireKnowledgeHygieneReport cold-loads and replays exact hygiene facts.
+func requireKnowledgeHygieneReport(
 	ctx context.Context,
 	reader artifact.Reader,
 	id artifact.ID,
-) (KnowledgeHygieneReport, error) {
-	value, err := knowledgeHygieneCodec.RequireExactLineage(ctx, reader, id, KnowledgeHygieneReport.Lineage)
+) (knowledgeHygieneReport, error) {
+	value, err := knowledgeHygieneCodec.RequireExactLineage(ctx, reader, id, knowledgeHygieneReport.Lineage)
 	if err != nil {
-		return KnowledgeHygieneReport{}, err
+		return knowledgeHygieneReport{}, err
 	}
-	replayed, err := EvaluateKnowledgeHygiene(ctx, reader, KnowledgeHygieneObservation{
+	replayed, err := evaluateKnowledgeHygiene(ctx, reader, knowledgeHygieneObservation{
 		Transform: value.Transform, DevelopmentSplit: value.DevelopmentSplit, PromotionSplit: value.PromotionSplit,
 		InputRecordIDs: value.InputRecordIDs, OutputRecordIDs: value.OutputRecordIDs,
 		ConflictEvidence: value.ConflictEvidence, PromotionRecordIDs: value.PromotionRecordIDs,
 	})
 	if err != nil || replayed.ID != value.ID {
-		return KnowledgeHygieneReport{}, errors.Join(
+		return knowledgeHygieneReport{}, errors.Join(
 			errors.New("evaluation: knowledge hygiene differs from stored observation"), err,
 		)
 	}
 	return value, nil
 }
 
-// PublishEpisodeKnowledgeProposal derives and stores the sole proposal facts
+// publishEpisodeKnowledgeProposal derives and stores the sole proposal facts
 // under a store-head compare-and-set.
-func PublishEpisodeKnowledgeProposal(
+func publishEpisodeKnowledgeProposal(
 	ctx context.Context,
 	repository artifact.Repository,
 	admissionID artifact.ID,
-) (EpisodeKnowledgeProposal, error) {
+) (episodeKnowledgeProposal, error) {
 	if ctx == nil || repository == nil {
-		return EpisodeKnowledgeProposal{}, errors.New("evaluation: knowledge proposal repository is absent")
+		return episodeKnowledgeProposal{}, errors.New("evaluation: knowledge proposal repository is absent")
 	}
 	head, _ := repository.Head()
 	value, err := deriveEpisodeKnowledgeProposal(ctx, repository, admissionID)
 	if err != nil {
-		return EpisodeKnowledgeProposal{}, err
+		return episodeKnowledgeProposal{}, err
 	}
 	if _, found, readErr := episodeKnowledgeProposalCodec.Read(ctx, repository, value.ID); readErr != nil {
-		return EpisodeKnowledgeProposal{}, readErr
+		return episodeKnowledgeProposal{}, readErr
 	} else if found {
-		return RequireEpisodeKnowledgeProposal(ctx, repository, value.ID)
+		return requireEpisodeKnowledgeProposal(ctx, repository, value.ID)
 	}
 	content, err := value.Content()
 	if err != nil {
-		return EpisodeKnowledgeProposal{}, err
+		return episodeKnowledgeProposal{}, err
 	}
 	batch, err := artifact.NewDocumentBatch(
 		"evaluation/knowledge-proposal/"+value.ID.String(), []artifact.Content{content}, value.Lineage(), nil,
 	)
 	if err != nil {
-		return EpisodeKnowledgeProposal{}, err
+		return episodeKnowledgeProposal{}, err
 	}
 	batch.ExpectedHead = &head
 	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
-		return EpisodeKnowledgeProposal{}, err
+		return episodeKnowledgeProposal{}, err
 	}
-	return RequireEpisodeKnowledgeProposal(ctx, repository, value.ID)
+	return requireEpisodeKnowledgeProposal(ctx, repository, value.ID)
 }
 
 // Content returns the canonical proposal document.
-func (value EpisodeKnowledgeProposal) Content() (artifact.Content, error) {
+func (value episodeKnowledgeProposal) Content() (artifact.Content, error) {
 	return episodeKnowledgeProposalCodec.Content(value)
 }
 
 // Lineage binds every derived proposal fact and its admission authority.
-func (value EpisodeKnowledgeProposal) Lineage() []artifact.Lineage {
+func (value episodeKnowledgeProposal) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{
 		value.Admission, value.Candidate, value.Transform, value.Incumbent,
 		value.Output, value.RedactionPolicy, value.Hygiene,
@@ -267,148 +267,148 @@ func (value EpisodeKnowledgeProposal) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, parents...)
 }
 
-// RequireEpisodeKnowledgeProposal refuses noncanonical lineage and any stored
+// requireEpisodeKnowledgeProposal refuses noncanonical lineage and any stored
 // projection that no longer equals the admitted candidate's evidence.
-func RequireEpisodeKnowledgeProposal(
+func requireEpisodeKnowledgeProposal(
 	ctx context.Context,
 	reader artifact.Reader,
 	id artifact.ID,
-) (EpisodeKnowledgeProposal, error) {
-	value, err := episodeKnowledgeProposalCodec.RequireExactLineage(ctx, reader, id, EpisodeKnowledgeProposal.Lineage)
+) (episodeKnowledgeProposal, error) {
+	value, err := episodeKnowledgeProposalCodec.RequireExactLineage(ctx, reader, id, episodeKnowledgeProposal.Lineage)
 	if err != nil {
-		return EpisodeKnowledgeProposal{}, err
+		return episodeKnowledgeProposal{}, err
 	}
 	replayed, err := deriveEpisodeKnowledgeProposal(ctx, reader, value.Admission)
 	if err != nil || replayed.ID != value.ID {
-		return EpisodeKnowledgeProposal{}, errors.Join(
+		return episodeKnowledgeProposal{}, errors.Join(
 			errors.New("evaluation: episode knowledge proposal differs from admitted evidence"), err,
 		)
 	}
 	return value, nil
 }
 
-// EvaluateEpisodeKnowledgePromotion uses only stored, independently evaluated
+// evaluateEpisodeKnowledgePromotion uses only stored, independently evaluated
 // evidence. It refuses a tie, any regression, or development/promotion leakage.
-func EvaluateEpisodeKnowledgePromotion(
+func evaluateEpisodeKnowledgePromotion(
 	ctx context.Context,
 	reader artifact.Reader,
 	proposalID, baselineID, trialID artifact.ID,
-) (KnowledgePromotionEvidence, error) {
-	proposal, err := RequireEpisodeKnowledgeProposal(ctx, reader, proposalID)
+) (knowledgePromotionEvidence, error) {
+	proposal, err := requireEpisodeKnowledgeProposal(ctx, reader, proposalID)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
 	admission, candidate, err := requireAdmittedKnowledgeCandidate(ctx, reader, proposal.Admission)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
 	if admission.Candidate != proposal.Candidate {
-		return KnowledgePromotionEvidence{}, errors.New("evaluation: knowledge proposal names another admitted candidate")
+		return knowledgePromotionEvidence{}, errors.New("evaluation: knowledge proposal names another admitted candidate")
 	}
 	transform, err := dataset.RequireDatasetTransform(ctx, reader, proposal.Transform)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
-	hygiene, err := RequireKnowledgeHygieneReport(ctx, reader, proposal.Hygiene)
+	hygiene, err := requireKnowledgeHygieneReport(ctx, reader, proposal.Hygiene)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
-	baseline, err := RequireRetrievalEvaluation(ctx, reader, baselineID)
+	baseline, err := requireRetrievalEvaluation(ctx, reader, baselineID)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
-	trial, err := RequireRetrievalEvaluation(ctx, reader, trialID)
+	trial, err := requireRetrievalEvaluation(ctx, reader, trialID)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
 	baselineReceipt, err := runrecord.RequireConsumedRetrievalReceipt(ctx, reader, baseline.Receipt)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
 	trialReceipt, err := runrecord.RequireConsumedRetrievalReceipt(ctx, reader, trial.Receipt)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
 	if baselineReceipt.Dataset != proposal.Incumbent || trialReceipt.Dataset != proposal.Output {
-		return KnowledgePromotionEvidence{}, errors.New("evaluation: retrieval evidence addresses another knowledge dataset")
+		return knowledgePromotionEvidence{}, errors.New("evaluation: retrieval evidence addresses another knowledge dataset")
 	}
 	if err := verifyKnowledgeCandidate(proposal, candidate, transform, hygiene, baseline, trial); err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
 	benefits, err := retrievalParetoBenefits(baseline, trial)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
-	return knowledgePromotionCodec.New(KnowledgePromotionEvidence{
+	return knowledgePromotionCodec.New(knowledgePromotionEvidence{
 		Version: artifact.InitialDocumentVersion, Proposal: proposal.ID, Admission: admission.ID,
 		Candidate: candidate.ID(), Transform: transform.ID(), Incumbent: proposal.Incumbent, Output: proposal.Output,
 		Split: candidate.Spec().PromotionSplit, Baseline: baseline.ID, Trial: trial.ID, Benefits: benefits,
 	})
 }
 
-// PublishEpisodeKnowledgePromotion publishes the replayed claim under the
+// publishEpisodeKnowledgePromotion publishes the replayed claim under the
 // store head observed before evaluation. Concurrent evidence wins; a stale
 // promotion never lands as an apparently current fact.
-func PublishEpisodeKnowledgePromotion(
+func publishEpisodeKnowledgePromotion(
 	ctx context.Context,
 	repository artifact.Repository,
 	proposalID, baselineID, trialID artifact.ID,
-) (KnowledgePromotionEvidence, error) {
+) (knowledgePromotionEvidence, error) {
 	if ctx == nil || repository == nil {
-		return KnowledgePromotionEvidence{}, errors.New("evaluation: knowledge promotion repository is absent")
+		return knowledgePromotionEvidence{}, errors.New("evaluation: knowledge promotion repository is absent")
 	}
 	head, _ := repository.Head()
-	value, err := EvaluateEpisodeKnowledgePromotion(ctx, repository, proposalID, baselineID, trialID)
+	value, err := evaluateEpisodeKnowledgePromotion(ctx, repository, proposalID, baselineID, trialID)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
 	content, err := value.Content()
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
 	batch, err := artifact.NewDocumentBatch(
 		"evaluation/knowledge-promotion/"+value.ID.String(), []artifact.Content{content}, value.Lineage(), nil,
 	)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
 	batch.ExpectedHead = &head
 	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
-	return RequireKnowledgePromotionEvidence(ctx, repository, value.ID)
+	return requireKnowledgePromotionEvidence(ctx, repository, value.ID)
 }
 
 // Content returns canonical promotion evidence.
-func (value KnowledgePromotionEvidence) Content() (artifact.Content, error) {
+func (value knowledgePromotionEvidence) Content() (artifact.Content, error) {
 	return knowledgePromotionCodec.Content(value)
 }
 
 // ValidateIdentity proves the promotion claim did not change.
-func (value KnowledgePromotionEvidence) ValidateIdentity() error {
+func (value knowledgePromotionEvidence) ValidateIdentity() error {
 	return knowledgePromotionCodec.ValidateIdentity(value)
 }
 
 // Lineage binds the promotion claim to admission, proposal, evaluations, and datasets.
-func (value KnowledgePromotionEvidence) Lineage() []artifact.Lineage {
+func (value knowledgePromotionEvidence) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, value.Proposal, value.Admission, value.Candidate, value.Transform,
 		value.Incumbent, value.Output, value.Split, value.Baseline, value.Trial)
 }
 
-// RequireKnowledgePromotionEvidence cold-loads exact lineage and replays the
+// requireKnowledgePromotionEvidence cold-loads exact lineage and replays the
 // held-out comparison. A valid-looking caller-authored aggregate is refused.
-func RequireKnowledgePromotionEvidence(
+func requireKnowledgePromotionEvidence(
 	ctx context.Context,
 	reader artifact.Reader,
 	id artifact.ID,
-) (KnowledgePromotionEvidence, error) {
-	value, err := knowledgePromotionCodec.RequireExactLineage(ctx, reader, id, KnowledgePromotionEvidence.Lineage)
+) (knowledgePromotionEvidence, error) {
+	value, err := knowledgePromotionCodec.RequireExactLineage(ctx, reader, id, knowledgePromotionEvidence.Lineage)
 	if err != nil {
-		return KnowledgePromotionEvidence{}, err
+		return knowledgePromotionEvidence{}, err
 	}
-	replayed, err := EvaluateEpisodeKnowledgePromotion(ctx, reader, value.Proposal, value.Baseline, value.Trial)
+	replayed, err := evaluateEpisodeKnowledgePromotion(ctx, reader, value.Proposal, value.Baseline, value.Trial)
 	if err != nil || replayed.ID != value.ID {
-		return KnowledgePromotionEvidence{}, errors.Join(
+		return knowledgePromotionEvidence{}, errors.Join(
 			errors.New("evaluation: knowledge promotion differs from replayed held-out evidence"), err,
 		)
 	}
@@ -419,10 +419,10 @@ func deriveEpisodeKnowledgeProposal(
 	ctx context.Context,
 	reader artifact.Reader,
 	admissionID artifact.ID,
-) (EpisodeKnowledgeProposal, error) {
+) (episodeKnowledgeProposal, error) {
 	admission, candidate, err := requireAdmittedKnowledgeCandidate(ctx, reader, admissionID)
 	if err != nil {
-		return EpisodeKnowledgeProposal{}, err
+		return episodeKnowledgeProposal{}, err
 	}
 	spec := candidate.Spec()
 	var transformID artifact.ID
@@ -431,22 +431,22 @@ func deriveEpisodeKnowledgeProposal(
 			continue
 		}
 		if transformID.Valid() {
-			return EpisodeKnowledgeProposal{}, errors.New("evaluation: knowledge candidate has multiple dataset transforms")
+			return episodeKnowledgeProposal{}, errors.New("evaluation: knowledge candidate has multiple dataset transforms")
 		}
 		transformID = component.Specification
 	}
 	if !transformID.Valid() {
-		return EpisodeKnowledgeProposal{}, errors.New("evaluation: knowledge candidate has no dataset transform")
+		return episodeKnowledgeProposal{}, errors.New("evaluation: knowledge candidate has no dataset transform")
 	}
 	transform, err := dataset.RequireDatasetTransform(ctx, reader, transformID)
 	if err != nil {
-		return EpisodeKnowledgeProposal{}, err
+		return episodeKnowledgeProposal{}, err
 	}
 	episodes, citations, hygieneIDs := []artifact.ID{}, []artifact.ID{}, []artifact.ID{}
 	for _, reference := range spec.References {
 		decision, decisionErr := recipe.RequireDecision(ctx, reader, reference.Evidence)
 		if decisionErr != nil {
-			return EpisodeKnowledgeProposal{}, decisionErr
+			return episodeKnowledgeProposal{}, decisionErr
 		}
 		switch {
 		case reference.Role == modelrecipe.CandidateReferenceProvenance && reference.Subject == transformID:
@@ -459,7 +459,7 @@ func deriveEpisodeKnowledgeProposal(
 			}
 		case reference.Role == modelrecipe.CandidateReferenceMeasurement && reference.Subject == transformID:
 			for _, source := range decision.Evidence {
-				if _, hygieneErr := RequireKnowledgeHygieneReport(ctx, reader, source); hygieneErr == nil {
+				if _, hygieneErr := requireKnowledgeHygieneReport(ctx, reader, source); hygieneErr == nil {
 					hygieneIDs = append(hygieneIDs, source)
 				}
 			}
@@ -467,32 +467,32 @@ func deriveEpisodeKnowledgeProposal(
 	}
 	episodes, err = canonicalKnowledgeIDs(episodes, func(id artifact.ID) bool { return id.Kind() == artifact.KindEvidence })
 	if err != nil {
-		return EpisodeKnowledgeProposal{}, err
+		return episodeKnowledgeProposal{}, err
 	}
 	citations, err = canonicalKnowledgeIDs(citations, func(id artifact.ID) bool { return id.Kind() == artifact.KindEvidence })
 	if err != nil {
-		return EpisodeKnowledgeProposal{}, err
+		return episodeKnowledgeProposal{}, err
 	}
 	hygieneIDs, err = canonicalKnowledgeIDs(hygieneIDs, func(id artifact.ID) bool { return id.Kind() == artifact.KindEvidence })
 	if err != nil || len(episodes) == 0 || len(citations) == 0 || len(hygieneIDs) != 1 {
-		return EpisodeKnowledgeProposal{}, errors.Join(
+		return episodeKnowledgeProposal{}, errors.Join(
 			errors.New("evaluation: admitted knowledge evidence lacks exact episode, citation, or hygiene authority"), err,
 		)
 	}
 	transformSpec := transform.Spec()
 	if slices.Contains(transformSpec.Inputs, spec.PromotionSplit) {
-		return EpisodeKnowledgeProposal{}, errors.New("evaluation: admitted knowledge transform consumes held-out promotion data")
+		return episodeKnowledgeProposal{}, errors.New("evaluation: admitted knowledge transform consumes held-out promotion data")
 	}
-	hygiene, err := RequireKnowledgeHygieneReport(ctx, reader, hygieneIDs[0])
+	hygiene, err := requireKnowledgeHygieneReport(ctx, reader, hygieneIDs[0])
 	if err != nil {
-		return EpisodeKnowledgeProposal{}, err
+		return episodeKnowledgeProposal{}, err
 	}
 	if hygiene.Transform != transform.ID() || hygiene.Output != spec.Subject ||
 		hygiene.DevelopmentSplit != spec.DevelopmentSplit || hygiene.PromotionSplit != spec.PromotionSplit ||
 		hygiene.RedactionPolicy != transformSpec.Parameters {
-		return EpisodeKnowledgeProposal{}, errors.New("evaluation: admitted hygiene evidence differs from candidate authority")
+		return episodeKnowledgeProposal{}, errors.New("evaluation: admitted hygiene evidence differs from candidate authority")
 	}
-	return episodeKnowledgeProposalCodec.New(EpisodeKnowledgeProposal{
+	return episodeKnowledgeProposalCodec.New(episodeKnowledgeProposal{
 		Version: artifact.InitialDocumentVersion, Admission: admission.ID, Candidate: candidate.ID(), Transform: transform.ID(),
 		Incumbent: spec.Parent, Output: spec.Subject, EpisodeSources: episodes,
 		SourceShards: transformSpec.Inputs, Citations: citations, RedactionPolicy: transformSpec.Parameters,
@@ -525,11 +525,11 @@ func requireAdmittedKnowledgeCandidate(
 }
 
 func verifyKnowledgeCandidate(
-	proposal EpisodeKnowledgeProposal,
+	proposal episodeKnowledgeProposal,
 	candidate modelrecipe.Candidate,
 	transform dataset.DatasetTransform,
-	hygiene KnowledgeHygieneReport,
-	baseline, trial RetrievalEvaluation,
+	hygiene knowledgeHygieneReport,
+	baseline, trial retrievalEvaluation,
 ) error {
 	spec := candidate.Spec()
 	transformSpec := transform.Spec()
@@ -558,7 +558,7 @@ func verifyKnowledgeCandidate(
 	return nil
 }
 
-func retrievalParetoBenefits(baseline, trial RetrievalEvaluation) ([]string, error) {
+func retrievalParetoBenefits(baseline, trial retrievalEvaluation) ([]string, error) {
 	left, right := baseline.Metrics, trial.Metrics
 	if right.Recall < left.Recall || right.ReciprocalRank < left.ReciprocalRank || right.NormalizedDCG < left.NormalizedDCG ||
 		right.CitationPrecision < left.CitationPrecision || right.CitationRecall < left.CitationRecall ||
@@ -592,7 +592,7 @@ func retrievalParetoBenefits(baseline, trial RetrievalEvaluation) ([]string, err
 	return benefits, nil
 }
 
-func canonicalizeEpisodeKnowledgeProposal(value *EpisodeKnowledgeProposal) error {
+func canonicalizeEpisodeKnowledgeProposal(value *episodeKnowledgeProposal) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Admission.Kind() != artifact.KindEvidence ||
 		value.Candidate.Kind() != artifact.KindRecipe || value.Transform.Kind() != artifact.KindEvidence ||
 		value.Incumbent.Kind() != artifact.KindDataset ||
@@ -617,7 +617,7 @@ func canonicalizeEpisodeKnowledgeProposal(value *EpisodeKnowledgeProposal) error
 	return err
 }
 
-func canonicalizeKnowledgeHygieneReport(value *KnowledgeHygieneReport) error {
+func canonicalizeKnowledgeHygieneReport(value *knowledgeHygieneReport) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Transform.Kind() != artifact.KindEvidence ||
 		(value.Output.Kind() != artifact.KindDataset && value.Output.Kind() != artifact.KindDatasetShard) ||
 		value.DevelopmentSplit.Kind() != artifact.KindDatasetShard || value.PromotionSplit.Kind() != artifact.KindDatasetShard ||
@@ -689,7 +689,7 @@ func canonicalKnowledgeIDs(values []artifact.ID, valid func(artifact.ID) bool) (
 	return values, nil
 }
 
-func canonicalizeKnowledgePromotionEvidence(value *KnowledgePromotionEvidence) error {
+func canonicalizeKnowledgePromotionEvidence(value *knowledgePromotionEvidence) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Proposal.Kind() != artifact.KindEvidence ||
 		value.Admission.Kind() != artifact.KindEvidence || value.Candidate.Kind() != artifact.KindRecipe ||
 		value.Transform.Kind() != artifact.KindEvidence || value.Incumbent.Kind() != artifact.KindDataset ||
@@ -727,14 +727,14 @@ func requireStoredKnowledgeArtifacts(ctx context.Context, reader artifact.Reader
 	return nil
 }
 
-func cloneEpisodeKnowledgeProposal(value EpisodeKnowledgeProposal) EpisodeKnowledgeProposal {
+func cloneEpisodeKnowledgeProposal(value episodeKnowledgeProposal) episodeKnowledgeProposal {
 	value.EpisodeSources = slices.Clone(value.EpisodeSources)
 	value.SourceShards = slices.Clone(value.SourceShards)
 	value.Citations = slices.Clone(value.Citations)
 	return value
 }
 
-func cloneKnowledgeHygieneReport(value KnowledgeHygieneReport) KnowledgeHygieneReport {
+func cloneKnowledgeHygieneReport(value knowledgeHygieneReport) knowledgeHygieneReport {
 	value.InputRecordIDs = slices.Clone(value.InputRecordIDs)
 	value.OutputRecordIDs = slices.Clone(value.OutputRecordIDs)
 	value.ConflictEvidence = slices.Clone(value.ConflictEvidence)

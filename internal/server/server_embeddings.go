@@ -309,7 +309,7 @@ func (h *Handler) embedPromptAdvanced(
 	prompt nativePrompt,
 	options inference.EmbeddingOptions,
 ) (inference.EmbeddingResult, error) {
-	if advanced, ok := h.generator.(AdvancedEmbedder); ok {
+	if advanced, ok := h.generator.(advancedEmbedder); ok {
 		if prompt.TokenIDs == nil {
 			return advanced.EmbedAdvanced(ctx, prompt.Text, options)
 		}
@@ -339,7 +339,7 @@ func (h *Handler) embedPrompt(
 	if prompt.TokenIDs == nil {
 		return embedder.Embed(ctx, prompt.Text)
 	}
-	tokenEmbedder, ok := h.generator.(TokenEmbedder)
+	tokenEmbedder, ok := h.generator.(tokenEmbedder)
 	if !ok {
 		return nil, 0, errors.New("server: exact-token embeddings are unavailable")
 	}

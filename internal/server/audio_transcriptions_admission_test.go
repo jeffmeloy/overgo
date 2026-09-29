@@ -71,10 +71,10 @@ func testAudioTranscriptionsLifecycle(t *testing.T) {
 	if err := zero.Close(t.Context()); err != nil {
 		t.Fatal(err)
 	}
-	if capabilities, err := zero.WorkflowCapabilities(t.Context(), WorkflowGeneration); err != nil || len(capabilities) != 0 {
+	if capabilities, err := zero.WorkflowCapabilities(t.Context(), workflowGeneration); err != nil || len(capabilities) != 0 {
 		t.Fatalf("zero capabilities=%+v err=%v", capabilities, err)
 	}
-	if _, err := zero.ExecuteWorkflow(t.Context(), WorkflowGeneration, recipe.TaskTranscription, definition.ID, nil, nil); err == nil {
+	if _, err := zero.ExecuteWorkflow(t.Context(), workflowGeneration, recipe.TaskTranscription, definition.ID, nil, nil); err == nil {
 		t.Fatal("zero workspace accepted execution")
 	}
 }

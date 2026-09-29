@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -12,21 +11,14 @@ import (
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/thoughtbank"
 )
 
-const fractaleModelDirectory = `C:\Users\jeffm\adaptive_new\models\Fractale-350M-base`
-
 func TestFractaleRecipeActivation(t *testing.T) {
-	modelPath := os.Getenv("OVERGO_THOUGHTBANK_MODEL")
-	if modelPath == "" {
-		modelPath = fractaleModelDirectory
-	}
-	if _, err := os.Stat(modelPath); err != nil {
-		t.Skipf("Fractale checkpoint unavailable: %v", err)
-	}
+	modelPath := modeltest.Directory(t, "Fractale-350M-base")
 	ctx := context.Background()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

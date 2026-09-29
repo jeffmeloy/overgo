@@ -19,9 +19,9 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-// AutomationInventoryEntry projects active immutable authority and any exact
+// automationInventoryEntry projects active immutable authority and any exact
 // compile refusal; unavailable plans are visible but never executable.
-type AutomationInventoryEntry struct {
+type automationInventoryEntry struct {
 	Name       string                                    `json:"name"`
 	Definition artifact.ID                               `json:"definition"`
 	Activation artifact.ID                               `json:"activation"`
@@ -29,8 +29,8 @@ type AutomationInventoryEntry struct {
 	Refusal    string                                    `json:"refusal,omitzero"`
 }
 
-// AutomationDefinitionInput is the typed editing boundary shared by API and GUI.
-type AutomationDefinitionInput struct {
+// automationDefinitionInput is the typed editing boundary shared by API and GUI.
+type automationDefinitionInput struct {
 	Name              string                          `json:"name"`
 	Recipe            artifact.ID                     `json:"recipe"`
 	Trigger           recipe.AutomationTriggerPolicy  `json:"trigger"`
@@ -39,16 +39,16 @@ type AutomationDefinitionInput struct {
 	CapabilityBundles []artifact.ID                   `json:"capability_bundles,omitempty"`
 }
 
-// AutomationExecutionInput is one manual or scheduled invocation.
-type AutomationExecutionInput struct {
+// automationExecutionInput is one manual or scheduled invocation.
+type automationExecutionInput struct {
 	Name        string                     `json:"name"`
 	Key         string                     `json:"key,omitzero"`
 	Destination string                     `json:"destination,omitzero"`
 	Inputs      map[string]json.RawMessage `json:"inputs"`
 }
 
-// AutomationHistoryEntry is the durable run projection used by API and GUI.
-type AutomationHistoryEntry struct {
+// automationHistoryEntry is the durable run projection used by API and GUI.
+type automationHistoryEntry struct {
 	ID      artifact.ID       `json:"id"`
 	Recipe  artifact.ID       `json:"recipe"`
 	Outcome runrecord.Outcome `json:"outcome"`
@@ -57,24 +57,24 @@ type AutomationHistoryEntry struct {
 	Outputs []artifact.ID     `json:"outputs,omitempty"`
 }
 
-// AutomationWorkspaceAPI is the server protocol boundary. Implementations use
+// automationWorkspaceAPI is the server protocol boundary. Implementations use
 // recipe/runrecord/workflowruntime owners; handlers only decode and project.
-type AutomationWorkspaceAPI interface {
-	AutomationInventory(context.Context) ([]AutomationInventoryEntry, error)
-	PublishAutomationDefinition(context.Context, AutomationDefinitionInput) (recipe.AutomationDefinition, error)
+type automationWorkspaceAPI interface {
+	AutomationInventory(context.Context) ([]automationInventoryEntry, error)
+	PublishAutomationDefinition(context.Context, automationDefinitionInput) (recipe.AutomationDefinition, error)
 	ActivateAutomation(context.Context, artifact.ID) (runrecord.ActiveAutomation, error)
-	RunAutomation(context.Context, *operation.Manager, AutomationExecutionInput) (workflowruntime.AutomationExecution, error)
-	ScheduleAutomation(context.Context, *operation.Manager, AutomationExecutionInput) (workflowruntime.AutomationExecution, bool, error)
-	AutomationHistory(context.Context) ([]AutomationHistoryEntry, error)
+	RunAutomation(context.Context, *operation.Manager, automationExecutionInput) (workflowruntime.AutomationExecution, error)
+	ScheduleAutomation(context.Context, *operation.Manager, automationExecutionInput) (workflowruntime.AutomationExecution, bool, error)
+	AutomationHistory(context.Context) ([]automationHistoryEntry, error)
 }
 
-// AutomationWorkspace composes existing authorities for server and GUI use.
-type AutomationWorkspace struct {
+// automationWorkspace composes existing authorities for server and GUI use.
+type automationWorkspace struct {
 	store              *overgodb.Store
 	catalog            *recipe.Catalog
 	adapters           map[recipe.ModuleID]workflowruntime.Adapter
 	tools              *agenttool.Executor
-	webhookKeyResolver AutomationWebhookKeyResolver
+	webhookKeyResolver automationWebhookKeyResolver
 	limit              int
 	clock              workflowruntime.AutomationClock
 }
@@ -84,22 +84,22 @@ type systemAutomationClock struct{}
 // Now returns the current UTC scheduler time.
 func (systemAutomationClock) Now() time.Time { return time.Now().UTC() }
 
-// AutomationWorkspaceConfig binds protocol projection to shared runtime owners.
-type AutomationWorkspaceConfig struct {
+// automationWorkspaceConfig binds protocol projection to shared runtime owners.
+type automationWorkspaceConfig struct {
 	Store              *overgodb.Store
 	Catalog            *recipe.Catalog
 	Adapters           map[recipe.ModuleID]workflowruntime.Adapter
 	Tools              *agenttool.Executor
-	WebhookKeyResolver AutomationWebhookKeyResolver
+	WebhookKeyResolver automationWebhookKeyResolver
 	Limit              int
 }
 
 // Open validates and creates one automation workspace.
-func (config AutomationWorkspaceConfig) Open() (*AutomationWorkspace, error) {
+func (config automationWorkspaceConfig) Open() (*automationWorkspace, error) {
 	if config.Store == nil || config.Catalog == nil || config.Limit <= 0 {
 		return nil, errors.New("automation workspace: repository, catalog, and positive history limit required")
 	}
-	return &AutomationWorkspace{
+	return &automationWorkspace{
 		store: config.Store, catalog: config.Catalog, adapters: cloneAutomationAdapters(config.Adapters),
 		tools: config.Tools, webhookKeyResolver: config.WebhookKeyResolver,
 		limit: config.Limit, clock: systemAutomationClock{},
@@ -107,7 +107,7 @@ func (config AutomationWorkspaceConfig) Open() (*AutomationWorkspace, error) {
 }
 
 // AutomationInventory returns active aliases and compile/refusal truth.
-func (workspace *AutomationWorkspace) AutomationInventory(ctx context.Context) ([]AutomationInventoryEntry, error) {
+func (workspace *automationWorkspace) AutomationInventory(ctx context.Context) ([]automationInventoryEntry, error) {
 	if workspace == nil || ctx == nil {
 		return nil, errors.New("automation workspace: inventory authority is absent")
 	}
@@ -115,7 +115,7 @@ func (workspace *AutomationWorkspace) AutomationInventory(ctx context.Context) (
 	if err != nil {
 		return nil, err
 	}
-	entries := make([]AutomationInventoryEntry, 0)
+	entries := make([]automationInventoryEntry, 0)
 	authority := runrecord.AutomationAuthority{Repository: workspace.store}
 	compiler := workflowcontract.AutomationCompiler{Repository: workspace.store, Catalog: workspace.catalog}
 	for _, name := range names {
@@ -123,7 +123,7 @@ func (workspace *AutomationWorkspace) AutomationInventory(ctx context.Context) (
 		if resolveErr != nil || !resolved {
 			return nil, errors.Join(errors.New("automation workspace: active alias differs"), resolveErr)
 		}
-		entry := AutomationInventoryEntry{
+		entry := automationInventoryEntry{
 			Name: name, Definition: active.Definition.ID, Activation: active.Activation.ID,
 		}
 		plan, compileErr := compiler.Compile(ctx, name)
@@ -134,16 +134,16 @@ func (workspace *AutomationWorkspace) AutomationInventory(ctx context.Context) (
 		}
 		entries = append(entries, entry)
 	}
-	slices.SortFunc(entries, func(left, right AutomationInventoryEntry) int {
+	slices.SortFunc(entries, func(left, right automationInventoryEntry) int {
 		return strings.Compare(left.Name, right.Name)
 	})
 	return entries, nil
 }
 
 // PublishAutomationDefinition commits typed policies and immutable definition.
-func (workspace *AutomationWorkspace) PublishAutomationDefinition(
+func (workspace *automationWorkspace) PublishAutomationDefinition(
 	ctx context.Context,
-	input AutomationDefinitionInput,
+	input automationDefinitionInput,
 ) (recipe.AutomationDefinition, error) {
 	trigger, err := input.Trigger.Identify()
 	if err != nil {
@@ -186,7 +186,7 @@ func (workspace *AutomationWorkspace) PublishAutomationDefinition(
 }
 
 // ActivateAutomation advances the named alias with request evidence.
-func (workspace *AutomationWorkspace) ActivateAutomation(
+func (workspace *automationWorkspace) ActivateAutomation(
 	ctx context.Context,
 	definitionID artifact.ID,
 ) (runrecord.ActiveAutomation, error) {
@@ -219,10 +219,10 @@ func (workspace *AutomationWorkspace) ActivateAutomation(
 }
 
 // RunAutomation admits manual execution to the caller's common operation manager.
-func (workspace *AutomationWorkspace) RunAutomation(
+func (workspace *automationWorkspace) RunAutomation(
 	ctx context.Context,
 	operations *operation.Manager,
-	input AutomationExecutionInput,
+	input automationExecutionInput,
 ) (workflowruntime.AutomationExecution, error) {
 	values, err := workspace.automationInputs(ctx, input.Name, input.Inputs)
 	if err != nil {
@@ -233,10 +233,10 @@ func (workspace *AutomationWorkspace) RunAutomation(
 }
 
 // ScheduleAutomation scans and admits one due schedule claim.
-func (workspace *AutomationWorkspace) ScheduleAutomation(
+func (workspace *automationWorkspace) ScheduleAutomation(
 	ctx context.Context,
 	operations *operation.Manager,
-	input AutomationExecutionInput,
+	input automationExecutionInput,
 ) (workflowruntime.AutomationExecution, bool, error) {
 	values, err := workspace.automationInputs(ctx, input.Name, input.Inputs)
 	if err != nil {
@@ -246,7 +246,7 @@ func (workspace *AutomationWorkspace) ScheduleAutomation(
 }
 
 // AutomationHistory returns durable runs belonging to active automation recipes.
-func (workspace *AutomationWorkspace) AutomationHistory(ctx context.Context) ([]AutomationHistoryEntry, error) {
+func (workspace *automationWorkspace) AutomationHistory(ctx context.Context) ([]automationHistoryEntry, error) {
 	inventory, err := workspace.AutomationInventory(ctx)
 	if err != nil {
 		return nil, err
@@ -257,7 +257,7 @@ func (workspace *AutomationWorkspace) AutomationHistory(ctx context.Context) ([]
 			recipes[entry.Plan.Recipe] = struct{}{}
 		}
 	}
-	runs := make([]AutomationHistoryEntry, 0, workspace.limit)
+	runs := make([]automationHistoryEntry, 0, workspace.limit)
 	_, err = overgodb.VisitDecodedDocuments(ctx, workspace.store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{
 			{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.LegacyRunSchema},
@@ -266,7 +266,7 @@ func (workspace *AutomationWorkspace) AutomationHistory(ctx context.Context) ([]
 		Order: overgodb.DocumentNewestFirst, MaxResults: workspace.limit,
 	}, runrecord.ParseRun, func(_ overgodb.DocumentView, run runrecord.Run) error {
 		if _, found := recipes[run.Recipe]; found {
-			runs = append(runs, AutomationHistoryEntry{
+			runs = append(runs, automationHistoryEntry{
 				ID: run.ID, Recipe: run.Recipe, Outcome: run.Outcome, Failure: run.Failure,
 				Inputs: slices.Clone(run.Inputs), Outputs: slices.Clone(run.Outputs),
 			})
@@ -276,7 +276,7 @@ func (workspace *AutomationWorkspace) AutomationHistory(ctx context.Context) ([]
 	return runs, err
 }
 
-func (workspace *AutomationWorkspace) automationInputs(
+func (workspace *automationWorkspace) automationInputs(
 	ctx context.Context,
 	name string,
 	raw map[string]json.RawMessage,
@@ -292,7 +292,7 @@ func (workspace *AutomationWorkspace) automationInputs(
 	return workflowruntime.BindAutomationInputs(definition, raw)
 }
 
-func (workspace *AutomationWorkspace) runtime(operations *operation.Manager) workflowruntime.AutomationRuntime {
+func (workspace *automationWorkspace) runtime(operations *operation.Manager) workflowruntime.AutomationRuntime {
 	return workflowruntime.AutomationRuntime{
 		Store: workspace.store, Operations: operations, Catalog: workspace.catalog,
 		Adapters: cloneAutomationAdapters(workspace.adapters), Tools: workspace.tools,

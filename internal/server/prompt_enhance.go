@@ -8,10 +8,10 @@ import (
 	"overgo/internal/inference"
 )
 
-// PromptEnhanceInstruction is the one instruction the served chat model
+// promptEnhanceInstruction is the one instruction the served chat model
 // rewrites a generation prompt under: the page never types it, and the
 // enhancement record carries it so the rewrite is reproducible.
-const PromptEnhanceInstruction = "Rewrite the following prompt for an image, video or speech generation model. " +
+const promptEnhanceInstruction = "Rewrite the following prompt for an image, video or speech generation model. " +
 	"Keep every subject, action, setting and constraint it states, add concrete visual or acoustic detail " +
 	"(composition, lighting, material, mood, camera or voice), and answer with the rewritten prompt alone: " +
 	"one paragraph, no preamble, no quotation marks, no explanation."
@@ -59,7 +59,7 @@ func (h *Handler) promptEnhance(response http.ResponseWriter, request *http.Requ
 		return
 	}
 	chat := chatCompletionRequest{Messages: []inference.ChatMessage{
-		{Role: inference.ChatRoleSystem, Content: PromptEnhanceInstruction},
+		{Role: inference.ChatRoleSystem, Content: promptEnhanceInstruction},
 		{Role: inference.ChatRoleUser, Content: original},
 	}}
 	prompt, err := h.normalizeChatPrompt(request.Context(), formatter, chat, nil, false)
@@ -89,7 +89,7 @@ func (h *Handler) promptEnhance(response http.ResponseWriter, request *http.Requ
 		return
 	}
 	answer := promptEnhanceResponse{promptEnhancement: promptEnhancement{
-		Version: artifact.InitialDocumentVersion, Instruction: PromptEnhanceInstruction, Original: original, Enhanced: enhanced, Model: h.config.ModelID,
+		Version: artifact.InitialDocumentVersion, Instruction: promptEnhanceInstruction, Original: original, Enhanced: enhanced, Model: h.config.ModelID,
 	}}
 	if h.repository != nil {
 		content, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, promptEnhancementSchema), answer.promptEnhancement)

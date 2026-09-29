@@ -36,14 +36,14 @@ func TestCapabilityGapTargetsFromEvalStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	byKind := map[CapabilityGapKind][]CapabilityGapTarget{}
+	byKind := map[capabilityGapKind][]capabilityGapTarget{}
 	for _, target := range targets {
 		byKind[target.Kind] = append(byKind[target.Kind], target)
 	}
-	if len(byKind[GapFrontier]) != 2 || len(byKind[GapRegression]) != 1 || len(byKind[GapWeakestDomain]) != 2 {
+	if len(byKind[gapFrontier]) != 2 || len(byKind[gapRegression]) != 1 || len(byKind[gapWeakestDomain]) != 2 {
 		t.Fatalf("target census = %+v", byKind)
 	}
-	regression := byKind[GapRegression][0]
+	regression := byKind[gapRegression][0]
 	if regression.Recipe != incumbentDefinition.ID || regression.Measured != 0.35 ||
 		regression.Reference != 0.5 || regression.Gap != regression.Reference-regression.Measured {
 		t.Fatalf("regression target = %+v", regression)
@@ -55,7 +55,7 @@ func TestCapabilityGapTargetsFromEvalStore(t *testing.T) {
 	if !cited[incumbentLatest] || !cited[incumbentFirst] {
 		t.Fatalf("regression evidence = %v", regression.Evidence)
 	}
-	for _, frontier := range byKind[GapFrontier] {
+	for _, frontier := range byKind[gapFrontier] {
 		if frontier.Reference != 0.9 {
 			t.Fatalf("frontier reference = %+v", frontier)
 		}
@@ -69,8 +69,8 @@ func TestCapabilityGapTargetsFromEvalStore(t *testing.T) {
 			t.Fatal("frontier citations lost")
 		}
 	}
-	weakestByRecipe := map[artifact.ID]CapabilityGapTarget{}
-	for _, weakestTarget := range byKind[GapWeakestDomain] {
+	weakestByRecipe := map[artifact.ID]capabilityGapTarget{}
+	for _, weakestTarget := range byKind[gapWeakestDomain] {
 		weakestByRecipe[weakestTarget.Recipe] = weakestTarget
 	}
 	if _, holderHasWeakness := weakestByRecipe[strongDefinition.ID]; holderHasWeakness {

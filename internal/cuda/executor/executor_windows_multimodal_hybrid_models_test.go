@@ -128,7 +128,7 @@ func TestExecutorDeciMixedLayersMatchReference(t *testing.T) {
 	feeds := map[*tensor.Tensor]reference.Value{input: patternedValue(input.Shape, 3, 0.2, 0)}
 	keys := make([]*tensor.Tensor, 4)
 	values := make([]*tensor.Tensor, 4)
-	for layer := uint32(0); layer < 4; layer++ {
+	for layer := range uint32(4) {
 		weights := model.LayerGraphWeights{}
 		weighted := make([]*tensor.Tensor, 0, 7)
 		if layer == 0 {

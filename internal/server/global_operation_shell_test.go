@@ -134,7 +134,7 @@ func TestGlobalOperationTerminalState(t *testing.T) {
 		t.Fatalf("terminal operation=(%+v, %v)", status, err)
 	}
 	response := serveTestRequest(handler, http.MethodGet, "/operations/evidence?id="+id.String(), "")
-	var projection OperationEvidenceProjection
+	var projection operationEvidenceProjection
 	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &projection) != nil ||
 		projection.Operation == nil || projection.Operation.State != operation.StateCompleted ||
 		len(projection.Operation.Outputs) != 1 || projection.Operation.Outputs[0] != outputID {

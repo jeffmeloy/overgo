@@ -439,7 +439,7 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	selectedQuery, err := NewEvidenceCoverageQuery([]CoverageUnit{{
 		Attempt: selectedRun.ID, Terminal: selectedRun.ID,
 		EvaluationEvidence: []artifact.ID{selectedEvidence.ID},
-		Required:           []CoverageRequirement{{Axis: CoverageEvaluation}, {Axis: CoverageCausal}},
+		Required:           []CoverageRequirement{{Axis: CoverageEvaluation}, {Axis: coverageCausal}},
 	}}, nil, coverageTestBounds(16, 1))
 	if err != nil {
 		t.Fatal(err)
@@ -508,7 +508,7 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	untypedQuery, err := NewEvidenceCoverageQuery([]CoverageUnit{{
 		Attempt: selectedRun.ID, Terminal: selectedRun.ID,
 		EvaluationEvidence: []artifact.ID{untypedEvidence.ID},
-		Required:           []CoverageRequirement{{Axis: CoverageCausal}},
+		Required:           []CoverageRequirement{{Axis: coverageCausal}},
 	}}, nil, coverageTestBounds(16, 1))
 	if err != nil {
 		t.Fatal(err)
@@ -527,7 +527,7 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	}
 	splitBrainQuery, err := NewEvidenceCoverageQuery([]CoverageUnit{{
 		Attempt: splitBrainAttempt.ID, Terminal: splitBrainAttempt.ID,
-		Required: []CoverageRequirement{{Axis: CoverageCausal}},
+		Required: []CoverageRequirement{{Axis: coverageCausal}},
 	}}, nil, coverageTestBounds(4, 1))
 	if err != nil {
 		t.Fatal(err)
@@ -557,11 +557,11 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 		}},
 		{Attempt: classifiedUnknown, Terminal: classifiedUnknown, FailureObservations: []artifact.ID{unknownObservation.ID}},
 		{Attempt: unclassified, Terminal: unclassified, FailureObservations: unclassifiedObservations},
-		{Attempt: recovery, Terminal: recovery, Required: []CoverageRequirement{{Axis: CoverageCausal}}},
-		{Attempt: retry, Terminal: retry, Required: []CoverageRequirement{{Axis: CoverageCausal}}},
-		{Attempt: missingCausal, Terminal: missingCausal, Required: []CoverageRequirement{{Axis: CoverageCausal}}},
-		{Attempt: foreignPairAttempt.ID, Terminal: foreignPairAttempt.ID, Required: []CoverageRequirement{{Axis: CoverageCausal}}},
-		{Attempt: typedAttempt.ID, Terminal: typedAttempt.ID, Required: []CoverageRequirement{{Axis: CoverageCausal}}},
+		{Attempt: recovery, Terminal: recovery, Required: []CoverageRequirement{{Axis: coverageCausal}}},
+		{Attempt: retry, Terminal: retry, Required: []CoverageRequirement{{Axis: coverageCausal}}},
+		{Attempt: missingCausal, Terminal: missingCausal, Required: []CoverageRequirement{{Axis: coverageCausal}}},
+		{Attempt: foreignPairAttempt.ID, Terminal: foreignPairAttempt.ID, Required: []CoverageRequirement{{Axis: coverageCausal}}},
+		{Attempt: typedAttempt.ID, Terminal: typedAttempt.ID, Required: []CoverageRequirement{{Axis: coverageCausal}}},
 		{Attempt: receiptAttempt, Terminal: receipt.ID},
 	}
 	pairs := []CoveragePair{
@@ -595,7 +595,7 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if projection.Version != EvidenceCoverageProjectionVersion ||
+	if projection.Version != evidenceCoverageProjectionVersion ||
 		projection.FailureClassifierVersion != executionfailure.ClassifierVersion ||
 		projection.CausalityProjectionVersion != overgodb.CausalityProjectionVersion || projection.Query != query.ID ||
 		projection.Head != head || projection.Sequence != sequence || projection.Units != uint64(len(units)) {
@@ -609,10 +609,10 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	if !slices.Equal(projection.SourceChunks, wantSources) {
 		t.Fatalf("projection source chunks = %v, want %v", projection.SourceChunks, wantSources)
 	}
-	if projection.Measurement != (AxisCoverage{Observed: 1, Degraded: 1}) ||
-		projection.Hardware != (AxisCoverage{Observed: 1, Degraded: 1}) ||
-		projection.Evaluation != (AxisCoverage{Observed: 1, Missing: 1}) ||
-		projection.Causal != (AxisCoverage{Observed: 4, Missing: 1}) {
+	if projection.Measurement != (axisCoverage{Observed: 1, Degraded: 1}) ||
+		projection.Hardware != (axisCoverage{Observed: 1, Degraded: 1}) ||
+		projection.Evaluation != (axisCoverage{Observed: 1, Missing: 1}) ||
+		projection.Causal != (axisCoverage{Observed: 4, Missing: 1}) {
 		t.Fatalf("independent evidence axes collapsed: %+v", projection)
 	}
 	if projection.Failures != 3 || projection.FailuresClassified != 2 || projection.FailuresUnclassified != 1 {

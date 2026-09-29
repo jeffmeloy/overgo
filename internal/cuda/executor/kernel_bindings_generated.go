@@ -152,6 +152,7 @@ const (
 	kernelMulMatTq20F32
 	kernelMultiplyF32
 	kernelPixelShuffle2dF32
+	kernelQuantizeFp8ColumnsF32
 	kernelQuantizeQ80InputF32
 	kernelReduceGqaHeadsF32
 	kernelReluF32
@@ -171,6 +172,7 @@ const (
 	kernelRwkv7F32
 	kernelSamAttentionF32
 	kernelScaleF32
+	kernelScaleFp8ProductF32
 	kernelShortConvBackwardF32
 	kernelSigmoidF32
 	kernelSiluBackwardF32
@@ -355,6 +357,7 @@ var kernelFunctionNames = [...]string{
 	"mul_mat_tq2_0_f32",
 	"multiply_f32",
 	"pixel_shuffle_2d_f32",
+	"quantize_fp8_columns_f32",
 	"quantize_q8_0_input_f32",
 	"reduce_gqa_heads_f32",
 	"relu_f32",
@@ -374,6 +377,7 @@ var kernelFunctionNames = [...]string{
 	"rwkv7_f32",
 	"sam_attention_f32",
 	"scale_f32",
+	"scale_fp8_product_f32",
 	"short_conv_backward_f32",
 	"sigmoid_f32",
 	"silu_backward_f32",
@@ -557,6 +561,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	6,
 	4,
 	7,
+	5,
 	3,
 	6,
 	3,
@@ -576,6 +581,7 @@ var kernelFunctionArgumentCounts = [...]uint16{
 	12,
 	18,
 	4,
+	5,
 	12,
 	3,
 	4,

@@ -39,8 +39,8 @@ type GroupedChoiceSuite struct {
 	Cases         []DemonstratedChoice        `json:"cases"`
 }
 
-type GroupedChoicePlan struct {
-	choice MultipleChoicePlan
+type groupedChoicePlan struct {
+	choice multipleChoicePlan
 	groups []string
 }
 
@@ -49,26 +49,26 @@ type GroupedChoiceReport struct {
 	Version      uint16              `json:"version"`
 	Plan         artifact.ID         `json:"plan"`
 	Dataset      artifact.ID         `json:"dataset"`
-	Observations []ChoiceObservation `json:"observations"`
-	Groups       []AccuracyGroup     `json:"groups"`
+	Observations []choiceObservation `json:"observations"`
+	Groups       []accuracyGroup     `json:"groups"`
 	Accuracy     float64             `json:"accuracy"`
 }
 
-func CompileGroupedChoice(suite GroupedChoiceSuite) (GroupedChoicePlan, error) {
+func CompileGroupedChoice(suite GroupedChoiceSuite) (groupedChoicePlan, error) {
 	if suite.Kind != GroupedChoiceKind || strings.TrimSpace(suite.Schema) == "" || strings.TrimSpace(suite.Source) == "" ||
 		len(suite.Cases) == 0 || suite.Normalization != sequencescore.NormalizationSum && suite.Normalization != sequencescore.NormalizationMean && suite.Normalization != sequencescore.NormalizationCharacters {
-		return GroupedChoicePlan{}, errors.New("evaluation: invalid grouped-choice suite")
+		return groupedChoicePlan{}, errors.New("evaluation: invalid grouped-choice suite")
 	}
 	cases := make([]MultipleChoiceCase, len(suite.Cases))
 	groups := make([]string, len(suite.Cases))
 	for index, source := range suite.Cases {
 		if strings.TrimSpace(source.Group) != source.Group || source.Group == "" {
-			return GroupedChoicePlan{}, errors.New("evaluation: grouped-choice group is absent")
+			return groupedChoicePlan{}, errors.New("evaluation: grouped-choice group is absent")
 		}
 		prompt := strings.Builder{}
 		for _, demonstration := range source.Demonstrations {
 			if err := validateMultipleChoiceCase(demonstration); err != nil {
-				return GroupedChoicePlan{}, errors.New("evaluation: invalid grouped-choice demonstration")
+				return groupedChoicePlan{}, errors.New("evaluation: invalid grouped-choice demonstration")
 			}
 			prompt.WriteString(demonstration.Prompt)
 			prompt.WriteString(demonstration.Candidates[demonstration.Answer])
@@ -85,20 +85,20 @@ func CompileGroupedChoice(suite GroupedChoiceSuite) (GroupedChoicePlan, error) {
 		Normalization: suite.Normalization, TieBreak: suite.TieBreak, Aggregation: AggregationAccuracy, Cases: cases,
 	})
 	if err != nil {
-		return GroupedChoicePlan{}, err
+		return groupedChoicePlan{}, err
 	}
-	return GroupedChoicePlan{choice: choice, groups: groups}, nil
+	return groupedChoicePlan{choice: choice, groups: groups}, nil
 }
 
-func BindGroupedChoice(compiled GroupedChoicePlan, authorities ExactAuthorities) (Plan, error) {
+func BindGroupedChoice(compiled groupedChoicePlan, authorities ExactAuthorities) (Plan, error) {
 	return BindMultipleChoice(compiled.choice, authorities)
 }
 
 func EvaluateGroupedChoice(
 	ctx context.Context,
 	repository artifact.Repository,
-	scorer ContinuationScorer,
-	compiled GroupedChoicePlan,
+	scorer continuationScorer,
+	compiled groupedChoicePlan,
 	plan Plan,
 ) (GroupedChoiceReport, error) {
 	if ctx == nil || repository == nil || scorer == nil || compiled.choice.identity != plan.body.CaseProfile {

@@ -56,14 +56,14 @@ type MultipleChoiceSuite struct {
 	Cases         []MultipleChoiceCase        `json:"cases"`
 }
 
-type MultipleChoicePlan struct {
+type multipleChoicePlan struct {
 	identity artifact.ID
 	dataset  artifact.ID
 	split    artifact.ID
 	suite    MultipleChoiceSuite
 }
 
-type ChoiceObservation struct {
+type choiceObservation struct {
 	Name     string                `json:"name"`
 	Values   []float64             `json:"values"`
 	Scores   []sequencescore.Score `json:"scores,omitzero"`
@@ -82,28 +82,28 @@ type MultipleChoiceReport struct {
 	Version      uint16              `json:"version"`
 	Plan         artifact.ID         `json:"plan"`
 	Dataset      artifact.ID         `json:"dataset"`
-	Observations []ChoiceObservation `json:"observations"`
+	Observations []choiceObservation `json:"observations"`
 	Accuracy     float64             `json:"accuracy"`
 }
 
-type AccuracyGroup struct {
+type accuracyGroup struct {
 	Name     string  `json:"name"`
 	Correct  uint64  `json:"correct"`
 	Total    uint64  `json:"total"`
 	Accuracy float64 `json:"accuracy"`
 }
 
-type ContinuationScorer interface {
+type continuationScorer interface {
 	ScoreContinuations(context.Context, string, []string) ([]sequencescore.Score, error)
 }
 
-func CompileMultipleChoice(suite MultipleChoiceSuite) (MultipleChoicePlan, error) {
+func CompileMultipleChoice(suite MultipleChoiceSuite) (multipleChoicePlan, error) {
 	if suite.Kind != MultipleChoiceKind || strings.TrimSpace(suite.Schema) == "" ||
 		strings.TrimSpace(suite.Source) == "" || suite.Aggregation != AggregationAccuracy ||
 		len(suite.Cases) == 0 || suite.Normalization != sequencescore.NormalizationSum &&
 		suite.Normalization != sequencescore.NormalizationMean && suite.Normalization != sequencescore.NormalizationCharacters ||
 		suite.TieBreak != "" && suite.TieBreak != TieBreakFirst {
-		return MultipleChoicePlan{}, errors.New("evaluation: invalid multiple-choice suite")
+		return multipleChoicePlan{}, errors.New("evaluation: invalid multiple-choice suite")
 	}
 	suite.Cases = slices.Clone(suite.Cases)
 	names := make(map[string]struct{}, len(suite.Cases))
@@ -112,31 +112,31 @@ func CompileMultipleChoice(suite MultipleChoiceSuite) (MultipleChoicePlan, error
 		testCase.Candidates = slices.Clone(testCase.Candidates)
 		testCase.CandidateCharacters = slices.Clone(testCase.CandidateCharacters)
 		if suite.Normalization == sequencescore.NormalizationCharacters && len(testCase.CandidateCharacters) != len(testCase.Candidates) {
-			return MultipleChoicePlan{}, errors.New("evaluation: candidate character extent differs")
+			return multipleChoicePlan{}, errors.New("evaluation: candidate character extent differs")
 		}
 		if err := validateMultipleChoiceCase(*testCase); err != nil {
-			return MultipleChoicePlan{}, err
+			return multipleChoicePlan{}, err
 		}
 		if _, duplicate := names[testCase.Name]; duplicate {
-			return MultipleChoicePlan{}, errors.New("evaluation: duplicate multiple-choice case")
+			return multipleChoicePlan{}, errors.New("evaluation: duplicate multiple-choice case")
 		}
 		names[testCase.Name] = struct{}{}
 	}
 	identity, err := artifact.JSONID(artifact.KindProfile, suite)
 	if err != nil {
-		return MultipleChoicePlan{}, err
+		return multipleChoicePlan{}, err
 	}
 	dataset, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
 	if err != nil {
-		return MultipleChoicePlan{}, err
+		return multipleChoicePlan{}, err
 	}
 	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
 		Dataset artifact.ID `json:"dataset"`
 	}{Dataset: dataset})
 	if err != nil {
-		return MultipleChoicePlan{}, err
+		return multipleChoicePlan{}, err
 	}
-	return MultipleChoicePlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
+	return multipleChoicePlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
 }
 
 func validateMultipleChoiceCase(testCase MultipleChoiceCase) error {
@@ -163,7 +163,7 @@ func validateMultipleChoiceCase(testCase MultipleChoiceCase) error {
 	return nil
 }
 
-func BindMultipleChoice(compiled MultipleChoicePlan, authorities ExactAuthorities) (Plan, error) {
+func BindMultipleChoice(compiled multipleChoicePlan, authorities ExactAuthorities) (Plan, error) {
 	scorer := struct {
 		Version       uint16                      `json:"version"`
 		Kind          string                      `json:"kind"`
@@ -190,11 +190,11 @@ func BindMultipleChoice(compiled MultipleChoicePlan, authorities ExactAuthoritie
 	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }
 
-func EvaluateMultipleChoice(
+func evaluateMultipleChoice(
 	ctx context.Context,
 	repository artifact.Repository,
-	scorer ContinuationScorer,
-	compiled MultipleChoicePlan,
+	scorer continuationScorer,
+	compiled multipleChoicePlan,
 	plan Plan,
 ) (MultipleChoiceReport, error) {
 	if ctx == nil || repository == nil || scorer == nil || compiled.identity != plan.body.CaseProfile {
@@ -229,13 +229,13 @@ func EvaluateMultipleChoice(
 
 func scoreMultipleChoice(
 	ctx context.Context,
-	scorer ContinuationScorer,
+	scorer continuationScorer,
 	suite MultipleChoiceSuite,
-) ([]ChoiceObservation, float64, error) {
-	observations := make([]ChoiceObservation, len(suite.Cases))
+) ([]choiceObservation, float64, error) {
+	observations := make([]choiceObservation, len(suite.Cases))
 	correct := 0
 	progress := trackProgress(ctx, suite.Source, len(suite.Cases))
-	chat, generative := scorer.(ChatChoiceRuntime)
+	chat, generative := scorer.(chatChoiceRuntime)
 	var probe chatProbe
 	for index, testCase := range suite.Cases {
 		if generative {
@@ -270,7 +270,7 @@ func scoreMultipleChoice(
 			if err != nil {
 				return nil, 0, err
 			}
-			observations[index] = ChoiceObservation{
+			observations[index] = choiceObservation{
 				Name: testCase.Name, Values: selection.Values, Scores: scores, Selected: selection.Index,
 				Answer: testCase.Answer, Tied: selection.Tied,
 			}
@@ -288,11 +288,11 @@ func scoreMultipleChoice(
 	return observations, accuracy, nil
 }
 
-func choiceCorrect(observation ChoiceObservation, tieBreak string) bool {
+func choiceCorrect(observation choiceObservation, tieBreak string) bool {
 	return observation.Selected == observation.Answer && (!observation.Tied || tieBreak == TieBreakFirst)
 }
 
-func aggregateChoiceAccuracy(groups []string, observations []ChoiceObservation, tieBreak string) ([]AccuracyGroup, error) {
+func aggregateChoiceAccuracy(groups []string, observations []choiceObservation, tieBreak string) ([]accuracyGroup, error) {
 	if len(groups) != len(observations) {
 		return nil, errors.New("evaluation: choice groups differ from observations")
 	}
@@ -303,15 +303,15 @@ func aggregateChoiceAccuracy(groups []string, observations []ChoiceObservation, 
 	return aggregateAccuracy(groups, correct)
 }
 
-func aggregateAccuracy(groups []string, correct []bool) ([]AccuracyGroup, error) {
+func aggregateAccuracy(groups []string, correct []bool) ([]accuracyGroup, error) {
 	if len(groups) != len(correct) {
 		return nil, errors.New("evaluation: groups differ from outcomes")
 	}
-	byName := make(map[string]*AccuracyGroup)
+	byName := make(map[string]*accuracyGroup)
 	for index, group := range groups {
 		metric := byName[group]
 		if metric == nil {
-			metric = &AccuracyGroup{Name: group}
+			metric = &accuracyGroup{Name: group}
 			byName[group] = metric
 		}
 		metric.Total++
@@ -319,7 +319,7 @@ func aggregateAccuracy(groups []string, correct []bool) ([]AccuracyGroup, error)
 			metric.Correct++
 		}
 	}
-	result := make([]AccuracyGroup, 0, len(byName))
+	result := make([]accuracyGroup, 0, len(byName))
 	for _, metric := range byName {
 		metric.Accuracy = float64(metric.Correct) / float64(metric.Total)
 		result = append(result, *metric)
@@ -330,10 +330,10 @@ func aggregateAccuracy(groups []string, correct []bool) ([]AccuracyGroup, error)
 
 func scoreChoiceGroups(
 	ctx context.Context,
-	scorer ContinuationScorer,
+	scorer continuationScorer,
 	suite MultipleChoiceSuite,
 	groups []string,
-) ([]ChoiceObservation, []AccuracyGroup, float64, error) {
+) ([]choiceObservation, []accuracyGroup, float64, error) {
 	observations, accuracy, err := scoreMultipleChoice(ctx, scorer, suite)
 	if err != nil {
 		return nil, nil, 0, err
@@ -342,7 +342,7 @@ func scoreChoiceGroups(
 	return observations, metrics, accuracy, err
 }
 
-func (p MultipleChoicePlan) contents() ([]artifact.Content, error) {
+func (p multipleChoicePlan) contents() ([]artifact.Content, error) {
 	return datasetContents(
 		p.dataset, p.split, p.suite.Cases, multipleChoiceDatasetContract, multipleChoiceSplitContract,
 	)

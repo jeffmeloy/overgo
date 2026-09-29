@@ -60,7 +60,7 @@ func TestActivationMatrixCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	peer, err := NewActivationProfile(ActivationProfile{Name: "peer", Kind: ActivationProfilePeerModel, Capability: capability.ID, Tasks: []recipe.Task{recipe.TaskGeneration}})
+	peer, err := NewActivationProfile(ActivationProfile{Name: "peer", Kind: activationProfilePeerModel, Capability: capability.ID, Tasks: []recipe.Task{recipe.TaskGeneration}})
 	if err != nil {
 		t.Fatal(err)
 	}

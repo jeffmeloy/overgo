@@ -224,7 +224,7 @@ func TestIFEvalLanguageAcceptance(t *testing.T) {
 			t.Fatal("changed language profile accepted")
 		}
 		for _, values := range [][]string{nil, {""}, {"not-a-language"}, {"en", "fr"}} {
-			if _, err := compileInstructionRule(InstructionRule{Name: "language", Kind: ifevalLanguageRule, Values: values}); err == nil {
+			if _, err := compileInstructionRule(instructionRule{Name: "language", Kind: ifevalLanguageRule, Values: values}); err == nil {
 				t.Fatal("unresolved language accepted")
 			}
 		}
@@ -235,7 +235,7 @@ func TestIFEvalLanguageAcceptance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rule, err := compileInstructionRule(InstructionRule{Name: "language", Kind: ifevalLanguageRule, Values: []string{"en"}})
+		rule, err := compileInstructionRule(instructionRule{Name: "language", Kind: ifevalLanguageRule, Values: []string{"en"}})
 		if err != nil {
 			t.Fatal(err)
 		}

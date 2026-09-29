@@ -17,8 +17,8 @@ func TestIFEvalRepeatedInstructionOccurrences(t *testing.T) {
 	if err != nil || dropped != 0 {
 		t.Fatalf("assemble: dropped=%d err=%v", dropped, err)
 	}
-	suite := assembled.(InstructionRulesSuite)
-	compiled, err := CompileInstructionRules(suite)
+	suite := assembled.(instructionRulesSuite)
+	compiled, err := compileInstructionRules(suite)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestIFEvalRepeatedInstructionOccurrences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	replay, err := CompileInstructionRules(repeated.(InstructionRulesSuite))
+	replay, err := compileInstructionRules(repeated.(instructionRulesSuite))
 	if err != nil || replay.identity != compiled.identity {
 		t.Fatal("compilation is not deterministic")
 	}

@@ -59,7 +59,7 @@ func TestOfflineArtifactGenerationPromotionRefusal(t *testing.T) {
 	}
 }
 
-func offlinePromotionPolicy(t *testing.T) OfflineArtifactGenerationPolicy {
+func offlinePromotionPolicy(t *testing.T) offlineArtifactGenerationPolicy {
 	t.Helper()
 	policy, err := NewOfflineArtifactGenerationPolicy(
 		2, 2, 1_000, 2_000,

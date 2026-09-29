@@ -457,7 +457,7 @@ func (h *Handler) parseResponsesFile(ctx context.Context, raw json.RawMessage, l
 	if sources != 1 {
 		return "", fmt.Errorf("%s requires exactly one of file_data, file_id, or file_url", label)
 	}
-	var file ResponseFile
+	var file responseFile
 	var err error
 	switch {
 	case part.FileID != "":
@@ -506,37 +506,37 @@ func (h *Handler) parseResponsesFile(ctx context.Context, raw json.RawMessage, l
 	return "[file name=" + fmt.Sprintf("%q", filename) + "]\n" + string(file.Data) + "\n[/file]", nil
 }
 
-func (h *Handler) resolveResponseFile(id string) (ResponseFile, bool) {
+func (h *Handler) resolveResponseFile(id string) (responseFile, bool) {
 	if h == nil || h.responseFiles == nil || !responseFileIDPattern.MatchString(id) {
-		return ResponseFile{}, false
+		return responseFile{}, false
 	}
 	file, ok := h.responseFiles.ResolveResponseFile(id)
 	file.MediaType = strings.ToLower(strings.TrimSpace(file.MediaType))
 	if !ok || len(file.Data) == 0 || len(file.Data) > maxMediaBytes ||
 		!supportedResponseFileType(file.MediaType) {
-		return ResponseFile{}, false
+		return responseFile{}, false
 	}
 	return file, true
 }
 
-func decodeResponsesFileData(source string) (ResponseFile, error) {
+func decodeResponsesFileData(source string) (responseFile, error) {
 	header, payload, ok := strings.Cut(strings.TrimSpace(source), ",")
 	if !ok || !strings.HasPrefix(strings.ToLower(header), "data:") ||
 		!strings.HasSuffix(strings.ToLower(header), ";base64") {
-		return ResponseFile{}, errors.New("must be a typed base64 data URI")
+		return responseFile{}, errors.New("must be a typed base64 data URI")
 	}
 	mediaType := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(header[5:], ";base64")))
 	if !supportedResponseTextType(mediaType) {
-		return ResponseFile{}, fmt.Errorf("media type %q is unsupported", mediaType)
+		return responseFile{}, fmt.Errorf("media type %q is unsupported", mediaType)
 	}
 	if base64.StdEncoding.DecodedLen(len(payload)) > maxRequestBytes+2 {
-		return ResponseFile{}, errors.New("decoded content exceeds inline byte limit")
+		return responseFile{}, errors.New("decoded content exceeds inline byte limit")
 	}
 	data, err := base64.StdEncoding.DecodeString(payload)
 	if err != nil || len(data) == 0 {
-		return ResponseFile{}, errors.New("content is empty or invalid base64")
+		return responseFile{}, errors.New("content is empty or invalid base64")
 	}
-	return ResponseFile{Data: data, Filename: "inline", MediaType: mediaType}, nil
+	return responseFile{Data: data, Filename: "inline", MediaType: mediaType}, nil
 }
 
 func validResponseFilename(filename string) (string, error) {

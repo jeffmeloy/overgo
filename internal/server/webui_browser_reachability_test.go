@@ -23,7 +23,7 @@ func TestWebUIBrowserWorkspaceReachability(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	handler := newTestHandlerForRepository(t, store, launchWorkspaceGenerator(t, WorkflowTraining, WorkflowModelBuild))
+	handler := newTestHandlerForRepository(t, store, launchWorkspaceGenerator(t, WorkflowTraining, workflowModelBuild))
 	handler.config.Evaluation = launchEvaluationWorkspace(t)
 	defer handler.Close()
 	server := httptest.NewServer(handler)

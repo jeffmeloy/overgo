@@ -37,7 +37,7 @@ func TestBBHAndMuSRPinnedOracleParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, compiled := range []GroupedChoicePlan{bbh, musr} {
+	for _, compiled := range []groupedChoicePlan{bbh, musr} {
 		plan, err := BindGroupedChoice(compiled, ExactAuthorities{
 			ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 			RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,

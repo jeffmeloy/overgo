@@ -24,9 +24,9 @@ const (
 	speakerMatchingScalarArrays = 9
 )
 
-// SpeakerMatch records a global, evaluation-only permutation. Reference names
+// speakerMatch records a global, evaluation-only permutation. Reference names
 // must never be applied to the model's input or presented as recognized people.
-type SpeakerMatch struct {
+type speakerMatch struct {
 	Predicted      string `json:"predicted"`
 	Reference      string `json:"reference"`
 	OverlapSamples uint64 `json:"overlap_samples"`
@@ -46,9 +46,9 @@ type SpeechTurnScore struct {
 	DiarizationErrorRate     float64             `json:"diarization_error_rate"`
 	ReferenceSpeakers        int                 `json:"reference_speakers"`
 	PredictedSpeakers        int                 `json:"predicted_speakers"`
-	Mapping                  []SpeakerMatch      `json:"mapping"`
-	ReferenceBoundaries      SpeechBoundaryError `json:"reference_boundaries"`
-	PredictedBoundaries      SpeechBoundaryError `json:"predicted_boundaries"`
+	Mapping                  []speakerMatch      `json:"mapping"`
+	ReferenceBoundaries      speechBoundaryError `json:"reference_boundaries"`
+	PredictedBoundaries      speechBoundaryError `json:"predicted_boundaries"`
 }
 
 type speakerEvent struct {
@@ -202,7 +202,7 @@ func ScoreSpeechTurns(ctx context.Context, reference, predicted recipecontract.S
 	for p := range pNames {
 		r := assignment[p]
 		if r < len(rNames) && weights[p*n+r] > 0 {
-			result.Mapping = append(result.Mapping, SpeakerMatch{pNames[p], rNames[r], weights[p*n+r]})
+			result.Mapping = append(result.Mapping, speakerMatch{pNames[p], rNames[r], weights[p*n+r]})
 		}
 	}
 	add := func(target *uint64, count int, duration uint64) bool {

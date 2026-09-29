@@ -16,24 +16,24 @@ import (
 )
 
 const (
-	// CapabilityProbeResultMediaType identifies exact production-path probe evidence.
-	CapabilityProbeResultMediaType = "application/vnd.overgo.capability-probe-result+json"
-	// CapabilityProbeResultSchema identifies the production-path probe contract.
-	CapabilityProbeResultSchema = "overgo/capability-probe-result/v1"
+	// capabilityProbeResultMediaType identifies exact production-path probe evidence.
+	capabilityProbeResultMediaType = "application/vnd.overgo.capability-probe-result+json"
+	// capabilityProbeResultSchema identifies the production-path probe contract.
+	capabilityProbeResultSchema = "overgo/capability-probe-result/v1"
 )
 
-// ProductionCapabilityEntry is the closed set of entry points that can
+// productionCapabilityEntry is the closed set of entry points that can
 // produce activation evidence. Direct executor and adapter calls are not
 // production entries and cannot be represented here.
-type ProductionCapabilityEntry string
+type productionCapabilityEntry string
 
 const (
-	// ProductionEntryLocalPlacement is execution through an exact local placement.
-	ProductionEntryLocalPlacement ProductionCapabilityEntry = "local-placement"
-	// ProductionEntryPeerPlacement is execution through an exact peer placement.
-	ProductionEntryPeerPlacement ProductionCapabilityEntry = "peer-placement"
-	// ProductionEntryAgentCoordinator is an agent invocation admitted by the coordinator.
-	ProductionEntryAgentCoordinator ProductionCapabilityEntry = "agent-coordinator"
+	// productionEntryLocalPlacement is execution through an exact local placement.
+	productionEntryLocalPlacement productionCapabilityEntry = "local-placement"
+	// productionEntryPeerPlacement is execution through an exact peer placement.
+	productionEntryPeerPlacement productionCapabilityEntry = "peer-placement"
+	// productionEntryAgentCoordinator is an agent invocation admitted by the coordinator.
+	productionEntryAgentCoordinator productionCapabilityEntry = "agent-coordinator"
 )
 
 // CapabilityProbeEvidence supplies existing owner values to one probe
@@ -50,13 +50,13 @@ type CapabilityProbeEvidence struct {
 	Observation   artifact.ID                                `json:"observation"`
 }
 
-// CapabilityProbeResult binds one activation case to the exact current model
+// capabilityProbeResult binds one activation case to the exact current model
 // execution and the typed records emitted by a production entry point.
-type CapabilityProbeResult struct {
+type capabilityProbeResult struct {
 	Version         uint16                       `json:"version"`
 	Case            artifact.ID                  `json:"case"`
 	Profile         artifact.ID                  `json:"profile"`
-	Entry           ProductionCapabilityEntry    `json:"entry"`
+	Entry           productionCapabilityEntry    `json:"entry"`
 	Model           artifact.ID                  `json:"model"`
 	Recipe          artifact.ID                  `json:"recipe"`
 	Capability      artifact.ID                  `json:"capability"`
@@ -78,50 +78,50 @@ type CapabilityProbeResult struct {
 
 var capabilityProbeResultCodec = artifact.JSONDocumentCodec(
 	"capability probe result", artifact.KindEvidence,
-	CapabilityProbeResultMediaType, CapabilityProbeResultSchema,
+	capabilityProbeResultMediaType, capabilityProbeResultSchema,
 	canonicalizeCapabilityProbeResult,
-	func(value CapabilityProbeResult) artifact.ID { return value.ID },
-	func(value *CapabilityProbeResult, id artifact.ID) { value.ID = id },
+	func(value capabilityProbeResult) artifact.ID { return value.ID },
+	func(value *capabilityProbeResult, id artifact.ID) { value.ID = id },
 	cloneCapabilityProbeResult,
 )
 
-// PublishProductionCapabilityProbe validates every referenced owner at the
+// publishProductionCapabilityProbe validates every referenced owner at the
 // current repository head and commits one content-addressed evidence record.
 // It advances no alias and owns no activation lifecycle.
-func PublishProductionCapabilityProbe(
+func publishProductionCapabilityProbe(
 	ctx context.Context,
 	repository artifact.Repository,
 	evidence CapabilityProbeEvidence,
-) (CapabilityProbeResult, artifact.CommitID, error) {
+) (capabilityProbeResult, artifact.CommitID, error) {
 	if ctx == nil || repository == nil {
-		return CapabilityProbeResult{}, artifact.CommitID{}, errors.New("evaluation: capability probe authority is absent")
+		return capabilityProbeResult{}, artifact.CommitID{}, errors.New("evaluation: capability probe authority is absent")
 	}
 	head, _ := repository.Head()
 	profile, err := activationProfileCodec.Require(ctx, repository, evidence.Profile)
 	if err != nil {
-		return CapabilityProbeResult{}, artifact.CommitID{}, err
+		return capabilityProbeResult{}, artifact.CommitID{}, err
 	}
 	selection := evidence.Placement.Selection
 	definition := selection.Program.Definition()
 	receipt, err := requireCurrentStageReceipt(ctx, repository, evidence.StageReceipt)
 	if err != nil {
-		return CapabilityProbeResult{}, artifact.CommitID{}, err
+		return capabilityProbeResult{}, artifact.CommitID{}, err
 	}
 	outcome, err := stageReceiptOutcome(receipt)
 	if err != nil {
-		return CapabilityProbeResult{}, artifact.CommitID{}, err
+		return capabilityProbeResult{}, artifact.CommitID{}, err
 	}
 	entry, err := productionEntry(profile, selection, receipt)
 	if err != nil {
-		return CapabilityProbeResult{}, artifact.CommitID{}, err
+		return capabilityProbeResult{}, artifact.CommitID{}, err
 	}
 	observation, resources, err := requireProbeResourceObservation(
 		ctx, repository, evidence.Observation, evidence.Placement.Capability.ID,
 	)
 	if err != nil {
-		return CapabilityProbeResult{}, artifact.CommitID{}, err
+		return capabilityProbeResult{}, artifact.CommitID{}, err
 	}
-	result, err := capabilityProbeResultCodec.New(CapabilityProbeResult{
+	result, err := capabilityProbeResultCodec.New(capabilityProbeResult{
 		Version: artifact.InitialDocumentVersion,
 		Case:    evidence.Case, Profile: profile.ID, Entry: entry,
 		Model: definition.Model, Recipe: definition.ID, Capability: profile.Capability,
@@ -133,57 +133,57 @@ func PublishProductionCapabilityProbe(
 		Outcome: outcome, Resources: resources,
 	})
 	if err != nil {
-		return CapabilityProbeResult{}, artifact.CommitID{}, err
+		return capabilityProbeResult{}, artifact.CommitID{}, err
 	}
 	if err := validateCapabilityProbeReferences(ctx, repository, result); err != nil {
-		return CapabilityProbeResult{}, artifact.CommitID{}, err
+		return capabilityProbeResult{}, artifact.CommitID{}, err
 	}
 	if existing, found, readErr := capabilityProbeResultCodec.Read(ctx, repository, result.ID); readErr != nil {
-		return CapabilityProbeResult{}, artifact.CommitID{}, readErr
+		return capabilityProbeResult{}, artifact.CommitID{}, readErr
 	} else if found {
 		if err := validateCapabilityProbeReferences(ctx, repository, existing); err != nil {
-			return CapabilityProbeResult{}, artifact.CommitID{}, err
+			return capabilityProbeResult{}, artifact.CommitID{}, err
 		}
 		commit, _ := repository.Head()
 		return existing, commit, nil
 	}
 	content, err := capabilityProbeResultCodec.Content(result)
 	if err != nil {
-		return CapabilityProbeResult{}, artifact.CommitID{}, err
+		return capabilityProbeResult{}, artifact.CommitID{}, err
 	}
 	batch, err := artifact.NewDocumentBatch(
 		"evaluation/capability-probe/"+result.ID.String(),
 		[]artifact.Content{content}, result.Lineage(), nil,
 	)
 	if err != nil {
-		return CapabilityProbeResult{}, artifact.CommitID{}, err
+		return capabilityProbeResult{}, artifact.CommitID{}, err
 	}
 	batch.ExpectedHead = &head
 	commit, err := artifact.CommitBatch(ctx, repository, batch)
 	return result, commit, err
 }
 
-// RequireCapabilityProbeResult loads one probe and revalidates its active
+// requireCapabilityProbeResult loads one probe and revalidates its active
 // selection, exact placement, and current terminal records. Stale evidence is
 // not usable as current activation evidence.
-func RequireCapabilityProbeResult(
+func requireCapabilityProbeResult(
 	ctx context.Context,
 	reader artifact.Reader,
 	id artifact.ID,
-) (CapabilityProbeResult, error) {
-	result, err := capabilityProbeResultCodec.RequireExactLineage(ctx, reader, id, CapabilityProbeResult.Lineage)
+) (capabilityProbeResult, error) {
+	result, err := capabilityProbeResultCodec.RequireExactLineage(ctx, reader, id, capabilityProbeResult.Lineage)
 	if err != nil {
-		return CapabilityProbeResult{}, err
+		return capabilityProbeResult{}, err
 	}
 	if err := validateCapabilityProbeReferences(ctx, reader, result); err != nil {
-		return CapabilityProbeResult{}, err
+		return capabilityProbeResult{}, err
 	}
 	return result, nil
 }
 
 // Lineage returns only durable owner documents. Selection and placement are
 // derived identities recomputed during validation, not synthetic documents.
-func (value CapabilityProbeResult) Lineage() []artifact.Lineage {
+func (value capabilityProbeResult) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{
 		value.Case, value.Profile, value.Model, value.Recipe, value.Capability,
 		value.ModelCapability, value.Environment, value.Trace, value.StageReceipt,
@@ -205,7 +205,7 @@ func (value CapabilityProbeResult) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, unique...)
 }
 
-func canonicalizeCapabilityProbeResult(value *CapabilityProbeResult) error {
+func canonicalizeCapabilityProbeResult(value *capabilityProbeResult) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || !value.Entry.valid() ||
 		value.Case.Kind() != artifact.KindRecipe || value.Profile.Kind() != artifact.KindProfile ||
 		value.Model.Kind() != artifact.KindModel || value.Recipe.Kind() != artifact.KindRecipe ||
@@ -236,7 +236,7 @@ func canonicalizeCapabilityProbeResult(value *CapabilityProbeResult) error {
 	return nil
 }
 
-func validateCapabilityProbeReferences(ctx context.Context, reader artifact.Reader, result CapabilityProbeResult) error {
+func validateCapabilityProbeReferences(ctx context.Context, reader artifact.Reader, result capabilityProbeResult) error {
 	if ctx == nil || reader == nil {
 		return errors.New("evaluation: capability probe reader is absent")
 	}
@@ -308,7 +308,7 @@ func validateCapabilityProbeReferences(ctx context.Context, reader artifact.Read
 		return err
 	}
 	switch result.Entry {
-	case ProductionEntryLocalPlacement:
+	case productionEntryLocalPlacement:
 		if profile.Kind != ActivationProfileLocalModel || profileCapability.ID != placement.Capability.ID ||
 			selection.Session == modelrecipe.SessionSpillover || receipt.Invocation != nil ||
 			trace.Operation != receipt.Operation ||
@@ -319,8 +319,8 @@ func validateCapabilityProbeReferences(ctx context.Context, reader artifact.Read
 		if calls, _, exchangeErr := trace.ToolExchanges(); exchangeErr != nil || len(calls) != 0 {
 			return errors.Join(errors.New("evaluation: local capability probe contains an agent adapter path"), exchangeErr)
 		}
-	case ProductionEntryPeerPlacement:
-		if profile.Kind != ActivationProfilePeerModel || profileCapability.ID != placement.Capability.ID ||
+	case productionEntryPeerPlacement:
+		if profile.Kind != activationProfilePeerModel || profileCapability.ID != placement.Capability.ID ||
 			selection.Session != modelrecipe.SessionSpillover || receipt.Invocation != nil ||
 			trace.Operation != receipt.Operation ||
 			trace.TaskContract.Valid() && trace.TaskContract != testCase.Contract ||
@@ -330,8 +330,8 @@ func validateCapabilityProbeReferences(ctx context.Context, reader artifact.Read
 		if calls, _, exchangeErr := trace.ToolExchanges(); exchangeErr != nil || len(calls) != 0 {
 			return errors.Join(errors.New("evaluation: peer capability probe contains an agent adapter path"), exchangeErr)
 		}
-	case ProductionEntryAgentCoordinator:
-		if profile.Kind != ActivationProfileAgentTool || result.Outcome != runrecord.OutcomeSucceeded ||
+	case productionEntryAgentCoordinator:
+		if profile.Kind != activationProfileAgentTool || result.Outcome != runrecord.OutcomeSucceeded ||
 			trace.Operation.Valid() || trace.Terminal != "" && trace.Terminal != result.Outcome ||
 			trace.TaskContract.Valid() && trace.TaskContract != testCase.Contract {
 			return errors.New("evaluation: agent capability probe differs from its coordinator path")
@@ -408,19 +408,19 @@ func productionEntry(
 	profile ActivationProfile,
 	selection modelrecipe.CapabilityEvidenceSelection,
 	receipt runrecord.StageReceipt,
-) (ProductionCapabilityEntry, error) {
+) (productionCapabilityEntry, error) {
 	switch profile.Kind {
 	case ActivationProfileLocalModel:
 		if selection.Session != modelrecipe.SessionSpillover && receipt.Invocation == nil {
-			return ProductionEntryLocalPlacement, nil
+			return productionEntryLocalPlacement, nil
 		}
-	case ActivationProfilePeerModel:
+	case activationProfilePeerModel:
 		if selection.Session == modelrecipe.SessionSpillover && receipt.Invocation == nil {
-			return ProductionEntryPeerPlacement, nil
+			return productionEntryPeerPlacement, nil
 		}
-	case ActivationProfileAgentTool:
+	case activationProfileAgentTool:
 		if receipt.Invocation != nil && receipt.Invocation.Boundary == invocation.BoundaryAgent {
-			return ProductionEntryAgentCoordinator, nil
+			return productionEntryAgentCoordinator, nil
 		}
 	}
 	return "", errors.New("evaluation: no production entry matches the stored execution")
@@ -534,25 +534,25 @@ func stageBindingsContain(bindings []runrecord.StageBinding, id artifact.ID) boo
 	})
 }
 
-func (entry ProductionCapabilityEntry) valid() bool {
-	return entry == ProductionEntryLocalPlacement || entry == ProductionEntryPeerPlacement ||
-		entry == ProductionEntryAgentCoordinator
+func (entry productionCapabilityEntry) valid() bool {
+	return entry == productionEntryLocalPlacement || entry == productionEntryPeerPlacement ||
+		entry == productionEntryAgentCoordinator
 }
 
-func (entry ProductionCapabilityEntry) surface() runrecord.InteractionSurface {
+func (entry productionCapabilityEntry) surface() runrecord.InteractionSurface {
 	switch entry {
-	case ProductionEntryLocalPlacement:
+	case productionEntryLocalPlacement:
 		return runrecord.SurfaceServing
-	case ProductionEntryPeerPlacement:
+	case productionEntryPeerPlacement:
 		return runrecord.SurfacePeer
-	case ProductionEntryAgentCoordinator:
+	case productionEntryAgentCoordinator:
 		return runrecord.SurfaceAgent
 	default:
 		return ""
 	}
 }
 
-func cloneCapabilityProbeResult(value CapabilityProbeResult) CapabilityProbeResult {
+func cloneCapabilityProbeResult(value capabilityProbeResult) capabilityProbeResult {
 	value.Resources.Measures = slices.Clone(value.Resources.Measures)
 	if value.Resources.Interactions != nil {
 		work := *value.Resources.Interactions

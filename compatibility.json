@@ -116,7 +116,7 @@
      "path": "internal/evaluation/transcription_resources.go",
      "contains": "func EvaluateTranscriptionResources(",
      "role": "source",
-     "identity": "file:sha256:0562cfb193aacd0179e2e5f72f40cb37f8455ee217296d7f2d36a984dc0f81e5"
+     "identity": "file:sha256:ed672d0493174ee06366b3da5508f057f0fc3e1fe349d84d0a87b7e5ba85e15b"
     },
     {
      "path": "internal/audioparity/cpu_resource_fitness_test.go",
@@ -357,7 +357,7 @@
      "contains": "func (h *Handler) nativeAudioTranscriptions(",
      "path": "internal/server/native_audio_transcriptions.go",
      "role": "source",
-     "identity": "file:sha256:af1a0d49ffed1498fb008f16d23ffab0d36e5803b387492903866d6abee0dc2e"
+     "identity": "file:sha256:b519057eabffd82e8cafdea68fff4b0bd453d2d4c979e4fe066f64bf6abb6f6e"
     },
     {
      "contains": "func TestAudioTranscriptionsAcceptance(",
@@ -561,7 +561,7 @@
      "contains": "func validateMultimodalImages(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:5943e8add2e25ccb38a172dac296d8abff8b8c818c621f53ef0efe64f3de12e1"
+     "identity": "file:sha256:7112ce9b501f5779e83ee136877466558ce806d2a6f80f9944e4a1165e10d7bb"
     },
     {
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
@@ -814,7 +814,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:11ce180ce820178c4f6023e9b4899e087f7bb86ffa2886aa4312fbb0387d862c"
+     "identity": "file:sha256:e90e1df9cd402018ba98997d3c03a21457c0a3d0b2c2147ac32fa8857b6dbb51"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
@@ -983,13 +983,13 @@
      "contains": "func LoadResponseFilePolicy(",
      "path": "internal/server/resource_policy.go",
      "role": "source",
-     "identity": "file:sha256:388e297f84db06f76e05aa51f99b8eb504b1b9cad128c235bb7beb4dbb7e5d89"
+     "identity": "file:sha256:4c372ec3545127b3809e0f1a662a0ea87bc9e1c54d9980f379b8fb804611ec4b"
     },
     {
      "contains": "func TestResponsesInputFileSources(",
      "path": "internal/server/resource_policy_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:ee1d99eb45333bea5aaef432884fd2fcb1f8f3237d8575d71a8a24375153115b"
+     "identity": "evidence:sha256:e8550e73d6206393e34c9949cf5ae80a792cd2d5ea08919211e8db75f03d6354"
     }
    ],
    "id": "responses-file-inputs",
@@ -1046,7 +1046,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:a8c6c86873a735cffb60f9f8749ec61d3c2af3c71c6712c5ab044303335e6498"
+     "identity": "file:sha256:d763b556c70d24415f040ba1d86e962a133cd870b0a1da1a5047068b2ba2c761"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -1067,13 +1067,13 @@
      "contains": "func (h *Handler) preparePrompt(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:5943e8add2e25ccb38a172dac296d8abff8b8c818c621f53ef0efe64f3de12e1"
+     "identity": "file:sha256:7112ce9b501f5779e83ee136877466558ce806d2a6f80f9944e4a1165e10d7bb"
     },
     {
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:3f7d49979981d1bfeea00e3b525eddb7924efaeb02aad1bc55f9aba1f0e671f0"
+     "identity": "file:sha256:a922e083200f7e369f57f57ae06f1410327bd24762b957496d9c63f5e32458a4"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -1115,7 +1115,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:ec381005efa67c545669224a21427a9350a941076259e23c76d12e6f656a0d1b"
+     "identity": "file:sha256:4590772c550e702a3a5752c4f97d7ee6945ab4b60ece3bf81b27dbe9c828e387"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -1199,7 +1199,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:a8c6c86873a735cffb60f9f8749ec61d3c2af3c71c6712c5ab044303335e6498"
+     "identity": "file:sha256:d763b556c70d24415f040ba1d86e962a133cd870b0a1da1a5047068b2ba2c761"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
@@ -1353,7 +1353,7 @@
      "contains": "func (h *Handler) analyzeAttention(",
      "path": "internal/server/analyze_attention.go",
      "role": "source",
-     "identity": "file:sha256:518b7afdbeebdddd19c82694dd049e9d3a1477c8ea800357076727c262e5e4d1"
+     "identity": "file:sha256:15a450032a8b33e2f97cd799a7af3a525da36e301ecb754ce44a2453b70c7ea4"
     },
     {
      "contains": "func TestAttentionWeightsHostMath(",
@@ -1380,7 +1380,7 @@
      "contains": "func (h *Handler) browseDatasets(",
      "path": "internal/server/browse_datasets.go",
      "role": "source",
-     "identity": "file:sha256:9ac157363b15003ee77a41ada17fabfef06479e30d0a4d3093054a6227c716eb"
+     "identity": "file:sha256:82a07cdfec009285d6ac9f2b9c969ec3e9f636f86137318c883fe8bd4fe3b0f5"
     },
     {
      "contains": "func TestBrowseDatasetsUsesCatalog(",
@@ -1486,7 +1486,7 @@
      "path": "internal/server/streaming_transcriptions.go",
      "contains": "func (h *Handler) nativeStreamingTranscriptions(",
      "role": "source",
-     "identity": "file:sha256:9fc05aff07b8fbc6fc6a67bedbc002f19ce18442c2aa3e5369e1b489bcf77751"
+     "identity": "file:sha256:38682ce9624850a8b4d2dfa0167b03683b0b100bf87bf6af13bcf2a4d6693d52"
     },
     {
      "path": "internal/server/streaming_transcriptions_test.go",

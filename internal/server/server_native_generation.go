@@ -63,7 +63,7 @@ func (h *Handler) runNativeCompletion(
 	promptTokensEstimate := 0
 	if prompt.TokenIDs != nil {
 		promptTokensEstimate = len(prompt.TokenIDs)
-	} else if api, ok := h.generator.(TokenizationAPI); ok {
+	} else if api, ok := h.generator.(tokenizationAPI); ok {
 		if promptIDs, err := api.TokenizeText(prompt.Text, true, false); err == nil {
 			promptTokensEstimate = len(promptIDs)
 		}
@@ -226,7 +226,7 @@ func (h *Handler) runNativeCompletion(
 		time.Since(started),
 	)
 	truncated := false
-	if api, ok := h.generator.(ModelPropertiesAPI); ok {
+	if api, ok := h.generator.(modelPropertiesAPI); ok {
 		contextLength := api.ModelProperties().ContextLength
 		truncated = contextLength > 0 && len(ids) > int(contextLength)
 	}
@@ -310,7 +310,7 @@ func (h *Handler) nativeTokenProbability(
 			len(logits),
 		)
 	}
-	pieces, ok := h.generator.(TokenPieceAPI)
+	pieces, ok := h.generator.(tokenPieceAPI)
 	if !ok {
 		return nativeTokenProbability{}, errors.New(
 			"token probability text is unavailable",
@@ -399,7 +399,7 @@ func (h *Handler) nativeTokenProbability(
 func (h *Handler) nativePostSamplingProbability(
 	event inference.TokenEvent,
 ) (nativeTokenProbability, error) {
-	pieces, ok := h.generator.(TokenPieceAPI)
+	pieces, ok := h.generator.(tokenPieceAPI)
 	if !ok {
 		return nativeTokenProbability{}, errors.New(
 			"token probability text is unavailable",

@@ -21,8 +21,8 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-// AgentDefinitionInput is the typed editing boundary shared by API and GUI.
-type AgentDefinitionInput struct {
+// agentDefinitionInput is the typed editing boundary shared by API and GUI.
+type agentDefinitionInput struct {
 	Name              string        `json:"name"`
 	Prompt            artifact.ID   `json:"prompt"`
 	ModelRecipe       artifact.ID   `json:"model_recipe"`
@@ -33,14 +33,14 @@ type AgentDefinitionInput struct {
 	Policies          []artifact.ID `json:"policies"`
 }
 
-// AgentAutomationAttachment exposes one exact attached automation definition.
-type AgentAutomationAttachment struct {
+// agentAutomationAttachment exposes one exact attached automation definition.
+type agentAutomationAttachment struct {
 	ID   artifact.ID `json:"id"`
 	Name string      `json:"name"`
 }
 
-// AgentInventoryEntry projects current immutable lifecycle authority.
-type AgentInventoryEntry struct {
+// agentInventoryEntry projects current immutable lifecycle authority.
+type agentInventoryEntry struct {
 	Name        string                      `json:"name"`
 	Definition  artifact.ID                 `json:"definition"`
 	Activation  artifact.ID                 `json:"activation"`
@@ -50,28 +50,28 @@ type AgentInventoryEntry struct {
 	Tools       []artifact.ID               `json:"tools,omitempty"`
 	Bundles     []artifact.ID               `json:"capability_bundles,omitempty"`
 	Datasets    []artifact.ID               `json:"datasets,omitempty"`
-	Automations []AgentAutomationAttachment `json:"automations,omitempty"`
+	Automations []agentAutomationAttachment `json:"automations,omitempty"`
 	Policies    []artifact.ID               `json:"policies"`
 	Refusal     string                      `json:"refusal,omitzero"`
 }
 
-// AgentObservable is a structured tool event; model hidden reasoning is never projected.
-type AgentObservable struct {
+// agentObservable is a structured tool event; model hidden reasoning is never projected.
+type agentObservable struct {
 	Interaction artifact.ID                 `json:"interaction"`
 	Transcript  artifact.ID                 `json:"transcript"`
 	Step        int                         `json:"step"`
-	Calls       []AgentToolCallObservable   `json:"calls,omitempty"`
-	Results     []AgentToolResultObservable `json:"results,omitempty"`
+	Calls       []agentToolCallObservable   `json:"calls,omitempty"`
+	Results     []agentToolResultObservable `json:"results,omitempty"`
 }
 
-// AgentToolCallObservable identifies admitted tool authority without copying arguments.
-type AgentToolCallObservable struct {
+// agentToolCallObservable identifies admitted tool authority without copying arguments.
+type agentToolCallObservable struct {
 	Name   string      `json:"name"`
 	Manual artifact.ID `json:"manual"`
 }
 
-// AgentToolResultObservable projects one durable tool result without model reasoning.
-type AgentToolResultObservable struct {
+// agentToolResultObservable projects one durable tool result without model reasoning.
+type agentToolResultObservable struct {
 	ToolCallID string `json:"tool_call_id"`
 	Error      bool   `json:"error,omitzero"`
 }
@@ -121,7 +121,7 @@ func (h *Handler) agentList(response http.ResponseWriter, request *http.Request)
 }
 
 func (h *Handler) agentDefine(response http.ResponseWriter, request *http.Request) {
-	var body AgentDefinitionInput
+	var body agentDefinitionInput
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
@@ -265,20 +265,20 @@ func responseInteractionNames(ctx context.Context, store *overgodb.Store) ([]str
 		artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.InteractionMediaType, Schema: runrecord.InteractionSchema})
 }
 
-func (h *Handler) agentInventory(ctx context.Context) ([]AgentInventoryEntry, error) {
+func (h *Handler) agentInventory(ctx context.Context) ([]agentInventoryEntry, error) {
 	names, err := h.activeAgentNames(ctx)
 	if err != nil {
 		return nil, err
 	}
 	authority := runrecord.AgentAuthority{Repository: h.repository}
-	entries := make([]AgentInventoryEntry, 0)
+	entries := make([]agentInventoryEntry, 0)
 	for _, name := range names {
 		active, resolved, resolveErr := authority.Resolve(ctx, name)
 		if resolveErr != nil || !resolved {
 			return nil, errors.Join(errors.New("server: agent active alias differs"), resolveErr)
 		}
 		definition := active.Definition
-		entry := AgentInventoryEntry{
+		entry := agentInventoryEntry{
 			Name: name, Definition: definition.ID, Activation: active.Activation.ID, State: active.Activation.State,
 			Prompt: definition.Prompt, ModelRecipe: definition.ModelRecipe, Tools: slices.Clone(definition.ToolManuals),
 			Bundles: slices.Clone(definition.CapabilityBundles), Datasets: slices.Clone(definition.Datasets),
@@ -290,14 +290,14 @@ func (h *Handler) agentInventory(ctx context.Context) ([]AgentInventoryEntry, er
 				entry.Refusal = automationErr.Error()
 				continue
 			}
-			entry.Automations = append(entry.Automations, AgentAutomationAttachment{ID: id, Name: automation.Name})
+			entry.Automations = append(entry.Automations, agentAutomationAttachment{ID: id, Name: automation.Name})
 		}
 		if active.Activation.State != runrecord.AgentActive {
 			entry.Refusal = "agent is paused"
 		}
 		entries = append(entries, entry)
 	}
-	slices.SortFunc(entries, func(left, right AgentInventoryEntry) int { return strings.Compare(left.Name, right.Name) })
+	slices.SortFunc(entries, func(left, right agentInventoryEntry) int { return strings.Compare(left.Name, right.Name) })
 	return entries, nil
 }
 
@@ -367,7 +367,7 @@ func (h *Handler) agentSimpleCreate(response http.ResponseWriter, request *http.
 		writeGenerationError(response, err)
 		return
 	}
-	definition, err := h.publishAgentDefinition(ctx, AgentDefinitionInput{
+	definition, err := h.publishAgentDefinition(ctx, agentDefinitionInput{
 		Name: body.Name, Prompt: promptID, ModelRecipe: description.Identity.Recipe,
 		ToolManuals: manuals, Policies: []artifact.ID{policyID},
 	})
@@ -379,7 +379,7 @@ func (h *Handler) agentSimpleCreate(response http.ResponseWriter, request *http.
 	writeAgentResult(response, http.StatusOK, active, err)
 }
 
-func (h *Handler) publishAgentDefinition(ctx context.Context, input AgentDefinitionInput) (recipe.AgentDefinition, error) {
+func (h *Handler) publishAgentDefinition(ctx context.Context, input agentDefinitionInput) (recipe.AgentDefinition, error) {
 	definition, err := recipe.NewAgentDefinition(recipe.AgentDefinition{
 		Name: input.Name, Prompt: input.Prompt, ModelRecipe: input.ModelRecipe,
 		ToolManuals: input.ToolManuals, CapabilityBundles: input.CapabilityBundles,
@@ -494,20 +494,20 @@ func (h *Handler) runAgentAutomation(ctx context.Context, request agentAutomatio
 	if err != nil {
 		return workflowruntime.AutomationExecution{}, err
 	}
-	workspace, ok := h.generator.(AutomationWorkspaceAPI)
+	workspace, ok := h.generator.(automationWorkspaceAPI)
 	if !ok {
 		return workflowruntime.AutomationExecution{}, errors.New("server: automation workspace is unavailable")
 	}
-	return workspace.RunAutomation(ctx, h.operations, AutomationExecutionInput{
+	return workspace.RunAutomation(ctx, h.operations, automationExecutionInput{
 		Name: automation.Name, Key: request.Key, Destination: request.Destination, Inputs: request.Inputs,
 	})
 }
 
-func (h *Handler) agentEvidence(ctx context.Context, session string) ([]AgentObservable, error) {
+func (h *Handler) agentEvidence(ctx context.Context, session string) ([]agentObservable, error) {
 	if session == "" {
 		return nil, errors.New("server: agent session is required")
 	}
-	result := make([]AgentObservable, 0)
+	result := make([]agentObservable, 0)
 	for index := range h.config.MaxStoredResponses {
 		step := index
 		step++
@@ -522,13 +522,13 @@ func (h *Handler) agentEvidence(ctx context.Context, session string) ([]AgentObs
 		if err != nil {
 			return nil, err
 		}
-		observable := AgentObservable{Interaction: interaction.ID, Transcript: interaction.Message, Step: step}
+		observable := agentObservable{Interaction: interaction.ID, Transcript: interaction.Message, Step: step}
 		for _, message := range transcript.Messages {
 			for _, call := range message.ToolCalls {
-				observable.Calls = append(observable.Calls, AgentToolCallObservable{Name: call.Name, Manual: call.Manual})
+				observable.Calls = append(observable.Calls, agentToolCallObservable{Name: call.Name, Manual: call.Manual})
 			}
 			if message.ToolCallID != "" {
-				observable.Results = append(observable.Results, AgentToolResultObservable{
+				observable.Results = append(observable.Results, agentToolResultObservable{
 					ToolCallID: message.ToolCallID, Error: message.ToolResultError,
 				})
 			}

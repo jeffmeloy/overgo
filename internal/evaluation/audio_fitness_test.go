@@ -15,7 +15,7 @@ import (
 // evidence. Keep quality and resources in the existing vector-policy owner.
 func TestAudioFitnessPolicyAcceptance(t *testing.T) {
 	t.Parallel()
-	contract := CrossDomainEvaluationContract{CandidateDimensions: []CandidateDeltaDimension{CandidateDeltaSystem}, Requirements: []CandidateFitnessRequirement{
+	contract := crossDomainEvaluationContract{CandidateDimensions: []CandidateDeltaDimension{candidateDeltaSystem}, Requirements: []CandidateFitnessRequirement{
 		{Name: "cer", Direction: runrecord.DirectionMinimize, MinimumImprovement: 0.001},
 		{Name: "peak-bytes", Direction: runrecord.DirectionMinimize, MinimumImprovement: 1},
 		{Name: "wall-ns", Direction: runrecord.DirectionMinimize, MinimumImprovement: 1},

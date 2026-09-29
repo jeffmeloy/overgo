@@ -27,18 +27,22 @@ func openServingRepository(config Config) (*overgodb.Store, runrecord.Environmen
 		err = environment.ValidateIdentity()
 	}
 	if err == nil {
-		var batch artifact.Batch
-		batch, err = environment.Batch("serving/environment/" + environment.ID.String())
-		if err == nil {
-			// An identical environment from an earlier serving session is
-			// already the stored fact; a restart on the same machine must
-			// serve, not refuse on the no-op batch.
-			if _, commitErr := artifact.Publish(context.Background(), repository, batch); commitErr != nil {
-				err = commitErr
-			}
-		}
+		err = publishServingEnvironment(context.Background(), repository, environment)
 	}
 	return repository, environment, err
+}
+
+// publishServingEnvironment records the environment serving runs under. An
+// identical environment from an earlier serving session is already the
+// stored fact; a restart on the same machine must serve, not refuse on the
+// no-op batch.
+func publishServingEnvironment(ctx context.Context, repository artifact.Repository, environment runrecord.Environment) error {
+	batch, err := environment.Batch("serving/environment/" + environment.ID.String())
+	if err != nil {
+		return err
+	}
+	_, err = artifact.Publish(ctx, repository, batch)
+	return err
 }
 
 func (h *Handler) servingIdentity(task recipe.Task) (artifact.ID, artifact.ID, bool) {
@@ -154,13 +158,13 @@ func servingTransferDelta(before, after uint64) uint64 {
 type servingHardwareCollector struct {
 	clock   processmeasure.Stopwatch
 	walls   processmeasure.Walls
-	api     DeviceMemoryAPI
+	api     deviceMemoryAPI
 	samples []runrecord.ServingHardwareSample
 	prefill bool
 }
 
 func newServingHardwareCollector(generator Generator, clock processmeasure.Stopwatch) *servingHardwareCollector {
-	api, _ := generator.(DeviceMemoryAPI)
+	api, _ := generator.(deviceMemoryAPI)
 	return &servingHardwareCollector{clock: clock, api: api}
 }
 

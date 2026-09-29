@@ -10,10 +10,10 @@ import (
 func TestMATHPinnedOracleParity(t *testing.T) {
 	t.Parallel()
 	const raw = "Work gives $\\frac12$."
-	compiled, err := CompileStructuredGenerated(StructuredGeneratedSuite{
-		Kind: StructuredGeneratedKind, Schema: "lm-eval/hendrycks-math/v1.0", Source: "fixture",
-		Extractor: ExtractorDollarSpan, Equivalence: EquivalenceLatexSurface,
-		Cases: []StructuredGeneratedCase{{
+	compiled, err := compileStructuredGenerated(structuredGeneratedSuite{
+		Kind: structuredGeneratedKind, Schema: "lm-eval/hendrycks-math/v1.0", Source: "fixture",
+		Extractor: extractorDollarSpan, Equivalence: equivalenceLatexSurface,
+		Cases: []structuredGeneratedCase{{
 			Name: "fraction", Group: "algebra", Prompt: "Problem: Divide one by two.\nAnswer:",
 			MaxTokens: 8, Answers: []string{`\frac{1}{2}`},
 		}},
@@ -21,7 +21,7 @@ func TestMATHPinnedOracleParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := BindStructuredGenerated(compiled, ExactAuthorities{
+	plan, err := bindStructuredGenerated(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
 		Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
@@ -35,7 +35,7 @@ func TestMATHPinnedOracleParity(t *testing.T) {
 	}
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
-	report, err := EvaluateStructuredGenerated(
+	report, err := evaluateStructuredGenerated(
 		t.Context(), store, exactGenerator{pieces: []string{raw}}, compiled, plan,
 	)
 	if err != nil {

@@ -59,7 +59,7 @@ func TestGenerationWorkspaceListsUnresolvableActivationWithRefusal(t *testing.T)
 		},
 	}}
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
-	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowGeneration)
+	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowGeneration)
 	if err != nil || len(capabilities) != 1 {
 		t.Fatalf("capabilities = %+v, %v", capabilities, err)
 	}
@@ -71,7 +71,7 @@ func TestGenerationWorkspaceListsUnresolvableActivationWithRefusal(t *testing.T)
 	if err := validateWorkflowCapabilities(capabilities); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowGeneration, recipe.TaskVQA, capability.Recipe, json.RawMessage(`{"question":"what?"}`), &recordingReporter{}); err == nil || !strings.Contains(err.Error(), "session") {
+	if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, recipe.TaskVQA, capability.Recipe, json.RawMessage(`{"question":"what?"}`), &recordingReporter{}); err == nil || !strings.Contains(err.Error(), "session") {
 		t.Fatalf("a refused capability ran: %v", err)
 	}
 }

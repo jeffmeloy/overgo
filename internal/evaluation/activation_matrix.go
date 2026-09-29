@@ -13,35 +13,35 @@ import (
 )
 
 const (
-	// ActivationProfileMediaType identifies typed activation profiles.
-	ActivationProfileMediaType = "application/vnd.overgo.activation-profile+json"
-	// ActivationProfileSchema identifies the activation profile contract.
-	ActivationProfileSchema = "overgo/activation-profile/v1"
-	// ActivationMatrixMediaType identifies activation coverage evidence.
-	ActivationMatrixMediaType = "application/vnd.overgo.activation-matrix+json"
-	// ActivationMatrixSchema identifies the activation matrix contract.
-	ActivationMatrixSchema = "overgo/activation-matrix/v1"
-	// ActivationMatrixAlias names the current coverage denominator.
-	ActivationMatrixAlias = "evaluation/activation-matrix/active"
+	// activationProfileMediaType identifies typed activation profiles.
+	activationProfileMediaType = "application/vnd.overgo.activation-profile+json"
+	// activationProfileSchema identifies the activation profile contract.
+	activationProfileSchema = "overgo/activation-profile/v1"
+	// activationMatrixMediaType identifies activation coverage evidence.
+	activationMatrixMediaType = "application/vnd.overgo.activation-matrix+json"
+	// activationMatrixSchema identifies the activation matrix contract.
+	activationMatrixSchema = "overgo/activation-matrix/v1"
+	// activationMatrixAlias names the current coverage denominator.
+	activationMatrixAlias = "evaluation/activation-matrix/active"
 )
 
-// ActivationProfileKind names a governed execution surface.
-type ActivationProfileKind string
+// activationProfileKind names a governed execution surface.
+type activationProfileKind string
 
 const (
 	// ActivationProfileLocalModel is local model execution.
-	ActivationProfileLocalModel ActivationProfileKind = "local-model"
-	// ActivationProfilePeerModel is peer model execution.
-	ActivationProfilePeerModel ActivationProfileKind = "peer-model"
-	// ActivationProfileAgentTool is agent-tool execution.
-	ActivationProfileAgentTool ActivationProfileKind = "agent-tool"
+	ActivationProfileLocalModel activationProfileKind = "local-model"
+	// activationProfilePeerModel is peer model execution.
+	activationProfilePeerModel activationProfileKind = "peer-model"
+	// activationProfileAgentTool is agent-tool execution.
+	activationProfileAgentTool activationProfileKind = "agent-tool"
 )
 
 // ActivationProfile binds applicable tasks to one exact capability.
 type ActivationProfile struct {
 	Version    uint16                `json:"version"`
 	Name       string                `json:"name"`
-	Kind       ActivationProfileKind `json:"kind"`
+	Kind       activationProfileKind `json:"kind"`
 	Capability artifact.ID           `json:"capability"`
 	Tasks      []recipe.Task         `json:"tasks"`
 	ID         artifact.ID           `json:"-"`
@@ -55,27 +55,27 @@ type ActivationCoverageResult struct {
 	Gap      string      `json:"gap,omitzero"`
 }
 
-// ActivationMatrixCell is one case-profile coverage fact.
-type ActivationMatrixCell struct {
+// activationMatrixCell is one case-profile coverage fact.
+type activationMatrixCell struct {
 	Case     artifact.ID `json:"case"`
 	Profile  artifact.ID `json:"profile"`
 	Evidence artifact.ID `json:"evidence,omitzero"`
 	Gap      string      `json:"gap,omitzero"`
 }
 
-// ActivationMatrix records the full applicable cross-product and exact totals.
-type ActivationMatrix struct {
+// activationMatrix records the full applicable cross-product and exact totals.
+type activationMatrix struct {
 	Version     uint16                 `json:"version"`
 	Registry    artifact.ID            `json:"registry"`
 	Profiles    []artifact.ID          `json:"profiles"`
-	Cells       []ActivationMatrixCell `json:"cells"`
+	Cells       []activationMatrixCell `json:"cells"`
 	Denominator uint32                 `json:"denominator"`
 	Covered     uint32                 `json:"covered"`
 	ID          artifact.ID            `json:"-"`
 }
 
 var activationProfileCodec = artifact.JSONDocumentCodec(
-	"activation profile", artifact.KindProfile, ActivationProfileMediaType, ActivationProfileSchema,
+	"activation profile", artifact.KindProfile, activationProfileMediaType, activationProfileSchema,
 	canonicalizeActivationProfile,
 	func(value ActivationProfile) artifact.ID { return value.ID },
 	func(value *ActivationProfile, id artifact.ID) { value.ID = id },
@@ -83,11 +83,11 @@ var activationProfileCodec = artifact.JSONDocumentCodec(
 )
 
 var activationMatrixCodec = artifact.JSONDocumentCodec(
-	"activation matrix", artifact.KindEvidence, ActivationMatrixMediaType, ActivationMatrixSchema,
+	"activation matrix", artifact.KindEvidence, activationMatrixMediaType, activationMatrixSchema,
 	canonicalizeActivationMatrix,
-	func(value ActivationMatrix) artifact.ID { return value.ID },
-	func(value *ActivationMatrix, id artifact.ID) { value.ID = id },
-	func(value ActivationMatrix) ActivationMatrix {
+	func(value activationMatrix) artifact.ID { return value.ID },
+	func(value *activationMatrix, id artifact.ID) { value.ID = id },
+	func(value activationMatrix) activationMatrix {
 		value.Profiles = slices.Clone(value.Profiles)
 		value.Cells = slices.Clone(value.Cells)
 		return value
@@ -118,44 +118,44 @@ func PublishActivationMatrix(
 	repository artifact.Repository,
 	profiles []ActivationProfile,
 	results []ActivationCoverageResult,
-) (ActivationMatrix, artifact.CommitID, error) {
+) (activationMatrix, artifact.CommitID, error) {
 	registry, cases, found, err := ResolveActivationCaseRegistry(ctx, repository)
 	if err != nil || !found || len(profiles) == 0 {
-		return ActivationMatrix{}, artifact.CommitID{}, errors.Join(errors.New("evaluation: activation matrix authority is absent"), err)
+		return activationMatrix{}, artifact.CommitID{}, errors.Join(errors.New("evaluation: activation matrix authority is absent"), err)
 	}
 	identified := make([]ActivationProfile, len(profiles))
 	for index, profile := range profiles {
 		identified[index], err = NewActivationProfile(profile)
 		if err != nil {
-			return ActivationMatrix{}, artifact.CommitID{}, err
+			return activationMatrix{}, artifact.CommitID{}, err
 		}
 		if _, err := runrecord.RequireCapabilityIdentity(ctx, repository, identified[index].Capability); err != nil {
-			return ActivationMatrix{}, artifact.CommitID{}, err
+			return activationMatrix{}, artifact.CommitID{}, err
 		}
 	}
 	slices.SortFunc(identified, func(left, right ActivationProfile) int { return strings.Compare(left.Name, right.Name) })
 	for index := range identified {
 		if index > 0 && identified[index-1].Name == identified[index].Name {
-			return ActivationMatrix{}, artifact.CommitID{}, errors.New("evaluation: duplicate activation profile")
+			return activationMatrix{}, artifact.CommitID{}, errors.New("evaluation: duplicate activation profile")
 		}
 	}
 	resultByCell := make(map[[2]artifact.ID]ActivationCoverageResult, len(results))
 	for _, result := range results {
 		key := [2]artifact.ID{result.Case, result.Profile}
 		if _, duplicate := resultByCell[key]; duplicate {
-			return ActivationMatrix{}, artifact.CommitID{}, errors.New("evaluation: duplicate activation coverage result")
+			return activationMatrix{}, artifact.CommitID{}, errors.New("evaluation: duplicate activation coverage result")
 		}
 		resultByCell[key] = result
 	}
 	contents := make([]artifact.Content, 0, len(identified)+1)
 	lineage := []artifact.Lineage{}
 	profileIDs := make([]artifact.ID, len(identified))
-	var cells []ActivationMatrixCell
+	var cells []activationMatrixCell
 	var covered uint32
 	for index, profile := range identified {
 		content, err := activationProfileCodec.Content(profile)
 		if err != nil {
-			return ActivationMatrix{}, artifact.CommitID{}, err
+			return activationMatrix{}, artifact.CommitID{}, err
 		}
 		contents = append(contents, content)
 		profileIDs[index] = profile.ID
@@ -166,7 +166,7 @@ func PublishActivationMatrix(
 				continue
 			}
 			result, supplied := resultByCell[[2]artifact.ID{testCase.ID, profile.ID}]
-			cell := ActivationMatrixCell{Case: testCase.ID, Profile: profile.ID, Gap: "missing-evidence"}
+			cell := activationMatrixCell{Case: testCase.ID, Profile: profile.ID, Gap: "missing-evidence"}
 			if supplied {
 				cell.Evidence, cell.Gap = result.Evidence, result.Gap
 				delete(resultByCell, [2]artifact.ID{testCase.ID, profile.ID})
@@ -177,22 +177,22 @@ func PublishActivationMatrix(
 			cells = append(cells, cell)
 		}
 		if len(cells) == profileCells {
-			return ActivationMatrix{}, artifact.CommitID{}, errors.New("evaluation: activation profile applies to no registered cases")
+			return activationMatrix{}, artifact.CommitID{}, errors.New("evaluation: activation profile applies to no registered cases")
 		}
 	}
 	if len(resultByCell) != 0 {
-		return ActivationMatrix{}, artifact.CommitID{}, errors.New("evaluation: coverage result is outside the activation matrix")
+		return activationMatrix{}, artifact.CommitID{}, errors.New("evaluation: coverage result is outside the activation matrix")
 	}
-	matrix, err := activationMatrixCodec.New(ActivationMatrix{
+	matrix, err := activationMatrixCodec.New(activationMatrix{
 		Version: artifact.InitialDocumentVersion, Registry: registry.ID, Profiles: profileIDs,
 		Cells: cells, Denominator: uint32(len(cells)), Covered: covered,
 	})
 	if err != nil {
-		return ActivationMatrix{}, artifact.CommitID{}, err
+		return activationMatrix{}, artifact.CommitID{}, err
 	}
 	matrixContent, err := activationMatrixCodec.Content(matrix)
 	if err != nil {
-		return ActivationMatrix{}, artifact.CommitID{}, err
+		return activationMatrix{}, artifact.CommitID{}, err
 	}
 	contents = append(contents, matrixContent)
 	parents := append([]artifact.ID{registry.ID}, profileIDs...)
@@ -203,33 +203,33 @@ func PublishActivationMatrix(
 		}
 	}
 	lineage = append(lineage, artifact.DependencyLineage(matrix.ID, parents...)...)
-	previous, active, err := artifact.ResolveAlias(ctx, repository, ActivationMatrixAlias)
+	previous, active, err := artifact.ResolveAlias(ctx, repository, activationMatrixAlias)
 	if err != nil {
-		return ActivationMatrix{}, artifact.CommitID{}, err
+		return activationMatrix{}, artifact.CommitID{}, err
 	}
 	if active && previous == matrix.ID {
 		commit, _ := repository.Head()
 		return matrix, commit, nil
 	}
-	binding := artifact.AliasBinding{Name: ActivationMatrixAlias, Target: matrix.ID}
+	binding := artifact.AliasBinding{Name: activationMatrixAlias, Target: matrix.ID}
 	if active {
 		binding = artifact.AliasMove(binding.Name, binding.Target, previous)
 	}
 	batch, err := artifact.NewDocumentBatch("evaluation/activation-matrix/"+matrix.ID.String(), contents, lineage, []artifact.AliasBinding{binding})
 	if err != nil {
-		return ActivationMatrix{}, artifact.CommitID{}, err
+		return activationMatrix{}, artifact.CommitID{}, err
 	}
 	commit, err := artifact.CommitBatch(ctx, repository, batch)
 	return matrix, commit, err
 }
 
 // ResolveActivationMatrix loads the current matrix.
-func ResolveActivationMatrix(ctx context.Context, reader artifact.Reader) (ActivationMatrix, bool, error) {
-	return activationMatrixCodec.Resolve(ctx, reader, ActivationMatrixAlias)
+func ResolveActivationMatrix(ctx context.Context, reader artifact.Reader) (activationMatrix, bool, error) {
+	return activationMatrixCodec.Resolve(ctx, reader, activationMatrixAlias)
 }
 
 // AdmitActivationProfile requires enumeration and complete evidence coverage.
-func AdmitActivationProfile(matrix ActivationMatrix, profile artifact.ID) error {
+func AdmitActivationProfile(matrix activationMatrix, profile artifact.ID) error {
 	if err := activationMatrixCodec.ValidateIdentity(matrix); err != nil || !slices.Contains(matrix.Profiles, profile) {
 		return errors.Join(errors.New("evaluation: activation profile is not enumerated"), err)
 	}
@@ -244,7 +244,7 @@ func AdmitActivationProfile(matrix ActivationMatrix, profile artifact.ID) error 
 func canonicalizeActivationProfile(value *ActivationProfile) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Name == "" || strings.TrimSpace(value.Name) != value.Name ||
 		!textcheck.Bounded(value.Name, len(value.Name), "\x00\r\n\t") || value.Capability.Kind() != artifact.KindProfile || len(value.Tasks) == 0 ||
-		value.Kind != ActivationProfileLocalModel && value.Kind != ActivationProfilePeerModel && value.Kind != ActivationProfileAgentTool {
+		value.Kind != ActivationProfileLocalModel && value.Kind != activationProfilePeerModel && value.Kind != activationProfileAgentTool {
 		return errors.New("evaluation: invalid activation profile")
 	}
 	slices.Sort(value.Tasks)
@@ -254,13 +254,13 @@ func canonicalizeActivationProfile(value *ActivationProfile) error {
 	return nil
 }
 
-func canonicalizeActivationMatrix(value *ActivationMatrix) error {
+func canonicalizeActivationMatrix(value *activationMatrix) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Registry.Kind() != artifact.KindProfile ||
 		len(value.Profiles) == 0 || len(value.Cells) == 0 || uint32(len(value.Cells)) != value.Denominator || value.Covered > value.Denominator {
 		return errors.New("evaluation: invalid activation matrix")
 	}
 	slices.SortFunc(value.Profiles, artifact.CompareID)
-	slices.SortFunc(value.Cells, func(left, right ActivationMatrixCell) int {
+	slices.SortFunc(value.Cells, func(left, right activationMatrixCell) int {
 		if order := artifact.CompareID(left.Profile, right.Profile); order != 0 {
 			return order
 		}

@@ -13,9 +13,12 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-// Library: dynamically loaded cuBLAS library
+// Library: dynamically loaded cuBLAS library and the cuBLASLt entry
+// points its FP8 products use (cublas64_12.dll imports cublasLt64_12.dll,
+// so both are resident once cuBLAS loads).
 type Library struct {
-	dll *syscall.DLL
+	dll   *syscall.DLL
+	ltDLL *syscall.DLL
 
 	create            *syscall.Proc
 	destroy           *syscall.Proc
@@ -24,12 +27,42 @@ type Library struct {
 	sgemm             *syscall.Proc
 	sgemmStridedBatch *syscall.Proc
 	gemmEx            *syscall.Proc
+	lt                ltProcs
+}
+
+type procBinding struct {
+	name string
+	dst  **syscall.Proc
 }
 
 func Open() (*Library, error) {
-	candidates := []string{"cublas64_12.dll"}
+	lib := &Library{}
+	dll, err := loadLibrary("cublas64_12.dll", []procBinding{
+		{"cublasCreate_v2", &lib.create},
+		{"cublasDestroy_v2", &lib.destroy},
+		{"cublasSetStream_v2", &lib.setStream},
+		{"cublasSetMathMode", &lib.setMathMode},
+		{"cublasSgemm_v2", &lib.sgemm},
+		{"cublasSgemmStridedBatched", &lib.sgemmStridedBatch},
+		{"cublasGemmEx", &lib.gemmEx},
+	})
+	if err != nil {
+		return nil, err
+	}
+	lib.dll = dll
+	if lib.ltDLL, err = loadLibrary("cublasLt64_12.dll", lib.lt.bindings()); err != nil {
+		_ = dll.Release()
+		return nil, err
+	}
+	return lib, nil
+}
+
+// loadLibrary loads a CUDA toolkit DLL from the search path or
+// CUDA_PATH and resolves every binding.
+func loadLibrary(name string, bindings []procBinding) (*syscall.DLL, error) {
+	candidates := []string{name}
 	if cudaPath := os.Getenv("CUDA_PATH"); cudaPath != "" {
-		candidates = append(candidates, filepath.Join(cudaPath, "bin", "cublas64_12.dll"))
+		candidates = append(candidates, filepath.Join(cudaPath, "bin", name))
 	}
 	var dll *syscall.DLL
 	var loadErr error
@@ -40,22 +73,9 @@ func Open() (*Library, error) {
 		}
 	}
 	if dll == nil {
-		return nil, errors.New("load cublas64_12.dll: " + loadErr.Error())
+		return nil, errors.New("load " + name + ": " + loadErr.Error())
 	}
-	lib := &Library{dll: dll}
-	required := []struct {
-		name string
-		dst  **syscall.Proc
-	}{
-		{"cublasCreate_v2", &lib.create},
-		{"cublasDestroy_v2", &lib.destroy},
-		{"cublasSetStream_v2", &lib.setStream},
-		{"cublasSetMathMode", &lib.setMathMode},
-		{"cublasSgemm_v2", &lib.sgemm},
-		{"cublasSgemmStridedBatched", &lib.sgemmStridedBatch},
-		{"cublasGemmEx", &lib.gemmEx},
-	}
-	for _, item := range required {
+	for _, item := range bindings {
 		proc, err := dll.FindProc(item.name)
 		if err != nil {
 			_ = dll.Release()
@@ -63,7 +83,7 @@ func Open() (*Library, error) {
 		}
 		*item.dst = proc
 	}
-	return lib, nil
+	return dll, nil
 }
 
 // GEMMEx: column-major mixed-storage GEMM.
@@ -109,8 +129,8 @@ func (l *Library) Close() error {
 	if l == nil || l.dll == nil {
 		return nil
 	}
-	err := l.dll.Release()
-	l.dll = nil
+	err := errors.Join(l.ltDLL.Release(), l.dll.Release())
+	l.dll, l.ltDLL = nil, nil
 	return err
 }
 

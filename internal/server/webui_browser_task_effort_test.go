@@ -74,12 +74,12 @@ func TestWebUIBrowserTaskEffort(t *testing.T) {
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()
 	defer fixture.handler.Close()
-	automation := fixture.handler.generator.(*automationWorkspaceGenerator).AutomationWorkspace
-	generator := &streamLifecycleGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), AutomationWorkspace: automation}
+	automation := fixture.handler.generator.(*automationWorkspaceGenerator).automationWorkspace
+	generator := &streamLifecycleGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), automationWorkspace: automation}
 	handler := newTestHandlerForRepository(t, fixture.store, generator)
 	defer handler.Close()
 	var err error
-	generator.PeerWorkspace, err = (PeerWorkspaceConfig{Store: fixture.store, Backend: peerWorkspaceBackend{}, Limit: handler.config.MaxStoredResponses}).Open()
+	generator.peerWorkspace, err = (peerWorkspaceConfig{Store: fixture.store, Backend: peerWorkspaceBackend{}, Limit: handler.config.MaxStoredResponses}).Open()
 	if err != nil {
 		t.Fatal(err)
 	}

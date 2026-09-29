@@ -69,7 +69,7 @@ type EvalSummary struct {
 // the raw anchor, the only protocol earlier records could have run; a run
 // whose environment cannot be read reports it reproducible, as every
 // earlier environment was.
-func recordExecution(ctx context.Context, store *overgodb.Store, record runrecord.Evaluation) (Prompting, bool) {
+func recordExecution(ctx context.Context, store *overgodb.Store, record runrecord.Evaluation) (prompting, bool) {
 	bound, err := runrecord.RequireRun(ctx, store, record.Run)
 	if err != nil || len(bound.Inputs) == 0 {
 		return PromptingRawCompletion, true

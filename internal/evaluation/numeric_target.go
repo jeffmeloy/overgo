@@ -19,28 +19,28 @@ const (
 	numericTargetReportSchema = "overgo/numeric-target-report/v1"
 )
 
-// NumericScorer names a numeric target metric.
-type NumericScorer string
+// numericScorer names a numeric target metric.
+type numericScorer string
 
 const (
 	// NumericAbsoluteError scores mean absolute residual over target values; minimized.
-	NumericAbsoluteError NumericScorer = "absolute-error"
-	// NumericQuantileLoss scores mean pinball loss at the spec quantile; minimized.
-	NumericQuantileLoss NumericScorer = "quantile-loss"
-	// NumericLabelAccuracy scores exact label match as 1 or 0, or for a record
+	NumericAbsoluteError numericScorer = "absolute-error"
+	// numericQuantileLoss scores mean pinball loss at the spec quantile; minimized.
+	numericQuantileLoss numericScorer = "quantile-loss"
+	// numericLabelAccuracy scores exact label match as 1 or 0, or for a record
 	// of several rows given as class ids the fraction of rows matched; maximized.
-	NumericLabelAccuracy NumericScorer = "label-accuracy"
+	numericLabelAccuracy numericScorer = "label-accuracy"
 )
 
 // NumericScorerSpec declares one numeric scorer with its unit and, for quantile loss only, a quantile in (0, 1).
 type NumericScorerSpec struct {
-	Kind     NumericScorer `json:"kind"`
+	Kind     numericScorer `json:"kind"`
 	Unit     string        `json:"unit,omitzero"`
 	Quantile *float64      `json:"quantile,omitempty"`
 }
 
-// NumericAssumption is a named stated assumption carried with a target case.
-type NumericAssumption struct {
+// numericAssumption is a named stated assumption carried with a target case.
+type numericAssumption struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
@@ -50,7 +50,7 @@ type NumericTargetCase struct {
 	Record      string              `json:"record"`
 	Values      []float64           `json:"values,omitempty"`
 	Label       string              `json:"label,omitzero"`
-	Assumptions []NumericAssumption `json:"assumptions,omitempty"`
+	Assumptions []numericAssumption `json:"assumptions,omitempty"`
 }
 
 // NumericTargetSuite declares scorers and cases before binding to a held-out view.
@@ -76,21 +76,21 @@ type NumericTargetObservation struct {
 	Label  string    `json:"label,omitzero"`
 }
 
-// NumericScore is one scorer's value for one record.
-type NumericScore struct {
-	Name  NumericScorer `json:"name"`
+// numericScore is one scorer's value for one record.
+type numericScore struct {
+	Name  numericScorer `json:"name"`
 	Value float64       `json:"value"`
 }
 
-// NumericRecordResult pairs a case's expected values and label with the observed ones and per-scorer scores.
-type NumericRecordResult struct {
+// numericRecordResult pairs a case's expected values and label with the observed ones and per-scorer scores.
+type numericRecordResult struct {
 	Record        string              `json:"record"`
 	Expected      []float64           `json:"expected,omitempty"`
 	Actual        []float64           `json:"actual,omitempty"`
 	ExpectedLabel string              `json:"expected_label,omitzero"`
 	ActualLabel   string              `json:"actual_label,omitzero"`
-	Assumptions   []NumericAssumption `json:"assumptions,omitempty"`
-	Scores        []NumericScore      `json:"scores"`
+	Assumptions   []numericAssumption `json:"assumptions,omitempty"`
+	Scores        []numericScore      `json:"scores"`
 }
 
 // NumericTargetReport holds per-record numeric results and per-scorer mean metrics for one plan.
@@ -98,7 +98,7 @@ type NumericTargetReport struct {
 	ID      artifact.ID           `json:"-"`
 	Version uint16                `json:"version"`
 	Plan    artifact.ID           `json:"plan"`
-	Records []NumericRecordResult `json:"records"`
+	Records []numericRecordResult `json:"records"`
 	Metrics []runrecord.Metric    `json:"metrics"`
 }
 
@@ -152,30 +152,30 @@ func ScoreNumericTargets(plan NumericTargetPlan, observations []NumericTargetObs
 	slices.SortFunc(observations, func(a, b NumericTargetObservation) int { return cmp.Compare(a.Record, b.Record) })
 	report := NumericTargetReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.ID,
-		Records: make([]NumericRecordResult, len(plan.Cases)), Metrics: make([]runrecord.Metric, len(plan.Scorers)),
+		Records: make([]numericRecordResult, len(plan.Cases)), Metrics: make([]runrecord.Metric, len(plan.Scorers)),
 	}
 	for index, target := range plan.Cases {
 		if observations[index].Record != target.Record {
 			return NumericTargetReport{}, errors.New("evaluation: numeric target records differ")
 		}
-		result := NumericRecordResult{
+		result := numericRecordResult{
 			Record: target.Record, Expected: slices.Clone(target.Values), Actual: slices.Clone(observations[index].Values),
 			ExpectedLabel: target.Label, ActualLabel: observations[index].Label,
-			Assumptions: slices.Clone(target.Assumptions), Scores: make([]NumericScore, len(plan.Scorers)),
+			Assumptions: slices.Clone(target.Assumptions), Scores: make([]numericScore, len(plan.Scorers)),
 		}
 		for scorerIndex, scorer := range plan.Scorers {
 			value, err := scoreNumericRecord(scorer, target, observations[index])
 			if err != nil {
 				return NumericTargetReport{}, err
 			}
-			result.Scores[scorerIndex] = NumericScore{Name: scorer.Kind, Value: value}
+			result.Scores[scorerIndex] = numericScore{Name: scorer.Kind, Value: value}
 			report.Metrics[scorerIndex].Value += value
 		}
 		report.Records[index] = result
 	}
 	for index, scorer := range plan.Scorers {
 		direction := runrecord.DirectionMinimize
-		if scorer.Kind == NumericLabelAccuracy {
+		if scorer.Kind == numericLabelAccuracy {
 			direction = runrecord.DirectionMaximize
 		}
 		report.Metrics[index] = runrecord.Metric{
@@ -192,7 +192,7 @@ func (report NumericTargetReport) Batch(key string) (artifact.Batch, error) {
 }
 
 func scoreNumericRecord(scorer NumericScorerSpec, target NumericTargetCase, observation NumericTargetObservation) (float64, error) {
-	if scorer.Kind == NumericLabelAccuracy {
+	if scorer.Kind == numericLabelAccuracy {
 		if target.Label != "" {
 			if target.Label == observation.Label {
 				return 1, nil
@@ -242,7 +242,7 @@ func canonicalizeNumericTargetPlan(plan *NumericTargetPlan) error {
 	// next tokens predicted. A numeric error has no meaning over token ids.
 	modality := plan.Signature.Outputs[0]
 	tokenAccuracy := modality == recipecontract.ModalityText && !slices.ContainsFunc(plan.Scorers, func(scorer NumericScorerSpec) bool {
-		return scorer.Kind != NumericLabelAccuracy
+		return scorer.Kind != numericLabelAccuracy
 	})
 	if modality != recipecontract.ModalityTimeSeries && modality != recipecontract.ModalityTable && !tokenAccuracy {
 		return errors.New("evaluation: unsupported numeric target modality")
@@ -256,7 +256,7 @@ func canonicalizeNumericTargetPlan(plan *NumericTargetPlan) error {
 	slices.SortFunc(plan.Cases, func(a, b NumericTargetCase) int { return cmp.Compare(a.Record, b.Record) })
 	for index := range plan.Cases {
 		target := &plan.Cases[index]
-		slices.SortFunc(target.Assumptions, func(a, b NumericAssumption) int { return cmp.Compare(a.Name, b.Name) })
+		slices.SortFunc(target.Assumptions, func(a, b numericAssumption) int { return cmp.Compare(a.Name, b.Name) })
 		if target.Record == "" || index > 0 && plan.Cases[index-1].Record == target.Record || !validNumericCase(*target, plan.Scorers) {
 			return errors.New("evaluation: invalid numeric target case")
 		}
@@ -265,11 +265,11 @@ func canonicalizeNumericTargetPlan(plan *NumericTargetPlan) error {
 }
 
 func validNumericScorer(scorer NumericScorerSpec) bool {
-	if scorer.Kind == NumericQuantileLoss {
+	if scorer.Kind == numericQuantileLoss {
 		return scorer.Quantile != nil && checked.Finite64(*scorer.Quantile) && *scorer.Quantile > 0 && *scorer.Quantile < 1
 	}
-	return (scorer.Kind == NumericAbsoluteError || scorer.Kind == NumericLabelAccuracy) && scorer.Quantile == nil &&
-		(scorer.Kind != NumericLabelAccuracy || scorer.Unit == "")
+	return (scorer.Kind == NumericAbsoluteError || scorer.Kind == numericLabelAccuracy) && scorer.Quantile == nil &&
+		(scorer.Kind != numericLabelAccuracy || scorer.Unit == "")
 }
 
 func validNumericCase(target NumericTargetCase, scorers []NumericScorerSpec) bool {
@@ -279,8 +279,8 @@ func validNumericCase(target NumericTargetCase, scorers []NumericScorerSpec) boo
 		}
 	}
 	for _, scorer := range scorers {
-		if scorer.Kind == NumericLabelAccuracy && target.Label == "" && !classIDs(target.Values) ||
-			scorer.Kind != NumericLabelAccuracy && len(target.Values) == 0 {
+		if scorer.Kind == numericLabelAccuracy && target.Label == "" && !classIDs(target.Values) ||
+			scorer.Kind != numericLabelAccuracy && len(target.Values) == 0 {
 			return false
 		}
 	}

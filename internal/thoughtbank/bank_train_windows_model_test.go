@@ -15,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hfbpe"
+	"overgo/internal/modeltest"
 	"overgo/internal/optimizer"
 	"overgo/internal/recipecontract"
 	"overgo/internal/trainingdata"
@@ -31,10 +32,7 @@ func (hostBankStepper) Close() error { return nil }
 
 func TestFractaleRealTrainingParity(t *testing.T) {
 	cudatest.Require(t)
-	modelDirectory := os.Getenv("OVERGO_THOUGHTBANK_MODEL")
-	if modelDirectory == "" {
-		modelDirectory = `C:\Users\jeffm\adaptive_new\models\Fractale-350M-base`
-	}
+	modelDirectory := modeltest.Directory(t, "Fractale-350M-base")
 	datasetPath := os.Getenv("OVERGO_WIKITEXT_DATASET")
 	if datasetPath == "" {
 		datasetPath = `C:\Users\jeffm\overgo\build\datasets\wikitext-2\train.txt`

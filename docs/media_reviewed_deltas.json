@@ -513,6 +513,89 @@
         ]
       },
       "scope": "The DiT trainer's entry point: the command that drove latentvideo.DiTTrainer becomes the dit route of cmd/train with its body unchanged. The receipt re-runs the DiT trainer's device tests with the CUDA gate opted in: derived hyperparameters, finite-difference gradients, step descent and the checkpointed forward against the retained result."
+    },
+    {
+      "changes": {
+        "internal/cuda/cublas/cublas.go": {
+          "after_sha256": "708d7c71b662d1edcd3844cb2ef124458dd19cf6e79b582084b8d587a51b50e4",
+          "before_sha256": "230e602324e1a48a8a4ce4efa19393ea6b358333804bf1390e4680c05e24658d",
+          "reason": "declares the cuBLASLt handle and the FP8 matmul plan beside the cuBLAS handle; existing GEMM entry points are unchanged."
+        },
+        "internal/cuda/cublas/cublas_unsupported.go": {
+          "after_sha256": "b17b339510998a700b4ffa6efeee86f21a1a254376c4587ac9f65572cb53d499",
+          "before_sha256": "95efda1036fd88c6c11462f862a1af88f0ab1b9228a4ee8cbaa6045a2f703870",
+          "reason": "the unsupported-platform stubs for the new cuBLASLt entry points."
+        },
+        "internal/cuda/cublas/cublas_windows.go": {
+          "after_sha256": "e576d51ac560a9ea34c786a40c6966f296a0380920f29b3fb0282e8a265f9cad",
+          "before_sha256": "ef0ddf1ec6bef3faa36bebb11249e96d7cd09822549ef4d80af11b51dc9315bd",
+          "reason": "one loader opens cublas64_12.dll and cublasLt64_12.dll; the cuBLAS proc table and its calls are unchanged."
+        },
+        "internal/cuda/cublas/cublaslt_windows.go": {
+          "after_sha256": "ca013964f032526c7736d5f7eb3f94f7046a7b4a5b09d3acf90bceb3f9e5fec2",
+          "before_sha256": "",
+          "reason": "the cuBLASLt bindings: handle, FP8 plan (TN layout, e4m3 A and B, F32 D, the heuristic's algorithm) and the FP8 matmul."
+        },
+        "internal/cuda/executor/executor.go": {
+          "after_sha256": "e90e1df9cd402018ba98997d3c03a21457c0a3d0b2c2147ac32fa8857b6dbb51",
+          "before_sha256": "11ce180ce820178c4f6023e9b4899e087f7bb86ffa2886aa4312fbb0387d862c",
+          "reason": "holds the cuBLASLt handle, workspace and FP8 plans beside the cuBLAS state, created outside graph capture; the fp8 tensor-core nodes reserve their workspace and e4m3 activation instead of the 256 MiB f16 staging."
+        },
+        "internal/cuda/executor/fallback.go": {
+          "after_sha256": "803656afea2f2b5012eea6f74185eedad74e7aa282855f6a39b38f332bfcadb4",
+          "before_sha256": "55d05bcd1df0f0b92b3a5924f76b6db2b5f1f3bc8f26438eea4db59ca124a561",
+          "reason": "a trace tag names the FP8 tensor-core matmul."
+        },
+        "internal/cuda/executor/kernel_bindings_generated.go": {
+          "after_sha256": "7754841ede7dbd934ad883426a7924cd3e22d0e844e3b2fec4aaf38f68a20ec8",
+          "before_sha256": "602b3033e5114c4d33d22c72ca87458e800df9ec34c7ce570b0471b15e3dcb99",
+          "reason": "generated bindings for the two new kernels."
+        },
+        "internal/cuda/executor/launch_attention_layout.go": {
+          "after_sha256": "0b9e51312dda9ef82a85f4d92142d66aab22c9b56a36fdf41f38c14ab49661ee",
+          "before_sha256": "aa0d5d22d94d77fef836140ddfeeba24358ab3544eb615c876f29d0768fb7447",
+          "reason": "go fix rewrites two counted key-value-head loops as ranges over the count; the iterations and their order are unchanged."
+        },
+        "internal/cuda/executor/launch_linear_layout.go": {
+          "after_sha256": "065f19f013b5d8d67ccbe2572c62bcc66b9052a1c5317d30850088610871f776",
+          "before_sha256": "89912fb69a18eadd80d736a416572190e4321f3567730dd36fecf23011d2d9e9",
+          "reason": "an fp8 weight under the native policy at 32 columns and up, inner a multiple of 16 and rows of 4, quantizes its activation to e4m3 once per node, runs one cuBLASLt FP8 matmul on the resident weights and scales rows and columns; other fp8 shapes keep the staged f16 path."
+        },
+        "internal/cuda/executor/staging_exact.go": {
+          "after_sha256": "5938d00e19b0b3c223196403cd6199438339ff9cae1863deb6f70cac897c5be2",
+          "before_sha256": "185f21d0b587da2b26055fe4283a63dcf5a318006e6bd53bda95eb22be183fde",
+          "reason": "exact weight staging skips the nodes the FP8 tensor-core path serves."
+        },
+        "internal/cuda/kernel/manifest_generated.go": {
+          "after_sha256": "7965c38d7b7015c41a4922b482f5e8993093421205fb71bdefe98e4002bd16d0",
+          "before_sha256": "c4680bbbce4064cde7de15f43a9acb7c4ace44f9f69fb5ee2cde921f0125c666",
+          "reason": "the regenerated kernel manifest pin."
+        },
+        "kernels/cuda/ops_f32.cu": {
+          "after_sha256": "a1d0cba13ce01b62e432ba3f016e9ca3f513240853dccb8e2faa8feb90b8de32",
+          "before_sha256": "450191322d09bb1b028d44fb1911a469e81efe17e4d912989c31ae5272ee3838",
+          "reason": "adds quantize_fp8_columns_f32 (per-column amax/448 scale, correctly rounded, saturating e4m3) and scale_fp8_product_f32 (weight-row scale times column scale); existing kernels are unchanged."
+        },
+        "kernels/manifest.json": {
+          "after_sha256": "619fcc90e0386badec6b57192be0b71e09ee1a1c0349d333b81a2c2d3e1c2ba3",
+          "before_sha256": "8863487fdfdc0b8ed982551d4ab0e00c5cae1d0d3ea1ca92320b3200abf44cc0",
+          "reason": "the two new entry names and their hashes."
+        }
+      },
+      "evidence": "evidence:sha256:7da2aebf1237ffcbc47a107f666407682d4e20d41ad07ec4f8a54b75239f4496",
+      "id": "fp8-tensorcore-prefill",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/cuda/cublas": [
+          "TestMatmulFP8Integration"
+        ],
+        "overgo/internal/cuda/executor": [
+          "TestExecutorFP8MulMatMatchesReference",
+          "TestExecutorFp8StagedMulMatMatchesReference",
+          "TestExecutorFp8TensorCoreMulMatMatchesReference"
+        ]
+      },
+      "scope": "FP8 prefill on the tensor cores: an fp8 weight's prefill quantizes its activation to e4m3 per column and multiplies the resident e4m3 weights through one cuBLASLt FP8 matmul, then applies the row and column scales, instead of expanding each weight chunk to f16 every forward. The receipt runs, on the device with the gate opted in, the raw FP8 matmul, the new path's parity against the quantized and unquantized references, and the fp8 decode and staged paths that keep their shapes."
     }
   ],
   "paths": [

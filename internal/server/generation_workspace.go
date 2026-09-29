@@ -20,24 +20,24 @@ import (
 	"overgo/internal/strictjson"
 )
 
-type WorkflowControlType string
+type workflowControlType string
 
 const (
-	WorkflowControlText       WorkflowControlType = "text"
-	WorkflowControlInteger    WorkflowControlType = "integer"
-	WorkflowControlNumber     WorkflowControlType = "number"
-	WorkflowControlBoolean    WorkflowControlType = "boolean"
-	WorkflowControlDataset    WorkflowControlType = "dataset"
-	WorkflowControlCheckpoint WorkflowControlType = "checkpoint"
-	WorkflowControlOutput     WorkflowControlType = "managed-output"
-	// WorkflowControlArtifact names an artifact the store holds; a page
+	workflowControlText       workflowControlType = "text"
+	workflowControlInteger    workflowControlType = "integer"
+	workflowControlNumber     workflowControlType = "number"
+	workflowControlBoolean    workflowControlType = "boolean"
+	workflowControlDataset    workflowControlType = "dataset"
+	workflowControlCheckpoint workflowControlType = "checkpoint"
+	workflowControlOutput     workflowControlType = "managed-output"
+	// workflowControlArtifact names an artifact the store holds; a page
 	// fills it from a media card's stored id rather than typing it.
-	WorkflowControlArtifact WorkflowControlType = "artifact"
+	workflowControlArtifact workflowControlType = "artifact"
 )
 
-type WorkflowControl struct {
+type workflowControl struct {
 	Name     string              `json:"name"`
-	Type     WorkflowControlType `json:"type"`
+	Type     workflowControlType `json:"type"`
 	Required bool                `json:"required,omitzero"`
 	// Choices are the values the model's artifact exports for the field;
 	// a page offers them instead of a free input.
@@ -49,7 +49,7 @@ type WorkflowControl struct {
 	Media string `json:"media,omitzero"`
 	// Bounds are a numeric control's declared default, step and rate, from
 	// which a page derives its presets (aspect ratios, durations).
-	Bounds *WorkflowControlBounds               `json:"bounds,omitempty"`
+	Bounds *workflowControlBounds               `json:"bounds,omitempty"`
 	Audio  *speechrecognition.InputRequirements `json:"audio,omitempty"`
 }
 
@@ -66,10 +66,10 @@ func audioFormatMessage(audio *speechrecognition.InputRequirements) string {
 	return fmt.Sprintf("This model needs %d Hz %s audio. Record in Transcribe or attach a compatible audio file.", audio.Format.SampleRate, channels)
 }
 
-// WorkflowControlBounds is a numeric control's declared default, the step a
+// workflowControlBounds is a numeric control's declared default, the step a
 // valid value moves by (zero when any value is valid) and, for a frame
 // count, the frames one second holds.
-type WorkflowControlBounds struct {
+type workflowControlBounds struct {
 	Default int `json:"default"`
 	Step    int `json:"step,omitzero"`
 	Rate    int `json:"rate,omitzero"`
@@ -84,7 +84,7 @@ type WorkflowCapability struct {
 	Stages   []recipe.Stage    `json:"stages"`
 	Inputs   []recipe.Input    `json:"inputs,omitempty"`
 	Outputs  []recipe.Output   `json:"outputs"`
-	Controls []WorkflowControl `json:"controls"`
+	Controls []workflowControl `json:"controls"`
 	// Model and Name identify the activated model behind a store-derived
 	// capability, so a task served by several models lists each of them;
 	// Refusal names why the page cannot run this one (its request carries
@@ -106,10 +106,10 @@ type WorkflowCapability struct {
 type WorkflowKind string
 
 const (
-	WorkflowGeneration WorkflowKind = "generation"
+	workflowGeneration WorkflowKind = "generation"
 	WorkflowTraining   WorkflowKind = "training"
-	WorkflowExport     WorkflowKind = "export"
-	WorkflowModelBuild WorkflowKind = "model-builder"
+	workflowExport     WorkflowKind = "export"
+	workflowModelBuild WorkflowKind = "model-builder"
 )
 
 type WorkflowWorkspaceAPI interface {
@@ -117,9 +117,9 @@ type WorkflowWorkspaceAPI interface {
 	ExecuteWorkflow(context.Context, WorkflowKind, recipe.Task, artifact.ID, json.RawMessage, operation.Reporter) (operation.Completion, error)
 }
 
-// WorkflowPreviewAPI is a workflow workspace that shows one page of a run's
+// workflowPreviewAPI is a workflow workspace that shows one page of a run's
 // input as the run would read it, before any run.
-type WorkflowPreviewAPI interface {
+type workflowPreviewAPI interface {
 	PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error)
 }
 
@@ -146,7 +146,7 @@ var errWorkflowPreviewUnavailable = errors.New("workflow workspace: this workflo
 // PreviewWorkflowIn asks a workspace for a preview, as a runtime that wraps
 // its workspaces forwards it.
 func PreviewWorkflowIn(ctx context.Context, workspace WorkflowWorkspaceAPI, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
-	previewer, ok := workspace.(WorkflowPreviewAPI)
+	previewer, ok := workspace.(workflowPreviewAPI)
 	if !ok {
 		return nil, errWorkflowPreviewUnavailable
 	}
@@ -342,7 +342,7 @@ func (h *Handler) workflowCommands(workspace WorkflowWorkspaceAPI, response http
 		return
 	}
 	commands := []workflowCommand{}
-	if kind == WorkflowGeneration && capability.Location != "" {
+	if kind == workflowGeneration && capability.Location != "" {
 		commands = append(commands, workflowCommand{Kind: "cli", Text: "go run ./cmd/recipe run -task " + shellQuote(string(body.Task)) +
 			" -input " + shellQuote(string(body.Input)) + " " + shellQuote(capability.Location)})
 	}
@@ -447,7 +447,7 @@ func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 				control.Bounds != nil && (control.Bounds.Step < 0 || control.Bounds.Rate < 0) {
 				return fmt.Errorf("workflow workspace: invalid control %q", control.Name)
 			}
-			if control.Audio != nil && (control.Type != WorkflowControlArtifact || control.Media != "audio" || control.Audio.Format.Validate() != nil || control.Audio.MaximumEncodedBytes == 0 || control.Audio.MaximumSamples == 0) {
+			if control.Audio != nil && (control.Type != workflowControlArtifact || control.Media != "audio" || control.Audio.Format.Validate() != nil || control.Audio.MaximumEncodedBytes == 0 || control.Audio.MaximumSamples == 0) {
 				return fmt.Errorf("workflow workspace: invalid audio input %q", control.Name)
 			}
 			fields[control.Name] = true
@@ -456,11 +456,11 @@ func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 	return nil
 }
 
-func (kind WorkflowControlType) valid() bool {
-	return kind == WorkflowControlText || kind == WorkflowControlInteger ||
-		kind == WorkflowControlNumber || kind == WorkflowControlBoolean ||
-		kind == WorkflowControlDataset || kind == WorkflowControlCheckpoint ||
-		kind == WorkflowControlOutput || kind == WorkflowControlArtifact
+func (kind workflowControlType) valid() bool {
+	return kind == workflowControlText || kind == workflowControlInteger ||
+		kind == workflowControlNumber || kind == workflowControlBoolean ||
+		kind == workflowControlDataset || kind == workflowControlCheckpoint ||
+		kind == workflowControlOutput || kind == workflowControlArtifact
 }
 
 func selectWorkflowCapability(capabilities []WorkflowCapability, task recipe.Task, recipeID artifact.ID) (WorkflowCapability, error) {
@@ -475,12 +475,12 @@ func selectWorkflowCapability(capabilities []WorkflowCapability, task recipe.Tas
 	return WorkflowCapability{}, errors.New("workflow workspace: task and recipe are not admitted")
 }
 
-func validateWorkflowInput(controls []WorkflowControl, raw json.RawMessage) error {
+func validateWorkflowInput(controls []workflowControl, raw json.RawMessage) error {
 	fields := make(map[string]json.RawMessage, len(controls))
 	if err := strictjson.Decode(bytes.NewReader(raw), &fields); err != nil {
 		return fmt.Errorf("workflow workspace: invalid input: %w", err)
 	}
-	declarations := make(map[string]WorkflowControl, len(controls))
+	declarations := make(map[string]workflowControl, len(controls))
 	for _, control := range controls {
 		declarations[control.Name] = control
 		if control.Required {
@@ -501,12 +501,12 @@ func validateWorkflowInput(controls []WorkflowControl, raw json.RawMessage) erro
 	return nil
 }
 
-func validateWorkflowValue(controlType WorkflowControlType, raw json.RawMessage) error {
+func validateWorkflowValue(controlType workflowControlType, raw json.RawMessage) error {
 	var target any
 	switch controlType {
-	case WorkflowControlText, WorkflowControlOutput:
+	case workflowControlText, workflowControlOutput:
 		target = new(string)
-	case WorkflowControlArtifact:
+	case workflowControlArtifact:
 		// The page fills an artifact control from a media card's stored id;
 		// a value that is no artifact id is refused before any run.
 		var value string
@@ -515,25 +515,25 @@ func validateWorkflowValue(controlType WorkflowControlType, raw json.RawMessage)
 		}
 		_, err := artifact.ParseID(value)
 		return err
-	case WorkflowControlDataset, WorkflowControlCheckpoint:
+	case workflowControlDataset, workflowControlCheckpoint:
 		var value string
 		if err := strictjson.Decode(bytes.NewReader(raw), &value); err != nil {
 			return err
 		}
 		id, err := artifact.ParseID(value)
 		artifactKind := artifact.KindDataset
-		if controlType == WorkflowControlCheckpoint {
+		if controlType == workflowControlCheckpoint {
 			artifactKind = artifact.KindCheckpoint
 		}
 		if err != nil || id.Kind() != artifactKind {
 			return fmt.Errorf("%s artifact required", artifactKind)
 		}
 		return nil
-	case WorkflowControlInteger:
+	case workflowControlInteger:
 		target = new(int64)
-	case WorkflowControlNumber:
+	case workflowControlNumber:
 		target = new(float64)
-	case WorkflowControlBoolean:
+	case workflowControlBoolean:
 		target = new(bool)
 	default:
 		return errors.New("invalid control type")

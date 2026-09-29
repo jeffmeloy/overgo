@@ -229,8 +229,8 @@ func assembleMMLUSuite(cases []storeCase) (any, int, error) {
 }
 
 func assembleMMLUProSuite(cases []storeCase) (any, int, error) {
-	suite := MMLUProSuite{
-		Kind: MMLUProKind, Schema: "lm-eval/leaderboard-mmlu-pro/v0.1", Source: "store/mmlu-pro",
+	suite := mmluProSuite{
+		Kind: mmluProKind, Schema: "lm-eval/leaderboard-mmlu-pro/v0.1", Source: "store/mmlu-pro",
 		Labels: choiceLetters, Normalization: sequencescore.NormalizationSum,
 	}
 	for _, entry := range cases {
@@ -253,7 +253,7 @@ func assembleMMLUProSuite(cases []storeCase) (any, int, error) {
 		if len(options) > len(choiceLetters) || answer < 0 || answer >= len(options) {
 			return nil, 0, fmt.Errorf("case %s/%d options are outside the label vocabulary", entry.entry, entry.ordinal)
 		}
-		suite.Cases = append(suite.Cases, MMLUProCase{
+		suite.Cases = append(suite.Cases, mmluProCase{
 			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Category: category,
 			Question: question, Options: options, Answer: answer,
 		})
@@ -369,9 +369,9 @@ func assembleMuSRSuite(cases []storeCase) (any, int, error) {
 }
 
 func assembleMATHSuite(cases []storeCase) (any, int, error) {
-	suite := StructuredGeneratedSuite{
-		Kind: StructuredGeneratedKind, Schema: "lm-eval/hendrycks-math/v1.0", Source: "store/math",
-		Extractor: ExtractorDollarSpan, Equivalence: EquivalenceLatexSurface,
+	suite := structuredGeneratedSuite{
+		Kind: structuredGeneratedKind, Schema: "lm-eval/hendrycks-math/v1.0", Source: "store/math",
+		Extractor: extractorDollarSpan, Equivalence: equivalenceLatexSurface,
 	}
 	dropped := 0
 	for _, entry := range cases {
@@ -388,7 +388,7 @@ func assembleMATHSuite(cases []storeCase) (any, int, error) {
 			dropped++
 			continue
 		}
-		suite.Cases = append(suite.Cases, StructuredGeneratedCase{
+		suite.Cases = append(suite.Cases, structuredGeneratedCase{
 			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Group: entry.subset,
 			Prompt:    "Problem: " + problem + "\nAnswer:",
 			MaxTokens: mathDerivedMaxTokens, Answers: []string{answer},
@@ -427,7 +427,7 @@ func extractBoxed(solution string) (string, bool) {
 // the port's rule vocabulary. Instructions outside the vocabulary
 // report unmapped so their cases are skipped and counted -- a rule
 // that cannot be checked exactly is not approximated.
-func ifevalRuleFor(id string, kwargs map[string]json.RawMessage) ([]InstructionRule, bool) {
+func ifevalRuleFor(id string, kwargs map[string]json.RawMessage) ([]instructionRule, bool) {
 	stringsOf := func(name string) ([]string, bool) {
 		values, err := caseStrings(kwargs, name)
 		return values, err == nil && len(values) > 0
@@ -438,49 +438,49 @@ func ifevalRuleFor(id string, kwargs map[string]json.RawMessage) ([]InstructionR
 		if !ok {
 			return nil, false
 		}
-		return []InstructionRule{{Name: id, Kind: ifevalKeywordsRule, Values: values}}, true
+		return []instructionRule{{Name: id, Kind: ifevalKeywordsRule, Values: values}}, true
 	case "keywords:forbidden_words":
 		values, ok := stringsOf("forbidden_words")
 		if !ok {
 			return nil, false
 		}
-		return []InstructionRule{{Name: id, Kind: ifevalForbiddenRule, Values: values}}, true
+		return []instructionRule{{Name: id, Kind: ifevalForbiddenRule, Values: values}}, true
 	case "language:response_language":
 		language, err := caseString(kwargs, "language")
 		if err != nil {
 			return nil, false
 		}
-		rule := InstructionRule{Name: id, Kind: ifevalLanguageRule, Values: []string{language}}
+		rule := instructionRule{Name: id, Kind: ifevalLanguageRule, Values: []string{language}}
 		if _, err := compileIFEvalLanguageRule(rule); err != nil {
 			return nil, false
 		}
-		return []InstructionRule{rule}, true
+		return []instructionRule{rule}, true
 	case "change_case:english_capital":
-		return []InstructionRule{{Name: id, Kind: ifevalEnglishUpper}}, true
+		return []instructionRule{{Name: id, Kind: ifevalEnglishUpper}}, true
 	case "change_case:english_lowercase":
-		return []InstructionRule{{Name: id, Kind: ifevalEnglishLower}}, true
+		return []instructionRule{{Name: id, Kind: ifevalEnglishLower}}, true
 	case "punctuation:no_comma":
-		return []InstructionRule{{Name: id, Kind: RuleNoComma}}, true
+		return []instructionRule{{Name: id, Kind: ruleNoComma}}, true
 	case "startend:quotation":
 		// Python str.strip whitespace; the native check requires two quotes.
 		const space = ifevalSpaceClass + "*"
-		return []InstructionRule{{Name: id, Kind: RuleRegex, Values: []string{`(?s)^` + space + `".*"` + space + `$`}}}, true
+		return []instructionRule{{Name: id, Kind: ruleRegex, Values: []string{`(?s)^` + space + `".*"` + space + `$`}}}, true
 	case "startend:end_checker":
 		var phrase string
 		if err := json.Unmarshal(kwargs["end_phrase"], &phrase); err != nil || phrase == "" {
 			return nil, false
 		}
-		return []InstructionRule{{Name: id, Kind: ifevalEndRule, Values: []string{phrase}}}, true
+		return []instructionRule{{Name: id, Kind: ifevalEndRule, Values: []string{phrase}}}, true
 	case "detectable_format:json_format":
-		return []InstructionRule{{Name: id, Kind: ifevalJSONRule}}, true
+		return []instructionRule{{Name: id, Kind: ifevalJSONRule}}, true
 	default:
 		return ifevalStructureFor(id, kwargs)
 	}
 }
 
 func assembleIFEvalSuite(cases []storeCase) (any, int, error) {
-	suite := InstructionRulesSuite{
-		Kind: InstructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "store/ifeval",
+	suite := instructionRulesSuite{
+		Kind: instructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "store/ifeval",
 	}
 	dropped := 0
 	for _, entry := range cases {
@@ -498,7 +498,7 @@ func assembleIFEvalSuite(cases []storeCase) (any, int, error) {
 				return nil, 0, fmt.Errorf("case %s/%d kwargs: %w", entry.entry, entry.ordinal, err)
 			}
 		}
-		rules := make([]InstructionRule, 0, len(ids))
+		rules := make([]instructionRule, 0, len(ids))
 		occurrences := make(map[string]int, len(ids))
 		mapped := true
 		for index, id := range ids {
@@ -532,7 +532,7 @@ func assembleIFEvalSuite(cases []storeCase) (any, int, error) {
 			dropped++
 			continue
 		}
-		suite.Cases = append(suite.Cases, InstructionRulesCase{
+		suite.Cases = append(suite.Cases, instructionRulesCase{
 			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Prompt: prompt,
 			MaxTokens: ifevalDerivedMaxTokens, Rules: rules,
 		})

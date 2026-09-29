@@ -19,7 +19,7 @@ import (
 func TestEvidenceRouteSelectsUniqueDominantCapability(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceRouteFixture(t, true)
-	decision, commit, err := CompileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
+	decision, commit, err := compileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestEvidenceRouteSelectsUniqueDominantCapability(t *testing.T) {
 func TestEvidenceRouteRefusesIncomparableFrontier(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceRouteFixture(t, false)
-	decision, _, err := CompileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
+	decision, _, err := compileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestEvidenceRouteRejectsSyntheticCandidate(t *testing.T) {
 	synthetic := testutil.ArtifactID(t, artifact.KindEvidence, "synthetic-route-probe")
 	testutil.PublishArtifact(t, fixture.store, synthetic)
 	fixture.candidates[0].Probe = synthetic
-	if _, _, err := CompileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates); err == nil {
+	if _, _, err := compileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates); err == nil {
 		t.Fatal("descriptor-only route probe was admitted")
 	}
 }
@@ -95,7 +95,7 @@ func TestEvidenceRouteRejectsUnregisteredManual(t *testing.T) {
 func TestEvidenceRouteFallbackUsesTypedFailure(t *testing.T) {
 	t.Parallel()
 	fixture := newEvidenceRouteFixture(t, true)
-	selected, _, err := CompileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
+	selected, _, err := compileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestEvidenceRouteFallbackUsesTypedFailure(t *testing.T) {
 	}
 	terminal := publishRouteFailure(t, fixture.store, selected.ID, selected.Candidates[failedIndex].Capability,
 		executionfailure.CauseNetwork, 2)
-	next, commit, disposition, err := FallbackEvidenceRoute(t.Context(), fixture.store, selected.ID, terminal.ID)
+	next, commit, disposition, err := fallbackEvidenceRoute(t.Context(), fixture.store, selected.ID, terminal.ID)
 	if err != nil || disposition.Decision != executionfailure.DecisionRetry || !commit.Valid() ||
 		next.Previous != selected.ID || next.Failure != terminal.ID || !next.Winner.Valid() || next.Winner == selected.Winner {
 		t.Fatalf("fallback = %+v, %+v, %v; want recorded alternate decision", next, disposition, err)
@@ -154,7 +154,7 @@ func newEvidenceRouteFixtureInStore(t *testing.T, store *overgodb.Store, dominan
 	} else {
 		extras[high] = 2
 	}
-	probes := make([]CapabilityProbeResult, len(fixtures))
+	probes := make([]capabilityProbeResult, len(fixtures))
 	probeEvidence := make([]CapabilityProbeEvidence, len(fixtures))
 	manuals := make([]agenttool.Manual, len(fixtures))
 	for index, fixture := range fixtures {
@@ -182,7 +182,7 @@ func newEvidenceRouteFixtureInStore(t *testing.T, store *overgodb.Store, dominan
 		}
 		fixture.request.CheckDecision = check.ID
 		probeEvidence[index] = fixture.request
-		probes[index], _, err = PublishProductionCapabilityProbe(t.Context(), store, fixture.request)
+		probes[index], _, err = publishProductionCapabilityProbe(t.Context(), store, fixture.request)
 		if err != nil {
 			t.Fatalf("publish route probe %d: %v", index, err)
 		}

@@ -38,7 +38,7 @@ func videoWorkspaceFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byt
 			{
 				Task: recipe.TaskVideoGen, Recipe: generateRecipe,
 				Stages:   []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.video"}}},
-				Controls: []WorkflowControl{{Name: "prompt", Type: WorkflowControlText, Required: true}},
+				Controls: []workflowControl{{Name: "prompt", Type: workflowControlText, Required: true}},
 			},
 		},
 		completion: map[recipe.Task]operation.Completion{

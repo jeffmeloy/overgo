@@ -100,7 +100,7 @@ func (workspace *GGUFWorkspace) catalogued(ctx context.Context) ([]discovery.Cat
 // Export tab, and in Model Builder a merge onto each as the base with the
 // others as the fine-tuned choice, beside the adapter fold with its refusal.
 func (workspace *GGUFWorkspace) WorkflowCapabilities(ctx context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
-	if workspace == nil || (kind != WorkflowExport && kind != WorkflowModelBuild) {
+	if workspace == nil || (kind != workflowExport && kind != workflowModelBuild) {
 		return nil, nil
 	}
 	entries, err := workspace.catalogued(ctx)
@@ -121,14 +121,14 @@ func (workspace *GGUFWorkspace) WorkflowCapabilities(ctx context.Context, kind W
 			capabilities = append(capabilities, capability)
 		}
 	}
-	if kind == WorkflowModelBuild {
+	if kind == workflowModelBuild {
 		fold, err := ggufProgram(adapterFoldRecipeRuntime, artifact.ID{})
 		if err != nil {
 			return nil, err
 		}
 		capabilities = append(capabilities, WorkflowCapability{Task: recipe.TaskMerge, Recipe: fold.ID, Name: "an adapter into its base",
 			Stages:   []recipe.Stage{{Node: recipe.Node{ID: "fold", Module: adapterFoldRecipeRuntime}}},
-			Controls: []WorkflowControl{}, Refusal: "folding a trained GGUF adapter into its base has no implementation yet"})
+			Controls: []workflowControl{}, Refusal: "folding a trained GGUF adapter into its base has no implementation yet"})
 	}
 	return capabilities, nil
 }
@@ -141,10 +141,10 @@ func (workspace *GGUFWorkspace) capability(kind WorkflowKind, entry discovery.Ca
 		Outputs: []recipe.Output{{Name: "model", Data: recipe.DataArtifact, Source: recipe.Endpoint{Node: "write", Port: "model"}}}}
 	runtime := exportRecipeRuntime
 	switch {
-	case kind == WorkflowExport && workspace.writers.Export != nil:
+	case kind == workflowExport && workspace.writers.Export != nil:
 		capability.Task = recipe.TaskExport
-		capability.Controls = []WorkflowControl{{Name: "type", Type: WorkflowControlText, Required: true, Choices: workspace.writers.Types}}
-	case kind == WorkflowModelBuild && workspace.writers.Merge != nil && len(names) > 1:
+		capability.Controls = []workflowControl{{Name: "type", Type: workflowControlText, Required: true, Choices: workspace.writers.Types}}
+	case kind == workflowModelBuild && workspace.writers.Merge != nil && len(names) > 1:
 		runtime, capability.Task = mergeRecipeRuntime, recipe.TaskMerge
 		others := make([]string, 0, len(names)-1)
 		for _, other := range names {
@@ -152,14 +152,14 @@ func (workspace *GGUFWorkspace) capability(kind WorkflowKind, entry discovery.Ca
 				others = append(others, other)
 			}
 		}
-		capability.Controls = []WorkflowControl{
-			{Name: "fine_tuned", Type: WorkflowControlText, Required: true, Choices: others},
-			{Name: "scale", Type: WorkflowControlNumber, Required: true},
+		capability.Controls = []workflowControl{
+			{Name: "fine_tuned", Type: workflowControlText, Required: true, Choices: others},
+			{Name: "scale", Type: workflowControlNumber, Required: true},
 		}
 	default:
 		return WorkflowCapability{}, nil
 	}
-	capability.Controls = append(capability.Controls, WorkflowControl{Name: "output", Type: WorkflowControlOutput, Required: true})
+	capability.Controls = append(capability.Controls, workflowControl{Name: "output", Type: workflowControlOutput, Required: true})
 	capability.Stages = []recipe.Stage{{Node: recipe.Node{ID: "write", Module: recipe.ModuleID(runtime)}}}
 	program, err := ggufProgram(runtime, entry.Model)
 	capability.Recipe = program.ID

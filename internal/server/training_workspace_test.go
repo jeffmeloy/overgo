@@ -28,7 +28,7 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 	dataset, policy, reference := fixture.dataset, fixture.policy, fixture.reference
 	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowTraining)
 	if err != nil || len(capabilities) != 1 || capabilities[0].Recipe != definition.ID ||
-		capabilities[0].Controls[0].Type != WorkflowControlDataset {
+		capabilities[0].Controls[0].Type != workflowControlDataset {
 		t.Fatalf("capabilities=%+v err=%v", capabilities, err)
 	}
 	expectedObservations := []struct{}{{}}
@@ -84,7 +84,7 @@ const championAlias = "models/training-workspace/champion"
 type dpoTrainingFixture struct {
 	store                      *overgodb.Store
 	roots                      dataroot.Roots
-	workspace                  *TrainingWorkspace
+	workspace                  *trainingWorkspace
 	definition                 recipe.Definition
 	dataset, policy, reference artifact.ID
 }

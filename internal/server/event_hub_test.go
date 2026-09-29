@@ -111,7 +111,7 @@ func TestEventHubFansOutOnce(t *testing.T) {
 	}
 	defer unsubscribe()
 	for range cap(slow) + 1 {
-		hub.publish("hub.downloads", []DownloadJob{})
+		hub.publish("hub.downloads", []downloadJob{})
 	}
 	if event := <-slow; len(slow) != 0 || event.name != hubResync {
 		t.Fatalf("an overflowed stream holds %q and %d more", event.name, len(slow))

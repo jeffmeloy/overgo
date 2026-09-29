@@ -17,9 +17,9 @@ import (
 // publishes through the campaign ledger.
 func TestSequenceScoringPerplexity(t *testing.T) {
 	t.Parallel()
-	compiled, err := CompileSequenceScoring(SequenceScoringSuite{
-		Kind: SequenceScoringKind, Schema: "carbon/dna-heldout/v1", Source: "store/dna",
-		Cases: []SequenceScoringCase{
+	compiled, err := compileSequenceScoring(sequenceScoringSuite{
+		Kind: sequenceScoringKind, Schema: "carbon/dna-heldout/v1", Source: "store/dna",
+		Cases: []sequenceScoringCase{
 			{Name: "seq-1", Group: "mrna_evo2", Text: "ACGTACGT"},
 			{Name: "seq-2", Group: "mrna_evo2", Text: "TTGGCCAA"},
 		},
@@ -33,7 +33,7 @@ func TestSequenceScoringPerplexity(t *testing.T) {
 		Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution:   ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
-	plan, err := BindSequenceScoring(compiled, authorities)
+	plan, err := bindSequenceScoring(compiled, authorities)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestSequenceScoringPerplexity(t *testing.T) {
 	scorer := &sequenceFixtureScorer{scores: []sequencescore.Score{
 		{LogProbability: -4, Tokens: 4}, {LogProbability: -8, Tokens: 4},
 	}}
-	report, err := EvaluateSequenceScoring(t.Context(), store, scorer, compiled, plan)
+	report, err := evaluateSequenceScoring(t.Context(), store, scorer, compiled, plan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestSequenceScoringPerplexity(t *testing.T) {
 
 	// A positive log-likelihood is not a likelihood; the suite refuses.
 	broken := &sequenceFixtureScorer{scores: []sequencescore.Score{{LogProbability: 1, Tokens: 4}}}
-	if _, err := EvaluateSequenceScoring(t.Context(), store, broken, compiled, plan); err == nil {
+	if _, err := evaluateSequenceScoring(t.Context(), store, broken, compiled, plan); err == nil {
 		t.Fatal("positive likelihood scored")
 	}
 }

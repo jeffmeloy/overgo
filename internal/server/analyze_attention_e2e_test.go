@@ -5,38 +5,28 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
-	"overgo/internal/dataroot"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modeltest"
 	"overgo/internal/recipe"
 	"overgo/internal/server"
 	"overgo/internal/servingtest"
 	"overgo/internal/testskip"
-	"overgo/internal/testutil"
 )
 
 // TestAnalyzeAttentionEndToEnd exercises the whole /analyze/attention path
 // against a real dense Qwen2 model served by a real Runner: HTTP request →
 // engine attention capture → host softmax recompute → JSON. It asserts the
 // weights are causal (upper triangle zero) and each query row is a probability
-// distribution (sums to 1). OVERGO_QWEN2_MODEL overrides the registered local
-// fixture location. Only -short excludes this device integration check.
+// distribution (sums to 1). It serves the store's smallest registered Qwen2
+// GGUF. Only -short excludes this device integration check.
 func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	t.Parallel()
 	testskip.Short(t)
-	modelPath := os.Getenv("OVERGO_QWEN2_MODEL")
-	if modelPath == "" {
-		roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-		if err != nil {
-			t.Fatal(err)
-		}
-		modelPath = roots.ResolveModelPath("overgo-hfconvert/Qwen2.5-0.5B-f16.gguf")
-	}
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(
-		modelPath, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative,
+		modeltest.GGUF(t, "qwen2"), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyDeviceNative,
 	)
 	if err != nil {
 		t.Fatal(err)

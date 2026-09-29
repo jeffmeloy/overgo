@@ -301,7 +301,8 @@ func zeroFallback(statement *ast.IfStmt) bool {
 // newUnconsumedExports names exported top-level functions, variables and
 // constants a changed internal package gained that no other package's
 // production code names. An export only its own package uses is surface
-// without a consumer.
+// without a consumer. A test-helper package (named for tests: modeltest,
+// testutil) exists for other packages' tests, so their tests consume it.
 func (l *landing) newUnconsumedExports(base, candidate gosyntax.Snapshot) ([]string, error) {
 	existing := exportedNames(base)
 	var findings []string
@@ -312,14 +313,18 @@ func (l *landing) newUnconsumedExports(base, candidate gosyntax.Snapshot) ([]str
 		}
 		if corpus == nil {
 			var err error
-			if corpus, err = l.productionSources(); err != nil {
+			if corpus, err = l.goSources(); err != nil {
 				return nil, err
 			}
 		}
 		directory, name, _ := strings.Cut(key, " ")
 		reference := []byte(pkg + "." + name)
+		testHelper := strings.HasSuffix(pkg, "test") || strings.HasSuffix(pkg, "testutil")
 		consumed := false
 		for file, data := range corpus {
+			if strings.HasSuffix(file, "_test.go") && !testHelper {
+				continue
+			}
 			if path.Dir(file) != directory && bytes.Contains(data, reference) && selects(data, pkg, name) {
 				consumed = true
 				break
@@ -373,7 +378,6 @@ func exportedNames(snapshot gosyntax.Snapshot) map[string]string {
 	return names
 }
 
-// productionSources reads every non-test Go file under cmd and internal.
 // selects reports whether Go source selects pkg.name in code: a comment or
 // a string that mentions it is no consumer. A file that does not parse
 // counts as one, since the rule cannot read it.
@@ -394,11 +398,13 @@ func selects(source []byte, pkg, name string) bool {
 	return found
 }
 
-func (l *landing) productionSources() (map[string][]byte, error) {
+// goSources reads every Go file under cmd and internal, tests included:
+// newUnconsumedExports counts a test only as a test helper's consumer.
+func (l *landing) goSources() (map[string][]byte, error) {
 	sources := map[string][]byte{}
 	for _, top := range []string{"cmd", "internal"} {
 		err := filepath.WalkDir(filepath.Join(l.Repo, top), func(name string, entry fs.DirEntry, err error) error {
-			if err != nil || entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			if err != nil || entry.IsDir() || !strings.HasSuffix(name, ".go") {
 				return err
 			}
 			data, err := os.ReadFile(name)

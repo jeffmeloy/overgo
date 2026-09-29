@@ -24,7 +24,7 @@ type unofferedGenerator struct {
 
 func (generator *unofferedGenerator) WorkflowCapabilities(ctx context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
 	capabilities, err := generator.generationWorkspaceGenerator.WorkflowCapabilities(ctx, kind)
-	if err != nil || kind != WorkflowGeneration {
+	if err != nil || kind != workflowGeneration {
 		return capabilities, err
 	}
 	return append([]WorkflowCapability{generator.embedding}, capabilities...), nil
@@ -47,7 +47,7 @@ func TestWebUIBrowserUnofferedTask(t *testing.T) {
 	}
 	defer store.Close()
 	stages := []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}}
-	controls := []WorkflowControl{{Name: "prompt", Type: WorkflowControlText, Required: true}}
+	controls := []workflowControl{{Name: "prompt", Type: workflowControlText, Required: true}}
 	image := WorkflowCapability{
 		Task: recipe.TaskImageGen, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "unoffered-image"), Name: "Image model (UI fixture)",
 		Stages: stages, Controls: controls, Outputs: []recipe.Output{{Name: "image", Data: recipe.DataImage}},

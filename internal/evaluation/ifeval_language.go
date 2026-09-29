@@ -172,7 +172,7 @@ func (p *ifevalLanguageDetector) detect(text string) (string, bool, error) {
 	return p.input.Languages[best].Name, true, nil
 }
 
-func compileIFEvalLanguageRule(source InstructionRule) (compiledInstructionRule, error) {
+func compileIFEvalLanguageRule(source instructionRule) (compiledInstructionRule, error) {
 	result := compiledInstructionRule{source: source}
 	if source.Count != nil || source.Ordinal != 0 {
 		return result, errors.New("evaluation: invalid language operands")

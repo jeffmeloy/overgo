@@ -34,11 +34,11 @@ type productionProbeFixture struct {
 func TestProductionCapabilityProbeBindsExecutionPath(t *testing.T) {
 	t.Parallel()
 	fixture := newProductionProbeFixture(t, "binds-production-path")
-	result, commit, err := PublishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request)
+	result, commit, err := publishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !commit.Valid() || result.Entry != ProductionEntryLocalPlacement ||
+	if !commit.Valid() || result.Entry != productionEntryLocalPlacement ||
 		result.Case != fixture.testCase.ID || result.Profile != fixture.profile.ID ||
 		result.Model != fixture.model || result.Recipe != fixture.definition.ID ||
 		result.Selection != fixture.request.Placement.Selection.Identity ||
@@ -47,7 +47,7 @@ func TestProductionCapabilityProbeBindsExecutionPath(t *testing.T) {
 		fixture.executed == "" || fixture.receipt.Attempt != 1 {
 		t.Fatalf("probe result = %+v", result)
 	}
-	loaded, err := RequireCapabilityProbeResult(t.Context(), fixture.store, result.ID)
+	loaded, err := requireCapabilityProbeResult(t.Context(), fixture.store, result.ID)
 	if err != nil || loaded.ID != result.ID || loaded.Resources.Scope.Workload != fixture.definition.ID ||
 		loaded.Observation != fixture.request.Observation || loaded.CheckDecision != fixture.request.CheckDecision {
 		t.Fatalf("loaded probe = (%+v, %v)", loaded, err)
@@ -79,7 +79,7 @@ func TestProductionCapabilityProbeRejectsStaleOrSyntheticEvidence(t *testing.T) 
 		}, nil, nil); err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := PublishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request); err == nil {
+		if _, _, err := publishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request); err == nil {
 			t.Fatal("stale terminal stage receipt was admitted")
 		}
 	})
@@ -95,7 +95,7 @@ func TestProductionCapabilityProbeRejectsStaleOrSyntheticEvidence(t *testing.T) 
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := PublishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request); err == nil {
+		if _, _, err := publishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request); err == nil {
 			t.Fatal("stale model selection was admitted")
 		}
 	})
@@ -104,7 +104,7 @@ func TestProductionCapabilityProbeRejectsStaleOrSyntheticEvidence(t *testing.T) 
 		fixture := newProductionProbeFixture(t, "synthetic-trace")
 		fixture.request.Trace = testutil.ArtifactID(t, artifact.KindEvidence, "descriptor-only-probe-trace")
 		testutil.PublishArtifact(t, fixture.store, fixture.request.Trace)
-		if _, _, err := PublishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request); err == nil {
+		if _, _, err := publishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request); err == nil {
 			t.Fatal("descriptor-only synthetic trace was admitted")
 		}
 	})
@@ -113,7 +113,7 @@ func TestProductionCapabilityProbeRejectsStaleOrSyntheticEvidence(t *testing.T) 
 		fixture := newProductionProbeFixture(t, "synthetic-resource")
 		fixture.request.Observation = testutil.ArtifactID(t, artifact.KindEvidence, "descriptor-only-serving-observation")
 		testutil.PublishArtifact(t, fixture.store, fixture.request.Observation)
-		if _, _, err := PublishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request); err == nil {
+		if _, _, err := publishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request); err == nil {
 			t.Fatal("descriptor-only resource observation was admitted")
 		}
 	})
@@ -139,7 +139,7 @@ func TestProductionCapabilityProbeRejectsStaleOrSyntheticEvidence(t *testing.T) 
 			t.Fatal(err)
 		}
 		fixture.request.Case = other.ID
-		if _, _, err := PublishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request); err == nil {
+		if _, _, err := publishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request); err == nil {
 			t.Fatal("evidence bound to another activation case was admitted")
 		}
 	})
@@ -319,7 +319,7 @@ func newProductionProbeFixtureInStore(t *testing.T, store *overgodb.Store, name 
 	}
 	const raw = `"probe request"`
 	started := time.Now()
-	executed, err := catalog.ExecutePlaced(ctx, store, "model", placement, raw)
+	executed, err := catalog.Execute(ctx, store, "model", placement.Selection, raw)
 	executionWall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)

@@ -47,11 +47,11 @@ func (f *instructionChatFixture) ScoreContinuations(context.Context, string, []s
 // prompt.
 func TestInstructionRulesShapeThroughTheChatTemplate(t *testing.T) {
 	t.Parallel()
-	compiled, err := CompileInstructionRules(InstructionRulesSuite{
-		Kind: InstructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "fixture",
-		Cases: []InstructionRulesCase{{
+	compiled, err := compileInstructionRules(instructionRulesSuite{
+		Kind: instructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "fixture",
+		Cases: []instructionRulesCase{{
 			Name: "uppercase", Prompt: "Reply in uppercase.", MaxTokens: 8,
-			Rules: []InstructionRule{{Name: "uppercase", Kind: RuleUppercase}},
+			Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}},
 		}},
 	})
 	if err != nil {
@@ -63,7 +63,7 @@ func TestInstructionRulesShapeThroughTheChatTemplate(t *testing.T) {
 		Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution:   ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate},
 	}
-	plan, err := BindInstructionRules(compiled, authorities)
+	plan, err := bindInstructionRules(compiled, authorities)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestInstructionRulesShapeThroughTheChatTemplate(t *testing.T) {
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
 	chat := &instructionChatFixture{answer: "HELLO"}
-	report, err := EvaluateInstructionRules(t.Context(), store, chat, compiled, plan)
+	report, err := evaluateInstructionRules(t.Context(), store, chat, compiled, plan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestInstructionRulesShapeThroughTheChatTemplate(t *testing.T) {
 	// two protocols' records never collide; the raw generator's raw
 	// prompt is the pinned oracle parity test's path.
 	authorities.Execution.Prompting = PromptingRawCompletion
-	rawPlan, err := BindInstructionRules(compiled, authorities)
+	rawPlan, err := bindInstructionRules(compiled, authorities)
 	if err != nil {
 		t.Fatal(err)
 	}

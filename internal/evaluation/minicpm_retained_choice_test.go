@@ -82,7 +82,7 @@ func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
 			}
 			var stored struct {
 				GroupedChoiceReport
-				Categories []AccuracyGroup `json:"categories"`
+				Categories []accuracyGroup `json:"categories"`
 			}
 			readRetainedEvidence(t, store, value.Report, &stored)
 			report := stored.GroupedChoiceReport

@@ -70,19 +70,3 @@ func (placement ExactCapabilityPlacement) validate() error {
 	}
 	return nil
 }
-
-// ExecutePlaced executes only after revalidating the exact capability and
-// model selection against the current repository.
-func (catalog ExecutorCatalog) ExecutePlaced(
-	ctx context.Context,
-	store artifact.Repository,
-	path string,
-	placement ExactCapabilityPlacement,
-	raw string,
-) (any, error) {
-	current, err := ResolveExactCapabilityPlacement(ctx, store, placement.Capability.ID, placement.Selection)
-	if err != nil || current.ID != placement.ID {
-		return nil, errors.Join(errors.New("capability runtime: exact placement changed"), err)
-	}
-	return catalog.Execute(ctx, store, path, current.Selection, raw)
-}

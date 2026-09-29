@@ -25,7 +25,7 @@ func TestWebhookAutomationDispatchAndRecovery(t *testing.T) {
 	t.Parallel()
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()
-	workspace := fixture.handler.generator.(*automationWorkspaceGenerator).AutomationWorkspace
+	workspace := fixture.handler.generator.(*automationWorkspaceGenerator).automationWorkspace
 	secret := []byte("server-webhook-secret-never-persisted")
 	key := commitAutomationServerBlob(t, fixture.store, artifact.KindProfile, "server-webhook-key-profile")
 	schema := commitAutomationServerBlob(t, fixture.store, artifact.KindProfile, "server-webhook-payload-schema")
@@ -76,14 +76,14 @@ func TestWebhookAutomationDispatchAndRecovery(t *testing.T) {
 		t.Fatalf("same-process duplicate = %+v, adapter calls=%d", duplicate, adapterCalls.Load())
 	}
 
-	restartedWorkspace, err := (AutomationWorkspaceConfig{
+	restartedWorkspace, err := (automationWorkspaceConfig{
 		Store: fixture.store, Catalog: workspace.catalog, Adapters: workspace.adapters,
 		Tools: workspace.tools, WebhookKeyResolver: workspace.webhookKeyResolver, Limit: workspace.limit,
 	}).Open()
 	if err != nil {
 		t.Fatal(err)
 	}
-	restartedGenerator := &automationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, AutomationWorkspace: restartedWorkspace}
+	restartedGenerator := &automationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, automationWorkspace: restartedWorkspace}
 	restarted := newTestHandlerForRepository(t, fixture.store, restartedGenerator)
 	restarted.config.APIKey = testAPIKey
 	recoveredResponse := serveWebhookRequest(restarted, payload, "request-1", webhookSignature(secret, payload), "")
@@ -138,7 +138,7 @@ func publishWebhookAutomationFromAPI(
 	key, schema, authority artifact.ID,
 ) artifact.ID {
 	t.Helper()
-	request := AutomationDefinitionInput{
+	request := automationDefinitionInput{
 		Name: "webhook-report", Recipe: fixture.definition.ID,
 		Trigger: recipe.AutomationTriggerPolicy{Kind: recipe.AutomationTriggerWebhook, Webhook: &recipe.WebhookTriggerPolicy{
 			Signature: recipe.WebhookSignaturePolicy{Algorithm: "hmac-sha256", Header: "X-Overgo-Signature", Key: key},

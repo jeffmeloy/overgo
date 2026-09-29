@@ -22,27 +22,27 @@ import (
 	"overgo/internal/runrecord"
 )
 
-type EvaluationCapability struct {
+type evaluationCapability struct {
 	Model  artifact.ID                `json:"model"`
 	Recipe artifact.ID                `json:"recipe"`
 	Suite  evaluation.SuiteDescriptor `json:"suite"`
 }
 
-type EvaluationHistoryEntry = evaluation.HistoryEntry
+type evaluationHistoryEntry = evaluation.HistoryEntry
 
-type EvaluationReport struct {
+type evaluationReport struct {
 	ID        artifact.ID     `json:"id"`
 	MediaType string          `json:"media_type"`
 	Schema    string          `json:"schema"`
 	Body      json.RawMessage `json:"body"`
 }
 
-type EvaluationFailure struct {
+type evaluationFailure struct {
 	Name        string          `json:"name,omitzero"`
 	Observation json.RawMessage `json:"observation"`
 }
 
-type EvaluationMetricDelta struct {
+type evaluationMetricDelta struct {
 	Name      string              `json:"name"`
 	Left      float64             `json:"left"`
 	Right     float64             `json:"right"`
@@ -51,23 +51,23 @@ type EvaluationMetricDelta struct {
 	Improved  bool                `json:"improved"`
 }
 
-type EvaluationComparison struct {
+type evaluationComparison struct {
 	Left    artifact.ID             `json:"left"`
 	Right   artifact.ID             `json:"right"`
-	Metrics []EvaluationMetricDelta `json:"metrics"`
+	Metrics []evaluationMetricDelta `json:"metrics"`
 }
 
 type EvaluationWorkspaceAPI interface {
-	EvaluationCapabilities(context.Context) ([]EvaluationCapability, error)
+	EvaluationCapabilities(context.Context) ([]evaluationCapability, error)
 	ExecuteEvaluation(context.Context, artifact.ID, []artifact.ID, operation.Reporter) (operation.Completion, error)
 	ExecuteSupervisedGroundedReplay(context.Context, artifact.ID, evaluation.SupervisedGroundedReplayRequest, operation.Reporter) (operation.Completion, error)
-	EvaluationHistory(context.Context, artifact.ID) ([]EvaluationHistoryEntry, error)
-	EvaluationReport(context.Context, artifact.ID) (EvaluationReport, error)
-	EvaluationFailures(context.Context, artifact.ID) ([]EvaluationFailure, error)
-	CompareEvaluations(context.Context, artifact.ID, artifact.ID) (EvaluationComparison, error)
+	EvaluationHistory(context.Context, artifact.ID) ([]evaluationHistoryEntry, error)
+	EvaluationReport(context.Context, artifact.ID) (evaluationReport, error)
+	EvaluationFailures(context.Context, artifact.ID) ([]evaluationFailure, error)
+	CompareEvaluations(context.Context, artifact.ID, artifact.ID) (evaluationComparison, error)
 }
 
-type EvaluationWorkspace struct {
+type evaluationWorkspace struct {
 	repository   *overgodb.Store
 	campaign     *evaluation.Campaign
 	model        artifact.ID
@@ -85,7 +85,7 @@ func NewEvaluationWorkspace(
 	commit string,
 	historyLimit int,
 	suitePaths []string,
-) (*EvaluationWorkspace, error) {
+) (*evaluationWorkspace, error) {
 	if historyLimit <= 0 {
 		return nil, errors.New("evaluation workspace: history limit is invalid")
 	}
@@ -93,7 +93,7 @@ func NewEvaluationWorkspace(
 	if err != nil {
 		return nil, err
 	}
-	workspace := &EvaluationWorkspace{
+	workspace := &evaluationWorkspace{
 		repository: repository, campaign: campaign, model: identity.Model, recipe: identity.Recipe,
 		suites: make([]evaluation.CompiledSuite, 0, len(suitePaths)), byPlan: make(map[artifact.ID]int, len(suitePaths)),
 		historyLimit: historyLimit,
@@ -151,18 +151,18 @@ func NewEvaluationWorkspace(
 	return workspace, nil
 }
 
-func (workspace *EvaluationWorkspace) EvaluationCapabilities(context.Context) ([]EvaluationCapability, error) {
+func (workspace *evaluationWorkspace) EvaluationCapabilities(context.Context) ([]evaluationCapability, error) {
 	if workspace == nil || workspace.campaign == nil {
 		return nil, errors.New("evaluation workspace: unavailable")
 	}
-	capabilities := make([]EvaluationCapability, len(workspace.suites))
+	capabilities := make([]evaluationCapability, len(workspace.suites))
 	for index, suite := range workspace.suites {
-		capabilities[index] = EvaluationCapability{Model: workspace.model, Recipe: workspace.recipe, Suite: suite.Descriptor()}
+		capabilities[index] = evaluationCapability{Model: workspace.model, Recipe: workspace.recipe, Suite: suite.Descriptor()}
 	}
 	return capabilities, nil
 }
 
-func (workspace *EvaluationWorkspace) ExecuteEvaluation(
+func (workspace *evaluationWorkspace) ExecuteEvaluation(
 	ctx context.Context,
 	model artifact.ID,
 	plans []artifact.ID,
@@ -187,7 +187,7 @@ func (workspace *EvaluationWorkspace) ExecuteEvaluation(
 	})
 }
 
-func (workspace *EvaluationWorkspace) executeEvaluation(
+func (workspace *evaluationWorkspace) executeEvaluation(
 	ctx context.Context,
 	plans []artifact.ID,
 	reporter operation.Reporter,
@@ -222,7 +222,7 @@ func (workspace *EvaluationWorkspace) executeEvaluation(
 }
 
 // ExecuteSupervisedGroundedReplay runs one admitted replay through the existing operation owner.
-func (workspace *EvaluationWorkspace) ExecuteSupervisedGroundedReplay(
+func (workspace *evaluationWorkspace) ExecuteSupervisedGroundedReplay(
 	ctx context.Context,
 	model artifact.ID,
 	request evaluation.SupervisedGroundedReplayRequest,
@@ -295,31 +295,31 @@ func groundedReplayOutputs(result evaluation.SupervisedGroundedReplayResult) []a
 	return unique
 }
 
-func (workspace *EvaluationWorkspace) EvaluationHistory(ctx context.Context, model artifact.ID) ([]EvaluationHistoryEntry, error) {
+func (workspace *evaluationWorkspace) EvaluationHistory(ctx context.Context, model artifact.ID) ([]evaluationHistoryEntry, error) {
 	if workspace == nil || workspace.repository == nil || model != workspace.model {
 		return nil, errors.New("evaluation workspace: model is not selected")
 	}
 	return workspace.campaign.History(ctx, workspace.suites, workspace.historyLimit)
 }
 
-func (workspace *EvaluationWorkspace) EvaluationReport(ctx context.Context, id artifact.ID) (EvaluationReport, error) {
+func (workspace *evaluationWorkspace) EvaluationReport(ctx context.Context, id artifact.ID) (evaluationReport, error) {
 	if workspace == nil || workspace.repository == nil || id.Kind() != artifact.KindEvaluation {
-		return EvaluationReport{}, errors.New("evaluation workspace: invalid report")
+		return evaluationReport{}, errors.New("evaluation workspace: invalid report")
 	}
 	content, found, err := artifact.ReadContent(ctx, workspace.repository, id)
 	if err != nil {
-		return EvaluationReport{}, err
+		return evaluationReport{}, err
 	}
 	if !found {
-		return EvaluationReport{}, errors.New("evaluation workspace: report is absent")
+		return evaluationReport{}, errors.New("evaluation workspace: report is absent")
 	}
-	return EvaluationReport{
+	return evaluationReport{
 		ID: id, MediaType: content.Descriptor.MediaType, Schema: content.Descriptor.Schema,
 		Body: slices.Clone(content.Data),
 	}, nil
 }
 
-func (workspace *EvaluationWorkspace) EvaluationFailures(ctx context.Context, id artifact.ID) ([]EvaluationFailure, error) {
+func (workspace *evaluationWorkspace) EvaluationFailures(ctx context.Context, id artifact.ID) ([]evaluationFailure, error) {
 	report, err := workspace.EvaluationReport(ctx, id)
 	if err != nil {
 		return nil, err
@@ -328,37 +328,37 @@ func (workspace *EvaluationWorkspace) EvaluationFailures(ctx context.Context, id
 	if err != nil {
 		return nil, err
 	}
-	result := make([]EvaluationFailure, len(failures))
+	result := make([]evaluationFailure, len(failures))
 	for index, failure := range failures {
-		result[index] = EvaluationFailure{Name: failure.Name, Observation: failure.Body}
+		result[index] = evaluationFailure{Name: failure.Name, Observation: failure.Body}
 	}
 	return result, nil
 }
 
-func (workspace *EvaluationWorkspace) CompareEvaluations(ctx context.Context, left, right artifact.ID) (EvaluationComparison, error) {
+func (workspace *evaluationWorkspace) CompareEvaluations(ctx context.Context, left, right artifact.ID) (evaluationComparison, error) {
 	leftRecord, err := workspace.loadEvaluation(ctx, left)
 	if err != nil {
-		return EvaluationComparison{}, err
+		return evaluationComparison{}, err
 	}
 	rightRecord, err := workspace.loadEvaluation(ctx, right)
 	if err != nil {
-		return EvaluationComparison{}, err
+		return evaluationComparison{}, err
 	}
 	if leftRecord.Dataset != rightRecord.Dataset {
-		return EvaluationComparison{}, errors.New("evaluation workspace: comparison datasets differ")
+		return evaluationComparison{}, errors.New("evaluation workspace: comparison datasets differ")
 	}
 	rightByName := make(map[string]runrecord.Metric, len(rightRecord.Metrics))
 	for _, metric := range rightRecord.Metrics {
 		rightByName[metric.Name] = metric
 	}
-	deltas := make([]EvaluationMetricDelta, 0, len(leftRecord.Metrics))
+	deltas := make([]evaluationMetricDelta, 0, len(leftRecord.Metrics))
 	for _, leftMetric := range leftRecord.Metrics {
 		rightMetric, found := rightByName[leftMetric.Name]
 		if !found || leftMetric.Unit != rightMetric.Unit || leftMetric.Direction != rightMetric.Direction {
-			return EvaluationComparison{}, errors.New("evaluation workspace: comparison metric contracts differ")
+			return evaluationComparison{}, errors.New("evaluation workspace: comparison metric contracts differ")
 		}
 		delta := rightMetric.Value - leftMetric.Value
-		deltas = append(deltas, EvaluationMetricDelta{
+		deltas = append(deltas, evaluationMetricDelta{
 			Name: leftMetric.Name, Left: leftMetric.Value, Right: rightMetric.Value, Delta: delta,
 			Direction: leftMetric.Direction,
 			Improved: leftMetric.Direction == runrecord.DirectionMaximize && delta > 0 ||
@@ -366,12 +366,12 @@ func (workspace *EvaluationWorkspace) CompareEvaluations(ctx context.Context, le
 		})
 	}
 	if len(deltas) != len(rightRecord.Metrics) {
-		return EvaluationComparison{}, errors.New("evaluation workspace: comparison metric sets differ")
+		return evaluationComparison{}, errors.New("evaluation workspace: comparison metric sets differ")
 	}
-	return EvaluationComparison{Left: left, Right: right, Metrics: deltas}, nil
+	return evaluationComparison{Left: left, Right: right, Metrics: deltas}, nil
 }
 
-func (workspace *EvaluationWorkspace) loadEvaluation(ctx context.Context, id artifact.ID) (runrecord.Evaluation, error) {
+func (workspace *evaluationWorkspace) loadEvaluation(ctx context.Context, id artifact.ID) (runrecord.Evaluation, error) {
 	if id.Kind() != artifact.KindEvaluation {
 		return runrecord.Evaluation{}, errors.New("evaluation workspace: invalid evaluation identity")
 	}
@@ -440,7 +440,7 @@ func (h *Handler) evaluationRun(response http.ResponseWriter, request *http.Requ
 	writeJSON(response, http.StatusAccepted, workflowResponse{Operation: id})
 }
 
-func admitEvaluationRequest(capabilities []EvaluationCapability, request evaluationRunRequest, limit int) (artifact.ID, error) {
+func admitEvaluationRequest(capabilities []evaluationCapability, request evaluationRunRequest, limit int) (artifact.ID, error) {
 	if !request.Model.Valid() || limit <= 0 || (len(request.Plans) == 0) == (request.GroundedReplay == nil) {
 		return artifact.ID{}, errors.New("evaluation workspace: exactly one bounded evaluation request is required")
 	}

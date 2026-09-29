@@ -192,7 +192,7 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) bo
 	supported := false
 	switch capability {
 	case "conversation":
-		supported = analysis.Logits || h.hasWorkspaceCapability(ctx, WorkflowGeneration, "")
+		supported = analysis.Logits || h.hasWorkspaceCapability(ctx, workflowGeneration, "")
 	case "analysis.logits":
 		supported = analysis.Logits
 	case "analysis.vocabulary":
@@ -204,10 +204,10 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) bo
 	case "analysis.tensors":
 		supported = analysis.Tensors
 	case "model.properties":
-		_, supported = h.generator.(ModelPropertiesAPI)
+		_, supported = h.generator.(modelPropertiesAPI)
 	case "analysis":
 		// Inspect opens when it has a view to show.
-		_, properties := h.generator.(ModelPropertiesAPI)
+		_, properties := h.generator.(modelPropertiesAPI)
 		supported = properties || analysis.Logits || analysis.Vocabulary || analysis.HiddenStates || analysis.Attention || analysis.Tensors
 	case "agent":
 		supported = h.agentCoordinator != nil
@@ -224,27 +224,27 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) bo
 		// way cmd/server does; the generator never carries it.
 		supported = h.config.Evaluation != nil
 	case "automation":
-		_, supported = h.generator.(AutomationWorkspaceAPI)
+		_, supported = h.generator.(automationWorkspaceAPI)
 	case "peer":
-		_, supported = h.generator.(PeerWorkspaceAPI)
+		_, supported = h.generator.(peerWorkspaceAPI)
 	case "workflow.generation":
-		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, "")
+		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, "")
 	case "workflow.training":
 		supported = h.hasWorkspaceCapability(ctx, WorkflowTraining, "")
 	case "workflow.model-builder":
-		supported = h.hasWorkspaceCapability(ctx, WorkflowModelBuild, "")
+		supported = h.hasWorkspaceCapability(ctx, workflowModelBuild, "")
 	case "workflow.export":
-		supported = h.hasWorkspaceCapability(ctx, WorkflowExport, "")
+		supported = h.hasWorkspaceCapability(ctx, workflowExport, "")
 	case "workflow.image":
-		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskImageGen)
+		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, recipe.TaskImageGen)
 	case "workflow.video":
-		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVideoGen)
+		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, recipe.TaskVideoGen)
 	case "workflow.speech":
-		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskSpeech)
+		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, recipe.TaskSpeech)
 	case "workflow.vqa":
-		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVQA)
+		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, recipe.TaskVQA)
 	case "workflow.transcription":
-		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskTranscription)
+		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, recipe.TaskTranscription)
 	}
 	return supported
 }

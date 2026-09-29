@@ -31,10 +31,10 @@ type EvidenceRouteCandidate struct {
 	Manual artifact.ID `json:"manual"`
 }
 
-// CompileEvidenceRoute verifies current production probes, exact manuals, and
+// compileEvidenceRoute verifies current production probes, exact manuals, and
 // an accepted typed authority at one repository head, then publishes the
 // provider-neutral routing decision with compare-and-set publication.
-func CompileEvidenceRoute(
+func compileEvidenceRoute(
 	ctx context.Context,
 	repository artifact.Repository,
 	request EvidenceRouteRequest,
@@ -92,10 +92,10 @@ func CompileEvidenceRoute(
 	return runrecord.PublishRoutingDecision(ctx, repository, decision, head)
 }
 
-// FallbackEvidenceRoute consumes the stored selected decision and the current
+// fallbackEvidenceRoute consumes the stored selected decision and the current
 // typed terminal failure receipt. A retry publishes a new decision before an
 // alternate selection is observable; non-retry dispositions return no route.
-func FallbackEvidenceRoute(
+func fallbackEvidenceRoute(
 	ctx context.Context,
 	repository artifact.Repository,
 	previousID, terminalID artifact.ID,
@@ -168,27 +168,27 @@ func requireRouteCandidate(
 	ctx context.Context,
 	reader artifact.Reader,
 	candidate EvidenceRouteCandidate,
-) (CapabilityProbeResult, agenttool.Manual, invocation.Boundary, runrecord.RouteMeasurement, error) {
+) (capabilityProbeResult, agenttool.Manual, invocation.Boundary, runrecord.RouteMeasurement, error) {
 	var manual agenttool.Manual
-	probe, err := RequireCapabilityProbeResult(ctx, reader, candidate.Probe)
+	probe, err := requireCapabilityProbeResult(ctx, reader, candidate.Probe)
 	if err != nil || probe.Outcome != runrecord.OutcomeSucceeded {
-		return CapabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route probe is not current successful production evidence"), err)
+		return capabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route probe is not current successful production evidence"), err)
 	}
 	manual, err = requireRegisteredRouteManual(ctx, reader, candidate.Manual)
 	if err != nil || manual.Capability != probe.ModelCapability {
-		return CapabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route manual addresses another capability"), err)
+		return capabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route manual addresses another capability"), err)
 	}
 	boundary, err := probeRouteBoundary(probe.Entry)
 	if err != nil {
-		return CapabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, err
+		return capabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, err
 	}
 	check, err := recipe.RequireDecision(ctx, reader, probe.CheckDecision)
 	if err != nil || check.Outcome != recipe.DecisionAccepted {
-		return CapabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route probe check is not accepted"), err)
+		return capabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.Join(errors.New("evaluation: route probe check is not accepted"), err)
 	}
 	latency, measured := probe.Resources.Measure(runrecord.ResourceWallNS)
 	if !measured {
-		return CapabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.New("evaluation: route probe lacks measured latency")
+		return capabilityProbeResult{}, manual, "", runrecord.RouteMeasurement{}, errors.New("evaluation: route probe lacks measured latency")
 	}
 	measurement := runrecord.RouteMeasurement{
 		Attempts: 1, Succeeded: 1, EvidenceUnits: uint64(len(check.Evidence)), LatencyNS: latency,
@@ -211,13 +211,13 @@ func requireRegisteredRouteManual(ctx context.Context, reader artifact.Reader, i
 	return registered, nil
 }
 
-func probeRouteBoundary(entry ProductionCapabilityEntry) (invocation.Boundary, error) {
+func probeRouteBoundary(entry productionCapabilityEntry) (invocation.Boundary, error) {
 	switch entry {
-	case ProductionEntryLocalPlacement:
+	case productionEntryLocalPlacement:
 		return invocation.BoundaryInternal, nil
-	case ProductionEntryPeerPlacement:
+	case productionEntryPeerPlacement:
 		return invocation.BoundaryPeer, nil
-	case ProductionEntryAgentCoordinator:
+	case productionEntryAgentCoordinator:
 		return invocation.BoundaryAgent, nil
 	default:
 		return "", errors.New("evaluation: unknown production route boundary")

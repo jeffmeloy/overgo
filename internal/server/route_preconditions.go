@@ -15,11 +15,11 @@ func generatorWorkspace[W any](absent string, serve func(*Handler, W, http.Respo
 	}
 }
 
-func peerRoute(serve func(*Handler, PeerWorkspaceAPI, http.ResponseWriter, *http.Request)) routeHandler {
+func peerRoute(serve func(*Handler, peerWorkspaceAPI, http.ResponseWriter, *http.Request)) routeHandler {
 	return generatorWorkspace("peer workspace is unavailable", serve)
 }
 
-func automationRoute(serve func(*Handler, AutomationWorkspaceAPI, http.ResponseWriter, *http.Request)) routeHandler {
+func automationRoute(serve func(*Handler, automationWorkspaceAPI, http.ResponseWriter, *http.Request)) routeHandler {
 	return generatorWorkspace("automation workspace is unavailable", serve)
 }
 

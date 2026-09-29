@@ -2,9 +2,9 @@ package evaluation
 
 import "errors"
 
-func compileIFEvalTokenizerRule(source InstructionRule) (compiledInstructionRule, error) {
+func compileIFEvalTokenizerRule(source instructionRule) (compiledInstructionRule, error) {
 	result := compiledInstructionRule{source: source}
-	if source.Count == nil || source.Count.Value <= 0 || source.Count.Relation != RelationAtLeast && source.Count.Relation != ifevalLessThan || len(source.Values) != 0 || source.Ordinal != 0 {
+	if source.Count == nil || source.Count.Value <= 0 || source.Count.Relation != relationAtLeast && source.Count.Relation != ifevalLessThan || len(source.Values) != 0 || source.Ordinal != 0 {
 		return result, errors.New("evaluation: unresolved native tokenizer operands")
 	}
 	tokenizer, err := compiledIFEvalTokenizer()

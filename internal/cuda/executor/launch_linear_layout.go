@@ -292,11 +292,17 @@ func launchLinearLayout(
 			if blas == nil || blas.staging == 0 {
 				return errors.New("fp8 mul_mat weight workspace is unavailable")
 			}
+			if fp8TensorCoreMulMat(node) {
+				return launchFP8TensorCoreMulMat(
+					state, functions, blas, rightNode, left, scale, right, output, inner, leftRows, rightRows,
+				)
+			}
 			if quantStagedMulMat(node) && rightRows >= quantStagedColumnFloor {
-				// Under the native policy the fp8 rows upconvert to f16 with
-				// the row scale folded and run the tensor-core GEMM, the
-				// path the quantized weights take; the exact F32 staging
-				// below stays for the exact policy.
+				// Under the native policy, in a shape outside the FP8
+				// alignment, the fp8 rows upconvert to f16 with the row
+				// scale folded and run the tensor-core GEMM, the path the
+				// quantized weights take; the exact F32 staging below
+				// stays for the exact policy.
 				return launchStagedHalfMatMul(
 					state, functions, blas, right, output, inner, leftRows, rightRows,
 					func(start, rows, _ uint32) error {
@@ -435,8 +441,8 @@ func launchLinearLayout(
 		outputVectorBytes := uint64(leftRows) * f32ScalarBytes
 		leftBase := pointers.input(0)
 		rightBase := pointers.input(1)
-		for token := uint32(0); token < tokens; token++ {
-			for group := uint32(0); group < groups; group++ {
+		for token := range tokens {
+			for group := range groups {
 				left := leftBase + driver.DevicePtr(uint64(group)*leftMatrixBytes)
 				right := rightBase + driver.DevicePtr((uint64(token)*uint64(groups)+uint64(group))*rightVectorBytes)
 				groupOutput := output + driver.DevicePtr((uint64(token)*uint64(groups)+uint64(group))*outputVectorBytes)
@@ -626,6 +632,137 @@ func quantStagedMulMat(node *tensor.Tensor) bool {
 	}
 	_, staged := quantStagedKernels[node.Inputs[0].Type]
 	return staged
+}
+
+// fp8GemmWorkspaceBytes: the cuBLASLt workspace the FP8 product may
+// use, at the staging's start; cuBLAS's own default before Hopper.
+const fp8GemmWorkspaceBytes = uint64(4 << 20)
+
+// fp8TensorCoreAlignment: cuBLASLt's FP8 kernels need 16-byte aligned
+// operands and leading dimensions -- e4m3 rows of inner bytes and F32
+// output columns of leftRows*4 bytes.
+const fp8TensorCoreAlignment = uint64(16)
+
+// fp8QuadWidth mirrors the kernels' FP8_QUAD_WIDTH: the epilogue scales
+// four output rows per thread.
+const fp8QuadWidth = uint64(4)
+
+// fp8WeightShape keys the cuBLASLt FP8 plans by weight geometry.
+type fp8WeightShape struct {
+	inner, rows uint32
+}
+
+// fp8TensorCoreMulMat reports whether a mul_mat node multiplies native
+// fp8 weights by its activation quantized to e4m3 on the tensor cores:
+// the native policy past the column floor, in a shape that keeps
+// cuBLASLt's FP8 alignment. Other fp8 shapes keep the f16 staging.
+func fp8TensorCoreMulMat(node *tensor.Tensor) bool {
+	if !quantStagedMulMat(node) || node.Inputs[0].Type != dtype.F8E4M3 {
+		return false
+	}
+	inner, leftRows := node.Inputs[0].Shape.Dims[0], node.Inputs[0].Shape.Dims[1]
+	return node.Inputs[1].Shape.Dims[1] >= uint64(quantStagedColumnFloor) &&
+		inner%fp8TensorCoreAlignment == 0 && leftRows*f32ScalarBytes%fp8TensorCoreAlignment == 0
+}
+
+// fp8TensorCoreStagingBytes: the cuBLASLt workspace, then the e4m3
+// activation and its per-column F32 scales.
+func fp8TensorCoreStagingBytes(inner, rightRows uint64) uint64 {
+	return fp8GemmWorkspaceBytes + inner*rightRows + rightRows*f32ScalarBytes
+}
+
+// launchFP8TensorCoreMulMat multiplies resident fp8 weights by the
+// activation quantized to e4m3 with one scale per token column: the
+// quantization runs once per activation node (the memo the half-precision
+// pack keeps), one cuBLASLt FP8 product accumulates in F32 over the
+// weight as stored, and an epilogue folds the weight-row and
+// activation-column scales into the output.
+func launchFP8TensorCoreMulMat(
+	state *device.State,
+	functions functionSet,
+	blas *blasState,
+	rightNode *tensor.Tensor,
+	left, weightScale, right, output driver.DevicePtr,
+	inner, leftRows, rightRows uint32,
+) error {
+	if blas.lt == 0 || blas.stagingBytes < fp8TensorCoreStagingBytes(uint64(inner), uint64(rightRows)) {
+		return errors.New("fp8 tensor-core mul_mat workspace is unavailable")
+	}
+	outputElements := uint64(leftRows) * uint64(rightRows)
+	if outputElements > math.MaxUint32 {
+		return errors.New("fp8 tensor-core mul_mat output exceeds uint32")
+	}
+	for _, pointer := range []driver.DevicePtr{left, right, output} {
+		if uint64(pointer)%fp8TensorCoreAlignment != 0 {
+			return errors.New("fp8 tensor-core mul_mat operand is not 16-byte aligned")
+		}
+	}
+	activation := blas.staging + driver.DevicePtr(fp8GemmWorkspaceBytes)
+	columnScale := activation + driver.DevicePtr(uint64(inner)*uint64(rightRows))
+	if blas.stagedNode != rightNode || blas.stagedType != dtype.F8E4M3 {
+		if err := launchGridABI(
+			state, functions[kernelQuantizeFp8ColumnsF32],
+			kernel.Grid1D(int(rightRows)), kernel.DefaultBlock1D(),
+			&right, &activation, &columnScale, &inner, &rightRows,
+		); err != nil {
+			return err
+		}
+		blas.stagedNode, blas.stagedType = rightNode, dtype.F8E4M3
+	}
+	if !traceExternalCall(
+		state, traceTagFP8Matmul,
+		uint64(left), uint64(activation), uint64(output),
+		uint64(leftRows), uint64(rightRows), uint64(inner),
+	) {
+		plan, err := blas.fp8Plan(inner, leftRows, rightRows)
+		if err != nil {
+			return err
+		}
+		if err := blas.library.MatmulFP8(
+			blas.lt, plan, left, activation, output, blas.staging, fp8GemmWorkspaceBytes, state.Stream,
+		); err != nil {
+			return err
+		}
+	}
+	quads := uint32(outputElements / fp8QuadWidth)
+	return launch1DABI(
+		state, functions[kernelScaleFp8ProductF32], quads,
+		&output, &weightScale, &columnScale, &leftRows, &quads,
+	)
+}
+
+// fp8Plan returns the cuBLASLt FP8 product for a weight shape at this
+// column count, dropping the plans of a previous column count.
+func (b *blasState) fp8Plan(inner, leftRows, rightRows uint32) (*cublas.FP8Plan, error) {
+	if b.fp8PlanColumns != rightRows {
+		if err := b.dropFP8Plans(); err != nil {
+			return nil, err
+		}
+		b.fp8PlanColumns = rightRows
+	}
+	shape := fp8WeightShape{inner: inner, rows: leftRows}
+	if plan, ok := b.fp8Plans[shape]; ok {
+		return plan, nil
+	}
+	plan, err := b.library.PlanFP8(b.lt, uint64(leftRows), uint64(rightRows), uint64(inner), fp8GemmWorkspaceBytes)
+	if err != nil {
+		return nil, err
+	}
+	if b.fp8Plans == nil {
+		b.fp8Plans = make(map[fp8WeightShape]*cublas.FP8Plan)
+	}
+	b.fp8Plans[shape] = plan
+	return plan, nil
+}
+
+// dropFP8Plans releases every cached cuBLASLt FP8 plan.
+func (b *blasState) dropFP8Plans() error {
+	var errs []error
+	for shape, plan := range b.fp8Plans {
+		errs = append(errs, b.library.DestroyFP8Plan(plan))
+		delete(b.fp8Plans, shape)
+	}
+	return errors.Join(errs...)
 }
 
 // launchStagedQuantMatMul packs the activation to f16 at the end of the

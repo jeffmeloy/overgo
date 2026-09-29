@@ -154,6 +154,7 @@ const (
 	traceTagSGEMM        = uint64(1) << 32
 	traceTagGEMMEx       = uint64(2) << 32
 	traceTagSGEMMStrided = uint64(3) << 32
+	traceTagFP8Matmul    = uint64(4) << 32
 )
 
 func validateKernelArgumentCount(function boundKernel, count int) error {

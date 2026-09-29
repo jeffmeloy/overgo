@@ -36,7 +36,7 @@ import (
 const mediaReviewedDeltasPath = "docs/media_reviewed_deltas.json"
 
 // mediaReviewedDeltasSHA256 is the registry's accepted canonical identity.
-const mediaReviewedDeltasSHA256 = "94d92af532a72986156d3c06dcfab3aa85849edd687e3e39c124fe6177cb09b9"
+const mediaReviewedDeltasSHA256 = "fa097f4a7f71a4fa40b0c73ca3eb9dcd119aba55e0763521351f995f1a4b1a82"
 
 // Receipt kinds: what re-observes a delta's neutrality.
 const (

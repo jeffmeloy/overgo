@@ -17,7 +17,7 @@ import (
 func TestWebUIRouteSchemasMatchHandlerBodies(t *testing.T) {
 	t.Parallel()
 	bodies := map[string]reflect.Type{
-		"/agents/definitions": reflect.TypeFor[AgentDefinitionInput](),
+		"/agents/definitions": reflect.TypeFor[agentDefinitionInput](),
 		"/peers/enroll":       reflect.TypeFor[runrecord.PeerEnrollment](),
 	}
 	catalog, err := parseWorkspaceSchema()

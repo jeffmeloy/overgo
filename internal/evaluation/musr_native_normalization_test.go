@@ -113,7 +113,7 @@ func TestMuSRNativeNormalization(t *testing.T) {
 		fixtures := []struct {
 			data  string
 			value any
-		}{{`{"log_probability":-2,"tokens":1}`, &sequencescore.Score{}}, {`{"name":"legacy","prompt":"Q","candidates":[" a"," bb"],"answer":0}`, &MultipleChoiceCase{}}, {`{"name":"legacy","values":[-2,-3],"selected":0,"answer":0,"tied":false}`, &ChoiceObservation{}}}
+		}{{`{"log_probability":-2,"tokens":1}`, &sequencescore.Score{}}, {`{"name":"legacy","prompt":"Q","candidates":[" a"," bb"],"answer":0}`, &MultipleChoiceCase{}}, {`{"name":"legacy","values":[-2,-3],"selected":0,"answer":0,"tied":false}`, &choiceObservation{}}}
 		for _, f := range fixtures {
 			if err := json.Unmarshal([]byte(f.data), f.value); err != nil {
 				t.Fatal(err)
@@ -162,7 +162,7 @@ func TestMuSRNativeNormalization(t *testing.T) {
 		if newPlan.body.Scorer == noTiePlan.body.Scorer || newPlan.identity == noTiePlan.identity {
 			t.Fatal("tie policy did not change scorer authority")
 		}
-		tied := ChoiceObservation{Selected: 0, Answer: 0, Tied: true}
+		tied := choiceObservation{Selected: 0, Answer: 0, Tied: true}
 		if choiceCorrect(tied, "") || !choiceCorrect(tied, TieBreakFirst) {
 			t.Fatal("tie acceptance is not controlled by the declared policy")
 		}

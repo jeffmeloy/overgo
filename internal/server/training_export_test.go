@@ -65,7 +65,7 @@ func TestGUITrainingAndExportShareServices(t *testing.T) {
 			Task:     recipe.TaskTraining,
 			Recipe:   testutil.ArtifactID(t, artifact.KindRecipe, string(kind)+"-recipe"),
 			Stages:   []recipe.Stage{{Node: recipe.Node{ID: "execute", Module: recipe.ModuleID(kind + ".execute")}}},
-			Controls: []WorkflowControl{{Name: "source", Type: WorkflowControlText, Required: true}},
+			Controls: []workflowControl{{Name: "source", Type: workflowControlText, Required: true}},
 		}
 	}
 	generator := &trainingExportGenerator{
@@ -73,11 +73,11 @@ func TestGUITrainingAndExportShareServices(t *testing.T) {
 		repository:    store,
 		capabilities: map[WorkflowKind]WorkflowCapability{
 			WorkflowTraining: capability(WorkflowTraining),
-			WorkflowExport:   capability(WorkflowExport),
+			workflowExport:   capability(workflowExport),
 		},
 		runs: map[WorkflowKind]artifact.ID{
 			WorkflowTraining: testutil.ArtifactID(t, artifact.KindRun, "training-run"),
-			WorkflowExport:   testutil.ArtifactID(t, artifact.KindRun, "export-run"),
+			workflowExport:   testutil.ArtifactID(t, artifact.KindRun, "export-run"),
 		},
 	}
 	handler, err := New(Config{Repository: store}, generator)
@@ -85,7 +85,7 @@ func TestGUITrainingAndExportShareServices(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = handler.Close() })
-	for _, kind := range []WorkflowKind{WorkflowTraining, WorkflowExport} {
+	for _, kind := range []WorkflowKind{WorkflowTraining, workflowExport} {
 		capability := generator.capabilities[kind]
 		listed := serveTestRequest(handler, http.MethodGet, "/"+string(kind)+"/capabilities", "")
 		if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), capability.Recipe.String()) {
@@ -105,7 +105,7 @@ func TestGUITrainingAndExportShareServices(t *testing.T) {
 	generator.mu.Lock()
 	executed := append([]WorkflowKind(nil), generator.executed...)
 	generator.mu.Unlock()
-	if len(executed) != 2 || executed[0] != WorkflowTraining || executed[1] != WorkflowExport {
+	if len(executed) != 2 || executed[0] != WorkflowTraining || executed[1] != workflowExport {
 		t.Fatalf("executed = %v", executed)
 	}
 	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()

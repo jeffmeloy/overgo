@@ -19,14 +19,14 @@ import (
 	"overgo/internal/trainingworkflow"
 )
 
-type TrainingWorkspace struct {
+type trainingWorkspace struct {
 	store     artifact.Repository
 	roots     dataroot.Roots
 	program   recipe.Program
 	objective trainingprogram.ObjectiveKind
 }
 
-func NewTrainingWorkspace(ctx context.Context, store artifact.Repository, roots dataroot.Roots, model artifact.ID) (*TrainingWorkspace, error) {
+func NewTrainingWorkspace(ctx context.Context, store artifact.Repository, roots dataroot.Roots, model artifact.ID) (*trainingWorkspace, error) {
 	if ctx == nil || store == nil || model.Kind() != artifact.KindModel || roots.Checkpoints == "" {
 		return nil, errors.New("training workspace: invalid store, roots, or model")
 	}
@@ -41,10 +41,10 @@ func NewTrainingWorkspace(ctx context.Context, store artifact.Repository, roots 
 	if objective != trainingprogram.ObjectiveDPO && objective != trainingprogram.ObjectiveGRPO {
 		return nil, errors.New("training workspace: active recipe is not an RL objective")
 	}
-	return &TrainingWorkspace{store: store, roots: roots, program: program, objective: objective}, nil
+	return &trainingWorkspace{store: store, roots: roots, program: program, objective: objective}, nil
 }
 
-func (workspace *TrainingWorkspace) WorkflowCapabilities(_ context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
+func (workspace *trainingWorkspace) WorkflowCapabilities(_ context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
 	if workspace == nil || kind != WorkflowTraining {
 		return nil, nil
 	}
@@ -52,12 +52,12 @@ func (workspace *TrainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 	return []WorkflowCapability{{
 		Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model,
 		Inputs: definition.Inputs, Outputs: definition.Outputs, Host: trainsOnHost,
-		Controls: []WorkflowControl{
-			{Name: "dataset", Type: WorkflowControlDataset, Required: true},
-			{Name: "resume", Type: WorkflowControlCheckpoint},
-			{Name: "output", Type: WorkflowControlOutput, Required: true},
-			{Name: "steps", Type: WorkflowControlInteger, Required: true},
-			{Name: "objective_scale", Type: WorkflowControlNumber, Required: true},
+		Controls: []workflowControl{
+			{Name: "dataset", Type: workflowControlDataset, Required: true},
+			{Name: "resume", Type: workflowControlCheckpoint},
+			{Name: "output", Type: workflowControlOutput, Required: true},
+			{Name: "steps", Type: workflowControlInteger, Required: true},
+			{Name: "objective_scale", Type: workflowControlNumber, Required: true},
 		},
 	}}, nil
 }
@@ -74,7 +74,7 @@ type trainingWorkflowInput struct {
 	ObjectiveScale float64     `json:"objective_scale"`
 }
 
-func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
+func (workspace *trainingWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
 	if workspace == nil || ctx == nil || reporter == nil || kind != WorkflowTraining || task != recipe.TaskTraining || recipeID != workspace.program.Definition().ID {
 		return operation.Completion{}, errors.New("training workspace: workflow is not admitted")
 	}
@@ -87,7 +87,7 @@ func (workspace *TrainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 
 // PreviewWorkflow pages the input's dataset as this workspace's objective
 // encodes it with its policy's tokenizer, before any run.
-func (workspace *TrainingWorkspace) PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
+func (workspace *trainingWorkspace) PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
 	if workspace == nil || kind != WorkflowTraining || task != recipe.TaskTraining || recipeID != workspace.program.Definition().ID {
 		return nil, errors.New("training workspace: workflow is not admitted")
 	}
@@ -112,7 +112,7 @@ func (workspace *TrainingWorkspace) PreviewWorkflow(ctx context.Context, kind Wo
 	return trainingworkflow.PreviewDataset(workspace.objective, policyDirectory, datasetPath, position, limit)
 }
 
-func (workspace *TrainingWorkspace) executeWorkflow(
+func (workspace *trainingWorkspace) executeWorkflow(
 	ctx context.Context,
 	recipeID artifact.ID,
 	input trainingWorkflowInput,
@@ -196,7 +196,7 @@ func (workspace *TrainingWorkspace) executeWorkflow(
 		result.Checkpoint, output, dpo, grpo)
 }
 
-func (workspace *TrainingWorkspace) outputPath(name string) (string, error) {
+func (workspace *trainingWorkspace) outputPath(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, "\x00\r\n") {
 		return "", errors.New("training workspace: output must be one safe path component")
@@ -204,7 +204,7 @@ func (workspace *TrainingWorkspace) outputPath(name string) (string, error) {
 	return filepath.Join(workspace.roots.Checkpoints, name), nil
 }
 
-func (workspace *TrainingWorkspace) publish(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, policy, reference, dataset artifact.ID, checkpoint trainingprogram.Checkpoint, path string, dpo []trainingprogram.DPOObservation, grpo []trainingprogram.GRPOObservation) (operation.Completion, error) {
+func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, policy, reference, dataset artifact.ID, checkpoint trainingprogram.Checkpoint, path string, dpo []trainingprogram.DPOObservation, grpo []trainingprogram.GRPOObservation) (operation.Completion, error) {
 	data, err := checkpoint.Marshal()
 	if err != nil {
 		return operation.Completion{}, err
@@ -286,6 +286,6 @@ func reportDPO(reporter operation.Reporter, observation trainingprogram.DPOObser
 	}
 }
 
-func (workspace *TrainingWorkspace) fail(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, cause error) (operation.Completion, error) {
+func (workspace *trainingWorkspace) fail(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, cause error) (operation.Completion, error) {
 	return failWorkflow(ctx, workspace.store, recipeID, inputs, "training_failed", cause)
 }

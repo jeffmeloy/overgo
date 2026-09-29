@@ -20,10 +20,10 @@ const (
 	trajectoryRuleChangedAction   = "changed-action"
 )
 
-// TrajectoryHealthDecision is a durable supervision result over two exact
+// trajectoryHealthDecision is a durable supervision result over two exact
 // interaction traces and the current stage receipts that close their tool
 // results. Lifecycle owners decide what to execute from its disposition.
-type TrajectoryHealthDecision struct {
+type trajectoryHealthDecision struct {
 	Version         uint16                    `json:"version"`
 	Previous        artifact.ID               `json:"previous"`
 	Current         artifact.ID               `json:"current"`
@@ -39,9 +39,9 @@ var trajectoryHealthDecisionCodec = artifact.JSONDocumentCodec(
 	"trajectory health decision", artifact.KindEvidence,
 	trajectoryHealthDecisionMediaType, trajectoryHealthDecisionSchema,
 	canonicalizeTrajectoryHealthDecision,
-	func(value TrajectoryHealthDecision) artifact.ID { return value.ID },
-	func(value *TrajectoryHealthDecision, id artifact.ID) { value.ID = id },
-	func(value TrajectoryHealthDecision) TrajectoryHealthDecision {
+	func(value trajectoryHealthDecision) artifact.ID { return value.ID },
+	func(value *trajectoryHealthDecision, id artifact.ID) { value.ID = id },
+	func(value trajectoryHealthDecision) trajectoryHealthDecision {
 		value.Progress = slices.Clone(value.Progress)
 		return value
 	},
@@ -56,34 +56,34 @@ type trajectoryExchange struct {
 	Result    artifact.ID
 }
 
-// SuperviseTrajectory derives both observations from stored traces and their
+// superviseTrajectory derives both observations from stored traces and their
 // exact current receipt closure, then commits one evidence decision at the
 // verified store head. Callers cannot inject progress identities.
-func SuperviseTrajectory(
+func superviseTrajectory(
 	ctx context.Context,
 	repository artifact.Repository,
 	previousID, currentID artifact.ID,
-) (TrajectoryHealthDecision, artifact.CommitID, error) {
+) (trajectoryHealthDecision, artifact.CommitID, error) {
 	if ctx == nil || repository == nil {
-		return TrajectoryHealthDecision{}, artifact.CommitID{}, errors.New("evaluation: trajectory supervision authority is absent")
+		return trajectoryHealthDecision{}, artifact.CommitID{}, errors.New("evaluation: trajectory supervision authority is absent")
 	}
 	head, _ := repository.Head()
 	previous, err := requireTrajectoryExchange(ctx, repository, previousID)
 	if err != nil {
-		return TrajectoryHealthDecision{}, artifact.CommitID{}, err
+		return trajectoryHealthDecision{}, artifact.CommitID{}, err
 	}
 	current, err := requireTrajectoryExchange(ctx, repository, currentID)
 	if err != nil {
-		return TrajectoryHealthDecision{}, artifact.CommitID{}, err
+		return trajectoryHealthDecision{}, artifact.CommitID{}, err
 	}
 	if previous.Trace.ID == current.Trace.ID || previous.Receipt.ID == current.Receipt.ID ||
 		previous.Trace.TaskContract != current.Trace.TaskContract || previous.Trace.Model != current.Trace.Model ||
 		previous.Trace.Recipe != current.Trace.Recipe {
-		return TrajectoryHealthDecision{}, artifact.CommitID{}, errors.New("evaluation: supervised trajectories address different sessions")
+		return trajectoryHealthDecision{}, artifact.CommitID{}, errors.New("evaluation: supervised trajectories address different sessions")
 	}
 	progress, err := requireTrajectoryProgress(ctx, repository, previous, current)
 	if err != nil {
-		return TrajectoryHealthDecision{}, artifact.CommitID{}, err
+		return trajectoryHealthDecision{}, artifact.CommitID{}, err
 	}
 	decision, rule := executionfailure.DecisionResume, trajectoryRuleChangedAction
 	sameAction := previous.Manual == current.Manual && previous.Arguments == current.Arguments &&
@@ -93,38 +93,38 @@ func SuperviseTrajectory(
 	} else if sameAction {
 		decision, rule = executionfailure.DecisionRetireSession, trajectoryRuleExactNoProgress
 	}
-	value, err := trajectoryHealthDecisionCodec.New(TrajectoryHealthDecision{
+	value, err := trajectoryHealthDecisionCodec.New(trajectoryHealthDecision{
 		Version:  artifact.InitialDocumentVersion,
 		Previous: previous.Trace.ID, Current: current.Trace.ID,
 		PreviousReceipt: previous.Receipt.ID, CurrentReceipt: current.Receipt.ID,
 		Progress: progress, Decision: decision, Rule: rule,
 	})
 	if err != nil {
-		return TrajectoryHealthDecision{}, artifact.CommitID{}, err
+		return trajectoryHealthDecision{}, artifact.CommitID{}, err
 	}
 	content, err := trajectoryHealthDecisionCodec.Content(value)
 	if err != nil {
-		return TrajectoryHealthDecision{}, artifact.CommitID{}, err
+		return trajectoryHealthDecision{}, artifact.CommitID{}, err
 	}
 	batch, err := artifact.NewDocumentBatch(
 		"evaluation/trajectory-health/"+value.ID.String(), []artifact.Content{content}, value.Lineage(), nil,
 	)
 	if err != nil {
-		return TrajectoryHealthDecision{}, artifact.CommitID{}, err
+		return trajectoryHealthDecision{}, artifact.CommitID{}, err
 	}
 	batch.ExpectedHead = &head
 	commit, err := artifact.CommitBatch(ctx, repository, batch)
 	return value, commit, err
 }
 
-// RequireTrajectoryHealthDecision loads the codec-backed immutable result and
+// requireTrajectoryHealthDecision loads the codec-backed immutable result and
 // refuses a body whose stored dependency closure differs from its references.
-func RequireTrajectoryHealthDecision(ctx context.Context, reader artifact.Reader, id artifact.ID) (TrajectoryHealthDecision, error) {
-	return trajectoryHealthDecisionCodec.RequireExactLineage(ctx, reader, id, TrajectoryHealthDecision.Lineage)
+func requireTrajectoryHealthDecision(ctx context.Context, reader artifact.Reader, id artifact.ID) (trajectoryHealthDecision, error) {
+	return trajectoryHealthDecisionCodec.RequireExactLineage(ctx, reader, id, trajectoryHealthDecision.Lineage)
 }
 
 // Lineage closes the decision over traces, receipts, and typed progress.
-func (value TrajectoryHealthDecision) Lineage() []artifact.Lineage {
+func (value trajectoryHealthDecision) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.Previous, value.Current, value.PreviousReceipt, value.CurrentReceipt}
 	parents = append(parents, value.Progress...)
 	return artifact.DependencyLineage(value.ID, parents...)
@@ -250,7 +250,7 @@ func requireTrajectoryProgress(
 	return progress, nil
 }
 
-func canonicalizeTrajectoryHealthDecision(value *TrajectoryHealthDecision) error {
+func canonicalizeTrajectoryHealthDecision(value *trajectoryHealthDecision) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion ||
 		value.Previous.Kind() != artifact.KindEvidence || value.Current.Kind() != artifact.KindEvidence ||
 		value.PreviousReceipt.Kind() != artifact.KindEvidence || value.CurrentReceipt.Kind() != artifact.KindEvidence ||

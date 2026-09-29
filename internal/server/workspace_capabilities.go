@@ -60,7 +60,7 @@ var reasoningEfforts = []string{"low", "medium", "high", "xhigh"}
 // with each reasoning setting and keeps those that change what the model
 // sees; a template that reads none, or no template, offers no control.
 func (h *Handler) probeTemplateReasoning() *workspaceReasoning {
-	formatter, ok := h.generator.(ToolAwareChatFormatter)
+	formatter, ok := h.generator.(toolAwareChatFormatter)
 	if !ok {
 		return nil
 	}
@@ -132,9 +132,9 @@ type workspaceMode struct {
 // registers, and the same capability switch the tabs use.
 func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceModelCapabilities, bool) {
 	var model inference.ModelProperties
-	if api, ok := h.generator.(ModelPropertiesAPI); ok {
+	if api, ok := h.generator.(modelPropertiesAPI); ok {
 		model = api.ModelProperties()
-	} else if !h.hasWorkspaceCapability(ctx, WorkflowGeneration, "") {
+	} else if !h.hasWorkspaceCapability(ctx, workflowGeneration, "") {
 		return workspaceModelCapabilities{}, false
 	}
 	image := h.config.ImageProjector != nil || h.config.Qwen3VLProjector != nil
@@ -174,7 +174,7 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 	}
 	document.Reasoning = h.templateReasoning()
 	document.Adapters = []workspaceAdapter{}
-	if controller, ok := h.generator.(LoRAControlAPI); ok {
+	if controller, ok := h.generator.(loRAControlAPI); ok {
 		for _, adapter := range controller.LoRAAdapters() {
 			document.Adapters = append(document.Adapters, workspaceAdapter{ID: adapter.ID, Name: filepath.Base(adapter.Path), Scale: adapter.Scale})
 		}
@@ -207,7 +207,7 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 	// definition exists, refused with the reason otherwise.
 	agentMode := workspaceMode{ID: "agent", Label: "Agent", Refusal: "no active agent definition"}
 	if h.repository != nil {
-		if agents, err := h.agentInventory(ctx); err == nil && slices.ContainsFunc(agents, func(entry AgentInventoryEntry) bool { return entry.State == "active" }) {
+		if agents, err := h.agentInventory(ctx); err == nil && slices.ContainsFunc(agents, func(entry agentInventoryEntry) bool { return entry.State == "active" }) {
 			agentMode.Enabled, agentMode.Refusal = true, ""
 		}
 	}

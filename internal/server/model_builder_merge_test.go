@@ -100,7 +100,7 @@ func TestModelBuilderMergeRun(t *testing.T) {
 	base, tuned := mergeFixture(t, store)
 	root := t.TempDir()
 	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
-	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowModelBuild)
+	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowModelBuild)
 	if err != nil || len(capabilities) != 3 {
 		t.Fatalf("model builder capabilities = %+v, %v", capabilities, err)
 	}
@@ -111,7 +111,7 @@ func TestModelBuilderMergeRun(t *testing.T) {
 	}
 	execute := func(capability WorkflowCapability, input string) (runrecord.Run, error) {
 		t.Helper()
-		completion, err := workspace.ExecuteWorkflow(ctx, WorkflowModelBuild, recipe.TaskMerge, capability.Recipe, json.RawMessage(input), &recordingReporter{})
+		completion, err := workspace.ExecuteWorkflow(ctx, workflowModelBuild, recipe.TaskMerge, capability.Recipe, json.RawMessage(input), &recordingReporter{})
 		if err != nil {
 			return runrecord.Run{}, err
 		}

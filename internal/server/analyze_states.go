@@ -9,11 +9,11 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// HiddenStateCaptureAPI: one cacheless forward that returns the residual-stream
+// hiddenStateCaptureAPI: one cacheless forward that returns the residual-stream
 // vector entering each requested layer, per token, as host data laid out
 // token-major then layer-order then embedding. Implemented by the inference
 // Runner (ExtractLayerInputs); no KV cache is retained.
-type HiddenStateCaptureAPI interface {
+type hiddenStateCaptureAPI interface {
 	ExtractLayerInputs(ctx context.Context, tokenIDs []tokenizer.TokenID, layerIDs []int32) (reference.Value, error)
 }
 
@@ -60,12 +60,12 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "state analysis policy is unavailable")
 		return
 	}
-	capture, ok := h.generator.(HiddenStateCaptureAPI)
+	capture, ok := h.generator.(hiddenStateCaptureAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "hidden-state capture is unavailable")
 		return
 	}
-	tokenizerAPI, ok := h.generator.(TokenizationAPI)
+	tokenizerAPI, ok := h.generator.(tokenizationAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "tokenization is unavailable")
 		return
@@ -104,7 +104,7 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 	}
 
 	blockCount := 0
-	if properties, ok := h.generator.(ModelPropertiesAPI); ok {
+	if properties, ok := h.generator.(modelPropertiesAPI); ok {
 		blockCount = int(properties.ModelProperties().BlockCount)
 	}
 	layer := blockCount / 2
@@ -136,7 +136,7 @@ func (h *Handler) analyzeStates(response http.ResponseWriter, request *http.Requ
 	layout, stress, iterations := nonMetricMDS(distance, h.config.Analysis.MDSIterations, h.config.Analysis.MDSTolerance)
 
 	tokenList := make([]analyzeStatesToken, len(tokens))
-	pieceAPI, hasPieces := h.generator.(TokenPieceAPI)
+	pieceAPI, hasPieces := h.generator.(tokenPieceAPI)
 	for index, id := range tokens {
 		text := ""
 		if hasPieces {

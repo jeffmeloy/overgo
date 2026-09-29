@@ -28,10 +28,10 @@ func TestOneWorkbenchEventStream(t *testing.T) {
 
 	// A transfer publishes once per file and whole percent, not per chunk,
 	// and what it publishes is the progress it just recorded.
-	var published []DownloadJob
-	registry := newDownloadRegistry(1, 1, func(_ string, value any) { published = value.([]DownloadJob) })
-	job := &DownloadJob{ID: 1, State: downloadStateRunning}
-	registry.jobs = map[uint64]*DownloadJob{job.ID: job}
+	var published []downloadJob
+	registry := newDownloadRegistry(1, 1, func(_ string, value any) { published = value.([]downloadJob) })
+	job := &downloadJob{ID: 1, State: downloadStateRunning}
+	registry.jobs = map[uint64]*downloadJob{job.ID: job}
 	woke := func(progress hfhub.Progress) bool {
 		published = nil
 		registry.observe(job, progress)
@@ -67,7 +67,7 @@ func TestOneWorkbenchEventStream(t *testing.T) {
 	}
 	defer response.Body.Close()
 	lines := bufio.NewScanner(response.Body)
-	nextDownloads := func() []DownloadJob {
+	nextDownloads := func() []downloadJob {
 		t.Helper()
 		event := ""
 		for lines.Scan() {
@@ -76,7 +76,7 @@ func TestOneWorkbenchEventStream(t *testing.T) {
 				event = name
 			}
 			if data, found := strings.CutPrefix(line, "data: "); found && event == "hub.downloads" {
-				var jobs []DownloadJob
+				var jobs []downloadJob
 				if err := json.Unmarshal([]byte(data), &jobs); err != nil {
 					t.Fatal(err)
 				}
@@ -89,7 +89,7 @@ func TestOneWorkbenchEventStream(t *testing.T) {
 	if jobs := nextDownloads(); len(jobs) != 0 {
 		t.Fatalf("a fresh server lists downloads %+v", jobs)
 	}
-	admitted := &DownloadJob{ID: handler.downloads.next.Add(1), Repository: "acme/tiny", State: downloadStateRunning}
+	admitted := &downloadJob{ID: handler.downloads.next.Add(1), Repository: "acme/tiny", State: downloadStateRunning}
 	if err := handler.downloads.admit(admitted, func() {}); err != nil {
 		t.Fatal(err)
 	}

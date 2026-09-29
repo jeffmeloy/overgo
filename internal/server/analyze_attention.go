@@ -11,8 +11,8 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// AttentionCaptureAPI exposes exact host-replay attention boundaries.
-type AttentionCaptureAPI interface {
+// attentionCaptureAPI exposes exact host-replay attention boundaries.
+type attentionCaptureAPI interface {
 	AttentionCaptureLayers() []int32
 	ExtractAttention(ctx context.Context, tokenIDs []tokenizer.TokenID, layer int32) (inference.AttentionCapture, error)
 }
@@ -48,12 +48,12 @@ type analyzeAttentionResponse struct {
 
 // analyzeAttention replays one supported causal attention layer on host.
 func (h *Handler) analyzeAttention(response http.ResponseWriter, request *http.Request) {
-	capture, ok := h.generator.(AttentionCaptureAPI)
+	capture, ok := h.generator.(attentionCaptureAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "attention capture is unavailable")
 		return
 	}
-	tokenizerAPI, ok := h.generator.(TokenizationAPI)
+	tokenizerAPI, ok := h.generator.(tokenizationAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "tokenization is unavailable")
 		return
@@ -91,7 +91,7 @@ func (h *Handler) analyzeAttention(response http.ResponseWriter, request *http.R
 		return
 	}
 	blockCount := 0
-	if properties, ok := h.generator.(ModelPropertiesAPI); ok {
+	if properties, ok := h.generator.(modelPropertiesAPI); ok {
 		blockCount = int(properties.ModelProperties().BlockCount)
 	}
 	layer := int(layers[len(layers)/2])
@@ -115,7 +115,7 @@ func (h *Handler) analyzeAttention(response http.ResponseWriter, request *http.R
 	}
 
 	tokenList := make([]analyzeAttentionToken, len(tokens))
-	pieceAPI, hasPieces := h.generator.(TokenPieceAPI)
+	pieceAPI, hasPieces := h.generator.(tokenPieceAPI)
 	for index, id := range tokens {
 		text := ""
 		if hasPieces {

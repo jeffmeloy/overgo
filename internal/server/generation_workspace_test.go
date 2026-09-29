@@ -31,7 +31,7 @@ type generationWorkspaceInput struct {
 }
 
 func (generator *generationWorkspaceGenerator) WorkflowCapabilities(_ context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
-	if kind != WorkflowGeneration {
+	if kind != workflowGeneration {
 		return nil, nil
 	}
 	return []WorkflowCapability{generator.capability}, nil
@@ -78,9 +78,9 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 		capability: WorkflowCapability{
 			Task: recipe.TaskSpeech, Recipe: recipeID,
 			Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}},
-			Controls: []WorkflowControl{
-				{Name: "text", Type: WorkflowControlText, Required: true},
-				{Name: "seed", Type: WorkflowControlInteger},
+			Controls: []workflowControl{
+				{Name: "text", Type: workflowControlText, Required: true},
+				{Name: "seed", Type: workflowControlInteger},
 			},
 		},
 	}
@@ -147,7 +147,7 @@ func TestWorkflowSubmissionDoesNotReplayCompletedOperation(t *testing.T) {
 		capability: WorkflowCapability{
 			Task: recipe.TaskGeneration, Recipe: recipeID,
 			Stages:   []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}},
-			Controls: []WorkflowControl{{Name: "text", Type: WorkflowControlText, Required: true}},
+			Controls: []workflowControl{{Name: "text", Type: workflowControlText, Required: true}},
 		},
 	}
 	handler, err := New(Config{Repository: store}, generator)

@@ -31,9 +31,9 @@ func TestWorkflowSubmissionCommand(t *testing.T) {
 		capability: WorkflowCapability{
 			Task: recipe.TaskSpeech, Recipe: recipeID, Location: "C:/models/it's.gguf",
 			Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}},
-			Controls: []WorkflowControl{
-				{Name: "text", Type: WorkflowControlText, Required: true},
-				{Name: "seed", Type: WorkflowControlInteger},
+			Controls: []workflowControl{
+				{Name: "text", Type: workflowControlText, Required: true},
+				{Name: "seed", Type: workflowControlInteger},
 			},
 		},
 	}

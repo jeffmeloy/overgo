@@ -14,12 +14,12 @@ import (
 
 func TestGeneratedSuiteUsesDeclaredChatPrompt(t *testing.T) {
 	t.Parallel()
-	for _, kind := range []string{GeneratedAnswerKind, StructuredGeneratedKind} {
+	for _, kind := range []string{GeneratedAnswerKind, structuredGeneratedKind} {
 		t.Run(kind, func(t *testing.T) {
 			source := map[string]any{"kind": kind, "schema": "fixture/v1", "source": "chat-framing-fixture", "cases": []map[string]any{{"name": "addition", "prompt": "2 + 2?", "max_tokens": 8, "answers": []string{"4"}}}}
-			if kind == StructuredGeneratedKind {
-				source["extractor"] = ExtractorDollarSpan
-				source["equivalence"] = EquivalenceLatexSurface
+			if kind == structuredGeneratedKind {
+				source["extractor"] = extractorDollarSpan
+				source["equivalence"] = equivalenceLatexSurface
 				source["cases"].([]map[string]any)[0]["group"] = "arithmetic"
 			}
 			raw, err := json.Marshal(source)

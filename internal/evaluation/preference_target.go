@@ -24,13 +24,13 @@ const (
 	preferenceMarginMetric   = "policy-reference-margin"
 )
 
-// PreferenceTargetSuite declares the preference policy scored on the held-out view.
-type PreferenceTargetSuite struct {
+// preferenceTargetSuite declares the preference policy scored on the held-out view.
+type preferenceTargetSuite struct {
 	Policy trainingprogram.PreferencePolicy `json:"policy"`
 }
 
-// PreferenceTargetPlan binds a DPO objective, its held-out view, the policy, and held-out record ids.
-type PreferenceTargetPlan struct {
+// preferenceTargetPlan binds a DPO objective, its held-out view, the policy, and held-out record ids.
+type preferenceTargetPlan struct {
 	ID        artifact.ID                      `json:"-"`
 	Version   uint16                           `json:"version"`
 	View      artifact.ID                      `json:"view"`
@@ -41,8 +41,8 @@ type PreferenceTargetPlan struct {
 	Records   []string                         `json:"records"`
 }
 
-// PreferenceTargetObservation carries one record's policy and reference scores for chosen and rejected responses.
-type PreferenceTargetObservation struct {
+// preferenceTargetObservation carries one record's policy and reference scores for chosen and rejected responses.
+type preferenceTargetObservation struct {
 	Record            string              `json:"record"`
 	PolicyChosen      sequencescore.Score `json:"policy_chosen"`
 	PolicyRejected    sequencescore.Score `json:"policy_rejected"`
@@ -50,9 +50,9 @@ type PreferenceTargetObservation struct {
 	ReferenceRejected sequencescore.Score `json:"reference_rejected"`
 }
 
-// PreferenceRecordResult adds policy, reference, and relative log-probability margins, chosen win, and DPO loss to an observation.
-type PreferenceRecordResult struct {
-	PreferenceTargetObservation
+// preferenceRecordResult adds policy, reference, and relative log-probability margins, chosen win, and DPO loss to an observation.
+type preferenceRecordResult struct {
+	preferenceTargetObservation
 	PolicyMargin    float64 `json:"policy_margin"`
 	ReferenceMargin float64 `json:"reference_margin"`
 	RelativeMargin  float64 `json:"relative_margin"`
@@ -60,73 +60,73 @@ type PreferenceRecordResult struct {
 	Loss            float64 `json:"loss"`
 }
 
-// PreferenceTargetReport holds per-record preference results and mean accuracy, DPO loss, and relative margin.
-type PreferenceTargetReport struct {
+// preferenceTargetReport holds per-record preference results and mean accuracy, DPO loss, and relative margin.
+type preferenceTargetReport struct {
 	ID      artifact.ID              `json:"-"`
 	Version uint16                   `json:"version"`
 	Plan    artifact.ID              `json:"plan"`
-	Records []PreferenceRecordResult `json:"records"`
+	Records []preferenceRecordResult `json:"records"`
 	Metrics []runrecord.Metric       `json:"metrics"`
 }
 
 var (
 	preferenceTargetPlanCodec = artifact.JSONDocumentCodec(
 		"preference target plan", artifact.KindProfile, preferenceTargetPlanMedia, preferenceTargetPlanSchema,
-		canonicalizePreferenceTargetPlan, func(value PreferenceTargetPlan) artifact.ID { return value.ID },
-		func(value *PreferenceTargetPlan, id artifact.ID) { value.ID = id }, clonePreferenceTargetPlan,
+		canonicalizePreferenceTargetPlan, func(value preferenceTargetPlan) artifact.ID { return value.ID },
+		func(value *preferenceTargetPlan, id artifact.ID) { value.ID = id }, clonePreferenceTargetPlan,
 	)
 	preferenceTargetReportCodec = artifact.JSONDocumentCodec(
 		"preference target report", artifact.KindEvaluation, preferenceTargetReportMedia, preferenceTargetReportSchema,
-		canonicalizePreferenceTargetReport, func(value PreferenceTargetReport) artifact.ID { return value.ID },
-		func(value *PreferenceTargetReport, id artifact.ID) { value.ID = id }, clonePreferenceTargetReport,
+		canonicalizePreferenceTargetReport, func(value preferenceTargetReport) artifact.ID { return value.ID },
+		func(value *preferenceTargetReport, id artifact.ID) { value.ID = id }, clonePreferenceTargetReport,
 	)
 )
 
-// CompilePreferenceTargetPlan binds preference evaluation authorities.
-func CompilePreferenceTargetPlan(
+// compilePreferenceTargetPlan binds preference evaluation authorities.
+func compilePreferenceTargetPlan(
 	objective trainingprogram.ObjectiveDocument,
 	view SFTEvaluationView,
-	suite PreferenceTargetSuite,
-) (PreferenceTargetPlan, error) {
+	suite preferenceTargetSuite,
+) (preferenceTargetPlan, error) {
 	if _, err := objective.Content(); err != nil {
-		return PreferenceTargetPlan{}, err
+		return preferenceTargetPlan{}, err
 	}
 	if _, err := view.Content(); err != nil {
-		return PreferenceTargetPlan{}, err
+		return preferenceTargetPlan{}, err
 	}
 	if objective.Kind != trainingprogram.ObjectiveDPO || objective.ID != view.Objective || suite.Policy.Validate() != nil {
-		return PreferenceTargetPlan{}, errors.New("evaluation: preference authority differs from DPO objective")
+		return preferenceTargetPlan{}, errors.New("evaluation: preference authority differs from DPO objective")
 	}
 	records := make([]string, len(view.Records))
 	for index, record := range view.Records {
 		records[index] = record.ID
 	}
-	return preferenceTargetPlanCodec.NewInitial(PreferenceTargetPlan{
+	return preferenceTargetPlanCodec.NewInitial(preferenceTargetPlan{
 		View: view.ID, Objective: objective.ID,
 		Heldout: view.HeldoutMembership, Signature: view.Signature.Clone(), Policy: suite.Policy, Records: records,
 	})
 }
 
 // Batch stages the plan with lineage to its view, objective, held-out membership, and reference.
-func (plan PreferenceTargetPlan) Batch(key string) (artifact.Batch, error) {
+func (plan preferenceTargetPlan) Batch(key string) (artifact.Batch, error) {
 	parents := []artifact.ID{plan.View, plan.Objective, plan.Heldout, plan.Policy.Reference}
 	return preferenceTargetPlanCodec.Batch(key, plan, artifact.DependencyLineage(plan.ID, parents...), nil)
 }
 
-// ScorePreferenceTargets evaluates preference observations against frozen authorities.
-func ScorePreferenceTargets(plan PreferenceTargetPlan, observations []PreferenceTargetObservation) (PreferenceTargetReport, error) {
+// scorePreferenceTargets evaluates preference observations against frozen authorities.
+func scorePreferenceTargets(plan preferenceTargetPlan, observations []preferenceTargetObservation) (preferenceTargetReport, error) {
 	if err := preferenceTargetPlanCodec.ValidateIdentity(plan); err != nil || len(observations) != len(plan.Records) {
-		return PreferenceTargetReport{}, errors.New("evaluation: preference observations differ from plan")
+		return preferenceTargetReport{}, errors.New("evaluation: preference observations differ from plan")
 	}
 	observations = slices.Clone(observations)
-	slices.SortFunc(observations, func(a, b PreferenceTargetObservation) int { return cmp.Compare(a.Record, b.Record) })
-	report := PreferenceTargetReport{
-		Version: artifact.InitialDocumentVersion, Plan: plan.ID, Records: make([]PreferenceRecordResult, len(plan.Records)),
+	slices.SortFunc(observations, func(a, b preferenceTargetObservation) int { return cmp.Compare(a.Record, b.Record) })
+	report := preferenceTargetReport{
+		Version: artifact.InitialDocumentVersion, Plan: plan.ID, Records: make([]preferenceRecordResult, len(plan.Records)),
 	}
 	var accuracy, loss, relativeMargin float64
 	for index, observation := range observations {
 		if observation.Record != plan.Records[index] {
-			return PreferenceTargetReport{}, errors.New("evaluation: preference record differs from plan")
+			return preferenceTargetReport{}, errors.New("evaluation: preference record differs from plan")
 		}
 		scores := trainingprogram.PreferenceScores{
 			PolicyChosen: observation.PolicyChosen, PolicyRejected: observation.PolicyRejected,
@@ -134,7 +134,7 @@ func ScorePreferenceTargets(plan PreferenceTargetPlan, observations []Preference
 		}
 		result, err := trainingprogram.DPOLoss(scores, plan.Policy.Scale)
 		if err != nil {
-			return PreferenceTargetReport{}, err
+			return preferenceTargetReport{}, err
 		}
 		policyMargin := observation.PolicyChosen.LogProbability - observation.PolicyRejected.LogProbability
 		referenceMargin := observation.ReferenceChosen.LogProbability - observation.ReferenceRejected.LogProbability
@@ -144,8 +144,8 @@ func ScorePreferenceTargets(plan PreferenceTargetPlan, observations []Preference
 		}
 		loss += result.Loss
 		relativeMargin += policyMargin - referenceMargin
-		report.Records[index] = PreferenceRecordResult{
-			PreferenceTargetObservation: observation, PolicyMargin: policyMargin, ReferenceMargin: referenceMargin,
+		report.Records[index] = preferenceRecordResult{
+			preferenceTargetObservation: observation, PolicyMargin: policyMargin, ReferenceMargin: referenceMargin,
 			RelativeMargin: policyMargin - referenceMargin, Chosen: chosen, Loss: result.Loss,
 		}
 	}
@@ -159,11 +159,11 @@ func ScorePreferenceTargets(plan PreferenceTargetPlan, observations []Preference
 }
 
 // Batch stages the report with lineage to its plan.
-func (report PreferenceTargetReport) Batch(key string) (artifact.Batch, error) {
+func (report preferenceTargetReport) Batch(key string) (artifact.Batch, error) {
 	return preferenceTargetReportCodec.Batch(key, report, artifact.DependencyLineage(report.ID, report.Plan), nil)
 }
 
-func canonicalizePreferenceTargetPlan(plan *PreferenceTargetPlan) error {
+func canonicalizePreferenceTargetPlan(plan *preferenceTargetPlan) error {
 	if plan == nil || plan.Version != artifact.InitialDocumentVersion || plan.View.Kind() != artifact.KindProfile ||
 		plan.Objective.Kind() != artifact.KindProfile || plan.Heldout.Kind() != artifact.KindDatasetShard ||
 		plan.Policy.Validate() != nil || plan.Signature.Validate() != nil || len(plan.Signature.Outputs) != 1 ||
@@ -179,7 +179,7 @@ func canonicalizePreferenceTargetPlan(plan *PreferenceTargetPlan) error {
 	return nil
 }
 
-func canonicalizePreferenceTargetReport(report *PreferenceTargetReport) error {
+func canonicalizePreferenceTargetReport(report *preferenceTargetReport) error {
 	if report == nil || report.Version != artifact.InitialDocumentVersion || report.Plan.Kind() != artifact.KindProfile ||
 		len(report.Records) == 0 || len(report.Metrics) != 3 {
 		return errors.New("evaluation: invalid preference target report")
@@ -203,13 +203,13 @@ func canonicalizePreferenceTargetReport(report *PreferenceTargetReport) error {
 	return nil
 }
 
-func clonePreferenceTargetPlan(plan PreferenceTargetPlan) PreferenceTargetPlan {
+func clonePreferenceTargetPlan(plan preferenceTargetPlan) preferenceTargetPlan {
 	plan.Signature = plan.Signature.Clone()
 	plan.Records = slices.Clone(plan.Records)
 	return plan
 }
 
-func clonePreferenceTargetReport(report PreferenceTargetReport) PreferenceTargetReport {
+func clonePreferenceTargetReport(report preferenceTargetReport) preferenceTargetReport {
 	report.Records = slices.Clone(report.Records)
 	report.Metrics = slices.Clone(report.Metrics)
 	return report

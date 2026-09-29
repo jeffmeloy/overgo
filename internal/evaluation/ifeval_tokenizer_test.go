@@ -135,8 +135,8 @@ func TestIFEvalTokenizerAcceptance(t *testing.T) {
 			}
 		}
 		for _, kind := range []string{ifevalSentences, ifevalCapitalWords} {
-			for _, count := range []*CountRule{nil, {Relation: RelationAtLeast, Value: 0}, {Relation: RelationEqual, Value: 2}, {Relation: ifevalLessThan, Value: -1}} {
-				if _, err := compileInstructionRule(InstructionRule{Name: "invalid", Kind: kind, Count: count}); err == nil {
+			for _, count := range []*countRule{nil, {Relation: relationAtLeast, Value: 0}, {Relation: relationEqual, Value: 2}, {Relation: ifevalLessThan, Value: -1}} {
+				if _, err := compileInstructionRule(instructionRule{Name: "invalid", Kind: kind, Count: count}); err == nil {
 					t.Fatal("unresolved native count accepted")
 				}
 			}
@@ -148,7 +148,7 @@ func TestIFEvalTokenizerAcceptance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rule, err := compileInstructionRule(InstructionRule{Name: "sentences", Kind: ifevalSentences, Count: &CountRule{Relation: RelationAtLeast, Value: 1}})
+		rule, err := compileInstructionRule(instructionRule{Name: "sentences", Kind: ifevalSentences, Count: &countRule{Relation: relationAtLeast, Value: 1}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -157,12 +157,12 @@ func TestIFEvalTokenizerAcceptance(t *testing.T) {
 		if !errors.Is(err, regexp2.ErrBacktrackingStackLimit) || strict != nil || loose != nil {
 			t.Fatalf("tokenizer error became a verdict: %v %v %v", strict, loose, err)
 		}
-		compiled, err := CompileInstructionRules(InstructionRulesSuite{Kind: InstructionRulesKind, Schema: "tokenizer-error", Source: "fixture", Cases: []InstructionRulesCase{{Name: "sentence", Prompt: "Write a sentence.", MaxTokens: 1, Rules: []InstructionRule{rule.source}}}})
+		compiled, err := compileInstructionRules(instructionRulesSuite{Kind: instructionRulesKind, Schema: "tokenizer-error", Source: "fixture", Cases: []instructionRulesCase{{Name: "sentence", Prompt: "Write a sentence.", MaxTokens: 1, Rules: []instructionRule{rule.source}}}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		compiled.rules[0][0].tokenizer = &broken
-		plan, err := BindInstructionRules(compiled, ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
+		plan, err := bindInstructionRules(compiled, ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,12 +172,12 @@ func TestIFEvalTokenizerAcceptance(t *testing.T) {
 		}
 		defer local.Close()
 		publishPlanFixtureAuthorities(t, local, plan)
-		report, err := EvaluateInstructionRules(t.Context(), local, exactGenerator{pieces: []string{"x"}}, compiled, plan)
+		report, err := evaluateInstructionRules(t.Context(), local, exactGenerator{pieces: []string{"x"}}, compiled, plan)
 		if !errors.Is(err, regexp2.ErrBacktrackingStackLimit) || report.ID.Valid() {
 			t.Fatalf("tokenizer error published a report: %s %v", report.ID, err)
 		}
 		compiled.rules[0][0].tokenizer = tokenizer
-		report, err = EvaluateInstructionRules(t.Context(), local, exactGenerator{pieces: []string{"One sentence."}}, compiled, plan)
+		report, err = evaluateInstructionRules(t.Context(), local, exactGenerator{pieces: []string{"One sentence."}}, compiled, plan)
 		if err != nil || !report.ID.Valid() || report.PromptStrict != 1 {
 			t.Fatalf("evaluation did not recover: %s %v", report.ID, err)
 		}

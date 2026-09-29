@@ -30,7 +30,7 @@ func TestOrchestrationProductionVerticals(t *testing.T) {
 	})
 	manualStatus := waitAutomationOperation(t, fixture.handler, manual.Operation)
 
-	scheduledInput := AutomationDefinitionInput{
+	scheduledInput := automationDefinitionInput{
 		Name: "scheduled-report", Recipe: fixture.definition.ID,
 		Trigger: recipe.AutomationTriggerPolicy{
 			Kind: recipe.AutomationTriggerSchedule, Schedule: time.Hour.String(),
@@ -69,7 +69,7 @@ func TestOrchestrationProductionVerticals(t *testing.T) {
 			scheduledEvidence.Code, scheduledEvidence.Body.String())
 	}
 	_, fired, err := fixture.handler.generator.(*automationWorkspaceGenerator).ScheduleAutomation(
-		t.Context(), fixture.handler.operations, AutomationExecutionInput{
+		t.Context(), fixture.handler.operations, automationExecutionInput{
 			Name: "scheduled-report", Inputs: map[string]json.RawMessage{"tokens": json.RawMessage(`"scheduled"`)},
 		},
 	)

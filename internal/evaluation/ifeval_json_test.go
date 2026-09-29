@@ -39,8 +39,8 @@ func TestIFEvalJSONAcceptance(t *testing.T) {
 	if err != nil || dropped != 0 {
 		t.Fatalf("assemble: dropped=%d err=%v", dropped, err)
 	}
-	suite := assembled.(InstructionRulesSuite)
-	compiled, err := CompileInstructionRules(suite)
+	suite := assembled.(instructionRulesSuite)
+	compiled, err := compileInstructionRules(suite)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,8 +58,8 @@ func TestIFEvalJSONAcceptance(t *testing.T) {
 	}
 	priorSuite := suite
 	priorSuite.Cases = slices.Clone(suite.Cases)
-	priorSuite.Cases[0].Rules = []InstructionRule{{Name: "detectable_format:json_format", Kind: RuleJSON}}
-	prior, err := CompileInstructionRules(priorSuite)
+	priorSuite.Cases[0].Rules = []instructionRule{{Name: "detectable_format:json_format", Kind: ruleJSON}}
+	prior, err := compileInstructionRules(priorSuite)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,9 +74,9 @@ func TestIFEvalJSONAcceptance(t *testing.T) {
 	if matched, err := prior.rules[0][0].matches(`{"NaN":"Infinity"}`); err != nil || !matched {
 		t.Fatal("strict JSON string semantics changed")
 	}
-	for _, invalid := range []InstructionRule{
+	for _, invalid := range []instructionRule{
 		{Name: "invalid", Kind: ifevalJSONRule, Values: []string{"unexpected"}},
-		{Name: "invalid", Kind: ifevalJSONRule, Count: &CountRule{Relation: RelationEqual, Value: 1}},
+		{Name: "invalid", Kind: ifevalJSONRule, Count: &countRule{Relation: relationEqual, Value: 1}},
 	} {
 		if _, err := compileInstructionRule(invalid); err == nil {
 			t.Fatal("JSON checker accepted parameters absent from the native contract")

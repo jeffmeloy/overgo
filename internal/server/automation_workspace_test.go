@@ -19,7 +19,7 @@ import (
 
 type automationWorkspaceGenerator struct {
 	*fakeGenerator
-	*AutomationWorkspace
+	*automationWorkspace
 }
 
 type automationServerFixture struct {
@@ -146,7 +146,7 @@ func newAutomationServerFixture(t *testing.T) automationServerFixture {
 			"tokens": {Kind: recipe.DataTokens, Items: []workflowruntime.Datum{input}},
 		}, nil
 	})
-	workspace, err := (AutomationWorkspaceConfig{
+	workspace, err := (automationWorkspaceConfig{
 		Store: store, Catalog: workflowrecipe.Catalog(),
 		Adapters: map[recipe.ModuleID]workflowruntime.Adapter{workflowrecipe.ModuleGenerate: adapter},
 		Limit:    len(definition.Nodes) + 16,
@@ -155,14 +155,14 @@ func newAutomationServerFixture(t *testing.T) automationServerFixture {
 		store.Close()
 		t.Fatal(err)
 	}
-	generator := &automationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, AutomationWorkspace: workspace}
+	generator := &automationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, automationWorkspace: workspace}
 	handler := newTestHandlerForRepository(t, store, generator)
 	return automationServerFixture{handler: handler, store: store, definition: definition}
 }
 
 func publishAutomationFromAPI(t *testing.T, fixture automationServerFixture) artifact.ID {
 	t.Helper()
-	request := AutomationDefinitionInput{
+	request := automationDefinitionInput{
 		Name: "daily-report", Recipe: fixture.definition.ID,
 		Trigger:  recipe.AutomationTriggerPolicy{Kind: recipe.AutomationTriggerManual},
 		Delivery: recipe.AutomationDeliveryPolicy{Kind: recipe.AutomationDeliveryArtifact},

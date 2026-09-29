@@ -19,12 +19,12 @@ func TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions(t *testing
 		plan, err := CompileNumericTargetPlan(view, NumericTargetSuite{
 			Scorers: []NumericScorerSpec{
 				{Kind: NumericAbsoluteError, Unit: "declared-unit"},
-				{Kind: NumericQuantileLoss, Unit: "declared-unit", Quantile: &quantile},
-				{Kind: NumericLabelAccuracy},
+				{Kind: numericQuantileLoss, Unit: "declared-unit", Quantile: &quantile},
+				{Kind: numericLabelAccuracy},
 			},
 			Cases: []NumericTargetCase{{
 				Record: "heldout", Values: []float64{-1000, 2, 3.5}, Label: "class-b",
-				Assumptions: []NumericAssumption{{Name: "target-order", Value: "dataset-declared"}},
+				Assumptions: []numericAssumption{{Name: "target-order", Value: "dataset-declared"}},
 			}},
 		})
 		if err != nil {

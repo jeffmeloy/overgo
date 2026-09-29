@@ -47,7 +47,7 @@ func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
 		t.Fatalf("search results = %+v", fixture.search)
 	}
 	relevantResult := fixture.search.Results[1]
-	missing := RetrievalJudgment{
+	missing := retrievalJudgment{
 		Chunk:  testutil.ArtifactID(t, artifact.KindDatasetShard, "metrics-missing-chunk"),
 		Source: testutil.ArtifactID(t, artifact.KindFile, "metrics-missing-source"), StartRune: 0, EndRune: 4, Relevance: 1,
 	}
@@ -60,7 +60,7 @@ func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
 	}
 	caseValue, err := NewRetrievalCase(RetrievalCase{
 		Query: fixture.receipt.Query, Split: split, Group: "question-family-a",
-		Judgments: []RetrievalJudgment{missing, {
+		Judgments: []retrievalJudgment{missing, {
 			Chunk: relevantResult.Citation.Chunk, Source: relevantResult.Citation.Source,
 			StartRune: relevantResult.Citation.StartRune, EndRune: relevantResult.Citation.EndRune, Relevance: 3,
 		}},
@@ -68,7 +68,7 @@ func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := PublishRetrievalEvaluation(t.Context(), store, caseValue, fixture.receipt.ID)
+	evidence, err := publishRetrievalEvaluation(t.Context(), store, caseValue, fixture.receipt.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
 		evidence.Work.LoadedBytes == 0 || evidence.Results.Kind() != artifact.KindEvidence {
 		t.Fatalf("metrics = %+v, work = %+v", evidence.Metrics, evidence.Work)
 	}
-	replayed, err := RequireRetrievalEvaluation(t.Context(), store, evidence.ID)
+	replayed, err := requireRetrievalEvaluation(t.Context(), store, evidence.ID)
 	if err != nil || replayed.ID != evidence.ID {
 		t.Fatalf("replayed evaluation = %+v, %v", replayed, err)
 	}
@@ -93,7 +93,7 @@ func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	abstained, err := PublishRetrievalEvaluation(t.Context(), store, abstention, abstentionFixture.receipt.ID)
+	abstained, err := publishRetrievalEvaluation(t.Context(), store, abstention, abstentionFixture.receipt.ID)
 	if err != nil || !abstained.Metrics.AbstentionCorrect || abstained.Metrics.RelevantExpected != 0 ||
 		abstained.Metrics.NormalizedDCG != 0 {
 		t.Fatalf("abstention evaluation = %+v, %v", abstained, err)

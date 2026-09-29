@@ -7,13 +7,13 @@ import (
 	"unicode"
 )
 
-// ChatChoiceRuntime is a runtime that scores multiple choice the way an
+// chatChoiceRuntime is a runtime that scores multiple choice the way an
 // instruct model answers: the question rides its declared chat template
 // and the model generates its answer, from which the choice letter is
 // read. Likelihood over letters at the opening of the model turn is not
 // where such a model answers (a template that opens a thought channel
 // puts prose there), so the chat-template protocol generates instead.
-type ChatChoiceRuntime interface {
+type chatChoiceRuntime interface {
 	Generator
 	// ShapeChatPrompt renders one user message through the model's
 	// declared template with the generation prompt appended.
@@ -83,22 +83,22 @@ func matchChoiceLetter(text string, candidates []string) (int, bool) {
 // an unmatched answer selects nothing and counts as incorrect.
 func answerChoiceByGeneration(
 	ctx context.Context,
-	runtime ChatChoiceRuntime,
+	runtime chatChoiceRuntime,
 	testCase MultipleChoiceCase,
-) (ChoiceObservation, error) {
+) (choiceObservation, error) {
 	prompt, letters, err := chatChoicePrompt(testCase)
 	if err != nil {
-		return ChoiceObservation{}, err
+		return choiceObservation{}, err
 	}
 	shaped, err := runtime.ShapeChatPrompt(prompt)
 	if err != nil {
-		return ChoiceObservation{}, err
+		return choiceObservation{}, err
 	}
 	result, err := Record(ctx, runtime, testCase.Name, shaped+chatAnswerOpener, chatAnswerTokens)
 	if err != nil {
-		return ChoiceObservation{}, err
+		return choiceObservation{}, err
 	}
-	observation := ChoiceObservation{
+	observation := choiceObservation{
 		Name: testCase.Name, Answer: testCase.Answer, Raw: result.Text, Selected: unmatchedChoice,
 	}
 	if index, matched := matchChoiceLetter(result.Text, letters); matched {
@@ -197,14 +197,14 @@ const chatProbeCases = 8
 type chatProbe struct {
 	matched  int
 	judged   int
-	first    ChoiceObservation
+	first    choiceObservation
 	firstSet bool
 	letters  []string
 }
 
 // judge records one generated answer and refuses once the probe window
 // (or the whole suite, when shorter) has produced no match at all.
-func (probe *chatProbe) judge(observation ChoiceObservation, letters []string, last bool) error {
+func (probe *chatProbe) judge(observation choiceObservation, letters []string, last bool) error {
 	if !probe.firstSet {
 		probe.first, probe.letters, probe.firstSet = observation, letters, true
 	}

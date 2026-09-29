@@ -15,16 +15,16 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// PeerCapacityProjection reports declared work and current lease availability.
-type PeerCapacityProjection struct {
+// peerCapacityProjection reports declared work and current lease availability.
+type peerCapacityProjection struct {
 	Environment  artifact.ID   `json:"environment"`
 	Tasks        []recipe.Task `json:"tasks,omitempty"`
 	LeaseExpires int64         `json:"lease_expires_unix_ns,omitzero"`
 	Available    bool          `json:"available"`
 }
 
-// PeerInventoryEntry joins one immutable enrollment to its current aliases.
-type PeerInventoryEntry struct {
+// peerInventoryEntry joins one immutable enrollment to its current aliases.
+type peerInventoryEntry struct {
 	Peer          artifact.ID                            `json:"peer"`
 	Enrollment    runrecord.PeerEnrollment               `json:"enrollment"`
 	StateID       artifact.ID                            `json:"state_id"`
@@ -34,74 +34,74 @@ type PeerInventoryEntry struct {
 	Capability    *modelrecipe.RemotePeerCapability      `json:"capability,omitempty"`
 	HeartbeatID   artifact.ID                            `json:"heartbeat_id,omitzero"`
 	Heartbeat     *runrecord.PeerHeartbeat               `json:"heartbeat,omitempty"`
-	Capacity      PeerCapacityProjection                 `json:"capacity"`
+	Capacity      peerCapacityProjection                 `json:"capacity"`
 	Refusal       string                                 `json:"refusal,omitzero"`
 }
 
-// PeerInventoryProjection is an explicitly bounded peer control-plane view.
-type PeerInventoryProjection struct {
-	Peers     []PeerInventoryEntry `json:"peers"`
+// peerInventoryProjection is an explicitly bounded peer control-plane view.
+type peerInventoryProjection struct {
+	Peers     []peerInventoryEntry `json:"peers"`
 	Truncated bool                 `json:"truncated"`
 }
 
-// PeerEvidenceLog is a payload-free rendering of immutable attempt evidence.
-type PeerEvidenceLog struct {
+// peerEvidenceLog is a payload-free rendering of immutable attempt evidence.
+type peerEvidenceLog struct {
 	Attempt artifact.ID                  `json:"attempt"`
 	Phase   runrecord.PeerReplicaPhase   `json:"phase"`
 	Outcome runrecord.PeerReplicaOutcome `json:"outcome"`
 	Failure string                       `json:"failure,omitzero"`
 }
 
-// PeerEvidenceProjection joins operation, attempt, artifact, and log facts.
-type PeerEvidenceProjection struct {
+// peerEvidenceProjection joins operation, attempt, artifact, and log facts.
+type peerEvidenceProjection struct {
 	Operation *operation.Status                                         `json:"operation,omitempty"`
-	Attempts  []OperationEvidenceDocument[runrecord.PeerReplicaReceipt] `json:"attempts"`
+	Attempts  []operationEvidenceDocument[runrecord.PeerReplicaReceipt] `json:"attempts"`
 	Artifacts []artifact.ID                                             `json:"artifacts"`
-	Logs      []PeerEvidenceLog                                         `json:"logs"`
+	Logs      []peerEvidenceLog                                         `json:"logs"`
 	Truncated bool                                                      `json:"truncated"`
 }
 
-// PeerWorkspaceAPI is the typed protocol boundary shared by API and GUI.
-type PeerWorkspaceAPI interface {
-	PeerInventory(context.Context, int) (PeerInventoryProjection, error)
+// peerWorkspaceAPI is the typed protocol boundary shared by API and GUI.
+type peerWorkspaceAPI interface {
+	PeerInventory(context.Context, int) (peerInventoryProjection, error)
 	EnrollPeer(context.Context, runrecord.PeerEnrollment) (runrecord.PeerEnrollment, runrecord.PeerState, error)
 	PublishPeerCapability(context.Context, artifact.ID, modelrecipe.RemotePeerCapability, int64) (modelrecipe.PeerCapabilityPublication, modelrecipe.RemotePeerCapability, error)
 	HeartbeatPeer(context.Context, runrecord.PeerHeartbeat) (runrecord.PeerHeartbeat, error)
 	TransitionPeer(context.Context, artifact.ID, runrecord.PeerAdministrativeState, int64) (runrecord.PeerState, error)
 	CompilePeerPlacement(context.Context, modelrecipe.PeerPlacementRequest) (modelrecipe.PeerPlacementPlan, error)
 	ReconcilePeer(context.Context, *operation.Manager, capabilityruntime.PeerReconcileRequest) (artifact.ID, error)
-	PeerEvidence(context.Context, *operation.Manager, artifact.ID, int) (PeerEvidenceProjection, error)
+	PeerEvidence(context.Context, *operation.Manager, artifact.ID, int) (peerEvidenceProjection, error)
 }
 
-// PeerWorkspace composes peer authorities without owning a second registry or queue.
-type PeerWorkspace struct {
+// peerWorkspace composes peer authorities without owning a second registry or queue.
+type peerWorkspace struct {
 	store   *overgodb.Store
 	backend capabilityruntime.PeerReplicaBackend
 	limit   int
 	clock   func() time.Time
 }
 
-// PeerWorkspaceConfig binds peer controls to OvergoDB and the peer transport seam.
-type PeerWorkspaceConfig struct {
+// peerWorkspaceConfig binds peer controls to OvergoDB and the peer transport seam.
+type peerWorkspaceConfig struct {
 	Store   *overgodb.Store
 	Backend capabilityruntime.PeerReplicaBackend
 	Limit   int
 }
 
 // Open validates and constructs the peer operator boundary.
-func (config PeerWorkspaceConfig) Open() (*PeerWorkspace, error) {
+func (config peerWorkspaceConfig) Open() (*peerWorkspace, error) {
 	if config.Store == nil || config.Backend == nil || config.Limit <= 0 {
 		return nil, errors.New("peer workspace: repository, backend, and positive projection limit required")
 	}
-	return &PeerWorkspace{store: config.Store, backend: config.Backend, limit: config.Limit, clock: time.Now}, nil
+	return &peerWorkspace{store: config.Store, backend: config.Backend, limit: config.Limit, clock: time.Now}, nil
 }
 
 // PeerInventory returns bounded enrollment and current-state projections.
-func (workspace *PeerWorkspace) PeerInventory(ctx context.Context, limit int) (PeerInventoryProjection, error) {
+func (workspace *peerWorkspace) PeerInventory(ctx context.Context, limit int) (peerInventoryProjection, error) {
 	if workspace == nil || ctx == nil || limit <= 0 || limit > workspace.limit {
-		return PeerInventoryProjection{}, errors.New("peer workspace: invalid inventory bound")
+		return peerInventoryProjection{}, errors.New("peer workspace: invalid inventory bound")
 	}
-	projection := PeerInventoryProjection{Peers: make([]PeerInventoryEntry, 0, limit)}
+	projection := peerInventoryProjection{Peers: make([]peerInventoryEntry, 0, limit)}
 	page, err := overgodb.VisitDecodedDocuments(ctx, workspace.store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: runrecord.PeerEnrollmentMediaType, Schema: runrecord.PeerEnrollmentSchema,
@@ -119,11 +119,11 @@ func (workspace *PeerWorkspace) PeerInventory(ctx context.Context, limit int) (P
 	return projection, err
 }
 
-func (workspace *PeerWorkspace) peerInventoryEntry(ctx context.Context, enrollment runrecord.PeerEnrollment) (PeerInventoryEntry, error) {
-	entry := PeerInventoryEntry{Peer: enrollment.ID, Enrollment: enrollment, Capacity: PeerCapacityProjection{Environment: enrollment.Environment}}
+func (workspace *peerWorkspace) peerInventoryEntry(ctx context.Context, enrollment runrecord.PeerEnrollment) (peerInventoryEntry, error) {
+	entry := peerInventoryEntry{Peer: enrollment.ID, Enrollment: enrollment, Capacity: peerCapacityProjection{Environment: enrollment.Environment}}
 	state, found, err := runrecord.ResolvePeerState(ctx, workspace.store, enrollment.ID)
 	if err != nil {
-		return PeerInventoryEntry{}, err
+		return peerInventoryEntry{}, err
 	}
 	if !found {
 		entry.Refusal = "peer administrative state is unavailable"
@@ -133,7 +133,7 @@ func (workspace *PeerWorkspace) peerInventoryEntry(ctx context.Context, enrollme
 	entry.StateID = state.ID
 	publication, capability, found, err := modelrecipe.ResolvePeerCapabilityPublication(ctx, workspace.store, enrollment.ID)
 	if err != nil {
-		return PeerInventoryEntry{}, err
+		return peerInventoryEntry{}, err
 	}
 	if !found {
 		entry.Refusal = "peer capability is unavailable"
@@ -144,7 +144,7 @@ func (workspace *PeerWorkspace) peerInventoryEntry(ctx context.Context, enrollme
 	entry.Capacity.Tasks = slices.Clone(capability.Tasks)
 	heartbeat, found, err := runrecord.ResolvePeerHeartbeat(ctx, workspace.store, enrollment.ID)
 	if err != nil {
-		return PeerInventoryEntry{}, err
+		return peerInventoryEntry{}, err
 	}
 	if !found {
 		entry.Refusal = "peer heartbeat is unavailable"
@@ -163,7 +163,7 @@ func (workspace *PeerWorkspace) peerInventoryEntry(ctx context.Context, enrollme
 }
 
 // EnrollPeer commits approval through the common lifecycle owner.
-func (workspace *PeerWorkspace) EnrollPeer(ctx context.Context, value runrecord.PeerEnrollment) (runrecord.PeerEnrollment, runrecord.PeerState, error) {
+func (workspace *peerWorkspace) EnrollPeer(ctx context.Context, value runrecord.PeerEnrollment) (runrecord.PeerEnrollment, runrecord.PeerState, error) {
 	if value.ApprovedUnixNS == 0 {
 		value.ApprovedUnixNS = workspace.clock().UTC().UnixNano()
 	}
@@ -171,17 +171,17 @@ func (workspace *PeerWorkspace) EnrollPeer(ctx context.Context, value runrecord.
 }
 
 // PublishPeerCapability advances the enrolled peer's declared transport.
-func (workspace *PeerWorkspace) PublishPeerCapability(ctx context.Context, peer artifact.ID, value modelrecipe.RemotePeerCapability, publishedUnixNS int64) (modelrecipe.PeerCapabilityPublication, modelrecipe.RemotePeerCapability, error) {
+func (workspace *peerWorkspace) PublishPeerCapability(ctx context.Context, peer artifact.ID, value modelrecipe.RemotePeerCapability, publishedUnixNS int64) (modelrecipe.PeerCapabilityPublication, modelrecipe.RemotePeerCapability, error) {
 	return (capabilityruntime.PeerLifecycleAuthority{Repository: workspace.store}).PublishCapability(ctx, peer, value, publishedUnixNS)
 }
 
 // HeartbeatPeer advances a capability-bound peer lease.
-func (workspace *PeerWorkspace) HeartbeatPeer(ctx context.Context, value runrecord.PeerHeartbeat) (runrecord.PeerHeartbeat, error) {
+func (workspace *peerWorkspace) HeartbeatPeer(ctx context.Context, value runrecord.PeerHeartbeat) (runrecord.PeerHeartbeat, error) {
 	return (capabilityruntime.PeerLifecycleAuthority{Repository: workspace.store}).Heartbeat(ctx, value)
 }
 
 // TransitionPeer advances active, draining, and retired authority.
-func (workspace *PeerWorkspace) TransitionPeer(ctx context.Context, peer artifact.ID, state runrecord.PeerAdministrativeState, changedUnixNS int64) (runrecord.PeerState, error) {
+func (workspace *peerWorkspace) TransitionPeer(ctx context.Context, peer artifact.ID, state runrecord.PeerAdministrativeState, changedUnixNS int64) (runrecord.PeerState, error) {
 	if changedUnixNS == 0 {
 		changedUnixNS = workspace.clock().UTC().UnixNano()
 	}
@@ -189,7 +189,7 @@ func (workspace *PeerWorkspace) TransitionPeer(ctx context.Context, peer artifac
 }
 
 // CompilePeerPlacement resolves current placement and refusal truth.
-func (workspace *PeerWorkspace) CompilePeerPlacement(ctx context.Context, request modelrecipe.PeerPlacementRequest) (modelrecipe.PeerPlacementPlan, error) {
+func (workspace *peerWorkspace) CompilePeerPlacement(ctx context.Context, request modelrecipe.PeerPlacementRequest) (modelrecipe.PeerPlacementPlan, error) {
 	if request.NowUnixNS == 0 {
 		request.NowUnixNS = workspace.clock().UTC().UnixNano()
 	}
@@ -197,7 +197,7 @@ func (workspace *PeerWorkspace) CompilePeerPlacement(ctx context.Context, reques
 }
 
 // ReconcilePeer admits reconciliation through the common operation owner.
-func (workspace *PeerWorkspace) ReconcilePeer(ctx context.Context, manager *operation.Manager, request capabilityruntime.PeerReconcileRequest) (artifact.ID, error) {
+func (workspace *peerWorkspace) ReconcilePeer(ctx context.Context, manager *operation.Manager, request capabilityruntime.PeerReconcileRequest) (artifact.ID, error) {
 	if request.ChangedUnixNS == 0 {
 		request.ChangedUnixNS = workspace.clock().UTC().UnixNano()
 	}
@@ -211,11 +211,11 @@ func (workspace *PeerWorkspace) ReconcilePeer(ctx context.Context, manager *oper
 }
 
 // PeerEvidence returns bounded reconciliation facts without backend payloads.
-func (workspace *PeerWorkspace) PeerEvidence(ctx context.Context, manager *operation.Manager, id artifact.ID, limit int) (PeerEvidenceProjection, error) {
+func (workspace *peerWorkspace) PeerEvidence(ctx context.Context, manager *operation.Manager, id artifact.ID, limit int) (peerEvidenceProjection, error) {
 	if workspace == nil || ctx == nil || manager == nil || id.Kind() != artifact.KindEvidence || limit <= 0 || limit > workspace.limit {
-		return PeerEvidenceProjection{}, errors.New("peer workspace: invalid evidence request")
+		return peerEvidenceProjection{}, errors.New("peer workspace: invalid evidence request")
 	}
-	projection := PeerEvidenceProjection{Attempts: make([]OperationEvidenceDocument[runrecord.PeerReplicaReceipt], 0, limit)}
+	projection := peerEvidenceProjection{Attempts: make([]operationEvidenceDocument[runrecord.PeerReplicaReceipt], 0, limit)}
 	page, err := overgodb.VisitDecodedDocuments(ctx, workspace.store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: runrecord.PeerReplicaReceiptMediaType, Schema: runrecord.PeerReplicaReceiptSchema,
@@ -223,8 +223,8 @@ func (workspace *PeerWorkspace) PeerEvidence(ctx context.Context, manager *opera
 		AliasPrefixes: []string{runrecord.PeerReplicaReceiptAliasRoot + id.String() + "/"},
 		Order:         overgodb.DocumentNewestFirst, MaxResults: limit,
 	}, runrecord.ParsePeerReplicaReceipt, func(view overgodb.DocumentView, receipt runrecord.PeerReplicaReceipt) error {
-		projection.Attempts = append(projection.Attempts, OperationEvidenceDocument[runrecord.PeerReplicaReceipt]{ID: view.Content.Descriptor.ID, Value: receipt})
-		projection.Logs = append(projection.Logs, PeerEvidenceLog{Attempt: receipt.ID, Phase: receipt.Phase, Outcome: receipt.Outcome, Failure: receipt.Failure})
+		projection.Attempts = append(projection.Attempts, operationEvidenceDocument[runrecord.PeerReplicaReceipt]{ID: view.Content.Descriptor.ID, Value: receipt})
+		projection.Logs = append(projection.Logs, peerEvidenceLog{Attempt: receipt.ID, Phase: receipt.Phase, Outcome: receipt.Outcome, Failure: receipt.Failure})
 		for _, artifactID := range receipt.Artifacts {
 			if !slices.Contains(projection.Artifacts, artifactID) {
 				projection.Artifacts = append(projection.Artifacts, artifactID)
@@ -233,7 +233,7 @@ func (workspace *PeerWorkspace) PeerEvidence(ctx context.Context, manager *opera
 		return nil
 	})
 	if err != nil {
-		return PeerEvidenceProjection{}, err
+		return peerEvidenceProjection{}, err
 	}
 	if status, found := manager.Status(id); found {
 		projection.Operation = &status

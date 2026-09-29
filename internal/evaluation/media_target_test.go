@@ -23,28 +23,28 @@ func TestMediaTargetMetricsRequireExplicitVerifierAuthority(t *testing.T) {
 		}
 		expected := testutil.ArtifactID(t, artifact.KindOutput, "expected "+string(modality))
 		output := testutil.ArtifactID(t, artifact.KindOutput, "output "+string(modality))
-		plan, err := CompileMediaTargetPlan(view, MediaTargetSuite{
-			Oracles: []MediaOracle{MediaDecode, MediaArtifactIdentity},
-			Scorers: []MediaScorerSpec{{
-				Name: "declared-score", Kind: MediaIndependentScorer, Verifier: verifier,
+		plan, err := compileMediaTargetPlan(view, mediaTargetSuite{
+			Oracles: []mediaOracle{mediaDecode, mediaArtifactIdentity},
+			Scorers: []mediaScorerSpec{{
+				Name: "declared-score", Kind: mediaIndependentScorer, Verifier: verifier,
 				Direction: runrecord.DirectionMaximize,
 			}},
-			Cases: []MediaTargetCase{{Record: "heldout", Expected: expected}},
+			Cases: []mediaTargetCase{{Record: "heldout", Expected: expected}},
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		observation := MediaTargetObservation{
+		observation := mediaTargetObservation{
 			Record: "heldout", Output: output,
-			Oracles:   []MediaOracleResult{{Kind: MediaArtifactIdentity, Passed: true}, {Kind: MediaDecode, Passed: true}},
-			Verifiers: []MediaVerifierResult{{Name: "declared-score", Verifier: verifier, Value: 0.75}},
+			Oracles:   []mediaOracleResult{{Kind: mediaArtifactIdentity, Passed: true}, {Kind: mediaDecode, Passed: true}},
+			Verifiers: []mediaVerifierResult{{Name: "declared-score", Verifier: verifier, Value: 0.75}},
 		}
-		report, err := ScoreMediaTargets(plan, []MediaTargetObservation{observation})
+		report, err := scoreMediaTargets(plan, []mediaTargetObservation{observation})
 		if err != nil || len(report.Metrics) != 1 || report.Metrics[0].Value != observation.Verifiers[0].Value {
 			t.Fatalf("%s report=%+v err=%v", modality, report, err)
 		}
 		observation.Verifiers[0].Verifier = testutil.ArtifactID(t, artifact.KindProfile, "undeclared verifier")
-		if _, err := ScoreMediaTargets(plan, []MediaTargetObservation{observation}); err == nil {
+		if _, err := scoreMediaTargets(plan, []mediaTargetObservation{observation}); err == nil {
 			t.Fatalf("%s accepted undeclared verifier", modality)
 		}
 	}

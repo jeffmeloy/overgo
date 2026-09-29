@@ -46,7 +46,7 @@ func TestWebUIBrowserAgentThread(t *testing.T) {
 	if _, err := agenttool.PublishManualCatalog(t.Context(), fixture.store, append(manuals, write)); err != nil {
 		t.Fatal(err)
 	}
-	definition := AgentDefinitionInput{
+	definition := agentDefinitionInput{
 		Name: "research-agent", Prompt: fixture.prompt, ModelRecipe: fixture.generator.description.Identity.Recipe,
 		ToolManuals: []artifact.ID{fixture.manual, write.ID}, Policies: []artifact.ID{fixture.policy},
 	}

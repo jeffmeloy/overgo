@@ -18,10 +18,10 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
-// AutomationWebhookKeyResolver returns caller-owned transient HMAC material
+// automationWebhookKeyResolver returns caller-owned transient HMAC material
 // for one exact immutable key profile. Implementations must not persist key
 // bytes in OvergoDB; the workspace clears the returned slice after use.
-type AutomationWebhookKeyResolver func(context.Context, artifact.ID) ([]byte, error)
+type automationWebhookKeyResolver func(context.Context, artifact.ID) ([]byte, error)
 
 // automationWebhookRequest retains transport values until the active webhook
 // policy has selected the exact headers and payload bound.
@@ -50,7 +50,7 @@ type automationWebhookWorkspaceAPI interface {
 // receiveAutomationWebhook verifies raw transport bytes against exact active
 // authority, records the observation, then dispatches only executable ledger
 // dispositions. The signing key remains an in-memory server dependency.
-func (workspace *AutomationWorkspace) receiveAutomationWebhook(
+func (workspace *automationWorkspace) receiveAutomationWebhook(
 	ctx context.Context,
 	operations *operation.Manager,
 	input automationWebhookRequest,

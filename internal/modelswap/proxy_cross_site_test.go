@@ -14,7 +14,7 @@ import (
 // and the same GET from the page itself still reaches the launcher.
 func TestProxyRefusesCrossSiteSwap(t *testing.T) {
 	record := filepath.Join(t.TempDir(), "arguments")
-	t.Setenv("OVERGO_TEST_MODEL_STARTUP", "arguments")
+	t.Setenv("OVERGO_TEST_CHILD_STARTUP", "arguments")
 	t.Setenv("OVERGO_TEST_ARGUMENT_RECORD", record)
 	supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0)
 	if err != nil {

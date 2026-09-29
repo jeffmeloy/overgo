@@ -40,7 +40,7 @@ func TestExportQuantizedGGUF(t *testing.T) {
 	}
 	root := t.TempDir()
 	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
-	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowExport)
+	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowExport)
 	if err != nil || len(capabilities) != 1 {
 		t.Fatalf("export capabilities = %+v, %v", capabilities, err)
 	}
@@ -50,12 +50,12 @@ func TestExportQuantizedGGUF(t *testing.T) {
 		t.Fatalf("export capability = %+v", capability)
 	}
 	run := func(input string) error {
-		_, err := workspace.ExecuteWorkflow(ctx, WorkflowExport, recipe.TaskExport, capability.Recipe, json.RawMessage(input), &recordingReporter{})
+		_, err := workspace.ExecuteWorkflow(ctx, workflowExport, recipe.TaskExport, capability.Recipe, json.RawMessage(input), &recordingReporter{})
 		return err
 	}
 
 	reporter := &recordingReporter{}
-	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowExport, recipe.TaskExport, capability.Recipe, json.RawMessage(`{"type":"f16","output":"shared"}`), reporter)
+	completion, err := workspace.ExecuteWorkflow(ctx, workflowExport, recipe.TaskExport, capability.Recipe, json.RawMessage(`{"type":"f16","output":"shared"}`), reporter)
 	if err != nil || !reporter.published || len(completion.Outputs) != 1 {
 		t.Fatalf("export = %+v published=%v err=%v", completion, reporter.published, err)
 	}
@@ -120,11 +120,11 @@ func TestGGUFRunsBindTheirSource(t *testing.T) {
 	exportRun := func(commit, output string) runrecord.Run {
 		t.Helper()
 		workspace := NewGGUFWorkspace(store, t.TempDir(), 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, commit)
-		capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowExport)
+		capabilities, err := workspace.WorkflowCapabilities(ctx, workflowExport)
 		if err != nil || len(capabilities) != 1 {
 			t.Fatalf("export capabilities = %+v, %v", capabilities, err)
 		}
-		completion, err := workspace.ExecuteWorkflow(ctx, WorkflowExport, recipe.TaskExport, capabilities[0].Recipe,
+		completion, err := workspace.ExecuteWorkflow(ctx, workflowExport, recipe.TaskExport, capabilities[0].Recipe,
 			json.RawMessage(`{"type":"f16","output":"`+output+`"}`), &recordingReporter{})
 		if err != nil {
 			t.Fatal(err)

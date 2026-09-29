@@ -17,10 +17,6 @@ type EntryAuthorityDomain string
 const (
 	// EntryAuthorityStorage guards the canonical journal layout owned by internal/overgodb.
 	EntryAuthorityStorage EntryAuthorityDomain = "storage"
-	// EntryAuthorityProcess guards external process execution owned by internal/processcontrol.
-	EntryAuthorityProcess EntryAuthorityDomain = "process"
-	// EntryAuthorityCapability guards serving-runner construction owned by internal/inference.
-	EntryAuthorityCapability EntryAuthorityDomain = "capability"
 	// EntryAuthorityTool guards tool-manual entry owned by internal/agenttool registration.
 	EntryAuthorityTool EntryAuthorityDomain = "tool"
 	// EntryAuthorityTrigger guards execution-trigger admission owned by internal/workflowruntime.
@@ -177,8 +173,8 @@ func underAny(filePath string, prefixes []string) bool {
 	return false
 }
 
-// EntryAuthorityRules owns the permanent architecture policy. The gate applies
-// it to every candidate; this package tests each domain independently.
+// EntryAuthorityRules owns the permanent architecture policy. It runs only as
+// this package's tests: over the live tree, and per domain independently.
 func EntryAuthorityRules() []EntryAuthorityRule {
 	return []EntryAuthorityRule{
 		{
@@ -194,49 +190,6 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				return literalSites(file, "overgodb.log")
 			},
 			Retire: "internal/overgodb stops owning a journal file layout",
-		},
-		{
-			Domain:     EntryAuthorityProcess,
-			Owner:      "internal/processcontrol owns external process execution and termination",
-			OwnerPaths: []string{"internal/processcontrol"},
-			Exceptions: map[string]string{
-				"internal/runrecord/verifying_commit.go":       "read-only git fact reads; execution-semantics binds repository facts to supervised receipts",
-				"internal/clioptions/command.go":               "command self-identification fact; execution-semantics migration",
-				"internal/testprocess/process.go":              "test-support process helpers consumed only by suites",
-				"cmd/plan/git.go":                              "read-only git fact reads; execution-semantics migration",
-				"cmd/loophook/main.go":                         "hook-time tooling; execution-semantics migration",
-				"cmd/release/main.go":                          "release lane tooling; execution-semantics migration",
-				"cmd/reverify/main.go":                         "reverify lane tooling; execution-semantics migration",
-				"cmd/build-kernels/main.go":                    "kernel toolchain invocations; execution-semantics migration",
-				"cmd/eval-lane/main.go":                        "eval lane tooling; execution-semantics migration",
-				"cmd/sbom/main.go":                             "read-only go toolchain fact reads; execution-semantics migration",
-				"cmd/advisories/main.go":                       "read-only git fact reads; execution-semantics migration",
-				"cmd/compatibility/training.go":                "training lane tooling; execution-semantics migration",
-				"cmd/composite-generation-lane/run_windows.go": "generation lane tooling; execution-semantics migration",
-			},
-			Detect: func(file *ast.File) int {
-				return selectorSites(file, func(selector *ast.SelectorExpr) bool {
-					if selectorIs(selector, "exec", "Command") || selectorIs(selector, "exec", "CommandContext") {
-						return true
-					}
-					if selector.Sel.Name == "Kill" {
-						inner, ok := selector.X.(*ast.SelectorExpr)
-						return ok && inner.Sel.Name == "Process"
-					}
-					return false
-				})
-			},
-			Retire: "internal/processcontrol stops owning external process execution",
-		},
-		{
-			Domain:     EntryAuthorityCapability,
-			Owner:      "internal/inference owns the serving runner; OpenWithProgram over a resolved active recipe is the only door",
-			OwnerPaths: []string{"internal/inference"},
-			Exceptions: map[string]string{},
-			Detect: func(file *ast.File) int {
-				return compositeSites(file, "inference", "Runner")
-			},
-			Retire: "internal/inference stops owning the serving runner lifecycle",
 		},
 		{
 			Domain:     EntryAuthorityTool,

@@ -91,9 +91,9 @@ type TranscriptionPrediction struct {
 	Run  artifact.ID `json:"run"`
 }
 
-// TranscriptionObservation records one exact prediction outcome and its error
+// transcriptionObservation records one exact prediction outcome and its error
 // counts. Raw text remains in the referenced output artifact.
-type TranscriptionObservation struct {
+type transcriptionObservation struct {
 	Name             string            `json:"name"`
 	Group            string            `json:"group"`
 	Source           artifact.ID       `json:"source"`
@@ -113,9 +113,9 @@ type TranscriptionObservation struct {
 	ControlViolation bool              `json:"control_violation,omitzero"`
 }
 
-// TranscriptionSlice reports micro-averaged quality and complete failure
+// transcriptionSlice reports micro-averaged quality and complete failure
 // denominators for the full suite or one declared group.
-type TranscriptionSlice struct {
+type transcriptionSlice struct {
 	Name                  string  `json:"name"`
 	WordErrorRate         float64 `json:"word_error_rate"`
 	CharacterErrorRate    float64 `json:"character_error_rate"`
@@ -137,9 +137,9 @@ type TranscriptionReport struct {
 	Dataset       artifact.ID                  `json:"dataset"`
 	Split         artifact.ID                  `json:"split"`
 	Normalization []TranscriptionNormalization `json:"normalization"`
-	Observations  []TranscriptionObservation   `json:"observations"`
-	Overall       TranscriptionSlice           `json:"overall"`
-	Groups        []TranscriptionSlice         `json:"groups"`
+	Observations  []transcriptionObservation   `json:"observations"`
+	Overall       transcriptionSlice           `json:"overall"`
+	Groups        []transcriptionSlice         `json:"groups"`
 	Metrics       []runrecord.Metric           `json:"metrics"`
 }
 
@@ -279,7 +279,7 @@ func scoreTranscriptionReport(
 	report := TranscriptionReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset, Split: compiled.split,
 		Normalization: slices.Clone(compiled.suite.Normalization),
-		Observations:  make([]TranscriptionObservation, len(predictions)),
+		Observations:  make([]transcriptionObservation, len(predictions)),
 	}
 	overall := transcriptionAccumulator{name: "overall"}
 	groups := make(map[string]*transcriptionAccumulator)
@@ -326,10 +326,10 @@ func scoreTranscriptionPrediction(
 	prediction TranscriptionPrediction,
 	normalization []TranscriptionNormalization,
 	decodeRecipe artifact.ID,
-) (TranscriptionObservation, error) {
+) (transcriptionObservation, error) {
 	run, err := runrecord.RequireExactRun(ctx, repository, prediction.Run)
 	if err != nil {
-		return TranscriptionObservation{}, err
+		return transcriptionObservation{}, err
 	}
 	if run.Recipe != plan.body.RuntimeRecipe || run.CodeCommit != plan.body.CodeCommit ||
 		run.Environment != plan.body.Environment || !slices.Contains(run.Inputs, testCase.Source.Audio) ||
@@ -337,9 +337,9 @@ func scoreTranscriptionPrediction(
 		!slices.Contains(run.Inputs, plan.body.Split) ||
 		decodeRecipe.Valid() && (!slices.Contains(run.Inputs, decodeRecipe) || !slices.Contains(run.Inputs, plan.identity)) ||
 		run.Outcome != runrecord.OutcomeSucceeded && len(run.Outputs) != 0 {
-		return TranscriptionObservation{}, errors.New("evaluation: transcription run authority differs")
+		return transcriptionObservation{}, errors.New("evaluation: transcription run authority differs")
 	}
-	observation := TranscriptionObservation{
+	observation := transcriptionObservation{
 		Name: testCase.Name, Group: testCase.Group, Source: testCase.Source.Audio,
 		Run: run.ID, Outcome: run.Outcome, Failure: run.Failure, CodeCommit: run.CodeCommit,
 		Environment: run.Environment, SampleCount: testCase.SampleCount, SampleRate: testCase.SampleRate,
@@ -350,7 +350,7 @@ func scoreTranscriptionPrediction(
 		if run.Outcome == runrecord.OutcomeSucceeded {
 			output, _, loadErr := requireTranscriptionOutput(ctx, repository, run, testCase.Source)
 			if loadErr != nil {
-				return TranscriptionObservation{}, loadErr
+				return transcriptionObservation{}, loadErr
 			}
 			observation.Output = output
 		}
@@ -366,7 +366,7 @@ func scoreTranscriptionPrediction(
 	}
 	output, transcription, err := requireTranscriptionOutput(ctx, repository, run, testCase.Source)
 	if err != nil {
-		return TranscriptionObservation{}, err
+		return transcriptionObservation{}, err
 	}
 	observation.Output = output
 	hypothesis := normalizeTranscription(transcription.Text, normalization)
@@ -495,7 +495,7 @@ func sequenceEditDistance[T comparable](reference, hypothesis []T) int {
 	return previous[len(hypothesis)]
 }
 
-func accumulateTranscription(accumulator *transcriptionAccumulator, observation TranscriptionObservation) {
+func accumulateTranscription(accumulator *transcriptionAccumulator, observation transcriptionObservation) {
 	accumulator.sampleCount += observation.SampleCount
 	accumulator.durationSeconds += float64(observation.SampleCount) / float64(observation.SampleRate)
 	if observation.SilentControl {
@@ -519,8 +519,8 @@ func accumulateTranscription(accumulator *transcriptionAccumulator, observation 
 	}
 }
 
-func (accumulator transcriptionAccumulator) result() TranscriptionSlice {
-	result := TranscriptionSlice{
+func (accumulator transcriptionAccumulator) result() transcriptionSlice {
+	result := transcriptionSlice{
 		Name: accumulator.name, Utterances: accumulator.utterances, SampleCount: accumulator.sampleCount,
 		DurationSeconds: accumulator.durationSeconds, AdmissionFailures: accumulator.admissionFailures,
 		InferenceFailures: accumulator.inferenceFailures, SilentControls: accumulator.silentControls,
@@ -535,7 +535,7 @@ func (accumulator transcriptionAccumulator) result() TranscriptionSlice {
 	return result
 }
 
-func transcriptionMetrics(overall TranscriptionSlice, groups []TranscriptionSlice) []runrecord.Metric {
+func transcriptionMetrics(overall transcriptionSlice, groups []transcriptionSlice) []runrecord.Metric {
 	metrics := transcriptionSliceMetrics("", overall)
 	for _, group := range groups {
 		metrics = append(metrics, transcriptionSliceMetrics("."+metricLabel(group.Name), group)...)
@@ -544,7 +544,7 @@ func transcriptionMetrics(overall TranscriptionSlice, groups []TranscriptionSlic
 	return metrics
 }
 
-func transcriptionSliceMetrics(suffix string, value TranscriptionSlice) []runrecord.Metric {
+func transcriptionSliceMetrics(suffix string, value transcriptionSlice) []runrecord.Metric {
 	return []runrecord.Metric{
 		{Name: "admission-failures" + suffix, Value: float64(value.AdmissionFailures), Unit: "count", Direction: runrecord.DirectionNeutral},
 		{Name: "cer" + suffix, Value: value.CharacterErrorRate, Unit: "ratio", Direction: runrecord.DirectionMinimize},

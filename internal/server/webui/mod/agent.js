@@ -16,11 +16,14 @@
       const evidenceHost = el("div");
       // The page leads with the task: pick an agent and chat; creating one is a fold with three plain
       // fields, and every operator panel lives behind Advanced folds.
+      // Chat waits for an active agent: until one is chosen the fold says how to get one instead of a composer.
+      const chatNote = el("p", { class: "note agent-chat-note", hidden: true, text: "Choose an active agent above, or create one, to chat with it." });
+      const createFold = overgo.fold("New agent", false, createHost);
       panel.replaceChildren(
         el("div", { class: "section-title", text: "Agents" }), status,
         overgo.fold("Your agents", true, inventoryHost),
-        overgo.fold("New agent", false, createHost),
-        overgo.fold("Chat", true, conversationHost),
+        createFold,
+        overgo.fold("Chat", true, chatNote, conversationHost),
         overgo.fold("Advanced: manual tool steps and approvals", false, toolsHost),
         overgo.fold("Advanced: full definition editor", false, editorHost),
         overgo.fold("Advanced: retrieval evidence", false, retrievalHost),
@@ -83,6 +86,13 @@
       });
 
       function renderInventory() {
+        // No agent yet: say so and open the creation fold, rather than offer controls with nothing to act on.
+        if (!inventory.length) {
+          selected = "";
+          inventoryHost.replaceChildren(el("p", { class: "note", text: "No agents yet." }),
+            el("button", { class: "btn alt", text: "Create an agent", onclick: () => { createFold.open = true; const field = createHost.querySelector("input, textarea, select"); if (field) field.focus(); } }));
+          return;
+        }
         if (!selected && inventory.length) selected = inventory[0].name;
         if (selected && !inventory.some((item) => item.name === selected)) selected = "";
         const table = overgo.table(["name", "definition", "state", "authority", "select"], inventory.map((item) => [
@@ -148,7 +158,10 @@
             },
           });
         }
-        chatComposer.setBusy(!agent || agent.state !== "active");
+        const active = !!agent && agent.state === "active";
+        chatComposer.setBusy(!active);
+        chatNote.hidden = active;
+        conversationHost.hidden = !active;
       }
 
       // The manual tool-step surface is the shared one; this tab adds the session box and session list.

@@ -228,6 +228,7 @@ table.grid td.mono { font-family:var(--mono); font-variant-numeric:tabular-nums;
    in amber, and the track is free. */
 .memory-bar { display:flex; flex:none; width:min(96px, 16vw); height:var(--s2); border-radius:var(--radius-s); overflow:hidden; background:var(--bg3); border:1px solid var(--line); }
 .memory-part { flex:none; height:100%; }
+.memory-label { flex:none; font-size:var(--t-xs); white-space:nowrap; }
 .memory-part.owner-0 { background:var(--acc); }
 .memory-part.owner-1 { background:color-mix(in srgb, var(--acc) 65%, var(--bg3)); }
 .memory-part.owner-2 { background:color-mix(in srgb, var(--acc) 45%, var(--bg3)); }
@@ -241,6 +242,8 @@ table.grid td.mono { font-family:var(--mono); font-variant-numeric:tabular-nums;
 .tag.loop-state[data-state="stopped"] { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
 /* The scorecard: an unmeasured cell reads quieter than a measured one, its reason in its title. */
 .scorecard-gap { color:var(--faint); }
+/* A table that fills on demand (search results, downloads) shows only once it has a row: no bare headers. */
+table.grid.hide-empty:not(:has(tbody tr)) { display:none; }
 /* The recent turns' trend: one labelled sparkline per measure. */
 .turn-trend { display:grid; gap:var(--s2); margin:var(--s2) 0; }
 .turn-trend-line svg { display:block; }
@@ -412,7 +415,9 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .history-row, .history-search { display:flex; align-items:center; gap:var(--s1); }
 .history-search input { min-width:0; width:100%; }
 .history-row > .tab { flex:1; min-width:0; display:flex; flex-direction:column; align-items:stretch; gap:0; }
-.conversation-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* A rail title wraps to two lines before it clips, so titles that share a start still read apart; the full
+   title is its tooltip. */
+.conversation-title { overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow-wrap:anywhere; }
 .history-options { flex:none; }
 .history-actions { padding:0 var(--s2); }
 .history-editor { flex:1; min-width:0; }
@@ -553,6 +558,7 @@ summary { cursor:pointer; min-height:32px; }
 .picker-facts .mono { display:block; overflow-wrap:anywhere; }
 .picker-card > .row[tabindex] > .mono { font:500 var(--t-base) var(--font); }
 @media (max-width:860px) {
+  .memory-label { display:none; }
   #navigation-toggle, #navigation-close { display:block; }
   #navigation-close { align-self:flex-end; }
   .sidebar, .shell.front .sidebar { display:none; position:fixed; inset:0 auto 0 0; width:min(300px, 86vw); height:var(--viewport-height, 100dvh); z-index:30; }

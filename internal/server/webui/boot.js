@@ -931,12 +931,15 @@
   // memoryBar: the device's memory beside the pill, as a share of its total: the served model's bytes by
   // owner, largest first, then other processes; the track is free. A device that reports no total hides it.
   function memoryBar(device) {
-    const bar = document.getElementById("memory-bar");
+    const bar = document.getElementById("memory-bar"), label = document.getElementById("memory-label");
     const total = device && device.total_bytes;
-    bar.hidden = !total;
+    bar.hidden = label.hidden = !total;
     if (!total) return;
     const owners = device.owners || [];
-    const others = Math.max(0, total - device.free_bytes - owners.reduce((sum, owner) => sum + owner.bytes, 0));
+    const model = owners.reduce((sum, owner) => sum + owner.bytes, 0);
+    const others = Math.max(0, total - device.free_bytes - model);
+    // The label reads the model's share at a glance, where a small model is a sliver of the bar.
+    label.textContent = window.overgo.fmt.bytes(model) + " of " + window.overgo.fmt.bytes(total);
     const parts = owners.map((owner, index) => ({ name: owner.name, bytes: owner.bytes, tone: "owner-" + Math.min(index, 3) }))
       .concat([{ name: "other processes", bytes: others, tone: "other" }]).filter((part) => part.bytes > 0);
     bar.replaceChildren(...parts.map((part) => {

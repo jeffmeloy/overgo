@@ -218,6 +218,13 @@
         status.textContent = first + "-" + last + " of " + fmt.grouped(data.count) + " runs";
         prev.disabled = prior.length === 0;
         next.disabled = !nextCursor;
+        // One page needs no paging: the count says it all; no runs at all says so instead of empty headers.
+        prev.hidden = next.hidden = prev.disabled && next.disabled;
+        if (!data.count) {
+          status.textContent = "No training runs yet. A run appears here once a training job finishes.";
+          host.replaceChildren();
+          return;
+        }
 
         // A run reads as how it ended, how long it took and what it used and made; its commit is reference.
         const took = (ms) => ms < 1000 ? ms.toFixed(0) + " ms" : fmt.duration(ms);

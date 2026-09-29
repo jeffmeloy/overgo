@@ -5,21 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gui-empty-states",
-      "title": "Empty and edge states read right: Agent without agents, one-page Runs, the Hugging Face table before a search, the picker's tier tag, rail titles in full on hover, and the VRAM bar's used-of-total label",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Empty and edge states read right: Agent without agents, one-page Runs, the Hugging Face table before a search, the picker's tier tag, rail titles in full on hover, and the VRAM bar's used-of-total label",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(EmptyStates|LayoutAudit|Screens)$' -leg 'empty states leg'",
-          "rationale": "GUI review 2026-09-28: the Agent tab shows Pause and a highlighted Resume with no agents and a composer with no visible input; Runs shows active prev/next with one run; the picker stretches its tier tag across the row; the rail cuts titles to about 13 characters; the VRAM bar is a near-invisible sliver for a small model and needs a used-of-total label."
-        }
-      ]
-    },
-    {
       "id": "gui-what-got-better",
       "title": "Show what got better between versions from master's published scorecard -- per model, each cell's delta against the previous run, improvements and regressions named, including gains nobody targeted",
       "owner": "overgo_gui_cleanup",

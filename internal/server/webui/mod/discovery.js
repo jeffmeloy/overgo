@@ -187,10 +187,10 @@
         scorecard,
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),
-        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),
+        el("table", { class: "grid hide-empty" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),
         downloadsTitle,
         jobsNote,
-        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress", "register · validate"])), localBody, jobsBody));
+        el("table", { class: "grid hide-empty" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress", "register · validate"])), localBody, jobsBody));
 
       // ---- a local model: a GGUF (or its directory) already on disk, with its projector, rides the same lifecycle ----
       const localModel = el("input", { "aria-label": "Model GGUF or directory on disk", class: "text", placeholder: "model GGUF or directory on disk" });

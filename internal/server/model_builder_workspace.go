@@ -55,9 +55,9 @@ type modelBuildInput struct {
 	Steps  int    `json:"steps"`
 }
 
-func (workspace *modelBuilderWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
+func (workspace *modelBuilderWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, capability WorkflowCapability, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
 	if workspace == nil || ctx == nil || reporter == nil || kind != workflowModelBuild ||
-		task != recipe.TaskTraining || recipeID != workspace.recipe {
+		capability.Task != recipe.TaskTraining || capability.Recipe != workspace.recipe {
 		return operation.Completion{}, errors.New("model builder workspace: workflow is not admitted")
 	}
 	var input modelBuildInput

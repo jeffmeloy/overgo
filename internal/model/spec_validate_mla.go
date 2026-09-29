@@ -10,12 +10,12 @@ import (
 func (s Spec) validateMLAMetadata() error {
 	profile := s.Profile()
 	validation := profile.Validation.MLA
-	mixedLinearAttention := validation == MLAValidationHybridLinearAttention
-	if (profile.Attention == AttentionLatent || profile.Attention == AttentionSparseLatent || mixedLinearAttention) &&
+	mixedLinearAttention := validation == mlaValidationHybridLinearAttention
+	if (profile.Attention == attentionLatent || profile.Attention == AttentionSparseLatent || mixedLinearAttention) &&
 		(s.KVLoRARank == tensor.FirstOffset || s.RopeDimensionCount == tensor.FirstOffset ||
 			s.RopeDimensionCount >= s.KeyLength ||
-			(!profile.Has(ArchitectureLatentKVLayout) && !mixedLinearAttention && s.HeadCountKV != s.HeadCount) ||
-			((profile.Has(ArchitectureLatentKVLayout) || mixedLinearAttention) &&
+			(!profile.Has(architectureLatentKVLayout) && !mixedLinearAttention && s.HeadCountKV != s.HeadCount) ||
+			((profile.Has(architectureLatentKVLayout) || mixedLinearAttention) &&
 				s.HeadCountKV != tensor.SingletonExtent && s.HeadCountKV != s.HeadCount)) {
 		return errors.New("MLA metadata is invalid")
 	}
@@ -53,7 +53,7 @@ func (s Spec) validateMLAMetadata() error {
 				return errors.New("DSA shared indexer precedes every full indexer")
 			}
 		}
-		if validation == MLAValidationSparseLatentIndexer {
+		if validation == mlaValidationSparseLatentIndexer {
 			for _, full := range s.IndexerFullLayers {
 				if !full {
 					return errors.New("DeepSeek 3.2 requires a full indexer in every layer")
@@ -61,7 +61,7 @@ func (s Spec) validateMLAMetadata() error {
 			}
 		}
 	}
-	if validation == MLAValidationCompressedHyper {
+	if validation == mlaValidationCompressedHyper {
 		_, validOutputGroups := tensor.EqualPartition(uint64(s.HeadCount), uint64(s.AttentionOutputGroups))
 		switch {
 		case s.HeadCountKV != tensor.SingletonExtent || s.KeyLength != s.ValueLength:
@@ -118,7 +118,7 @@ func (s Spec) validateMLAMetadata() error {
 			return errors.New("Kimi Linear expert weight scale is invalid")
 		}
 	}
-	if profile.Has(ArchitectureLatentKVLayout) {
+	if profile.Has(architectureLatentKVLayout) {
 		switch {
 		case !s.HasExperts() && s.LeadingDenseBlocks != s.BlockCount:
 			return errors.New("dense DeepSeek2 requires every block to be dense")
@@ -146,7 +146,7 @@ func (s Spec) validateMLAMetadata() error {
 			return errors.New("DeepSeek2 attention temperature metadata is invalid")
 		}
 	}
-	if validation == MLAValidationOptionalExpertsLatent {
+	if validation == mlaValidationOptionalExpertsLatent {
 		switch {
 		case !validOptionalAttentionTemperature(s):
 			return errors.New("Mistral 3 attention temperature metadata is invalid")
@@ -160,7 +160,7 @@ func (s Spec) validateMLAMetadata() error {
 			return errors.New("Mistral 3 YaRN metadata is invalid")
 		}
 	}
-	if validation == MLAValidationScaledLatent &&
+	if validation == mlaValidationScaledLatent &&
 		(s.QLoRARank == tensor.FirstOffset || !positiveFinite(s.ResidualScale) ||
 			s.OriginalContextLength == tensor.FirstOffset || !positiveFinite(s.RopeAttentionFactor)) {
 		return errors.New("MiniCPM3 metadata is invalid")

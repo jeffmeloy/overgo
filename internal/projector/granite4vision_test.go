@@ -12,7 +12,7 @@ import (
 )
 
 func TestGranite4VisionRunnerTinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*Granite4VisionRunner](writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
+	runner, err := openImageProjectorAs[*granite4VisionRunner](writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestOpenImageProjectorDispatchesGranite4Vision(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer projector.Close()
-	if _, ok := projector.(*Granite4VisionRunner); !ok {
+	if _, ok := projector.(*granite4VisionRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
 	}
 }
@@ -52,7 +52,7 @@ func TestPreprocessGranite4VisionOverviewAndTileNewlines(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 30), A: fixtureOpaqueAlpha})
 		}
 	}
-	processed, err := PreprocessGranite4VisionImage(input, tinyGranite4VisionSpec())
+	processed, err := preprocessGranite4VisionImage(input, tinyGranite4VisionSpec())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,13 +68,13 @@ func TestPreprocessGranite4VisionOverviewAndTileNewlines(t *testing.T) {
 }
 
 func TestGranite4VisionPromptCarriesDeepstack(t *testing.T) {
-	runner, err := openImageProjectorAs[*Granite4VisionRunner](writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
+	runner, err := openImageProjectorAs[*granite4VisionRunner](writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
 	prompt, err := testSession(t, runner).BuildImagePrompt(
-		t.Context(), imagePromptTokenizer{marker: Granite4VisionImageToken, token: 9352}, image.NewRGBA(image.Rect(0, 0, 4, 4)), "", "describe", false,
+		t.Context(), imagePromptTokenizer{marker: granite4VisionImageToken, token: 9352}, image.NewRGBA(image.Rect(0, 0, 4, 4)), "", "describe", false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -92,7 +92,7 @@ func TestGranite4VisionCatalogRejectsMissingQFormerTensor(t *testing.T) {
 	tensors := slices.DeleteFunc(tinyGranite4VisionTensors(), func(item gguf.TensorData) bool {
 		return item.Name == "v.proj_blk.1.cross_attn_q.weight"
 	})
-	if _, err := openImageProjectorAs[*Granite4VisionRunner](writeTinyGranite4Vision(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "missing tensor") {
+	if _, err := openImageProjectorAs[*granite4VisionRunner](writeTinyGranite4Vision(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "missing tensor") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -101,7 +101,7 @@ func TestGranite4VisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyGranite4Vision(t, nonzeroGranite4VisionTensors(true))
 	rewriteGranite4VisionMetadata(t, path, granite4VisionMultiwindowMetadata(), nonzeroGranite4VisionTensors(true))
-	cpu, cuda := parityRunners[*Granite4VisionRunner](t, path, OpenOptions{})
+	cpu, cuda := parityRunners[*granite4VisionRunner](t, path, OpenOptions{})
 	input := image.NewRGBA(image.Rect(0, 0, 8, 8))
 	for y := range 8 {
 		for x := range 8 {
@@ -170,13 +170,13 @@ func granite4VisionMultiwindowMetadata() []gguf.Metadata {
 	return metadata
 }
 
-func tinyGranite4VisionSpec() Granite4VisionSpec {
+func tinyGranite4VisionSpec() granite4VisionSpec {
 	backbone := fixtureVisionBackbone(4, 2, 64, 8, 1, 1)
 	backbone.ProjectionNormEpsilon = fixtureNormEpsilon
-	return Granite4VisionSpec{
+	return granite4VisionSpec{
 		visionBackboneSpec: backbone, ProjectionDim: 4, QFormerWidth: 8,
 		WindowSide: 2, QuerySide: 1, FeatureLayers: []int{0, 0}, SpatialOffsets: []int{-1, 0},
-		GridCandidates: []Granite4VisionResolution{{Width: 4, Height: 4}, {Width: 8, Height: 4}},
+		GridCandidates: []granite4VisionResolution{{Width: 4, Height: 4}, {Width: 8, Height: 4}},
 	}
 }
 

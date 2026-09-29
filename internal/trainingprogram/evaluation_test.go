@@ -16,6 +16,7 @@ func TestNativeEvaluationMetrics(t *testing.T) {
 		{MetricTokenAccuracy, []float32{1, 2, 4}, []float32{1, 2, 3}, 2.0 / 3},
 		{MetricTableAccuracy, []float32{1, 0}, []float32{1, 1}, 0.5},
 		{MetricForecastMAE, []float32{2, 4}, []float32{1, 2}, 1.5},
+		{MetricTableMSE, []float32{2, 4}, []float32{1, 2}, 2.5},
 		{MetricAudioSNR, []float32{0.5, -0.5}, []float32{1, -1}, 6.020599913279624},
 		{MetricImagePSNRSigned, []float32{0, 0}, []float32{1, -1}, 6.020599913279624},
 		{MetricVideoPSNRSigned, []float32{0, 0}, []float32{1, -1}, 6.020599913279624},

@@ -21,8 +21,8 @@ func (t *gemma3nPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokeniz
 	t.texts = append(t.texts, text)
 	ids := make([]tokenizer.TokenID, 0, len(text))
 	for len(text) > 0 {
-		if strings.HasPrefix(text, Gemma3nImagePad) {
-			ids, text = append(ids, 8), text[len(Gemma3nImagePad):]
+		if strings.HasPrefix(text, gemma3nImagePad) {
+			ids, text = append(ids, 8), text[len(gemma3nImagePad):]
 		} else {
 			ids, text = append(ids, 1), text[1:]
 		}
@@ -31,7 +31,7 @@ func (t *gemma3nPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokeniz
 }
 
 func TestGemma3nVisionTinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*Gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{})
+	runner, err := openImageProjectorAs[*gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestGemma3nVisionTinyFixture(t *testing.T) {
 }
 
 func TestGemma3nVisionPromptContract(t *testing.T) {
-	runner, err := openImageProjectorAs[*Gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{})
+	runner, err := openImageProjectorAs[*gemma3nVisionRunner](writeTinyGemma3nVision(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestGemma3nVisionPromptContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tok.texts) < 2 || !strings.Contains(tok.texts[0], "<start_of_image>"+strings.Repeat(Gemma3nImagePad, 256)+"<end_of_image>") ||
+	if len(tok.texts) < 2 || !strings.Contains(tok.texts[0], "<start_of_image>"+strings.Repeat(gemma3nImagePad, 256)+"<end_of_image>") ||
 		!strings.HasPrefix(tok.texts[0], "<bos><start_of_turn>user\n") {
 		t.Fatalf("prompt text = %q", tok.texts)
 	}
@@ -71,7 +71,7 @@ func TestOpenImageProjectorDispatchesGemma3nVision(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer projector.Close()
-	if _, ok := projector.(*Gemma3nVisionRunner); !ok {
+	if _, ok := projector.(*gemma3nVisionRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
 	}
 }
@@ -82,7 +82,7 @@ func TestGemma3nVisionCUDAMatchesCPU(t *testing.T) {
 	input := patternedRGBA(32, 32, func(x, y int) color.RGBA {
 		return color.RGBA{R: uint8(x * 7), G: uint8(y * 5), B: uint8((x + y) * 3), A: fixtureOpaqueAlpha}
 	})
-	referenceParityCase[*Gemma3nVisionRunner](t, "Gemma 3n", path, input, 3e-3)
+	referenceParityCase[*gemma3nVisionRunner](t, "Gemma 3n", path, input, 3e-3)
 }
 
 func TestGemma3nAveragePool(t *testing.T) {

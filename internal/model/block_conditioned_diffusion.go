@@ -59,30 +59,30 @@ type ConditionedDiffusionBlockOptions struct {
 	RoundAttentionStorage bool
 }
 
-// ConditionedDiffusionProgram owns validated geometry.
-type ConditionedDiffusionProgram struct {
+// conditionedDiffusionProgram owns validated geometry.
+type conditionedDiffusionProgram struct {
 	options ConditionedDiffusionBlockOptions
 }
 
 // CompileConditionedDiffusionProgram validates immutable graph geometry.
-func CompileConditionedDiffusionProgram(options ConditionedDiffusionBlockOptions) (ConditionedDiffusionProgram, error) {
+func CompileConditionedDiffusionProgram(options ConditionedDiffusionBlockOptions) (conditionedDiffusionProgram, error) {
 	headWidth, validHeads := tensor.EqualPartition(options.Dim, options.Heads)
 	if !validHeads || options.FFNDim == tensor.FirstOffset || !positiveFinite(options.Epsilon) {
-		return ConditionedDiffusionProgram{}, fmt.Errorf(
+		return conditionedDiffusionProgram{}, fmt.Errorf(
 			"conditioned diffusion geometry dim=%d heads=%d ffn=%d eps=%g is invalid",
 			options.Dim, options.Heads, options.FFNDim, options.Epsilon,
 		)
 	}
 	if !tensor.PartitionsCover(headWidth, options.AxisChannels[:]...) {
-		return ConditionedDiffusionProgram{}, fmt.Errorf(
+		return conditionedDiffusionProgram{}, fmt.Errorf(
 			"conditioned diffusion axis channels %v do not cover head width %d",
 			options.AxisChannels, headWidth,
 		)
 	}
-	return ConditionedDiffusionProgram{options: options}, nil
+	return conditionedDiffusionProgram{options: options}, nil
 }
 
-func (p ConditionedDiffusionProgram) BuildCrossContext(
+func (p conditionedDiffusionProgram) BuildCrossContext(
 	builder *tensor.Builder,
 	context *tensor.Tensor,
 	weights ConditionedDiffusionAttentionWeights,
@@ -92,7 +92,7 @@ func (p ConditionedDiffusionProgram) BuildCrossContext(
 	)
 }
 
-func (p ConditionedDiffusionProgram) BuildBlock(
+func (p conditionedDiffusionProgram) BuildBlock(
 	builder *tensor.Builder,
 	input, conditioning, crossKey, crossValue *tensor.Tensor,
 	weights ConditionedDiffusionBlockWeights,
@@ -104,7 +104,7 @@ func (p ConditionedDiffusionProgram) BuildBlock(
 
 // BuildBlockWithSelfHistory attends over retained rotated keys and values
 // before the current bidirectional chunk.
-func (p ConditionedDiffusionProgram) BuildBlockWithSelfHistory(
+func (p conditionedDiffusionProgram) BuildBlockWithSelfHistory(
 	builder *tensor.Builder,
 	input, conditioning, crossKey, crossValue, historyKey, historyValue *tensor.Tensor,
 	weights ConditionedDiffusionBlockWeights,
@@ -114,7 +114,7 @@ func (p ConditionedDiffusionProgram) BuildBlockWithSelfHistory(
 	)
 }
 
-func (p ConditionedDiffusionProgram) BuildHead(
+func (p conditionedDiffusionProgram) BuildHead(
 	builder *tensor.Builder,
 	input, conditioning, modulation, weight, bias *tensor.Tensor,
 ) (*tensor.Tensor, error) {

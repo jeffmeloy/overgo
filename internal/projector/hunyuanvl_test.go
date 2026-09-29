@@ -13,12 +13,12 @@ import (
 
 func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 	path := writeTinyHunyuanVL(t, tinyHunyuanVLTensors())
-	runner, err := openImageProjectorAs[*HunyuanVLRunner](path, OpenOptions{})
+	runner, err := openImageProjectorAs[*hunyuanVLRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)), RasterPatchOptions{
+	output, err := runner.EncodeImage(t.Context(), image.NewRGBA(image.Rect(0, 0, 4, 4)), rasterPatchOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
@@ -41,19 +41,19 @@ func TestOpenImageProjectorDispatchesHunyuanVL(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer projector.Close()
-	if _, ok := projector.(*HunyuanVLRunner); !ok {
+	if _, ok := projector.(*hunyuanVLRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
 	}
 }
 
 func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {
-	runner, err := openImageProjectorAs[*HunyuanVLRunner](writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
+	runner, err := openImageProjectorAs[*hunyuanVLRunner](writeTinyHunyuanVL(t, tinyHunyuanVLTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
-		t.Context(), imagePromptTokenizer{marker: HunyuanVLImagePad, token: 9002},
+		t.Context(), imagePromptTokenizer{marker: hunyuanVLImagePad, token: 9002},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
 		[]string{"first ", " then ", " question"}, PromptOptions{},
 	)
@@ -98,7 +98,7 @@ func TestPreprocessRasterPatchOrder(t *testing.T) {
 		patchSize: spec.PatchSize, mergeSize: spec.MergeSize,
 		defaultBudget: pixelBudget{MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels},
 		mean:          spec.ImageMean, std: spec.ImageStd, interpolation: rasterBicubic,
-	}, RasterPatchOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget})
+	}, rasterPatchOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestPreprocessRasterPatchOrder(t *testing.T) {
 
 func TestHunyuanVLCatalogRejectsIncompletePreNorm(t *testing.T) {
 	tensors := append(tinyHunyuanVLTensors(), f32Tensor("v.pre_ln.weight", []uint64{4}, []float32{1, 1, 1, 1}))
-	if _, err := openImageProjectorAs[*HunyuanVLRunner](writeTinyHunyuanVL(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
+	if _, err := openImageProjectorAs[*hunyuanVLRunner](writeTinyHunyuanVL(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -128,7 +128,7 @@ func TestHunyuanVLCatalogKeepsHostReorderedWeightOffDevice(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer file.Close()
-	spec, err := ReadHunyuanVLSpec(file)
+	spec, err := readHunyuanVLSpec(file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,14 +152,14 @@ func TestHunyuanVLCatalogKeepsHostReorderedWeightOffDevice(t *testing.T) {
 func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyHunyuanVL(t, nonzeroTinyHunyuanVLTensors())
-	cpu, cuda := parityRunners[*HunyuanVLRunner](t, path, OpenOptions{})
+	cpu, cuda := parityRunners[*hunyuanVLRunner](t, path, OpenOptions{})
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := range 4 {
 		for x := range 8 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	options := RasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget}
+	options := rasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget}
 	want, err := cpu.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
@@ -196,8 +196,8 @@ func tinyHunyuanVLMetadata() []gguf.Metadata {
 	}
 }
 
-func tinyHunyuanVLSpec() HunyuanVLSpec {
-	return HunyuanVLSpec{
+func tinyHunyuanVLSpec() hunyuanVLSpec {
+	return hunyuanVLSpec{
 		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1), OutputHidden: 6,
 		MergeSize: fixtureSpatialMerge, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
 		ConvIntermediate: 8, ProjectorInput: 5, FusedQKV: []bool{true},

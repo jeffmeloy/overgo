@@ -14,8 +14,8 @@ const (
 	denseBiasCatalogJais
 )
 
-// DenseWeightPolicy: architecture-owned dense tensor requirements.
-type DenseWeightPolicy struct {
+// denseWeightPolicy: architecture-owned dense tensor requirements.
+type denseWeightPolicy struct {
 	AllowUngatedExperts           bool
 	RequireExpertBias             bool
 	RequirePostNorm               bool
@@ -32,8 +32,8 @@ type DenseWeightPolicy struct {
 	BiasCatalog                   denseBiasCatalogPolicy
 }
 
-// DenseWeightPlan: compiled dense graph tensor contract.
-type DenseWeightPlan struct {
+// denseWeightPlan: compiled dense graph tensor contract.
+type denseWeightPlan struct {
 	supportsExperts               bool
 	allowUngatedExperts           bool
 	requireExpertBias             bool
@@ -57,7 +57,7 @@ type DenseWeightPlan struct {
 	allowActivationScale          bool
 }
 
-func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWeightPlan {
+func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) denseWeightPlan {
 	postOnly := !profile.Runtime.normalizationPlan(s, profile).PreAttention
 	composition := s.expertCompositionPlan(profile)
 	policy := profile.DenseWeights
@@ -67,11 +67,11 @@ func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWe
 			kind == qkNormAffine || kind == qkNormRMS
 	}
 	queryScale := s.queryScalePlan(profile, layer)
-	plan := DenseWeightPlan{
+	plan := denseWeightPlan{
 		supportsExperts: profile.Experts.Catalog != expertCatalogNone,
 		requirePostNorm: postOnly || policy.RequirePostNorm,
 		requireSubNorm:  policy.RequireSubNorm,
-		requireAttentionOutputBias: profile.FeedForward == FeedForwardSequentialGELU ||
+		requireAttentionOutputBias: profile.FeedForward == feedForwardSequentialGELU ||
 			policy.RequireAttentionOutputBias,
 		requireTemperature:        queryScale.kind == queryScaleTemperature,
 		validateOptionalQKNorm:    policy.ValidateOptionalQKNorm,
@@ -92,13 +92,13 @@ func (s Spec) denseWeightPlan(profile ArchitectureProfile, layer uint32) DenseWe
 	plan.requireQKNorm = plan.requirePostNorm || requireQKNorm(qk.Projection) ||
 		requireQKNorm(qk.Heads) || requireQKNorm(qk.PostRotary) || plan.requireAttentionGate
 	plan.requireBaseNorm = !postOnly && !s.UsesUnweightedLayerNorm() && !s.UsesUnweightedRMSNorm()
-	plan.requireFeedForwardNorm = plan.requireBaseNorm && profile.Residual != ResidualParallel &&
+	plan.requireFeedForwardNorm = plan.requireBaseNorm && profile.Residual != residualParallel &&
 		!policy.SkipFeedForwardNorm
 	plan.requireNormBias = plan.requireBaseNorm && s.RequiresLayerNormBias()
 	return plan
 }
 
-func (p DenseWeightPlan) Validate(
+func (p denseWeightPlan) Validate(
 	spec Spec,
 	weights LayerGraphWeights,
 	usesExperts bool,
@@ -150,7 +150,7 @@ func (p DenseWeightPlan) Validate(
 	} else {
 		required = append(required, weights.FeedForwardUp)
 		required = append(required, weights.FeedForwardDown)
-		if feedForward == FeedForwardSwiGLU || feedForward == FeedForwardGEGLU {
+		if feedForward == feedForwardSwiGLU || feedForward == feedForwardGEGLU {
 			required = append(required, weights.FeedForwardGate)
 		}
 	}
@@ -174,7 +174,7 @@ func (p DenseWeightPlan) Validate(
 		required = append(required, weights.AttentionSubNorm)
 		required = append(required, weights.FeedForwardSubNorm)
 	}
-	if feedForward == FeedForwardSequentialGELU {
+	if feedForward == feedForwardSequentialGELU {
 		required = append(required, weights.FeedForwardUpBias)
 		required = append(required, weights.FeedForwardDownBias)
 	}

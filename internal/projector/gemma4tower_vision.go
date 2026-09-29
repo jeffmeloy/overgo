@@ -15,14 +15,14 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-type Gemma4VisionTowerOutput struct {
+type gemma4VisionTowerOutput struct {
 	Embeddings reference.Value
 	PatchCount int
 	SoftTokens int
 }
 
-// Gemma4VisionTowerTrace: sampled leading rows; parity evidence only.
-type Gemma4VisionTowerTrace struct {
+// gemma4VisionTowerTrace: sampled leading rows; parity evidence only.
+type gemma4VisionTowerTrace struct {
 	Stages map[string]reference.Value
 }
 
@@ -33,13 +33,13 @@ type Gemma4VisionTowerInput struct {
 	GridW       int
 }
 
-type Gemma4VisionTowerVideoOutput struct {
+type gemma4VisionTowerVideoOutput struct {
 	Embeddings     reference.Value
 	Frames         int
 	TokensPerFrame int
 }
 
-func PreprocessVisionTowerImage(source image.Image, spec Gemma4VisionTowerSpec) (Gemma4VisionTowerInput, error) {
+func PreprocessVisionTowerImage(source image.Image, spec gemma4VisionTowerSpec) (Gemma4VisionTowerInput, error) {
 	if source == nil {
 		return Gemma4VisionTowerInput{}, errors.New("projector: image is nil")
 	}
@@ -96,7 +96,7 @@ func PreprocessVisionTowerImage(source image.Image, spec Gemma4VisionTowerSpec) 
 	return result, nil
 }
 
-func visionTowerResizeTarget(height, width int, spec Gemma4VisionTowerSpec) (int, int, error) {
+func visionTowerResizeTarget(height, width int, spec gemma4VisionTowerSpec) (int, int, error) {
 	if !checked.PositiveInts(height, width, spec.PatchSize, spec.PoolKernel, spec.MaxImageTokens) {
 		return tensor.FirstOffset, tensor.FirstOffset, fmt.Errorf("projector: invalid vision tower image geometry %dx%d", width, height)
 	}
@@ -126,13 +126,13 @@ func visionTowerResizeTarget(height, width int, spec Gemma4VisionTowerSpec) (int
 func (r *Gemma4TowerRunner) EncodeVisionImage(
 	ctx context.Context,
 	source image.Image,
-) (Gemma4VisionTowerOutput, error) {
+) (gemma4VisionTowerOutput, error) {
 	if r == nil || r.file == nil {
-		return Gemma4VisionTowerOutput{}, errRunnerClosed
+		return gemma4VisionTowerOutput{}, errRunnerClosed
 	}
 	input, err := PreprocessVisionTowerImage(source, r.spec.Vision)
 	if err != nil {
-		return Gemma4VisionTowerOutput{}, err
+		return gemma4VisionTowerOutput{}, err
 	}
 	return r.EncodeVisionPatches(ctx, input.PixelValues, input.Positions)
 }
@@ -140,12 +140,12 @@ func (r *Gemma4TowerRunner) EncodeVisionImage(
 func (r *Gemma4TowerRunner) EncodeVisionFrames(
 	ctx context.Context,
 	frames []image.Image,
-) (Gemma4VisionTowerVideoOutput, error) {
+) (gemma4VisionTowerVideoOutput, error) {
 	if r == nil || r.file == nil {
-		return Gemma4VisionTowerVideoOutput{}, errRunnerClosed
+		return gemma4VisionTowerVideoOutput{}, errRunnerClosed
 	}
 	if len(frames) == tensor.FirstOffset {
-		return Gemma4VisionTowerVideoOutput{}, errors.New("projector: video has no frames")
+		return gemma4VisionTowerVideoOutput{}, errors.New("projector: video has no frames")
 	}
 	videoSpec := r.spec.Vision
 	videoSpec.MaxImageTokens = videoSpec.MaxVideoTokens
@@ -154,16 +154,16 @@ func (r *Gemma4TowerRunner) EncodeVisionFrames(
 	for index, frame := range frames {
 		input, err := PreprocessVisionTowerImage(frame, videoSpec)
 		if err != nil {
-			return Gemma4VisionTowerVideoOutput{}, fmt.Errorf("projector: preprocess Gemma 4 video frame %d: %w", index, err)
+			return gemma4VisionTowerVideoOutput{}, fmt.Errorf("projector: preprocess Gemma 4 video frame %d: %w", index, err)
 		}
 		output, err := r.EncodeVisionPatches(ctx, input.PixelValues, input.Positions)
 		if err != nil {
-			return Gemma4VisionTowerVideoOutput{}, fmt.Errorf("projector: encode Gemma 4 video frame %d: %w", index, err)
+			return gemma4VisionTowerVideoOutput{}, fmt.Errorf("projector: encode Gemma 4 video frame %d: %w", index, err)
 		}
 		if index == tensor.FirstOffset {
 			tokensPerFrame = output.SoftTokens
 		} else if output.SoftTokens != tokensPerFrame {
-			return Gemma4VisionTowerVideoOutput{}, errors.New("projector: Gemma 4 video frames produce inconsistent token counts")
+			return gemma4VisionTowerVideoOutput{}, errors.New("projector: Gemma 4 video frames produce inconsistent token counts")
 		}
 		combined = append(combined, output.Embeddings.Data...)
 	}
@@ -171,16 +171,16 @@ func (r *Gemma4TowerRunner) EncodeVisionFrames(
 		tensor.MustShape(uint64(r.spec.Vision.ProjectionDim), uint64(tokensPerFrame*len(frames))), combined,
 	)
 	if err != nil {
-		return Gemma4VisionTowerVideoOutput{}, err
+		return gemma4VisionTowerVideoOutput{}, err
 	}
-	return Gemma4VisionTowerVideoOutput{Embeddings: value, Frames: len(frames), TokensPerFrame: tokensPerFrame}, nil
+	return gemma4VisionTowerVideoOutput{Embeddings: value, Frames: len(frames), TokensPerFrame: tokensPerFrame}, nil
 }
 
 func (r *Gemma4TowerRunner) EncodeVisionPatches(
 	ctx context.Context,
 	pixels []float32,
 	positions []int32,
-) (Gemma4VisionTowerOutput, error) {
+) (gemma4VisionTowerOutput, error) {
 	output, _, err := r.encodeVisionPatches(ctx, pixels, positions, false)
 	return output, err
 }
@@ -189,7 +189,7 @@ func (r *Gemma4TowerRunner) EncodeVisionPatchesTrace(
 	ctx context.Context,
 	pixels []float32,
 	positions []int32,
-) (Gemma4VisionTowerOutput, Gemma4VisionTowerTrace, error) {
+) (gemma4VisionTowerOutput, gemma4VisionTowerTrace, error) {
 	return r.encodeVisionPatches(ctx, pixels, positions, true)
 }
 
@@ -198,37 +198,37 @@ func (r *Gemma4TowerRunner) encodeVisionPatches(
 	pixels []float32,
 	positions []int32,
 	trace bool,
-) (Gemma4VisionTowerOutput, Gemma4VisionTowerTrace, error) {
+) (gemma4VisionTowerOutput, gemma4VisionTowerTrace, error) {
 	if r == nil || r.file == nil {
-		return Gemma4VisionTowerOutput{}, Gemma4VisionTowerTrace{}, errRunnerClosed
+		return gemma4VisionTowerOutput{}, gemma4VisionTowerTrace{}, errRunnerClosed
 	}
 	spec := r.spec.Vision
 	patchArea, areaOK := checked.MulInt(spec.PatchSize, spec.PatchSize)
 	patchWidth, widthOK := checked.MulInt(patchArea, media.RGBChannels)
 	rows, rowsOK := checked.DivExactInt(len(pixels), patchWidth)
 	if !areaOK || !widthOK || !rowsOK || !checked.PositiveInts(rows) {
-		return Gemma4VisionTowerOutput{}, Gemma4VisionTowerTrace{}, fmt.Errorf(
+		return gemma4VisionTowerOutput{}, gemma4VisionTowerTrace{}, fmt.Errorf(
 			"projector: Gemma 4 vision pixels=%d, patch width=%d", len(pixels), patchWidth)
 	}
 	if err := validateRowStorage(rows, rowStorage{elements: len(positions), width: tensor.PairedExtent}); err != nil {
-		return Gemma4VisionTowerOutput{}, Gemma4VisionTowerTrace{}, fmt.Errorf(
+		return gemma4VisionTowerOutput{}, gemma4VisionTowerTrace{}, fmt.Errorf(
 			"projector: Gemma 4 vision positions=%d: %w", len(positions), err)
 	}
 	for row := range rows {
 		for axis := range tensor.PairedExtent {
 			position := positions[tensor.PairedExtent*row+axis]
 			if position >= int32(spec.PositionCount) {
-				return Gemma4VisionTowerOutput{}, Gemma4VisionTowerTrace{}, fmt.Errorf(
+				return gemma4VisionTowerOutput{}, gemma4VisionTowerTrace{}, fmt.Errorf(
 					"projector: Gemma 4 vision position=%d exceeds table=%d", position, spec.PositionCount)
 			}
 		}
 	}
 	softTokens, pool, err := compileSpatialPool(positions, rows, spec.PoolKernel)
 	if err != nil {
-		return Gemma4VisionTowerOutput{}, Gemma4VisionTowerTrace{}, err
+		return gemma4VisionTowerOutput{}, gemma4VisionTowerTrace{}, err
 	}
 	if softTokens > spec.MaxImageTokens {
-		return Gemma4VisionTowerOutput{}, Gemma4VisionTowerTrace{}, fmt.Errorf(
+		return gemma4VisionTowerOutput{}, gemma4VisionTowerTrace{}, fmt.Errorf(
 			"projector: Gemma 4 vision soft tokens=%d exceed %d", softTokens, spec.MaxImageTokens)
 	}
 
@@ -306,13 +306,13 @@ func (r *Gemma4TowerRunner) encodeVisionPatches(
 	}
 	results, err := graph.execute(targets...)
 	if err != nil {
-		return Gemma4VisionTowerOutput{}, Gemma4VisionTowerTrace{}, fmt.Errorf(
+		return gemma4VisionTowerOutput{}, gemma4VisionTowerTrace{}, fmt.Errorf(
 			"projector: execute Gemma 4 vision tower: %w", err)
 	}
-	output := Gemma4VisionTowerOutput{
+	output := gemma4VisionTowerOutput{
 		Embeddings: results[embeddings], PatchCount: rows, SoftTokens: softTokens,
 	}
-	traced := Gemma4VisionTowerTrace{}
+	traced := gemma4VisionTowerTrace{}
 	if trace {
 		traced.Stages = make(map[string]reference.Value, len(stageNames)+tensor.SingletonExtent)
 		for index, name := range stageNames {

@@ -10,12 +10,12 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qwen2VLOutput, error) {
+func (r *qwen2VLRunner) encodeGraph(ctx context.Context, input qwen2VLImage) (qwen2VLOutput, error) {
 	rows := input.GridT * input.GridH * input.GridW
 	patchArea := r.spec.PatchSize * r.spec.PatchSize
 	pixels0, pixels1, temporalWidth, err := splitTemporalPatchPairs(input.PixelValues, rows, patchArea)
 	if err != nil {
-		return Qwen2VLOutput{}, err
+		return qwen2VLOutput{}, err
 	}
 	builder := tensor.NewBuilder()
 	input0 := builder.Input(visionInputTensor+".0", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
@@ -77,7 +77,7 @@ func (r *Qwen2VLRunner) encodeGraph(ctx context.Context, input Qwen2VLImage) (Qw
 	output := builder.Add(builder.MulMat(weight(projectionSecondWeightTensor), fc1), weight(projectionSecondBiasTensor))
 	results, err := graph.execute(output)
 	if err != nil {
-		return Qwen2VLOutput{}, fmt.Errorf("projector: execute Qwen2-VL graph: %w", err)
+		return qwen2VLOutput{}, fmt.Errorf("projector: execute Qwen2-VL graph: %w", err)
 	}
-	return Qwen2VLOutput{Embeddings: results[output], GridT: input.GridT, GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize}, nil
+	return qwen2VLOutput{Embeddings: results[output], GridT: input.GridT, GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize}, nil
 }

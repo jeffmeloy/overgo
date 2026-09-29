@@ -240,11 +240,10 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 }
 
 func (h *Handler) hasWorkspaceCapability(ctx context.Context, kind WorkflowKind, task recipe.Task) bool {
-	workspace, ok := h.generator.(WorkflowWorkspaceAPI)
-	if !ok {
+	if h.config.Workflows == nil {
 		return false
 	}
-	capabilities, err := workspace.WorkflowCapabilities(ctx, kind)
+	capabilities, err := h.config.Workflows.WorkflowCapabilities(ctx, kind)
 	if err != nil {
 		return false
 	}

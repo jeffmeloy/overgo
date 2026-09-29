@@ -28,11 +28,11 @@ func readFixtureWeights(file *gguf.File, spec Spec) (Weights, error) {
 }
 
 func hasPostNorm(architecture string) bool {
-	return testProfile(architecture).Has(ArchitecturePostNorm)
+	return testProfile(architecture).Has(architecturePostNorm)
 }
 
 func usesPostOnlyNorm(architecture string) bool {
-	return testProfile(architecture).Has(ArchitecturePostOnlyNorm)
+	return testProfile(architecture).Has(architecturePostOnlyNorm)
 }
 
 func usesNormalRoPE(architecture string) bool {
@@ -40,18 +40,18 @@ func usesNormalRoPE(architecture string) bool {
 }
 
 func usesParallelResidual(architecture string) bool {
-	return testProfile(architecture).Residual == ResidualParallel
+	return testProfile(architecture).Residual == residualParallel
 }
 
 func usesFusedGateUp(architecture string) bool {
-	return testProfile(architecture).FeedForward == FeedForwardFusedGateUp
+	return testProfile(architecture).FeedForward == feedForwardFusedGateUp
 }
 
 func usesGELU(architecture string) bool {
 	profile := testProfile(architecture)
-	return profile.FeedForward == FeedForwardGELU || profile.FeedForward == FeedForwardSequentialGELU
+	return profile.FeedForward == feedForwardGELU || profile.FeedForward == feedForwardSequentialGELU
 }
 
 func supportsLongRoPE(architecture string) bool {
-	return testProfile(architecture).Has(ArchitectureLongRoPE)
+	return testProfile(architecture).Has(architectureLongRoPE)
 }

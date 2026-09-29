@@ -11,12 +11,12 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-type Gemma4AudioTowerOutput struct {
+type gemma4AudioTowerOutput struct {
 	Embeddings reference.Value
 	SoftTokens int
 }
 
-type Gemma4AudioTowerTrace struct {
+type gemma4AudioTowerTrace struct {
 	Stages map[string]reference.Value
 }
 
@@ -25,7 +25,7 @@ func (r *Gemma4TowerRunner) EncodeAudioFeatures(
 	features []float32,
 	frames int,
 	profile AudioProjectionProfile,
-) (Gemma4AudioTowerOutput, error) {
+) (gemma4AudioTowerOutput, error) {
 	output, _, err := r.encodeAudioFeatures(ctx, features, frames, profile, false)
 	return output, err
 }
@@ -35,7 +35,7 @@ func (r *Gemma4TowerRunner) EncodeAudioFeaturesTrace(
 	features []float32,
 	frames int,
 	profile AudioProjectionProfile,
-) (Gemma4AudioTowerOutput, Gemma4AudioTowerTrace, error) {
+) (gemma4AudioTowerOutput, gemma4AudioTowerTrace, error) {
 	return r.encodeAudioFeatures(ctx, features, frames, profile, true)
 }
 
@@ -45,17 +45,17 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 	frames int,
 	profile AudioProjectionProfile,
 	trace bool,
-) (Gemma4AudioTowerOutput, Gemma4AudioTowerTrace, error) {
+) (gemma4AudioTowerOutput, gemma4AudioTowerTrace, error) {
 	if r == nil || r.file == nil {
-		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, errRunnerClosed
+		return gemma4AudioTowerOutput{}, gemma4AudioTowerTrace{}, errRunnerClosed
 	}
 	spec := r.spec.Audio
 	if !checked.PositiveInts(frames) || len(features) != frames*spec.MelBins {
-		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, fmt.Errorf(
+		return gemma4AudioTowerOutput{}, gemma4AudioTowerTrace{}, fmt.Errorf(
 			"projector: Gemma 4 audio features=%d, want %d x %d", len(features), frames, spec.MelBins)
 	}
 	if err := profile.ValidateIdentity(); err != nil {
-		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, fmt.Errorf("projector: Gemma 4 audio profile: %w", err)
+		return gemma4AudioTowerOutput{}, gemma4AudioTowerTrace{}, fmt.Errorf("projector: Gemma 4 audio profile: %w", err)
 	}
 	builder := tensor.NewBuilder()
 	input := builder.Input("audio_features", dtype.F32, tensor.MustShape(tensor.SingletonExtent, uint64(spec.MelBins), uint64(frames)))
@@ -99,9 +99,9 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 	}
 	results, err := graph.execute(targets...)
 	if err != nil {
-		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, fmt.Errorf("projector: execute Gemma 4 audio tower: %w", err)
+		return gemma4AudioTowerOutput{}, gemma4AudioTowerTrace{}, fmt.Errorf("projector: execute Gemma 4 audio tower: %w", err)
 	}
-	traced := Gemma4AudioTowerTrace{}
+	traced := gemma4AudioTowerTrace{}
 	if trace {
 		traced.Stages = make(map[string]reference.Value, len(stageNames)+tensor.SingletonExtent)
 		for index, name := range stageNames {
@@ -109,7 +109,7 @@ func (r *Gemma4TowerRunner) encodeAudioFeatures(
 		}
 		traced.Stages["soft_tokens"] = results[targets[len(targets)-tensor.SingletonExtent]]
 	}
-	return Gemma4AudioTowerOutput{Embeddings: results[embeddings], SoftTokens: sequence}, traced, nil
+	return gemma4AudioTowerOutput{Embeddings: results[embeddings], SoftTokens: sequence}, traced, nil
 }
 
 func (r *Gemma4TowerRunner) audioSubsampleGraph(
@@ -139,7 +139,7 @@ func (r *Gemma4TowerRunner) gemma4AudioFeedForwardGraph(
 	graph *projectorGraphRuntime,
 	input *tensor.Tensor,
 	prefix string,
-	spec Gemma4AudioTowerSpec,
+	spec gemma4AudioTowerSpec,
 ) *tensor.Tensor {
 	norm := graph.builder.WeightedRMSNorm(input, graph.weight(prefix+"norm.weight"), spec.RMSNormEpsilon)
 	up := clippedLinearGraph(graph, norm, prefix+"up")
@@ -153,7 +153,7 @@ func (r *Gemma4TowerRunner) gemma4AudioLightConvGraph(
 	input *tensor.Tensor,
 	prefix string,
 	sequence int,
-	spec Gemma4AudioTowerSpec,
+	spec gemma4AudioTowerSpec,
 ) *tensor.Tensor {
 	norm := graph.builder.WeightedRMSNorm(input, graph.weight(prefix+"conv_pre_norm.weight"), spec.RMSNormEpsilon)
 	started := clippedLinearGraph(graph, norm, prefix+"conv_start")
@@ -177,7 +177,7 @@ func (r *Gemma4TowerRunner) gemma4AudioLightConvGraph(
 	return graph.builder.Add(input, clippedLinearGraph(graph, convolved, prefix+"conv_end"))
 }
 
-func gemma4AudioRelativePositions(spec Gemma4AudioTowerSpec, frequencyBase float32) ([]float32, int) {
+func gemma4AudioRelativePositions(spec gemma4AudioTowerSpec, frequencyBase float32) ([]float32, int) {
 	contextSize := spec.ChunkSize + spec.ContextLeft - tensor.SingletonExtent + spec.ContextRight
 	length := contextSize/tensor.PairedExtent + tensor.SingletonExtent
 	half := spec.Hidden / tensor.PairedExtent
@@ -197,7 +197,7 @@ func gemma4AudioRelativePositions(spec Gemma4AudioTowerSpec, frequencyBase float
 
 func gemma4AudioRelativeShiftGraph(
 	graph *projectorGraphRuntime,
-	spec Gemma4AudioTowerSpec,
+	spec gemma4AudioTowerSpec,
 	positionLength int,
 ) *tensor.Tensor {
 	chunk := spec.ChunkSize
@@ -225,7 +225,7 @@ func (r *Gemma4TowerRunner) gemma4AudioAttentionGraph(
 	input, positions, shift *tensor.Tensor,
 	prefix string,
 	sequence int,
-	spec Gemma4AudioTowerSpec,
+	spec gemma4AudioTowerSpec,
 ) *tensor.Tensor {
 	query := clippedLinearGraph(graph, input, prefix+"attn_q")
 	key := clippedLinearGraph(graph, input, prefix+"attn_k")
@@ -346,7 +346,7 @@ func gemma4AudioContext(
 
 func gemma4AudioMask(
 	graph *projectorGraphRuntime,
-	spec Gemma4AudioTowerSpec,
+	spec gemma4AudioTowerSpec,
 	sequence, start, block, head int,
 ) *tensor.Tensor {
 	contextSize := spec.ChunkSize + spec.ContextLeft - tensor.SingletonExtent + spec.ContextRight

@@ -11,7 +11,7 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *Llama4VisionRunner) encodeTileCUDA(ctx context.Context, input Llama4VisionTile) (reference.Value, error) {
+func (r *llama4VisionRunner) encodeTileCUDA(ctx context.Context, input llama4VisionTile) (reference.Value, error) {
 	patchRows, patchWidth, err := validateSpatialPatchStorage(
 		len(input.PixelValues), input.GridH, input.GridW, r.spec.PatchSize, media.RGBChannels,
 	)

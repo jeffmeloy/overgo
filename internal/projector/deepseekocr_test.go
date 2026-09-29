@@ -130,8 +130,8 @@ func writeTinyDeepSeekOCR(t *testing.T, patterned bool) string {
 	return writeProjectorFixture(t, "deepseekocr-mmproj.gguf", tinyDeepSeekOCRMetadata(), tinyDeepSeekOCRTensors(patterned))
 }
 
-func tinyDeepSeekOCRSpec() DeepSeekOCRSpec {
-	return DeepSeekOCRSpec{ImageSize: 64, TileSize: 64, MinTiles: 2, MaxTiles: 9, PatchSize: 16,
+func tinyDeepSeekOCRSpec() deepSeekOCRSpec {
+	return deepSeekOCRSpec{ImageSize: 64, TileSize: 64, MinTiles: 2, MaxTiles: 9, PatchSize: 16,
 		Hidden: 2, FeedForward: 3, Layers: 1, Heads: 1, SAMHidden: 2, SAMLayers: 1, SAMHeads: 1,
 		Window: 2, OutputHidden: 3, LayerNormEpsilon: 1e-5, ImageStd: [3]float32{1, 1, 1}, SAMGlobalLayers: []bool{false}}
 }

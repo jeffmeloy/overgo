@@ -28,6 +28,7 @@ var heldoutVerdictCodec = artifact.JSONDocumentCodec(
 var heldoutNumericScorers = map[trainingprogram.EvaluationMetric]numericScorer{
 	trainingprogram.MetricForecastMAE:   NumericAbsoluteError,
 	trainingprogram.MetricTableAccuracy: numericLabelAccuracy,
+	trainingprogram.MetricTableMSE:      numericSquaredError,
 	trainingprogram.MetricTokenAccuracy: numericLabelAccuracy,
 }
 

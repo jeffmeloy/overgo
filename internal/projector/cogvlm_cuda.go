@@ -10,7 +10,7 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *CogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float32) (reference.Value, error) {
+func (r *cogVLMVisionRunner) encodeGraph(ctx context.Context, pixelsData []float32) (reference.Value, error) {
 	grid := r.spec.ImageSize / r.spec.PatchSize
 	patchRows, patchWidth := grid*grid, media.RGBChannels*r.spec.PatchSize*r.spec.PatchSize
 	rows := patchRows + tensor.SingletonExtent

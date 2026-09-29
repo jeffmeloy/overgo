@@ -11,7 +11,7 @@ import (
 // Transformers source SHA256 ccab8e2dd80b71e9ca34e2c87291e17c40a27c755006e554da2ebf70d6616916.
 // The old ten-token fixture never reached the first excluded past key at query 12.
 func TestGemma4AudioAttentionChunkBoundary(t *testing.T) {
-	spec := Gemma4AudioTowerSpec{ChunkSize: 12, ContextLeft: 13}
+	spec := gemma4AudioTowerSpec{ChunkSize: 12, ContextLeft: 13}
 	for _, test := range []struct {
 		name                     string
 		start, query, key, right int

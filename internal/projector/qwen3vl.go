@@ -18,7 +18,7 @@ const qwen3VLProjectorType = "qwen3vl_merger"
 
 var deepstackTensorSuffixes = [...]string{"norm.weight", "norm.bias", "fc1.weight", "fc1.bias", "fc2.weight", "fc2.bias"}
 
-type Qwen3VLSpec struct {
+type qwen3VLSpec struct {
 	visionBackboneSpec
 	MergerIntermediate int
 	OutputHidden       int
@@ -26,7 +26,7 @@ type Qwen3VLSpec struct {
 	DeepstackLayers    []bool
 }
 
-type Qwen3VLPreprocessOptions = MediaPixelBudget
+type qwen3VLPreprocessOptions = mediaPixelBudget
 
 type Qwen3VLImage struct {
 	PixelValues []float32
@@ -35,7 +35,7 @@ type Qwen3VLImage struct {
 	GridW       int
 }
 
-type Qwen3VLOutput struct {
+type qwen3VLOutput struct {
 	Embeddings          reference.Value
 	DeepstackEmbeddings []reference.Value
 	GridT               int
@@ -47,34 +47,34 @@ type Qwen3VLOutput struct {
 type Qwen3VLRunner struct {
 	projectorResources
 	mediaPreprocessOwner
-	spec Qwen3VLSpec
+	spec qwen3VLSpec
 }
 
-func (r *Qwen3VLRunner) Spec() Qwen3VLSpec {
+func (r *Qwen3VLRunner) Spec() qwen3VLSpec {
 	if r == nil {
-		return Qwen3VLSpec{}
+		return qwen3VLSpec{}
 	}
 	return r.spec
 }
 
-func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
+func readQwen3VLSpec(file *gguf.File) (qwen3VLSpec, error) {
 	if useGELU, geluErr := metadataBool(file, visionUseGELUKey); geluErr != nil {
-		return Qwen3VLSpec{}, geluErr
+		return qwen3VLSpec{}, geluErr
 	} else if !useGELU {
-		return Qwen3VLSpec{}, errors.New("projector: Qwen3VL GELU is disabled")
+		return qwen3VLSpec{}, errors.New("projector: Qwen3VL GELU is disabled")
 	}
 	deepstackLayers, err := readMetadataBoolArray(file, "clip.vision.is_deepstack_layers", false)
 	if err != nil {
-		return Qwen3VLSpec{}, err
+		return qwen3VLSpec{}, err
 	}
-	spec := Qwen3VLSpec{}
+	spec := qwen3VLSpec{}
 	if err := readRotaryVisionBackbone(file, qwen3VLProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
-		return Qwen3VLSpec{}, err
+		return qwen3VLSpec{}, err
 	}
 	if err := readMetadataIntFields(file,
 		metadataIntField{visionSpatialMergeKey, &spec.MergeSize},
 	); err != nil {
-		return Qwen3VLSpec{}, err
+		return qwen3VLSpec{}, err
 	}
 	tensorDeepstack := make([]bool, spec.Layers)
 	for layer := range tensorDeepstack {
@@ -86,7 +86,7 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 			}
 		}
 		if count != tensor.FirstOffset && count != len(deepstackTensorSuffixes) {
-			return Qwen3VLSpec{}, fmt.Errorf("projector: deepstack layer %d has %d of %d tensors", layer, count, len(deepstackTensorSuffixes))
+			return qwen3VLSpec{}, fmt.Errorf("projector: deepstack layer %d has %d of %d tensors", layer, count, len(deepstackTensorSuffixes))
 		}
 		tensorDeepstack[layer] = count == len(deepstackTensorSuffixes)
 	}
@@ -100,7 +100,7 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 	} else if len(deepstackLayers) == spec.Layers {
 		for layer := range tensorDeepstack {
 			if deepstackLayers[layer] != tensorDeepstack[layer] {
-				return Qwen3VLSpec{}, fmt.Errorf("projector: deepstack metadata differs from layer %d tensors", layer)
+				return qwen3VLSpec{}, fmt.Errorf("projector: deepstack metadata differs from layer %d tensors", layer)
 			}
 		}
 	}
@@ -108,15 +108,15 @@ func ReadQwen3VLSpec(file *gguf.File) (Qwen3VLSpec, error) {
 	merger, ok := file.Tensor(projectionFirstWeightTensor)
 	spec.MergerIntermediate, ok = matrixRowsInt(merger, ok)
 	if !ok {
-		return Qwen3VLSpec{}, errors.New("projector: merger input tensor is unavailable or invalid")
+		return qwen3VLSpec{}, errors.New("projector: merger input tensor is unavailable or invalid")
 	}
 	if err := spec.validate(); err != nil {
-		return Qwen3VLSpec{}, err
+		return qwen3VLSpec{}, err
 	}
 	return spec, nil
 }
 
-func (s Qwen3VLSpec) validate() error {
+func (s qwen3VLSpec) validate() error {
 	if err := s.visionBackboneSpec.validateRotary(); err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func (s Qwen3VLSpec) validate() error {
 	return nil
 }
 
-func validateQwen3VLCatalog(file *gguf.File, spec Qwen3VLSpec) ([]string, error) {
+func validateQwen3VLCatalog(file *gguf.File, spec qwen3VLSpec) ([]string, error) {
 	required := map[string][]uint64{
 		visionPatchWeightTensor1:   {uint64(spec.PatchSize), uint64(spec.PatchSize), media.RGBChannels, uint64(spec.Hidden)},
 		visionPostNormWeightTensor: {uint64(spec.Hidden)},
@@ -156,11 +156,7 @@ func validateQwen3VLCatalog(file *gguf.File, spec Qwen3VLSpec) ([]string, error)
 	return validateProjectorTensorCatalog(file, required)
 }
 
-func PreprocessQwen3VLImage(source image.Image, spec Qwen3VLSpec, options Qwen3VLPreprocessOptions) (Qwen3VLImage, error) {
-	return preprocessQwen3VLFrames([]image.Image{source, source}, spec, options)
-}
-
-func PreprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwen3VLPreprocessOptions) (Qwen3VLImage, error) {
+func PreprocessQwen3VLFrames(frames []image.Image, spec qwen3VLSpec, options qwen3VLPreprocessOptions) (Qwen3VLImage, error) {
 	if len(frames) == tensor.FirstOffset {
 		return Qwen3VLImage{}, errors.New("projector: video has no frames")
 	}
@@ -171,7 +167,7 @@ func PreprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwe
 	return preprocessQwen3VLFrames(padded, spec, options)
 }
 
-func preprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwen3VLPreprocessOptions) (Qwen3VLImage, error) {
+func preprocessQwen3VLFrames(frames []image.Image, spec qwen3VLSpec, options qwen3VLPreprocessOptions) (Qwen3VLImage, error) {
 	if err := spec.validate(); err != nil {
 		return Qwen3VLImage{}, err
 	}
@@ -242,11 +238,11 @@ func preprocessQwen3VLFrames(frames []image.Image, spec Qwen3VLSpec, options Qwe
 	return Qwen3VLImage{PixelValues: pixels, GridT: gridT, GridH: gridH, GridW: gridW}, nil
 }
 
-func (r *Qwen3VLRunner) EncodeImage(ctx context.Context, source image.Image, options Qwen3VLPreprocessOptions) (Qwen3VLOutput, error) {
+func (r *Qwen3VLRunner) EncodeImage(ctx context.Context, source image.Image, options qwen3VLPreprocessOptions) (qwen3VLOutput, error) {
 	return r.EncodeFrames(ctx, []image.Image{source}, options)
 }
 
-func (r *Qwen3VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, options Qwen3VLPreprocessOptions) (Qwen3VLOutput, error) {
+func (r *Qwen3VLRunner) EncodeFrames(ctx context.Context, frames []image.Image, options qwen3VLPreprocessOptions) (qwen3VLOutput, error) {
 	return executePreparedProjector(
 		ctx, r != nil && r.file != nil, frames, r.Spec(), options,
 		PreprocessQwen3VLFrames, r.encodeGraph,

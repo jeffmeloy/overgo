@@ -43,7 +43,7 @@ func TestWebUIBrowserRememberedSettings(t *testing.T) {
 		},
 	}}
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
-	handler := newTestHandlerForRepository(t, store, &workspaceTestRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: workspace})
+	handler := newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) { config.Workflows = workspace })
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))

@@ -11,7 +11,7 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *Granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile Granite4VisionTile) ([]reference.Value, error) {
+func (r *granite4VisionRunner) encodeTileCUDA(ctx context.Context, tile granite4VisionTile) ([]reference.Value, error) {
 	side := r.spec.ImageSize / r.spec.PatchSize
 	rows, patchWidth, err := validateSpatialPatchStorage(
 		len(tile.PixelValues), side, side, r.spec.PatchSize, media.RGBChannels,

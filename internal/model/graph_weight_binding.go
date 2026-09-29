@@ -18,19 +18,19 @@ type graphWeightField struct {
 
 var (
 	sequenceOutputGraphFields = compileGraphWeightFields(
-		reflect.TypeFor[AudioDecoderWeights](), reflect.TypeFor[SequenceOutputGraphWeights](),
+		reflect.TypeFor[audioDecoderWeights](), reflect.TypeFor[SequenceOutputGraphWeights](),
 	)
 	sequenceResidualGraphFields = compileGraphWeightFields(
-		reflect.TypeFor[WavPosNetWeights](), reflect.TypeFor[SequenceResidualGraphWeights](),
+		reflect.TypeFor[wavPosNetWeights](), reflect.TypeFor[SequenceResidualGraphWeights](),
 	)
 	sequenceConvGraphFields = compileGraphWeightFields(
-		reflect.TypeFor[WavConvNextWeights](), reflect.TypeFor[SequenceConvGraphWeights](),
+		reflect.TypeFor[wavConvNextWeights](), reflect.TypeFor[SequenceConvGraphWeights](),
 	)
 )
 
 // BindSequenceOutputGraphWeights binds the compiled sequence-output catalog.
 func BindSequenceOutputGraphWeights(
-	info *AudioDecoderWeights,
+	info *audioDecoderWeights,
 	bind func(gguf.TensorInfo) (*tensor.Tensor, error),
 ) (SequenceOutputGraphWeights, error) {
 	if info == nil {

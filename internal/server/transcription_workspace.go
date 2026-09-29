@@ -148,8 +148,9 @@ type transcriptionWorkflowInput struct {
 }
 
 // ExecuteWorkflow performs fresh inference using the existing component lease.
-func (workspace *TranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (completion operation.Completion, err error) {
-	if workspace == nil || workspace.sessions == nil || ctx == nil || reporter == nil || kind != workflowGeneration || task != recipe.TaskTranscription || recipeID != workspace.policy.Recipe {
+func (workspace *TranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, capability WorkflowCapability, raw json.RawMessage, reporter operation.Reporter) (completion operation.Completion, err error) {
+	recipeID := capability.Recipe
+	if workspace == nil || workspace.sessions == nil || ctx == nil || reporter == nil || kind != workflowGeneration || capability.Task != recipe.TaskTranscription || recipeID != workspace.policy.Recipe {
 		return completion, errors.New("transcription workspace: workflow is not admitted")
 	}
 	defer func() {

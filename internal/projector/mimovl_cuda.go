@@ -11,16 +11,16 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMoVLOutput, error) {
+func (r *miMoVLRunner) encodeGraph(ctx context.Context, input miMoVLInput) (miMoVLOutput, error) {
 	mergePlan, err := newPixelMergePlan(input.GridH, input.GridW, r.spec.MergeSize)
 	if err != nil {
-		return MiMoVLOutput{}, errors.New("projector: MiMo-VL input geometry is inconsistent")
+		return miMoVLOutput{}, errors.New("projector: MiMo-VL input geometry is inconsistent")
 	}
 	rows := mergePlan.inputRows
 	patchArea := r.spec.PatchSize * r.spec.PatchSize
 	pixels0, pixels1, temporalWidth, err := splitTemporalPatchPairs(input.PixelValues, rows, patchArea)
 	if err != nil {
-		return MiMoVLOutput{}, err
+		return miMoVLOutput{}, err
 	}
 	builder := tensor.NewBuilder()
 	input0 := builder.Input(visionInputTensor+".0", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
@@ -93,9 +93,9 @@ func (r *MiMoVLRunner) encodeGraph(ctx context.Context, input MiMoVLInput) (MiMo
 	output = graph.addOptionalBias(output, projectionSecondBiasTensor)
 	results, err := graph.execute(output)
 	if err != nil {
-		return MiMoVLOutput{}, fmt.Errorf("projector: execute MiMo-VL graph: %w", err)
+		return miMoVLOutput{}, fmt.Errorf("projector: execute MiMo-VL graph: %w", err)
 	}
-	return MiMoVLOutput{
+	return miMoVLOutput{
 		Embeddings: results[output], GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize,
 	}, nil
 }

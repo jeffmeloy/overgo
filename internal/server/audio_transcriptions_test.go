@@ -71,17 +71,6 @@ func TestTranscriptionPolicyAndModelBindings(t *testing.T) {
 	}
 }
 
-// workspaceTestRuntime: a fake chat model beside the workflow workspaces a test serves.
-type workspaceTestRuntime struct {
-	*fakeGenerator
-	WorkflowWorkspaceAPI
-}
-
-// PreviewWorkflow forwards to the served workspaces, as the server's runtime does.
-func (runtime *workspaceTestRuntime) PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
-	return PreviewWorkflowIn(ctx, runtime.WorkflowWorkspaceAPI, kind, task, recipeID, raw, position, limit)
-}
-
 type transcriptionHTTPFixture struct {
 	handler   *Handler
 	workspace *TranscriptionWorkspace
@@ -119,8 +108,7 @@ func newTranscriptionHTTPFixture(t *testing.T, configure func(*TranscriptionPoli
 			t.Error(err)
 		}
 	})
-	runtime := &workspaceTestRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: workspace}
-	handler, err := New(Config{Repository: store, APIKey: testAPIKey}, runtime)
+	handler, err := New(Config{Repository: store, APIKey: testAPIKey, Workflows: workspace}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,9 +305,9 @@ type observedTranscriptionWorkspace struct {
 	entered chan artifact.ID
 }
 
-func (workspace observedTranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
+func (workspace observedTranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, capability WorkflowCapability, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
 	workspace.entered <- reporter.OperationID()
-	return workspace.TranscriptionWorkspace.ExecuteWorkflow(ctx, kind, task, recipeID, raw, reporter)
+	return workspace.TranscriptionWorkspace.ExecuteWorkflow(ctx, kind, capability, raw, reporter)
 }
 
 func testAudioTranscriptionsCancellation(t *testing.T) {
@@ -330,7 +318,7 @@ func testAudioTranscriptionsCancellation(t *testing.T) {
 	}
 	defer lease.Release()
 	entered := make(chan artifact.ID, 1)
-	fixture.handler.generator.(*workspaceTestRuntime).WorkflowWorkspaceAPI = observedTranscriptionWorkspace{fixture.workspace, entered}
+	fixture.handler.config.Workflows = observedTranscriptionWorkspace{fixture.workspace, entered}
 	ctx, cancel := context.WithCancelCause(t.Context())
 	defer cancel(nil)
 	request := fixture.request(t, fixture.wave, nil).WithContext(ctx)

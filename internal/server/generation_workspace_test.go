@@ -40,8 +40,7 @@ func (generator *generationWorkspaceGenerator) WorkflowCapabilities(_ context.Co
 func (generator *generationWorkspaceGenerator) ExecuteWorkflow(
 	ctx context.Context,
 	_ WorkflowKind,
-	task recipe.Task,
-	recipeID artifact.ID,
+	_ WorkflowCapability,
 	raw json.RawMessage,
 	reporter operation.Reporter,
 ) (operation.Completion, error) {
@@ -84,7 +83,7 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 			},
 		},
 	}
-	handler, err := New(Config{Repository: store}, generator)
+	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +149,7 @@ func TestWorkflowSubmissionDoesNotReplayCompletedOperation(t *testing.T) {
 			Controls: []workflowControl{{Name: "text", Type: workflowControlText, Required: true}},
 		},
 	}
-	handler, err := New(Config{Repository: store}, generator)
+	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
 	if err != nil {
 		t.Fatal(err)
 	}

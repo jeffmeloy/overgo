@@ -11,10 +11,10 @@ import (
 	"overgo/internal/testutil"
 )
 
-// launchWorkspaceGenerator is the shape cmd/server builds: a runner joined
-// with the workflow workspaces the launch enabled, never the evaluation
-// workspace, which the launch supplies through Config.Evaluation.
-func launchWorkspaceGenerator(t testing.TB, kinds ...WorkflowKind) *trainingExportGenerator {
+// launchWorkflows is the shape cmd/server builds: the workflow workspaces
+// the launch enabled, which the launch supplies through Config.Workflows
+// beside Config.Evaluation.
+func launchWorkflows(t testing.TB, kinds ...WorkflowKind) *trainingExportGenerator {
 	t.Helper()
 	capabilities := make(map[WorkflowKind]WorkflowCapability, len(kinds))
 	for _, kind := range kinds {
@@ -25,7 +25,7 @@ func launchWorkspaceGenerator(t testing.TB, kinds ...WorkflowKind) *trainingExpo
 			Controls: []workflowControl{{Name: "source", Type: workflowControlText, Required: true}},
 		}
 	}
-	return &trainingExportGenerator{fakeGenerator: &fakeGenerator{}, capabilities: capabilities}
+	return &trainingExportGenerator{capabilities: capabilities}
 }
 
 // launchEvaluationWorkspace is the evaluation workspace a launch opens: one
@@ -71,11 +71,11 @@ func workspaceTabsByID(t testing.TB, handler *Handler) map[string]workspaceTab {
 }
 
 // TestWorkspaceManifestShippedLaunch: the manifest built the way cmd/server
-// builds its generator lists Train, Model Builder and Evaluations when the
+// assembles its workspaces lists Train, Model Builder and Evaluations when the
 // launch enabled them, and refuses each with its reason when it did not.
 func TestWorkspaceManifestShippedLaunch(t *testing.T) {
 	t.Parallel()
-	enabled, err := New(Config{Evaluation: launchEvaluationWorkspace(t)}, launchWorkspaceGenerator(t, WorkflowTraining, workflowModelBuild))
+	enabled, err := New(Config{Evaluation: launchEvaluationWorkspace(t), Workflows: launchWorkflows(t, WorkflowTraining, workflowModelBuild)}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestWorkspaceManifestShippedLaunch(t *testing.T) {
 	if tabs["export-jobs"].Enabled || tabs["export-jobs"].Refusal == "" {
 		t.Fatalf("workspace the launch did not enable is not refused: %+v", tabs["export-jobs"])
 	}
-	refused, err := New(Config{}, launchWorkspaceGenerator(t))
+	refused, err := New(Config{Workflows: launchWorkflows(t)}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}

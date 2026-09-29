@@ -5,7 +5,7 @@ import (
 )
 
 func TestGemma4TowerAudioPlanReused(t *testing.T) {
-	spec := Gemma4AudioTowerSpec{
+	spec := gemma4AudioTowerSpec{
 		MelBins: 4, FFTLength: 8, FrameLength: 4, HopLength: 2, SampleRate: 8,
 		MinFrequency: 0, MaxFrequency: 4, MelFloor: 1e-6,
 	}

@@ -15,25 +15,25 @@ const (
 func (s Spec) validateRecurrentMetadata() error {
 	validation := s.Profile().Validation.Recurrent
 	switch validation {
-	case RecurrentValidationAudioDecoder:
+	case recurrentValidationAudioDecoder:
 		if s.OutputEmbeddingLength == tensor.FirstOffset || s.PosNetBlockCount == tensor.FirstOffset ||
 			s.ConvNextBlockCount == tensor.FirstOffset || s.PosNetEmbeddingLength == tensor.FirstOffset ||
 			s.PosNetEmbeddingLength != s.ConvNextEmbeddingLength || s.GroupNormGroups == tensor.FirstOffset ||
 			!positiveFinite(s.GroupNormEpsilon) || s.PosNetEmbeddingLength%s.GroupNormGroups != tensor.FirstOffset {
 			return errors.New("AudioDecoder metadata is invalid")
 		}
-	case RecurrentValidationTargetLayerBlock:
+	case recurrentValidationTargetLayerBlock:
 		if len(s.TargetLayers) == tensor.FirstOffset || s.DFlashBlockSize == tensor.FirstOffset {
 			return errors.New("target-layer block metadata is invalid")
 		}
 		return validateNonNegativeTargetLayers("target-layer block", s.TargetLayers)
-	case RecurrentValidationSingleBlockTarget:
+	case recurrentValidationSingleBlockTarget:
 		if s.BlockCount == tensor.FirstOffset || len(s.TargetLayers) == tensor.FirstOffset ||
 			s.TargetHiddenSize == tensor.FirstOffset {
 			return errors.New("feature-draft target-layer metadata is invalid")
 		}
 		return validateNonNegativeTargetLayers("feature-draft", s.TargetLayers)
-	case RecurrentValidationUngroupedStateSpace:
+	case recurrentValidationUngroupedStateSpace:
 		if !attentionMetadataZero(s) {
 			return errors.New("Mamba attention metadata must be zero")
 		}
@@ -41,25 +41,25 @@ func (s Spec) validateRecurrentMetadata() error {
 			s.SSMStateSize == tensor.FirstOffset || s.SSMTimeStepRank == tensor.FirstOffset {
 			return errors.New("Mamba SSM metadata is invalid")
 		}
-	case RecurrentValidationGroupedStateSpace:
+	case recurrentValidationGroupedStateSpace:
 		if !attentionMetadataZero(s) {
 			return errors.New("Mamba2 attention metadata must be zero")
 		}
 		if !validGroupedSSM(s) {
 			return errors.New("Mamba2 SSM metadata is invalid")
 		}
-	case RecurrentValidationGroupedStateSpaceAttention:
+	case recurrentValidationGroupedStateSpaceAttention:
 		if !validGroupedSSM(s) {
 			return errors.New("Falcon-H1 SSM metadata is invalid")
 		}
 		if !validRotaryDimension(s.RopeDimensionCount, s.KeyLength) || s.KeyLength != s.ValueLength {
 			return errors.New("Falcon-H1 rotary/head dimensions are invalid")
 		}
-	case RecurrentValidationTimeMixV6, RecurrentValidationTimeMixV6SharedKV:
+	case recurrentValidationTimeMixV6, recurrentValidationTimeMixV6SharedKV:
 		return s.validateTimeMixV6(validation)
-	case RecurrentValidationTimeMixV7Gated, RecurrentValidationTimeMixV7:
+	case recurrentValidationTimeMixV7Gated, recurrentValidationTimeMixV7:
 		return s.validateTimeMixV7(validation)
-	case RecurrentValidationStateSpaceAttentionExperts:
+	case recurrentValidationStateSpaceAttentionExperts:
 		if s.SSMConvKernel < minimumConvKernelWidth || !s.Profile().Runtime.Recurrent.validInnerWidth(s) ||
 			s.SSMStateSize == tensor.FirstOffset || s.SSMTimeStepRank == tensor.FirstOffset {
 			return errors.New("Jamba SSM metadata is invalid")
@@ -71,9 +71,9 @@ func (s Spec) validateRecurrentMetadata() error {
 			s.ExpertFeedForward == tensor.FirstOffset || !positiveFinite(s.ExpertWeightsScale) {
 			return errors.New("Jamba expert metadata is invalid")
 		}
-	case RecurrentValidationGroupedStateSpaceOptionalExperts:
+	case recurrentValidationGroupedStateSpaceOptionalExperts:
 		return s.validateGroupedStateSpaceOptionalExperts()
-	case RecurrentValidationUngroupedScheduledStateSpace:
+	case recurrentValidationUngroupedScheduledStateSpace:
 		if s.SSMConvKernel < minimumConvKernelWidth || s.SSMInnerSize == tensor.FirstOffset ||
 			s.SSMStateSize == tensor.FirstOffset || s.SSMTimeStepRank == tensor.FirstOffset ||
 			s.SSMGroupCount != tensor.FirstOffset || s.SSMInnerSize%s.SSMTimeStepRank != tensor.FirstOffset {
@@ -82,8 +82,8 @@ func (s Spec) validateRecurrentMetadata() error {
 		if !validRecurrentLayerSchedule(s) {
 			return errors.New("PLaMo2 layer schedule is invalid")
 		}
-	case RecurrentValidationScheduledStateSpaceDense, RecurrentValidationScheduledStateSpaceExperts:
-		return s.validateScheduledStateSpace(validation == RecurrentValidationScheduledStateSpaceExperts)
+	case recurrentValidationScheduledStateSpaceDense, recurrentValidationScheduledStateSpaceExperts:
+		return s.validateScheduledStateSpace(validation == recurrentValidationScheduledStateSpaceExperts)
 	}
 	return nil
 }
@@ -147,7 +147,7 @@ func (s Spec) validateTimeMixV6(validation RecurrentValidationPolicy) error {
 		return fmt.Errorf("%s time-mix metadata is invalid", s.Architecture)
 	case s.KeyLength != s.WKVHeadSize || s.ValueLength != s.WKVHeadSize:
 		return fmt.Errorf("%s head dimensions are invalid", s.Architecture)
-	case validation == RecurrentValidationTimeMixV6 && s.HeadCountKV != s.HeadCount:
+	case validation == recurrentValidationTimeMixV6 && s.HeadCountKV != s.HeadCount:
 		return errors.New("rwkv6 KV head count must equal query head count")
 	}
 	return nil
@@ -164,7 +164,7 @@ func (s Spec) validateTimeMixV7(validation RecurrentValidationPolicy) error {
 	case s.DecayLoRARank == tensor.FirstOffset || s.ICLRLoRARank == tensor.FirstOffset ||
 		s.ValueMixLoRARank == tensor.FirstOffset:
 		return fmt.Errorf("%s time-mix LoRA metadata is invalid", s.Architecture)
-	case validation == RecurrentValidationTimeMixV7Gated && s.GateLoRARank == tensor.FirstOffset:
+	case validation == recurrentValidationTimeMixV7Gated && s.GateLoRARank == tensor.FirstOffset:
 		return errors.New("rwkv7 gate LoRA metadata is invalid")
 	case s.TokenShiftCount != wantShifts:
 		return fmt.Errorf("%s token-shift metadata is invalid", s.Architecture)

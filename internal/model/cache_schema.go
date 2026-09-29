@@ -297,7 +297,7 @@ func cacheSchemaForPlan(
 				width, tensor.SingletonExtent, tensor.SingletonExtent)
 		}
 	}
-	if plan.Cache == CacheHybridAttentionScan {
+	if plan.Cache == cacheHybridAttentionScan {
 		if spec.ssmConvolutionWindow() == tensor.FirstOffset {
 			return LayerCacheSchema{}, fmt.Errorf("hybrid attention-scan convolution kernel is zero")
 		}
@@ -330,7 +330,7 @@ func cacheSchemaForPlan(
 		)
 		return schema.WithTokenCount(tokens), nil
 	}
-	if plan.Cache == CacheSentinel {
+	if plan.Cache == cacheSentinel {
 		shape := tensor.MustShape(tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent)
 		schema.Label = "sentinel"
 		state := cacheValue(CacheStateToken, shape)
@@ -339,7 +339,7 @@ func cacheSchemaForPlan(
 	}
 	shapes := spec.TensorShapes(plan.Layer)
 	keyWidth, valueWidth, heads := shapes.Key, shapes.Value, shapes.KVHeads
-	if plan.Attention == AttentionLatent || plan.Attention == AttentionSparseLatent || plan.Mixer == recurrentMixerKeyedDelta {
+	if plan.Attention == attentionLatent || plan.Attention == AttentionSparseLatent || plan.Mixer == recurrentMixerKeyedDelta {
 		heads = uint64(spec.HeadCount)
 		if info.AttentionKB != nil {
 			keyWidth = uint64(spec.KVLoRARank + spec.RopeDimensionCount)
@@ -375,17 +375,17 @@ func recurrentCacheSchema(
 		uint64(spec.HeadCount), tensor.SingletonExtent,
 	}
 	switch plan.Cache {
-	case CacheDoubleTokenShiftRecurrence:
+	case cacheDoubleTokenShiftRecurrence:
 		return recurrentCachePair(
 			"double token-shift recurrence", []uint64{embedding, tensor.PairedExtent}, stateMatrix,
 		)
-	case CacheSingleTokenShiftRecurrence:
+	case cacheSingleTokenShiftRecurrence:
 		return recurrentCachePair("single token-shift recurrence", []uint64{embedding}, stateMatrix)
-	case CacheVariableTokenShiftRecurrence:
+	case cacheVariableTokenShiftRecurrence:
 		return recurrentCachePair(
 			"variable token-shift recurrence", []uint64{embedding, uint64(spec.TokenShiftCount)}, stateMatrix,
 		)
-	case CacheKeyedDelta:
+	case cacheKeyedDelta:
 		previous, err := previousCacheElements(spec.SSMConvKernel, "keyed-delta convolution kernel")
 		if err != nil {
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
@@ -398,7 +398,7 @@ func recurrentCacheSchema(
 				uint64(spec.HeadCount), tensor.SingletonExtent,
 			},
 		)
-	case CacheGatedDelta:
+	case cacheGatedDelta:
 		previous, err := previousCacheElements(spec.SSMConvKernel, "gated-delta convolution kernel")
 		if err != nil {
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
@@ -412,7 +412,7 @@ func recurrentCacheSchema(
 				uint64(spec.SSMTimeStepRank), tensor.SingletonExtent,
 			},
 		)
-	case CacheGroupedSelectiveScan:
+	case cacheGroupedSelectiveScan:
 		previous, err := previousCacheElements(spec.SSMConvKernel, "grouped selective-scan convolution kernel")
 		if err != nil {
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
@@ -423,7 +423,7 @@ func recurrentCacheSchema(
 			"grouped selective-scan recurrence", []uint64{previous, channels},
 			[]uint64{uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)},
 		)
-	case CacheSelectiveScan:
+	case cacheSelectiveScan:
 		previous, err := previousCacheElements(spec.SSMConvKernel, "selective-scan convolution kernel")
 		if err != nil {
 			return tensor.Shape{}, tensor.Shape{}, false, "", err
@@ -432,7 +432,7 @@ func recurrentCacheSchema(
 			"selective-scan recurrence", []uint64{previous, uint64(spec.SSMInnerSize)},
 			[]uint64{uint64(spec.SSMStateSize), uint64(spec.SSMInnerSize)},
 		)
-	case CacheShortConvolution:
+	case cacheShortConvolution:
 		previous, err := previousCacheElements(spec.ShortConvCacheLength, "short-convolution cache length")
 		if err != nil {
 			return tensor.Shape{}, tensor.Shape{}, false, "", err

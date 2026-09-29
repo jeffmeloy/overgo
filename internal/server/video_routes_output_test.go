@@ -41,7 +41,7 @@ func videoOutputFixture(t *testing.T, mediaType string, output []byte) (*Handler
 		}},
 		completion: map[recipe.Task]operation.Completion{recipe.TaskVideoGen: {Run: runID, Outputs: []artifact.ID{outputID}}},
 	}
-	handler, err := New(Config{Repository: store}, workspace)
+	handler, err := New(Config{Repository: store, Workflows: workspace}, workspace)
 	if err != nil {
 		t.Fatal(err)
 	}

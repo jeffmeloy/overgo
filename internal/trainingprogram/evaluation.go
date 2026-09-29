@@ -53,6 +53,8 @@ func EvaluateNative(metric EvaluationMetric, prediction, target []float32) (floa
 		return 10 * math.Log10(signal/squared), nil
 	case MetricForecastMAE:
 		return absolute / count, nil
+	case MetricTableMSE:
+		return squared / count, nil
 	default:
 		return 0, errors.New("training evaluation: metric unsupported")
 	}

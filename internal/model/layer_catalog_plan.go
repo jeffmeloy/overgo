@@ -26,10 +26,10 @@ func (s Spec) rotaryCatalogPlan(profile ArchitectureProfile, layer LayerPlan) ro
 		plan.factorElements = uint64(s.RopeDimensionCount)
 	}
 	if profile.Rotary.FactorPairs ||
-		profile.LayerTopology == LayerTopologySharedKVAdapter && !layer.Sliding {
+		profile.LayerTopology == layerTopologySharedKVAdapter && !layer.Sliding {
 		plan.factorFallback = "rope_freqs.weight"
 	}
-	if !profile.Has(ArchitectureLongRoPE) {
+	if !profile.Has(architectureLongRoPE) {
 		return plan
 	}
 	plan.long, plan.short = prefix+"rope_factors_long.weight", prefix+"rope_factors_short.weight"

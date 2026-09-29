@@ -134,10 +134,10 @@ func referenceImageEncoder(encode func(context.Context, image.Image) (reference.
 }
 
 func gridImagePromptEncoder(
-	encode func(context.Context, image.Image, RasterPatchOptions) (gridOutput, error),
+	encode func(context.Context, image.Image, rasterPatchOptions) (gridOutput, error),
 ) imagePromptEncoder {
 	return func(ctx context.Context, source image.Image) (imagePromptItem, error) {
-		output, err := encode(ctx, source, RasterPatchOptions{})
+		output, err := encode(ctx, source, rasterPatchOptions{})
 		return imagePromptItem{
 			Embeddings: output.Embeddings.Data, Count: int(output.Embeddings.Shape.Dims[tensor.SingletonExtent]),
 			Rows: output.GridH / output.MergeSize, Columns: output.GridW / output.MergeSize,
@@ -146,8 +146,8 @@ func gridImagePromptEncoder(
 }
 
 func spatialGridImagePromptEncoder(
-	encode func(context.Context, image.Image, Qwen3VLPreprocessOptions) (Qwen3VLOutput, error),
-	options Qwen3VLPreprocessOptions,
+	encode func(context.Context, image.Image, qwen3VLPreprocessOptions) (qwen3VLOutput, error),
+	options qwen3VLPreprocessOptions,
 ) imagePromptEncoder {
 	return func(ctx context.Context, source image.Image) (imagePromptItem, error) {
 		output, err := encode(ctx, source, options)
@@ -580,7 +580,7 @@ func compileSpatialChatImagePromptProgram(
 ) compiledImagePromptProgram {
 	compile := func(history bool, suffix string) imagePromptPlan {
 		plan := imagePromptPlan{
-			Family: family, Placeholder: Qwen3VLImagePad, PlaceholderLabel: "image placeholder",
+			Family: family, Placeholder: qwen3VLImagePad, PlaceholderLabel: "image placeholder",
 			AddSpecial: history, EmbeddingWidth: width, Positions: grid2DImagePromptPositions,
 			Image: promptDelimiters{Prefix: "<|vision_start|>", Suffix: "<|vision_end|>"},
 		}
@@ -610,7 +610,7 @@ func renderDelimitedImagePrompt(text []string, items []imagePromptItem, placehol
 	return prompt.String()
 }
 
-func spatialGridImagePromptItem(output Qwen3VLOutput) (imagePromptItem, error) {
+func spatialGridImagePromptItem(output qwen3VLOutput) (imagePromptItem, error) {
 	deepstack := make([][]float32, len(output.DeepstackEmbeddings))
 	for index, stream := range output.DeepstackEmbeddings {
 		if !stream.Shape.Equal(output.Embeddings.Shape) {

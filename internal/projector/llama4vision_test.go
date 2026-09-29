@@ -13,7 +13,7 @@ import (
 )
 
 func TestLlama4VisionRunnerTinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*Llama4VisionRunner](writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
+	runner, err := openImageProjectorAs[*llama4VisionRunner](writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestOpenImageProjectorDispatchesLlama4(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer projector.Close()
-	if _, ok := projector.(*Llama4VisionRunner); !ok {
+	if _, ok := projector.(*llama4VisionRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
 	}
 }
@@ -51,7 +51,7 @@ func TestPreprocessLlama4VisionUHDOrder(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 30), G: uint8(y * 50), A: fixtureOpaqueAlpha})
 		}
 	}
-	processed, err := PreprocessLlama4VisionImage(input, tinyLlama4VisionSpec())
+	processed, err := preprocessLlama4VisionImage(input, tinyLlama4VisionSpec())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,13 +67,13 @@ func TestPreprocessLlama4VisionUHDOrder(t *testing.T) {
 }
 
 func TestLlama4MultipleImagePrompt(t *testing.T) {
-	runner, err := openImageProjectorAs[*Llama4VisionRunner](writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
+	runner, err := openImageProjectorAs[*llama4VisionRunner](writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
-		t.Context(), imagePromptTokenizer{marker: Llama4ImagePad, token: 9090},
+		t.Context(), imagePromptTokenizer{marker: llama4ImagePad, token: 9090},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
 		[]string{"first ", " then ", " question"}, PromptOptions{},
 	)
@@ -104,7 +104,7 @@ func TestSpatialRotaryQKUsesWidthAndHeight(t *testing.T) {
 
 func TestLlama4CatalogRejectsIncompletePreNorm(t *testing.T) {
 	tensors := append(tinyLlama4VisionTensors(), f32Tensor("v.pre_ln.weight", []uint64{4}, []float32{1, 1, 1, 1}))
-	if _, err := openImageProjectorAs[*Llama4VisionRunner](writeTinyLlama4Vision(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
+	if _, err := openImageProjectorAs[*llama4VisionRunner](writeTinyLlama4Vision(t, tensors), OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -112,7 +112,7 @@ func TestLlama4CatalogRejectsIncompletePreNorm(t *testing.T) {
 func TestLlama4VisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyLlama4Vision(t, nonzeroTinyLlama4VisionTensors())
-	cpu, cuda := parityRunners[*Llama4VisionRunner](t, path, OpenOptions{})
+	cpu, cuda := parityRunners[*llama4VisionRunner](t, path, OpenOptions{})
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := range 4 {
 		for x := range 8 {
@@ -155,8 +155,8 @@ func tinyLlama4VisionMetadata() []gguf.Metadata {
 	}
 }
 
-func tinyLlama4VisionSpec() Llama4VisionSpec {
-	return Llama4VisionSpec{
+func tinyLlama4VisionSpec() llama4VisionSpec {
+	return llama4VisionSpec{
 		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1), OutputHidden: 6,
 		AdapterIntermediate: 8, AdapterHidden: 5, MergeSize: fixtureSpatialMerge,
 		MaxGridSide: tensor.TripleExtent,

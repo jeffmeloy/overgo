@@ -33,10 +33,10 @@ func compileDenseFFNBindings(
 	shapes := spec.TensorShapes(block)
 	shapes.FeedForward = uint64(feedForwardLength)
 	if profile.EncoderOperator.usesALiBiQKNorm() {
-		upCopies := FeedForwardFusedGateUp.upProjectionCopies()
+		upCopies := feedForwardFusedGateUp.upProjectionCopies()
 		var bindings []tensorBinding
 		if _, separateGate := catalog.tensor(prefix + feedForwardGateWeightTensor); separateGate {
-			upCopies = FeedForwardSwiGLU.upProjectionCopies()
+			upCopies = feedForwardSwiGLU.upProjectionCopies()
 			bindings = append(bindings, requiredTensorPointer(
 				feedForwardGateWeightTensor, &layer.FeedForwardGate, shapes.FeedForwardUp(upCopies)...,
 			))
@@ -58,7 +58,7 @@ func compileDenseFFNBindings(
 	if profile.FeedForward.separateGate() {
 		bindings = append(bindings, requiredTensorPointer(
 			feedForwardGateWeightTensor, &layer.FeedForwardGate,
-			shapes.FeedForwardUp(FeedForwardSwiGLU.upProjectionCopies())...,
+			shapes.FeedForwardUp(feedForwardSwiGLU.upProjectionCopies())...,
 		))
 	}
 	bindings = append(bindings,
@@ -67,11 +67,11 @@ func compileDenseFFNBindings(
 		requiredTensorPointer(feedForwardDownWeightTensor, &layer.FeedForwardDown, shapes.FeedForwardDown()...),
 	)
 	requireGateBias := profile.DenseWeights.BiasCatalog == denseBiasCatalogJais
-	requireUpBias := profile.FeedForward == FeedForwardSequentialGELU ||
+	requireUpBias := profile.FeedForward == feedForwardSequentialGELU ||
 		profile.DenseWeights.BiasCatalog == denseBiasCatalogGPTJ ||
 		profile.DenseWeights.BiasCatalog == denseBiasCatalogJais2 || requireGateBias
 	requireDownBias := requireUpBias
-	requireAttentionBias := profile.FeedForward == FeedForwardSequentialGELU ||
+	requireAttentionBias := profile.FeedForward == feedForwardSequentialGELU ||
 		profile.DenseWeights.BiasCatalog == denseBiasCatalogJais2 || requireGateBias
 	bindings = append(bindings,
 		f32BiasBinding("ffn_gate.bias", &layer.FeedForwardGateBias, requireGateBias,

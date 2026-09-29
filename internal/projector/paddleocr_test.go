@@ -13,13 +13,13 @@ import (
 
 func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 	path := writeTinyPaddleOCR(t, tinyPaddleOCRTensors())
-	runner, err := openImageProjectorAs[*PaddleOCRRunner](path, OpenOptions{})
+	runner, err := openImageProjectorAs[*paddleOCRRunner](path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer runner.Close()
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	output, err := runner.EncodeImage(t.Context(), input, RasterPatchOptions{
+	output, err := runner.EncodeImage(t.Context(), input, rasterPatchOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
@@ -43,13 +43,13 @@ func TestOpenImageProjectorDispatchesPaddleOCR(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer projector.Close()
-	if _, ok := projector.(*PaddleOCRRunner); !ok {
+	if _, ok := projector.(*paddleOCRRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
 	}
 }
 
 func TestPaddleOCRMultipleImagePromptAndPositions(t *testing.T) {
-	runner, err := openImageProjectorAs[*PaddleOCRRunner](writeTinyPaddleOCR(t, tinyPaddleOCRTensors()), OpenOptions{})
+	runner, err := openImageProjectorAs[*paddleOCRRunner](writeTinyPaddleOCR(t, tinyPaddleOCRTensors()), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestPaddleOCRMultipleImagePromptAndPositions(t *testing.T) {
 	first := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	second := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
-		t.Context(), imagePromptTokenizer{marker: PaddleOCRImagePad, token: 9001}, []image.Image{first, second},
+		t.Context(), imagePromptTokenizer{marker: paddleOCRImagePad, token: 9001}, []image.Image{first, second},
 		[]string{"OCR:", " and ", "Table Recognition:"}, PromptOptions{},
 	)
 	if err != nil {
@@ -91,7 +91,7 @@ func TestPaddleOCRMultipleImagePromptAndPositions(t *testing.T) {
 func TestPaddleOCRCatalogRejectsIncompletePreNorm(t *testing.T) {
 	tensors := append(tinyPaddleOCRTensors(), f32Tensor("v.pre_ln.weight", []uint64{4}, []float32{1, 1, 1, 1}))
 	path := writeTinyPaddleOCR(t, tensors)
-	if _, err := openImageProjectorAs[*PaddleOCRRunner](path, OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
+	if _, err := openImageProjectorAs[*paddleOCRRunner](path, OpenOptions{}); err == nil || !strings.Contains(err.Error(), "must be paired") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -99,14 +99,14 @@ func TestPaddleOCRCatalogRejectsIncompletePreNorm(t *testing.T) {
 func TestPaddleOCRCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyPaddleOCR(t, nonzeroTinyPaddleOCRTensors())
-	cpu, cuda := parityRunners[*PaddleOCRRunner](t, path, OpenOptions{})
+	cpu, cuda := parityRunners[*paddleOCRRunner](t, path, OpenOptions{})
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := range 4 {
 		for x := range 8 {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 25), G: uint8(y * 50), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	options := RasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget}
+	options := rasterPatchOptions{MinPixels: fixtureMediumPixelBudget, MaxPixels: fixtureMediumPixelBudget}
 	want, err := cpu.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
@@ -145,10 +145,10 @@ func tinyPaddleOCRMetadata() []gguf.Metadata {
 	}
 }
 
-func tinyPaddleOCRSpec() PaddleOCRSpec {
+func tinyPaddleOCRSpec() paddleOCRSpec {
 	backbone := fixtureVisionBackbone(4, 2, 4, 8, 1, 1)
 	backbone.ProjectionNormEpsilon = fixtureNormEpsilon
-	return PaddleOCRSpec{
+	return paddleOCRSpec{
 		visionBackboneSpec: backbone, ProjectorIntermediate: 16,
 		OutputHidden: 6, MergeSize: fixtureSpatialMerge, MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureLargePixelBudget,
 		FusedQKV: []bool{true},

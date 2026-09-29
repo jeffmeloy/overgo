@@ -72,13 +72,6 @@ func serverLibraryIntake() llamaserver.LibraryIntake {
 	return intake
 }
 
-// remoteRuntime is the relay with the store's workflow workspaces beside
-// it, the way the local runtime carries the runner.
-type remoteRuntime struct {
-	*remoterelay.Generator
-	llamaserver.WorkflowWorkspaceAPI
-}
-
 // serveRemote serves the declared model through the relay: the store's
 // generation and library workspaces ride along as they do for a local
 // model, the environment records the remote backend so every interaction
@@ -105,10 +98,10 @@ func serveRemote(ctx context.Context, remote *remoteServing, options serveOption
 		APIKey: options.apiKey, RequestTimeout: options.requestTimeout,
 		MaxStoredResponses: options.storedResponses, ResponseStoreBytes: options.responseStoreBytes,
 		OvergoDBPath: options.repository, Repository: workspaceStore, Environment: environment,
-		HubToken: os.Getenv("OVERGO_HF_TOKEN"), HubDownloadRoot: options.hubRoot, WebUIDir: options.webuiDir,
+		HubToken: os.Getenv("OVERGO_HF_TOKEN"), HubDownloadRoot: options.hubRoot, WebUIDir: options.webuiDir, Workflows: generation,
 		LibraryIntake: serverLibraryIntake(),
 		ProviderKeys:  providerIntake.Keys,
-	}, &remoteRuntime{Generator: generator, WorkflowWorkspaceAPI: llamaserver.WorkflowWorkspaceSet{generation}})
+	}, generator)
 	if err != nil {
 		return err
 	}

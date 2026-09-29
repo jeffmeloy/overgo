@@ -31,7 +31,7 @@ func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
 		}
 	})
 	t.Run("cogvlm image prompt", func(t *testing.T) {
-		runner, err := openImageProjectorAs[*CogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
+		runner, err := openImageProjectorAs[*cogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -72,7 +72,7 @@ func TestCompiledSessionOwnsPromptDispatch(t *testing.T) {
 		}
 	})
 	t.Run("mimovl images prompt", func(t *testing.T) {
-		runner, err := openImageProjectorAs[*MiMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
+		runner, err := openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -12,7 +12,7 @@ const (
 )
 
 func TestTensorShapePlanDerivesAttentionWidths(t *testing.T) {
-	plan := TensorShapePlan{
+	plan := tensorShapePlan{
 		Embedding: shapeFixtureEmbedding, FeedForward: shapeFixtureFeedForward,
 		QueryHeads: shapeFixtureQueryHeads, KVHeads: shapeFixtureKVHeads,
 		Key: shapeFixtureKey, Value: shapeFixtureValue,

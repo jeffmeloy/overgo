@@ -339,7 +339,7 @@ func testQwen35ImageVideoParity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer language.Close()
-	processedImage, err := projector.PreprocessQwen3VLImage(imageSource, vision.Spec(), processor.Image)
+	processedImage, err := projector.PreprocessQwen3VLFrames([]image.Image{imageSource}, vision.Spec(), processor.Image)
 	if err != nil {
 		t.Fatal(err)
 	}

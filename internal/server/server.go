@@ -64,8 +64,8 @@ type Generator interface {
 }
 
 // GenerationRefused is the generator of a runtime that serves no text: the
-// cold proxy's workbench and a transcription-only server embed it, and
-// every text request answers with the reason.
+// cold proxy's workbench serves it and a transcription-only server embeds
+// it, and every text request answers with the reason.
 type GenerationRefused struct {
 	Reason string
 }
@@ -283,6 +283,11 @@ type Config struct {
 	Analysis      AnalysisPolicy
 	AgentEmbedder dataset.AgentEmbeddingProvider
 	AgentReranker dataset.AgentRerankProvider
+	// Workflows is the workflow workspace the launcher assembles beside the
+	// generator (media generation, transcription, training, model building);
+	// absent, the workflow and native media routes answer that it is
+	// unavailable. The text generator never carries it.
+	Workflows WorkflowWorkspaceAPI
 	// LibraryIntake is the model intake the library routes drive, assembled
 	// by the launcher; absent, those routes answer that they need it.
 	LibraryIntake LibraryIntake

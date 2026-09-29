@@ -36,7 +36,7 @@ func compileMoEBindings(
 		_, fusedGateUp = catalog.tensors[prefix+"ffn_gate_up_exps.weight"]
 		bindings = append(bindings, optionalTensorPointer(
 			"ffn_gate_up_exps.weight", &layer.FeedForwardGateUpExperts,
-			shapes.ExpertUp(FeedForwardFusedGateUp.upProjectionCopies())...,
+			shapes.ExpertUp(feedForwardFusedGateUp.upProjectionCopies())...,
 		))
 	}
 	bindings = append(bindings,
@@ -55,13 +55,13 @@ func compileMoEBindings(
 	if !fusedGateUp && !policy.OptionalGate {
 		bindings = append(bindings, requiredTensorPointer(
 			"ffn_gate_exps.weight", &layer.FeedForwardGateExperts,
-			shapes.ExpertUp(FeedForwardSwiGLU.upProjectionCopies())...,
+			shapes.ExpertUp(feedForwardSwiGLU.upProjectionCopies())...,
 		))
 	}
 	if policy.OptionalGate {
 		bindings = append(bindings, optionalTensorPointer(
 			"ffn_gate_exps.weight", &layer.FeedForwardGateExperts,
-			shapes.ExpertUp(FeedForwardSwiGLU.upProjectionCopies())...,
+			shapes.ExpertUp(feedForwardSwiGLU.upProjectionCopies())...,
 		))
 	}
 	if policy.SupplementalCatalog.has(expertSupplementScaledSandwichNorm) {
@@ -107,7 +107,7 @@ func expertPolicyBindings(
 	prefix string,
 	spec Spec,
 	layer *LayerWeights,
-	policy ExpertPolicy,
+	policy expertPolicy,
 ) []tensorBinding {
 	var bindings []tensorBinding
 	switch policy.BiasCatalog {

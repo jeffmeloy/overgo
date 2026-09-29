@@ -10,7 +10,7 @@ import (
 )
 
 // Apply: learned normalization stage.
-func (p NormalizationPlan) Apply(
+func (p normalizationPlan) Apply(
 	builder *tensor.Builder,
 	input, weight, bias *tensor.Tensor,
 ) *tensor.Tensor {
@@ -20,10 +20,10 @@ func (p NormalizationPlan) Apply(
 	if p.Operation == NormalizationUnweightedRMS {
 		return builder.RMSNorm(input, p.Epsilon)
 	}
-	if p.Operation == NormalizationWeightOnlyLayer {
+	if p.Operation == normalizationWeightOnlyLayer {
 		return builder.Multiply(builder.LayerNorm(input, p.Epsilon), weight)
 	}
-	if p.Operation == NormalizationLayer {
+	if p.Operation == normalizationLayer {
 		if bias == nil {
 			return builder.Multiply(builder.LayerNorm(input, p.Epsilon), weight)
 		}
@@ -86,7 +86,7 @@ func preparePolicyAttentionInputs(
 	if err := c.plan.ExpertComposition.Validate(c.spec); err != nil {
 		return nil, nil, err
 	}
-	if c.plan.FeedForward == FeedForwardXIELU &&
+	if c.plan.FeedForward == feedForwardXIELU &&
 		(int(c.layer) >= len(c.spec.XIELUAlphaN) || int(c.layer) >= len(c.spec.XIELUAlphaP) ||
 			int(c.layer) >= len(c.spec.XIELUBeta) || int(c.layer) >= len(c.spec.XIELUEpsilon)) {
 		return nil, nil, errors.New("Apertus xIELU parameters are missing for layer")
@@ -303,7 +303,7 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 	}
 	var activation *tensor.Tensor
 	switch r.plan.FeedForward {
-	case FeedForwardFusedGateUp:
+	case feedForwardFusedGateUp:
 		width := uint64(r.spec.LayerFeedForwardLength(r.layer))
 		stride := tensor.PairedExtent * width
 		gate := r.builder.Reshape(r.builder.GroupSlice(
@@ -320,16 +320,16 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 		default:
 			activation = r.builder.SwiGLU(gate, up)
 		}
-	case FeedForwardXIELU:
+	case feedForwardXIELU:
 		activation = r.builder.XIELU(
 			up, r.spec.XIELUAlphaN[r.layer], r.spec.XIELUAlphaP[r.layer],
 			r.spec.XIELUBeta[r.layer], r.spec.XIELUEpsilon[r.layer],
 		)
-	case FeedForwardGELU, FeedForwardSequentialGELU:
+	case feedForwardGELU, feedForwardSequentialGELU:
 		activation = r.builder.GELU(up)
-	case FeedForwardSquaredReLU:
+	case feedForwardSquaredReLU:
 		activation = r.builder.ReLUSquared(up)
-	case FeedForwardSwiGLU, FeedForwardGEGLU:
+	case feedForwardSwiGLU, feedForwardGEGLU:
 		gate := r.builder.MulMat(r.weights.FeedForwardGate, normalized)
 		if r.weights.FeedForwardGateScale != nil {
 			gate = r.builder.Multiply(gate, r.weights.FeedForwardGateScale)
@@ -338,7 +338,7 @@ func (r denseBlockRuntime) buildFeedForward(normalized *tensor.Tensor) (*tensor.
 			gate = r.builder.Add(gate, r.weights.FeedForwardGateBias)
 		}
 		activation = r.builder.SwiGLU(gate, up)
-		if r.plan.FeedForward == FeedForwardGEGLU {
+		if r.plan.FeedForward == feedForwardGEGLU {
 			activation = r.builder.GEGLU(gate, up)
 		}
 	default:
@@ -535,8 +535,8 @@ func buildOutputAdapter(
 	return output, builder.Err()
 }
 
-// ActivationProjectionResult: projected activation seam before host policy.
-type ActivationProjectionResult struct {
+// activationProjectionResult: projected activation seam before host policy.
+type activationProjectionResult struct {
 	Residual *tensor.Tensor
 	Gate     *tensor.Tensor
 	Up       *tensor.Tensor
@@ -548,23 +548,23 @@ type ActivationProjectionResult struct {
 func (p CompiledLayerProgram) BuildActivationProjection(
 	context CachedBlockContext,
 	weights LayerGraphWeights,
-) (ActivationProjectionResult, error) {
+) (activationProjectionResult, error) {
 	if !p.plan.splitProjection() || p.plan.Layer != context.Layer ||
 		p.plan.Recurrent != context.Recurrent {
-		return ActivationProjectionResult{}, errors.New("compiled activation-projection program is incompatible")
+		return activationProjectionResult{}, errors.New("compiled activation-projection program is incompatible")
 	}
 	builder, input, spec := context.Builder, context.Input, p.spec
 	positions, pastKey, pastValue := context.Positions, context.PastKey, context.PastValue
 	layerIndex := p.plan.Layer
 	if builder == nil || input == nil {
-		return ActivationProjectionResult{}, errors.New("activation-projection input is invalid")
+		return activationProjectionResult{}, errors.New("activation-projection input is invalid")
 	}
 	tokens, validInput := tensor.MatrixRows(input.Shape, uint64(spec.EmbeddingLength))
 	if !validInput || len(positions) == 0 || uint64(len(positions)) != tokens {
-		return ActivationProjectionResult{}, errors.New("activation-projection input is invalid")
+		return activationProjectionResult{}, errors.New("activation-projection input is invalid")
 	}
 	if err := requireTensorPair(pastKey, pastValue, "split-projection cache pair is incomplete"); err != nil {
-		return ActivationProjectionResult{}, err
+		return activationProjectionResult{}, err
 	}
 	required := graphWeights{
 		weights.AttentionNorm,
@@ -584,10 +584,10 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		required = append(required, weights.AttentionV)
 		required = append(required, weights.AttentionKNorm)
 	} else if pastKey == nil {
-		return ActivationProjectionResult{}, errors.New("split-projection shared-KV layer has no source cache")
+		return activationProjectionResult{}, errors.New("split-projection shared-KV layer has no source cache")
 	}
 	if err := required.validate("split projection"); err != nil {
-		return ActivationProjectionResult{}, err
+		return activationProjectionResult{}, err
 	}
 	shapes := spec.TensorShapes(layerIndex)
 	headCount, kvHeadCount := shapes.QueryHeads, shapes.KVHeads
@@ -617,7 +617,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 			pastTokens, cacheAxis, keyOK := tensor.TrailingExtent(pastKey.Shape, keyLength, kvHeadCount)
 			valueTokens, _, valueOK := tensor.TrailingExtent(pastValue.Shape, valueLength, kvHeadCount)
 			if !keyOK || !valueOK || pastTokens != valueTokens || pastTokens > math.MaxUint32 {
-				return ActivationProjectionResult{}, errors.New("split-projection cache shape is invalid")
+				return activationProjectionResult{}, errors.New("split-projection cache shape is invalid")
 			}
 			queryStart = uint32(pastTokens)
 			cacheKey = builder.Concat(pastKey, key, cacheAxis)
@@ -627,7 +627,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		pastTokens, _, keyOK := tensor.TrailingExtent(pastKey.Shape, keyLength, kvHeadCount)
 		valueTokens, _, valueOK := tensor.TrailingExtent(pastValue.Shape, valueLength, kvHeadCount)
 		if !keyOK || !valueOK || pastTokens != valueTokens || pastTokens < tokens || pastTokens > math.MaxUint32 {
-			return ActivationProjectionResult{}, errors.New("split-projection shared-KV source shape is invalid")
+			return activationProjectionResult{}, errors.New("split-projection shared-KV source shape is invalid")
 		}
 		queryStart = uint32(pastTokens - tokens)
 	}
@@ -645,7 +645,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 	attention = builder.WeightedRMSNorm(attention, weights.AttentionPostNorm, spec.RMSNormEpsilon)
 	residual := builder.Scale(builder.Add(builder.Add(input, attention), laurel), spec.Profile().Runtime.ActivationResidualScale)
 	feedForwardInput := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
-	result := ActivationProjectionResult{
+	result := activationProjectionResult{
 		Residual: residual,
 		Gate:     builder.MulMat(weights.FeedForwardGate, feedForwardInput),
 		Up:       builder.MulMat(weights.FeedForwardUp, feedForwardInput),
@@ -653,7 +653,7 @@ func (p CompiledLayerProgram) BuildActivationProjection(
 		Value:    cacheValue,
 	}
 	if err := builder.Err(); err != nil {
-		return ActivationProjectionResult{}, err
+		return activationProjectionResult{}, err
 	}
 	return result, nil
 }
@@ -687,7 +687,7 @@ func (p ModelPlan) BuildPerLayerInputs(
 		return nil, errors.New("mapped per-layer input is incomplete")
 	}
 	tokens, inputOK := tensor.MatrixRows(input.Shape, uint64(spec.EmbeddingLength))
-	if !p.profile.Has(ArchitecturePerLayerEmbeddings) || !inputOK {
+	if !p.profile.Has(architecturePerLayerEmbeddings) || !inputOK {
 		return nil, errors.New("mapped per-layer input configuration is invalid")
 	}
 	width := uint64(spec.EmbeddingPerLayer)
@@ -757,7 +757,7 @@ func buildGatedProjectionMixCached(
 	sequences uint64,
 	pastKey, pastValue *tensor.Tensor,
 	cacheWrite tensor.CacheWriteMode,
-	rotary RotaryPlan,
+	rotary rotaryPlan,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil {
 		return DenseBlockResult{}, errors.New("gated-delta attention mix input is nil")
@@ -1031,8 +1031,8 @@ func buildRoutedSwiGLUFeedForwardMix(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	weights LayerGraphWeights,
-	experts MoEGraphPlan,
-	composition ExpertCompositionPlan,
+	experts moEGraphPlan,
+	composition expertCompositionPlan,
 ) (*tensor.Tensor, error) {
 	required := graphWeights{}
 	addGatedDeltaFeedForwardRequirements(&required, composition, weights)
@@ -1064,7 +1064,7 @@ func buildRoutedSwiGLUFeedForwardMix(
 
 func addGatedDeltaFeedForwardRequirements(
 	required *graphWeights,
-	composition ExpertCompositionPlan,
+	composition expertCompositionPlan,
 	weights LayerGraphWeights,
 ) {
 	if composition.kind == expertSharedGated {

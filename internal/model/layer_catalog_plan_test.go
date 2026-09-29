@@ -14,7 +14,7 @@ func TestLayerCatalogPlanCompilesRotaryLookupAndSelection(t *testing.T) {
 			OriginalContextLength: 4096,
 		},
 	}
-	profile := ArchitectureProfile{Capabilities: ArchitectureLongRoPE}
+	profile := ArchitectureProfile{Capabilities: architectureLongRoPE}
 	plan := spec.rotaryCatalogPlan(profile, LayerPlan{Layer: 2})
 	if plan.factor != "blk.2.rope_freqs.weight" ||
 		plan.long != "blk.2.rope_factors_long.weight" || plan.longFallback != "blk.0.rope_factors_long.weight" ||
@@ -41,7 +41,7 @@ func TestLayerCatalogPlanCompilesRotaryLookupAndSelection(t *testing.T) {
 
 func TestLayerCatalogPlanCompilesSharedFactorFallback(t *testing.T) {
 	plan := (Spec{AttentionSpec: AttentionSpec{KeyLength: 32}}).rotaryCatalogPlan(
-		ArchitectureProfile{LayerTopology: LayerTopologySharedKVAdapter},
+		ArchitectureProfile{LayerTopology: layerTopologySharedKVAdapter},
 		LayerPlan{Layer: 3},
 	)
 	if plan.factor != "blk.3.rope_freqs.weight" || plan.factorFallback != "rope_freqs.weight" {

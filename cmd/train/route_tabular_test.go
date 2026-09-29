@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,6 +17,10 @@ import (
 	"overgo/internal/trainingworkflow"
 )
 
+// tableObjectiveAlias names the table-prediction objective each test
+// registers in its own store.
+const tableObjectiveAlias = "objective.registered.tables"
+
 // TestTabularObjectiveApprovesOnLabelAccuracyGain walks a registered
 // dataset of TabFM requests through a table-prediction objective: its
 // examples come through the training data path keyed by record, with each
@@ -24,14 +29,51 @@ import (
 // held-out label accuracy.
 func TestTabularObjectiveApprovesOnLabelAccuracyGain(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
-	const tables = 12
-	corpus := t.TempDir()
-	for table := range tables {
-		request := tabularicl.Request{
-			Task: "classification", Rows: 4, Cols: 1, TrainRows: 2,
+	var tables []tabularicl.Request
+	for table := range 12 {
+		tables = append(tables, tabularicl.Request{
+			Task: tabularicl.TaskClassification, Rows: 4, Cols: 1, TrainRows: 2,
 			X: []float32{float32(table), 1, 2, 3}, Y: []float32{0, 1, float32(table % 2), 1},
-		}
+		})
+	}
+	// A head that has not learned answers each query row with the other
+	// class, matching none; the trained head matches all.
+	approveTableObjective(t, trainingprogram.MetricTableAccuracy, tables, func(class float32) float32 { return 1 - class }, 0, 1)
+}
+
+// TestTrainTabularRegressionObjective walks a registered dataset of TabFM
+// regression requests through a table-prediction objective judged by the
+// query rows' mean squared error: the objective's metric names the regression
+// head, each held-out request's query-row values are the target, and a head
+// that closes the error climbs the objective from declared to approved on
+// its held-out verdict.
+func TestTrainTabularRegressionObjective(t *testing.T) {
+	t.Parallel()
+	var tables []tabularicl.Request
+	for table := range 12 {
+		tables = append(tables, tabularicl.Request{
+			Task: tabularicl.TaskRegression, Rows: 4, Cols: 1, TrainRows: 2,
+			X: []float32{float32(table), 1, 2, 3}, Y: []float32{0.5, 1.5, float32(table) / 4, 2},
+		})
+	}
+	// A head that has not learned answers each query row two units high, a
+	// squared error of 4 where the absolute error would be 2; the trained
+	// head answers exactly.
+	approveTableObjective(t, trainingprogram.MetricTableMSE, tables, func(value float32) float32 { return value + 2 }, 4, 0)
+}
+
+// approveTableObjective registers the tables as a dataset, splits it, and
+// registers a table-prediction objective judged by metric over its training
+// membership; it reads the objective's requests for the head the metric
+// names, trains through a held-out run that publishes a real checkpoint, and
+// holds the verdict to measuring metric as base and trained, and the
+// objective to climbing from declared to approved on it. Before training the
+// head answers each query row's target through untrained, after it exactly.
+func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric, tables []tabularicl.Request, untrained func(float32) float32, base, trained float64) {
+	t.Helper()
+	ctx := t.Context()
+	corpus := t.TempDir()
+	for table, request := range tables {
 		data, err := json.Marshal(request)
 		if err != nil {
 			t.Fatal(err)
@@ -51,7 +93,7 @@ func TestTabularObjectiveApprovesOnLabelAccuracyGain(t *testing.T) {
 		t.Fatal(err)
 	}
 	var records []dataset.Record
-	for index := range uint64(tables) {
+	for index := range uint64(len(tables)) {
 		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
 		records = append(records, dataset.Record{ID: id, Group: id})
 	}
@@ -72,51 +114,71 @@ func TestTabularObjectiveApprovesOnLabelAccuracyGain(t *testing.T) {
 			training = membership.ID
 		}
 	}
-	objective, modelPath := registerTableObjective(t, ctx, store, root, registered.Dataset, training)
-	const alias = "objective.registered.tables"
+	objective, modelPath := registerTableObjective(t, ctx, store, root, registered.Dataset, training, metric)
 
-	requests, examples, stream, err := objectiveRequests(ctx, store, objective, "classification")
+	task := tableObjectiveTasks[metric]
+	if task != tables[0].Task {
+		t.Fatalf("metric %q trains the %q head, want %q", metric, task, tables[0].Task)
+	}
+	requests, examples, stream, err := objectiveRequests(ctx, store, objective, task)
 	if err != nil || !stream.Valid() {
 		t.Fatalf("objective requests = (training stream %s, %v), want the training membership's stream", stream, err)
 	}
-	if len(requests) != tables || len(examples) != tables {
-		t.Fatalf("read %d requests and %d examples, want all %d tables", len(requests), len(examples), tables)
+	if len(requests) != len(tables) || len(examples) != len(tables) {
+		t.Fatalf("read %d requests and %d examples, want all %d tables", len(requests), len(examples), len(tables))
 	}
 	learned := false
 	result, err := trainingworkflow.RunHeldout(ctx, store, trainingworkflow.HeldoutRun{
-		Alias: alias, ModelPath: modelPath, Examples: examples, Host: true,
+		Alias: tableObjectiveAlias, ModelPath: modelPath, Examples: examples, Host: true,
 		Train: func(ctx context.Context, recipeID artifact.ID, _ []trainingworkflow.HeldoutExample) error {
 			learned = true
 			return publishUnderObjective(t, ctx, store, recipeID, trainingprogram.ObjectiveTablePrediction, stream)
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
 			request := requests[example.Record]
-			classes := make([]float64, 0, request.Rows-request.TrainRows)
-			for _, class := range request.Y[request.TrainRows:] {
+			values := make([]float64, 0, request.Rows-request.TrainRows)
+			for _, target := range request.Y[request.TrainRows:] {
 				if !learned {
-					class = 1 - class
+					target = untrained(target)
 				}
-				classes = append(classes, float64(class))
+				values = append(values, float64(target))
 			}
-			return trainingworkflow.HeldoutPrediction{Values: classes}, nil
+			return trainingworkflow.HeldoutPrediction{Values: values}, nil
 		},
 	})
 	if err != nil || !result.Passed {
 		t.Fatalf("held-out run = (passed=%t, %v), want a passed verdict", result.Passed, err)
 	}
-	if _, err := trainingworkflow.PromoteObjectiveAdaptive(ctx, store, alias, []artifact.ID{result.Observation}); err != nil {
+	var verdict struct {
+		Metric         trainingprogram.EvaluationMetric `json:"metric"`
+		BaselineValue  float64                          `json:"baseline_value"`
+		CandidateValue float64                          `json:"candidate_value"`
+	}
+	_, content, found, err := store.OpenContent(ctx, result.Verdict)
+	if err != nil || !found {
+		t.Fatalf("verdict %s content = (found %t, %v)", result.Verdict, found, err)
+	}
+	data, err := io.ReadAll(content)
+	if err != nil {
 		t.Fatal(err)
 	}
-	approved, err := trainingworkflow.PromoteObjectiveApproved(ctx, store, alias, []artifact.ID{result.Verdict})
+	if err := json.Unmarshal(data, &verdict); err != nil || verdict.Metric != metric || verdict.BaselineValue != base || verdict.CandidateValue != trained {
+		t.Fatalf("verdict = %+v (%v), want %s from %g to %g", verdict, err, metric, base, trained)
+	}
+	if _, err := trainingworkflow.PromoteObjectiveAdaptive(ctx, store, tableObjectiveAlias, []artifact.ID{result.Observation}); err != nil {
+		t.Fatal(err)
+	}
+	approved, err := trainingworkflow.PromoteObjectiveApproved(ctx, store, tableObjectiveAlias, []artifact.ID{result.Verdict})
 	if err != nil || approved.Authority != trainingprogram.ObjectiveApproved {
 		t.Fatalf("approval = (%q, %v), want approved on the held-out verdict", approved.Authority, err)
 	}
 }
 
-// registerTableObjective registers a table-prediction objective over the
-// dataset's training membership, with stand-in descriptors for the contract
-// and bootstrap identities it names, and writes a head file to record.
-func registerTableObjective(t *testing.T, ctx context.Context, store *overgodb.Store, root string, source, training artifact.ID) (trainingprogram.ObjectiveDocument, string) {
+// registerTableObjective registers a table-prediction objective judged by
+// metric over the dataset's training membership, with stand-in descriptors
+// for the contract and bootstrap identities it names, and writes a head file
+// to record.
+func registerTableObjective(t *testing.T, ctx context.Context, store *overgodb.Store, root string, source, training artifact.ID, metric trainingprogram.EvaluationMetric) (trainingprogram.ObjectiveDocument, string) {
 	t.Helper()
 	var referenced []artifact.ID
 	stand := func(kind artifact.Kind, name string) artifact.ID {
@@ -131,7 +193,7 @@ func registerTableObjective(t *testing.T, ctx context.Context, store *overgodb.S
 		Name: "tables", Kind: trainingprogram.ObjectiveTablePrediction, Signature: tableSignature,
 		Dataset: source, Split: training, Processors: []artifact.ID{stand(artifact.KindProfile, "overgo/tabular-test/processor")},
 		Loss: stand(artifact.KindProfile, "overgo/tabular-test/loss"), Evaluation: stand(artifact.KindProfile, "overgo/tabular-test/evaluation"),
-		Metric: trainingprogram.MetricTableAccuracy, Evidence: []artifact.ID{stand(artifact.KindEvidence, "overgo/tabular-test/note")},
+		Metric: metric, Evidence: []artifact.ID{stand(artifact.KindEvidence, "overgo/tabular-test/note")},
 		Authority: trainingprogram.ObjectiveDeclared,
 	})
 	if err != nil {
@@ -146,7 +208,7 @@ func registerTableObjective(t *testing.T, ctx context.Context, store *overgodb.S
 	}
 	batch := artifact.Batch{
 		Key: "test-objective", Contents: []artifact.Content{content},
-		Aliases: []artifact.AliasBinding{{Name: "objective.registered.tables", Target: objective.ID}},
+		Aliases: []artifact.AliasBinding{{Name: tableObjectiveAlias, Target: objective.ID}},
 	}
 	for _, id := range referenced {
 		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id})

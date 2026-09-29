@@ -101,8 +101,7 @@ func (stream *transcriptionHTTPStream) process(ctx context.Context, chunk workfl
 // not the OpenAI multipart wire format. Each subsequent line names an already
 // stored waveform chunk; SSE output carries durable resume authority per event.
 func (h *Handler) nativeStreamingTranscriptions(response http.ResponseWriter, request *http.Request) {
-	workspace, ok := h.generator.(WorkflowWorkspaceAPI)
-	if !ok || h.repository == nil {
+	if h.config.Workflows == nil || h.repository == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "transcription workspace is unavailable")
 		return
 	}
@@ -123,7 +122,7 @@ func (h *Handler) nativeStreamingTranscriptions(response http.ResponseWriter, re
 		writeInvalidRequest(response, err)
 		return
 	}
-	capabilities, err := workspace.WorkflowCapabilities(request.Context(), workflowGeneration)
+	capabilities, err := h.config.Workflows.WorkflowCapabilities(request.Context(), workflowGeneration)
 	if err != nil {
 		writeGenerationError(response, err)
 		return

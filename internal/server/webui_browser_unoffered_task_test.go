@@ -59,7 +59,7 @@ func TestWebUIBrowserUnofferedTask(t *testing.T) {
 	generator := &unofferedGenerator{generationWorkspaceGenerator: &generationWorkspaceGenerator{
 		fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "unoffered"), capability: image,
 	}, embedding: embedding}
-	handler, err := New(Config{Repository: store}, generator)
+	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
 	if err != nil {
 		t.Fatal(err)
 	}

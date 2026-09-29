@@ -110,6 +110,9 @@ const (
 	MetricVideoPSNRUnit   EvaluationMetric = "video-psnr-unit"
 	MetricForecastMAE     EvaluationMetric = "forecast-mae"
 	MetricTableAccuracy   EvaluationMetric = "table-accuracy"
+	// MetricTableMSE is a regression head's mean squared error over its
+	// query rows; lower is better.
+	MetricTableMSE EvaluationMetric = "table-mse"
 )
 
 type ObjectiveSpec struct {
@@ -512,7 +515,7 @@ func metricValidForModality(modality recipecontract.Modality, metric EvaluationM
 	case recipecontract.ModalityTimeSeries:
 		return metric == MetricForecastMAE
 	case recipecontract.ModalityTable:
-		return metric == MetricTableAccuracy
+		return metric == MetricTableAccuracy || metric == MetricTableMSE
 	default:
 		return false
 	}

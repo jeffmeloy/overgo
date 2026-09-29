@@ -19,7 +19,7 @@ import (
 
 const (
 	gemma3nVisionProjectorType = "gemma3nv"
-	Gemma3nImagePad            = "<image_soft_token>"
+	gemma3nImagePad            = "<image_soft_token>"
 )
 
 type gemma3nVisionBlockKind uint8
@@ -36,7 +36,7 @@ type gemma3nVisionBlock struct {
 	Names        map[string]string
 }
 
-type Gemma3nVisionSpec struct {
+type gemma3nVisionSpec struct {
 	ImageSize    int
 	PatchSize    int
 	VisionHidden int
@@ -49,17 +49,17 @@ type Gemma3nVisionSpec struct {
 	TensorNames  []string
 }
 
-type Gemma3nVisionRunner struct {
+type gemma3nVisionRunner struct {
 	projectorResources
-	spec Gemma3nVisionSpec
+	spec gemma3nVisionSpec
 }
 
-func openGemma3nVision(ctx context.Context, file *gguf.File, options OpenOptions) (*Gemma3nVisionRunner, error) {
-	spec, err := ReadGemma3nVisionSpec(file)
+func openGemma3nVision(ctx context.Context, file *gguf.File, options OpenOptions) (*gemma3nVisionRunner, error) {
+	spec, err := readGemma3nVisionSpec(file)
 	if err != nil {
 		return nil, err
 	}
-	runner := &Gemma3nVisionRunner{projectorResources: projectorResources{file: file}, spec: spec}
+	runner := &gemma3nVisionRunner{projectorResources: projectorResources{file: file}, spec: spec}
 	if err := runner.validateGraph(); err != nil {
 		return nil, err
 	}
@@ -72,47 +72,47 @@ func openGemma3nVision(ctx context.Context, file *gguf.File, options OpenOptions
 	return runner, nil
 }
 
-func (r *Gemma3nVisionRunner) Spec() Gemma3nVisionSpec {
+func (r *gemma3nVisionRunner) Spec() gemma3nVisionSpec {
 	if r == nil {
-		return Gemma3nVisionSpec{}
+		return gemma3nVisionSpec{}
 	}
 	return r.spec
 }
 
-func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
+func readGemma3nVisionSpec(file *gguf.File) (gemma3nVisionSpec, error) {
 	if err := validateVisionProjector(file, visionProjectorTypeKey, gemma3nVisionProjectorType); err != nil {
-		return Gemma3nVisionSpec{}, err
+		return gemma3nVisionSpec{}, err
 	}
-	spec := Gemma3nVisionSpec{}
+	spec := gemma3nVisionSpec{}
 	if err := readMetadataIntFields(file,
 		metadataIntField{visionImageSizeKey, &spec.ImageSize},
 		metadataIntField{visionPatchSizeKey, &spec.PatchSize},
 		metadataIntField{visionHiddenKey, &spec.VisionHidden},
 		metadataIntField{visionProjectionKey, &spec.OutputHidden},
 	); err != nil {
-		return Gemma3nVisionSpec{}, err
+		return gemma3nVisionSpec{}, err
 	}
 	mean, err := metadataFloat32Array(file, visionImageMeanKey, media.RGBChannels)
 	if err != nil {
-		return Gemma3nVisionSpec{}, err
+		return gemma3nVisionSpec{}, err
 	}
 	std, err := metadataFloat32Array(file, visionImageStandardKey, media.RGBChannels)
 	if err != nil {
-		return Gemma3nVisionSpec{}, err
+		return gemma3nVisionSpec{}, err
 	}
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
 	if err := readProjectionNorm(file, &spec.NormEpsilon); err != nil {
-		return Gemma3nVisionSpec{}, err
+		return gemma3nVisionSpec{}, err
 	}
 	if spec.ImageSize <= 0 || spec.PatchSize <= 0 ||
 		(spec.ImageSize/spec.PatchSize)*spec.PatchSize != spec.ImageSize ||
 		spec.VisionHidden <= 0 || spec.OutputHidden <= 0 || spec.NormEpsilon <= 0 {
-		return Gemma3nVisionSpec{}, fmt.Errorf("projector: invalid Gemma 3n vision metadata: %+v", spec)
+		return gemma3nVisionSpec{}, fmt.Errorf("projector: invalid Gemma 3n vision metadata: %+v", spec)
 	}
 	for channel := range spec.ImageStd {
 		if !checked.PositiveFinite32(spec.ImageStd[channel]) || !checked.Finite32(spec.ImageMean[channel]) {
-			return Gemma3nVisionSpec{}, fmt.Errorf("projector: invalid Gemma 3n normalization channel %d", channel)
+			return gemma3nVisionSpec{}, fmt.Errorf("projector: invalid Gemma 3n normalization channel %d", channel)
 		}
 	}
 	required := []string{
@@ -174,7 +174,7 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 			for _, suffix := range suffixes {
 				name := prefix + suffix
 				if !hasTensor(file, name) {
-					return Gemma3nVisionSpec{}, fmt.Errorf("projector: missing tensor %q", name)
+					return gemma3nVisionSpec{}, fmt.Errorf("projector: missing tensor %q", name)
 				}
 				block.Names[suffix] = name
 				required = append(required, name)
@@ -188,7 +188,7 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 		spec.StageEnds = append(spec.StageEnds, len(spec.Blocks)-tensor.SingletonExtent)
 	}
 	if len(spec.Blocks) == tensor.FirstOffset {
-		return Gemma3nVisionSpec{}, errors.New("projector: Gemma 3n MobileNetV5 has no blocks")
+		return gemma3nVisionSpec{}, errors.New("projector: Gemma 3n MobileNetV5 has no blocks")
 	}
 	slices.Sort(required)
 	spec.TensorNames = slices.Compact(required)
@@ -197,13 +197,13 @@ func ReadGemma3nVisionSpec(file *gguf.File) (Gemma3nVisionSpec, error) {
 		if !ok || tensorcatalog.ValidateInfo(info, tensorcatalog.Requirement{
 			Ranks: []uint32{tensor.SingletonExtent, tensor.PairedExtent, tensor.TripleExtent, tensor.MaxDimensions},
 		}) != nil {
-			return Gemma3nVisionSpec{}, fmt.Errorf("projector: tensor %q is unavailable or invalid", name)
+			return gemma3nVisionSpec{}, fmt.Errorf("projector: tensor %q is unavailable or invalid", name)
 		}
 	}
 	return spec, nil
 }
 
-func PreprocessGemma3nVisionImage(source image.Image, spec Gemma3nVisionSpec) ([]float32, error) {
+func preprocessGemma3nVisionImage(source image.Image, spec gemma3nVisionSpec) ([]float32, error) {
 	if _, err := imageBounds(source); err != nil {
 		return nil, err
 	}
@@ -221,11 +221,11 @@ func PreprocessGemma3nVisionImage(source image.Image, spec Gemma3nVisionSpec) ([
 	return pixels, nil
 }
 
-func (r *Gemma3nVisionRunner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
+func (r *gemma3nVisionRunner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
 	if r == nil || r.file == nil {
 		return reference.Value{}, errRunnerClosed
 	}
-	pixels, err := PreprocessGemma3nVisionImage(source, r.spec)
+	pixels, err := preprocessGemma3nVisionImage(source, r.spec)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -241,7 +241,7 @@ func (r *Gemma3nVisionRunner) EncodeImage(ctx context.Context, source image.Imag
 	return results[output], nil
 }
 
-func (r *Gemma3nVisionRunner) validateGraph() error {
+func (r *gemma3nVisionRunner) validateGraph() error {
 	builder := tensor.NewBuilder()
 	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(media.RGBChannels, uint64(r.spec.ImageSize), uint64(r.spec.ImageSize)))
 	weight := func(name string) *tensor.Tensor {
@@ -258,7 +258,7 @@ func (r *Gemma3nVisionRunner) validateGraph() error {
 	return nil
 }
 
-func (r *Gemma3nVisionRunner) buildGraph(
+func (r *gemma3nVisionRunner) buildGraph(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	weight func(string) *tensor.Tensor,
@@ -384,7 +384,7 @@ func (r *Gemma3nVisionRunner) buildGraph(
 	return builder.RMSNorm(cur, r.spec.NormEpsilon)
 }
 
-func (r *Gemma3nVisionRunner) buildAttentionGraph(
+func (r *gemma3nVisionRunner) buildAttentionGraph(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	block gemma3nVisionBlock,
@@ -433,10 +433,10 @@ func (r *Gemma3nVisionRunner) buildAttentionGraph(
 	return attention
 }
 
-func compileGemma3nVisionImagePrompt(r *Gemma3nVisionRunner) compiledImagePromptProgram {
+func compileGemma3nVisionImagePrompt(r *gemma3nVisionRunner) compiledImagePromptProgram {
 	compile := func(history bool) imagePromptPlan {
 		return delimitedImagePromptPlan(
-			"Gemma 3n", Gemma3nImagePad, "Gemma 3n image placeholder", history, r.spec.OutputHidden,
+			"Gemma 3n", gemma3nImagePad, "Gemma 3n image placeholder", history, r.spec.OutputHidden,
 			"<start_of_image>", "<end_of_image>",
 		)
 	}

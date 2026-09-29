@@ -58,8 +58,8 @@ func readSpec(file *gguf.File, resolved *ArchitectureProfile) (Spec, error) {
 		return Spec{}, err
 	}
 	architecture, profile := metadata.architecture, metadata.profile
-	spec := Spec{CommonSpec: CommonSpec{Architecture: architecture}, AttentionSpec: AttentionSpec{NonCausalAttention: profile.Has(ArchitectureNonCausal),
-		RopeDisabled: profile.Has(ArchitectureRoPEDisabled)}, profile: &profile,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: architecture}, AttentionSpec: AttentionSpec{NonCausalAttention: profile.Has(architectureNonCausal),
+		RopeDisabled: profile.Has(architectureRoPEDisabled)}, profile: &profile,
 	}
 	state, err := metadata.readBase(&spec)
 	if err != nil {
@@ -98,7 +98,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 	if err != nil {
 		return Spec{}, err
 	}
-	if validation.Attention == AttentionValidationOptionalExperts {
+	if validation.Attention == attentionValidationOptionalExperts {
 		spec.ExpertCount, _ = optional[uint32](
 			values, prefix+"expert_count", gguf.ValueTypeUint32,
 		)
@@ -116,9 +116,9 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		}
 	}
 	if validation.hybridOneOf(
-		HybridValidationScaledDense, HybridValidationScaledExperts, HybridValidationScaledStateSpace,
+		hybridValidationScaledDense, hybridValidationScaledExperts, hybridValidationScaledStateSpace,
 	) {
-		if validation.Hybrid == HybridValidationScaledStateSpace {
+		if validation.Hybrid == hybridValidationScaledStateSpace {
 			spec.LogitScale, _ = optional[float32](values, prefix+"logit_scale", gguf.ValueTypeFloat32)
 		} else if spec.LogitScale, err = required[float32](
 			values, prefix+"logit_scale", gguf.ValueTypeFloat32,
@@ -160,7 +160,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 		); mappingErr != nil {
 			return Spec{}, mappingErr
 		} else if ok && len(mapping) > tensor.FirstOffset {
-			if validation.Hybrid != HybridValidationScaledDense {
+			if validation.Hybrid != hybridValidationScaledDense {
 				return Spec{}, errors.New("Granite deepstack mapping requires granite architecture")
 			}
 			if len(mapping) != int(spec.BlockCount) {
@@ -184,7 +184,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.DeepstackMapping = slices.Clone(mapping)
 		}
 	}
-	if validation.Hybrid == HybridValidationCompressedHyperDraft {
+	if validation.Hybrid == hybridValidationCompressedHyperDraft {
 		if spec.LayerSwiGLUClamp, err = optionalLayerFloat32(
 			values, prefix+"swiglu_clamp_exp", declaredBlockCount,
 		); err != nil {
@@ -196,7 +196,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			return Spec{}, err
 		}
 	}
-	if validation.MLA == MLAValidationOptionalExpertsLatent {
+	if validation.MLA == mlaValidationOptionalExpertsLatent {
 		spec.OriginalContextLength = optionalOr(
 			values, prefix+"rope.scaling.original_context_length", gguf.ValueTypeUint32, spec.ContextLength,
 		)
@@ -237,7 +237,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			}
 		}
 	}
-	if validation.Recurrent == RecurrentValidationGroupedStateSpaceOptionalExperts {
+	if validation.Recurrent == recurrentValidationGroupedStateSpaceOptionalExperts {
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
 		if spec.HasExperts() {
 			if spec.ExpertUsedCount, err = required[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32); err != nil {
@@ -249,7 +249,7 @@ func (m specMetadata) readArchitectureCore(spec Spec, state specReadState) (Spec
 			spec.SharedExpertFF, _ = optional[uint32](values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32)
 		}
 	}
-	if validation.Recurrent == RecurrentValidationScheduledStateSpaceExperts {
+	if validation.Recurrent == recurrentValidationScheduledStateSpaceExperts {
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
 			metadataDestination("expert_count", &spec.ExpertCount),
@@ -274,7 +274,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 	values, prefix, profile := m.values, m.prefix, m.profile
 	validation := profile.Validation
 	var err error
-	if validation.ExpertMetadata == ExpertMetadataRequired || state.declaredExperts {
+	if validation.ExpertMetadata == expertMetadataRequired || state.declaredExperts {
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
 			metadataDestination("expert_count", &spec.ExpertCount),
@@ -292,17 +292,17 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		} else if spec.ExpertFeedForward, err = derivedExpertFeedForward(spec); err != nil {
 			return Spec{}, err
 		}
-		if validation.Hybrid == HybridValidationRoutedExperts {
+		if validation.Hybrid == hybridValidationRoutedExperts {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 		}
-		if validation.Encoder == EncoderValidationRotaryPeriodicExperts {
+		if validation.Encoder == encoderValidationRotaryPeriodicExperts {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 		}
-		if validation.Recurrent == RecurrentValidationStateSpaceAttentionExperts {
+		if validation.Recurrent == recurrentValidationStateSpaceAttentionExperts {
 			spec.ExpertFeedForward = spec.FeedForwardLength
 			spec.ExpertWeightsNorm = false
 		}
-		if validation.MLA == MLAValidationHybridLinearAttention {
+		if validation.MLA == mlaValidationHybridLinearAttention {
 			if spec.ExpertFeedForward, err = required[uint32](
 				values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 			); err != nil {
@@ -318,7 +318,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			}
 			spec.ExpertWeightsNorm = true
 		}
-		if validation.Hybrid == HybridValidationChunkedExperts {
+		if validation.Hybrid == hybridValidationChunkedExperts {
 			if err = readRequiredMetadataFields(
 				values, prefix, gguf.ValueTypeUint32,
 				metadataDestination("expert_feed_forward_length", &spec.ExpertFeedForward),
@@ -332,18 +332,18 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		spec.ExpertWeightsScale = optionalOr(
 			values, prefix+"expert_weights_scale", gguf.ValueTypeFloat32, tensor.UnitScale,
 		)
-		if validation.Hybrid == HybridValidationSelectedSoftmaxExperts {
+		if validation.Hybrid == hybridValidationSelectedSoftmaxExperts {
 			spec.ExpertGatingFunc = expertGatingSelectedSoftmax
 			spec.ExpertWeightsNorm = false
 		}
-		if validation.hybridOneOf(HybridValidationAlternatingGatedDelta, HybridValidationAlternatingGatedDeltaExperts) {
+		if validation.hybridOneOf(hybridValidationAlternatingGatedDelta, hybridValidationAlternatingGatedDeltaExperts) {
 			if spec.SharedExpertFF, err = profile.MetadataDefaults.readSharedExpertFeedForward(values, prefix, spec); err != nil {
 				return Spec{}, err
 			}
 		}
 	}
-	if profile.Has(ArchitectureLatentKVLayout) {
-		if validation.MLA == MLAValidationSparseLatentIndexer {
+	if profile.Has(architectureLatentKVLayout) {
+		if validation.MLA == mlaValidationSparseLatentIndexer {
 			if spec.ExpertCount, err = required[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
 			}
@@ -369,10 +369,10 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 		case expertRouteSelectedSoftmax:
 			spec.ExpertGatingFunc = expertGatingSelectedSoftmax
 		}
-		if profile.readsMetadata(MetadataReadGLMDSAGating) {
+		if profile.readsMetadata(metadataReadGLMDSAGating) {
 			spec.ExpertGatingFunc = expertGatingSigmoid
 		}
-		if validation.MLA == MLAValidationSparseLatentIndexer {
+		if validation.MLA == mlaValidationSparseLatentIndexer {
 			if spec.ExpertGatingFunc, err = required[uint32](values, prefix+"expert_gating_func", gguf.ValueTypeUint32); err != nil {
 				return Spec{}, err
 			}
@@ -383,7 +383,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 	if spec, err = m.runMetadataProgram(spec, state, compileExpertProgram(profile)); err != nil {
 		return Spec{}, err
 	}
-	if validation.Attention == AttentionValidationPerLayerDualRotaryAttention {
+	if validation.Attention == attentionValidationPerLayerDualRotaryAttention {
 		if count, ok := optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32); ok && count > tensor.FirstOffset {
 			spec.ExpertCount = count
 			if err = readRequiredMetadataFields(
@@ -397,7 +397,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsNorm = true
 		}
 	}
-	if validation.Attention == AttentionValidationOptionalRopeSectionsExperts {
+	if validation.Attention == attentionValidationOptionalRopeSectionsExperts {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 		if spec.SharedExpertCount, err = required[uint32](values, prefix+"expert_shared_count", gguf.ValueTypeUint32); err != nil {
 			return Spec{}, err
@@ -413,7 +413,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsNorm = value
 		}
 	}
-	if validation.Hybrid == HybridValidationSparseSharedExperts {
+	if validation.Hybrid == hybridValidationSparseSharedExperts {
 		spec.ExpertChunkFeedForward = profile.MetadataDefaults.uint(
 			values, prefix, "expert_chunk_feed_forward_length", spec.KeyLength,
 		)
@@ -424,7 +424,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, err
 		}
 	}
-	if validation.Attention == AttentionValidationRequiredSlidingRotaryExperts {
+	if validation.Attention == attentionValidationRequiredSlidingRotaryExperts {
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
 			metadataDestination("leading_dense_block_count", &spec.LeadingDenseBlocks),
@@ -447,7 +447,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			}
 		}
 	}
-	if validation.Hybrid == HybridValidationFullRotaryVision {
+	if validation.Hybrid == hybridValidationFullRotaryVision {
 		spec.LeadingDenseBlocks, _ = optional[uint32](values, prefix+"leading_dense_block_count", gguf.ValueTypeUint32)
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
@@ -467,7 +467,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.ExpertWeightsNorm = value
 		}
 	}
-	if validation.Encoder == EncoderValidationRotaryOptionalExperts {
+	if validation.Encoder == encoderValidationRotaryOptionalExperts {
 		spec.ExpertCount, _ = optional[uint32](values, prefix+"expert_count", gguf.ValueTypeUint32)
 		spec.ExpertUsedCount, _ = optional[uint32](values, prefix+"expert_used_count", gguf.ValueTypeUint32)
 		spec.MoELayerStep, _ = optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32)
@@ -478,20 +478,20 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			)
 		}
 	}
-	if validation.Encoder == EncoderValidationRotary {
+	if validation.Encoder == encoderValidationRotary {
 		if cadence, ok := optional[uint32](values, prefix+"moe_every_n_layers", gguf.ValueTypeUint32); ok && cadence > tensor.FirstOffset {
 			return Spec{}, errors.New("NomicBERT MoE cadence requires nomic-bert-moe architecture")
 		}
 	}
-	if validation.Hybrid == HybridValidationScaledExperts ||
-		validation.Hybrid == HybridValidationScaledDense && spec.HasExperts() {
+	if validation.Hybrid == hybridValidationScaledExperts ||
+		validation.Hybrid == hybridValidationScaledDense && spec.HasExperts() {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 		spec.ExpertWeightsNorm = true
 		spec.SharedExpertFF, _ = optional[uint32](
 			values, prefix+"expert_shared_feed_forward_length", gguf.ValueTypeUint32,
 		)
 	}
-	if validation.Hybrid == HybridValidationScaledSigmoidExperts {
+	if validation.Hybrid == hybridValidationScaledSigmoidExperts {
 		expertFeedForward, readErr := required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		)
@@ -511,10 +511,10 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			return Spec{}, err
 		}
 	}
-	if state.declaredExperts || validation.hybridOneOf(HybridValidationFullHeadExperts, HybridValidationBasicScaledExperts) {
+	if state.declaredExperts || validation.hybridOneOf(hybridValidationFullHeadExperts, hybridValidationBasicScaledExperts) {
 		spec.ExpertFeedForward = spec.FeedForwardLength
 	}
-	if validation.Hybrid == HybridValidationSlidingSigmoidExperts {
+	if validation.Hybrid == hybridValidationSlidingSigmoidExperts {
 		if spec.ExpertFeedForward, err = required[uint32](
 			values, prefix+"expert_feed_forward_length", gguf.ValueTypeUint32,
 		); err != nil {
@@ -538,7 +538,7 @@ func (m specMetadata) readExpertMetadata(spec Spec, state specReadState) (Spec, 
 			spec.SlidingWindow = value
 		}
 	}
-	if validation.Hybrid == HybridValidationPerLayerYaRNExperts {
+	if validation.Hybrid == hybridValidationPerLayerYaRNExperts {
 		if err = readRequiredMetadataFields(
 			values, prefix, gguf.ValueTypeUint32,
 			metadataDestination("expert_feed_forward_length", &spec.ExpertFeedForward),
@@ -655,7 +655,7 @@ func (s Spec) LayerValueLength(block uint32) uint32 {
 }
 
 func (s Spec) LayerHasKV(block uint32) bool {
-	return !s.Profile().Has(ArchitectureSharedKV) || block < s.BlockCount-s.SharedKVLayers
+	return !s.Profile().Has(architectureSharedKV) || block < s.BlockCount-s.SharedKVLayers
 }
 
 func (s Spec) LayerSharedKVSource(block uint32) uint32 {
@@ -686,17 +686,17 @@ func (s Spec) LayerSharedSwiGLUClampLimit(block uint32) float32 {
 
 func (s Spec) UsesRoPE(block uint32) bool {
 	usage := s.Profile().Rotary.Usage
-	if usage == RotaryUsageSlidingMetadata && len(s.SlidingLayers) == tensor.FirstOffset {
-		usage = RotaryUsageStandard
+	if usage == rotaryUsageSlidingMetadata && len(s.SlidingLayers) == tensor.FirstOffset {
+		usage = rotaryUsageStandard
 	}
 	switch usage {
-	case RotaryUsageSlidingMetadata, RotaryUsageDensePrefixOrSliding:
+	case rotaryUsageSlidingMetadata, rotaryUsageDensePrefixOrSliding:
 		return !s.RopeDisabled && block < s.BlockCount &&
-			(usage == RotaryUsageDensePrefixOrSliding && block < s.LeadingDenseBlocks || s.IsSlidingLayer(block))
-	case RotaryUsagePeriodicZeroBased:
+			(usage == rotaryUsageDensePrefixOrSliding && block < s.LeadingDenseBlocks || s.IsSlidingLayer(block))
+	case rotaryUsagePeriodicZeroBased:
 		return !s.RopeDisabled && block < s.BlockCount &&
 			(s.SlidingWindow == tensor.FirstOffset || s.NoRopeLayerStep == tensor.FirstOffset || block%s.NoRopeLayerStep != tensor.FirstOffset)
-	case RotaryUsageSlidingOnly:
+	case rotaryUsageSlidingOnly:
 		return s.IsSlidingLayer(block)
 	}
 	blockCount := s.BlockCount
@@ -717,11 +717,11 @@ func (s Spec) OutputLogitMultiplier() float32 {
 }
 
 func (s Spec) IsEncoderOnly() bool {
-	return s.Profile().Has(ArchitectureEncoderOnly)
+	return s.Profile().Has(architectureEncoderOnly)
 }
 
 func (s Spec) UsesLayerNorm() bool {
-	return s.NormPlan().Operation == NormalizationLayer
+	return s.NormPlan().Operation == normalizationLayer
 }
 
 func (s Spec) RequiresLayerNormBias() bool {
@@ -737,11 +737,11 @@ func (s Spec) UsesUnweightedRMSNorm() bool {
 }
 
 func (s Spec) UsesWeightOnlyLayerNorm() bool {
-	return s.NormPlan().Operation == NormalizationWeightOnlyLayer
+	return s.NormPlan().Operation == normalizationWeightOnlyLayer
 }
 
 // NormPlan: compiles normalization behavior from profile and metadata.
-func (s Spec) NormPlan() NormalizationPlan {
+func (s Spec) NormPlan() normalizationPlan {
 	profile := s.Profile()
 	return profile.Runtime.normalizationPlan(s, profile)
 }

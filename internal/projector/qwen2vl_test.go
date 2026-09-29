@@ -14,8 +14,8 @@ import (
 )
 
 func TestQwen2VLRunnerRejectsClosed(t *testing.T) {
-	var runner *Qwen2VLRunner
-	if _, err := runner.EncodeImage(t.Context(), nil, Qwen2VLPreprocessOptions{}); !errors.Is(err, errRunnerClosed) {
+	var runner *qwen2VLRunner
+	if _, err := runner.EncodeImage(t.Context(), nil, qwen2VLPreprocessOptions{}); !errors.Is(err, errRunnerClosed) {
 		t.Fatalf("closed runner error = %v", err)
 	}
 }
@@ -29,10 +29,10 @@ func (t *qwen2VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokeniz
 	ids := make([]tokenizer.TokenID, 0, len(text))
 	for len(text) > 0 {
 		switch {
-		case len(text) >= len(Qwen3VLImagePad) && text[:len(Qwen3VLImagePad)] == Qwen3VLImagePad:
-			ids, text = append(ids, 8), text[len(Qwen3VLImagePad):]
-		case len(text) >= len(Qwen3VLVideoPad) && text[:len(Qwen3VLVideoPad)] == Qwen3VLVideoPad:
-			ids, text = append(ids, 9), text[len(Qwen3VLVideoPad):]
+		case len(text) >= len(qwen3VLImagePad) && text[:len(qwen3VLImagePad)] == qwen3VLImagePad:
+			ids, text = append(ids, 8), text[len(qwen3VLImagePad):]
+		case len(text) >= len(qwen3VLVideoPad) && text[:len(qwen3VLVideoPad)] == qwen3VLVideoPad:
+			ids, text = append(ids, 9), text[len(qwen3VLVideoPad):]
 		default:
 			ids, text = append(ids, 1), text[1:]
 		}
@@ -42,7 +42,7 @@ func (t *qwen2VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokeniz
 
 func TestQwen2VLRunnerTinyFixture(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), tinyQwen2VLTensors())
-	runner, err := openImageProjectorAs[*Qwen2VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
+	runner, err := openImageProjectorAs[*qwen2VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestQwen2VLRunnerTinyFixture(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	output, err := runner.EncodeImage(t.Context(), input, Qwen2VLPreprocessOptions{
+	output, err := runner.EncodeImage(t.Context(), input, qwen2VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
@@ -81,7 +81,7 @@ func TestQwen2VLSpecOptionalNormPairs(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer opened.Close()
-	if _, err := ReadQwen2VLSpec(opened); err == nil {
+	if _, err := readQwen2VLSpec(opened); err == nil {
 		t.Fatal("expected incomplete optional pre-LayerNorm rejection")
 	}
 }
@@ -95,7 +95,7 @@ func TestQwen2VLMissingMergeMetadata(t *testing.T) {
 		}
 	}
 	path := testutil.TempGGUF(t, "mmproj.gguf", metadata, tinyQwen2VLTensors())
-	if _, err := openImageProjectorAs[*Qwen2VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{})); err == nil {
+	if _, err := openImageProjectorAs[*qwen2VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{})); err == nil {
 		t.Fatal("expected missing merge metadata rejection")
 	}
 }
@@ -118,7 +118,7 @@ func TestQwen2VLImageAndVideoPrompts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, ok := opened.(*Qwen2VLRunner)
+	runner, ok := opened.(*qwen2VLRunner)
 	if !ok {
 		t.Fatalf("projector type = %T", opened)
 	}
@@ -166,7 +166,7 @@ func TestSpatialPositionsGrid3D(t *testing.T) {
 func TestQwen2VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), nonzeroTinyQwen2VLTensors())
-	qwenImageVideoParityCase[*Qwen2VLRunner](t, "Qwen2-VL", path)
+	qwenImageVideoParityCase[*qwen2VLRunner](t, "Qwen2-VL", path)
 }
 
 func tinyQwen2VLMetadata() []gguf.Metadata {

@@ -11,7 +11,7 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *PaddleOCRRunner) encodeGraph(ctx context.Context, input RasterPatchImage) (gridOutput, error) {
+func (r *paddleOCRRunner) encodeGraph(ctx context.Context, input rasterPatchImage) (gridOutput, error) {
 	rows, patchWidth, err := validateSpatialPatchStorage(
 		len(input.PixelValues), input.GridH, input.GridW, r.spec.PatchSize, media.RGBChannels,
 	)

@@ -199,7 +199,7 @@ func TestGemma4VideoPromptBuildsFrameBlocks(t *testing.T) {
 		len(prompt.Embeddings) != 2*tokensPerFrame*prompt.EmbeddingWidth {
 		t.Fatalf("video projection size = indices %d embeddings %d width %d", len(prompt.EmbeddingTokenIndices), len(prompt.Embeddings), prompt.EmbeddingWidth)
 	}
-	text := Gemma4VideoPromptText("Describe.", 2, tokensPerFrame, 2)
+	text := gemma4VideoPromptText("Describe.", 2, tokensPerFrame, 2, gemma4ClosedThought)
 	if !strings.Contains(text, "00:00 <|image>") || strings.Count(text, "<|video|>") != 2*tokensPerFrame {
 		t.Fatalf("video prompt = %q", text)
 	}
@@ -219,7 +219,7 @@ func TestGemma4AudioTinyFixture(t *testing.T) {
 	if spec.SampleRate != fixtureAudioSampleRate || spec.SamplesPerToken != 3 || spec.Hidden != 2 {
 		t.Fatalf("audio spec = %+v", spec)
 	}
-	frames, rows, err := PreprocessGemma4Audio([]float32{1, 2, 3, 4}, spec)
+	frames, rows, err := preprocessGemma4Audio([]float32{1, 2, 3, 4}, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func TestGemma4AudioTinyFixture(t *testing.T) {
 }
 
 func TestPreprocessGemma4ImagePatchOrder(t *testing.T) {
-	spec := Gemma4Spec{
+	spec := gemma4Spec{
 		TeacherPatch: 1, PoolKernel: 2, ModelPatch: 2, PatchWidth: 12,
 		Hidden: 2, PositionCount: 8, MaxImageTokens: 4, MaxVideoTokens: 1,
 		LayerNormEpsilon: 1e-5, RMSNormEpsilon: 1e-6,
@@ -252,7 +252,7 @@ func TestPreprocessGemma4ImagePatchOrder(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(y*4 + x), G: 20, B: 40, A: fixtureOpaqueAlpha})
 		}
 	}
-	processed, err := PreprocessGemma4Image(input, spec)
+	processed, err := preprocessGemma4Image(input, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestPreprocessGemma4ImagePatchOrder(t *testing.T) {
 }
 
 func TestGemma4ResizeTargetMatchesPinnedDynamicResize(t *testing.T) {
-	spec := Gemma4Spec{
+	spec := gemma4Spec{
 		TeacherPatch: 16, PoolKernel: 3, ModelPatch: 48, PatchWidth: 48 * 48 * 3,
 		Hidden: 3840, PositionCount: 1120, MaxImageTokens: 280, MaxVideoTokens: 70,
 		LayerNormEpsilon: 1e-5, RMSNormEpsilon: 1e-6,
@@ -360,7 +360,7 @@ func TestGemma4RealFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	processed, err := PreprocessGemma4Image(input, runner.Spec())
+	processed, err := preprocessGemma4Image(input, runner.Spec())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -541,7 +541,7 @@ func TestGemma4RealAudioFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	frames, rows, err := PreprocessGemma4Audio(samples, spec)
+	frames, rows, err := preprocessGemma4Audio(samples, spec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -594,7 +594,7 @@ func TestGemma4RealAudioPromptTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := Gemma4AudioPromptText("What note do you hear? One word.", golden.NumAudioTokens)
+	text := gemma4AudioPromptText("What note do you hear? One word.", golden.NumAudioTokens, gemma4ClosedThought)
 	ids, err := vocab.Encode(text, tokenizer.EncodeOptions{ParseSpecial: true})
 	if err != nil {
 		t.Fatal(err)
@@ -648,7 +648,7 @@ func TestGemma4RealResizeFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	processed, err := PreprocessGemma4Image(input, runner.Spec())
+	processed, err := preprocessGemma4Image(input, runner.Spec())
 	if err != nil {
 		t.Fatal(err)
 	}

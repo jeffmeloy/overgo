@@ -63,7 +63,7 @@ func compileTokenShiftRecurrentBindings(
 		return bindings, nil
 	}
 	if mixer == recurrentMixerDynamicWKV7 {
-		channelMix := spec.Profile().Normalization == NormalizationLayer
+		channelMix := spec.Profile().Normalization == normalizationLayer
 		embedding := uint64(spec.EmbeddingLength)
 		valueRank := uint64(spec.ValueMixLoRARank)
 		if block == tensor.FirstOffset {

@@ -34,7 +34,7 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 		},
 	}}}
 	generator.secondRecipe = testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface-alternate")
-	handler, err := New(Config{Repository: store}, generator)
+	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
 	if err != nil {
 		t.Fatal(err)
 	}

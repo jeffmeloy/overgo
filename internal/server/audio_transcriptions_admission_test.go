@@ -74,7 +74,7 @@ func testAudioTranscriptionsLifecycle(t *testing.T) {
 	if capabilities, err := zero.WorkflowCapabilities(t.Context(), workflowGeneration); err != nil || len(capabilities) != 0 {
 		t.Fatalf("zero capabilities=%+v err=%v", capabilities, err)
 	}
-	if _, err := zero.ExecuteWorkflow(t.Context(), workflowGeneration, recipe.TaskTranscription, definition.ID, nil, nil); err == nil {
+	if _, err := zero.ExecuteWorkflow(t.Context(), workflowGeneration, WorkflowCapability{Task: recipe.TaskTranscription, Recipe: definition.ID}, nil, nil); err == nil {
 		t.Fatal("zero workspace accepted execution")
 	}
 }

@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/mediacapability"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -30,16 +33,15 @@ func (workspace *nativeMediaWorkspace) WorkflowCapabilities(context.Context, Wor
 func (workspace *nativeMediaWorkspace) ExecuteWorkflow(
 	_ context.Context,
 	_ WorkflowKind,
-	task recipe.Task,
-	_ artifact.ID,
+	capability WorkflowCapability,
 	_ json.RawMessage,
 	reporter operation.Reporter,
 ) (operation.Completion, error) {
 	workspace.mu.Lock()
-	workspace.executed = append(workspace.executed, task)
+	workspace.executed = append(workspace.executed, capability.Task)
 	workspace.mu.Unlock()
 	reporter.Publishing()
-	return workspace.completion[task], nil
+	return workspace.completion[capability.Task], nil
 }
 
 func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byte, []byte) {
@@ -86,7 +88,7 @@ func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, 
 			recipe.TaskSpeech:   {Run: audioRun, Outputs: []artifact.ID{audioID}},
 		},
 	}
-	handler, err := New(Config{Repository: store}, workspace)
+	handler, err := New(Config{Repository: store, Workflows: workspace}, workspace)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,5 +136,44 @@ func TestNativeAudioProtocolUsesActiveRecipeSession(t *testing.T) {
 	}
 	if len(workspace.executed) != 1 || workspace.executed[0] != recipe.TaskSpeech {
 		t.Fatalf("executed=%v", workspace.executed)
+	}
+}
+
+// TestMediaRequestResolvesItsCapabilityOnce: a native image request served
+// the way cmd/server serves it, the store's generation workspace in a
+// workspace set, lists the capabilities once and runs the capability as that
+// listing resolved it. A listing resolves each capability and declares its
+// controls once, so the declarations count the listings.
+func TestMediaRequestResolvesItsCapabilityOnce(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	activatedImageModel(t, store)
+	var listings, executions atomic.Int32
+	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
+		Execute: func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {
+			executions.Add(1)
+			return tinyPNG(t), nil
+		},
+	}}
+	controls := func(entry recipe.ModuleID, directory string) ([]mediacapability.Control, string) {
+		listings.Add(1)
+		return mediacapability.Controls(entry, directory)
+	}
+	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, controls, mediacapability.OutputContent), 16)
+	handler, err := New(Config{Repository: store, Workflows: WorkflowWorkspaceSet{workspace}}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = handler.Close() })
+	response := serveTestRequest(handler, http.MethodPost, "/v1/images/generations", `{"class":1,"seed":7}`)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if listings.Load() != 1 || executions.Load() != 1 {
+		t.Fatalf("one image request listed the capabilities %d times and executed %d times", listings.Load(), executions.Load())
 	}
 }

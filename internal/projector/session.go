@@ -74,7 +74,7 @@ func OpenActiveSession(
 	path string,
 	options OpenOptions,
 ) (Session, error) {
-	opened, err := OpenActiveAs[Projector](ctx, store, modelID, path, options)
+	opened, err := openActiveAs[Projector](ctx, store, modelID, path, options)
 	if err != nil {
 		return nil, err
 	}

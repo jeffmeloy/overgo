@@ -63,15 +63,15 @@ func referenceParityCase[T interface {
 // qwenImageVideoParityCase keeps the pinned 4x4 image and four-frame protocol.
 func qwenImageVideoParityCase[T interface {
 	Projector
-	EncodeImage(context.Context, image.Image, MediaPixelBudget) (Qwen3VLOutput, error)
-	EncodeFrames(context.Context, []image.Image, MediaPixelBudget) (Qwen3VLOutput, error)
+	EncodeImage(context.Context, image.Image, mediaPixelBudget) (qwen3VLOutput, error)
+	EncodeFrames(context.Context, []image.Image, mediaPixelBudget) (qwen3VLOutput, error)
 }](t *testing.T, name, path string) {
 	t.Helper()
 	cpu, cuda := parityRunners[T](t, path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	input := patternedRGBA(4, 4, func(x, y int) color.RGBA {
 		return color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha}
 	})
-	options := MediaPixelBudget{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
+	options := mediaPixelBudget{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
 	wantImage, err := cpu.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)

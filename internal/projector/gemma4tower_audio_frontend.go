@@ -17,13 +17,13 @@ func (r *Gemma4TowerRunner) EncodeAudio(
 	samples []float32,
 	sampleRate int,
 	profile AudioProjectionProfile,
-) (Gemma4AudioTowerOutput, error) {
+) (gemma4AudioTowerOutput, error) {
 	if r == nil || r.file == nil {
-		return Gemma4AudioTowerOutput{}, errRunnerClosed
+		return gemma4AudioTowerOutput{}, errRunnerClosed
 	}
 	features, frames, err := r.audioPlan.preprocess(ctx, samples, sampleRate)
 	if err != nil {
-		return Gemma4AudioTowerOutput{}, err
+		return gemma4AudioTowerOutput{}, err
 	}
 	return r.EncodeAudioFeatures(ctx, features, frames, profile)
 }
@@ -33,17 +33,17 @@ func (r *Gemma4TowerRunner) EncodeAudioTrace(
 	samples []float32,
 	sampleRate int,
 	profile AudioProjectionProfile,
-) (Gemma4AudioTowerOutput, Gemma4AudioTowerTrace, error) {
+) (gemma4AudioTowerOutput, gemma4AudioTowerTrace, error) {
 	if r == nil || r.file == nil {
-		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, errRunnerClosed
+		return gemma4AudioTowerOutput{}, gemma4AudioTowerTrace{}, errRunnerClosed
 	}
 	features, frames, err := r.audioPlan.preprocess(ctx, samples, sampleRate)
 	if err != nil {
-		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, err
+		return gemma4AudioTowerOutput{}, gemma4AudioTowerTrace{}, err
 	}
 	output, trace, err := r.EncodeAudioFeaturesTrace(ctx, features, frames, profile)
 	if err != nil {
-		return Gemma4AudioTowerOutput{}, Gemma4AudioTowerTrace{}, err
+		return gemma4AudioTowerOutput{}, gemma4AudioTowerTrace{}, err
 	}
 	trace.Stages["frontend"] = reference.Value{
 		Shape: tensor.MustShape(uint64(r.spec.Audio.MelBins), uint64(frames)),
@@ -59,7 +59,7 @@ type audioFrontendPlan struct {
 
 // This adapter only maps the existing artifact declaration to the common
 // frontend. The semicausal admission span retains its extra lookahead sample.
-func newAudioFrontendPlan(spec Gemma4AudioTowerSpec) *audioFrontendPlan {
+func newAudioFrontendPlan(spec gemma4AudioTowerSpec) *audioFrontendPlan {
 	config := audiodsp.FrontendConfig{
 		SampleRate: spec.SampleRate,
 		Geometry:   recipecontract.AudioFrameGeometry{WindowSamples: uint64(spec.FrameLength), HopSamples: uint64(spec.HopLength), FeatureBins: uint32(spec.MelBins)},

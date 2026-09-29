@@ -2,19 +2,6 @@ package server
 
 import "net/http"
 
-// generatorWorkspace serves a route over a workspace the served generator
-// may offer; one without it answers 501 with what is missing.
-func generatorWorkspace[W any](absent string, serve func(*Handler, W, http.ResponseWriter, *http.Request)) routeHandler {
-	return func(h *Handler, response http.ResponseWriter, request *http.Request) {
-		workspace, ok := h.generator.(W)
-		if !ok {
-			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, absent)
-			return
-		}
-		serve(h, workspace, response, request)
-	}
-}
-
 // agentRoute serves a route only when the agent runtime is configured (its
 // coordinator binds the served store and interaction identity).
 func agentRoute(serve routeHandler) routeHandler {

@@ -27,7 +27,7 @@ type nativeImageResponse struct {
 
 func (h *Handler) nativeImageGeneration(response http.ResponseWriter, request *http.Request) {
 	started := time.Now()
-	workspace, capability, fields, ok := h.nativeWorkflowRequest(response, request, recipe.TaskImageGen)
+	capability, fields, ok := h.nativeWorkflowRequest(response, request, recipe.TaskImageGen)
 	if !ok {
 		return
 	}
@@ -41,7 +41,7 @@ func (h *Handler) nativeImageGeneration(response http.ResponseWriter, request *h
 		writeInvalidRequest(response, err)
 		return
 	}
-	status, ok := h.runNativeWorkflow(response, request, workspace, capability, input)
+	status, ok := h.runNativeWorkflow(response, request, capability, input)
 	if !ok {
 		return
 	}
@@ -68,7 +68,7 @@ func (h *Handler) nativeImageGeneration(response http.ResponseWriter, request *h
 // URLs so the workbench plays them straight from the store.
 func (h *Handler) nativeVideoGeneration(response http.ResponseWriter, request *http.Request) {
 	started := time.Now()
-	workspace, capability, fields, ok := h.nativeWorkflowRequest(response, request, recipe.TaskVideoGen)
+	capability, fields, ok := h.nativeWorkflowRequest(response, request, recipe.TaskVideoGen)
 	if !ok {
 		return
 	}
@@ -77,7 +77,7 @@ func (h *Handler) nativeVideoGeneration(response http.ResponseWriter, request *h
 		writeInvalidRequest(response, err)
 		return
 	}
-	status, ok := h.runNativeWorkflow(response, request, workspace, capability, input)
+	status, ok := h.runNativeWorkflow(response, request, capability, input)
 	if !ok {
 		return
 	}
@@ -104,7 +104,7 @@ func videoOutput(mediaType string) bool {
 }
 
 func (h *Handler) nativeAudioSpeech(response http.ResponseWriter, request *http.Request) {
-	workspace, capability, fields, ok := h.nativeWorkflowRequest(response, request, recipe.TaskSpeech)
+	capability, fields, ok := h.nativeWorkflowRequest(response, request, recipe.TaskSpeech)
 	if !ok {
 		return
 	}
@@ -113,7 +113,7 @@ func (h *Handler) nativeAudioSpeech(response http.ResponseWriter, request *http.
 		writeInvalidRequest(response, err)
 		return
 	}
-	status, ok := h.runNativeWorkflow(response, request, workspace, capability, input)
+	status, ok := h.runNativeWorkflow(response, request, capability, input)
 	if !ok {
 		return
 	}
@@ -143,32 +143,31 @@ func (h *Handler) nativeWorkflowRequest(
 	response http.ResponseWriter,
 	request *http.Request,
 	task recipe.Task,
-) (WorkflowWorkspaceAPI, WorkflowCapability, map[string]json.RawMessage, bool) {
-	workspace, ok := h.generator.(WorkflowWorkspaceAPI)
-	if !ok {
+) (WorkflowCapability, map[string]json.RawMessage, bool) {
+	if h.config.Workflows == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "generation workspace is unavailable")
-		return nil, WorkflowCapability{}, nil, false
+		return WorkflowCapability{}, nil, false
 	}
 	fields := make(map[string]json.RawMessage)
 	if !h.decodeBoundedJSON(response, request, &fields) {
-		return nil, WorkflowCapability{}, nil, false
+		return WorkflowCapability{}, nil, false
 	}
 	model, err := takeNativeString(fields, "model")
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return nil, WorkflowCapability{}, nil, false
+		return WorkflowCapability{}, nil, false
 	}
-	capabilities, err := workspace.WorkflowCapabilities(request.Context(), workflowGeneration)
+	capabilities, err := h.config.Workflows.WorkflowCapabilities(request.Context(), workflowGeneration)
 	if err != nil {
 		writeGenerationError(response, err)
-		return nil, WorkflowCapability{}, nil, false
+		return WorkflowCapability{}, nil, false
 	}
 	capability, err := h.selectNativeWorkflowCapability(capabilities, task, model)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return nil, WorkflowCapability{}, nil, false
+		return WorkflowCapability{}, nil, false
 	}
-	return workspace, capability, fields, true
+	return capability, fields, true
 }
 
 func marshalWorkflowInput(controls []workflowControl, fields map[string]json.RawMessage) (json.RawMessage, error) {
@@ -201,11 +200,10 @@ func (h *Handler) selectNativeWorkflowCapability(
 func (h *Handler) runNativeWorkflow(
 	response http.ResponseWriter,
 	request *http.Request,
-	workspace WorkflowWorkspaceAPI,
 	capability WorkflowCapability,
 	input json.RawMessage,
 ) (operation.Status, bool) {
-	status, err := h.waitNativeWorkflow(request.Context(), workspace, capability, input)
+	status, err := h.waitNativeWorkflow(request.Context(), capability, input)
 	if err != nil {
 		writeGenerationError(response, err)
 		return operation.Status{}, false
@@ -217,8 +215,8 @@ func (h *Handler) runNativeWorkflow(
 	return status, true
 }
 
-func (h *Handler) waitNativeWorkflow(ctx context.Context, workspace WorkflowWorkspaceAPI, capability WorkflowCapability, input json.RawMessage) (operation.Status, error) {
-	id, err := h.submitWorkflow(ctx, workspace, workflowGeneration, capability, input, nil)
+func (h *Handler) waitNativeWorkflow(ctx context.Context, capability WorkflowCapability, input json.RawMessage) (operation.Status, error) {
+	id, err := h.submitWorkflow(ctx, workflowGeneration, capability, input, nil)
 	if err != nil {
 		return operation.Status{}, err
 	}

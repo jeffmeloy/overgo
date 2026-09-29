@@ -178,53 +178,38 @@ func (workspace *storeGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 				Task: capability.Task, Recipe: definition.ID, Stages: stages,
 				Inputs: definition.Inputs, Outputs: definition.Outputs, Controls: declared,
 				Model: entry.Model, Name: filepath.Base(directory), Location: entry.Location, Refusal: refusal,
+				execution: selection, directory: directory,
 			})
 		}
 	}
 	return capabilities, nil
 }
 
-// ExecuteWorkflow runs the named recipe against its model bytes with the
-// request the page typed, publishes the output as a media artifact and a
-// run record, and returns both as the operation's receipt.
-func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
+// ExecuteWorkflow runs a listed capability against its model bytes with the
+// execution its listing resolved and the request the page typed, publishes
+// the output as a media artifact and a run record, and returns both as the
+// operation's receipt.
+func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, capability WorkflowCapability, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
 	if workspace == nil || ctx == nil || reporter == nil || kind != workflowGeneration {
 		return operation.Completion{}, errors.New("generation workspace: workflow is not admitted")
 	}
-	capabilities, err := workspace.WorkflowCapabilities(ctx, kind)
-	if err != nil {
-		return operation.Completion{}, err
+	if capability.Refusal != "" {
+		return operation.Completion{}, errors.New("generation workspace: " + capability.Refusal)
 	}
-	var selected *WorkflowCapability
-	for index := range capabilities {
-		if capabilities[index].Task == task && capabilities[index].Recipe == recipeID {
-			selected = &capabilities[index]
-			break
-		}
-	}
-	if selected == nil {
+	task, recipeID, listed := capability.Task, capability.Recipe, capability.execution.Activation.Definition
+	execute, known := workspace.catalog.Execute[task]
+	if !known || listed.ID != recipeID || listed.Task != task {
 		return operation.Completion{}, fmt.Errorf("generation workspace: recipe %s is not an active %s capability", recipeID, task)
-	}
-	if selected.Refusal != "" {
-		return operation.Completion{}, errors.New("generation workspace: " + selected.Refusal)
 	}
 	if workspace.catalog.OutputContent == nil {
 		return operation.Completion{}, errors.New("generation workspace: the catalog publishes no output")
-	}
-	path, err := workspace.executionPath(ctx, selected.Model, selected.Location)
-	if err != nil {
-		return operation.Completion{}, err
-	}
-	selection, err := modelrecipe.ResolveActiveExecution(ctx, workspace.store, selected.Model, task, modelrecipe.SessionWarm)
-	if err != nil {
-		return operation.Completion{}, err
 	}
 	// The submission's sources (a prompt enhancement the page accepted) are
 	// the run's inputs beside its request, so the original stays its source.
 	sources := workflowSources(ctx)
 	started := time.Now()
 	begin, _ := processmeasure.Counter()
-	output, err := workspace.catalog.Execute[task](ctx, workspace.store, path, selection, string(raw))
+	output, err := execute(ctx, workspace.store, capability.directory, capability.execution, string(raw))
 	end, _ := processmeasure.Counter()
 	measured, _ := output.(capabilityruntime.Measured)
 	var content artifact.Content
@@ -233,7 +218,7 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	}
 	if err != nil {
 		completion, failed := failWorkflow(ctx, workspace.store, recipeID, sources, generationFailure, err)
-		workspace.observe(ctx, selected.Model, recipeID, completion.Run, task, started, end-begin, measured, failed)
+		workspace.observe(ctx, capability.Model, recipeID, completion.Run, task, started, end-begin, measured, failed)
 		return completion, failed
 	}
 	// The recorded request is the run's input: the record a gallery opens.
@@ -257,7 +242,7 @@ func (workspace *storeGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	if _, err := artifact.Publish(ctx, workspace.store, batch); err != nil {
 		return operation.Completion{}, err
 	}
-	workspace.observe(ctx, selected.Model, recipeID, run.ID, task, started, end-begin, measured, nil)
+	workspace.observe(ctx, capability.Model, recipeID, run.ID, task, started, end-begin, measured, nil)
 	reporter.Publishing()
 	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{content.Descriptor.ID}}, nil
 }

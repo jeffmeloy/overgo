@@ -33,7 +33,7 @@ func (training *steppedTraining) WorkflowCapabilities(_ context.Context, kind Wo
 	return []WorkflowCapability{training.capability}, nil
 }
 
-func (training *steppedTraining) ExecuteWorkflow(ctx context.Context, _ WorkflowKind, _ recipe.Task, _ artifact.ID, _ json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
+func (training *steppedTraining) ExecuteWorkflow(ctx context.Context, _ WorkflowKind, _ WorkflowCapability, _ json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
 	var completed uint64
 	reporter.Progress(completed, &training.total)
 	for {
@@ -77,7 +77,7 @@ func TestWebUIBrowserTrainingLive(t *testing.T) {
 	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "stepped/training/run", Artifacts: []artifact.Descriptor{{ID: training.run}}}); err != nil {
 		t.Fatal(err)
 	}
-	handler := newTestHandlerForRepository(t, store, &workspaceTestRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: training})
+	handler := newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) { config.Workflows = training })
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))

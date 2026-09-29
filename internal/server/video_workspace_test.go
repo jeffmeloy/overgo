@@ -45,7 +45,7 @@ func videoWorkspaceFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byt
 			recipe.TaskVideoGen: {Run: generateRun, Outputs: []artifact.ID{videoID}},
 		},
 	}
-	handler, err := New(Config{Repository: store}, workspace)
+	handler, err := New(Config{Repository: store, Workflows: workspace}, workspace)
 	if err != nil {
 		t.Fatal(err)
 	}

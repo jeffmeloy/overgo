@@ -20,18 +20,18 @@ const (
 type WeightCatalogPolicy uint8
 
 const (
-	WeightCatalogLayered WeightCatalogPolicy = iota
-	WeightCatalogCompressedHyper
-	WeightCatalogTargetFeatures
-	WeightCatalogHiddenFusion
-	WeightCatalogPairedProjection
-	WeightCatalogEncoder
-	WeightCatalogAudioDecoder
-	WeightCatalogEncoderDecoder
+	weightCatalogLayered WeightCatalogPolicy = iota
+	weightCatalogCompressedHyper
+	weightCatalogTargetFeatures
+	weightCatalogHiddenFusion
+	weightCatalogPairedProjection
+	weightCatalogEncoder
+	weightCatalogAudioDecoder
+	weightCatalogEncoderDecoder
 )
 
-// ModelCatalogPolicy: model-level tensor inventory.
-type ModelCatalogPolicy struct {
+// modelCatalogPolicy: model-level tensor inventory.
+type modelCatalogPolicy struct {
 	Weights                 WeightCatalogPolicy
 	PositionEmbedding       positionEmbeddingCatalogPolicy
 	TokenNorm               tokenNormCatalogPolicy

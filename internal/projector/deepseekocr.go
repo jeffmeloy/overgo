@@ -22,7 +22,7 @@ const (
 	DeepSeekOCRImagePad      = "<image>"
 )
 
-type DeepSeekOCRSpec struct {
+type deepSeekOCRSpec struct {
 	ImageSize, TileSize, MinTiles, MaxTiles int
 	PatchSize, Hidden, FeedForward, Layers  int
 	Heads, SAMHidden, SAMLayers, SAMHeads   int
@@ -33,14 +33,14 @@ type DeepSeekOCRSpec struct {
 	TensorNames                             []string
 }
 
-type DeepSeekOCRInput struct {
+type deepSeekOCRInput struct {
 	Tiles        []image.Image
 	GridW, GridH int
 }
 
 type DeepSeekOCRRunner struct {
 	projectorResources
-	spec                      DeepSeekOCRSpec
+	spec                      deepSeekOCRSpec
 	attention                 visionAttentionPlan
 	samPosition, clipPosition reference.Value
 	newline, separator        reference.Value
@@ -82,35 +82,35 @@ func openDeepSeekOCR(ctx context.Context, file *gguf.File, options OpenOptions) 
 	return runner, nil
 }
 
-func (r *DeepSeekOCRRunner) Spec() DeepSeekOCRSpec {
+func (r *DeepSeekOCRRunner) Spec() deepSeekOCRSpec {
 	if r == nil {
-		return DeepSeekOCRSpec{}
+		return deepSeekOCRSpec{}
 	}
 	return r.spec
 }
 
-func ReadDeepSeekOCRSpec(file *gguf.File) (DeepSeekOCRSpec, error) {
+func ReadDeepSeekOCRSpec(file *gguf.File) (deepSeekOCRSpec, error) {
 	spec, err := readDeepSeekOCRBaseSpec(file, deepSeekOCRProjectorType)
 	if err != nil {
-		return DeepSeekOCRSpec{}, err
+		return deepSeekOCRSpec{}, err
 	}
 	spec.TensorNames = deepSeekOCRTensorNames(file, spec)
 	if err := validateDeepSeekOCRCatalog(file, spec); err != nil {
-		return DeepSeekOCRSpec{}, err
+		return deepSeekOCRSpec{}, err
 	}
 	return spec, nil
 }
 
-func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string) (DeepSeekOCRSpec, error) {
+func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string) (deepSeekOCRSpec, error) {
 	if err := validateVisionProjector(file, visionProjectorTypeKey, expectedType); err != nil {
-		return DeepSeekOCRSpec{}, err
+		return deepSeekOCRSpec{}, err
 	}
 	var err error
 	read := func(key string) (int, error) {
 		value, valueErr := metadataUint32(file, key)
 		return int(value), valueErr
 	}
-	var spec DeepSeekOCRSpec
+	var spec deepSeekOCRSpec
 	for key, target := range map[string]*int{
 		visionHiddenKey:                    &spec.Hidden,
 		visionLayerCountKey:                &spec.Layers,
@@ -125,42 +125,42 @@ func readDeepSeekOCRBaseSpec(file *gguf.File, expectedType string) (DeepSeekOCRS
 	} {
 		*target, err = read(key)
 		if err != nil {
-			return DeepSeekOCRSpec{}, err
+			return deepSeekOCRSpec{}, err
 		}
 	}
 	if err := deriveDeepSeekOCRDimensions(file, &spec); err != nil {
-		return DeepSeekOCRSpec{}, err
+		return deepSeekOCRSpec{}, err
 	}
 	spec.LayerNormEpsilon, err = metadataFloat32(file, visionNormEpsilonKey)
 	if err != nil {
-		return DeepSeekOCRSpec{}, err
+		return deepSeekOCRSpec{}, err
 	}
 	mean, err := metadataFloat32Array(file, visionImageMeanKey, media.RGBChannels)
 	if err != nil {
-		return DeepSeekOCRSpec{}, err
+		return deepSeekOCRSpec{}, err
 	}
 	std, err := metadataFloat32Array(file, visionImageStandardKey, media.RGBChannels)
 	if err != nil {
-		return DeepSeekOCRSpec{}, err
+		return deepSeekOCRSpec{}, err
 	}
 	copy(spec.ImageMean[:], mean)
 	copy(spec.ImageStd[:], std)
 	spec.SAMGlobalLayers, err = readMetadataBoolArray(file, "clip.vision.sam.global_attention_layers", true)
 	if err != nil {
-		return DeepSeekOCRSpec{}, err
+		return deepSeekOCRSpec{}, err
 	}
 	projector, ok := file.Tensor(multimodalProjectionWeight)
 	spec.OutputHidden, ok = matrixRowsInt(projector, ok)
 	if !ok {
-		return DeepSeekOCRSpec{}, errors.New("projector: DeepSeek-OCR projection tensor is unavailable or invalid")
+		return deepSeekOCRSpec{}, errors.New("projector: DeepSeek-OCR projection tensor is unavailable or invalid")
 	}
 	if err := spec.validate(); err != nil {
-		return DeepSeekOCRSpec{}, err
+		return deepSeekOCRSpec{}, err
 	}
 	return spec, nil
 }
 
-func deriveDeepSeekOCRDimensions(file *gguf.File, spec *DeepSeekOCRSpec) error {
+func deriveDeepSeekOCRDimensions(file *gguf.File, spec *deepSeekOCRSpec) error {
 	patch, ok := file.Tensor("v.sam.patch_embd.weight")
 	if !ok {
 		return errors.New("projector: DeepSeek-OCR SAM patch tensor is unavailable")
@@ -209,7 +209,7 @@ func deriveDeepSeekOCRDimensions(file *gguf.File, spec *DeepSeekOCRSpec) error {
 	return nil
 }
 
-func (s DeepSeekOCRSpec) validate() error {
+func (s deepSeekOCRSpec) validate() error {
 	if s.ImageSize <= 0 || s.TileSize <= 0 || s.MinTiles <= 0 || s.MaxTiles < s.MinTiles ||
 		s.PatchSize <= 0 || s.ImageSize%s.PatchSize != 0 || s.TileSize%s.PatchSize != 0 ||
 		s.Hidden <= 0 || s.FeedForward <= 0 || s.Layers <= 0 || s.Heads <= 0 || s.Hidden%s.Heads != 0 ||
@@ -225,7 +225,7 @@ func (s DeepSeekOCRSpec) validate() error {
 	return nil
 }
 
-func deepSeekOCRTensorNames(file *gguf.File, spec DeepSeekOCRSpec) []string {
+func deepSeekOCRTensorNames(file *gguf.File, spec deepSeekOCRSpec) []string {
 	names := deepSeekOCRSAMTensorNames(spec)
 	names = append(names,
 		visionClassEmbeddingTensor, visionPositionWeightTensor,
@@ -240,7 +240,7 @@ func deepSeekOCRTensorNames(file *gguf.File, spec DeepSeekOCRSpec) []string {
 	return names
 }
 
-func deepSeekOCRSAMTensorNames(spec DeepSeekOCRSpec) []string {
+func deepSeekOCRSAMTensorNames(spec deepSeekOCRSpec) []string {
 	names := []string{
 		"v.sam.pos_embd.weight", "v.sam.patch_embd.weight", "v.sam.patch_embd.bias",
 		"v.sam.neck.0.weight", "v.sam.neck.1.weight", "v.sam.neck.1.bias",
@@ -255,7 +255,7 @@ func deepSeekOCRSAMTensorNames(spec DeepSeekOCRSpec) []string {
 	}, nil)
 }
 
-func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
+func validateDeepSeekOCRCatalog(file *gguf.File, spec deepSeekOCRSpec) error {
 	if err := validateProjectorTensorNames(file, spec.TensorNames); err != nil {
 		return err
 	}
@@ -298,15 +298,15 @@ func validateDeepSeekOCRCatalog(file *gguf.File, spec DeepSeekOCRSpec) error {
 	return nil
 }
 
-func preprocessDeepSeekOCRImage(source image.Image, spec DeepSeekOCRSpec, dynamicTiles bool) (DeepSeekOCRInput, error) {
+func preprocessDeepSeekOCRImage(source image.Image, spec deepSeekOCRSpec, dynamicTiles bool) (deepSeekOCRInput, error) {
 	if err := spec.validate(); err != nil {
-		return DeepSeekOCRInput{}, err
+		return deepSeekOCRInput{}, err
 	}
 	bounds, err := imageBounds(source)
 	if err != nil {
-		return DeepSeekOCRInput{}, err
+		return deepSeekOCRInput{}, err
 	}
-	input := DeepSeekOCRInput{}
+	input := deepSeekOCRInput{}
 	if dynamicTiles && (bounds.Dx() > spec.TileSize || bounds.Dy() > spec.TileSize) {
 		input.GridW, input.GridH = media.BestTileGrid(bounds.Dx(), bounds.Dy(), spec.TileSize, spec.MinTiles, spec.MaxTiles)
 		refined := media.ResizeBicubic(source, input.GridW*spec.TileSize, input.GridH*spec.TileSize)

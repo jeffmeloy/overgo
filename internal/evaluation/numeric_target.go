@@ -25,6 +25,8 @@ type numericScorer string
 const (
 	// NumericAbsoluteError scores mean absolute residual over target values; minimized.
 	NumericAbsoluteError numericScorer = "absolute-error"
+	// numericSquaredError scores mean squared residual over target values; minimized.
+	numericSquaredError numericScorer = "squared-error"
 	// numericQuantileLoss scores mean pinball loss at the spec quantile; minimized.
 	numericQuantileLoss numericScorer = "quantile-loss"
 	// numericLabelAccuracy scores exact label match as 1 or 0, or for a record
@@ -222,9 +224,12 @@ func scoreNumericRecord(scorer NumericScorerSpec, target NumericTargetCase, obse
 			return 0, errors.New("evaluation: numeric target value is non-finite")
 		}
 		residual := expected - actual
-		if scorer.Kind == NumericAbsoluteError {
+		switch scorer.Kind {
+		case NumericAbsoluteError:
 			sum += math.Abs(residual)
-		} else {
+		case numericSquaredError:
+			sum += residual * residual
+		default:
 			q := *scorer.Quantile
 			sum += max(q*residual, (q-1)*residual)
 		}
@@ -268,7 +273,7 @@ func validNumericScorer(scorer NumericScorerSpec) bool {
 	if scorer.Kind == numericQuantileLoss {
 		return scorer.Quantile != nil && checked.Finite64(*scorer.Quantile) && *scorer.Quantile > 0 && *scorer.Quantile < 1
 	}
-	return (scorer.Kind == NumericAbsoluteError || scorer.Kind == numericLabelAccuracy) && scorer.Quantile == nil &&
+	return (scorer.Kind == NumericAbsoluteError || scorer.Kind == numericSquaredError || scorer.Kind == numericLabelAccuracy) && scorer.Quantile == nil &&
 		(scorer.Kind != numericLabelAccuracy || scorer.Unit == "")
 }
 

@@ -71,7 +71,7 @@ func TestGenerationWorkspaceListsUnresolvableActivationWithRefusal(t *testing.T)
 	if err := validateWorkflowCapabilities(capabilities); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, recipe.TaskVQA, capability.Recipe, json.RawMessage(`{"question":"what?"}`), &recordingReporter{}); err == nil || !strings.Contains(err.Error(), "session") {
+	if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capability, json.RawMessage(`{"question":"what?"}`), &recordingReporter{}); err == nil || !strings.Contains(err.Error(), "session") {
 		t.Fatalf("a refused capability ran: %v", err)
 	}
 }

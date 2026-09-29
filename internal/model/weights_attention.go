@@ -81,14 +81,14 @@ func compileStandardAttentionBindings(
 	profile := spec.Profile()
 	var program []tensorBinding
 	fused := false
-	if profile.Has(ArchitectureFusedQKV) {
+	if profile.Has(architectureFusedQKV) {
 		_, fused = catalog.tensors[prefix+"attn_qkv.weight"]
-		fused = fused || profile.Has(ArchitectureRequiresFusedQKV)
+		fused = fused || profile.Has(architectureRequiresFusedQKV)
 		if fused {
 			bias := optionalF32TensorPointer(
 				"attn_qkv.bias", &layer.AttentionQKVBias, queryLength+keyLength+valueLength,
 			)
-			bias.optional = !profile.Has(ArchitectureRequiresFusedQKVBias)
+			bias.optional = !profile.Has(architectureRequiresFusedQKVBias)
 			program = append(program,
 				requiredTensorPointer("attn_qkv.weight", &layer.AttentionQKV,
 					uint64(spec.EmbeddingLength), queryLength+keyLength+valueLength),
@@ -97,7 +97,7 @@ func compileStandardAttentionBindings(
 		}
 	}
 	if !fused {
-		if profile.Has(ArchitectureRejectsOrphanFusedQKVBias) {
+		if profile.Has(architectureRejectsOrphanFusedQKVBias) {
 			if _, present := catalog.tensors[prefix+"attn_qkv.bias"]; present {
 				return nil, fmt.Errorf("%s fused QKV bias has no fused weight", spec.Architecture)
 			}

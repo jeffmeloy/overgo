@@ -11,16 +11,16 @@ import (
 )
 
 const (
-	AudioProjectionProfileVersion   uint16 = 1
-	AudioProjectionProfileMediaType        = "application/vnd.overgo.audio-projection-profile+json"
-	AudioProjectionProfileSchema           = "overgo/audio-projection-profile/v1"
+	audioProjectionProfileVersion   uint16 = 1
+	audioProjectionProfileMediaType        = "application/vnd.overgo.audio-projection-profile+json"
+	audioProjectionProfileSchema           = "overgo/audio-projection-profile/v1"
 )
 
 var audioProjectionProfileCodec = artifact.DocumentCodec[AudioProjectionProfile]{
 	Name: "audio projection profile",
 	Contract: artifact.DocumentContract{
-		Kind: artifact.KindProfile, MediaType: AudioProjectionProfileMediaType,
-		Schema: AudioProjectionProfileSchema,
+		Kind: artifact.KindProfile, MediaType: audioProjectionProfileMediaType,
+		Schema: audioProjectionProfileSchema,
 	},
 	Decode: func(data []byte, value *AudioProjectionProfile) error {
 		var body audioProjectionProfileBody
@@ -60,7 +60,7 @@ type AudioProjectionProfile struct {
 
 func NewAudioProjectionProfile(attentionRopeFreqBase float32) (AudioProjectionProfile, error) {
 	return audioProjectionProfileCodec.New(AudioProjectionProfile{
-		Version: AudioProjectionProfileVersion, AttentionRopeFreqBase: attentionRopeFreqBase,
+		Version: audioProjectionProfileVersion, AttentionRopeFreqBase: attentionRopeFreqBase,
 	})
 }
 
@@ -73,7 +73,7 @@ func (p AudioProjectionProfile) Content() (artifact.Content, error) {
 }
 
 func (p AudioProjectionProfile) validate() error {
-	if p.Version != AudioProjectionProfileVersion || !checked.PositiveFinite32(p.AttentionRopeFreqBase) {
+	if p.Version != audioProjectionProfileVersion || !checked.PositiveFinite32(p.AttentionRopeFreqBase) {
 		return errors.New("projector: invalid audio projection profile")
 	}
 	return nil

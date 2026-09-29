@@ -24,7 +24,7 @@ const (
 type ForwardSession uint8
 
 const (
-	ForwardSessionNone ForwardSession = iota
+	forwardSessionNone ForwardSession = iota
 	ForwardSessionPairedFeatures
 	ForwardSessionFeatureDraft
 	ForwardSessionPairedProjection
@@ -68,7 +68,7 @@ type ForwardProgram struct {
 func compileForwardProgram(spec Spec, profile ArchitectureProfile) ForwardProgram {
 	forward := resolveForwardProgram(profile.Forward.clone(), spec.NonCausalAttention)
 	cached := forward.Operation == ForwardOperationCached
-	if profile.LayerTopology == LayerTopologySplitProjection {
+	if profile.LayerTopology == layerTopologySplitProjection {
 		forward.Alternate = AlternateStateProgram{
 			enabled: true, StateCount: spec.AltUpCount, ActiveState: spec.AltUpActive,
 			SparseLayerCount:      spec.SparseLayerCount,
@@ -78,10 +78,10 @@ func compileForwardProgram(spec Spec, profile ArchitectureProfile) ForwardProgra
 		}
 	}
 	forward.continuousBatch = cached
-	forward.persistentDeviceCache = cached && !forward.AlternateStates() && !profile.Has(ArchitectureLatent)
+	forward.persistentDeviceCache = cached && !forward.AlternateStates() && !profile.Has(architectureLatent)
 	forward.layerCapture = cached && !forward.AlternateStates()
 	forward.deviceBatchSelection = profile.Attention == AttentionGatedDelta
-	forward.nonCausalRecurrent = profile.Attention == AttentionShortConvolution
+	forward.nonCausalRecurrent = profile.Attention == attentionShortConvolution
 	return forward
 }
 
@@ -120,7 +120,7 @@ func (p ForwardProgram) valid() bool {
 			return false
 		}
 	}
-	return (p.Operation == ForwardOperationSession) == (p.Session != ForwardSessionNone)
+	return (p.Operation == ForwardOperationSession) == (p.Session != forwardSessionNone)
 }
 
 func resolveForwardProgram(program ForwardProgram, nonCausal bool) ForwardProgram {

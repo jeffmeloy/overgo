@@ -6,15 +6,15 @@ import (
 	"overgo/internal/tensor"
 )
 
-// CacheProjectionProgram: compiled K/V projection, normalization, and position math.
-type CacheProjectionProgram struct {
+// cacheProjectionProgram: compiled K/V projection, normalization, and position math.
+type cacheProjectionProgram struct {
 	width, key, value, heads               uint64
 	epsilon, frequencyBase, frequencyScale float32
 	rotaryDimensions                       uint32
 }
 
 // Build executes the compiled cache-projection program.
-func (p CacheProjectionProgram) Build(
+func (p cacheProjectionProgram) Build(
 	builder *tensor.Builder,
 	fused *tensor.Tensor,
 	weights LayerGraphWeights,
@@ -57,11 +57,11 @@ func (p CacheProjectionProgram) Build(
 	return key, value, nil
 }
 
-func compileCacheProjectionProgram(spec Spec, profile ArchitectureProfile) CacheProjectionProgram {
+func compileCacheProjectionProgram(spec Spec, profile ArchitectureProfile) cacheProjectionProgram {
 	if profile.Forward.Session != ForwardSessionPairedFeatures {
-		return CacheProjectionProgram{}
+		return cacheProjectionProgram{}
 	}
-	return CacheProjectionProgram{
+	return cacheProjectionProgram{
 		width: uint64(spec.EmbeddingLength), key: uint64(spec.KeyLength),
 		value: uint64(spec.ValueLength), heads: uint64(spec.HeadCountKV),
 		epsilon: spec.RMSNormEpsilon, rotaryDimensions: spec.RopeDimensionCount,

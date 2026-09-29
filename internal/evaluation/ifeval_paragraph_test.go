@@ -56,7 +56,7 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 		if err != nil || dropped != 0 {
 			t.Fatalf("%d: dropped=%d err=%v", index, dropped, err)
 		}
-		compiled, err := CompileInstructionRules(assembled.(InstructionRulesSuite))
+		compiled, err := compileInstructionRules(assembled.(instructionRulesSuite))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -90,14 +90,14 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 		}
 	}
 	t.Run("ordinal is owned and part of acceptance identity", func(t *testing.T) {
-		rule := InstructionRule{Name: id, Kind: ifevalIndexedParagraph, Values: []string{"cat"}, Count: &CountRule{Relation: RelationEqual, Value: 2}, Ordinal: 2}
-		suite := InstructionRulesSuite{Kind: InstructionRulesKind, Schema: "paragraph-ownership", Source: "fixture", Cases: []InstructionRulesCase{{Name: "paragraph", Prompt: "Write two paragraphs.", MaxTokens: 1, Rules: []InstructionRule{rule}}}}
-		compiled, err := CompileInstructionRules(suite)
+		rule := instructionRule{Name: id, Kind: ifevalIndexedParagraph, Values: []string{"cat"}, Count: &countRule{Relation: relationEqual, Value: 2}, Ordinal: 2}
+		suite := instructionRulesSuite{Kind: instructionRulesKind, Schema: "paragraph-ownership", Source: "fixture", Cases: []instructionRulesCase{{Name: "paragraph", Prompt: "Write two paragraphs.", MaxTokens: 1, Rules: []instructionRule{rule}}}}
+		compiled, err := compileInstructionRules(suite)
 		if err != nil {
 			t.Fatal(err)
 		}
 		suite.Cases[0].Rules[0].Ordinal = 1
-		other, err := CompileInstructionRules(suite)
+		other, err := compileInstructionRules(suite)
 		if err != nil || compiled.identity == other.identity {
 			t.Fatal("ordinal missing from acceptance identity")
 		}
@@ -116,7 +116,7 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 		}
 	})
 	t.Run("legacy rule bytes stay unchanged", func(t *testing.T) {
-		rule := InstructionRule{Name: "comma", Kind: RuleNoComma}
+		rule := instructionRule{Name: "comma", Kind: ruleNoComma}
 		data, err := json.Marshal(rule)
 		if err != nil || string(data) != `{"name":"comma","kind":"no-comma"}` {
 			t.Fatalf("legacy bytes changed: %s %v", data, err)

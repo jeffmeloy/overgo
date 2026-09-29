@@ -78,16 +78,16 @@ type SupervisedGroundedReplayResult struct {
 	Episode       dataset.CapabilityEpisodeProjection `json:"episode"`
 	ArcProjection dataset.InteractionArcProjection    `json:"arc_projection"`
 	ArcSelection  dataset.InteractionArcSelection     `json:"arc_selection"`
-	Probes        []CapabilityProbeResult             `json:"probes"`
+	Probes        []capabilityProbeResult             `json:"probes"`
 	Route         runrecord.RoutingDecision           `json:"route"`
 	RouteFailure  runrecord.TerminalAttemptReceipt    `json:"route_failure"`
 	Fallback      runrecord.RoutingDecision           `json:"fallback"`
-	Trajectories  [2]TrajectoryHealthDecision         `json:"trajectories"`
-	Baseline      RetrievalEvaluation                 `json:"baseline"`
-	Trial         RetrievalEvaluation                 `json:"trial"`
+	Trajectories  [2]trajectoryHealthDecision         `json:"trajectories"`
+	Baseline      retrievalEvaluation                 `json:"baseline"`
+	Trial         retrievalEvaluation                 `json:"trial"`
 	Transform     dataset.DatasetTransform            `json:"transform"`
-	Proposal      EpisodeKnowledgeProposal            `json:"proposal"`
-	Promotion     KnowledgePromotionEvidence          `json:"promotion"`
+	Proposal      episodeKnowledgeProposal            `json:"proposal"`
+	Promotion     knowledgePromotionEvidence          `json:"promotion"`
 }
 
 // RunSupervisedGroundedReplay is the single production composition root for
@@ -119,11 +119,11 @@ func RunSupervisedGroundedReplay(
 	if err != nil {
 		return SupervisedGroundedReplayResult{}, err
 	}
-	baseline, err := PublishRetrievalEvaluation(ctx, repository, request.BaselineCase, baselineReceipt.ID)
+	baseline, err := publishRetrievalEvaluation(ctx, repository, request.BaselineCase, baselineReceipt.ID)
 	if err != nil {
 		return SupervisedGroundedReplayResult{}, err
 	}
-	trial, err := PublishRetrievalEvaluation(ctx, repository, request.TrialCase, trialReceipt.ID)
+	trial, err := publishRetrievalEvaluation(ctx, repository, request.TrialCase, trialReceipt.ID)
 	if err != nil {
 		return SupervisedGroundedReplayResult{}, err
 	}
@@ -185,13 +185,13 @@ func RunSupervisedGroundedReplay(
 		return SupervisedGroundedReplayResult{}, err
 	}
 
-	probes := make([]CapabilityProbeResult, len(request.Probes))
+	probes := make([]capabilityProbeResult, len(request.Probes))
 	for index, evidence := range request.Probes {
-		probe, _, publishErr := PublishProductionCapabilityProbe(ctx, repository, evidence)
+		probe, _, publishErr := publishProductionCapabilityProbe(ctx, repository, evidence)
 		if publishErr != nil {
 			return SupervisedGroundedReplayResult{}, publishErr
 		}
-		probes[index], err = RequireCapabilityProbeResult(ctx, repository, probe.ID)
+		probes[index], err = requireCapabilityProbeResult(ctx, repository, probe.ID)
 		if err != nil {
 			return SupervisedGroundedReplayResult{}, err
 		}
@@ -199,7 +199,7 @@ func RunSupervisedGroundedReplay(
 	if err := requireGroundedRouteCandidates(probes, request.RouteCandidates); err != nil {
 		return SupervisedGroundedReplayResult{}, err
 	}
-	route, _, err := CompileEvidenceRoute(ctx, repository, request.Route, request.RouteCandidates)
+	route, _, err := compileEvidenceRoute(ctx, repository, request.Route, request.RouteCandidates)
 	if err != nil {
 		return SupervisedGroundedReplayResult{}, err
 	}
@@ -210,15 +210,15 @@ func RunSupervisedGroundedReplay(
 		return SupervisedGroundedReplayResult{}, err
 	}
 
-	var trajectoryDecisions [2]TrajectoryHealthDecision
+	var trajectoryDecisions [2]trajectoryHealthDecision
 	for index := range trajectoryDecisions {
-		decision, _, superviseErr := SuperviseTrajectory(
+		decision, _, superviseErr := superviseTrajectory(
 			ctx, repository, request.Trajectories[index], request.Trajectories[index+1],
 		)
 		if superviseErr != nil {
 			return SupervisedGroundedReplayResult{}, superviseErr
 		}
-		trajectoryDecisions[index], err = RequireTrajectoryHealthDecision(ctx, repository, decision.ID)
+		trajectoryDecisions[index], err = requireTrajectoryHealthDecision(ctx, repository, decision.ID)
 		if err != nil {
 			return SupervisedGroundedReplayResult{}, err
 		}
@@ -228,19 +228,19 @@ func RunSupervisedGroundedReplay(
 		return SupervisedGroundedReplayResult{}, errors.New("evaluation: supervised replay did not demonstrate stop and recovery")
 	}
 
-	proposal, err := PublishEpisodeKnowledgeProposal(ctx, repository, request.KnowledgeAdmission)
+	proposal, err := publishEpisodeKnowledgeProposal(ctx, repository, request.KnowledgeAdmission)
 	if err != nil {
 		return SupervisedGroundedReplayResult{}, err
 	}
-	promotion, err := PublishEpisodeKnowledgePromotion(ctx, repository, proposal.ID, baseline.ID, trial.ID)
+	promotion, err := publishEpisodeKnowledgePromotion(ctx, repository, proposal.ID, baseline.ID, trial.ID)
 	if err != nil {
 		return SupervisedGroundedReplayResult{}, err
 	}
-	proposal, err = RequireEpisodeKnowledgeProposal(ctx, repository, proposal.ID)
+	proposal, err = requireEpisodeKnowledgeProposal(ctx, repository, proposal.ID)
 	if err != nil {
 		return SupervisedGroundedReplayResult{}, err
 	}
-	promotion, err = RequireKnowledgePromotionEvidence(ctx, repository, promotion.ID)
+	promotion, err = requireKnowledgePromotionEvidence(ctx, repository, promotion.ID)
 	if err != nil {
 		return SupervisedGroundedReplayResult{}, err
 	}
@@ -361,7 +361,7 @@ func requireGroundedReplayReceipt(
 	return receipt, nil
 }
 
-func requireGroundedRouteCandidates(probes []CapabilityProbeResult, candidates []EvidenceRouteCandidate) error {
+func requireGroundedRouteCandidates(probes []capabilityProbeResult, candidates []EvidenceRouteCandidate) error {
 	available := make(map[artifact.ID]struct{}, len(probes))
 	for _, probe := range probes {
 		available[probe.ID] = struct{}{}
@@ -419,7 +419,7 @@ func groundReplayFallback(
 	if err != nil {
 		return runrecord.TerminalAttemptReceipt{}, runrecord.RoutingDecision{}, err
 	}
-	fallback, _, _, err := FallbackEvidenceRoute(ctx, repository, route.ID, terminal.ID)
+	fallback, _, _, err := fallbackEvidenceRoute(ctx, repository, route.ID, terminal.ID)
 	if err != nil || !fallback.Winner.Valid() || fallback.Winner == route.Winner {
 		return runrecord.TerminalAttemptReceipt{}, runrecord.RoutingDecision{}, errors.Join(
 			errors.New("evaluation: grounded replay fallback did not select an alternate capability"), err,

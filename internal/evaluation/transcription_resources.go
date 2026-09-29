@@ -49,14 +49,14 @@ type TranscriptionResourceOptions struct {
 	TimedRuns  uint32 `json:"timed_runs"`
 }
 
-// TranscriptionResourceMeasurement records one cold load or one execution.
+// transcriptionResourceMeasurement records one cold load or one execution.
 // WallNS and ProcessAllocations cover the entire call, including publication.
 // Allocations are process-wide, not isolated to this goroutine. RecordedWorkNS
 // is the inner run span; UnrecordedNS is the remainder, including final output
 // publication and call overhead, not an isolated publication measurement.
 // Process peak memory and unobserved interaction counters remain unavailable.
 // Observation identifies the canonical runrecord resource summary.
-type TranscriptionResourceMeasurement struct {
+type transcriptionResourceMeasurement struct {
 	Name               string            `json:"name"`
 	Repetition         uint32            `json:"repetition"`
 	Warmup             bool              `json:"warmup,omitzero"`
@@ -76,9 +76,9 @@ type TranscriptionResourceMeasurement struct {
 	RealTimeFactor     float64           `json:"real_time_factor,omitzero"`
 }
 
-// TranscriptionResourceSummary aggregates timed repetitions only. Cold load
+// transcriptionResourceSummary aggregates timed repetitions only. Cold load
 // and warmup observations remain separate measurements.
-type TranscriptionResourceSummary struct {
+type transcriptionResourceSummary struct {
 	Runs                uint64  `json:"runs"`
 	AudioSeconds        float64 `json:"audio_seconds"`
 	WallSeconds         float64 `json:"wall_seconds"`
@@ -100,11 +100,11 @@ type TranscriptionResourceReport struct {
 	Dataset      artifact.ID                        `json:"dataset"`
 	Split        artifact.ID                        `json:"split"`
 	Options      TranscriptionResourceOptions       `json:"options"`
-	Load         TranscriptionResourceMeasurement   `json:"load"`
-	Executions   []TranscriptionResourceMeasurement `json:"executions"`
-	Summary      TranscriptionResourceSummary       `json:"summary"`
+	Load         transcriptionResourceMeasurement   `json:"load"`
+	Executions   []transcriptionResourceMeasurement `json:"executions"`
+	Summary      transcriptionResourceSummary       `json:"summary"`
 	Quality      artifact.ID                        `json:"quality"`
-	QualityScore TranscriptionSlice                 `json:"quality_score"`
+	QualityScore transcriptionSlice                 `json:"quality_score"`
 	Metrics      []runrecord.Metric                 `json:"metrics"`
 }
 
@@ -206,7 +206,7 @@ func EvaluateTranscriptionResources(
 	if err != nil {
 		return TranscriptionResourceReport{}, err
 	}
-	report.Executions = make([]TranscriptionResourceMeasurement, 0, int(totalRounds)*len(orderedInputs))
+	report.Executions = make([]transcriptionResourceMeasurement, 0, int(totalRounds)*len(orderedInputs))
 	predictions := make([]TranscriptionPrediction, len(orderedInputs))
 	signatures := make(map[string]transcriptionExecutionSignature, len(orderedInputs))
 	attempts := make(map[string]bool)
@@ -293,12 +293,12 @@ func executeTranscriptionResourceCase(
 	repetition uint32,
 	loadAttempt artifact.ID,
 	attempts map[string]bool,
-) (TranscriptionResourceMeasurement, runrecord.Run, transcriptionExecutionSignature, error) {
+) (transcriptionResourceMeasurement, runrecord.Run, transcriptionExecutionSignature, error) {
 	// Container I/O is outside the inference timing boundary, as it was when
 	// callers eagerly loaded input. Only this attempt's encoded payload is live.
 	data, err := source.Read(ctx, input.Reference, input.Policy.MaximumEncodedBytes)
 	if err != nil {
-		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, err
+		return transcriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, err
 	}
 	before := readTranscriptionMemoryBoundary()
 	started := processmeasure.NewStopwatch()
@@ -310,22 +310,22 @@ func executeTranscriptionResourceCase(
 	wallNS, wallErr := started.Elapsed()
 	after := readTranscriptionMemoryBoundary()
 	if !returnedRun.ID.Valid() {
-		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, errors.Join(errors.New("evaluation: transcription returned no persisted run"), executeErr)
+		return transcriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, errors.Join(errors.New("evaluation: transcription returned no persisted run"), executeErr)
 	}
 	if wallErr != nil {
-		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, wallErr
+		return transcriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, wallErr
 	}
 	run, err := runrecord.RequireExactRun(ctx, repository, returnedRun.ID)
 	if err != nil {
-		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, err
+		return transcriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, err
 	}
 	if err = validateTranscriptionResourceRun(run, plan, model, testCase); err != nil {
-		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, err
+		return transcriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, err
 	}
 	if run.MeasuredNS > wallNS {
-		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, errors.New("evaluation: recorded work exceeds measured call")
+		return transcriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, errors.New("evaluation: recorded work exceeds measured call")
 	}
-	measurement := TranscriptionResourceMeasurement{
+	measurement := transcriptionResourceMeasurement{
 		Name: input.Name, Repetition: repetition, Warmup: warmup, Run: run.ID,
 		Outcome: run.Outcome, Failure: run.Failure, WallNS: wallNS,
 		RecordedWorkNS: run.MeasuredNS, UnrecordedNS: wallNS - run.MeasuredNS,
@@ -341,13 +341,13 @@ func executeTranscriptionResourceCase(
 	if run.Outcome == runrecord.OutcomeSucceeded {
 		output, _, outputErr := requireTranscriptionOutput(ctx, repository, run, testCase.Source)
 		if outputErr != nil {
-			return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, outputErr
+			return transcriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, outputErr
 		}
 		measurement.Output, signature.output = output, output
 	}
 	attempt, observation, err := publishTranscriptionExecutionMeasurement(ctx, repository, plan, model, loadAttempt, uint64(len(data)), measurement, attempts)
 	if err != nil {
-		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, err
+		return transcriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, err
 	}
 	measurement.Attempt, measurement.Observation = attempt, observation
 	return measurement, run, signature, executeErr
@@ -381,7 +381,7 @@ func publishTranscriptionLoadMeasurement(
 	model artifact.ID,
 	wallNS uint64,
 	before, after transcriptionMemoryBoundary,
-) (TranscriptionResourceMeasurement, error) {
+) (transcriptionResourceMeasurement, error) {
 	receipt := transcriptionLoadReceipt{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Model: model,
 		Outcome: runrecord.OutcomeSucceeded, WallNS: wallNS,
@@ -389,31 +389,31 @@ func publishTranscriptionLoadMeasurement(
 	}
 	content, err := artifact.JSONContent(transcriptionLoadReceiptContract, receipt)
 	if err != nil {
-		return TranscriptionResourceMeasurement{}, err
+		return transcriptionResourceMeasurement{}, err
 	}
 	fitness, err := transcriptionResourceFitness(plan, model, content.Descriptor.ID, wallNS)
 	if err != nil {
-		return TranscriptionResourceMeasurement{}, err
+		return transcriptionResourceMeasurement{}, err
 	}
 	chunk, err := runrecord.NewInitialObservationChunk(fitness, runrecord.ObservationSampleExecution, wallNS)
 	if err != nil {
-		return TranscriptionResourceMeasurement{}, err
+		return transcriptionResourceMeasurement{}, err
 	}
 	batch, err := artifact.NewDocumentBatch(
 		"evaluation/transcription-resource/load/"+content.Descriptor.ID.DigestHex(), []artifact.Content{content},
 		artifact.DependencyLineage(content.Descriptor.ID, plan.identity, model, plan.body.ModelDefinition, plan.body.RuntimeRecipe, plan.body.Environment), nil,
 	)
 	if err != nil {
-		return TranscriptionResourceMeasurement{}, err
+		return transcriptionResourceMeasurement{}, err
 	}
 	summary, err := runrecord.BindObservationChunk(ctx, repository, &batch, chunk)
 	if err != nil {
-		return TranscriptionResourceMeasurement{}, err
+		return transcriptionResourceMeasurement{}, err
 	}
 	if _, err = artifact.Publish(ctx, repository, batch); err != nil {
-		return TranscriptionResourceMeasurement{}, err
+		return transcriptionResourceMeasurement{}, err
 	}
-	return TranscriptionResourceMeasurement{
+	return transcriptionResourceMeasurement{
 		Name: "cold-load", Attempt: content.Descriptor.ID, Observation: summary.ID,
 		Outcome: receipt.Outcome, WallNS: wallNS, ProcessAllocations: receipt.ProcessAllocations,
 	}, nil
@@ -425,7 +425,7 @@ func publishTranscriptionExecutionMeasurement(
 	plan Plan,
 	model, loadAttempt artifact.ID,
 	inputBytes uint64,
-	measurement TranscriptionResourceMeasurement,
+	measurement transcriptionResourceMeasurement,
 	attempts map[string]bool,
 ) (artifact.ID, artifact.ID, error) {
 	// Equal content-addressed runs are legitimate. A repetition is identified by
@@ -434,7 +434,7 @@ func publishTranscriptionExecutionMeasurement(
 		Plan        artifact.ID                      `json:"plan"`
 		Model       artifact.ID                      `json:"model"`
 		Load        artifact.ID                      `json:"load"`
-		Measurement TranscriptionResourceMeasurement `json:"measurement"`
+		Measurement transcriptionResourceMeasurement `json:"measurement"`
 	}{plan.identity, model, loadAttempt, measurement})
 	if err != nil {
 		return artifact.ID{}, artifact.ID{}, err
@@ -488,7 +488,7 @@ func transcriptionResourceFitness(
 	})
 }
 
-func accumulateTranscriptionResources(summary *TranscriptionResourceSummary, measurement TranscriptionResourceMeasurement) {
+func accumulateTranscriptionResources(summary *transcriptionResourceSummary, measurement transcriptionResourceMeasurement) {
 	summary.Runs++
 	summary.AudioSeconds += float64(measurement.SampleCount) / float64(measurement.SampleRate)
 	summary.WallSeconds += float64(measurement.WallNS) / float64(time.Second)
@@ -523,7 +523,7 @@ func transcriptionResourceMetrics(report TranscriptionResourceReport) []runrecor
 	return metrics
 }
 
-func reportQualityMetrics(quality TranscriptionSlice) []runrecord.Metric {
+func reportQualityMetrics(quality transcriptionSlice) []runrecord.Metric {
 	return []runrecord.Metric{
 		{Name: "quality-admission-failures", Value: float64(quality.AdmissionFailures), Unit: "count", Direction: runrecord.DirectionMinimize},
 		{Name: "quality-cer", Value: quality.CharacterErrorRate, Unit: "ratio", Direction: runrecord.DirectionMinimize},

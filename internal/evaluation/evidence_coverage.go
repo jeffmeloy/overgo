@@ -14,29 +14,29 @@ import (
 	runrecord "overgo/internal/runrecord"
 )
 
-// EvidenceCoverageProjectionVersion identifies the deterministic evidence
+// evidenceCoverageProjectionVersion identifies the deterministic evidence
 // coverage projection contract.
-const EvidenceCoverageProjectionVersion uint16 = artifact.InitialDocumentVersion
+const evidenceCoverageProjectionVersion uint16 = artifact.InitialDocumentVersion
 
-// CoverageAxis is one independently reported evidence dimension.
-type CoverageAxis string
+// coverageAxis is one independently reported evidence dimension.
+type coverageAxis string
 
 const (
 	// CoverageMeasurement requires exact resource measurements.
-	CoverageMeasurement CoverageAxis = "measurement"
+	CoverageMeasurement coverageAxis = "measurement"
 	// CoverageEvaluation requires a typed evaluation bound to the unit.
-	CoverageEvaluation CoverageAxis = "evaluation"
+	CoverageEvaluation coverageAxis = "evaluation"
 	// CoverageHardware requires hardware observation samples.
-	CoverageHardware CoverageAxis = "hardware"
-	// CoverageCausal requires a typed causal projection input.
-	CoverageCausal CoverageAxis = "causal"
+	CoverageHardware coverageAxis = "hardware"
+	// coverageCausal requires a typed causal projection input.
+	coverageCausal coverageAxis = "causal"
 )
 
 // CoverageRequirement makes one unit's evidence denominator explicit.
 // ExpectedSamples applies only to measurement and hardware. Metrics apply only
 // to measurement; an empty metric list accepts any measured sample.
 type CoverageRequirement struct {
-	Axis            CoverageAxis               `json:"axis"`
+	Axis            coverageAxis               `json:"axis"`
 	ExpectedSamples uint32                     `json:"expected_samples,omitzero"`
 	Metrics         []runrecord.ResourceMetric `json:"metrics,omitempty"`
 }
@@ -72,8 +72,8 @@ type CoveragePair struct {
 	Candidate artifact.ID `json:"candidate"`
 }
 
-// AxisCoverage keeps missing and degraded evidence distinct from observations.
-type AxisCoverage struct {
+// axisCoverage keeps missing and degraded evidence distinct from observations.
+type axisCoverage struct {
 	Observed uint64 `json:"observed"`
 	Missing  uint64 `json:"missing"`
 	Degraded uint64 `json:"degraded"`
@@ -86,18 +86,18 @@ type CoverageBounds struct {
 	Observation runrecord.ObservationStreamBounds `json:"observation"`
 }
 
-// CoverageQuery is a canonical denominator plus its bounded traversal budget.
+// coverageQuery is a canonical denominator plus its bounded traversal budget.
 // Construct it with NewEvidenceCoverageQuery before calling Project.
-type CoverageQuery struct {
+type coverageQuery struct {
 	Units  []CoverageUnit `json:"units"`
 	Pairs  []CoveragePair `json:"pairs,omitempty"`
 	Bounds CoverageBounds `json:"bounds"`
 	ID     artifact.ID    `json:"-"`
 }
 
-// CoverageProjection reports evidence presence only. It deliberately carries
+// coverageProjection reports evidence presence only. It deliberately carries
 // no quality or capability scores.
-type CoverageProjection struct {
+type coverageProjection struct {
 	Version                    uint16            `json:"version"`
 	FailureClassifierVersion   uint16            `json:"failure_classifier_version"`
 	CausalityProjectionVersion uint16            `json:"causality_projection_version"`
@@ -106,10 +106,10 @@ type CoverageProjection struct {
 	Sequence                   uint64            `json:"sequence"`
 	Units                      uint64            `json:"units"`
 	SourceChunks               []artifact.ID     `json:"source_chunks,omitempty"`
-	Measurement                AxisCoverage      `json:"measurement"`
-	Evaluation                 AxisCoverage      `json:"evaluation"`
-	Hardware                   AxisCoverage      `json:"hardware"`
-	Causal                     AxisCoverage      `json:"causal"`
+	Measurement                axisCoverage      `json:"measurement"`
+	Evaluation                 axisCoverage      `json:"evaluation"`
+	Hardware                   axisCoverage      `json:"hardware"`
+	Causal                     axisCoverage      `json:"causal"`
 	Failures                   uint64            `json:"failures"`
 	FailuresClassified         uint64            `json:"failures_classified"`
 	FailuresUnclassified       uint64            `json:"failures_unclassified"`
@@ -127,16 +127,16 @@ func NewEvidenceCoverageQuery(
 	units []CoverageUnit,
 	pairs []CoveragePair,
 	bounds CoverageBounds,
-) (CoverageQuery, error) {
-	query := CoverageQuery{
+) (coverageQuery, error) {
+	query := coverageQuery{
 		Units: cloneCoverageUnits(units), Pairs: slices.Clone(pairs), Bounds: bounds,
 	}
 	if err := canonicalizeCoverageQuery(&query); err != nil {
-		return CoverageQuery{}, err
+		return coverageQuery{}, err
 	}
 	id, err := artifact.JSONID(artifact.KindProfile, query)
 	if err != nil {
-		return CoverageQuery{}, err
+		return coverageQuery{}, err
 	}
 	query.ID = id
 	return query, nil
@@ -144,7 +144,7 @@ func NewEvidenceCoverageQuery(
 
 // Project reads only bounded indexes for the query's explicit units and binds
 // the result to one exact journal head. A concurrent head change is refused.
-func (query CoverageQuery) Project(ctx context.Context, store *overgodb.Store) (CoverageProjection, error) {
+func (query coverageQuery) Project(ctx context.Context, store *overgodb.Store) (coverageProjection, error) {
 	return query.project(ctx, store, nil)
 }
 
@@ -158,25 +158,25 @@ type coverageObservationCache map[coverageObservationKey]runrecord.ObservationSt
 // project accepts exact streams already replayed by a stronger containing
 // proof. The cache is private so public coverage callers cannot substitute
 // unchecked materialized aggregates for owner-verified observation content.
-func (query CoverageQuery) project(
+func (query coverageQuery) project(
 	ctx context.Context,
 	store *overgodb.Store,
 	observations coverageObservationCache,
-) (CoverageProjection, error) {
+) (coverageProjection, error) {
 	if ctx == nil || store == nil {
-		return CoverageProjection{}, errors.New("evaluation: evidence coverage store is absent")
+		return coverageProjection{}, errors.New("evaluation: evidence coverage store is absent")
 	}
 	canonical, err := NewEvidenceCoverageQuery(
 		query.Units, query.Pairs, query.Bounds,
 	)
 	if err != nil || query.ID != canonical.ID || !slices.EqualFunc(query.Units, canonical.Units, equalCoverageUnit) ||
 		!slices.Equal(query.Pairs, canonical.Pairs) {
-		return CoverageProjection{}, errors.Join(err, errors.New("evaluation: evidence coverage query is not canonical"))
+		return coverageProjection{}, errors.Join(err, errors.New("evaluation: evidence coverage query is not canonical"))
 	}
 	return projectEvidenceCoverage(ctx, store, canonical, observations)
 }
 
-func canonicalizeCoverageQuery(query *CoverageQuery) error {
+func canonicalizeCoverageQuery(query *coverageQuery) error {
 	if query == nil || query.Bounds.MaxFacts <= 0 || query.Bounds.Observation.MaxChunks <= 0 ||
 		query.Bounds.MaxFacts > runrecord.MaximumAttemptPopulation ||
 		query.Bounds.Observation.MaxChunks > runrecord.MaximumAttemptPopulation ||
@@ -291,12 +291,12 @@ func canonicalizeCoverageQuery(query *CoverageQuery) error {
 	return nil
 }
 
-func validCoverageAxis(axis CoverageAxis) bool {
-	return slices.Contains([]CoverageAxis{
+func validCoverageAxis(axis coverageAxis) bool {
+	return slices.Contains([]coverageAxis{
 		CoverageMeasurement,
 		CoverageEvaluation,
 		CoverageHardware,
-		CoverageCausal,
+		coverageCausal,
 	}, axis)
 }
 
@@ -341,7 +341,7 @@ const (
 )
 
 type projectedCoverageUnit struct {
-	axes       map[CoverageAxis]coverageState
+	axes       map[coverageAxis]coverageState
 	pair       coveragePairContext
 	pairValid  bool
 	failed     bool
@@ -525,12 +525,12 @@ type coverageUnitFacts struct {
 func projectEvidenceCoverage(
 	ctx context.Context,
 	store *overgodb.Store,
-	query CoverageQuery,
+	query coverageQuery,
 	observations coverageObservationCache,
-) (CoverageProjection, error) {
+) (coverageProjection, error) {
 	head, sequence := store.Head()
-	projection := CoverageProjection{
-		Version:                    EvidenceCoverageProjectionVersion,
+	projection := coverageProjection{
+		Version:                    evidenceCoverageProjectionVersion,
 		FailureClassifierVersion:   executionfailure.ClassifierVersion,
 		CausalityProjectionVersion: overgodb.CausalityProjectionVersion,
 		Query:                      query.ID, Head: head, Sequence: sequence,
@@ -541,7 +541,7 @@ func projectEvidenceCoverage(
 	for _, unit := range query.Units {
 		projected, sources, err := projectCoverageUnit(ctx, store, unit, head, sequence, &budget, observations)
 		if err != nil {
-			return CoverageProjection{}, err
+			return coverageProjection{}, err
 		}
 		units[unit.Attempt] = projected
 		projection.SourceChunks = append(projection.SourceChunks, sources...)
@@ -580,7 +580,7 @@ func projectEvidenceCoverage(
 	})
 	projection.SourceChunks = slices.Compact(projection.SourceChunks)
 	if currentHead, currentSequence := store.Head(); currentHead != head || currentSequence != sequence {
-		return CoverageProjection{}, errors.New("evaluation: evidence coverage journal head changed")
+		return coverageProjection{}, errors.New("evaluation: evidence coverage journal head changed")
 	}
 	return projection, nil
 }
@@ -594,7 +594,7 @@ func projectCoverageUnit(
 	budget *coverageBudget,
 	observations coverageObservationCache,
 ) (projectedCoverageUnit, []artifact.ID, error) {
-	projected := projectedCoverageUnit{axes: make(map[CoverageAxis]coverageState, len(unit.Required))}
+	projected := projectedCoverageUnit{axes: make(map[coverageAxis]coverageState, len(unit.Required))}
 	var stream runrecord.ObservationStream
 	var foundStream bool
 	var err error
@@ -671,14 +671,14 @@ func projectCoverageUnit(
 			}
 		case CoverageHardware:
 			projected.axes[requirement.Axis] = hardwareCoverage(stream, foundStream, requirement)
-		case CoverageCausal:
+		case coverageCausal:
 			projected.axes[requirement.Axis] = causalState
 		}
 	}
 	return projected, slices.Clone(stream.ChunkIDs), nil
 }
 
-func (projection *CoverageProjection) axis(axis CoverageAxis) *AxisCoverage {
+func (projection *coverageProjection) axis(axis coverageAxis) *axisCoverage {
 	switch axis {
 	case CoverageMeasurement:
 		return &projection.Measurement
@@ -691,7 +691,7 @@ func (projection *CoverageProjection) axis(axis CoverageAxis) *AxisCoverage {
 	}
 }
 
-func incrementAxisCoverage(counts *AxisCoverage, state coverageState) {
+func incrementAxisCoverage(counts *axisCoverage, state coverageState) {
 	switch state {
 	case coverageObserved:
 		counts.Observed++

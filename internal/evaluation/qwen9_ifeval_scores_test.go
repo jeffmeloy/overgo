@@ -187,12 +187,12 @@ func checkFullNativeIFEvalScores(t *testing.T, requestText, prefix, nativeText, 
 	}
 	var report InstructionRulesReport
 	readRetainedEvidence(t, store, record.Report, &report)
-	var suite InstructionRulesSuite
+	var suite instructionRulesSuite
 	readRetainedEvidence(t, store, plan.body.CaseProfile, &suite)
 	if len(report.Observations) != request.Cases || len(suite.Cases) != request.Cases || report.Plan != record.Plan {
 		t.Fatal("complete report or case denominator differs")
 	}
-	observations := map[string]InstructionRulesObservation{}
+	observations := map[string]instructionRulesObservation{}
 	responses := map[string]string{}
 	for _, row := range report.Observations {
 		if _, duplicate := observations[row.Name]; duplicate {

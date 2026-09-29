@@ -14,20 +14,20 @@ import (
 )
 
 const (
-	InstructionRulesKind          = "instruction-rules"
-	RuleContainsAll               = "contains-all"
-	RuleExcludesAll               = "excludes-all"
-	RuleSubstringCount            = "substring-count"
-	RuleRegex                     = "regex"
-	RuleJSON                      = "json"
-	RuleUppercase                 = "uppercase"
-	RuleLowercase                 = "lowercase"
-	RulePrefix                    = "prefix"
-	RuleSuffix                    = "suffix"
-	RuleNoComma                   = "no-comma"
-	RelationEqual                 = "equal"
-	RelationAtLeast               = "at-least"
-	RelationAtMost                = "at-most"
+	instructionRulesKind          = "instruction-rules"
+	ruleContainsAll               = "contains-all"
+	ruleExcludesAll               = "excludes-all"
+	ruleSubstringCount            = "substring-count"
+	ruleRegex                     = "regex"
+	ruleJSON                      = "json"
+	ruleUppercase                 = "uppercase"
+	ruleLowercase                 = "lowercase"
+	rulePrefix                    = "prefix"
+	ruleSuffix                    = "suffix"
+	ruleNoComma                   = "no-comma"
+	relationEqual                 = "equal"
+	relationAtLeast               = "at-least"
+	relationAtMost                = "at-most"
 	instructionRulesDatasetMedia  = "application/vnd.overgo.instruction-rules-dataset+json"
 	instructionRulesDatasetSchema = "overgo/instruction-rules-dataset/v1"
 	instructionRulesSplitMedia    = "application/vnd.overgo.instruction-rules-split+json"
@@ -48,54 +48,54 @@ var (
 	}
 )
 
-type CountRule struct {
+type countRule struct {
 	Relation string `json:"relation"`
 	Value    int    `json:"value"`
 }
 
-type InstructionRule struct {
+type instructionRule struct {
 	Name   string     `json:"name"`
 	Kind   string     `json:"kind"`
 	Values []string   `json:"values,omitempty"`
-	Count  *CountRule `json:"count,omitempty"`
+	Count  *countRule `json:"count,omitempty"`
 	// Ordinal selects the one-based paragraph in indexed paragraph rules.
 	Ordinal int `json:"ordinal,omitzero"`
 	// Loose binds independently resolved native operands for the loose view.
-	Loose *InstructionRule `json:"loose,omitempty"`
+	Loose *instructionRule `json:"loose,omitempty"`
 }
 
-type InstructionRulesCase struct {
+type instructionRulesCase struct {
 	Name      string            `json:"name"`
 	Prompt    string            `json:"prompt"`
 	MaxTokens int               `json:"max_tokens"`
-	Rules     []InstructionRule `json:"rules"`
+	Rules     []instructionRule `json:"rules"`
 }
 
-type InstructionRulesSuite struct {
+type instructionRulesSuite struct {
 	Kind   string                 `json:"kind"`
 	Schema string                 `json:"schema"`
 	Source string                 `json:"source"`
-	Cases  []InstructionRulesCase `json:"cases"`
+	Cases  []instructionRulesCase `json:"cases"`
 }
 
 type compiledInstructionRule struct {
 	language  *ifevalLanguageDetector
 	tokenizer *ifevalTokenizer
-	source    InstructionRule
+	source    instructionRule
 	pattern   *regexp.Regexp
 	patterns  []*regexp.Regexp
 	loose     *compiledInstructionRule
 }
 
-type InstructionRulesPlan struct {
+type instructionRulesPlan struct {
 	identity artifact.ID
 	dataset  artifact.ID
 	split    artifact.ID
-	suite    InstructionRulesSuite
+	suite    instructionRulesSuite
 	rules    [][]compiledInstructionRule
 }
 
-type InstructionRulesObservation struct {
+type instructionRulesObservation struct {
 	Name      string `json:"name"`
 	Raw       string `json:"raw"`
 	Strict    []bool `json:"strict"`
@@ -109,16 +109,16 @@ type InstructionRulesReport struct {
 	Version           uint16                        `json:"version"`
 	Plan              artifact.ID                   `json:"plan"`
 	Dataset           artifact.ID                   `json:"dataset"`
-	Observations      []InstructionRulesObservation `json:"observations"`
+	Observations      []instructionRulesObservation `json:"observations"`
 	PromptStrict      float64                       `json:"prompt_strict"`
 	InstructionStrict float64                       `json:"instruction_strict"`
 	PromptLoose       float64                       `json:"prompt_loose"`
 	InstructionLoose  float64                       `json:"instruction_loose"`
 }
 
-func CompileInstructionRules(suite InstructionRulesSuite) (InstructionRulesPlan, error) {
-	if suite.Kind != InstructionRulesKind || strings.TrimSpace(suite.Schema) == "" || strings.TrimSpace(suite.Source) == "" || len(suite.Cases) == 0 {
-		return InstructionRulesPlan{}, errors.New("evaluation: invalid instruction-rules suite")
+func compileInstructionRules(suite instructionRulesSuite) (instructionRulesPlan, error) {
+	if suite.Kind != instructionRulesKind || strings.TrimSpace(suite.Schema) == "" || strings.TrimSpace(suite.Source) == "" || len(suite.Cases) == 0 {
+		return instructionRulesPlan{}, errors.New("evaluation: invalid instruction-rules suite")
 	}
 	suite.Cases = slices.Clone(suite.Cases)
 	compiled := make([][]compiledInstructionRule, len(suite.Cases))
@@ -127,10 +127,10 @@ func CompileInstructionRules(suite InstructionRulesSuite) (InstructionRulesPlan,
 		testCase := &suite.Cases[index]
 		testCase.Rules = slices.Clone(testCase.Rules)
 		if strings.TrimSpace(testCase.Name) == "" || testCase.Prompt == "" || testCase.MaxTokens <= 0 || len(testCase.Rules) == 0 {
-			return InstructionRulesPlan{}, errors.New("evaluation: invalid instruction-rules case")
+			return instructionRulesPlan{}, errors.New("evaluation: invalid instruction-rules case")
 		}
 		if _, duplicate := names[testCase.Name]; duplicate {
-			return InstructionRulesPlan{}, errors.New("evaluation: duplicate instruction-rules case")
+			return instructionRulesPlan{}, errors.New("evaluation: duplicate instruction-rules case")
 		}
 		names[testCase.Name] = struct{}{}
 		compiled[index] = make([]compiledInstructionRule, len(testCase.Rules))
@@ -138,10 +138,10 @@ func CompileInstructionRules(suite InstructionRulesSuite) (InstructionRulesPlan,
 		for ruleIndex := range testCase.Rules {
 			rule, err := compileInstructionRule(testCase.Rules[ruleIndex])
 			if err != nil {
-				return InstructionRulesPlan{}, err
+				return instructionRulesPlan{}, err
 			}
 			if _, duplicate := ruleNames[rule.source.Name]; duplicate {
-				return InstructionRulesPlan{}, errors.New("evaluation: duplicate instruction rule")
+				return instructionRulesPlan{}, errors.New("evaluation: duplicate instruction rule")
 			}
 			ruleNames[rule.source.Name] = struct{}{}
 			compiled[index][ruleIndex] = rule
@@ -150,30 +150,30 @@ func CompileInstructionRules(suite InstructionRulesSuite) (InstructionRulesPlan,
 	}
 	identity, err := artifact.JSONID(artifact.KindProfile, suite)
 	if err != nil {
-		return InstructionRulesPlan{}, err
+		return instructionRulesPlan{}, err
 	}
 	datasetID, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
 	if err != nil {
-		return InstructionRulesPlan{}, err
+		return instructionRulesPlan{}, err
 	}
 	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
 		Dataset artifact.ID `json:"dataset"`
 	}{Dataset: datasetID})
 	if err != nil {
-		return InstructionRulesPlan{}, err
+		return instructionRulesPlan{}, err
 	}
-	return InstructionRulesPlan{identity: identity, dataset: datasetID, split: split, suite: suite, rules: compiled}, nil
+	return instructionRulesPlan{identity: identity, dataset: datasetID, split: split, suite: suite, rules: compiled}, nil
 }
 
-func BindInstructionRules(compiled InstructionRulesPlan, authorities ExactAuthorities) (Plan, error) {
-	return bindKindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, InstructionRulesKind, authorities)
+func bindInstructionRules(compiled instructionRulesPlan, authorities ExactAuthorities) (Plan, error) {
+	return bindKindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, instructionRulesKind, authorities)
 }
 
-func EvaluateInstructionRules(
+func evaluateInstructionRules(
 	ctx context.Context,
 	repository artifact.Repository,
 	generator Generator,
-	compiled InstructionRulesPlan,
+	compiled instructionRulesPlan,
 	plan Plan,
 ) (InstructionRulesReport, error) {
 	if ctx == nil || repository == nil || generator == nil || compiled.identity != plan.body.CaseProfile {
@@ -191,7 +191,7 @@ func EvaluateInstructionRules(
 	}
 	report := InstructionRulesReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
-		Observations: make([]InstructionRulesObservation, len(compiled.suite.Cases)),
+		Observations: make([]instructionRulesObservation, len(compiled.suite.Cases)),
 	}
 	strictPrompts, loosePrompts, strictRules, looseRules, rules := 0, 0, 0, 0, 0
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
@@ -214,7 +214,7 @@ func EvaluateInstructionRules(
 		strictRules += countTrue(strict)
 		looseRules += countTrue(loose)
 		rules += len(strict)
-		report.Observations[index] = InstructionRulesObservation{
+		report.Observations[index] = instructionRulesObservation{
 			Name: testCase.Name, Raw: result.Text, Strict: strict, Loose: loose,
 			Prompt: result.PromptTokens, Generated: result.GeneratedTokens,
 		}
@@ -234,7 +234,7 @@ func EvaluateInstructionRules(
 	return report, nil
 }
 
-func compileInstructionRule(source InstructionRule) (compiledInstructionRule, error) {
+func compileInstructionRule(source instructionRule) (compiledInstructionRule, error) {
 	if source.Ordinal != 0 && source.Kind != ifevalIndexedParagraph {
 		return compiledInstructionRule{}, errors.New("evaluation: ordinal requires an indexed paragraph rule")
 	}
@@ -268,15 +268,15 @@ func compileInstructionRule(source InstructionRule) (compiledInstructionRule, er
 				return compiledInstructionRule{}, errors.New("evaluation: unsupported non-ASCII IFEval end phrase")
 			}
 		}
-	case RuleContainsAll, RuleExcludesAll:
+	case ruleContainsAll, ruleExcludesAll:
 		if len(source.Values) == 0 || source.Count != nil {
 			return compiledInstructionRule{}, errors.New("evaluation: invalid instruction value rule")
 		}
-	case RuleSubstringCount:
+	case ruleSubstringCount:
 		if len(source.Values) != 1 || !validCountRule(source.Count) {
 			return compiledInstructionRule{}, errors.New("evaluation: invalid instruction count rule")
 		}
-	case RuleRegex:
+	case ruleRegex:
 		if len(source.Values) != 1 || source.Count != nil {
 			return compiledInstructionRule{}, errors.New("evaluation: invalid instruction regex rule")
 		}
@@ -285,11 +285,11 @@ func compileInstructionRule(source InstructionRule) (compiledInstructionRule, er
 			return compiledInstructionRule{}, err
 		}
 		result.pattern = pattern
-	case RulePrefix, RuleSuffix:
+	case rulePrefix, ruleSuffix:
 		if len(source.Values) != 1 || source.Values[0] == "" || source.Count != nil {
 			return compiledInstructionRule{}, errors.New("evaluation: invalid instruction boundary rule")
 		}
-	case RuleJSON, ifevalJSONRule, RuleUppercase, RuleLowercase, RuleNoComma:
+	case ruleJSON, ifevalJSONRule, ruleUppercase, ruleLowercase, ruleNoComma:
 		if len(source.Values) != 0 || source.Count != nil {
 			return compiledInstructionRule{}, errors.New("evaluation: invalid instruction unary rule")
 		}
@@ -318,8 +318,8 @@ func compileInstructionRule(source InstructionRule) (compiledInstructionRule, er
 	return result, nil
 }
 
-func validCountRule(rule *CountRule) bool {
-	return rule != nil && rule.Value >= 0 && (rule.Relation == RelationEqual || rule.Relation == RelationAtLeast || rule.Relation == RelationAtMost || rule.Relation == ifevalLessThan)
+func validCountRule(rule *countRule) bool {
+	return rule != nil && rule.Value >= 0 && (rule.Relation == relationEqual || rule.Relation == relationAtLeast || rule.Relation == relationAtMost || rule.Relation == ifevalLessThan)
 }
 
 func evaluateInstructionViews(response string, rules []compiledInstructionRule) ([]bool, []bool, error) {
@@ -387,52 +387,52 @@ func (rule compiledInstructionRule) matches(response string) (bool, error) {
 		return true, nil
 	case ifevalEndRule:
 		return matchesIFEvalEnd(response, rule.source.Values[0]), nil
-	case RuleContainsAll:
+	case ruleContainsAll:
 		for _, value := range rule.source.Values {
 			if !strings.Contains(response, value) {
 				return false, nil
 			}
 		}
 		return true, nil
-	case RuleExcludesAll:
+	case ruleExcludesAll:
 		for _, value := range rule.source.Values {
 			if strings.Contains(response, value) {
 				return false, nil
 			}
 		}
 		return true, nil
-	case RuleSubstringCount:
+	case ruleSubstringCount:
 		return compareCount(strings.Count(response, rule.source.Values[0]), *rule.source.Count), nil
-	case RuleRegex:
+	case ruleRegex:
 		return rule.pattern.MatchString(response), nil
-	case RuleJSON:
+	case ruleJSON:
 		return json.Valid([]byte(response)), nil
 	case ifevalJSONRule:
 		return matchesIFEvalJSON(response), nil
-	case RuleUppercase:
+	case ruleUppercase:
 		return uniformLetterCase(response, unicode.IsUpper), nil
-	case RuleLowercase:
+	case ruleLowercase:
 		return uniformLetterCase(response, unicode.IsLower), nil
-	case RulePrefix:
+	case rulePrefix:
 		return strings.HasPrefix(response, rule.source.Values[0]), nil
-	case RuleSuffix:
+	case ruleSuffix:
 		return strings.HasSuffix(response, rule.source.Values[0]), nil
-	case RuleNoComma:
+	case ruleNoComma:
 		return !strings.ContainsRune(response, ','), nil
 	default:
 		return rule.matchesIFEvalStructure(response), nil
 	}
 }
 
-func compareCount(observed int, rule CountRule) bool {
+func compareCount(observed int, rule countRule) bool {
 	switch rule.Relation {
 	case ifevalLessThan:
 		return observed < rule.Value
-	case RelationEqual:
+	case relationEqual:
 		return observed == rule.Value
-	case RelationAtLeast:
+	case relationAtLeast:
 		return observed >= rule.Value
-	case RelationAtMost:
+	case relationAtMost:
 		return observed <= rule.Value
 	default:
 		return false

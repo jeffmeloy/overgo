@@ -90,7 +90,7 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 	if err != nil || dropped != 1 {
 		t.Fatalf("math assemble = (%v, dropped=%d)", err, dropped)
 	}
-	mathSuite := math.(StructuredGeneratedSuite)
+	mathSuite := math.(structuredGeneratedSuite)
 	if mathSuite.Cases[0].Prompt != "Problem: Divide one by two.\nAnswer:" ||
 		mathSuite.Cases[0].Answers[0] != `\frac{1}{2}` {
 		t.Fatalf("math case = %+v", mathSuite.Cases[0])
@@ -119,7 +119,7 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 	if err != nil || dropped != 1 {
 		t.Fatalf("ifeval assemble = (%v, dropped=%d)", err, dropped)
 	}
-	ifevalSuite := ifeval.(InstructionRulesSuite)
+	ifevalSuite := ifeval.(instructionRulesSuite)
 	if len(ifevalSuite.Cases) != 2 || len(ifevalSuite.Cases[0].Rules) != 2 ||
 		ifevalSuite.Cases[0].Rules[0].Kind != ifevalEnglishUpper ||
 		ifevalSuite.Cases[0].Rules[1].Kind != ifevalKeywordsRule || len(ifevalSuite.Cases[1].Rules) != 1 || ifevalSuite.Cases[1].Rules[0].Kind != ifevalLanguageRule || len(ifevalSuite.Cases[1].Rules[0].Values) != 1 || ifevalSuite.Cases[1].Rules[0].Values[0] != "fr" {
@@ -201,7 +201,7 @@ func TestAssembleDNASuite(t *testing.T) {
 	if err != nil || dropped != 0 {
 		t.Fatalf("assemble = (%v, %d)", err, dropped)
 	}
-	suite := assembled.(SequenceScoringSuite)
+	suite := assembled.(sequenceScoringSuite)
 	if len(suite.Cases) != 2 || len(suite.Cases[0].Text) != dnaScoringWindowChars ||
 		suite.Cases[0].Text != long[:dnaScoringWindowChars] || suite.Cases[1].Text != "ACGT" {
 		t.Fatalf("window = %d and %d chars, want %d and 4",

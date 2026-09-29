@@ -14,18 +14,18 @@ import (
 )
 
 const (
-	// RolloutProjectionMediaType identifies rollout projection reports.
-	RolloutProjectionMediaType = "application/vnd.overgo.rollout-projection+json"
-	// RolloutProjectionSchema identifies the projection report contract.
-	RolloutProjectionSchema = "overgo/rollout-projection/v1"
-	// RolloutProjectorVersion is the registered projector implementation
+	// rolloutProjectionMediaType identifies rollout projection reports.
+	rolloutProjectionMediaType = "application/vnd.overgo.rollout-projection+json"
+	// rolloutProjectionSchema identifies the projection report contract.
+	rolloutProjectionSchema = "overgo/rollout-projection/v1"
+	// rolloutProjectorVersion is the registered projector implementation
 	// version; the digest binds it, so a changed projector produces new
 	// evidence instead of silently overwriting old readings.
-	RolloutProjectorVersion = 1
-	// RolloutProjectionQuery names the one registered query contract: the
+	rolloutProjectorVersion = 1
+	// rolloutProjectionQuery names the one registered query contract: the
 	// lineage children of the rollout plan, excluding prior projection
 	// reports, at an exact store head.
-	RolloutProjectionQuery = "overgo/rollout-projection-query/children-of-plan/v1"
+	rolloutProjectionQuery = "overgo/rollout-projection-query/children-of-plan/v1"
 )
 
 // RolloutProjection is the immutable report promotion and rollback consume
@@ -48,7 +48,7 @@ type RolloutProjection struct {
 }
 
 var rolloutProjectionCodec = artifact.JSONDocumentCodec(
-	"rollout projection", artifact.KindEvidence, RolloutProjectionMediaType, RolloutProjectionSchema,
+	"rollout projection", artifact.KindEvidence, rolloutProjectionMediaType, rolloutProjectionSchema,
 	canonicalizeRolloutProjection,
 	func(value RolloutProjection) artifact.ID { return value.ID },
 	func(value *RolloutProjection, id artifact.ID) { value.ID = id },
@@ -65,10 +65,10 @@ func canonicalizeRolloutProjection(value *RolloutProjection) error {
 	if value.Plan.Kind() != artifact.KindProfile || value.Head == "" {
 		return errors.New("evaluation: rollout projection requires its plan identity and exact head")
 	}
-	if value.Projector != RolloutProjectorVersion {
+	if value.Projector != rolloutProjectorVersion {
 		return fmt.Errorf("evaluation: unregistered rollout projector version %d", value.Projector)
 	}
-	if value.Query != RolloutProjectionQuery {
+	if value.Query != rolloutProjectionQuery {
 		return fmt.Errorf("evaluation: unregistered rollout projection query %q", value.Query)
 	}
 	value.Sources = uniqueArtifactIDs(value.Sources)
@@ -130,7 +130,7 @@ func ProjectRolloutEvidence(
 		if !present {
 			return RolloutProjection{}, fmt.Errorf("evaluation: rollout source %s is not committed", edge.Child)
 		}
-		if descriptor.MediaType == RolloutProjectionMediaType {
+		if descriptor.MediaType == rolloutProjectionMediaType {
 			continue
 		}
 		sources = append(sources, edge.Child)
@@ -140,7 +140,7 @@ func ProjectRolloutEvidence(
 	projection := RolloutProjection{
 		Version: artifact.InitialDocumentVersion, Plan: planID,
 		Head: head.String(), Sequence: sequence,
-		Projector: RolloutProjectorVersion, Query: RolloutProjectionQuery,
+		Projector: rolloutProjectorVersion, Query: rolloutProjectionQuery,
 		Sources: sources, Coverage: uint64(len(sources)),
 	}
 	projection.Digest = rolloutProjectionDigest(projection)

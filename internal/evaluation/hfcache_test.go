@@ -38,7 +38,7 @@ func TestHFCacheBenchmarkCatalog(t *testing.T) {
 	place("TAUR-Lab___mu_sr", "default", "0.0.0", "bb22", "mu_sr-murder_mysteries.arrow")
 	place("unrelated___scratch", "default", "0.0.0", "cc33", "scratch-test.arrow")
 
-	seeds, err := DeriveHFCacheBenchmarks(root)
+	seeds, err := deriveHFCacheBenchmarks(root)
 	if err != nil {
 		t.Fatal(err)
 	}

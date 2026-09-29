@@ -13,17 +13,17 @@ import (
 )
 
 const (
-	// LiveSafetyWindowMediaType identifies safety-window derivation evidence.
-	LiveSafetyWindowMediaType = "application/vnd.overgo.live-safety-window+json"
-	// LiveSafetyWindowSchema identifies the safety-window contract.
-	LiveSafetyWindowSchema = "overgo/live-safety-window/v1"
-	// LiveSafetyModeEnvelope marks a small-sample window: the boundaries are
+	// liveSafetyWindowMediaType identifies safety-window derivation evidence.
+	liveSafetyWindowMediaType = "application/vnd.overgo.live-safety-window+json"
+	// liveSafetyWindowSchema identifies the safety-window contract.
+	liveSafetyWindowSchema = "overgo/live-safety-window/v1"
+	// liveSafetyModeEnvelope marks a small-sample window: the boundaries are
 	// the exact history extremes, and a decision is permitted only when the
 	// live observations separate entirely from that envelope.
-	LiveSafetyModeEnvelope = "envelope-separation"
-	// LiveSafetyModeQuantile marks a large-history window: the boundaries
+	liveSafetyModeEnvelope = "envelope-separation"
+	// liveSafetyModeQuantile marks a large-history window: the boundaries
 	// are symmetric order statistics, a distribution-free tolerance band.
-	LiveSafetyModeQuantile = "quantile-band"
+	liveSafetyModeQuantile = "quantile-band"
 	// liveSafetyTailDenominator sets the trimmed tail per side to one
 	// fortieth of the history — a 2.5% order-statistic tail, giving the
 	// band at least 95% distribution-free content. Histories too small to
@@ -91,10 +91,10 @@ func DeriveLiveSafetyWindow(
 		Metric: metric, Direction: direction, History: evidence, Samples: samples,
 	}
 	if trim == 0 {
-		window.Mode = LiveSafetyModeEnvelope
+		window.Mode = liveSafetyModeEnvelope
 		window.Lower, window.Upper = sorted[0], sorted[len(sorted)-1]
 	} else {
-		window.Mode = LiveSafetyModeQuantile
+		window.Mode = liveSafetyModeQuantile
 		window.Lower, window.Upper = sorted[trim], sorted[len(sorted)-1-trim]
 	}
 	// P(one draw outside the envelope) <= 2/(samples+1); the window length
@@ -119,7 +119,7 @@ func PublishLiveSafetyWindow(
 		return artifact.ID{}, errors.New("evaluation: only a derived safety window can publish")
 	}
 	contract := artifact.DocumentContract{
-		Kind: artifact.KindEvidence, MediaType: LiveSafetyWindowMediaType, Schema: LiveSafetyWindowSchema,
+		Kind: artifact.KindEvidence, MediaType: liveSafetyWindowMediaType, Schema: liveSafetyWindowSchema,
 	}
 	content, err := artifact.JSONContent(contract, window)
 	if err != nil {

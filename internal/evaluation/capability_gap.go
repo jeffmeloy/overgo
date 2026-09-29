@@ -13,28 +13,28 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// CapabilityGapKind names the three typed gap findings the composition
+// capabilityGapKind names the three typed gap findings the composition
 // driver consumes.
-type CapabilityGapKind string
+type capabilityGapKind string
 
 const (
-	// GapFrontier marks a recipe whose latest measurement trails the best
+	// gapFrontier marks a recipe whose latest measurement trails the best
 	// latest measurement of the same metric across the store.
-	GapFrontier CapabilityGapKind = "frontier-gap"
-	// GapRegression marks a recipe whose latest measurement fell below its
+	gapFrontier capabilityGapKind = "frontier-gap"
+	// gapRegression marks a recipe whose latest measurement fell below its
 	// own best earlier measurement of the same metric.
-	GapRegression CapabilityGapKind = "regression"
-	// GapWeakestDomain marks, per recipe, the metric with its largest
+	gapRegression capabilityGapKind = "regression"
+	// gapWeakestDomain marks, per recipe, the metric with its largest
 	// frontier shortfall — the domain to improve first.
-	GapWeakestDomain CapabilityGapKind = "weakest-domain"
+	gapWeakestDomain capabilityGapKind = "weakest-domain"
 )
 
-// CapabilityGapTarget is one typed improvement target derived from
+// capabilityGapTarget is one typed improvement target derived from
 // admitted evaluation evidence: the exact recipe and model, the metric,
 // the direction-oriented measured and reference values, the shortfall,
 // and the evidence documents behind both sides.
-type CapabilityGapTarget struct {
-	Kind      CapabilityGapKind `json:"kind"`
+type capabilityGapTarget struct {
+	Kind      capabilityGapKind `json:"kind"`
 	Metric    string            `json:"metric"`
 	Model     artifact.ID       `json:"model"`
 	Recipe    artifact.ID       `json:"recipe"`
@@ -44,10 +44,10 @@ type CapabilityGapTarget struct {
 	Evidence  []artifact.ID     `json:"evidence"`
 }
 
-// EvaluationStoreReader is the store surface gap derivation needs: the
+// evaluationStoreReader is the store surface gap derivation needs: the
 // ordinary reader plus introduction ordering, which decides which
 // measurement of a recipe is its latest.
-type EvaluationStoreReader interface {
+type evaluationStoreReader interface {
 	artifact.Reader
 	ArtifactIntroduction(context.Context, artifact.ID) (overgodb.ArtifactIntroduction, bool, error)
 }
@@ -72,9 +72,9 @@ type gapMeasurement struct {
 // order deterministically and every target cites both sides' evidence.
 func DeriveCapabilityGapTargets(
 	ctx context.Context,
-	store EvaluationStoreReader,
+	store evaluationStoreReader,
 	evidence []artifact.ID,
-) ([]CapabilityGapTarget, error) {
+) ([]capabilityGapTarget, error) {
 	if len(evidence) == 0 {
 		return nil, errors.New("evaluation: gap derivation requires admitted evaluation evidence")
 	}
@@ -116,7 +116,7 @@ func DeriveCapabilityGapTargets(
 		latest gapMeasurement
 	}
 	latests := make([]latestReading, 0, len(series))
-	targets := make([]CapabilityGapTarget, 0)
+	targets := make([]capabilityGapTarget, 0)
 	for key, measurements := range series {
 		slices.SortFunc(measurements, func(a, b gapMeasurement) int {
 			if a.sequence != b.sequence {
@@ -133,8 +133,8 @@ func DeriveCapabilityGapTargets(
 			}
 		}
 		if bestEarlier != latest && latest.quality < bestEarlier.quality {
-			targets = append(targets, CapabilityGapTarget{
-				Kind: GapRegression, Metric: key.metric,
+			targets = append(targets, capabilityGapTarget{
+				Kind: gapRegression, Metric: key.metric,
 				Model: latest.model, Recipe: key.recipe,
 				Measured: latest.quality, Reference: bestEarlier.quality,
 				Gap:      bestEarlier.quality - latest.quality,
@@ -149,14 +149,14 @@ func DeriveCapabilityGapTargets(
 			frontier[reading.key.metric] = reading.latest
 		}
 	}
-	weakest := make(map[artifact.ID]CapabilityGapTarget)
+	weakest := make(map[artifact.ID]capabilityGapTarget)
 	for _, reading := range latests {
 		best := frontier[reading.key.metric]
 		if reading.latest.quality >= best.quality {
 			continue
 		}
-		target := CapabilityGapTarget{
-			Kind: GapFrontier, Metric: reading.key.metric,
+		target := capabilityGapTarget{
+			Kind: gapFrontier, Metric: reading.key.metric,
 			Model: reading.latest.model, Recipe: reading.key.recipe,
 			Measured: reading.latest.quality, Reference: best.quality,
 			Gap:      best.quality - reading.latest.quality,
@@ -167,12 +167,12 @@ func DeriveCapabilityGapTargets(
 		if !seen || target.Gap > current.Gap ||
 			(target.Gap == current.Gap && target.Metric < current.Metric) {
 			domain := target
-			domain.Kind = GapWeakestDomain
+			domain.Kind = gapWeakestDomain
 			weakest[reading.key.recipe] = domain
 		}
 	}
 	targets = append(targets, slices.Collect(maps.Values(weakest))...)
-	slices.SortFunc(targets, func(a, b CapabilityGapTarget) int {
+	slices.SortFunc(targets, func(a, b capabilityGapTarget) int {
 		if by := strings.Compare(string(a.Kind), string(b.Kind)); by != 0 {
 			return by
 		}

@@ -46,7 +46,7 @@ func TestDomainRoutedSuites(t *testing.T) {
 		t.Fatalf("redeclared domains = %v", domains)
 	}
 
-	if SuiteDomain("store/mmlu") != DomainText || SuiteDomain("store/unknown") != DomainText {
+	if suiteDomain("store/mmlu") != DomainText || suiteDomain("store/unknown") != DomainText {
 		t.Fatal("suite domains must default to text")
 	}
 

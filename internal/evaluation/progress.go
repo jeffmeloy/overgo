@@ -22,17 +22,17 @@ type Progress struct {
 	Sample string
 }
 
-// ProgressSink receives every scored case. It owns the cadence of any
+// progressSink receives every scored case. It owns the cadence of any
 // output it produces: the suite loops report each case and stay silent
 // themselves, so a 5761-case suite on a slow model is observable at
 // whatever granularity the operator's sink chooses.
-type ProgressSink func(Progress)
+type progressSink func(Progress)
 
 type progressKey struct{}
 
 // WithProgress binds a sink to the context every suite loop reads. A
 // context without one runs the loops unobserved, exactly as before.
-func WithProgress(ctx context.Context, sink ProgressSink) context.Context {
+func WithProgress(ctx context.Context, sink progressSink) context.Context {
 	if ctx == nil || sink == nil {
 		return ctx
 	}
@@ -41,7 +41,7 @@ func WithProgress(ctx context.Context, sink ProgressSink) context.Context {
 
 // progressTracker counts one suite's loop against a bound sink.
 type progressTracker struct {
-	sink    ProgressSink
+	sink    progressSink
 	suite   string
 	total   int
 	done    int
@@ -53,7 +53,7 @@ func trackProgress(ctx context.Context, suite string, total int) *progressTracke
 	if ctx == nil {
 		return nil
 	}
-	sink, _ := ctx.Value(progressKey{}).(ProgressSink)
+	sink, _ := ctx.Value(progressKey{}).(progressSink)
 	if sink == nil {
 		return nil
 	}

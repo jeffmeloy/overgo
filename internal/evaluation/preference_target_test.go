@@ -40,12 +40,12 @@ func TestPreferenceEvaluationBindsFrozenReferenceAndHeldoutSplit(t *testing.T) {
 		t.Fatal(err)
 	}
 	policy := trainingprogram.PreferencePolicy{Reference: id(artifact.KindModel, "frozen reference"), Scale: 0.2}
-	plan, err := CompilePreferenceTargetPlan(objective, view, PreferenceTargetSuite{Policy: policy})
+	plan, err := compilePreferenceTargetPlan(objective, view, preferenceTargetSuite{Policy: policy})
 	if err != nil || plan.Policy.Reference != policy.Reference || plan.Heldout != heldoutID {
 		t.Fatalf("plan=%+v err=%v", plan, err)
 	}
 	score := func(value float64) sequencescore.Score { return sequencescore.Score{LogProbability: value, Tokens: 1} }
-	report, err := ScorePreferenceTargets(plan, []PreferenceTargetObservation{{
+	report, err := scorePreferenceTargets(plan, []preferenceTargetObservation{{
 		Record: "pair", PolicyChosen: score(-1), PolicyRejected: score(-3),
 		ReferenceChosen: score(-2), ReferenceRejected: score(-3),
 	}})

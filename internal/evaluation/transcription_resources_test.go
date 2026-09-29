@@ -217,7 +217,7 @@ func testTranscriptionResourcesRunAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	measurement := TranscriptionResourceMeasurement{Name: testCase.Name, Run: run.ID, WallNS: 1, Outcome: run.Outcome, Failure: run.Failure}
+	measurement := transcriptionResourceMeasurement{Name: testCase.Name, Run: run.ID, WallNS: 1, Outcome: run.Outcome, Failure: run.Failure}
 	seen := make(map[string]bool)
 	first, _, err := publishTranscriptionExecutionMeasurement(t.Context(), fixture.store, fixture.plan, fixture.model, load.Attempt, 1, measurement, seen)
 	if err != nil {

@@ -127,8 +127,8 @@ func dnaCorpusSubsets(root string) ([]dnaSubset, error) {
 // assembleDNASuite renders corpus-slice records as one sequence-scoring
 // suite: each sequence scores full-text, grouped by corpus subset.
 func assembleDNASuite(cases []storeCase) (any, int, error) {
-	suite := SequenceScoringSuite{
-		Kind: SequenceScoringKind, Schema: dnaCorpusConversion, Source: "store/dna",
+	suite := sequenceScoringSuite{
+		Kind: sequenceScoringKind, Schema: dnaCorpusConversion, Source: "store/dna",
 	}
 	for _, entry := range cases {
 		text, err := caseString(entry.fields, "text")
@@ -138,7 +138,7 @@ func assembleDNASuite(cases []storeCase) (any, int, error) {
 		if len(text) > dnaScoringWindowChars {
 			text = text[:dnaScoringWindowChars]
 		}
-		suite.Cases = append(suite.Cases, SequenceScoringCase{
+		suite.Cases = append(suite.Cases, sequenceScoringCase{
 			Name:  fmt.Sprintf("%s/%d", entry.entry, entry.ordinal),
 			Group: entry.subset, Text: text,
 		})

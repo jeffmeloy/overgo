@@ -10,20 +10,20 @@ import (
 func TestIFEvalPinnedOracleParity(t *testing.T) {
 	t.Parallel()
 	const response = "preface\nHELLO WORLD\npostscript"
-	compiled, err := CompileInstructionRules(InstructionRulesSuite{
-		Kind: InstructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "fixture",
-		Cases: []InstructionRulesCase{{
+	compiled, err := compileInstructionRules(instructionRulesSuite{
+		Kind: instructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "fixture",
+		Cases: []instructionRulesCase{{
 			Name: "uppercase", Prompt: "Reply in uppercase and include HELLO.", MaxTokens: 8,
-			Rules: []InstructionRule{
-				{Name: "uppercase", Kind: RuleUppercase},
-				{Name: "keyword", Kind: RuleContainsAll, Values: []string{"HELLO"}},
+			Rules: []instructionRule{
+				{Name: "uppercase", Kind: ruleUppercase},
+				{Name: "keyword", Kind: ruleContainsAll, Values: []string{"HELLO"}},
 			},
 		}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := BindInstructionRules(compiled, ExactAuthorities{
+	plan, err := bindInstructionRules(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"),
 		RuntimeRecipe:   planID(t, artifact.KindRecipe, "recipe"), CodeCommit: planTestCommit,
 		Environment: planID(t, artifact.KindEvidence, "environment"), Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
@@ -37,7 +37,7 @@ func TestIFEvalPinnedOracleParity(t *testing.T) {
 	}
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
-	report, err := EvaluateInstructionRules(
+	report, err := evaluateInstructionRules(
 		t.Context(), store, exactGenerator{pieces: []string{response}}, compiled, plan,
 	)
 	if err != nil {

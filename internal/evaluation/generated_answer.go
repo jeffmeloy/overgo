@@ -13,7 +13,7 @@ import (
 const (
 	GeneratedAnswerKind         = "generated-answer"
 	TransformTrimSpace          = "trim-space"
-	TransformLowercase          = "lowercase"
+	transformLowercase          = "lowercase"
 	generatedAnswerMediaType    = "application/vnd.overgo.generated-answer-dataset+json"
 	generatedAnswerSchema       = "overgo/generated-answer-dataset/v1"
 	generatedAnswerSplitMedia   = "application/vnd.overgo.generated-answer-split+json"
@@ -49,14 +49,14 @@ type GeneratedAnswerSuite struct {
 	Cases      []GeneratedAnswerCase `json:"cases"`
 }
 
-type GeneratedAnswerPlan struct {
+type generatedAnswerPlan struct {
 	identity artifact.ID
 	dataset  artifact.ID
 	split    artifact.ID
 	suite    GeneratedAnswerSuite
 }
 
-type GeneratedAnswerObservation struct {
+type generatedAnswerObservation struct {
 	Name      string `json:"name"`
 	Raw       string `json:"raw"`
 	Scored    string `json:"scored"`
@@ -65,28 +65,28 @@ type GeneratedAnswerObservation struct {
 	Generated int    `json:"generated_tokens"`
 }
 
-type GeneratedAnswerReport struct {
+type generatedAnswerReport struct {
 	ID           artifact.ID                  `json:"-"`
 	Version      uint16                       `json:"version"`
 	Plan         artifact.ID                  `json:"plan"`
 	Dataset      artifact.ID                  `json:"dataset"`
-	Observations []GeneratedAnswerObservation `json:"observations"`
+	Observations []generatedAnswerObservation `json:"observations"`
 	Accuracy     float64                      `json:"accuracy"`
 }
 
-func CompileGeneratedAnswer(suite GeneratedAnswerSuite) (GeneratedAnswerPlan, error) {
+func CompileGeneratedAnswer(suite GeneratedAnswerSuite) (generatedAnswerPlan, error) {
 	if suite.Kind != GeneratedAnswerKind || strings.TrimSpace(suite.Schema) == "" ||
 		strings.TrimSpace(suite.Source) == "" || len(suite.Cases) == 0 {
-		return GeneratedAnswerPlan{}, errors.New("evaluation: invalid generated-answer suite")
+		return generatedAnswerPlan{}, errors.New("evaluation: invalid generated-answer suite")
 	}
 	suite.Transforms = slices.Clone(suite.Transforms)
 	seenTransforms := make(map[string]struct{}, len(suite.Transforms))
 	for _, transform := range suite.Transforms {
-		if transform != TransformTrimSpace && transform != TransformLowercase {
-			return GeneratedAnswerPlan{}, errors.New("evaluation: unknown answer transform")
+		if transform != TransformTrimSpace && transform != transformLowercase {
+			return generatedAnswerPlan{}, errors.New("evaluation: unknown answer transform")
 		}
 		if _, duplicate := seenTransforms[transform]; duplicate {
-			return GeneratedAnswerPlan{}, errors.New("evaluation: duplicate answer transform")
+			return generatedAnswerPlan{}, errors.New("evaluation: duplicate answer transform")
 		}
 		seenTransforms[transform] = struct{}{}
 	}
@@ -97,34 +97,34 @@ func CompileGeneratedAnswer(suite GeneratedAnswerSuite) (GeneratedAnswerPlan, er
 		testCase.Answers = slices.Clone(testCase.Answers)
 		if strings.TrimSpace(testCase.Name) == "" || testCase.Prompt == "" ||
 			testCase.MaxTokens <= 0 || len(testCase.Answers) == 0 {
-			return GeneratedAnswerPlan{}, errors.New("evaluation: invalid generated-answer case")
+			return generatedAnswerPlan{}, errors.New("evaluation: invalid generated-answer case")
 		}
 		if _, duplicate := names[testCase.Name]; duplicate {
-			return GeneratedAnswerPlan{}, errors.New("evaluation: duplicate generated-answer case")
+			return generatedAnswerPlan{}, errors.New("evaluation: duplicate generated-answer case")
 		}
 		names[testCase.Name] = struct{}{}
 		if slices.Contains(testCase.Answers, "") {
-			return GeneratedAnswerPlan{}, errors.New("evaluation: empty generated answer")
+			return generatedAnswerPlan{}, errors.New("evaluation: empty generated answer")
 		}
 	}
 	identity, err := artifact.JSONID(artifact.KindProfile, suite)
 	if err != nil {
-		return GeneratedAnswerPlan{}, err
+		return generatedAnswerPlan{}, err
 	}
 	dataset, err := artifact.JSONID(artifact.KindDataset, suite.Cases)
 	if err != nil {
-		return GeneratedAnswerPlan{}, err
+		return generatedAnswerPlan{}, err
 	}
 	split, err := artifact.JSONID(artifact.KindDatasetShard, struct {
 		Dataset artifact.ID `json:"dataset"`
 	}{Dataset: dataset})
 	if err != nil {
-		return GeneratedAnswerPlan{}, err
+		return generatedAnswerPlan{}, err
 	}
-	return GeneratedAnswerPlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
+	return generatedAnswerPlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
 }
 
-func BindGeneratedAnswer(compiled GeneratedAnswerPlan, authorities ExactAuthorities) (Plan, error) {
+func bindGeneratedAnswer(compiled generatedAnswerPlan, authorities ExactAuthorities) (Plan, error) {
 	scorer := struct {
 		Version    uint16   `json:"version"`
 		Kind       string   `json:"kind"`
@@ -133,36 +133,36 @@ func BindGeneratedAnswer(compiled GeneratedAnswerPlan, authorities ExactAuthorit
 	return bindPlan(compiled.dataset, compiled.split, compiled.identity, compiled.suite, scorer, authorities)
 }
 
-func EvaluateGeneratedAnswer(
+func evaluateGeneratedAnswer(
 	ctx context.Context,
 	repository artifact.Repository,
 	generator Generator,
-	compiled GeneratedAnswerPlan,
+	compiled generatedAnswerPlan,
 	plan Plan,
-) (GeneratedAnswerReport, error) {
+) (generatedAnswerReport, error) {
 	if ctx == nil || repository == nil || generator == nil || compiled.identity != plan.body.CaseProfile {
-		return GeneratedAnswerReport{}, errors.New("evaluation: generated-answer authority differs")
+		return generatedAnswerReport{}, errors.New("evaluation: generated-answer authority differs")
 	}
 	contents, err := datasetContents(
 		compiled.dataset, compiled.split, compiled.suite.Cases,
 		generatedAnswerDatasetContract, generatedAnswerSplitContract,
 	)
 	if err != nil {
-		return GeneratedAnswerReport{}, err
+		return generatedAnswerReport{}, err
 	}
 	if err := publishPlanAuthorities(ctx, repository, plan, contents); err != nil {
-		return GeneratedAnswerReport{}, err
+		return generatedAnswerReport{}, err
 	}
-	report := GeneratedAnswerReport{
+	report := generatedAnswerReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Dataset: compiled.dataset,
-		Observations: make([]GeneratedAnswerObservation, len(compiled.suite.Cases)),
+		Observations: make([]generatedAnswerObservation, len(compiled.suite.Cases)),
 	}
 	correct := 0
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
 		result, err := recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
 		if err != nil {
-			return GeneratedAnswerReport{}, err
+			return generatedAnswerReport{}, err
 		}
 		scored := normalizeAnswer(result.Text, compiled.suite.Transforms)
 		accepted := false
@@ -175,7 +175,7 @@ func EvaluateGeneratedAnswer(
 		if accepted {
 			correct++
 		}
-		report.Observations[index] = GeneratedAnswerObservation{
+		report.Observations[index] = generatedAnswerObservation{
 			Name: testCase.Name, Raw: result.Text, Scored: scored, Accepted: accepted,
 			Prompt: result.PromptTokens, Generated: result.GeneratedTokens,
 		}
@@ -183,17 +183,17 @@ func EvaluateGeneratedAnswer(
 	}
 	report.Accuracy = float64(correct) / float64(len(report.Observations))
 	if math.IsNaN(report.Accuracy) || math.IsInf(report.Accuracy, 0) {
-		return GeneratedAnswerReport{}, errors.New("evaluation: generated-answer accuracy is not finite")
+		return generatedAnswerReport{}, errors.New("evaluation: generated-answer accuracy is not finite")
 	}
 	id, err := artifact.JSONID(artifact.KindEvaluation, report)
 	if err != nil {
-		return GeneratedAnswerReport{}, err
+		return generatedAnswerReport{}, err
 	}
 	report.ID = id
 	if err := publishCampaignDocument(
 		ctx, repository, report.Plan, report.Dataset, report.ID, generatedAnswerReportContract, report,
 	); err != nil {
-		return GeneratedAnswerReport{}, err
+		return generatedAnswerReport{}, err
 	}
 	return report, nil
 }
@@ -205,7 +205,7 @@ func normalizeAnswer[T ~string](value string, operations []T) string {
 		switch string(operation) {
 		case TransformTrimSpace:
 			value = strings.TrimSpace(value)
-		case TransformLowercase:
+		case transformLowercase:
 			value = strings.ToLower(value)
 		}
 	}

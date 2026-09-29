@@ -19,7 +19,7 @@ func TestTrajectorySupervisorStopsExactNoProgress(t *testing.T) {
 	fixture := newTrajectorySupervisorFixture(t)
 	previous := fixture.exchange(t, "previous", `{}`, nil, nil, nil)
 	current := fixture.exchange(t, "current", `{}`, nil, nil, nil)
-	decision, commit, err := SuperviseTrajectory(t.Context(), fixture.store, previous.ID, current.ID)
+	decision, commit, err := superviseTrajectory(t.Context(), fixture.store, previous.ID, current.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func TestTrajectorySupervisorStopsExactNoProgress(t *testing.T) {
 		decision.Rule != trajectoryRuleExactNoProgress || len(decision.Progress) != 0 {
 		t.Fatalf("decision = %+v, want exact no-progress retirement", decision)
 	}
-	loaded, err := RequireTrajectoryHealthDecision(t.Context(), fixture.store, decision.ID)
+	loaded, err := requireTrajectoryHealthDecision(t.Context(), fixture.store, decision.ID)
 	if err != nil || loaded.ID != decision.ID {
 		t.Fatalf("loaded decision = %+v, %v", loaded, err)
 	}
@@ -66,7 +66,7 @@ func TestTrajectorySupervisorPermitsNewEvidence(t *testing.T) {
 	}
 	previous := fixture.agentTrajectory(t, previousBase.trace, []artifact.ID{obligation.ID}, nil, nil)
 	current := fixture.agentTrajectory(t, currentBase.trace, []artifact.ID{obligation.ID}, []artifact.ID{resolution.ID}, nil)
-	decision, _, err := SuperviseTrajectory(t.Context(), fixture.store, previous.ID, current.ID)
+	decision, _, err := superviseTrajectory(t.Context(), fixture.store, previous.ID, current.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestTrajectorySupervisorIgnoresUnrelatedFreshIDs(t *testing.T) {
 	unrelated := testutil.ArtifactID(t, artifact.KindEvidence, "unrelated-trajectory-id")
 	testutil.PublishArtifact(t, fixture.store, unrelated)
 	current := fixture.exchange(t, "current", `{}`, nil, nil, []artifact.ID{unrelated})
-	decision, _, err := SuperviseTrajectory(t.Context(), fixture.store, previous.ID, current.ID)
+	decision, _, err := superviseTrajectory(t.Context(), fixture.store, previous.ID, current.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestTrajectorySupervisorRejectsSyntheticTrace(t *testing.T) {
 	previous := fixture.exchange(t, "previous", `{}`, nil, nil, nil)
 	synthetic := testutil.ArtifactID(t, artifact.KindEvidence, "synthetic-trajectory")
 	testutil.PublishArtifact(t, fixture.store, synthetic)
-	if _, _, err := SuperviseTrajectory(t.Context(), fixture.store, previous.ID, synthetic); err == nil {
+	if _, _, err := superviseTrajectory(t.Context(), fixture.store, previous.ID, synthetic); err == nil {
 		t.Fatal("descriptor-only trajectory was admitted")
 	}
 }
@@ -110,7 +110,7 @@ func TestRequireTrajectoryHealthDecisionRejectsForgedLineage(t *testing.T) {
 	currentBase := fixture.baseExchange(t, "current", `{}`)
 	previous := fixture.agentTrajectory(t, previousBase.trace, nil, nil, nil)
 	current := fixture.agentTrajectory(t, currentBase.trace, nil, nil, nil)
-	decision, err := trajectoryHealthDecisionCodec.New(TrajectoryHealthDecision{
+	decision, err := trajectoryHealthDecisionCodec.New(trajectoryHealthDecision{
 		Version:         artifact.InitialDocumentVersion,
 		Previous:        previous.ID,
 		Current:         current.ID,
@@ -141,7 +141,7 @@ func TestRequireTrajectoryHealthDecisionRejectsForgedLineage(t *testing.T) {
 	if _, err := trajectoryHealthDecisionCodec.Require(t.Context(), fixture.store, decision.ID); err != nil {
 		t.Fatalf("valid decision body was not stored: %v", err)
 	}
-	if _, err := RequireTrajectoryHealthDecision(t.Context(), fixture.store, decision.ID); err == nil {
+	if _, err := requireTrajectoryHealthDecision(t.Context(), fixture.store, decision.ID); err == nil {
 		t.Fatal("decision detached from its exact lineage was admitted")
 	}
 }

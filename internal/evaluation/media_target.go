@@ -18,129 +18,129 @@ const (
 	mediaTargetReportSchema = "overgo/media-target-report/v1"
 )
 
-// MediaOracle names a deterministic pass/fail check every media output must pass.
-type MediaOracle string
+// mediaOracle names a deterministic pass/fail check every media output must pass.
+type mediaOracle string
 
 const (
-	// MediaArtifactIdentity checks the output artifact identity.
-	MediaArtifactIdentity MediaOracle = "artifact-identity"
-	// MediaDecode checks the output decodes.
-	MediaDecode MediaOracle = "decode"
-	// MediaExtent checks the output extent.
-	MediaExtent MediaOracle = "extent"
-	// MediaFiniteValues checks the output holds only finite values.
-	MediaFiniteValues MediaOracle = "finite-values"
+	// mediaArtifactIdentity checks the output artifact identity.
+	mediaArtifactIdentity mediaOracle = "artifact-identity"
+	// mediaDecode checks the output decodes.
+	mediaDecode mediaOracle = "decode"
+	// mediaExtent checks the output extent.
+	mediaExtent mediaOracle = "extent"
+	// mediaFiniteValues checks the output holds only finite values.
+	mediaFiniteValues mediaOracle = "finite-values"
 )
 
-// MediaScorer names the kind of verifier-backed media metric.
-type MediaScorer string
+// mediaScorer names the kind of verifier-backed media metric.
+type mediaScorer string
 
 const (
-	// MediaTranscriptScorer scores a transcript of the media output.
-	MediaTranscriptScorer MediaScorer = "transcript"
-	// MediaSignalScorer scores the output signal.
-	MediaSignalScorer MediaScorer = "signal"
-	// MediaReconstruction scores reconstruction of the expected output.
-	MediaReconstruction MediaScorer = "reconstruction"
-	// MediaIndependentScorer scores through an independent verifier.
-	MediaIndependentScorer MediaScorer = "independent-verifier"
+	// mediaTranscriptScorer scores a transcript of the media output.
+	mediaTranscriptScorer mediaScorer = "transcript"
+	// mediaSignalScorer scores the output signal.
+	mediaSignalScorer mediaScorer = "signal"
+	// mediaReconstruction scores reconstruction of the expected output.
+	mediaReconstruction mediaScorer = "reconstruction"
+	// mediaIndependentScorer scores through an independent verifier.
+	mediaIndependentScorer mediaScorer = "independent-verifier"
 )
 
-// MediaScorerSpec declares one named media metric, its verifier profile, unit, and direction.
-type MediaScorerSpec struct {
+// mediaScorerSpec declares one named media metric, its verifier profile, unit, and direction.
+type mediaScorerSpec struct {
 	Name      string              `json:"name"`
-	Kind      MediaScorer         `json:"kind"`
+	Kind      mediaScorer         `json:"kind"`
 	Verifier  artifact.ID         `json:"verifier"`
 	Unit      string              `json:"unit,omitzero"`
 	Direction runrecord.Direction `json:"direction"`
 }
 
-// MediaTargetCase binds a held-out record to its expected output artifact and stated assumptions.
-type MediaTargetCase struct {
+// mediaTargetCase binds a held-out record to its expected output artifact and stated assumptions.
+type mediaTargetCase struct {
 	Record      string              `json:"record"`
 	Expected    artifact.ID         `json:"expected"`
-	Assumptions []NumericAssumption `json:"assumptions,omitempty"`
+	Assumptions []numericAssumption `json:"assumptions,omitempty"`
 }
 
-// MediaTargetSuite declares oracles, scorers, and cases before binding to a held-out view.
-type MediaTargetSuite struct {
-	Oracles []MediaOracle     `json:"oracles"`
-	Scorers []MediaScorerSpec `json:"scorers"`
-	Cases   []MediaTargetCase `json:"cases"`
+// mediaTargetSuite declares oracles, scorers, and cases before binding to a held-out view.
+type mediaTargetSuite struct {
+	Oracles []mediaOracle     `json:"oracles"`
+	Scorers []mediaScorerSpec `json:"scorers"`
+	Cases   []mediaTargetCase `json:"cases"`
 }
 
-// MediaTargetPlan binds a media suite to one held-out view and its audio, image, or video output signature.
-type MediaTargetPlan struct {
+// mediaTargetPlan binds a media suite to one held-out view and its audio, image, or video output signature.
+type mediaTargetPlan struct {
 	ID        artifact.ID                      `json:"-"`
 	Version   uint16                           `json:"version"`
 	View      artifact.ID                      `json:"view"`
 	Signature recipecontract.ModalitySignature `json:"signature"`
-	Oracles   []MediaOracle                    `json:"oracles"`
-	Scorers   []MediaScorerSpec                `json:"scorers"`
-	Cases     []MediaTargetCase                `json:"cases"`
+	Oracles   []mediaOracle                    `json:"oracles"`
+	Scorers   []mediaScorerSpec                `json:"scorers"`
+	Cases     []mediaTargetCase                `json:"cases"`
 }
 
-// MediaOracleResult records one oracle outcome for an observed media output.
-type MediaOracleResult struct {
-	Kind   MediaOracle `json:"kind"`
+// mediaOracleResult records one oracle outcome for an observed media output.
+type mediaOracleResult struct {
+	Kind   mediaOracle `json:"kind"`
 	Passed bool        `json:"passed"`
 	Detail string      `json:"detail,omitzero"`
 }
 
-// MediaVerifierResult records one named scorer value from its verifier.
-type MediaVerifierResult struct {
+// mediaVerifierResult records one named scorer value from its verifier.
+type mediaVerifierResult struct {
 	Name     string      `json:"name"`
 	Verifier artifact.ID `json:"verifier"`
 	Value    float64     `json:"value"`
 }
 
-// MediaTargetObservation carries one record's output artifact with its oracle and verifier results.
-type MediaTargetObservation struct {
+// mediaTargetObservation carries one record's output artifact with its oracle and verifier results.
+type mediaTargetObservation struct {
 	Record    string                `json:"record"`
 	Output    artifact.ID           `json:"output"`
-	Oracles   []MediaOracleResult   `json:"oracles"`
-	Verifiers []MediaVerifierResult `json:"verifiers"`
+	Oracles   []mediaOracleResult   `json:"oracles"`
+	Verifiers []mediaVerifierResult `json:"verifiers"`
 }
 
-// MediaRecordResult pairs a case's expected output and assumptions with its observed output and results.
-type MediaRecordResult struct {
+// mediaRecordResult pairs a case's expected output and assumptions with its observed output and results.
+type mediaRecordResult struct {
 	Record      string                `json:"record"`
 	Expected    artifact.ID           `json:"expected"`
 	Output      artifact.ID           `json:"output"`
-	Assumptions []NumericAssumption   `json:"assumptions,omitempty"`
-	Oracles     []MediaOracleResult   `json:"oracles"`
-	Verifiers   []MediaVerifierResult `json:"verifiers"`
+	Assumptions []numericAssumption   `json:"assumptions,omitempty"`
+	Oracles     []mediaOracleResult   `json:"oracles"`
+	Verifiers   []mediaVerifierResult `json:"verifiers"`
 }
 
-// MediaTargetReport holds per-record media results and per-scorer mean metrics for one plan.
-type MediaTargetReport struct {
+// mediaTargetReport holds per-record media results and per-scorer mean metrics for one plan.
+type mediaTargetReport struct {
 	ID      artifact.ID         `json:"-"`
 	Version uint16              `json:"version"`
 	Plan    artifact.ID         `json:"plan"`
-	Records []MediaRecordResult `json:"records"`
+	Records []mediaRecordResult `json:"records"`
 	Metrics []runrecord.Metric  `json:"metrics"`
 }
 
 var (
 	mediaTargetPlanCodec = artifact.JSONDocumentCodec(
 		"media target plan", artifact.KindProfile, mediaTargetPlanMedia, mediaTargetPlanSchema,
-		canonicalizeMediaTargetPlan, func(value MediaTargetPlan) artifact.ID { return value.ID },
-		func(value *MediaTargetPlan, id artifact.ID) { value.ID = id }, cloneMediaTargetPlan,
+		canonicalizeMediaTargetPlan, func(value mediaTargetPlan) artifact.ID { return value.ID },
+		func(value *mediaTargetPlan, id artifact.ID) { value.ID = id }, cloneMediaTargetPlan,
 	)
 	mediaTargetReportCodec = artifact.JSONDocumentCodec(
 		"media target report", artifact.KindEvaluation, mediaTargetReportMedia, mediaTargetReportSchema,
-		canonicalizeMediaTargetReport, func(value MediaTargetReport) artifact.ID { return value.ID },
-		func(value *MediaTargetReport, id artifact.ID) { value.ID = id }, cloneMediaTargetReport,
+		canonicalizeMediaTargetReport, func(value mediaTargetReport) artifact.ID { return value.ID },
+		func(value *mediaTargetReport, id artifact.ID) { value.ID = id }, cloneMediaTargetReport,
 	)
 )
 
-// CompileMediaTargetPlan binds a media suite to a held-out dataset view.
-func CompileMediaTargetPlan(view SFTEvaluationView, suite MediaTargetSuite) (MediaTargetPlan, error) {
+// compileMediaTargetPlan binds a media suite to a held-out dataset view.
+func compileMediaTargetPlan(view SFTEvaluationView, suite mediaTargetSuite) (mediaTargetPlan, error) {
 	if _, err := view.Content(); err != nil {
-		return MediaTargetPlan{}, err
+		return mediaTargetPlan{}, err
 	}
 	if len(suite.Cases) != len(view.Records) {
-		return MediaTargetPlan{}, errors.New("evaluation: media target cases differ from held-out view")
+		return mediaTargetPlan{}, errors.New("evaluation: media target cases differ from held-out view")
 	}
 	records := make(map[string]struct{}, len(view.Records))
 	for _, record := range view.Records {
@@ -148,17 +148,17 @@ func CompileMediaTargetPlan(view SFTEvaluationView, suite MediaTargetSuite) (Med
 	}
 	for _, target := range suite.Cases {
 		if _, found := records[target.Record]; !found {
-			return MediaTargetPlan{}, errors.New("evaluation: media target record is outside held-out view")
+			return mediaTargetPlan{}, errors.New("evaluation: media target record is outside held-out view")
 		}
 	}
-	return mediaTargetPlanCodec.NewInitial(MediaTargetPlan{
+	return mediaTargetPlanCodec.NewInitial(mediaTargetPlan{
 		View: view.ID, Signature: view.Signature.Clone(),
 		Oracles: slices.Clone(suite.Oracles), Scorers: slices.Clone(suite.Scorers), Cases: cloneMediaCases(suite.Cases),
 	})
 }
 
 // Batch stages the plan with lineage to its view, verifiers, and expected outputs.
-func (plan MediaTargetPlan) Batch(key string) (artifact.Batch, error) {
+func (plan mediaTargetPlan) Batch(key string) (artifact.Batch, error) {
 	parents := []artifact.ID{plan.View}
 	for _, scorer := range plan.Scorers {
 		parents = append(parents, scorer.Verifier)
@@ -169,38 +169,38 @@ func (plan MediaTargetPlan) Batch(key string) (artifact.Batch, error) {
 	return mediaTargetPlanCodec.Batch(key, plan, artifact.DependencyLineage(plan.ID, parents...), nil)
 }
 
-// ScoreMediaTargets verifies media observations against a compiled plan.
-func ScoreMediaTargets(plan MediaTargetPlan, observations []MediaTargetObservation) (MediaTargetReport, error) {
+// scoreMediaTargets verifies media observations against a compiled plan.
+func scoreMediaTargets(plan mediaTargetPlan, observations []mediaTargetObservation) (mediaTargetReport, error) {
 	if err := mediaTargetPlanCodec.ValidateIdentity(plan); err != nil || len(observations) != len(plan.Cases) {
-		return MediaTargetReport{}, errors.New("evaluation: media target observations differ from plan")
+		return mediaTargetReport{}, errors.New("evaluation: media target observations differ from plan")
 	}
 	observations = cloneMediaObservations(observations)
-	slices.SortFunc(observations, func(a, b MediaTargetObservation) int { return cmp.Compare(a.Record, b.Record) })
-	report := MediaTargetReport{
+	slices.SortFunc(observations, func(a, b mediaTargetObservation) int { return cmp.Compare(a.Record, b.Record) })
+	report := mediaTargetReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.ID,
-		Records: make([]MediaRecordResult, len(plan.Cases)), Metrics: make([]runrecord.Metric, len(plan.Scorers)),
+		Records: make([]mediaRecordResult, len(plan.Cases)), Metrics: make([]runrecord.Metric, len(plan.Scorers)),
 	}
 	for index, target := range plan.Cases {
 		observation := &observations[index]
 		if observation.Record != target.Record || observation.Output.Kind() != artifact.KindOutput ||
 			len(observation.Oracles) != len(plan.Oracles) || len(observation.Verifiers) != len(plan.Scorers) {
-			return MediaTargetReport{}, errors.New("evaluation: media result differs from plan")
+			return mediaTargetReport{}, errors.New("evaluation: media result differs from plan")
 		}
-		slices.SortFunc(observation.Oracles, func(a, b MediaOracleResult) int { return cmp.Compare(a.Kind, b.Kind) })
-		slices.SortFunc(observation.Verifiers, func(a, b MediaVerifierResult) int { return cmp.Compare(a.Name, b.Name) })
+		slices.SortFunc(observation.Oracles, func(a, b mediaOracleResult) int { return cmp.Compare(a.Kind, b.Kind) })
+		slices.SortFunc(observation.Verifiers, func(a, b mediaVerifierResult) int { return cmp.Compare(a.Name, b.Name) })
 		for oracleIndex, oracle := range plan.Oracles {
 			if observation.Oracles[oracleIndex].Kind != oracle || !observation.Oracles[oracleIndex].Passed {
-				return MediaTargetReport{}, errors.New("evaluation: deterministic media oracle failed")
+				return mediaTargetReport{}, errors.New("evaluation: deterministic media oracle failed")
 			}
 		}
 		for scorerIndex, scorer := range plan.Scorers {
 			result := observation.Verifiers[scorerIndex]
 			if result.Name != scorer.Name || result.Verifier != scorer.Verifier || !checked.Finite64(result.Value) {
-				return MediaTargetReport{}, errors.New("evaluation: media verifier differs from plan")
+				return mediaTargetReport{}, errors.New("evaluation: media verifier differs from plan")
 			}
 			report.Metrics[scorerIndex].Value += result.Value
 		}
-		report.Records[index] = MediaRecordResult{
+		report.Records[index] = mediaRecordResult{
 			Record: target.Record, Expected: target.Expected, Output: observation.Output,
 			Assumptions: slices.Clone(target.Assumptions), Oracles: slices.Clone(observation.Oracles),
 			Verifiers: slices.Clone(observation.Verifiers),
@@ -216,7 +216,7 @@ func ScoreMediaTargets(plan MediaTargetPlan, observations []MediaTargetObservati
 }
 
 // Batch stages the report with lineage to its plan and observed outputs.
-func (report MediaTargetReport) Batch(key string) (artifact.Batch, error) {
+func (report mediaTargetReport) Batch(key string) (artifact.Batch, error) {
 	parents := []artifact.ID{report.Plan}
 	for _, record := range report.Records {
 		parents = append(parents, record.Output)
@@ -224,7 +224,7 @@ func (report MediaTargetReport) Batch(key string) (artifact.Batch, error) {
 	return mediaTargetReportCodec.Batch(key, report, artifact.DependencyLineage(report.ID, parents...), nil)
 }
 
-func canonicalizeMediaTargetPlan(plan *MediaTargetPlan) error {
+func canonicalizeMediaTargetPlan(plan *mediaTargetPlan) error {
 	if plan == nil || plan.Version != artifact.InitialDocumentVersion || plan.View.Kind() != artifact.KindProfile ||
 		plan.Signature.Validate() != nil || len(plan.Signature.Outputs) != 1 || len(plan.Oracles) == 0 ||
 		len(plan.Scorers) == 0 || len(plan.Cases) == 0 {
@@ -240,17 +240,17 @@ func canonicalizeMediaTargetPlan(plan *MediaTargetPlan) error {
 			return errors.New("evaluation: invalid or duplicate media oracle")
 		}
 	}
-	slices.SortFunc(plan.Scorers, func(a, b MediaScorerSpec) int { return cmp.Compare(a.Name, b.Name) })
+	slices.SortFunc(plan.Scorers, func(a, b mediaScorerSpec) int { return cmp.Compare(a.Name, b.Name) })
 	for index, scorer := range plan.Scorers {
 		if scorer.Name == "" || scorer.Verifier.Kind() != artifact.KindProfile || !validMediaScorer(scorer.Kind) ||
 			!validMetricDirection(scorer.Direction) || index > 0 && plan.Scorers[index-1].Name == scorer.Name {
 			return errors.New("evaluation: invalid or duplicate media scorer")
 		}
 	}
-	slices.SortFunc(plan.Cases, func(a, b MediaTargetCase) int { return cmp.Compare(a.Record, b.Record) })
+	slices.SortFunc(plan.Cases, func(a, b mediaTargetCase) int { return cmp.Compare(a.Record, b.Record) })
 	for index := range plan.Cases {
 		target := &plan.Cases[index]
-		slices.SortFunc(target.Assumptions, func(a, b NumericAssumption) int { return cmp.Compare(a.Name, b.Name) })
+		slices.SortFunc(target.Assumptions, func(a, b numericAssumption) int { return cmp.Compare(a.Name, b.Name) })
 		if target.Record == "" || target.Expected.Kind() != artifact.KindOutput ||
 			index > 0 && plan.Cases[index-1].Record == target.Record || !validAssumptions(target.Assumptions) {
 			return errors.New("evaluation: invalid media target case")
@@ -259,7 +259,7 @@ func canonicalizeMediaTargetPlan(plan *MediaTargetPlan) error {
 	return nil
 }
 
-func canonicalizeMediaTargetReport(report *MediaTargetReport) error {
+func canonicalizeMediaTargetReport(report *mediaTargetReport) error {
 	if report == nil || report.Version != artifact.InitialDocumentVersion || report.Plan.Kind() != artifact.KindProfile ||
 		len(report.Records) == 0 || len(report.Metrics) == 0 {
 		return errors.New("evaluation: invalid media target report")
@@ -279,15 +279,15 @@ func canonicalizeMediaTargetReport(report *MediaTargetReport) error {
 	return nil
 }
 
-func validMediaOracle(value MediaOracle) bool {
-	return value == MediaArtifactIdentity || value == MediaDecode || value == MediaExtent || value == MediaFiniteValues
+func validMediaOracle(value mediaOracle) bool {
+	return value == mediaArtifactIdentity || value == mediaDecode || value == mediaExtent || value == mediaFiniteValues
 }
 
-func validMediaScorer(value MediaScorer) bool {
-	return value == MediaTranscriptScorer || value == MediaSignalScorer || value == MediaReconstruction || value == MediaIndependentScorer
+func validMediaScorer(value mediaScorer) bool {
+	return value == mediaTranscriptScorer || value == mediaSignalScorer || value == mediaReconstruction || value == mediaIndependentScorer
 }
 
-func validAssumptions(values []NumericAssumption) bool {
+func validAssumptions(values []numericAssumption) bool {
 	for index, assumption := range values {
 		if assumption.Name == "" || assumption.Value == "" || index > 0 && values[index-1].Name == assumption.Name {
 			return false
@@ -296,7 +296,7 @@ func validAssumptions(values []NumericAssumption) bool {
 	return true
 }
 
-func cloneMediaCases(values []MediaTargetCase) []MediaTargetCase {
+func cloneMediaCases(values []mediaTargetCase) []mediaTargetCase {
 	result := slices.Clone(values)
 	for index := range result {
 		result[index].Assumptions = slices.Clone(result[index].Assumptions)
@@ -304,7 +304,7 @@ func cloneMediaCases(values []MediaTargetCase) []MediaTargetCase {
 	return result
 }
 
-func cloneMediaTargetPlan(plan MediaTargetPlan) MediaTargetPlan {
+func cloneMediaTargetPlan(plan mediaTargetPlan) mediaTargetPlan {
 	plan.Signature = plan.Signature.Clone()
 	plan.Oracles = slices.Clone(plan.Oracles)
 	plan.Scorers = slices.Clone(plan.Scorers)
@@ -312,7 +312,7 @@ func cloneMediaTargetPlan(plan MediaTargetPlan) MediaTargetPlan {
 	return plan
 }
 
-func cloneMediaObservations(values []MediaTargetObservation) []MediaTargetObservation {
+func cloneMediaObservations(values []mediaTargetObservation) []mediaTargetObservation {
 	result := slices.Clone(values)
 	for index := range result {
 		result[index].Oracles = slices.Clone(result[index].Oracles)
@@ -321,7 +321,7 @@ func cloneMediaObservations(values []MediaTargetObservation) []MediaTargetObserv
 	return result
 }
 
-func cloneMediaTargetReport(report MediaTargetReport) MediaTargetReport {
+func cloneMediaTargetReport(report mediaTargetReport) mediaTargetReport {
 	report.Records = slices.Clone(report.Records)
 	for index := range report.Records {
 		report.Records[index].Assumptions = slices.Clone(report.Records[index].Assumptions)

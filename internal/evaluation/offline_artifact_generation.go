@@ -10,22 +10,22 @@ import (
 )
 
 const (
-	// OfflineArtifactGenerationPolicyVersion is the immutable policy version.
-	OfflineArtifactGenerationPolicyVersion = artifact.InitialDocumentVersion
-	// OfflineArtifactGenerationPolicyMediaType identifies generation gate policy.
-	OfflineArtifactGenerationPolicyMediaType = "application/vnd.overgo.offline-artifact-generation-policy+json"
-	// OfflineArtifactGenerationPolicySchema identifies the policy wire schema.
-	OfflineArtifactGenerationPolicySchema = "overgo/offline-artifact-generation-policy/v1"
-	// OfflineArtifactGenerationPromotionVersion is the promotion-evidence version.
-	OfflineArtifactGenerationPromotionVersion = artifact.InitialDocumentVersion
-	// OfflineArtifactGenerationPromotionMediaType identifies accepted generation evidence.
-	OfflineArtifactGenerationPromotionMediaType = "application/vnd.overgo.offline-artifact-generation-promotion+json"
-	// OfflineArtifactGenerationPromotionSchema identifies promotion evidence.
-	OfflineArtifactGenerationPromotionSchema = "overgo/offline-artifact-generation-promotion/v1"
+	// offlineArtifactGenerationPolicyVersion is the immutable policy version.
+	offlineArtifactGenerationPolicyVersion = artifact.InitialDocumentVersion
+	// offlineArtifactGenerationPolicyMediaType identifies generation gate policy.
+	offlineArtifactGenerationPolicyMediaType = "application/vnd.overgo.offline-artifact-generation-policy+json"
+	// offlineArtifactGenerationPolicySchema identifies the policy wire schema.
+	offlineArtifactGenerationPolicySchema = "overgo/offline-artifact-generation-policy/v1"
+	// offlineArtifactGenerationPromotionVersion is the promotion-evidence version.
+	offlineArtifactGenerationPromotionVersion = artifact.InitialDocumentVersion
+	// offlineArtifactGenerationPromotionMediaType identifies accepted generation evidence.
+	offlineArtifactGenerationPromotionMediaType = "application/vnd.overgo.offline-artifact-generation-promotion+json"
+	// offlineArtifactGenerationPromotionSchema identifies promotion evidence.
+	offlineArtifactGenerationPromotionSchema = "overgo/offline-artifact-generation-promotion/v1"
 )
 
-// OfflineArtifactGenerationPolicy owns every numeric generation gate.
-type OfflineArtifactGenerationPolicy struct {
+// offlineArtifactGenerationPolicy owns every numeric generation gate.
+type offlineArtifactGenerationPolicy struct {
 	Version              uint16      `json:"version"`
 	MinimumDistinctSeeds uint32      `json:"minimum_distinct_seeds"`
 	RunsPerSeed          uint32      `json:"runs_per_seed"`
@@ -53,16 +53,16 @@ type OfflineArtifactGenerationPromotion struct {
 
 var offlineArtifactGenerationPolicyCodec = artifact.JSONDocumentCodec(
 	"offline artifact generation policy", artifact.KindProfile,
-	OfflineArtifactGenerationPolicyMediaType, OfflineArtifactGenerationPolicySchema,
+	offlineArtifactGenerationPolicyMediaType, offlineArtifactGenerationPolicySchema,
 	canonicalizeOfflineArtifactGenerationPolicy,
-	func(value OfflineArtifactGenerationPolicy) artifact.ID { return value.ID },
-	func(value *OfflineArtifactGenerationPolicy, id artifact.ID) { value.ID = id },
-	func(value OfflineArtifactGenerationPolicy) OfflineArtifactGenerationPolicy { return value },
+	func(value offlineArtifactGenerationPolicy) artifact.ID { return value.ID },
+	func(value *offlineArtifactGenerationPolicy, id artifact.ID) { value.ID = id },
+	func(value offlineArtifactGenerationPolicy) offlineArtifactGenerationPolicy { return value },
 )
 
 var offlineArtifactGenerationPromotionCodec = artifact.JSONDocumentCodec(
 	"offline artifact generation promotion", artifact.KindEvidence,
-	OfflineArtifactGenerationPromotionMediaType, OfflineArtifactGenerationPromotionSchema,
+	offlineArtifactGenerationPromotionMediaType, offlineArtifactGenerationPromotionSchema,
 	canonicalizeOfflineArtifactGenerationPromotion,
 	func(value OfflineArtifactGenerationPromotion) artifact.ID { return value.ID },
 	func(value *OfflineArtifactGenerationPromotion, id artifact.ID) { value.ID = id },
@@ -74,9 +74,9 @@ func NewOfflineArtifactGenerationPolicy(
 	minimumDistinctSeeds, runsPerSeed uint32,
 	maximumLatencyNS, maximumPeakHostBytes uint64,
 	rationale, reopenTrigger string,
-) (OfflineArtifactGenerationPolicy, error) {
-	return offlineArtifactGenerationPolicyCodec.New(OfflineArtifactGenerationPolicy{
-		Version:              OfflineArtifactGenerationPolicyVersion,
+) (offlineArtifactGenerationPolicy, error) {
+	return offlineArtifactGenerationPolicyCodec.New(offlineArtifactGenerationPolicy{
+		Version:              offlineArtifactGenerationPolicyVersion,
 		MinimumDistinctSeeds: minimumDistinctSeeds, RunsPerSeed: runsPerSeed,
 		MaximumLatencyNS: maximumLatencyNS, MaximumPeakHostBytes: maximumPeakHostBytes,
 		Rationale: rationale, ReopenTrigger: reopenTrigger,
@@ -87,7 +87,7 @@ func NewOfflineArtifactGenerationPolicy(
 // generations that remain inside the complete recipe-owned resource policy.
 func PromoteOfflineArtifactGeneration(
 	evidence composition.OfflineArtifactGenerationEvidence,
-	policy OfflineArtifactGenerationPolicy,
+	policy offlineArtifactGenerationPolicy,
 ) (OfflineArtifactGenerationPromotion, error) {
 	if evidence.ValidateIdentity() != nil || offlineArtifactGenerationPolicyCodec.ValidateIdentity(policy) != nil {
 		return OfflineArtifactGenerationPromotion{}, errors.New("evaluation: offline artifact generation authority differs")
@@ -120,7 +120,7 @@ func PromoteOfflineArtifactGeneration(
 		}
 	}
 	return offlineArtifactGenerationPromotionCodec.New(OfflineArtifactGenerationPromotion{
-		Version:       OfflineArtifactGenerationPromotionVersion,
+		Version:       offlineArtifactGenerationPromotionVersion,
 		ExecutionPlan: evidence.ExecutionPlan, ProducedModel: evidence.ProducedModel,
 		GenerationEvidence: evidence.ID, Policy: policy.ID,
 		DistinctSeeds: uint32(len(seeds)), RunCount: uint32(len(evidence.Trials)),
@@ -129,7 +129,7 @@ func PromoteOfflineArtifactGeneration(
 }
 
 // Content returns exact policy content.
-func (value OfflineArtifactGenerationPolicy) Content() (artifact.Content, error) {
+func (value offlineArtifactGenerationPolicy) Content() (artifact.Content, error) {
 	return offlineArtifactGenerationPolicyCodec.Content(value)
 }
 
@@ -145,8 +145,8 @@ func (value OfflineArtifactGenerationPromotion) Lineage() []artifact.Lineage {
 	)
 }
 
-func canonicalizeOfflineArtifactGenerationPolicy(value *OfflineArtifactGenerationPolicy) error {
-	if value == nil || value.Version != OfflineArtifactGenerationPolicyVersion ||
+func canonicalizeOfflineArtifactGenerationPolicy(value *offlineArtifactGenerationPolicy) error {
+	if value == nil || value.Version != offlineArtifactGenerationPolicyVersion ||
 		!checked.Nonzero(value.MinimumDistinctSeeds) || !checked.Nonzero(value.RunsPerSeed) ||
 		!checked.Nonzero(value.MaximumLatencyNS) || !checked.Nonzero(value.MaximumPeakHostBytes) ||
 		strings.TrimSpace(value.Rationale) != value.Rationale || strings.TrimSpace(value.ReopenTrigger) != value.ReopenTrigger ||
@@ -158,7 +158,7 @@ func canonicalizeOfflineArtifactGenerationPolicy(value *OfflineArtifactGeneratio
 }
 
 func canonicalizeOfflineArtifactGenerationPromotion(value *OfflineArtifactGenerationPromotion) error {
-	if value == nil || value.Version != OfflineArtifactGenerationPromotionVersion ||
+	if value == nil || value.Version != offlineArtifactGenerationPromotionVersion ||
 		value.ExecutionPlan.Kind() != artifact.KindProfile || value.ProducedModel.Kind() != artifact.KindModel ||
 		value.GenerationEvidence.Kind() != artifact.KindEvidence || value.Policy.Kind() != artifact.KindProfile ||
 		!checked.Nonzero(value.DistinctSeeds) || !checked.Nonzero(value.RunCount) ||

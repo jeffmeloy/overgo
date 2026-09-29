@@ -19,11 +19,11 @@ func TestIFEvalProtocolAcceptance(t *testing.T) {
 	if err != nil || dropped != 0 {
 		t.Fatalf("assemble: dropped=%d err=%v", dropped, err)
 	}
-	suite := assembled.(InstructionRulesSuite)
+	suite := assembled.(instructionRulesSuite)
 	if len(suite.Cases) != 1 || suite.Cases[0].MaxTokens != 1280 || len(suite.Cases[0].Rules) != 1 {
 		t.Fatalf("native cap and instruction denominator: %+v", suite.Cases)
 	}
-	compiled, err := CompileInstructionRules(suite)
+	compiled, err := compileInstructionRules(suite)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,12 +54,12 @@ func TestIFEvalProtocolAcceptance(t *testing.T) {
 	oldCap.Cases[0].MaxTokens = 256
 	oldRules := suite
 	oldRules.Cases = slices.Clone(suite.Cases)
-	oldRules.Cases[0].Rules = []InstructionRule{
-		{Name: "startend:quotation/open", Kind: RulePrefix, Values: []string{`"`}},
-		{Name: "startend:quotation/close", Kind: RuleSuffix, Values: []string{`"`}},
+	oldRules.Cases[0].Rules = []instructionRule{
+		{Name: "startend:quotation/open", Kind: rulePrefix, Values: []string{`"`}},
+		{Name: "startend:quotation/close", Kind: ruleSuffix, Values: []string{`"`}},
 	}
-	for _, old := range []InstructionRulesSuite{oldCap, oldRules} {
-		prior, err := CompileInstructionRules(old)
+	for _, old := range []instructionRulesSuite{oldCap, oldRules} {
+		prior, err := compileInstructionRules(old)
 		if err != nil {
 			t.Fatal(err)
 		}

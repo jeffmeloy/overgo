@@ -29,7 +29,7 @@ func TestLiveSafetyWindowDerivation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if envelope.Mode != LiveSafetyModeEnvelope || envelope.Lower != 0.50 || envelope.Upper != 0.60 ||
+	if envelope.Mode != liveSafetyModeEnvelope || envelope.Lower != 0.50 || envelope.Upper != 0.60 ||
 		envelope.Samples != 10 || envelope.RequiredObservations < 1 {
 		t.Fatalf("small-history window = %+v", envelope)
 	}
@@ -43,7 +43,7 @@ func TestLiveSafetyWindowDerivation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if band.Mode != LiveSafetyModeQuantile || band.Samples != 99 {
+	if band.Mode != liveSafetyModeQuantile || band.Samples != 99 {
 		t.Fatalf("large-history window = %+v", band)
 	}
 	if band.Lower <= 0.05 || band.Upper >= 0.95 || band.Lower >= band.Upper {

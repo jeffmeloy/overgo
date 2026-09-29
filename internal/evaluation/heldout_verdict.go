@@ -19,31 +19,31 @@ const (
 
 var heldoutVerdictCodec = artifact.JSONDocumentCodec(
 	"held-out verdict", artifact.KindEvaluation, heldoutVerdictMediaType, heldoutVerdictSchema,
-	canonicalizeHeldoutVerdict, func(value HeldoutVerdict) artifact.ID { return value.ID },
-	func(value *HeldoutVerdict, id artifact.ID) { value.ID = id }, func(value HeldoutVerdict) HeldoutVerdict { return value },
+	canonicalizeHeldoutVerdict, func(value heldoutVerdict) artifact.ID { return value.ID },
+	func(value *heldoutVerdict, id artifact.ID) { value.ID = id }, func(value heldoutVerdict) heldoutVerdict { return value },
 )
 
 // heldoutNumericScorers maps an objective's declared metric to the numeric
 // scorer that measures it on held-out records.
-var heldoutNumericScorers = map[trainingprogram.EvaluationMetric]NumericScorer{
+var heldoutNumericScorers = map[trainingprogram.EvaluationMetric]numericScorer{
 	trainingprogram.MetricForecastMAE:   NumericAbsoluteError,
-	trainingprogram.MetricTableAccuracy: NumericLabelAccuracy,
-	trainingprogram.MetricTokenAccuracy: NumericLabelAccuracy,
+	trainingprogram.MetricTableAccuracy: numericLabelAccuracy,
+	trainingprogram.MetricTokenAccuracy: numericLabelAccuracy,
 }
 
 // HeldoutNumericScorer names the numeric scorer that measures an objective's
 // declared metric on held-out records, if one does.
-func HeldoutNumericScorer(metric trainingprogram.EvaluationMetric) (NumericScorer, bool) {
+func HeldoutNumericScorer(metric trainingprogram.EvaluationMetric) (numericScorer, bool) {
 	scorer, found := heldoutNumericScorers[metric]
 	return scorer, found
 }
 
-// HeldoutVerdict judges a trained model against its base model on one
+// heldoutVerdict judges a trained model against its base model on one
 // objective's held-out view: both are scored by the same numeric target plan,
 // and the verdict passes when the trained model strictly improves the metric
 // the objective declares, in the metric's own direction. No threshold is
 // involved; Passed is recomputed from the recorded values.
-type HeldoutVerdict struct {
+type heldoutVerdict struct {
 	ID             artifact.ID                      `json:"-"`
 	Version        uint16                           `json:"version"`
 	Objective      artifact.ID                      `json:"objective"`
@@ -68,34 +68,34 @@ func JudgeHeldout(
 	plan NumericTargetPlan,
 	baseline, candidate NumericTargetReport,
 	observation artifact.ID,
-) (HeldoutVerdict, error) {
+) (heldoutVerdict, error) {
 	if _, err := objective.Content(); err != nil {
-		return HeldoutVerdict{}, err
+		return heldoutVerdict{}, err
 	}
 	if err := sftEvaluationViewCodec.ValidateIdentity(view); err != nil {
-		return HeldoutVerdict{}, err
+		return heldoutVerdict{}, err
 	}
 	if err := numericTargetPlanCodec.ValidateIdentity(plan); err != nil {
-		return HeldoutVerdict{}, err
+		return heldoutVerdict{}, err
 	}
 	for _, report := range []NumericTargetReport{baseline, candidate} {
 		if err := numericTargetReportCodec.ValidateIdentity(report); err != nil {
-			return HeldoutVerdict{}, err
+			return heldoutVerdict{}, err
 		}
 	}
 	if view.Objective != objective.ID || plan.View != view.ID || baseline.Plan != plan.ID || candidate.Plan != plan.ID {
-		return HeldoutVerdict{}, errors.New("evaluation: held-out reports are not bound to this objective's view")
+		return heldoutVerdict{}, errors.New("evaluation: held-out reports are not bound to this objective's view")
 	}
 	scorer, found := heldoutNumericScorers[objective.Metric]
 	if !found {
-		return HeldoutVerdict{}, fmt.Errorf("evaluation: no held-out numeric scorer measures %q", objective.Metric)
+		return heldoutVerdict{}, fmt.Errorf("evaluation: no held-out numeric scorer measures %q", objective.Metric)
 	}
 	baseMetric, baseFound := reportMetric(baseline, scorer)
 	candidateMetric, candidateFound := reportMetric(candidate, scorer)
 	if !baseFound || !candidateFound || baseMetric.Direction != candidateMetric.Direction {
-		return HeldoutVerdict{}, fmt.Errorf("evaluation: held-out reports do not both carry %q", scorer)
+		return heldoutVerdict{}, fmt.Errorf("evaluation: held-out reports do not both carry %q", scorer)
 	}
-	return heldoutVerdictCodec.NewInitial(HeldoutVerdict{
+	return heldoutVerdictCodec.NewInitial(heldoutVerdict{
 		Objective: objective.ID, View: view.ID, Plan: plan.ID, Observation: observation,
 		Baseline: baseline.ID, Candidate: candidate.ID, Metric: objective.Metric,
 		Direction: baseMetric.Direction, BaselineValue: baseMetric.Value, CandidateValue: candidateMetric.Value,
@@ -103,13 +103,13 @@ func JudgeHeldout(
 }
 
 // Content encodes the verdict as its canonical artifact document.
-func (verdict HeldoutVerdict) Content() (artifact.Content, error) {
+func (verdict heldoutVerdict) Content() (artifact.Content, error) {
 	return heldoutVerdictCodec.Content(verdict)
 }
 
 // Batch stages the verdict with lineage to the objective, view, plan,
 // training observation and both reports it judged.
-func (verdict HeldoutVerdict) Batch(key string) (artifact.Batch, error) {
+func (verdict heldoutVerdict) Batch(key string) (artifact.Batch, error) {
 	return heldoutVerdictCodec.Batch(key, verdict, artifact.DependencyLineage(
 		verdict.ID, verdict.Objective, verdict.View, verdict.Plan, verdict.Observation, verdict.Baseline, verdict.Candidate,
 	), nil)
@@ -198,7 +198,7 @@ func viewMemberships(ctx context.Context, reader artifact.Reader, view SFTEvalua
 	return training, heldout, nil
 }
 
-func reportMetric(report NumericTargetReport, scorer NumericScorer) (runrecord.Metric, bool) {
+func reportMetric(report NumericTargetReport, scorer numericScorer) (runrecord.Metric, bool) {
 	index := slices.IndexFunc(report.Metrics, func(metric runrecord.Metric) bool { return metric.Name == string(scorer) })
 	if index < 0 {
 		return runrecord.Metric{}, false
@@ -206,7 +206,7 @@ func reportMetric(report NumericTargetReport, scorer NumericScorer) (runrecord.M
 	return report.Metrics[index], true
 }
 
-func canonicalizeHeldoutVerdict(verdict *HeldoutVerdict) error {
+func canonicalizeHeldoutVerdict(verdict *heldoutVerdict) error {
 	if verdict == nil || verdict.Version != artifact.InitialDocumentVersion ||
 		verdict.Objective.Kind() != artifact.KindProfile || verdict.View.Kind() != artifact.KindProfile ||
 		verdict.Plan.Kind() != artifact.KindProfile || verdict.Observation.Kind() != artifact.KindEvidence ||

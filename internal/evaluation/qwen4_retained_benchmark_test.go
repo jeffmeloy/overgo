@@ -59,7 +59,7 @@ func TestQwenFourRetainedBenchmarkAcceptance(t *testing.T) {
 	}
 	var stored struct {
 		GroupedChoiceReport
-		Categories []AccuracyGroup
+		Categories []accuracyGroup
 	}
 	readRetainedEvidence(t, store, value.Report, &stored)
 	stored.Groups = stored.Categories

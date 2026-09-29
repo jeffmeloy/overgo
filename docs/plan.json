@@ -15,12 +15,6 @@
       },
       "steps": [
         {
-          "id": "evaluation",
-          "title": "Unexport internal/evaluation's names no other package uses",
-          "status": "open",
-          "verify": "go build ./... \u0026\u0026 go vet ./internal/evaluation"
-        },
-        {
           "id": "do",
           "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
           "status": "open",

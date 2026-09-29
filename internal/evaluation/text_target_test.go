@@ -18,26 +18,26 @@ func TestTextTargetModalitiesUseDeclaredScorers(t *testing.T) {
 		recipecontract.ModalityAudio, recipecontract.ModalityVideo,
 	} {
 		view := textTargetView(t, modality)
-		suite := TextTargetSuite{
-			Scorers: []TextScorerSpec{
-				{Kind: TextContinuationLikelihood},
-				{Kind: TextGeneratedAnswer, Normalization: []TextNormalization{TextTrimSpaceNormalization, TextLowercaseNormalization}},
-				{Kind: TextStructuredValidity, Verifier: artifact.IDPointer(verifier)},
-				{Kind: TextOCRFields, Normalization: []TextNormalization{TextTrimSpaceNormalization}, Verifier: artifact.IDPointer(verifier)},
-				{Kind: TextVQARules, Verifier: artifact.IDPointer(verifier)},
+		suite := textTargetSuite{
+			Scorers: []textScorerSpec{
+				{Kind: textContinuationLikelihood},
+				{Kind: textGeneratedAnswer, Normalization: []textNormalization{textTrimSpaceNormalization, textLowercaseNormalization}},
+				{Kind: textStructuredValidity, Verifier: artifact.IDPointer(verifier)},
+				{Kind: textOCRFields, Normalization: []textNormalization{textTrimSpaceNormalization}, Verifier: artifact.IDPointer(verifier)},
+				{Kind: textVQARules, Verifier: artifact.IDPointer(verifier)},
 			},
-			Cases: []TextTargetCase{{
+			Cases: []textTargetCase{{
 				Record: "heldout", Answers: []string{"yes"},
-				Fields: []NamedText{{Name: "title", Value: "value"}}, Rules: []string{"supported"},
+				Fields: []namedText{{Name: "title", Value: "value"}}, Rules: []string{"supported"},
 			}},
 		}
-		plan, err := CompileTextTargetPlan(view, suite)
+		plan, err := compileTextTargetPlan(view, suite)
 		if err != nil {
 			t.Fatalf("%s: %v", modality, err)
 		}
-		report, err := ScoreTextTargets(plan, []TextTargetObservation{{
+		report, err := scoreTextTargets(plan, []textTargetObservation{{
 			Record: "heldout", Raw: " YES ", ContinuationLogLikelihood: &likelihood,
-			Verifiers: []TextVerifierResult{
+			Verifiers: []textVerifierResult{
 				{Verifier: verifier, Passed: true},
 				{Verifier: verifier, Name: "title", Value: "value"},
 				{Verifier: verifier, Name: "supported", Passed: true},
@@ -48,15 +48,15 @@ func TestTextTargetModalitiesUseDeclaredScorers(t *testing.T) {
 		}
 	}
 	view := textTargetView(t, recipecontract.ModalityText)
-	plan, err := CompileTextTargetPlan(view, TextTargetSuite{
-		Scorers: []TextScorerSpec{{Kind: TextGeneratedAnswer}},
-		Cases:   []TextTargetCase{{Record: "heldout", Answers: []string{"answer"}}},
+	plan, err := compileTextTargetPlan(view, textTargetSuite{
+		Scorers: []textScorerSpec{{Kind: textGeneratedAnswer}},
+		Cases:   []textTargetCase{{Record: "heldout", Answers: []string{"answer"}}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := ScoreTextTargets(plan, []TextTargetObservation{{Record: "heldout", Raw: "answer", ContinuationLogLikelihood: &likelihood}})
-	if err != nil || len(report.Metrics) != 1 || report.Metrics[0].Name != string(TextGeneratedAnswer) {
+	report, err := scoreTextTargets(plan, []textTargetObservation{{Record: "heldout", Raw: "answer", ContinuationLogLikelihood: &likelihood}})
+	if err != nil || len(report.Metrics) != 1 || report.Metrics[0].Name != string(textGeneratedAnswer) {
 		t.Fatalf("undeclared scorer affected report: %+v, err=%v", report, err)
 	}
 }

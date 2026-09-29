@@ -15,7 +15,7 @@ import (
 func TestCompositeGenerationHeldoutQuality(t *testing.T) {
 	t.Parallel()
 	store, evidenceID, policy := compositeGenerationQualityFixture(t)
-	authority := CompositeGenerationQualityAuthority{}
+	authority := compositeGenerationQualityAuthority{}
 	quality, err := authority.Evaluate(t.Context(), store, evidenceID, policy)
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +38,7 @@ func TestCompositeGenerationHeldoutQuality(t *testing.T) {
 func TestCompositeGenerationRepeatedSeeds(t *testing.T) {
 	t.Parallel()
 	store, evidenceID, policy := compositeGenerationQualityFixture(t)
-	authority := CompositeGenerationQualityAuthority{}
+	authority := compositeGenerationQualityAuthority{}
 	policy.MinimumSeeds++
 	policy, err := authority.NewPolicy(policy)
 	if err != nil {
@@ -62,11 +62,11 @@ func TestCompositeGenerationSourceEffect(t *testing.T) {
 	t.Parallel()
 	store, evidenceID, policy := compositeGenerationQualityFixture(t)
 	policy.MinimumSourceEffect = 0.5
-	policy, err := (CompositeGenerationQualityAuthority{}).NewPolicy(policy)
+	policy, err := (compositeGenerationQualityAuthority{}).NewPolicy(policy)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := (CompositeGenerationQualityAuthority{}).Evaluate(
+	if _, err := (compositeGenerationQualityAuthority{}).Evaluate(
 		t.Context(), store, evidenceID, policy,
 	); err == nil {
 		t.Fatal("composition without attributable source effect admitted")
@@ -77,22 +77,22 @@ func TestCompositeGenerationRefusal(t *testing.T) {
 	t.Parallel()
 	store, evidenceID, policy := compositeGenerationQualityFixture(t)
 	policy.QualityMetric = "missing-quality"
-	policy, err := (CompositeGenerationQualityAuthority{}).NewPolicy(policy)
+	policy, err := (compositeGenerationQualityAuthority{}).NewPolicy(policy)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := (CompositeGenerationQualityAuthority{}).Evaluate(
+	if _, err := (compositeGenerationQualityAuthority{}).Evaluate(
 		t.Context(), store, evidenceID, policy,
 	); err == nil {
 		t.Fatal("missing held-out metric admitted")
 	}
 	_, _, policy = compositeGenerationQualityFixture(t)
 	policy.MinimumNondegeneracy = 0.95
-	policy, err = (CompositeGenerationQualityAuthority{}).NewPolicy(policy)
+	policy, err = (compositeGenerationQualityAuthority{}).NewPolicy(policy)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := (CompositeGenerationQualityAuthority{}).Evaluate(
+	if _, err := (compositeGenerationQualityAuthority{}).Evaluate(
 		t.Context(), store, evidenceID, policy,
 	); err == nil {
 		t.Fatal("degenerate generation admitted")
@@ -101,7 +101,7 @@ func TestCompositeGenerationRefusal(t *testing.T) {
 
 func compositeGenerationQualityFixture(
 	t *testing.T,
-) (*overgodb.Store, artifact.ID, CompositeGenerationQualityPolicy) {
+) (*overgodb.Store, artifact.ID, compositeGenerationQualityPolicy) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -201,7 +201,7 @@ func compositeGenerationQualityFixture(
 	}); err != nil {
 		t.Fatal(err)
 	}
-	policy, err := (CompositeGenerationQualityAuthority{}).NewPolicy(CompositeGenerationQualityPolicy{
+	policy, err := (compositeGenerationQualityAuthority{}).NewPolicy(compositeGenerationQualityPolicy{
 		QualityMetric: "quality-score", NondegeneracyMetric: "nondegeneracy-score",
 		Direction: runrecord.DirectionMaximize, MinimumSeeds: 2, ComposedQualityThreshold: 0.8,
 		MinimumHeldOutGain: 0.1, MinimumSourceEffect: 0.2, MinimumBridgeEffect: 0.25,

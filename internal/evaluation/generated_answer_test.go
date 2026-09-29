@@ -11,7 +11,7 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 	t.Parallel()
 	suite := GeneratedAnswerSuite{
 		Kind: GeneratedAnswerKind, Schema: "fixture/v1", Source: "fixture",
-		Transforms: []string{TransformTrimSpace, TransformLowercase},
+		Transforms: []string{TransformTrimSpace, transformLowercase},
 		Cases: []GeneratedAnswerCase{{
 			Name: "answer", Prompt: "prompt", MaxTokens: 1, Answers: []string{"ok"},
 		}},
@@ -27,7 +27,7 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 		Environment:     planID(t, artifact.KindEvidence, "environment"),
 		Execution:       ExecutionPolicy{Lifecycle: LifecycleResident},
 	}
-	plan, err := BindGeneratedAnswer(compiled, authorities)
+	plan, err := bindGeneratedAnswer(compiled, authorities)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	otherPlan, err := BindGeneratedAnswer(other, authorities)
+	otherPlan, err := bindGeneratedAnswer(other, authorities)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
 	}
 	defer store.Close()
 	publishPlanFixtureAuthorities(t, store, plan)
-	report, err := EvaluateGeneratedAnswer(
+	report, err := evaluateGeneratedAnswer(
 		t.Context(), store, exactGenerator{pieces: []string{" OK "}}, compiled, plan,
 	)
 	if err != nil {

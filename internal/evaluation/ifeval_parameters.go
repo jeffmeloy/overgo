@@ -93,7 +93,7 @@ func readIFEvalParameters(ctx context.Context, reader artifact.Reader, imported 
 	return result, nil
 }
 
-func ifevalRuleWithParameters(id string, kwargs map[string]json.RawMessage, binding *ifevalParameterBinding) ([]InstructionRule, bool) {
+func ifevalRuleWithParameters(id string, kwargs map[string]json.RawMessage, binding *ifevalParameterBinding) ([]instructionRule, bool) {
 	if binding == nil {
 		return ifevalRuleFor(id, kwargs)
 	}

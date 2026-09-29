@@ -20,7 +20,7 @@ import (
 type evidenceDriverFixture struct {
 	store             *overgodb.Store
 	request           EvidenceDriverRequest
-	probe             CapabilityProbeResult
+	probe             capabilityProbeResult
 	production        productionProbeFixture
 	codeCandidate     modelrecipe.Candidate
 	codeAdmission     runrecord.CandidateAdmission
@@ -110,7 +110,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 	})
 	t.Run("foreign production goal", func(t *testing.T) {
 		foreign := newProductionProbeFixtureInStore(t, fixture.store, "evidence-driver-foreign-goal")
-		probe, _, err := PublishProductionCapabilityProbe(t.Context(), fixture.store, foreign.request)
+		probe, _, err := publishProductionCapabilityProbe(t.Context(), fixture.store, foreign.request)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +122,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 	})
 	t.Run("foreign admission", func(t *testing.T) {
 		request := fixture.request
-		request.Candidates = []EvidenceDriverCandidate{{
+		request.Candidates = []evidenceDriverCandidate{{
 			Candidate: fixture.composition.ID(), Admission: fixture.codeAdmission.ID,
 		}}
 		if _, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, request); err == nil {
@@ -131,7 +131,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 	})
 	t.Run("unadmitted candidate", func(t *testing.T) {
 		request := fixture.request
-		request.Candidates = []EvidenceDriverCandidate{{
+		request.Candidates = []evidenceDriverCandidate{{
 			Candidate: fixture.unadmitted.ID(),
 			Admission: testutil.ArtifactID(t, artifact.KindEvidence, "absent driver admission"),
 		}}
@@ -141,7 +141,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 	})
 	t.Run("admitted candidate unrelated to goal", func(t *testing.T) {
 		request := fixture.request
-		request.Candidates = []EvidenceDriverCandidate{{
+		request.Candidates = []evidenceDriverCandidate{{
 			Candidate: fixture.unrelated.ID(), Admission: fixture.unrelatedPermit.ID,
 		}}
 		if _, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, request); err == nil {
@@ -150,7 +150,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 	})
 	t.Run("candidate evaluation intent differs", func(t *testing.T) {
 		request := fixture.request
-		request.Candidates = []EvidenceDriverCandidate{{
+		request.Candidates = []evidenceDriverCandidate{{
 			Candidate: fixture.invalidIntent.ID(), Admission: fixture.invalidPermit.ID,
 		}}
 		if _, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, request); err == nil {
@@ -262,7 +262,7 @@ func TestCrossDomainCandidateEvaluationAndAblationAttribution(t *testing.T) {
 			refused, refusalErr := EvaluateCrossDomainCandidate(
 				contract, decision, compiled, mutate(cloneCandidateEvaluationArms(arms)),
 			)
-			if refusalErr != nil || refused.Verdict != CandidateEvaluationRefused ||
+			if refusalErr != nil || refused.Verdict != candidateEvaluationRefused ||
 				!slices.ContainsFunc(refused.Reasons, func(value string) bool { return strings.Contains(value, reason) }) {
 				t.Fatalf("refusal = (%+v, %v), want reason %q", refused, refusalErr, reason)
 			}
@@ -324,7 +324,7 @@ func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 	ctx := t.Context()
 	store := newCapabilityEvaluationStore(t)
 	production := newProductionProbeFixtureInStore(t, store, "evidence-driver-incumbent")
-	probe, _, err := PublishProductionCapabilityProbe(ctx, store, production.request)
+	probe, _, err := publishProductionCapabilityProbe(ctx, store, production.request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -493,7 +493,7 @@ func newEvidenceDriverFixture(t *testing.T) evidenceDriverFixture {
 		invalidIntent: invalidIntent, invalidPermit: invalidPermit,
 		request: EvidenceDriverRequest{
 			Goal: probe.CheckDecision, Causal: causal, Head: head, Incumbent: probe.ID,
-			Candidates: []EvidenceDriverCandidate{
+			Candidates: []evidenceDriverCandidate{
 				{Candidate: codeCandidate.ID(), Admission: codeAdmission.ID},
 				{Candidate: compositionCandidate.ID(), Admission: compositionAdmission.ID},
 			},

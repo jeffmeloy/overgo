@@ -96,9 +96,9 @@ func TestIFEvalParameterCatalogAcceptance(t *testing.T) {
 		if err != nil || len(suites) != 1 || dropped["ifeval"] != 0 {
 			t.Fatalf("derive: %d %v %v", len(suites), dropped, err)
 		}
-		loose := InstructionRule{Name: "keywords:letter_frequency", Kind: ifevalLetters, Values: []string{"b"}, Count: &CountRule{Relation: RelationAtLeast, Value: 2}}
-		strict := InstructionRule{Name: loose.Name, Kind: ifevalLetters, Values: []string{"a"}, Count: &CountRule{Relation: RelationAtLeast, Value: 2}, Loose: &loose}
-		want, err := CompileInstructionRules(InstructionRulesSuite{Kind: InstructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "store/ifeval", Cases: []InstructionRulesCase{{Name: "ifeval/default/train/0", Prompt: "Count letters.", MaxTokens: ifevalDerivedMaxTokens, Rules: []InstructionRule{strict}}}})
+		loose := instructionRule{Name: "keywords:letter_frequency", Kind: ifevalLetters, Values: []string{"b"}, Count: &countRule{Relation: relationAtLeast, Value: 2}}
+		strict := instructionRule{Name: loose.Name, Kind: ifevalLetters, Values: []string{"a"}, Count: &countRule{Relation: relationAtLeast, Value: 2}, Loose: &loose}
+		want, err := compileInstructionRules(instructionRulesSuite{Kind: instructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "store/ifeval", Cases: []instructionRulesCase{{Name: "ifeval/default/train/0", Prompt: "Count letters.", MaxTokens: ifevalDerivedMaxTokens, Rules: []instructionRule{strict}}}})
 		if err != nil || suites[0].plan.body.CaseProfile != want.identity {
 			t.Fatalf("production derivation did not consume frozen views: %v", err)
 		}

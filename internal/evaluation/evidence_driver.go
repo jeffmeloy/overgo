@@ -13,9 +13,9 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// EvidenceDriverCandidate binds one immutable candidate to the exact admission
+// evidenceDriverCandidate binds one immutable candidate to the exact admission
 // decision that made it eligible for driver consideration.
-type EvidenceDriverCandidate struct {
+type evidenceDriverCandidate struct {
 	Candidate artifact.ID `json:"candidate"`
 	Admission artifact.ID `json:"admission"`
 }
@@ -27,7 +27,7 @@ type EvidenceDriverRequest struct {
 	Causal            runrecord.CausalContext   `json:"causal"`
 	Head              artifact.CommitID         `json:"head"`
 	Incumbent         artifact.ID               `json:"incumbent"`
-	Candidates        []EvidenceDriverCandidate `json:"candidates,omitempty"`
+	Candidates        []evidenceDriverCandidate `json:"candidates,omitempty"`
 	InteractionBudget artifact.ID               `json:"interaction_budget"`
 	ResourceBudget    artifact.ID               `json:"resource_budget"`
 }
@@ -140,12 +140,12 @@ func requireEvidenceDriverIncumbent(
 	if id.Kind() != artifact.KindEvidence {
 		return runrecord.DriverOption{}, errors.New("evaluation: invalid evidence driver incumbent authority")
 	}
-	probe, err := RequireCapabilityProbeResult(ctx, reader, id)
+	probe, err := requireCapabilityProbeResult(ctx, reader, id)
 	if err != nil {
 		return runrecord.DriverOption{}, err
 	}
 	if probe.Outcome != runrecord.OutcomeSucceeded ||
-		(probe.Entry != ProductionEntryLocalPlacement && probe.Entry != ProductionEntryPeerPlacement) {
+		(probe.Entry != productionEntryLocalPlacement && probe.Entry != productionEntryPeerPlacement) {
 		return runrecord.DriverOption{}, errors.New("evaluation: evidence driver incumbent is not a successful model placement")
 	}
 	if goal != probe.CheckDecision {

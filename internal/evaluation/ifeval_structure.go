@@ -24,7 +24,7 @@ const (
 	ifevalRepeat       = "lm-eval/ifeval/repeat-prompt/v1"
 )
 
-func compileIFEvalStructure(source InstructionRule) (compiledInstructionRule, error) {
+func compileIFEvalStructure(source instructionRule) (compiledInstructionRule, error) {
 	if source.Kind == ifevalLanguageRule || source.Kind == ifevalEnglishUpper || source.Kind == ifevalEnglishLower {
 		return compileIFEvalLanguageRule(source)
 	}
@@ -194,7 +194,7 @@ func splitIFEvalSections(response, separator string) ([]string, bool) {
 	return valid, true
 }
 
-func ifevalStructureFor(id string, kwargs map[string]json.RawMessage) ([]InstructionRule, bool) {
+func ifevalStructureFor(id string, kwargs map[string]json.RawMessage) ([]instructionRule, bool) {
 	if id == "length_constraints:nth_paragraph_first_word" {
 		return ifevalParagraphFor(id, kwargs)
 	}
@@ -203,7 +203,7 @@ func ifevalStructureFor(id string, kwargs map[string]json.RawMessage) ([]Instruc
 		err := json.Unmarshal(kwargs[name], &value)
 		return value, err == nil && value != ""
 	}
-	count := func(name, relationName, relation string) *CountRule {
+	count := func(name, relationName, relation string) *countRule {
 		var value *int
 		if err := json.Unmarshal(kwargs[name], &value); err != nil || value == nil || *value <= 0 {
 			return nil
@@ -217,14 +217,14 @@ func ifevalStructureFor(id string, kwargs map[string]json.RawMessage) ([]Instruc
 			case "less than":
 				relation = ifevalLessThan
 			case "at least":
-				relation = RelationAtLeast
+				relation = relationAtLeast
 			default:
 				return nil
 			}
 		}
-		return &CountRule{Relation: relation, Value: *value}
+		return &countRule{Relation: relation, Value: *value}
 	}
-	rule := InstructionRule{Name: id}
+	rule := instructionRule{Name: id}
 	arg := ""
 	switch id {
 	case "length_constraints:number_sentences":
@@ -246,27 +246,27 @@ func ifevalStructureFor(id string, kwargs map[string]json.RawMessage) ([]Instruc
 		arg = "keyword"
 	case "detectable_content:number_placeholders":
 		rule.Kind = ifevalPlaceholders
-		rule.Count = count("num_placeholders", "", RelationAtLeast)
+		rule.Count = count("num_placeholders", "", relationAtLeast)
 	case "detectable_format:number_bullet_lists":
 		rule.Kind = ifevalBullets
-		rule.Count = count("num_bullets", "", RelationEqual)
+		rule.Count = count("num_bullets", "", relationEqual)
 	case "detectable_format:number_highlighted_sections":
 		rule.Kind = ifevalHighlights
-		rule.Count = count("num_highlights", "", RelationAtLeast)
+		rule.Count = count("num_highlights", "", relationAtLeast)
 	case "detectable_format:multiple_sections":
 		rule.Kind = ifevalSections
-		rule.Count = count("num_sections", "", RelationAtLeast)
+		rule.Count = count("num_sections", "", relationAtLeast)
 		arg = "section_spliter"
 	case "length_constraints:number_paragraphs":
 		rule.Kind = ifevalParagraphs
-		rule.Count = count("num_paragraphs", "", RelationEqual)
+		rule.Count = count("num_paragraphs", "", relationEqual)
 	case "detectable_content:postscript":
 		rule.Kind = ifevalPostscript
 		arg = "postscript_marker"
 	case "detectable_format:title":
 		rule.Kind = ifevalTitle
 	case "detectable_format:constrained_response":
-		return []InstructionRule{{Name: id, Kind: RuleRegex, Values: []string{`My answer is (?:yes|no|maybe)\.`}}}, true
+		return []instructionRule{{Name: id, Kind: ruleRegex, Values: []string{`My answer is (?:yes|no|maybe)\.`}}}, true
 	case "combination:two_responses":
 		rule.Kind = ifevalTwoResponses
 	case "combination:repeat_prompt":
@@ -285,5 +285,5 @@ func ifevalStructureFor(id string, kwargs map[string]json.RawMessage) ([]Instruc
 	if _, err := compileIFEvalStructure(rule); err != nil {
 		return nil, false
 	}
-	return []InstructionRule{rule}, true
+	return []instructionRule{rule}, true
 }

@@ -18,116 +18,116 @@ const (
 	textTargetReportSchema    = "overgo/text-target-report/v1"
 )
 
-// TextScorer names a text target metric; every text metric is maximized.
-type TextScorer string
+// textScorer names a text target metric; every text metric is maximized.
+type textScorer string
 
 const (
-	// TextContinuationLikelihood scores the observed continuation log-likelihood.
-	TextContinuationLikelihood TextScorer = "continuation-likelihood"
-	// TextGeneratedAnswer scores 1 when the normalized output matches any normalized answer.
-	TextGeneratedAnswer TextScorer = "generated-answer"
-	// TextStructuredValidity scores the verifier's pass for the output.
-	TextStructuredValidity TextScorer = "structured-validity"
-	// TextOCRFields scores the fraction of fields whose verifier value matches after normalization.
-	TextOCRFields TextScorer = "ocr-fields"
-	// TextVQARules scores the fraction of rules the verifier passes.
-	TextVQARules TextScorer = "vqa-rules"
+	// textContinuationLikelihood scores the observed continuation log-likelihood.
+	textContinuationLikelihood textScorer = "continuation-likelihood"
+	// textGeneratedAnswer scores 1 when the normalized output matches any normalized answer.
+	textGeneratedAnswer textScorer = "generated-answer"
+	// textStructuredValidity scores the verifier's pass for the output.
+	textStructuredValidity textScorer = "structured-validity"
+	// textOCRFields scores the fraction of fields whose verifier value matches after normalization.
+	textOCRFields textScorer = "ocr-fields"
+	// textVQARules scores the fraction of rules the verifier passes.
+	textVQARules textScorer = "vqa-rules"
 )
 
-// TextNormalization names an answer normalization step for answer and OCR-field scorers.
-type TextNormalization string
+// textNormalization names an answer normalization step for answer and OCR-field scorers.
+type textNormalization string
 
 const (
-	// TextIdentityNormalization leaves text unchanged.
-	TextIdentityNormalization TextNormalization = "identity"
-	// TextTrimSpaceNormalization trims surrounding space.
-	TextTrimSpaceNormalization TextNormalization = "trim-space"
-	// TextLowercaseNormalization lowercases text.
-	TextLowercaseNormalization TextNormalization = "lowercase"
+	// textIdentityNormalization leaves text unchanged.
+	textIdentityNormalization textNormalization = "identity"
+	// textTrimSpaceNormalization trims surrounding space.
+	textTrimSpaceNormalization textNormalization = "trim-space"
+	// textLowercaseNormalization lowercases text.
+	textLowercaseNormalization textNormalization = "lowercase"
 )
 
-// TextScorerSpec declares one text scorer, its normalization, and the verifier profile structured, OCR, and VQA scorers require.
-type TextScorerSpec struct {
-	Kind          TextScorer          `json:"kind"`
-	Normalization []TextNormalization `json:"normalization,omitempty"`
+// textScorerSpec declares one text scorer, its normalization, and the verifier profile structured, OCR, and VQA scorers require.
+type textScorerSpec struct {
+	Kind          textScorer          `json:"kind"`
+	Normalization []textNormalization `json:"normalization,omitempty"`
 	Verifier      *artifact.ID        `json:"verifier,omitempty"`
 }
 
-// NamedText is a named expected text value, such as an OCR field.
-type NamedText struct {
+// namedText is a named expected text value, such as an OCR field.
+type namedText struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
-// TextTargetCase binds a held-out record to accepted answers, expected fields, and rules.
-type TextTargetCase struct {
+// textTargetCase binds a held-out record to accepted answers, expected fields, and rules.
+type textTargetCase struct {
 	Record  string      `json:"record"`
 	Answers []string    `json:"answers,omitempty"`
-	Fields  []NamedText `json:"fields,omitempty"`
+	Fields  []namedText `json:"fields,omitempty"`
 	Rules   []string    `json:"rules,omitempty"`
 }
 
-// TextTargetSuite declares scorers and cases before binding to a held-out view.
-type TextTargetSuite struct {
-	Scorers []TextScorerSpec `json:"scorers"`
-	Cases   []TextTargetCase `json:"cases"`
+// textTargetSuite declares scorers and cases before binding to a held-out view.
+type textTargetSuite struct {
+	Scorers []textScorerSpec `json:"scorers"`
+	Cases   []textTargetCase `json:"cases"`
 }
 
-// TextTargetPlan binds a text suite to one held-out view and its text output signature.
-type TextTargetPlan struct {
+// textTargetPlan binds a text suite to one held-out view and its text output signature.
+type textTargetPlan struct {
 	ID        artifact.ID                      `json:"-"`
 	Version   uint16                           `json:"version"`
 	View      artifact.ID                      `json:"view"`
 	Signature recipecontract.ModalitySignature `json:"signature"`
-	Scorers   []TextScorerSpec                 `json:"scorers"`
-	Cases     []TextTargetCase                 `json:"cases"`
+	Scorers   []textScorerSpec                 `json:"scorers"`
+	Cases     []textTargetCase                 `json:"cases"`
 }
 
-// TextVerifierResult records one verifier outcome, keyed by verifier and field or rule name.
-type TextVerifierResult struct {
+// textVerifierResult records one verifier outcome, keyed by verifier and field or rule name.
+type textVerifierResult struct {
 	Verifier artifact.ID `json:"verifier"`
 	Name     string      `json:"name,omitzero"`
 	Value    string      `json:"value,omitzero"`
 	Passed   bool        `json:"passed"`
 }
 
-// TextTargetObservation carries one record's raw output, optional continuation log-likelihood, and verifier results.
-type TextTargetObservation struct {
+// textTargetObservation carries one record's raw output, optional continuation log-likelihood, and verifier results.
+type textTargetObservation struct {
 	Record                    string               `json:"record"`
 	Raw                       string               `json:"raw"`
 	ContinuationLogLikelihood *float64             `json:"continuation_log_likelihood,omitempty"`
-	Verifiers                 []TextVerifierResult `json:"verifiers,omitempty"`
+	Verifiers                 []textVerifierResult `json:"verifiers,omitempty"`
 }
 
-// TextTargetReport holds sorted observations and per-scorer mean metrics for one plan.
-type TextTargetReport struct {
+// textTargetReport holds sorted observations and per-scorer mean metrics for one plan.
+type textTargetReport struct {
 	ID           artifact.ID             `json:"-"`
 	Version      uint16                  `json:"version"`
 	Plan         artifact.ID             `json:"plan"`
-	Observations []TextTargetObservation `json:"observations"`
+	Observations []textTargetObservation `json:"observations"`
 	Metrics      []runrecord.Metric      `json:"metrics"`
 }
 
 var (
 	textTargetPlanCodec = artifact.JSONDocumentCodec(
 		"text target plan", artifact.KindProfile, textTargetPlanMediaType, textTargetPlanSchema,
-		canonicalizeTextTargetPlan, func(value TextTargetPlan) artifact.ID { return value.ID },
-		func(value *TextTargetPlan, id artifact.ID) { value.ID = id }, cloneTextTargetPlan,
+		canonicalizeTextTargetPlan, func(value textTargetPlan) artifact.ID { return value.ID },
+		func(value *textTargetPlan, id artifact.ID) { value.ID = id }, cloneTextTargetPlan,
 	)
 	textTargetReportCodec = artifact.JSONDocumentCodec(
 		"text target report", artifact.KindEvaluation, textTargetReportMediaType, textTargetReportSchema,
-		canonicalizeTextTargetReport, func(value TextTargetReport) artifact.ID { return value.ID },
-		func(value *TextTargetReport, id artifact.ID) { value.ID = id }, cloneTextTargetReport,
+		canonicalizeTextTargetReport, func(value textTargetReport) artifact.ID { return value.ID },
+		func(value *textTargetReport, id artifact.ID) { value.ID = id }, cloneTextTargetReport,
 	)
 )
 
-// CompileTextTargetPlan binds a text suite to a held-out dataset view.
-func CompileTextTargetPlan(view SFTEvaluationView, suite TextTargetSuite) (TextTargetPlan, error) {
+// compileTextTargetPlan binds a text suite to a held-out dataset view.
+func compileTextTargetPlan(view SFTEvaluationView, suite textTargetSuite) (textTargetPlan, error) {
 	if _, err := view.Content(); err != nil {
-		return TextTargetPlan{}, err
+		return textTargetPlan{}, err
 	}
 	if len(suite.Cases) != len(view.Records) {
-		return TextTargetPlan{}, errors.New("evaluation: text target cases differ from held-out view")
+		return textTargetPlan{}, errors.New("evaluation: text target cases differ from held-out view")
 	}
 	records := make(map[string]struct{}, len(view.Records))
 	for _, record := range view.Records {
@@ -135,10 +135,10 @@ func CompileTextTargetPlan(view SFTEvaluationView, suite TextTargetSuite) (TextT
 	}
 	for _, target := range suite.Cases {
 		if _, found := records[target.Record]; !found {
-			return TextTargetPlan{}, errors.New("evaluation: text target record is outside held-out view")
+			return textTargetPlan{}, errors.New("evaluation: text target record is outside held-out view")
 		}
 	}
-	plan := TextTargetPlan{
+	plan := textTargetPlan{
 		Version: artifact.InitialDocumentVersion, View: view.ID, Signature: view.Signature.Clone(),
 		Scorers: slices.Clone(suite.Scorers), Cases: cloneTextTargetCases(suite.Cases),
 	}
@@ -146,12 +146,12 @@ func CompileTextTargetPlan(view SFTEvaluationView, suite TextTargetSuite) (TextT
 }
 
 // Content encodes the plan as its canonical artifact document.
-func (plan TextTargetPlan) Content() (artifact.Content, error) {
+func (plan textTargetPlan) Content() (artifact.Content, error) {
 	return textTargetPlanCodec.Content(plan)
 }
 
 // Batch stages the plan with lineage to its view and declared verifiers.
-func (plan TextTargetPlan) Batch(key string) (artifact.Batch, error) {
+func (plan textTargetPlan) Batch(key string) (artifact.Batch, error) {
 	parents := []artifact.ID{plan.View}
 	for _, scorer := range plan.Scorers {
 		if scorer.Verifier != nil {
@@ -161,23 +161,23 @@ func (plan TextTargetPlan) Batch(key string) (artifact.Batch, error) {
 	return textTargetPlanCodec.Batch(key, plan, artifact.DependencyLineage(plan.ID, parents...), nil)
 }
 
-// ScoreTextTargets evaluates text observations with declared scorers.
-func ScoreTextTargets(plan TextTargetPlan, observations []TextTargetObservation) (TextTargetReport, error) {
+// scoreTextTargets evaluates text observations with declared scorers.
+func scoreTextTargets(plan textTargetPlan, observations []textTargetObservation) (textTargetReport, error) {
 	if err := textTargetPlanCodec.ValidateIdentity(plan); err != nil || len(observations) != len(plan.Cases) {
-		return TextTargetReport{}, errors.New("evaluation: text target observations differ from plan")
+		return textTargetReport{}, errors.New("evaluation: text target observations differ from plan")
 	}
 	observations = cloneTextObservations(observations)
-	slices.SortFunc(observations, func(a, b TextTargetObservation) int { return cmp.Compare(a.Record, b.Record) })
+	slices.SortFunc(observations, func(a, b textTargetObservation) int { return cmp.Compare(a.Record, b.Record) })
 	metrics := make([]runrecord.Metric, 0, len(plan.Scorers))
 	for _, scorer := range plan.Scorers {
 		var sum float64
 		for index, observation := range observations {
 			if observation.Record != plan.Cases[index].Record {
-				return TextTargetReport{}, errors.New("evaluation: text target record order differs")
+				return textTargetReport{}, errors.New("evaluation: text target record order differs")
 			}
 			value, err := scoreTextObservation(scorer, plan.Cases[index], observation)
 			if err != nil {
-				return TextTargetReport{}, err
+				return textTargetReport{}, err
 			}
 			sum += value
 		}
@@ -185,30 +185,30 @@ func ScoreTextTargets(plan TextTargetPlan, observations []TextTargetObservation)
 			Name: string(scorer.Kind), Value: sum / float64(len(observations)), Direction: runrecord.DirectionMaximize,
 		})
 	}
-	return textTargetReportCodec.NewInitial(TextTargetReport{
+	return textTargetReportCodec.NewInitial(textTargetReport{
 		Plan: plan.ID, Observations: observations, Metrics: metrics,
 	})
 }
 
 // Content encodes the report as its canonical artifact document.
-func (report TextTargetReport) Content() (artifact.Content, error) {
+func (report textTargetReport) Content() (artifact.Content, error) {
 	return textTargetReportCodec.Content(report)
 }
 
 // Batch stages the report with lineage to its plan.
-func (report TextTargetReport) Batch(key string) (artifact.Batch, error) {
+func (report textTargetReport) Batch(key string) (artifact.Batch, error) {
 	return textTargetReportCodec.Batch(key, report, artifact.DependencyLineage(report.ID, report.Plan), nil)
 }
 
-func scoreTextObservation(scorer TextScorerSpec, target TextTargetCase, observation TextTargetObservation) (float64, error) {
+func scoreTextObservation(scorer textScorerSpec, target textTargetCase, observation textTargetObservation) (float64, error) {
 	switch scorer.Kind {
-	case TextContinuationLikelihood:
+	case textContinuationLikelihood:
 		if observation.ContinuationLogLikelihood == nil || math.IsNaN(*observation.ContinuationLogLikelihood) ||
 			math.IsInf(*observation.ContinuationLogLikelihood, 0) {
 			return 0, errors.New("evaluation: continuation likelihood is absent or non-finite")
 		}
 		return *observation.ContinuationLogLikelihood, nil
-	case TextGeneratedAnswer:
+	case textGeneratedAnswer:
 		actual := normalizeAnswer(observation.Raw, scorer.Normalization)
 		for _, answer := range target.Answers {
 			if actual == normalizeAnswer(answer, scorer.Normalization) {
@@ -216,9 +216,9 @@ func scoreTextObservation(scorer TextScorerSpec, target TextTargetCase, observat
 			}
 		}
 		return 0, nil
-	case TextStructuredValidity:
+	case textStructuredValidity:
 		return verifierPass(*scorer.Verifier, "", observation.Verifiers)
-	case TextOCRFields:
+	case textOCRFields:
 		if len(target.Fields) == 0 {
 			return 0, errors.New("evaluation: OCR field targets are absent")
 		}
@@ -233,7 +233,7 @@ func scoreTextObservation(scorer TextScorerSpec, target TextTargetCase, observat
 			}
 		}
 		return passed / float64(len(target.Fields)), nil
-	case TextVQARules:
+	case textVQARules:
 		if len(target.Rules) == 0 {
 			return 0, errors.New("evaluation: VQA rules are absent")
 		}
@@ -251,7 +251,7 @@ func scoreTextObservation(scorer TextScorerSpec, target TextTargetCase, observat
 	}
 }
 
-func verifierPass(verifier artifact.ID, name string, values []TextVerifierResult) (float64, error) {
+func verifierPass(verifier artifact.ID, name string, values []textVerifierResult) (float64, error) {
 	for _, value := range values {
 		if value.Verifier == verifier && value.Name == name {
 			if value.Passed {
@@ -263,7 +263,7 @@ func verifierPass(verifier artifact.ID, name string, values []TextVerifierResult
 	return 0, errors.New("evaluation: declared text verifier result is absent")
 }
 
-func verifierValue(verifier artifact.ID, name string, values []TextVerifierResult) (string, error) {
+func verifierValue(verifier artifact.ID, name string, values []textVerifierResult) (string, error) {
 	for _, value := range values {
 		if value.Verifier == verifier && value.Name == name {
 			return value.Value, nil
@@ -272,7 +272,7 @@ func verifierValue(verifier artifact.ID, name string, values []TextVerifierResul
 	return "", errors.New("evaluation: declared text verifier field is absent")
 }
 
-func canonicalizeTextTargetPlan(plan *TextTargetPlan) error {
+func canonicalizeTextTargetPlan(plan *textTargetPlan) error {
 	if plan == nil || plan.Version != artifact.InitialDocumentVersion || plan.View.Kind() != artifact.KindProfile ||
 		plan.Signature.Validate() != nil || len(plan.Signature.Outputs) != 1 || plan.Signature.Outputs[0] != recipecontract.ModalityText ||
 		len(plan.Scorers) == 0 || len(plan.Cases) == 0 {
@@ -284,7 +284,7 @@ func canonicalizeTextTargetPlan(plan *TextTargetPlan) error {
 			return errors.New("evaluation: unsupported text target input modality")
 		}
 	}
-	slices.SortFunc(plan.Scorers, func(a, b TextScorerSpec) int { return cmp.Compare(a.Kind, b.Kind) })
+	slices.SortFunc(plan.Scorers, func(a, b textScorerSpec) int { return cmp.Compare(a.Kind, b.Kind) })
 	for index := range plan.Scorers {
 		scorer := &plan.Scorers[index]
 		if index > 0 && plan.Scorers[index-1].Kind == scorer.Kind || !validTextScorer(*scorer) {
@@ -292,10 +292,10 @@ func canonicalizeTextTargetPlan(plan *TextTargetPlan) error {
 		}
 		scorer.Normalization = slices.Clone(scorer.Normalization)
 	}
-	slices.SortFunc(plan.Cases, func(a, b TextTargetCase) int { return cmp.Compare(a.Record, b.Record) })
+	slices.SortFunc(plan.Cases, func(a, b textTargetCase) int { return cmp.Compare(a.Record, b.Record) })
 	for index := range plan.Cases {
 		target := &plan.Cases[index]
-		slices.SortFunc(target.Fields, func(a, b NamedText) int { return cmp.Compare(a.Name, b.Name) })
+		slices.SortFunc(target.Fields, func(a, b namedText) int { return cmp.Compare(a.Name, b.Name) })
 		slices.Sort(target.Rules)
 		if target.Record == "" || index > 0 && plan.Cases[index-1].Record == target.Record {
 			return errors.New("evaluation: invalid text target case")
@@ -313,9 +313,9 @@ func canonicalizeTextTargetPlan(plan *TextTargetPlan) error {
 	}
 	for _, scorer := range plan.Scorers {
 		for _, target := range plan.Cases {
-			if scorer.Kind == TextGeneratedAnswer && len(target.Answers) == 0 ||
-				scorer.Kind == TextOCRFields && len(target.Fields) == 0 ||
-				scorer.Kind == TextVQARules && len(target.Rules) == 0 {
+			if scorer.Kind == textGeneratedAnswer && len(target.Answers) == 0 ||
+				scorer.Kind == textOCRFields && len(target.Fields) == 0 ||
+				scorer.Kind == textVQARules && len(target.Rules) == 0 {
 				return errors.New("evaluation: text target lacks scorer facts")
 			}
 		}
@@ -323,22 +323,22 @@ func canonicalizeTextTargetPlan(plan *TextTargetPlan) error {
 	return nil
 }
 
-func validTextScorer(scorer TextScorerSpec) bool {
-	valid := scorer.Kind == TextContinuationLikelihood || scorer.Kind == TextGeneratedAnswer ||
-		scorer.Kind == TextStructuredValidity || scorer.Kind == TextOCRFields || scorer.Kind == TextVQARules
-	if !valid || scorer.Kind != TextGeneratedAnswer && scorer.Kind != TextOCRFields && len(scorer.Normalization) != 0 {
+func validTextScorer(scorer textScorerSpec) bool {
+	valid := scorer.Kind == textContinuationLikelihood || scorer.Kind == textGeneratedAnswer ||
+		scorer.Kind == textStructuredValidity || scorer.Kind == textOCRFields || scorer.Kind == textVQARules
+	if !valid || scorer.Kind != textGeneratedAnswer && scorer.Kind != textOCRFields && len(scorer.Normalization) != 0 {
 		return false
 	}
 	for _, operation := range scorer.Normalization {
-		if operation != TextIdentityNormalization && operation != TextTrimSpaceNormalization && operation != TextLowercaseNormalization {
+		if operation != textIdentityNormalization && operation != textTrimSpaceNormalization && operation != textLowercaseNormalization {
 			return false
 		}
 	}
-	requiresVerifier := scorer.Kind == TextStructuredValidity || scorer.Kind == TextOCRFields || scorer.Kind == TextVQARules
+	requiresVerifier := scorer.Kind == textStructuredValidity || scorer.Kind == textOCRFields || scorer.Kind == textVQARules
 	return requiresVerifier == (scorer.Verifier != nil && scorer.Verifier.Kind() == artifact.KindProfile)
 }
 
-func canonicalizeTextTargetReport(report *TextTargetReport) error {
+func canonicalizeTextTargetReport(report *textTargetReport) error {
 	if report == nil || report.Version != artifact.InitialDocumentVersion || report.Plan.Kind() != artifact.KindProfile ||
 		len(report.Observations) == 0 || len(report.Metrics) == 0 {
 		return errors.New("evaluation: invalid text target report")
@@ -358,7 +358,7 @@ func canonicalizeTextTargetReport(report *TextTargetReport) error {
 	return nil
 }
 
-func cloneTextTargetPlan(plan TextTargetPlan) TextTargetPlan {
+func cloneTextTargetPlan(plan textTargetPlan) textTargetPlan {
 	plan.Signature = plan.Signature.Clone()
 	plan.Scorers = slices.Clone(plan.Scorers)
 	for index := range plan.Scorers {
@@ -372,7 +372,7 @@ func cloneTextTargetPlan(plan TextTargetPlan) TextTargetPlan {
 	return plan
 }
 
-func cloneTextTargetCases(cases []TextTargetCase) []TextTargetCase {
+func cloneTextTargetCases(cases []textTargetCase) []textTargetCase {
 	result := slices.Clone(cases)
 	for index := range result {
 		result[index].Answers = slices.Clone(result[index].Answers)
@@ -382,7 +382,7 @@ func cloneTextTargetCases(cases []TextTargetCase) []TextTargetCase {
 	return result
 }
 
-func cloneTextObservations(values []TextTargetObservation) []TextTargetObservation {
+func cloneTextObservations(values []textTargetObservation) []textTargetObservation {
 	result := slices.Clone(values)
 	for index := range result {
 		result[index].Verifiers = slices.Clone(result[index].Verifiers)
@@ -390,7 +390,7 @@ func cloneTextObservations(values []TextTargetObservation) []TextTargetObservati
 	return result
 }
 
-func cloneTextTargetReport(report TextTargetReport) TextTargetReport {
+func cloneTextTargetReport(report textTargetReport) textTargetReport {
 	report.Observations = cloneTextObservations(report.Observations)
 	report.Metrics = slices.Clone(report.Metrics)
 	return report

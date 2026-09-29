@@ -176,7 +176,7 @@ func requireColdGroundedReplayResult(
 		t.Fatal(err)
 	}
 	for _, probe := range result.Probes {
-		if _, err := RequireCapabilityProbeResult(t.Context(), store, probe.ID); err != nil {
+		if _, err := requireCapabilityProbeResult(t.Context(), store, probe.ID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -189,12 +189,12 @@ func requireColdGroundedReplayResult(
 		t.Fatal(err)
 	}
 	for _, decision := range result.Trajectories {
-		if _, err := RequireTrajectoryHealthDecision(t.Context(), store, decision.ID); err != nil {
+		if _, err := requireTrajectoryHealthDecision(t.Context(), store, decision.ID); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, evaluation := range []RetrievalEvaluation{result.Baseline, result.Trial} {
-		if _, err := RequireRetrievalEvaluation(t.Context(), store, evaluation.ID); err != nil {
+	for _, evaluation := range []retrievalEvaluation{result.Baseline, result.Trial} {
+		if _, err := requireRetrievalEvaluation(t.Context(), store, evaluation.ID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -206,10 +206,10 @@ func requireColdGroundedReplayResult(
 	if _, err := dataset.RequireDatasetTransform(t.Context(), store, result.Transform.ID()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := RequireEpisodeKnowledgeProposal(t.Context(), store, result.Proposal.ID); err != nil {
+	if _, err := requireEpisodeKnowledgeProposal(t.Context(), store, result.Proposal.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := RequireKnowledgePromotionEvidence(t.Context(), store, result.Promotion.ID); err != nil {
+	if _, err := requireKnowledgePromotionEvidence(t.Context(), store, result.Promotion.ID); err != nil {
 		t.Fatal(err)
 	}
 }

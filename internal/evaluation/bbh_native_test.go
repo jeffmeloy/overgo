@@ -168,7 +168,7 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 		if err != nil || selected.Index != control.Selected {
 			t.Fatalf("native normalized selection differs: %s %v", control.Group, err)
 		}
-		if !choiceCorrect(ChoiceObservation{Selected: selected.Index, Answer: control.Selected, Tied: selected.Tied}, suite.TieBreak) {
+		if !choiceCorrect(choiceObservation{Selected: selected.Index, Answer: control.Selected, Tied: selected.Tied}, suite.TieBreak) {
 			t.Fatal("native first-option tie was rejected")
 		}
 	}
@@ -200,7 +200,7 @@ func TestBBHNativeProtocolAcceptance(t *testing.T) {
 		t.Fatal("native raw protocol reused the generated case identity")
 	}
 	authorities := ExactAuthorities{ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"), Environment: planID(t, artifact.KindEvidence, "environment"), CodeCommit: planTestCommit, Execution: ExecutionPolicy{Lifecycle: LifecycleResident}}
-	for _, prompting := range []Prompting{PromptingRawCompletion, PromptingChatTemplate} {
+	for _, prompting := range []prompting{PromptingRawCompletion, PromptingChatTemplate} {
 		authorities.Execution.Prompting = prompting
 		derived, dropped, err := DeriveStoreSuiteFamily(t.Context(), store, authorities, "bbh")
 		if err != nil || len(derived) != 1 || len(dropped) != 0 || derived[0].Descriptor().Cases != 5761 {

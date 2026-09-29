@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -95,26 +94,26 @@ var hfCacheFamilies = map[string]hfCacheFamily{
 	},
 }
 
-// BenchmarkSeed is one derived benchmark declaration: a split file in
+// benchmarkSeed is one derived benchmark declaration: a split file in
 // the cache bound to the import spec that lands it in the store.
-type BenchmarkSeed struct {
+type benchmarkSeed struct {
 	Name string
 	Path string
 	Spec dataset.BenchmarkImportSpec
 }
 
-// DeriveHFCacheBenchmarks scans a HuggingFace dataset cache root and
+// deriveHFCacheBenchmarks scans a HuggingFace dataset cache root and
 // derives one benchmark seed per recognized family, subset, and split
 // file: the layout is the source of truth for what benchmarks are
 // locally held, so nothing is hand-listed. Unrecognized directories
 // are skipped -- the cache also holds processing scratch -- but a
 // recognized family with no importable split refuses loudly.
-func DeriveHFCacheBenchmarks(root string) ([]BenchmarkSeed, error) {
+func deriveHFCacheBenchmarks(root string) ([]benchmarkSeed, error) {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil, err
 	}
-	seeds := make([]BenchmarkSeed, 0, len(entries))
+	seeds := make([]benchmarkSeed, 0, len(entries))
 	for _, entry := range entries {
 		family, recognized := hfCacheFamilies[entry.Name()]
 		if !entry.IsDir() || !recognized {
@@ -129,16 +128,16 @@ func DeriveHFCacheBenchmarks(root string) ([]BenchmarkSeed, error) {
 	if len(seeds) == 0 {
 		return nil, errors.New("evaluation: the cache holds no recognized benchmark families")
 	}
-	sort.Slice(seeds, func(i, j int) bool { return seeds[i].Name < seeds[j].Name })
+	slices.SortFunc(seeds, func(left, right benchmarkSeed) int { return strings.Compare(left.Name, right.Name) })
 	return seeds, nil
 }
 
-func deriveFamilySeeds(familyRoot string, family hfCacheFamily) ([]BenchmarkSeed, error) {
+func deriveFamilySeeds(familyRoot string, family hfCacheFamily) ([]benchmarkSeed, error) {
 	subsets, err := os.ReadDir(familyRoot)
 	if err != nil {
 		return nil, err
 	}
-	var seeds []BenchmarkSeed
+	var seeds []benchmarkSeed
 	for _, subset := range subsets {
 		if !subset.IsDir() {
 			continue
@@ -158,7 +157,7 @@ func deriveFamilySeeds(familyRoot string, family hfCacheFamily) ([]BenchmarkSeed
 				return nil, err
 			}
 			name := family.family + "/" + subset.Name() + "/" + split
-			seeds = append(seeds, BenchmarkSeed{
+			seeds = append(seeds, benchmarkSeed{
 				Name: name, Path: path,
 				Spec: dataset.BenchmarkImportSpec{
 					Source:   family.family + ":" + subset.Name(),
@@ -214,7 +213,7 @@ func findSplitFile(subsetRoot, base, split string) (path, revision string, found
 // hand-written manifest as the declaration of what benchmarks the
 // store serves.
 func CatalogHFCacheBenchmarks(ctx context.Context, repository artifact.Repository, root string) (artifact.ID, int, error) {
-	seeds, err := DeriveHFCacheBenchmarks(root)
+	seeds, err := deriveHFCacheBenchmarks(root)
 	if err != nil {
 		return artifact.ID{}, 0, err
 	}
@@ -229,10 +228,10 @@ func CatalogHFCacheBenchmarks(ctx context.Context, repository artifact.Repositor
 // DomainText is the default domain for natural-language evaluation suites.
 const DomainText = "text"
 
-// SuiteDomain names the domain a derived suite belongs to; every
+// suiteDomain names the domain a derived suite belongs to; every
 // lm_eval family is text today, and new families declare theirs in the
 // cache table.
-func SuiteDomain(source string) string {
+func suiteDomain(source string) string {
 	suffix := strings.TrimPrefix(source, "store/")
 	for _, family := range hfCacheFamilies {
 		if family.family == suffix {
@@ -250,7 +249,7 @@ func FilterSuitesForDomains(suites []CompiledSuite, domains []string, declared b
 	}
 	kept := make([]CompiledSuite, 0, len(suites))
 	for _, suite := range suites {
-		if slices.Contains(domains, SuiteDomain(suite.Descriptor().Source)) {
+		if slices.Contains(domains, suiteDomain(suite.Descriptor().Source)) {
 			kept = append(kept, suite)
 		}
 	}

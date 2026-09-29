@@ -20,13 +20,13 @@ import (
 )
 
 const (
-	// ImprovementFitnessMediaType identifies a persisted, reproducible
+	// improvementFitnessMediaType identifies a persisted, reproducible
 	// capability/quality/resource/coverage improvement proof.
-	ImprovementFitnessMediaType = "application/vnd.overgo.improvement-fitness+json"
-	// ImprovementFitnessSchema identifies the first improvement proof schema.
-	ImprovementFitnessSchema = "overgo/improvement-fitness/v1"
-	// ImprovementFitnessVersion is the current improvement proof version.
-	ImprovementFitnessVersion uint16 = artifact.InitialDocumentVersion
+	improvementFitnessMediaType = "application/vnd.overgo.improvement-fitness+json"
+	// improvementFitnessSchema identifies the first improvement proof schema.
+	improvementFitnessSchema = "overgo/improvement-fitness/v1"
+	// improvementFitnessVersion is the current improvement proof version.
+	improvementFitnessVersion uint16 = artifact.InitialDocumentVersion
 )
 
 // ImprovementFitnessEndpoint materializes the exact authority chain used for
@@ -43,9 +43,9 @@ type ImprovementFitnessEndpoint struct {
 	Quality    []runrecord.Metric `json:"quality"`
 }
 
-// ImprovementFitnessDimension keeps non-regression distinct from a strict
+// improvementFitnessDimension keeps non-regression distinct from a strict
 // gain. Different dimensions are never scalarized into one score.
-type ImprovementFitnessDimension struct {
+type improvementFitnessDimension struct {
 	NoRegression bool `json:"no_regression"`
 	Strict       bool `json:"strict"`
 }
@@ -58,11 +58,11 @@ type ImprovementFitness struct {
 	Baseline      ImprovementFitnessEndpoint  `json:"baseline"`
 	Candidate     ImprovementFitnessEndpoint  `json:"candidate"`
 	Resources     artifact.ID                 `json:"resources"`
-	CoverageQuery CoverageQuery               `json:"coverage_query"`
-	Coverage      CoverageProjection          `json:"coverage"`
-	Capability    ImprovementFitnessDimension `json:"capability"`
-	Quality       ImprovementFitnessDimension `json:"quality"`
-	Resource      ImprovementFitnessDimension `json:"resource"`
+	CoverageQuery coverageQuery               `json:"coverage_query"`
+	Coverage      coverageProjection          `json:"coverage"`
+	Capability    improvementFitnessDimension `json:"capability"`
+	Quality       improvementFitnessDimension `json:"quality"`
+	Resource      improvementFitnessDimension `json:"resource"`
 	SourceChunks  []artifact.ID               `json:"source_chunks"`
 	Improved      bool                        `json:"improved"`
 	ID            artifact.ID                 `json:"-"`
@@ -75,13 +75,13 @@ type ImprovementFitnessRequest struct {
 	CandidateAttempt  artifact.ID
 	BaselineEvidence  artifact.ID
 	CandidateEvidence artifact.ID
-	Coverage          CoverageQuery
+	Coverage          coverageQuery
 	Resources         artifact.ID
 }
 
 var improvementFitnessCodec = artifact.JSONDocumentCodec(
 	"improvement fitness", artifact.KindEvidence,
-	ImprovementFitnessMediaType, ImprovementFitnessSchema,
+	improvementFitnessMediaType, improvementFitnessSchema,
 	canonicalizeImprovementFitness,
 	func(value ImprovementFitness) artifact.ID { return value.ID },
 	func(value *ImprovementFitness, id artifact.ID) { value.ID = id },
@@ -95,7 +95,7 @@ var requiredImprovementResourceMetrics = []runrecord.ResourceMetric{
 	runrecord.ResourceWallNS,
 }
 
-var requiredImprovementCoverageAxes = [...]CoverageAxis{
+var requiredImprovementCoverageAxes = [...]coverageAxis{
 	CoverageMeasurement,
 	CoverageHardware,
 	CoverageEvaluation,
@@ -138,12 +138,12 @@ var improvementDatasetContracts = [...]improvementDatasetContractPair{
 type improvementAuthorities struct {
 	baseline, candidate improvementEndpointAuthority
 	resources           runrecord.ResourceFitnessComparison
-	query               CoverageQuery
+	query               coverageQuery
 	agentLane           runrecord.ResourceFitnessLane
 	evaluationLane      runrecord.ResourceFitnessLane
-	capability          ImprovementFitnessDimension
-	quality             ImprovementFitnessDimension
-	resource            ImprovementFitnessDimension
+	capability          improvementFitnessDimension
+	quality             improvementFitnessDimension
+	resource            improvementFitnessDimension
 }
 
 type improvementFitnessReader interface {
@@ -232,7 +232,7 @@ func requireCoverageProjectionCommit(
 	ctx context.Context,
 	repository improvementFitnessReader,
 	fitness artifact.ID,
-	projection CoverageProjection,
+	projection coverageProjection,
 ) error {
 	if projection.Sequence == ^uint64(0) {
 		return errors.New("evaluation: improvement coverage journal authority differs")
@@ -355,7 +355,7 @@ func requireImprovementAuthorities(
 	if err != nil {
 		return improvementAuthorities{}, err
 	}
-	capability := ImprovementFitnessDimension{
+	capability := improvementFitnessDimension{
 		NoRegression: candidate.attempt.Outcome == runrecord.OutcomeSucceeded,
 		Strict:       baseline.attempt.Outcome != runrecord.OutcomeSucceeded && candidate.attempt.Outcome == runrecord.OutcomeSucceeded,
 	}
@@ -366,8 +366,8 @@ func requireImprovementAuthorities(
 	if !qualityNoRegression {
 		return improvementAuthorities{}, errors.New("evaluation: candidate quality regresses or is incomparable")
 	}
-	quality := ImprovementFitnessDimension{NoRegression: true, Strict: qualityStrict}
-	resource := ImprovementFitnessDimension{NoRegression: true, Strict: resources.StrictImprovement}
+	quality := improvementFitnessDimension{NoRegression: true, Strict: qualityStrict}
+	resource := improvementFitnessDimension{NoRegression: true, Strict: resources.StrictImprovement}
 	if !capability.Strict && !quality.Strict && !resource.Strict {
 		return improvementAuthorities{}, errors.New("evaluation: candidate records no strict improvement")
 	}
@@ -675,13 +675,13 @@ func requireImprovementLaneSet(comparison runrecord.ResourceFitnessComparison, r
 }
 
 func pinImprovementCoverage(
-	query CoverageQuery,
+	query coverageQuery,
 	baseline, candidate improvementEndpointAuthority,
 	evaluationLane runrecord.ResourceFitnessLane,
-) (CoverageQuery, error) {
+) (coverageQuery, error) {
 	canonical, err := NewEvidenceCoverageQuery(query.Units, query.Pairs, query.Bounds)
 	if err != nil || query.ID.Valid() && query.ID != canonical.ID {
-		return CoverageQuery{}, errors.Join(err, errors.New("evaluation: improvement coverage query is not canonical"))
+		return coverageQuery{}, errors.Join(err, errors.New("evaluation: improvement coverage query is not canonical"))
 	}
 	endpoints := []struct {
 		authority improvementEndpointAuthority
@@ -692,25 +692,25 @@ func pinImprovementCoverage(
 	}
 	expectedPairs := []CoveragePair{{Baseline: baseline.evidence.Run, Candidate: candidate.evidence.Run}}
 	if len(canonical.Units) != len(endpoints) || !slices.Equal(canonical.Pairs, expectedPairs) {
-		return CoverageQuery{}, errors.New("evaluation: improvement coverage must contain one exact ordered pair")
+		return coverageQuery{}, errors.New("evaluation: improvement coverage must contain one exact ordered pair")
 	}
 	measurementSamples, hardwareSamples, err := improvementCoverageDenominators(evaluationLane.Baseline)
 	if err != nil {
-		return CoverageQuery{}, err
+		return coverageQuery{}, err
 	}
 	for _, endpoint := range endpoints {
 		unitIndex := slices.IndexFunc(canonical.Units, func(unit CoverageUnit) bool {
 			return unit.Attempt == endpoint.authority.evidence.Run
 		})
 		if unitIndex < 0 {
-			return CoverageQuery{}, errors.New("evaluation: improvement coverage omits an evaluation run")
+			return coverageQuery{}, errors.New("evaluation: improvement coverage omits an evaluation run")
 		}
 		unit := &canonical.Units[unitIndex]
 		head := endpoint.stream.SummaryIDs[len(endpoint.stream.SummaryIDs)-1]
 		if unit.Terminal != endpoint.authority.evidence.Run ||
 			!slices.Equal(unit.EvaluationEvidence, []artifact.ID{endpoint.authority.evidence.ID}) ||
 			len(unit.FailureObservations) != 0 || unit.ObservationHead.Valid() && unit.ObservationHead != head {
-			return CoverageQuery{}, errors.New("evaluation: improvement coverage unit differs from exact evidence")
+			return coverageQuery{}, errors.New("evaluation: improvement coverage unit differs from exact evidence")
 		}
 		unit.ObservationHead = head
 		for index := range unit.Required {
@@ -722,7 +722,7 @@ func pinImprovementCoverage(
 			}
 		}
 		if err := requireImprovementCoverageContract(unit.Required); err != nil {
-			return CoverageQuery{}, err
+			return coverageQuery{}, err
 		}
 	}
 	return NewEvidenceCoverageQuery(canonical.Units, canonical.Pairs, canonical.Bounds)
@@ -779,13 +779,13 @@ func requireImprovementCoverageContract(requirements []CoverageRequirement) erro
 }
 
 func validateImprovementCoverage(
-	query CoverageQuery,
-	projection CoverageProjection,
+	query coverageQuery,
+	projection coverageProjection,
 	evaluationLane runrecord.ResourceFitnessLane,
 ) error {
 	expectedUnits := uint64(len(query.Units))
 	expectedPairs := uint64(len(query.Pairs))
-	if projection.Version != EvidenceCoverageProjectionVersion || projection.Query != query.ID ||
+	if projection.Version != evidenceCoverageProjectionVersion || projection.Query != query.ID ||
 		projection.FailureClassifierVersion != executionfailure.ClassifierVersion ||
 		projection.CausalityProjectionVersion != overgodb.CausalityProjectionVersion ||
 		!projection.Head.Valid() || projection.Sequence == 0 || projection.Units != expectedUnits ||
@@ -794,7 +794,7 @@ func validateImprovementCoverage(
 		projection.Pairs != expectedPairs || projection.Paired != expectedPairs || projection.Unpaired != 0 {
 		return errors.New("evaluation: improvement coverage is incomplete")
 	}
-	if projection.Causal != (AxisCoverage{}) {
+	if projection.Causal != (axisCoverage{}) {
 		return errors.New("evaluation: improvement coverage records a non-required causal axis")
 	}
 	for _, axis := range requiredImprovementCoverageAxes {
@@ -848,13 +848,13 @@ func validateImprovementCoverage(
 
 func newImprovementFitness(
 	authorities improvementAuthorities,
-	coverage CoverageProjection,
+	coverage coverageProjection,
 ) (ImprovementFitness, error) {
 	sources := append(slices.Clone(coverage.SourceChunks), authorities.resources.SourceChunks()...)
 	slices.SortFunc(sources, artifact.CompareID)
 	sources = slices.Compact(sources)
 	return improvementFitnessCodec.New(ImprovementFitness{
-		Version:  ImprovementFitnessVersion,
+		Version:  improvementFitnessVersion,
 		Baseline: authorities.baseline.value, Candidate: authorities.candidate.value,
 		Resources: authorities.resources.ID, CoverageQuery: authorities.query, Coverage: coverage,
 		Capability: authorities.capability, Quality: authorities.quality, Resource: authorities.resource,
@@ -874,7 +874,7 @@ func improvementObservationCache(comparison runrecord.ResourceFitnessComparison)
 }
 
 func canonicalizeImprovementFitness(value *ImprovementFitness) error {
-	if value == nil || value.Version != ImprovementFitnessVersion || value.Resources.Kind() != artifact.KindEvidence ||
+	if value == nil || value.Version != improvementFitnessVersion || value.Resources.Kind() != artifact.KindEvidence ||
 		!value.Coverage.Head.Valid() || value.Coverage.Sequence == 0 || !value.Improved {
 		return errors.New("evaluation: invalid improvement fitness")
 	}
@@ -931,7 +931,7 @@ func canonicalizeImprovementEndpoint(endpoint *ImprovementFitnessEndpoint) error
 func cloneImprovementFitness(value ImprovementFitness) ImprovementFitness {
 	value.Baseline.Quality = slices.Clone(value.Baseline.Quality)
 	value.Candidate.Quality = slices.Clone(value.Candidate.Quality)
-	value.CoverageQuery = CoverageQuery{
+	value.CoverageQuery = coverageQuery{
 		Units: cloneCoverageUnits(value.CoverageQuery.Units), Pairs: slices.Clone(value.CoverageQuery.Pairs),
 		Bounds: value.CoverageQuery.Bounds, ID: value.CoverageQuery.ID,
 	}

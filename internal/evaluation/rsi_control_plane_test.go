@@ -71,8 +71,8 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 	}
 
 	units := []CoverageUnit{
-		{Attempt: covered.ID, Required: []CoverageRequirement{{Axis: CoverageCausal}}},
-		{Attempt: uncovered.ID, Required: []CoverageRequirement{{Axis: CoverageCausal}}},
+		{Attempt: covered.ID, Required: []CoverageRequirement{{Axis: coverageCausal}}},
+		{Attempt: uncovered.ID, Required: []CoverageRequirement{{Axis: coverageCausal}}},
 	}
 	bounds := CoverageBounds{
 		MaxFacts: 64,
@@ -98,7 +98,7 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 		EvaluationEvidence: []artifact.ID{
 			coveredResult, missingResult,
 		},
-		Required: []CoverageRequirement{{Axis: CoverageCausal}},
+		Required: []CoverageRequirement{{Axis: coverageCausal}},
 	}}
 	starved := bounds
 	starved.MaxFacts = 1

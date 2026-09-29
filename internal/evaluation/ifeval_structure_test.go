@@ -15,8 +15,8 @@ var ifevalStructureOracle []byte
 func TestIFEvalStructureContractAcceptance(t *testing.T) {
 	t.Parallel()
 	t.Run("compiled criteria own their input values", func(t *testing.T) {
-		suite := InstructionRulesSuite{Kind: InstructionRulesKind, Schema: "native-count-ownership", Source: "fixture", Cases: []InstructionRulesCase{{Name: "count", Prompt: "Repeat cat.", MaxTokens: 1, Rules: []InstructionRule{{Name: "frequency", Kind: ifevalFrequency, Values: []string{"cat"}, Count: &CountRule{Relation: RelationAtLeast, Value: 2}}}}}}
-		compiled, err := CompileInstructionRules(suite)
+		suite := instructionRulesSuite{Kind: instructionRulesKind, Schema: "native-count-ownership", Source: "fixture", Cases: []instructionRulesCase{{Name: "count", Prompt: "Repeat cat.", MaxTokens: 1, Rules: []instructionRule{{Name: "frequency", Kind: ifevalFrequency, Values: []string{"cat"}, Count: &countRule{Relation: relationAtLeast, Value: 2}}}}}}
+		compiled, err := compileInstructionRules(suite)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -56,7 +56,7 @@ func TestIFEvalStructureContractAcceptance(t *testing.T) {
 		if err != nil || dropped != 0 {
 			t.Fatalf("%d %s: dropped=%d error=%v", index, c.Instruction, dropped, err)
 		}
-		compiled, err := CompileInstructionRules(assembled.(InstructionRulesSuite))
+		compiled, err := compileInstructionRules(assembled.(instructionRulesSuite))
 		if err != nil {
 			t.Fatal(err)
 		}

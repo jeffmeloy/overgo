@@ -43,41 +43,41 @@ var (
 	}
 )
 
-type Lifecycle string
+type lifecycle string
 
 const (
-	LifecycleIsolated Lifecycle = "isolated"
-	LifecycleResident Lifecycle = "resident"
+	LifecycleIsolated lifecycle = "isolated"
+	LifecycleResident lifecycle = "resident"
 )
 
 type ExecutionPolicy struct {
-	Lifecycle Lifecycle `json:"lifecycle"`
+	Lifecycle lifecycle `json:"lifecycle"`
 	// Prompting names how a scored prompt reaches the model: the raw
 	// completion text (the recorded anchor, the empty default so
 	// earlier plans keep their identity) or the model's own declared
 	// chat template. Two protocols are two plans, so their records
 	// never collapse into one "latest" score.
-	Prompting Prompting `json:"prompting,omitzero"`
+	Prompting prompting `json:"prompting,omitzero"`
 }
 
-// Prompting is the prompt-shaping protocol an execution policy binds.
-type Prompting string
+// prompting is the prompt-shaping protocol an execution policy binds.
+type prompting string
 
 const (
 	// PromptingRawCompletion scores the suite's prompt text unchanged.
-	PromptingRawCompletion Prompting = ""
+	PromptingRawCompletion prompting = ""
 	// PromptingChatTemplate shapes each prompt through the model's
 	// declared chat template before scoring.
-	PromptingChatTemplate Prompting = "chat-template"
+	PromptingChatTemplate prompting = "chat-template"
 	// PromptingHostedChat sends each prompt as the user message of a
 	// hosted provider's chat completion: the provider owns the template,
 	// so the answer opener rides the user message and no likelihood is
 	// observable; suites score generatively.
-	PromptingHostedChat Prompting = "hosted-chat"
+	PromptingHostedChat prompting = "hosted-chat"
 )
 
 // Label names the protocol for reports; the raw default reads as such.
-func (prompting Prompting) Label() string {
+func (prompting prompting) Label() string {
 	if prompting == PromptingRawCompletion {
 		return "raw-completion"
 	}
@@ -109,47 +109,47 @@ type planBody struct {
 	Execution       artifact.ID                 `json:"execution"`
 	CodeCommit      string                      `json:"code_commit"`
 	Environment     artifact.ID                 `json:"environment"`
-	Agent           *AgentTrajectoryAuthorities `json:"agent,omitempty"`
+	Agent           *agentTrajectoryAuthorities `json:"agent,omitempty"`
 }
 
-// AgentTrajectoryScore names one deterministic, code-owned trajectory scorer.
-type AgentTrajectoryScore string
+// agentTrajectoryScore names one deterministic, code-owned trajectory scorer.
+type agentTrajectoryScore string
 
 const (
-	// AgentScoreTaskSuccess names the scorer for task acceptance success.
-	AgentScoreTaskSuccess AgentTrajectoryScore = "task-success"
-	// AgentScoreEvidenceCompleteness names the scorer for committed-evidence completeness.
-	AgentScoreEvidenceCompleteness AgentTrajectoryScore = "evidence-completeness"
-	// AgentScoreGateAccuracy names the scorer for gate-result accuracy.
-	AgentScoreGateAccuracy AgentTrajectoryScore = "gate-accuracy"
-	// AgentScoreEffectPrediction names the scorer for predicted-versus-observed effects.
-	AgentScoreEffectPrediction AgentTrajectoryScore = "effect-prediction"
-	// AgentScoreRegressions names the scorer for introduced regressions.
-	AgentScoreRegressions AgentTrajectoryScore = "regressions"
-	// AgentScoreChurn names the scorer for code churn spent on the task.
-	AgentScoreChurn AgentTrajectoryScore = "churn"
-	// AgentScoreRepeatedDirections names the scorer for repeated attempt directions.
-	AgentScoreRepeatedDirections AgentTrajectoryScore = "repeated-directions"
-	// AgentScoreBudget names the scorer for consumed budget.
-	AgentScoreBudget AgentTrajectoryScore = "budget"
-	// AgentScoreLatency names the scorer for wall-clock latency.
-	AgentScoreLatency AgentTrajectoryScore = "latency"
-	// AgentScoreUnsupportedCompletion names the scorer for completion claims without evidence.
-	AgentScoreUnsupportedCompletion AgentTrajectoryScore = "unsupported-completion"
+	// agentScoreTaskSuccess names the scorer for task acceptance success.
+	agentScoreTaskSuccess agentTrajectoryScore = "task-success"
+	// agentScoreEvidenceCompleteness names the scorer for committed-evidence completeness.
+	agentScoreEvidenceCompleteness agentTrajectoryScore = "evidence-completeness"
+	// agentScoreGateAccuracy names the scorer for gate-result accuracy.
+	agentScoreGateAccuracy agentTrajectoryScore = "gate-accuracy"
+	// agentScoreEffectPrediction names the scorer for predicted-versus-observed effects.
+	agentScoreEffectPrediction agentTrajectoryScore = "effect-prediction"
+	// agentScoreRegressions names the scorer for introduced regressions.
+	agentScoreRegressions agentTrajectoryScore = "regressions"
+	// agentScoreChurn names the scorer for code churn spent on the task.
+	agentScoreChurn agentTrajectoryScore = "churn"
+	// agentScoreRepeatedDirections names the scorer for repeated attempt directions.
+	agentScoreRepeatedDirections agentTrajectoryScore = "repeated-directions"
+	// agentScoreBudget names the scorer for consumed budget.
+	agentScoreBudget agentTrajectoryScore = "budget"
+	// agentScoreLatency names the scorer for wall-clock latency.
+	agentScoreLatency agentTrajectoryScore = "latency"
+	// agentScoreUnsupportedCompletion names the scorer for completion claims without evidence.
+	agentScoreUnsupportedCompletion agentTrajectoryScore = "unsupported-completion"
 )
 
-// AgentTrajectoryAuthorities extend the exact plan. Deterministic scorers are
+// agentTrajectoryAuthorities extend the exact plan. Deterministic scorers are
 // code-owned hard facts; advisory judges are versioned profiles only.
-type AgentTrajectoryAuthorities struct {
+type agentTrajectoryAuthorities struct {
 	Trajectories   []artifact.ID          `json:"trajectories"`
-	Deterministic  []AgentTrajectoryScore `json:"deterministic"`
+	Deterministic  []agentTrajectoryScore `json:"deterministic"`
 	AdvisoryJudges []artifact.ID          `json:"advisory_judges,omitempty"`
 }
 
-var requiredAgentTrajectoryScores = []AgentTrajectoryScore{
-	AgentScoreTaskSuccess, AgentScoreEvidenceCompleteness, AgentScoreGateAccuracy, AgentScoreEffectPrediction,
-	AgentScoreRegressions, AgentScoreChurn, AgentScoreRepeatedDirections, AgentScoreBudget, AgentScoreLatency,
-	AgentScoreUnsupportedCompletion,
+var requiredAgentTrajectoryScores = []agentTrajectoryScore{
+	agentScoreTaskSuccess, agentScoreEvidenceCompleteness, agentScoreGateAccuracy, agentScoreEffectPrediction,
+	agentScoreRegressions, agentScoreChurn, agentScoreRepeatedDirections, agentScoreBudget, agentScoreLatency,
+	agentScoreUnsupportedCompletion,
 }
 
 // BindAgentTrajectoryPlan binds exact trajectories to the existing evaluation
@@ -158,7 +158,7 @@ func BindAgentTrajectoryPlan(base Plan, trajectories, advisoryJudges []artifact.
 	if err := base.ValidateIdentity(); err != nil {
 		return Plan{}, err
 	}
-	agent := &AgentTrajectoryAuthorities{Trajectories: slices.Clone(trajectories), Deterministic: slices.Clone(requiredAgentTrajectoryScores), AdvisoryJudges: slices.Clone(advisoryJudges)}
+	agent := &agentTrajectoryAuthorities{Trajectories: slices.Clone(trajectories), Deterministic: slices.Clone(requiredAgentTrajectoryScores), AdvisoryJudges: slices.Clone(advisoryJudges)}
 	if err := canonicalizeAgentTrajectoryAuthorities(agent); err != nil {
 		return Plan{}, err
 	}
@@ -173,9 +173,9 @@ func BindAgentTrajectoryPlan(base Plan, trajectories, advisoryJudges []artifact.
 
 // AgentTrajectoryAuthorities returns a deep copy of the plan's agent
 // trajectory extension; ok is false when the plan carries none.
-func (p Plan) AgentTrajectoryAuthorities() (AgentTrajectoryAuthorities, bool) {
+func (p Plan) AgentTrajectoryAuthorities() (agentTrajectoryAuthorities, bool) {
 	if p.body.Agent == nil {
-		return AgentTrajectoryAuthorities{}, false
+		return agentTrajectoryAuthorities{}, false
 	}
 	copy := *p.body.Agent
 	copy.Trajectories = slices.Clone(copy.Trajectories)
@@ -333,7 +333,7 @@ func (p Plan) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(p.identity, parents...)
 }
 
-func canonicalizeAgentTrajectoryAuthorities(agent *AgentTrajectoryAuthorities) error {
+func canonicalizeAgentTrajectoryAuthorities(agent *agentTrajectoryAuthorities) error {
 	if agent == nil || len(agent.Trajectories) == 0 || !slices.Equal(agent.Deterministic, requiredAgentTrajectoryScores) {
 		return errors.New("evaluation: incomplete deterministic agent trajectory plan")
 	}

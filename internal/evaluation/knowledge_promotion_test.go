@@ -19,20 +19,20 @@ import (
 type knowledgePromotionFixture struct {
 	path      string
 	store     *overgodb.Store
-	proposal  EpisodeKnowledgeProposal
+	proposal  episodeKnowledgeProposal
 	admission runrecord.CandidateAdmission
 	candidate modelrecipe.Candidate
 	transform dataset.DatasetTransform
-	hygiene   KnowledgeHygieneReport
-	baseline  RetrievalEvaluation
-	trial     RetrievalEvaluation
+	hygiene   knowledgeHygieneReport
+	baseline  retrievalEvaluation
+	trial     retrievalEvaluation
 	split     artifact.ID
 }
 
 func TestEpisodeKnowledgePromotionRequiresHeldOutBenefit(t *testing.T) {
 	t.Parallel()
 	fixture := newKnowledgePromotionFixture(t)
-	evidence, err := PublishEpisodeKnowledgePromotion(t.Context(), fixture.store,
+	evidence, err := publishEpisodeKnowledgePromotion(t.Context(), fixture.store,
 		fixture.proposal.ID, fixture.baseline.ID, fixture.trial.ID)
 	if err != nil {
 		fixture.store.Close()
@@ -58,7 +58,7 @@ func TestEpisodeKnowledgePromotionRequiresHeldOutBenefit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reopened.Close()
-	cold, err := RequireKnowledgePromotionEvidence(t.Context(), reopened, evidence.ID)
+	cold, err := requireKnowledgePromotionEvidence(t.Context(), reopened, evidence.ID)
 	if err != nil || cold.ID != evidence.ID {
 		t.Fatalf("cold promotion = %+v, %v", cold, err)
 	}
@@ -79,7 +79,7 @@ func TestEpisodeKnowledgePromotionRejectsUncitedOrContaminatedCandidate(t *testi
 		if fixture.hygiene.PromotionOverlap != 1 {
 			t.Fatalf("promotion overlap = %d", fixture.hygiene.PromotionOverlap)
 		}
-		if _, err := EvaluateEpisodeKnowledgePromotion(t.Context(), fixture.store,
+		if _, err := evaluateEpisodeKnowledgePromotion(t.Context(), fixture.store,
 			fixture.proposal.ID, fixture.baseline.ID, fixture.trial.ID); err == nil ||
 			!strings.Contains(err.Error(), "held-out overlap") {
 			t.Fatalf("contaminated candidate promoted: %v", err)
@@ -103,7 +103,7 @@ func TestEpisodeKnowledgePromotionRejectsUncitedOrContaminatedCandidate(t *testi
 			t.Fatal(err)
 		}
 		publishKnowledgeDocument(t, fixture.store, "knowledge/forged-proposal", forged)
-		if _, err := EvaluateEpisodeKnowledgePromotion(t.Context(), fixture.store,
+		if _, err := evaluateEpisodeKnowledgePromotion(t.Context(), fixture.store,
 			forged.ID, fixture.baseline.ID, fixture.trial.ID); err == nil ||
 			!strings.Contains(err.Error(), "differs from admitted evidence") {
 			t.Fatalf("caller-authored citation promoted: %v", err)
@@ -113,7 +113,7 @@ func TestEpisodeKnowledgePromotionRejectsUncitedOrContaminatedCandidate(t *testi
 	t.Run("candidate identity is not admission", func(t *testing.T) {
 		fixture := newKnowledgePromotionFixture(t)
 		defer fixture.store.Close()
-		if _, err := PublishEpisodeKnowledgeProposal(t.Context(), fixture.store, fixture.candidate.ID()); err == nil {
+		if _, err := publishEpisodeKnowledgeProposal(t.Context(), fixture.store, fixture.candidate.ID()); err == nil {
 			t.Fatal("unadmitted candidate identity was accepted as promotion authority")
 		}
 	})
@@ -128,7 +128,7 @@ func TestKnowledgePromotionPublicationRejectsStaleOrForgedEvidence(t *testing.T)
 			Repository: fixture.store,
 			marker:     testutil.ArtifactID(t, artifact.KindEvidence, "knowledge-publication-race"),
 		}
-		if _, err := PublishEpisodeKnowledgePromotion(t.Context(), racing,
+		if _, err := publishEpisodeKnowledgePromotion(t.Context(), racing,
 			fixture.proposal.ID, fixture.baseline.ID, fixture.trial.ID); !errors.Is(err, overgodb.ErrHeadConflict) {
 			t.Fatalf("stale promotion publication = %v", err)
 		}
@@ -137,7 +137,7 @@ func TestKnowledgePromotionPublicationRejectsStaleOrForgedEvidence(t *testing.T)
 	t.Run("replay mismatch", func(t *testing.T) {
 		fixture := newKnowledgePromotionFixture(t)
 		defer fixture.store.Close()
-		legitimate, err := EvaluateEpisodeKnowledgePromotion(t.Context(), fixture.store,
+		legitimate, err := evaluateEpisodeKnowledgePromotion(t.Context(), fixture.store,
 			fixture.proposal.ID, fixture.baseline.ID, fixture.trial.ID)
 		if err != nil {
 			t.Fatal(err)
@@ -150,7 +150,7 @@ func TestKnowledgePromotionPublicationRejectsStaleOrForgedEvidence(t *testing.T)
 			t.Fatalf("forged promotion = %+v, %v", forged, err)
 		}
 		publishKnowledgeDocument(t, fixture.store, "knowledge/forged-promotion", forged)
-		if _, err := RequireKnowledgePromotionEvidence(t.Context(), fixture.store, forged.ID); err == nil ||
+		if _, err := requireKnowledgePromotionEvidence(t.Context(), fixture.store, forged.ID); err == nil ||
 			!strings.Contains(err.Error(), "differs from replayed") {
 			t.Fatalf("forged aggregate survived replay: %v", err)
 		}
@@ -159,7 +159,7 @@ func TestKnowledgePromotionPublicationRejectsStaleOrForgedEvidence(t *testing.T)
 	t.Run("added lineage", func(t *testing.T) {
 		fixture := newKnowledgePromotionFixture(t)
 		defer fixture.store.Close()
-		promotion, err := PublishEpisodeKnowledgePromotion(t.Context(), fixture.store,
+		promotion, err := publishEpisodeKnowledgePromotion(t.Context(), fixture.store,
 			fixture.proposal.ID, fixture.baseline.ID, fixture.trial.ID)
 		if err != nil {
 			t.Fatal(err)
@@ -174,7 +174,7 @@ func TestKnowledgePromotionPublicationRejectsStaleOrForgedEvidence(t *testing.T)
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := RequireKnowledgePromotionEvidence(t.Context(), fixture.store, promotion.ID); err == nil ||
+		if _, err := requireKnowledgePromotionEvidence(t.Context(), fixture.store, promotion.ID); err == nil ||
 			!strings.Contains(err.Error(), "stored lineage differs") {
 			t.Fatalf("promotion with added authority survived: %v", err)
 		}
@@ -216,7 +216,7 @@ func newKnowledgePromotionFixtureWithOverlap(t *testing.T, promotionOverlap bool
 	}
 	caseValue, err := NewRetrievalCase(RetrievalCase{
 		Query: trialSearch.receipt.Query, Split: split, Group: "knowledge-held-out",
-		Judgments: []RetrievalJudgment{{
+		Judgments: []retrievalJudgment{{
 			Chunk: result.Citation.Chunk, Source: result.Citation.Source,
 			StartRune: result.Citation.StartRune, EndRune: result.Citation.EndRune, Relevance: 3,
 		}},
@@ -224,11 +224,11 @@ func newKnowledgePromotionFixtureWithOverlap(t *testing.T, promotionOverlap bool
 	if err != nil {
 		closeOnError(err)
 	}
-	baseline, err := PublishRetrievalEvaluation(t.Context(), store, caseValue, baselineSearch.receipt.ID)
+	baseline, err := publishRetrievalEvaluation(t.Context(), store, caseValue, baselineSearch.receipt.ID)
 	if err != nil {
 		closeOnError(err)
 	}
-	trial, err := PublishRetrievalEvaluation(t.Context(), store, caseValue, trialSearch.receipt.ID)
+	trial, err := publishRetrievalEvaluation(t.Context(), store, caseValue, trialSearch.receipt.ID)
 	if err != nil {
 		closeOnError(err)
 	}
@@ -286,7 +286,7 @@ func newKnowledgePromotionFixtureWithOverlap(t *testing.T, promotionOverlap bool
 	if promotionOverlap {
 		promotionRecords = []artifact.ID{sourceShard}
 	}
-	hygiene, err := EvaluateKnowledgeHygiene(t.Context(), store, KnowledgeHygieneObservation{
+	hygiene, err := evaluateKnowledgeHygiene(t.Context(), store, knowledgeHygieneObservation{
 		Transform: transform.ID(), DevelopmentSplit: developmentSplit, PromotionSplit: split,
 		InputRecordIDs: []artifact.ID{sourceShard, sourceShard}, OutputRecordIDs: []artifact.ID{sourceShard},
 		ConflictEvidence: []artifact.ID{conflict.Descriptor.ID}, PromotionRecordIDs: promotionRecords,
@@ -413,7 +413,7 @@ func newKnowledgePromotionFixtureWithOverlap(t *testing.T, promotionOverlap bool
 	}); err != nil {
 		closeOnError(err)
 	}
-	proposal, err := PublishEpisodeKnowledgeProposal(t.Context(), store, admission.ID)
+	proposal, err := publishEpisodeKnowledgeProposal(t.Context(), store, admission.ID)
 	if err != nil {
 		closeOnError(err)
 	}

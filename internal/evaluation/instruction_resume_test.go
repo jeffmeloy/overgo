@@ -25,15 +25,15 @@ func (f *interruptedInstructionFixture) Generate(ctx context.Context, prompt str
 
 func TestInstructionResumeCounterexample(t *testing.T) {
 	t.Parallel()
-	suite := InstructionRulesSuite{Kind: InstructionRulesKind, Schema: "fixture/v1", Source: "resume-fixture", Cases: []InstructionRulesCase{
-		{Name: "first", Prompt: "First answer.", MaxTokens: 1, Rules: []InstructionRule{{Name: "uppercase", Kind: RuleUppercase}}},
-		{Name: "second", Prompt: "Second answer.", MaxTokens: 1, Rules: []InstructionRule{{Name: "uppercase", Kind: RuleUppercase}}},
+	suite := instructionRulesSuite{Kind: instructionRulesKind, Schema: "fixture/v1", Source: "resume-fixture", Cases: []instructionRulesCase{
+		{Name: "first", Prompt: "First answer.", MaxTokens: 1, Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}}},
+		{Name: "second", Prompt: "Second answer.", MaxTokens: 1, Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}}},
 	}}
-	compiled, err := CompileInstructionRules(suite)
+	compiled, err := compileInstructionRules(suite)
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := BindInstructionRules(compiled, ExactAuthorities{
+	plan, err := bindInstructionRules(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate},
@@ -48,7 +48,7 @@ func TestInstructionResumeCounterexample(t *testing.T) {
 	}
 	publishPlanFixtureAuthorities(t, store, plan)
 	interrupted := &interruptedInstructionFixture{instructionChatFixture: instructionChatFixture{answer: "OK"}, stopPrompt: "<user>Second answer.<model>"}
-	_, runErr := EvaluateInstructionRules(t.Context(), store, interrupted, compiled, plan)
+	_, runErr := evaluateInstructionRules(t.Context(), store, interrupted, compiled, plan)
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestInstructionResumeCounterexample(t *testing.T) {
 	}
 	defer store.Close()
 	resumed := &instructionChatFixture{answer: "OK"}
-	report, err := EvaluateInstructionRules(t.Context(), store, resumed, compiled, plan)
+	report, err := evaluateInstructionRules(t.Context(), store, resumed, compiled, plan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,16 +99,16 @@ func (f *cancellingInstructionFixture) Generate(ctx context.Context, prompt stri
 	return ids, text, err
 }
 
-func instructionResumeFixture(t *testing.T) (*overgodb.Store, InstructionRulesPlan, Plan) {
+func instructionResumeFixture(t *testing.T) (*overgodb.Store, instructionRulesPlan, Plan) {
 	t.Helper()
 	// One generated token is sufficient to witness uppercase success or failure.
-	compiled, err := CompileInstructionRules(InstructionRulesSuite{Kind: InstructionRulesKind, Schema: "fixture/v1", Source: "resume-fixture", Cases: []InstructionRulesCase{
-		{Name: "first", Prompt: "First answer.", MaxTokens: 1, Rules: []InstructionRule{{Name: "uppercase", Kind: RuleUppercase}}},
+	compiled, err := compileInstructionRules(instructionRulesSuite{Kind: instructionRulesKind, Schema: "fixture/v1", Source: "resume-fixture", Cases: []instructionRulesCase{
+		{Name: "first", Prompt: "First answer.", MaxTokens: 1, Rules: []instructionRule{{Name: "uppercase", Kind: ruleUppercase}}},
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := BindInstructionRules(compiled, ExactAuthorities{
+	plan, err := bindInstructionRules(compiled, ExactAuthorities{
 		ModelDefinition: planID(t, artifact.KindModelDefinition, "model"), RuntimeRecipe: planID(t, artifact.KindRecipe, "recipe"),
 		CodeCommit: planTestCommit, Environment: planID(t, artifact.KindEvidence, "environment"),
 		Execution: ExecutionPolicy{Lifecycle: LifecycleResident, Prompting: PromptingChatTemplate},
@@ -140,12 +140,12 @@ func TestInstructionResumeRetainsQualityFailure(t *testing.T) {
 	t.Parallel()
 	store, compiled, plan := instructionResumeFixture(t)
 	failed := &instructionChatFixture{answer: "lowercase"}
-	first, err := EvaluateInstructionRules(t.Context(), store, failed, compiled, plan)
+	first, err := evaluateInstructionRules(t.Context(), store, failed, compiled, plan)
 	if err != nil {
 		t.Fatal(err)
 	}
 	improved := &instructionChatFixture{answer: "UPPERCASE"}
-	replay, err := EvaluateInstructionRules(t.Context(), store, improved, compiled, plan)
+	replay, err := evaluateInstructionRules(t.Context(), store, improved, compiled, plan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,12 +160,12 @@ func TestInstructionResumeFinishesPublicationAfterCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(t.Context())
 	defer cancel(context.Canceled)
 	generator := &cancellingInstructionFixture{instructionChatFixture: instructionChatFixture{answer: "OK"}, cancel: cancel}
-	_, err := EvaluateInstructionRules(ctx, store, generator, compiled, plan)
+	_, err := evaluateInstructionRules(ctx, store, generator, compiled, plan)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation = %v", err)
 	}
 	resumed := &instructionChatFixture{answer: "WRONG"}
-	report, err := EvaluateInstructionRules(t.Context(), store, resumed, compiled, plan)
+	report, err := evaluateInstructionRules(t.Context(), store, resumed, compiled, plan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestInstructionResumeRejectsDifferentBindings(t *testing.T) {
 	for _, field := range []string{"model", "recipe", "environment", "source", "protocol", "prompt", "token-cap"} {
 		t.Run(field, func(t *testing.T) {
 			store, compiled, plan := instructionResumeFixture(t)
-			if _, err := EvaluateInstructionRules(t.Context(), store, &instructionChatFixture{answer: "OK"}, compiled, plan); err != nil {
+			if _, err := evaluateInstructionRules(t.Context(), store, &instructionChatFixture{answer: "OK"}, compiled, plan); err != nil {
 				t.Fatal(err)
 			}
 			authorities := ExactAuthorities{
@@ -253,11 +253,11 @@ func TestInstructionResumeRejectsDifferentBindings(t *testing.T) {
 			case "token-cap":
 				compiled.suite.Cases[0].MaxTokens++
 			}
-			changed, err := CompileInstructionRules(compiled.suite)
+			changed, err := compileInstructionRules(compiled.suite)
 			if err != nil {
 				t.Fatal(err)
 			}
-			changedPlan, err := BindInstructionRules(changed, authorities)
+			changedPlan, err := bindInstructionRules(changed, authorities)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -268,7 +268,7 @@ func TestInstructionResumeRejectsDifferentBindings(t *testing.T) {
 				publishPlanFixtureAuthorities(t, store, changedPlan)
 			}
 			generator := &instructionChatFixture{answer: "NEW"}
-			if _, err := EvaluateInstructionRules(t.Context(), store, generator, changed, changedPlan); err != nil {
+			if _, err := evaluateInstructionRules(t.Context(), store, generator, changed, changedPlan); err != nil {
 				t.Fatal(err)
 			}
 			if len(generator.prompts) != 1 {
@@ -302,7 +302,7 @@ func TestInstructionResumeRejectsMisboundRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	generator := &instructionChatFixture{answer: "OK"}
-	if _, err := EvaluateInstructionRules(t.Context(), store, generator, compiled, plan); err == nil {
+	if _, err := evaluateInstructionRules(t.Context(), store, generator, compiled, plan); err == nil {
 		t.Fatal("accepted misbound record")
 	}
 	if len(generator.prompts) != 0 {

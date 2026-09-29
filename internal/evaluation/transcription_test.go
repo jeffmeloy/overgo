@@ -124,7 +124,7 @@ func TestTranscriptionEvaluationUsesStoredPredictionsAndFailureDenominators(t *t
 	if len(report.Groups) != 2 || report.Groups[0].Name != "clean" || report.Groups[1].Name != "control" {
 		t.Fatalf("groups = %+v", report.Groups)
 	}
-	exactIndex := slices.IndexFunc(report.Observations, func(value TranscriptionObservation) bool { return value.Name == "exact" })
+	exactIndex := slices.IndexFunc(report.Observations, func(value transcriptionObservation) bool { return value.Name == "exact" })
 	if exactIndex < 0 || report.Observations[exactIndex].CodeCommit != transcriptionTestCommit ||
 		report.Observations[exactIndex].Environment != fixture.environment ||
 		report.Observations[exactIndex].Output.Kind() != artifact.KindOutput {

@@ -31,7 +31,7 @@ var instructionGenerationCodec = artifact.JSONDocumentCodec(
 	func(value instructionGeneration) instructionGeneration { return value },
 )
 
-func recordInstructionCase(ctx context.Context, repository artifact.Repository, generator Generator, plan Plan, testCase InstructionRulesCase) (ExactResult, error) {
+func recordInstructionCase(ctx context.Context, repository artifact.Repository, generator Generator, plan Plan, testCase instructionRulesCase) (ExactResult, error) {
 	if err := ctx.Err(); err != nil {
 		return ExactResult{}, err
 	}
@@ -77,7 +77,7 @@ func recordInstructionCase(ctx context.Context, repository artifact.Repository, 
 	return result, nil
 }
 
-func loadInstructionGeneration(ctx context.Context, repository artifact.Repository, alias string, plan Plan, caseID artifact.ID, testCase InstructionRulesCase) (instructionGeneration, bool, error) {
+func loadInstructionGeneration(ctx context.Context, repository artifact.Repository, alias string, plan Plan, caseID artifact.ID, testCase instructionRulesCase) (instructionGeneration, bool, error) {
 	saved, found, err := instructionGenerationCodec.Resolve(ctx, repository, alias)
 	if err == nil && found {
 		err = saved.validate(plan, caseID, testCase)
@@ -85,7 +85,7 @@ func loadInstructionGeneration(ctx context.Context, repository artifact.Reposito
 	return saved, found, err
 }
 
-func (saved instructionGeneration) validate(plan Plan, caseID artifact.ID, testCase InstructionRulesCase) error {
+func (saved instructionGeneration) validate(plan Plan, caseID artifact.ID, testCase instructionRulesCase) error {
 	if saved.Plan != plan.identity || saved.Case != caseID || saved.Result.Name != testCase.Name || saved.Result.GeneratedTokens > testCase.MaxTokens {
 		return errors.New("evaluation: retained instruction generation differs from its plan or case")
 	}

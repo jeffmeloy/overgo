@@ -27,7 +27,7 @@ func TestGroupAccuracyMetricNamesAreRecordLabels(t *testing.T) {
 			t.Errorf("%q is not a record label", got)
 		}
 	}
-	metrics := accuracyMetrics(0.5, []AccuracyGroup{{Name: "A/B", Accuracy: 1}})
+	metrics := accuracyMetrics(0.5, []accuracyGroup{{Name: "A/B", Accuracy: 1}})
 	if len(metrics) != 2 || metrics[1].Name != "accuracy.a-b" {
 		t.Fatalf("metrics = %+v", metrics)
 	}

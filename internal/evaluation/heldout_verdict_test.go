@@ -71,7 +71,7 @@ func newHeldoutFixture(t *testing.T, metric trainingprogram.EvaluationMetric) he
 	if err != nil {
 		t.Fatal(err)
 	}
-	suite := NumericTargetSuite{Scorers: []NumericScorerSpec{{Kind: NumericAbsoluteError}, {Kind: NumericLabelAccuracy}}}
+	suite := NumericTargetSuite{Scorers: []NumericScorerSpec{{Kind: NumericAbsoluteError}, {Kind: numericLabelAccuracy}}}
 	for index, record := range view.Records {
 		suite.Cases = append(suite.Cases, NumericTargetCase{Record: record.ID, Values: []float64{float64(index), 1}, Label: "rising"})
 	}

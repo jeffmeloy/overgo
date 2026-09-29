@@ -64,7 +64,7 @@ func (store *publicationFaultStore) Commit(ctx context.Context, batch artifact.B
 	return store.Store.Commit(ctx, batch)
 }
 
-func testCampaignPublication(t *testing.T, lifecycle Lifecycle, failPublication bool) {
+func testCampaignPublication(t *testing.T, lifecycle lifecycle, failPublication bool) {
 	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()

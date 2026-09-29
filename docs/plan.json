@@ -1,6 +1,6 @@
 {
   "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. A consolidation row is done only when it deletes the implementations it replaces: test the shared owner's contract, keep only meaningful caller integration checks, retire tests of deleted wrappers, and report net production and test code removed, repeated executions eliminated, gate wall time and peak memory on comparable changes. Across the 197 first-parent commits to 2026-09-23, production Go grew about 9,000 net lines and tests about 11,600. OvergoDB keeps its core -- immutable content, a durable journal, aliases, rebuildable projections -- and the repository simplifies how it uses it, in order: integrity and blocking defects, one publication path, bounded queries, one record per transition, bounded memory, declared storage policy, then bounded segments. Store rows report bytes and records added per landing, records scanned per query, open and replay time, writer wait, peak memory and compaction write volume. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan. Improvement is what the user-facing scorecard measures (owner 2026-09-27): a row states the user-visible effect it predicts, naming a scorecard metric where it can, and work that moves only internal metrics states why it exists. Consolidation onto shared paths is how one fix reaches every model.",
+  "doctrine": "overgo improves models, and itself, through its own inference and training, unattended. Every row closes or speeds up the improvement loop (measure, find the gap, train or change, judge on held-out data, promote or revert), or directly serves inference or training; otherwise it is not filed. The milestone is the loop itself (improvement-loop): from there, the scorecard's gaps generate the work.\n\nFinish partly landed rows before opening new ones. A consolidation reuses an existing owner and deletes the implementations it replaces in the same landing. A new shared component is allowed only when no existing owner can serve several real consumers, and it must remove more than it adds.\n\nOne meaningful run serves every obligation whose identity and contract match: it is written once, as one record with many readers. A run never judges what it produced.\n\nA change's landing cost is read from its diff, not declared: what it expires (the inference-surface guards, pinned-media reviewed deltas) and which lanes it reaches. Changes that expire evidence land together in one batch, so lanes and guard re-acquisition run once; the others land alone. Before a batch lands, the packages its device lanes will run run on the device first. The gate writes all numbers; messages name causes, effects and what disappears.\n\nEach row's rationale carries four plain lines: Serves (the loop stage, or the model or capability it runs or trains), Disappears (the owner reused, the implementations deleted, the tests retired or kept), Evidence (the run and record it reads or produces, and who else reads that record), Batch (surface, pinned media or host, as its diff will show).",
   "lane": "master-lead",
   "items": [
     {
@@ -19,7 +19,7 @@
           "title": "Unexport the names no other package names, then delete what Go's dead-code analysis finds",
           "status": "open",
           "verify": "go build ./... \u0026\u0026 go vet ./internal/evaluation ./internal/server",
-          "rationale": "Review feedback 2026-09-28. About half the exported names in several core packages are never named outside their own package (upper bounds, since a returned type can be used without being named):\n\n| Package | Never named outside | Exported |\n|---|---|---|\n| evaluation | 158 | 319 |\n| server | 88 | 107 |\n| projector | 86 | 120 |\n| model | 80 | 160 |\n| latentvideo | 71 | 122 |\n\nOnce unexported, unused code is reported by standard Go analysis. Both gopls and deadcode are installed in ~/go/bin. A deadcode run over ./... on 2026-09-28 found 836 functions no command reaches, 493 of them exported. The largest counts:\n\n| Package | Unreachable | Kind |\n|---|---|---|\n| repoanalysis | 80 | the authority ratchets, run only as tests |\n| runrecord | 57 | |\n| diffusionimage | 52 | unwired trainer |\n| controllertrain | 37 | unwired trainer |\n| seq2seq | 33 | unwired trainer |\n| adaptiveparity | 32 | test-only reference |\n| trainingprogram | 31 | |\n| devicemath | 31 | |\n| testutil | 30 | test helpers |\n| server | 28 | |\n| workflowruntime | 23 | |\n| webuilane | 22 | |\n| rae | 22 | until rae-image-capability serves it |\n\nAn unwired trainer or inference path is wired, never deleted (capabilities-not-dead-code). Everything else deadcode reports is deleted.\n\nHow to land it:\n- Rename with gopls, package by package, largest share first, each a net-deleting landing: evaluation and server first.\n- model and projector are on the inference surface, and latentvideo is a pinned media runtime path. Each of those lands with its evidence refresh and a reviewed delta.\n- The rules stage's unconsumed-exports check already keeps new exports from growing the set.\n\nProgress 2026-09-28, the evaluation slice:\n- scratchpad/unexport's finder (standard library: the package's declarations against every importing file's selectors) listed 397 names, and gopls renamed 395. Two conflicts were refused: FailedObservation and RetrievalMetrics collide with same-named functions.\n- deadcode then reports 17 unreachable evaluation functions. The media, preference and text target-plan compilers and scorers are the unwired held-out objective paths the heldout-*-slice rows wire in, so they are not deleted. compositeGenerationQualityAuthority.Evaluate/Parse, PublishEvaluationEvidence, ExactPlan.Identity and productionCapabilityEntry.surface have test callers only; decide each with its owning row.\n- Landed: evaluation (259 renamed) and server (84; the earlier 567 counted test-file declarations). Next: runrecord (on the inference surface), then model, projector and latentvideo with their evidence refresh.\n\nOwner direction 2026-09-28:\n- Unexporting is only the means; the value is the deletion. This row does not close on renames. Its deadcode step deleted what the analysis found in evaluation and server: 351 production and 240 test lines, including the whole unused composite-generation-quality authority.\n- A behaviour-neutral rename across many files reaches every lane's closure; the evaluation and server renames cost 51 minutes of lanes. Each remaining package's rename and dead-code deletion therefore land together, paying the lane cost once per package, and no further package is unexported until the previous deletion has landed.\n- The finder, rename script and legacy-form probe are in the session scratchpad (unexport/). Before a package's landing, run compatibility -refresh-identities, go test ./internal/repoanalysis and go fix on the package. Progress 2026-09-29: runrecord landed as rename plus deletion together, in the surface batch with automation-peer-workspaces: 248 names unexported, then deadcode's 57 unreachable functions went to 3. The attempt-gate verification chain, the efficiency-trace comparison, the gate heartbeat, the lifecycle scan and laneOutcomeOf were deleted. The retired gate's lifecycle constructors and the trigger-registry self-check moved into the tests that use them. Kept: NewAgentObligationResolution, called by agentloop's delegated runtime, and ValidateDescendantImprovement with hasComparisonPair, reached through controllertrain, an unwired trainer. Next, one landing each: model, projector, latentvideo (reviewed delta). Progress 2026-09-29, model and projector: gopls unexported 372 names in model and 88 in projector. 32 model types stay exported, because modelrecipe's profile fact schema records ArchitectureProfile's field type names and every stored model definition's provenance hashes that schema. deadcode then found seven functions: two test-only Gemma4 prompt wrappers and PreprocessQwen3VLImage went; dense_to_moe stays for wire-dense-to-moe. Remaining: latentvideo, with a reviewed delta."
+          "rationale": "Review feedback 2026-09-28. About half the exported names in several core packages are never named outside their own package (upper bounds, since a returned type can be used without being named):\n\n| Package | Never named outside | Exported |\n|---|---|---|\n| evaluation | 158 | 319 |\n| server | 88 | 107 |\n| projector | 86 | 120 |\n| model | 80 | 160 |\n| latentvideo | 71 | 122 |\n\nOnce unexported, unused code is reported by standard Go analysis. Both gopls and deadcode are installed in ~/go/bin. A deadcode run over ./... on 2026-09-28 found 836 functions no command reaches, 493 of them exported. The largest counts:\n\n| Package | Unreachable | Kind |\n|---|---|---|\n| repoanalysis | 80 | the authority ratchets, run only as tests |\n| runrecord | 57 | |\n| diffusionimage | 52 | unwired trainer |\n| controllertrain | 37 | unwired trainer |\n| seq2seq | 33 | unwired trainer |\n| adaptiveparity | 32 | test-only reference |\n| trainingprogram | 31 | |\n| devicemath | 31 | |\n| testutil | 30 | test helpers |\n| server | 28 | |\n| workflowruntime | 23 | |\n| webuilane | 22 | |\n| rae | 22 | until rae-image-capability serves it |\n\nAn unwired trainer or inference path is wired, never deleted (capabilities-not-dead-code). Everything else deadcode reports is deleted.\n\nHow to land it:\n- Rename with gopls, package by package, largest share first, each a net-deleting landing: evaluation and server first.\n- model and projector are on the inference surface, and latentvideo is a pinned media runtime path. Each of those lands with its evidence refresh and a reviewed delta.\n- The rules stage's unconsumed-exports check already keeps new exports from growing the set.\n\nProgress 2026-09-28, the evaluation slice:\n- scratchpad/unexport's finder (standard library: the package's declarations against every importing file's selectors) listed 397 names, and gopls renamed 395. Two conflicts were refused: FailedObservation and RetrievalMetrics collide with same-named functions.\n- deadcode then reports 17 unreachable evaluation functions. The media, preference and text target-plan compilers and scorers are the unwired held-out objective paths the heldout-*-slice rows wire in, so they are not deleted. compositeGenerationQualityAuthority.Evaluate/Parse, PublishEvaluationEvidence, ExactPlan.Identity and productionCapabilityEntry.surface have test callers only; decide each with its owning row.\n- Landed: evaluation (259 renamed) and server (84; the earlier 567 counted test-file declarations). Next: runrecord (on the inference surface), then model, projector and latentvideo with their evidence refresh.\n\nOwner direction 2026-09-28:\n- Unexporting is only the means; the value is the deletion. This row does not close on renames. Its deadcode step deleted what the analysis found in evaluation and server: 351 production and 240 test lines, including the whole unused composite-generation-quality authority.\n- A behaviour-neutral rename across many files reaches every lane's closure; the evaluation and server renames cost 51 minutes of lanes. Each remaining package's rename and dead-code deletion therefore land together, paying the lane cost once per package, and no further package is unexported until the previous deletion has landed.\n- The finder, rename script and legacy-form probe are in the session scratchpad (unexport/). Before a package's landing, run compatibility -refresh-identities, go test ./internal/repoanalysis and go fix on the package. Progress 2026-09-29: runrecord landed as rename plus deletion together, in the surface batch with automation-peer-workspaces: 248 names unexported, then deadcode's 57 unreachable functions went to 3. The attempt-gate verification chain, the efficiency-trace comparison, the gate heartbeat, the lifecycle scan and laneOutcomeOf were deleted. The retired gate's lifecycle constructors and the trigger-registry self-check moved into the tests that use them. Kept: NewAgentObligationResolution, called by agentloop's delegated runtime, and ValidateDescendantImprovement with hasComparisonPair, reached through controllertrain, an unwired trainer. Next, one landing each: model, projector, latentvideo (reviewed delta). Progress 2026-09-29, model and projector: gopls unexported 372 names in model and 88 in projector. 32 model types stay exported, because modelrecipe's profile fact schema records ArchitectureProfile's field type names and every stored model definition's provenance hashes that schema. deadcode then found seven functions: two test-only Gemma4 prompt wrappers and PreprocessQwen3VLImage went; dense_to_moe stays for wire-dense-to-moe. Remaining: latentvideo, with a reviewed delta.\n\nServes: inference and training code, by letting Go's own dead-code analysis see what nothing calls. Disappears: what deadcode finds, deleted in the same landing as each package's rename. The row closes after latentvideo; another package opens only when a deadcode count justifies it (runrecord: 248 renames bought 54 deletions; model and projector: 460 bought 3). Evidence: deadcode over ./...; the profile fact schema probe, since stored identities name model types. Batch: pinned media (latentvideo), with trainer-shared-run's pinned trainers."
         }
       ]
     },
@@ -39,7 +39,7 @@
           "title": "Resolve test models through store registrations instead of per-model environment variables",
           "status": "open",
           "verify": "test -z \"$(grep -rhoE 'OVERGO_[A-Z0-9_]+_MODEL' --include=*_test.go --exclude-dir=.claude . | grep -v OVERGO_THOUGHTBANK_MODEL | sort -u)\"",
-          "rationale": "Review feedback 2026-09-28, verified. Tests read 145 distinct OVERGO_* variables. 27 of them name a model (OVERGO_QWEN3_MODEL, OVERGO_QWEN35_MODEL, OVERGO_GEMMA4_TARGET_MODEL, OVERGO_WAN_MODEL and the rest), mostly in internal/inference's runner_integration_test.go and chat_test.go. Each test is skipped unless someone sets its variable, so in practice these tests do not run.\n\nThe construction:\n- internal/modeltest.Directory already resolves a model by directory name from the store's registrations.\n- Add modeltest.GGUF(t, architecture): the smallest registered GGUF whose header declares that architecture. Headers are read once per process, about 30 s for the whole store.\n- It was drafted and probed on the real store 2026-09-28: qwen35, qwen2, gemma4 and llama resolve; gemma3, t5, kimi-linear, cohere2, step35, wavtokenizer-dec and hunyuan-v3 have no registered GGUF and skip as not applicable.\n- Caution: the smallest qwen35 is the 1-bit Bonsai-27B quant. A test that checks one model's outputs names that model through Directory rather than asking for the architecture.\n\nMigrate each test to modeltest and delete its variable, one variable per slice. This overlaps models-out-of-adaptive-new, which drops the variables that point into adaptive_new; this row takes the rest.\n\nThe review also counted 608 command flags (cmd/recipe 78, cmd/train 76). cmd/train's flags consolidate with trainer-shared-run's shared flag set, and the rest with simplify-command-surface. Progress 2026-09-29: the inference-surface slice landed in the surface batch: internal/inference, model and tokenizer tests resolve their models through modeltest (Qwen3, Qwen3.5, Bonsai, UMT5, Gemma3), with the real-catalog test in internal/model. Remaining variables: latentvideo and sensenovarecipe, pinned media paths that each need a reviewed delta, and thoughtbank's model tests."
+          "rationale": "Review feedback 2026-09-28, verified. Tests read 145 distinct OVERGO_* variables. 27 of them name a model (OVERGO_QWEN3_MODEL, OVERGO_QWEN35_MODEL, OVERGO_GEMMA4_TARGET_MODEL, OVERGO_WAN_MODEL and the rest), mostly in internal/inference's runner_integration_test.go and chat_test.go. Each test is skipped unless someone sets its variable, so in practice these tests do not run.\n\nThe construction:\n- internal/modeltest.Directory already resolves a model by directory name from the store's registrations.\n- Add modeltest.GGUF(t, architecture): the smallest registered GGUF whose header declares that architecture. Headers are read once per process, about 30 s for the whole store.\n- It was drafted and probed on the real store 2026-09-28: qwen35, qwen2, gemma4 and llama resolve; gemma3, t5, kimi-linear, cohere2, step35, wavtokenizer-dec and hunyuan-v3 have no registered GGUF and skip as not applicable.\n- Caution: the smallest qwen35 is the 1-bit Bonsai-27B quant. A test that checks one model's outputs names that model through Directory rather than asking for the architecture.\n\nMigrate each test to modeltest and delete its variable, one variable per slice. This overlaps models-out-of-adaptive-new, which drops the variables that point into adaptive_new; this row takes the rest.\n\nThe review also counted 608 command flags (cmd/recipe 78, cmd/train 76). cmd/train's flags consolidate with trainer-shared-run's shared flag set, and the rest with simplify-command-surface. Progress 2026-09-29: the inference-surface slice landed in the surface batch: internal/inference, model and tokenizer tests resolve their models through modeltest (Qwen3, Qwen3.5, Bonsai, UMT5, Gemma3), with the real-catalog test in internal/model. Remaining variables: latentvideo and sensenovarecipe, pinned media paths that each need a reviewed delta, and thoughtbank's model tests.\n\nServes: inference and training tests on real models, which run in the lanes instead of skipping. Disappears: every per-model OVERGO_*_MODEL variable and the skips behind it. Evidence: the store's model registrations (modeltest.Directory, modeltest.GGUF). Batch: host; the latentvideo and sensenovarecipe slices are pinned media and ride that batch."
         }
       ]
     },
@@ -58,60 +58,7 @@
           "title": "Give every train route one shared run that bounds the loop, observes the session and publishes a checkpoint",
           "status": "open",
           "verify": "go test ./cmd/train -run '^TestEveryTrainRoutePublishesACheckpoint$' -count=1 \u0026\u0026 ! grep -q 'var checkpointless' cmd/train/shared_run_test.go",
-          "rationale": "Review feedback 2026-09-28, verified; the review ranked it the largest gap for the purpose.\n\nWhat publishes today:\n- Only the dense workflow (trainingworkflow/workflow.go) and the audio input projection (audio.go, then PublishInputProjection) publish through trainingprogram.PublishCheckpoint.\n- mixture, flow-organ, dit, mot, graft, hybrid-stack, seriesforecast, tabular and oscillatorimage train, print a loss and discard the weights.\n- adapter writes plain safetensors, and only with -out.\n- The held-out objective paths (RunHeldout) publish a verdict, not weights.\nSo the loop cannot judge or promote what those routes train.\n\nThe bounded loop has ten copies in cmd/train, about 350 lines:\n- Five near-identical: mixture, flow-organ's head stimulus, latent bridge and flow head, and seriesforecast. Each steps, checks for finite values, requires a first-step gradient, calls AdmitStepWall and requires the loss below the first.\n- Two variants with per-step observation: mot and dit.\n- Three materially different: flow-organ's ternary with two descents, hybrid-stack's in-trainer callback, and oscillatorimage.\n- workflow.go's stepGuard reimplements AdmitStepWall.\nSession admit and finish has three near-identical route copies (mot, dit, hybrid-stack) and heldout_run's variant, about 150 lines.\n\nThe change:\n- One shared run owns the bound, the observer session and the checkpoint publish, and every route calls it.\n- The three different loops keep their bodies and use the shared run for the session and the publish only.\n- hybridtrain's Checkpoint option, read but set by no production caller, gets its caller.\n- The routes share one flag set; cmd/train carries 76 flags.\n- Net-deleting, no framework first.\nWiring each test-only trainer is then a short route: seq2seq-trainer-to-tests, wire-bank-trainer, retire-controller-cluster, wire-media-trainers.\n\nPredicted effect: every trained route leaves a checkpoint the loop can evaluate on held-out cells and promote, so held-out-quality becomes measurable for what they train. Progress 2026-09-29: seriesforecast, tabular and mixture publish checkpoints through the shared run: optimizer.Stepper gained Snapshot, and TensorPack gained Save. Only a checkpoint under an objective recipe can publish, so seriesforecast's raw light-curve shard mode and tabular's single-request mode were deleted. TabFM regression-head training, which only the latter reached, is wired back by tabfm-regression-objective. checkpointless still lists dit, flow-organ, graft, mot and oscillatorimage."
-        }
-      ]
-    },
-    {
-      "id": "user-scorecard",
-      "title": "One user-facing scorecard across every model, the definition of improvement",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 904,
-        "reason": "the whole-output attempt recorder, recipe measure, and validate -run's media binding"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fill the scorecard: the absorbed benchmark and validation work",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestScorecardHasNoUnexplainedCell$' -count=1",
-          "rationale": "Absorbs, 2026-09-27: model-regression-baseline (full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under budgets, accepted record ids pinned), benchmark-completion (compare only cells whose checkpoint, precision, split, shots, template, scoring and extraction agree; keep the 100-case MMLU label; TestAcceptedPublishedComparison rejects omitted cells, duplicates, stale identities and failed outcomes), final-model-validation (a bounded long-lived server run: concurrency, context grow and shrink, cancellation, failure, reload, VRAM plateauing within budget), benchmark-27b (operator only, -budget 3h per launch, resuming exact remaining cases; the row reads completed evidence and never starts the pass), gemma-12b-accuracy (the unquantized google/gemma-4-12B-it was downloaded 2026-09-28 on the owner's answer, to compare with the 12B FP8 twins, which score 0.5-1.2 nats per token worse than E4B on the guard corpus while overgo's 12B graph matches the transformers reference, so the suspect is the third-party quant) and validate-all-models (RAE is the remaining unvalidated model, rae-generation-path). Done when every model's row has every cell measured or carrying a stated reason. Correction 2026-09-28: the lanes are not off the landing path. d836b7deb put them back, and the landing now runs eight lanes (device, webui, model-journey, audio, thoughtbank, integration, cuda, e4b) when a change reaches them. Owner answer 2026-09-28: the full scorecard runs from the loop when the plan empties, not on a schedule. The scheduled step landed that path: validate -run, then validate -scorecard -publish writes a record beside the store with what moved since the previous one. What it still lacks, taken on here: validate -run binds a re-acquisition command only for the guard. Each modality run the scheduled step named needs its own command before the loop's scorecard measures it rather than reads old records: tabular, vqa, projection, training, activity detection, every model that is not its task's smallest, and latent-image scratch seeding.",
-          "depends_on": [
-            "user-scorecard/scheduled",
-            "rae-generation-path/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "refresh-accepted-evidence",
-      "title": "Refresh the stale accepted evidence and decide the reference-dependent tests",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refresh the stale accepted evidence and decide the reference-dependent tests",
-          "status": "open",
-          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/compatibility ./cmd/longform -run '^(TestAcceptedCapabilityCensus|TestAcceptedE4BResourceRefresh|TestAcceptedFP8Guard|TestRetiredGuardRecords|TestAcceptedGuardCatalog)$' -count=1 -v",
-          "rationale": "Split from env-gated-tests-run-or-go on 2026-09-28, once every CUDA-gated package had a lane. What remains needs the owner's call or a long evidence run.\n(1) The five accepted-evidence audits fail against the live store, run with OVERGO_STORE_ACCEPTANCE=1:\n- TestAcceptedE4BResourceRefresh: the resource evidence does not bind the current inference surface. Refresh it by running TestE4BMediaResourceRecovery with OVERGO_E4B_PUBLISH_RESOURCES=1, about 220 s.\n- TestAcceptedCapabilityCensus: snapshot 209 identities, live 220. The owner records a disposition before the denominator is replaced.\n- TestAcceptedFP8Guard, TestRetiredGuardRecords and TestAcceptedGuardCatalog: the guard evidence lacks realized residency, and the cohort is empty. That needs the long-form guard run, about 80 minutes on the GPU.\n(2) Tests that need a reference the Go-only rule cannot produce: the Fractale leadership tests (OVERGO_FRACTALE_BASELINE), Krea (OVERGO_KREA_BASELINE), Pocket TTS (OVERGO_POCKET_TTS_BASELINE) and the Qwen3.5 projector fixture (a golden of its internal activations). The owner decides whether to keep each and wait for a reference, or delete it if a running test covers it.\n(3) The full-length runs, Wan's 81-frame clip (OVERGO_WAN_FULL) and SenseNova's full generation (OVERGO_SENSENOVA_FULL): the lane budget for each once measured.\nDone when the audits pass.\nProgress 2026-09-28:\n- The E4B resource proof was refreshed on the current surface (TestE4BMediaResourceRecovery with OVERGO_E4B_PUBLISH_RESOURCES=1, 262 s): gate evidence:sha256:31c095ade3464244d1fe11b8ac62f50a17c66026c1c52eeca47cb9422d3d1ea8, run run:sha256:bca22c0744a247457d617cf64541d1f3e18429cd8be1ae03c75bdf5efa611f2a. TestAcceptedE4BResourceRefresh still fails because it reads docs/verification/e4b-resource-refresh.json, a hand-assembled binding (the surface digest and 24 protocol and resource cell identities) that no producer writes, so it expires on every surface move. Derive the current binding from the store's newest proofs for the E4B recipe on the current surface, or retire the audit; do not hand-edit the ledger.\n- Census: the owner answered \"review the 11 new identities, then accept\". The acceptance takes compatibility -publish-census from a clean tree, then a finding and a closed disposition bound in cmd/compatibility/testdata/accepted_census.json, as bf765bc07 did for 209.\n- Python goldens are always allowed (owner), so the reference-dependent tests in (2) get their references from Python. Progress 2026-09-29: TestAcceptedE4BResourceRefresh is retired with its hand-assembled ledger (e4b-resource-refresh.json) and the git-history helpers only it used. Deriving the binding could not work: the resource proofs record no surface, and the protocol proofs come from another producer, frozen at 6ee3478c. The device-resource tests assert E4B's bounds each run, TestAcceptedE4BModalities checks the accepted cells, and the scorecard reports current peak memory. Four audits remain; the verify drops the retired name when this row closes."
-        }
-      ]
-    },
-    {
-      "id": "media-request-resolves-once",
-      "title": "Resolve a media request's capability once and stop routing media through the text generator",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resolve a media request's capability once and stop routing media through the text generator",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestMediaRequestResolvesItsCapabilityOnce$' -count=1",
-          "rationale": "Review feedback 2026-09-28, verified in part.\n\nListings per request:\n- In cmd/server, one native image, video or speech request lists the generation capabilities three times:\n  - nativeWorkflowRequest;\n  - WorkflowWorkspaceSet.ExecuteWorkflow, which re-lists every workspace until one matches;\n  - StoreGenerationWorkspace.ExecuteWorkflow.\n- cmd/swap's idle runtime lists them twice.\n- generation_store_workspace.go then resolves the selected capability once more, unconditionally.\n\nCost of a listing: it is limited to the media tasks, with file presence memoized, not every model as the review said. Per generation model it still runs, under the workspace lock:\n- a store refresh;\n- the alias query;\n- the active-record read;\n- the runtime policy and active execution resolutions;\n- the controls.\n\nRouting:\n- Media reaches the handler only through h.generator.(WorkflowWorkspaceAPI) on the text Generator.\n- That forces the serverRuntime, remoteRuntime and idleRuntime wrappers; idleRuntime embeds GenerationRefused to pose as a generator.\n- The same assertion appears in four more handlers.\n\nThe change:\n1. Measure the listings' share of a real media request's first output.\n2. Resolve once and pass the selection through.\n3. Give the handler the workspace directly.\n\nPredicted effect: first-output on media requests improves by the measured listing cost, and about 150 lines go."
+          "rationale": "Review feedback 2026-09-28, verified; the review ranked it the largest gap for the purpose.\n\nWhat publishes today:\n- Only the dense workflow (trainingworkflow/workflow.go) and the audio input projection (audio.go, then PublishInputProjection) publish through trainingprogram.PublishCheckpoint.\n- mixture, flow-organ, dit, mot, graft, hybrid-stack, seriesforecast, tabular and oscillatorimage train, print a loss and discard the weights.\n- adapter writes plain safetensors, and only with -out.\n- The held-out objective paths (RunHeldout) publish a verdict, not weights.\nSo the loop cannot judge or promote what those routes train.\n\nThe bounded loop has ten copies in cmd/train, about 350 lines:\n- Five near-identical: mixture, flow-organ's head stimulus, latent bridge and flow head, and seriesforecast. Each steps, checks for finite values, requires a first-step gradient, calls AdmitStepWall and requires the loss below the first.\n- Two variants with per-step observation: mot and dit.\n- Three materially different: flow-organ's ternary with two descents, hybrid-stack's in-trainer callback, and oscillatorimage.\n- workflow.go's stepGuard reimplements AdmitStepWall.\nSession admit and finish has three near-identical route copies (mot, dit, hybrid-stack) and heldout_run's variant, about 150 lines.\n\nThe change:\n- One shared run owns the bound, the observer session and the checkpoint publish, and every route calls it.\n- The three different loops keep their bodies and use the shared run for the session and the publish only.\n- hybridtrain's Checkpoint option, read but set by no production caller, gets its caller.\n- The routes share one flag set; cmd/train carries 76 flags.\n- Net-deleting, no framework first.\nWiring each test-only trainer is then a short route: seq2seq-trainer-to-tests, wire-bank-trainer, retire-controller-cluster, wire-media-trainers.\n\nPredicted effect: every trained route leaves a checkpoint the loop can evaluate on held-out cells and promote, so held-out-quality becomes measurable for what they train. Progress 2026-09-29: seriesforecast, tabular and mixture publish checkpoints through the shared run: optimizer.Stepper gained Snapshot, and TensorPack gained Save. Only a checkpoint under an objective recipe can publish, so seriesforecast's raw light-curve shard mode and tabular's single-request mode were deleted. TabFM regression-head training, which only the latter reached, is wired back by tabfm-regression-objective. checkpointless still lists dit, flow-organ, graft, mot and oscillatorimage.\n\nServes: the train stage: every route leaves a checkpoint the loop can judge and promote. Disappears: the last per-route loops and the checkpointless map. Evidence: each route's checkpoint record under its objective recipe, read by the held-out judge and the scorecard. Batch: pinned media (latentvideo, latentimage, routedlm, oscillatorimage), with a reviewed delta."
         }
       ]
     },
@@ -127,97 +74,112 @@
           "title": "Share the dense optimizer scaffold, the held-out example source and TensorPack across trainers",
           "status": "open",
           "verify": "go test ./internal/densecausal ./internal/routedlm ./internal/latentimage ./internal/optimizer -count=1",
-          "rationale": "Review feedback 2026-09-28, verified in part.\n\nParameter packing:\n- optimizer.TensorPack is used by six trainers.\n- Six more pack by hand the same way (sorted names, geometry, one slab): densecausal/train.go, latentimage/train.go, routedlm's flowtrain, mottrain and latentbridge, and cmd/train's mixture route. These adopt TensorPack.\n- latentvideo/dittrain keeps declaration order and frees the loader tensors, and hybridtrain splits matrix and vector plans. Both stay unless TensorPack serves them unchanged.\n\nDense optimizer scaffold:\n- Dense Train, DPO and GRPO (densecausal train.go, dpo.go, grpo.go) repeat the same sequence: setup, the rate check, optimizer construction, restore, the scatter-and-gather calling sequence and the snapshot.\n- DPO and GRPO also duplicate the stream-authority checks and the observation fields.\n- One scaffold puts Muon's derived settings in one place.\n\nHeld-out examples: they are materialized three times (text_heldout.go, route_tabular.go, route_seriesforecast_objective.go), each running memberships, then Materialize, ReadAll and Close per split. One source takes the decode step as its parameter.\n\ndensecausal is on the inference surface, so its part expires the text guards; land it with the next evidence refresh, not alone. Net-deleting, about 350 lines."
+          "rationale": "Review feedback 2026-09-28, verified in part.\n\nParameter packing:\n- optimizer.TensorPack is used by six trainers.\n- Six more pack by hand the same way (sorted names, geometry, one slab): densecausal/train.go, latentimage/train.go, routedlm's flowtrain, mottrain and latentbridge, and cmd/train's mixture route. These adopt TensorPack.\n- latentvideo/dittrain keeps declaration order and frees the loader tensors, and hybridtrain splits matrix and vector plans. Both stay unless TensorPack serves them unchanged.\n\nDense optimizer scaffold:\n- Dense Train, DPO and GRPO (densecausal train.go, dpo.go, grpo.go) repeat the same sequence: setup, the rate check, optimizer construction, restore, the scatter-and-gather calling sequence and the snapshot.\n- DPO and GRPO also duplicate the stream-authority checks and the observation fields.\n- One scaffold puts Muon's derived settings in one place.\n\nHeld-out examples: they are materialized three times (text_heldout.go, route_tabular.go, route_seriesforecast_objective.go), each running memberships, then Materialize, ReadAll and Close per split. One source takes the decode step as its parameter.\n\ndensecausal is on the inference surface, so its part expires the text guards; land it with the next evidence refresh, not alone. Net-deleting, about 350 lines.\n\nServes: every trainer. Disappears: optimizer.TensorPack is extended (ordered sections, BF16 master weights, span lookup), and the 8 hand-packers, the 3 dense optimizer scaffolds (Train, DPO, GRPO), the 3 example materializers and stepGuard are deleted. No new abstraction. Evidence: the trainers' own round-trip and descent tests. Batch: surface (training packages sit in the inference closure)."
         }
       ]
     },
     {
-      "id": "promote-on-scorecard",
-      "title": "Promote master to main only when the scorecard holds, and revert on a regression",
+      "id": "heldout-judge-every-objective",
+      "title": "Judge every objective kind on held-out data through one judge, one run serving every reader",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Promote master to main only when the scorecard holds, and revert on a regression",
+          "title": "Judge every objective kind on held-out data through one judge, one run serving every reader",
           "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestPromotionWaitsForAHoldingScorecard$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27. main mirrors master, so unattended changes reach users directly. Promote master to main automatically only when the scorecard shows no regression, and revert automatically when one appears, so users see only improvements and nobody has to watch releases. Until this lands, pushing stays on the owner's explicit request.",
-          "depends_on": [
-            "user-scorecard/scheduled"
-          ]
+          "verify": "go test ./internal/server -run '^TestPreferenceWorkspaceScoresHeldOutPairs$' -count=1 \u0026\u0026 go test ./internal/trainingworkflow -run '^TestGenerationObjectiveApprovesOnHeldOutAnswers$' -count=1 \u0026\u0026 go test ./internal/evaluation -run '^TestMediaObjectiveApprovesOnHeldOutGain$' -count=1 \u0026\u0026 go test ./cmd/train -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -count=1",
+          "rationale": "One held-out judge for every objective kind: the existing held-out verdict path (trainingworkflow's held-out run, evaluation's verdict and scorers) is extended with one slice per objective kind, preference pairs, text generation targets, media signal quality and TabFM rows (classification, and table-mse regression since 2026-09-29). No new component.\n\nAbsorbed 2026-09-29, rationale kept:\n\nheldout-preference-slice (Gate DPO approval on held-out preference pairs):\n- do, verify `go test ./internal/server -run '^TestPreferenceWorkspaceScoresHeldOutPairs$' -count=1`: Preference held-out slice (design 2026-09-24): the web UI training workspace runs DPO with no held-out check. Score held-out preference pairs with ScorePreferenceTargets from policy and reference sequence scores, judge against the reference, and gate the workspace's approval on the verdict. GRPO has no target scorer yet, so name that as its own follow-up. Done when TestPreferenceWorkspaceScoresHeldOutPairs refuses approval without a held-out gain and grants it with one.\n\nheldout-generation-slice (Judge text generation objectives on held-out text targets):\n- do, verify `go test ./internal/trainingworkflow -run '^TestGenerationObjectiveApprovesOnHeldOutAnswers$' -count=1`: The text target scorers (CompileTextTargetPlan, ScoreTextTargets: continuation likelihood, generated answer, structured validity, OCR fields, VQA rules) restored in c99544b6 judge what a text model generates, not next-token accuracy, so token-accuracy objectives do not use them. Wire them for objectives whose output is generated text: run the base and trained model's generation over held-out prompts, score with the scorer the objective declares, and judge through a text target verdict. Unlimited-OCR (OCR fields) and a generated-answer objective are the first users. Done when TestGenerationObjectiveApprovesOnHeldOutAnswers approves a tiny generation objective on a held-out answer gain.\n\nheldout-media-slice (Approve media objectives on held-out signal quality):\n- do, verify `go test ./internal/evaluation -run '^TestMediaObjectiveApprovesOnHeldOutGain$' -count=1`: Media held-out slice (design 2026-09-24): CompileMediaTargetPlan and ScoreMediaTargets need output artifacts, oracles and verifier profiles, and generation through mediacapability takes minutes per record on CUDA. Wire audio-snr (Pocket-TTS) first, then image and video PSNR (Krea-2-Turbo, Wan2.1), scoring a bounded held-out subset whose size the objective declares. Done when TestMediaObjectiveApprovesOnHeldOutGain approves a tiny synthetic audio objective on a held-out SNR gain.\n\ntabfm-heldout-proof (Approve a TabFM objective on held-out rows of a real table):\n- do, verify `go test ./cmd/train -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -count=1`: Owner 2026-09-25: prove held-out approval on real checkpoints one model at a time, smallest first; TabFM-1.0 classification is first (staged at models/tabfm-1.0.0-pytorch; its location is resolved by identity, not assumed). One run is the row's acceptance, the device-lane evidence, the model-journey check and the training-validation verdict at once. Register a tabular objective over a real table dataset with a group split, train through cmd/train -objective, and approve on held-out label accuracy. Follows the consolidation rounds. Done when TestTabFMObjectiveApprovesOnHeldOutRows records a passed verdict on the real checkpoint.\n\nServes: the judge stage. Disappears: the per-slice judging paths. Evidence: each model's single run is at once the row acceptance, device evidence, model journey, training verdict and scorecard held-out cell: one record, many readers. The judge never reads the training split. Smallest model first. Batch: host, except device runs."
         }
       ]
     },
     {
-      "id": "command-subcommand-tables",
-      "title": "Fold the model-file, store and parity commands into subcommand tables",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 157,
-        "reason": "one subcommand dispatcher replaces the store commands' entry points"
-      },
-      "steps": [
-        {
-          "id": "fold-parity-tools",
-          "title": "Fold audio-oracle, sensenovaparity and vqaparity into validate -parity",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestParitySubcommandsReplaceTheirCommands$' -count=1 -v"
-        },
-        {
-          "id": "do",
-          "title": "Fold the model-file, store and parity commands into subcommand tables",
-          "status": "open",
-          "verify": "go test ./cmd/gguf ./cmd/overgodb ./cmd/validate -run '^Test(GGUF|OvergoDB|Parity)SubcommandsReplaceTheirCommands$' -count=1 -v",
-          "rationale": "Split from automation-command-route-tables when its training-probe half completed (the eight probes are cmd/train routes; 85 commands remain at b889bd746). The same row named three more families to fold, smallest proof first: the model-file tools into cmd/gguf subcommands (gguf-hash, gguf-merge, gguf-quantize, gguf-split, inspect-gguf, inspect-safetensors, hf-gguf-convert, gemma4-gguf-convert, audio-inspect), the store tools into cmd/overgodb subcommands (overgodb-backup, -import, -query, -rebuild, -repair, store-check, store-precheck), and the parity tools into cmd/validate -parity (audio-oracle, sensenovaparity, vqaparity). Split into one step per family when dispatched. Traps the probe folds found: move files with git mv so the gate's rules compare a moved file against its old content (literals and growth); check docs/*.json for pinned paths first (docs/media_reviewed_deltas.json, lifecycle, validation, coverage records, compatibility.json evidence) and reconcile a pinned move with a reviewed delta; keep verification receipts and stimulus files byte-identical; edit JSON through a decode/re-encode program; each command removed regenerates docs/api_manifest.json, which reruns cmd/compatibility until compatibility-cache-inputs lands."
-        }
-      ]
-    },
-    {
-      "id": "loop-fitness-scorecard",
-      "title": "Drive the unattended loop by the scorecard: its gaps are the work, its held-out cells the fitness",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "chain",
-          "title": "Chain strategy, experiment, held-out fitness and rollout promotion into one guarded path",
-          "status": "open",
-          "verify": "go test ./internal/loop -run '^TestLoopPromotesOnlyOnHeldOutFitness$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27: chain the existing model-loop parts (internal/loop strategy, experiment, held-out fitness, rollout promotion) into one path, with the circuit breaker and rollback as guards, whose fitness is the scorecard's held-out cells.",
-          "depends_on": [
-            "user-scorecard/scheduled"
-          ]
-        },
-        {
-          "id": "do",
-          "title": "Feed plan -admit-proposal from scorecard regressions and the weakest metrics",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestScorecardGapsBecomeProposals$' -count=1",
-          "rationale": "A scheduled scorecard regression, or the weakest metric, becomes a typed proposal the unattended loop admits (plan -admit-proposal), so its work comes from what users feel. Keep the held-out rows high so the loop improves real quality rather than its own tests.",
-          "depends_on": [
-            "loop-fitness-scorecard/chain"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "usage-signal-findings",
-      "title": "Turn real serving failures into findings and scorecard cells (local, opt-in)",
+      "id": "improvement-loop",
+      "title": "Close the improvement loop: scorecard gaps become the work, and a held-out verdict promotes or reverts",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Turn real serving failures into findings and scorecard cells (local, opt-in)",
+          "title": "Close the improvement loop: scorecard gaps become the work, and a held-out verdict promotes or reverts",
           "status": "open",
-          "verify": "go test ./internal/server -run '^TestServingFailureBecomesAFinding$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27. Benchmarks miss what users hit. The server already records serving observations per request (time to first token via the prefill sample, outcome, peak device memory); make the recording an explicit local opt-in, feed the scorecard from it, and turn every crash or refusal into a finding automatically, so real failures become the unattended loop's work supply beside the benchmark's gaps.",
-          "depends_on": [
-            "user-scorecard/define"
-          ]
+          "verify": "go test ./cmd/validate -run '^TestScorecardHasNoUnexplainedCell$' -count=1 \u0026\u0026 go test ./internal/loop -run '^TestLoopPromotesOnlyOnHeldOutFitness$' -count=1 \u0026\u0026 go test ./cmd/loop -run '^(TestScorecardGapsBecomeProposals|TestPromotionWaitsForAHoldingScorecard)$' -count=1 \u0026\u0026 go test ./internal/server -run '^TestServingFailureBecomesAFinding$' -count=1",
+          "rationale": "The milestone. The scorecard's gaps become rows as plain plan data; a held-out verdict then promotes master to main or reverts. Real serving failures (local, opt-in) become findings and scorecard cells.\n\nAbsorbed 2026-09-29, rationale kept:\n\nuser-scorecard (One user-facing scorecard across every model, the definition of improvement):\n- do, verify `go test ./cmd/validate -run '^TestScorecardHasNoUnexplainedCell$' -count=1`: Absorbs, 2026-09-27: model-regression-baseline (full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under budgets, accepted record ids pinned), benchmark-completion (compare only cells whose checkpoint, precision, split, shots, template, scoring and extraction agree; keep the 100-case MMLU label; TestAcceptedPublishedComparison rejects omitted cells, duplicates, stale identities and failed outcomes), final-model-validation (a bounded long-lived server run: concurrency, context grow and shrink, cancellation, failure, reload, VRAM plateauing within budget), benchmark-27b (operator only, -budget 3h per launch, resuming exact remaining cases; the row reads completed evidence and never starts the pass), gemma-12b-accuracy (the unquantized google/gemma-4-12B-it was downloaded 2026-09-28 on the owner's answer, to compare with the 12B FP8 twins, which score 0.5-1.2 nats per token worse than E4B on the guard corpus while overgo's 12B graph matches the transformers reference, so the suspect is the third-party quant) and validate-all-models (RAE is the remaining unvalidated model, rae-generation-path). Done when every model's row has every cell measured or carrying a stated reason. Correction 2026-09-28: the lanes are not off the landing path. d836b7deb put them back, and the landing now runs eight lanes (device, webui, model-journey, audio, thoughtbank, integration, cuda, e4b) when a change reaches them. Owner answer 2026-09-28: the full scorecard runs from the loop when the plan empties, not on a schedule. The scheduled step landed that path: validate -run, then validate -scorecard -publish writes a record beside the store with what moved since the previous one. What it still lacks, taken on here: validate -run binds a re-acquisition command only for the guard. Each modality run the scheduled step named needs its own command before the loop's scorecard measures it rather than reads old records: tabular, vqa, projection, training, activity detection, every model that is not its task's smallest, and latent-image scratch seeding.\n\nloop-fitness-scorecard (Drive the unattended loop by the scorecard: its gaps are the work, its held-out cells the fitness):\n- chain, verify `go test ./internal/loop -run '^TestLoopPromotesOnlyOnHeldOutFitness$' -count=1`: Owner recommendation 2026-09-27: chain the existing model-loop parts (internal/loop strategy, experiment, held-out fitness, rollout promotion) into one path, with the circuit breaker and rollback as guards, whose fitness is the scorecard's held-out cells.\n- do, verify `go test ./cmd/loop -run '^TestScorecardGapsBecomeProposals$' -count=1`: A scheduled scorecard regression, or the weakest metric, becomes a typed proposal the unattended loop admits (plan -admit-proposal), so its work comes from what users feel. Keep the held-out rows high so the loop improves real quality rather than its own tests.\n\npromote-on-scorecard (Promote master to main only when the scorecard holds, and revert on a regression):\n- do, verify `go test ./cmd/loop -run '^TestPromotionWaitsForAHoldingScorecard$' -count=1`: Owner recommendation 2026-09-27. main mirrors master, so unattended changes reach users directly. Promote master to main automatically only when the scorecard shows no regression, and revert automatically when one appears, so users see only improvements and nobody has to watch releases. Until this lands, pushing stays on the owner's explicit request.\n\nusage-signal-findings (Turn real serving failures into findings and scorecard cells (local, opt-in)):\n- do, verify `go test ./internal/server -run '^TestServingFailureBecomesAFinding$' -count=1`: Owner recommendation 2026-09-27. Benchmarks miss what users hit. The server already records serving observations per request (time to first token via the prefill sample, outcome, peak device memory); make the recording an explicit local opt-in, feed the scorecard from it, and turn every crash or refusal into a finding automatically, so real failures become the unattended loop's work supply beside the benchmark's gaps.\n\nServes: measure, find the gap, promote or revert. Disappears: the separate scorecard, fitness and promotion paths. Evidence: the scorecard run (validate -run, then validate -scorecard -publish, from the loop when the plan empties) is the promotion evidence; nothing is measured twice. Batch: host."
+        }
+      ]
+    },
+    {
+      "id": "wire-remaining-trainers",
+      "title": "Give every remaining trainer a train route that publishes a checkpoint",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give every remaining trainer a train route that publishes a checkpoint",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^(TestDenseToMoERoutePublishesCheckpoint|TestTrainRoutesReachTheMediaTrainers|TestSeq2SeqRoutePublishesCheckpoint)$' -count=1 \u0026\u0026 go test ./cmd/dataset-catalog -run '^TestCatalogPublishesAMixture$' -count=1 \u0026\u0026 go test ./internal/thoughtbank -run '^TestBankTrainerHasAUserPath$' -count=1 \u0026\u0026 go test ./internal/controllertrain -run '^TestControllerTrainingHasAUserPath$' -count=1",
+          "rationale": "Every trainer only tests reach becomes a route on the shared run and publishes a checkpoint (capabilities-not-dead-code).\n\nAbsorbed 2026-09-29, rationale kept:\n\nseq2seq-trainer-to-tests (Wire the seq2seq trainer to a route and a train command):\n- do, verify `go test ./cmd/seq2seq-train-probe -run '^TestSeq2SeqRouteNamesItsTrainer$' -count=1`: Wire the seq2seq trainer (SQA-013, re-scoped by owner directive). Needle-seq2seq is registered, and docs/model_compatibility.json records a real-artifact training smoke (1a92893f), but no command or route reaches seq2seq.Trainer; 5e1be7c0 then moved its NewTrainer into the modeltest-tagged test file. Restore NewTrainer to production, add cmd/seq2seq-train-probe following the other *-train-probe commands, and add a route in docs/training_routes.json keyed by the architecture the Needle checkpoint declares. Its GSM8K training tests get a lane that runs them rather than a tag nothing enables. Done when TestSeq2SeqRouteNamesItsTrainer resolves the Needle checkpoint's architecture to the new trainer and the probe trains one step on a synthetic pair.\n\nwire-dense-to-moe (Wire modelmerge's dense-to-MoE upcycling to a train route):\n- do, verify `go test ./cmd/train -run '^TestDenseToMoERoutePublishesCheckpoint$' -count=1`: Found 2026-09-29 by the unexport-and-deadcode pass on internal/model. deadcode reports model.NewDenseToMoERouterEvidence, CompileDenseToMoERouter, deriveDenseToMoELayer and screenDenseToMoERouter unreachable from every command.\n\ninternal/modelmerge/dense_to_moe.go is their only production caller, and no command reaches it either. The capability is dense-to-MoE upcycling: it derives expert centroids from activation evidence, and admits the router only when every held-out label wins with a strict routing margin. It is a trainer path that only tests call, so per capabilities-not-dead-code it is unwired, not dead.\n\nWire it: give it a cmd/train route, or a verb of the merge command if one exists. Its input is a dense model plus activation evidence, and its output is a published MoE checkpoint. A route test must publish the upcycled checkpoint on a tiny fixture. If the owner decides upcycling is out of the product, delete modelmerge's dense-to-MoE path and model's router with it.\n\nwire-dataset-mixture (Publish weighted dataset mixtures for training):\n- do, verify `go test ./cmd/dataset-catalog -run '^TestCatalogPublishesAMixture$' -count=1`: 5e1be7c0 moved dataset.NewMixture into tests. trainingdata's materializer already materializes TypeMixture with member weights (internal/trainingdata/materializer.go), but nothing in production can publish a mixture document, so no objective can train on a weighted mix of corpora. Restore NewMixture and add dataset-catalog -mixture \u003cname\u003e -members \u003calias\u003e=\u003cweight\u003e,... to publish one. Done when TestCatalogPublishesAMixture publishes a two-member mixture and the materializer reads its weights back.\n\nwire-bank-trainer (Give the thoughtbank bank trainer a user path):\n- do, verify `go test ./internal/thoughtbank -run '^TestBankTrainerHasAUserPath$' -count=1`: internal/thoughtbank/bank_train.go's FastWeightBankTrainer is production code only a test calls, the same orphaned-capability pattern the audit found (2026-09-24). thoughtbank inference is wired as a generation capability (internal/mediacapability). Give the bank trainer a train command and a route or training workspace entry for the thoughtbank models it serves, and a lane for its tests. Done when TestBankTrainerHasAUserPath resolves a route or command to FastWeightBankTrainer.\n\nretire-controller-cluster (Wire the controller training cluster to a user path):\n- do, verify `go test ./internal/controllertrain -run '^TestControllerTrainingHasAUserPath$' -count=1`: Wire the controller training cluster, owner directive 2026-09-24: wire all training code in instead of deleting it. internal/controllertrain has no production importer; internal/controlleraction is reached only by cmd/controller-action, which nothing refers to; no controller-* schema has been written to the master store. About 2,790 production and 2,140 test lines. Find the model or controller artifact it trains, give it a train command and a docs/training_routes.json route or a training workspace entry, and give its tests a lane. Done when TestControllerTrainingHasAUserPath resolves a route or command to controllertrain.\n\nwire-media-trainers (Wire the diffusion-image and joint speech trainers to train routes):\n- do, verify `go test ./cmd/train -run '^TestTrainRoutesReachTheMediaTrainers$' -count=1`: Verified 2026-09-28: diffusionimage.NewTrainer (train.go) and speechsynth.NewJointTrainer (trainer.go) are production code that only tests call. mediacapability imports both packages for inference only. Under the capabilities-not-dead-code rule, each gets a route through trainer-shared-run's shared run, for the image and speech models it serves, and its tests get a lane.\n\nServes: the train stage for every trainer the repository holds. Disappears: probes and test-only entry points. Evidence: each trainer's first real run is its acceptance and its scorecard training cell. Batch: mostly pinned media (diffusionimage, routedlm, latentvideo), riding those batches."
+        }
+      ]
+    },
+    {
+      "id": "preference-loss-variants",
+      "title": "Add ORPO, SimPO and KTO as modes of the DPO objective",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add ORPO, SimPO and KTO as modes of the DPO objective",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram -run '^TestPreferenceLossVariantsShareTheDPOPath$' -count=1",
+          "rationale": "GUI lane suggestion from the owner-directed LlamaFactory review (2026-09-25): ORPO, SimPO and KTO are loss variants over the existing DPO chosen/rejected pair path (LlamaFactory hparams/finetuning_args.py pref_loss sigmoid, hinge, ipo, kto_pair, orpo, simpo with simpo_gamma; train/dpo, train/kto), with no new optimizer, so they stay Muon-only. Add them as modes of the one DPO objective, not new objectives, judged by heldout-preference-slice's held-out preference verdict. Parked behind the consolidation phase. Done when TestPreferenceLossVariantsShareTheDPOPath trains each variant through the DPO path and scores it on held-out pairs.\n\nServes: preference training. Disappears: nothing is added as a new objective kind: ORPO, SimPO and KTO are modes of the existing DPO objective. Evidence: the held-out preference slice judges each. Batch: host."
+        }
+      ]
+    },
+    {
+      "id": "e4b-full-parameter-trainer",
+      "title": "Train Gemma-4 E4B with full-parameter gradients",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Train Gemma-4 E4B with full-parameter gradients",
+          "status": "open",
+          "verify": "go test ./internal/hostmath -run '^TestE4BFullParameterStepMatchesHost$' -count=1",
+          "rationale": "Latent training pieces the audit found (2026-09-24): hostmath/e4b_backward.go (host) and devicemath WindowedCausalAttentionBackwardDevice (device, moved to tests in 39934bd8) are halves of a Gemma-4 E4B backward kit with no trainer; E4B trains today only through the single-layer adapter-train-probe. Build a full-parameter E4B trainer on them, following hybrid-stack-train-probe, and route it by the checkpoint's declared architecture. Restore the device function to production when the trainer uses it. Done when TestE4BFullParameterStepMatchesHost runs one full-parameter step on a tiny E4B-shaped model with device gradients matching the host kit.\n\nServes: training Gemma-4 E4B end to end. Disappears: nothing. Evidence: judged on held-out data by heldout-judge-every-objective, which comes first. Batch: surface."
+        }
+      ]
+    },
+    {
+      "id": "rae-image-capability",
+      "title": "Serve RAE generation through the image-gen capability",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Serve RAE generation through the image-gen capability",
+          "status": "open",
+          "verify": "go test ./internal/mediacapability -run '^TestRAEImageCapabilityGenerates$' -count=1",
+          "rationale": "internal/rae generates class-conditional ImageNet images, matched to the PyTorch reference: the ViT-XL decoder, the DiT-DH velocity, and Euler over the reference's shifted grid. Only tests call it. Serve it through the image-gen capability, as the other image models are:\n- a module in the recipe catalog;\n- a resolver for the collection directory: the DiT checkpoint, decoder, latent statistics and the DINOv2 encoder's image processor;\n- a request naming an ImageNet class and a seed;\n- classifier-free guidance when the reference's sampler config uses it.\ncmd/validate then gives RAE its image proof, and user-scorecard's validate-all-models loses its last unvalidated model.\n\nRegistering the module edits internal/modelrecipe, an inference-surface root, which would expire every text model's guard. So this row waits on surface-without-capability-tables. Predicted effect: first-output and held-out-quality become measurable for RAE on the image route.\n\nServes: RAE image generation for users. Evidence: the activation run is both the acceptance and the RAE scorecard row. Batch: surface."
+        }
+      ]
+    },
+    {
+      "id": "surface-without-capability-tables",
+      "title": "Keep non-text capability edits out of the inference surface",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep non-text capability edits out of the inference surface",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
+          "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed.\n\nServes: loop speed. Disappears: guard expirations caused by non-text edits, so fewer hour-long landings. Evidence: inferencesurface.Moves on each landing's diff. Batch: surface (the last one it causes)."
         }
       ]
     },
@@ -232,164 +194,7 @@
           "title": "Measure the improver: wall, refusals, rework and cost per landed row, and the worst-case landing",
           "status": "open",
           "verify": "go test ./cmd/loop -run '^TestDevLoopMetricsFromGit$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27. The loop's own speed decides how fast users see improvement. Beside the user scorecard, report from git (Landed-Row trailers and the Measured by the gate lines) and the loop's own records: wall time per landed row, refused landings per landed row, rework (rows reopened or reverted), agent cost per landed row, and the worst-case landing -- a change to a widely imported package such as internal/tensor or internal/artifact that invalidates most of the test cache. That is the next speed cliff: today's one-minute landings are narrow changes."
-        }
-      ]
-    },
-    {
-      "id": "heldout-preference-slice",
-      "title": "Gate DPO approval on held-out preference pairs",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Gate DPO approval on held-out preference pairs",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestPreferenceWorkspaceScoresHeldOutPairs$' -count=1",
-          "rationale": "Preference held-out slice (design 2026-09-24): the web UI training workspace runs DPO with no held-out check. Score held-out preference pairs with ScorePreferenceTargets from policy and reference sequence scores, judge against the reference, and gate the workspace's approval on the verdict. GRPO has no target scorer yet, so name that as its own follow-up. Done when TestPreferenceWorkspaceScoresHeldOutPairs refuses approval without a held-out gain and grants it with one."
-        }
-      ]
-    },
-    {
-      "id": "heldout-generation-slice",
-      "title": "Judge text generation objectives on held-out text targets",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Judge text generation objectives on held-out text targets",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run '^TestGenerationObjectiveApprovesOnHeldOutAnswers$' -count=1",
-          "rationale": "The text target scorers (CompileTextTargetPlan, ScoreTextTargets: continuation likelihood, generated answer, structured validity, OCR fields, VQA rules) restored in c99544b6 judge what a text model generates, not next-token accuracy, so token-accuracy objectives do not use them. Wire them for objectives whose output is generated text: run the base and trained model's generation over held-out prompts, score with the scorer the objective declares, and judge through a text target verdict. Unlimited-OCR (OCR fields) and a generated-answer objective are the first users. Done when TestGenerationObjectiveApprovesOnHeldOutAnswers approves a tiny generation objective on a held-out answer gain."
-        }
-      ]
-    },
-    {
-      "id": "heldout-media-slice",
-      "title": "Approve media objectives on held-out signal quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Approve media objectives on held-out signal quality",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestMediaObjectiveApprovesOnHeldOutGain$' -count=1",
-          "rationale": "Media held-out slice (design 2026-09-24): CompileMediaTargetPlan and ScoreMediaTargets need output artifacts, oracles and verifier profiles, and generation through mediacapability takes minutes per record on CUDA. Wire audio-snr (Pocket-TTS) first, then image and video PSNR (Krea-2-Turbo, Wan2.1), scoring a bounded held-out subset whose size the objective declares. Done when TestMediaObjectiveApprovesOnHeldOutGain approves a tiny synthetic audio objective on a held-out SNR gain."
-        }
-      ]
-    },
-    {
-      "id": "tabfm-heldout-proof",
-      "title": "Approve a TabFM objective on held-out rows of a real table",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Approve a TabFM objective on held-out rows of a real table",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -count=1",
-          "rationale": "Owner 2026-09-25: prove held-out approval on real checkpoints one model at a time, smallest first; TabFM-1.0 classification is first (staged at models/tabfm-1.0.0-pytorch; its location is resolved by identity, not assumed). One run is the row's acceptance, the device-lane evidence, the model-journey check and the training-validation verdict at once. Register a tabular objective over a real table dataset with a group split, train through cmd/train -objective, and approve on held-out label accuracy. Follows the consolidation rounds. Done when TestTabFMObjectiveApprovesOnHeldOutRows records a passed verdict on the real checkpoint."
-        }
-      ]
-    },
-    {
-      "id": "goldens-provenance",
-      "title": "Keep goldens in git under one provenance manifest and delete their Python generators",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep goldens in git under one provenance manifest and delete their Python generators",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestGoldensHaveProvenance$' -count=1",
-          "rationale": "Owner direction 2026-09-26. 177 tracked goldens (4.3 MB, the largest about 1 MB) stay where they are in git -- fixtures/ and package testdata -- because git is the durable, pushed copy, the store is local and has been rebuilt, a golden in git never makes its test skip, and moving them would churn the tests and the records that pin them. What they lack is provenance. One manifest in fixtures/ records, for each golden, its upstream repository and commit, its checkpoint identity, its input digest and its own digest; TestGoldensHaveProvenance refuses a golden without an entry or whose bytes differ from it. The upstream output itself is kept, not just a parity verdict: kernels legitimately move numbers, and only the upstream output re-checks parity after each move without re-running Python, where comparing against overgo's own old output would stack tolerances. The Python generators are deleted -- internal/parity/testdata/make_olmoe_tiny.py and those in tmp (timesfm3_golden.py, dinov2_golden.py, generate_kimi_k3_rank_reference.py and their inputs) -- because the manifest names what to re-run if upstream ever changes; no Python is tracked. The store holds only a future golden too large for git; none is today."
-        }
-      ]
-    },
-    {
-      "id": "parity-packages-to-goldens",
-      "title": "Delete the reference-comparison packages whose ports goldens lock",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete the reference-comparison packages whose ports goldens lock",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestEveryTrackedFileHasAReader$' -count=1",
-          "rationale": "Owner 2026-09-26: once a port is locked by goldens, the reference-comparison packages go. internal/adaptiveparity, cmd/sensenovaparity and cmd/vqaparity have no production importer; each is deleted once the comparisons it runs exist as committed goldens with provenance (goldens-provenance: goldens stay in git). internal/audioparity is not pure comparison -- internal/mediacapability and cmd/webui-lane import it for ASR qualification and election -- so its production part moves to its owner and only its comparison part goes. No new rule: done when go list no longer finds the three packages and the tree still builds and vets. Check: the reader census, since deleting the packages must leave none of their fixtures or testdata behind; done also when go list no longer finds them."
-        }
-      ]
-    },
-    {
-      "id": "models-out-of-adaptive-new",
-      "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestNoTestReadsAdaptiveNew$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27. Once goldens lock the ports, move the remaining models under adaptive_new/models (Wan, the Gemma configs) into overgo/models as TabFM was, and drop the test environment variables that point there: fewer outside paths, fewer environment-dependent skips and flakes. OWNER PERMISSION needed for the moves: the guard protects model directories.",
-          "depends_on": [
-            "parity-packages-to-goldens/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "lane-commands-folded",
-      "title": "Fold the lane commands the gate does not call into test packages",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fold the lane commands the gate does not call into test packages",
-          "status": "open",
-          "verify": "go test ./cmd/gate -run '^TestUncalledLaneCommandsGone$' -count=1",
-          "rationale": " Owner review 2026-09-27: internal/landing/lanes.go calls only device-lane and webui-lane. eval-lane, race-lane, smoke-lane, test-lane, train-lane and composite-generation-lane are named only by the plan, cmd/validate (smoke_records.go), README, skill.md, generated documents and a few tests. Fold what is still needed into test packages (train-lane's training routes keep running as tests: training is a capability, not a lane) and delete the rest. About 2k lines."
-        }
-      ]
-    },
-    {
-      "id": "nfd-table-packed",
-      "title": "Store the Unicode NFD table as one packed string",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Store the Unicode NFD table as one packed string",
-          "status": "open",
-          "verify": "go test ./internal/tokenizer -run '^TestNFDTableIsPacked$' -count=1",
-          "rationale": " Owner review 2026-09-27: internal/tokenizer/nfd_table.go is a generated 13,243-line map literal (the tokenizer's 19k lines of code against 2.9k of tests are mostly this). Encode the same data as one packed string decoded once at init, with its generator in Go. The tokenizer parity fixtures pin the table. About -13k lines."
-        }
-      ]
-    },
-    {
-      "id": "media-campaign-one-record",
-      "title": "Fold the media campaign's receipts into fewer committed records",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fold the media campaign's receipts into fewer committed records",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestMediaCampaignIsOneRecord$' -count=1",
-          "rationale": "Owner decision 2026-09-26: evidence and reports stay committed to git, so the frozen media receipts are not moved into the store. The campaign spans 21 docs/image_video_*.json files, media_reviewed_deltas.json, media_report.json, MEDIA_REPORT.md and docs/media_samples; 15 receipts are read only by cmd/compatibility tests, each pinned by its own canonical-JSON digest constant (image_video_*_test.go via checkMediaProtocolIdentity), and image_video_merged.json carries the runtime_sha256 and runtime_paths the gate reads. Any fold is a pinned-evidence move landed in one commit with its digests (runtime-evidence-substrate); scope it only if one committed record can replace several pins without weakening them."
+          "rationale": "Owner recommendation 2026-09-27. The loop's own speed decides how fast users see improvement. Beside the user scorecard, report from git (Landed-Row trailers and the Measured by the gate lines) and the loop's own records: wall time per landed row, refused landings per landed row, rework (rows reopened or reverted), agent cost per landed row, and the worst-case landing -- a change to a widely imported package such as internal/tensor or internal/artifact that invalidates most of the test cache. That is the next speed cliff: today's one-minute landings are narrow changes.\n\nServes: loop speed, minimally. Disappears: nothing is added: the slowest lane and the worst-case landing are read from the gate's lines in git log; no store records, no new tool. Batch: host."
         }
       ]
     },
@@ -408,37 +213,7 @@
           "title": "Have every GPU user take the device claim lanes wait on",
           "status": "open",
           "verify": "go test ./internal/server -run '^TestServedModelHoldsTheDeviceClaim$' -count=1",
-          "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out. 2026-09-25: the device lane of 69368990 failed 'physical resource is already reserved' in devicemath while two other gate processes held the GPU, and passed unchanged on re-run; a claim every GPU user takes turns that into a wait with a named holder instead of a failed lane and a manual re-run. Found 2026-09-26: every CUDA context already takes the shared device claim (driver.ContextCreate calls processcontrol.ShareResource), so a served model holds it for its context's life, and a timed-out exclusive wait already names its holders (01cbf544, TestResourceWaitNamesItsHolders). What remains is proof, not mechanism: a device test that a served model's context holds the claim an exclusive reservation then waits on."
-        }
-      ]
-    },
-    {
-      "id": "surface-without-capability-tables",
-      "title": "Keep non-text capability edits out of the inference surface",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep non-text capability edits out of the inference surface",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
-          "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed."
-        }
-      ]
-    },
-    {
-      "id": "rae-image-capability",
-      "title": "Serve RAE generation through the image-gen capability",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Serve RAE generation through the image-gen capability",
-          "status": "open",
-          "verify": "go test ./internal/mediacapability -run '^TestRAEImageCapabilityGenerates$' -count=1",
-          "rationale": "internal/rae generates class-conditional ImageNet images, matched to the PyTorch reference: the ViT-XL decoder, the DiT-DH velocity, and Euler over the reference's shifted grid. Only tests call it. Serve it through the image-gen capability, as the other image models are:\n- a module in the recipe catalog;\n- a resolver for the collection directory: the DiT checkpoint, decoder, latent statistics and the DINOv2 encoder's image processor;\n- a request naming an ImageNet class and a seed;\n- classifier-free guidance when the reference's sampler config uses it.\ncmd/validate then gives RAE its image proof, and user-scorecard's validate-all-models loses its last unvalidated model.\n\nRegistering the module edits internal/modelrecipe, an inference-surface root, which would expire every text model's guard. So this row waits on surface-without-capability-tables. Predicted effect: first-output and held-out-quality become measurable for RAE on the image route."
+          "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out. 2026-09-25: the device lane of 69368990 failed 'physical resource is already reserved' in devicemath while two other gate processes held the GPU, and passed unchanged on re-run; a claim every GPU user takes turns that into a wait with a named holder instead of a failed lane and a manual re-run. Found 2026-09-26: every CUDA context already takes the shared device claim (driver.ContextCreate calls processcontrol.ShareResource), so a served model holds it for its context's life, and a timed-out exclusive wait already names its holders (01cbf544, TestResourceWaitNamesItsHolders). What remains is proof, not mechanism: a device test that a served model's context holds the claim an exclusive reservation then waits on.\n\nServes: loop speed. Disappears: the unclaimed GPU users that cause lane refusals. Batch: host."
         }
       ]
     },
@@ -453,7 +228,67 @@
           "title": "Move live-evidence acceptance tests off the landing path",
           "status": "open",
           "verify": "go test ./internal/landing -run '^TestLandingTestsRunWithoutTheLiveStore$' -count=1",
-          "rationale": "Owner review 2026-09-27. Measured: 088a4774c's test stage re-ran 17 suites for 6 min 56 s (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s) because plan -stop had written a record into the live store at 17:56:23; the next plan-only landing, with no store write before it, ran 4 packages in 40 s. Suites that read the live store re-run on every store write, and their verdict depends on the machine's store rather than the commit. The gate runs go test with OVERGO_DATA_ROOT pointing at an empty scratch directory and OVERGO_AUDIO_REFERENCE_STORE unset (construction: no test can reach the live store through the environment); the 16 test files that name the store by path (overgodb-store, gitauthority.CanonicalOvergoDBDirectory) become hermetic on fixtures or scratch stores, or move off the landing path to the scheduled scorecard and validate, where live-store checks belong. Predicted effect: landings stop paying for store writes; a narrow landing's test stage stays near a minute. Measured 2026-09-27 before starting: with the data root pointed at an empty directory, 133 tests in 77 files across 12 packages fail (cmd/compatibility 32 files, internal/audioparity 19, internal/evaluation 10, speechsynth, server and others): retained-evidence acceptance tests and a few live model-file tests. They re-run when the evidence changes, which is correct; the measured 7-minute landing came from a control record (plan -stop) written into the evidence store, which stop-state-out-of-store removes. Moving them means splitting mixed files across 12 packages and a scheduled evidence run. Do it only if dev-loop measurement shows real evidence writes costing landings. Re-raised 2026-09-27 under landing-wall-budget: the four slowest suites a landing re-runs are these, and they re-run on dependency changes as well as store writes, so the stop-file fix alone does not bring landings under the budget. Updated 2026-09-27 after 32ad2b892: the store-write cause is gone. The data lives outside the module folder, so a store write re-runs nothing. The audio acceptances run in their own lane (780d83550). What remains is hermeticity: these suites' verdicts depend on the machine's data. That does not speed up landings, because a lane would run exactly when their code changes, as go test does now. So the row ranks after the user-visible fixes. Measured 2026-09-28 after the lanes landed: go test ./... with OVERGO_DATA_ROOT on an empty folder fails 92 tests in 12 packages: cmd/compatibility 56 (40 top-level accepted-evidence and acceptance projections, opening the store through retainedReferenceStore in 34 places and dataroot.Resolve in about 36), internal/evaluation 16, internal/speechsynth 7, internal/server 4, internal/audioparity 2, and one each in oscillatorimage, modelintake, dataset, capabilityruntime, cmd/smoke-lane, cmd/longform and cmd/benchmark-report. The work: consolidate each package's live-store entry into one helper behind testskip.StoreAcceptance, and run the packages in a store lane (without the five failing audits, tracked in refresh-accepted-evidence). The benefit is hermeticity only: with the data outside the module, a lane runs these exactly when go test does now. Ranked after plan-tool-plain-data."
+          "rationale": "Owner review 2026-09-27. Measured: 088a4774c's test stage re-ran 17 suites for 6 min 56 s (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s) because plan -stop had written a record into the live store at 17:56:23; the next plan-only landing, with no store write before it, ran 4 packages in 40 s. Suites that read the live store re-run on every store write, and their verdict depends on the machine's store rather than the commit. The gate runs go test with OVERGO_DATA_ROOT pointing at an empty scratch directory and OVERGO_AUDIO_REFERENCE_STORE unset (construction: no test can reach the live store through the environment); the 16 test files that name the store by path (overgodb-store, gitauthority.CanonicalOvergoDBDirectory) become hermetic on fixtures or scratch stores, or move off the landing path to the scheduled scorecard and validate, where live-store checks belong. Predicted effect: landings stop paying for store writes; a narrow landing's test stage stays near a minute. Measured 2026-09-27 before starting: with the data root pointed at an empty directory, 133 tests in 77 files across 12 packages fail (cmd/compatibility 32 files, internal/audioparity 19, internal/evaluation 10, speechsynth, server and others): retained-evidence acceptance tests and a few live model-file tests. They re-run when the evidence changes, which is correct; the measured 7-minute landing came from a control record (plan -stop) written into the evidence store, which stop-state-out-of-store removes. Moving them means splitting mixed files across 12 packages and a scheduled evidence run. Do it only if dev-loop measurement shows real evidence writes costing landings. Re-raised 2026-09-27 under landing-wall-budget: the four slowest suites a landing re-runs are these, and they re-run on dependency changes as well as store writes, so the stop-file fix alone does not bring landings under the budget. Updated 2026-09-27 after 32ad2b892: the store-write cause is gone. The data lives outside the module folder, so a store write re-runs nothing. The audio acceptances run in their own lane (780d83550). What remains is hermeticity: these suites' verdicts depend on the machine's data. That does not speed up landings, because a lane would run exactly when their code changes, as go test does now. So the row ranks after the user-visible fixes. Measured 2026-09-28 after the lanes landed: go test ./... with OVERGO_DATA_ROOT on an empty folder fails 92 tests in 12 packages: cmd/compatibility 56 (40 top-level accepted-evidence and acceptance projections, opening the store through retainedReferenceStore in 34 places and dataroot.Resolve in about 36), internal/evaluation 16, internal/speechsynth 7, internal/server 4, internal/audioparity 2, and one each in oscillatorimage, modelintake, dataset, capabilityruntime, cmd/smoke-lane, cmd/longform and cmd/benchmark-report. The work: consolidate each package's live-store entry into one helper behind testskip.StoreAcceptance, and run the packages in a store lane (without the five failing audits, tracked in refresh-accepted-evidence). The benefit is hermeticity only: with the data outside the module, a lane runs these exactly when go test does now. Ranked after plan-tool-plain-data.\n\nServes: loop speed. Disappears: live-evidence suites on the landing path. Batch: host."
+        }
+      ]
+    },
+    {
+      "id": "compatibility-into-validate",
+      "title": "Fold cmd/compatibility into validate, re-verifying claims whose source moves",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fold cmd/compatibility into validate, re-verifying claims whose source moves",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^(TestCompatibilityReportsAreRenderedOnDemand|TestMediaCampaignIsOneRecord)' -count=1 \u0026\u0026 OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/compatibility ./cmd/longform -run '^(TestAcceptedCapabilityCensus|TestAcceptedFP8Guard|TestRetiredGuardRecords|TestAcceptedGuardCatalog)$' -count=1 -v",
+          "rationale": "cmd/compatibility (about 16k lines) folds into validate. Claims re-verify when their source moves (owner). Stale acceptances are refreshed by re-running them, never by hand; the census acceptance still waits on the owner's review of the 11 new identities.\n\nAbsorbed 2026-09-29, rationale kept:\n\ncompatibility-reports-leave-the-tree (Re-verify compatibility claims whose source moved, and fold cmd/compatibility into validate):\n- do, verify `go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1`: Owner answer 2026-09-27: a claim's file:sha256 source binding means re-verify. A claim whose bound source moved is re-verified (its oracle re-runs), because a stale claim that a model works is exactly the false promise users hit. Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree. Owner review 2026-09-27: its checks are plain tests now, so fold cmd/compatibility (4k lines of code, 12k of tests, plus compatibility.json and docs/verification/) into cmd/validate and cut its tests to behaviour. compatibility-names-its-reads is retired: go test's cache tracks what the package reads. About 10k lines.\n\nrefresh-accepted-evidence (Refresh the stale accepted evidence and decide the reference-dependent tests):\n- do, verify `OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/compatibility ./cmd/longform -run '^(TestAcceptedCapabilityCensus|TestAcceptedE4BResourceRefresh|TestAcceptedFP8Guard|TestRetiredGuardRecords|TestAcceptedGuardCatalog)$' -count=1 -v`: Split from env-gated-tests-run-or-go on 2026-09-28, once every CUDA-gated package had a lane. What remains needs the owner's call or a long evidence run.\n(1) The five accepted-evidence audits fail against the live store, run with OVERGO_STORE_ACCEPTANCE=1:\n- TestAcceptedE4BResourceRefresh: the resource evidence does not bind the current inference surface. Refresh it by running TestE4BMediaResourceRecovery with OVERGO_E4B_PUBLISH_RESOURCES=1, about 220 s.\n- TestAcceptedCapabilityCensus: snapshot 209 identities, live 220. The owner records a disposition before the denominator is replaced.\n- TestAcceptedFP8Guard, TestRetiredGuardRecords and TestAcceptedGuardCatalog: the guard evidence lacks realized residency, and the cohort is empty. That needs the long-form guard run, about 80 minutes on the GPU.\n(2) Tests that need a reference the Go-only rule cannot produce: the Fractale leadership tests (OVERGO_FRACTALE_BASELINE), Krea (OVERGO_KREA_BASELINE), Pocket TTS (OVERGO_POCKET_TTS_BASELINE) and the Qwen3.5 projector fixture (a golden of its internal activations). The owner decides whether to keep each and wait for a reference, or delete it if a running test covers it.\n(3) The full-length runs, Wan's 81-frame clip (OVERGO_WAN_FULL) and SenseNova's full generation (OVERGO_SENSENOVA_FULL): the lane budget for each once measured.\nDone when the audits pass.\nProgress 2026-09-28:\n- The E4B resource proof was refreshed on the current surface (TestE4BMediaResourceRecovery with OVERGO_E4B_PUBLISH_RESOURCES=1, 262 s): gate evidence:sha256:31c095ade3464244d1fe11b8ac62f50a17c66026c1c52eeca47cb9422d3d1ea8, run run:sha256:bca22c0744a247457d617cf64541d1f3e18429cd8be1ae03c75bdf5efa611f2a. TestAcceptedE4BResourceRefresh still fails because it reads docs/verification/e4b-resource-refresh.json, a hand-assembled binding (the surface digest and 24 protocol and resource cell identities) that no producer writes, so it expires on every surface move. Derive the current binding from the store's newest proofs for the E4B recipe on the current surface, or retire the audit; do not hand-edit the ledger.\n- Census: the owner answered \"review the 11 new identities, then accept\". The acceptance takes compatibility -publish-census from a clean tree, then a finding and a closed disposition bound in cmd/compatibility/testdata/accepted_census.json, as bf765bc07 did for 209.\n- Python goldens are always allowed (owner), so the reference-dependent tests in (2) get their references from Python. Progress 2026-09-29: TestAcceptedE4BResourceRefresh is retired with its hand-assembled ledger (e4b-resource-refresh.json) and the git-history helpers only it used. Deriving the binding could not work: the resource proofs record no surface, and the protocol proofs come from another producer, frozen at 6ee3478c. The device-resource tests assert E4B's bounds each run, TestAcceptedE4BModalities checks the accepted cells, and the scorecard reports current peak memory. Four audits remain; the verify drops the retired name when this row closes.\n\nmedia-campaign-one-record (Fold the media campaign's receipts into fewer committed records):\n- do, verify `go test ./cmd/compatibility -run '^TestMediaCampaignIsOneRecord$' -count=1`: Owner decision 2026-09-26: evidence and reports stay committed to git, so the frozen media receipts are not moved into the store. The campaign spans 21 docs/image_video_*.json files, media_reviewed_deltas.json, media_report.json, MEDIA_REPORT.md and docs/media_samples; 15 receipts are read only by cmd/compatibility tests, each pinned by its own canonical-JSON digest constant (image_video_*_test.go via checkMediaProtocolIdentity), and image_video_merged.json carries the runtime_sha256 and runtime_paths the gate reads. Any fold is a pinned-evidence move landed in one commit with its digests (runtime-evidence-substrate); scope it only if one committed record can replace several pins without weakening them.\n\nServes: the measure stage. Disappears: cmd/compatibility's separate claims, reports and campaign records. Evidence: validate's run records. Batch: host, except the guard re-acquisition runs."
+        }
+      ]
+    },
+    {
+      "id": "goldens-own-parity",
+      "title": "Lock ports with goldens under one provenance manifest and delete the parity packages",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Lock ports with goldens under one provenance manifest and delete the parity packages",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^(TestGoldensHaveProvenance|TestEveryTrackedFileHasAReader)$' -count=1",
+          "rationale": "Goldens in git under one provenance manifest lock the ports, so the reference-comparison packages and their generators go.\n\nAbsorbed 2026-09-29, rationale kept:\n\ngoldens-provenance (Keep goldens in git under one provenance manifest and delete their Python generators):\n- do, verify `go test ./internal/repoanalysis -run '^TestGoldensHaveProvenance$' -count=1`: Owner direction 2026-09-26. 177 tracked goldens (4.3 MB, the largest about 1 MB) stay where they are in git -- fixtures/ and package testdata -- because git is the durable, pushed copy, the store is local and has been rebuilt, a golden in git never makes its test skip, and moving them would churn the tests and the records that pin them. What they lack is provenance. One manifest in fixtures/ records, for each golden, its upstream repository and commit, its checkpoint identity, its input digest and its own digest; TestGoldensHaveProvenance refuses a golden without an entry or whose bytes differ from it. The upstream output itself is kept, not just a parity verdict: kernels legitimately move numbers, and only the upstream output re-checks parity after each move without re-running Python, where comparing against overgo's own old output would stack tolerances. The Python generators are deleted -- internal/parity/testdata/make_olmoe_tiny.py and those in tmp (timesfm3_golden.py, dinov2_golden.py, generate_kimi_k3_rank_reference.py and their inputs) -- because the manifest names what to re-run if upstream ever changes; no Python is tracked. The store holds only a future golden too large for git; none is today.\n\nparity-packages-to-goldens (Delete the reference-comparison packages whose ports goldens lock):\n- do, verify `go test ./internal/repoanalysis -run '^TestEveryTrackedFileHasAReader$' -count=1`: Owner 2026-09-26: once a port is locked by goldens, the reference-comparison packages go. internal/adaptiveparity, cmd/sensenovaparity and cmd/vqaparity have no production importer; each is deleted once the comparisons it runs exist as committed goldens with provenance (goldens-provenance: goldens stay in git). internal/audioparity is not pure comparison -- internal/mediacapability and cmd/webui-lane import it for ASR qualification and election -- so its production part moves to its owner and only its comparison part goes. No new rule: done when go list no longer finds the three packages and the tree still builds and vets. Check: the reader census, since deleting the packages must leave none of their fixtures or testdata behind; done also when go list no longer finds them.\n\nServes: inference correctness against locked goldens. Disappears: adaptiveparity, cmd/sensenovaparity, cmd/vqaparity, audioparity's comparison half and the Python generators; one provenance manifest remains. Evidence: the goldens in git. Batch: host (adaptiveparity reaches the cuda lane)."
+        }
+      ]
+    },
+    {
+      "id": "models-out-of-adaptive-new",
+      "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestNoTestReadsAdaptiveNew$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27. Once goldens lock the ports, move the remaining models under adaptive_new/models (Wan, the Gemma configs) into overgo/models as TabFM was, and drop the test environment variables that point there: fewer outside paths, fewer environment-dependent skips and flakes. OWNER PERMISSION needed for the moves: the guard protects model directories.\n\nServes: inference and training on local models. Disappears: the remaining model paths into adaptive_new and their test variables. Batch: host.\n\nFrom simplify-checkpoint-locations, retired 2026-09-29: move a checkpoint out of adaptive_new only where a live dependency on the retired root remains; verify the staged copy (hash, servable identity, baseline lookup, bounded inference, rollback) before switching locators; keep the original; no model vanishes."
+        }
+      ]
+    },
+    {
+      "id": "commands-into-tables",
+      "title": "Collapse entry points into subcommand tables and delete the uncalled lane and parity commands",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Collapse entry points into subcommand tables and delete the uncalled lane and parity commands",
+          "status": "open",
+          "verify": "go test ./cmd/gguf ./cmd/overgodb ./cmd/validate -run '^Test(GGUF|OvergoDB|Parity)SubcommandsReplaceTheirCommands$' -count=1 \u0026\u0026 go test ./cmd/gate -run '^TestUncalledLaneCommandsGone$' -count=1",
+          "rationale": "Entry points collapse into subcommand tables; capabilities stay.\n\nAbsorbed 2026-09-29, rationale kept:\n\ncommand-subcommand-tables (Fold the model-file, store and parity commands into subcommand tables):\n- fold-parity-tools, verify `go test ./cmd/validate -run '^TestParitySubcommandsReplaceTheirCommands$' -count=1 -v`: \n- do, verify `go test ./cmd/gguf ./cmd/overgodb ./cmd/validate -run '^Test(GGUF|OvergoDB|Parity)SubcommandsReplaceTheirCommands$' -count=1 -v`: Split from automation-command-route-tables when its training-probe half completed (the eight probes are cmd/train routes; 85 commands remain at b889bd746). The same row named three more families to fold, smallest proof first: the model-file tools into cmd/gguf subcommands (gguf-hash, gguf-merge, gguf-quantize, gguf-split, inspect-gguf, inspect-safetensors, hf-gguf-convert, gemma4-gguf-convert, audio-inspect), the store tools into cmd/overgodb subcommands (overgodb-backup, -import, -query, -rebuild, -repair, store-check, store-precheck), and the parity tools into cmd/validate -parity (audio-oracle, sensenovaparity, vqaparity). Split into one step per family when dispatched. Traps the probe folds found: move files with git mv so the gate's rules compare a moved file against its old content (literals and growth); check docs/*.json for pinned paths first (docs/media_reviewed_deltas.json, lifecycle, validation, coverage records, compatibility.json evidence) and reconcile a pinned move with a reviewed delta; keep verification receipts and stimulus files byte-identical; edit JSON through a decode/re-encode program; each command removed regenerates docs/api_manifest.json, which reruns cmd/compatibility until compatibility-cache-inputs lands.\n\nlane-commands-folded (Fold the lane commands the gate does not call into test packages):\n- do, verify `go test ./cmd/gate -run '^TestUncalledLaneCommandsGone$' -count=1`:  Owner review 2026-09-27: internal/landing/lanes.go calls only device-lane and webui-lane. eval-lane, race-lane, smoke-lane, test-lane, train-lane and composite-generation-lane are named only by the plan, cmd/validate (smoke_records.go), README, skill.md, generated documents and a few tests. Fold what is still needed into test packages (train-lane's training routes keep running as tests: training is a capability, not a lane) and delete the rest. About 2k lines.\n\nsimplify-command-surface (Consolidate duplicated APIs and shipped binaries):\n- do, verify `go run ./cmd/preflight \u0026\u0026 test -f internal/apimanifest/ownership_consolidation_test.go \u0026\u0026 go test ./internal/apimanifest -run '^TestOwnershipConsolidationContracts$' -count=1`: Rank duplicates by real callers and build, test, startup and packaging cost using command-discovery's inventory. Before starting, pick a concrete owner and bind the old-to-new caller map; migrate code, automation, manifests and docs in one batch and delete the displaced implementation and build target. A dispatcher over unchanged handlers does not count. Preserve public flags, schemas, exit codes, streaming, cancellation and evidence contracts. TestOwnershipConsolidationContracts rejects stale references and proves a smaller surface.\n\nServes: the operator surface. Disappears: the lane commands the gate does not call and the parity commands; the model-file, store and parity commands become subcommand tables. Batch: host."
         }
       ]
     },
@@ -468,7 +303,23 @@
           "title": "Delete tests that pin internal structure or bookkeeping, package by package",
           "status": "open",
           "verify": "go test ./internal/server -count=1",
-          "rationale": "Owner 2026-09-26: delete tests that only check bookkeeping; keep parity, golden, journey and API-contract tests. internal/server holds 33,963 lines of tests against 22,354 of code. No analyzer is built to sort tests: the target is net-deleted test lines per package, largest first, reviewed by what each deleted test pinned (a helper's shape, a file name, a private table, a removed mechanism's bookkeeping, as lane_executable_test.go did). Each package lands as its own slice; this row starts with internal/server, and its check is that the package's remaining tests pass. Test-only, so no production class. Order 2026-09-27 (owner review): internal/server first (34k lines of tests against 22k of code), then internal/model (22k against 18k)."
+          "rationale": "Owner 2026-09-26: delete tests that only check bookkeeping; keep parity, golden, journey and API-contract tests. internal/server holds 33,963 lines of tests against 22,354 of code. No analyzer is built to sort tests: the target is net-deleted test lines per package, largest first, reviewed by what each deleted test pinned (a helper's shape, a file name, a private table, a removed mechanism's bookkeeping, as lane_executable_test.go did). Each package lands as its own slice; this row starts with internal/server, and its check is that the package's remaining tests pass. Test-only, so no production class. Order 2026-09-27 (owner review): internal/server first (34k lines of tests against 22k of code), then internal/model (22k against 18k).\n\nServes: landing speed. Disappears: tests that pin structure or bookkeeping, largest packages first. Batch: host, package by package."
+        }
+      ]
+    },
+    {
+      "id": "nfd-table-packed",
+      "title": "Store the Unicode NFD table as one packed string",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Store the Unicode NFD table as one packed string",
+          "status": "open",
+          "verify": "go test ./internal/tokenizer -run '^TestNFDTableIsPacked$' -count=1",
+          "rationale": "Owner review 2026-09-27: internal/tokenizer/nfd_table.go is a generated 13,243-line map literal (the tokenizer's 19k lines of code against 2.9k of tests are mostly this). Encode the same data as one packed string decoded once at init, with its generator in Go. The tokenizer parity fixtures pin the table. About -13k lines.\n\nServes: the tokenizer. Disappears: about 13k generated lines, replaced by one packed string. Batch: surface (the tokenizer is in the inference closure)."
         }
       ]
     },
@@ -508,255 +359,6 @@
       ]
     },
     {
-      "id": "preference-loss-variants",
-      "title": "Add ORPO, SimPO and KTO as modes of the DPO objective",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add ORPO, SimPO and KTO as modes of the DPO objective",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram -run '^TestPreferenceLossVariantsShareTheDPOPath$' -count=1",
-          "rationale": "GUI lane suggestion from the owner-directed LlamaFactory review (2026-09-25): ORPO, SimPO and KTO are loss variants over the existing DPO chosen/rejected pair path (LlamaFactory hparams/finetuning_args.py pref_loss sigmoid, hinge, ipo, kto_pair, orpo, simpo with simpo_gamma; train/dpo, train/kto), with no new optimizer, so they stay Muon-only. Add them as modes of the one DPO objective, not new objectives, judged by heldout-preference-slice's held-out preference verdict. Parked behind the consolidation phase. Done when TestPreferenceLossVariantsShareTheDPOPath trains each variant through the DPO path and scores it on held-out pairs."
-        }
-      ]
-    },
-    {
-      "id": "seq2seq-trainer-to-tests",
-      "title": "Wire the seq2seq trainer to a route and a train command",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Wire the seq2seq trainer to a route and a train command",
-          "status": "open",
-          "verify": "go test ./cmd/seq2seq-train-probe -run '^TestSeq2SeqRouteNamesItsTrainer$' -count=1",
-          "rationale": "Wire the seq2seq trainer (SQA-013, re-scoped by owner directive). Needle-seq2seq is registered, and docs/model_compatibility.json records a real-artifact training smoke (1a92893f), but no command or route reaches seq2seq.Trainer; 5e1be7c0 then moved its NewTrainer into the modeltest-tagged test file. Restore NewTrainer to production, add cmd/seq2seq-train-probe following the other *-train-probe commands, and add a route in docs/training_routes.json keyed by the architecture the Needle checkpoint declares. Its GSM8K training tests get a lane that runs them rather than a tag nothing enables. Done when TestSeq2SeqRouteNamesItsTrainer resolves the Needle checkpoint's architecture to the new trainer and the probe trains one step on a synthetic pair."
-        }
-      ]
-    },
-    {
-      "id": "wire-dense-to-moe",
-      "title": "Wire modelmerge's dense-to-MoE upcycling to a train route",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Wire modelmerge's dense-to-MoE upcycling to a train route",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestDenseToMoERoutePublishesCheckpoint$' -count=1",
-          "rationale": "Found 2026-09-29 by the unexport-and-deadcode pass on internal/model. deadcode reports model.NewDenseToMoERouterEvidence, CompileDenseToMoERouter, deriveDenseToMoELayer and screenDenseToMoERouter unreachable from every command.\n\ninternal/modelmerge/dense_to_moe.go is their only production caller, and no command reaches it either. The capability is dense-to-MoE upcycling: it derives expert centroids from activation evidence, and admits the router only when every held-out label wins with a strict routing margin. It is a trainer path that only tests call, so per capabilities-not-dead-code it is unwired, not dead.\n\nWire it: give it a cmd/train route, or a verb of the merge command if one exists. Its input is a dense model plus activation evidence, and its output is a published MoE checkpoint. A route test must publish the upcycled checkpoint on a tiny fixture. If the owner decides upcycling is out of the product, delete modelmerge's dense-to-MoE path and model's router with it."
-        }
-      ]
-    },
-    {
-      "id": "wire-dataset-mixture",
-      "title": "Publish weighted dataset mixtures for training",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Publish weighted dataset mixtures for training",
-          "status": "open",
-          "verify": "go test ./cmd/dataset-catalog -run '^TestCatalogPublishesAMixture$' -count=1",
-          "rationale": "5e1be7c0 moved dataset.NewMixture into tests. trainingdata's materializer already materializes TypeMixture with member weights (internal/trainingdata/materializer.go), but nothing in production can publish a mixture document, so no objective can train on a weighted mix of corpora. Restore NewMixture and add dataset-catalog -mixture \u003cname\u003e -members \u003calias\u003e=\u003cweight\u003e,... to publish one. Done when TestCatalogPublishesAMixture publishes a two-member mixture and the materializer reads its weights back."
-        }
-      ]
-    },
-    {
-      "id": "wire-bank-trainer",
-      "title": "Give the thoughtbank bank trainer a user path",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give the thoughtbank bank trainer a user path",
-          "status": "open",
-          "verify": "go test ./internal/thoughtbank -run '^TestBankTrainerHasAUserPath$' -count=1",
-          "rationale": "internal/thoughtbank/bank_train.go's FastWeightBankTrainer is production code only a test calls, the same orphaned-capability pattern the audit found (2026-09-24). thoughtbank inference is wired as a generation capability (internal/mediacapability). Give the bank trainer a train command and a route or training workspace entry for the thoughtbank models it serves, and a lane for its tests. Done when TestBankTrainerHasAUserPath resolves a route or command to FastWeightBankTrainer."
-        }
-      ]
-    },
-    {
-      "id": "retire-controller-cluster",
-      "title": "Wire the controller training cluster to a user path",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Wire the controller training cluster to a user path",
-          "status": "open",
-          "verify": "go test ./internal/controllertrain -run '^TestControllerTrainingHasAUserPath$' -count=1",
-          "rationale": "Wire the controller training cluster, owner directive 2026-09-24: wire all training code in instead of deleting it. internal/controllertrain has no production importer; internal/controlleraction is reached only by cmd/controller-action, which nothing refers to; no controller-* schema has been written to the master store. About 2,790 production and 2,140 test lines. Find the model or controller artifact it trains, give it a train command and a docs/training_routes.json route or a training workspace entry, and give its tests a lane. Done when TestControllerTrainingHasAUserPath resolves a route or command to controllertrain."
-        }
-      ]
-    },
-    {
-      "id": "wire-media-trainers",
-      "title": "Wire the diffusion-image and joint speech trainers to train routes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Wire the diffusion-image and joint speech trainers to train routes",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestTrainRoutesReachTheMediaTrainers$' -count=1",
-          "rationale": "Verified 2026-09-28: diffusionimage.NewTrainer (train.go) and speechsynth.NewJointTrainer (trainer.go) are production code that only tests call. mediacapability imports both packages for inference only. Under the capabilities-not-dead-code rule, each gets a route through trainer-shared-run's shared run, for the image and speech models it serves, and its tests get a lane."
-        }
-      ]
-    },
-    {
-      "id": "e4b-full-parameter-trainer",
-      "title": "Train Gemma-4 E4B with full-parameter gradients",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Train Gemma-4 E4B with full-parameter gradients",
-          "status": "open",
-          "verify": "go test ./internal/hostmath -run '^TestE4BFullParameterStepMatchesHost$' -count=1",
-          "rationale": "Latent training pieces the audit found (2026-09-24): hostmath/e4b_backward.go (host) and devicemath WindowedCausalAttentionBackwardDevice (device, moved to tests in 39934bd8) are halves of a Gemma-4 E4B backward kit with no trainer; E4B trains today only through the single-layer adapter-train-probe. Build a full-parameter E4B trainer on them, following hybrid-stack-train-probe, and route it by the checkpoint's declared architecture. Restore the device function to production when the trainer uses it. Done when TestE4BFullParameterStepMatchesHost runs one full-parameter step on a tiny E4B-shaped model with device gradients matching the host kit."
-        }
-      ]
-    },
-    {
-      "id": "tmp-refuses-undeclared-entries",
-      "title": "Retire tmp as a place tools and evidence depend on",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire tmp as a place tools and evidence depend on",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestNoToolDependsOnTmp$' -count=1",
-          "rationale": "tmp holds 4.1 GB: merge-evidence 3.3 GB, qwen27-native-reference 730 MB (a source checkout), qwen27-projection 88 MB, and about 60 scratch probes and messages. The gate closure proposals, the loop proposals and the overgodb-rebuild default write there. cmd/compatibility evidence names tmp/qwen9-musr-*.json as inputs, and docs/media_report.json and text-vision-coverage.json name the qwen27 trees. Owner direction 2026-09-23: delete stale data. Move each named input into the store with lineage, point tools at os.MkdirTemp or the runtime directory, then delete what nothing names."
-        }
-      ]
-    },
-    {
-      "id": "failure-recovery",
-      "title": "Run host recovery drills before closing reliability claims",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "rollout-plan-author",
-          "title": "Add the typed rollout-plan authoring path",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -run 'TestRolloutPlan' -count=1",
-          "rationale": "Finding c9c88020: recipe rollout-plan over the committed rollout contract (baseline, candidate, cohort evidence, rollback authority); test the CLI-to-store round trip and invalid-authority refusal. Host-only."
-        },
-        {
-          "id": "control-plane-drills",
-          "title": "Drill rollback, quarantine, peer failure and workflow recovery",
-          "status": "open",
-          "verify": "go test ./cmd/loop ./cmd/agent-loop -count=1 \u0026\u0026 test -f internal/agentloop/control_plane_drills_test.go \u0026\u0026 go test ./internal/agentloop -run '^TestControlPlaneRecoveryDrills$' -count=1",
-          "rationale": "On scratch stores and peers, inject failures before and after side effects and receipt publication; assert state, lineage, idempotence and no duplicate mutations using the existing loop and agent-loop owners. Migrate service and command startup to OpenContext with the caller's cancellation; process death releases ownership without stale-file or PID heuristics. No new retry loops, timers or wrappers.",
-          "depends_on": [
-            "failure-recovery/rollout-plan-author"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "simplify-command-surface",
-      "title": "Consolidate duplicated APIs and shipped binaries",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Migrate callers and remove duplicated API and executable owners",
-          "status": "open",
-          "verify": "go run ./cmd/preflight \u0026\u0026 test -f internal/apimanifest/ownership_consolidation_test.go \u0026\u0026 go test ./internal/apimanifest -run '^TestOwnershipConsolidationContracts$' -count=1",
-          "rationale": "Rank duplicates by real callers and build, test, startup and packaging cost using command-discovery's inventory. Before starting, pick a concrete owner and bind the old-to-new caller map; migrate code, automation, manifests and docs in one batch and delete the displaced implementation and build target. A dispatcher over unchanged handlers does not count. Preserve public flags, schemas, exit codes, streaming, cancellation and evidence contracts. TestOwnershipConsolidationContracts rejects stale references and proves a smaller surface.",
-          "depends_on": [
-            "model-regression-gate/do",
-            "modality-verification/media-report",
-            "failure-recovery/control-plane-drills",
-            "validation-gate-selection/common-owner-pilot",
-            "plan-publication-cost/internal-consumer-contract"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "simplify-checkpoint-locations",
-      "title": "Relocate checkpoints off retired paths, reversibly",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Relocate checkpoints off retired paths, reversibly",
-          "status": "open",
-          "verify": "go run ./cmd/overgodb-query -repo overgodb-store -servable",
-          "rationale": "Move a checkpoint from adaptive_new into overgo/models only where a live dependency on the retired root remains. Inventory identity, bytes, references and capacity; verify the staged copy (hash, servable identity, baseline lookup, bounded inference, rollback) before switching locators; keep the original. Assert no model vanishes.",
-          "depends_on": [
-            "model-regression-gate/do",
-            "modality-verification/media-report"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "simplify-capability-report",
-      "title": "Report capability kept or gained per unit of mechanism removed",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Report capability kept or gained per unit of mechanism removed",
-          "status": "open",
-          "verify": "test -f cmd/benchmark-report/accepted_capability_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedCapabilityDelta$' -count=1 \u0026\u0026 go run ./cmd/benchmark-report -check \u0026\u0026 test -f cmd/benchmark-report/controller_comparison_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedControllerComparison$' -count=1",
-          "rationale": "From the fixed before-baseline and exact after evidence: quality, prefill/decode curves, VRAM, coverage and recovery beside duplicate excess, command packages, production lines and validation cost; the API and binary consolidation ledger distinguishes removal from rename, split and forwarding. TestAcceptedCapabilityDelta refuses unsupported claims without rerunning settled models.",
-          "depends_on": [
-            "modality-verification/media-report"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "prompt-intake-files-rows",
-      "title": "Have the prompt hook file owner requests as candidate rows",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Have the prompt hook file owner requests as candidate rows",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -run '^TestPromptIntakeFilesRow' -count=1",
-          "rationale": "Return the new row id so a request becomes the next row after the current commit instead of being folded into the row in flight."
-        }
-      ]
-    },
-    {
-      "id": "compatibility-reports-leave-the-tree",
-      "title": "Re-verify compatibility claims whose source moved, and fold cmd/compatibility into validate",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Re-verify compatibility claims whose source moved, and fold cmd/compatibility into validate",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1",
-          "rationale": "Owner answer 2026-09-27: a claim's file:sha256 source binding means re-verify. A claim whose bound source moved is re-verified (its oracle re-runs), because a stale claim that a model works is exactly the false promise users hit. Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree. Owner review 2026-09-27: its checks are plain tests now, so fold cmd/compatibility (4k lines of code, 12k of tests, plus compatibility.json and docs/verification/) into cmd/validate and cut its tests to behaviour. compatibility-names-its-reads is retired: go test's cache tracks what the package reads. About 10k lines."
-        }
-      ]
-    },
-    {
       "id": "speech-document-admission",
       "title": "Admit or retire the GUI lane's document speech program",
       "owner": "professional_overgo_gui",
@@ -768,39 +370,6 @@
           "status": "open",
           "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
           "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
-        }
-      ]
-    },
-    {
-      "id": "store-multi-schema-paging",
-      "title": "Page across several schemas by reading only the page",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Page across several schemas by reading only the page",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestMultiSchemaPageReadsOnlyThePage$' -count=1",
-          "rationale": "SQA-005: 8a77c2d8 made a single-schema document read proportional to its page, but a page across several schemas still merges history-sized candidate sets, and run browsing still counts the whole history on every request. Seek independently in each schema's sorted index and lazily merge only the candidates the page needs. For runs, reuse a count bound to the same store head, or make the total an explicit request, keeping the response contract. Include setup and allocation cost in the measurement. Done when TestMultiSchemaPageReadsOnlyThePage reads a two-schema page from a store holding many older documents and touches only a page-bounded number of them. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed. Kept 2026-09-27 after the records re-measure: store growth stopped with the old gate (86% of the last 3,558 commits were its records, 12% a test fixed in 944540a7; the sequence held at 63557 across four landings), but this is a read cost on the existing history, not a growth cost."
-        }
-      ]
-    },
-    {
-      "id": "store-open-lineage-cost",
-      "title": "Defer decoding large store facets until first use, if opens are still slow",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Defer decoding large store facets until first use, if opens are still slow",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1",
-          "rationale": "Re-measured 2026-09-24 after store-open-decode-cost (180a7a3c): an open takes about 1.05-1.5 s and allocates 1.8 GB; checkpoint decode is 56% of it (lineage 0.6 s) and replaying the 8,100 commits since the last checkpoint is 32%. Before that, 2026-09-22: a read-only open is 1.7 s, bounded by the largest decode (lineage 88.3 MB of 189 MB), with verification about 0.1 s. Laziness inside the facet fails (value receivers) and re-replaying the journal fails (shared file cursor). Defer at the store, which owns the lock: keep the verified payload and pending commits, apply on first load behind a double-checked write lock, and test that a deferred facet answers exactly as an eager one. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed. Kept 2026-09-27 after the records re-measure: growth stopped, so the open cost no longer rises, but every command and store-reading test still pays it once.",
-          "depends_on": [
-            "store-benchmark-record-redundancy/do"
-          ]
         }
       ]
     },
@@ -828,22 +397,13 @@
             "generated-doc-write-under-readers/do",
             "automation-land-reports-lane-obligation/do",
             "automation-review-suite-cost-regression/do",
-            "prompt-intake-files-rows/do",
             "loop-markers-runtime-directory/do",
             "surface-aware-dispatch/do",
             "row-scope-budget-surface/do",
             "store-benchmark-record-redundancy/do",
-            "store-open-lineage-cost/do",
-            "compatibility-reports-leave-the-tree/do",
-            "tmp-refuses-undeclared-entries/do",
             "decode-attention-per-key-cost/do",
-            "failure-recovery/rollout-plan-author",
-            "failure-recovery/control-plane-drills",
             "simplify-prefill-paths/do",
             "simplify-execution-core/do",
-            "simplify-command-surface/do",
-            "simplify-checkpoint-locations/do",
-            "simplify-capability-report/do",
             "speech-document-admission/do",
             "plan-reranked/do",
             "device-measurement-deadlock/do",
@@ -858,7 +418,6 @@
             "landing-one-path/do",
             "consolidation-inventory/do",
             "inference-inputs-one-definition/do",
-            "goldens-provenance/do",
             "one-claim-primitive/do",
             "device-claim-everywhere/do",
             "replan-review-feedback/do",
@@ -889,7 +448,6 @@
             "file-measured-rescopes/do",
             "delete-sft-evaluation-targets/do",
             "delete-test-only-exports/do",
-            "retire-controller-cluster/do",
             "retire-unreferenced-commands/do",
             "env-gated-tests-run-or-go/do",
             "move-test-only-oracles/do",
@@ -902,34 +460,26 @@
             "closure-ledger-one-step/do",
             "plan-retire-in-one-landing/do",
             "media-delta-one-command/do",
-            "seq2seq-trainer-to-tests/do",
             "census-split-one-pass/do",
-            "store-multi-schema-paging/do",
             "loophook-stale-build/do",
             "release-claim-by-item/do",
             "sqa-automation-replan/do",
             "consumer-graph-private-islands/do",
             "sqa-followup-replan/do",
             "wire-sft-evaluation/do",
-            "wire-dataset-mixture/do",
-            "wire-bank-trainer/do",
             "e4b-full-parameter-trainer/do",
             "restore-sft-evaluation-targets/do",
             "objective-split-at-publication/do",
             "heldout-tabular-slice/do",
             "heldout-text-slice/do",
-            "heldout-preference-slice/do",
-            "heldout-media-slice/do",
             "heldout-approval-authority/do",
             "split-record-identities/do",
             "merge-79180f0ca8b9/do",
             "gui-merge-replan/do",
             "guards-at-e3c53b28/do",
-            "heldout-generation-slice/do",
             "text-objective-command/do",
             "automation-command-route-tables/do",
             "models-resolve-by-identity/do",
-            "tabfm-heldout-proof/do",
             "merge-f4aa36bccbec/do",
             "audio-merge-replan/do",
             "merge-ab335708de08/do",
@@ -974,7 +524,6 @@
             "train-routes-lane-repair/do",
             "root-documents-refactor/do",
             "root-policies-beside-owners/do",
-            "media-campaign-one-record/do",
             "tracked-files-need-readers/do",
             "selection-prose-per-path/do",
             "ratchet-ledgers-retired/do",
@@ -989,7 +538,6 @@
             "admission-before-tests/do",
             "browser-dialog-ends-waits/do",
             "lane-runner-foreground/do",
-            "parity-packages-to-goldens/do",
             "tests-pin-behaviour/do",
             "selection-union-not-everything/do",
             "detached-runner-leftovers/do",
@@ -1005,15 +553,12 @@
             "store-read-only-suite/do",
             "old-gate-leftovers/do",
             "plan-tool-plain-data/do",
-            "lane-commands-folded/do",
             "nfd-table-packed/do",
             "audioparity-binding-narrowed/do",
             "lane-reach-test-files/do",
             "plan-tool-plain-data/flags",
             "plan-tool-plain-data/merge",
             "plan-tool-plain-data/claims",
-            "user-scorecard/paired",
-            "user-scorecard/per-modality",
             "landing-replays-unchanged-suites/do",
             "landing-binds-candidate-bytes/do",
             "landing-stream-owners/do",
@@ -1043,7 +588,6 @@
             "env-gated-tests-run-or-go/cuda",
             "env-gated-tests-run-or-go/cuda-rest",
             "env-gated-tests-run-or-go/e4b",
-            "refresh-accepted-evidence/do",
             "loop-closure-machinery/do",
             "owner-decision-queue/records",
             "owner-decision-queue/dispatch",
@@ -1058,11 +602,6 @@
             "automation-command-route-tables/fold-seriesforecast",
             "automation-command-route-tables/fold-flow-organ",
             "compatibility-cache-inputs/do",
-            "command-subcommand-tables/do",
-            "command-subcommand-tables/fold-gguf-tools",
-            "command-subcommand-tables/fold-gguf-converters",
-            "command-subcommand-tables/fold-store-tools",
-            "command-subcommand-tables/fold-parity-tools",
             "rae-generation-path/rae-decoder",
             "rae-generation-path/rae-dit",
             "generate-declared-sampling/do",
@@ -1071,13 +610,9 @@
             "trainer-shared-run/do",
             "media-request-resolves-once/do",
             "training-internals-shared/do",
-            "wire-media-trainers/do",
             "unexport-unconsumed-names/do",
             "test-models-from-store/do",
             "rae-image-capability/do",
-            "user-scorecard/media-serving",
-            "user-scorecard/task-metrics",
-            "user-scorecard/loop-measures-media",
             "unexport-unconsumed-names/evaluation",
             "device-claim-everywhere/launcher-waits",
             "unexport-unconsumed-names/server",
@@ -1086,7 +621,12 @@
             "unexport-unconsumed-names/deadcode",
             "automation-peer-workspaces/do",
             "tabfm-regression-objective/do",
-            "wire-dense-to-moe/do"
+            "heldout-judge-every-objective/do",
+            "improvement-loop/do",
+            "wire-remaining-trainers/do",
+            "compatibility-into-validate/do",
+            "goldens-own-parity/do",
+            "commands-into-tables/do"
           ]
         }
       ]

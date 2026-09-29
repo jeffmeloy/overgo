@@ -34,6 +34,37 @@ func (l *Library) SetMathMode(handle Handle, mode MathMode) error {
 	return errors.New("cuBLAS loading is currently supported only on Windows")
 }
 
+// CreateLt creates a cuBLASLt context.
+func (l *Library) CreateLt() (LtHandle, error) {
+	return 0, errors.New("cuBLAS loading is currently supported only on Windows")
+}
+
+// DestroyLt releases a cuBLASLt context.
+func (l *Library) DestroyLt(handle LtHandle) error {
+	return errors.New("cuBLAS loading is currently supported only on Windows")
+}
+
+// PlanFP8 builds an FP8 product plan.
+func (l *Library) PlanFP8(handle LtHandle, m, n, k, workspaceLimit uint64) (*FP8Plan, error) {
+	return nil, errors.New("cuBLAS loading is currently supported only on Windows")
+}
+
+// MatmulFP8 enqueues an FP8 product.
+func (l *Library) MatmulFP8(
+	handle LtHandle,
+	plan *FP8Plan,
+	a, b, d, workspace driver.DevicePtr,
+	workspaceBytes uint64,
+	stream driver.Stream,
+) error {
+	return errors.New("cuBLAS loading is currently supported only on Windows")
+}
+
+// DestroyFP8Plan releases a plan's descriptors.
+func (l *Library) DestroyFP8Plan(plan *FP8Plan) error {
+	return errors.New("cuBLAS loading is currently supported only on Windows")
+}
+
 func (l *Library) SGEMM(
 	handle Handle,
 	operationA Operation,

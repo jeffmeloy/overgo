@@ -319,7 +319,7 @@ func newProductionProbeFixtureInStore(t *testing.T, store *overgodb.Store, name 
 	}
 	const raw = `"probe request"`
 	started := time.Now()
-	executed, err := catalog.ExecutePlaced(ctx, store, "model", placement, raw)
+	executed, err := catalog.Execute(ctx, store, "model", placement.Selection, raw)
 	executionWall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)

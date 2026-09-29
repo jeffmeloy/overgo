@@ -84,21 +84,6 @@
       ]
     },
     {
-      "id": "fp8-prefill-tensorcore",
-      "title": "Prefill fp8 weights on the FP8 tensor cores instead of expanding them to f16",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Prefill fp8 weights on the FP8 tensor cores instead of expanding them to f16",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorFp8TensorCoreMulMatMatchesReference$' -count=1 -v",
-          "rationale": "Measured 2026-09-28 with cmd/benchmark, 1,163-token prompt, one warm-up and three runs, p50, RTX 4090 D:\n- gemma-4-12B-it-fp8-native.gguf: 3,036 prompt tok/s;\n- its bf16 twin gemma-4-12B-it-fp8-bf16.gguf: 3,837.\nFp8 prefill is 21% slower. The prefill policy is already one decision (the node's MulMatComputeNativeTensorCore, simplify-prefill-paths). The gap is the fp8 path expanding every weight chunk to f16 in staging on each forward, where bf16 multiplies its resident weights directly. The Ada GPU has FP8 tensor cores: multiply the resident e4m3 weights without the f16 expansion, folding the per-row scale into the output, and hold parity against the exact e4m3-times-scale reference. Target: fp8 prefill at or above the bf16 twin's rate at the same prompt, decode unchanged, peak memory no higher. Serves every fp8 model on the shared path. Approach needs a decision first. An FP8-by-FP8 cuBLASLt GEMM quantizes activations to e4m3: a numerics change that needs held-out quality evaluation. A kernel that expands e4m3 to f16 in registers inside the GEMM keeps the numbers of today's staged path, but it is custom tensor-core kernel work. Ranked below the smaller rows until the approach is chosen."
-        }
-      ]
-    },
-    {
       "id": "small-dead-code",
       "title": "Delete TrainProbeMain and ExecutePlaced with the next landing that reruns every lane",
       "class": "consolidation",

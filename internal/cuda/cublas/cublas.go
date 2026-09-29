@@ -37,6 +37,22 @@ const (
 	gemmAccumulatorScale               = float32(0)
 )
 
+// LtHandle is a cuBLASLt context.
+type LtHandle uintptr
+
+// ltAlgoWords: the uint64 words of cublasLtMatmulAlgo_t.
+const ltAlgoWords = 8
+
+// FP8Plan is one cuBLASLt FP8 product shape whose algorithm is chosen
+// once and replayed: D[m,n] F32 (column-major, leading dimension m) is
+// A^T*B with A the m rows of k e4m3 bytes and B the n columns of k e4m3
+// bytes, accumulated in F32. Ada rejects cuBLASLt's per-row and
+// per-column (outer-vector) FP8 scaling, so callers scale D themselves.
+type FP8Plan struct {
+	desc, a, b, d uintptr
+	algo          [ltAlgoWords]uint64
+}
+
 // RowMajorGEMMF32: row-major C[m,n] = A[m,k]*B[k,n].
 func (l *Library) RowMajorGEMMF32(handle Handle, m, k, n int32, a, b, c driver.DevicePtr) error {
 	return l.RowMajorGEMMExF32(handle, false, false, m, k, n, a, b, c)

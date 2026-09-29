@@ -292,3 +292,66 @@ func TestGEMMExBF16Integration(t *testing.T) {
 	want := []float32{1, 4, 2, 5}
 	testutil.RequireSliceClose(t, "output", output, want, 1e-6)
 }
+
+// TestMatmulFP8Integration: the cuBLASLt FP8 product of e4m3 weight
+// rows and e4m3 columns. Every e4m3 product is exact in F32 and these
+// sums stay exact, so the result matches the float64 reference.
+func TestMatmulFP8Integration(t *testing.T) {
+	fixture := newBLASFixture(t)
+	const m, n, k = 32, 24, 64
+	const workspaceLimit = uint64(4 << 20)
+	a, b := make([]byte, m*k), make([]byte, n*k)
+	for index := range a {
+		a[index] = dtype.Float32ToF8E4M3(float32((index*37)%29-14) / 8)
+	}
+	for index := range b {
+		b[index] = dtype.Float32ToF8E4M3(float32((index*11)%23-11) / 4)
+	}
+	want := make([]float32, m*n)
+	for column := range n {
+		for row := range m {
+			var sum float64
+			for p := range k {
+				sum += float64(dtype.F8E4M3ToFloat32(a[row*k+p])) * float64(dtype.F8E4M3ToFloat32(b[column*k+p]))
+			}
+			want[column*m+row] = float32(sum)
+		}
+	}
+	got := make([]float32, m*n)
+	fixture.run(func(state *device.State, lib *Library, _ Handle, memory *fixtureMemory) (resultErr error) {
+		lt, err := lib.CreateLt()
+		if err != nil {
+			return err
+		}
+		defer func() { resultErr = errors.Join(resultErr, lib.DestroyLt(lt)) }()
+		plan, err := lib.PlanFP8(lt, m, n, k, workspaceLimit)
+		if err != nil {
+			return err
+		}
+		defer func() { resultErr = errors.Join(resultErr, lib.DestroyFP8Plan(plan)) }()
+		aPtr, err := memory.copy(a)
+		if err != nil {
+			return err
+		}
+		bPtr, err := memory.copy(b)
+		if err != nil {
+			return err
+		}
+		output, err := memory.allocate(uint64(len(got)) * fixtureFloat32Bytes)
+		if err != nil {
+			return err
+		}
+		workspace, err := memory.allocate(workspaceLimit)
+		if err != nil {
+			return err
+		}
+		if err := lib.MatmulFP8(lt, plan, aPtr, bPtr, output, workspace, workspaceLimit, state.Stream); err != nil {
+			return err
+		}
+		if err := state.Driver.StreamSynchronize(state.Stream); err != nil {
+			return err
+		}
+		return state.Driver.MemcpyDtoH(driver.Bytes(got), output)
+	})
+	testutil.RequireSliceClose(t, "output", got, want, 0)
+}

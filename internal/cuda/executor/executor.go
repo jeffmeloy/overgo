@@ -1077,6 +1077,20 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 			(node.Inputs[0].Type == dtype.F32 || node.Inputs[0].Type == dtype.BF16) {
 			compiled.needBlas = true
 		}
+		if fp8TensorCoreMulMat(node) {
+			// FP8 tensor-core prefill stages the e4m3 activation, its
+			// column scales and the cuBLASLt workspace; the resident
+			// weight is multiplied as stored.
+			inner, rightRows := node.Inputs[0].Shape.Dims[0], node.Inputs[1].Shape.Dims[1]
+			if inner > math.MaxUint32 || rightRows > math.MaxUint32 {
+				return nil, errors.New("fp8 tensor-core mul_mat staging size overflows")
+			}
+			compiled.needBlas = true
+			compiled.matmulStagingBytes = max(
+				compiled.matmulStagingBytes, fp8TensorCoreStagingBytes(inner, rightRows),
+			)
+			continue
+		}
 		if node.Op == tensor.OpMulMat &&
 			(node.Inputs[0].Type == dtype.F16 || node.Inputs[0].Type == dtype.BF16 ||
 				node.Inputs[0].Type == dtype.F8E4M3) {
@@ -2202,6 +2216,12 @@ type blasState struct {
 	// scores: attention score staging for the strided-batched SGEMM path
 	scores     driver.DevicePtr
 	scoreBytes uint64
+	// lt is the cuBLASLt context of the FP8 tensor-core prefill; fp8Plans
+	// holds its products per weight shape, all planned for fp8PlanColumns
+	// activation columns and rebuilt when a forward brings another count.
+	lt             cublas.LtHandle
+	fp8Plans       map[fp8WeightShape]*cublas.FP8Plan
+	fp8PlanColumns uint32
 }
 
 var (
@@ -2258,7 +2278,13 @@ func (e *Executor) ensureResources(
 			_ = library.Close()
 			return nil, err
 		}
-		e.resources.blas = &blasState{library: library, handle: handle}
+		lt, err := library.CreateLt()
+		if err != nil {
+			_ = library.Destroy(handle)
+			_ = library.Close()
+			return nil, err
+		}
+		e.resources.blas = &blasState{library: library, handle: handle, lt: lt}
 	}
 	if matmulStagingBytes > 0 && e.resources.blas != nil && e.resources.blas.stagingBytes < matmulStagingBytes {
 		staging, err := state.Driver.MemAlloc(matmulStagingBytes)
@@ -2372,6 +2398,10 @@ func (e *Executor) closeResources(state *device.State) error {
 			errs = append(errs, state.Driver.MemFree(e.resources.blas.scores))
 			e.resources.blas.scores = 0
 			e.resources.blas.scoreBytes = 0
+		}
+		errs = append(errs, e.resources.blas.dropFP8Plans())
+		if err := e.resources.blas.library.DestroyLt(e.resources.blas.lt); err != nil {
+			errs = append(errs, err)
 		}
 		if err := e.resources.blas.library.Destroy(e.resources.blas.handle); err != nil {
 			errs = append(errs, err)

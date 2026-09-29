@@ -1,5 +1,6 @@
 #include <cuda_fp16.h>
 #include <cuda_bf16.h>
+#include <cuda_fp8.h>
 #include <cuda_pipeline.h>
 #include <mma.h>
 #include "iq_tables_generated.cuh"
@@ -229,6 +230,96 @@ extern "C" __global__ void fp8_to_f16(
     for (unsigned int column = threadIdx.x; column < inner; column += blockDim.x) {
         output_row[column] = __float2half(fp8_e4m3_decode((unsigned int) weight_row[column]) * row_scale);
     }
+}
+
+// FP8_E4M3_MAX: the largest finite OCP E4M3FN magnitude, where each
+// activation column's absolute maximum lands.
+constexpr float FP8_E4M3_MAX = 448.0f;
+constexpr unsigned int FP8_QUAD_WIDTH = 4;
+
+// quantize_fp8_columns_f32: the activation side of the FP8 tensor-core
+// prefill. One block per token column of `inner` F32 values (inner a
+// multiple of four): the column's absolute maximum sets
+// scale = amax / 448, stored per column, and every value is written as
+// e4m3(value / scale), round to nearest even and saturating -- the host
+// dtype.Float32ToF8E4M3 contract. Both divisions are the correctly
+// rounded __fdiv_rn so the bytes match the host encoder under
+// -use_fast_math. An all-zero column stores scale 0 and zero bytes.
+extern "C" __global__ void quantize_fp8_columns_f32(
+        const float * input,
+        unsigned char * output,
+        float * scale,
+        unsigned int inner,
+        unsigned int columns) {
+    const unsigned int column = blockIdx.x;
+    if (column >= columns) {
+        return;
+    }
+    const float4 * source = reinterpret_cast<const float4 *>(input + (size_t) column * inner);
+    const unsigned int quads = inner / FP8_QUAD_WIDTH;
+    float amax = 0.0f;
+    for (unsigned int quad = threadIdx.x; quad < quads; quad += blockDim.x) {
+        const float4 value = source[quad];
+        amax = fmaxf(amax, fmaxf(fmaxf(fabsf(value.x), fabsf(value.y)), fmaxf(fabsf(value.z), fabsf(value.w))));
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset >>= 1) {
+        amax = fmaxf(amax, __shfl_xor_sync(0xffffffffu, amax, offset));
+    }
+    __shared__ float warp_amax[CUDA_WARP_WIDTH];
+    if (threadIdx.x % CUDA_WARP_WIDTH == 0) {
+        warp_amax[threadIdx.x / CUDA_WARP_WIDTH] = amax;
+    }
+    __syncthreads();
+    const unsigned int warps = (blockDim.x + CUDA_WARP_WIDTH - 1) / CUDA_WARP_WIDTH;
+    amax = 0.0f;
+    for (unsigned int warp = 0; warp < warps; ++warp) {
+        amax = fmaxf(amax, warp_amax[warp]);
+    }
+    const float column_scale = __fdiv_rn(amax, FP8_E4M3_MAX);
+    if (threadIdx.x == 0) {
+        scale[column] = column_scale;
+    }
+    unsigned int * destination = reinterpret_cast<unsigned int *>(output + (size_t) column * inner);
+    for (unsigned int quad = threadIdx.x; quad < quads; quad += blockDim.x) {
+        float4 value = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        if (column_scale > 0.0f) {
+            const float4 raw = source[quad];
+            value = make_float4(
+                __fdiv_rn(raw.x, column_scale), __fdiv_rn(raw.y, column_scale),
+                __fdiv_rn(raw.z, column_scale), __fdiv_rn(raw.w, column_scale));
+        }
+        const unsigned int low = __nv_cvt_float2_to_fp8x2(make_float2(value.x, value.y), __NV_SATFINITE, __NV_E4M3);
+        const unsigned int high = __nv_cvt_float2_to_fp8x2(make_float2(value.z, value.w), __NV_SATFINITE, __NV_E4M3);
+        destination[quad] = low | (high << 16);
+    }
+}
+
+// scale_fp8_product_f32: the epilogue of the FP8 tensor-core prefill.
+// The e4m3 product lands column-major [columns][rows] in F32; entry
+// (row, column) takes its weight row's scale and its activation
+// column's scale. rows is a multiple of four, so each thread scales
+// four rows of one column; quads = rows * columns / 4.
+extern "C" __global__ void scale_fp8_product_f32(
+        float * output,
+        const float * row_scale,
+        const float * column_scale,
+        unsigned int rows,
+        unsigned int quads) {
+    const unsigned int quad = blockIdx.x * blockDim.x + threadIdx.x;
+    if (quad >= quads) {
+        return;
+    }
+    const unsigned int element = quad * FP8_QUAD_WIDTH;
+    const unsigned int column = element / rows;
+    const unsigned int row = element - column * rows;
+    const float factor = column_scale[column];
+    const float4 weight = *reinterpret_cast<const float4 *>(row_scale + row);
+    float4 value = reinterpret_cast<float4 *>(output)[quad];
+    value.x *= weight.x * factor;
+    value.y *= weight.y * factor;
+    value.z *= weight.z * factor;
+    value.w *= weight.w * factor;
+    reinterpret_cast<float4 *>(output)[quad] = value;
 }
 
 extern "C" __global__ void quantize_q8_0_input_f32(

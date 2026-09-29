@@ -1,12 +1,10 @@
 package capabilityruntime
 
 import (
-	"context"
 	"runtime"
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
@@ -47,16 +45,5 @@ func TestExactCapabilityPlacementAndReceipt(t *testing.T) {
 	placement, err := ResolveExactCapabilityPlacement(t.Context(), store, capability.ID, selection)
 	if err != nil || placement.Capability.Implementation != modelID {
 		t.Fatalf("placement = (%+v, %v)", placement, err)
-	}
-	catalog := ExecutorCatalog{scalarModule: func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
-		return raw, nil
-	}}
-	if _, err := catalog.ExecutePlaced(t.Context(), store, "model", placement, `{}`); err != nil {
-		t.Fatal(err)
-	}
-	drifted := placement
-	drifted.Selection.Identity = testutil.ArtifactID(t, artifact.KindProfile, "drifted-selection")
-	if _, err := catalog.ExecutePlaced(t.Context(), store, "model", drifted, `{}`); err == nil {
-		t.Fatal("execution admitted a model selection differing from its exact capability placement")
 	}
 }

@@ -84,22 +84,6 @@
       ]
     },
     {
-      "id": "small-dead-code",
-      "title": "Delete TrainProbeMain and ExecutePlaced with the next landing that reruns every lane",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete TrainProbeMain and ExecutePlaced with the next landing that reruns every lane",
-          "status": "open",
-          "verify": "! grep -rqE 'TrainProbeMain|ExecutePlaced' --include=*.go internal cmd",
-          "rationale": "Review feedback 2026-09-28, verified. Both deletions are small, but each reaches far:\n- clioptions.TrainProbeMain has had no caller since the train probes folded into cmd/train; that fold left it behind. Nearly every command imports clioptions, so deleting it reruns every lane, about an hour (a landing of it alone was stopped for that reason on 2026-09-28).\n- capabilityruntime.ExecutorCatalog.ExecutePlaced is called only by tests, and repoanalysis's capability authority pins it. capabilityruntime is on the inference surface, so deleting it expires every text model's guard. Drop its placement_test drift check (that method's own behaviour), have the production-probe test execute through catalog.Execute with the placement's selection, and remove its authority entries if authority-rules-earn-keep has not already.\n\nBoth land with the next change that reruns every lane and moves the surface anyway; fp8-prefill-tensorcore is the next.\n\nRefuted items from the same review:\n- Server slotBusy is read by /slots. It mirrors the session director's per-slot leases; derive it from the director only if that deletes code.\n- hybridtrain's Checkpoint option is read, but no production caller sets it. It becomes live when trainer-shared-run publishes hybrid-stack checkpoints.\n- The NewForProgram-then-ExecuteProgram wrapper has three copies, not six: tool_workflow, model_builder and capabilityruntime/measured."
-        }
-      ]
-    },
-    {
       "id": "refresh-accepted-evidence",
       "title": "Refresh the stale accepted evidence and decide the reference-dependent tests",
       "owner": "master-lead",

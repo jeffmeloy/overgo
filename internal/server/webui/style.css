@@ -240,6 +240,11 @@ table.grid td.mono { font-family:var(--mono); font-variant-numeric:tabular-nums;
 .loop-status p { margin:var(--s2) 0 0; overflow-wrap:anywhere; }
 .tag.loop-state[data-state="running"] { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
 .tag.loop-state[data-state="stopped"] { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
+/* What got better: each kind of move under its heading, better in the ok tone and worse as a caution. */
+.scorecard-moves h4 { margin:var(--s2) 0 var(--s1); font-size:var(--t-md); }
+.scorecard-moves ul { margin:0; padding-left:var(--s4); }
+.scorecard-moves[data-kind="better"] h4 { color:var(--ok); }
+.scorecard-moves[data-kind="worse"] h4 { color:var(--amber); }
 /* The scorecard: an unmeasured cell reads quieter than a measured one, its reason in its title. */
 .scorecard-gap { color:var(--faint); }
 /* A table that fills on demand (search results, downloads) shows only once it has a row: no bare headers. */

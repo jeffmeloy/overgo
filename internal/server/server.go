@@ -329,6 +329,10 @@ type Config struct {
 	// Scorecard reads the user scorecard from the store, assembled by the
 	// launcher; absent, the scorecard route answers that it needs it.
 	Scorecard ScorecardReader
+	// ScorecardHistory reads what moved between the two newest published
+	// scorecards, assembled by the launcher; absent, the scorecard carries
+	// no history.
+	ScorecardHistory ScorecardHistoryReader
 	// ProviderKeys places a hosted provider's key in this process for the
 	// model a reference names and returns the variable that holds it;
 	// assembled by the launcher, absent the key route answers that it

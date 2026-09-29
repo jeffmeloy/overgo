@@ -30,3 +30,28 @@ func serverScorecard(ctx context.Context, store *overgodb.Store) ([]llamaserver.
 	}
 	return shown, nil
 }
+
+// comparedRecords are the published scorecards a history compares: the
+// previous and the newest.
+const comparedRecords = 2
+
+// scorecardHistory reads what moved between the two newest scorecards
+// published beside the store at storeRoot, as the scorecard package compares
+// them; there is none until two are published or without a store.
+func scorecardHistory(storeRoot string) llamaserver.ScorecardHistoryReader {
+	if storeRoot == "" {
+		return nil
+	}
+	return func() (*llamaserver.ScorecardHistory, error) {
+		records, err := scorecard.LatestRecords(scorecard.RecordsDirectory(storeRoot), comparedRecords)
+		if err != nil || len(records) < comparedRecords {
+			return nil, err
+		}
+		history := &llamaserver.ScorecardHistory{Previous: records[0].Commit, Current: records[1].Commit, Moves: []llamaserver.ScorecardMove{}}
+		for _, move := range scorecard.Moves(records[0], records[1]) {
+			history.Moves = append(history.Moves, llamaserver.ScorecardMove{Name: move.Name, Task: move.Task, Kind: string(move.Kind), Metric: string(move.Column),
+				Before: move.Before, After: move.After, Unit: move.Unit, Reason: move.Reason, Improved: move.Improved()})
+		}
+		return history, nil
+	}
+}

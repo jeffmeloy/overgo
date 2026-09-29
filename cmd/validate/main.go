@@ -24,6 +24,7 @@ import (
 	"overgo/internal/inferencesurface"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/scorecard"
 )
 
 // catalogLimit bounds the registered-model listing; a truncated denominator is
@@ -83,7 +84,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		defer store.Close()
 		records := ""
 		if *publish {
-			records = filepath.Join(filepath.Dir(storeRoot), scorecardDirectory)
+			records = scorecard.RecordsDirectory(storeRoot)
 		}
 		return writeScorecard(ctx, store, *root, records, output)
 	}

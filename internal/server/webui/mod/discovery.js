@@ -151,11 +151,40 @@
         ["load-time", "Load"], ["peak-device-memory", "Peak memory"], ["setup-steps", "Setup steps"]];
       const unitFormats = { bytes: (value) => fmt.bytes(value), ms: (value) => value.toFixed(1) + " ms", "tok/s": (value) => value.toFixed(1) + " tok/s" };
       const metricFormats = { "failure-rate": (value) => (100 * value).toFixed(1) + "%", "setup-steps": (value) => String(value) };
+      const measure = (metric, unit, value) => (unitFormats[unit] || metricFormats[metric] || ((number) => number.toFixed(3)))(Number(value));
       const scorecardCell = (cell) => cell.reason ? el("span", { class: "scorecard-gap", title: cell.reason, text: "not measured" })
-        : el("span", { title: cell.label || "", text: (unitFormats[cell.unit] || metricFormats[cell.metric] || ((value) => value.toFixed(3)))(Number(cell.value)) });
-      const scorecardBody = el("tbody"), scorecardNote = el("div", { class: "note" });
-      const scorecard = el("section", { class: "scorecard", role: "region", "aria-label": "scorecard", hidden: true }, el("div", { class: "section-title", text: "Scorecard" }), scorecardNote,
+        : el("span", { title: cell.label || "", text: measure(cell.metric, cell.unit, cell.value) });
+      const scorecardBody = el("tbody"), scorecardNote = el("div", { class: "note" }), historyHost = el("div", { class: "scorecard-history" });
+      const scorecard = el("section", { class: "scorecard", role: "region", "aria-label": "scorecard", hidden: true },
+        el("div", { class: "section-title", text: "What got better" }), historyHost,
+        el("div", { class: "section-title", text: "Scorecard" }), scorecardNote,
         el("table", { class: "grid stack" }, el("thead", null, overgo.headerRow(["Model", "Task", ...scorecardColumns.map(([, label]) => label)])), scorecardBody));
+      // renderHistory: every change from the previous published scorecard to the newest, grouped by how it moved
+      // and whether a user would call it better, targeted or not.
+      const columnLabels = new Map(scorecardColumns);
+      function renderHistory(history) {
+        if (!history) {
+          historyHost.replaceChildren(el("p", { class: "note", text: "The unattended loop publishes a scorecard each time it empties its plan; what moved shows here once two are published." }));
+          return;
+        }
+        const moves = history.moves || [];
+        const where = (move) => move.name + " " + move.task + (move.metric ? ", " + (columnLabels.get(move.metric) || move.metric) : "");
+        const value = (move, number) => measure(move.metric, move.unit, number);
+        const groups = [
+          ["better", "Better", (move) => move.kind === "changed" && move.improved, (move) => where(move) + ": " + value(move, move.before) + " to " + value(move, move.after)],
+          ["worse", "Worse", (move) => move.kind === "changed" && !move.improved, (move) => where(move) + ": " + value(move, move.before) + " to " + value(move, move.after)],
+          ["measured", "Newly measured", (move) => move.kind === "measured", (move) => where(move) + ": " + value(move, move.after)],
+          ["unmeasured", "No longer measured", (move) => move.kind === "unmeasured", (move) => where(move) + ": " + move.reason],
+          ["added", "New", (move) => move.kind === "added", where],
+          ["removed", "Gone", (move) => move.kind === "removed", where],
+        ].map(([kind, title, belongs, line]) => [kind, title, moves.filter(belongs).map(line)]).filter(([, , lines]) => lines.length);
+        const count = (kind) => (groups.find(([name]) => name === kind) || [, , []])[2].length;
+        historyHost.replaceChildren(
+          el("p", { class: "note", text: "Since the scorecard of commit " + history.previous.slice(0, 12) + ", the one of " + history.current.slice(0, 12) + ": " +
+            (moves.length ? count("better") + " better, " + count("worse") + " worse. Every change is listed, whether or not work aimed at it." : "nothing moved.") }),
+          ...groups.map(([kind, title, lines]) => el("div", { class: "scorecard-moves", "data-kind": kind },
+            el("h4", { text: title }), el("ul", {}, ...lines.map((text) => el("li", { text }))))));
+      }
       async function refreshScorecard() {
         let read;
         try { read = await overgo.api.get("/scorecard", { signal: overgo.signal }); }
@@ -167,6 +196,7 @@
           return;
         }
         scorecard.hidden = false;
+        renderHistory(read.history);
         const rows = read.rows || [];
         scorecardNote.textContent = rows.length ? "What a user feels of each activated model; hover a cell for what measured it." : "No activated model to score yet.";
         scorecardBody.replaceChildren(...rows.map((row) => {
@@ -183,7 +213,7 @@
       panel.append(
         el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: () => { refreshCatalog(); refreshScorecard(); } })),
         catalogNote,
-        el("table", { class: "grid stack" }, el("thead", null, overgo.headerRow(["Model", "Capabilities", "Identity", ""])), catalogBody),
+        el("table", { class: "grid stack hide-empty" }, el("thead", null, overgo.headerRow(["Model", "Capabilities", "Identity", ""])), catalogBody),
         scorecard,
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),

@@ -63,7 +63,7 @@ func TestWebUIBrowserEmptyStates(t *testing.T) {
 	// Library: search and download tables stay hidden until they have rows.
 	check(`(() => { location.hash = 'library'; return true; })()`)
 	settle(`!!document.querySelector('#panel-library.active input[aria-label="Chat dataset file on disk"]')`)
-	check(`(() => { const shown = ` + visible + `; const tables = [...document.querySelectorAll('#panel-library table.hide-empty')]; return tables.length === 2 && tables.every(table => !shown(table)); })()`)
+	check(`(() => { const shown = ` + visible + `; const tables = [...document.querySelectorAll('#panel-library table.hide-empty')].filter(table => table.querySelector('th').textContent.toLowerCase() === 'repository'); return tables.length === 2 && tables.every(table => !shown(table)); })()`)
 
 	// Runs with none: a sentence, no pager, no header-only table.
 	check(`(() => { location.hash = 'runs'; return true; })()`)

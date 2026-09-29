@@ -54,8 +54,8 @@ func TestScheduledScorecardPublishesDeltas(t *testing.T) {
 	if !slices.Equal(moved, want) {
 		t.Fatalf("moved =\n%q\nwant\n%q", moved, want)
 	}
-	latest, err := latestScorecard(directory)
-	if err != nil || latest == nil || latest.Commit != "b" {
+	latest, err := scorecard.LatestRecords(directory, 1)
+	if err != nil || len(latest) != 1 || latest[0].Commit != "b" {
 		t.Fatalf("latest record = (%+v, %v), want the second publish", latest, err)
 	}
 }

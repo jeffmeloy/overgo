@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -32,40 +31,14 @@ var scorecardHeadings = map[metric.Name]string{
 	metric.SetupSteps:  "Setup steps",
 }
 
-// A published scorecard record is named by the time it was published, so the
-// directory lists its records oldest first; the directory sits beside the
-// store, outside the module.
+// A published record is stamped with the time it was published; its
+// directory and record shape are the scorecard package's, which the
+// workbench reads too.
 const (
-	scorecardDirectory                 = "scorecards"
-	scorecardRecordPrefix              = "scorecard-"
-	scorecardRecordSuffix              = ".json"
 	scorecardRecordTime                = "20060102T150405Z"
 	scorecardDirectoryMode fs.FileMode = 0o755
 	scorecardRecordMode    fs.FileMode = 0o644
 )
-
-// scorecardRecord is one published scorecard: the commit it measured and
-// every row's cells.
-type scorecardRecord struct {
-	Commit string        `json:"commit"`
-	Rows   []recordedRow `json:"rows"`
-}
-
-// recordedRow is one row as published, what a later run compares with.
-type recordedRow struct {
-	Name  string                       `json:"name"`
-	Task  string                       `json:"task"`
-	Cells map[metric.Name]recordedCell `json:"cells"`
-}
-
-// recordedCell is a cell's measured value and unit, or the reason it has
-// none and whether the metric does not apply to the task.
-type recordedCell struct {
-	Value         float64 `json:"value,omitzero"`
-	Unit          string  `json:"unit,omitzero"`
-	Reason        string  `json:"reason,omitzero"`
-	NotApplicable bool    `json:"not_applicable,omitzero"`
-}
 
 const (
 	// bytesPerGiB renders device memory in the unit users read it in.
@@ -93,7 +66,7 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, root, records st
 	if err != nil {
 		return err
 	}
-	name := scorecardRecordPrefix + time.Now().UTC().Format(scorecardRecordTime) + scorecardRecordSuffix
+	name := scorecard.RecordName(time.Now().UTC().Format(scorecardRecordTime))
 	moved, first, err := publishScorecard(records, name, commit, rows)
 	if err != nil {
 		return err
@@ -110,93 +83,46 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, root, records st
 }
 
 // publishScorecard writes the rows as the directory's newest record and
-// lists what moved since the previous one: each cell both measure in the
-// same unit whose value changed, each cell that gained or lost its measure,
-// and each row that is new or gone. first reports that no previous record
-// exists.
+// lists what moved since the previous one, as the scorecard package compares
+// them. first reports that no previous record exists.
 func publishScorecard(directory, name, commit string, rows []scorecard.Row) (moved []string, first bool, err error) {
-	previous, err := latestScorecard(directory)
+	previous, err := scorecard.LatestRecords(directory, 1)
 	if err != nil {
 		return nil, false, err
 	}
-	current := scorecardRecord{Commit: commit}
-	for _, row := range rows {
-		recorded := recordedRow{Name: row.Name, Task: string(row.Task), Cells: map[metric.Name]recordedCell{}}
-		for column, cell := range row.Cells {
-			recorded.Cells[column] = recordedCell{Value: cell.Value, Unit: cell.Unit, Reason: cell.Reason, NotApplicable: cell.NotApplicable}
-		}
-		current.Rows = append(current.Rows, recorded)
-	}
+	current := scorecard.RecordOf(commit, rows)
 	if err := os.MkdirAll(directory, scorecardDirectoryMode); err != nil {
 		return nil, false, err
 	}
 	if err := jsonfile.Write(filepath.Join(directory, name), current, scorecardRecordMode); err != nil {
 		return nil, false, err
 	}
-	if previous == nil {
+	if len(previous) == 0 {
 		return nil, true, nil
 	}
-	return scorecardMoves(*previous, current), false, nil
+	return movedLines(scorecard.Moves(previous[0], current)), false, nil
 }
 
-// latestScorecard reads the directory's newest record; an absent directory
-// or one without records has none.
-func latestScorecard(directory string) (*scorecardRecord, error) {
-	entries, err := os.ReadDir(directory)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var latest string
-	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), scorecardRecordPrefix) && strings.HasSuffix(entry.Name(), scorecardRecordSuffix) {
-			latest = max(latest, entry.Name())
+// movedLines writes each move as one line of the publish report.
+func movedLines(moves []scorecard.Move) []string {
+	lines := make([]string, 0, len(moves))
+	for _, move := range moves {
+		row := move.Name + " " + move.Task
+		heading := row + ", " + scorecardHeadings[move.Column]
+		switch move.Kind {
+		case scorecard.MoveAdded:
+			lines = append(lines, "- "+row+": new")
+		case scorecard.MoveRemoved:
+			lines = append(lines, "- "+row+": gone")
+		case scorecard.MoveMeasured:
+			lines = append(lines, fmt.Sprintf("- %s: now measured, %.4g %s", heading, move.After, move.Unit))
+		case scorecard.MoveUnmeasured:
+			lines = append(lines, fmt.Sprintf("- %s: no longer measured: %s", heading, move.Reason))
+		case scorecard.MoveChanged:
+			lines = append(lines, fmt.Sprintf("- %s: %.4g to %.4g %s (%+.4g)", heading, move.Before, move.After, move.Unit, move.After-move.Before))
 		}
 	}
-	if latest == "" {
-		return nil, nil
-	}
-	var record scorecardRecord
-	if err := jsonfile.DecodeStrict(filepath.Join(directory, latest), &record); err != nil {
-		return nil, err
-	}
-	return &record, nil
-}
-
-// scorecardMoves lists what moved from the previous record to the current.
-func scorecardMoves(previous, current scorecardRecord) []string {
-	key := func(row recordedRow) string { return row.Name + " " + row.Task }
-	before := map[string]recordedRow{}
-	for _, row := range previous.Rows {
-		before[key(row)] = row
-	}
-	var moved []string
-	for _, row := range current.Rows {
-		old, found := before[key(row)]
-		delete(before, key(row))
-		if !found {
-			moved = append(moved, "- "+key(row)+": new")
-			continue
-		}
-		for _, column := range metric.Columns {
-			now, then := row.Cells[column], old.Cells[column]
-			heading := key(row) + ", " + scorecardHeadings[column]
-			switch {
-			case now.Reason == "" && then.Reason != "":
-				moved = append(moved, fmt.Sprintf("- %s: now measured, %.4g %s", heading, now.Value, now.Unit))
-			case now.Reason != "" && then.Reason == "":
-				moved = append(moved, fmt.Sprintf("- %s: no longer measured: %s", heading, now.Reason))
-			case now.Reason == "" && now.Unit == then.Unit && now.Value != then.Value:
-				moved = append(moved, fmt.Sprintf("- %s: %.4g to %.4g %s (%+.4g)", heading, then.Value, now.Value, now.Unit, now.Value-then.Value))
-			}
-		}
-	}
-	for _, gone := range slices.Sorted(maps.Keys(before)) {
-		moved = append(moved, "- "+gone+": gone")
-	}
-	return moved
+	return lines
 }
 
 // printScorecard writes the table, the declaration share and the gaps.

@@ -448,6 +448,7 @@ func run() error {
 		LibraryIntake:      serverLibraryIntake(),
 		Loop:               serverLoop(shutdownContext),
 		Scorecard:          serverScorecard,
+		ScorecardHistory:   scorecardHistory(repoPath),
 		ProviderKeys:       providerIntake.Keys,
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,

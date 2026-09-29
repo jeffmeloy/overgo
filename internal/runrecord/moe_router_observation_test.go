@@ -21,7 +21,7 @@ func TestMoERouterObservationIdentityCoverageAndValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content, err := observation.content()
+	content, err := moeRouterObservationCodec.Content(observation)
 	if err != nil || content.Descriptor.ID != observation.ID {
 		t.Fatalf("observation content = (%s, %v)", content.Descriptor.ID, err)
 	}

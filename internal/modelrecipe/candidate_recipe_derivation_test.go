@@ -144,7 +144,7 @@ func newCandidateRecipeDerivationFixture(t *testing.T) candidateRecipeDerivation
 			Kind: kind, MediaType: "application/vnd.overgo.test-candidate-recipe-" + kind.String() + "+json",
 			Schema: "overgo/test-candidate-recipe-" + kind.String() + "/v1",
 		}
-		content, contentErr := contract.ContentBytes([]byte(fmt.Sprintf(`{"name":%q}`, name)))
+		content, contentErr := contract.ContentBytes(fmt.Appendf(nil, `{"name":%q}`, name))
 		if contentErr != nil {
 			t.Fatal(contentErr)
 		}

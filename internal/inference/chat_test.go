@@ -2,13 +2,13 @@ package inference
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
-	"overgo/internal/testskip"
+	"overgo/internal/modeltest"
 	"overgo/internal/tokenizer"
 )
 
@@ -298,11 +298,8 @@ func TestFormatChatSelectsNamedToolUseTemplate(t *testing.T) {
 
 func TestNativeQwenChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
-	path := os.Getenv("OVERGO_QWEN3_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
-	}
-	runner, err := openFixtureRunner(path, 0)
+	cudatest.Require(t)
+	runner, err := openFixtureRunner(modeltest.Directory(t, qwen3Fixture), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,11 +321,8 @@ func TestNativeQwenChatTemplateMatchesPinnedOracle(t *testing.T) {
 
 func TestNativeQwenToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
-	path := os.Getenv("OVERGO_QWEN3_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
-	}
-	runner, err := openFixtureRunner(path, 0)
+	cudatest.Require(t)
+	runner, err := openFixtureRunner(modeltest.Directory(t, qwen3Fixture), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,11 +427,8 @@ func toolWeatherDefinition() ChatTool {
 
 func TestNativeGemmaChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
-	path := os.Getenv("OVERGO_GEMMA3_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "OVERGO_GEMMA3_MODEL is not set")
-	}
-	runner, err := openFixtureRunner(path, 0)
+	cudatest.Require(t)
+	runner, err := openFixtureRunner(modeltest.Directory(t, gemma3Fixture), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -458,11 +449,8 @@ func TestNativeGemmaChatTemplateMatchesPinnedOracle(t *testing.T) {
 
 func TestNativeQwen35ChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
-	path := os.Getenv("OVERGO_QWEN35_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN35_MODEL is not set")
-	}
-	runner, err := openFixtureRunner(path, 0)
+	cudatest.Require(t)
+	runner, err := openFixtureRunner(modeltest.Directory(t, qwen35Fixture), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -484,11 +472,8 @@ func TestNativeQwen35ChatTemplateMatchesPinnedOracle(t *testing.T) {
 
 func TestNativeQwen35ToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
-	path := os.Getenv("OVERGO_QWEN35_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN35_MODEL is not set")
-	}
-	runner, err := openFixtureRunner(path, 0)
+	cudatest.Require(t)
+	runner, err := openFixtureRunner(modeltest.Directory(t, qwen35Fixture), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,11 +570,8 @@ func hermesToolOracle(history bool) string {
 
 func TestNativeBonsaiChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
-	path := os.Getenv("OVERGO_BONSAI_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "OVERGO_BONSAI_MODEL is not set")
-	}
-	runner, err := openFixtureRunner(path, 0)
+	cudatest.Require(t)
+	runner, err := openFixtureRunner(modeltest.Directory(t, bonsaiFixture), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -611,11 +593,8 @@ func TestNativeBonsaiChatTemplateMatchesPinnedOracle(t *testing.T) {
 
 func TestNativeBonsaiToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
-	path := os.Getenv("OVERGO_BONSAI_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "OVERGO_BONSAI_MODEL is not set")
-	}
-	runner, err := openFixtureRunner(path, 0)
+	cudatest.Require(t)
+	runner, err := openFixtureRunner(modeltest.Directory(t, bonsaiFixture), 0)
 	if err != nil {
 		t.Fatal(err)
 	}

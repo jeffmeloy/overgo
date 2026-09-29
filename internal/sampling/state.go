@@ -221,13 +221,10 @@ func configSignature(config Config) uint64 {
 		writeUint64(uint64(math.Float32bits(config.DynatempRange)))
 		writeUint64(uint64(math.Float32bits(config.DynatempExponent)))
 	}
-	for _, stage := range config.Samplers {
-		if stage == SamplerAdaptiveP {
-			writeUint64(^uint64(4))
-			writeUint64(uint64(math.Float32bits(config.AdaptiveTarget)))
-			writeUint64(uint64(math.Float32bits(config.AdaptiveDecay)))
-			break
-		}
+	if slices.Contains(config.Samplers, SamplerAdaptiveP) {
+		writeUint64(^uint64(4))
+		writeUint64(uint64(math.Float32bits(config.AdaptiveTarget)))
+		writeUint64(uint64(math.Float32bits(config.AdaptiveDecay)))
 	}
 	if len(config.LogitBiases) > 0 {
 		writeUint64(^uint64(5))

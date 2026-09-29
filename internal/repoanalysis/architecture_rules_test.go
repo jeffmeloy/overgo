@@ -14,15 +14,14 @@ import (
 )
 
 // TestEntryAuthoritiesHoldOverTheTree holds the whole tree to the entry
-// authorities: storage, tools, triggers, promotion and the Go-only runtime
-// each have one owner, and a script named as a runtime entry is refused.
+// authorities: storage, tools, promotion and the Go-only runtime each have
+// one owner, and a script named as a runtime entry is refused.
 func TestEntryAuthoritiesHoldOverTheTree(t *testing.T) {
 	t.Parallel()
 	var rules []repoanalysis.EntryAuthorityRule
 	for _, domain := range []repoanalysis.EntryAuthorityDomain{
 		repoanalysis.EntryAuthorityStorage, repoanalysis.EntryAuthorityTool,
-		repoanalysis.EntryAuthorityTrigger, repoanalysis.EntryAuthorityPromotion,
-		repoanalysis.EntryAuthorityGoOnly,
+		repoanalysis.EntryAuthorityPromotion, repoanalysis.EntryAuthorityGoOnly,
 	} {
 		rule, found := repoanalysis.EntryAuthorityRuleFor(domain)
 		if !found {

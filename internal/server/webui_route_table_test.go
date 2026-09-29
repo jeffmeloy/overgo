@@ -64,7 +64,7 @@ func TestWebUIRouteTable(t *testing.T) {
 	if len(table.Schemas) != len(workspaceRouteSchemas) {
 		t.Errorf("explorer binds %d schemas, declared %d", len(table.Schemas), len(workspaceRouteSchemas))
 	}
-	for _, path := range []string{"/workspace/manifest", "/workspace/schema", "/workspace/routes", "/operations/evidence", "/agents", "/agents/chat", "/automations", "/peers"} {
+	for _, path := range []string{"/workspace/manifest", "/workspace/schema", "/workspace/routes", "/operations/evidence", "/agents", "/agents/chat"} {
 		if _, routed := routesByPath[path]; !routed {
 			t.Errorf("GUI route %s is absent from the route table", path)
 		}

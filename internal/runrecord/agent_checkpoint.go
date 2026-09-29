@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	// AgentMutationCheckpointMediaType identifies agent mutation checkpoints.
-	AgentMutationCheckpointMediaType = "application/vnd.overgo.agent-mutation-checkpoint+json"
-	// AgentMutationCheckpointSchema identifies the agent mutation checkpoint schema.
-	AgentMutationCheckpointSchema = "overgo/agent-mutation-checkpoint/v1"
+	// agentMutationCheckpointMediaType identifies agent mutation checkpoints.
+	agentMutationCheckpointMediaType = "application/vnd.overgo.agent-mutation-checkpoint+json"
+	// agentMutationCheckpointSchema identifies the agent mutation checkpoint schema.
+	agentMutationCheckpointSchema = "overgo/agent-mutation-checkpoint/v1"
 )
 
 // AgentCheckpointEntry records one target file's captured preimage state and,
@@ -44,7 +44,7 @@ type AgentMutationCheckpoint struct {
 }
 
 var agentMutationCheckpointCodec = artifact.JSONDocumentCodec(
-	"agent mutation checkpoint", artifact.KindCheckpoint, AgentMutationCheckpointMediaType, AgentMutationCheckpointSchema,
+	"agent mutation checkpoint", artifact.KindCheckpoint, agentMutationCheckpointMediaType, agentMutationCheckpointSchema,
 	canonicalizeAgentMutationCheckpoint,
 	func(v AgentMutationCheckpoint) artifact.ID { return v.ID }, func(v *AgentMutationCheckpoint, id artifact.ID) { v.ID = id },
 	func(v AgentMutationCheckpoint) AgentMutationCheckpoint {

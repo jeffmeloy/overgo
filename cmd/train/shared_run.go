@@ -24,20 +24,26 @@ import (
 // step's loss is finite and carries gradient, the first step's wall is
 // admitted against the plan's projected-wall bound, and the objective loss
 // re-evaluates after training below its value before. A route that opened a
-// supervised session samples it every step and finishes it with the outcome.
+// supervised session samples it every step, publishes what descended, and
+// finishes the session with the outcome.
 type boundedRun struct {
 	name    string
 	plan    trainingprogram.TrainingSessionPlan
 	session routeSession
 	step    func(step int) (optimizer.ObservedStepResult, error)
 	loss    func() (float64, error)
+	publish func(ctx context.Context) error
 }
 
-// train runs the loop and records its outcome as the session observation.
+// train runs the loop, publishes what descended, and records the outcome
+// as the session observation.
 func (run boundedRun) train(ctx context.Context) error {
 	started := time.Now()
 	err := run.descend()
 	run.session.observer.Phase(runrecord.PhaseForwardBackward, time.Since(started))
+	if err == nil && run.publish != nil {
+		err = run.publish(ctx)
+	}
 	return run.session.finish(ctx, run.plan, err)
 }
 
@@ -97,23 +103,60 @@ func openSession(ctx context.Context, store *overgodb.Store, weights, dataset st
 	if err != nil {
 		return routeSession{}, err
 	}
+	session, err := bindSession(ctx, store, recipeID)
+	if err != nil {
+		return routeSession{}, err
+	}
+	if session.observer, err = trainingworkflow.NewObserver(store, false); err != nil {
+		return routeSession{}, err
+	}
+	if err := session.observer.Admit(ctx, session.model, recipeID); err != nil {
+		return routeSession{}, err
+	}
+	fmt.Printf("session admitted: model=%s recipe=%s\n", session.model, recipeID)
+	return session, nil
+}
+
+// bindSession resolves the authority of an activated training recipe, so
+// what a run trained under it publishes; the session supervises nothing,
+// since the run that activated the recipe observes itself.
+func bindSession(ctx context.Context, store *overgodb.Store, recipeID artifact.ID) (routeSession, error) {
 	definition, err := recipe.RequireDefinition(ctx, store, recipeID)
 	if err != nil {
-		return routeSession{}, err
-	}
-	observer, err := trainingworkflow.NewObserver(store, false)
-	if err != nil {
-		return routeSession{}, err
-	}
-	if err := observer.Admit(ctx, definition.Model, recipeID); err != nil {
 		return routeSession{}, err
 	}
 	authority, err := trainingworkflow.ResolveSessionAuthority(ctx, store, definition.Model, recipeID)
 	if err != nil {
 		return routeSession{}, err
 	}
-	fmt.Printf("session admitted: model=%s recipe=%s\n", definition.Model, recipeID)
-	return routeSession{store: store, model: definition.Model, recipe: recipeID, authority: authority, observer: observer}, nil
+	return routeSession{store: store, model: definition.Model, recipe: recipeID, authority: authority}, nil
+}
+
+// checkpointed is a trainer whose training a checkpoint publishes: its
+// compiled program, its optimizer state, and the weights that state pairs
+// with.
+type checkpointed interface {
+	Program() trainingprogram.TrainingProgram
+	Snapshot() optimizer.State
+	SaveWeights(path string) error
+}
+
+// publishTrained publishes, as a checkpoint at target, what trainer trained
+// under the recipe a held-out run's session activated; stream is where the
+// training stopped in the objective's training membership.
+func publishTrained(ctx context.Context, store *overgodb.Store, recipeID artifact.ID, target string, trainer checkpointed, stream trainingdata.StreamState) error {
+	session, err := bindSession(ctx, store, recipeID)
+	if err != nil {
+		return err
+	}
+	checkpoint, err := session.publish(ctx, target, trainer.Program(), trainer.Snapshot(), stream, func(stage string) error {
+		return trainer.SaveWeights(filepath.Join(stage, trainingprogram.CheckpointWeights))
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("checkpoint=%s written to %s\n", checkpoint.ID(), target)
+	return nil
 }
 
 // finish records the run's outcome as the session observation; the run's own

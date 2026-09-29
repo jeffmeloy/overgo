@@ -8,7 +8,7 @@ import (
 	"overgo/internal/tensor"
 )
 
-var graphTensorPointerType = reflect.TypeOf((*tensor.Tensor)(nil))
+var graphTensorPointerType = reflect.TypeFor[*tensor.Tensor]()
 
 type graphWeightField struct {
 	name          string
@@ -18,13 +18,13 @@ type graphWeightField struct {
 
 var (
 	sequenceOutputGraphFields = compileGraphWeightFields(
-		reflect.TypeOf(AudioDecoderWeights{}), reflect.TypeOf(SequenceOutputGraphWeights{}),
+		reflect.TypeFor[AudioDecoderWeights](), reflect.TypeFor[SequenceOutputGraphWeights](),
 	)
 	sequenceResidualGraphFields = compileGraphWeightFields(
-		reflect.TypeOf(WavPosNetWeights{}), reflect.TypeOf(SequenceResidualGraphWeights{}),
+		reflect.TypeFor[WavPosNetWeights](), reflect.TypeFor[SequenceResidualGraphWeights](),
 	)
 	sequenceConvGraphFields = compileGraphWeightFields(
-		reflect.TypeOf(WavConvNextWeights{}), reflect.TypeOf(SequenceConvGraphWeights{}),
+		reflect.TypeFor[WavConvNextWeights](), reflect.TypeFor[SequenceConvGraphWeights](),
 	)
 )
 

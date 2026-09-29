@@ -525,7 +525,7 @@ func (l *layerCatalogLoader) loadLayerCatalogs(result Weights) (Weights, error) 
 	catalog := l.catalog
 	spec, profile, normPlan := l.spec, l.profile, l.normPlan
 	trunkBlockCount, optionalDraftOnly := l.trunkBlockCount, l.optionalDraftOnly
-	for block := uint32(tensor.FirstOffset); block < trunkBlockCount; block++ {
+	for block := range trunkBlockCount {
 		if optionalDraftOnly && block < spec.BlockCount {
 			continue
 		}

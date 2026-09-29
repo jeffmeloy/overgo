@@ -115,7 +115,7 @@ func (s *Sampler) speculativeCandidates(
 		candidates[index] = candidate{id: index, scaledLogit: float64(value)}
 	}
 	useAdaptive := false
-	for _, stage := range s.config.Samplers {
+	for _, stage := range s.stages {
 		if stage == SamplerAdaptiveP {
 			useAdaptive = true
 			continue

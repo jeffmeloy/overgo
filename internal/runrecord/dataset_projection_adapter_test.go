@@ -480,7 +480,7 @@ func newProjectionTrace(
 	if len(requestMessages) > 1 && requestMessages[len(requestMessages)-1].Role == "assistant" {
 		requestMessages = requestMessages[:len(requestMessages)-1]
 	}
-	request, err := NewInteractionTranscript(requestMessages)
+	request, err := newInteractionTranscript(requestMessages)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -519,11 +519,11 @@ func projectionFixtureEvents(t *testing.T, tag, branch string) []InteractionTrac
 	}
 	return []InteractionTraceEvent{
 		{Sequence: 1, Kind: InteractionEventRequest, Message: InteractionMessage{Role: "user", Content: "secret-request-one-" + tag}},
-		{Sequence: 2, Kind: InteractionEventToolCall, Branch: branch, Message: call("call-" + tag + "-one")},
+		{Sequence: 2, Kind: interactionEventToolCall, Branch: branch, Message: call("call-" + tag + "-one")},
 		{Sequence: 3, Kind: InteractionEventToolResult, Branch: branch, Message: InteractionMessage{Role: "tool", Content: "secret-result-one-" + tag, ToolCallID: "call-" + tag + "-one"}},
 		{Sequence: 4, Kind: InteractionEventOutput, Branch: branch, Message: InteractionMessage{Role: "assistant", Content: "first answer"}},
 		{Sequence: 5, Kind: InteractionEventRequest, Message: InteractionMessage{Role: "user", Content: "secret-request-two-" + tag}},
-		{Sequence: 6, Kind: InteractionEventToolCall, Branch: branch, Message: call("call-" + tag + "-two")},
+		{Sequence: 6, Kind: interactionEventToolCall, Branch: branch, Message: call("call-" + tag + "-two")},
 		{Sequence: 7, Kind: InteractionEventToolResult, Branch: branch, Message: InteractionMessage{Role: "tool", Content: "secret-result-two-" + tag, ToolCallID: "call-" + tag + "-two", ToolResultError: true}},
 		{Sequence: 8, Kind: InteractionEventOutput, Branch: branch, Message: InteractionMessage{Role: "assistant", Content: "second answer"}},
 	}
@@ -562,7 +562,7 @@ func commitProjectionAuthorities(t *testing.T, store *overgodb.Store, key string
 			if len(messages) > 1 && messages[len(messages)-1].Role == "assistant" {
 				messages = messages[:len(messages)-1]
 			}
-			transcript, err := NewInteractionTranscript(messages)
+			transcript, err := newInteractionTranscript(messages)
 			if err != nil || transcript.ID != fixture.trace.Request {
 				t.Fatalf("projection request transcript = (%s, %s, %v)", transcript.ID, fixture.trace.Request, err)
 			}

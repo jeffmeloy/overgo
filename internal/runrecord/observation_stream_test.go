@@ -72,7 +72,7 @@ func TestLoadObservationStream(t *testing.T) {
 
 	observedZero := InteractionWork{}
 	first, err := NewObservationChunk(scope, artifact.ID{}, []ObservationSample{
-		{Ordinal: 1, ElapsedNS: 10, Kind: ObservationSampleToken, Measures: []ResourceMeasure{
+		{Ordinal: 1, ElapsedNS: 10, Kind: observationSampleToken, Measures: []ResourceMeasure{
 			{Metric: ResourceCostUnits, Value: 0},
 			{Metric: ResourcePeakHostBytes, Value: 100},
 			{Metric: ResourceWallNS, Value: 5},
@@ -90,7 +90,7 @@ func TestLoadObservationStream(t *testing.T) {
 	}
 	observedWork := InteractionWork{Failures: 1, Retries: 2}
 	second, err := NewObservationChunk(scope, firstSummary.ID, []ObservationSample{
-		{Ordinal: 3, ElapsedNS: 30, Kind: ObservationSampleMessage, Measures: []ResourceMeasure{
+		{Ordinal: 3, ElapsedNS: 30, Kind: observationSampleMessage, Measures: []ResourceMeasure{
 			{Metric: ResourcePeakHostBytes, Value: 120},
 			{Metric: ResourceWallNS, Value: 7},
 		}, Interactions: &observedWork},
@@ -122,8 +122,8 @@ func TestLoadObservationStream(t *testing.T) {
 	}
 	wantKinds := []ObservationKindSamples{
 		{Kind: ObservationSampleHardware, Samples: 1},
-		{Kind: ObservationSampleMessage, Samples: 1},
-		{Kind: ObservationSampleToken, Samples: 1},
+		{Kind: observationSampleMessage, Samples: 1},
+		{Kind: observationSampleToken, Samples: 1},
 	}
 	wantHardwareMetrics := []ObservationMetricSamples{{Metric: ResourcePeakHostBytes, Samples: 1}}
 	if stream.Coverage.RawBytes != wantBytes || stream.Coverage.Samples != 3 ||
@@ -278,7 +278,7 @@ func TestLoadObservationStream(t *testing.T) {
 		},
 		{
 			Ordinal: traceSequenceStart + 2, Kind: ObservationSampleHardware,
-			Measures: []ResourceMeasure{{Metric: ResourceCPUNS, Value: 0}},
+			Measures: []ResourceMeasure{{Metric: resourceCPUNS, Value: 0}},
 		},
 	})
 	if err != nil {
@@ -298,7 +298,7 @@ func TestLoadObservationStream(t *testing.T) {
 		hardwareStream.Coverage.MeasuredSamples != 2 ||
 		hardwareStream.Coverage.InteractionSamples != 1 ||
 		!slices.Equal(hardwareStream.Coverage.HardwareMetrics, []ObservationMetricSamples{{
-			Metric: ResourceCPUNS, Samples: 1,
+			Metric: resourceCPUNS, Samples: 1,
 		}}) {
 		t.Fatalf("hardware coverage = %+v", hardwareStream.Coverage)
 	}

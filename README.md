@@ -123,10 +123,11 @@ normalizes the Nesterov direction, and applies Newton–Schulz orthogonalization
 Optimizer state preserves resolved settings, update count, and momentum.
 
 `cmd/train` is the one training entry point. A registered recipe trains a
-checkpoint; `-objective <alias>` trains on a registered objective's training
-split and publishes its held-out verdict, choosing the trainer from the
-objective's kind; `-route <trainer>`, ahead of other flags, runs a bounded
-family trainer by name:
+checkpoint; `-objective <alias>` trains a text model on a registered
+objective's training split and publishes its held-out verdict; `-route
+<trainer>`, ahead of other flags, runs a bounded family trainer by name (the
+tabular and seriesforecast routes train under a registered objective and
+publish its verdict and the trained checkpoint):
 
 ```powershell
 go run ./cmd/train -route oscillatorimage -model Un-0 -steps 2

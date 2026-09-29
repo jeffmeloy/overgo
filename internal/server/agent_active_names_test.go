@@ -17,7 +17,7 @@ func TestActiveAgentNamesReadOnlyTheActivationRoot(t *testing.T) {
 	t.Parallel()
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
-	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil), "/agents/activate")
+	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil))
 	stray := testutil.ArtifactID(t, artifact.KindEvidence, "not-an-activation")
 	if _, err := fixture.store.Commit(t.Context(), artifact.Batch{
 		Key: "agent-names/stray", Artifacts: []artifact.Descriptor{{ID: stray}},

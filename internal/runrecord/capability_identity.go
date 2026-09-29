@@ -11,33 +11,33 @@ import (
 )
 
 const (
-	// CapabilityIdentityMediaType is the canonical wire media type.
-	CapabilityIdentityMediaType = "application/vnd.overgo.capability-identity+json"
-	// CapabilityIdentitySchema is the canonical capability identity schema.
-	CapabilityIdentitySchema = "overgo/capability-identity/v1"
+	// capabilityIdentityMediaType is the canonical wire media type.
+	capabilityIdentityMediaType = "application/vnd.overgo.capability-identity+json"
+	// capabilityIdentitySchema is the canonical capability identity schema.
+	capabilityIdentitySchema = "overgo/capability-identity/v1"
 )
 
-// CapabilityTransportKind names a deterministic invocation transport.
-type CapabilityTransportKind string
+// capabilityTransportKind names a deterministic invocation transport.
+type capabilityTransportKind string
 
 const (
 	// CapabilityTransportBuiltin binds an in-process implementation.
-	CapabilityTransportBuiltin CapabilityTransportKind = "builtin"
+	CapabilityTransportBuiltin capabilityTransportKind = "builtin"
 	// CapabilityTransportHTTP binds a strict request-response HTTP endpoint.
-	CapabilityTransportHTTP CapabilityTransportKind = "http"
+	CapabilityTransportHTTP capabilityTransportKind = "http"
 	// CapabilityTransportArgv binds a program and fixed argument prefix.
-	CapabilityTransportArgv CapabilityTransportKind = "argv"
+	CapabilityTransportArgv capabilityTransportKind = "argv"
 	// CapabilityTransportMCPHTTP binds an MCP-over-HTTP target.
-	CapabilityTransportMCPHTTP CapabilityTransportKind = "mcp-http"
-	// CapabilityTransportHTTPJSONStream binds a streaming HTTP endpoint.
-	CapabilityTransportHTTPJSONStream CapabilityTransportKind = "http-json-stream"
+	CapabilityTransportMCPHTTP capabilityTransportKind = "mcp-http"
+	// capabilityTransportHTTPJSONStream binds a streaming HTTP endpoint.
+	capabilityTransportHTTPJSONStream capabilityTransportKind = "http-json-stream"
 	// CapabilityTransportPeer binds an enrolled peer endpoint.
-	CapabilityTransportPeer CapabilityTransportKind = "peer"
+	CapabilityTransportPeer capabilityTransportKind = "peer"
 )
 
 // CapabilityTransport is the complete runnable transport authority.
 type CapabilityTransport struct {
-	Kind     CapabilityTransportKind `json:"kind"`
+	Kind     capabilityTransportKind `json:"kind"`
 	Endpoint string                  `json:"endpoint,omitzero"`
 	Protocol string                  `json:"protocol"`
 	Target   string                  `json:"target,omitzero"`
@@ -75,7 +75,7 @@ type CapabilityIdentity struct {
 }
 
 var capabilityIdentityCodec = artifact.JSONDocumentCodec(
-	"capability identity", artifact.KindProfile, CapabilityIdentityMediaType, CapabilityIdentitySchema,
+	"capability identity", artifact.KindProfile, capabilityIdentityMediaType, capabilityIdentitySchema,
 	canonicalizeCapabilityIdentity,
 	func(value CapabilityIdentity) artifact.ID { return value.ID },
 	func(value *CapabilityIdentity, id artifact.ID) { value.ID = id },
@@ -127,7 +127,7 @@ func canonicalizeCapabilityIdentity(value *CapabilityIdentity) error {
 		if value.Transport.Endpoint != "" || value.Transport.Target != "" || len(value.Transport.Args) != 0 {
 			return errors.New("run record: builtin capability has an endpoint")
 		}
-	case CapabilityTransportHTTP, CapabilityTransportHTTPJSONStream, CapabilityTransportPeer:
+	case CapabilityTransportHTTP, capabilityTransportHTTPJSONStream, CapabilityTransportPeer:
 		if !boundedCapabilityText(value.Transport.Endpoint) {
 			return errors.New("run record: transported capability requires an endpoint")
 		}

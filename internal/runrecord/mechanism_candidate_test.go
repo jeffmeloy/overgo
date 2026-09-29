@@ -12,7 +12,7 @@ import (
 type mechanismAdmissionFixture struct {
 	store      *overgodb.Store
 	candidate  trainingprogram.MechanismCandidate
-	provenance ExternalMechanismProvenance
+	provenance externalMechanismProvenance
 	binding    AdmissionBinding
 	mechanism  artifact.ID
 	census     trainingprogram.MechanismCensus

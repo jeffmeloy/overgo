@@ -1312,10 +1312,8 @@ func (g *GBNFGrammar) partialCanMatch(stacks [][]gbnfSymbol, partial []byte) boo
 			continue
 		}
 		terminal := g.terminals[stack[0].index]
-		for _, possible := range ranges {
-			if terminal.intersects(possible) {
-				return true
-			}
+		if slices.ContainsFunc(ranges, terminal.intersects) {
+			return true
 		}
 	}
 	return false

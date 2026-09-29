@@ -17,26 +17,26 @@ const (
 	retrievalReceiptSchema    = "overgo/retrieval-receipt/v1"
 )
 
-// RetrievalFilterBinding is the exact structural filter set used before
+// retrievalFilterBinding is the exact structural filter set used before
 // candidate generation. Empty sets mean unrestricted within the projection.
-type RetrievalFilterBinding struct {
+type retrievalFilterBinding struct {
 	Datasets []artifact.ID                 `json:"datasets,omitempty"`
 	Sources  []artifact.ID                 `json:"sources,omitempty"`
 	Facets   []dataset.AgentRetrievalFacet `json:"facets,omitempty"`
 	Parents  []artifact.ID                 `json:"parents,omitempty"`
 }
 
-// RetrievalCandidateStages binds each independently ranked candidate stage
+// retrievalCandidateStages binds each independently ranked candidate stage
 // without copying candidate payloads into the run record.
-type RetrievalCandidateStages struct {
+type retrievalCandidateStages struct {
 	Dense   artifact.ID `json:"dense"`
 	Lexical artifact.ID `json:"lexical"`
 	Union   artifact.ID `json:"union"`
 }
 
-// RetrievalReceiptResult is the ordered, payload-free citation selected for
+// retrievalReceiptResult is the ordered, payload-free citation selected for
 // consumption. Chunk identity remains the text authority.
-type RetrievalReceiptResult struct {
+type retrievalReceiptResult struct {
 	Rank             uint64                      `json:"rank"`
 	Dataset          artifact.ID                 `json:"dataset"`
 	Source           artifact.ID                 `json:"source"`
@@ -69,7 +69,7 @@ type retrievalReceiptRequest struct {
 	Policy         artifact.ID
 	EmbeddingModel artifact.ID
 	RerankPolicy   artifact.ID
-	Filters        RetrievalFilterBinding
+	Filters        retrievalFilterBinding
 	Limit          uint64
 	CandidateLimit uint64
 }
@@ -85,12 +85,12 @@ type RetrievalReceipt struct {
 	Policy          artifact.ID                `json:"policy"`
 	EmbeddingModel  artifact.ID                `json:"embedding_model"`
 	RerankPolicy    artifact.ID                `json:"rerank_policy"`
-	Filters         RetrievalFilterBinding     `json:"filters"`
+	Filters         retrievalFilterBinding     `json:"filters"`
 	Limit           uint64                     `json:"limit"`
 	CandidateLimit  uint64                     `json:"candidate_limit"`
-	CandidateStages RetrievalCandidateStages   `json:"candidate_stages"`
+	CandidateStages retrievalCandidateStages   `json:"candidate_stages"`
 	Work            dataset.AgentRetrievalWork `json:"work"`
-	Results         []RetrievalReceiptResult   `json:"results,omitempty"`
+	Results         []retrievalReceiptResult   `json:"results,omitempty"`
 	ContextBytes    uint64                     `json:"context_bytes,omitzero"`
 	ID              artifact.ID                `json:"-"`
 }
@@ -129,7 +129,7 @@ func newRetrievalReceipt(request retrievalReceiptRequest, search dataset.AgentRe
 	if err != nil {
 		return RetrievalReceipt{}, err
 	}
-	results := make([]RetrievalReceiptResult, len(search.Results))
+	results := make([]retrievalReceiptResult, len(search.Results))
 	var contextBytes uint64
 	for index, result := range search.Results {
 		textBytes := uint64(len(result.Citation.Text))
@@ -137,7 +137,7 @@ func newRetrievalReceipt(request retrievalReceiptRequest, search dataset.AgentRe
 			return RetrievalReceipt{}, errors.New("run record: retrieval context byte count overflows")
 		}
 		contextBytes += textBytes
-		results[index] = RetrievalReceiptResult{
+		results[index] = retrievalReceiptResult{
 			Rank: uint64(index + 1), Dataset: result.Citation.Dataset, Source: result.Citation.Source,
 			Chunk: result.Citation.Chunk, Embedding: result.Embedding,
 			StartRune: result.Citation.StartRune, EndRune: result.Citation.EndRune,
@@ -153,7 +153,7 @@ func newRetrievalReceipt(request retrievalReceiptRequest, search dataset.AgentRe
 		Dataset: request.Dataset, Projection: request.Projection, Policy: request.Policy,
 		EmbeddingModel: request.EmbeddingModel, RerankPolicy: request.RerankPolicy,
 		Filters: request.Filters, Limit: request.Limit, CandidateLimit: request.CandidateLimit,
-		CandidateStages: RetrievalCandidateStages{
+		CandidateStages: retrievalCandidateStages{
 			Dense: search.DenseCandidateStage, Lexical: search.LexicalCandidateStage, Union: search.UnionCandidateStage,
 		},
 		Work: search.Work, Results: results, ContextBytes: contextBytes,
@@ -177,7 +177,7 @@ func SearchAndPublishConsumedRetrieval(
 		{Role: "user", Content: query.Text},
 		{Role: "assistant", Content: "grounded retrieval context selected"},
 	}
-	transcript, err := NewInteractionTranscript(messages)
+	transcript, err := newInteractionTranscript(messages)
 	if err != nil {
 		return ConsumedRetrieval{}, err
 	}
@@ -206,7 +206,7 @@ func SearchAndPublishConsumedRetrieval(
 	receipt, err := newRetrievalReceipt(retrievalReceiptRequest{
 		Query: query.Text, Head: head, Dataset: projection.Dataset, Projection: projection.ID, Policy: projection.Policy,
 		EmbeddingModel: projection.EmbeddingModel, RerankPolicy: projection.RerankPolicy,
-		Filters: RetrievalFilterBinding{
+		Filters: retrievalFilterBinding{
 			Datasets: slices.Clone(query.AllowedDatasets), Sources: slices.Clone(query.AllowedSources),
 			Facets: slices.Clone(query.AllowedFacets), Parents: slices.Clone(query.AllowedParents),
 		},
@@ -417,7 +417,7 @@ func validRetrievalReceiptWork(work dataset.AgentRetrievalWork, candidateLimit u
 	return true
 }
 
-func canonicalizeRetrievalFilters(value *RetrievalFilterBinding) error {
+func canonicalizeRetrievalFilters(value *retrievalFilterBinding) error {
 	value.Datasets = sortedReceiptIDs(value.Datasets)
 	value.Sources = sortedReceiptIDs(value.Sources)
 	value.Parents = sortedReceiptIDs(value.Parents)

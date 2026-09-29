@@ -114,14 +114,14 @@ func TestGBNFVocabularyHashCompatibilityStudy(t *testing.T) {
 			pieces := make([][]byte, size)
 			eos := make([]bool, size)
 			for i := range pieces {
-				pieces[i] = []byte(fmt.Sprint(i))
+				pieces[i] = fmt.Append(nil, i)
 			}
 			eos[len(eos)-1] = true
 			data := vocabularyHashStudyBytes(pieces, eos)
 			for _, calls := range []int{1, (math.MaxUint8 + 1) * 2} {
 				prefixes := make([][]byte, calls)
 				for i := range prefixes {
-					prefixes[i] = []byte(fmt.Sprintf("root ::= \"%d\"", i))
+					prefixes[i] = fmt.Appendf(nil, "root ::= \"%d\"", i)
 				}
 				var oracle []uint64
 				for sample, transformed := range []bool{false, true, true, false} {

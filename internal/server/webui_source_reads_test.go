@@ -52,7 +52,6 @@ var webuiSourceReaders = map[string]webuiSourceClass{
 	"TestWebUIChatUsesServerContextAndTiming":                     sourceBan,
 	"TestWebUIChatMarkdown":                                       sourceBan,
 	"TestRLWorkspaceUsesGenericWorkflowEndpoints":                 sourceBan,
-	"TestPeerWorkspaceUsesGlobalOperations":                       sourceBan,
 
 	"TestActiveRecipeInspectorUsesCompiledOrder":      sourceBan,
 	"TestEvaluationWorkbenchUsesDeclaredCapabilities": sourceBan,

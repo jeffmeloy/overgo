@@ -596,6 +596,49 @@
         ]
       },
       "scope": "FP8 prefill on the tensor cores: an fp8 weight's prefill quantizes its activation to e4m3 per column and multiplies the resident e4m3 weights through one cuBLASLt FP8 matmul, then applies the row and column scales, instead of expanding each weight chunk to f16 every forward. The receipt runs, on the device with the gate opted in, the raw FP8 matmul, the new path's parity against the quantized and unquantized references, and the fp8 decode and staged paths that keep their shapes."
+    },
+    {
+      "changes": {
+        "internal/workflowruntime/automation.go": {
+          "after_sha256": "",
+          "before_sha256": "525f8866182e756546e803d03df2d1328aaba617318ddd17be3a3df0c31c94b1",
+          "reason": "the automation workspace's runtime, deleted with the workspace: no command ever opened it."
+        },
+        "internal/workflowruntime/automation_inputs.go": {
+          "after_sha256": "",
+          "before_sha256": "5ec724ab349f7e166a6ff16da5bb5cdfe58f5dc71186acdb81cd23b82d0ddc04",
+          "reason": "the automation input documents, which only the deleted automation runtime wrote."
+        },
+        "internal/workflowruntime/automation_webhook.go": {
+          "after_sha256": "",
+          "before_sha256": "f50703e78cacfdf032582514ebd0fac0b12a462cdce0915a0e720b7c9f875943",
+          "reason": "the signed webhook ingress into automations, deleted with them."
+        },
+        "internal/workflowruntime/runtime.go": {
+          "after_sha256": "afea8e1f2a4ed8dcabe6ee8af233e111074d82b871c2d9bc84bad95054728434",
+          "before_sha256": "49caf5e79a9278b4619fe5094646453fc7f58b6d0165a031ec8d6f10eff442c4",
+          "reason": "drops the causal-context parameter only the webhook path set, and the automation-input decoding in stage recovery; every remaining execution path is unchanged."
+        },
+        "internal/workflowruntime/trigger_contract.go": {
+          "after_sha256": "011ade78fa72af2999ee41d1101a492ab63464d5dce03276125033889cb875a8",
+          "before_sha256": "a9a3e2c7691ce1fb379b45865131cb5df8f5822f98354787e02e151412a02326",
+          "reason": "the webhook trigger leaves the runtime's declared execution triggers."
+        }
+      },
+      "evidence": "evidence:sha256:1f93cb623c250840b5fc74d3b9fd4d5d3a2071bec8ad8eaa09faf8680e7b2922",
+      "id": "delete-automation-workspace",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/workflowruntime": [
+          "TestExecuteProgramPreservesOrchestrationBoundary",
+          "TestExecuteProgramRejectsAnotherCatalogAuthority",
+          "TestExecutionTriggerRegistryCoverage",
+          "TestReconcileCoalescesWakeups",
+          "TestRuntimeExecutesWorkflowAndPublishesRun",
+          "TestWorkflowRestartSkipsCompletedStages"
+        ]
+      },
+      "scope": "The automation workspace, which no command ever opened, is deleted with its runtime, input documents and webhook ingress. The workflow runtime keeps every execution path a command reaches. The receipt runs program execution, restart recovery, the catalog boundary and the trigger registry on the new bytes."
     }
   ],
   "paths": [

@@ -55,9 +55,9 @@ type CandidateAdmissionFacts struct {
 	Environment       artifact.ID
 }
 
-// CandidateAdmissionSubject exposes immutable candidate facts without making
+// candidateAdmissionSubject exposes immutable candidate facts without making
 // runrecord depend on the candidate-owning modelrecipe package.
-type CandidateAdmissionSubject interface {
+type candidateAdmissionSubject interface {
 	ValidateIdentity() error
 	AdmissionFacts() CandidateAdmissionFacts
 }
@@ -91,7 +91,7 @@ var candidateAdmissionCodec = artifact.JSONDocumentCodec(
 func AdmitCandidate(
 	ctx context.Context,
 	reader artifact.Reader,
-	candidate CandidateAdmissionSubject,
+	candidate candidateAdmissionSubject,
 	authority artifact.ID,
 	adapters ...CandidateComponentAdmissionAdapter,
 ) (CandidateAdmission, error) {
@@ -101,7 +101,7 @@ func AdmitCandidate(
 func admitCandidate(
 	ctx context.Context,
 	reader artifact.Reader,
-	candidate CandidateAdmissionSubject,
+	candidate candidateAdmissionSubject,
 	authority artifact.ID,
 	adapters ...CandidateComponentAdmissionAdapter,
 ) (CandidateAdmission, error) {
@@ -115,15 +115,15 @@ func admitCandidate(
 	if err := validateCandidateAdmissionFacts(facts); err != nil {
 		return CandidateAdmission{}, err
 	}
-	binding, err := RequireAdmissionBinding(ctx, reader, authority)
+	binding, err := requireAdmissionBinding(ctx, reader, authority)
 	if err != nil {
 		return CandidateAdmission{}, fmt.Errorf("run record: candidate authority: %w", err)
 	}
-	development, err := RequireBudget(ctx, reader, facts.DevelopmentBudget)
+	development, err := requireBudget(ctx, reader, facts.DevelopmentBudget)
 	if err != nil {
 		return CandidateAdmission{}, fmt.Errorf("run record: development budget: %w", err)
 	}
-	promotion, err := RequireBudget(ctx, reader, facts.PromotionBudget)
+	promotion, err := requireBudget(ctx, reader, facts.PromotionBudget)
 	if err != nil {
 		return CandidateAdmission{}, fmt.Errorf("run record: promotion budget: %w", err)
 	}
@@ -186,7 +186,7 @@ func RequireReplayedCandidateAdmission(
 	ctx context.Context,
 	reader artifact.Reader,
 	id artifact.ID,
-	candidate CandidateAdmissionSubject,
+	candidate candidateAdmissionSubject,
 	adapters ...CandidateComponentAdmissionAdapter,
 ) (CandidateAdmission, error) {
 	stored, err := RequireCandidateAdmission(ctx, reader, id)

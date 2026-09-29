@@ -75,9 +75,9 @@ func TestTabularObjectiveApprovesOnLabelAccuracyGain(t *testing.T) {
 	objective, modelPath := registerTableObjective(t, ctx, store, root, registered.Dataset, training)
 	const alias = "objective.registered.tables"
 
-	requests, examples, err := objectiveRequests(ctx, store, objective, "classification")
-	if err != nil {
-		t.Fatal(err)
+	requests, examples, stream, err := objectiveRequests(ctx, store, objective, "classification")
+	if err != nil || !stream.Valid() {
+		t.Fatalf("objective requests = (training stream %s, %v), want the training membership's stream", stream, err)
 	}
 	if len(requests) != tables || len(examples) != tables {
 		t.Fatalf("read %d requests and %d examples, want all %d tables", len(requests), len(examples), tables)
@@ -85,7 +85,10 @@ func TestTabularObjectiveApprovesOnLabelAccuracyGain(t *testing.T) {
 	learned := false
 	result, err := trainingworkflow.RunHeldout(ctx, store, trainingworkflow.HeldoutRun{
 		Alias: alias, ModelPath: modelPath, Examples: examples, Host: true,
-		Train: func(context.Context, []trainingworkflow.HeldoutExample) error { learned = true; return nil },
+		Train: func(ctx context.Context, recipeID artifact.ID, _ []trainingworkflow.HeldoutExample) error {
+			learned = true
+			return publishUnderObjective(t, ctx, store, recipeID, trainingprogram.ObjectiveTablePrediction, stream)
+		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
 			request := requests[example.Record]
 			classes := make([]float64, 0, request.Rows-request.TrainRows)

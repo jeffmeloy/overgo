@@ -12,10 +12,10 @@ import (
 
 const completionAcceptancePrefix = "completion policy="
 
-// FormatCompletionAcceptanceEvidence binds one classifier policy, plan row,
+// formatCompletionAcceptanceEvidence binds one classifier policy, plan row,
 // and exact verify-command digest into bounded GateStep evidence. The verdict
 // is derived by the named immutable policy rather than supplied independently.
-func FormatCompletionAcceptanceEvidence(
+func formatCompletionAcceptanceEvidence(
 	policy VerifyPolicy,
 	planReference, verify string,
 ) (string, error) {
@@ -50,7 +50,7 @@ func VerifyCompletionAcceptanceEvidence(evidence, planReference, verify string) 
 	if err != nil {
 		return err
 	}
-	expected, err := FormatCompletionAcceptanceEvidence(policy, planReference, verify)
+	expected, err := formatCompletionAcceptanceEvidence(policy, planReference, verify)
 	if err != nil {
 		return err
 	}

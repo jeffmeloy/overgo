@@ -58,7 +58,7 @@ func TestOperatorInbox(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	grant := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalAutomationJSON(t, map[string]any{
+	grant := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalTestJSON(t, map[string]any{
 		"operation": id, "tool": action.Code, "answer": operatoraction.AnswerGrant, "request": advertised.ID,
 	}))
 	if grant.Code != http.StatusAccepted {

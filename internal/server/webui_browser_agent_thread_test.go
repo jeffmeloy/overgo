@@ -50,14 +50,14 @@ func TestWebUIBrowserAgentThread(t *testing.T) {
 		Name: "research-agent", Prompt: fixture.prompt, ModelRecipe: fixture.generator.description.Identity.Recipe,
 		ToolManuals: []artifact.ID{fixture.manual, write.ID}, Policies: []artifact.ID{fixture.policy},
 	}
-	published := serveTestRequest(fixture.handler, http.MethodPost, "/agents/definitions", marshalAutomationJSON(t, definition))
+	published := serveTestRequest(fixture.handler, http.MethodPost, "/agents/definitions", marshalTestJSON(t, definition))
 	var created struct {
 		ID artifact.ID `json:"id"`
 	}
 	if err := json.Unmarshal(published.Body.Bytes(), &created); published.Code != http.StatusCreated || err != nil || !created.ID.Valid() {
 		t.Fatalf("agent publish status=%d body=%s", published.Code, published.Body.String())
 	}
-	activateDefinitionFromAPI(t, fixture.handler, created.ID, "/agents/activate")
+	activateAgentFromAPI(t, fixture.handler, created.ID)
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -263,7 +262,7 @@ func canonicalizeVocabularyArtifact(value *VocabularyArtifact) error {
 			return errors.New("tokenizer: vocabulary token is invalid or duplicated")
 		}
 		seen[token.Text] = true
-		sort.Slice(token.Roles, func(left, right int) bool { return token.Roles[left] < token.Roles[right] })
+		slices.Sort(token.Roles)
 		for roleIndex, role := range token.Roles {
 			if !validVocabularyRole(role) || roleIndex > 0 && role == token.Roles[roleIndex-1] {
 				return errors.New("tokenizer: vocabulary token role is invalid or duplicated")

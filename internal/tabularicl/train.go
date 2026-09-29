@@ -90,6 +90,16 @@ func NewTrainer(head *Head, config optimizer.Config) (*Trainer, error) {
 
 func (trainer *Trainer) Close() error { return trainer.stepper.Close() }
 
+// Program is the compiled table-prediction program the decoder trains under.
+func (trainer *Trainer) Program() trainingprogram.TrainingProgram { return trainer.program }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (trainer *Trainer) Snapshot() optimizer.State { return trainer.stepper.Snapshot() }
+
+// SaveWeights writes the trained decoder tensors at path, the weights
+// Snapshot pairs with.
+func (trainer *Trainer) SaveWeights(path string) error { return trainer.pack.Save(path) }
+
 func (trainer *Trainer) ParameterCount() int { return trainer.pack.ParameterCount() }
 
 // TrainableParameterCount returns decoder optimizer extent without allocation.

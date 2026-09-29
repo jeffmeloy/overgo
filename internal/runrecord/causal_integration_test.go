@@ -41,7 +41,7 @@ func TestRSICausalChainClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	decision := ImprovementDecision{
+	decision := improvementDecision{
 		Version: artifact.SecondDocumentVersion, State: ImprovementPromote,
 		Admission:   id(artifact.KindEvidence, "admission"),
 		ParentModel: id(artifact.KindModel, "parent"), Incumbent: id(artifact.KindModel, "incumbent"),
@@ -74,30 +74,16 @@ func TestRSICausalChainClosure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	delivery := AutomationDeliveryAttempt{
-		Version: artifact.InitialDocumentVersion,
-		Plan:    id(artifact.KindProfile, "rollback-plan"), Operation: id(artifact.KindEvidence, "rollback-operation"),
-		Tool: id(artifact.KindRecipe, "rollback-tool"), Destination: "serving-fleet",
-		Outputs:     []artifact.ID{id(artifact.KindOutput, "rollback-notice")},
-		Idempotency: id(artifact.KindEvidence, "rollback-idempotency"),
-		State:       AutomationDeliveryAdmitted,
-		Causal:      &rollbackCausal,
-	}
-	delivery, err = automationDeliveryAttemptCodec.New(delivery)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rollbackCausal.Motivation[0] = id(artifact.KindEvidence, "mutated-caller-motivation")
 
 	// The traversal: typed causal fields only. The rollback names the
 	// serving evidence it recovers from; every record answers to the
 	// proposal root; the root names its motivating observation.
-	if delivery.Causal.RecoveredFrom != serving.ID {
-		t.Fatalf("rollback does not name its cause: %+v", delivery.Causal)
+	if rollbackCausal.RecoveredFrom != serving.ID {
+		t.Fatalf("rollback does not name its cause: %+v", rollbackCausal)
 	}
 	for name, causal := range map[string]*CausalContext{
 		"attempt": attempt.Causal, "lifecycle": lifecycle.Causal, "decision": decision.Causal,
-		"serving": serving.Causal, "rollback": delivery.Causal,
+		"serving": serving.Causal, "rollback": &rollbackCausal,
 	} {
 		if causal == nil || causal.Root != proposalEvidence {
 			t.Fatalf("%s left the causal chain: %+v", name, causal)
@@ -125,9 +111,5 @@ func TestRSICausalChainClosure(t *testing.T) {
 	servingValue.Causal = &broken
 	if _, err := servingObservationCodec.New(servingValue); err == nil {
 		t.Fatal("serving observation accepted a broken causal binding")
-	}
-	delivery.Causal, delivery.ID = &broken, artifact.ID{}
-	if _, err := automationDeliveryAttemptCodec.New(delivery); err == nil {
-		t.Fatal("delivery accepted a broken causal binding")
 	}
 }

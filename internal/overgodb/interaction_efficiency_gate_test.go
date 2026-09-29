@@ -5,16 +5,13 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
-	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
-// TestInteractionEfficiencyGate proves a storage optimization claim from
-// measured query plans: the same catalog read served by its owning kind
-// index inspects a fraction of what the catalog scan inspects, the plan
-// reports are the exact counters, and the claim wins the gate on the closed
-// counter surface without shifting work anywhere else.
-func TestInteractionEfficiencyGate(t *testing.T) {
+// TestKindIndexInspectsLessThanScan proves a storage optimization claim
+// from measured query plans: the same catalog read served by its owning
+// kind index inspects a fraction of what the catalog scan inspects.
+func TestKindIndexInspectsLessThanScan(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -44,23 +41,5 @@ func TestInteractionEfficiencyGate(t *testing.T) {
 	}
 	if indexed.Plan.Inspected >= scan.Plan.Inspected {
 		t.Fatalf("index inspected %d, scan inspected %d", indexed.Plan.Inspected, scan.Plan.Inspected)
-	}
-
-	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "gate-trace-evidence")
-	baseline := runrecord.EfficiencyTrace{
-		Surface: runrecord.SurfaceStorage, Task: "resolve-evidence-artifact",
-		Work: runrecord.InteractionWork{
-			ScannedFacts: uint64(scan.Plan.Inspected), ReturnedFacts: uint64(scan.Plan.Loaded), ArtifactReads: 1,
-		},
-		Result: target.ID, Evidence: evidence,
-	}
-	candidate := baseline
-	candidate.Work.ScannedFacts = uint64(indexed.Plan.Inspected)
-	candidate.Work.ReturnedFacts = uint64(indexed.Plan.Loaded)
-	comparison, err := runrecord.CompareEfficiencyTraces(
-		candidate, baseline, runrecord.EfficiencyCounterNames(), nil,
-	)
-	if err != nil || !comparison.Win || len(comparison.Worsened) != 0 {
-		t.Fatalf("measured storage claim = (%+v, %v)", comparison, err)
 	}
 }

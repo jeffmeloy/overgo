@@ -18,9 +18,9 @@ type VerifyPolicy string
 const (
 	// VerifyPolicyV1 freezes the original host/device/multiseed marker rules.
 	VerifyPolicyV1 VerifyPolicy = "verify-classifier-v1"
-	// CurrentVerifyPolicy is the policy new evidence should record. Historical
+	// currentVerifyPolicy is the policy new evidence should record. Historical
 	// replay must use the policy embedded in that evidence instead.
-	CurrentVerifyPolicy VerifyPolicy = VerifyPolicyV1
+	currentVerifyPolicy VerifyPolicy = VerifyPolicyV1
 
 	// VerdictBitwiseDeterministic requires identical host test verdicts across runs.
 	VerdictBitwiseDeterministic VerdictClass = "bitwise-deterministic"
@@ -42,7 +42,7 @@ var (
 // under CurrentVerifyPolicy. Durable replay must call
 // ClassifyVerifyCommandForPolicy with the recorded policy.
 func ClassifyVerifyCommand(command string) VerdictClass {
-	verdict, err := ClassifyVerifyCommandForPolicy(CurrentVerifyPolicy, command)
+	verdict, err := ClassifyVerifyCommandForPolicy(currentVerifyPolicy, command)
 	if err != nil {
 		panic(err)
 	}

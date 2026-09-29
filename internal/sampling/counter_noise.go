@@ -45,7 +45,7 @@ func FillCounterNormalNoise(dst []float32, plan CounterNoisePlan) error {
 	span := int64(plan.Block * plan.Grid)
 	stride := span * int64(plan.Unroll)
 	rounded := ((numel-1)/stride + 1) * stride
-	for idx := int64(0); idx < span; idx++ {
+	for idx := range span {
 		counter := philoxInit(plan.Seed, uint64(idx), plan.Offset)
 		for linear := idx; linear < rounded; linear += stride {
 			x, y, z, w := philox4x32x10(counter, plan.Seed)

@@ -142,6 +142,13 @@ func (m *Model) TrainableParameterCount() (count int) {
 
 func (t *Trainer) Program() trainingprogram.TrainingProgram { return t.program }
 
+// Snapshot copies the optimizer state the next step continues from.
+func (t *Trainer) Snapshot() optimizer.State { return t.stepper.Snapshot() }
+
+// SaveWeights writes the trained tensors at path, the weights Snapshot pairs
+// with.
+func (t *Trainer) SaveWeights(path string) error { return t.pack.Save(path) }
+
 func (t *Trainer) Close() error { return t.stepper.Close() }
 
 type trainForward struct {

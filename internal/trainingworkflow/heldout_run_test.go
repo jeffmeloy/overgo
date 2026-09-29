@@ -55,7 +55,7 @@ func TestHeldoutRunTrainsOnlyOnTrainingRecords(t *testing.T) {
 	level := 0.0
 	run := HeldoutRun{
 		Alias: alias, ModelPath: modelPath, Examples: examples, Host: true,
-		Train: func(_ context.Context, shown []HeldoutExample) error {
+		Train: func(_ context.Context, _ artifact.ID, shown []HeldoutExample) error {
 			var sum float64
 			for _, example := range shown {
 				sum += example.Target[0]
@@ -81,9 +81,9 @@ func TestHeldoutRunTrainsOnlyOnTrainingRecords(t *testing.T) {
 	// Train must see exactly the training membership's examples.
 	shownCount := 0
 	counting := run
-	counting.Train = func(ctx context.Context, shown []HeldoutExample) error {
+	counting.Train = func(ctx context.Context, recipe artifact.ID, shown []HeldoutExample) error {
 		shownCount = len(shown)
-		return run.Train(ctx, shown)
+		return run.Train(ctx, recipe, shown)
 	}
 	result, err := RunHeldout(ctx, store, counting)
 	if err != nil {

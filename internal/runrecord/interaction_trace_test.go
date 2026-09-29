@@ -10,7 +10,7 @@ import (
 
 func TestInteractionTraceToolExchangesRequireBijection(t *testing.T) {
 	trace := InteractionTrace{Events: []InteractionTraceEvent{
-		{Kind: InteractionEventToolCall, Message: InteractionMessage{
+		{Kind: interactionEventToolCall, Message: InteractionMessage{
 			Role: "assistant", ToolCalls: []InteractionToolCall{{
 				ID: "call-1", Type: "function", Name: "inspect", Arguments: `{}`,
 			}},

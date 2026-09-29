@@ -18,7 +18,7 @@ func TestAutomationPolicyLifecycle(t *testing.T) {
 	incumbent := testutil.ArtifactID(t, artifact.KindProfile, "incumbent-policy")
 	base := AutomationPolicyLifecycle{Name: "agent-harness", Policy: policy, Incumbent: incumbent, Rollback: incumbent,
 		EvaluationPlan: testutil.ArtifactID(t, artifact.KindProfile, "evaluation-plan"), EvaluationEvidence: testutil.ArtifactID(t, artifact.KindEvidence, "comparison"), Trajectories: []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "trajectory")}}
-	states := []AutomationPolicyState{AutomationPolicyDeclared, AutomationPolicyExperimental, AutomationPolicyVerified, AutomationPolicyActive, AutomationPolicyContained, AutomationPolicyRolledBack}
+	states := []automationPolicyState{automationPolicyDeclared, automationPolicyExperimental, automationPolicyVerified, automationPolicyActive, automationPolicyContained, automationPolicyRolledBack}
 	for _, state := range states {
 		base.State = state
 		base.Decision = testutil.ArtifactID(t, artifact.KindEvidence, string(state))

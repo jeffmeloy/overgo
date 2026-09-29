@@ -15,7 +15,7 @@ func TestFrontPageAgent(t *testing.T) {
 	t.Parallel()
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
-	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil), "/agents/activate")
+	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil))
 	step := serveTestRequest(fixture.handler, http.MethodPost, "/agents/step",
 		`{"agent":"research-agent","session":"front","tool":"store.head"}`)
 	if step.Code != http.StatusOK || !strings.Contains(step.Body.String(), `"steps":1`) || !strings.Contains(step.Body.String(), `"bound":`) {

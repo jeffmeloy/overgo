@@ -15,14 +15,6 @@ func generatorWorkspace[W any](absent string, serve func(*Handler, W, http.Respo
 	}
 }
 
-func peerRoute(serve func(*Handler, peerWorkspaceAPI, http.ResponseWriter, *http.Request)) routeHandler {
-	return generatorWorkspace("peer workspace is unavailable", serve)
-}
-
-func automationRoute(serve func(*Handler, automationWorkspaceAPI, http.ResponseWriter, *http.Request)) routeHandler {
-	return generatorWorkspace("automation workspace is unavailable", serve)
-}
-
 // agentRoute serves a route only when the agent runtime is configured (its
 // coordinator binds the served store and interaction identity).
 func agentRoute(serve routeHandler) routeHandler {

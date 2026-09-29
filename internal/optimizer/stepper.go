@@ -3,6 +3,10 @@ package optimizer
 // Stepper applies one compiled Muon plan on the best available backend.
 type Stepper interface {
 	Step() error
+	// Snapshot copies the portable state the next Step continues from: the
+	// same State the host Optimizer's Snapshot reports, so a checkpoint
+	// carries it whatever backend stepped.
+	Snapshot() State
 	Close() error
 }
 

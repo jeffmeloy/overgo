@@ -19,20 +19,20 @@ type VerifyCommand struct {
 	Composite bool
 }
 
-// SegmentKind names what one verifier segment runs; the zero kind is any
+// segmentKind names what one verifier segment runs; the zero kind is any
 // command that is neither go test nor a file guard.
-type SegmentKind int
+type segmentKind int
 
 const (
 	// SegmentGoTest is one go test invocation.
-	SegmentGoTest SegmentKind = iota + 1
-	// SegmentFileGuard is `test -f <path>`.
-	SegmentFileGuard
+	SegmentGoTest segmentKind = iota + 1
+	// segmentFileGuard is `test -f <path>`.
+	segmentFileGuard
 )
 
 // VerifySegment is one command of a verifier, words unquoted.
 type VerifySegment struct {
-	Kind SegmentKind
+	Kind segmentKind
 	// Env holds leading NAME=value assignments, an `env` prefix included.
 	Env []string
 	// Fields are the command words after the environment assignments.
@@ -234,7 +234,7 @@ func parseVerifySegment(words []verifyWord) (VerifySegment, error) {
 	const guardWords, goTestWords = 3, 2
 	switch {
 	case len(words) == guardWords && words[0].text == "test" && words[1].text == "-f":
-		segment.Kind, segment.Path = SegmentFileGuard, words[guardWords-1].text
+		segment.Kind, segment.Path = segmentFileGuard, words[guardWords-1].text
 	case len(words) >= goTestWords && words[0].text == "go" && words[1].text == "test":
 		segment.Kind, segment.testEnd = SegmentGoTest, words[goTestWords-1].end
 		if err := segment.parseGoTest(segment.Fields[goTestWords:]); err != nil {

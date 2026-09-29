@@ -10,12 +10,12 @@ import (
 )
 
 const (
-	// StimulusFollowupMediaType identifies one coalesced follow-up admission.
-	StimulusFollowupMediaType = "application/vnd.overgo.stimulus-followup+json"
-	// StimulusFollowupSchema identifies the admission document contract.
-	StimulusFollowupSchema = "overgo/stimulus-followup/v1"
-	// StimulusFollowupAliasRoot admits at most one follow-up per boundary.
-	StimulusFollowupAliasRoot = "attempt/stimulus-followup/"
+	// stimulusFollowupMediaType identifies one coalesced follow-up admission.
+	stimulusFollowupMediaType = "application/vnd.overgo.stimulus-followup+json"
+	// stimulusFollowupSchema identifies the admission document contract.
+	stimulusFollowupSchema = "overgo/stimulus-followup/v1"
+	// stimulusFollowupAliasRoot admits at most one follow-up per boundary.
+	stimulusFollowupAliasRoot = "attempt/stimulus-followup/"
 )
 
 // StimulusFollowup is the single durable run admission caused by stimuli
@@ -30,7 +30,7 @@ type StimulusFollowup struct {
 }
 
 var stimulusFollowupCodec = artifact.JSONDocumentCodec(
-	"stimulus follow-up", artifact.KindEvidence, StimulusFollowupMediaType, StimulusFollowupSchema,
+	"stimulus follow-up", artifact.KindEvidence, stimulusFollowupMediaType, stimulusFollowupSchema,
 	canonicalizeStimulusFollowup,
 	func(value StimulusFollowup) artifact.ID { return value.ID },
 	func(value *StimulusFollowup, id artifact.ID) { value.ID = id },
@@ -52,7 +52,7 @@ func (authority StimulusFollowupAuthority) Current(
 	boundary artifact.ID,
 ) (StimulusFollowup, bool, error) {
 	return stimulusFollowupCodec.Resolve(
-		ctx, authority.Repository, StimulusFollowupAliasRoot+boundary.String(),
+		ctx, authority.Repository, stimulusFollowupAliasRoot+boundary.String(),
 	)
 }
 
@@ -105,7 +105,7 @@ func (authority StimulusFollowupAuthority) Admit(ctx context.Context, boundaryID
 		return StimulusFollowup{}, false, err
 	}
 	parents := append([]artifact.ID{admission.Boundary, admission.Causal.Root}, admission.Sources...)
-	binding := artifact.AliasBinding{Name: StimulusFollowupAliasRoot + boundary.ID.String(), Target: admission.ID}
+	binding := artifact.AliasBinding{Name: stimulusFollowupAliasRoot + boundary.ID.String(), Target: admission.ID}
 	key, err := uniquePublicationKey("attempt/stimulus-followup/", admission.ID)
 	if err != nil {
 		return StimulusFollowup{}, false, err

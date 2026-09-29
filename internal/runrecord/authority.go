@@ -63,8 +63,8 @@ func ParseAdmissionBinding(content []byte) (AdmissionBinding, error) {
 	return admissionBindingCodec.Parse(content)
 }
 
-// RequireAdmissionBinding loads one exact independent authority binding.
-func RequireAdmissionBinding(ctx context.Context, reader artifact.Reader, id artifact.ID) (AdmissionBinding, error) {
+// requireAdmissionBinding loads one exact independent authority binding.
+func requireAdmissionBinding(ctx context.Context, reader artifact.Reader, id artifact.ID) (AdmissionBinding, error) {
 	return admissionBindingCodec.Require(ctx, reader, id)
 }
 

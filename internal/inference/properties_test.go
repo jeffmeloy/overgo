@@ -1,12 +1,11 @@
 package inference
 
 import (
-	"os"
 	"testing"
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
-	"overgo/internal/testskip"
+	"overgo/internal/modeltest"
 	"overgo/internal/tokenizer"
 )
 
@@ -73,10 +72,7 @@ func TestModelPropertiesReturnsDetachedGGUFMetadata(t *testing.T) {
 
 func TestModelPropertiesFromRealGGUF(t *testing.T) {
 	requireIntegration(t)
-	path := os.Getenv("OVERGO_QWEN3_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
-	}
+	path := modeltest.GGUF(t, "qwen3")
 	file, err := gguf.Open(path)
 	if err != nil {
 		t.Fatal(err)

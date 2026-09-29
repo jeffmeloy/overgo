@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
 
-// objectiveRun is cmd/train's -objective mode: train the model the
-// objective's kind names (a text model, or a TabFM table head) on the
+// objectiveRun is cmd/train's -objective mode: train a text model on the
 // registered objective's training split and publish its held-out verdict.
+// Table and forecast objectives train through their routes, which publish
+// the trained checkpoint too.
 type objectiveRun struct {
 	Alias, Model    string
 	Steps, Sequence int
@@ -50,23 +50,19 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 	if run.Model == "" || run.Steps <= 0 {
 		return fmt.Errorf("train: -objective requires -model and positive -steps")
 	}
-	objective, err := trainingworkflow.LoadObjectiveAlias(ctx, store, run.Alias)
+	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
+		Alias: run.Alias, ModelDirectory: run.Model, Steps: run.Steps, MaximumSequence: run.Sequence,
+		Host: run.Host, MaxProjectedWall: run.MaxWall,
+	})
 	if err != nil {
 		return err
 	}
-	var result trainingworkflow.HeldoutResult
-	if objective.Kind == trainingprogram.ObjectiveTablePrediction {
-		result, err = trainTableObjective(ctx, store, run, objective)
-	} else {
-		result, err = trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
-			Alias: run.Alias, ModelDirectory: run.Model, Steps: run.Steps, MaximumSequence: run.Sequence,
-			Host: run.Host, MaxProjectedWall: run.MaxWall,
-		})
-	}
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(output, "held-out verdict %s passed=%t observation=%s view=%s plan=%s baseline=%s candidate=%s\n",
+	return reportVerdict(output, result)
+}
+
+// reportVerdict writes what a held-out run published.
+func reportVerdict(output io.Writer, result trainingworkflow.HeldoutResult) error {
+	_, err := fmt.Fprintf(output, "held-out verdict %s passed=%t observation=%s view=%s plan=%s baseline=%s candidate=%s\n",
 		result.Verdict, result.Passed, result.Observation, result.View, result.Plan, result.Baseline, result.Candidate)
 	return err
 }

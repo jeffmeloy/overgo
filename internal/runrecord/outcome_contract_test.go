@@ -14,12 +14,12 @@ func TestCanonicalExecutionOutcomeContract(t *testing.T) {
 	}
 	seen := map[Outcome]bool{}
 	for _, outcome := range CanonicalOutcomes {
-		if outcome == "" || seen[outcome] || !ValidOutcome(outcome) {
+		if outcome == "" || seen[outcome] || !validOutcome(outcome) {
 			t.Fatalf("member %q empty, repeated, or invalid", outcome)
 		}
 		seen[outcome] = true
 	}
-	if ValidOutcome("almost-succeeded") {
+	if validOutcome("almost-succeeded") {
 		t.Fatal("foreign outcome admitted")
 	}
 }

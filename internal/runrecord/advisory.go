@@ -41,7 +41,7 @@ type Observation struct {
 	Evaluation Evaluation
 }
 
-type PhaseDelta struct {
+type phaseDelta struct {
 	Phase            Phase  `json:"phase"`
 	LatestNS         uint64 `json:"latest_ns"`
 	BaselineMedianNS uint64 `json:"baseline_median_ns"`
@@ -67,7 +67,7 @@ type Advisory struct {
 	Threshold         float64       `json:"threshold"`
 	SourceRuns        []artifact.ID `json:"source_runs"`
 	SourceEvaluations []artifact.ID `json:"source_evaluations"`
-	PhaseDeltas       []PhaseDelta  `json:"phase_deltas,omitempty"`
+	PhaseDeltas       []phaseDelta  `json:"phase_deltas,omitempty"`
 	ID                artifact.ID   `json:"-"`
 }
 
@@ -208,7 +208,7 @@ func regressionDistance(latest, baseline float64, direction Direction) float64 {
 	return math.Abs(latest - baseline)
 }
 
-func phaseDeltas(baseline []Observation, latest Observation) []PhaseDelta {
+func phaseDeltas(baseline []Observation, latest Observation) []phaseDelta {
 	values := make(map[Phase][]uint64)
 	for _, observation := range baseline {
 		seen := make(map[Phase]struct{}, len(observation.Run.Phases))
@@ -221,14 +221,14 @@ func phaseDeltas(baseline []Observation, latest Observation) []PhaseDelta {
 			return !ok
 		})
 	}
-	var deltas []PhaseDelta
+	var deltas []phaseDelta
 	for _, metric := range latest.Run.Phases {
 		phaseValues, ok := values[metric.Phase]
 		if !ok || len(phaseValues) != len(baseline) {
 			continue
 		}
 		median := MedianUint(phaseValues)
-		deltas = append(deltas, PhaseDelta{
+		deltas = append(deltas, phaseDelta{
 			Phase: metric.Phase, LatestNS: metric.DurationNS,
 			BaselineMedianNS: median, DeltaNS: int64(metric.DurationNS) - int64(median),
 		})

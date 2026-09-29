@@ -6,18 +6,18 @@ import (
 	"strings"
 )
 
-// LaneOutcome is the shared terminal vocabulary for verification lanes.
-type LaneOutcome string
+// laneOutcome is the shared terminal vocabulary for verification lanes.
+type laneOutcome string
 
 const (
-	LanePassed      LaneOutcome = "pass"
-	LaneFailed      LaneOutcome = "fail"
-	LaneUnavailable LaneOutcome = "unavailable"
-	LaneEmpty       LaneOutcome = "empty"
+	lanePassed      laneOutcome = "pass"
+	LaneFailed      laneOutcome = "fail"
+	LaneUnavailable laneOutcome = "unavailable"
+	LaneEmpty       laneOutcome = "empty"
 )
 
 type laneError struct {
-	outcome LaneOutcome
+	outcome laneOutcome
 	detail  string
 }
 
@@ -26,9 +26,9 @@ func (e laneError) Error() string {
 }
 
 // LaneError creates a non-passing terminal result. Passing lanes return nil.
-func LaneError(outcome LaneOutcome, detail string) error {
+func LaneError(outcome laneOutcome, detail string) error {
 	detail = strings.TrimSpace(detail)
-	if outcome == LanePassed || detail == "" {
+	if outcome == lanePassed || detail == "" {
 		return errors.New("run record: invalid lane error")
 	}
 	switch outcome {
@@ -37,15 +37,4 @@ func LaneError(outcome LaneOutcome, detail string) error {
 	default:
 		return errors.New("run record: invalid lane outcome")
 	}
-}
-
-// LaneOutcomeOf maps an error to its terminal lane outcome.
-func LaneOutcomeOf(err error) LaneOutcome {
-	if err == nil {
-		return LanePassed
-	}
-	if terminal, ok := errors.AsType[laneError](err); ok {
-		return terminal.outcome
-	}
-	return LaneFailed
 }

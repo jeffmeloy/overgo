@@ -17,7 +17,7 @@ func TestGateRecordAggregatesStepsAndRoundTrips(t *testing.T) {
 		OutcomeSucceeded, "", 100, []GateStep{
 			{Name: "unit", Phase: PhaseTest, Outcome: StepSucceeded, DurationNS: 30},
 			{Name: "integration", Phase: PhaseTest, Outcome: StepSucceeded, DurationNS: 40},
-			{Name: "vet", Phase: PhaseVet, Outcome: StepSucceeded, DurationNS: 20},
+			{Name: "vet", Phase: phaseVet, Outcome: StepSucceeded, DurationNS: 20},
 		},
 	)
 	if err != nil {
@@ -25,7 +25,7 @@ func TestGateRecordAggregatesStepsAndRoundTrips(t *testing.T) {
 	}
 	if record.Run.MeasuredNS != 100 || !slices.Equal(record.Run.Phases, []PhaseMetric{
 		{Phase: PhaseTest, DurationNS: 70},
-		{Phase: PhaseVet, DurationNS: 20},
+		{Phase: phaseVet, DurationNS: 20},
 	}) {
 		t.Fatalf("gate timing = (%d, %+v)", record.Run.MeasuredNS, record.Run.Phases)
 	}
@@ -80,7 +80,7 @@ func TestCancelledGatePersistsTerminalTruth(t *testing.T) {
 		recipeID, environmentID, fixtureCodeCommit, OutcomeCancelled, "", 55,
 		[]GateStep{
 			{Name: "unit", Phase: PhaseTest, Outcome: StepSucceeded, DurationNS: 40},
-			{Name: "integration", Phase: PhaseTest, Outcome: StepCancelled, DurationNS: 10},
+			{Name: "integration", Phase: PhaseTest, Outcome: stepCancelled, DurationNS: 10},
 		},
 	)
 	if err != nil {
@@ -147,7 +147,7 @@ func TestVerifyGateRunRejectsUnboundIdentities(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	records := make([]GateRecord, 2)
+	records := make([]gateRecord, 2)
 	for index, name := range []string{"first", "second"} {
 		records[index], err = NewGateRecord(
 			recipeID, environmentID, fixtureCodeCommit, OutcomeSucceeded, "", uint64(index+1),

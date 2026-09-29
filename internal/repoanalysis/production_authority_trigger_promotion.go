@@ -18,7 +18,6 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 	newCausalRoots := map[authoritySiteKey][]int{}
 	causalDerivations := map[authoritySiteKey][]int{}
 	causalConstructions := map[authoritySiteKey][]int{}
-	webhookDispatches := map[authoritySiteKey][]int{}
 	stimulusAdmissions := map[authoritySiteKey][]int{}
 	activeCompositeResolutions := map[authoritySiteKey][]int{}
 	compositeSurfaceConstructions := map[authoritySiteKey][]int{}
@@ -63,8 +62,7 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 				case *ast.CallExpr:
 					auditTriggerPromotionCall(
 						source, functionName, locals, typed,
-						newCausalRoots, causalDerivations, webhookDispatches,
-						stimulusAdmissions, activeCompositeResolutions,
+						newCausalRoots, causalDerivations, stimulusAdmissions, activeCompositeResolutions,
 					)
 				case *ast.CompositeLit:
 					if len(typed.Elts) == 0 {
@@ -101,7 +99,6 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 
 	verifyAuthoritySites(report, "trigger", "runrecord.NewCausalRoot", newCausalRoots, []authorityAllowance{
 		{File: "internal/runrecord/stimulus_followup.go", Function: "StimulusFollowupAuthority.Admit", Count: oneAuthoritySite},
-		{File: "internal/workflowruntime/automation_webhook.go", Function: "webhookCausalContext", Count: twoAuthoritySites},
 	})
 	verifyAuthoritySites(report, "trigger", "runrecord.CausalContext.Derive", causalDerivations, []authorityAllowance{
 		{File: "internal/runrecord/stimulus_followup.go", Function: "StimulusFollowupAuthority.Admit", Count: oneAuthoritySite},
@@ -110,9 +107,6 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 	verifyAuthoritySites(report, "trigger", "runrecord.CausalContext construction", causalConstructions, []authorityAllowance{
 		{File: "internal/runrecord/causal_context.go", Function: "NewCausalRoot", Count: oneAuthoritySite},
 		{File: "internal/runrecord/causal_context.go", Function: "CausalContext.Derive", Count: oneAuthoritySite},
-	})
-	verifyAuthoritySites(report, "trigger", "workflowruntime.AutomationRuntime.DispatchWebhook", webhookDispatches, []authorityAllowance{
-		{File: "internal/server/automation_webhook.go", Function: "automationWorkspace.receiveAutomationWebhook", Count: oneAuthoritySite},
 	})
 	verifyAuthoritySites(report, "trigger", "runrecord.StimulusFollowupAuthority.Admit", stimulusAdmissions, []authorityAllowance{
 		{File: "internal/workflowruntime/stimulus_reconciliation.go", Function: "ReconcileLateStimuli", Count: oneAuthoritySite},
@@ -142,7 +136,6 @@ func auditTriggerPromotionCall(
 	call *ast.CallExpr,
 	newCausalRoots,
 	causalDerivations,
-	webhookDispatches,
 	stimulusAdmissions,
 	activeCompositeResolutions map[authoritySiteKey][]int,
 ) {
@@ -161,8 +154,6 @@ func auditTriggerPromotionCall(
 			recordAuthoritySite(newCausalRoots, source, function, called.Sel.Pos())
 		case called.Sel.Name == "Derive" && triggerPromotionMayUseRunrecord(source):
 			recordAuthoritySite(causalDerivations, source, function, called.Sel.Pos())
-		case called.Sel.Name == "DispatchWebhook":
-			recordAuthoritySite(webhookDispatches, source, function, called.Sel.Pos())
 		case called.Sel.Name == "Admit" && triggerPromotionTypeMatches(
 			source,
 			triggerPromotionExpressionType(source, called.X, locals),

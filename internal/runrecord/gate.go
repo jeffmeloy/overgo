@@ -29,25 +29,25 @@ var gateCodec = artifact.JSONDocumentCodec(
 	},
 )
 
-type StepOutcome string
+type stepOutcome string
 
 const (
-	StepSucceeded StepOutcome = "succeeded"
-	StepFailed    StepOutcome = "failed"
-	StepCancelled StepOutcome = "cancelled"
-	StepSkipped   StepOutcome = "skipped"
-	// StepInapplicable reports an executed check that authoritatively found no work.
-	StepInapplicable StepOutcome = "inapplicable"
+	StepSucceeded stepOutcome = "succeeded"
+	StepFailed    stepOutcome = "failed"
+	stepCancelled stepOutcome = "cancelled"
+	StepSkipped   stepOutcome = "skipped"
+	// stepInapplicable reports an executed check that authoritatively found no work.
+	stepInapplicable stepOutcome = "inapplicable"
 	// StepReused reports a successful step satisfied by exact cached evidence.
-	StepReused StepOutcome = "reused"
-	// StepDeferred reports a lane the gate ran after its commit under a recorded obligation.
-	StepDeferred StepOutcome = "deferred"
+	StepReused stepOutcome = "reused"
+	// stepDeferred reports a lane the gate ran after its commit under a recorded obligation.
+	stepDeferred stepOutcome = "deferred"
 )
 
 type GateStep struct {
 	Name       string      `json:"name"`
 	Phase      Phase       `json:"phase"`
-	Outcome    StepOutcome `json:"outcome"`
+	Outcome    stepOutcome `json:"outcome"`
 	DurationNS uint64      `json:"duration_ns,omitzero"`
 	Evidence   string      `json:"evidence,omitzero"`
 	// Detail is what a failed step said: the bounded tail of its error, which
@@ -67,7 +67,7 @@ type GateResult struct {
 	ID          artifact.ID `json:"-"`
 }
 
-type GateRecord struct {
+type gateRecord struct {
 	Result GateResult
 	Run    Run
 }
@@ -79,27 +79,27 @@ func NewGateRecord(
 	failure string,
 	measuredNS uint64,
 	steps []GateStep,
-) (GateRecord, error) {
+) (gateRecord, error) {
 	result := GateResult{
 		Version: artifact.InitialDocumentVersion, Recipe: recipeID, Environment: environment,
 		CodeCommit: codeCommit, Outcome: outcome, Failure: failure, Steps: slices.Clone(steps),
 	}
 	result, err := gateCodec.New(result)
 	if err != nil {
-		return GateRecord{}, err
+		return gateRecord{}, err
 	}
 	phases, err := aggregateGatePhases(result.Steps)
 	if err != nil {
-		return GateRecord{}, err
+		return gateRecord{}, err
 	}
 	run, err := NewBoundRun(
 		recipeID, outcome, nil, []artifact.ID{result.ID}, failure, codeCommit,
 		environment, measuredNS, phases,
 	)
 	if err != nil {
-		return GateRecord{}, err
+		return gateRecord{}, err
 	}
-	return GateRecord{Result: result, Run: run}, nil
+	return gateRecord{Result: result, Run: run}, nil
 }
 
 // ParseGateResult decodes and validates a gate result.
@@ -127,7 +127,7 @@ func (g GateResult) Lineage() []artifact.Lineage {
 	}
 }
 
-func (g GateRecord) Batch(key string) (artifact.Batch, error) {
+func (g gateRecord) Batch(key string) (artifact.Batch, error) {
 	resultContent, err := g.Result.Content()
 	if err != nil {
 		return artifact.Batch{}, err
@@ -159,7 +159,7 @@ func canonicalizeGateResult(result *GateResult) error {
 		if result.Failure != "" {
 			return errors.New("run record: cancelled gate has failure code")
 		}
-	case OutcomeCheckpoint:
+	case outcomeCheckpoint:
 		if result.Failure != "" {
 			return errors.New("run record: checkpoint gate has failure code")
 		}
@@ -168,7 +168,7 @@ func canonicalizeGateResult(result *GateResult) error {
 	}
 	// A checkpoint publication ends like a success without its commit: every
 	// executed step passed, was reused or was left out.
-	passing := result.Outcome == OutcomeSucceeded || result.Outcome == OutcomeCheckpoint
+	passing := result.Outcome == OutcomeSucceeded || result.Outcome == outcomeCheckpoint
 	seen := make(map[string]struct{}, len(result.Steps))
 	terminalMatch := false
 	for _, step := range result.Steps {
@@ -187,15 +187,15 @@ func canonicalizeGateResult(result *GateResult) error {
 		}
 		seen[step.Name] = struct{}{}
 		switch step.Outcome {
-		case StepSucceeded, StepSkipped, StepInapplicable, StepReused, StepDeferred:
+		case StepSucceeded, StepSkipped, stepInapplicable, StepReused, stepDeferred:
 		case StepFailed:
 			terminalMatch = terminalMatch || result.Outcome == OutcomeFailed
-		case StepCancelled:
+		case stepCancelled:
 			terminalMatch = terminalMatch || result.Outcome == OutcomeCancelled
 		default:
 			return errors.New("run record: invalid gate step outcome")
 		}
-		if passing && step.Outcome != StepSucceeded && step.Outcome != StepSkipped && step.Outcome != StepInapplicable && step.Outcome != StepReused && step.Outcome != StepDeferred {
+		if passing && step.Outcome != StepSucceeded && step.Outcome != StepSkipped && step.Outcome != stepInapplicable && step.Outcome != StepReused && step.Outcome != stepDeferred {
 			return errors.New("run record: successful gate has terminal step")
 		}
 	}

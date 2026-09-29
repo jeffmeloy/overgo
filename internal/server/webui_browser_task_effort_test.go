@@ -58,8 +58,9 @@ var commonTasks = []effortTask{
 }
 
 // navigationCeiling holds the entries a person scans in the navigation, its
-// places and their tabs: 30 before the analysis tabs became Inspect's views.
-const navigationCeiling = 25
+// places and their tabs: 30 before the analysis tabs became Inspect's views,
+// 25 before the automations and peers tabs went.
+const navigationCeiling = 23
 
 // TestWebUIBrowserTaskEffort drives the workbench's common tasks by their
 // shortest paths in a real browser and counts what each costs: clicks,
@@ -71,18 +72,7 @@ func TestWebUIBrowserTaskEffort(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		testskip.NotApplicable(t, "the task effort leg runs through cmd/webui-lane")
 	}
-	fixture := newAutomationServerFixture(t)
-	defer fixture.store.Close()
-	defer fixture.handler.Close()
-	automation := fixture.handler.generator.(*automationWorkspaceGenerator).automationWorkspace
-	generator := &streamLifecycleGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), automationWorkspace: automation}
-	handler := newTestHandlerForRepository(t, fixture.store, generator)
-	defer handler.Close()
-	var err error
-	generator.peerWorkspace, err = (peerWorkspaceConfig{Store: fixture.store, Backend: peerWorkspaceBackend{}, Limit: handler.config.MaxStoredResponses}).Open()
-	if err != nil {
-		t.Fatal(err)
-	}
+	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	publishBrowserLaneOperations(t, handler)
 	server := httptest.NewServer(handler)
 	defer server.Close()

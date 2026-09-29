@@ -15,7 +15,7 @@ func ValidateMechanismCandidateEvidence(
 	ctx context.Context,
 	reader artifact.Reader,
 	candidate trainingprogram.MechanismCandidate,
-	provenance ExternalMechanismProvenance,
+	provenance externalMechanismProvenance,
 	authority artifact.ID,
 ) error {
 	if ctx == nil || reader == nil || provenance.ID != candidate.Provenance() || provenance.Census != candidate.Census() {
@@ -41,7 +41,7 @@ func ValidateMechanismCandidateEvidence(
 		}
 		sources[evidence.Source] = struct{}{}
 	}
-	binding, err := RequireAdmissionBinding(ctx, reader, authority)
+	binding, err := requireAdmissionBinding(ctx, reader, authority)
 	if err != nil {
 		return errors.Join(err, errors.New("run record: mechanism candidate authority is not an admission binding"))
 	}

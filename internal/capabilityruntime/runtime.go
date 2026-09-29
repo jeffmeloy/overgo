@@ -1,3 +1,6 @@
+// Package capabilityruntime executes verified model capabilities: it places
+// a selection on the exact local or peer implementation that may run it and
+// binds compiled recipe entry modules to their executors.
 package capabilityruntime
 
 import (

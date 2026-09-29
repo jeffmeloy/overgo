@@ -23,8 +23,6 @@
     {"id": "activity", "label": "Activity", "section": "operations", "capability": "operations", "module": "runtime"},
     {"id": "runtime", "label": "Runtime", "section": "operations", "capability": "operations"},
     {"id": "runs", "label": "Runs", "section": "operations", "capability": "repository", "module": "training"},
-    {"id": "automations", "label": "Automations", "section": "operations", "capability": "automation"},
-    {"id": "peers", "label": "Peers", "section": "operations", "capability": "peer"},
     {"id": "artifacts", "label": "Artifacts", "section": "operations", "capability": "repository"},
     {"id": "api", "label": "API", "section": "operations", "capability": "explorer"},
     {"id": "inspect", "label": "Inspect", "section": "inspect", "capability": "analysis"},

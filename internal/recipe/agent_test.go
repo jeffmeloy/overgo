@@ -28,7 +28,7 @@ func TestAgentDefinitionAuthority(t *testing.T) {
 	loaded, err := RequireAgentDefinition(t.Context(), store, definition.ID)
 	if err != nil || loaded.ID != definition.ID || loaded.Prompt != definition.Prompt ||
 		len(loaded.ToolManuals) != 1 || len(loaded.CapabilityBundles) != 1 || len(loaded.Datasets) != 1 ||
-		len(loaded.Automations) != 1 || len(loaded.Policies) != 1 {
+		len(loaded.Policies) != 1 {
 		t.Fatalf("agent definition=(%+v, %v)", loaded, err)
 	}
 }
@@ -60,7 +60,6 @@ func agentDefinitionFixture(t *testing.T) AgentDefinition {
 		ToolManuals:       []artifact.ID{testutil.ArtifactID(t, artifact.KindRecipe, "agent-tool")},
 		CapabilityBundles: []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "agent-bundle")},
 		Datasets:          []artifact.ID{testutil.ArtifactID(t, artifact.KindDataset, "agent-dataset")},
-		Automations:       []artifact.ID{testutil.ArtifactID(t, artifact.KindRecipe, "agent-automation")},
 		Policies:          []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "agent-policy")},
 	})
 	if err != nil {

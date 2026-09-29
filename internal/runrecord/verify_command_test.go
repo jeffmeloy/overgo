@@ -19,7 +19,7 @@ func TestParseVerify(t *testing.T) {
 		t.Fatalf("parse = %+v, %v", parsed, err)
 	}
 	guard, test, wrapper := parsed.Segments[0], parsed.Segments[1], parsed.Segments[2]
-	if guard.Kind != SegmentFileGuard || guard.Path != "internal/x/a_test.go" {
+	if guard.Kind != segmentFileGuard || guard.Path != "internal/x/a_test.go" {
 		t.Fatalf("guard = %+v", guard)
 	}
 	if test.Kind != SegmentGoTest || !slices.Equal(test.Env, []string{"OVERGO_CUDA_TEST=1"}) ||

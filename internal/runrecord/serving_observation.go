@@ -63,18 +63,18 @@ type ServingResources struct {
 	DeviceToHostBytes uint64 `json:"device_to_host_bytes,omitzero"`
 }
 
-// ServingAttemptKind classifies a validated attempt transition.
-type ServingAttemptKind string
+// servingAttemptKind classifies a validated attempt transition.
+type servingAttemptKind string
 
 const (
-	// ServingAttemptPrimary identifies the initial local execution.
-	ServingAttemptPrimary ServingAttemptKind = "primary"
-	// ServingAttemptRetry identifies repeated model and recipe execution.
-	ServingAttemptRetry ServingAttemptKind = "retry"
-	// ServingAttemptReselection identifies changed model or recipe execution.
-	ServingAttemptReselection ServingAttemptKind = "reselection"
+	// servingAttemptPrimary identifies the initial local execution.
+	servingAttemptPrimary servingAttemptKind = "primary"
+	// servingAttemptRetry identifies repeated model and recipe execution.
+	servingAttemptRetry servingAttemptKind = "retry"
+	// servingAttemptReselection identifies changed model or recipe execution.
+	servingAttemptReselection servingAttemptKind = "reselection"
 	// ServingAttemptSpillover identifies compatibility-bound peer execution.
-	ServingAttemptSpillover ServingAttemptKind = "spillover"
+	ServingAttemptSpillover servingAttemptKind = "spillover"
 )
 
 // ServingObservation defines one recipe-bound serving attempt.
@@ -206,17 +206,17 @@ func PublishServingObservation(ctx context.Context, repository artifact.Reposito
 }
 
 // AttemptKind classifies the effective route transition.
-func (value ServingObservation) AttemptKind(previous *ServingObservation) ServingAttemptKind {
+func (value ServingObservation) AttemptKind(previous *ServingObservation) servingAttemptKind {
 	if value.Compatibility.Valid() {
 		return ServingAttemptSpillover
 	}
 	if previous == nil {
-		return ServingAttemptPrimary
+		return servingAttemptPrimary
 	}
 	if value.Model == previous.Model && value.Recipe == previous.Recipe {
-		return ServingAttemptRetry
+		return servingAttemptRetry
 	}
-	return ServingAttemptReselection
+	return servingAttemptReselection
 }
 
 // ResourceFitness converts the serving record's explicitly observed scalar

@@ -528,7 +528,7 @@ func TestReadWeightsStep35MTPHeads(t *testing.T) {
 		tensorInfo("token_embd.weight", 8, 32), tensorInfo("output_norm.weight", 8),
 		tensorInfo("output.weight", 8, 32), tensorInfo("rope_freqs.weight", 2),
 	}
-	for block := uint32(0); block < 3; block++ {
+	for block := range uint32(3) {
 		prefix := fmt.Sprintf("blk.%d.", block)
 		heads, kvHeads := spec.LayerHeadCount(block), spec.LayerKVHeadCount(block)
 		tensors = append(tensors,

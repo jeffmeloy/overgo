@@ -877,7 +877,7 @@
      "contains": "func NewGBNFGrammar(",
      "path": "internal/sampling/gbnf.go",
      "role": "source",
-     "identity": "file:sha256:0aaf3632a58e3f9cd4642e31c1002fc86084151be0be5203c858e16e16334638"
+     "identity": "file:sha256:75050f5aed2981cdd3f8ffb09ae5a0f33f1ed16831fc0cc97636feb5ce7e0ba9"
     },
     {
      "contains": "func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(",
@@ -1178,7 +1178,7 @@
      "contains": "func PublishInteraction(",
      "path": "internal/runrecord/interaction.go",
      "role": "source",
-     "identity": "file:sha256:bf01d0d4c3a358730d93f5ce896f133057cb97f4f89fdb74075a0180bc70ee6d"
+     "identity": "file:sha256:b87330f8339ca29a58f656b264f1a00276468c6530f60c371d2a407e9545abd5"
     },
     {
      "contains": "func TestResponsesContinuationRestart(",
@@ -1365,7 +1365,7 @@
      "contains": "func TestExactAttentionCaptureRejectsModifiedScorePolicies(",
      "path": "internal/inference/attention_capture_probe_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:96d8c857e018b6d60cf44af1131af7c0f368f00b8cf57ce6e070da23124dde6b"
+     "identity": "evidence:sha256:ea02dc540c90dfb89bf40eb75b9a0a4d606bac7c12d1ba9c71aa147144abf9d5"
     }
    ],
    "id": "exact-attention-workbench",

@@ -160,10 +160,10 @@ func canonicalizeExperimentLifecycle(value *ExperimentLifecycle) error {
 	return nil
 }
 
-// ExperimentStatus is the reconciled truth for one experiment: the chain tip,
+// experimentStatus is the reconciled truth for one experiment: the chain tip,
 // whether its liveness bound has lapsed, and the retry identity a recovery
 // must use.
-type ExperimentStatus struct {
+type experimentStatus struct {
 	Tip       ExperimentLifecycle
 	Expired   bool
 	NextRetry uint32
@@ -174,18 +174,18 @@ type ExperimentStatus struct {
 // an error, never a guess. An expired tip is reported recoverable with the
 // incremented retry -- recovery is an explicit recorded transition, so crash
 // and replay converge on the same chain.
-func ReconcileExperiment(records []ExperimentLifecycle, now time.Time) (ExperimentStatus, error) {
+func ReconcileExperiment(records []ExperimentLifecycle, now time.Time) (experimentStatus, error) {
 	if len(records) == 0 {
-		return ExperimentStatus{}, errors.New("run record: no experiment records to reconcile")
+		return experimentStatus{}, errors.New("run record: no experiment records to reconcile")
 	}
 	byID := map[artifact.ID]ExperimentLifecycle{}
 	experiment := records[0].Experiment
 	for _, record := range records {
 		if !record.ID.Valid() {
-			return ExperimentStatus{}, errors.New("run record: unidentified experiment record")
+			return experimentStatus{}, errors.New("run record: unidentified experiment record")
 		}
 		if record.Experiment != experiment {
-			return ExperimentStatus{}, errors.New("run record: records span multiple experiments")
+			return experimentStatus{}, errors.New("run record: records span multiple experiments")
 		}
 		byID[record.ID] = record
 	}
@@ -198,15 +198,15 @@ func ReconcileExperiment(records []ExperimentLifecycle, now time.Time) (Experime
 		}
 		prior, ok := byID[*record.Prior]
 		if !ok {
-			return ExperimentStatus{}, errors.New("run record: experiment chain references an absent prior")
+			return experimentStatus{}, errors.New("run record: experiment chain references an absent prior")
 		}
 		if !slices.Contains(experimentTransitions[prior.State], record.State) {
-			return ExperimentStatus{}, fmt.Errorf("run record: recorded chain holds illegal transition %s -> %s", prior.State, record.State)
+			return experimentStatus{}, fmt.Errorf("run record: recorded chain holds illegal transition %s -> %s", prior.State, record.State)
 		}
 		referenced[*record.Prior] = true
 	}
 	if roots != 1 {
-		return ExperimentStatus{}, fmt.Errorf("run record: experiment chain has %d roots, want 1", roots)
+		return experimentStatus{}, fmt.Errorf("run record: experiment chain has %d roots, want 1", roots)
 	}
 	var tips []ExperimentLifecycle
 	for id, record := range byID {
@@ -215,13 +215,13 @@ func ReconcileExperiment(records []ExperimentLifecycle, now time.Time) (Experime
 		}
 	}
 	if len(tips) != 1 {
-		return ExperimentStatus{}, fmt.Errorf("run record: experiment chain diverged into %d tips", len(tips))
+		return experimentStatus{}, fmt.Errorf("run record: experiment chain diverged into %d tips", len(tips))
 	}
-	status := ExperimentStatus{Tip: tips[0]}
+	status := experimentStatus{Tip: tips[0]}
 	if status.Tip.State == ExperimentLeased || status.Tip.State == ExperimentRunning {
 		expiry, err := time.Parse(time.RFC3339Nano, status.Tip.HeartbeatExpiry)
 		if err != nil {
-			return ExperimentStatus{}, err
+			return experimentStatus{}, err
 		}
 		if now.After(expiry) {
 			status.Expired = true

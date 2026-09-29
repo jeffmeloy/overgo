@@ -1,3 +1,5 @@
+// Package runrecord_test verifies run records through packages that import
+// runrecord, which an internal test would turn into an import cycle.
 package runrecord_test
 
 import (

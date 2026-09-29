@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
+	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
@@ -22,11 +25,8 @@ var checkpointless = map[string]string{
 	"dit":             "latentvideo.DiTTrainer (internal/latentvideo/dittrain.go:49)",
 	"flow-organ":      "latentimage.FinalLayerTrainer (internal/latentimage/train.go:113), routedlm.FlowHeadTrainer (internal/routedlm/flowtrain.go:37), routedlm.LatentBridgeTrainer (internal/routedlm/latentbridge.go:66) and the ternary masters (cmd/train/route_flow_organ.go)",
 	"graft":           "composition.RunViability's per-seed bridges (internal/composition/viability.go:65)",
-	"mixture":         "optimizer.Stepper, whose momentum no checkpoint can read (internal/optimizer/stepper.go:4)",
 	"mot":             "routedlm.ModalityTransformerTrainer (internal/routedlm/mottrain.go:52)",
 	"oscillatorimage": "oscillatorimage.Trainer (internal/oscillatorimage/trainer.go:61)",
-	"seriesforecast":  "seriesforecast.Trainer (internal/seriesforecast/train.go:38) and its optimizer.Stepper, whose momentum no checkpoint can read (internal/optimizer/stepper.go:4)",
-	"tabular":         "tabularicl.Trainer (internal/tabularicl/train.go:29) and its optimizer.Stepper, whose momentum no checkpoint can read (internal/optimizer/stepper.go:4)",
 }
 
 // TestEveryTrainRoutePublishesACheckpoint holds every route to publishing
@@ -77,55 +77,28 @@ func sharedRunPublishes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	matrix := hostoptimizer.GroupSpec{Name: "adapter.weight", End: 4, Rows: 2, Cols: 2}
-	muonPlan, err := hostoptimizer.CompilePlan(matrix.End, []hostoptimizer.GroupSpec{matrix})
+	plan, err := probeSession(session.authority.Objective, 3, testMatrix.End, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := trainingprogram.CompileObjectiveProgram(session.authority.Objective, nil, muonPlan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plan, err := probeSession(session.authority.Objective, 3, matrix.End, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	weights, gradients := make([]float32, matrix.End), make([]float32, matrix.End)
-	muon, err := hostoptimizer.New(weights, gradients, muonPlan, plan.Optimizer())
-	if err != nil {
-		t.Fatal(err)
-	}
-	loss := func() (float64, error) {
-		var total float64
-		for _, weight := range weights {
-			total += (float64(weight) - 1) * (float64(weight) - 1)
-		}
-		return total / float64(len(weights)), nil
-	}
-	run := boundedRun{name: "shared-run", plan: plan, session: session, loss: loss,
-		step: func(int) (optimizer.ObservedStepResult, error) {
-			before, _ := loss()
-			for index, weight := range weights {
-				gradients[index] = 2 * (weight - 1) / float32(len(weights))
-			}
-			result := muon.Step()
-			return optimizer.ObservedStepResult{Loss: before, Step: result.Step, LearningRate: result.LearningRate, GradientL2: result.GradientL2}, nil
-		},
-	}
-	if err := run.descend(); err != nil {
-		t.Fatal(err)
-	}
+	matrix := newHostMatrix(t, session.authority.Objective, plan.Optimizer())
 	stream, err := trainingworkflow.TextStream([]byte(dataset), uint64(plan.Updates()))
 	if err != nil {
 		t.Fatal(err)
 	}
 	write := func(stage string) error {
-		return safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights),
-			map[string][]float32{matrix.Name: weights}, map[string][]int{matrix.Name: {matrix.Rows, matrix.Cols}}, nil)
+		return matrix.SaveWeights(filepath.Join(stage, trainingprogram.CheckpointWeights))
 	}
 	target := filepath.Join(root, "checkpoint")
-	checkpoint, err := session.publish(ctx, target, program, muon.Snapshot(), stream, write)
-	if err := session.finish(ctx, plan, err); err != nil {
+	var checkpoint trainingprogram.Checkpoint
+	run := boundedRun{name: "shared-run", plan: plan, session: session, loss: matrix.loss,
+		step: func(int) (optimizer.ObservedStepResult, error) { return matrix.step(), nil },
+		publish: func(ctx context.Context) (err error) {
+			checkpoint, err = session.publish(ctx, target, matrix.program, matrix.Snapshot(), stream, write)
+			return err
+		},
+	}
+	if err := run.train(ctx); err != nil {
 		t.Fatal(err)
 	}
 	loaded, loadErr := trainingprogram.LoadCheckpoint(target)
@@ -134,7 +107,85 @@ func sharedRunPublishes(t *testing.T) {
 		t.Fatalf("checkpoint %s loads as (%s for %s, %v) and is recorded %t (%v), want it loaded for %s and recorded",
 			checkpoint.ID(), loaded.ID(), loaded.Model, loadErr, recorded, err, session.model)
 	}
-	if again, err := session.publish(ctx, filepath.Join(root, "rerun"), program, muon.Snapshot(), stream, write); err != nil || again.ID() != checkpoint.ID() {
+	if again, err := session.publish(ctx, filepath.Join(root, "rerun"), matrix.program, matrix.Snapshot(), stream, write); err != nil || again.ID() != checkpoint.ID() {
 		t.Fatalf("a rerun publishing the same checkpoint elsewhere = (%s, %v), want %s recorded again", again.ID(), err, checkpoint.ID())
 	}
+}
+
+// testMatrix is the one 2x2 group a hostMatrix trains.
+var testMatrix = hostoptimizer.GroupSpec{Name: "adapter.weight", End: 4, Rows: 2, Cols: 2}
+
+// hostMatrix is the smallest checkpointed trainer: a host Muon matrix
+// stepped toward all ones under a compiled objective program.
+type hostMatrix struct {
+	program            trainingprogram.TrainingProgram
+	muon               *hostoptimizer.Optimizer
+	weights, gradients []float32
+}
+
+func newHostMatrix(t *testing.T, objective trainingprogram.ObjectiveKind, config hostoptimizer.Config) *hostMatrix {
+	t.Helper()
+	plan, err := hostoptimizer.CompilePlan(testMatrix.End, []hostoptimizer.GroupSpec{testMatrix})
+	if err != nil {
+		t.Fatal(err)
+	}
+	matrix := &hostMatrix{weights: make([]float32, testMatrix.End), gradients: make([]float32, testMatrix.End)}
+	if matrix.program, err = trainingprogram.CompileObjectiveProgram(objective, nil, plan); err != nil {
+		t.Fatal(err)
+	}
+	if matrix.muon, err = hostoptimizer.New(matrix.weights, matrix.gradients, plan, config); err != nil {
+		t.Fatal(err)
+	}
+	return matrix
+}
+
+func (m *hostMatrix) loss() (float64, error) {
+	var total float64
+	for _, weight := range m.weights {
+		total += (float64(weight) - 1) * (float64(weight) - 1)
+	}
+	return total / float64(len(m.weights)), nil
+}
+
+func (m *hostMatrix) step() optimizer.ObservedStepResult {
+	before, _ := m.loss()
+	for index, weight := range m.weights {
+		m.gradients[index] = 2 * (weight - 1) / float32(len(m.weights))
+	}
+	result := m.muon.Step()
+	return optimizer.ObservedStepResult{Loss: before, Step: result.Step, LearningRate: result.LearningRate, GradientL2: result.GradientL2}
+}
+
+func (m *hostMatrix) Program() trainingprogram.TrainingProgram { return m.program }
+
+func (m *hostMatrix) Snapshot() optimizer.State { return m.muon.Snapshot() }
+
+func (m *hostMatrix) SaveWeights(path string) error {
+	return safetensors.Save(path, map[string][]float32{testMatrix.Name: m.weights}, map[string][]int{testMatrix.Name: {testMatrix.Rows, testMatrix.Cols}}, nil)
+}
+
+// publishUnderObjective steps a host matrix under an objective kind's
+// program and publishes it through the recipe a held-out run's session
+// activated, as the forecast and table routes do, then holds the checkpoint
+// to loading with that program and being recorded in the store.
+func publishUnderObjective(t *testing.T, ctx context.Context, store *overgodb.Store, recipeID artifact.ID, kind trainingprogram.ObjectiveKind, stream artifact.ID) error {
+	t.Helper()
+	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(testMatrix.End)
+	if err != nil {
+		return err
+	}
+	matrix := newHostMatrix(t, kind, config)
+	result := matrix.step()
+	target := filepath.Join(t.TempDir(), "checkpoint")
+	if err := publishTrained(ctx, store, recipeID, target, matrix, trainingdata.StreamState{Identity: stream, Position: uint64(result.Step)}); err != nil {
+		return err
+	}
+	loaded, err := trainingprogram.LoadCheckpoint(target)
+	if err != nil {
+		return err
+	}
+	if _, recorded, err := store.Artifact(ctx, loaded.ID()); err != nil || !recorded || loaded.Program != matrix.program.ID() {
+		t.Fatalf("checkpoint %s of program %s recorded %t (%v), want %s's checkpoint recorded", loaded.ID(), loaded.Program, recorded, err, matrix.program.ID())
+	}
+	return nil
 }

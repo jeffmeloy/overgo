@@ -11,7 +11,7 @@ func TestGBNFVocabularyHashReuse(t *testing.T) {
 	pieces := make([][]byte, 8192)
 	pieces[0], pieces[1] = []byte("a"), []byte("b")
 	for index := 2; index < len(pieces); index++ {
-		pieces[index] = []byte(fmt.Sprint(index))
+		pieces[index] = fmt.Append(nil, index)
 	}
 	newBinding := func() *GBNFVocabulary {
 		t.Helper()

@@ -34,19 +34,18 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixture := newAutomationServerFixture(t)
-	defer fixture.store.Close()
-	running, blocked := publishBrowserLaneOperations(t, fixture.handler)
-	httpServer := httptest.NewServer(fixture.handler)
+	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
+	running, blocked := publishBrowserLaneOperations(t, handler)
+	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
 
 	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/app.html#automations")
+	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/app.html#api")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer browser.Close()
-	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-automations.active .schema-form") &&
+	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-api.active .schema-form") &&
         document.querySelectorAll(".operation-chip").length >= 2`); err != nil {
 		var page string
 		_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, html: document.documentElement.outerHTML.slice(0, 1500)})`, &page)
@@ -64,8 +63,8 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-recipe.active")`); err != nil {
 		t.Fatal(err)
 	}
-	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "automations"; return true; })()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-automations.active .schema-form")`); err != nil {
+	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "api"; return true; })()`)
+	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-api.active .schema-form")`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -97,11 +96,11 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-library.active") && document.activeElement.getAttribute("aria-label") === "provider name"`); err != nil {
 		t.Fatal(err)
 	}
-	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "automations"; return !document.querySelector(".topbar dialog[open]"); })()`)
-	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-automations.active .schema-form")`); err != nil {
+	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "api"; return !document.querySelector(".topbar dialog[open]"); })()`)
+	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-api.active .schema-form")`); err != nil {
 		t.Fatal(err)
 	}
-	// Every control mounted so far (the chat, library and automations tabs, the
+	// Every control mounted so far (the chat, library and API tabs, the
 	// shell) has an accessible name: its label, aria-label, text, placeholder or
 	// title; the status strip announces politely and a banner is an alert.
 	assertBrowserPredicate(t, ctx, browser, `(() => {
@@ -126,7 +125,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	}
 
 	assertBrowserPredicate(t, ctx, browser, `(() => {
-      const input = document.querySelector("#panel-automations .schema-form input");
+      const input = document.querySelector("#panel-api .schema-form input");
       input.value = "browser-lane";
       input.dispatchEvent(new Event("input", {bubbles:true}));
       const event = new Event("beforeunload", {cancelable:true});
@@ -137,7 +136,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
       const nav = document.querySelector("nav.sidebar");
       const main = document.querySelector("main");
       const operations = document.querySelector("aside[aria-label='Operations']");
-      const labels = [...document.querySelectorAll("#panel-automations label.control")];
+      const labels = [...document.querySelectorAll("#panel-api label.control")];
       const buttons = [...document.querySelectorAll("button")];
       return !!nav && !!main && !!operations && labels.length > 0 &&
         labels.every((label) => label.querySelector("input,select,textarea")) &&
@@ -164,7 +163,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if err := browser.Eventually(ctx, `document.querySelector(".operation-chip.completed") !== null`); err != nil {
 		t.Fatal(err)
 	}
-	if status, err := fixture.handler.operations.Wait(ctx, blocked); err != nil || status.State != operation.StateCompleted {
+	if status, err := handler.operations.Wait(ctx, blocked); err != nil || status.State != operation.StateCompleted {
 		t.Fatalf("browser recovery=(%+v, %v)", status, err)
 	}
 
@@ -187,7 +186,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	if err := browser.Eventually(ctx, `document.querySelector(".operation-chip.cancelled") !== null`); err != nil {
 		t.Fatal(err)
 	}
-	if status, err := fixture.handler.operations.Wait(ctx, running); err != nil || status.State != operation.StateCancelled {
+	if status, err := handler.operations.Wait(ctx, running); err != nil || status.State != operation.StateCancelled {
 		t.Fatalf("browser cancellation=(%+v, %v)", status, err)
 	}
 	if err := browser.Eventually(ctx, `document.getElementById('global-operation-shell').hidden`); err != nil {

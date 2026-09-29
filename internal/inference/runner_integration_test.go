@@ -3,23 +3,20 @@ package inference
 import (
 	"fmt"
 	"math"
-	"os"
 	"slices"
 	"strings"
 	"testing"
 
+	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/modeltest"
 	"overgo/internal/sampling"
-	"overgo/internal/testskip"
 	"overgo/internal/tokenizer"
 )
 
 func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
-	}
-	runner, err := openFixtureRunner(modelPath, 0)
+	cudatest.Require(t)
+	runner, err := openFixtureRunner(modeltest.GGUF(t, "qwen3"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,11 +174,8 @@ func TestIncrementalCacheMatchesFullForward(t *testing.T) {
 
 func TestPreloadedCachedLayerInputsMatchFullExtraction(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "qwen3"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
 	if err != nil {
@@ -225,11 +219,8 @@ func assertMaximumDifference(t *testing.T, label string, got, want []float32, to
 
 func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
-	}
-	runner, err := openFixtureRunner(modelPath, 0)
+	cudatest.Require(t)
+	runner, err := openFixtureRunner(modeltest.GGUF(t, "qwen3"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,20 +265,14 @@ func TestEmbeddingOverrideMatchesTokenLookupAndProducesUsableCache(t *testing.T)
 
 func TestNativeQ8GreedyMatchesOracle(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
-	}
-	assertNativeQuantGreedyOracle(t, modelPath)
+	cudatest.Require(t)
+	assertNativeQuantGreedyOracle(t, modeltest.Directory(t, qwen3Fixture))
 }
 
 func TestNativeQ8DeviceContextShift(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_QWEN3_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN3_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.Directory(t, qwen3Fixture), OpenOptions{
 		DeviceOrdinal: 0,
 	})
 	if err != nil {
@@ -536,20 +521,14 @@ func TestNativeQ8DeviceContextShift(t *testing.T) {
 
 func TestNativeQ6KGreedyMatchesOracle(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_QWEN3_Q6K_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN3_Q6K_MODEL is not set")
-	}
-	assertNativeQuantGreedyOracle(t, modelPath)
+	cudatest.Require(t)
+	assertNativeQuantGreedyOracle(t, modeltest.Directory(t, qwen3Q6KFixture))
 }
 
 func TestNativeQwen35HybridMatchesOracleAndResumes(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN35_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.Directory(t, qwen35Fixture), OpenOptions{
 		DeviceOrdinal: 0,
 	})
 	if err != nil {
@@ -686,11 +665,8 @@ ws ::= [ \t\n\r]*
 
 func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN35_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "qwen35"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
 	if err != nil {
@@ -828,11 +804,10 @@ func TestNativeQwen35FusedContinuousBatch(t *testing.T) {
 
 func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_QWEN35_MTP_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN35_MTP_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+	cudatest.Require(t)
+	// The Qwen3.5-4B conversion keeps the checkpoint's NextN head; the
+	// smallest Qwen3.5 GGUF need not carry one.
+	runner, err := openNativeFixtureRunner(modeltest.Directory(t, "Qwen3.5-4B-f16.gguf"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
 	if err != nil {
@@ -926,17 +901,13 @@ func TestQwen35MTPAdvancesIndependentDraftState(t *testing.T) {
 
 func TestGemma4AssistantGreedyVerification(t *testing.T) {
 	requireIntegration(t)
-	assistantPath := os.Getenv("OVERGO_GEMMA4_ASSISTANT_MODEL")
-	targetPath := os.Getenv("OVERGO_GEMMA4_TARGET_MODEL")
-	if assistantPath == "" || targetPath == "" {
-		testskip.NotApplicable(t, "OVERGO_GEMMA4_ASSISTANT_MODEL and OVERGO_GEMMA4_TARGET_MODEL are not set")
-	}
-	assistant, err := openNativeFixtureRunner(assistantPath, OpenOptions{DeviceOrdinal: 0})
+	cudatest.Require(t)
+	assistant, err := openNativeFixtureRunner(modeltest.GGUF(t, "gemma4-assistant"), OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer assistant.Close()
-	target, err := openNativeFixtureRunner(targetPath, OpenOptions{DeviceOrdinal: 0})
+	target, err := openNativeFixtureRunner(modeltest.GGUF(t, "gemma4"), OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1010,17 +981,14 @@ func TestGemma4AssistantGreedyVerification(t *testing.T) {
 
 func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 	requireIntegration(t)
-	draftPath := os.Getenv("OVERGO_EAGLE3_MODEL")
-	targetPath := os.Getenv("OVERGO_EAGLE3_TARGET_MODEL")
-	if draftPath == "" || targetPath == "" {
-		testskip.NotApplicable(t, "OVERGO_EAGLE3_MODEL and OVERGO_EAGLE3_TARGET_MODEL are not set")
-	}
-	draftRunner, err := openNativeFixtureRunner(draftPath, OpenOptions{DeviceOrdinal: 0})
+	cudatest.Require(t)
+	draftRunner, err := openNativeFixtureRunner(modeltest.GGUF(t, "eagle3"), OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer draftRunner.Close()
-	target, err := openNativeFixtureRunner(targetPath, OpenOptions{DeviceOrdinal: 0})
+	// EAGLE3's reference drafts serve Llama targets.
+	target, err := openNativeFixtureRunner(modeltest.GGUF(t, "llama"), OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1083,17 +1051,14 @@ func TestEagle3GreedyAndSampledVerification(t *testing.T) {
 
 func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 	requireIntegration(t)
-	draftPath := os.Getenv("OVERGO_DFLASH_MODEL")
-	targetPath := os.Getenv("OVERGO_DFLASH_TARGET_MODEL")
-	if draftPath == "" || targetPath == "" {
-		testskip.NotApplicable(t, "OVERGO_DFLASH_MODEL and OVERGO_DFLASH_TARGET_MODEL are not set")
-	}
-	draftRunner, err := openNativeFixtureRunner(draftPath, OpenOptions{DeviceOrdinal: 0})
+	cudatest.Require(t)
+	draftRunner, err := openNativeFixtureRunner(modeltest.GGUF(t, "dflash"), OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer draftRunner.Close()
-	target, err := openNativeFixtureRunner(targetPath, OpenOptions{DeviceOrdinal: 0})
+	// DFlash's published drafts serve Qwen3 targets.
+	target, err := openNativeFixtureRunner(modeltest.GGUF(t, "qwen3"), OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1162,11 +1127,8 @@ func TestDFlashGreedyAndSampledVerification(t *testing.T) {
 
 func TestWavTokenizerDecodeWaveform(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_WAVTOKENIZER_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_WAVTOKENIZER_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{DeviceOrdinal: 0})
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "wavtokenizer-dec"), OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1187,11 +1149,8 @@ func TestWavTokenizerDecodeWaveform(t *testing.T) {
 
 func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_COHERE2_MTP_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_COHERE2_MTP_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "cohere2moe"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
 	if err != nil {
@@ -1280,11 +1239,8 @@ func TestCohere2MTPAdvancesIndependentDraftState(t *testing.T) {
 
 func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_BONSAI_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_BONSAI_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.Directory(t, bonsaiFixture), OpenOptions{
 		DeviceOrdinal: 0,
 	})
 	if err != nil {
@@ -1312,11 +1268,8 @@ func TestNativeQ1BonsaiMatchesPinnedOracle(t *testing.T) {
 
 func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_GEMMA3_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_GEMMA3_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.Directory(t, gemma3Fixture), OpenOptions{
 		DeviceOrdinal: 0,
 	})
 	if err != nil {
@@ -1376,11 +1329,8 @@ func TestNativeGemma3PerplexityMatchesOracle(t *testing.T) {
 
 func TestNativeUMT5EncoderMatchesOracle(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_UMT5_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_UMT5_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.Directory(t, umt5Fixture), OpenOptions{
 		DeviceOrdinal: 0,
 	})
 	if err != nil {

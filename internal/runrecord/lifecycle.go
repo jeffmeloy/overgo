@@ -14,37 +14,37 @@ import (
 const DefaultHeartbeatStaleAfter = 30 * time.Second
 
 const (
-	GateLifecycleMediaType = "application/vnd.overgo.gate-lifecycle+json"
+	gateLifecycleMediaType = "application/vnd.overgo.gate-lifecycle+json"
 	GateLifecycleSchema    = "overgo/gate-lifecycle/v1"
-	// GateLifecycleCurrentAlias is the store-local lifecycle head. Its live
+	// gateLifecycleCurrentAlias is the store-local lifecycle head. Its live
 	// presence deliberately prevents compaction from rewriting physical gate
 	// preparation and finalization receipts.
-	GateLifecycleCurrentAlias = overgodb.StoreLocalAliasPrefix + "gate-lifecycle/current"
+	gateLifecycleCurrentAlias = overgodb.StoreLocalAliasPrefix + "gate-lifecycle/current"
 )
 
-type GateLifecycleState string
+type gateLifecycleState string
 
 const (
-	GatePrepared  GateLifecycleState = "prepared"
-	GateFinalized GateLifecycleState = "finalized"
+	gatePrepared  gateLifecycleState = "prepared"
+	gateFinalized gateLifecycleState = "finalized"
 )
 
 var gateLifecycleContract = artifact.DocumentContract{
-	Kind: artifact.KindEvidence, MediaType: GateLifecycleMediaType, Schema: GateLifecycleSchema,
+	Kind: artifact.KindEvidence, MediaType: gateLifecycleMediaType, Schema: GateLifecycleSchema,
 }
 
 var gateLifecycleCodec = artifact.JSONDocumentCodec(
 	"gate lifecycle", gateLifecycleContract.Kind, gateLifecycleContract.MediaType, gateLifecycleContract.Schema, canonicalizeGateLifecycle,
-	func(value GateLifecycle) artifact.ID { return value.ID },
-	func(value *GateLifecycle, id artifact.ID) { value.ID = id }, nil,
+	func(value gateLifecycle) artifact.ID { return value.ID },
+	func(value *gateLifecycle, id artifact.ID) { value.ID = id }, nil,
 )
 
-// GateLifecycle is an immutable two-phase record. A preparation is committed
+// gateLifecycle is an immutable two-phase record. A preparation is committed
 // before Git can advance; its absence from the finalized set is authoritative
 // record debt even if the advisory heartbeat disappears.
-type GateLifecycle struct {
+type gateLifecycle struct {
 	Version     uint16             `json:"version"`
-	State       GateLifecycleState `json:"state"`
+	State       gateLifecycleState `json:"state"`
 	TreeKey     string             `json:"tree_key"`
 	Environment artifact.ID        `json:"environment"`
 	Started     string             `json:"started"`
@@ -55,41 +55,21 @@ type GateLifecycle struct {
 	ID          artifact.ID        `json:"-"`
 }
 
-func NewGatePreparation(treeKey string, environment artifact.ID, started time.Time) (GateLifecycle, error) {
-	return gateLifecycleCodec.NewInitial(GateLifecycle{
-		State: GatePrepared, TreeKey: treeKey,
-		Environment: environment, Started: started.UTC().Format(time.RFC3339Nano),
-	})
-}
-
-func NewGateFinalization(preparation GateLifecycle, codeCommit string, result artifact.ID, outcome Outcome) (GateLifecycle, error) {
-	if preparation.State != GatePrepared || preparation.ID.Kind() != artifact.KindEvidence {
-		return GateLifecycle{}, errors.New("run record: finalization requires an identified preparation")
-	}
-	preparationID := preparation.ID
-	resultID := result
-	return gateLifecycleCodec.NewInitial(GateLifecycle{
-		State: GateFinalized, TreeKey: preparation.TreeKey,
-		Environment: preparation.Environment, Started: preparation.Started,
-		Preparation: &preparationID, CodeCommit: codeCommit, Result: &resultID, Outcome: outcome,
-	})
-}
-
-func ParseGateLifecycle(content []byte) (GateLifecycle, error) {
+func parseGateLifecycle(content []byte) (gateLifecycle, error) {
 	return gateLifecycleCodec.Parse(content)
 }
 
-// RequireGateLifecycle loads one exact typed gate lifecycle document.
-func RequireGateLifecycle(ctx context.Context, reader artifact.Reader, id artifact.ID) (GateLifecycle, error) {
+// requireGateLifecycle loads one exact typed gate lifecycle document.
+func requireGateLifecycle(ctx context.Context, reader artifact.Reader, id artifact.ID) (gateLifecycle, error) {
 	return gateLifecycleCodec.Require(ctx, reader, id)
 }
 
-func (l GateLifecycle) Content() (artifact.Content, error) {
+func (l gateLifecycle) Content() (artifact.Content, error) {
 	return gateLifecycleCodec.Content(l)
 }
 
-func (l GateLifecycle) Lineage() []artifact.Lineage {
-	if l.State == GatePrepared {
+func (l gateLifecycle) Lineage() []artifact.Lineage {
+	if l.State == gatePrepared {
 		return []artifact.Lineage{{Child: l.ID, Parent: l.Environment, Relation: artifact.RelationDependsOn}}
 	}
 	return []artifact.Lineage{
@@ -98,7 +78,7 @@ func (l GateLifecycle) Lineage() []artifact.Lineage {
 	}
 }
 
-func canonicalizeGateLifecycle(lifecycle *GateLifecycle) error {
+func canonicalizeGateLifecycle(lifecycle *gateLifecycle) error {
 	if lifecycle == nil || lifecycle.Version != artifact.InitialDocumentVersion ||
 		!validTreeKey(lifecycle.TreeKey) ||
 		lifecycle.Environment.Kind() != artifact.KindEvidence {
@@ -108,14 +88,14 @@ func canonicalizeGateLifecycle(lifecycle *GateLifecycle) error {
 		return errors.New("run record: invalid gate lifecycle start")
 	}
 	switch lifecycle.State {
-	case GatePrepared:
+	case gatePrepared:
 		if lifecycle.Preparation != nil || lifecycle.CodeCommit != "" || lifecycle.Result != nil || lifecycle.Outcome != "" {
 			return errors.New("run record: prepared gate carries final facts")
 		}
-	case GateFinalized:
+	case gateFinalized:
 		if lifecycle.Preparation == nil || lifecycle.Preparation.Kind() != artifact.KindEvidence || !validCodeCommit(lifecycle.CodeCommit) ||
 			lifecycle.Result == nil || lifecycle.Result.Kind() != artifact.KindEvidence ||
-			lifecycle.Outcome != OutcomeSucceeded && lifecycle.Outcome != OutcomeFailed && lifecycle.Outcome != OutcomeCancelled && lifecycle.Outcome != OutcomeCheckpoint {
+			lifecycle.Outcome != OutcomeSucceeded && lifecycle.Outcome != OutcomeFailed && lifecycle.Outcome != OutcomeCancelled && lifecycle.Outcome != outcomeCheckpoint {
 			return errors.New("run record: finalized gate lacks final facts")
 		}
 	default:
@@ -134,73 +114,11 @@ const retiredGateLaneAlias = overgodb.StoreLocalAliasPrefix + "gate-lanes/curren
 // cross the rewrite unchanged. Any other store-local alias is refused as
 // unknown.
 func RetiredGateAliasesAtRest(name string, _ artifact.ID) error {
-	if name == GateLifecycleCurrentAlias || name == retiredGateLaneAlias {
+	if name == gateLifecycleCurrentAlias || name == retiredGateLaneAlias {
 		return nil
 	}
 	return fmt.Errorf("run record: unknown store-local authority %q", name)
 }
 
-// GateLifecyclesInStore returns every exact typed lifecycle in durable order
-// so authority owners can validate more than unresolved-debt cardinality.
-func GateLifecyclesInStore(ctx context.Context, store *overgodb.Store) ([]GateLifecycle, error) {
-	if ctx == nil || store == nil {
-		return nil, errors.New("run record: gate lifecycle scan requires a store and context")
-	}
-	var records []GateLifecycle
-	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{gateLifecycleContract},
-		Order:     overgodb.DocumentOldestFirst,
-	}, gateLifecycleCodec.Parse, func(_ overgodb.DocumentView, lifecycle GateLifecycle) error {
-		records = append(records, lifecycle)
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("run record: visit gate lifecycle documents: %w", err)
-	}
-	return records, nil
-}
-
 // ValidateIdentity verifies lifecycle content identity.
-func (l GateLifecycle) ValidateIdentity() error { return gateLifecycleCodec.ValidateIdentity(l) }
-
-type GateHeartbeatState string
-
-const (
-	HeartbeatRunning    GateHeartbeatState = "running"
-	HeartbeatFinalized  GateHeartbeatState = "finalized"
-	HeartbeatRecordDebt GateHeartbeatState = "record_debt"
-	HeartbeatStale      GateHeartbeatState = "stale"
-)
-
-// GateHeartbeat is an advisory liveness mirror. OvergoDB lifecycle documents,
-// not this mutable file, determine whether record debt exists.
-type GateHeartbeat struct {
-	Version     uint16             `json:"version"`
-	State       GateHeartbeatState `json:"state"`
-	Preparation artifact.ID        `json:"preparation"`
-	TreeKey     string             `json:"tree_key"`
-	Environment artifact.ID        `json:"environment"`
-	PID         int                `json:"pid"`
-	Updated     time.Time          `json:"updated"`
-}
-
-func (heartbeat GateHeartbeat) Validate() error {
-	if heartbeat.Version != artifact.InitialDocumentVersion ||
-		heartbeat.State != HeartbeatRunning && heartbeat.State != HeartbeatFinalized && heartbeat.State != HeartbeatRecordDebt ||
-		heartbeat.Preparation.Kind() != artifact.KindEvidence || heartbeat.Environment.Kind() != artifact.KindEvidence ||
-		!validTreeKey(heartbeat.TreeKey) ||
-		heartbeat.PID <= 0 || heartbeat.Updated.IsZero() {
-		return errors.New("run record: invalid gate heartbeat")
-	}
-	return nil
-}
-
-func (heartbeat GateHeartbeat) Watchdog(now time.Time, staleAfter time.Duration) GateHeartbeatState {
-	if heartbeat.State != HeartbeatRunning {
-		return heartbeat.State
-	}
-	if staleAfter <= 0 || heartbeat.Updated.IsZero() || now.Sub(heartbeat.Updated) > staleAfter {
-		return HeartbeatStale
-	}
-	return HeartbeatRunning
-}
+func (l gateLifecycle) ValidateIdentity() error { return gateLifecycleCodec.ValidateIdentity(l) }

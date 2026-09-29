@@ -26,8 +26,8 @@ const (
 	RunSchema           = "overgo/run/v2"
 	EvaluationMediaType = "application/vnd.overgo.evaluation+json"
 	EvaluationSchema    = "overgo/evaluation/v1"
-	// EvaluationRunAliasRoot scopes one metric record per run.
-	EvaluationRunAliasRoot = "evaluation/run/"
+	// evaluationRunAliasRoot scopes one metric record per run.
+	evaluationRunAliasRoot = "evaluation/run/"
 )
 
 var (
@@ -102,21 +102,21 @@ const (
 	OutcomeFailed Outcome = "failed"
 	// OutcomeCancelled reports an authority stopping the execution before a verdict.
 	OutcomeCancelled Outcome = "cancelled"
-	// OutcomeCheckpoint reports a gate that published one checkpoint's
+	// outcomeCheckpoint reports a gate that published one checkpoint's
 	// evidence and stopped before its commit; the step stays open.
-	OutcomeCheckpoint Outcome = "checkpoint"
-	// OutcomeRefused reports admission declining to run the execution at all.
-	OutcomeRefused Outcome = "refused"
-	// OutcomeSkipped reports scheduling passing over the execution without a verdict.
-	OutcomeSkipped Outcome = "skipped"
-	// OutcomeInapplicable reports an execution that ran and authoritatively found no work.
-	OutcomeInapplicable Outcome = "inapplicable"
-	// OutcomeSuperseded reports a newer execution replacing this one before it finished.
-	OutcomeSuperseded Outcome = "superseded"
+	outcomeCheckpoint Outcome = "checkpoint"
+	// outcomeRefused reports admission declining to run the execution at all.
+	outcomeRefused Outcome = "refused"
+	// outcomeSkipped reports scheduling passing over the execution without a verdict.
+	outcomeSkipped Outcome = "skipped"
+	// outcomeInapplicable reports an execution that ran and authoritatively found no work.
+	outcomeInapplicable Outcome = "inapplicable"
+	// outcomeSuperseded reports a newer execution replacing this one before it finished.
+	outcomeSuperseded Outcome = "superseded"
 	// OutcomeInconclusive reports an execution that ended without enough evidence for a verdict.
 	OutcomeInconclusive Outcome = "inconclusive"
-	// OutcomeLost reports admitted work that disappeared without a terminal record.
-	OutcomeLost Outcome = "lost"
+	// outcomeLost reports admitted work that disappeared without a terminal record.
+	outcomeLost Outcome = "lost"
 	// OutcomeRecovered reports previously lost work repaired to a terminal state.
 	OutcomeRecovered Outcome = "recovered"
 )
@@ -176,18 +176,18 @@ type Phase string
 
 const (
 	PhaseLoad            Phase = "load"
-	PhasePromptRender    Phase = "prompt_render"
+	phasePromptRender    Phase = "prompt_render"
 	PhaseTokenize        Phase = "tokenize"
 	PhaseMediaDecode     Phase = "media_decode"
-	PhaseVision          Phase = "vision"
+	phaseVision          Phase = "vision"
 	PhasePrefill         Phase = "prefill"
 	PhaseDecode          Phase = "decode"
-	PhaseSample          Phase = "sample"
+	phaseSample          Phase = "sample"
 	PhaseForwardBackward Phase = "forward_backward"
-	PhaseOptimizer       Phase = "optimizer"
-	PhaseRefresh         Phase = "refresh"
-	PhaseHostToDevice    Phase = "host_to_device"
-	PhaseDeviceToHost    Phase = "device_to_host"
+	phaseOptimizer       Phase = "optimizer"
+	phaseRefresh         Phase = "refresh"
+	phaseHostToDevice    Phase = "host_to_device"
+	phaseDeviceToHost    Phase = "device_to_host"
 	PhasePostprocess     Phase = "postprocess"
 	// PhasePrepare is the media recipe node phase for session and
 	// conditioning preparation.
@@ -201,8 +201,8 @@ const (
 	PhaseValidate Phase = "validate"
 	PhaseBuild    Phase = "build"
 	PhaseTest     Phase = "test"
-	PhaseVet      Phase = "vet"
-	PhasePackage  Phase = "package"
+	phaseVet      Phase = "vet"
+	phasePackage  Phase = "package"
 )
 
 type PhaseMetric struct {
@@ -409,7 +409,7 @@ func (e Evaluation) Batch(key string) (artifact.Batch, error) {
 }
 
 // EvaluationRunAlias identifies a run's metric record.
-func EvaluationRunAlias(run artifact.ID) string { return EvaluationRunAliasRoot + run.String() }
+func EvaluationRunAlias(run artifact.ID) string { return evaluationRunAliasRoot + run.String() }
 
 func canonicalizeRun(run *Run) error {
 	if run == nil || run.Version != artifact.InitialDocumentVersion && run.Version != artifact.SecondDocumentVersion || run.Recipe.Kind() != artifact.KindRecipe {
@@ -423,10 +423,10 @@ func canonicalizeRun(run *Run) error {
 		run.MeasuredNS == 0 || run.MeasuredNS > math.MaxInt64 {
 		return errors.New("run record: invalid bound run facts")
 	}
-	if run.Outcome != OutcomeSucceeded && run.Outcome != OutcomeFailed && run.Outcome != OutcomeCancelled && run.Outcome != OutcomeCheckpoint {
+	if run.Outcome != OutcomeSucceeded && run.Outcome != OutcomeFailed && run.Outcome != OutcomeCancelled && run.Outcome != outcomeCheckpoint {
 		return errors.New("run record: invalid outcome")
 	}
-	if (run.Outcome == OutcomeSucceeded || run.Outcome == OutcomeCheckpoint) && (len(run.Outputs) == 0 || run.Failure != "") {
+	if (run.Outcome == OutcomeSucceeded || run.Outcome == outcomeCheckpoint) && (len(run.Outputs) == 0 || run.Failure != "") {
 		return errors.New("run record: invalid successful outcome")
 	}
 	if run.Outcome == OutcomeFailed && !validLabel(run.Failure) {
@@ -462,12 +462,12 @@ func canonicalizePhases(phases *[]PhaseMetric) error {
 
 func validPhase(phase Phase) bool {
 	switch phase {
-	case PhaseLoad, PhasePromptRender, PhaseTokenize, PhaseMediaDecode, PhaseVision,
-		PhasePrefill, PhaseDecode, PhaseSample, PhaseForwardBackward, PhaseOptimizer,
-		PhaseRefresh, PhaseHostToDevice, PhaseDeviceToHost, PhasePostprocess,
+	case PhaseLoad, phasePromptRender, PhaseTokenize, PhaseMediaDecode, phaseVision,
+		PhasePrefill, PhaseDecode, phaseSample, PhaseForwardBackward, phaseOptimizer,
+		phaseRefresh, phaseHostToDevice, phaseDeviceToHost, PhasePostprocess,
 		PhasePrepare, PhaseIntegrate, PhaseGenerate:
 		return true
-	case PhaseValidate, PhaseBuild, PhaseTest, PhaseVet, PhasePackage:
+	case PhaseValidate, PhaseBuild, PhaseTest, phaseVet, phasePackage:
 		return true
 	default:
 		return false

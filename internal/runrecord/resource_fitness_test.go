@@ -22,7 +22,7 @@ func TestResourceFitnessContract(t *testing.T) {
 	}
 	fixture := ResourceFitness{
 		Scope: ResourceScope{
-			Surface:  SurfaceTraining,
+			Surface:  surfaceTraining,
 			Model:    id(artifact.KindModel, "resource-model"),
 			Hardware: id(artifact.KindEvidence, "resource-hardware"),
 			Provider: id(artifact.KindProfile, "resource-provider"),
@@ -34,22 +34,22 @@ func TestResourceFitnessContract(t *testing.T) {
 			{Metric: ResourceCostUnits, Value: 0},
 			{Metric: ResourceInputTokens, Value: 1},
 			{Metric: ResourceOutputTokens, Value: 2},
-			{Metric: ResourceCacheReadTokens, Value: 3},
-			{Metric: ResourceCacheWriteTokens, Value: 4},
+			{Metric: resourceCacheReadTokens, Value: 3},
+			{Metric: resourceCacheWriteTokens, Value: 4},
 			{Metric: ResourceInputBytes, Value: 5},
 			{Metric: ResourceOutputBytes, Value: 6},
-			{Metric: ResourceCacheLookups, Value: 7},
-			{Metric: ResourceCacheHits, Value: 6},
-			{Metric: ResourceCacheWrites, Value: 8},
-			{Metric: ResourceActiveComputeNS, Value: 23},
-			{Metric: ResourceCPUNS, Value: 31},
+			{Metric: resourceCacheLookups, Value: 7},
+			{Metric: resourceCacheHits, Value: 6},
+			{Metric: resourceCacheWrites, Value: 8},
+			{Metric: resourceActiveComputeNS, Value: 23},
+			{Metric: resourceCPUNS, Value: 31},
 			{Metric: ResourceGPUNS, Value: 37},
 			{Metric: ResourcePeakHostBytes, Value: 41},
 			{Metric: ResourcePeakDeviceBytes, Value: 43},
-			{Metric: ResourceDiskReadBytes, Value: 47},
-			{Metric: ResourceDiskWriteBytes, Value: 53},
-			{Metric: ResourceNetworkReceiveBytes, Value: 59},
-			{Metric: ResourceNetworkSendBytes, Value: 61},
+			{Metric: resourceDiskReadBytes, Value: 47},
+			{Metric: resourceDiskWriteBytes, Value: 53},
+			{Metric: resourceNetworkReceiveBytes, Value: 59},
+			{Metric: resourceNetworkSendBytes, Value: 61},
 			{Metric: ResourceHostToDeviceBytes, Value: 67},
 			{Metric: ResourceDeviceToHostBytes, Value: 71},
 		},
@@ -172,7 +172,7 @@ func TestResourceFitnessContract(t *testing.T) {
 	if peak, known := servingFitness.Measure(ResourcePeakHostBytes); !known || peak != 0 {
 		t.Fatalf("observed-zero serving peak = (%d, %v)", peak, known)
 	}
-	if _, err := serving.ResourceFitness(artifact.ID{}, nil, ResourceNetworkSendBytes); err == nil {
+	if _, err := serving.ResourceFitness(artifact.ID{}, nil, resourceNetworkSendBytes); err == nil {
 		t.Fatal("serving adapter accepted an unowned metric")
 	}
 
@@ -193,7 +193,7 @@ func TestResourceFitnessContract(t *testing.T) {
 		{"duplicate metric", func(value *ResourceFitness) { value.Measures = append(value.Measures, value.Measures[0]) }},
 		{"hits over lookups", func(value *ResourceFitness) {
 			for index := range value.Measures {
-				if value.Measures[index].Metric == ResourceCacheHits {
+				if value.Measures[index].Metric == resourceCacheHits {
 					value.Measures[index].Value = 8
 				}
 			}

@@ -2,10 +2,14 @@ package seriesforecast
 
 import (
 	"math"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/optimizer"
+	"overgo/internal/safetensors"
 	"overgo/internal/trainingprogram"
 )
 
@@ -127,6 +131,82 @@ func TestTrainerPublishesCompiledParameterAuthority(t *testing.T) {
 			t.Fatalf("parameter %q shape=%dx%d storage=%d/%d", parameter.Name, parameter.Rows, parameter.Cols, len(values), cap(values))
 		}
 	}
+}
+
+// TestTrainerCheckpointRoundTripIsBitExact trains one step, publishes the
+// trainer's weights and optimizer state as a checkpoint, and reads both back
+// bit for bit.
+func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	model := tinyTrainableModel()
+	trainer, err := NewTrainer(model, testOptimizerConfig(t, model))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	if _, err := trainer.Step([]float32{0.4, 0.9, 1.3, 1.1, 0.8, 1.6, 2.1, 1.9, 1.4, 2.3}, []float32{2.6, 2.2}); err != nil {
+		t.Fatal(err)
+	}
+	state := trainer.Snapshot()
+	loaded, catalog := checkpointRoundTrip(t, trainer.Program(), state, trainer.SaveWeights)
+	if state.Step != 1 || state.PlanIdentity != trainer.Program().OptimizerIdentity() ||
+		!slices.ContainsFunc(state.Momentum, func(value float64) bool { return value != 0 }) {
+		t.Fatalf("snapshot after one step = step %d plan %s, want step 1 of %s with momentum", state.Step, state.PlanIdentity, trainer.Program().OptimizerIdentity())
+	}
+	if loaded.Step != state.Step || loaded.Config != state.Config || loaded.PlanIdentity != state.PlanIdentity ||
+		!slices.EqualFunc(loaded.Momentum, state.Momentum, func(left, right float64) bool { return math.Float64bits(left) == math.Float64bits(right) }) {
+		t.Fatal("the checkpoint's optimizer state differs from the trainer's")
+	}
+	parameters := trainer.Program().Parameters()
+	if len(catalog.Values) != len(parameters) {
+		t.Fatalf("checkpoint holds %d tensors, want the %d trained", len(catalog.Values), len(parameters))
+	}
+	for _, parameter := range parameters {
+		if !slices.Equal(catalog.Shapes[parameter.Name], []int{parameter.Rows, parameter.Cols}) ||
+			!slices.EqualFunc(catalog.Values[parameter.Name], model.Weights[parameter.Name], func(left, right float32) bool { return math.Float32bits(left) == math.Float32bits(right) }) {
+			t.Fatalf("checkpoint tensor %q differs from the trained weights", parameter.Name)
+		}
+	}
+}
+
+// checkpointRoundTrip publishes program's state and the weights write
+// stages as a checkpoint under stand-in authority, and reads the state and
+// weights back.
+func checkpointRoundTrip(t *testing.T, program trainingprogram.TrainingProgram, state optimizer.State, write func(string) error) (optimizer.State, safetensors.F32Catalog) {
+	t.Helper()
+	id := func(kind artifact.Kind, name string) artifact.ID {
+		value, err := artifact.IdentifyBytes(kind, []byte(name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	model, rng := id(artifact.KindModel, "model"), id(artifact.KindProfile, "rng")
+	target := filepath.Join(t.TempDir(), "checkpoint")
+	if _, err := trainingprogram.PublishCheckpoint(target, trainingprogram.CheckpointSpec{
+		RunPlan: id(artifact.KindRecipe, "run plan"), Program: program.ID(), Model: model,
+		Dataset: id(artifact.KindDataset, "dataset"), Split: id(artifact.KindDatasetShard, "split"),
+		Stream:    trainingprogram.DatasetState{Identity: id(artifact.KindDataset, "stream"), Position: uint64(state.Step)},
+		Optimizer: state, ParameterCount: len(state.Momentum),
+		RNG:        []trainingprogram.RNGState{{Name: "augmentation", Algorithm: rng}, {Name: "data", Algorithm: rng}},
+		Processors: []artifact.ID{id(artifact.KindProfile, "processor")},
+		Lineage:    []trainingprogram.LineageParent{{Artifact: model, Relation: artifact.RelationTrainedFrom}},
+	}, func(stage string) error { return write(filepath.Join(stage, trainingprogram.CheckpointWeights)) }); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := trainingprogram.LoadCheckpoint(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source, err := safetensors.OpenFile(filepath.Join(target, trainingprogram.CheckpointWeights))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	catalog, err := source.MaterializeF32(safetensors.F32Selection{RetainShapes: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return loaded.Optimizer, catalog
 }
 
 func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {

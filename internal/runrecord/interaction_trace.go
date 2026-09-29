@@ -25,8 +25,8 @@ const (
 	InteractionEventRequest InteractionEventKind = "request"
 	// InteractionEventOutput marks model output.
 	InteractionEventOutput InteractionEventKind = "output"
-	// InteractionEventToolCall marks emitted tool work.
-	InteractionEventToolCall InteractionEventKind = "tool-call"
+	// interactionEventToolCall marks emitted tool work.
+	interactionEventToolCall InteractionEventKind = "tool-call"
 	// InteractionEventToolResult marks returned tool work.
 	InteractionEventToolResult InteractionEventKind = "tool-result"
 )
@@ -68,7 +68,7 @@ type InteractionTrace struct {
 // execution authorities. Payloads stay in their owning artifacts.
 func NewAgentTrajectory(value InteractionTrace) (InteractionTrace, error) {
 	value.ID = artifact.ID{}
-	if value.TaskContract.Kind() != artifact.KindRecipe || !ValidOutcome(value.Terminal) {
+	if value.TaskContract.Kind() != artifact.KindRecipe || !validOutcome(value.Terminal) {
 		return InteractionTrace{}, errors.New("run record: invalid agent trajectory authority")
 	}
 	return interactionTraceCodec.New(value)
@@ -139,7 +139,7 @@ func (value InteractionTrace) ToolExchanges() ([]InteractionToolCall, uint64, er
 	for _, event := range value.Events {
 		message := event.Message
 		switch event.Kind {
-		case InteractionEventToolCall:
+		case interactionEventToolCall:
 			if message.Role != "assistant" || len(message.ToolCalls) == 0 ||
 				message.ToolCallID != "" || message.ToolResultError {
 				return nil, 0, errors.New("run record: invalid tool-call event")
@@ -188,7 +188,7 @@ func canonicalizeInteractionTrace(value *InteractionTrace) error {
 		(value.Operation.Valid() && value.Operation.Kind() != artifact.KindEvidence) {
 		return errors.New("run record: invalid interaction trace")
 	}
-	if value.Terminal != "" && !ValidOutcome(value.Terminal) {
+	if value.Terminal != "" && !validOutcome(value.Terminal) {
 		return errors.New("run record: invalid interaction terminal outcome")
 	}
 	for index, event := range value.Events {
@@ -212,7 +212,7 @@ func canonicalizeInteractionTrace(value *InteractionTrace) error {
 		sort.Slice(*ids, func(i, j int) bool { return artifact.CompareID((*ids)[i], (*ids)[j]) < 0 })
 		*ids = slices.Compact(*ids)
 	}
-	if value.TaskContract.Valid() && (value.TaskContract.Kind() != artifact.KindRecipe || !ValidOutcome(value.Terminal)) {
+	if value.TaskContract.Valid() && (value.TaskContract.Kind() != artifact.KindRecipe || !validOutcome(value.Terminal)) {
 		return errors.New("run record: invalid agent trajectory")
 	}
 	if value.Strategy.Valid() && value.Strategy.Kind() != artifact.KindProfile {
@@ -223,12 +223,12 @@ func canonicalizeInteractionTrace(value *InteractionTrace) error {
 
 func (kind InteractionEventKind) valid() bool {
 	return kind == InteractionEventRequest || kind == InteractionEventOutput ||
-		kind == InteractionEventToolCall || kind == InteractionEventToolResult
+		kind == interactionEventToolCall || kind == InteractionEventToolResult
 }
 
 func interactionEventKind(message InteractionMessage) InteractionEventKind {
 	if len(message.ToolCalls) != 0 {
-		return InteractionEventToolCall
+		return interactionEventToolCall
 	}
 	if message.Role == "tool" {
 		return InteractionEventToolResult

@@ -8,13 +8,13 @@ import (
 )
 
 const (
-	ImprovementAdmissionMediaType = "application/vnd.overgo.improvement-admission+json"
-	ImprovementAdmissionSchema    = "overgo/improvement-admission/v2"
-	ImprovementDecisionMediaType  = "application/vnd.overgo.improvement-decision+json"
-	ImprovementDecisionSchema     = "overgo/improvement-decision/v2"
+	improvementAdmissionMediaType = "application/vnd.overgo.improvement-admission+json"
+	improvementAdmissionSchema    = "overgo/improvement-admission/v2"
+	improvementDecisionMediaType  = "application/vnd.overgo.improvement-decision+json"
+	improvementDecisionSchema     = "overgo/improvement-decision/v2"
 )
 
-type ImprovementAdmission struct {
+type improvementAdmission struct {
 	Version          uint16      `json:"version"`
 	Proposal         artifact.ID `json:"proposal"`
 	ParentModel      artifact.ID `json:"parent_model"`
@@ -38,7 +38,7 @@ const (
 	ImprovementRefuse  ImprovementDecisionState = "refuse"
 )
 
-type ImprovementDecision struct {
+type improvementDecision struct {
 	Version          uint16                   `json:"version"`
 	State            ImprovementDecisionState `json:"state"`
 	Admission        artifact.ID              `json:"admission"`
@@ -64,18 +64,18 @@ type ImprovementDecision struct {
 }
 
 var improvementAdmissionCodec = artifact.JSONDocumentCodec(
-	"improvement admission", artifact.KindEvidence, ImprovementAdmissionMediaType, ImprovementAdmissionSchema,
+	"improvement admission", artifact.KindEvidence, improvementAdmissionMediaType, improvementAdmissionSchema,
 	canonicalizeImprovementAdmission,
-	func(value ImprovementAdmission) artifact.ID { return value.ID },
-	func(value *ImprovementAdmission, id artifact.ID) { value.ID = id }, nil,
+	func(value improvementAdmission) artifact.ID { return value.ID },
+	func(value *improvementAdmission, id artifact.ID) { value.ID = id }, nil,
 )
 
 var improvementDecisionCodec = artifact.JSONDocumentCodec(
-	"improvement decision", artifact.KindEvidence, ImprovementDecisionMediaType, ImprovementDecisionSchema,
+	"improvement decision", artifact.KindEvidence, improvementDecisionMediaType, improvementDecisionSchema,
 	canonicalizeImprovementDecision,
-	func(value ImprovementDecision) artifact.ID { return value.ID },
-	func(value *ImprovementDecision, id artifact.ID) { value.ID = id },
-	func(value ImprovementDecision) ImprovementDecision {
+	func(value improvementDecision) artifact.ID { return value.ID },
+	func(value *improvementDecision, id artifact.ID) { value.ID = id },
+	func(value improvementDecision) improvementDecision {
 		value.Causal = cloneCausal(value.Causal)
 		return value
 	},
@@ -83,8 +83,8 @@ var improvementDecisionCodec = artifact.JSONDocumentCodec(
 
 func AdmitImprovement(
 	proposal trainingprogram.ImprovementProposal, authority, evaluator, promotionSplit artifact.ID,
-) (ImprovementAdmission, error) {
-	return improvementAdmissionCodec.New(ImprovementAdmission{
+) (improvementAdmission, error) {
+	return improvementAdmissionCodec.New(improvementAdmission{
 		Version: artifact.SecondDocumentVersion, Proposal: proposal.ID(), ParentModel: proposal.ParentModel(), Incumbent: proposal.Incumbent(),
 		Candidate: proposal.Candidate(), Dataset: proposal.Dataset(),
 		DevelopmentSplit: proposal.DevelopmentSplit(), PromotionSplit: promotionSplit,
@@ -94,21 +94,21 @@ func AdmitImprovement(
 }
 
 func DecideImprovement(
-	admission ImprovementAdmission, child artifact.ID, run Run, evaluation Evaluation,
+	admission improvementAdmission, child artifact.ID, run Run, evaluation Evaluation,
 	decider artifact.ID, state ImprovementDecisionState,
 	causal ...CausalContext,
-) (ImprovementDecision, error) {
+) (improvementDecision, error) {
 	if len(causal) > 1 {
-		return ImprovementDecision{}, errors.New("run record: improvement decision has multiple causal contexts")
+		return improvementDecision{}, errors.New("run record: improvement decision has multiple causal contexts")
 	}
 	if err := validateImprovementEvidence(admission, child, run, evaluation, decider, state); err != nil {
-		return ImprovementDecision{}, err
+		return improvementDecision{}, err
 	}
 	var causalBinding *CausalContext
 	if len(causal) == 1 {
 		causalBinding = &causal[0]
 	}
-	return improvementDecisionCodec.New(ImprovementDecision{
+	return improvementDecisionCodec.New(improvementDecision{
 		Version: artifact.SecondDocumentVersion, State: state, Admission: admission.ID,
 		ParentModel: admission.ParentModel, Incumbent: admission.Incumbent, Candidate: admission.Candidate, ChildModel: child, Dataset: admission.Dataset,
 		DevelopmentSplit: admission.DevelopmentSplit, PromotionSplit: admission.PromotionSplit,
@@ -119,29 +119,29 @@ func DecideImprovement(
 	})
 }
 
-func (value ImprovementAdmission) ValidateIdentity() error {
+func (value improvementAdmission) ValidateIdentity() error {
 	return improvementAdmissionCodec.ValidateIdentity(value)
 }
 
-func (value ImprovementDecision) ValidateIdentity() error {
+func (value improvementDecision) ValidateIdentity() error {
 	return improvementDecisionCodec.ValidateIdentity(value)
 }
 
-func (value ImprovementAdmission) Content() (artifact.Content, error) {
+func (value improvementAdmission) Content() (artifact.Content, error) {
 	return improvementAdmissionCodec.Content(value)
 }
 
-func (value ImprovementDecision) Content() (artifact.Content, error) {
+func (value improvementDecision) Content() (artifact.Content, error) {
 	return improvementDecisionCodec.Content(value)
 }
 
-func (value ImprovementAdmission) Lineage() []artifact.Lineage {
+func (value improvementAdmission) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, value.Proposal, value.ParentModel, value.Incumbent, value.Dataset,
 		value.Candidate, value.DevelopmentSplit, value.PromotionSplit, value.Recipe, value.Code,
 		value.Proposer, value.Evaluator, value.Authority)
 }
 
-func (value ImprovementDecision) Lineage() []artifact.Lineage {
+func (value improvementDecision) Lineage() []artifact.Lineage {
 	lineage := artifact.DependencyLineage(value.ID, value.Admission, value.ParentModel, value.Incumbent, value.Candidate, value.ChildModel,
 		value.Dataset, value.DevelopmentSplit, value.PromotionSplit, value.Recipe, value.Code,
 		value.Evaluator, value.Run, value.Evaluation, value.Proposer, value.Authority, value.Decider)
@@ -159,11 +159,11 @@ func (value ImprovementDecision) Lineage() []artifact.Lineage {
 	return lineage
 }
 
-func (value ImprovementAdmission) Batch(key string) (artifact.Batch, error) {
+func (value improvementAdmission) Batch(key string) (artifact.Batch, error) {
 	return improvementAdmissionCodec.Batch(key, value, value.Lineage(), nil)
 }
 
-func (value ImprovementDecision) Batch(key string) (artifact.Batch, error) {
+func (value improvementDecision) Batch(key string) (artifact.Batch, error) {
 	batch, err := improvementDecisionCodec.Batch(key, value, value.Lineage(), nil)
 	if err != nil {
 		return artifact.Batch{}, err
@@ -174,7 +174,7 @@ func (value ImprovementDecision) Batch(key string) (artifact.Batch, error) {
 	return batch, nil
 }
 
-func canonicalizeImprovementAdmission(value *ImprovementAdmission) error {
+func canonicalizeImprovementAdmission(value *improvementAdmission) error {
 	if value == nil || value.Version != artifact.SecondDocumentVersion ||
 		value.Proposal.Kind() != artifact.KindRecipe || value.ParentModel.Kind() != artifact.KindModel ||
 		!value.Candidate.Valid() || value.Incumbent.Kind() != value.Candidate.Kind() || value.Incumbent == value.Candidate ||
@@ -189,7 +189,7 @@ func canonicalizeImprovementAdmission(value *ImprovementAdmission) error {
 	return nil
 }
 
-func canonicalizeImprovementDecision(value *ImprovementDecision) error {
+func canonicalizeImprovementDecision(value *improvementDecision) error {
 	if value == nil || value.Version != artifact.SecondDocumentVersion ||
 		value.State != ImprovementPromote && value.State != ImprovementRefuse ||
 		value.Admission.Kind() != artifact.KindEvidence || value.ParentModel.Kind() != artifact.KindModel ||
@@ -209,7 +209,7 @@ func canonicalizeImprovementDecision(value *ImprovementDecision) error {
 }
 
 func validateImprovementEvidence(
-	admission ImprovementAdmission, child artifact.ID, run Run, evaluation Evaluation,
+	admission improvementAdmission, child artifact.ID, run Run, evaluation Evaluation,
 	decider artifact.ID, state ImprovementDecisionState,
 ) error {
 	if err := admission.ValidateIdentity(); err != nil {

@@ -12,18 +12,16 @@ import (
 )
 
 // TestOneWorkbenchEventStream holds the workbench to one live connection:
-// the automation, peer and agent tab streams are gone (each sent its
-// inventory once, then only the operations the runtime stream carries), and
-// hub downloads ride the runtime stream -- every job at connect, then again
-// only when a job reads differently -- in place of a once-a-second poll.
+// the agent tab stream is gone (it sent its inventory once, then only the
+// operations the runtime stream carries), and hub downloads ride the runtime
+// stream -- every job at connect, then again only when a job reads
+// differently -- in place of a once-a-second poll.
 func TestOneWorkbenchEventStream(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	defer handler.Close()
-	for _, path := range []string{"/automations/stream", "/peers/stream", "/agents/stream"} {
-		if response := serveTestRequest(handler, http.MethodGet, path, ""); response.Code != http.StatusNotFound {
-			t.Errorf("retired tab stream %s answered %d: %s", path, response.Code, response.Body)
-		}
+	if response := serveTestRequest(handler, http.MethodGet, "/agents/stream", ""); response.Code != http.StatusNotFound {
+		t.Errorf("retired tab stream /agents/stream answered %d: %s", response.Code, response.Body)
 	}
 
 	// A transfer publishes once per file and whole percent, not per chunk,

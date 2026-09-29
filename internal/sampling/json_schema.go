@@ -7,7 +7,6 @@ import (
 	"maps"
 	"regexp"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -188,9 +187,7 @@ func (converter *schemaConverter) notStrings(values []string) (string, error) {
 		for character := range node.children {
 			characters = append(characters, character)
 		}
-		sort.Slice(characters, func(left, right int) bool {
-			return characters[left] < characters[right]
-		})
+		slices.Sort(characters)
 		for index, character := range characters {
 			if index > 0 {
 				output.WriteString(" | ")
@@ -632,7 +629,7 @@ func (converter *schemaConverter) indexRefs(root orderedJSONObject) error {
 				}
 				target := any(root)
 				if ref != "#" {
-					for _, encoded := range strings.Split(strings.TrimPrefix(ref, "#/"), "/") {
+					for encoded := range strings.SplitSeq(strings.TrimPrefix(ref, "#/"), "/") {
 						selector := strings.ReplaceAll(strings.ReplaceAll(encoded, "~1", "/"), "~0", "~")
 						switch current := target.(type) {
 						case orderedJSONObject:

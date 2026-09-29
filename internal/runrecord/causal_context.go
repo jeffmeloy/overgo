@@ -13,8 +13,8 @@ type CausalTrigger string
 const (
 	// TriggerManual is an operator-initiated execution.
 	TriggerManual CausalTrigger = "manual"
-	// TriggerSchedule is a time-driven execution.
-	TriggerSchedule CausalTrigger = "schedule"
+	// triggerSchedule is a time-driven execution.
+	triggerSchedule CausalTrigger = "schedule"
 	// TriggerWebhook is an external ingress event.
 	TriggerWebhook CausalTrigger = "webhook"
 	// TriggerControllerProposal is a controller-admitted proposal.
@@ -23,8 +23,8 @@ const (
 	TriggerStageWakeup CausalTrigger = "stage-wakeup"
 	// TriggerRetry re-executes a failed attempt under the same root.
 	TriggerRetry CausalTrigger = "retry"
-	// TriggerRerun replays a completed execution under the same root.
-	TriggerRerun CausalTrigger = "rerun"
+	// triggerRerun replays a completed execution under the same root.
+	triggerRerun CausalTrigger = "rerun"
 	// TriggerDelegation runs on behalf of another execution.
 	TriggerDelegation CausalTrigger = "delegation"
 	// TriggerRecovery repairs work lost by a crash.
@@ -33,17 +33,17 @@ const (
 	TriggerFollowup CausalTrigger = "followup"
 )
 
-// OriginatingTriggers are the triggers that may start a causal root:
+// originatingTriggers are the triggers that may start a causal root:
 // something outside the execution graph caused them.
-var OriginatingTriggers = []CausalTrigger{
-	TriggerManual, TriggerSchedule, TriggerWebhook,
+var originatingTriggers = []CausalTrigger{
+	TriggerManual, triggerSchedule, TriggerWebhook,
 	TriggerControllerProposal, TriggerStageWakeup,
 }
 
-// DerivedTriggers are the triggers that only continue an existing
+// derivedTriggers are the triggers that only continue an existing
 // causal chain; they can never mint a root.
-var DerivedTriggers = []CausalTrigger{
-	TriggerRetry, TriggerRerun, TriggerDelegation, TriggerRecovery, TriggerFollowup,
+var derivedTriggers = []CausalTrigger{
+	TriggerRetry, triggerRerun, TriggerDelegation, TriggerRecovery, TriggerFollowup,
 }
 
 // CausalContext explains why one execution occurred, separately from
@@ -77,7 +77,7 @@ type CausalContext struct {
 // NewCausalRoot starts one causal chain from an originating trigger
 // and the evidence artifact standing for the external cause.
 func NewCausalRoot(trigger CausalTrigger, root artifact.ID, motivation ...artifact.ID) (CausalContext, error) {
-	if !slices.Contains(OriginatingTriggers, trigger) {
+	if !slices.Contains(originatingTriggers, trigger) {
 		return CausalContext{}, errors.New("run record: trigger cannot originate a causal root")
 	}
 	context := CausalContext{Trigger: trigger, Root: root, Motivation: slices.Clone(motivation)}
@@ -100,7 +100,7 @@ func (context CausalContext) Derive(trigger CausalTrigger, subject artifact.ID) 
 	switch trigger {
 	case TriggerRetry:
 		derived.ParentAttempt, derived.RetryOrdinal = subject, context.RetryOrdinal+1
-	case TriggerRerun:
+	case triggerRerun:
 		derived.ReplayOf = subject
 	case TriggerDelegation:
 		derived.DelegatedFrom = subject
@@ -173,7 +173,7 @@ func (context CausalContext) subject() artifact.ID {
 	switch context.Trigger {
 	case TriggerRetry:
 		return context.ParentAttempt
-	case TriggerRerun:
+	case triggerRerun:
 		return context.ReplayOf
 	case TriggerDelegation:
 		return context.DelegatedFrom
@@ -196,14 +196,14 @@ func (context CausalContext) Validate() error {
 	}
 	subjects := map[CausalTrigger]bool{
 		TriggerRetry:      context.ParentAttempt.Valid(),
-		TriggerRerun:      context.ReplayOf.Valid(),
+		triggerRerun:      context.ReplayOf.Valid(),
 		TriggerDelegation: context.DelegatedFrom.Valid(),
 		TriggerRecovery:   context.RecoveredFrom.Valid(),
 		TriggerFollowup:   context.FollowupOf.Valid(),
 	}
 	carried, known := subjects[context.Trigger]
 	if !known {
-		if !slices.Contains(OriginatingTriggers, context.Trigger) {
+		if !slices.Contains(originatingTriggers, context.Trigger) {
 			return errors.New("run record: foreign causal trigger")
 		}
 	} else if !carried {

@@ -103,7 +103,7 @@ func TestGBNFVocabularyBindingShared(t *testing.T) {
 		for _, size := range []int{8, 8192} {
 			pieces := make([][]byte, size)
 			for i := range pieces {
-				pieces[i] = []byte(fmt.Sprint(i))
+				pieces[i] = fmt.Append(nil, i)
 			}
 			vocabulary, err := NewGBNFVocabulary(pieces, []int{size - 1}, nil)
 			if err != nil {

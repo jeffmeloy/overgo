@@ -1,7 +1,9 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -9,8 +11,10 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/operatoraction"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/workflowrecipe"
 	"overgo/internal/workflowruntime"
 )
 
@@ -18,10 +22,10 @@ const operationEvidenceSecret = "transcript-content-must-stay-private"
 
 func TestOperationEvidenceProjection(t *testing.T) {
 	t.Parallel()
-	fixture, execution, status := operationEvidenceFixture(t)
+	fixture, operationID, status := operationEvidenceFixture(t)
 	defer fixture.store.Close()
 	response := serveTestRequest(
-		fixture.handler, http.MethodGet, "/operations/evidence?id="+execution.Operation.String(), "",
+		fixture.handler, http.MethodGet, "/operations/evidence?id="+operationID.String(), "",
 	)
 	if response.Code != http.StatusOK {
 		t.Fatalf("projection status=%d body=%s", response.Code, response.Body.String())
@@ -30,7 +34,7 @@ func TestOperationEvidenceProjection(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &projection); err != nil {
 		t.Fatal(err)
 	}
-	if projection.ID != execution.Operation || projection.Operation == nil || projection.Operation.Run == nil ||
+	if projection.ID != operationID || projection.Operation == nil || projection.Operation.Run == nil ||
 		*projection.Operation.Run != *status.Run || len(projection.Stages) != len(fixture.definition.Nodes) ||
 		len(projection.Serving) != 1 || len(projection.Interactions) != 1 || len(projection.Decisions) != 1 ||
 		projection.Summary.Stages.Completed != len(fixture.definition.Nodes) || projection.Summary.ServingAttempts != 1 {
@@ -72,10 +76,10 @@ func TestOperationSummary(t *testing.T) {
 
 func TestOperationProjectionBounds(t *testing.T) {
 	t.Parallel()
-	fixture, execution, status := operationEvidenceFixture(t)
+	fixture, operationID, status := operationEvidenceFixture(t)
 	defer fixture.store.Close()
-	publishOperationInteraction(t, fixture, execution.Operation, *status.Run, "resp_operation_second", "second private payload")
-	projection, err := fixture.handler.operationEvidenceSnapshot(t.Context(), execution.Operation, 1)
+	publishOperationInteraction(t, fixture, operationID, *status.Run, "resp_operation_second", "second private payload")
+	projection, err := fixture.handler.operationEvidenceSnapshot(t.Context(), operationID, 1)
 	if err != nil || len(projection.Interactions) != 1 || !projection.Truncated {
 		t.Fatalf("bounded projection=(%+v, %v)", projection, err)
 	}
@@ -83,9 +87,9 @@ func TestOperationProjectionBounds(t *testing.T) {
 
 func TestTracePayloadRedaction(t *testing.T) {
 	t.Parallel()
-	fixture, execution, _ := operationEvidenceFixture(t)
+	fixture, operationID, _ := operationEvidenceFixture(t)
 	defer fixture.store.Close()
-	projection, err := fixture.handler.operationEvidenceSnapshot(t.Context(), execution.Operation, fixture.handler.config.MaxStoredResponses)
+	projection, err := fixture.handler.operationEvidenceSnapshot(t.Context(), operationID, fixture.handler.config.MaxStoredResponses)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,37 +102,100 @@ func TestTracePayloadRedaction(t *testing.T) {
 	}
 }
 
+// operationEvidenceServer is a store-backed handler beside the one-node
+// recipe whose workflow run its operations execute.
+type operationEvidenceServer struct {
+	handler    *Handler
+	store      *overgodb.Store
+	definition recipe.Definition
+}
+
+// operationEvidenceFixture runs a one-node generation recipe through the
+// handler's operation manager and the workflow runtime, then records the
+// serving observation, interaction and decision the projection joins.
 func operationEvidenceFixture(
 	t *testing.T,
-) (automationServerFixture, workflowruntime.AutomationExecution, operation.Status) {
+) (operationEvidenceServer, artifact.ID, operation.Status) {
 	t.Helper()
-	fixture := newAutomationServerFixture(t)
-	definitionID := publishAutomationFromAPI(t, fixture)
-	activation := serveTestRequest(fixture.handler, http.MethodPost, "/automations/activate", marshalAutomationJSON(t, map[string]any{
-		"definition": definitionID,
-	}))
-	if activation.Code != http.StatusOK {
-		fixture.store.Close()
-		t.Fatalf("activation status=%d body=%s", activation.Code, activation.Body.String())
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
 	}
-	run := serveTestRequest(fixture.handler, http.MethodPost, "/automations/run", marshalAutomationJSON(t, map[string]any{
-		"name": "daily-report", "key": "operation-evidence", "inputs": map[string]any{"tokens": "hello"},
-	}))
-	var execution workflowruntime.AutomationExecution
-	if run.Code != http.StatusAccepted || json.Unmarshal(run.Body.Bytes(), &execution) != nil {
-		fixture.store.Close()
-		t.Fatalf("run status=%d body=%s", run.Code, run.Body.String())
+	fixture := operationEvidenceServer{store: store, handler: newTestHandlerForRepository(t, store, &fakeGenerator{})}
+	model := commitTestBlob(t, store, artifact.KindModel, "operation-evidence-model")
+	fixture.definition, err = recipe.NewDefinitionWithDependencies(
+		recipe.TaskGeneration, []recipe.Dependency{{Role: recipe.DependencyModel, Artifact: model}},
+		[]recipe.Node{{
+			ID: "generate", Module: workflowrecipe.ModuleGenerate,
+			Placement: recipe.PlacementHost, Session: recipe.SessionCapacity,
+		}}, nil,
+		[]recipe.Input{{Name: "tokens", Data: recipe.DataTokens, Target: recipe.Endpoint{Node: "generate", Port: "tokens"}}},
+		[]recipe.Output{{Name: "tokens", Data: recipe.DataTokens, Source: recipe.Endpoint{Node: "generate", Port: "tokens"}}},
+	)
+	if err != nil {
+		store.Close()
+		t.Fatal(err)
 	}
-	status, err := fixture.handler.operations.Wait(t.Context(), execution.Operation)
+	definitionContent, err := fixture.definition.ArtifactContent()
+	if err == nil {
+		_, err = artifact.CommitBatch(t.Context(), store, artifact.Batch{
+			Key: "operation-evidence/recipe", Contents: []artifact.Content{definitionContent},
+		})
+	}
+	program, programErr := recipe.CompileProgram(fixture.definition, workflowrecipe.Catalog())
+	if err = errors.Join(err, programErr); err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
+	input := []byte(`"hello"`)
+	inputID, err := artifact.IdentifyBytes(artifact.KindFile, input)
+	if err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
+	inputs := map[recipe.PortName]workflowruntime.Value{"tokens": workflowruntime.ArtifactValue(recipe.DataTokens, "hello", artifact.Content{
+		Descriptor: artifact.Descriptor{ID: inputID, Size: uint64(len(input)), MediaType: "application/json"}, Data: input,
+	})}
+	// The generate stage answers its input as a stored output.
+	generate := workflowruntime.AdapterFunc(func(_ context.Context, request workflowruntime.StepRequest) (map[recipe.PortName]workflowruntime.Value, error) {
+		datum := request.Inputs["tokens"].Items[0]
+		encoded, marshalErr := json.Marshal(datum.Value)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+		id, identifyErr := artifact.IdentifyBytes(artifact.KindOutput, encoded)
+		if identifyErr != nil {
+			return nil, identifyErr
+		}
+		return map[recipe.PortName]workflowruntime.Value{"tokens": workflowruntime.ArtifactValue(recipe.DataTokens, datum.Value, artifact.Content{
+			Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(encoded)), MediaType: "application/json"}, Data: encoded,
+		})}, nil
+	})
+	operationID, err := fixture.handler.operations.Submit(t.Context(), operation.Request{Task: recipe.TaskGeneration, Recipe: fixture.definition.ID},
+		func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
+			engine, engineErr := workflowruntime.NewForProgram(store, program)
+			if engineErr == nil {
+				engineErr = engine.Register(workflowrecipe.ModuleGenerate, generate)
+			}
+			if engineErr != nil {
+				return operation.Completion{}, engineErr
+			}
+			result, runErr := engine.ExecuteProgram(ctx, "operation-evidence", reporter.OperationID(), reporter, program, inputs)
+			return operation.Completion{Run: result.Run.ID, Outputs: result.Run.Outputs}, runErr
+		})
+	if err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
+	status, err := fixture.handler.operations.Wait(t.Context(), operationID)
 	if err != nil || status.State != operation.StateCompleted || status.Run == nil {
 		fixture.store.Close()
 		t.Fatalf("operation=(%+v, %v)", status, err)
 	}
-	model := fixture.definition.Dependencies[0].Artifact
 	if _, err := runrecord.PublishServingObservation(t.Context(), fixture.store, runrecord.ServingObservation{
 		Model: model, Recipe: fixture.definition.ID,
 		Environment: fixture.handler.environment.ID,
-		Operation:   execution.Operation, Run: *status.Run, Task: recipe.TaskGeneration,
+		Operation:   operationID, Run: *status.Run, Task: recipe.TaskGeneration,
 		Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1, MeasuredNS: 2,
 		Usage:     runrecord.ServingUsage{InputTokens: 3, OutputTokens: 5},
 		Resources: runrecord.ServingResources{PeakHostBytes: 7, PeakDeviceBytes: 11},
@@ -136,9 +203,9 @@ func operationEvidenceFixture(
 		fixture.store.Close()
 		t.Fatal(err)
 	}
-	publishOperationInteraction(t, fixture, execution.Operation, *status.Run, "resp_operation_evidence", operationEvidenceSecret)
+	publishOperationInteraction(t, fixture, operationID, *status.Run, "resp_operation_evidence", operationEvidenceSecret)
 	action := operatoraction.Action{Code: "continue", Summary: "Continue operation", Argv: []string{"overgo", "continue"}}
-	request, err := operatoraction.NewApprovalRequest(execution.Operation, fixture.definition.ID, action, artifact.ID{})
+	request, err := operatoraction.NewApprovalRequest(operationID, fixture.definition.ID, action, artifact.ID{})
 	if err != nil {
 		fixture.store.Close()
 		t.Fatal(err)
@@ -151,12 +218,12 @@ func operationEvidenceFixture(
 		fixture.store.Close()
 		t.Fatal(err)
 	}
-	return fixture, execution, status
+	return fixture, operationID, status
 }
 
 func publishOperationInteraction(
 	t *testing.T,
-	fixture automationServerFixture,
+	fixture operationEvidenceServer,
 	operationID artifact.ID,
 	run artifact.ID,
 	response, privatePayload string,

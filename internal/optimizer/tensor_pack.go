@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"overgo/internal/checked"
+	"overgo/internal/safetensors"
 )
 
 // TensorGeometry: named tensor matrix geometry.
@@ -100,6 +101,19 @@ func (p *TensorPack) NewOptimizer(config Config) (*Optimizer, error) {
 // NewStepper binds the packed slabs to the platform Muon backend.
 func (p *TensorPack) NewStepper(config Config) (Stepper, error) {
 	return NewStepper(p.weights, p.gradients, p.plan, config)
+}
+
+// Save writes every packed tensor at path as a named F32 safetensors tensor
+// with its [rows, cols] plan geometry: the weights the Snapshot of the pack's
+// stepper pairs with.
+func (p *TensorPack) Save(path string) error {
+	tensors := make(map[string][]float32, p.plan.GroupCount())
+	shapes := make(map[string][]int, p.plan.GroupCount())
+	for _, group := range p.plan.Groups() {
+		tensors[group.Name] = p.weights[group.Start:group.End]
+		shapes[group.Name] = []int{group.Rows, group.Cols}
+	}
+	return safetensors.Save(path, tensors, shapes, nil)
 }
 
 // Scatter publishes packed weights to bound model tensors.

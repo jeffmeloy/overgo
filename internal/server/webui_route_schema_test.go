@@ -4,21 +4,16 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-
-	"overgo/internal/runrecord"
 )
 
 // TestWebUIRouteSchemasMatchHandlerBodies holds every schema the API
 // explorer binds to a route to the body that route's handler decodes: each
 // schema field is a top-level JSON field of that body, so a form the
-// explorer renders sends a request the handler accepts. A schema describing
-// part of a body (the automation trigger, the flat peer placement form) was
-// bound once and sent fields the strict decoder refuses.
+// explorer renders sends a request the handler accepts.
 func TestWebUIRouteSchemasMatchHandlerBodies(t *testing.T) {
 	t.Parallel()
 	bodies := map[string]reflect.Type{
 		"/agents/definitions": reflect.TypeFor[agentDefinitionInput](),
-		"/peers/enroll":       reflect.TypeFor[runrecord.PeerEnrollment](),
 	}
 	catalog, err := parseWorkspaceSchema()
 	if err != nil {

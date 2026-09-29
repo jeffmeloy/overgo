@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	// CodeRevisionMediaType identifies an exact source revision used by a run.
-	CodeRevisionMediaType = "application/vnd.overgo.code-revision+json"
-	// CodeRevisionSchema identifies the code revision evidence contract.
-	CodeRevisionSchema = "overgo/code-revision/v1"
+	// codeRevisionMediaType identifies an exact source revision used by a run.
+	codeRevisionMediaType = "application/vnd.overgo.code-revision+json"
+	// codeRevisionSchema identifies the code revision evidence contract.
+	codeRevisionSchema = "overgo/code-revision/v1"
 )
 
 // CodeRevision gives a content-addressed evidence identity to the full Git
@@ -23,7 +23,7 @@ type CodeRevision struct {
 }
 
 var codeRevisionCodec = artifact.JSONDocumentCodec(
-	"code revision", artifact.KindEvidence, CodeRevisionMediaType, CodeRevisionSchema,
+	"code revision", artifact.KindEvidence, codeRevisionMediaType, codeRevisionSchema,
 	func(value *CodeRevision) error {
 		if value == nil || value.Version != artifact.InitialDocumentVersion || !validCodeCommit(value.Commit) {
 			return errors.New("run record: invalid code revision")

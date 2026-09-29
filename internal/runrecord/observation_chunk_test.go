@@ -85,7 +85,7 @@ func TestObservationChunkPublication(t *testing.T) {
 	observedZero := InteractionWork{}
 	observedWork := InteractionWork{Commits: 1, Failures: 3, Retries: 2}
 	first, err := NewObservationChunk(scope, artifact.ID{}, []ObservationSample{
-		{Ordinal: 1, ElapsedNS: 10, Kind: ObservationSampleToken, Measures: []ResourceMeasure{
+		{Ordinal: 1, ElapsedNS: 10, Kind: observationSampleToken, Measures: []ResourceMeasure{
 			{Metric: ResourcePeakHostBytes, Value: 100},
 			{Metric: ResourceCostUnits, Value: 0},
 			{Metric: ResourceInputTokens, Value: 3},
@@ -100,7 +100,7 @@ func TestObservationChunkPublication(t *testing.T) {
 			{Metric: ResourcePeakDeviceBytes, Value: 50},
 			{Metric: ResourceWallNS, Value: 11},
 		}, Interactions: &observedWork},
-		{Ordinal: 4, ElapsedNS: 40, Kind: ObservationSampleMessage, Measures: []ResourceMeasure{
+		{Ordinal: 4, ElapsedNS: 40, Kind: observationSampleMessage, Measures: []ResourceMeasure{
 			{Metric: ResourceOutputTokens, Value: 7},
 		}},
 	})
@@ -133,11 +133,11 @@ func TestObservationChunkPublication(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("summary content = (%+v, %v, %v)", storedSummary.Descriptor, found, err)
 	}
-	if storedRaw.Descriptor.Schema != "" || storedRaw.Descriptor.MediaType != ObservationChunkMediaType ||
+	if storedRaw.Descriptor.Schema != "" || storedRaw.Descriptor.MediaType != observationChunkMediaType ||
 		overgodb.DocumentStorageClass(storedRaw.Descriptor) != overgodb.ClassImmutableBlob {
 		t.Fatalf("raw storage contract = %+v class=%s", storedRaw.Descriptor, overgodb.DocumentStorageClass(storedRaw.Descriptor))
 	}
-	if storedSummary.Descriptor.Schema != ObservationChunkSummarySchema || storedSummary.Descriptor.MediaType != ObservationChunkSummaryMediaType ||
+	if storedSummary.Descriptor.Schema != observationChunkSummarySchema || storedSummary.Descriptor.MediaType != observationChunkSummaryMediaType ||
 		overgodb.DocumentStorageClass(storedSummary.Descriptor) != overgodb.ClassCanonicalFact {
 		t.Fatalf("summary storage contract = %+v class=%s", storedSummary.Descriptor, overgodb.DocumentStorageClass(storedSummary.Descriptor))
 	}
@@ -145,7 +145,7 @@ func TestObservationChunkPublication(t *testing.T) {
 	if err != nil || digest != firstSummary.Chunk || firstSummary.Chunk != raw.Descriptor.ID || firstSummary.Stats.Bytes != uint64(len(storedRaw.Data)) {
 		t.Fatalf("raw digest/bytes = (%s, %s, %d, %v)", digest, firstSummary.Chunk, firstSummary.Stats.Bytes, err)
 	}
-	parsed, err := ParseObservationChunk(storedRaw.Data)
+	parsed, err := parseObservationChunk(storedRaw.Data)
 	if err != nil || !reflect.DeepEqual(parsed, first) {
 		t.Fatalf("raw round trip = (%+v, %v)", parsed, err)
 	}
@@ -168,8 +168,8 @@ func TestObservationChunkPublication(t *testing.T) {
 	wantKinds := []ObservationKindSamples{
 		{Kind: ObservationSampleExecution, Samples: 1},
 		{Kind: ObservationSampleHardware, Samples: 1},
-		{Kind: ObservationSampleMessage, Samples: 1},
-		{Kind: ObservationSampleToken, Samples: 1},
+		{Kind: observationSampleMessage, Samples: 1},
+		{Kind: observationSampleToken, Samples: 1},
 	}
 	if firstSummary.Stats.Samples != 4 || firstSummary.Stats.FirstOrdinal != 1 || firstSummary.Stats.LastOrdinal != 4 ||
 		firstSummary.Stats.FirstElapsedNS != 10 || firstSummary.Stats.LastElapsedNS != 40 ||
@@ -209,12 +209,12 @@ func TestObservationChunkPublication(t *testing.T) {
 	}
 
 	noncanonical := append([]byte{' '}, storedRaw.Data...)
-	if _, err := ParseObservationChunk(noncanonical); err == nil {
+	if _, err := parseObservationChunk(noncanonical); err == nil {
 		t.Fatal("non-canonical raw bytes accepted")
 	}
 
 	divergent, err := NewObservationChunk(scope, artifact.ID{}, []ObservationSample{{
-		Ordinal: 1, ElapsedNS: 10, Kind: ObservationSampleToken,
+		Ordinal: 1, ElapsedNS: 10, Kind: observationSampleToken,
 		Measures: []ResourceMeasure{{Metric: ResourceInputTokens, Value: 4}},
 	}})
 	if err != nil {
@@ -237,14 +237,14 @@ func TestObservationChunkPublication(t *testing.T) {
 
 	second, err := NewObservationChunk(scope, firstSummary.ID, []ObservationSample{{
 		Ordinal: 5, ElapsedNS: 45, Kind: ObservationSampleExecution,
-		Measures: []ResourceMeasure{{Metric: ResourceDiskReadBytes, Value: 9}},
+		Measures: []ResourceMeasure{{Metric: resourceDiskReadBytes, Value: 9}},
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	staleSibling, err := NewObservationChunk(scope, firstSummary.ID, []ObservationSample{{
 		Ordinal: 5, ElapsedNS: 46, Kind: ObservationSampleExecution,
-		Measures: []ResourceMeasure{{Metric: ResourceDiskReadBytes, Value: 10}},
+		Measures: []ResourceMeasure{{Metric: resourceDiskReadBytes, Value: 10}},
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -287,13 +287,13 @@ func TestObservationChunkPublication(t *testing.T) {
 	}
 
 	other, err := NewObservationChunk(scope, artifact.ID{}, []ObservationSample{{
-		Ordinal: 1, ElapsedNS: 10, Kind: ObservationSampleToken,
+		Ordinal: 1, ElapsedNS: 10, Kind: observationSampleToken,
 		Measures: []ResourceMeasure{{Metric: ResourceInputTokens, Value: 999}},
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := VerifyObservationChunk(firstSummary, other); err == nil {
+	if err := verifyObservationChunk(firstSummary, other); err == nil {
 		t.Fatal("summary verified a different raw chunk")
 	}
 	otherContent, err := other.Content()
@@ -342,7 +342,7 @@ func TestObservationChunkPublication(t *testing.T) {
 
 	refusalSample := func(ordinal uint32, elapsed uint64) ObservationSample {
 		return ObservationSample{
-			Ordinal: ordinal, ElapsedNS: elapsed, Kind: ObservationSampleToken,
+			Ordinal: ordinal, ElapsedNS: elapsed, Kind: observationSampleToken,
 			Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: 1}},
 		}
 	}
@@ -354,17 +354,17 @@ func TestObservationChunkPublication(t *testing.T) {
 		samples  []ObservationSample
 	}{
 		{name: "empty count", scope: scope},
-		{name: "empty sample", scope: scope, samples: []ObservationSample{{Ordinal: 1, Kind: ObservationSampleToken}}},
+		{name: "empty sample", scope: scope, samples: []ObservationSample{{Ordinal: 1, Kind: observationSampleToken}}},
 		{name: "sequence gap", scope: scope, samples: []ObservationSample{refusalSample(1, 1), refusalSample(3, 2)}},
 		{name: "elapsed regression", scope: scope, samples: []ObservationSample{refusalSample(1, 2), refusalSample(2, 1)}},
 		{name: "foreign kind", scope: scope, samples: []ObservationSample{{
 			Ordinal: 1, Kind: "foreign", Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: 1}},
 		}}},
 		{name: "foreign metric", scope: scope, samples: []ObservationSample{{
-			Ordinal: 1, Kind: ObservationSampleToken, Measures: []ResourceMeasure{{Metric: "joules", Value: 1}},
+			Ordinal: 1, Kind: observationSampleToken, Measures: []ResourceMeasure{{Metric: "joules", Value: 1}},
 		}}},
 		{name: "duplicate metric", scope: scope, samples: []ObservationSample{{
-			Ordinal: 1, Kind: ObservationSampleToken,
+			Ordinal: 1, Kind: observationSampleToken,
 			Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: 1}, {Metric: ResourceWallNS, Value: 2}},
 		}}},
 		{name: "foreign scope", scope: ResourceScope{
@@ -382,8 +382,8 @@ func TestObservationChunkPublication(t *testing.T) {
 		})
 	}
 	if _, err := NewObservationChunk(scope, artifact.ID{}, []ObservationSample{
-		{Ordinal: 1, Kind: ObservationSampleToken, Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: math.MaxUint64}}},
-		{Ordinal: 2, Kind: ObservationSampleToken, Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: 1}}},
+		{Ordinal: 1, Kind: observationSampleToken, Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: math.MaxUint64}}},
+		{Ordinal: 2, Kind: observationSampleToken, Measures: []ResourceMeasure{{Metric: ResourceWallNS, Value: 1}}},
 	}); err == nil {
 		t.Fatal("resource aggregate overflow accepted")
 	}
@@ -396,15 +396,15 @@ func TestObservationChunkPublication(t *testing.T) {
 	}
 
 	func() {
-		tooMany := make([]ObservationSample, ObservationChunkMaximumSamples+1)
+		tooMany := make([]ObservationSample, observationChunkMaximumSamples+1)
 		if _, err := NewObservationChunk(scope, artifact.ID{}, tooMany); err == nil {
 			t.Fatal("sample count above bound accepted")
 		}
 	}()
 	runtime.GC()
 	func() {
-		oversized := make([]byte, ObservationChunkMaximumBytes+1)
-		if _, err := ParseObservationChunk(oversized); err == nil {
+		oversized := make([]byte, observationChunkMaximumBytes+1)
+		if _, err := parseObservationChunk(oversized); err == nil {
 			t.Fatal("raw bytes above bound accepted")
 		}
 	}()

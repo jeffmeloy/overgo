@@ -52,40 +52,8 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 		t.Fatal("an attempt without its result was admitted")
 	}
 
-	// Interaction efficiency: a reduction wins only with every counter
-	// covered and no counter silently worsened.
-	baselineTrace := EfficiencyTrace{
-		Surface: SurfaceAgent, Task: "plane-task",
-		Work:     InteractionWork{ModelTurns: 8, Commits: 3, Retries: 1},
-		Result:   id(artifact.KindEvidence, "trace result"),
-		Evidence: id(artifact.KindEvidence, "trace evidence"),
-	}
-	improved := baselineTrace
-	improved.Work = InteractionWork{ModelTurns: 5, Commits: 3, Retries: 1}
-	covered := EfficiencyCounterNames()
-	comparison, err := CompareEfficiencyTraces(improved, baselineTrace, covered, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !comparison.Win || len(comparison.Worsened) != 0 {
-		t.Fatalf("measured reduction did not win cleanly: %+v", comparison)
-	}
-	shifted := baselineTrace
-	shifted.Work = InteractionWork{ModelTurns: 5, Commits: 3, Retries: 4}
-	shiftedComparison, err := CompareEfficiencyTraces(shifted, baselineTrace, covered, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if shiftedComparison.Win || len(shiftedComparison.Worsened) == 0 {
-		t.Fatalf("shifted work claimed a win: %+v", shiftedComparison)
-	}
-	if _, err := CompareEfficiencyTraces(improved, baselineTrace, covered[:1], nil); err == nil ||
-		!strings.Contains(err.Error(), "not covered") {
-		t.Fatalf("uncovered counter compared: %v", err)
-	}
-
 	// Resource comparison refuses an empty denominator.
-	if _, err := NewResourceFitnessComparison(nil); err == nil {
+	if _, err := newResourceFitnessComparison(nil); err == nil {
 		t.Fatal("an empty resource comparison was admitted")
 	}
 

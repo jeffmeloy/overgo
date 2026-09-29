@@ -2,7 +2,7 @@ package seriesforecast
 
 import (
 	"overgo/internal/testskip"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 )
@@ -36,6 +36,6 @@ func TestForecastWallDecomposition(t *testing.T) {
 		}
 		walls = append(walls, time.Since(start))
 	}
-	sort.Slice(walls, func(i, j int) bool { return walls[i] < walls[j] })
+	slices.Sort(walls)
 	t.Logf("load=%v forecast(both cases) median=%v min=%v max=%v", loadWall, walls[repeats/2], walls[0], walls[repeats-1])
 }

@@ -16,8 +16,8 @@ const (
 	AgentActivationSchema = "overgo/agent-activation/v1"
 	// AgentActiveAliasRoot scopes current activation authority by agent name.
 	AgentActiveAliasRoot = "agent/active/"
-	// AgentAuthorityAliasRoot prevents one decision from authorizing multiple transitions.
-	AgentAuthorityAliasRoot = "agent/authority/"
+	// agentAuthorityAliasRoot prevents one decision from authorizing multiple transitions.
+	agentAuthorityAliasRoot = "agent/authority/"
 )
 
 // AgentState controls admission without mutating an agent definition.
@@ -30,8 +30,8 @@ const (
 	AgentPaused AgentState = "paused"
 )
 
-// AgentActivation records one exact definition and pause/resume transition.
-type AgentActivation struct {
+// agentActivation records one exact definition and pause/resume transition.
+type agentActivation struct {
 	Version    uint16      `json:"version"`
 	Name       string      `json:"name"`
 	Definition artifact.ID `json:"definition"`
@@ -44,7 +44,7 @@ type AgentActivation struct {
 // ActiveAgent joins the current lifecycle event and immutable definition.
 type ActiveAgent struct {
 	Definition recipe.AgentDefinition `json:"definition"`
-	Activation AgentActivation        `json:"activation"`
+	Activation agentActivation        `json:"activation"`
 }
 
 // AgentAuthority owns active aliases and immutable pause/resume transitions.
@@ -55,8 +55,8 @@ type AgentAuthority struct {
 var agentActivationCodec = artifact.JSONDocumentCodec(
 	"agent activation", artifact.KindEvidence, AgentActivationMediaType, AgentActivationSchema,
 	canonicalizeAgentActivation,
-	func(value AgentActivation) artifact.ID { return value.ID },
-	func(value *AgentActivation, id artifact.ID) { value.ID = id }, nil,
+	func(value agentActivation) artifact.ID { return value.ID },
+	func(value *agentActivation, id artifact.ID) { value.ID = id }, nil,
 )
 
 // PublishDefinition commits one inactive definition and its exact dependency lineage.
@@ -148,7 +148,7 @@ func (authority AgentAuthority) publish(
 	state AgentState,
 	decision, prior artifact.ID,
 ) (ActiveAgent, error) {
-	activation, err := agentActivationCodec.New(AgentActivation{
+	activation, err := agentActivationCodec.New(agentActivation{
 		Version: artifact.InitialDocumentVersion, Name: definition.Name, Definition: definition.ID,
 		State: state, Authority: decision, Prior: prior,
 	})
@@ -159,7 +159,7 @@ func (authority AgentAuthority) publish(
 	if err != nil || found != prior.Valid() || found && current.Activation.ID != prior {
 		return ActiveAgent{}, errors.Join(errors.New("run record: agent activation chain differs"), err)
 	}
-	if _, used, err := artifact.ResolveAlias(ctx, authority.Repository, AgentAuthorityAliasRoot+decision.String()); err != nil || used {
+	if _, used, err := artifact.ResolveAlias(ctx, authority.Repository, agentAuthorityAliasRoot+decision.String()); err != nil || used {
 		return ActiveAgent{}, errors.Join(errors.New("run record: agent lifecycle authority was already consumed"), err)
 	}
 	definitionContent, err := definition.ArtifactContent()
@@ -178,7 +178,7 @@ func (authority AgentAuthority) publish(
 	lineage = append(lineage, artifact.DependencyLineage(activation.ID, parents...)...)
 	alias := artifact.AliasMove(AgentActiveAliasRoot+definition.Name, activation.ID, prior)
 	batch, err := artifact.NewDocumentBatch(key, []artifact.Content{definitionContent, activationContent}, lineage, []artifact.AliasBinding{
-		alias, {Name: AgentAuthorityAliasRoot + decision.String(), Target: activation.ID},
+		alias, {Name: agentAuthorityAliasRoot + decision.String(), Target: activation.ID},
 	})
 	if err != nil {
 		return ActiveAgent{}, err
@@ -189,7 +189,7 @@ func (authority AgentAuthority) publish(
 	return ActiveAgent{Definition: definition, Activation: activation}, nil
 }
 
-func canonicalizeAgentActivation(value *AgentActivation) error {
+func canonicalizeAgentActivation(value *agentActivation) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || !textcheck.LowerIdentifier(value.Name, len(value.Name)) ||
 		value.Definition.Kind() != artifact.KindRecipe || value.Authority.Kind() != artifact.KindEvidence ||
 		(value.State != AgentActive && value.State != AgentPaused) ||

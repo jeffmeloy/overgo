@@ -2,7 +2,10 @@
 
 package optimizer
 
-import "overgo/internal/cuda/device"
+import (
+	"overgo/internal/cuda/device"
+	"overgo/internal/tensor/dtype"
+)
 
 type deviceStepper struct {
 	worker             *device.Worker
@@ -31,6 +34,12 @@ func NewStepper(weights, gradients []float32, plan Plan, config Config) (Stepper
 func (s *deviceStepper) Step() error {
 	s.step++
 	return DeviceMuonStepPlan(s.worker, s.weights, s.gradients, s.momentum, s.plan, s.step, s.config)
+}
+
+// Snapshot widens the f32 momentum the device steps, exactly, to the host
+// State.
+func (s *deviceStepper) Snapshot() State {
+	return State{PlanIdentity: s.plan.Identity(), Config: s.config, Step: s.step, Momentum: dtype.ConvertSlice[float64](s.momentum)}
 }
 
 func (s *deviceStepper) Close() error { return s.worker.Close() }

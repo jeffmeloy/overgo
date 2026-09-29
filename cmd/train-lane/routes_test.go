@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -51,17 +52,20 @@ func TestTrainerRoute(t *testing.T) {
 
 	dense := []string{"go", "run", "./cmd/train", "-model", "dense-input"}
 	denseGGUF := routeFixtureGGUF(t, "qwen2")
-	route, err := resolveRoute(catalog, denseGGUF, "store-root", "", dense)
+	route, err := resolveRoute(catalog, denseGGUF, "store-root", "", "checkpoint-target", dense)
 	if err != nil || route.Name != "dense" {
 		t.Fatalf("dense gguf route = (%+v, %v), want the dense workflow", route, err)
 	}
 
 	hybridGGUF := routeFixtureGGUF(t, "qwen35")
-	route, err = resolveRoute(catalog, hybridGGUF, "store-root", "", dense)
+	route, err = resolveRoute(catalog, hybridGGUF, "store-root", "", "checkpoint-target", dense)
 	if err != nil || route.Name != "gguf:qwen35" {
 		t.Fatalf("hybrid gguf route = (%+v, %v), want gguf:qwen35", route, err)
 	}
 	assertSubstituted(t, route, hybridGGUF, "store-root")
+	if !slices.Contains(route.Argv, "checkpoint-target") {
+		t.Fatalf("hybrid route %v does not publish to the lane's checkpoint target", route.Argv)
+	}
 	if len(route.Env) == 0 {
 		t.Fatal("hybrid route carries no declared runtime environment")
 	}
@@ -72,20 +76,20 @@ func TestTrainerRoute(t *testing.T) {
 	}
 
 	videoDir := routeFixtureDirectory(t, "t2v")
-	route, err = resolveRoute(catalog, videoDir, "store-root", "", dense)
+	route, err = resolveRoute(catalog, videoDir, "store-root", "", "checkpoint-target", dense)
 	if err != nil || route.Name != "dir:t2v" {
 		t.Fatalf("t2v route = (%+v, %v), want dir:t2v", route, err)
 	}
 	assertSubstituted(t, route, videoDir, "store-root")
 
 	motDir := routeFixtureDirectory(t, "unified_mot")
-	route, err = resolveRoute(catalog, motDir, "store-root", "", dense)
+	route, err = resolveRoute(catalog, motDir, "store-root", "", "checkpoint-target", dense)
 	if err != nil || route.Name != "dir:unified_mot" {
 		t.Fatalf("unified_mot route = (%+v, %v), want dir:unified_mot", route, err)
 	}
 
 	denseDir := routeFixtureDirectory(t, "qwen2")
-	route, err = resolveRoute(catalog, denseDir, "store-root", "", dense)
+	route, err = resolveRoute(catalog, denseDir, "store-root", "", "checkpoint-target", dense)
 	if err != nil || route.Name != "dense" {
 		t.Fatalf("dense directory route = (%+v, %v), want the dense workflow", route, err)
 	}
@@ -94,7 +98,7 @@ func TestTrainerRoute(t *testing.T) {
 	if err := os.WriteFile(checkpoint, []byte("checkpoint"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	route, err = resolveRoute(catalog, checkpoint, "store-root", videoDir, dense)
+	route, err = resolveRoute(catalog, checkpoint, "store-root", videoDir, "checkpoint-target", dense)
 	if err != nil || route.Name != "file:pt" {
 		t.Fatalf("checkpoint route = (%+v, %v), want file:pt", route, err)
 	}
@@ -108,7 +112,7 @@ func TestTrainerRoute(t *testing.T) {
 	if !found {
 		t.Fatalf("checkpoint route %v does not bind the t2v stack directory", route.Argv)
 	}
-	if _, err = resolveRoute(catalog, checkpoint, "store-root", "", dense); err == nil {
+	if _, err = resolveRoute(catalog, checkpoint, "store-root", "", "checkpoint-target", dense); err == nil {
 		t.Fatal("checkpoint route resolved without a recorded t2v stack directory")
 	}
 }
@@ -125,7 +129,7 @@ func assertSubstituted(t *testing.T, route trainerRoute, input, store string) {
 		if argument == store {
 			haveStore = true
 		}
-		for _, placeholder := range []string{"{input}", "{store}", "{t2v-dir}"} {
+		for _, placeholder := range []string{"{input}", "{store}", "{out}", "{t2v-dir}"} {
 			if argument == placeholder {
 				t.Fatalf("route %s keeps unresolved placeholder %s", route.Name, placeholder)
 			}

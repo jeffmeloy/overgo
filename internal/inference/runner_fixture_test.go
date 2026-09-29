@@ -16,6 +16,20 @@ func requireIntegration(t *testing.T) {
 	testskip.Short(t)
 }
 
+// The GGUFs the pinned oracles were recorded on: the validated fixture
+// compatibility.json names for each architecture, and the Q6_K sibling of the
+// Qwen3 one. A test holding one of them to its oracle resolves it by name
+// through the store's registrations; a structural test takes the smallest
+// GGUF of its architecture instead.
+const (
+	qwen3Fixture    = "Qwen3-4B-UD-Q8_K_XL.gguf"
+	qwen3Q6KFixture = "Qwen3-4B-UD-Q6_K_XL.gguf"
+	qwen35Fixture   = "Qwen3.5-9B-Q8_0.gguf"
+	bonsaiFixture   = "Bonsai-27B-Q1_0.gguf"
+	gemma3Fixture   = "gemma-3-12b-it-IQ4_XS.gguf"
+	umt5Fixture     = "umt5-xxl-encoder-Q5_K_S.gguf"
+)
+
 func TestBindResidency(t *testing.T) {
 	binding, err := bindResidency(recipe.ResidencyHybridNative)
 	if err != nil || !binding.deviceNative || !binding.hostRecovery || binding.hostReference {

@@ -19,7 +19,6 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 	}{
 		{"storage", EntryAuthorityStorage, "internal/overgodb", `import "os";func bypass()error{return os.WriteFile("overgodb.log",nil,0o644)}`, false},
 		{"tool", EntryAuthorityTool, "internal/agenttool", `import "overgo/internal/agenttool";func bypass()agenttool.Manual{return agenttool.Manual{Name:"unregistered"}}`, false},
-		{"trigger", EntryAuthorityTrigger, "internal/workflowruntime", `import "overgo/internal/runrecord";func bypass()runrecord.WebhookDelivery{return runrecord.WebhookDelivery{}}`, false},
 		{"promotion", EntryAuthorityPromotion, "internal/modelrecipe", `func bypass()string{return "recipe.active."+"model/task"}`, false},
 		{"model", EntryAuthorityModel, "internal/modelrecipe", `import "overgo/internal/modelrecipe";func bypass()modelrecipe.ModelPrototype{return modelrecipe.ModelPrototype{Version:1}}`, false},
 		{"routing", EntryAuthorityRouting, "internal/modelrecipe", `import "overgo/internal/modelrecipe";func bypass()modelrecipe.RecipeRoutingDecision{return modelrecipe.RecipeRoutingDecision{Derivation:"rogue"}}`, false},

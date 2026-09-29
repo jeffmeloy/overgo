@@ -13,29 +13,14 @@ import (
 //go:embed workspace_schema.json
 var workspaceSchemaJSON []byte
 
-type workspaceFieldOption struct {
-	Value string `json:"value"`
-	Label string `json:"label"`
-}
-
-type workspaceFieldApplicability struct {
-	Field  string `json:"field"`
-	Equals string `json:"equals"`
-}
-
 type workspaceFieldSchema struct {
-	Name         string                       `json:"name"`
-	Label        string                       `json:"label"`
-	Type         string                       `json:"type"`
-	Required     bool                         `json:"required,omitzero"`
-	IdentityKind string                       `json:"identity_kind,omitzero"`
-	Unit         string                       `json:"unit,omitzero"`
-	Pattern      string                       `json:"pattern,omitzero"`
-	Minimum      *int64                       `json:"minimum,omitempty"`
-	Maximum      *int64                       `json:"maximum,omitempty"`
-	MinimumItems *int                         `json:"minimum_items,omitempty"`
-	Options      []workspaceFieldOption       `json:"options,omitempty"`
-	When         *workspaceFieldApplicability `json:"when,omitempty"`
+	Name         string `json:"name"`
+	Label        string `json:"label"`
+	Type         string `json:"type"`
+	Required     bool   `json:"required,omitzero"`
+	IdentityKind string `json:"identity_kind,omitzero"`
+	Pattern      string `json:"pattern,omitzero"`
+	MinimumItems *int   `json:"minimum_items,omitempty"`
 }
 
 type workspaceObjectSchema struct {
@@ -94,7 +79,7 @@ func parseWorkspaceSchema() (workspaceSchemaCatalog, error) {
 }
 
 func validateWorkspaceFields(fields []workspaceFieldSchema) error {
-	seen := make(map[string]workspaceFieldSchema, len(fields))
+	seen := make(map[string]struct{}, len(fields))
 	for _, field := range fields {
 		if !textcheck.LowerIdentifier(field.Name, len(field.Name)) || field.Label == "" || !workspaceFieldType(field.Type) {
 			return errors.New("server: invalid workspace field schema")
@@ -102,32 +87,17 @@ func validateWorkspaceFields(fields []workspaceFieldSchema) error {
 		if _, duplicate := seen[field.Name]; duplicate {
 			return errors.New("server: duplicate workspace field schema")
 		}
-		if field.Type == "identity" && field.IdentityKind == "" || field.Type == "enum" && len(field.Options) == 0 ||
-			field.Minimum != nil && field.Maximum != nil && *field.Minimum > *field.Maximum ||
-			field.MinimumItems != nil && *field.MinimumItems <= 0 {
+		if field.Type == "identity" && field.IdentityKind == "" || field.MinimumItems != nil && *field.MinimumItems <= 0 {
 			return errors.New("server: incomplete workspace field constraint")
 		}
-		if field.When != nil {
-			controller, found := seen[field.When.Field]
-			if !found || controller.Type != "enum" || field.When.Equals == "" {
-				return errors.New("server: invalid workspace field applicability")
-			}
-			optionFound := false
-			for _, option := range controller.Options {
-				optionFound = optionFound || option.Value == field.When.Equals
-			}
-			if !optionFound {
-				return errors.New("server: workspace applicability value is undeclared")
-			}
-		}
-		seen[field.Name] = field
+		seen[field.Name] = struct{}{}
 	}
 	return nil
 }
 
 func workspaceFieldType(value string) bool {
 	switch value {
-	case "text", "identity", "enum", "integer", "number", "duration", "boolean", "string-list":
+	case "text", "identity", "string-list":
 		return true
 	}
 	return false

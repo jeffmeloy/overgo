@@ -33,13 +33,14 @@ type HeldoutPrediction struct {
 
 // HeldoutRun trains a model under a registered objective and judges it on
 // the objective's held-out split. Examples holds every record of both
-// memberships by record identity; Train sees only the training records and
-// Predict answers the held-out ones, once before training and once after.
+// memberships by record identity; Train sees only the training records, and
+// the recipe the session activated for them, and Predict answers the
+// held-out ones, once before training and once after.
 type HeldoutRun struct {
 	Alias     string
 	ModelPath string
 	Examples  map[string]HeldoutExample
-	Train     func(context.Context, []HeldoutExample) error
+	Train     func(ctx context.Context, recipe artifact.ID, shown []HeldoutExample) error
 	Predict   func(HeldoutExample) (HeldoutPrediction, error)
 	// Host records the training session as host execution.
 	Host bool
@@ -121,7 +122,7 @@ func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (Hel
 	if err := observer.Admit(ctx, modelID, recipeID); err != nil {
 		return HeldoutResult{}, err
 	}
-	trainErr := run.Train(ctx, trainingExamples)
+	trainErr := run.Train(ctx, recipeID, trainingExamples)
 	observation, err := observer.Finish(ctx, modelID, recipeID, trainErr, uint64(len(trainingExamples)))
 	if err := errors.Join(trainErr, err); err != nil {
 		return HeldoutResult{}, err

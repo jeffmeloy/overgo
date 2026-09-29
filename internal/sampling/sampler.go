@@ -85,6 +85,7 @@ type Config struct {
 
 type Sampler struct {
 	config           Config
+	stages           []SamplerStage
 	random           *rand.Rand
 	source           *splitMixSource
 	mu               float64
@@ -259,10 +260,14 @@ func New(config Config) (*Sampler, error) {
 	source.Seed(config.Seed)
 	sampler := &Sampler{
 		config:      config,
+		stages:      config.Samplers,
 		source:      source,
 		dryBreakers: dryBreakers,
 		grammar:     cloneGrammar(config.Grammar),
 		gbnf:        config.GBNF,
+	}
+	if len(sampler.stages) == 0 {
+		sampler.stages = configuredOrder(config)
 	}
 	if sampler.grammar != nil {
 		sampler.grammarState = sampler.grammar.Start
@@ -276,11 +281,8 @@ func New(config Config) (*Sampler, error) {
 	}
 	sampler.random = rand.New(source)
 	sampler.mu = 2 * float64(config.MirostatTau)
-	for _, stage := range config.Samplers {
-		if stage == SamplerAdaptiveP {
-			sampler.adaptive = true
-			break
-		}
+	if slices.Contains(config.Samplers, SamplerAdaptiveP) {
+		sampler.adaptive = true
 	}
 	sampler.resetAdaptive()
 	return sampler, nil
@@ -450,7 +452,7 @@ func (s *Sampler) SampleWithHistory(logits []float32, history []int) (int, error
 	for index, value := range adjusted {
 		candidates[index] = candidate{id: index, scaledLogit: float64(value)}
 	}
-	return s.sampleCandidatePipeline(candidates, len(logits), history, s.config.Samplers)
+	return s.sampleCandidatePipeline(candidates, len(logits), history, s.stages)
 }
 
 func applyNoRepeatNgram(logits []float32, history []int, size, window int) error {

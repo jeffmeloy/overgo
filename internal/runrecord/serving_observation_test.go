@@ -148,7 +148,7 @@ func TestServingAttemptChainClassifiesRetryReselectionAndSpillover(t *testing.T)
 		t.Fatal(err)
 	}
 	first, err = PublishServingObservation(ctx, store, first)
-	if err != nil || first.AttemptKind(nil) != ServingAttemptPrimary {
+	if err != nil || first.AttemptKind(nil) != servingAttemptPrimary {
 		t.Fatalf("primary attempt = (%+v, %v)", first, err)
 	}
 	next := func(recipeID artifact.ID, compatibilityID artifact.ID) ServingObservation {
@@ -161,11 +161,11 @@ func TestServingAttemptChainClassifiesRetryReselectionAndSpillover(t *testing.T)
 	}
 	retry := next(first.Recipe, artifact.ID{})
 	retry, err = PublishServingObservation(ctx, store, retry)
-	if err != nil || retry.AttemptKind(&first) != ServingAttemptRetry {
+	if err != nil || retry.AttemptKind(&first) != servingAttemptRetry {
 		t.Fatalf("retry attempt = (%+v, %v)", retry, err)
 	}
 	reselection := next(alternateRecipe, artifact.ID{})
-	if reselection.AttemptKind(&first) != ServingAttemptReselection {
+	if reselection.AttemptKind(&first) != servingAttemptReselection {
 		t.Fatalf("reselection kind = %q", reselection.AttemptKind(&first))
 	}
 	spillover := next(alternateRecipe, compatibility)

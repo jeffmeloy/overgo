@@ -9,23 +9,23 @@ import (
 )
 
 const (
-	// FailureObservationMediaType identifies raw failure evidence records.
-	FailureObservationMediaType = "application/vnd.overgo.failure-observation+json"
-	// FailureObservationSchema is the observation document version.
-	FailureObservationSchema = "overgo/failure-observation/v1"
+	// failureObservationMediaType identifies raw failure evidence records.
+	failureObservationMediaType = "application/vnd.overgo.failure-observation+json"
+	// failureObservationSchema is the observation document version.
+	failureObservationSchema = "overgo/failure-observation/v1"
 
-	// FailureNormalizationMediaType identifies derived classifications.
-	FailureNormalizationMediaType = "application/vnd.overgo.failure-normalization+json"
-	// FailureNormalizationSchema is the normalization document version.
-	FailureNormalizationSchema = "overgo/failure-normalization/v1"
+	// failureNormalizationMediaType identifies derived classifications.
+	failureNormalizationMediaType = "application/vnd.overgo.failure-normalization+json"
+	// failureNormalizationSchema is the normalization document version.
+	failureNormalizationSchema = "overgo/failure-normalization/v1"
 
-	// FailureNormalizationAliasRoot scopes the current classification of
+	// failureNormalizationAliasRoot scopes the current classification of
 	// one observation under one classifier version.
-	FailureNormalizationAliasRoot = "failure/normalization/"
+	failureNormalizationAliasRoot = "failure/normalization/"
 )
 
 var failureObservationCodec = artifact.JSONDocumentCodec(
-	"failure observation", artifact.KindEvidence, FailureObservationMediaType, FailureObservationSchema,
+	"failure observation", artifact.KindEvidence, failureObservationMediaType, failureObservationSchema,
 	canonicalizeFailureObservation,
 	func(value FailureObservation) artifact.ID { return value.ID },
 	func(value *FailureObservation, id artifact.ID) { value.ID = id },
@@ -33,7 +33,7 @@ var failureObservationCodec = artifact.JSONDocumentCodec(
 )
 
 var failureNormalizationCodec = artifact.JSONDocumentCodec(
-	"failure normalization", artifact.KindEvidence, FailureNormalizationMediaType, FailureNormalizationSchema,
+	"failure normalization", artifact.KindEvidence, failureNormalizationMediaType, failureNormalizationSchema,
 	canonicalizeFailureNormalization,
 	func(value FailureNormalization) artifact.ID { return value.ID },
 	func(value *FailureNormalization, id artifact.ID) { value.ID = id },
@@ -172,7 +172,7 @@ func ResolveFailureNormalization(ctx context.Context, reader artifact.Reader, ob
 }
 
 func failureNormalizationAlias(observation artifact.ID, classifierVersion uint16) string {
-	return indexedAlias(FailureNormalizationAliasRoot, observation, uint64(classifierVersion))
+	return indexedAlias(failureNormalizationAliasRoot, observation, uint64(classifierVersion))
 }
 
 func canonicalizeFailureObservation(value *FailureObservation) error {

@@ -131,7 +131,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 		Admission: testutil.ArtifactID(t, artifact.KindEvidence, "driver-validated-admission"),
 		Recipe:    testutil.ArtifactID(t, artifact.KindRecipe, "driver-validated-recipe"),
 		Lifecycle: testutil.ArtifactID(t, artifact.KindEvidence, "driver-validated-lifecycle"),
-		State:     DriverCandidateValidated,
+		State:     driverCandidateValidated,
 		Placement: testutil.ArtifactID(t, artifact.KindProfile, "driver-validated-placement"),
 		Evidence: []artifact.ID{
 			testutil.ArtifactID(t, artifact.KindEvidence, "driver-known-evidence-b"),
@@ -139,11 +139,11 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 		},
 		Missing: []DriverEvidenceGap{
 			{
-				Need: DriverNeedAblation, Target: testutil.ArtifactID(t, artifact.KindRecipe, "driver-ablation"),
+				Need: driverNeedAblation, Target: testutil.ArtifactID(t, artifact.KindRecipe, "driver-ablation"),
 				CostUnits: 5, CostUnit: resources.Unit,
 			},
 			{
-				Need: DriverNeedEvaluation, Target: testutil.ArtifactID(t, artifact.KindEvaluation, "driver-evaluation"),
+				Need: driverNeedEvaluation, Target: testutil.ArtifactID(t, artifact.KindEvaluation, "driver-evaluation"),
 				CostUnits: 2, CostUnit: resources.Unit,
 			},
 		},
@@ -171,7 +171,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	if decision.Version != artifact.SecondDocumentVersion || decision.Head != head || decision.Incumbent != incumbent.Recipe ||
 		decision.Stop != DriverStopContinue || decision.Action != DriverActionRealize ||
 		decision.Subject != eligible.Candidate || decision.Target != eligible.Candidate ||
-		decision.Need != DriverNeedRealization || decision.TieBreak != DriverTieCostThenActionThenIdentity {
+		decision.Need != DriverNeedRealization || decision.TieBreak != driverTieCostThenActionThenIdentity {
 		t.Fatalf("derived decision = %+v", decision)
 	}
 	if decision.Interaction.Unit != interaction.Unit || decision.Interaction.Issued != 10 ||
@@ -253,7 +253,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if unaffordable.Stop != DriverStopBudgetExhausted || unaffordable.Action != DriverActionRefuse ||
+	if unaffordable.Stop != driverStopBudgetExhausted || unaffordable.Action != driverActionRefuse ||
 		unaffordable.Subject.Valid() || unaffordable.Target.Valid() || unaffordable.Need != "" {
 		t.Fatalf("unaffordable pending work = %+v", unaffordable)
 	}
@@ -317,7 +317,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	}{
 		{name: "admission claims validated", option: func() DriverOption {
 			value := eligible
-			value.State = DriverCandidateValidated
+			value.State = driverCandidateValidated
 			return value
 		}()},
 		{name: "admission carries lifecycle", option: func() DriverOption {
@@ -328,7 +328,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 		}()},
 		{name: "active candidate lacks placement", option: DriverOption{
 			Candidate: validated.Candidate, Admission: validated.Admission, Recipe: validated.Recipe,
-			Lifecycle: validated.Lifecycle, State: DriverCandidateActive,
+			Lifecycle: validated.Lifecycle, State: driverCandidateActive,
 		}},
 		{name: "cost unit differs", option: wrongCostUnit},
 		{name: "cost authority is unbound", option: unboundCostAuthority},
@@ -357,11 +357,11 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	}{
 		{name: "version", mutate: func(value *DriverDecision) { value.Version = artifact.InitialDocumentVersion }},
 		{name: "head", mutate: func(value *DriverDecision) { value.Head = artifact.CommitID{9} }},
-		{name: "action", mutate: func(value *DriverDecision) { value.Action = DriverActionSelect }},
-		{name: "stop", mutate: func(value *DriverDecision) { value.Stop = DriverStopSaturated }},
+		{name: "action", mutate: func(value *DriverDecision) { value.Action = driverActionSelect }},
+		{name: "stop", mutate: func(value *DriverDecision) { value.Stop = driverStopSaturated }},
 		{name: "subject", mutate: func(value *DriverDecision) { value.Subject = incumbent.Recipe }},
 		{name: "target", mutate: func(value *DriverDecision) { value.Target = validated.Recipe }},
-		{name: "need", mutate: func(value *DriverDecision) { value.Need = DriverNeedPromotion }},
+		{name: "need", mutate: func(value *DriverDecision) { value.Need = driverNeedPromotion }},
 		{name: "tie break", mutate: func(value *DriverDecision) { value.TieBreak = "caller-choice" }},
 		{name: "budget balance", mutate: func(value *DriverDecision) { value.Interaction.Remaining++ }},
 		{name: "budget unit", mutate: func(value *DriverDecision) { value.Resources.Unit = value.Interaction.Unit }},
@@ -394,7 +394,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	if artifact.CompareID(saturationB, saturationA) < 0 {
 		wantSaturationTarget = saturationB
 	}
-	if saturated.Stop != DriverStopSaturated || saturated.Action != DriverActionStop ||
+	if saturated.Stop != driverStopSaturated || saturated.Action != DriverActionStop ||
 		saturated.Target != wantSaturationTarget || saturated.Subject.Valid() || saturated.Need != "" {
 		t.Fatalf("saturated decision = %+v", saturated)
 	}
@@ -406,7 +406,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if operator.Stop != DriverStopOperator || operator.Action != DriverActionStop || operator.Target != operatorEvidence {
+	if operator.Stop != driverStopOperator || operator.Action != DriverActionStop || operator.Target != operatorEvidence {
 		t.Fatalf("operator stop decision = %+v", operator)
 	}
 
@@ -417,7 +417,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if refused.Stop != DriverStopRefused || refused.Action != DriverActionRefuse || refused.Target != refusalEvidence {
+	if refused.Stop != driverStopRefused || refused.Action != driverActionRefuse || refused.Target != refusalEvidence {
 		t.Fatalf("refused decision = %+v", refused)
 	}
 
@@ -450,7 +450,7 @@ func TestEvidenceDriverDecisionContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if exhausted.Stop != DriverStopBudgetExhausted || exhausted.Action != DriverActionRefuse ||
+	if exhausted.Stop != driverStopBudgetExhausted || exhausted.Action != driverActionRefuse ||
 		exhausted.Subject.Valid() || exhausted.Target.Valid() || exhausted.Need != "" ||
 		exhausted.Interaction.Remaining != 0 || len(exhausted.Interaction.Charges) != 3 ||
 		!slices.Contains(exhausted.Interaction.Charges, fullInteraction.ID) {

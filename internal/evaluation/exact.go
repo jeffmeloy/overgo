@@ -101,8 +101,6 @@ func CompileExact(suite ExactSuite) (ExactPlan, error) {
 	return ExactPlan{identity: identity, dataset: dataset, split: split, suite: suite}, nil
 }
 
-func (p ExactPlan) Identity() artifact.ID { return p.identity }
-
 func (p ExactPlan) contents() ([]artifact.Content, error) {
 	return datasetContents(p.dataset, p.split, p.suite.Cases, exactDatasetContract, exactSplitContract)
 }

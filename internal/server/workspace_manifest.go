@@ -102,10 +102,6 @@ func workspaceRefusal(capability string) (reason, action string) {
 		return "No model is registered for export yet.", "Register and activate a model in the Library to export it."
 	case "workflow.generation", "workflow.image", "workflow.video", "workflow.speech", "workflow.vqa", "workflow.transcription":
 		return "No model is registered and activated for this kind of generation.", "Register and activate one in the Library."
-	case "automation":
-		return "Automations are not turned on for this server.", "Restart the server with automations turned on."
-	case "peer":
-		return "Peer workspaces are not turned on for this server.", "Restart the server with peers turned on."
 	}
 	return "This server was started without this workspace.", "Restart the server with it turned on."
 }
@@ -223,10 +219,6 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) bo
 		// The launch supplies the evaluation workspace through Config, the
 		// way cmd/server does; the generator never carries it.
 		supported = h.config.Evaluation != nil
-	case "automation":
-		_, supported = h.generator.(automationWorkspaceAPI)
-	case "peer":
-		_, supported = h.generator.(peerWorkspaceAPI)
 	case "workflow.generation":
 		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, "")
 	case "workflow.training":

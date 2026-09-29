@@ -7,17 +7,17 @@ import (
 )
 
 const (
-	TrainingDecisionMediaType = "application/vnd.overgo.training-decision+json"
-	TrainingDecisionSchema    = "overgo/training-decision/v1"
+	trainingDecisionMediaType = "application/vnd.overgo.training-decision+json"
+	trainingDecisionSchema    = "overgo/training-decision/v1"
 )
 
-type TrainingDecisionState string
+type trainingDecisionState string
 
-const TrainingEvaluationRequired TrainingDecisionState = "evaluation-required"
+const TrainingEvaluationRequired trainingDecisionState = "evaluation-required"
 
 type TrainingDecision struct {
 	Version    uint16                `json:"version"`
-	State      TrainingDecisionState `json:"state"`
+	State      trainingDecisionState `json:"state"`
 	Run        artifact.ID           `json:"run"`
 	Recipe     artifact.ID           `json:"recipe"`
 	Parent     artifact.ID           `json:"parent"`
@@ -28,7 +28,7 @@ type TrainingDecision struct {
 }
 
 var trainingDecisionCodec = artifact.JSONDocumentCodec(
-	"training decision", artifact.KindEvidence, TrainingDecisionMediaType, TrainingDecisionSchema,
+	"training decision", artifact.KindEvidence, trainingDecisionMediaType, trainingDecisionSchema,
 	func(value *TrainingDecision) error {
 		if value == nil || value.Version != artifact.InitialDocumentVersion || value.State != TrainingEvaluationRequired ||
 			value.Run.Kind() != artifact.KindRun || value.Recipe.Kind() != artifact.KindRecipe ||

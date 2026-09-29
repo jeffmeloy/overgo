@@ -21,13 +21,10 @@ type workspaceRouteSchema struct {
 }
 
 // workspaceRouteSchemas binds declared workspace schemas to the routes
-// whose whole request body they describe. A schema for part of a body (the
-// automation trigger and delivery forms, the flat placement form the peers
-// tab folds into a policy) stays unbound: the explorer sends that route's
-// JSON as typed.
+// whose whole request body they describe; every other route's JSON is sent
+// as typed.
 var workspaceRouteSchemas = map[string]string{
 	"/agents/definitions": "agent-definition",
-	"/peers/enroll":       "peer-enrollment",
 }
 
 // routeTableProjection is bound at init so the route table can name this

@@ -44,8 +44,8 @@ func TestCompileExactOwnsStableSuite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Identity() != second.Identity() {
-		t.Fatalf("identity differs: %s != %s", first.Identity(), second.Identity())
+	if first.identity != second.identity {
+		t.Fatalf("identity differs: %s != %s", first.identity, second.identity)
 	}
 	suite.Cases[0].Text = "changed"
 	result, err := evaluateExactCase(t.Context(), exactGenerator{pieces: []string{"o", "k"}}, first.suite.Cases[0])

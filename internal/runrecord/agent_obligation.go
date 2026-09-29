@@ -11,14 +11,14 @@ import (
 )
 
 const (
-	// AgentObligationMediaType identifies agent obligations.
-	AgentObligationMediaType = "application/vnd.overgo.agent-obligation+json"
-	// AgentObligationSchema identifies the agent obligation schema.
-	AgentObligationSchema = "overgo/agent-obligation/v1"
-	// AgentObligationResolutionMediaType identifies obligation resolutions.
-	AgentObligationResolutionMediaType = "application/vnd.overgo.agent-obligation-resolution+json"
-	// AgentObligationResolutionSchema identifies the obligation resolution schema.
-	AgentObligationResolutionSchema = "overgo/agent-obligation-resolution/v1"
+	// agentObligationMediaType identifies agent obligations.
+	agentObligationMediaType = "application/vnd.overgo.agent-obligation+json"
+	// agentObligationSchema identifies the agent obligation schema.
+	agentObligationSchema = "overgo/agent-obligation/v1"
+	// agentObligationResolutionMediaType identifies obligation resolutions.
+	agentObligationResolutionMediaType = "application/vnd.overgo.agent-obligation-resolution+json"
+	// agentObligationResolutionSchema identifies the obligation resolution schema.
+	agentObligationResolutionSchema = "overgo/agent-obligation-resolution/v1"
 )
 
 // AgentObligation is one requirement derived from committed authorities.
@@ -44,13 +44,13 @@ type AgentObligationResolution struct {
 }
 
 var agentObligationCodec = artifact.JSONDocumentCodec(
-	"agent obligation", artifact.KindEvidence, AgentObligationMediaType, AgentObligationSchema,
+	"agent obligation", artifact.KindEvidence, agentObligationMediaType, agentObligationSchema,
 	canonicalizeAgentObligation, func(v AgentObligation) artifact.ID { return v.ID },
 	func(v *AgentObligation, id artifact.ID) { v.ID = id },
 	func(v AgentObligation) AgentObligation { v.Sources = slices.Clone(v.Sources); return v },
 )
 var agentObligationResolutionCodec = artifact.JSONDocumentCodec(
-	"agent obligation resolution", artifact.KindEvidence, AgentObligationResolutionMediaType, AgentObligationResolutionSchema,
+	"agent obligation resolution", artifact.KindEvidence, agentObligationResolutionMediaType, agentObligationResolutionSchema,
 	canonicalizeAgentObligationResolution, func(v AgentObligationResolution) artifact.ID { return v.ID },
 	func(v *AgentObligationResolution, id artifact.ID) { v.ID = id },
 	func(v AgentObligationResolution) AgentObligationResolution {

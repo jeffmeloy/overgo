@@ -28,6 +28,8 @@ func (stepper hostBankStepper) Step() error {
 	return nil
 }
 
+func (stepper hostBankStepper) Snapshot() optimizer.State { return stepper.optimizer.Snapshot() }
+
 func (hostBankStepper) Close() error { return nil }
 
 func TestFractaleRealTrainingParity(t *testing.T) {

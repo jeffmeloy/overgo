@@ -67,7 +67,7 @@ func TestInteractionTerminalReason(t *testing.T) {
 		t.Fatal("late completion erased output-limit reason")
 	}
 	// Existing records omit the optional reason and retain their exact identity.
-	legacy, err := NewInteraction(Interaction{Response: "legacy", Node: interactionTestNode, Recipe: value.Recipe, Model: value.Model, Message: final.Message, Trace: final.Trace})
+	legacy, err := newInteraction(Interaction{Response: "legacy", Node: interactionTestNode, Recipe: value.Recipe, Model: value.Model, Message: final.Message, Trace: final.Trace})
 	if err != nil {
 		t.Fatal(err)
 	}

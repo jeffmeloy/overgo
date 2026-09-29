@@ -1,11 +1,11 @@
 package tokenizer
 
 import (
-	"os"
 	"slices"
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/modeltest"
 	"overgo/internal/testskip"
 )
 
@@ -29,13 +29,11 @@ func TestUGMViterbiPrefersHighestSequenceScore(t *testing.T) {
 	}
 }
 
+// TestRealUMT5Tokenization holds the validated UMT5-XXL encoder fixture's
+// vocabulary to llama.cpp's token IDs.
 func TestRealUMT5Tokenization(t *testing.T) {
 	testskip.Short(t, "requires a real UMT5 model")
-	path := os.Getenv("OVERGO_UMT5_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "OVERGO_UMT5_MODEL is not set")
-	}
-	file, err := gguf.Open(path)
+	file, err := gguf.Open(modeltest.Directory(t, "umt5-xxl-encoder-Q5_K_S.gguf"))
 	if err != nil {
 		t.Fatal(err)
 	}

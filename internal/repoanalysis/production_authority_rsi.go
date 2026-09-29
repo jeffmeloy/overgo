@@ -27,7 +27,6 @@ var capabilityInvocationBoundaries = []invocationBoundary{
 	{API: "InvokeWithEffect", File: "internal/agentloop/coordinator.go", Function: "Coordinator.propose", Class: "agent-initiated"},
 	{API: "InvokeWithEffect", File: "internal/agenttool/proxy.go", Function: "RegisterCapabilityProxy", Class: "cross-boundary"},
 	{API: "InvokeWithEffect", File: "internal/agenttool/transport.go", Function: "Executor.Invoke", Class: "transport-owner"},
-	{API: "Invoke", File: "internal/workflowruntime/automation.go", Function: "AutomationRuntime.deliverAutomation", Class: "agent-initiated"},
 	{API: "Invoke", File: "internal/workflowruntime/tool_workflow.go", Function: "toolWorkflowAdapter", Class: "agent-initiated"},
 }
 

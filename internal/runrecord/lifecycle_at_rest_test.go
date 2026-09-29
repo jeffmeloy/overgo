@@ -16,7 +16,7 @@ var gateDoor = overgodb.NewProducer("gate")
 // across a store rewrite and refuses any other store-local alias.
 func TestRetiredGateAliasesAtRest(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{GateLifecycleCurrentAlias, overgodb.StoreLocalAliasPrefix + "gate-lanes/current"} {
+	for _, name := range []string{gateLifecycleCurrentAlias, overgodb.StoreLocalAliasPrefix + "gate-lanes/current"} {
 		if err := RetiredGateAliasesAtRest(name, artifact.ID{}); err != nil {
 			t.Fatalf("%s refused: %v", name, err)
 		}

@@ -707,7 +707,7 @@ func (p ModelPlan) BuildPerLayerInputs(
 	combined := builder.Scale(builder.Add(projected, selected), p.profile.Runtime.ActivationResidualScale)
 	combined = builder.Reshape(combined, combinedWidth, tokens)
 	result := make([]*tensor.Tensor, spec.BlockCount)
-	for layer := uint64(tensor.FirstOffset); layer < layers; layer++ {
+	for layer := range layers {
 		result[layer] = builder.Reshape(
 			builder.GroupSlice(combined, layer*width, width, tensor.SingletonExtent, combinedWidth),
 			width, tokens,

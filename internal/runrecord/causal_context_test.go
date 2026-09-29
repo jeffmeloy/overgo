@@ -79,12 +79,12 @@ func TestCausalContextIdentityAndValidation(t *testing.T) {
 		motivationA, motivationB = motivationB, motivationA
 	}
 
-	for _, trigger := range OriginatingTriggers {
+	for _, trigger := range originatingTriggers {
 		if _, err := NewCausalRoot(trigger, rootEvidence); err != nil {
 			t.Fatalf("originating trigger %q refused a root: %v", trigger, err)
 		}
 	}
-	for _, trigger := range DerivedTriggers {
+	for _, trigger := range derivedTriggers {
 		if _, err := NewCausalRoot(trigger, rootEvidence); err == nil {
 			t.Fatalf("derived trigger %q minted a root", trigger)
 		}
@@ -122,7 +122,7 @@ func TestCausalContextIdentityAndValidation(t *testing.T) {
 		{TriggerDelegation, id("execution-b")},
 		{TriggerDelegation, id("execution-a")},
 		{TriggerRecovery, id("lost-work")},
-		{TriggerRerun, id("finished-run")},
+		{triggerRerun, id("finished-run")},
 	} {
 		chain, err = chain.Derive(hop.trigger, hop.subject)
 		if err != nil {
@@ -152,7 +152,7 @@ func TestCausalContextIdentityAndValidation(t *testing.T) {
 			ParentAttempt: id("attempt-0")}},
 		{"delegation subject without its trigger", CausalContext{Trigger: TriggerManual, Root: rootEvidence,
 			DelegatedFrom: id("execution-a")}},
-		{"subject of a foreign kind", CausalContext{Trigger: TriggerRerun, Root: rootEvidence,
+		{"subject of a foreign kind", CausalContext{Trigger: triggerRerun, Root: rootEvidence,
 			ReplayOf: testutil.ArtifactID(t, artifact.KindRun, "run-not-evidence")}},
 		{"unsorted motivation", CausalContext{Trigger: TriggerManual, Root: rootEvidence,
 			Motivation: []artifact.ID{motivationB, motivationA}}},

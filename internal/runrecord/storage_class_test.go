@@ -16,7 +16,7 @@ import (
 func TestRSIStorageClassContract(t *testing.T) {
 	for _, schema := range []string{
 		RunSchema, EvaluationSchema, interactionTraceSchema,
-		EfficiencyTraceSchema, BudgetSchema, BudgetChargeSchema,
+		efficiencyTraceSchema, BudgetSchema, BudgetChargeSchema,
 	} {
 		descriptor := artifact.Descriptor{Schema: schema, MediaType: "application/json"}
 		if class := overgodb.DocumentStorageClass(descriptor); class != overgodb.ClassCanonicalFact {

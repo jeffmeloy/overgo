@@ -14,13 +14,10 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
-	"overgo/internal/modelrecipe"
-	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
-	"overgo/internal/workflowruntime"
 )
 
 const (
@@ -58,8 +55,8 @@ func TestAgentWorkspaceVertical(t *testing.T) {
 	t.Parallel()
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
-	definition := publishAgentFromAPI(t, fixture, nil, nil)
-	activateDefinitionFromAPI(t, fixture.handler, definition, "/agents/activate")
+	definition := publishAgentFromAPI(t, fixture, nil)
+	activateAgentFromAPI(t, fixture.handler, definition)
 
 	inventory := serveTestRequest(fixture.handler, http.MethodGet, "/agents", "")
 	if inventory.Code != http.StatusOK || !strings.Contains(inventory.Body.String(), "research-agent") ||
@@ -118,8 +115,8 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixture := newAgentWorkspaceFixture(t, store, embedder, reranker)
-	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, []artifact.ID{datasetID}, nil), "/agents/activate")
-	request := marshalAutomationJSON(t, map[string]any{
+	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, []artifact.ID{datasetID}))
+	request := marshalTestJSON(t, map[string]any{
 		"agent": "research-agent", "projection": projection.ID, "query": "evidence", "limit": 1, "rerank_policy": policy,
 	})
 	search := serveTestRequest(fixture.handler, http.MethodPost, "/agents/retrieval", request)
@@ -167,50 +164,11 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 	}
 }
 
-type agentAutomationGenerator struct {
-	*recipeInspectorGenerator
-	*automationWorkspace
-}
-
-func TestAgentWorkspaceAutomationAttachment(t *testing.T) {
-	t.Parallel()
-	automation := newAutomationServerFixture(t)
-	defer automation.store.Close()
-	automationID := publishAutomationFromAPI(t, automation)
-	activate := serveTestRequest(automation.handler, http.MethodPost, "/automations/activate", marshalAutomationJSON(t, map[string]any{
-		"definition": automationID,
-	}))
-	if activate.Code != http.StatusOK {
-		t.Fatalf("automation activation status=%d body=%s", activate.Code, activate.Body.String())
-	}
-	inspector := responseRecipeGenerator(t, &fakeGenerator{})
-	generator := &agentAutomationGenerator{
-		recipeInspectorGenerator: inspector,
-		automationWorkspace:      automation.handler.generator.(*automationWorkspaceGenerator).automationWorkspace,
-	}
-	fixture := newAgentWorkspaceFixtureWithGenerator(t, automation.store, generator, nil, nil)
-	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, []artifact.ID{automationID}), "/agents/activate")
-	run := serveTestRequest(fixture.handler, http.MethodPost, "/agents/automation", marshalAutomationJSON(t, map[string]any{
-		"agent": "research-agent", "automation": automationID, "key": "attached", "inputs": map[string]any{"tokens": "hello"},
-	}))
-	if run.Code != http.StatusAccepted {
-		t.Fatalf("agent automation status=%d body=%s", run.Code, run.Body.String())
-	}
-	var execution workflowruntime.AutomationExecution
-	if err := json.Unmarshal(run.Body.Bytes(), &execution); err != nil || !execution.Operation.Valid() {
-		t.Fatalf("agent automation execution=(%+v, %v)", execution, err)
-	}
-	status, err := fixture.handler.operations.Wait(t.Context(), execution.Operation)
-	if err != nil || status.State != operation.StateCompleted {
-		t.Fatalf("agent automation operation=(%+v, %v)", status, err)
-	}
-}
-
 func TestAgentWorkspaceNoHiddenReasoning(t *testing.T) {
 	t.Parallel()
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
-	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil), "/agents/activate")
+	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil))
 	// The agent tab leg drives the page; the source keeps private model
 	// fields out of it.
 	javascript := serveTestRequest(fixture.handler, http.MethodGet, "/mod/agent.js", "").Body.String()
@@ -233,17 +191,6 @@ func newAgentWorkspaceFixture(
 	reranker dataset.AgentRerankProvider,
 ) agentWorkspaceFixture {
 	t.Helper()
-	return newAgentWorkspaceFixtureWithGenerator(t, store, responseRecipeGenerator(t, &fakeGenerator{}), embedder, reranker)
-}
-
-func newAgentWorkspaceFixtureWithGenerator(
-	t *testing.T,
-	store *overgodb.Store,
-	generator Generator,
-	embedder dataset.AgentEmbeddingProvider,
-	reranker dataset.AgentRerankProvider,
-) agentWorkspaceFixture {
-	t.Helper()
 	if store == nil {
 		var err error
 		store, err = overgodb.Open(t.TempDir())
@@ -251,13 +198,8 @@ func newAgentWorkspaceFixtureWithGenerator(
 			t.Fatal(err)
 		}
 	}
-	inspector, ok := generator.(interface {
-		RecipeRuntimeDescription(recipe.Task) (modelrecipe.RuntimeDescription, error)
-	})
-	if !ok {
-		t.Fatal("agent workspace generator lacks recipe authority")
-	}
-	description, err := inspector.RecipeRuntimeDescription(recipe.TaskInference)
+	generator := responseRecipeGenerator(t, &fakeGenerator{})
+	description, err := generator.RecipeRuntimeDescription(recipe.TaskInference)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,8 +216,8 @@ func newAgentWorkspaceFixtureWithGenerator(
 	if _, err := agenttool.PublishManualCatalog(t.Context(), store, manuals); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		t.Fatal(err)
 	}
-	prompt := commitAutomationServerBlob(t, store, artifact.KindFile, "agent-workspace-prompt")
-	policy := commitAutomationServerBlob(t, store, artifact.KindProfile, "agent-workspace-policy")
+	prompt := commitTestBlob(t, store, artifact.KindFile, "agent-workspace-prompt")
+	policy := commitTestBlob(t, store, artifact.KindProfile, "agent-workspace-policy")
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens, DefaultTemperature: testNeutralTemperature,
 		DefaultTopP: testFullTopP, Analysis: testAnalysisPolicy, Repository: store,
@@ -285,32 +227,32 @@ func newAgentWorkspaceFixtureWithGenerator(
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = handler.Close() })
-	fixture := agentWorkspaceFixture{
-		handler: handler, store: store, prompt: prompt, policy: policy, manual: manuals[0].ID,
+	return agentWorkspaceFixture{
+		handler: handler, store: store, generator: generator, prompt: prompt, policy: policy, manual: manuals[0].ID,
 	}
-	if concrete, concreteOK := generator.(*recipeInspectorGenerator); concreteOK {
-		fixture.generator = concrete
-	} else if concrete, concreteOK := generator.(*agentAutomationGenerator); concreteOK {
-		fixture.generator = concrete.recipeInspectorGenerator
-	}
-	return fixture
 }
 
-func publishAgentFromAPI(
-	t *testing.T,
-	fixture agentWorkspaceFixture,
-	datasets, automations []artifact.ID,
-) artifact.ID {
+func activateAgentFromAPI(t *testing.T, handler *Handler, definition artifact.ID) {
+	t.Helper()
+	response := serveTestRequest(handler, http.MethodPost, "/agents/activate", marshalTestJSON(t, map[string]any{
+		"definition": definition,
+	}))
+	if response.Code != http.StatusOK {
+		t.Fatalf("agent activation status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func publishAgentFromAPI(t *testing.T, fixture agentWorkspaceFixture, datasets []artifact.ID) artifact.ID {
 	t.Helper()
 	request := agentDefinitionInput{
 		Name: "research-agent", Prompt: fixture.prompt, ModelRecipe: fixture.generator.description.Identity.Recipe,
-		ToolManuals: []artifact.ID{fixture.manual}, Datasets: datasets, Automations: automations,
+		ToolManuals: []artifact.ID{fixture.manual}, Datasets: datasets,
 		Policies: []artifact.ID{fixture.policy},
 	}
 	if provider := fixture.handler.config.AgentReranker; provider != nil && !slices.Contains(request.Policies, provider.PolicyIdentity()) {
 		request.Policies = append(request.Policies, provider.PolicyIdentity())
 	}
-	response := serveTestRequest(fixture.handler, http.MethodPost, "/agents/definitions", marshalAutomationJSON(t, request))
+	response := serveTestRequest(fixture.handler, http.MethodPost, "/agents/definitions", marshalTestJSON(t, request))
 	if response.Code != http.StatusCreated {
 		t.Fatalf("agent publish status=%d body=%s", response.Code, response.Body.String())
 	}

@@ -17,53 +17,53 @@ const (
 	driverDecisionVersion   = artifact.SecondDocumentVersion
 )
 
-// DriverOptionState names the exact lifecycle boundary at which an incumbent
+// driverOptionState names the exact lifecycle boundary at which an incumbent
 // or admitted candidate was considered. Eligibility is deliberately separate
 // from a recipe lifecycle: an admission does not manufacture a recipe event.
-type DriverOptionState string
+type driverOptionState string
 
 const (
 	// DriverIncumbentActive identifies the currently serving recipe.
-	DriverIncumbentActive DriverOptionState = "incumbent-active"
+	DriverIncumbentActive driverOptionState = "incumbent-active"
 	// DriverCandidateEligible identifies an admitted, unrealized candidate.
-	DriverCandidateEligible DriverOptionState = "candidate-eligible"
-	// DriverCandidateCreated identifies a realized candidate awaiting validation.
-	DriverCandidateCreated DriverOptionState = "candidate-created"
-	// DriverCandidateValidated identifies a candidate awaiting evaluation evidence.
-	DriverCandidateValidated DriverOptionState = "candidate-validated"
-	// DriverCandidateVerified identifies a candidate awaiting promotion.
-	DriverCandidateVerified DriverOptionState = "candidate-verified"
-	// DriverCandidateActive identifies a promoted candidate with placement.
-	DriverCandidateActive DriverOptionState = "candidate-active"
-	// DriverCandidateRefused identifies a terminal rejected candidate.
-	DriverCandidateRefused DriverOptionState = "candidate-refused"
-	// DriverCandidateSuperseded identifies a terminal replaced candidate.
-	DriverCandidateSuperseded DriverOptionState = "candidate-superseded"
+	DriverCandidateEligible driverOptionState = "candidate-eligible"
+	// driverCandidateCreated identifies a realized candidate awaiting validation.
+	driverCandidateCreated driverOptionState = "candidate-created"
+	// driverCandidateValidated identifies a candidate awaiting evaluation evidence.
+	driverCandidateValidated driverOptionState = "candidate-validated"
+	// driverCandidateVerified identifies a candidate awaiting promotion.
+	driverCandidateVerified driverOptionState = "candidate-verified"
+	// driverCandidateActive identifies a promoted candidate with placement.
+	driverCandidateActive driverOptionState = "candidate-active"
+	// driverCandidateRefused identifies a terminal rejected candidate.
+	driverCandidateRefused driverOptionState = "candidate-refused"
+	// driverCandidateSuperseded identifies a terminal replaced candidate.
+	driverCandidateSuperseded driverOptionState = "candidate-superseded"
 )
 
-// DriverEvidenceNeed is the closed vocabulary for work that prevents an
+// driverEvidenceNeed is the closed vocabulary for work that prevents an
 // option from being selected. Target names the exact owner input for that work.
-type DriverEvidenceNeed string
+type driverEvidenceNeed string
 
 const (
 	// DriverNeedRealization requests compilation of an admitted candidate.
-	DriverNeedRealization DriverEvidenceNeed = "realization"
-	// DriverNeedValidation requests structural recipe validation.
-	DriverNeedValidation DriverEvidenceNeed = "validation"
-	// DriverNeedEvaluation requests isolated performance evidence.
-	DriverNeedEvaluation DriverEvidenceNeed = "evaluation"
-	// DriverNeedAblation requests causal contribution evidence.
-	DriverNeedAblation DriverEvidenceNeed = "ablation"
-	// DriverNeedPlacement requests a non-serving or serving placement.
-	DriverNeedPlacement DriverEvidenceNeed = "placement"
-	// DriverNeedPromotion requests an evidence-gated activation decision.
-	DriverNeedPromotion DriverEvidenceNeed = "promotion"
+	DriverNeedRealization driverEvidenceNeed = "realization"
+	// driverNeedValidation requests structural recipe validation.
+	driverNeedValidation driverEvidenceNeed = "validation"
+	// driverNeedEvaluation requests isolated performance evidence.
+	driverNeedEvaluation driverEvidenceNeed = "evaluation"
+	// driverNeedAblation requests causal contribution evidence.
+	driverNeedAblation driverEvidenceNeed = "ablation"
+	// driverNeedPlacement requests a non-serving or serving placement.
+	driverNeedPlacement driverEvidenceNeed = "placement"
+	// driverNeedPromotion requests an evidence-gated activation decision.
+	driverNeedPromotion driverEvidenceNeed = "promotion"
 )
 
 // DriverEvidenceGap records explicit missing evidence and its exact measured
 // resource cost. CostAuthority names the immutable owner of that estimate.
 type DriverEvidenceGap struct {
-	Need          DriverEvidenceNeed `json:"need"`
+	Need          driverEvidenceNeed `json:"need"`
 	Target        artifact.ID        `json:"target"`
 	CostUnits     uint64             `json:"cost_units"`
 	CostUnit      string             `json:"cost_unit"`
@@ -78,16 +78,16 @@ type DriverOption struct {
 	Admission artifact.ID         `json:"admission,omitzero"`
 	Recipe    artifact.ID         `json:"recipe,omitzero"`
 	Lifecycle artifact.ID         `json:"lifecycle,omitzero"`
-	State     DriverOptionState   `json:"state"`
+	State     driverOptionState   `json:"state"`
 	Placement artifact.ID         `json:"placement,omitzero"`
 	Evidence  []artifact.ID       `json:"evidence,omitempty"`
 	Missing   []DriverEvidenceGap `json:"missing,omitempty"`
 }
 
-// DriverBudgetState is a materialized balance over one exact immutable grant
+// driverBudgetState is a materialized balance over one exact immutable grant
 // and its exact charge set. Remaining is always recomputed from Issued and
 // Consumed; the constructor derives all three values through BudgetBalance.
-type DriverBudgetState struct {
+type driverBudgetState struct {
 	Grant     artifact.ID   `json:"grant"`
 	Charges   []artifact.ID `json:"charges,omitempty"`
 	Unit      string        `json:"unit"`
@@ -103,50 +103,50 @@ type DriverBudgetReference struct {
 	Grant artifact.ID `json:"grant"`
 }
 
-// DriverStopState is the derived terminal condition for one decision.
-type DriverStopState string
+// driverStopState is the derived terminal condition for one decision.
+type driverStopState string
 
 const (
 	// DriverStopContinue keeps the supervised decision loop open.
-	DriverStopContinue DriverStopState = "continue"
-	// DriverStopOperator records an explicit operator stop.
-	DriverStopOperator DriverStopState = "operator-stop"
-	// DriverStopBudgetExhausted records a derived exhausted budget.
-	DriverStopBudgetExhausted DriverStopState = "budget-exhausted"
-	// DriverStopSaturated records evidence that further work has saturated.
-	DriverStopSaturated DriverStopState = "saturated"
-	// DriverStopRefused records an evidence-bound refusal.
-	DriverStopRefused DriverStopState = "refused"
+	DriverStopContinue driverStopState = "continue"
+	// driverStopOperator records an explicit operator stop.
+	driverStopOperator driverStopState = "operator-stop"
+	// driverStopBudgetExhausted records a derived exhausted budget.
+	driverStopBudgetExhausted driverStopState = "budget-exhausted"
+	// driverStopSaturated records evidence that further work has saturated.
+	driverStopSaturated driverStopState = "saturated"
+	// driverStopRefused records an evidence-bound refusal.
+	driverStopRefused driverStopState = "refused"
 )
 
-// DriverAction is the closed, evidence-only description of what the Go driver
+// driverAction is the closed, evidence-only description of what the Go driver
 // may ask an existing owner to do next. It grants no execution authority.
-type DriverAction string
+type driverAction string
 
 const (
-	// DriverActionSelect selects an already active placement.
-	DriverActionSelect DriverAction = "select"
+	// driverActionSelect selects an already active placement.
+	driverActionSelect driverAction = "select"
 	// DriverActionRealize requests candidate realization.
-	DriverActionRealize DriverAction = "realize"
+	DriverActionRealize driverAction = "realize"
 	// DriverActionEvaluate requests isolated evaluation.
-	DriverActionEvaluate DriverAction = "evaluate"
+	DriverActionEvaluate driverAction = "evaluate"
 	// DriverActionAblate requests contribution isolation.
-	DriverActionAblate DriverAction = "ablate"
-	// DriverActionRequestEvidence requests other typed missing evidence.
-	DriverActionRequestEvidence DriverAction = "request-evidence"
+	DriverActionAblate driverAction = "ablate"
+	// driverActionRequestEvidence requests other typed missing evidence.
+	driverActionRequestEvidence driverAction = "request-evidence"
 	// DriverActionStop stops without granting mutation authority.
-	DriverActionStop DriverAction = "stop"
-	// DriverActionRefuse refuses further work.
-	DriverActionRefuse DriverAction = "refuse"
+	DriverActionStop driverAction = "stop"
+	// driverActionRefuse refuses further work.
+	driverActionRefuse driverAction = "refuse"
 )
 
-// DriverTieBreak names the one deterministic ordering used when equal-cost
+// driverTieBreak names the one deterministic ordering used when equal-cost
 // work is present. Identity remains the final non-scalar tie-break.
-type DriverTieBreak string
+type driverTieBreak string
 
-// DriverTieCostThenActionThenIdentity orders work by measured cost, then action
+// driverTieCostThenActionThenIdentity orders work by measured cost, then action
 // class and artifact identity.
-const DriverTieCostThenActionThenIdentity DriverTieBreak = "cost-then-action-priority-then-artifact-identity"
+const driverTieCostThenActionThenIdentity driverTieBreak = "cost-then-action-priority-then-artifact-identity"
 
 // DriverDecisionFacts are exact inputs to the sole decision constructor.
 // Derived fields are intentionally absent, so callers cannot assert a winner,
@@ -173,17 +173,17 @@ type DriverDecision struct {
 	Head               artifact.CommitID  `json:"head"`
 	Incumbent          artifact.ID        `json:"incumbent"`
 	Options            []DriverOption     `json:"options"`
-	Interaction        DriverBudgetState  `json:"interaction"`
-	Resources          DriverBudgetState  `json:"resources"`
+	Interaction        driverBudgetState  `json:"interaction"`
+	Resources          driverBudgetState  `json:"resources"`
 	SaturationEvidence []artifact.ID      `json:"saturation_evidence,omitempty"`
 	OperatorStop       artifact.ID        `json:"operator_stop,omitzero"`
 	Refusal            artifact.ID        `json:"refusal,omitzero"`
-	Stop               DriverStopState    `json:"stop"`
-	Action             DriverAction       `json:"action"`
+	Stop               driverStopState    `json:"stop"`
+	Action             driverAction       `json:"action"`
 	Subject            artifact.ID        `json:"subject,omitzero"`
 	Target             artifact.ID        `json:"target,omitzero"`
-	Need               DriverEvidenceNeed `json:"need,omitzero"`
-	TieBreak           DriverTieBreak     `json:"tie_break"`
+	Need               driverEvidenceNeed `json:"need,omitzero"`
+	TieBreak           driverTieBreak     `json:"tie_break"`
 	ID                 artifact.ID        `json:"-"`
 }
 
@@ -215,7 +215,7 @@ func newDriverDecision(ctx context.Context, reader artifact.Reader, facts Driver
 		Version: driverDecisionVersion, Goal: facts.Goal, Causal: *causal, Head: facts.Head,
 		Options: cloneDriverOptions(facts.Options), Interaction: interaction, Resources: resources,
 		SaturationEvidence: slices.Clone(facts.SaturationEvidence), OperatorStop: facts.OperatorStop,
-		Refusal: facts.Refusal, TieBreak: DriverTieCostThenActionThenIdentity,
+		Refusal: facts.Refusal, TieBreak: driverTieCostThenActionThenIdentity,
 	})
 }
 
@@ -291,17 +291,17 @@ func deriveDriverBudgetState(
 	ctx context.Context,
 	reader artifact.Reader,
 	reference DriverBudgetReference,
-) (DriverBudgetState, error) {
+) (driverBudgetState, error) {
 	if ctx == nil || reader == nil || reference.Grant.Kind() != artifact.KindEvidence {
-		return DriverBudgetState{}, errors.New("run record: driver budget authority is absent")
+		return driverBudgetState{}, errors.New("run record: driver budget authority is absent")
 	}
-	budget, err := RequireBudget(ctx, reader, reference.Grant)
+	budget, err := requireBudget(ctx, reader, reference.Grant)
 	if err != nil {
-		return DriverBudgetState{}, err
+		return driverBudgetState{}, err
 	}
 	edges, err := reader.Children(ctx, reference.Grant)
 	if err != nil {
-		return DriverBudgetState{}, err
+		return driverBudgetState{}, err
 	}
 	chargeSet := make(map[artifact.ID]struct{})
 	for _, edge := range edges {
@@ -310,10 +310,10 @@ func deriveDriverBudgetState(
 		}
 		descriptor, found, err := reader.Artifact(ctx, edge.Child)
 		if err != nil {
-			return DriverBudgetState{}, err
+			return driverBudgetState{}, err
 		}
 		if !found {
-			return DriverBudgetState{}, errors.New("run record: driver budget child is absent")
+			return driverBudgetState{}, errors.New("run record: driver budget child is absent")
 		}
 		if descriptor.MediaType == BudgetChargeMediaType && descriptor.Schema == BudgetChargeSchema {
 			chargeSet[edge.Child] = struct{}{}
@@ -321,20 +321,20 @@ func deriveDriverBudgetState(
 	}
 	chargeIDs := slices.Collect(maps.Keys(chargeSet))
 	if err := canonicalIDs(chargeIDs); err != nil {
-		return DriverBudgetState{}, errors.Join(errors.New("run record: invalid driver budget charges"), err)
+		return driverBudgetState{}, errors.Join(errors.New("run record: invalid driver budget charges"), err)
 	}
 	charges := make([]BudgetCharge, len(chargeIDs))
 	for index, id := range chargeIDs {
 		charges[index], err = budgetChargeCodec.Require(ctx, reader, id)
 		if err != nil {
-			return DriverBudgetState{}, err
+			return driverBudgetState{}, err
 		}
 	}
 	remaining, err := BudgetBalance(budget, charges)
 	if err != nil {
-		return DriverBudgetState{}, err
+		return driverBudgetState{}, err
 	}
-	return DriverBudgetState{
+	return driverBudgetState{
 		Grant: budget.ID, Charges: chargeIDs, Unit: budget.Unit, Issued: budget.Issued,
 		Consumed: budget.Issued - remaining, Remaining: remaining,
 	}, nil
@@ -344,7 +344,7 @@ func canonicalizeDriverDecision(value *DriverDecision) error {
 	if value == nil || value.Version != driverDecisionVersion || !value.Goal.Valid() || !value.Head.Valid() ||
 		value.Causal.Validate() != nil || value.Interaction.Grant == value.Resources.Grant ||
 		len(value.Options) == 0 || len(value.Options) > MaximumAttemptPopulation ||
-		value.TieBreak != DriverTieCostThenActionThenIdentity {
+		value.TieBreak != driverTieCostThenActionThenIdentity {
 		return errors.New("run record: invalid driver decision")
 	}
 	if err := canonicalizeDriverBudgetState(&value.Interaction); err != nil {
@@ -388,7 +388,7 @@ func canonicalizeDriverDecision(value *DriverDecision) error {
 	return nil
 }
 
-func canonicalizeDriverBudgetState(value *DriverBudgetState) error {
+func canonicalizeDriverBudgetState(value *driverBudgetState) error {
 	if value == nil || value.Grant.Kind() != artifact.KindEvidence || value.Unit == "" || !validUnit(value.Unit) ||
 		value.Issued == 0 || value.Consumed > value.Issued {
 		return errors.New("run record: invalid driver budget state")
@@ -410,8 +410,8 @@ func canonicalizeDriverOption(value *DriverOption, resourceUnit string) error {
 	}
 	validState := false
 	switch value.State {
-	case DriverIncumbentActive, DriverCandidateEligible, DriverCandidateCreated, DriverCandidateValidated,
-		DriverCandidateVerified, DriverCandidateActive, DriverCandidateRefused, DriverCandidateSuperseded:
+	case DriverIncumbentActive, DriverCandidateEligible, driverCandidateCreated, driverCandidateValidated,
+		driverCandidateVerified, driverCandidateActive, driverCandidateRefused, driverCandidateSuperseded:
 		validState = true
 	}
 	if !validState || value.Placement.Valid() && value.Placement.Kind() != artifact.KindProfile {
@@ -433,12 +433,12 @@ func canonicalizeDriverOption(value *DriverOption, resourceUnit string) error {
 		value.Recipe.Kind() != artifact.KindRecipe || value.Lifecycle.Kind() != artifact.KindEvidence ||
 		value.Candidate == value.Recipe {
 		return errors.New("run record: candidate option lacks exact admission or lifecycle subject")
-	} else if value.State == DriverCandidateActive && (!value.Placement.Valid() || len(value.Missing) != 0) {
+	} else if value.State == driverCandidateActive && (!value.Placement.Valid() || len(value.Missing) != 0) {
 		return errors.New("run record: active candidate lacks exact placement")
-	} else if (value.State == DriverCandidateCreated || value.State == DriverCandidateValidated ||
-		value.State == DriverCandidateVerified) && len(value.Missing) == 0 {
+	} else if (value.State == driverCandidateCreated || value.State == driverCandidateValidated ||
+		value.State == driverCandidateVerified) && len(value.Missing) == 0 {
 		return errors.New("run record: non-active candidate omits its missing work")
-	} else if (value.State == DriverCandidateRefused || value.State == DriverCandidateSuperseded) && len(value.Missing) != 0 {
+	} else if (value.State == driverCandidateRefused || value.State == driverCandidateSuperseded) && len(value.Missing) != 0 {
 		return errors.New("run record: terminal candidate carries executable work")
 	}
 	value.Evidence = slices.Clone(value.Evidence)
@@ -458,22 +458,22 @@ func canonicalizeDriverOption(value *DriverOption, resourceUnit string) error {
 	return nil
 }
 
-func deriveDriverSelection(value DriverDecision) (DriverStopState, DriverAction, artifact.ID, artifact.ID, DriverEvidenceNeed) {
+func deriveDriverSelection(value DriverDecision) (driverStopState, driverAction, artifact.ID, artifact.ID, driverEvidenceNeed) {
 	switch {
 	case value.OperatorStop.Valid():
-		return DriverStopOperator, DriverActionStop, artifact.ID{}, value.OperatorStop, ""
+		return driverStopOperator, DriverActionStop, artifact.ID{}, value.OperatorStop, ""
 	case value.Refusal.Valid():
-		return DriverStopRefused, DriverActionRefuse, artifact.ID{}, value.Refusal, ""
+		return driverStopRefused, driverActionRefuse, artifact.ID{}, value.Refusal, ""
 	case value.Interaction.Remaining == 0 || value.Resources.Remaining == 0:
-		return DriverStopBudgetExhausted, DriverActionRefuse, artifact.ID{}, artifact.ID{}, ""
+		return driverStopBudgetExhausted, driverActionRefuse, artifact.ID{}, artifact.ID{}, ""
 	case len(value.SaturationEvidence) != 0:
-		return DriverStopSaturated, DriverActionStop, artifact.ID{}, value.SaturationEvidence[0], ""
+		return driverStopSaturated, DriverActionStop, artifact.ID{}, value.SaturationEvidence[0], ""
 	}
 	var selected DriverOption
 	var gap DriverEvidenceGap
 	pending, found := false, false
 	for _, option := range value.Options {
-		if option.State == DriverCandidateRefused || option.State == DriverCandidateSuperseded {
+		if option.State == driverCandidateRefused || option.State == driverCandidateSuperseded {
 			continue
 		}
 		for _, candidate := range option.Missing {
@@ -487,26 +487,26 @@ func deriveDriverSelection(value DriverDecision) (DriverStopState, DriverAction,
 		}
 	}
 	if found {
-		action := DriverActionRequestEvidence
+		action := driverActionRequestEvidence
 		switch gap.Need {
 		case DriverNeedRealization:
 			action = DriverActionRealize
-		case DriverNeedEvaluation:
+		case driverNeedEvaluation:
 			action = DriverActionEvaluate
-		case DriverNeedAblation:
+		case driverNeedAblation:
 			action = DriverActionAblate
 		}
 		return DriverStopContinue, action, driverOptionSubject(selected), gap.Target, gap.Need
 	}
 	if pending {
-		return DriverStopBudgetExhausted, DriverActionRefuse, artifact.ID{}, artifact.ID{}, ""
+		return driverStopBudgetExhausted, driverActionRefuse, artifact.ID{}, artifact.ID{}, ""
 	}
 	for _, option := range value.Options {
-		if option.State == DriverCandidateActive {
-			return DriverStopContinue, DriverActionSelect, driverOptionSubject(option), option.Placement, ""
+		if option.State == driverCandidateActive {
+			return DriverStopContinue, driverActionSelect, driverOptionSubject(option), option.Placement, ""
 		}
 	}
-	return DriverStopContinue, DriverActionSelect, value.Incumbent, driverIncumbentPlacement(value.Options), ""
+	return DriverStopContinue, driverActionSelect, value.Incumbent, driverIncumbentPlacement(value.Options), ""
 }
 
 func compareDriverWork(left DriverEvidenceGap, leftSubject artifact.ID, right DriverEvidenceGap, rightSubject artifact.ID) int {
@@ -539,27 +539,27 @@ func driverGapAuthorityAllowed(option DriverOption, authority artifact.ID) bool 
 		slices.ContainsFunc(option.Missing, func(gap DriverEvidenceGap) bool { return gap.Target == authority })
 }
 
-func driverEvidencePriority(value DriverEvidenceNeed) int {
-	return slices.Index([]DriverEvidenceNeed{
-		DriverNeedRealization, DriverNeedValidation, DriverNeedEvaluation,
-		DriverNeedAblation, DriverNeedPlacement, DriverNeedPromotion,
+func driverEvidencePriority(value driverEvidenceNeed) int {
+	return slices.Index([]driverEvidenceNeed{
+		DriverNeedRealization, driverNeedValidation, driverNeedEvaluation,
+		driverNeedAblation, driverNeedPlacement, driverNeedPromotion,
 	}, value)
 }
 
-func driverEvidenceNeedValid(value DriverEvidenceNeed) bool {
+func driverEvidenceNeedValid(value driverEvidenceNeed) bool {
 	return driverEvidencePriority(value) >= 0
 }
 
-func driverOptionNeedAllowed(state DriverOptionState, need DriverEvidenceNeed) bool {
+func driverOptionNeedAllowed(state driverOptionState, need driverEvidenceNeed) bool {
 	switch state {
 	case DriverCandidateEligible:
 		return need == DriverNeedRealization
-	case DriverCandidateCreated:
-		return need == DriverNeedValidation || need == DriverNeedPlacement
-	case DriverCandidateValidated:
-		return need == DriverNeedEvaluation || need == DriverNeedAblation || need == DriverNeedPlacement
-	case DriverCandidateVerified:
-		return need == DriverNeedPromotion || need == DriverNeedPlacement
+	case driverCandidateCreated:
+		return need == driverNeedValidation || need == driverNeedPlacement
+	case driverCandidateValidated:
+		return need == driverNeedEvaluation || need == driverNeedAblation || need == driverNeedPlacement
+	case driverCandidateVerified:
+		return need == driverNeedPromotion || need == driverNeedPlacement
 	default:
 		return false
 	}

@@ -14,11 +14,11 @@ import (
 )
 
 const (
-	// ResourceFitnessComparisonMediaType identifies an immutable multi-lane
+	// resourceFitnessComparisonMediaType identifies an immutable multi-lane
 	// resource comparison.
-	ResourceFitnessComparisonMediaType = "application/vnd.overgo.resource-fitness-comparison+json"
-	// ResourceFitnessComparisonSchema identifies the comparison wire contract.
-	ResourceFitnessComparisonSchema = "overgo/resource-fitness-comparison/v1"
+	resourceFitnessComparisonMediaType = "application/vnd.overgo.resource-fitness-comparison+json"
+	// resourceFitnessComparisonSchema identifies the comparison wire contract.
+	resourceFitnessComparisonSchema = "overgo/resource-fitness-comparison/v1"
 
 	// ResourceLaneAgent is the canonical agent-work lane token.
 	ResourceLaneAgent = "agent"
@@ -69,19 +69,19 @@ type ResourceFitnessComparison struct {
 
 var resourceFitnessComparisonCodec = artifact.JSONDocumentCodec(
 	"run record resource fitness comparison", artifact.KindEvidence,
-	ResourceFitnessComparisonMediaType, ResourceFitnessComparisonSchema,
+	resourceFitnessComparisonMediaType, resourceFitnessComparisonSchema,
 	canonicalizeResourceFitnessComparison,
 	func(value ResourceFitnessComparison) artifact.ID { return value.ID },
 	func(value *ResourceFitnessComparison, id artifact.ID) { value.ID = id },
 	cloneResourceFitnessComparison,
 )
 
-// NewResourceFitnessComparison validates, orders, and identifies one
+// newResourceFitnessComparison validates, orders, and identifies one
 // structurally canonical multi-lane comparison. It does not have a Reader and
 // therefore cannot prove that the embedded stream aggregates match their raw
 // chunks. Producers should use CompareResourceFitness; consumers should use
 // RequireResourceFitnessComparison.
-func NewResourceFitnessComparison(lanes []ResourceFitnessLane) (ResourceFitnessComparison, error) {
+func newResourceFitnessComparison(lanes []ResourceFitnessLane) (ResourceFitnessComparison, error) {
 	return resourceFitnessComparisonCodec.NewInitial(ResourceFitnessComparison{
 		Lanes: cloneResourceFitnessLanes(lanes),
 	})
@@ -95,7 +95,7 @@ func CompareResourceFitness(
 	reader artifact.Reader,
 	lanes []ResourceFitnessLane,
 ) (ResourceFitnessComparison, error) {
-	value, err := NewResourceFitnessComparison(lanes)
+	value, err := newResourceFitnessComparison(lanes)
 	if err != nil {
 		return ResourceFitnessComparison{}, err
 	}
@@ -360,7 +360,7 @@ func canonicalizeResourceFitnessLane(lane *ResourceFitnessLane) error {
 // sameObservationProtocol compares only observation denominators. Raw byte
 // sizes, chunk boundaries, elapsed timestamps, and aggregate outcome values
 // may legitimately differ between otherwise comparable executions.
-func sameObservationProtocol(baseline, candidate ObservationStreamCoverage) bool {
+func sameObservationProtocol(baseline, candidate observationStreamCoverage) bool {
 	return baseline.Samples == candidate.Samples &&
 		baseline.MeasuredSamples == candidate.MeasuredSamples &&
 		baseline.HardwareMeasuredSamples == candidate.HardwareMeasuredSamples &&
@@ -405,7 +405,7 @@ func validateMaterializedObservationStream(stream ObservationStream) error {
 	return nil
 }
 
-func validateObservationCoverage(coverage ObservationStreamCoverage, aggregate ResourceFitness) error {
+func validateObservationCoverage(coverage observationStreamCoverage, aggregate ResourceFitness) error {
 	if len(coverage.Metrics) != len(aggregate.Measures) ||
 		(coverage.InteractionSamples != 0) != (aggregate.Interactions != nil) {
 		return errors.New("run record: materialized observation coverage differs from aggregate")

@@ -80,8 +80,8 @@ func canonicalModule(module Module) (Module, error) {
 			return Module{}, err
 		}
 	}
-	sort.Slice(result.Tasks, func(i, j int) bool { return result.Tasks[i] < result.Tasks[j] })
-	sort.Slice(result.Placements, func(i, j int) bool { return result.Placements[i] < result.Placements[j] })
+	slices.Sort(result.Tasks)
+	slices.Sort(result.Placements)
 	result.Tasks = slices.Compact(result.Tasks)
 	result.Placements = slices.Compact(result.Placements)
 	inputs, err := canonicalPorts(result.Inputs)

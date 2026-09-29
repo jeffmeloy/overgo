@@ -1,13 +1,13 @@
 package inference
 
 import (
-	"os"
 	"slices"
 	"testing"
 
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/model"
+	"overgo/internal/modeltest"
 	"overgo/internal/sampling"
-	"overgo/internal/testskip"
 	"overgo/internal/tokenizer"
 )
 
@@ -40,11 +40,8 @@ func TestCompiledMultiHeadMTPRequiresCompleteCatalog(t *testing.T) {
 
 func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_STEP35_MTP_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_STEP35_MTP_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "step35"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
 	if err != nil {
@@ -147,11 +144,8 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 
 func TestHYV3MTPChainsIndependentHeads(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_HYV3_MTP_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_HYV3_MTP_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "hy_v3"), OpenOptions{
 		DeviceOrdinal: 0,
 	})
 	if err != nil {

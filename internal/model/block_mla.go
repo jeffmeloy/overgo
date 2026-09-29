@@ -177,10 +177,7 @@ func buildLatentAttentionMixCached(
 				return DenseBlockResult{}, errors.New("sparse latent indexer cache shape is invalid")
 			}
 			scores := builder.IndexerScore(indexerQuery, indexerKey, indexerWeights, indexerScale, indexerTokens-tokenCount)
-			selected := spec.IndexerTopK
-			if selected > indexerTokens {
-				selected = indexerTokens
-			}
+			selected := min(spec.IndexerTopK, indexerTokens)
 			topK = builder.TopK(scores, selected)
 		} else {
 			if previousTopK == nil {

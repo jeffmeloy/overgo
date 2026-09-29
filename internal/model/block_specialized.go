@@ -478,7 +478,7 @@ func buildWKV6MixedStreams(
 		weights.TimeMixLerpR, weights.TimeMixLerpG,
 	}
 	var mixed [wkv6TimeMixStreams]*tensor.Tensor
-	for index := uint64(tensor.FirstOffset); index < wkv6TimeMixStreams; index++ {
+	for index := range wkv6TimeMixStreams {
 		adjustment := builder.Reshape(builder.GroupSlice(
 			adjustments, index*embedding, embedding, tensor.SingletonExtent, embedding*wkv6TimeMixStreams,
 		), embedding, tokens)

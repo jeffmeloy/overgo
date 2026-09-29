@@ -15,8 +15,8 @@ const (
 	TerminalAttemptReceiptMediaType = "application/vnd.overgo.terminal-attempt-receipt+json"
 	// TerminalAttemptReceiptSchema is the receipt document version.
 	TerminalAttemptReceiptSchema = "overgo/terminal-attempt-receipt/v2"
-	// TerminalAttemptAliasRoot scopes receipts per operation and attempt.
-	TerminalAttemptAliasRoot = "attempt/terminal/"
+	// terminalAttemptAliasRoot scopes receipts per operation and attempt.
+	terminalAttemptAliasRoot = "attempt/terminal/"
 )
 
 // Coverage gap labels: a receipt without an optional measurement names
@@ -34,9 +34,9 @@ const (
 	GapToolOutput = "tool-output"
 )
 
-// ProcessTermination summarizes one supervised process tree's terminal
+// processTermination summarizes one supervised process tree's terminal
 // state inside a receipt.
-type ProcessTermination struct {
+type processTermination struct {
 	ExitCode       int32 `json:"exit_code"`
 	Interrupted    bool  `json:"interrupted,omitzero"`
 	TreeTerminated bool  `json:"tree_terminated,omitzero"`
@@ -62,7 +62,7 @@ type TerminalAttemptReceipt struct {
 	FailureNormalization artifact.ID                   `json:"failure_normalization,omitzero"`
 	Disposition          *executionfailure.Disposition `json:"disposition,omitempty"`
 
-	Process   *ProcessTermination `json:"process,omitempty"`
+	Process   *processTermination `json:"process,omitempty"`
 	Resources ServingResources    `json:"resources"`
 	Gaps      []string            `json:"gaps,omitempty"`
 
@@ -246,7 +246,7 @@ func validateTerminalAttemptReceiptDirectReferences(
 }
 
 func terminalAttemptAlias(operation artifact.ID, attempt uint32) string {
-	return indexedAlias(TerminalAttemptAliasRoot, operation, uint64(attempt))
+	return indexedAlias(terminalAttemptAliasRoot, operation, uint64(attempt))
 }
 
 // terminalGapFields pairs each coverage gap label with whether the
@@ -264,7 +264,7 @@ func terminalGapFields(value *TerminalAttemptReceipt) map[string]bool {
 func canonicalizeTerminalAttempt(value *TerminalAttemptReceipt) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion ||
 		value.Operation.Kind() != artifact.KindEvidence || value.Capability.Kind() != artifact.KindProfile || value.ObservedUnixNS <= 0 ||
-		!ValidOutcome(value.Outcome) {
+		!validOutcome(value.Outcome) {
 		return errors.New("run record: invalid terminal attempt receipt")
 	}
 	failed := value.Outcome == OutcomeFailed

@@ -389,7 +389,7 @@ func publishCheckpoint(source, target string, model *densecausal.Model, authorit
 }
 
 func identifyModel(directory string) (artifact.ID, error) {
-	path, err := identifyModelWeights(directory)
+	path, err := IdentifyModelWeights(directory)
 	if err != nil {
 		return artifact.ID{}, err
 	}
@@ -401,14 +401,14 @@ func identifyModel(directory string) (artifact.ID, error) {
 	return id, errors.Join(identifyErr, file.Close())
 }
 
-// identifyModelWeights resolves the one weights file whose hash is the
+// IdentifyModelWeights resolves the one weights file whose hash is the
 // model identity — the same file a recorded model location names. A GGUF
 // input is its own identity; a directory identifies by model.safetensors,
 // by its single safetensors file under any recorded name, or — for a
 // sharded checkpoint — by the first shard in order, the file intake
 // recorded as the model location. Two unordered safetensors files are
 // ambiguous and refuse.
-func identifyModelWeights(directory string) (string, error) {
+func IdentifyModelWeights(directory string) (string, error) {
 	if isGGUFModelInput(directory) {
 		return directory, nil
 	}

@@ -52,7 +52,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	weights, err := identifyModelWeights(request.ModelDirectory)
+	weights, err := IdentifyModelWeights(request.ModelDirectory)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -79,7 +79,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	config := plan.Optimizer()
 	return RunHeldout(ctx, store, HeldoutRun{
 		Alias: request.Alias, ModelPath: weights, Examples: examples, Host: request.Host,
-		Train: func(_ context.Context, shown []HeldoutExample) error {
+		Train: func(_ context.Context, _ artifact.ID, shown []HeldoutExample) error {
 			if len(shown) == 0 {
 				return errors.New("training workflow: the training membership holds no text")
 			}

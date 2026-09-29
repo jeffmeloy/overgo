@@ -31,10 +31,10 @@ var attemptContract = artifact.DocumentContract{
 
 const maxAttemptStrategyBytes = 128
 
-// AttemptSelection mirrors the gate's manifest selection measurements
+// attemptSelection mirrors the gate's manifest selection measurements
 // without importing the selector package: counts of check dispositions
 // and the planning cost, exactly as measured.
-type AttemptSelection struct {
+type attemptSelection struct {
 	Defined       int   `json:"defined"`
 	Selected      int   `json:"selected"`
 	Excluded      int   `json:"excluded"`
@@ -44,8 +44,8 @@ type AttemptSelection struct {
 	PlanningNS    int64 `json:"planning_ns"`
 }
 
-// AttemptDiff is the candidate's observed change size.
-type AttemptDiff struct {
+// attemptDiff is the candidate's observed change size.
+type attemptDiff struct {
 	Files      int `json:"files"`
 	Insertions int `json:"insertions"`
 	Deletions  int `json:"deletions"`
@@ -65,8 +65,8 @@ type AttemptRecord struct {
 	WallNS            uint64           `json:"wall_ns"`
 	BaseManifest      artifact.ID      `json:"base_manifest,omitzero"`
 	CandidateManifest artifact.ID      `json:"candidate_manifest,omitzero"`
-	Selection         AttemptSelection `json:"selection"`
-	Diff              AttemptDiff      `json:"diff"`
+	Selection         attemptSelection `json:"selection"`
+	Diff              attemptDiff      `json:"diff"`
 	StrategyID        artifact.ID      `json:"strategy_id,omitzero"`
 	TaskContract      artifact.ID      `json:"task_contract,omitzero"`
 	WorkLease         artifact.ID      `json:"work_lease,omitzero"`

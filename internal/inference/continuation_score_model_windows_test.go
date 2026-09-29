@@ -4,7 +4,6 @@ package inference
 
 import (
 	"math"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,15 +19,11 @@ import (
 	"overgo/internal/testutil"
 )
 
-// parityModel is the GGUF the parity tests score: OVERGO_PARITY_MODEL when
-// it is set, else the store's smallest local servable GGUF, the model the
-// scorecard slice measures. The device lane runs these tests with no
-// variable of their own.
+// parityModel is the GGUF the parity tests score: the store's smallest local
+// servable GGUF, the model the scorecard slice measures. The device lane runs
+// these tests with no variable of their own.
 func parityModel(t *testing.T) string {
 	t.Helper()
-	if path := os.Getenv("OVERGO_PARITY_MODEL"); path != "" {
-		return path
-	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
@@ -51,13 +46,6 @@ func parityModel(t *testing.T) string {
 	return ""
 }
 
-// TestContinuationScoringPathsAgreeOnAModel: the device-cache scoring
-// path and the host-cache path agree on a real model, at native
-// precision, on a long prompt with multi-token candidates and on a long
-// single sequence scored from the model's scoring prefix (the DNA
-// suite's shape). OVERGO_PARITY_MODEL names the GGUF; unset, the test
-// is skipped. The hermetic fixture test holds the same parity on a toy
-// model; this one holds it where the numbers are recorded.
 // scoringParityRequest is one scoring request the parity tests put to
 // two runners or two paths.
 type scoringParityRequest struct {
@@ -141,6 +129,12 @@ func TestContinuationScoringMatchesReferenceBackend(t *testing.T) {
 	}
 }
 
+// TestContinuationScoringPathsAgreeOnAModel: the device-cache scoring
+// path and the host-cache path agree on a real model, at native
+// precision, on a long prompt with multi-token candidates and on a long
+// single sequence scored from the model's scoring prefix (the DNA
+// suite's shape). The hermetic fixture test holds the same parity on a toy
+// model; this one holds it where the numbers are recorded.
 func TestContinuationScoringPathsAgreeOnAModel(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)

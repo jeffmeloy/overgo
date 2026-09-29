@@ -12,7 +12,6 @@
       const conversationHost = el("div");
       const toolsHost = el("div");
       const retrievalHost = el("div");
-      const automationHost = el("div");
       const evidenceHost = el("div");
       // The page leads with the task: pick an agent and chat; creating one is a fold with three plain
       // fields, and every operator panel lives behind Advanced folds.
@@ -27,7 +26,6 @@
         overgo.fold("Advanced: manual tool steps and approvals", false, toolsHost),
         overgo.fold("Advanced: full definition editor", false, editorHost),
         overgo.fold("Advanced: retrieval evidence", false, retrievalHost),
-        overgo.fold("Advanced: attached automations", false, automationHost),
         overgo.fold("Advanced: structured observables", false, evidenceHost));
 
       const schema = await api.get("/workspace/schema?id=agent-definition");
@@ -71,11 +69,6 @@
 
 
       const artifactLink = overgo.artifactLink;
-
-      function openOperation(id) {
-        history.pushState({}, "", "?operation=" + encodeURIComponent(id));
-        window.dispatchEvent(new PopStateEvent("popstate"));
-      }
 
       const transition = (state) => overgo.act(status, async () => {
         if (!selected) return;
@@ -210,23 +203,6 @@
         retrievalHost.replaceChildren(el("div", { class: "row" }, projection, policy, query, limit, search), results);
       }
 
-      function renderAutomations() {
-        const agent = activeAgent();
-        const select = el("select", { class: "text", "aria-label": "automation" }, ...((agent && agent.automations) || []).map((item) => el("option", { value: item.id, text: item.name })));
-        const [key, destination] = ["idempotency key", "approved destination"].map((placeholder) => el("input", { class: "text", "aria-label": placeholder, placeholder }));
-        const inputs = el("textarea", { "aria-label": "Tool inputs (JSON)", class: "text", rows: "2", placeholder: "Strict JSON inputs" });
-        const run = el("button", { class: "btn", text: "Run attachment", disabled: !select.value });
-        run.addEventListener("click", () => overgo.act(status, async () => {
-          const execution = await api.post("/agents/automation", {
-            agent: selected, automation: select.value, key: key.value.trim(),
-            destination: destination.value.trim(), inputs: JSON.parse(inputs.value || "{}"),
-          });
-          status.textContent = "automation admitted / " + fmt.shortID(execution.operation);
-          openOperation(execution.operation);
-        }));
-        automationHost.replaceChildren(el("div", { class: "row" }, select, key, destination, run), inputs);
-      }
-
       // renderProvenance expands one step's evidence walk: interaction, manual, receipts, decision, result.
       const renderProvenance = (host, session, step) => overgo.act(status, async () => {
         const walk = await api.get("/agents/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);
@@ -267,7 +243,7 @@
         }));
       });
 
-      function renderAll() { renderInventory(); renderCreate(); renderChat(); renderTools(); renderRetrieval(); renderAutomations(); }
+      function renderAll() { renderInventory(); renderCreate(); renderChat(); renderTools(); renderRetrieval(); }
 
       tools = (await api.get("/agents/tools")).tools || [];
       inventory = await api.get("/agents");

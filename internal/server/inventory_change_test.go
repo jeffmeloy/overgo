@@ -36,7 +36,7 @@ func TestMutationsRefreshTheirInventories(t *testing.T) {
 	}
 	defer unsubscribe()
 	answering := func(status int) routeDescriptor {
-		return routeDescriptor{Path: "/peers/state", Inventory: true, Handler: func(_ *Handler, response http.ResponseWriter, _ *http.Request) {
+		return routeDescriptor{Path: "/agents/state", Inventory: true, Handler: func(_ *Handler, response http.ResponseWriter, _ *http.Request) {
 			response.WriteHeader(status)
 		}}
 	}
@@ -49,10 +49,10 @@ func TestMutationsRefreshTheirInventories(t *testing.T) {
 		{http.MethodPost, http.StatusConflict, false},
 		{http.MethodGet, http.StatusOK, false},
 	} {
-		handler.serveInventoryChange(answering(call.status), httptest.NewRecorder(), httptest.NewRequest(call.method, "/peers/state", nil))
+		handler.serveInventoryChange(answering(call.status), httptest.NewRecorder(), httptest.NewRequest(call.method, "/agents/state", nil))
 		select {
 		case event := <-events:
-			if !call.changes || event.name != "workspace.changed" || event.value.(workspaceChange).Inventory != "/peers" {
+			if !call.changes || event.name != "workspace.changed" || event.value.(workspaceChange).Inventory != "/agents" {
 				t.Errorf("%s answered %d published %q %+v", call.method, call.status, event.name, event.value)
 			}
 		default:

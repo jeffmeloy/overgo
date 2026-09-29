@@ -7,9 +7,6 @@ import (
 
 	"overgo/internal/tensor/dtype"
 
-	"os"
-
-	"overgo/internal/testskip"
 	"testing"
 )
 
@@ -170,89 +167,6 @@ func TestReadWeightsQwen3NextRecurrentLayouts(t *testing.T) {
 				t.Fatalf("unexpected Qwen3-Next catalog: %+v", layer)
 			}
 		})
-	}
-}
-
-func TestReadRealQwen35Catalog(t *testing.T) {
-	requireIntegration(t)
-	path := os.Getenv("OVERGO_QWEN35_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "set OVERGO_QWEN35_MODEL to run real Qwen3.5 catalog validation")
-	}
-	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer file.Close()
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "qwen35" || len(weights.Layers) != 32 ||
-		!weights.Layers[0].Recurrent || weights.Layers[3].Recurrent {
-		t.Fatalf("unexpected real Qwen3.5 catalog: spec=%+v layers=%d", spec, len(weights.Layers))
-	}
-}
-
-func TestReadRealKimiLinearCatalog(t *testing.T) {
-	requireIntegration(t)
-	path := os.Getenv("OVERGO_KIMI_LINEAR_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "set OVERGO_KIMI_LINEAR_MODEL to run real Kimi Linear catalog validation")
-	}
-	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer file.Close()
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "kimi-linear" || len(weights.Layers) != int(spec.BlockCount) {
-		t.Fatalf("unexpected real Kimi Linear catalog: spec=%+v layers=%d", spec, len(weights.Layers))
-	}
-	var recurrent, attention bool
-	for _, layer := range weights.Layers {
-		recurrent = recurrent || layer.Recurrent
-		attention = attention || !layer.Recurrent
-	}
-	if !recurrent || !attention {
-		t.Fatal("real Kimi Linear catalog lacks hybrid layers")
-	}
-}
-
-func TestReadRealGemma3Catalog(t *testing.T) {
-	requireIntegration(t)
-	path := os.Getenv("OVERGO_GEMMA3_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "set OVERGO_GEMMA3_MODEL to run real Gemma 3 catalog validation")
-	}
-	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer file.Close()
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "gemma3" || len(weights.Layers) != 48 ||
-		weights.Layers[0].AttentionPostNorm == nil ||
-		weights.Layers[0].FeedForwardPostNorm == nil {
-		t.Fatalf("unexpected real Gemma 3 catalog: spec=%+v layers=%d", spec, len(weights.Layers))
 	}
 }
 
@@ -777,31 +691,6 @@ func testReadWeightsMRoPETextDecoder(t *testing.T, architecture string) {
 		(architecture == "qwen3vl" && (layer.AttentionQNorm == nil || layer.AttentionKNorm == nil ||
 			weights.ClassifierOutput == nil)) {
 		t.Fatalf("unexpected %s catalog: %+v", architecture, weights)
-	}
-}
-
-func TestReadRealUMT5Catalog(t *testing.T) {
-	requireIntegration(t)
-	path := os.Getenv("OVERGO_UMT5_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "set OVERGO_UMT5_MODEL to run real UMT5 catalog validation")
-	}
-	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer file.Close()
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "t5encoder" || len(weights.Layers) != 24 ||
-		weights.Layers[0].AttentionRelativeBias == nil {
-		t.Fatalf("unexpected real UMT5 catalog: spec=%+v layers=%d", spec, len(weights.Layers))
 	}
 }
 

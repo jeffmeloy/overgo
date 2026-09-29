@@ -66,7 +66,6 @@ func agentAuthorityFixture(t *testing.T) (*overgodb.Store, recipe.AgentDefinitio
 		ToolManuals:       []artifact.ID{publishAgentAuthorityArtifact(t, store, artifact.KindRecipe, "agent-tool")},
 		CapabilityBundles: []artifact.ID{publishAgentAuthorityArtifact(t, store, artifact.KindProfile, "agent-bundle")},
 		Datasets:          []artifact.ID{publishAgentAuthorityArtifact(t, store, artifact.KindDataset, "agent-dataset")},
-		Automations:       []artifact.ID{publishAgentAuthorityArtifact(t, store, artifact.KindRecipe, "agent-automation")},
 		Policies:          []artifact.ID{publishAgentAuthorityArtifact(t, store, artifact.KindProfile, "agent-policy")},
 	})
 	if err != nil {

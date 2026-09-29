@@ -5,25 +5,20 @@ import (
 	"os"
 	"testing"
 
-	"overgo/internal/operation"
 	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
 // TestWebUIBrowserWorkspaceRefusal: a refused workspace stays in the
 // navigation and answers a click or a fragment with its reason and the
-// action that would enable it; a streaming tab remounts onto one live
-// stream; and a decision on a pending approval from the Automations tab
-// carries the advertised request and succeeds.
+// action that would enable it; and a streaming tab remounts onto one live
+// stream.
 func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		testskip.NotApplicable(t, "workspace refusal runs through cmd/webui-lane")
 	}
-	fixture := newAutomationServerFixture(t)
-	defer fixture.store.Close()
-	_, blocked := publishBrowserLaneOperations(t, fixture.handler)
-	server := httptest.NewServer(fixture.handler)
+	server := httptest.NewServer(newTestHandlerWithRepository(t, &fakeGenerator{}))
 	defer server.Close()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
@@ -84,18 +79,4 @@ func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
 })()`)
 	settle(`(window.liveStreams['/runtime/activity/stream'] || []).filter((signal) => !signal.aborted).length === 1 && !window.liveStreams['/agents/stream']`)
 	webuilane.Leg(t, "remount leg", "the inbox listens on the shared runtime stream, and a remount leaves exactly one live runtime stream")
-
-	// 3. Granting the blocked operation's recovery from the Automations tab succeeds.
-	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'automations'; return true; })()`)
-	// The panel re-renders on runtime events, so the button is found and
-	// clicked in one evaluation, polled until a render holds it.
-	settle(`(() => {
-  const grant = [...document.querySelectorAll('#panel-automations.active .card button')].find((button) => button.textContent.startsWith('Grant'));
-  if (!grant) return false;
-  grant.click();
-  return true;
-})()`)
-	waitBrowserOperationState(t, fixture.handler, blocked, operation.StateCompleted)
-	settle(`window.overgo.errors.length === 0 && !document.querySelector('#panel-automations .note .banner')`)
-	webuilane.Leg(t, "approval leg", "the Automations decision carried the advertised request and the operation completed")
 }

@@ -3,16 +3,15 @@
 package inference
 
 import (
-	"os"
 	"slices"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modeltest"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
-	"overgo/internal/testskip"
 	"overgo/internal/tokenizer"
 )
 
@@ -53,16 +52,14 @@ func generateCapacityPagingRepro(
 // TestCapacityPagingReproGeneratesPastPageBoundary drives the real serve path
 // (raw-greedy device decode on the default capacity session) past the 256-token
 // KV-cache page boundary on a capacity-eligible model, and asserts the output is
-// token-identical to the proven-correct request (concat) session. Set
-// OVERGO_REPRO_MODEL to a capacity-eligible GGUF (Carbon/MiniCPM/Qwen35-4B, or the
-// gemma-4-12B). Before the fix the capacity session OOMed at pastTokens=256.
+// token-identical to the proven-correct request (concat) session. It runs on
+// the store's smallest registered llama GGUF, a capacity-eligible model like
+// Carbon or MiniCPM. Before the fix the capacity session OOMed at
+// pastTokens=256.
 func TestCapacityPagingReproGeneratesPastPageBoundary(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := os.Getenv("OVERGO_REPRO_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "OVERGO_REPRO_MODEL is not set")
-	}
+	path := modeltest.GGUF(t, "llama")
 	capacityIDs := generateCapacityPagingRepro(t, path, modelrecipe.DecodeSessionCapacity)
 	if len(capacityIDs) <= 256 {
 		t.Fatalf("capacity session generated %d ids, need >256 to cross the page boundary", len(capacityIDs))

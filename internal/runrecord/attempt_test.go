@@ -17,8 +17,8 @@ func fixtureAttempt(t *testing.T) AttemptRecord {
 		WorkLease:  testutil.ArtifactID(t, artifact.KindEvidence, "work-lease"),
 		CodeCommit: strings.Repeat("ab", 20),
 		Outcome:    OutcomeSucceeded, WallNS: 42,
-		Selection: AttemptSelection{Defined: 17, Selected: 12, Excluded: 5, CacheEligible: 3, CacheHits: 2, PlanningNS: 7},
-		Diff:      AttemptDiff{Files: 2, Insertions: 40, Deletions: 3},
+		Selection: attemptSelection{Defined: 17, Selected: 12, Excluded: 5, CacheEligible: 3, CacheHits: 2, PlanningNS: 7},
+		Diff:      attemptDiff{Files: 2, Insertions: 40, Deletions: 3},
 	}
 }
 

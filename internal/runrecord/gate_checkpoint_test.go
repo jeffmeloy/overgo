@@ -21,29 +21,29 @@ func TestGateCheckpointOutcome(t *testing.T) {
 		{Name: "build", Phase: PhaseBuild, Outcome: StepSucceeded, DurationNS: 1},
 		{Name: "acceptance-producer", Phase: PhaseTest, Outcome: StepReused, DurationNS: 1},
 	}
-	record, err := NewGateRecord(recipe, environment, commit, OutcomeCheckpoint, "", 2, steps)
+	record, err := NewGateRecord(recipe, environment, commit, outcomeCheckpoint, "", 2, steps)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if record.Result.Outcome != OutcomeCheckpoint || record.Run.Outcome != OutcomeCheckpoint {
+	if record.Result.Outcome != outcomeCheckpoint || record.Run.Outcome != outcomeCheckpoint {
 		t.Fatalf("checkpoint outcome lost: %+v", record.Result)
 	}
-	if _, err := NewGateRecord(recipe, environment, commit, OutcomeCheckpoint, "planning", 2, steps); err == nil {
+	if _, err := NewGateRecord(recipe, environment, commit, outcomeCheckpoint, "planning", 2, steps); err == nil {
 		t.Fatal("checkpoint gate accepted a failure code")
 	}
 	failed := []GateStep{steps[0], {Name: "acceptance-consumer", Phase: PhaseTest, Outcome: StepFailed, DurationNS: 1}}
-	if _, err := NewGateRecord(recipe, environment, commit, OutcomeCheckpoint, "", 2, failed); err == nil {
+	if _, err := NewGateRecord(recipe, environment, commit, outcomeCheckpoint, "", 2, failed); err == nil {
 		t.Fatal("checkpoint gate accepted a failed step")
 	}
-	preparation, err := NewGatePreparation(strings.Repeat("a", 64), environment, time.Unix(100, 0))
+	preparation, err := newGatePreparation(strings.Repeat("a", 64), environment, time.Unix(100, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
-	finalized, err := NewGateFinalization(preparation, commit, record.Result.ID, OutcomeCheckpoint)
+	finalized, err := newGateFinalization(preparation, commit, record.Result.ID, outcomeCheckpoint)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if finalized.State != GateFinalized || finalized.Outcome != OutcomeCheckpoint {
+	if finalized.State != gateFinalized || finalized.Outcome != outcomeCheckpoint {
 		t.Fatalf("checkpoint finalization: %+v", finalized)
 	}
 }

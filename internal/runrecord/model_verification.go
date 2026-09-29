@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	ModelVerificationVersion   uint16 = 1
+	modelVerificationVersion   uint16 = 1
 	ModelVerificationMediaType        = "application/vnd.overgo.model-verification+json"
 	ModelVerificationSchema           = "overgo/model-verification/v1"
 )
@@ -21,7 +21,7 @@ const (
 type VerificationTier string
 
 const (
-	TierSyntheticDifferential VerificationTier = "synthetic-differential"
+	tierSyntheticDifferential VerificationTier = "synthetic-differential"
 	TierRealArtifactSmoke     VerificationTier = "real-artifact-smoke"
 	TierExactGolden           VerificationTier = "exact-golden"
 	TierCapabilityMeasured    VerificationTier = "capability-measured"
@@ -30,7 +30,7 @@ const (
 // Valid reports whether the tier belongs to the verification evidence contract.
 func (t VerificationTier) Valid() bool {
 	switch t {
-	case TierSyntheticDifferential, TierRealArtifactSmoke, TierExactGolden, TierCapabilityMeasured:
+	case tierSyntheticDifferential, TierRealArtifactSmoke, TierExactGolden, TierCapabilityMeasured:
 		return true
 	default:
 		return false
@@ -43,9 +43,9 @@ func (t VerificationTier) StrongerThan(other VerificationTier) bool {
 	case TierCapabilityMeasured:
 		return other.Valid() && other != TierCapabilityMeasured
 	case TierExactGolden:
-		return other == TierRealArtifactSmoke || other == TierSyntheticDifferential
+		return other == TierRealArtifactSmoke || other == tierSyntheticDifferential
 	case TierRealArtifactSmoke:
-		return other == TierSyntheticDifferential
+		return other == tierSyntheticDifferential
 	default:
 		return false
 	}
@@ -107,7 +107,7 @@ func newModelVerification(model artifact.ID, name string, claims []CapabilityCla
 		cloned[i].Evidence = slices.Clone(cloned[i].Evidence)
 	}
 	return modelVerificationCodec.New(ModelVerification{
-		Version: ModelVerificationVersion, Model: model, Name: name, Claims: cloned,
+		Version: modelVerificationVersion, Model: model, Name: name, Claims: cloned,
 		Supersedes: slices.Clone(supersedes),
 	})
 }
@@ -239,7 +239,7 @@ func VerificationMatrix(records []ModelVerification) []MatrixRow {
 }
 
 func canonicalizeModelVerification(value *ModelVerification) error {
-	if value == nil || value.Version != ModelVerificationVersion {
+	if value == nil || value.Version != modelVerificationVersion {
 		return errors.New("run record: invalid model verification version")
 	}
 	if value.Model.Kind() != artifact.KindModel {

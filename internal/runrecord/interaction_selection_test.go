@@ -16,7 +16,7 @@ func TestBoundedInteractionSelection(t *testing.T) {
 	head := artifact.CommitID{1}
 	var sources []dataset.InteractionSelectionSource
 	for index, text := range []string{"recent request", "older request"} {
-		transcript, err := NewInteractionTranscript([]InteractionMessage{{Role: "user", Content: text}})
+		transcript, err := newInteractionTranscript([]InteractionMessage{{Role: "user", Content: text}})
 		if err != nil {
 			t.Fatal(err)
 		}

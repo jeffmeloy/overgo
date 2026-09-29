@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	// ExternalMechanismProvenanceMediaType identifies external research provenance.
-	ExternalMechanismProvenanceMediaType = "application/vnd.overgo.external-mechanism-provenance+json"
-	// ExternalMechanismProvenanceSchema identifies the external provenance contract version.
-	ExternalMechanismProvenanceSchema = "overgo/external-mechanism-provenance/v1"
+	// externalMechanismProvenanceMediaType identifies external research provenance.
+	externalMechanismProvenanceMediaType = "application/vnd.overgo.external-mechanism-provenance+json"
+	// externalMechanismProvenanceSchema identifies the external provenance contract version.
+	externalMechanismProvenanceSchema = "overgo/external-mechanism-provenance/v1"
 )
 
 const externalMechanismTransfer = "reexpress-overgo-native"
@@ -30,8 +30,8 @@ type ExternalMechanismSource struct {
 	Paths     []string    `json:"paths"`
 }
 
-// ExternalMechanismProvenance binds a census to immutable external source and license authority.
-type ExternalMechanismProvenance struct {
+// externalMechanismProvenance binds a census to immutable external source and license authority.
+type externalMechanismProvenance struct {
 	Version    uint16                    `json:"version"`
 	Census     artifact.ID               `json:"census"`
 	Repository string                    `json:"repository"`
@@ -44,11 +44,11 @@ type ExternalMechanismProvenance struct {
 
 var externalMechanismProvenanceCodec = artifact.JSONDocumentCodec(
 	"external mechanism provenance", artifact.KindEvidence,
-	ExternalMechanismProvenanceMediaType, ExternalMechanismProvenanceSchema,
+	externalMechanismProvenanceMediaType, externalMechanismProvenanceSchema,
 	canonicalizeExternalMechanismProvenance,
-	func(value ExternalMechanismProvenance) artifact.ID { return value.ID },
-	func(value *ExternalMechanismProvenance, id artifact.ID) { value.ID = id },
-	func(value ExternalMechanismProvenance) ExternalMechanismProvenance {
+	func(value externalMechanismProvenance) artifact.ID { return value.ID },
+	func(value *externalMechanismProvenance, id artifact.ID) { value.ID = id },
+	func(value externalMechanismProvenance) externalMechanismProvenance {
 		value.Sources = slices.Clone(value.Sources)
 		for index := range value.Sources {
 			value.Sources[index].Paths = slices.Clone(value.Sources[index].Paths)
@@ -63,21 +63,21 @@ func NewExternalMechanismProvenance(
 	repository, commit string,
 	license artifact.ID,
 	sources []ExternalMechanismSource,
-) (ExternalMechanismProvenance, error) {
+) (externalMechanismProvenance, error) {
 	mechanisms := make(map[artifact.ID]struct{}, len(census.Assessments()))
 	for _, assessment := range census.Assessments() {
 		mechanisms[assessment.Mechanism] = struct{}{}
 	}
 	for _, source := range sources {
 		if _, found := mechanisms[source.Mechanism]; !found {
-			return ExternalMechanismProvenance{}, errors.New("run record: external source names mechanism outside census")
+			return externalMechanismProvenance{}, errors.New("run record: external source names mechanism outside census")
 		}
 		delete(mechanisms, source.Mechanism)
 	}
 	if len(mechanisms) != 0 {
-		return ExternalMechanismProvenance{}, errors.New("run record: external source coverage differs from census")
+		return externalMechanismProvenance{}, errors.New("run record: external source coverage differs from census")
 	}
-	return externalMechanismProvenanceCodec.New(ExternalMechanismProvenance{
+	return externalMechanismProvenanceCodec.New(externalMechanismProvenance{
 		Version: artifact.InitialDocumentVersion, Census: census.ID(), Repository: repository,
 		Commit: commit, License: license, Transfer: externalMechanismTransfer, Sources: sources,
 	})
@@ -86,17 +86,17 @@ func NewExternalMechanismProvenance(
 // RequireExternalMechanismProvenance loads exact provenance through its owning contract.
 func RequireExternalMechanismProvenance(
 	ctx context.Context, reader artifact.Reader, id artifact.ID,
-) (ExternalMechanismProvenance, error) {
+) (externalMechanismProvenance, error) {
 	return externalMechanismProvenanceCodec.Require(ctx, reader, id)
 }
 
 // Content returns the canonical external provenance document.
-func (value ExternalMechanismProvenance) Content() (artifact.Content, error) {
+func (value externalMechanismProvenance) Content() (artifact.Content, error) {
 	return externalMechanismProvenanceCodec.Content(value)
 }
 
 // Lineage binds provenance to the census, license, and each mechanism.
-func (value ExternalMechanismProvenance) Lineage() []artifact.Lineage {
+func (value externalMechanismProvenance) Lineage() []artifact.Lineage {
 	parents := []artifact.ID{value.Census, value.License}
 	for _, source := range value.Sources {
 		parents = append(parents, source.Mechanism)
@@ -104,7 +104,7 @@ func (value ExternalMechanismProvenance) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(value.ID, parents...)
 }
 
-func canonicalizeExternalMechanismProvenance(value *ExternalMechanismProvenance) error {
+func canonicalizeExternalMechanismProvenance(value *externalMechanismProvenance) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Census.Kind() != artifact.KindRecipe ||
 		value.License.Kind() != artifact.KindEvidence || value.Transfer != externalMechanismTransfer ||
 		!validExternalSourceText(value.Repository) || !validExternalCommit(value.Commit) || len(value.Sources) == 0 {

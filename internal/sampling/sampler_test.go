@@ -19,6 +19,26 @@ func TestGreedyAndTieBreak(t *testing.T) {
 	}
 }
 
+// TestZeroTemperatureStaysGreedyOffTheRawPath holds Temperature zero to
+// argmax when a bias (or grammar) leaves the raw-greedy path and no stage
+// order is given: the empty order is the default, whose temperature stage
+// keeps the best candidate, never a draw from the whole distribution.
+func TestZeroTemperatureStaysGreedyOffTheRawPath(t *testing.T) {
+	for seed := range int64(64) {
+		sampler, err := New(Config{Seed: seed, LogitBiases: []LogitBias{{Token: 0, Bias: 0}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, err := sampler.Sample([]float32{1, 5, 2})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if id != 1 {
+			t.Fatalf("seed %d chose %d, want the argmax 1", seed, id)
+		}
+	}
+}
+
 func TestIsRawGreedyRejectsLogitTransforms(t *testing.T) {
 	greedy, err := New(Config{Temperature: 0})
 	if err != nil {

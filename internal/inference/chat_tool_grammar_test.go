@@ -1,11 +1,11 @@
 package inference
 
 import (
-	"os"
 	"strings"
 	"testing"
 
-	"overgo/internal/testskip"
+	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/modeltest"
 )
 
 func TestJSONToolGrammarUsesSchemaAndLazyDelimiter(t *testing.T) {
@@ -122,20 +122,17 @@ func TestToolGrammarRejectsUnsupportedTemplatesAndUnsafeNames(t *testing.T) {
 
 func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
 	requireIntegration(t)
+	cudatest.Require(t)
 	for _, fixture := range []struct {
-		name string
-		env  string
+		name  string
+		model string
 	}{
-		{name: "qwen-json", env: "OVERGO_QWEN3_MODEL"},
-		{name: "qwen35-hermes", env: "OVERGO_QWEN35_MODEL"},
-		{name: "bonsai-hermes", env: "OVERGO_BONSAI_MODEL"},
+		{name: "qwen-json", model: qwen3Fixture},
+		{name: "qwen35-hermes", model: qwen35Fixture},
+		{name: "bonsai-hermes", model: bonsaiFixture},
 	} {
 		t.Run(fixture.name, func(t *testing.T) {
-			path := os.Getenv(fixture.env)
-			if path == "" {
-				testskip.NotApplicable(t, fixture.env+" is not set")
-			}
-			runner, err := openFixtureRunner(path, 0)
+			runner, err := openFixtureRunner(modeltest.Directory(t, fixture.model), 0)
 			if err != nil {
 				t.Fatal(err)
 			}

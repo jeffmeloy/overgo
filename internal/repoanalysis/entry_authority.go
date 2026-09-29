@@ -19,8 +19,6 @@ const (
 	EntryAuthorityStorage EntryAuthorityDomain = "storage"
 	// EntryAuthorityTool guards tool-manual entry owned by internal/agenttool registration.
 	EntryAuthorityTool EntryAuthorityDomain = "tool"
-	// EntryAuthorityTrigger guards execution-trigger admission owned by internal/workflowruntime.
-	EntryAuthorityTrigger EntryAuthorityDomain = "trigger"
 	// EntryAuthorityPromotion guards the activation alias namespace owned by internal/modelrecipe.
 	EntryAuthorityPromotion EntryAuthorityDomain = "promotion"
 	// EntryAuthorityGoOnly guards Go-only runtime authority: no plugin loading,
@@ -200,16 +198,6 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				return compositeSites(file, "agenttool", "Manual")
 			},
 			Retire: "internal/agenttool stops owning the registered tool catalog",
-		},
-		{
-			Domain:     EntryAuthorityTrigger,
-			Owner:      "internal/workflowruntime admits execution triggers; webhook deliveries are constructed only by the runrecord ledger and the dispatch authority",
-			OwnerPaths: []string{"internal/runrecord", "internal/workflowruntime"},
-			Exceptions: map[string]string{},
-			Detect: func(file *ast.File) int {
-				return compositeSites(file, "runrecord", "WebhookDelivery")
-			},
-			Retire: "internal/workflowruntime stops owning trigger admission",
 		},
 		{
 			Domain:     EntryAuthorityPromotion,

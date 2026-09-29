@@ -33,7 +33,7 @@ func TestComparisonRefusesMixedRealizedResidency(t *testing.T) {
 			Scope: scope, Aggregate: aggregate,
 			SummaryIDs: []artifact.ID{id(artifact.KindEvidence, name+" summary")},
 			ChunkIDs:   []artifact.ID{id(artifact.KindFile, name+" chunk")},
-			Coverage: ObservationStreamCoverage{
+			Coverage: observationStreamCoverage{
 				RawBytes: 1, Samples: 1, MeasuredSamples: 1,
 				FirstOrdinal: 1, LastOrdinal: 1, FirstElapsedNS: 1, LastElapsedNS: 1,
 				Metrics: []ObservationMetricSamples{{Metric: ResourceWallNS, Samples: 1}},
@@ -56,12 +56,12 @@ func TestComparisonRefusesMixedRealizedResidency(t *testing.T) {
 		{"mixed fallback", recipe.RealizedDeviceNative, recipe.RealizedOOMStreamed},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := NewResourceFitnessComparison([]ResourceFitnessLane{lane(tc.before, tc.after)}); err == nil || !strings.Contains(err.Error(), "residency") {
+			if _, err := newResourceFitnessComparison([]ResourceFitnessLane{lane(tc.before, tc.after)}); err == nil || !strings.Contains(err.Error(), "residency") {
 				t.Fatalf("incomparable serving residency accepted: %v", err)
 			}
 		})
 	}
-	compared, err := NewResourceFitnessComparison([]ResourceFitnessLane{lane(recipe.RealizedDeviceNative, recipe.RealizedDeviceNative)})
+	compared, err := newResourceFitnessComparison([]ResourceFitnessLane{lane(recipe.RealizedDeviceNative, recipe.RealizedDeviceNative)})
 	if err != nil || !compared.StrictImprovement {
 		t.Fatalf("matched serving comparison = %+v, %v", compared, err)
 	}

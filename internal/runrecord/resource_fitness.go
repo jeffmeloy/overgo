@@ -10,8 +10,8 @@ import (
 	"overgo/internal/recipe"
 )
 
-// ResourceFitnessVersion identifies the common resource observation contract.
-const ResourceFitnessVersion uint16 = 1
+// resourceFitnessVersion identifies the common resource observation contract.
+const resourceFitnessVersion uint16 = 1
 
 // ResourceMetric is a closed, integer-valued resource dimension. Units live in
 // the metric name so consumers cannot compare seconds with nanoseconds or bytes
@@ -27,10 +27,10 @@ func (metric ResourceMetric) Valid() bool {
 // resource activity rather than from logical work, elapsed wall time, or cost.
 func (metric ResourceMetric) Hardware() bool {
 	switch metric {
-	case ResourceActiveComputeNS, ResourceCPUNS, ResourceGPUNS,
+	case resourceActiveComputeNS, resourceCPUNS, ResourceGPUNS,
 		ResourcePeakHostBytes, ResourcePeakDeviceBytes,
-		ResourceDiskReadBytes, ResourceDiskWriteBytes,
-		ResourceNetworkReceiveBytes, ResourceNetworkSendBytes,
+		resourceDiskReadBytes, resourceDiskWriteBytes,
+		resourceNetworkReceiveBytes, resourceNetworkSendBytes,
 		ResourceHostToDeviceBytes, ResourceDeviceToHostBytes:
 		return true
 	default:
@@ -43,41 +43,41 @@ const (
 	ResourceInputTokens ResourceMetric = "input_tokens"
 	// ResourceOutputTokens counts generated output tokens.
 	ResourceOutputTokens ResourceMetric = "output_tokens"
-	// ResourceCacheReadTokens counts input tokens supplied by a model cache.
-	ResourceCacheReadTokens ResourceMetric = "cache_read_tokens"
-	// ResourceCacheWriteTokens counts tokens newly written to a model cache.
-	ResourceCacheWriteTokens ResourceMetric = "cache_write_tokens"
+	// resourceCacheReadTokens counts input tokens supplied by a model cache.
+	resourceCacheReadTokens ResourceMetric = "cache_read_tokens"
+	// resourceCacheWriteTokens counts tokens newly written to a model cache.
+	resourceCacheWriteTokens ResourceMetric = "cache_write_tokens"
 	// ResourceInputBytes counts admitted input payload bytes.
 	ResourceInputBytes ResourceMetric = "input_bytes"
 	// ResourceOutputBytes counts produced output payload bytes.
 	ResourceOutputBytes ResourceMetric = "output_bytes"
-	// ResourceCacheLookups counts cache lookup operations.
-	ResourceCacheLookups ResourceMetric = "cache_lookups"
-	// ResourceCacheHits counts successful cache lookups.
-	ResourceCacheHits ResourceMetric = "cache_hits"
-	// ResourceCacheWrites counts cache write operations.
-	ResourceCacheWrites ResourceMetric = "cache_writes"
+	// resourceCacheLookups counts cache lookup operations.
+	resourceCacheLookups ResourceMetric = "cache_lookups"
+	// resourceCacheHits counts successful cache lookups.
+	resourceCacheHits ResourceMetric = "cache_hits"
+	// resourceCacheWrites counts cache write operations.
+	resourceCacheWrites ResourceMetric = "cache_writes"
 	// ResourceWallNS records elapsed wall time in nanoseconds.
 	ResourceWallNS ResourceMetric = "wall_ns"
-	// ResourceActiveComputeNS records measured active compute time in nanoseconds.
+	// resourceActiveComputeNS records measured active compute time in nanoseconds.
 	// Concurrent work may make this greater than wall time.
-	ResourceActiveComputeNS ResourceMetric = "active_compute_ns"
-	// ResourceCPUNS records measured CPU time in nanoseconds.
-	ResourceCPUNS ResourceMetric = "cpu_ns"
+	resourceActiveComputeNS ResourceMetric = "active_compute_ns"
+	// resourceCPUNS records measured CPU time in nanoseconds.
+	resourceCPUNS ResourceMetric = "cpu_ns"
 	// ResourceGPUNS records measured GPU active time in nanoseconds.
 	ResourceGPUNS ResourceMetric = "gpu_ns"
 	// ResourcePeakHostBytes records peak observed host memory bytes.
 	ResourcePeakHostBytes ResourceMetric = "peak_host_bytes"
 	// ResourcePeakDeviceBytes records peak observed device memory bytes.
 	ResourcePeakDeviceBytes ResourceMetric = "peak_device_bytes"
-	// ResourceDiskReadBytes counts bytes read from durable storage.
-	ResourceDiskReadBytes ResourceMetric = "disk_read_bytes"
-	// ResourceDiskWriteBytes counts bytes written to durable storage.
-	ResourceDiskWriteBytes ResourceMetric = "disk_write_bytes"
-	// ResourceNetworkReceiveBytes counts bytes received over a network.
-	ResourceNetworkReceiveBytes ResourceMetric = "network_receive_bytes"
-	// ResourceNetworkSendBytes counts bytes sent over a network.
-	ResourceNetworkSendBytes ResourceMetric = "network_send_bytes"
+	// resourceDiskReadBytes counts bytes read from durable storage.
+	resourceDiskReadBytes ResourceMetric = "disk_read_bytes"
+	// resourceDiskWriteBytes counts bytes written to durable storage.
+	resourceDiskWriteBytes ResourceMetric = "disk_write_bytes"
+	// resourceNetworkReceiveBytes counts bytes received over a network.
+	resourceNetworkReceiveBytes ResourceMetric = "network_receive_bytes"
+	// resourceNetworkSendBytes counts bytes sent over a network.
+	resourceNetworkSendBytes ResourceMetric = "network_send_bytes"
 	// ResourceHostToDeviceBytes counts host-to-accelerator transfer bytes.
 	ResourceHostToDeviceBytes ResourceMetric = "host_to_device_bytes"
 	// ResourceDeviceToHostBytes counts accelerator-to-host transfer bytes.
@@ -122,10 +122,10 @@ type ResourceFitness struct {
 
 // NewResourceFitness validates and canonicalizes one resource observation.
 func NewResourceFitness(value ResourceFitness) (ResourceFitness, error) {
-	if value.Version != 0 && value.Version != ResourceFitnessVersion {
+	if value.Version != 0 && value.Version != resourceFitnessVersion {
 		return ResourceFitness{}, errors.New("run record: unsupported resource fitness version")
 	}
-	value.Version = ResourceFitnessVersion
+	value.Version = resourceFitnessVersion
 	value = cloneResourceFitness(value)
 	if err := canonicalizeResourceFitness(&value); err != nil {
 		return ResourceFitness{}, err
@@ -169,7 +169,7 @@ func (value ResourceFitness) Authorities() []artifact.ID {
 }
 
 func canonicalizeResourceFitness(value *ResourceFitness) error {
-	if value == nil || value.Version != ResourceFitnessVersion {
+	if value == nil || value.Version != resourceFitnessVersion {
 		return errors.New("run record: invalid resource fitness envelope")
 	}
 	if err := validateResourceScope(value.Scope); err != nil {
@@ -190,8 +190,8 @@ func canonicalizeResourceFitness(value *ResourceFitness) error {
 	if len(value.Measures) == 0 && value.Interactions == nil {
 		return errors.New("run record: resource fitness records no observations")
 	}
-	if lookups, lookupsKnown := resourceMeasure(value.Measures, ResourceCacheLookups); lookupsKnown {
-		if hits, hitsKnown := resourceMeasure(value.Measures, ResourceCacheHits); hitsKnown && hits > lookups {
+	if lookups, lookupsKnown := resourceMeasure(value.Measures, resourceCacheLookups); lookupsKnown {
+		if hits, hitsKnown := resourceMeasure(value.Measures, resourceCacheHits); hitsKnown && hits > lookups {
 			return errors.New("run record: cache hits exceed lookups")
 		}
 	}
@@ -228,11 +228,11 @@ func validResourceWorkload(id artifact.ID) bool {
 
 func validResourceMetric(metric ResourceMetric) bool {
 	switch metric {
-	case ResourceInputTokens, ResourceOutputTokens, ResourceCacheReadTokens, ResourceCacheWriteTokens,
-		ResourceInputBytes, ResourceOutputBytes, ResourceCacheLookups, ResourceCacheHits, ResourceCacheWrites,
-		ResourceWallNS, ResourceActiveComputeNS, ResourceCPUNS, ResourceGPUNS,
-		ResourcePeakHostBytes, ResourcePeakDeviceBytes, ResourceDiskReadBytes, ResourceDiskWriteBytes,
-		ResourceNetworkReceiveBytes, ResourceNetworkSendBytes, ResourceHostToDeviceBytes,
+	case ResourceInputTokens, ResourceOutputTokens, resourceCacheReadTokens, resourceCacheWriteTokens,
+		ResourceInputBytes, ResourceOutputBytes, resourceCacheLookups, resourceCacheHits, resourceCacheWrites,
+		ResourceWallNS, resourceActiveComputeNS, resourceCPUNS, ResourceGPUNS,
+		ResourcePeakHostBytes, ResourcePeakDeviceBytes, resourceDiskReadBytes, resourceDiskWriteBytes,
+		resourceNetworkReceiveBytes, resourceNetworkSendBytes, ResourceHostToDeviceBytes,
 		ResourceDeviceToHostBytes, ResourceCostUnits:
 		return true
 	default:

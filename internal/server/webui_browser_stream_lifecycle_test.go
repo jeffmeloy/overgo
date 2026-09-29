@@ -18,39 +18,21 @@ import (
 	"overgo/internal/webuilane"
 )
 
-// streamLifecycleGenerator serves a model (so the shell's runtime stream
-// carries operations) with the automation and peer workspaces beside it.
-type streamLifecycleGenerator struct {
-	*recipeInspectorGenerator
-	*automationWorkspace
-	*peerWorkspace
-}
-
 // TestWebUIBrowserStreamLifecycle remounts the live workspaces in a real
-// browser over one event stream: the automations, peers, inbox and library
-// tabs open no stream and poll nothing of their own (each once held its own
-// stream or poller), every runtime stream a remount replaces is aborted, the
-// runtime stream the server ends cleanly is opened again, one operation reads
-// its peer evidence once, and a hidden page stops probing health and the
-// catalog and probes health at once when shown again.
+// browser over one event stream: the inbox and library tabs open no stream
+// and poll nothing of their own (each once held its own stream or poller),
+// every runtime stream a remount replaces is aborted, the runtime stream the
+// server ends cleanly is opened again, one operation reaches the page over
+// it, a changed inventory reads again in the open tab that shows it, and a
+// hidden page stops probing health and the catalog and probes health at once
+// when shown again.
 func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		testskip.NotApplicable(t, "the stream lifecycle runs through cmd/webui-lane")
 	}
-	fixture := newAutomationServerFixture(t)
-	defer fixture.store.Close()
-	defer fixture.handler.Close()
-	automation := fixture.handler.generator.(*automationWorkspaceGenerator).automationWorkspace
-	generator := &streamLifecycleGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), automationWorkspace: automation}
-	handler := newTestHandlerForRepository(t, fixture.store, generator)
-	defer handler.Close()
-	// The peer workspace answers the handler's own inventory bound.
-	var err error
-	generator.peerWorkspace, err = (peerWorkspaceConfig{Store: fixture.store, Backend: peerWorkspaceBackend{}, Limit: handler.config.MaxStoredResponses}).Open()
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The served model makes the shell's runtime stream carry operations.
+	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	var mu sync.Mutex
 	hits := map[string]int{}
 	endedOnce := false
@@ -58,8 +40,8 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 		path := request.URL.Path
 		if path == "/__lifecycle" {
 			mu.Lock()
-			counts := map[string]int{"health": hits["/health"], "catalog": hits["/catalog/models"], "runtime": hits["/runtime/activity/stream"], "peers": hits["/peers"],
-				"retired": hits["/automations/stream"] + hits["/peers/stream"] + hits["/agents/stream"] + hits["/hub/downloads"]}
+			counts := map[string]int{"health": hits["/health"], "catalog": hits["/catalog/models"], "runtime": hits["/runtime/activity/stream"], "compositions": hits["/compositions"],
+				"retired": hits["/agents/stream"] + hits["/hub/downloads"]}
 			mu.Unlock()
 			_ = json.NewEncoder(response).Encode(counts)
 			return
@@ -95,22 +77,19 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 		}
 	}
 	settle(`!!document.querySelector('#panel-chat.active')`)
-	// The page counts the stream requests it makes and its peer evidence reads.
+	// The page counts the stream requests it makes and the operations it sees.
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   window.laneStreams = {};
   window.laneAnswered = new WeakSet();
-  window.laneEvidence = 0;
-  window.laneOperations = 0;
   window.laneSeen = new Set();
   overgo.runtimeEvents.subscribe((event, value) => {
-    if (event === 'operation') { window.laneOperations++; window.laneSeen.add(value.status.id); if (value.status.state === 'completed') window.laneSeen.add('completed:' + value.status.id); }
+    if (event === 'operation') { window.laneSeen.add(value.status.id); if (value.status.state === 'completed') window.laneSeen.add('completed:' + value.status.id); }
     if (event === 'operation.snapshot') for (const status of value) window.laneSeen.add(status.id);
   });
   const original = window.fetch;
   window.fetch = function (path) {
     const signal = arguments[1] && arguments[1].signal;
     if (typeof path === 'string' && path.endsWith('/stream')) (window.laneStreams[path] = window.laneStreams[path] || []).push(signal);
-    if (typeof path === 'string' && path.startsWith('/peers/evidence')) window.laneEvidence++;
     const answer = original.apply(this, arguments);
     if (signal) answer.then(() => window.laneAnswered.add(signal), () => {});
     return answer;
@@ -119,7 +98,7 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 })()`)
 	visit := func() {
 		t.Helper()
-		for _, tab := range []string{"automations", "peers", "inbox", "library"} {
+		for _, tab := range []string{"inbox", "library"} {
 			assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = '`+tab+`'; return true; })()`)
 			settle(`(() => { const panel = document.querySelector('#panel-` + tab + `.active'); return !!panel && panel.children.length > 0 && !panel.querySelector('.workspace-refusal'); })()`)
 		}
@@ -162,13 +141,6 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	// snapshot instead of as an event, so the operation finishes only once the page has seen it:
 	// its last transition is then always an event.
 	settle(`(() => { const latest = (window.laneStreams['/runtime/activity/stream'] || []).at(-1); return !!latest && !latest.aborted && window.laneAnswered.has(latest); })()`)
-	var readsBefore, eventsBefore int
-	if err := browser.Evaluate(ctx, "window.laneEvidence", &readsBefore); err != nil {
-		t.Fatal(err)
-	}
-	if err := browser.Evaluate(ctx, "window.laneOperations", &eventsBefore); err != nil {
-		t.Fatal(err)
-	}
 	seen := make(chan struct{})
 	submitted, err := handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskGeneration, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "stream-lifecycle")},
 		func(ctx context.Context, _ operation.Reporter) (operation.Completion, error) {
@@ -184,31 +156,18 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	}
 	settle(`window.laneSeen.has(` + strconv.Quote(submitted.String()) + `)`)
 	close(seen)
-	// Each operation event the page receives reads its evidence exactly once; a listener a remount
-	// leaked reads it again in the same dispatch, so reads and events would disagree. The counts
-	// are compared once the finished operation's last event arrived and its reads were made.
 	settle(`window.laneSeen.has(` + strconv.Quote("completed:"+submitted.String()) + `) && overgo.api.inFlight() === 0`)
-	var delivered struct {
-		Events, Reads int
-		Page          string
-	}
-	if err := browser.Evaluate(ctx, `({Events: window.laneOperations, Reads: window.laneEvidence, Page: JSON.stringify({hash: location.hash, peers: (document.querySelector('#panel-peers') || {innerText: 'absent'}).innerText.slice(0, 200), errors: overgo.errors})})`, &delivered); err != nil {
-		t.Fatal(err)
-	}
-	if events, reads := delivered.Events-eventsBefore, delivered.Reads-readsBefore; events == 0 || reads != events {
-		t.Errorf("the page read peer evidence %d times for %d operation events; page %s", reads, events, delivered.Page)
-	}
 	// A changed inventory reads again in the open tab that shows it, with no reload and no
 	// action of its own; a change to another inventory leaves that tab's read alone.
-	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'peers'; return true; })()`)
-	settle(`!!document.querySelector('#panel-peers.active') && overgo.api.inFlight() === 0`)
-	peersBefore := lifecycle()["peers"]
+	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'compositions'; return true; })()`)
+	settle(`!!document.querySelector('#panel-compositions.active') && overgo.api.inFlight() === 0`)
+	compositionsBefore := lifecycle()["compositions"]
 	handler.events.publish("workspace.changed", workspaceChange{Inventory: "/datasets"})
-	handler.events.publish("workspace.changed", workspaceChange{Inventory: "/peers"})
-	settle(`fetch('/__lifecycle').then((answer) => answer.json()).then((counts) => counts.peers > ` + strconv.FormatFloat(peersBefore, 'f', -1, 64) + `)`)
+	handler.events.publish("workspace.changed", workspaceChange{Inventory: "/compositions"})
+	settle(`fetch('/__lifecycle').then((answer) => answer.json()).then((counts) => counts.compositions > ` + strconv.FormatFloat(compositionsBefore, 'f', -1, 64) + `)`)
 	settle(`overgo.api.inFlight() === 0`)
-	if peersAfter := lifecycle()["peers"]; peersAfter != peersBefore+1 {
-		t.Errorf("an inventory change read the peers %v times, want once", peersAfter-peersBefore)
+	if compositionsAfter := lifecycle()["compositions"]; compositionsAfter != compositionsBefore+1 {
+		t.Errorf("an inventory change read the compositions %v times, want once", compositionsAfter-compositionsBefore)
 	}
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'chat'; return true; })()`)
 	// A hidden page does not probe health or the catalog through a whole status interval.
@@ -251,5 +210,5 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 		t.Errorf("a page shown again did not probe health: hidden %v, shown %v", hidden, resumed)
 	}
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)
-	webuilane.Leg(t, "one event stream leg", "the automations, peers, inbox and library tabs remounted %d times, each remount settled before its tabs were visited, over the runtime stream alone (no tab stream, no download poll), every replaced stream aborted, a cleanly ended stream reconnected, each operation read its evidence once, a peers change read the open peers tab again once and another inventory's change left it alone, a hidden page stopped probing, and a page shown again resumes probing", remounts)
+	webuilane.Leg(t, "one event stream leg", "the inbox and library tabs remounted %d times, each remount settled before its tabs were visited, over the runtime stream alone (no tab stream, no download poll), every replaced stream aborted, a cleanly ended stream reconnected, a finished operation reached the page, a compositions change read the open compositions tab again once and another inventory's change left it alone, a hidden page stopped probing, and a page shown again resumes probing", remounts)
 }

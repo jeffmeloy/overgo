@@ -74,6 +74,21 @@ func materializeText(raw []byte) (batchAuthority, *trainingdata.Dataset, error) 
 	return authority, materialized, err
 }
 
+// TextStream is the state of the stream a run reads the text dataset raw
+// through, the one the dense workflow reads, once it has consumed records.
+func TextStream(raw []byte, records uint64) (trainingdata.StreamState, error) {
+	_, materialized, err := materializeText(raw)
+	if err != nil {
+		return trainingdata.StreamState{}, err
+	}
+	defer materialized.Close()
+	stream, err := trainingdata.NewStream(materialized, nil)
+	if err != nil {
+		return trainingdata.StreamState{}, err
+	}
+	return trainingdata.StreamState{Identity: stream.Snapshot().Identity, Position: records}, nil
+}
+
 type preferenceDocument struct {
 	ID, Group, Prompt, Chosen, Rejected string
 }

@@ -64,15 +64,15 @@ func TestInteractionIdentity(t *testing.T) {
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "interaction-identity-recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "interaction-identity-model")
 	messages := []InteractionMessage{{Role: "user", Content: "hello"}}
-	first, err := NewInteractionTranscript(messages)
+	first, err := newInteractionTranscript(messages)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := NewInteractionTranscript(messages)
+	second, err := newInteractionTranscript(messages)
 	if err != nil || first.ID != second.ID {
 		t.Fatalf("transcript identity = (%s, %s, %v)", first.ID, second.ID, err)
 	}
-	interaction, err := NewInteraction(Interaction{
+	interaction, err := newInteraction(Interaction{
 		Response: "resp_fixture", Recipe: recipeID, Model: modelID, Node: interactionTestNode, Message: first.ID,
 		Trace: testutil.ArtifactID(t, artifact.KindEvidence, "interaction trace"),
 	})

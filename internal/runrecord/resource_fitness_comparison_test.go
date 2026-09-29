@@ -232,7 +232,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 			Interactions: &observedWork,
 		},
 		{
-			Ordinal: 2, ElapsedNS: 100, Kind: ObservationSampleMessage,
+			Ordinal: 2, ElapsedNS: 100, Kind: observationSampleMessage,
 			Measures: []ResourceMeasure{
 				{Metric: ResourceCostUnits, Value: 5},
 				{Metric: ResourcePeakHostBytes, Value: 1_000},
@@ -278,7 +278,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 			Interactions: &observedWork,
 		},
 		{
-			Ordinal: 2, ElapsedNS: 90, Kind: ObservationSampleMessage,
+			Ordinal: 2, ElapsedNS: 90, Kind: observationSampleMessage,
 			Measures: []ResourceMeasure{
 				{Metric: ResourceCostUnits, Value: 0},
 				{Metric: ResourcePeakHostBytes, Value: 900},
@@ -305,7 +305,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	}
 	// The adjusted value is deliberately structural first: exact source replay
 	// must reject it even though its no-regression arithmetic is valid.
-	structural, err := NewResourceFitnessComparison([]ResourceFitnessLane{
+	structural, err := newResourceFitnessComparison([]ResourceFitnessLane{
 		transferred[0], {
 			Name: ResourceLaneTool, RequiredMetrics: required, RequireInteractions: true,
 			Baseline: toolBaseline, Candidate: toolCandidate,
@@ -424,7 +424,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	if !slices.Contains(enveloped.SourceChunks(), repeat.ChunkIDs[0]) {
 		t.Fatal("the repeat's chunk is not a cited source")
 	}
-	if _, err := NewResourceFitnessComparison([]ResourceFitnessLane{{
+	if _, err := newResourceFitnessComparison([]ResourceFitnessLane{{
 		Name: ResourceLaneAgent, RequiredMetrics: required, RequireInteractions: true,
 		Baseline: agentBaseline, Repeats: []ObservationStream{agentBaseline}, Candidate: withinEnvelope,
 	}}); err == nil {
@@ -432,12 +432,12 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	}
 	beyond := cloneResourceFitnessLanes([]ResourceFitnessLane{envelopeLane})
 	setResourceMeasure(&beyond[0].Candidate.Aggregate, ResourceWallNS, 111)
-	if _, err := NewResourceFitnessComparison(beyond); err == nil {
+	if _, err := newResourceFitnessComparison(beyond); err == nil {
 		t.Fatal("a candidate beyond the noise envelope was admitted")
 	}
 	strict := cloneResourceFitnessLanes([]ResourceFitnessLane{envelopeLane})
 	setResourceMeasure(&strict[0].Candidate.Aggregate, ResourceWallNS, 85)
-	strictComparison, err := NewResourceFitnessComparison(strict)
+	strictComparison, err := newResourceFitnessComparison(strict)
 	if err != nil || !strictComparison.StrictImprovement ||
 		!reflect.DeepEqual(strictComparison.Lanes[0].StrictMetrics, []ResourceMeasure{{Metric: ResourceWallNS, Value: 15}}) {
 		t.Fatalf("strict improvement beyond the envelope = %+v, %v", strictComparison.Lanes[0].StrictMetrics, err)
@@ -472,7 +472,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 		t.Run(refusal.name, func(t *testing.T) {
 			candidate := cloneResourceFitnessLanes(lanes)
 			refusal.mutate(candidate)
-			if _, err := NewResourceFitnessComparison(candidate); err == nil {
+			if _, err := newResourceFitnessComparison(candidate); err == nil {
 				t.Fatal("invalid comparison was admitted")
 			}
 		})

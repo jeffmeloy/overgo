@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	// MoERouterObservationMediaType identifies exact per-layer router observations.
-	MoERouterObservationMediaType = "application/vnd.overgo.moe-router-observation+json"
-	// MoERouterObservationSchema identifies the router observation contract version.
-	MoERouterObservationSchema = "overgo/moe-router-observation/v1"
+	// moERouterObservationMediaType identifies exact per-layer router observations.
+	moERouterObservationMediaType = "application/vnd.overgo.moe-router-observation+json"
+	// moERouterObservationSchema identifies the router observation contract version.
+	moERouterObservationSchema = "overgo/moe-router-observation/v1"
 )
 
 // MoERouterMargin preserves observed versus unknown selected-boundary margins.
@@ -50,7 +50,7 @@ type MoERouterObservation struct {
 
 var moeRouterObservationCodec = artifact.JSONDocumentCodec(
 	"moe router observation", artifact.KindEvidence,
-	MoERouterObservationMediaType, MoERouterObservationSchema,
+	moERouterObservationMediaType, moERouterObservationSchema,
 	canonicalizeMoERouterObservation,
 	func(value MoERouterObservation) artifact.ID { return value.ID },
 	func(value *MoERouterObservation, id artifact.ID) { value.ID = id },
@@ -68,10 +68,6 @@ func NewMoERouterObservation(value MoERouterObservation) (MoERouterObservation, 
 	value.Version = artifact.InitialDocumentVersion
 	moeRouterObservationCodec.SetIdentity(&value, artifact.ID{})
 	return moeRouterObservationCodec.New(value)
-}
-
-func (value MoERouterObservation) content() (artifact.Content, error) {
-	return moeRouterObservationCodec.Content(value)
 }
 
 func canonicalizeMoERouterObservation(value *MoERouterObservation) error {

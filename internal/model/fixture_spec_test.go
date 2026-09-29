@@ -1,15 +1,5 @@
 package model
 
-import (
-	"overgo/internal/testskip"
-	"testing"
-)
-
-func requireIntegration(t *testing.T) {
-	t.Helper()
-	testskip.Short(t)
-}
-
 const (
 	fixtureEmbeddingWidth   = uint32(8)
 	fixtureFeedForwardWidth = uint32(12)

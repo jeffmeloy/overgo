@@ -20,11 +20,6 @@ func TestRouteAuthenticationRefusesUnauthenticated(t *testing.T) {
 		http.MethodPatch: true, http.MethodDelete: true,
 	}
 	for _, route := range routeCatalog {
-		if route.Path == "/automations/webhook" {
-			// The webhook verifies its raw transport bytes against the
-			// active automation secrets; that is its authentication.
-			continue
-		}
 		for _, method := range route.Methods {
 			if mutating[method] && route.Authentication != routeBearer {
 				t.Errorf("mutating route %s %s authentication = %q, want bearer", method, route.Path, route.Authentication)

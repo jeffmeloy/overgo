@@ -1,11 +1,11 @@
 package inference
 
 import (
-	"os"
 	"testing"
 
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/model"
-	"overgo/internal/testskip"
+	"overgo/internal/modeltest"
 	"overgo/internal/tokenizer"
 )
 
@@ -35,14 +35,13 @@ func TestExactAttentionCaptureRejectsModifiedScorePolicies(t *testing.T) {
 // tokens] (keys), column-major (Dims[0] innermost), matching the geometry the
 // runner reports. It also checks the recomputed weights are causal and sum to 1.
 //
-// Gated on OVERGO_QWEN35_MODEL (a GGUF); skipped otherwise and under -short.
+// It runs on the smallest registered Qwen2 GGUF, on the device:
+// capture reads dense-causal attention blocks, and Qwen3.5's gated
+// attention layers expose none.
 func TestExtractAttentionShapeGeometry(t *testing.T) {
 	requireIntegration(t)
-	modelPath := os.Getenv("OVERGO_QWEN35_MODEL")
-	if modelPath == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN35_MODEL is not set")
-	}
-	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{DeviceOrdinal: 0})
+	cudatest.Require(t)
+	runner, err := openNativeFixtureRunner(modeltest.GGUF(t, "qwen2"), OpenOptions{DeviceOrdinal: 0})
 	if err != nil {
 		t.Fatal(err)
 	}

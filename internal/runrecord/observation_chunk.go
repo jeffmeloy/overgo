@@ -17,21 +17,21 @@ import (
 )
 
 const (
-	// ObservationChunkMediaType identifies canonical high-volume observation
+	// observationChunkMediaType identifies canonical high-volume observation
 	// bytes. The raw blob intentionally has no schema: journal projections use
 	// the bounded summary document instead of decoding every sample.
-	ObservationChunkMediaType = "application/vnd.overgo.observation-chunk+json"
-	// ObservationChunkSchema is intentionally empty for raw chunk blobs.
-	ObservationChunkSchema = ""
-	// ObservationChunkSummaryMediaType identifies the small typed journal fact.
-	ObservationChunkSummaryMediaType = "application/vnd.overgo.observation-chunk-summary+json"
-	// ObservationChunkSummarySchema identifies the summary document contract.
-	ObservationChunkSummarySchema = "overgo/observation-chunk-summary/v1"
-	// ObservationChunkAliasRoot scopes one current summary per attempt stream.
-	ObservationChunkAliasRoot = "observation/chunk/head/"
-	// ObservationChunkMaximumBytes follows the repository's immutable content
+	observationChunkMediaType = "application/vnd.overgo.observation-chunk+json"
+	// observationChunkSchema is intentionally empty for raw chunk blobs.
+	observationChunkSchema = ""
+	// observationChunkSummaryMediaType identifies the small typed journal fact.
+	observationChunkSummaryMediaType = "application/vnd.overgo.observation-chunk-summary+json"
+	// observationChunkSummarySchema identifies the summary document contract.
+	observationChunkSummarySchema = "overgo/observation-chunk-summary/v1"
+	// observationChunkAliasRoot scopes one current summary per attempt stream.
+	observationChunkAliasRoot = "observation/chunk/head/"
+	// observationChunkMaximumBytes follows the repository's immutable content
 	// bound so normalization rejects an oversized request before publication.
-	ObservationChunkMaximumBytes = artifact.MaxContentBytes
+	observationChunkMaximumBytes = artifact.MaxContentBytes
 
 	observationChunkVersion uint16 = artifact.InitialDocumentVersion
 	// This is the shortest canonical valid sample: the interactions pointer
@@ -39,19 +39,19 @@ const (
 	// content bound by this exact lower bound caps allocations before encoding;
 	// the encoded chunk is checked again because its envelope also consumes bytes.
 	observationMinimumSampleEncoding = `{"ordinal":1,"elapsed_ns":0,"kind":"token","interactions":{}}`
-	// ObservationChunkMaximumSamples is derived from the repository content
+	// observationChunkMaximumSamples is derived from the repository content
 	// limit and the minimum valid canonical sample encoding.
-	ObservationChunkMaximumSamples = artifact.MaxContentBytes / len(observationMinimumSampleEncoding)
+	observationChunkMaximumSamples = artifact.MaxContentBytes / len(observationMinimumSampleEncoding)
 )
 
 // ObservationSampleKind is a closed class used for bounded per-kind coverage.
 type ObservationSampleKind string
 
 const (
-	// ObservationSampleToken marks token-level accounting.
-	ObservationSampleToken ObservationSampleKind = "token"
-	// ObservationSampleMessage marks message-level accounting.
-	ObservationSampleMessage ObservationSampleKind = "message"
+	// observationSampleToken marks token-level accounting.
+	observationSampleToken ObservationSampleKind = "token"
+	// observationSampleMessage marks message-level accounting.
+	observationSampleMessage ObservationSampleKind = "message"
 	// ObservationSampleHardware marks hardware telemetry.
 	ObservationSampleHardware ObservationSampleKind = "hardware"
 	// ObservationSampleExecution marks execution lifecycle accounting.
@@ -61,8 +61,8 @@ const (
 var observationSampleKinds = []ObservationSampleKind{
 	ObservationSampleExecution,
 	ObservationSampleHardware,
-	ObservationSampleMessage,
-	ObservationSampleToken,
+	observationSampleMessage,
+	observationSampleToken,
 }
 
 // ObservationSample records one ordered set of resource and interaction
@@ -99,8 +99,8 @@ type ObservationKindSamples struct {
 	Samples uint32                `json:"samples"`
 }
 
-// ObservationChunkStats is the bounded projection metadata for one raw blob.
-type ObservationChunkStats struct {
+// observationChunkStats is the bounded projection metadata for one raw blob.
+type observationChunkStats struct {
 	Bytes              uint64                     `json:"bytes"`
 	Samples            uint32                     `json:"samples"`
 	FirstOrdinal       uint32                     `json:"first_ordinal"`
@@ -119,14 +119,14 @@ type ObservationChunkSummary struct {
 	Version   uint16                `json:"version"`
 	Chunk     artifact.ID           `json:"chunk"`
 	Previous  artifact.ID           `json:"previous,omitzero"`
-	Stats     ObservationChunkStats `json:"stats"`
+	Stats     observationChunkStats `json:"stats"`
 	Aggregate ResourceFitness       `json:"aggregate"`
 	ID        artifact.ID           `json:"-"`
 }
 
 var observationChunkSummaryCodec = artifact.JSONDocumentCodec(
 	"observation chunk summary", artifact.KindEvidence,
-	ObservationChunkSummaryMediaType, ObservationChunkSummarySchema,
+	observationChunkSummaryMediaType, observationChunkSummarySchema,
 	canonicalizeObservationChunkSummary,
 	func(value ObservationChunkSummary) artifact.ID { return value.ID },
 	func(value *ObservationChunkSummary, id artifact.ID) { value.ID = id },
@@ -158,9 +158,9 @@ func NewInitialObservationChunk(
 	}})
 }
 
-// ParseObservationChunk accepts only the exact canonical raw encoding.
-func ParseObservationChunk(data []byte) (ObservationChunk, error) {
-	if len(data) == 0 || len(data) > ObservationChunkMaximumBytes {
+// parseObservationChunk accepts only the exact canonical raw encoding.
+func parseObservationChunk(data []byte) (ObservationChunk, error) {
+	if len(data) == 0 || len(data) > observationChunkMaximumBytes {
 		return ObservationChunk{}, errors.New("run record: invalid observation chunk byte size")
 	}
 	var decoded ObservationChunk
@@ -191,8 +191,8 @@ func (value ObservationChunk) Content() (artifact.Content, error) {
 		return artifact.Content{}, errors.New("run record: observation chunk is not canonical")
 	}
 	descriptor := artifact.Descriptor{
-		ID: value.ID, Size: uint64(len(data)), MediaType: ObservationChunkMediaType,
-		Schema: ObservationChunkSchema,
+		ID: value.ID, Size: uint64(len(data)), MediaType: observationChunkMediaType,
+		Schema: observationChunkSchema,
 	}
 	content := artifact.Content{Descriptor: descriptor, Data: slices.Clone(data)}
 	if err := content.Validate(); err != nil {
@@ -271,10 +271,10 @@ func requireObservationChunkContent(
 	if err != nil {
 		return ObservationChunk{}, err
 	}
-	if content.Descriptor.MediaType != ObservationChunkMediaType || content.Descriptor.Schema != ObservationChunkSchema {
+	if content.Descriptor.MediaType != observationChunkMediaType || content.Descriptor.Schema != observationChunkSchema {
 		return ObservationChunk{}, errors.New("run record: incompatible observation chunk content")
 	}
-	value, err := ParseObservationChunk(content.Data)
+	value, err := parseObservationChunk(content.Data)
 	if err != nil {
 		return ObservationChunk{}, err
 	}
@@ -305,15 +305,15 @@ func requireObservationChunkSummaryAndChunk(
 	if err != nil {
 		return ObservationChunkSummary{}, ObservationChunk{}, err
 	}
-	if err := VerifyObservationChunk(value, chunk); err != nil {
+	if err := verifyObservationChunk(value, chunk); err != nil {
 		return ObservationChunkSummary{}, ObservationChunk{}, err
 	}
 	return value, chunk, nil
 }
 
-// VerifyObservationChunk recomputes digest, byte count, counters, aggregates,
+// verifyObservationChunk recomputes digest, byte count, counters, aggregates,
 // and canonical summary identity from the raw blob.
-func VerifyObservationChunk(summary ObservationChunkSummary, chunk ObservationChunk) error {
+func verifyObservationChunk(summary ObservationChunkSummary, chunk ObservationChunk) error {
 	if err := summary.ValidateIdentity(); err != nil {
 		return err
 	}
@@ -379,7 +379,7 @@ func BindObservationChunk(
 
 // ObservationChunkAlias returns the sole mutable head for one attempt stream.
 func ObservationChunkAlias(attempt artifact.ID) string {
-	return ObservationChunkAliasRoot + attempt.String()
+	return observationChunkAliasRoot + attempt.String()
 }
 
 func identifyObservationChunk(value ObservationChunk) (ObservationChunk, error) {
@@ -394,7 +394,7 @@ func identifyObservationChunk(value ObservationChunk) (ObservationChunk, error) 
 }
 
 func canonicalObservationChunk(value ObservationChunk) (ObservationChunk, []byte, error) {
-	if len(value.Samples) == 0 || len(value.Samples) > ObservationChunkMaximumSamples {
+	if len(value.Samples) == 0 || len(value.Samples) > observationChunkMaximumSamples {
 		return ObservationChunk{}, nil, errors.New("run record: invalid observation chunk sample count")
 	}
 	value = cloneObservationChunk(value)
@@ -406,7 +406,7 @@ func canonicalObservationChunk(value ObservationChunk) (ObservationChunk, []byte
 	if err != nil {
 		return ObservationChunk{}, nil, err
 	}
-	if len(data) == 0 || len(data) > ObservationChunkMaximumBytes {
+	if len(data) == 0 || len(data) > observationChunkMaximumBytes {
 		return ObservationChunk{}, nil, errors.New("run record: observation chunk exceeds content byte bound")
 	}
 	id, err := artifact.IdentifyBytes(artifact.KindFile, data)
@@ -419,7 +419,7 @@ func canonicalObservationChunk(value ObservationChunk) (ObservationChunk, []byte
 
 func canonicalizeObservationChunk(value *ObservationChunk) error {
 	if value == nil || value.Version != observationChunkVersion || len(value.Samples) == 0 ||
-		len(value.Samples) > ObservationChunkMaximumSamples ||
+		len(value.Samples) > observationChunkMaximumSamples ||
 		value.Previous.Valid() && value.Previous.Kind() != artifact.KindEvidence {
 		return errors.New("run record: invalid observation chunk envelope")
 	}
@@ -517,7 +517,7 @@ func summarizeObservationChunk(value ObservationChunk, byteCount uint64) (Observ
 	first, last := value.Samples[0], value.Samples[len(value.Samples)-1]
 	summary := ObservationChunkSummary{
 		Version: observationChunkVersion, Chunk: value.ID, Previous: value.Previous,
-		Stats: ObservationChunkStats{
+		Stats: observationChunkStats{
 			Bytes: byteCount, Samples: uint32(len(value.Samples)),
 			FirstOrdinal: first.Ordinal, LastOrdinal: last.Ordinal,
 			FirstElapsedNS: first.ElapsedNS, LastElapsedNS: last.ElapsedNS,
@@ -531,8 +531,8 @@ func summarizeObservationChunk(value ObservationChunk, byteCount uint64) (Observ
 func canonicalizeObservationChunkSummary(value *ObservationChunkSummary) error {
 	if value == nil || value.Version != observationChunkVersion || value.Chunk.Kind() != artifact.KindFile ||
 		value.Previous.Valid() && value.Previous.Kind() != artifact.KindEvidence ||
-		value.Stats.Bytes == 0 || value.Stats.Bytes > ObservationChunkMaximumBytes || value.Stats.Samples == 0 ||
-		uint64(value.Stats.Samples) > uint64(ObservationChunkMaximumSamples) ||
+		value.Stats.Bytes == 0 || value.Stats.Bytes > observationChunkMaximumBytes || value.Stats.Samples == 0 ||
+		uint64(value.Stats.Samples) > uint64(observationChunkMaximumSamples) ||
 		value.Stats.FirstOrdinal < traceSequenceStart || value.Stats.LastOrdinal < value.Stats.FirstOrdinal ||
 		uint64(value.Stats.LastOrdinal)-uint64(value.Stats.FirstOrdinal)+1 != uint64(value.Stats.Samples) ||
 		value.Stats.LastElapsedNS < value.Stats.FirstElapsedNS ||

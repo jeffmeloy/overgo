@@ -50,7 +50,7 @@ func TestTerminalAttemptReceiptClosure(t *testing.T) {
 	disposition := executionfailure.Decide(executionfailure.Situation{
 		Cause: normalization.Cause, Attempts: 1, MaxAttempts: 3,
 	})
-	process := ProcessTermination{
+	process := processTermination{
 		ExitCode: 1, TreeTerminated: true, StdoutBytes: 11, StderrBytes: 42, WallNS: 5_000_000,
 	}
 
@@ -318,11 +318,11 @@ func TestTerminalAttemptReceiptReferenceClosure(t *testing.T) {
 			value.Disposition = &disposition
 		}},
 		{"foreign-exit", func(value *TerminalAttemptReceipt) {
-			value.Process = &ProcessTermination{ExitCode: 2, WallNS: 1}
+			value.Process = &processTermination{ExitCode: 2, WallNS: 1}
 			value.Gaps = []string{GapResources, GapToolOutput, GapTranscript}
 		}},
 		{"foreign-process-interruption", func(value *TerminalAttemptReceipt) {
-			value.Process = &ProcessTermination{ExitCode: observation.ExitCode, Interrupted: true, WallNS: 1}
+			value.Process = &processTermination{ExitCode: observation.ExitCode, Interrupted: true, WallNS: 1}
 			value.Gaps = []string{GapResources, GapToolOutput, GapTranscript}
 		}},
 	}
@@ -438,7 +438,7 @@ func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 	}
 
 	validPrior, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
-		operations["valid"], 0, OutcomeLost, artifact.ID{}, failureFixtureObservedNS,
+		operations["valid"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS,
 	))
 	if err != nil {
 		t.Fatal(err)
@@ -466,13 +466,13 @@ func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 	}
 
 	sourcePrior, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
-		operations["source"], 0, OutcomeLost, artifact.ID{}, failureFixtureObservedNS+4,
+		operations["source"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS+4,
 	))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
-		operations["foreign"], 0, OutcomeLost, artifact.ID{}, failureFixtureObservedNS+5,
+		operations["foreign"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS+5,
 	)); err != nil {
 		t.Fatal(err)
 	}
@@ -484,7 +484,7 @@ func TestTerminalAttemptReceiptRecoveryLineage(t *testing.T) {
 	}
 
 	ordinalZero, err := PublishTerminalAttemptReceipt(ctx, store, receipt(
-		operations["ordinal"], 0, OutcomeLost, artifact.ID{}, failureFixtureObservedNS+7,
+		operations["ordinal"], 0, outcomeLost, artifact.ID{}, failureFixtureObservedNS+7,
 	))
 	if err != nil {
 		t.Fatal(err)

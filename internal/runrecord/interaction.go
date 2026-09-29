@@ -16,14 +16,14 @@ const (
 	InteractionMediaType = "application/vnd.overgo.interaction+json"
 	// InteractionSchema identifies the interaction contract.
 	InteractionSchema = "overgo/interaction/v2"
-	// InteractionTranscriptMediaType identifies transcript documents.
-	InteractionTranscriptMediaType = "application/vnd.overgo.interaction-transcript+json"
-	// InteractionTranscriptSchema identifies the transcript contract.
-	InteractionTranscriptSchema = "overgo/interaction-transcript/v1"
-	// InteractionContextMediaType identifies a turn's token context.
-	InteractionContextMediaType = "application/vnd.overgo.interaction-context+json"
-	// InteractionContextSchema identifies the token context contract.
-	InteractionContextSchema = "overgo/interaction-context/v1"
+	// interactionTranscriptMediaType identifies transcript documents.
+	interactionTranscriptMediaType = "application/vnd.overgo.interaction-transcript+json"
+	// interactionTranscriptSchema identifies the transcript contract.
+	interactionTranscriptSchema = "overgo/interaction-transcript/v1"
+	// interactionContextMediaType identifies a turn's token context.
+	interactionContextMediaType = "application/vnd.overgo.interaction-context+json"
+	// interactionContextSchema identifies the token context contract.
+	interactionContextSchema = "overgo/interaction-context/v1"
 	// InteractionResponseAliasRoot scopes current response interactions.
 	InteractionResponseAliasRoot = "interaction/response/"
 	// InteractionOperationAliasRoot indexes response interactions by operation.
@@ -43,15 +43,15 @@ var interactionCodec = artifact.JSONDocumentCodec(
 )
 
 var interactionTranscriptCodec = artifact.JSONDocumentCodec(
-	"interaction transcript", artifact.KindEvidence, InteractionTranscriptMediaType, InteractionTranscriptSchema,
+	"interaction transcript", artifact.KindEvidence, interactionTranscriptMediaType, interactionTranscriptSchema,
 	canonicalizeInteractionTranscript,
-	func(value InteractionTranscript) artifact.ID { return value.ID },
-	func(value *InteractionTranscript, id artifact.ID) { value.ID = id },
+	func(value interactionTranscript) artifact.ID { return value.ID },
+	func(value *interactionTranscript, id artifact.ID) { value.ID = id },
 	cloneInteractionTranscript,
 )
 
 var interactionContextCodec = artifact.JSONDocumentCodec(
-	"interaction context", artifact.KindEvidence, InteractionContextMediaType, InteractionContextSchema,
+	"interaction context", artifact.KindEvidence, interactionContextMediaType, interactionContextSchema,
 	canonicalizeInteractionContext,
 	func(value InteractionContext) artifact.ID { return value.ID },
 	func(value *InteractionContext, id artifact.ID) { value.ID = id },
@@ -84,8 +84,8 @@ func canonicalizeInteractionContext(value *InteractionContext) error {
 	return nil
 }
 
-// NewInteractionContext identifies one turn's token context.
-func NewInteractionContext(value InteractionContext) (InteractionContext, error) {
+// newInteractionContext identifies one turn's token context.
+func newInteractionContext(value InteractionContext) (InteractionContext, error) {
 	return interactionContextCodec.NewInitial(value)
 }
 
@@ -125,8 +125,8 @@ type Interaction struct {
 	ID        artifact.ID `json:"-"`
 }
 
-// InteractionTranscript stores ordered protocol-neutral messages.
-type InteractionTranscript struct {
+// interactionTranscript stores ordered protocol-neutral messages.
+type interactionTranscript struct {
 	Version  uint16               `json:"version"`
 	Messages []InteractionMessage `json:"messages"`
 	ID       artifact.ID          `json:"-"`
@@ -189,7 +189,7 @@ func (value Interaction) Activation() recipe.Activation {
 	return recipe.Activation{Recipe: value.Recipe, Node: value.Node, Event: value.ID}
 }
 
-func canonicalizeInteractionTranscript(value *InteractionTranscript) error {
+func canonicalizeInteractionTranscript(value *interactionTranscript) error {
 	if value.Version != artifact.InitialDocumentVersion || len(value.Messages) == 0 {
 		return errors.New("run record: invalid interaction transcript")
 	}
@@ -201,7 +201,7 @@ func canonicalizeInteractionTranscript(value *InteractionTranscript) error {
 	return nil
 }
 
-func cloneInteractionTranscript(value InteractionTranscript) InteractionTranscript {
+func cloneInteractionTranscript(value interactionTranscript) interactionTranscript {
 	value.Messages = slices.Clone(value.Messages)
 	for index := range value.Messages {
 		value.Messages[index].Media = slices.Clone(value.Messages[index].Media)
@@ -210,20 +210,20 @@ func cloneInteractionTranscript(value InteractionTranscript) InteractionTranscri
 	return value
 }
 
-// NewInteractionTranscript identifies one immutable message sequence.
-func NewInteractionTranscript(messages []InteractionMessage) (InteractionTranscript, error) {
-	return interactionTranscriptCodec.NewInitial(InteractionTranscript{
+// newInteractionTranscript identifies one immutable message sequence.
+func newInteractionTranscript(messages []InteractionMessage) (interactionTranscript, error) {
+	return interactionTranscriptCodec.NewInitial(interactionTranscript{
 		Messages: messages,
 	})
 }
 
 // RequireInteractionTranscript returns one validated message sequence.
-func RequireInteractionTranscript(ctx context.Context, reader artifact.Reader, id artifact.ID) (InteractionTranscript, error) {
+func RequireInteractionTranscript(ctx context.Context, reader artifact.Reader, id artifact.ID) (interactionTranscript, error) {
 	return interactionTranscriptCodec.Require(ctx, reader, id)
 }
 
-// NewInteraction identifies one immutable response event.
-func NewInteraction(value Interaction) (Interaction, error) {
+// newInteraction identifies one immutable response event.
+func newInteraction(value Interaction) (Interaction, error) {
 	return interactionCodec.NewInitial(value)
 }
 
@@ -297,7 +297,7 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 func PublishInteractionWithContext(ctx context.Context, repository artifact.Repository, value Interaction, messages []InteractionMessage, terminal Outcome, tokens *InteractionContext) (Interaction, error) {
 	var contextContent []artifact.Content
 	if tokens != nil {
-		identified, err := NewInteractionContext(*tokens)
+		identified, err := newInteractionContext(*tokens)
 		if err != nil {
 			return Interaction{}, err
 		}
@@ -312,7 +312,7 @@ func PublishInteractionWithContext(ctx context.Context, repository artifact.Repo
 	if ctx == nil || repository == nil || value.TerminalReason != "" && terminal != OutcomeSucceeded {
 		return Interaction{}, errors.New("run record: invalid interaction publication")
 	}
-	transcript, err := NewInteractionTranscript(messages)
+	transcript, err := newInteractionTranscript(messages)
 	if err != nil {
 		return Interaction{}, err
 	}
@@ -320,7 +320,7 @@ func PublishInteractionWithContext(ctx context.Context, repository artifact.Repo
 	if len(messages) > 1 && messages[len(messages)-1].Role == "assistant" {
 		requestMessages = messages[:len(messages)-1]
 	}
-	requestTranscript, err := NewInteractionTranscript(requestMessages)
+	requestTranscript, err := newInteractionTranscript(requestMessages)
 	if err != nil {
 		return Interaction{}, err
 	}
@@ -338,7 +338,7 @@ func PublishInteractionWithContext(ctx context.Context, repository artifact.Repo
 		return Interaction{}, err
 	}
 	value.Trace = trace.ID
-	value, err = NewInteraction(value)
+	value, err = newInteraction(value)
 	if err != nil {
 		return Interaction{}, err
 	}

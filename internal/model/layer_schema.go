@@ -242,7 +242,7 @@ var layerRuntimeOnlySlots = map[string]bool{
 var layerBindingSchema = compileLayerBindingSchema()
 
 func compileLayerBindingSchema() []LayerBindingSlot {
-	schema := reflect.TypeOf(layerTensorSchema[gguf.TensorInfo]{})
+	schema := reflect.TypeFor[layerTensorSchema[gguf.TensorInfo]]()
 	slots := make([]LayerBindingSlot, 0, schema.NumField())
 	for index := range schema.NumField() {
 		field := schema.Field(index)

@@ -94,9 +94,17 @@ func (w execRowWorld) tool(echo io.Writer, arguments ...string) (string, error) 
 	return cmp.Or(strings.TrimSpace(string(final)), err.Error()), err
 }
 
-// Gate lands the row through the small gate, built from the tree it lands.
+// Gate lands the row through the small gate, built from the tree it lands
+// into a directory of its own: a fixed path collided with the previous
+// landing's gate while Windows still released its executable, and the build
+// refused the half-released file.
 func (w execRowWorld) Gate(reference, messageFile string) (string, error) {
-	gate := filepath.Join(loopWorktree, "bin", "gate.exe")
+	directory, err := os.MkdirTemp("", "overgo-gate-*")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(directory)
+	gate := filepath.Join(directory, "gate.exe")
 	refusal, err := w.tool(io.Discard, "go", "build", "-o", gate, "./cmd/gate")
 	if err == nil {
 		refusal, _ = w.tool(os.Stderr, gate, "-plan", reference, "-message-file", messageFile)

@@ -12,20 +12,20 @@ import (
 )
 
 const (
-	// AttemptStimulusMediaType identifies exact admitted agent-attempt boundaries.
-	AttemptStimulusMediaType = "application/vnd.overgo.attempt-stimulus+json"
-	// AttemptStimulusSchema identifies the boundary document contract.
-	AttemptStimulusSchema = "overgo/attempt-stimulus/v2"
-	// AttemptStimulusAliasRoot scopes immutable boundaries by operation and attempt.
-	AttemptStimulusAliasRoot = "attempt/stimulus/"
-	// AttemptArgumentMediaType identifies exact raw tool-argument bytes.
-	AttemptArgumentMediaType = "application/json"
-	// AttemptArgumentSchema identifies the raw argument contract.
-	AttemptArgumentSchema = "overgo/attempt-arguments/v1"
+	// attemptStimulusMediaType identifies exact admitted agent-attempt boundaries.
+	attemptStimulusMediaType = "application/vnd.overgo.attempt-stimulus+json"
+	// attemptStimulusSchema identifies the boundary document contract.
+	attemptStimulusSchema = "overgo/attempt-stimulus/v2"
+	// attemptStimulusAliasRoot scopes immutable boundaries by operation and attempt.
+	attemptStimulusAliasRoot = "attempt/stimulus/"
+	// attemptArgumentMediaType identifies exact raw tool-argument bytes.
+	attemptArgumentMediaType = "application/json"
+	// attemptArgumentSchema identifies the raw argument contract.
+	attemptArgumentSchema = "overgo/attempt-arguments/v1"
 )
 
 var attemptArgumentContract = artifact.DocumentContract{
-	Kind: artifact.KindEvidence, MediaType: AttemptArgumentMediaType, Schema: AttemptArgumentSchema,
+	Kind: artifact.KindEvidence, MediaType: attemptArgumentMediaType, Schema: attemptArgumentSchema,
 }
 
 // AttemptStimulusBoundary fixes the store head and complete cited selection an
@@ -48,7 +48,7 @@ type AttemptStimulusBoundary struct {
 }
 
 var attemptStimulusCodec = artifact.JSONDocumentCodec(
-	"attempt stimulus boundary", artifact.KindEvidence, AttemptStimulusMediaType, AttemptStimulusSchema,
+	"attempt stimulus boundary", artifact.KindEvidence, attemptStimulusMediaType, attemptStimulusSchema,
 	canonicalizeAttemptStimulus,
 	func(value AttemptStimulusBoundary) artifact.ID { return value.ID },
 	func(value *AttemptStimulusBoundary, id artifact.ID) { value.ID = id },
@@ -160,5 +160,5 @@ func cloneAttemptStimulus(value AttemptStimulusBoundary) AttemptStimulusBoundary
 }
 
 func attemptStimulusAlias(operation artifact.ID, attempt uint32) string {
-	return indexedAlias(AttemptStimulusAliasRoot, operation, uint64(attempt))
+	return indexedAlias(attemptStimulusAliasRoot, operation, uint64(attempt))
 }

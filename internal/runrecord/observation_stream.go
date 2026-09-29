@@ -11,10 +11,10 @@ import (
 	"overgo/internal/checked"
 )
 
-// ObservationStreamCoverage reports exact sample presence across an attempt's
+// observationStreamCoverage reports exact sample presence across an attempt's
 // complete chunk stream. MeasuredSamples counts the union of samples carrying
 // at least one resource measure; observed zero measures remain included.
-type ObservationStreamCoverage struct {
+type observationStreamCoverage struct {
 	RawBytes                uint64                     `json:"raw_bytes"`
 	Samples                 uint32                     `json:"samples"`
 	MeasuredSamples         uint32                     `json:"measured_samples"`
@@ -42,7 +42,7 @@ type ObservationStream struct {
 	Scope      ResourceScope             `json:"scope"`
 	SummaryIDs []artifact.ID             `json:"summary_ids"`
 	ChunkIDs   []artifact.ID             `json:"chunk_ids"`
-	Coverage   ObservationStreamCoverage `json:"coverage"`
+	Coverage   observationStreamCoverage `json:"coverage"`
 	Aggregate  ResourceFitness           `json:"aggregate"`
 }
 
@@ -160,8 +160,8 @@ func requireObservationStreamPair(
 	if !found {
 		return observationStreamPair{}, rawBytes, errors.New("run record: observation chunk descriptor is absent")
 	}
-	if descriptor.ID != summary.Chunk || descriptor.Size == 0 || descriptor.Size > ObservationChunkMaximumBytes ||
-		descriptor.MediaType != ObservationChunkMediaType || descriptor.Schema != ObservationChunkSchema {
+	if descriptor.ID != summary.Chunk || descriptor.Size == 0 || descriptor.Size > observationChunkMaximumBytes ||
+		descriptor.MediaType != observationChunkMediaType || descriptor.Schema != observationChunkSchema {
 		return observationStreamPair{}, rawBytes, errors.New("run record: incompatible observation chunk descriptor")
 	}
 	nextRawBytes, ok := checked.Add64(rawBytes, descriptor.Size)
@@ -172,7 +172,7 @@ func requireObservationStreamPair(
 	if err != nil {
 		return observationStreamPair{}, rawBytes, err
 	}
-	if err := VerifyObservationChunk(summary, chunk); err != nil {
+	if err := verifyObservationChunk(summary, chunk); err != nil {
 		return observationStreamPair{}, rawBytes, err
 	}
 	return observationStreamPair{summary: summary, chunk: chunk, rawBytes: descriptor.Size}, nextRawBytes, nil
@@ -185,7 +185,7 @@ func aggregateObservationStream(pairs []observationStreamPair) (ObservationStrea
 		Scope:      first.summary.Aggregate.Scope,
 		SummaryIDs: make([]artifact.ID, 0, len(pairs)),
 		ChunkIDs:   make([]artifact.ID, 0, len(pairs)),
-		Coverage: ObservationStreamCoverage{
+		Coverage: observationStreamCoverage{
 			FirstOrdinal:   first.summary.Stats.FirstOrdinal,
 			LastOrdinal:    last.summary.Stats.LastOrdinal,
 			FirstElapsedNS: first.summary.Stats.FirstElapsedNS,

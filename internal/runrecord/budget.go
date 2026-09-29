@@ -17,17 +17,17 @@ const (
 	BudgetChargeSchema      = "overgo/budget-charge/v1"
 )
 
-// SplitRole names the four isolated evaluation datasets. Isolation is the
+// splitRole names the four isolated evaluation datasets. Isolation is the
 // control: immutable data still leaks through repeated queries, so promotion
 // and audit results are blinded from the proposer and every query is charged.
-type SplitRole string
+type splitRole string
 
 // Only the blinded roles need names today; development and selection are
 // identified by their partition fields and gain constants with their first
 // consumer.
 const (
-	SplitPromotion SplitRole = "promotion"
-	SplitAudit     SplitRole = "audit"
+	splitPromotion splitRole = "promotion"
+	splitAudit     splitRole = "audit"
 )
 
 // SplitPartition binds one dataset to four DISTINCT shards, one per role, and
@@ -93,8 +93,8 @@ func ParseBudget(data []byte) (Budget, error) {
 	return budgetCodec.Parse(data)
 }
 
-// RequireBudget loads one exact immutable budget grant.
-func RequireBudget(ctx context.Context, reader artifact.Reader, id artifact.ID) (Budget, error) {
+// requireBudget loads one exact immutable budget grant.
+func requireBudget(ctx context.Context, reader artifact.Reader, id artifact.ID) (Budget, error) {
 	return budgetCodec.Require(ctx, reader, id)
 }
 
@@ -184,12 +184,12 @@ func ValidateBlinding(partition SplitPartition, budget Budget, charges []BudgetC
 	if err := partition.ValidateIdentity(); err != nil {
 		return err
 	}
-	var role SplitRole
+	var role splitRole
 	switch budget.Split {
 	case partition.Promotion:
-		role = SplitPromotion
+		role = splitPromotion
 	case partition.Audit:
-		role = SplitAudit
+		role = splitAudit
 	default:
 		return nil
 	}

@@ -81,9 +81,9 @@ func TestForecastObjectiveProbeScoresOnlyHeldoutRecords(t *testing.T) {
 	const alias = "objective.registered.forecast-probe"
 	modelPath := commitForecastObjective(t, ctx, store, root, split, objective, alias)
 
-	examples, err := objectiveExamples(ctx, store, objective, patchLen, horizon)
-	if err != nil {
-		t.Fatal(err)
+	examples, stream, err := objectiveExamples(ctx, store, objective, patchLen, horizon)
+	if err != nil || !stream.Valid() {
+		t.Fatalf("objective examples = (training stream %s, %v), want the training membership's stream", stream, err)
 	}
 	if len(examples) != curves {
 		t.Fatalf("materialized %d examples, want all %d curves", len(examples), curves)
@@ -104,14 +104,14 @@ func TestForecastObjectiveProbeScoresOnlyHeldoutRecords(t *testing.T) {
 	var trained, predicted []string
 	result, err := trainingworkflow.RunHeldout(ctx, store, trainingworkflow.HeldoutRun{
 		Alias: alias, ModelPath: modelPath, Examples: examples, Host: true,
-		Train: func(_ context.Context, shown []trainingworkflow.HeldoutExample) error {
+		Train: func(ctx context.Context, recipeID artifact.ID, shown []trainingworkflow.HeldoutExample) error {
 			var sum float64
 			for _, example := range shown {
 				trained = append(trained, inputs[fmt.Sprint(example.Input)])
 				sum += example.Target[0]
 			}
 			level = sum / float64(len(shown))
-			return nil
+			return publishUnderObjective(t, ctx, store, recipeID, trainingprogram.ObjectiveForecast, stream)
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
 			predicted = append(predicted, inputs[fmt.Sprint(example.Input)])

@@ -100,7 +100,7 @@ func TestGlobalOperationDecisionRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalAutomationJSON(t, map[string]any{
+	response := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalTestJSON(t, map[string]any{
 		"operation": id, "tool": action.Code, "answer": operatoraction.AnswerGrant, "request": advertised.ID,
 	}))
 	if response.Code != http.StatusAccepted {
@@ -140,7 +140,7 @@ func TestGlobalOperationTerminalState(t *testing.T) {
 		len(projection.Operation.Outputs) != 1 || projection.Operation.Outputs[0] != outputID {
 		t.Fatalf("terminal projection status=%d value=%+v body=%s", response.Code, projection, response.Body.String())
 	}
-	cancel := serveTestRequest(handler, http.MethodPost, "/operations/cancel", marshalAutomationJSON(t, map[string]any{"id": id}))
+	cancel := serveTestRequest(handler, http.MethodPost, "/operations/cancel", marshalTestJSON(t, map[string]any{"id": id}))
 	if cancel.Code != http.StatusConflict {
 		t.Fatalf("terminal cancellation status=%d body=%s", cancel.Code, cancel.Body.String())
 	}

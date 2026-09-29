@@ -84,14 +84,13 @@ func validProfileFactOrigin(origin ProfileFactOrigin) bool {
 
 func discoverProfileFacts() []ProfileFactSpec {
 	var facts []ProfileFactSpec
-	collectProfileFacts(reflect.TypeOf(model.ArchitectureProfile{}), "", &facts)
+	collectProfileFacts(reflect.TypeFor[model.ArchitectureProfile](), "", &facts)
 	sort.Slice(facts, func(i, j int) bool { return facts[i].Fact < facts[j].Fact })
 	return facts
 }
 
 func collectProfileFacts(value reflect.Type, prefix string, facts *[]ProfileFactSpec) {
-	for index := 0; index < value.NumField(); index++ {
-		field := value.Field(index)
+	for field := range value.Fields() {
 		if field.PkgPath != "" {
 			continue
 		}

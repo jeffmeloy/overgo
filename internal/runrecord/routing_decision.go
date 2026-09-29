@@ -18,34 +18,34 @@ const (
 	routingDecisionSchema    = "overgo/routing-decision/v1"
 )
 
-// RouteDisposition is the closed outcome of evidence-based capability routing.
-type RouteDisposition string
+// routeDisposition is the closed outcome of evidence-based capability routing.
+type routeDisposition string
 
 const (
 	// RouteSelected means one unique evidence-dominant capability was selected.
-	RouteSelected RouteDisposition = "selected"
+	RouteSelected routeDisposition = "selected"
 	// RouteDecisionRequired means the eligible frontier is incomparable.
-	RouteDecisionRequired RouteDisposition = "decision-required"
-	// RouteRefused means no capability is eligible for the declared intent.
-	RouteRefused RouteDisposition = "refused"
+	RouteDecisionRequired routeDisposition = "decision-required"
+	// routeRefused means no capability is eligible for the declared intent.
+	routeRefused routeDisposition = "refused"
 )
 
-// RouteRejection explains why a considered capability was outside the eligible frontier.
-type RouteRejection string
+// routeRejection explains why a considered capability was outside the eligible frontier.
+type routeRejection string
 
 const (
 	// RouteEligible means a candidate may enter the evidence frontier.
-	RouteEligible RouteRejection = "eligible"
+	RouteEligible routeRejection = "eligible"
 	// RouteUnauthorized means the active authority excludes a candidate.
-	RouteUnauthorized RouteRejection = "unauthorized"
+	RouteUnauthorized routeRejection = "unauthorized"
 	// RouteBoundaryDisallowed means the declared transport boundary excludes a candidate.
-	RouteBoundaryDisallowed RouteRejection = "boundary-disallowed"
+	RouteBoundaryDisallowed routeRejection = "boundary-disallowed"
 	// RouteFailed means typed terminal evidence excludes a candidate.
-	RouteFailed RouteRejection = "failed"
+	RouteFailed routeRejection = "failed"
 )
 
-func (value RouteRejection) valid() bool {
-	return slices.Contains([]RouteRejection{RouteEligible, RouteUnauthorized, RouteBoundaryDisallowed, RouteFailed}, value)
+func (value routeRejection) valid() bool {
+	return slices.Contains([]routeRejection{RouteEligible, RouteUnauthorized, RouteBoundaryDisallowed, RouteFailed}, value)
 }
 
 // RouteMeasurement carries exact comparable observations. Ratios use Attempts
@@ -68,7 +68,7 @@ type RoutingCandidateObservation struct {
 	Boundary    invocation.Boundary `json:"boundary"`
 	Effect      invocation.Class    `json:"effect"`
 	Head        artifact.CommitID   `json:"head"`
-	Rejection   RouteRejection      `json:"rejection"`
+	Rejection   routeRejection      `json:"rejection"`
 	Measurement RouteMeasurement    `json:"measurement"`
 }
 
@@ -80,7 +80,7 @@ type RoutingDecision struct {
 	Authority   artifact.ID                   `json:"authority"`
 	Head        artifact.CommitID             `json:"head"`
 	Candidates  []RoutingCandidateObservation `json:"candidates"`
-	Disposition RouteDisposition              `json:"disposition"`
+	Disposition routeDisposition              `json:"disposition"`
 	Winner      artifact.ID                   `json:"winner,omitzero"`
 	Previous    artifact.ID                   `json:"previous,omitzero"`
 	Failure     artifact.ID                   `json:"failure,omitzero"`
@@ -197,7 +197,7 @@ func canonicalizeRoutingDecision(value *RoutingDecision) error {
 		}
 	}
 	frontier := evidenceRouteFrontier(value.Candidates)
-	value.Disposition, value.Winner = RouteRefused, artifact.ID{}
+	value.Disposition, value.Winner = routeRefused, artifact.ID{}
 	if len(frontier) == 1 {
 		value.Disposition, value.Winner = RouteSelected, value.Candidates[frontier[0]].Selection
 	} else if len(frontier) > 1 {

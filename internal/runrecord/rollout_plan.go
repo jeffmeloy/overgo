@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	// RolloutPlanMediaType identifies rollout plan documents.
-	RolloutPlanMediaType = "application/vnd.overgo.rollout-plan+json"
-	// RolloutPlanSchema identifies the rollout plan contract.
-	RolloutPlanSchema = "overgo/rollout-plan/v1"
+	// rolloutPlanMediaType identifies rollout plan documents.
+	rolloutPlanMediaType = "application/vnd.overgo.rollout-plan+json"
+	// rolloutPlanSchema identifies the rollout plan contract.
+	rolloutPlanSchema = "overgo/rollout-plan/v1"
 	// RolloutHashVersion is the registered deterministic cohort-assignment
 	// hash version; the stable-assignment owner implements exactly this
 	// version, so a plan cannot cite an assignment scheme that does not
@@ -59,7 +59,7 @@ type RolloutPlan struct {
 }
 
 var rolloutPlanCodec = artifact.JSONDocumentCodec(
-	"rollout plan", artifact.KindProfile, RolloutPlanMediaType, RolloutPlanSchema,
+	"rollout plan", artifact.KindProfile, rolloutPlanMediaType, rolloutPlanSchema,
 	canonicalizeRolloutPlan,
 	func(value RolloutPlan) artifact.ID { return value.ID },
 	func(value *RolloutPlan, id artifact.ID) { value.ID = id }, nil,

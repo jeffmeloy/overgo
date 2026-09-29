@@ -88,14 +88,14 @@ func streamingAgentFixture(t *testing.T, store *overgodb.Store) (agentWorkspaceF
 		Name: "research-agent", Prompt: fixture.prompt, ModelRecipe: fixture.generator.description.Identity.Recipe,
 		ToolManuals: []artifact.ID{fixture.manual, stream.ID}, Policies: []artifact.ID{fixture.policy},
 	}
-	published := serveTestRequest(fixture.handler, http.MethodPost, "/agents/definitions", marshalAutomationJSON(t, definition))
+	published := serveTestRequest(fixture.handler, http.MethodPost, "/agents/definitions", marshalTestJSON(t, definition))
 	var created struct {
 		ID artifact.ID `json:"id"`
 	}
 	if err := json.Unmarshal(published.Body.Bytes(), &created); published.Code != http.StatusCreated || err != nil {
 		t.Fatalf("agent publish status=%d body=%s", published.Code, published.Body.String())
 	}
-	activateDefinitionFromAPI(t, fixture.handler, created.ID, "/agents/activate")
+	activateAgentFromAPI(t, fixture.handler, created.ID)
 	return fixture, release
 }
 
@@ -170,7 +170,7 @@ func TestAgentThreadSurvivesRestart(t *testing.T) {
 	}
 	defer store.Close()
 	first := newAgentWorkspaceFixture(t, store, nil, nil)
-	activateDefinitionFromAPI(t, first.handler, publishAgentFromAPI(t, first, nil, nil), "/agents/activate")
+	activateAgentFromAPI(t, first.handler, publishAgentFromAPI(t, first, nil))
 	chat := func(fixture agentWorkspaceFixture, session string, messages ...string) {
 		t.Helper()
 		turns := make([]map[string]string, len(messages))

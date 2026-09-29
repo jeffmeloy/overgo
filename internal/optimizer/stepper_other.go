@@ -18,4 +18,7 @@ func (s *hostStepper) Step() error {
 	return nil
 }
 
+// Snapshot is the host optimizer's own state.
+func (s *hostStepper) Snapshot() State { return s.optimizer.Snapshot() }
+
 func (s *hostStepper) Close() error { return nil }

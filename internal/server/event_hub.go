@@ -133,7 +133,7 @@ func (hub *eventHub) pump(sessions func() runtimeSessionsResponse) {
 	})
 }
 
-// workspaceChange names the inventory a call changed ("/peers").
+// workspaceChange names the inventory a call changed ("/agents").
 type workspaceChange struct {
 	Inventory string `json:"inventory"`
 }

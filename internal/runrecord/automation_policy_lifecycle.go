@@ -10,34 +10,34 @@ import (
 )
 
 const (
-	// AutomationPolicyLifecycleMediaType identifies policy lifecycle records.
-	AutomationPolicyLifecycleMediaType = "application/vnd.overgo.automation-policy-lifecycle+json"
-	// AutomationPolicyLifecycleSchema identifies the policy lifecycle schema.
-	AutomationPolicyLifecycleSchema = "overgo/automation-policy-lifecycle/v1"
-	// AutomationPolicyLifecycleAliasRoot scopes per-name lifecycle heads.
-	AutomationPolicyLifecycleAliasRoot = "automation/policy/lifecycle/"
+	// automationPolicyLifecycleMediaType identifies policy lifecycle records.
+	automationPolicyLifecycleMediaType = "application/vnd.overgo.automation-policy-lifecycle+json"
+	// automationPolicyLifecycleSchema identifies the policy lifecycle schema.
+	automationPolicyLifecycleSchema = "overgo/automation-policy-lifecycle/v1"
+	// automationPolicyLifecycleAliasRoot scopes per-name lifecycle heads.
+	automationPolicyLifecycleAliasRoot = "automation/policy/lifecycle/"
 	// AutomationPolicyActiveAliasRoot scopes per-name active policy aliases.
 	AutomationPolicyActiveAliasRoot = "automation/policy/active/"
 )
 
-// AutomationPolicyState names one stage of the fixed policy lifecycle.
-type AutomationPolicyState string
+// automationPolicyState names one stage of the fixed policy lifecycle.
+type automationPolicyState string
 
 const (
-	// AutomationPolicyDeclared is the initial recorded state.
-	AutomationPolicyDeclared AutomationPolicyState = "declared"
-	// AutomationPolicyExperimental marks a policy under contained experiments.
-	AutomationPolicyExperimental AutomationPolicyState = "experimental"
-	// AutomationPolicyVerified marks a policy backed by evaluation evidence.
-	AutomationPolicyVerified AutomationPolicyState = "verified"
-	// AutomationPolicyActive marks the policy the active alias serves.
-	AutomationPolicyActive AutomationPolicyState = "active"
-	// AutomationPolicyContained marks a previously active policy withdrawn
+	// automationPolicyDeclared is the initial recorded state.
+	automationPolicyDeclared automationPolicyState = "declared"
+	// automationPolicyExperimental marks a policy under contained experiments.
+	automationPolicyExperimental automationPolicyState = "experimental"
+	// automationPolicyVerified marks a policy backed by evaluation evidence.
+	automationPolicyVerified automationPolicyState = "verified"
+	// automationPolicyActive marks the policy the active alias serves.
+	automationPolicyActive automationPolicyState = "active"
+	// automationPolicyContained marks a previously active policy withdrawn
 	// pending rollback.
-	AutomationPolicyContained AutomationPolicyState = "contained"
-	// AutomationPolicyRolledBack marks a policy replaced by its rollback
+	automationPolicyContained automationPolicyState = "contained"
+	// automationPolicyRolledBack marks a policy replaced by its rollback
 	// authority on the active alias.
-	AutomationPolicyRolledBack AutomationPolicyState = "rolled-back"
+	automationPolicyRolledBack automationPolicyState = "rolled-back"
 )
 
 // AutomationPolicyLifecycle is one immutable transition record chaining
@@ -47,7 +47,7 @@ type AutomationPolicyLifecycle struct {
 	ID                 artifact.ID           `json:"-"`
 	Name               string                `json:"name"`
 	Policy             artifact.ID           `json:"policy"`
-	State              AutomationPolicyState `json:"state"`
+	State              automationPolicyState `json:"state"`
 	Incumbent          artifact.ID           `json:"incumbent"`
 	Rollback           artifact.ID           `json:"rollback"`
 	EvaluationPlan     artifact.ID           `json:"evaluation_plan"`
@@ -58,7 +58,7 @@ type AutomationPolicyLifecycle struct {
 }
 
 var automationPolicyLifecycleCodec = artifact.JSONDocumentCodec(
-	"automation policy lifecycle", artifact.KindEvidence, AutomationPolicyLifecycleMediaType, AutomationPolicyLifecycleSchema,
+	"automation policy lifecycle", artifact.KindEvidence, automationPolicyLifecycleMediaType, automationPolicyLifecycleSchema,
 	canonicalizeAutomationPolicyLifecycle, func(v AutomationPolicyLifecycle) artifact.ID { return v.ID }, func(v *AutomationPolicyLifecycle, id artifact.ID) { v.ID = id },
 	func(v AutomationPolicyLifecycle) AutomationPolicyLifecycle {
 		v.Trajectories = slices.Clone(v.Trajectories)
@@ -72,7 +72,7 @@ func PublishAutomationPolicyTransition(ctx context.Context, repository artifact.
 	if ctx == nil || repository == nil {
 		return AutomationPolicyLifecycle{}, errors.New("run record: policy lifecycle authority is absent")
 	}
-	priorID, found, err := repository.ResolveAlias(ctx, AutomationPolicyLifecycleAliasRoot+value.Name)
+	priorID, found, err := repository.ResolveAlias(ctx, automationPolicyLifecycleAliasRoot+value.Name)
 	if err != nil {
 		return AutomationPolicyLifecycle{}, err
 	}
@@ -96,11 +96,11 @@ func PublishAutomationPolicyTransition(ctx context.Context, repository artifact.
 	if err != nil {
 		return AutomationPolicyLifecycle{}, err
 	}
-	lifecycleAlias := artifact.AliasMove(AutomationPolicyLifecycleAliasRoot+value.Name, value.ID, prior.ID)
+	lifecycleAlias := artifact.AliasMove(automationPolicyLifecycleAliasRoot+value.Name, value.ID, prior.ID)
 	aliases := []artifact.AliasBinding{lifecycleAlias}
-	if value.State == AutomationPolicyActive || value.State == AutomationPolicyRolledBack {
+	if value.State == automationPolicyActive || value.State == automationPolicyRolledBack {
 		target := value.Policy
-		if value.State == AutomationPolicyRolledBack {
+		if value.State == automationPolicyRolledBack {
 			target = value.Rollback
 		}
 		active, _, resolveErr := artifact.MoveAlias(ctx, repository, AutomationPolicyActiveAliasRoot+value.Name, target)
@@ -154,22 +154,22 @@ func canonicalizeAutomationPolicyLifecycle(v *AutomationPolicyLifecycle) error {
 
 func validAutomationPolicyTransition(prior AutomationPolicyLifecycle, found bool, next AutomationPolicyLifecycle) bool {
 	if !found {
-		return next.State == AutomationPolicyDeclared && !next.Prior.Valid()
+		return next.State == automationPolicyDeclared && !next.Prior.Valid()
 	}
 	if next.Policy != prior.Policy || next.Incumbent != prior.Incumbent || next.Rollback != prior.Rollback || next.Prior != prior.ID {
 		return false
 	}
 	switch prior.State {
-	case AutomationPolicyDeclared:
-		return next.State == AutomationPolicyExperimental
-	case AutomationPolicyExperimental:
-		return next.State == AutomationPolicyVerified
-	case AutomationPolicyVerified:
-		return next.State == AutomationPolicyActive
-	case AutomationPolicyActive:
-		return next.State == AutomationPolicyContained
-	case AutomationPolicyContained:
-		return next.State == AutomationPolicyRolledBack
+	case automationPolicyDeclared:
+		return next.State == automationPolicyExperimental
+	case automationPolicyExperimental:
+		return next.State == automationPolicyVerified
+	case automationPolicyVerified:
+		return next.State == automationPolicyActive
+	case automationPolicyActive:
+		return next.State == automationPolicyContained
+	case automationPolicyContained:
+		return next.State == automationPolicyRolledBack
 	default:
 		return false
 	}

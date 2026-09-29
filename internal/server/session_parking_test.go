@@ -13,3 +13,13 @@ func waitForServerSessionWaiter(t *testing.T, handler *Handler) {
 		runtime.Gosched()
 	}
 }
+
+// acquireSession leases a session without waiting, as a test holding a slot.
+func (h *Handler) acquireSession(requested int) (*requestSession, bool) {
+	lease, ok := h.sessions.TryLease(requested)
+	if !ok {
+		return nil, false
+	}
+	h.activateSession(lease)
+	return lease, true
+}

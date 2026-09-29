@@ -1,26 +1,24 @@
 package inference
 
 import (
-	"os"
 	"testing"
 
 	"overgo/internal/artifact"
+	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testskip"
 )
 
 func TestActiveRecipeQwen35Open(t *testing.T) {
 	requireIntegration(t)
-	path := os.Getenv("OVERGO_QWEN35_MODEL")
-	if path == "" {
-		testskip.NotApplicable(t, "OVERGO_QWEN35_MODEL is not set")
-	}
+	cudatest.Require(t)
+	path := modeltest.GGUF(t, "qwen35")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

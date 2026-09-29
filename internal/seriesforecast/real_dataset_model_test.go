@@ -36,7 +36,7 @@ func TestRealSupernovaForecastStream(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, []byte(fmt.Sprintf("light-curve-v1/%d/%d", model.Dims.PatchLen, model.Dims.Horizon)))
+	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, fmt.Appendf(nil, "light-curve-v1/%d/%d", model.Dims.PatchLen, model.Dims.Horizon))
 	if err != nil {
 		t.Fatal(err)
 	}

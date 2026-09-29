@@ -73,13 +73,13 @@ func TestApprovalDecisionSeparation(t *testing.T) {
 		t.Fatalf("view advertises no approval request: %s", view.Body.String())
 	}
 
-	blind := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalAutomationJSON(t, map[string]any{
+	blind := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalTestJSON(t, map[string]any{
 		"operation": id, "tool": action.Code, "answer": operatoraction.AnswerGrant,
 	}))
 	if blind.Code != http.StatusConflict {
 		t.Fatalf("blind grant status=%d body=%s", blind.Code, blind.Body.String())
 	}
-	mismatched := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalAutomationJSON(t, map[string]any{
+	mismatched := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalTestJSON(t, map[string]any{
 		"operation": id, "tool": action.Code, "answer": operatoraction.AnswerGrant, "request": recipeID,
 	}))
 	if mismatched.Code != http.StatusConflict {
@@ -89,7 +89,7 @@ func TestApprovalDecisionSeparation(t *testing.T) {
 		t.Fatalf("refused grants moved the operation: %+v found=%t", status, found)
 	}
 
-	granted := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalAutomationJSON(t, map[string]any{
+	granted := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalTestJSON(t, map[string]any{
 		"operation": id, "tool": action.Code, "answer": operatoraction.AnswerGrant, "request": advertised,
 	}))
 	if granted.Code != http.StatusAccepted {

@@ -42,6 +42,36 @@ func DefaultSamplerOrder() []SamplerStage {
 	return slices.Clone(defaultSamplerOrder)
 }
 
+// configuredOrder is the default order narrowed to the stages a config
+// sets, temperature always last. A config that names no order samples
+// through only what it configures: an unset (zero) top-p or typical-p never
+// truncates, and Temperature zero stays greedy when a grammar or bias takes
+// sampling off the raw argmax path, as IsRawGreedy reads an empty order.
+func configuredOrder(config Config) []SamplerStage {
+	return slices.DeleteFunc(DefaultSamplerOrder(), func(stage SamplerStage) bool {
+		switch stage {
+		case SamplerPenalties:
+			return (config.RepeatPenalty == 0 || config.RepeatPenalty == 1) &&
+				config.PresencePenalty == 0 && config.FrequencyPenalty == 0
+		case SamplerDry:
+			return config.DryMultiplier == 0
+		case SamplerTopNSigma:
+			return config.TopNSigma <= 0
+		case SamplerTopK:
+			return config.TopK <= 0
+		case SamplerTypicalP:
+			return config.TypicalP <= 0 || config.TypicalP >= 1
+		case SamplerTopP:
+			return config.TopP <= 0 || config.TopP >= 1
+		case SamplerMinP:
+			return config.MinP <= 0
+		case SamplerXTC:
+			return config.XTCProbability <= 0
+		}
+		return false
+	})
+}
+
 // FormatSamplerOrder returns the semicolon-delimited public stage names.
 func FormatSamplerOrder(order []SamplerStage) string {
 	names := make([]string, len(order))

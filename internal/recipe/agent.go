@@ -27,7 +27,6 @@ type AgentDefinition struct {
 	ToolManuals       []artifact.ID `json:"tool_manuals,omitempty"`
 	CapabilityBundles []artifact.ID `json:"capability_bundles,omitempty"`
 	Datasets          []artifact.ID `json:"datasets,omitempty"`
-	Automations       []artifact.ID `json:"automations,omitempty"`
 	Policies          []artifact.ID `json:"policies"`
 	ID                artifact.ID   `json:"-"`
 }
@@ -41,7 +40,6 @@ var agentDefinitionCodec = artifact.JSONDocumentCodec(
 		value.ToolManuals = slices.Clone(value.ToolManuals)
 		value.CapabilityBundles = slices.Clone(value.CapabilityBundles)
 		value.Datasets = slices.Clone(value.Datasets)
-		value.Automations = slices.Clone(value.Automations)
 		value.Policies = slices.Clone(value.Policies)
 		return value
 	},
@@ -73,7 +71,6 @@ func (value AgentDefinition) Lineage() []artifact.Lineage {
 	parents = append(parents, value.ToolManuals...)
 	parents = append(parents, value.CapabilityBundles...)
 	parents = append(parents, value.Datasets...)
-	parents = append(parents, value.Automations...)
 	parents = append(parents, value.Policies...)
 	return artifact.DependencyLineage(value.ID, parents...)
 }
@@ -91,7 +88,6 @@ func canonicalizeAgentDefinition(value *AgentDefinition) error {
 		{&value.ToolManuals, artifact.KindRecipe},
 		{&value.CapabilityBundles, artifact.KindProfile},
 		{&value.Datasets, artifact.KindDataset},
-		{&value.Automations, artifact.KindRecipe},
 		{&value.Policies, artifact.KindProfile},
 	}
 	for _, group := range groups {

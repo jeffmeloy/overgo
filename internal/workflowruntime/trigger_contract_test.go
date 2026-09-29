@@ -13,9 +13,6 @@ import (
 // authority, keyed delegation under the delegating execution's budget
 // -- are exactly the declared ones.
 func TestExecutionTriggerRegistryCoverage(t *testing.T) {
-	if err := runrecord.ValidateTriggerRegistry(); err != nil {
-		t.Fatal(err)
-	}
 	if len(ExecutionTriggers) == 0 {
 		t.Fatal("runtime declares no execution triggers")
 	}
@@ -36,10 +33,5 @@ func TestExecutionTriggerRegistryCoverage(t *testing.T) {
 	delegation, _ := runrecord.TriggerContractFor(runrecord.TriggerDelegation)
 	if delegation.Idempotency != runrecord.IdempotencyKeyed || delegation.Budget != runrecord.BudgetInherited {
 		t.Fatalf("delegation contract = %+v", delegation)
-	}
-	webhook, _ := runrecord.TriggerContractFor(runrecord.TriggerWebhook)
-	if !seen[runrecord.TriggerWebhook] || webhook.Authority != runrecord.AuthorityDeclaredPolicy ||
-		webhook.Idempotency != runrecord.IdempotencyKeyed {
-		t.Fatalf("webhook contract = %+v, declared = %v", webhook, seen[runrecord.TriggerWebhook])
 	}
 }

@@ -7,8 +7,8 @@ import (
 )
 
 var (
-	tensorInfoType        = reflect.TypeOf(gguf.TensorInfo{})
-	tensorInfoPointerType = reflect.TypeOf((*gguf.TensorInfo)(nil))
+	tensorInfoType        = reflect.TypeFor[gguf.TensorInfo]()
+	tensorInfoPointerType = reflect.TypeFor[*gguf.TensorInfo]()
 )
 
 // TensorInfos returns every populated tensor in the weight catalog.
@@ -44,8 +44,8 @@ func collectTensorInfos(value reflect.Value, seen map[string]struct{}, result *[
 	}
 	switch value.Kind() {
 	case reflect.Struct:
-		for index := 0; index < value.NumField(); index++ {
-			collectTensorInfos(value.Field(index), seen, result)
+		for _, field := range value.Fields() {
+			collectTensorInfos(field, seen, result)
 		}
 	case reflect.Slice, reflect.Array:
 		for index := 0; index < value.Len(); index++ {

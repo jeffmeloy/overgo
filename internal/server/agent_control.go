@@ -18,7 +18,6 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/workflowruntime"
 )
 
 // agentDefinitionInput is the typed editing boundary shared by API and GUI.
@@ -29,30 +28,22 @@ type agentDefinitionInput struct {
 	ToolManuals       []artifact.ID `json:"tool_manuals,omitempty"`
 	CapabilityBundles []artifact.ID `json:"capability_bundles,omitempty"`
 	Datasets          []artifact.ID `json:"datasets,omitempty"`
-	Automations       []artifact.ID `json:"automations,omitempty"`
 	Policies          []artifact.ID `json:"policies"`
-}
-
-// agentAutomationAttachment exposes one exact attached automation definition.
-type agentAutomationAttachment struct {
-	ID   artifact.ID `json:"id"`
-	Name string      `json:"name"`
 }
 
 // agentInventoryEntry projects current immutable lifecycle authority.
 type agentInventoryEntry struct {
-	Name        string                      `json:"name"`
-	Definition  artifact.ID                 `json:"definition"`
-	Activation  artifact.ID                 `json:"activation"`
-	State       runrecord.AgentState        `json:"state"`
-	Prompt      artifact.ID                 `json:"prompt"`
-	ModelRecipe artifact.ID                 `json:"model_recipe"`
-	Tools       []artifact.ID               `json:"tools,omitempty"`
-	Bundles     []artifact.ID               `json:"capability_bundles,omitempty"`
-	Datasets    []artifact.ID               `json:"datasets,omitempty"`
-	Automations []agentAutomationAttachment `json:"automations,omitempty"`
-	Policies    []artifact.ID               `json:"policies"`
-	Refusal     string                      `json:"refusal,omitzero"`
+	Name        string               `json:"name"`
+	Definition  artifact.ID          `json:"definition"`
+	Activation  artifact.ID          `json:"activation"`
+	State       runrecord.AgentState `json:"state"`
+	Prompt      artifact.ID          `json:"prompt"`
+	ModelRecipe artifact.ID          `json:"model_recipe"`
+	Tools       []artifact.ID        `json:"tools,omitempty"`
+	Bundles     []artifact.ID        `json:"capability_bundles,omitempty"`
+	Datasets    []artifact.ID        `json:"datasets,omitempty"`
+	Policies    []artifact.ID        `json:"policies"`
+	Refusal     string               `json:"refusal,omitzero"`
 }
 
 // agentObservable is a structured tool event; model hidden reasoning is never projected.
@@ -97,14 +88,6 @@ const (
 	agentRetrievalReceiptHeader = "X-Overgo-Retrieval-Receipt"
 	agentRetrievalTraceHeader   = "X-Overgo-Interaction-Trace"
 )
-
-type agentAutomationRequest struct {
-	Agent       string                     `json:"agent"`
-	Automation  artifact.ID                `json:"automation"`
-	Key         string                     `json:"key,omitzero"`
-	Destination string                     `json:"destination,omitzero"`
-	Inputs      map[string]json.RawMessage `json:"inputs"`
-}
 
 type agentChatRequest struct {
 	Agent    string                  `json:"agent"`
@@ -161,15 +144,6 @@ func (h *Handler) agentRetrieve(response http.ResponseWriter, request *http.Requ
 		response.Header().Set(agentRetrievalTraceHeader, retrieval.Trace.ID.String())
 	}
 	writeAgentResult(response, http.StatusOK, retrieval.Search.Results, err)
-}
-
-func (h *Handler) agentAutomate(response http.ResponseWriter, request *http.Request) {
-	var body agentAutomationRequest
-	if !h.decodeBoundedJSON(response, request, &body) {
-		return
-	}
-	execution, err := h.runAgentAutomation(context.WithoutCancel(request.Context()), body)
-	writeAgentResult(response, http.StatusAccepted, execution, err)
 }
 
 func (h *Handler) agentObservables(response http.ResponseWriter, request *http.Request) {
@@ -284,14 +258,6 @@ func (h *Handler) agentInventory(ctx context.Context) ([]agentInventoryEntry, er
 			Bundles: slices.Clone(definition.CapabilityBundles), Datasets: slices.Clone(definition.Datasets),
 			Policies: slices.Clone(definition.Policies),
 		}
-		for _, id := range definition.Automations {
-			automation, automationErr := recipe.RequireAutomationDefinition(ctx, h.repository, id)
-			if automationErr != nil {
-				entry.Refusal = automationErr.Error()
-				continue
-			}
-			entry.Automations = append(entry.Automations, agentAutomationAttachment{ID: id, Name: automation.Name})
-		}
 		if active.Activation.State != runrecord.AgentActive {
 			entry.Refusal = "agent is paused"
 		}
@@ -383,7 +349,7 @@ func (h *Handler) publishAgentDefinition(ctx context.Context, input agentDefinit
 	definition, err := recipe.NewAgentDefinition(recipe.AgentDefinition{
 		Name: input.Name, Prompt: input.Prompt, ModelRecipe: input.ModelRecipe,
 		ToolManuals: input.ToolManuals, CapabilityBundles: input.CapabilityBundles,
-		Datasets: input.Datasets, Automations: input.Automations, Policies: input.Policies,
+		Datasets: input.Datasets, Policies: input.Policies,
 	})
 	if err != nil {
 		return recipe.AgentDefinition{}, err
@@ -482,24 +448,6 @@ func (h *Handler) agentRetrieval(ctx context.Context, request agentRetrievalRequ
 	return runrecord.SearchAndPublishConsumedRetrieval(ctx, h.repository, query, runrecord.RetrievalConsumer{
 		Recipe: description.Identity.Recipe, Model: description.Identity.Model,
 		Operation: active.Activation.ID, TaskContract: active.Definition.ID,
-	})
-}
-
-func (h *Handler) runAgentAutomation(ctx context.Context, request agentAutomationRequest) (workflowruntime.AutomationExecution, error) {
-	active, err := (runrecord.AgentAuthority{Repository: h.repository}).RequireActive(ctx, request.Agent)
-	if err != nil || !slices.Contains(active.Definition.Automations, request.Automation) {
-		return workflowruntime.AutomationExecution{}, errors.Join(errors.New("server: automation is outside active agent authority"), err)
-	}
-	automation, err := recipe.RequireAutomationDefinition(ctx, h.repository, request.Automation)
-	if err != nil {
-		return workflowruntime.AutomationExecution{}, err
-	}
-	workspace, ok := h.generator.(automationWorkspaceAPI)
-	if !ok {
-		return workflowruntime.AutomationExecution{}, errors.New("server: automation workspace is unavailable")
-	}
-	return workspace.RunAutomation(ctx, h.operations, automationExecutionInput{
-		Name: automation.Name, Key: request.Key, Destination: request.Destination, Inputs: request.Inputs,
 	})
 }
 

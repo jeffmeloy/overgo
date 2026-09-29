@@ -1219,8 +1219,8 @@ func TestStreamingAnthropicToolUseLifecycle(t *testing.T) {
 
 func TestParseAnthropicToolHistory(t *testing.T) {
 	t.Parallel()
-	messages, err := parseAnthropicMessages(
-		nil,
+	messages, err := (&Handler{}).parseAnthropicMessages(
+		t.Context(), nil,
 		json.RawMessage(`[
 			{"role":"assistant","content":[
 				{"type":"text","text":"Checking."},

@@ -762,15 +762,6 @@ func (h *Handler) Close() error {
 
 type requestSession = capabilityruntime.SessionLease[Generator]
 
-func (h *Handler) acquireSession(requested int) (*requestSession, bool) {
-	lease, ok := h.sessions.TryLease(requested)
-	if !ok {
-		return nil, false
-	}
-	h.activateSession(lease)
-	return lease, true
-}
-
 func (h *Handler) activateSession(lease *requestSession) {
 	id := lease.ID
 	h.slotTasks[id].Store(h.nextTask.Add(counterStep))

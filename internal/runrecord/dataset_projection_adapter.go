@@ -378,7 +378,7 @@ func datasetInteractionProtocolEvents(trace InteractionTrace) ([]dataset.Interac
 			mapped.Kind = dataset.InteractionProtocolRequest
 		case InteractionEventOutput:
 			mapped.Kind = dataset.InteractionProtocolOutput
-		case InteractionEventToolCall:
+		case interactionEventToolCall:
 			mapped.Kind = dataset.InteractionProtocolToolCall
 			mapped.Calls = make([]dataset.InteractionCallReference, len(event.Message.ToolCalls))
 			for callIndex, call := range event.Message.ToolCalls {

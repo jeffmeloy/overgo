@@ -32,7 +32,6 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/healthz", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).health},
 	{Path: "/v1/health", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).health},
 	{Path: "/metrics", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).metrics},
-	{Path: "/automations/webhook", Authentication: routePublic, Methods: []string{http.MethodPost}, Handler: (*Handler).automationWebhook},
 	{Path: "/v1/models", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).models},
 	{Path: "/models", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).models},
 	{Path: "/v1/completions", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).completions},
@@ -127,9 +126,8 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/catalog/models", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).catalogModels},
 	// Hub search reaches outward and downloads mutate local disk; agent
 	// routes execute tools and expose session transcripts. All of them
-	// require the bearer credential -- only local read-only catalogs, the
-	// health/metrics probes, and the signature-verified automation webhook
-	// stay public.
+	// require the bearer credential -- only local read-only catalogs and the
+	// health/metrics probes stay public.
 	{Path: "/hub/search", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).hubSearch},
 	{Path: "/hub/downloads", Authentication: routeBearer, Methods: []string{http.MethodGet, http.MethodPost, http.MethodDelete}, Handler: (*Handler).hubDownloads},
 	{Path: "/library/register", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryRegister, Inventory: true},
@@ -140,7 +138,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/agents/thread", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentThread)},
 	// The workbench's own routes: the manifest, schema and route table are
 	// public like the shell they feed; the operations evidence and the
-	// automation, peer and agent workspaces take the bearer credential. They
+	// agent workspace take the bearer credential. They
 	// were a prefix chain in front of the asset handler with five copies of
 	// the authorization block; the table owns them like every other route.
 	{Path: "/workspace/manifest", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).workspaceManifest},
@@ -153,20 +151,6 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/interactions/cancel", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).conversationCancel},
 	{Path: "/interactions/inspect", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).conversationInspect},
 	{Path: "/operations/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).operationEvidence},
-	{Path: "/automations", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: automationRoute((*Handler).automationInventory)},
-	{Path: "/automations/definitions", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: automationRoute((*Handler).automationDefine), Inventory: true},
-	{Path: "/automations/activate", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: automationRoute((*Handler).automationActivate), Inventory: true},
-	{Path: "/automations/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: automationRoute((*Handler).automationRun)},
-	{Path: "/automations/schedule", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: automationRoute((*Handler).automationSchedule), Inventory: true},
-	{Path: "/automations/history", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: automationRoute((*Handler).automationHistory)},
-	{Path: "/peers", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: peerRoute((*Handler).peerInventory)},
-	{Path: "/peers/enroll", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerEnroll), Inventory: true},
-	{Path: "/peers/capability", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerCapability), Inventory: true},
-	{Path: "/peers/heartbeat", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerHeartbeat)},
-	{Path: "/peers/state", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerState), Inventory: true},
-	{Path: "/peers/placement", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerPlacement), Inventory: true},
-	{Path: "/peers/reconcile", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerReconcile), Inventory: true},
-	{Path: "/peers/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: peerRoute((*Handler).peerEvidence)},
 	{Path: "/agents", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentList)},
 	{Path: "/agents/create", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentSimpleCreate), Inventory: true},
 	{Path: "/agents/definitions", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentDefine), Inventory: true},
@@ -176,7 +160,6 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/agents/approval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentApprovalPreview)},
 	{Path: "/agents/chat", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentChat)},
 	{Path: "/agents/retrieval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentRetrieve)},
-	{Path: "/agents/automation", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentAutomate)},
 	{Path: "/agents/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentObservables)},
 }
 

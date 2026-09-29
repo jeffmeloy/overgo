@@ -5,21 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gui-secondary-buttons",
-      "title": "Every secondary action looks clickable: one bordered secondary button style across the workbench, each action beside the form it acts on",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Every secondary action looks clickable: one bordered secondary button style across the workbench, each action beside the form it acts on",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(SecondaryButtons|LayoutAudit|Screens)$' -leg 'secondary buttons leg'",
-          "rationale": "GUI review 2026-09-28: secondary actions (Attach, Settings, Serve, Retire, Pause, send, Add a local model, prev/next) render as bare bold text with no border or fill, so they read as labels, and some sit below their forms. One bordered secondary style (the btn alt class) fixes every one at once."
-        }
-      ]
-    },
-    {
       "id": "gui-plain-summaries",
       "title": "Recipe, Library, Runs and the model picker lead with a plain-language summary and keep identifiers second, as Inspect does",
       "owner": "overgo_gui_cleanup",

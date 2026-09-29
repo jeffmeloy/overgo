@@ -14,12 +14,16 @@
           if (err.status === 501) throw new Error("Dataset browsing is not configured on this server.");
           throw err;
         }
-      }, render, {
-        loading: "Loading datasets…",
-        empty: (data) => !data && "This store has no dataset catalog yet. Register a directory with: go run ./cmd/dataset-catalog -register <name> -root <dir>",
-      });
+      }, render, { loading: "Loading datasets…" });
 
       function render(data) {
+        // No catalog yet: say so, and open the Library's import, where a chat dataset file comes in.
+        if (!data) {
+          panel.replaceChildren(el("div", { class: "section-title", text: "Datasets" }),
+            el("p", { class: "note", text: "No datasets are catalogued yet. Import a chat dataset file (alpaca, ShareGPT or OpenAI messages) and its conversations list here." }),
+            el("button", { class: "btn alt", text: "Import a chat dataset", onclick: () => overgo.openLibrary("input[aria-label='Chat dataset file on disk']") }));
+          return;
+        }
         const search = el("input", { "aria-label": "Filter datasets", class: "text mw-440 my-8", type: "search", placeholder: "filter by name / source / modality / format…", });
         const host = el("div");
         const preview = el("div");

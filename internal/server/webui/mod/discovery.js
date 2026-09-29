@@ -179,6 +179,7 @@
       }
       refreshScorecard();
 
+      const downloadsTitle = el("div", { class: "section-title", text: "Downloads" });
       panel.append(
         el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: () => { refreshCatalog(); refreshScorecard(); } })),
         catalogNote,
@@ -187,7 +188,7 @@
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),
         el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),
-        el("div", { class: "section-title", text: "Downloads" }),
+        downloadsTitle,
         jobsNote,
         el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress", "register · validate"])), localBody, jobsBody));
 
@@ -200,7 +201,7 @@
         localBody.replaceChildren(overgo.tableRow([path, el("span", { class: "tag user_defined", text: "local" }), job.projector, "", lifecycle(job)]));
         add(job);
       } });
-      jobsNote.after(el("div", { class: "row" }, localModel, localProjector, localButton));
+      const fromDisk = [el("div", { class: "section-title", text: "Add a model from disk" }), el("div", { class: "row" }, localModel, localProjector, localButton)];
 
       // ---- a dataset file in alpaca, ShareGPT or OpenAI messages form imports as conversations, one per record ----
       const datasetSource = el("input", { "aria-label": "Chat dataset file on disk", class: "text", placeholder: "alpaca, ShareGPT or OpenAI messages file (.json or .jsonl)" });
@@ -211,7 +212,9 @@
         localBody.replaceChildren(overgo.tableRow([name, el("span", { class: "tag user_defined", text: "import" }), path, "", lifecycle(job)]));
         add(job);
       } });
-      localModel.parentElement.after(el("div", { class: "row" }, datasetSource, datasetName, datasetButton),
+      // Each way a model or dataset comes in is its own section; Downloads then follows what they started.
+      downloadsTitle.before(...fromDisk, el("div", { class: "section-title", text: "Import a chat dataset" }),
+        el("div", { class: "row" }, datasetSource, datasetName, datasetButton),
         el("p", { class: "note", text: "Imported conversations preview under Datasets; the workbench trains preference and rollout datasets." }));
 
       // ---- a hosted provider: the declaration the CLI file carries, committed through the library route; the catalog relists ----

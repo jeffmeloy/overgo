@@ -5,21 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gui-ia-restructure",
-      "title": "Dataset import lives in Datasets, the Library's sections name what they do, and Settings separates Conversation from Connection with labelled actions",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Dataset import lives in Datasets, the Library's sections name what they do, and Settings separates Conversation from Connection with labelled actions",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(InformationArchitecture|LayoutAudit|Screens)$' -leg 'information architecture leg'",
-          "rationale": "GUI review 2026-09-28: the Library's Downloads section holds the local-model form and the dataset import while the Datasets tab points at the CLI; the Hugging Face table shows bare headers; Settings mixes conversation parameters, Enhance current prompt, two buttons with no visible text, the API key and model details."
-        }
-      ]
-    },
-    {
       "id": "gui-empty-states",
       "title": "Empty and edge states read right: Agent without agents, one-page Runs, the Hugging Face table before a search, the picker's tier tag, rail titles in full on hover, and the VRAM bar's used-of-total label",
       "owner": "overgo_gui_cleanup",

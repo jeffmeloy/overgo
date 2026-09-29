@@ -768,7 +768,7 @@
     api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, supportTag, supportRungs, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors,
     getKey, setKey, modelInfo,
-    displayToken, stat, turnTrend, fold, workspace, viewsOf, requestedView,
+    displayToken, stat, turnTrend, fold, openLibrary, workspace, viewsOf, requestedView,
     fmt: { grouped, bytes, compact, duration, shortID },
   };
 
@@ -995,10 +995,20 @@
   // the swap proxy choosing one swaps the serving child live while every page keeps working.
   // libraryStarters: the two ways a model enters an empty store, each a control that opens the Library tab
   // on its form (the local registration row, the hosted provider form) once the tab has mounted.
+  // openLibrary: the Library tab, with focus on the field of the form a starter names once the tab has mounted.
+  function openLibrary(selector) {
+    location.hash = "#library";
+    // The field takes focus only once its panel shows; until then the starter waits for it.
+    const focus = () => {
+      const field = document.querySelector(selector);
+      if (field && field.getClientRects().length) field.focus();
+      if (!field || document.activeElement !== field) setTimeout(focus, focusRetryMS);
+    };
+    focus();
+  }
   function libraryStarters() {
-    const open = (selector) => { location.hash = "#library"; const focus = () => { const field = document.querySelector(selector); if (field) field.focus(); else setTimeout(focus, focusRetryMS); }; focus(); };
-    return [el("button", { class: "btn alt", text: "Add a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
-      el("button", { class: "btn alt", text: "Declare a hosted provider", onclick: () => open("input[aria-label='provider name']") })];
+    return [el("button", { class: "btn alt", text: "Add a local model", onclick: () => openLibrary("input[placeholder='model GGUF or directory on disk']") }),
+      el("button", { class: "btn alt", text: "Declare a hosted provider", onclick: () => openLibrary("input[aria-label='provider name']") })];
   }
   function wireModelPicker() {
     const modelPill = document.getElementById("model-pill");

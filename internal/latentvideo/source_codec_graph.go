@@ -10,8 +10,8 @@ import (
 	"overgo/internal/tensor"
 )
 
-// VAEEncoderPlan: checkpoint-derived causal source encoder graph.
-type VAEEncoderPlan struct {
+// vaeEncoderPlan: checkpoint-derived causal source encoder graph.
+type vaeEncoderPlan struct {
 	vaePlanCore
 	InputChannels  int
 	LatentChannels int
@@ -19,7 +19,7 @@ type VAEEncoderPlan struct {
 }
 
 // CompileVAEEncoderPlan derives the Wan/LiveEdit encoder from artifact tensors.
-func CompileVAEEncoderPlan(metas []pytorchzip.TensorMeta) (VAEEncoderPlan, error) {
+func CompileVAEEncoderPlan(metas []pytorchzip.TensorMeta) (vaeEncoderPlan, error) {
 	compiler := newVAEPlanCompiler("vae encoder", metas)
 	conv3 := func(name string) (out, in, kt, kh, kw int, err error) {
 		metadata, err := compiler.tensorMetadata(name)
@@ -36,7 +36,7 @@ func CompileVAEEncoderPlan(metas []pytorchzip.TensorMeta) (VAEEncoderPlan, error
 		return metadata.conv2d("encoder")
 	}
 
-	plan := VAEEncoderPlan{vaePlanCore: vaePlanCore{Stride: [tensor.TripleExtent]int{
+	plan := vaeEncoderPlan{vaePlanCore: vaePlanCore{Stride: [tensor.TripleExtent]int{
 		tensor.SingletonExtent, tensor.SingletonExtent, tensor.SingletonExtent,
 	}}}
 	out, in, kt, kh, kw, err := conv3("encoder.conv1.weight")

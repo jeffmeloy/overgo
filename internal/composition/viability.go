@@ -40,6 +40,9 @@ type SeedOutcome struct {
 	Seed        int64
 	TrainLosses []float64
 	HeldOut     float64
+	// Bridge is the seed's trained bridge, whose weights and optimizer
+	// state a checkpoint publishes.
+	Bridge *densecausal.Graft
 }
 
 type Result struct {
@@ -207,7 +210,7 @@ func runViability(config Config, targetID, donorID artifact.ID) (result Result, 
 		if math.IsNaN(heldOut) || math.IsInf(heldOut, 0) {
 			return Result{}, fmt.Errorf("composition: seed %d held-out loss is non-finite", seed)
 		}
-		result.Outcomes = append(result.Outcomes, SeedOutcome{Seed: seed, TrainLosses: losses, HeldOut: heldOut})
+		result.Outcomes = append(result.Outcomes, SeedOutcome{Seed: seed, TrainLosses: losses, HeldOut: heldOut, Bridge: graft})
 		worst = max(worst, heldOut)
 	}
 	result.WorstHeldOut = worst

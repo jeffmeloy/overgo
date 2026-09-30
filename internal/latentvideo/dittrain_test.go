@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/checkpointtest"
 	"overgo/internal/tensor"
 	"overgo/internal/trainingprogram"
 )
@@ -51,7 +52,7 @@ func TestIndexedMediaProgramBindings(t *testing.T) {
 	}
 }
 
-func ditTestTrainer(t *testing.T) (*DiTTrainer, DiTTrainBatch) {
+func ditTestTrainer(t *testing.T) (*ditTrainer, DiTTrainBatch) {
 	t.Helper()
 	cfg, geometry, textDim := ditTestConfig()
 	rng := rand.New(rand.NewSource(52))
@@ -176,7 +177,7 @@ func TestDiTTrainerStepDescends(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var last DiTTrainStepResult
+	var last ditTrainStepResult
 	for step := range 5 {
 		last, err = trainer.Step(batch)
 		if err != nil {
@@ -193,6 +194,26 @@ func TestDiTTrainerStepDescends(t *testing.T) {
 	if !(final < first) {
 		t.Fatalf("loss did not descend: %g -> %g (last step loss %g)", first, final, last.Loss)
 	}
+}
+
+// TestDiTTrainerCheckpointRoundTripIsBitExact trains one step, publishes the
+// trainer's masters and optimizer state as a checkpoint, and reads both back
+// bit for bit under every checkpoint tensor name.
+func TestDiTTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	trainer, batch := ditTestTrainer(t)
+	if _, err := trainer.Step(batch); err != nil {
+		t.Fatal(err)
+	}
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, trainer.OptimizerPlan())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, textDim := ditTestConfig()
+	trained := map[string][]float32{}
+	for _, spec := range ditTensorSpecs(cfg, textDim) {
+		trained[spec.name] = trainer.view(spec.name)
+	}
+	checkpointtest.RequireRoundTrip(t, program, trainer, trained)
 }
 
 // TestDiTTrainerCheckpointedForwardMatchesRetained pins gradient

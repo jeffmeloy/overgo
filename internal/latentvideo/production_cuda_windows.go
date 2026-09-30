@@ -81,7 +81,7 @@ func (r *WanRuntime) resolve(ctx context.Context, request WanRequest) (WanReques
 	}
 	request = request.withGeneration(r.profile.Generation)
 	if !request.PromptForm() {
-		return request, ValidateWanRequest(request)
+		return request, validateWanRequest(request)
 	}
 	if r.memo.cond == nil || r.memo.prompt != request.Prompt || r.memo.negative != request.NegativePrompt {
 		cond, uncond, err := promptContexts(ctx, r.text, request)
@@ -98,7 +98,7 @@ func (r *WanRuntime) resolve(ctx context.Context, request WanRequest) (WanReques
 		return WanRequest{}, err
 	}
 	request.Noise = plan
-	return request, ValidateWanRequest(request)
+	return request, validateWanRequest(request)
 }
 
 func (r *WanRuntime) Reset(_ context.Context, request WanRequest) error {
@@ -175,7 +175,7 @@ func RegisterWanRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, m
 
 // LiveEditRuntime retains source codec, denoiser history graphs, and decoder.
 type LiveEditRuntime struct {
-	runtime *ReferenceEditRuntime
+	runtime *referenceEditRuntime
 	profile Profile
 	runs    int
 }
@@ -281,7 +281,7 @@ func readProgramProfile(ctx context.Context, store artifact.Reader, program reci
 	if !ok {
 		return Profile{}, errors.New("latent video: compiled recipe has no profile")
 	}
-	profile, err := ReadProfile(ctx, store, profileID)
+	profile, err := readProfile(ctx, store, profileID)
 	if err != nil {
 		return Profile{}, err
 	}

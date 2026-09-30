@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -86,12 +87,14 @@ func (run boundedRun) descend() error {
 }
 
 // routeSession is a route's supervised model-session: the recipe the route
-// bootstrapped for its model, that recipe's resolved authority, and the
-// observer recording the run. The zero value supervises nothing.
+// bootstrapped for its model, that recipe's resolved authority, the text
+// dataset a token recipe grounds, and the observer recording the run. The
+// zero value supervises nothing.
 type routeSession struct {
 	store         *overgodb.Store
 	model, recipe artifact.ID
 	authority     trainingworkflow.SessionAuthority
+	dataset       string
 	observer      *trainingworkflow.Observer
 }
 
@@ -99,6 +102,16 @@ type routeSession struct {
 // for the model weights and admits the session before any weight touches
 // memory.
 func openSession(ctx context.Context, store *overgodb.Store, weights, dataset string) (routeSession, error) {
+	session, err := tokenSession(ctx, store, weights, dataset)
+	if err != nil {
+		return routeSession{}, err
+	}
+	return session.admitted(ctx)
+}
+
+// tokenSession binds the token-training recipe bootstrapped over the text
+// dataset for the model weights; it supervises nothing until admitted.
+func tokenSession(ctx context.Context, store *overgodb.Store, weights, dataset string) (routeSession, error) {
 	recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, weights, dataset)
 	if err != nil {
 		return routeSession{}, err
@@ -107,13 +120,21 @@ func openSession(ctx context.Context, store *overgodb.Store, weights, dataset st
 	if err != nil {
 		return routeSession{}, err
 	}
-	if session.observer, err = trainingworkflow.NewObserver(store, false); err != nil {
+	session.dataset = dataset
+	return session, nil
+}
+
+// admitted opens the session's observer and admits the session before any
+// weight touches memory.
+func (session routeSession) admitted(ctx context.Context) (routeSession, error) {
+	var err error
+	if session.observer, err = trainingworkflow.NewObserver(session.store, false); err != nil {
 		return routeSession{}, err
 	}
-	if err := session.observer.Admit(ctx, session.model, recipeID); err != nil {
+	if err := session.observer.Admit(ctx, session.model, session.recipe); err != nil {
 		return routeSession{}, err
 	}
-	fmt.Printf("session admitted: model=%s recipe=%s\n", session.model, recipeID)
+	fmt.Printf("session admitted: model=%s recipe=%s\n", session.model, session.recipe)
 	return session, nil
 }
 
@@ -132,13 +153,24 @@ func bindSession(ctx context.Context, store *overgodb.Store, recipeID artifact.I
 	return routeSession{store: store, model: definition.Model, recipe: recipeID, authority: authority}, nil
 }
 
-// checkpointed is a trainer whose training a checkpoint publishes: its
-// compiled program, its optimizer state, and the weights that state pairs
-// with.
-type checkpointed interface {
-	Program() trainingprogram.TrainingProgram
+// weightWriter is what a trainer hands the checkpoint it publishes: its
+// optimizer state and the weights that state pairs with.
+type weightWriter interface {
 	Snapshot() optimizer.State
 	SaveWeights(path string) error
+}
+
+// checkpointed is a trainer that compiled the program it trains under.
+type checkpointed interface {
+	weightWriter
+	Program() trainingprogram.TrainingProgram
+}
+
+// planned is a trainer whose checkpoint names the program its session's
+// objective compiles over the trainer's optimizer plan.
+type planned interface {
+	weightWriter
+	OptimizerPlan() optimizer.Plan
 }
 
 // publishTrained publishes, as a checkpoint at target, what trainer trained
@@ -149,7 +181,33 @@ func publishTrained(ctx context.Context, store *overgodb.Store, recipeID artifac
 	if err != nil {
 		return err
 	}
-	checkpoint, err := session.publish(ctx, target, trainer.Program(), trainer.Snapshot(), stream, func(stage string) error {
+	return session.publishWeights(ctx, target, trainer.Program(), trainer, stream)
+}
+
+// publishPlanned publishes, as a checkpoint at target, what trainer trained
+// over records of the session's text dataset, under the program the
+// session's objective compiles over the trainer's optimizer plan.
+func (session routeSession) publishPlanned(ctx context.Context, target string, trainer planned, records int) error {
+	raw, err := os.ReadFile(session.dataset)
+	if err != nil {
+		return err
+	}
+	stream, err := trainingworkflow.TextStream(raw, uint64(records))
+	if err != nil {
+		return err
+	}
+	program, err := trainingprogram.CompileObjectiveProgram(session.authority.Objective, nil, trainer.OptimizerPlan())
+	if err != nil {
+		return err
+	}
+	return session.publishWeights(ctx, target, program, trainer, stream)
+}
+
+// publishWeights publishes, as a checkpoint at target, what trainer trained
+// under program; stream is where the training stopped in the recipe
+// objective's dataset.
+func (session routeSession) publishWeights(ctx context.Context, target string, program trainingprogram.TrainingProgram, trainer weightWriter, stream trainingdata.StreamState) error {
+	checkpoint, err := session.publish(ctx, target, program, trainer.Snapshot(), stream, func(stage string) error {
 		return trainer.SaveWeights(filepath.Join(stage, trainingprogram.CheckpointWeights))
 	})
 	if err != nil {

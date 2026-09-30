@@ -307,7 +307,7 @@ func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentSt
 		return decodeStats, err
 	}
 	defer reader.Close()
-	weights, err := loadVAEDecoderOps(reader, plan)
+	weights, err := loadVAEOps(reader, plan.vaePlanCore, "decoder")
 	if err != nil {
 		return decodeStats, err
 	}

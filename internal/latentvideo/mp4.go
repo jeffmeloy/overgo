@@ -15,8 +15,8 @@ import (
 	"overgo/internal/processcontrol"
 )
 
-// MP4Encoder streams planar frames through one FFmpeg process.
-type MP4Encoder struct {
+// mp4Encoder streams planar frames through one FFmpeg process.
+type mp4Encoder struct {
 	supervised                          *processcontrol.Supervised
 	wait                                context.Context
 	input                               io.WriteCloser
@@ -27,7 +27,7 @@ type MP4Encoder struct {
 	fps, height, width, frames, changed int
 }
 
-func NewMP4Encoder(ctx context.Context, ffmpeg string, fps, height, width int, pixels PixelRange) (*MP4Encoder, error) {
+func NewMP4Encoder(ctx context.Context, ffmpeg string, fps, height, width int, pixels PixelRange) (*mp4Encoder, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -40,7 +40,7 @@ func NewMP4Encoder(ctx context.Context, ffmpeg string, fps, height, width int, p
 	if _, err := os.Stat(ffmpeg); err != nil {
 		return nil, fmt.Errorf("latent video: FFmpeg: %w", err)
 	}
-	encoder := &MP4Encoder{fps: fps, height: height, width: width, pixels: pixels, raw: make([]byte, media.RGBChannels*height*width), wait: ctx}
+	encoder := &mp4Encoder{fps: fps, height: height, width: width, pixels: pixels, raw: make([]byte, media.RGBChannels*height*width), wait: ctx}
 	frameInput, frameSource := io.Pipe()
 	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
 		Path: ffmpeg,
@@ -64,7 +64,7 @@ func NewMP4Encoder(ctx context.Context, ffmpeg string, fps, height, width int, p
 	return encoder, nil
 }
 
-func (s *MP4Encoder) Add(_ int, frame []float32, height, width int) error {
+func (s *mp4Encoder) Add(_ int, frame []float32, height, width int) error {
 	if s == nil || s.input == nil {
 		return errors.New("latent video: invalid MP4 frame")
 	}
@@ -97,7 +97,7 @@ func (s *MP4Encoder) Add(_ int, frame []float32, height, width int) error {
 	return nil
 }
 
-func (s *MP4Encoder) Finish() (EncodedVideo, error) {
+func (s *mp4Encoder) Finish() (EncodedVideo, error) {
 	if s == nil || s.input == nil || !checked.PositiveInts(s.frames) {
 		return EncodedVideo{}, errors.New("latent video: no MP4 frames emitted")
 	}
@@ -117,7 +117,7 @@ func (s *MP4Encoder) Finish() (EncodedVideo, error) {
 }
 
 // Close stops an unfinished encoder.
-func (s *MP4Encoder) Close() error {
+func (s *mp4Encoder) Close() error {
 	if s == nil {
 		return nil
 	}

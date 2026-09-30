@@ -198,13 +198,7 @@ func logBucket(value float64) int {
 	if value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
 		return -100
 	}
-	bucket := int(math.Floor(math.Log10(value)))
-	if bucket < -12 {
-		bucket = -12
-	}
-	if bucket > 12 {
-		bucket = 12
-	}
+	bucket := min(max(int(math.Floor(math.Log10(value))), -12), 12)
 	return bucket
 }
 

@@ -16,10 +16,10 @@ import (
 	"overgo/internal/processcontrol"
 )
 
-// CaptionedClip binds one on-disk clip to its corpus caption, so DiT
+// captionedClip binds one on-disk clip to its corpus caption, so DiT
 // training conditions on real video and real text rather than fixture
 // latents.
-type CaptionedClip struct {
+type captionedClip struct {
 	Name    string
 	Path    string
 	Caption string
@@ -34,7 +34,7 @@ const vidGenCaptionFile = "VidGen_1M_video_caption.json"
 // caption manifest is streamed -- a million-row corpus never loads
 // whole -- and a clip without a caption is skipped rather than trained
 // on with fabricated conditioning.
-func ListCaptionedClips(root string, limit int) ([]CaptionedClip, error) {
+func ListCaptionedClips(root string, limit int) ([]captionedClip, error) {
 	if !checked.PositiveInts(limit) {
 		return nil, errors.New("vidgen: clip limit must be positive")
 	}
@@ -80,12 +80,12 @@ func ListCaptionedClips(root string, limit int) ([]CaptionedClip, error) {
 		names = append(names, name)
 	}
 	slices.Sort(names)
-	clips := make([]CaptionedClip, 0, min(limit, len(names)))
+	clips := make([]captionedClip, 0, min(limit, len(names)))
 	for _, name := range names {
 		if len(clips) == limit {
 			break
 		}
-		clips = append(clips, CaptionedClip{Name: name, Path: wanted[name], Caption: captions[name]})
+		clips = append(clips, captionedClip{Name: name, Path: wanted[name], Caption: captions[name]})
 	}
 	if len(clips) == 0 {
 		return nil, fmt.Errorf("vidgen: no clip in %q carries a caption", root)
@@ -156,13 +156,13 @@ func DecodeClipSource(ctx context.Context, ffmpeg, path string, shape SourceVide
 // EncodeClipLatent runs one decoded clip through the checkpoint-derived
 // causal encoder and the profile's channel-wise affine, yielding the
 // normalized latent space the DiT trains in.
-func EncodeClipLatent(checkpoint string, graph VAEEncoderPlan, plan SourceCodecPlan, source []float32) ([]float32, error) {
+func EncodeClipLatent(checkpoint string, graph vaeEncoderPlan, plan sourceCodecPlan, source []float32) ([]float32, error) {
 	meanLatent, err := EncodeSourceVideo(checkpoint, graph, plan, source)
 	if err != nil {
 		return nil, err
 	}
 	normalized := make([]float32, len(meanLatent))
-	if err := NormalizeSourceLatent(normalized, meanLatent, plan); err != nil {
+	if err := normalizeSourceLatent(normalized, meanLatent, plan); err != nil {
 		return nil, err
 	}
 	return normalized, nil

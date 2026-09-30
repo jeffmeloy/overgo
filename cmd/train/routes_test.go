@@ -12,13 +12,14 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingprogram"
 )
 
 // TestTrainRoutesFoldedProbes holds each route, one subtest by its name, to
 // the probe command it replaced: the command is gone and the route is
 // reached by name through cmd/train. An unknown name is refused with the
 // routes listed, and the real Un-0 checkpoint trains through the
-// oscillatorimage route and descends.
+// oscillatorimage route, descends and publishes its checkpoint.
 func TestTrainRoutesFoldedProbes(t *testing.T) {
 	for name := range trainRoutes {
 		t.Run(name, func(t *testing.T) {
@@ -83,10 +84,11 @@ func TestTrainRoutesEveryProbe(t *testing.T) {
 var trainInvocation = []string{"go", "run", "./cmd/train"}
 
 // trainsUn0 trains the real Un-0 checkpoint through the oscillatorimage
-// route and holds it to descending.
+// route and holds it to descending and publishing the trained bootstrap.
 func trainsUn0(t *testing.T) {
 	testskip.Short(t, "trains the real Un-0 checkpoint")
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
+	repository := testutil.RepoRoot(t)
+	roots, err := dataroot.Resolve(repository)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +96,13 @@ func trainsUn0(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(model, "config.json")); err != nil {
 		testskip.NotApplicable(t, "the Un-0 checkpoint is absent at "+model)
 	}
-	if err := runRoute([]string{"oscillatorimage", "-model", model, "-steps", "2"}); err != nil {
+	out := filepath.Join(t.TempDir(), "checkpoint")
+	if err := runRoute([]string{"oscillatorimage", "-model", model, "-steps", "2",
+		"-stimulus", filepath.Join(repository, "docs", "verification", "un0-training-dataset.txt"),
+		"-store", filepath.Join(t.TempDir(), "store"), "-out", out}); err != nil {
 		t.Fatalf("oscillatorimage route on Un-0: %v", err)
+	}
+	if _, err := trainingprogram.LoadCheckpoint(out); err != nil {
+		t.Fatalf("the trained Un-0 bootstrap's checkpoint: %v", err)
 	}
 }

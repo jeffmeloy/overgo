@@ -21,10 +21,7 @@ import (
 func axisPositions(positions []RowPosition, axis int) []uint32 {
 	out := make([]uint32, len(positions))
 	for i, p := range positions {
-		v := p.axis(axis)
-		if v < 0 {
-			v = 0
-		}
+		v := max(p.axis(axis), 0)
 		out[i] = uint32(v)
 	}
 	return out

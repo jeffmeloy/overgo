@@ -118,6 +118,7 @@ type FinalLayerTrainer struct {
 	gradients                 []float32
 	norm, table, linear, bias struct{ start, end int }
 	stepper                   optimizer.Stepper
+	optimizerPlan             optimizer.Plan
 	config                    optimizer.Config
 	step                      int
 }
@@ -166,6 +167,7 @@ func NewFinalLayerTrainer(w FinalLayerWeights, eps float64, policy trainingprogr
 		s.slot.start, s.slot.end = specs[i].Start, specs[i].End
 		copy(trainer.weights[specs[i].Start:specs[i].End], s.values)
 	}
+	trainer.optimizerPlan = plan
 	trainer.stepper, err = optimizer.NewStepper(trainer.weights, trainer.gradients, plan, trainer.config)
 	if err != nil {
 		return nil, err
@@ -178,6 +180,19 @@ func (t *FinalLayerTrainer) ParameterCount() int { return len(t.weights) }
 
 // Config exposes the derived hyperparameters for evidence.
 func (t *FinalLayerTrainer) Config() optimizer.Config { return t.config }
+
+// OptimizerPlan is the compiled Muon plan over the packed organ: one group
+// per head tensor.
+func (t *FinalLayerTrainer) OptimizerPlan() optimizer.Plan { return t.optimizerPlan }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (t *FinalLayerTrainer) Snapshot() optimizer.State { return t.stepper.Snapshot() }
+
+// SaveWeights writes the trained organ at path, the weights Snapshot pairs
+// with.
+func (t *FinalLayerTrainer) SaveWeights(path string) error {
+	return optimizer.SavePlanWeights(path, t.optimizerPlan, t.weights)
+}
 
 // Close releases the stepper backend.
 func (t *FinalLayerTrainer) Close() error { return t.stepper.Close() }

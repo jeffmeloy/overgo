@@ -41,7 +41,7 @@ type GenerateRequest struct {
 
 // GenerationResult: output plus cumulative resident-session evidence.
 type GenerationResult struct {
-	Denoise       DenoiseResult
+	Denoise       denoiseResult
 	Decode        VAEDecodeStats
 	DenoiseMemory driver.MemoryStats
 	DecodeMemory  driver.MemoryStats
@@ -57,7 +57,7 @@ type Generator struct {
 	contextElements int
 	stats           VAELatentStats
 	denoiser        *DenoiserCUDASession
-	decoder         *VAEDecoderCUDASession
+	decoder         *vaeDecoderCUDASession
 	branches        map[[sha256.Size]byte]any
 }
 

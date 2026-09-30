@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -16,6 +17,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 // Graft viability's window layout and defaults: two train windows and one
@@ -44,10 +46,11 @@ const (
 var graftSeeds = []int64{graftSeedFirst, graftSeedSecond, graftSeedThird}
 
 // trainGraft is the graft route: the composition viability probe. It grafts a
-// donor component into a target layer and trains the bridge on held-out
-// windows (-target, -donor), or runs the whole-model chain probe (-chain),
-// commits a promotion-blocked bridge proposal (-propose), or runs the bridge
-// synthesis for a committed proposal (-synthesize).
+// donor component into a target layer, trains the bridge on held-out windows
+// and publishes each seed's trained bridge as a checkpoint (-target, -donor),
+// or runs the whole-model chain probe (-chain), commits a promotion-blocked
+// bridge proposal (-propose), or runs the bridge synthesis for a committed
+// proposal, publishing its bridges the same way (-synthesize).
 func trainGraft(flags *flag.FlagSet, args []string) error {
 	return graftViability(flags, args, os.Stdout)
 }
@@ -64,7 +67,8 @@ func graftViability(flags *flag.FlagSet, args []string, output io.Writer) error 
 	learningRate := flags.Float64("lr", 0, "bridge learning rate (<=0 derives n_params^-1/2)")
 	lrScale := flags.Float64("lr-scale", 0, "scale the derived learning rate (retrial protocol; effective only when -lr is unset)")
 	momentum := flags.Float64("mu", trainingprogram.BuiltinOptimizerPolicy().Momentum(), "Muon momentum")
-	recordStore := flags.String("record", "", "OvergoDB root: commit the experiment as a generation record with its verdict")
+	recordStore := flags.String("record", "", "OvergoDB root: commit the experiment as a generation record with its verdict, and the recipe authority and checkpoint records its trained bridges publish under")
+	out := flags.String("out", "", "directory each seed's trained bridge checkpoint publishes under, one directory per seed")
 	chain := flags.Bool("chain", false, "run the Tier-0 whole-model chain probe instead of the graft probe")
 	propose := flags.String("propose", "", "convert a similarity-retrieval JSON response into a blocked bridge proposal (path to the response)")
 	proposeTarget := flags.String("propose-target", "", "propose: target model artifact ID")
@@ -88,10 +92,10 @@ func graftViability(flags *flag.FlagSet, args []string, output io.Writer) error 
 		return runPropose(*propose, *proposeTarget, *proposeVerifier, *proposeBlocker, *recordStore, output)
 	}
 	if *synthesize != "" {
-		if flags.NArg() != 0 || *targetDir == "" || *donorDir == "" || *tokensPath == "" || *recordStore == "" || *deciderIdentity == "" {
-			return errors.New("usage: train -route graft -synthesize <proposal-id> -decider <evidence-id> -target <dir> -donor <dir> -tokens <ids.json> -record <overgodb>")
+		if flags.NArg() != 0 || *targetDir == "" || *donorDir == "" || *tokensPath == "" || *recordStore == "" || *out == "" || *deciderIdentity == "" {
+			return errors.New("usage: train -route graft -synthesize <proposal-id> -decider <evidence-id> -target <dir> -donor <dir> -tokens <ids.json> -record <overgodb> -out <dir>")
 		}
-		return runSynthesize(*synthesize, *deciderIdentity, *targetDir, *donorDir, *tokensPath, *recordStore, *steps, *window, *lrScale, *momentum, output)
+		return runSynthesize(*synthesize, *deciderIdentity, *targetDir, *donorDir, *tokensPath, *recordStore, *out, *steps, *window, *lrScale, *momentum, output)
 	}
 	if *chain {
 		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" || *recordStore == "" {
@@ -99,8 +103,8 @@ func graftViability(flags *flag.FlagSet, args []string, output io.Writer) error 
 		}
 		return runChain(*scorerDir, *drafterDir, *tokensPath, *recordStore, *prefix, *draft, *heldOut, *windows, output)
 	}
-	if flags.NArg() != 0 || *targetDir == "" || *donorDir == "" || *tokensPath == "" {
-		return errors.New("usage: train -route graft -target <dir> -donor <dir> -tokens <ids.json> [options]")
+	if flags.NArg() != 0 || *targetDir == "" || *donorDir == "" || *tokensPath == "" || *recordStore == "" || *out == "" {
+		return errors.New("usage: train -route graft -target <dir> -donor <dir> -tokens <ids.json> -record <overgodb> -out <dir> [options]")
 	}
 	var tokens []int
 	if err := jsonfile.Decode(*tokensPath, &tokens); err != nil {
@@ -117,21 +121,27 @@ func graftViability(flags *flag.FlagSet, args []string, output io.Writer) error 
 		Train:   [][]int{tokens[:*window], tokens[*window : graftTrainWindows*(*window)]},
 		HeldOut: tokens[graftTrainWindows*(*window) : graftWindows*(*window)],
 	}
+	ctx := context.Background()
+	store, err := overgodb.Open(*recordStore)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = store.Close() }()
+	session, err := bridgeSession(ctx, store, *targetDir, *tokensPath)
+	if err != nil {
+		return err
+	}
 	result, err := composition.RunViability(probeConfig)
 	if err != nil {
 		return err
 	}
-	if *recordStore != "" {
-		store, err := overgodb.Open(*recordStore)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = store.Close() }()
-		record, err := composition.RecordViability(store, probeConfig, result)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(output, "generation record committed: %s\n", record.ID)
+	record, err := composition.RecordViability(store, probeConfig, result)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "generation record committed: %s\n", record.ID)
+	if err := publishBridges(ctx, session, *out, result.Outcomes, *steps); err != nil {
+		return err
 	}
 	fmt.Fprintf(output, "donor component: %s (role=%s modality=%s) grafted at target layer %d\n",
 		result.DonorTensor, result.DonorContract.Role, result.DonorContract.Modality, result.GraftLayer)
@@ -149,6 +159,28 @@ func graftViability(flags *flag.FlagSet, args []string, output io.Writer) error 
 	}
 	fmt.Fprintf(output, "verdict: %s -- %s\n", verdict, result.Reason)
 	fmt.Fprintln(output, "audit: host-reference execution; single corpus slice; verdict binds only this artifact pair, layer, and budget")
+	return nil
+}
+
+// bridgeSession binds the token recipe bootstrapped over the token stream for
+// the graft target, the session the trained bridges publish under.
+func bridgeSession(ctx context.Context, store *overgodb.Store, targetDir, tokensPath string) (routeSession, error) {
+	weights, err := trainingworkflow.IdentifyModelWeights(targetDir)
+	if err != nil {
+		return routeSession{}, err
+	}
+	return tokenSession(ctx, store, weights, tokensPath)
+}
+
+// publishBridges publishes each seed's trained bridge as a checkpoint in its
+// own directory under out; every bridge took steps updates, one window of
+// the token stream each.
+func publishBridges(ctx context.Context, session routeSession, out string, outcomes []composition.SeedOutcome, steps int) error {
+	for _, outcome := range outcomes {
+		if err := session.publishPlanned(ctx, filepath.Join(out, fmt.Sprintf("seed-%d", outcome.Seed)), outcome.Bridge, steps); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -220,9 +252,10 @@ func runPropose(retrievalPath, targetModel, verifier, blocker, recordStore strin
 }
 
 // runSynthesize executes the full bridge-synthesis pipeline for one committed
-// blocked proposal, emitting a durable typed decision either way.
+// blocked proposal, emitting a durable typed decision either way and
+// publishing each seed's trained bridge under out.
 func runSynthesize(
-	proposalText, deciderText, targetDir, donorDir, tokensPath, recordStore string,
+	proposalText, deciderText, targetDir, donorDir, tokensPath, recordStore, out string,
 	steps, window int, lrScale, momentum float64,
 	output io.Writer,
 ) error {
@@ -246,7 +279,8 @@ func runSynthesize(
 		return err
 	}
 	defer func() { _ = store.Close() }()
-	content, ok, err := artifact.ReadContent(context.Background(), store, proposalID)
+	ctx := context.Background()
+	content, ok, err := artifact.ReadContent(ctx, store, proposalID)
 	if err != nil {
 		return err
 	}
@@ -261,6 +295,10 @@ func runSynthesize(
 	if err != nil {
 		return err
 	}
+	session, err := bridgeSession(ctx, store, targetDir, tokensPath)
+	if err != nil {
+		return err
+	}
 	outcome, err := composition.SynthesizeBridge(store, proposal, composition.Config{
 		TargetDir: targetDir, DonorDir: donorDir,
 		GraftLayer: -1, DonorLayer: -1,
@@ -270,6 +308,9 @@ func runSynthesize(
 		HeldOut: tokens[graftTrainWindows*window : graftWindows*window],
 	}, recipe.Decider{CodeCommit: revision, Derivation: deciderID})
 	if err != nil {
+		return err
+	}
+	if err := publishBridges(ctx, session, out, outcome.Result.Outcomes, steps); err != nil {
 		return err
 	}
 	verdict := "REFUSE"

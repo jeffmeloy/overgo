@@ -639,6 +639,195 @@
         ]
       },
       "scope": "The automation workspace, which no command ever opened, is deleted with its runtime, input documents and webhook ingress. The workflow runtime keeps every execution path a command reaches. The receipt runs program execution, restart recovery, the catalog boundary and the trigger registry on the new bytes."
+    },
+    {
+      "changes": {
+        "cmd/train/route_dit.go": {
+          "after_sha256": "7e99661bf086da33162a738814259e3594003bc10706f10a3417d64c2e63f63f",
+          "before_sha256": "3e8ebfa2b3068736f6c1cd2a31b999b865bcdc2fd47e755622910aec06054186",
+          "reason": "the dit route moves onto the shared bounded run and session, deleting its own loop, observer and weight hashing, and publishes the DiT masters as a checkpoint with -out; an -objective-alias run publishes none and refuses -out."
+        },
+        "internal/latentimage/train.go": {
+          "after_sha256": "41a8a70faf58d45b74d88d39c2c8d880a184fef9166a1f30f864ccf7722d6114",
+          "before_sha256": "1acbf4d9ed459f4fc725a81373e0df3065d8dac0471a8d9dd26f72a0ef1f5603",
+          "reason": "FinalLayerTrainer records its optimizer plan and gains OptimizerPlan, Snapshot and SaveWeights so flow-organ publishes its checkpoint; training is unchanged."
+        },
+        "internal/latentvideo/bounds.go": {
+          "after_sha256": "a4af2a82052b167cdd74298d5d7fe845e838684afcd1ac99558025eb11ba8d20",
+          "before_sha256": "ed209c89760ab24d73ad3cdadd3b6a9c89bc480f98891415a380cf25afdccace",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/denoiser.go": {
+          "after_sha256": "4a95a20b7a3313a848dc34d94a26ea3561809c415ce9b5c4236cbe9028cc1669",
+          "before_sha256": "e8c2ea7e019c928ed1fe504a1267d25372eadc5dc261522197afc1168cb27c9e",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/denoiser_session.go": {
+          "after_sha256": "c314337c35deb6cf82eb34611990ce0052a7f3fe7904202f013a413fedb7c56c",
+          "before_sha256": "1a3cf7187c107dd288bff68c6388915b8288a653776b1e2a55daaffe1fc419e6",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/dittrain.go": {
+          "after_sha256": "d4a6adfb8423737bafa1928f7f520fa3635d6514feb12837d57376c99f284fb5",
+          "before_sha256": "568cf5fea8fafe0105609acc828b681f379175ef1dfd687acde742a24f0cd8cc",
+          "reason": "the DiT trainer records its optimizer plan and gains OptimizerPlan, Snapshot and SaveWeights so the route publishes its checkpoint; the test-only forwardConditioned wrapper is deleted (its golden calls forwardConditionedRetained); its names are unexported where no other package selects them."
+        },
+        "internal/latentvideo/edit_form.go": {
+          "after_sha256": "d9e61aa05b4265642fd76a0cb31348462435e26e015648b887db7e215b229790",
+          "before_sha256": "7c241ff20b762c3ca3ea4332d908da48a2eab4bda6e21c0a72d60f0dd41c1494",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/encoder.go": {
+          "after_sha256": "a3ed83d2f13be2fd6f1fb487093b23707359c72115ea9c168edb86cafe2e09dd",
+          "before_sha256": "10378b0570f14706ff4ec2370c2939dceed690a0475fac7d641bc3aa0b34ff62",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/mp4.go": {
+          "after_sha256": "3c32e26391e561f02e126529342306381e05100a54c043ab8be4d802192ce509",
+          "before_sha256": "995f970d57b1681d74052ed2b8254f9249cc97e7a50dcc100c0e47335614972f",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/production.go": {
+          "after_sha256": "46fec45e94370b68f60a9148d5fd9aa9e2866a3c7a60778946ea5fc5875b4ebd",
+          "before_sha256": "b2f8aef5cbbcfbe43f7d70268ace25a636df473355f7d5494c49cfb9020362d3",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/production_cuda_windows.go": {
+          "after_sha256": "332b70d77389b84c91a0e09520b646cbb6f62eb3dbbeaa8d388739c8ec2cc428",
+          "before_sha256": "3ad8f943b451e250cafb9b60eb6cc1d10ff09afd06128dc65ba1e2553188756e",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/reference_edit.go": {
+          "after_sha256": "448f7f8060bd35f40470b7b1220f0c3f61e98653d011739e7d34a96c02af154c",
+          "before_sha256": "3f1b3b34e95d096b6eb89ad7a5ce41a91162745de3f0624442cf22990d3f9899",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/reference_edit_checkpoint.go": {
+          "after_sha256": "b5b47eabda8b4ff1cdc020d6f7b85e84cc882fdc244808cb24bf7e51aadfae79",
+          "before_sha256": "a26acdaea2cf97d67b41c19a5954c7da53afb8a086353b26a630342f0c6348a4",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/reference_edit_denoiser_session_windows.go": {
+          "after_sha256": "c0cfffb77c415607102a8c0afa6b2912c0f3dd14bfb96adbad78dd28b0b71ad9",
+          "before_sha256": "e4bd028b6d60b6319525f9b9d5c357cda49171d96e1224913cab24ed0bc48d00",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/reference_edit_runtime_cuda_windows.go": {
+          "after_sha256": "0b81f4ad9bebc216badb565a40e7108a1866b9cdac0f23080bf73a7dafb9680d",
+          "before_sha256": "e13b7cb2183736df7d96e2150f4a7bc5f37dea382099a6bb8d69ec48f71c1ae7",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/runtime.go": {
+          "after_sha256": "e8cadae0e4de8f69da57bdea23a72ae2d776b42e2d964d71b73521a6bf138d00",
+          "before_sha256": "7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/source_codec.go": {
+          "after_sha256": "dedd8b124dfcfa0bc62d844a90eb6bc1a03747b7dd4b9741fc7f98162e16ed3a",
+          "before_sha256": "fd1b1a3e9f7a296475cbed804a6fb8b35ff1f08880c0cbef7d17d3917bd915ef",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/source_codec_graph.go": {
+          "after_sha256": "f0fc8078da99920eafafd6be998a5aaa89f11d3b33f773bffd49fd44cc9a32dc",
+          "before_sha256": "f83e11ccf6752a568128ee84faa4fe987b0b668fd2892204673adf99d217954b",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/source_codec_session_windows.go": {
+          "after_sha256": "c2c0ddfecfe91a6f2b7ea7a50f12b440c8a5757380c57edf72dfc2847240c5b6",
+          "before_sha256": "45ed39d498d49cfd917bae2376bf365a14a2caabc52e4fe636f69d0694016702",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/textcond.go": {
+          "after_sha256": "04cd594a32884f0e92f1d1800e04e28f31bfd163f7718c4d32523d2f120cce46",
+          "before_sha256": "b0b6aeb075b94984af35ef2011272b40a4eddcdf6fab5fd2434dad20cea2ccd9",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/vae.go": {
+          "after_sha256": "522d0041256be828104b28d1b50ddc622284bd5a2b2e667361e3712a37012922",
+          "before_sha256": "334f879b281ba625726b9f016510934a7131055bb9e679fb082dc5ef75148bf1",
+          "reason": "the test-only loadVAEDecoderOps wrapper is deleted (its test calls loadVAEOps), and names no other package selects are unexported."
+        },
+        "internal/latentvideo/vae_session.go": {
+          "after_sha256": "a71b629ec2818ae265220a9f6a436158a31a98ae92b8fbfd490a85959b887abe",
+          "before_sha256": "77fdaf225f0676d573b89119a54264fd51c0f7c4e365c72a11fc800c6b6719e4",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/vidgen.go": {
+          "after_sha256": "519857344bd1a680b9937be472ea0b52839a44483dedcd59bb8f67429b733c53",
+          "before_sha256": "9c693dc48604e83e4ec3eae94240df3fcb09e3964950daf63621a3109508b397",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/latentvideo/wan_form.go": {
+          "after_sha256": "9e830524b678075e13081fd71be9c3ab61fc047eaf00ed85a8f5205488dd08f9",
+          "before_sha256": "be6b7a0bfdf537d79fd5214e4e8373abd40f4310392b5c02f704b167bdc91486",
+          "reason": "unexports names no other package selects (gopls rename, one declaration at a time) and go fix's modernizations; no behaviour changes."
+        },
+        "internal/oscillatorimage/trainer.go": {
+          "after_sha256": "5a9a5d84baa27c71e598d691829f13f38391dc99e62f39e992a9b3e348f55f85",
+          "before_sha256": "f76d22fba9616fcffcf0a5ef35b195cddabd942e5a68f551ba843e9963d82350",
+          "reason": "the trainer gains OptimizerPlan, Snapshot and SaveWeights over its tensor pack so the route publishes a checkpoint; training is unchanged."
+        },
+        "internal/routedlm/flowtrain.go": {
+          "after_sha256": "a8e9cdef8445c9986733d981b06afa7d1b19cc6767612acc418fceb7441a7c0e",
+          "before_sha256": "71cc0b89318c4186f7faab430724ecf037f9431b4e719ff83300728baee4e8ed",
+          "reason": "the trainer records its optimizer plan and gains OptimizerPlan, Snapshot and SaveWeights so its route publishes a checkpoint; training is unchanged."
+        },
+        "internal/routedlm/latentbridge.go": {
+          "after_sha256": "3c79d3800cd6d38d39d1b09c56f52a505785dab1d3c3fbe7b1e0b876aa3a48bc",
+          "before_sha256": "6dcb6c64ed4fcecc96d7713abb4fa94082956ed08e0c368e880d1b8386bc8634",
+          "reason": "the trainer records its optimizer plan and gains OptimizerPlan, Snapshot and SaveWeights so its route publishes a checkpoint; training is unchanged."
+        },
+        "internal/routedlm/mottrain.go": {
+          "after_sha256": "05f0a7b3b1728510f4f462eb0b416af4d797a3e9a531945f677158cd34d032a5",
+          "before_sha256": "dd366f9159f6fa1bacc281940b8c1432b925149f4f78d287b47a46d557d6c661",
+          "reason": "the trainer records its optimizer plan and gains OptimizerPlan, Snapshot and SaveWeights so its route publishes a checkpoint; training is unchanged."
+        },
+        "internal/routedlm/prompt.go": {
+          "after_sha256": "7eb7e7ccf5dad8eb2e48055dda5717b613d72e5099634ff4dbe6f0e9108649e2",
+          "before_sha256": "2a7af36b8749dcb60724131f09176a637aa060d42a2228724a5eff0245f51657",
+          "reason": "go fix's min/max modernization, which the landing gate applies to every changed package; no behaviour change."
+        },
+        "internal/routedlm/ropedevicegraph.go": {
+          "after_sha256": "11a64a4780e96ec742979355816deb26b2c8427ddacf3ebd36f400d9a383a3c3",
+          "before_sha256": "b7360c548847c8f62a953992131782e88c6deb35325a36e7c7e67efb72b8fada",
+          "reason": "go fix's min/max modernization, which the landing gate applies to every changed package; no behaviour change."
+        },
+        "internal/routedlm/terminal.go": {
+          "after_sha256": "bf828c965ff76c04021517603adb12cdba114d662dece61aed86b60af41b97c3",
+          "before_sha256": "befc5162932d49756c0fec3095396478b185a41dac4615552acf149f276a4da4",
+          "reason": "go fix's min/max modernization, which the landing gate applies to every changed package; no behaviour change."
+        }
+      },
+      "evidence": "evidence:sha256:ee6f9a45c419cb705a63ad9f0a9ef65a82156c3d9e44d95ae1ae52c6da949b78",
+      "id": "trainer-checkpoints-latentvideo-unexport",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/cmd/train": [
+          "TestEveryTrainRoutePublishesACheckpoint",
+          "TestTernaryMastersCheckpointRoundTripIsBitExact"
+        ],
+        "overgo/internal/latentimage": [
+          "TestFinalLayerTrainerCheckpointRoundTripIsBitExact"
+        ],
+        "overgo/internal/latentvideo": [
+          "TestDiTTrainerCheckpointRoundTripIsBitExact",
+          "TestDiTTrainerGoldenParityG3",
+          "TestDenoiserGoldenDenoiseG3",
+          "TestGIFEncoderFrameOrderAndTiming",
+          "TestVAEDecodeGoldenG3",
+          "TestVideoPixelRanges",
+          "TestWanLifecycleAcceptance"
+        ],
+        "overgo/internal/oscillatorimage": [
+          "TestTrainerCheckpointRoundTripIsBitExact"
+        ],
+        "overgo/internal/routedlm": [
+          "TestFlowHeadTrainerCheckpointRoundTripIsBitExact",
+          "TestLatentBridgeTrainerCheckpointRoundTripIsBitExact",
+          "TestModalityTransformerCheckpointRoundTripIsBitExact"
+        ]
+      },
+      "scope": "Every train route publishes the weights it trains: the DiT, flow-organ, mot and oscillatorimage trainers gain OptimizerPlan, Snapshot and SaveWeights, and the dit route moves onto the shared run. latentvideo's names no other package selects are unexported, and deadcode's test-only wrappers are deleted. The receipt runs, on the device with the integration tag, every new checkpoint round trip bit-exact, the DiT, VAE and denoiser goldens, and the Wan lifecycle acceptance on the real checkpoint."
     }
   ],
   "paths": [

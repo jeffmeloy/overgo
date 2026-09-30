@@ -12,7 +12,7 @@ import (
 	"overgo/internal/tensor"
 )
 
-type ReferenceEditCheckpoint struct {
+type referenceEditCheckpoint struct {
 	Path           string
 	Config         DenoiserConfig
 	SourceChannels int
@@ -21,8 +21,8 @@ type ReferenceEditCheckpoint struct {
 }
 
 // CompileReferenceEditCheckpoint: normalize and bind LiveEdit onto Wan.
-func CompileReferenceEditCheckpoint(path string, base DenoiserConfig) (ReferenceEditCheckpoint, error) {
-	var plan ReferenceEditCheckpoint
+func CompileReferenceEditCheckpoint(path string, base DenoiserConfig) (referenceEditCheckpoint, error) {
+	var plan referenceEditCheckpoint
 	if err := base.validate(); err != nil {
 		return plan, err
 	}
@@ -41,8 +41,8 @@ func CompileReferenceEditCheckpoint(path string, base DenoiserConfig) (Reference
 		}
 		seen[meta.Name] = true
 		normalized[index] = meta
-		if strings.HasPrefix(meta.Name, "blocks.") {
-			remainder := strings.TrimPrefix(meta.Name, "blocks.")
+		if after, ok := strings.CutPrefix(meta.Name, "blocks."); ok {
+			remainder := after
 			ordinal, parseErr := strconv.Atoi(strings.SplitN(remainder, ".", tensor.PairedExtent)[tensor.FirstOffset])
 			if parseErr == nil {
 				layers[ordinal] = true
@@ -108,7 +108,7 @@ func CompileReferenceEditCheckpoint(path string, base DenoiserConfig) (Reference
 	for index, binding := range textBindings {
 		byName[projectionTensorNames[index]] = binding
 	}
-	return ReferenceEditCheckpoint{Path: path, Config: live, SourceChannels: sourceChannels, Layers: len(layers), bindings: byName}, nil
+	return referenceEditCheckpoint{Path: path, Config: live, SourceChannels: sourceChannels, Layers: len(layers), bindings: byName}, nil
 }
 
 func normalizeReferenceEditName(name string) string {
@@ -128,18 +128,18 @@ func findTensor(metas []pytorchzip.TensorMeta, name string) (pytorchzip.TensorMe
 }
 
 // Binding: immutable named checkpoint binding.
-func (p ReferenceEditCheckpoint) Binding(name string) (pytorchzip.TensorBinding, bool) {
+func (p referenceEditCheckpoint) Binding(name string) (pytorchzip.TensorBinding, bool) {
 	binding, ok := p.bindings[name]
 	return binding, ok
 }
 
 // LoadWeights: stream the compiled checkpoint into shared denoiser storage.
-func (p ReferenceEditCheckpoint) LoadWeights() (*DenoiserWeights, error) {
+func (p referenceEditCheckpoint) LoadWeights() (*DenoiserWeights, error) {
 	return p.LoadDenoiserWeights(p.Layers)
 }
 
 // LoadDenoiserWeights streams common tensors plus the requested block prefix.
-func (p ReferenceEditCheckpoint) LoadDenoiserWeights(layers int) (*DenoiserWeights, error) {
+func (p referenceEditCheckpoint) LoadDenoiserWeights(layers int) (*DenoiserWeights, error) {
 	if !checked.PositiveInts(layers) || !checked.AtMostInt(layers, p.Layers) {
 		return nil, fmt.Errorf("reference edit checkpoint: layers=%d outside 1..%d", layers, p.Layers)
 	}
@@ -167,7 +167,7 @@ func (p ReferenceEditCheckpoint) LoadDenoiserWeights(layers int) (*DenoiserWeigh
 	return weights, nil
 }
 
-func (p ReferenceEditCheckpoint) loadTextProjection() (projectionWeights, int64, error) {
+func (p referenceEditCheckpoint) loadTextProjection() (projectionWeights, int64, error) {
 	var weights projectionWeights
 	reader, err := pytorchzip.Open(p.Path)
 	if err != nil {

@@ -20,7 +20,7 @@ const (
 	liveEditDeviceFrameOracle  = "19b2104b562a8fc93848aecf65737b58e9b50e0534dc96f85ffb1beb780061b1"
 )
 
-func newLiveEditRuntimeFixture(t *testing.T) (*ReferenceEditRuntime, []float32, []float32) {
+func newLiveEditRuntimeFixture(t *testing.T) (*referenceEditRuntime, []float32, []float32) {
 	t.Helper()
 	sourceShape := SourceVideoShape{Channels: 3, Frames: 5, Height: 16, Width: 32}
 	source := loadRealSourceCrops(t, sourceShape)

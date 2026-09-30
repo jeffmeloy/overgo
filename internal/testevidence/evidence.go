@@ -96,15 +96,6 @@ func (report GoTestReport) PackagePassed(packagePath string) bool {
 	return packagePath != "" && result.passed && result.tested && !result.incomplete
 }
 
-// GoTestJSONShort permits only explicitly classified short-mode exclusions.
-func GoTestJSONShort(out string) error {
-	report, err := GoTestJSONShortReport(out)
-	if err != nil {
-		return err
-	}
-	return RequireComplete(report)
-}
-
 // RequireComplete rejects failed, unfinished or unclassified
 // skipped tests. Classified short exclusions remain visible but are permitted.
 func RequireComplete(report GoTestReport) error {

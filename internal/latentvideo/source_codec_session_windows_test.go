@@ -55,7 +55,7 @@ func TestLiveEditSourceCodec(t *testing.T) {
 		t.Fatal(err)
 	}
 	hostWall := time.Since(hostStarted)
-	session, err := NewVAEEncoderCUDASession(checkpoint, graph, 0)
+	session, err := newVAEEncoderCUDASession(checkpoint, graph, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

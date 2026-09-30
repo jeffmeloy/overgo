@@ -29,8 +29,8 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-// DiTTrainStepResult: measured facts of one observed full-DiT training step.
-type DiTTrainStepResult = optimizer.ObservedStepResult
+// ditTrainStepResult: measured facts of one observed full-DiT training step.
+type ditTrainStepResult = optimizer.ObservedStepResult
 
 // DiTTrainBatch: one real training example — the (possibly source-extended)
 // noised latent, the raw frozen-encoder text rows, the flow timestep, and
@@ -45,8 +45,8 @@ type DiTTrainBatch struct {
 
 type ditSpan struct{ start, end int }
 
-// DiTTrainer: the packed full-DiT tensor set over the shared Muon stepper.
-type DiTTrainer struct {
+// ditTrainer: the packed full-DiT tensor set over the shared Muon stepper.
+type ditTrainer struct {
 	cfg      DenoiserConfig
 	textDim  int
 	geometry LatentGeometry
@@ -66,6 +66,8 @@ type DiTTrainer struct {
 	stepper optimizer.Stepper
 	optCfg  optimizer.Config
 	step    int
+
+	optimizerPlan optimizer.Plan
 }
 
 type ditTensorSpec struct {
@@ -129,7 +131,7 @@ func ditTensorSpecs(c DenoiserConfig, textDim int) []ditTensorSpec {
 // Muon plan. Base LR derives from the packed parameter count; momentum from
 // the CLT effective-samples rule. The trainer takes ownership of the loaded
 // tensor map, releasing each source slice as it packs (the map is emptied).
-func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, tensors map[string][]float32, policy trainingprogram.OptimizerPolicy) (*DiTTrainer, error) {
+func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, tensors map[string][]float32, policy trainingprogram.OptimizerPolicy) (*ditTrainer, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -156,7 +158,7 @@ func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, ten
 	}
 	headWidth := cfg.Dim / cfg.NumHeads
 	channels := model.ThreeAxisRotaryChannels(uint64(headWidth))
-	trainer := &DiTTrainer{
+	trainer := &ditTrainer{
 		cfg: cfg, textDim: textDim, geometry: geometry,
 		spans:        make(map[string]ditSpan),
 		axisChannels: [3]int{int(channels[0]), int(channels[1]), int(channels[2])},
@@ -214,6 +216,7 @@ func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, ten
 	if err != nil {
 		return nil, err
 	}
+	trainer.optimizerPlan = compiled
 	trainer.stepper, err = optimizer.NewStepper(trainer.weights, trainer.gradients, compiled, trainer.optCfg)
 	if err != nil {
 		return nil, err
@@ -222,15 +225,28 @@ func NewDiTTrainer(cfg DenoiserConfig, textDim int, geometry LatentGeometry, ten
 }
 
 // ParameterCount reports the packed trainable parameter total.
-func (t *DiTTrainer) ParameterCount() int { return len(t.weights) }
+func (t *ditTrainer) ParameterCount() int { return len(t.weights) }
 
 // Config exposes the derived hyperparameters for evidence.
-func (t *DiTTrainer) Config() optimizer.Config { return t.optCfg }
+func (t *ditTrainer) Config() optimizer.Config { return t.optCfg }
+
+// OptimizerPlan is the compiled Muon plan over the packed masters: one
+// group per checkpoint tensor.
+func (t *ditTrainer) OptimizerPlan() optimizer.Plan { return t.optimizerPlan }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (t *ditTrainer) Snapshot() optimizer.State { return t.stepper.Snapshot() }
+
+// SaveWeights writes the trained masters at path, the weights Snapshot pairs
+// with.
+func (t *ditTrainer) SaveWeights(path string) error {
+	return optimizer.SavePlanWeights(path, t.optimizerPlan, t.weights)
+}
 
 // Close releases the stepper backend.
-func (t *DiTTrainer) Close() error { return t.stepper.Close() }
+func (t *ditTrainer) Close() error { return t.stepper.Close() }
 
-func (t *DiTTrainer) view(name string) []float32 {
+func (t *ditTrainer) view(name string) []float32 {
 	s, ok := t.spans[name]
 	if !ok {
 		panic("dit train: unknown tensor " + name)
@@ -238,7 +254,7 @@ func (t *DiTTrainer) view(name string) []float32 {
 	return t.weights[s.start:s.end]
 }
 
-func (t *DiTTrainer) gradView(name string) []float32 {
+func (t *ditTrainer) gradView(name string) []float32 {
 	s, ok := t.spans[name]
 	if !ok {
 		panic("dit train: unknown tensor " + name)
@@ -259,7 +275,7 @@ type ditTextActs struct {
 	context    []float32 // [textLen, d]
 }
 
-func (t *DiTTrainer) projectText(rawText []float32, tokens int) (*ditTextActs, error) {
+func (t *ditTrainer) projectText(rawText []float32, tokens int) (*ditTextActs, error) {
 	d, textLen := t.cfg.Dim, t.cfg.TextLen
 	activeRows, err := representation.ActivePrefixRows(tokens, textLen)
 	if err != nil {
@@ -288,7 +304,7 @@ func (t *DiTTrainer) projectText(rawText []float32, tokens int) (*ditTextActs, e
 	return a, nil
 }
 
-func (t *DiTTrainer) projectTextBackward(a *ditTextActs, dContext []float32) {
+func (t *ditTrainer) projectTextBackward(a *ditTextActs, dContext []float32) {
 	d, textLen := t.cfg.Dim, t.cfg.TextLen
 	dProjected := make([]float32, a.activeRows*d)
 	copy(dProjected, dContext[:a.tokens*d])
@@ -322,7 +338,7 @@ type ditTimeActs struct {
 	blockE    []float32 // [6d]
 }
 
-func (t *DiTTrainer) timestepConditioning(timestep float64) (*ditTimeActs, error) {
+func (t *ditTrainer) timestepConditioning(timestep float64) (*ditTimeActs, error) {
 	if !checked.Finite64(timestep) {
 		return nil, fmt.Errorf("dit train: timestep is non-finite")
 	}
@@ -355,7 +371,7 @@ func (t *DiTTrainer) timestepConditioning(timestep float64) (*ditTimeActs, error
 // timestepBackward: dBlockE accumulates from all blocks' modulation chunks;
 // dHeadE from the head's shift and scale paths. Both flow into the shared
 // time_projection and time_embedding masters.
-func (t *DiTTrainer) timestepBackward(a *ditTimeActs, dBlockE, dHeadE []float32) {
+func (t *ditTrainer) timestepBackward(a *ditTimeActs, dBlockE, dHeadE []float32) {
 	d := t.cfg.Dim
 	blockWidth := media.PairedShiftScaleGateWidth(d)
 	hostmath.LinearWeightGradient(t.gradView("time_projection.1.weight"), a.headEAct, dBlockE, tensor.SingletonExtent, d, blockWidth)
@@ -383,7 +399,7 @@ type ditCrossActs struct {
 	v     []float32
 }
 
-func (t *DiTTrainer) crossContext(prefix string, context []float32) ditCrossActs {
+func (t *ditTrainer) crossContext(prefix string, context []float32) ditCrossActs {
 	d, textLen := t.cfg.Dim, t.cfg.TextLen
 	a := ditCrossActs{
 		kProj: make([]float32, textLen*d),
@@ -427,11 +443,11 @@ type ditBlockActs struct {
 	mVec     [6][]float32 // modulation + blockE chunk vectors
 }
 
-func (t *DiTTrainer) attentionScale() float64 {
+func (t *ditTrainer) attentionScale() float64 {
 	return 1 / math.Sqrt(float64(t.cfg.Dim/t.cfg.NumHeads))
 }
 
-func (t *DiTTrainer) blockForward(layer int, input, blockE []float32, cross ditCrossActs) ditBlockActs {
+func (t *ditTrainer) blockForward(layer int, input, blockE []float32, cross ditCrossActs) ditBlockActs {
 	cfg := t.cfg
 	d, f := cfg.Dim, cfg.FFNDim
 	seq, textLen := t.geometry.Seq, cfg.TextLen
@@ -528,7 +544,7 @@ func (t *DiTTrainer) blockForward(layer int, input, blockE []float32, cross ditC
 // the block's modulation grad and the shared dBlockE; cross K/V gradients
 // accumulate into the shared dContext. Returns the gradient at the block
 // input.
-func (t *DiTTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE, dContext []float32) []float32 {
+func (t *ditTrainer) blockBackward(layer int, a *ditBlockActs, dOutput, dBlockE, dContext []float32) []float32 {
 	cfg := t.cfg
 	d, f := cfg.Dim, cfg.FFNDim
 	seq, textLen := t.geometry.Seq, cfg.TextLen
@@ -704,7 +720,7 @@ type ditForward struct {
 // forward that produced the activations).
 // Kept on the trainer to avoid threading it through every block call.
 
-func (t *DiTTrainer) patchify(latent []float32) ([]float32, error) {
+func (t *ditTrainer) patchify(latent []float32) ([]float32, error) {
 	g, c := t.geometry, t.cfg
 	if len(latent) != g.Elements() {
 		return nil, fmt.Errorf("dit train: latent has %d elements, need %d", len(latent), g.Elements())
@@ -715,20 +731,13 @@ func (t *DiTTrainer) patchify(latent []float32) ([]float32, error) {
 	return out, nil
 }
 
-// forwardConditioned: patch embedding -> every block -> modulated head ->
-// unpatchified velocity, from an already-projected context and computed
-// conditioning (the seam the parity gate drives with committed goldens).
-func (t *DiTTrainer) forwardConditioned(latent, context, blockE, headE []float32) (*ditForward, error) {
-	return t.forwardConditionedRetained(latent, context, blockE, headE, true)
-}
-
 // forwardConditionedRetained runs the conditioned forward pass. With
 // retain, every block's full activation set is kept -- the golden
 // parity surface probes them. Without retain, only each block's entry
 // hidden survives (gradient checkpointing): the backward recomputes
 // one block's activations at a time, so peak activation memory is one
 // block plus the hidden chain instead of every block at once.
-func (t *DiTTrainer) forwardConditionedRetained(latent, context, blockE, headE []float32, retain bool) (*ditForward, error) {
+func (t *ditTrainer) forwardConditionedRetained(latent, context, blockE, headE []float32, retain bool) (*ditForward, error) {
 	cfg, g := t.cfg, t.geometry
 	d := cfg.Dim
 	seq := g.Seq
@@ -778,7 +787,7 @@ func (t *DiTTrainer) forwardConditionedRetained(latent, context, blockE, headE [
 	return state, nil
 }
 
-func (t *DiTTrainer) forward(batch DiTTrainBatch) (*ditForward, error) {
+func (t *ditTrainer) forward(batch DiTTrainBatch) (*ditForward, error) {
 	text, err := t.projectText(batch.RawText, batch.TextTokens)
 	if err != nil {
 		return nil, err
@@ -797,7 +806,7 @@ func (t *DiTTrainer) forward(batch DiTTrainBatch) (*ditForward, error) {
 
 // Loss: the training-precision forward and flow-matching MSE without
 // touching gradients.
-func (t *DiTTrainer) Loss(batch DiTTrainBatch) (float64, error) {
+func (t *ditTrainer) Loss(batch DiTTrainBatch) (float64, error) {
 	state, err := t.forward(batch)
 	if err != nil {
 		return 0, err
@@ -808,15 +817,15 @@ func (t *DiTTrainer) Loss(batch DiTTrainBatch) (float64, error) {
 
 // Step: one observed full-DiT training step — forward, flow-matching MSE,
 // full VJP into every packed master, Muon update.
-func (t *DiTTrainer) Step(batch DiTTrainBatch) (DiTTrainStepResult, error) {
+func (t *ditTrainer) Step(batch DiTTrainBatch) (ditTrainStepResult, error) {
 	loss, gradientL2, err := t.lossAndGradients(batch)
 	if err != nil {
-		return DiTTrainStepResult{}, err
+		return ditTrainStepResult{}, err
 	}
 	return optimizer.Advance(t.stepper, t.optCfg, &t.step, loss, gradientL2)
 }
 
-func (t *DiTTrainer) lossAndGradients(batch DiTTrainBatch) (float64, float64, error) {
+func (t *ditTrainer) lossAndGradients(batch DiTTrainBatch) (float64, float64, error) {
 	state, err := t.forward(batch)
 	if err != nil {
 		return 0, 0, err
@@ -888,7 +897,7 @@ func (t *DiTTrainer) lossAndGradients(batch DiTTrainBatch) (float64, float64, er
 // ProjectTextContext: the trainer's projected [textLen, dim] context for one
 // raw text row set — the evidence surface probes log against the committed
 // projected-context capture (Loss/Step run the same path internally).
-func (t *DiTTrainer) ProjectTextContext(rawText []float32, tokens int) ([]float32, error) {
+func (t *ditTrainer) ProjectTextContext(rawText []float32, tokens int) ([]float32, error) {
 	acts, err := t.projectText(rawText, tokens)
 	if err != nil {
 		return nil, err
@@ -924,7 +933,7 @@ func LoadDiTTrainerTensors(dir string, c DenoiserConfig) (map[string][]float32, 
 
 // LoadTrainerTensors: the LiveEdit-checkpoint variant — every denoiser
 // tensor plus the text projection from the compiled .pt bindings.
-func (p ReferenceEditCheckpoint) LoadTrainerTensors() (map[string][]float32, int, error) {
+func (p referenceEditCheckpoint) LoadTrainerTensors() (map[string][]float32, int, error) {
 	weights, err := p.LoadWeights()
 	if err != nil {
 		return nil, 0, err
@@ -961,7 +970,7 @@ func RawTextRows(ctx context.Context, spec TextConditioningSpec, prompt string) 
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	plan, err := CompileEncoderPlan(catalog.Tensors, EncoderConfig{RelativeMaxDistance: spec.RelativeMaxDistance, NormEps: spec.NormEps})
+	plan, err := CompileEncoderPlan(catalog.Tensors, encoderConfig{RelativeMaxDistance: spec.RelativeMaxDistance, NormEps: spec.NormEps})
 	if err != nil {
 		return nil, 0, 0, err
 	}

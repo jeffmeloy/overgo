@@ -153,6 +153,17 @@ func NewTrainer(model *Model, config optimizer.Config, seed int64) (*Trainer, er
 // ParameterCount reports the packed trainable parameter total.
 func (t *Trainer) ParameterCount() int { return t.pack.ParameterCount() }
 
+// OptimizerPlan is the compiled Muon plan over the packed model: one group
+// per trainable tensor.
+func (t *Trainer) OptimizerPlan() optimizer.Plan { return t.pack.Plan() }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (t *Trainer) Snapshot() optimizer.State { return t.stepper.Snapshot() }
+
+// SaveWeights writes the trained tensors at path, the weights Snapshot pairs
+// with.
+func (t *Trainer) SaveWeights(path string) error { return t.pack.Save(path) }
+
 // TrainableParameterCount returns optimizer extent without allocation.
 func (m *Model) TrainableParameterCount() (count int) {
 	if m == nil {

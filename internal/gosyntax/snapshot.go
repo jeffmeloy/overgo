@@ -4,19 +4,13 @@
 package gosyntax
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"go/ast"
-	"go/build"
-	"go/build/constraint"
 	"go/parser"
 	"go/token"
-	"io"
-	"maps"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -65,38 +59,6 @@ func (f File) Syntax() (*ast.File, error) {
 func (f File) Generated() (bool, error) {
 	syntax, err := f.Syntax()
 	return err == nil && (hasPathPart(f.Path, "generated") || ast.IsGenerated(syntax)), err
-}
-
-// BuildExpression returns the normalized leading source constraint. Filename
-// and toolchain context selection are owned by gosource.HostBuildSelection.
-func (f File) BuildExpression() (string, error) {
-	syntax, err := f.Syntax()
-	if err != nil {
-		return "", err
-	}
-	var legacy []string
-	for _, group := range syntax.Comments {
-		if group.End() > syntax.Package {
-			break
-		}
-		for _, comment := range group.List {
-			switch {
-			case constraint.IsGoBuild(comment.Text):
-				expression, err := constraint.Parse(comment.Text)
-				if err != nil {
-					return "", err
-				}
-				return expression.String(), nil
-			case constraint.IsPlusBuild(comment.Text):
-				expression, err := constraint.Parse(comment.Text)
-				if err != nil {
-					return "", err
-				}
-				legacy = append(legacy, "("+expression.String()+")")
-			}
-		}
-	}
-	return strings.Join(legacy, " && "), nil
 }
 
 // Line maps a position from Syntax to its physical line, ignoring //line
@@ -189,39 +151,6 @@ func DiscoverGo(root string, tops ...string) (Snapshot, error) {
 		}
 	}
 	return LoadGo(root, paths)
-}
-
-// Cover returns the selection with a decision for every snapshot file it
-// lacks, as a base snapshot holds a file the tree no longer has. Such a file
-// is matched by its own name and build constraints, and it belongs to the
-// package that places a sibling; a file with no placed sibling, its whole
-// package removed, stays undecided.
-func Cover(selection gosource.BuildSelection, snapshot Snapshot) (gosource.BuildSelection, error) {
-	goos, goarch, found := strings.Cut(selection.Context, "/")
-	if !found {
-		return gosource.BuildSelection{}, fmt.Errorf("build selection context %q is not GOOS/GOARCH", selection.Context)
-	}
-	places := map[string]string{}
-	for file, packagePath := range selection.Packages {
-		places[path.Dir(file)] = packagePath
-	}
-	covered := selection
-	covered.Files, covered.Packages = maps.Clone(selection.Files), maps.Clone(selection.Packages)
-	matcher := build.Default
-	matcher.GOOS, matcher.GOARCH = goos, goarch
-	for _, file := range snapshot.Files {
-		packagePath := places[path.Dir(file.Path)]
-		if _, known := selection.Files[file.Path]; known || packagePath == "" {
-			continue
-		}
-		matcher.OpenFile = func(string) (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(file.Data)), nil }
-		selected, err := matcher.MatchFile(path.Dir(file.Path), path.Base(file.Path))
-		if err != nil {
-			return gosource.BuildSelection{}, fmt.Errorf("build selection of removed file %s: %w", file.Path, err)
-		}
-		covered.Files[file.Path], covered.Packages[file.Path] = selected, packagePath
-	}
-	return covered, nil
 }
 
 func hasPathPart(path, want string) bool {

@@ -4,7 +4,9 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/checkpointtest"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingprogram"
 )
 
 func graftFixtureModels(t *testing.T) (*Model, *Model) {
@@ -146,4 +148,20 @@ func TestTrainBridgeReducesTrainingLoss(t *testing.T) {
 			t.Fatal("donor weights changed during bridge-only training")
 		}
 	}
+}
+
+// TestTrainedBridgeCheckpointRoundTripIsBitExact trains the bridge, publishes
+// its matrices and optimizer state as a checkpoint, and reads both back bit
+// for bit under the bridge's gradient names.
+func TestTrainedBridgeCheckpointRoundTripIsBitExact(t *testing.T) {
+	target, donor := graftFixtureModels(t)
+	graft := fixtureGraft(t, target, donor, 17)
+	if _, err := target.TrainBridge(graft, [][]int{{3, 1, 4, 1, 5, 9, 2, 6}}, 0.1, 0.9, 2); err != nil {
+		t.Fatal(err)
+	}
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, graft.OptimizerPlan())
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpointtest.RequireRoundTrip(t, program, graft, map[string][]float32{BridgeDownName: graft.Down, BridgeUpName: graft.Up})
 }

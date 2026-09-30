@@ -3,8 +3,6 @@ package plan
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -45,14 +43,4 @@ func gitCommand(ctx context.Context, repository string, arguments ...string) ([]
 		return nil, fmt.Errorf("plan: git %s: exit=%d: %s", strings.Join(arguments, " "), receipt.ExitCode, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.Bytes(), nil
-}
-
-// contractDigest identifies a row's contract: its item metadata and the one
-// step a worker holds.
-func contractDigest(item Item) ([sha256.Size]byte, error) {
-	encoded, err := json.Marshal(item)
-	if err != nil {
-		return [sha256.Size]byte{}, fmt.Errorf("plan: encode contract: %w", err)
-	}
-	return sha256.Sum256(encoded), nil
 }

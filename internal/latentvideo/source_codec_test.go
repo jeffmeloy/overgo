@@ -28,7 +28,7 @@ func TestLiveEditSourceCodecBoundary(t *testing.T) {
 		want[index], want[12+index] = float32(index), float32(index)
 	}
 	got := make([]float32, len(meanOutput))
-	if err := NormalizeSourceLatent(got, meanOutput, plan); err != nil {
+	if err := normalizeSourceLatent(got, meanOutput, plan); err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(got, want) {

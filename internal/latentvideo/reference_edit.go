@@ -17,7 +17,7 @@ type EditFlowConfig = sampling.EditFlowConfig
 // CompileEditFlowSigmas exposes the shared edit-flow schedule compiler.
 var CompileEditFlowSigmas = sampling.CompileEditFlowSigmas
 
-type EditModelConfig struct {
+type editModelConfig struct {
 	PatchSize     [3]int
 	InputChannels int
 	Dim           int
@@ -26,7 +26,7 @@ type EditModelConfig struct {
 	TrainSteps    int
 }
 
-type EditPlan struct {
+type editPlan struct {
 	Latent               LatentGeometry
 	SourceChannels       int
 	InputChannels        int
@@ -39,9 +39,9 @@ type EditPlan struct {
 	ContextRefreshCalls  int
 }
 
-// CompileEditPlan: shape-derived chunk and bounded-cache authority.
-func CompileEditPlan(config EditModelConfig, latent LatentGeometry, sourceChannels, framesPerChunk, localAttentionFrames int, timesteps []int64) (EditPlan, error) {
-	plan := EditPlan{Latent: latent, SourceChannels: sourceChannels}
+// compileEditPlan: shape-derived chunk and bounded-cache authority.
+func compileEditPlan(config editModelConfig, latent LatentGeometry, sourceChannels, framesPerChunk, localAttentionFrames int, timesteps []int64) (editPlan, error) {
+	plan := editPlan{Latent: latent, SourceChannels: sourceChannels}
 	if !checked.PositiveInts(latent.Channels, latent.LatentFrames, latent.LatentHeight, latent.LatentWidth, sourceChannels, framesPerChunk) {
 		return plan, errors.New("reference edit plan: incomplete geometry")
 	}
@@ -99,15 +99,15 @@ func CompileEditPlan(config EditModelConfig, latent LatentGeometry, sourceChanne
 	return plan, err
 }
 
-type EditPass string
+type editPass string
 
 const (
-	EditDenoise        EditPass = "denoise"
-	EditContextRefresh EditPass = "context_refresh"
+	editDenoise        editPass = "denoise"
+	editContextRefresh editPass = "context_refresh"
 )
 
-type EditStep struct {
-	Pass           EditPass
+type editStep struct {
+	Pass           editPass
 	Chunk          int
 	Step           int
 	StartFrame     int
@@ -118,8 +118,8 @@ type EditStep struct {
 	AdvanceHistory bool
 }
 
-// RunEditSchedule: chunk-outer, timestep-inner LiveEdit order.
-func RunEditSchedule(ctx context.Context, plan EditPlan, contextTimestep int64, visit func(context.Context, EditStep) error) error {
+// runEditSchedule: chunk-outer, timestep-inner LiveEdit order.
+func runEditSchedule(ctx context.Context, plan editPlan, contextTimestep int64, visit func(context.Context, editStep) error) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -135,12 +135,12 @@ func RunEditSchedule(ctx context.Context, plan EditPlan, contextTimestep int64, 
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if err := visit(ctx, EditStep{Pass: EditDenoise, Chunk: chunk, Step: step, StartFrame: startFrame, Frames: frames, StartToken: startToken, EndToken: endToken, Timestep: timestep, AdvanceHistory: checked.Equal(step, tensor.FirstOffset)}); err != nil {
+			if err := visit(ctx, editStep{Pass: editDenoise, Chunk: chunk, Step: step, StartFrame: startFrame, Frames: frames, StartToken: startToken, EndToken: endToken, Timestep: timestep, AdvanceHistory: checked.Equal(step, tensor.FirstOffset)}); err != nil {
 				return err
 			}
 			calls++
 		}
-		if err := visit(ctx, EditStep{Pass: EditContextRefresh, Chunk: chunk, Step: len(plan.Timesteps), StartFrame: startFrame, Frames: frames, StartToken: startToken, EndToken: endToken, Timestep: contextTimestep}); err != nil {
+		if err := visit(ctx, editStep{Pass: editContextRefresh, Chunk: chunk, Step: len(plan.Timesteps), StartFrame: startFrame, Frames: frames, StartToken: startToken, EndToken: endToken, Timestep: contextTimestep}); err != nil {
 			return err
 		}
 		calls++
@@ -152,32 +152,32 @@ func RunEditSchedule(ctx context.Context, plan EditPlan, contextTimestep int64, 
 	return nil
 }
 
-type EditArithmetic string
+type editArithmetic string
 
 const (
-	EditFP32 EditArithmetic = "fp32"
-	EditBF16 EditArithmetic = "bf16"
+	editFP32 editArithmetic = "fp32"
+	editBF16 editArithmetic = "bf16"
 )
 
-type EditSamplerRequest struct {
-	Plan            EditPlan
+type editSamplerRequest struct {
+	Plan            editPlan
 	InitialNoise    []float32
 	Source          []float32
 	Sigmas          []float32
 	ContextTimestep int64
-	Arithmetic      EditArithmetic
-	Denoise         func(context.Context, EditStep, []float32, []float32) error
-	Noise           func(context.Context, EditStep, []float32) error
-	CompleteChunk   func(context.Context, EditStep, []float32, []float32) error
+	Arithmetic      editArithmetic
+	Denoise         func(context.Context, editStep, []float32, []float32) error
+	Noise           func(context.Context, editStep, []float32) error
+	CompleteChunk   func(context.Context, editStep, []float32, []float32) error
 }
 
-type EditSamplerStats struct {
+type editSamplerStats struct {
 	DenoiseCalls, ContextRefreshCalls, NoiseCalls, PeakScratchElements int
 }
 
-// RunEditSampler: bounded no-pruning reference trajectory.
-func RunEditSampler(ctx context.Context, request EditSamplerRequest) ([]float32, EditSamplerStats, error) {
-	var stats EditSamplerStats
+// runEditSampler: bounded no-pruning reference trajectory.
+func runEditSampler(ctx context.Context, request editSamplerRequest) ([]float32, editSamplerStats, error) {
+	var stats editSamplerStats
 	plan, latent := request.Plan, request.Plan.Latent
 	fullElements, err := checkedProduct(latent.Channels, latent.LatentFrames, latent.LatentHeight, latent.LatentWidth)
 	if err != nil {
@@ -215,7 +215,7 @@ func RunEditSampler(ctx context.Context, request EditSamplerRequest) ([]float32,
 	output := make([]float32, fullElements)
 	activeChunk := checked.UnknownCount()
 	lastStep := checked.ReverseIndex(tensor.FirstOffset, len(plan.Timesteps))
-	err = RunEditSchedule(ctx, plan, request.ContextTimestep, func(ctx context.Context, step EditStep) error {
+	err = runEditSchedule(ctx, plan, request.ContextTimestep, func(ctx context.Context, step editStep) error {
 		elements, productErr := checkedProduct(latent.Channels, step.Frames, spatial)
 		if productErr != nil {
 			return productErr
@@ -227,7 +227,7 @@ func RunEditSampler(ctx context.Context, request EditSamplerRequest) ([]float32,
 		currentChunk, cleanChunk, workChunk := current[:elements], clean[:elements], work[:elements]
 		combinedChunk := combined[:elements+sourceElements]
 		if step.Chunk != activeChunk {
-			if step.Pass != EditDenoise || !checked.Equal(step.Step, tensor.FirstOffset) {
+			if step.Pass != editDenoise || !checked.Equal(step.Step, tensor.FirstOffset) {
 				return errors.New("reference edit sampler: invalid chunk start")
 			}
 			if err := media.CopyPlanarFrames(currentChunk, step.Frames, tensor.FirstOffset, request.InitialNoise, latent.LatentFrames, step.StartFrame, latent.Channels, step.Frames, spatial); err != nil {
@@ -243,7 +243,7 @@ func RunEditSampler(ctx context.Context, request EditSamplerRequest) ([]float32,
 		if err := request.Denoise(ctx, step, combinedChunk, workChunk); err != nil {
 			return err
 		}
-		if step.Pass == EditContextRefresh {
+		if step.Pass == editContextRefresh {
 			stats.ContextRefreshCalls++
 			if request.CompleteChunk != nil {
 				if err := request.CompleteChunk(ctx, step, currentChunk, sourceChunk); err != nil {
@@ -276,11 +276,11 @@ func RunEditSampler(ctx context.Context, request EditSamplerRequest) ([]float32,
 	return output, stats, err
 }
 
-func quantizeEdit(values []float32, arithmetic EditArithmetic) error {
+func quantizeEdit(values []float32, arithmetic editArithmetic) error {
 	switch arithmetic {
-	case EditFP32:
+	case editFP32:
 		return nil
-	case EditBF16:
+	case editBF16:
 		dtype.RoundBF16Slice(values)
 		return nil
 	default:

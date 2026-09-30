@@ -87,7 +87,7 @@ func TestDiTTrainerGoldenParityG3(t *testing.T) {
 	}
 	var worstSeam, worstBlock, worstBranch parityStat
 	for _, branch := range branches {
-		state, err := trainer.forwardConditioned(sampleIn, branch.context, timeActs.blockE, timeActs.headE)
+		state, err := trainer.forwardConditionedRetained(sampleIn, branch.context, timeActs.blockE, timeActs.headE, true)
 		if err != nil {
 			t.Fatal(err)
 		}

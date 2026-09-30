@@ -56,10 +56,7 @@ func streamedArgmaxDot(terminal TerminalWeights, cfg Config, vector []float32) (
 		return 0, 0, fmt.Errorf("routed lm terminal: head dtype %s unsupported", terminal.Head.DType)
 	}
 	rowBytes := d * elemBytes
-	chunkRows := terminalScratchBytes / rowBytes
-	if chunkRows < 1 {
-		chunkRows = 1
-	}
+	chunkRows := max(terminalScratchBytes/rowBytes, 1)
 	scratch := make([]byte, chunkRows*rowBytes)
 	bestID, bestLogit := -1, float32(math.Inf(-1))
 	for start := 0; start < cfg.VocabSize; start += chunkRows {

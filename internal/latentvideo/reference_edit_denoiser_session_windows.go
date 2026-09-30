@@ -16,16 +16,16 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-// ReferenceEditDenoiserStats reports retained one-chunk execution.
-type ReferenceEditDenoiserStats struct {
+// referenceEditDenoiserStats reports retained one-chunk execution.
+type referenceEditDenoiserStats struct {
 	Layers, Runs, ContextProjections int
 	HistoryTokens                    int
 	WeightBytes                      uint64
 }
 
-// ReferenceEditDenoiserCUDASession owns weights, text K/V, and retained
+// referenceEditDenoiserCUDASession owns weights, text K/V, and retained
 // per-layer self-attention K/V.
-type ReferenceEditDenoiserCUDASession struct {
+type referenceEditDenoiserCUDASession struct {
 	worker *device.Worker
 	cuda   *executor.Executor
 	allocs device.AllocationSet
@@ -42,17 +42,17 @@ type ReferenceEditDenoiserCUDASession struct {
 	historyProgram         *DenoiserProgram
 	historyFrames          int
 	ctx                    context.Context
-	stats                  ReferenceEditDenoiserStats
+	stats                  referenceEditDenoiserStats
 }
 
-// NewReferenceEditDenoiserCUDASession compiles each bounded prefix shape.
-func NewReferenceEditDenoiserCUDASession(
+// newReferenceEditDenoiserCUDASession compiles each bounded prefix shape.
+func newReferenceEditDenoiserCUDASession(
 	ctx context.Context,
-	checkpoint ReferenceEditCheckpoint,
+	checkpoint referenceEditCheckpoint,
 	geometry LatentGeometry,
 	layers, framesPerChunk, localAttentionFrames, totalFrames, ordinal int,
 	textContext []float32,
-) (session *ReferenceEditDenoiserCUDASession, err error) {
+) (session *referenceEditDenoiserCUDASession, err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -86,14 +86,14 @@ func NewReferenceEditDenoiserCUDASession(
 	if err != nil {
 		return nil, errors.Join(err, worker.Close())
 	}
-	session = &ReferenceEditDenoiserCUDASession{
+	session = &referenceEditDenoiserCUDASession{
 		worker: worker, cuda: cuda, allocs: device.NewAllocationSet(worker),
 		cold: cold, warm: make(map[int]*DenoiserProgram), warmExecutions: make(map[int]*executor.IndexedGraph),
 		targets: make(map[int]*executor.RetainedTargets), ctx: ctx,
-		stats: ReferenceEditDenoiserStats{Layers: layers, HistoryTokens: localAttentionFrames * geometry.Seq / framesPerChunk},
+		stats: referenceEditDenoiserStats{Layers: layers, HistoryTokens: localAttentionFrames * geometry.Seq / framesPerChunk},
 	}
 	for startFrame := framesPerChunk; startFrame < totalFrames; startFrame += framesPerChunk {
-		session.warm[startFrame], err = CompileDenoiserProgramHistory(config, weights, geometry, precision, DenoiserHistory{
+		session.warm[startFrame], err = compileDenoiserProgramHistory(config, weights, geometry, precision, denoiserHistory{
 			Tokens: startFrame * geometry.Seq / framesPerChunk, StartFrame: startFrame,
 		})
 		if err != nil {
@@ -146,7 +146,7 @@ func NewReferenceEditDenoiserCUDASession(
 	return session, nil
 }
 
-func (s *ReferenceEditDenoiserCUDASession) prepareHistoryCache(totalFrames int) error {
+func (s *referenceEditDenoiserCUDASession) prepareHistoryCache(totalFrames int) error {
 	programs := map[int]*DenoiserProgram{tensor.FirstOffset: s.cold}
 	executions := map[int]*executor.IndexedGraph{tensor.FirstOffset: s.coldExecution}
 	for startFrame, program := range s.warm {
@@ -231,7 +231,7 @@ func stepHistoryOutputs(program *DenoiserProgram) []*tensor.Tensor {
 	return outputs
 }
 
-func (s *ReferenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeights) error {
+func (s *referenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeights) error {
 	type binding struct {
 		execution *executor.IndexedGraph
 		node      *tensor.Tensor
@@ -291,7 +291,7 @@ func (s *ReferenceEditDenoiserCUDASession) uploadWeights(weights *DenoiserWeight
 	return nil
 }
 
-func (s *ReferenceEditDenoiserCUDASession) projectContext(textContext []float32) error {
+func (s *referenceEditDenoiserCUDASession) projectContext(textContext []float32) error {
 	value, err := feedValue(s.cold.contextInput, textContext, "reference edit context")
 	if err != nil {
 		return err
@@ -335,7 +335,7 @@ func (s *ReferenceEditDenoiserCUDASession) projectContext(textContext []float32)
 }
 
 // RunChunk executes one absolute-position chunk. commitHistory advances K/V.
-func (s *ReferenceEditDenoiserCUDASession) RunChunk(ctx context.Context, patchTokens, blockE, headE []float32, startFrame int, commitHistory bool) ([]float32, error) {
+func (s *referenceEditDenoiserCUDASession) RunChunk(ctx context.Context, patchTokens, blockE, headE []float32, startFrame int, commitHistory bool) ([]float32, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -387,21 +387,21 @@ func (s *ReferenceEditDenoiserCUDASession) RunChunk(ctx context.Context, patchTo
 	return head.Data, nil
 }
 
-func (s *ReferenceEditDenoiserCUDASession) Stats() ReferenceEditDenoiserStats {
+func (s *referenceEditDenoiserCUDASession) Stats() referenceEditDenoiserStats {
 	if s == nil {
-		return ReferenceEditDenoiserStats{}
+		return referenceEditDenoiserStats{}
 	}
 	return s.stats
 }
 
-func (s *ReferenceEditDenoiserCUDASession) MemoryStats() (driver.MemoryStats, error) {
+func (s *referenceEditDenoiserCUDASession) MemoryStats() (driver.MemoryStats, error) {
 	if s == nil || s.worker == nil {
 		return driver.MemoryStats{}, errors.New("reference edit denoiser: closed")
 	}
 	return s.worker.MemoryStats(s.ctx)
 }
 
-func (s *ReferenceEditDenoiserCUDASession) ExecutionStats() (driver.ExecutionStats, error) {
+func (s *referenceEditDenoiserCUDASession) ExecutionStats() (driver.ExecutionStats, error) {
 	if s == nil || s.worker == nil {
 		return driver.ExecutionStats{}, errors.New("reference edit denoiser: closed")
 	}
@@ -409,7 +409,7 @@ func (s *ReferenceEditDenoiserCUDASession) ExecutionStats() (driver.ExecutionSta
 }
 
 // ResetHistory starts a new request while retaining weights and text K/V.
-func (s *ReferenceEditDenoiserCUDASession) ResetHistory() error {
+func (s *referenceEditDenoiserCUDASession) ResetHistory() error {
 	if s == nil || s.cuda == nil {
 		return errors.New("reference edit denoiser: closed")
 	}
@@ -417,7 +417,7 @@ func (s *ReferenceEditDenoiserCUDASession) ResetHistory() error {
 	return nil
 }
 
-func (s *ReferenceEditDenoiserCUDASession) Close() error {
+func (s *referenceEditDenoiserCUDASession) Close() error {
 	if s == nil {
 		return nil
 	}

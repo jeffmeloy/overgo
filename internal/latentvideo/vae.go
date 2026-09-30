@@ -462,7 +462,7 @@ func prepareVAEDecode(scope, engine string, plan VAEDecoderPlan, opCount int, st
 	if err := checked.Length(z, plan.ZDim, latentFrames, latentH, latentW); err != nil {
 		return result, vaeDecodeGeometry{}, fmt.Errorf("%s: latent storage: %w", scope, err)
 	}
-	channels, frames, height, width, err := CompileVideoDecodeGeometry(plan, latentFrames, latentH, latentW)
+	channels, frames, height, width, err := compileVideoDecodeGeometry(plan, latentFrames, latentH, latentW)
 	if err != nil {
 		return result, vaeDecodeGeometry{}, err
 	}
@@ -554,10 +554,6 @@ func timeInterleaveInto(out, convolved []float32, c, frames, spatial int) error 
 }
 
 type vaeLoadedWeights = media.CodecBindings[[]float32]
-
-func loadVAEDecoderOps(reader *pytorchzip.Reader, plan VAEDecoderPlan) ([]vaeLoadedWeights, error) {
-	return loadVAEOps(reader, plan.vaePlanCore, "decoder")
-}
 
 func loadVAEOps(reader *pytorchzip.Reader, plan vaePlanCore, scope string) ([]vaeLoadedWeights, error) {
 	weights := make([]vaeLoadedWeights, len(plan.Operations))
@@ -779,10 +775,10 @@ func runVAEOp(op media.CodecOperation[pytorchzip.TensorBinding], values vaeLoade
 	return nil, 0, 0, 0, fmt.Errorf("vae decoder: unsupported op %d", op.Operator)
 }
 
-// CompileVideoDecodeGeometry returns output extents for a latent volume under the plan's
+// compileVideoDecodeGeometry returns output extents for a latent volume under the plan's
 // derived strides (frames = (F-1)*strideT + 1; the first latent frame decodes
 // to a single frame, every later one to strideT frames).
-func CompileVideoDecodeGeometry(plan VAEDecoderPlan, latentFrames, latentH, latentW int) (channels, frames, height, width int, err error) {
+func compileVideoDecodeGeometry(plan VAEDecoderPlan, latentFrames, latentH, latentW int) (channels, frames, height, width int, err error) {
 	if !checked.PositiveInts(plan.ZDim, plan.OutputChannels) {
 		return 0, 0, 0, 0, fmt.Errorf("vae decode shape: invalid plan %+v", plan.Stride)
 	}

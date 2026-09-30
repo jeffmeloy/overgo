@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/checkpointtest"
 	"overgo/internal/trainingprogram"
 
 	"overgo/internal/tensor/dtype"
@@ -84,6 +85,30 @@ func TestLatentBridgeTrainerDescends(t *testing.T) {
 	if !(after < first.Loss) {
 		t.Fatalf("bridge reconstruction did not descend: %.6f -> %.6f", first.Loss, after)
 	}
+}
+
+// TestLatentBridgeTrainerCheckpointRoundTripIsBitExact trains one step,
+// publishes the trainer's pair and optimizer state as a checkpoint, and
+// reads both back bit for bit under every projection tensor name.
+func TestLatentBridgeTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	trainer, err := NewLatentBridgeTrainer(tinyBridge(10, 3), trainingprogram.BuiltinOptimizerPolicy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	hidden, _, _ := flowStimulus(6, trainer.hidden, 1)
+	if _, err := trainer.Step(hidden); err != nil {
+		t.Fatal(err)
+	}
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentL2, nil, trainer.OptimizerPlan())
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := func(section span) []float32 { return trainer.weights[section.start:section.end] }
+	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
+		"bridge.down.weight": view(trainer.downW), "bridge.down.bias": view(trainer.downB),
+		"bridge.up.weight": view(trainer.upW), "bridge.up.bias": view(trainer.upB),
+	})
 }
 
 func TestLatentBridgeGradientMatchesFiniteDifference(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/checkpointtest"
 	"overgo/internal/trainingprogram"
 )
 
@@ -88,6 +89,30 @@ func TestFinalLayerTrainerDescends(t *testing.T) {
 	if !(after < first.Loss) {
 		t.Fatalf("final layer loss did not descend: %.6f -> %.6f", first.Loss, after)
 	}
+}
+
+// TestFinalLayerTrainerCheckpointRoundTripIsBitExact trains one step,
+// publishes the trainer's organ and optimizer state as a checkpoint, and
+// reads both back bit for bit under every head tensor name.
+func TestFinalLayerTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	trainer, err := NewFinalLayerTrainer(tinyFinalLayer(8, 4), 1e-6, trainingprogram.BuiltinOptimizerPolicy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	x, temb, target := finalStimulus(5, 8, 4)
+	if _, err := trainer.Step(x, temb, target); err != nil {
+		t.Fatal(err)
+	}
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, trainer.OptimizerPlan())
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := func(section struct{ start, end int }) []float32 { return trainer.weights[section.start:section.end] }
+	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
+		"final.norm": view(trainer.norm), "final.table": view(trainer.table),
+		"final.linear": view(trainer.linear), "final.bias": view(trainer.bias),
+	})
 }
 
 func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing.T) {

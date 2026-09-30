@@ -114,7 +114,7 @@ func ResolveProfile(modelDirectory string) (Profile, error) {
 	return profile, nil
 }
 
-func ReadProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (Profile, error) {
+func readProfile(ctx context.Context, store artifact.Reader, id artifact.ID) (Profile, error) {
 	return videoProfileCodec.Require(ctx, store, id)
 }
 
@@ -173,8 +173,8 @@ func GIFContent(video EncodedVideo) (artifact.Content, error) {
 	return encodedGIFContract.OwnedContentBytes(video.Data)
 }
 
-// GIFEncoder streams borrowed planar frames into one encoded artifact.
-type GIFEncoder struct {
+// gifEncoder streams borrowed planar frames into one encoded artifact.
+type gifEncoder struct {
 	fps       int
 	pixels    PixelRange
 	animation gif.GIF
@@ -184,18 +184,18 @@ type GIFEncoder struct {
 	width     int
 }
 
-func NewGIFEncoder(fps int, pixels PixelRange) (*GIFEncoder, error) {
+func NewGIFEncoder(fps int, pixels PixelRange) (*gifEncoder, error) {
 	if !checked.PositiveInts(fps) || !pixels.valid() {
 		return nil, errors.New("latent video: invalid GIF encoding policy")
 	}
-	encoder := &GIFEncoder{fps: fps, pixels: pixels}
+	encoder := &gifEncoder{fps: fps, pixels: pixels}
 	if _, err := media.GIFFrameDelay(fps, len(encoder.animation.Image)); err != nil {
 		return nil, err
 	}
 	return encoder, nil
 }
 
-func (s *GIFEncoder) Add(index int, frame []float32, height, width int) error {
+func (s *gifEncoder) Add(index int, frame []float32, height, width int) error {
 	if index != len(s.animation.Image) {
 		return errors.New("latent video: frame index is out of order")
 	}
@@ -249,7 +249,7 @@ func encodeVideoByte(value float32, pixels PixelRange) byte {
 	return media.UnitF32ToU8(value)
 }
 
-func (s *GIFEncoder) Finish() (EncodedVideo, error) {
+func (s *gifEncoder) Finish() (EncodedVideo, error) {
 	if !checked.NonemptyAll(s.animation.Image) {
 		return EncodedVideo{}, errors.New("latent video: no frames emitted")
 	}
@@ -285,7 +285,7 @@ type WanRequest struct {
 	Noise          sampling.CounterNoisePlan `json:"noise,omitzero"`
 }
 
-func ValidateWanRequest(request WanRequest) error {
+func validateWanRequest(request WanRequest) error {
 	if !checked.PositiveInts(request.Frames, request.Width, request.Height, request.Steps) {
 		return errors.New("latent video: incomplete Wan request")
 	}

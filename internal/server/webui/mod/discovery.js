@@ -26,6 +26,7 @@
           if (capability.stale) return " · stale";
           return capability.tier && capability.tier !== "verified" ? " · " + capability.tier : "";
         };
+        const names = overgo.modelNames(models);
         for (const entry of models) {
           const capabilities = el("span", {}, ...(entry.capabilities || []).map((capability) => el("span", {
             class: "tag mr-s1", title: capability.stale || capability.recipe, text: capability.task + standing(capability) })));
@@ -34,7 +35,7 @@
             try { await overgo.api.post("/library/providers/retire", { location: entry.location, reason: providerReason.value.trim() || "retired from the Library tab" }); refreshCatalog(); } catch (err) { catalogNote.replaceChildren(overgo.failure(err)); }
           } }) : "";
           // A model reads by its file and what it does; its identity follows for reference.
-          const line = overgo.tableRow([el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), capabilities,
+          const line = overgo.tableRow([el("span", { title: entry.location || "", text: names.get(entry.model) }), capabilities,
             el("span", { class: "note mono", title: entry.model, text: fmt.shortID(entry.model) }), entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]);
           ["Model", "Capabilities", "Identity", "Status"].forEach((label, index) => { line.children[index].dataset.label = label; });
           catalogBody.appendChild(line);

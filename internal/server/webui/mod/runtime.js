@@ -41,13 +41,18 @@
       }
       readLoop();
 
-      await overgo.read(error, () => overgo.modelInfo(), (info) => { identity.textContent = info.model.name || info.model.id || ""; }, { loading: null })();
+      // The served model reads by its name and how it runs; its identities wait in the line's title.
+      let modelName = "";
+      await overgo.read(error, () => overgo.modelInfo(), (info) => { modelName = info.model.name || ""; identity.textContent = modelName || info.model.id || ""; }, { loading: null })();
 
       function render(data) {
         error.replaceChildren();
         const session = data.session;
         const authority = data.authority || null;
-        if (authority) { identity.textContent = [authority.model, authority.recipe, authority.runtime, authority.residency].map(fmt.shortID).join("  "); }
+        if (authority) {
+          identity.textContent = [modelName || fmt.shortID(authority.model), authority.runtime, authority.residency].filter(Boolean).join(" · ");
+          identity.title = authority.model + "\n" + authority.recipe;
+        }
         summary.replaceChildren(
           overgo.stat("Active sessions", session.active),
           overgo.stat("Available", session.available),
@@ -170,7 +175,7 @@
           el("span", { class: "nowrap", text: new Date(Number(item.started_unix_ns) / 1e6).toLocaleString(undefined, { dateStyle: "short", timeStyle: "medium" }) }),
           el("span", { text: item.task + (item.compatibility ? " / peer" : "") }),
           el("span", { class: "tag " + (item.outcome === "succeeded" ? "ok" : "caution"), text: item.outcome }),
-          fmt.shortID(item.model), fmt.shortID(item.recipe), measure(fmt.elapsed(Number(item.measured_ns) / 1e6)),
+          el("span", { title: item.model, text: names.get(item.model) || fmt.shortID(item.model) }), fmt.shortID(item.recipe), measure(fmt.elapsed(Number(item.measured_ns) / 1e6)),
           fmt.grouped(item.usage.input_tokens || 0), fmt.grouped(item.usage.output_tokens || 0),
           measure(fmt.bytes(item.resources.host_to_device_bytes || 0)), measure(fmt.bytes(item.resources.device_to_host_bytes || 0))])));
 
@@ -188,6 +193,10 @@
           overgo.fold("Tool decisions", false, decisionTable),
           overgo.fold("Interaction replay", true, interactionTable));
       }
+
+      // A model reads by its catalogued name; one the catalog no longer lists keeps its short identity.
+      const catalog = await overgo.api.get("/catalog/models", { signal: overgo.signal }).catch(() => ({ models: [] }));
+      const names = overgo.modelNames(catalog.models || []);
 
       // The activity view listens only while it shows.
       overgo.subscribe((name, value) => {

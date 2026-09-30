@@ -494,6 +494,18 @@
     }));
   }
 
+  // modelNames: each catalogued model's name as a person tells it apart: its file, with as many folders
+  // above it as it takes when another model shares that name or the file is one shard of several.
+  function modelNames(entries) {
+    const path = (item) => (item.location || item.model || "").split(/[\\/]/).filter(Boolean);
+    const tail = (item, depth) => path(item).slice(-depth).join("/");
+    return new Map(entries.map((item) => {
+      let depth = /-\d+-of-\d+\./.test(tail(item, 1)) ? 2 : 1;
+      while (depth < path(item).length && entries.some((other) => other !== item && tail(other, depth) === tail(item, depth))) depth++;
+      return [item.model, tail(item, depth)];
+    }));
+  }
+
   // evidenceLine: a catalog entry's committed evidence, shown by the header and the picker alike.
   function evidenceLine(item) {
     const facts = [];
@@ -770,7 +782,7 @@
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, supportTag, supportRungs, modelSwitching, bindTaskModel,
+    api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, supportTag, supportRungs, modelNames, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors,
     getKey, setKey, modelInfo,
     displayToken, stat, turnTrend, fold, openLibrary, workspace, viewsOf, requestedView,
@@ -1113,6 +1125,7 @@
         // Every activated entry with bytes on disk is listed: a servable one with its evidence, declared
         // task capabilities and a serve control; a stale activation with the loader's reason and no control.
         const entries = (catalog.models || []).filter((item) => item.present && item.recipe);
+        const names = modelNames(entries);
         // An empty store names the two ways in; each opens the Library tab's form.
         if (!entries.length) {
           const starters = libraryStarters();
@@ -1124,7 +1137,7 @@
         try { remembered = localStorage.getItem(MODEL_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
         panel.replaceChildren(el("div", { class: "note", text: "Switch the served model; loading one can take a minute" + (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
           ...entries.map((item) => {
-            const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
+            const name = names.get(item.model);
             // Keyboard path: a focused row serves on Enter; the arrows move between rows.
             const row = el("div", { class: "row", tabindex: "0", onkeydown: (event) => {
               if (event.key === "Enter" && event.target === row) { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "Serve"); if (serve) serve.click(); }

@@ -5,20 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gui-names-first",
-      "title": "Name models by what tells them apart: a generic file name shows its folder, and Activity and Runtime lead with the model's name, identifiers second",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Name models by what tells them apart: a generic file name shows its folder, and Activity and Runtime lead with the model's name, identifiers second",
-          "status": "open",
-          "verify": "go run ./cmd/plan -next"
-        }
-      ]
-    },
-    {
       "id": "gui-state-controls",
       "title": "Offer only the controls the state allows and say the state truly: loop stop while running, agent pause or resume, Activity's running note, Generate's preset row, sentence-case pager, one sidebar width",
       "owner": "overgo_gui_cleanup",

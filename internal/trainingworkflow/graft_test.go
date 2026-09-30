@@ -1,17 +1,16 @@
-package composition
+package trainingworkflow
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/composition"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
-	"overgo/internal/trainingprogram"
 )
 
 const synthesisComponentTensor = "model.layers.0.mlp.gate_proj.weight"
@@ -21,23 +20,23 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 	targetDir, donorDir := filepath.Join(root, "target"), filepath.Join(root, "donor")
 	writeSynthesisModel(t, targetDir, 3)
 	writeSynthesisModel(t, donorDir, 5)
-	target, err := identifyDenseModel(targetDir)
+	target, err := identifyModel(targetDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	donor, err := identifyDenseModel(donorDir)
+	donor, err := identifyModel(donorDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ranker, err := TrainProposalRanker(nil, nil, nil)
+	ranker, err := composition.TrainProposalRanker(nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The donor's matching component is the one candidate; retrieval is not
 	// what this test holds.
-	candidates := []BridgeCandidate{{Donor: donor, Component: synthesisComponentTensor}}
-	proposal, err := NewBridgeProposal(target, candidates, ranker,
-		"go test ./internal/composition -run '^TestCompositeSynthesisUsesComponentSessionLifetimes$' -count=1",
+	candidates := []composition.BridgeCandidate{{Donor: donor, Component: synthesisComponentTensor}}
+	proposal, err := composition.NewBridgeProposal(target, candidates, ranker,
+		"go test ./internal/trainingworkflow -run '^TestCompositeSynthesisUsesComponentSessionLifetimes$' -count=1",
 		"bridge requires measured held-out evidence")
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +60,7 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 		Artifacts: []artifact.Descriptor{{ID: derivation}}}); err != nil {
 		t.Fatal(err)
 	}
-	outcome, err := SynthesizeBridge(store, proposal, Config{
+	outcome, err := SynthesizeBridge(store, proposal, GraftConfig{
 		TargetDir: targetDir, DonorDir: donorDir, GraftLayer: -1, DonorLayer: -1,
 		Seeds: []int64{7}, Steps: 1, BaseLR: 0.01, Momentum: 0.9,
 		Train: [][]int{{1, 2, 3, 4}, {2, 3, 4, 1}}, HeldOut: []int{1, 3, 2, 4},
@@ -124,14 +123,5 @@ func writeSynthesisModel(t *testing.T, directory string, seed int64) {
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
 		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: seed,
 	})
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := safetensors.Save(filepath.Join(directory, trainingprogram.CheckpointWeights), weights, shapes, nil); err != nil {
-		t.Fatal(err)
-	}
-	config := `{"model_type":"llama","num_attention_heads":2,"head_dim":4,"rope_theta":10000.0,"rms_norm_eps":1e-6,"tie_word_embeddings":true}`
-	if err := os.WriteFile(filepath.Join(directory, "config.json"), []byte(config), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeModel(t, directory, weights, shapes)
 }

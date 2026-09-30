@@ -16,6 +16,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 // Bridge-synthesis protocol, written before the run (Probe Discipline): the
@@ -91,7 +92,7 @@ func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 		Derivation: testutil.ArtifactID(t, artifact.KindEvidence, "synthesis-authority"),
 	}
 	started := time.Now()
-	outcome, err := composition.SynthesizeBridge(store, proposal, composition.Config{
+	outcome, err := trainingworkflow.SynthesizeBridge(store, proposal, trainingworkflow.GraftConfig{
 		TargetDir: targetDir, DonorDir: donorDir,
 		GraftLayer: -1, DonorLayer: -1,
 		Seeds: []int64{7, 11}, Steps: synthesisSteps,

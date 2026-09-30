@@ -113,7 +113,7 @@ func graftViability(flags *flag.FlagSet, args []string, output io.Writer) error 
 	if len(tokens) < graftWindows*(*window) {
 		return fmt.Errorf("need at least %d tokens for two train windows and one held-out window, got %d", graftWindows*(*window), len(tokens))
 	}
-	probeConfig := composition.Config{
+	probeConfig := trainingworkflow.GraftConfig{
 		TargetDir: *targetDir, DonorDir: *donorDir,
 		GraftLayer: *graftLayer, DonorLayer: *donorLayer,
 		Seeds: graftSeeds, Steps: *steps,
@@ -131,11 +131,11 @@ func graftViability(flags *flag.FlagSet, args []string, output io.Writer) error 
 	if err != nil {
 		return err
 	}
-	result, err := composition.RunViability(probeConfig)
+	result, err := trainingworkflow.RunGraftViability(probeConfig)
 	if err != nil {
 		return err
 	}
-	record, err := composition.RecordViability(store, probeConfig, result)
+	record, err := trainingworkflow.RecordGraftViability(store, probeConfig, result)
 	if err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func bridgeSession(ctx context.Context, store *overgodb.Store, targetDir, tokens
 // publishBridges publishes each seed's trained bridge as a checkpoint in its
 // own directory under out; every bridge took steps updates, one window of
 // the token stream each.
-func publishBridges(ctx context.Context, session routeSession, out string, outcomes []composition.SeedOutcome, steps int) error {
+func publishBridges(ctx context.Context, session routeSession, out string, outcomes []trainingworkflow.GraftSeedOutcome, steps int) error {
 	for _, outcome := range outcomes {
 		if err := session.publishPlanned(ctx, filepath.Join(out, fmt.Sprintf("seed-%d", outcome.Seed)), outcome.Bridge, steps); err != nil {
 			return err
@@ -299,7 +299,7 @@ func runSynthesize(
 	if err != nil {
 		return err
 	}
-	outcome, err := composition.SynthesizeBridge(store, proposal, composition.Config{
+	outcome, err := trainingworkflow.SynthesizeBridge(store, proposal, trainingworkflow.GraftConfig{
 		TargetDir: targetDir, DonorDir: donorDir,
 		GraftLayer: -1, DonorLayer: -1,
 		Seeds: graftSeeds, Steps: steps,
@@ -345,15 +345,15 @@ func runChain(scorerDir, drafterDir, tokensPath, recordStore string, prefix, dra
 		return err
 	}
 	defer func() { _ = store.Close() }()
-	chainConfig := composition.ChainConfig{
+	chainConfig := trainingworkflow.ChainConfig{
 		ScorerDir: scorerDir, DrafterDir: drafterDir,
 		Prefix: prefix, Draft: draft, Target: target, Windows: sliced,
 	}
-	result, err := composition.RunChainViability(store, chainConfig)
+	result, err := trainingworkflow.RunChainViability(store, chainConfig)
 	if err != nil {
 		return err
 	}
-	record, err := composition.RecordChainViability(store, chainConfig, result)
+	record, err := trainingworkflow.RecordChainViability(store, chainConfig, result)
 	if err != nil {
 		return err
 	}

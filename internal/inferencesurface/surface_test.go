@@ -66,6 +66,22 @@ func TestSurfaceOfTheRepositoryIsStable(t *testing.T) {
 	}
 }
 
+// TestTrainingLeavesTheSurface holds training outside the inference
+// surface, so a trainer edit does not expire every text model's guards. The
+// surface reached these packages only through composition's graft training
+// and its Tier-0 chain probe, which trainingworkflow now owns.
+func TestTrainingLeavesTheSurface(t *testing.T) {
+	packages, err := Packages(t.Context(), "../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pkg := range packages {
+		if slices.Contains([]string{"overgo/internal/densecausal", "overgo/internal/trainingprogram", "overgo/internal/trainingdata", "overgo/internal/trainingworkflow", "overgo/internal/capabilityruntime"}, pkg.ImportPath) {
+			t.Errorf("the inference surface reaches training package %s", pkg.ImportPath)
+		}
+	}
+}
+
 // TestSurfaceCoversEmbeddedInputsAndModules holds the surface to every
 // input inference reads, not only its Go sources: a file a closure package
 // embeds (the architecture catalog, the runtime policies, the compiled

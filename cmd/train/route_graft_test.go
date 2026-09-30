@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"overgo/internal/composition"
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 // TestGraftPublishesEachSeedsBridge runs the viability probe on a tiny target
@@ -71,16 +71,16 @@ func TestProbeRejectsUncompiledGenerationRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	config := composition.Config{
+	config := trainingworkflow.GraftConfig{
 		TargetDir: "fixture/target", DonorDir: "fixture/donor",
 		Seeds: []int64{7, 11, 13}, Steps: 6,
 	}
-	result := composition.Result{
+	result := trainingworkflow.GraftResult{
 		DonorTensor: "model.layers.14.mlp.gate_proj.weight", GraftLayer: 12,
 		Baseline: 4.849884, Ship: false,
 		Reason: "refusal: worst seed held-out 5.441688 does not beat baseline 4.849884",
 	}
-	if _, err := composition.RecordViability(store, config, result); err == nil {
+	if _, err := trainingworkflow.RecordGraftViability(store, config, result); err == nil {
 		t.Fatal("record accepted path-derived placeholder authority")
 	}
 }

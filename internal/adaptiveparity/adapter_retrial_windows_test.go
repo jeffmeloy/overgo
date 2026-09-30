@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/composition"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/trainingworkflow"
 )
 
 // Adapter-retrial protocol, written before the run (Probe Discipline): the
@@ -50,7 +50,7 @@ func TestAdapterRetrialProbe(t *testing.T) {
 	if len(tokens) < 3*retrialWindow {
 		t.Fatalf("recorded profile stream too short: %d tokens", len(tokens))
 	}
-	config := composition.Config{
+	config := trainingworkflow.GraftConfig{
 		TargetDir: targetDir, DonorDir: donorDir,
 		GraftLayer: -1, DonorLayer: -1,
 		Seeds: retrialSeeds, Steps: retrialSteps,
@@ -62,7 +62,7 @@ func TestAdapterRetrialProbe(t *testing.T) {
 		HeldOut: tokens[2*retrialWindow : 3*retrialWindow],
 	}
 	started := time.Now()
-	result, err := composition.RunViability(config)
+	result, err := trainingworkflow.RunGraftViability(config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestAdapterRetrialProbe(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	record, err := composition.RecordViability(store, config, result)
+	record, err := trainingworkflow.RecordGraftViability(store, config, result)
 	if err != nil {
 		t.Fatal(err)
 	}

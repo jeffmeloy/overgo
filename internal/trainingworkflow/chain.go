@@ -1,19 +1,11 @@
-// Tier-0 chain viability: compose two whole validated models through typed
-// workflowrecipe ports -- the drafter's generated text feeds the scorer's
-// tokenizer over a text edge, no latent bridging -- and measure whether the
-// chain's context beats the scorer's own single-model context on held-out
-// continuation cross-entropy. The verdict contract mirrors RunViability: SHIP
-// only if every window separates strictly below the single-model baseline;
-// anything else is a measured refusal, never a silent pass. Both arms execute
-// through the generic workflow runtime as content-addressed recipe artifacts,
-// so every probe run is replayable from its committed run records.
-package composition
+package trainingworkflow
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/densecausal"
@@ -21,13 +13,23 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/workflowrecipe"
 	"overgo/internal/workflowruntime"
 )
 
-// ChainConfig: the pre-written Tier-0 protocol. Windows are disjoint slices of
-// a recorded scorer-token stream; each window splits into a Prefix context, a
-// Draft gap both arms must fill generatively, and a Target the scorer predicts.
+// chainMinimumTokens is the fewest tokens the pre-written Tier-0 protocol
+// admits in a window's prefix and in its target.
+const chainMinimumTokens = 2
+
+// ChainConfig is the pre-written Tier-0 chain viability protocol: compose two
+// whole validated models through typed workflowrecipe ports -- the drafter's
+// generated text feeds the scorer's tokenizer over a text edge, no latent
+// bridging -- and measure whether the chain's context beats the scorer's own
+// single-model context on held-out continuation cross-entropy. Windows are
+// disjoint slices of a recorded scorer-token stream; each window splits into
+// a Prefix context, a Draft gap both arms must fill generatively, and a
+// Target the scorer predicts.
 type ChainConfig struct {
 	ScorerDir  string
 	DrafterDir string
@@ -37,7 +39,7 @@ type ChainConfig struct {
 	Windows    [][]int
 }
 
-// ChainWindowOutcome: one window's measured arms. ChainText is the exact
+// ChainWindowOutcome is one window's measured arms. ChainText is the exact
 // context text the two-model chain handed the scorer.
 type ChainWindowOutcome struct {
 	Window     int
@@ -46,8 +48,8 @@ type ChainWindowOutcome struct {
 	ChainText  string
 }
 
-// ChainResult: verdict plus the content-addressed recipe identities that make
-// the probe replayable.
+// ChainResult is the verdict plus the content-addressed recipe identities
+// that make the probe replayable.
 type ChainResult struct {
 	ChainRecipe    artifact.ID
 	BaselineRecipe artifact.ID
@@ -61,20 +63,25 @@ type chainModel struct {
 	tokenizer *hfbpe.Tokenizer
 }
 
-// RunChainViability executes the full Tier-0 experiment. It returns an error
-// only when the experiment could not run; a refusal is a successful experiment
+// RunChainViability executes the full Tier-0 experiment. The verdict
+// contract mirrors graft viability: SHIP only if every window separates
+// strictly below the single-model baseline; anything else is a measured
+// refusal, never a silent pass. Both arms execute through the generic
+// workflow runtime as content-addressed recipe artifacts, so every probe run
+// is replayable from its committed run records. It returns an error only
+// when the experiment could not run; a refusal is a successful experiment
 // whose verdict is Ship=false with the measured reason.
 func RunChainViability(store *overgodb.Store, config ChainConfig) (ChainResult, error) {
 	if store == nil {
-		return ChainResult{}, fmt.Errorf("composition: chain viability requires a store")
+		return ChainResult{}, fmt.Errorf("chain: viability requires a store")
 	}
-	if config.Prefix < 2 || config.Draft < 1 || config.Target < 2 || len(config.Windows) == 0 {
-		return ChainResult{}, fmt.Errorf("composition: chain prefix, draft, target and windows are required")
+	if config.Prefix < chainMinimumTokens || config.Draft < 1 || config.Target < chainMinimumTokens || len(config.Windows) == 0 {
+		return ChainResult{}, fmt.Errorf("chain: prefix, draft, target and windows are required")
 	}
 	span := config.Prefix + config.Draft + config.Target
 	for index, window := range config.Windows {
 		if len(window) < span {
-			return ChainResult{}, fmt.Errorf("composition: window %d has %d tokens, need %d", index, len(window), span)
+			return ChainResult{}, fmt.Errorf("chain: window %d has %d tokens, need %d", index, len(window), span)
 		}
 	}
 	scorerID, err := artifact.IdentifyBytes(artifact.KindModel, []byte("tier0-chain/v1:model:"+config.ScorerDir))
@@ -89,11 +96,11 @@ func RunChainViability(store *overgodb.Store, config ChainConfig) (ChainResult, 
 	for id, dir := range map[artifact.ID]string{scorerID: config.ScorerDir, drafterID: config.DrafterDir} {
 		loaded, err := densecausal.Load(dir)
 		if err != nil {
-			return ChainResult{}, fmt.Errorf("composition: load chain model: %w", err)
+			return ChainResult{}, fmt.Errorf("chain: load model: %w", err)
 		}
 		tokenizer, err := hfbpe.Load(dir)
 		if err != nil {
-			return ChainResult{}, fmt.Errorf("composition: load chain tokenizer: %w", err)
+			return ChainResult{}, fmt.Errorf("chain: load tokenizer: %w", err)
 		}
 		models[id] = &chainModel{model: loaded, tokenizer: tokenizer}
 	}
@@ -127,20 +134,20 @@ func RunChainViability(store *overgodb.Store, config ChainConfig) (ChainResult, 
 		chainCtx, chainText, err := executeChainArm(
 			ctx, runtime, chainProgram, "tier0-chain/chain/"+protocol, prefixText)
 		if err != nil {
-			return ChainResult{}, fmt.Errorf("composition: window %d chain arm: %w", index, err)
+			return ChainResult{}, fmt.Errorf("chain: window %d chain arm: %w", index, err)
 		}
 		baseCtx, _, err := executeChainArm(
 			ctx, runtime, baseProgram, "tier0-chain/baseline/"+protocol, prefixText)
 		if err != nil {
-			return ChainResult{}, fmt.Errorf("composition: window %d baseline arm: %w", index, err)
+			return ChainResult{}, fmt.Errorf("chain: window %d baseline arm: %w", index, err)
 		}
 		baselineCE, err := suffixCE(scorer.model, baseCtx, target)
 		if err != nil {
-			return ChainResult{}, fmt.Errorf("composition: window %d baseline score: %w", index, err)
+			return ChainResult{}, fmt.Errorf("chain: window %d baseline score: %w", index, err)
 		}
 		chainCE, err := suffixCE(scorer.model, chainCtx, target)
 		if err != nil {
-			return ChainResult{}, fmt.Errorf("composition: window %d chain score: %w", index, err)
+			return ChainResult{}, fmt.Errorf("chain: window %d chain score: %w", index, err)
 		}
 		result.Outcomes = append(result.Outcomes, ChainWindowOutcome{
 			Window: index, BaselineCE: baselineCE, ChainCE: chainCE, ChainText: chainText,
@@ -242,7 +249,7 @@ func registerChainAdapters(
 	resolve := func(request workflowruntime.StepRequest) (*chainModel, error) {
 		bound, ok := models[request.Model]
 		if !ok {
-			return nil, fmt.Errorf("composition: step model %s is not loaded", request.Model)
+			return nil, fmt.Errorf("chain: step model %s is not loaded", request.Model)
 		}
 		return bound, nil
 	}
@@ -327,7 +334,7 @@ func executeChainArm(
 	if value, ok := result.Outputs["context-text"]; ok {
 		datum, scalar := value.Single()
 		if !scalar {
-			return nil, "", fmt.Errorf("composition: chain context text is not scalar")
+			return nil, "", fmt.Errorf("chain: context text is not scalar")
 		}
 		text, _ = datum.Value.(string)
 	}
@@ -360,7 +367,7 @@ func greedyExtend(model *densecausal.Model, tokens []int, draft int) ([]int, err
 // positions, conditioned on the arm's context tokens.
 func suffixCE(model *densecausal.Model, contextTokens, target []int) (float64, error) {
 	if len(contextTokens) == 0 {
-		return 0, fmt.Errorf("composition: empty scoring context")
+		return 0, fmt.Errorf("chain: empty scoring context")
 	}
 	sequence := append(slices.Clone(contextTokens), target...)
 	_, logits, err := model.Loss(sequence)
@@ -410,11 +417,11 @@ func chainContent(data []byte, mediaType string) (artifact.Content, error) {
 func scalarString(request workflowruntime.StepRequest, name recipe.PortName) (string, error) {
 	datum, ok := request.Inputs[name].Single()
 	if !ok {
-		return "", fmt.Errorf("composition: input %q is not scalar", name)
+		return "", fmt.Errorf("chain: input %q is not scalar", name)
 	}
 	text, ok := datum.Value.(string)
 	if !ok {
-		return "", fmt.Errorf("composition: input %q is not text", name)
+		return "", fmt.Errorf("chain: input %q is not text", name)
 	}
 	return text, nil
 }
@@ -426,11 +433,146 @@ func scalarTokens(request workflowruntime.StepRequest, name recipe.PortName) ([]
 func singleTokens(value workflowruntime.Value) ([]int, error) {
 	datum, ok := value.Single()
 	if !ok {
-		return nil, fmt.Errorf("composition: token value is not scalar")
+		return nil, fmt.Errorf("chain: token value is not scalar")
 	}
 	tokens, ok := datum.Value.([]int)
 	if !ok {
-		return nil, fmt.Errorf("composition: token value has invalid type")
+		return nil, fmt.Errorf("chain: token value has invalid type")
 	}
 	return tokens, nil
+}
+
+// RecordChainViability commits the Tier-0 chain experiment as a typed
+// generation record: both whole models as parents, the content-addressed chain
+// recipe as the training plan (no components, no bridge -- a whole-model
+// child), and a decision identity carrying the SHIP or REFUSE reason. The
+// probe records refusals exactly as loudly as ships.
+func RecordChainViability(store *overgodb.Store, config ChainConfig, result ChainResult) (runrecord.GenerationRecord, error) {
+	must := func(kind artifact.Kind, payload string) artifact.ID {
+		id, err := artifact.IdentifyBytes(kind, []byte("tier0-chain/v1:"+payload))
+		if err != nil {
+			panic("chain: identify " + payload + ": " + err.Error())
+		}
+		return id
+	}
+	protocol := fmt.Sprintf("scorer=%s;drafter=%s;prefix=%d;draft=%d;target=%d;windows=%d",
+		config.ScorerDir, config.DrafterDir, config.Prefix, config.Draft, config.Target, len(config.Windows))
+	outcome := runrecord.OutcomeFailed
+	if result.Ship {
+		outcome = runrecord.OutcomeSucceeded
+	}
+	record, err := runrecord.NewGenerationRecord(runrecord.GenerationRecord{
+		Parents: []artifact.ID{
+			must(artifact.KindModel, "model:"+config.ScorerDir),
+			must(artifact.KindModel, "model:"+config.DrafterDir),
+		},
+		Child:        must(artifact.KindModel, "chained:"+protocol),
+		TrainingPlan: result.ChainRecipe,
+		Dataset:      must(artifact.KindDataset, "windows:"+protocol),
+		Split:        must(artifact.KindDatasetShard, "targets:"+protocol),
+		Evaluator:    must(artifact.KindEvidence, "evaluator:displaced-heldout-ce-envelope"),
+		Code:         must(artifact.KindEvidence, "code:"+protocol),
+		Environment:  must(artifact.KindEvidence, "environment:host-reference"),
+		Seeds:        []uint64{0},
+		Budget:       must(artifact.KindEvidence, fmt.Sprintf("budget:windows=%d;draft=%d;greedy-deterministic", len(config.Windows), config.Draft)),
+		Run:          must(artifact.KindRun, "run:"+protocol+";"+result.Reason),
+		Outcome:      outcome,
+		Decision:     must(artifact.KindEvidence, "decision:"+result.Reason),
+	})
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	// The chain and baseline recipes are NOT in this batch: the workflow
+	// runtime already committed them with full content facts, and a bare
+	// descriptor for the same identity would conflict.
+	static := append([]artifact.ID{record.Child,
+		record.Dataset, record.Split, record.Evaluator, record.Code, record.Environment,
+		record.Budget, record.Run, record.Decision}, record.Parents...)
+	descriptors := make([]artifact.Descriptor, len(static))
+	for index, id := range static {
+		descriptors[index] = artifact.Descriptor{ID: id}
+	}
+	ctx := context.Background()
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "tier0-chain/facts/" + record.ID.String(), Artifacts: descriptors}); err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	batch, err := record.Batch("tier0-chain/generation/" + record.ID.String())
+	if err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	if err := recordChainLifecycle(ctx, store, record, result); err != nil {
+		return runrecord.GenerationRecord{}, err
+	}
+	return record, nil
+}
+
+// recordChainLifecycle commits the probe's runtime history as the immutable
+// experiment state-machine chain: proposed through evaluated to the verdict
+// terminal, each transition bound to the generation record's own evidence.
+// The probe runs to completion in-process, so the recorded chain is the
+// already-elapsed history -- expiries are the bounds the run held, not
+// forward-looking leases.
+func recordChainLifecycle(
+	ctx context.Context,
+	store *overgodb.Store,
+	record runrecord.GenerationRecord,
+	result ChainResult,
+) error {
+	expiry := time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano)
+	transition := func(prior *runrecord.ExperimentLifecycle, state runrecord.ExperimentState, evidence artifact.ID, bounded bool) (runrecord.ExperimentLifecycle, error) {
+		value := runrecord.ExperimentLifecycle{
+			State: state, Experiment: record.ID, Evidence: evidence,
+		}
+		if prior != nil {
+			value.Retry = prior.Retry
+		}
+		if bounded {
+			value.HeartbeatExpiry = expiry
+		}
+		return runrecord.NewExperimentLifecycle(value, prior)
+	}
+	verdict := runrecord.ExperimentRefused
+	if record.Outcome == runrecord.OutcomeSucceeded {
+		verdict = runrecord.ExperimentPromoted
+	}
+	proposed, err := transition(nil, runrecord.ExperimentProposed, record.TrainingPlan, false)
+	if err != nil {
+		return err
+	}
+	admitted, err := transition(&proposed, runrecord.ExperimentAdmitted, record.Budget, false)
+	if err != nil {
+		return err
+	}
+	leased, err := transition(&admitted, runrecord.ExperimentLeased, record.Environment, true)
+	if err != nil {
+		return err
+	}
+	running, err := transition(&leased, runrecord.ExperimentRunning, record.Run, true)
+	if err != nil {
+		return err
+	}
+	evaluated, err := transition(&running, runrecord.ExperimentEvaluated, record.Evaluator, false)
+	if err != nil {
+		return err
+	}
+	terminal, err := transition(&evaluated, verdict, record.Decision, false)
+	if err != nil {
+		return err
+	}
+	lifecycles := [...]runrecord.ExperimentLifecycle{proposed, admitted, leased, running, evaluated, terminal}
+	contents := make([]artifact.Content, 0, len(lifecycles))
+	for _, lifecycle := range lifecycles {
+		content, err := lifecycle.Content()
+		if err != nil {
+			return err
+		}
+		contents = append(contents, content)
+	}
+	_, err = store.Commit(ctx, artifact.Batch{
+		Key: "tier0-chain/lifecycle/" + record.ID.String(), Contents: contents,
+	})
+	return err
 }

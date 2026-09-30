@@ -1,3 +1,5 @@
+// Package composition evaluates catalog-proposed component bridges.
+//
 // Catalog assembly: committed decompositions joined with measurements.
 package composition
 

@@ -4,6 +4,43 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "lane-cost",
+      "title": "Cut lane cost where a change's reach is wider than what it can affect",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "build-context",
+          "title": "Select lanes in the build context they run in",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLaneSelectionUsesTheLaneBuildContext$' -count=1",
+          "rationale": "SQA-037 (P2): lane selection lists packages without the build tags a lane runs with, so a change confined to a tagged-only dependency can leave its lane unselected. Declare each lane's build context once in its descriptor, for selection and execution, and delete listDirectories' duplicate decoder. Batch: internal/landing reaches no lane."
+        },
+        {
+          "id": "training-kernels",
+          "title": "Move training-only device kernels out of devicemath",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestTrainingKernelEditReachesOnlyTrainingLanes$' -count=1",
+          "rationale": "Owner, 2026-09-30: \"why are testing audio?\". The E4B landing (096df8d2f) ran the audio, webui, model-journey, e4b and cuda lanes because it restored one training-only VJP in internal/devicemath, which every GPU inference lane imports. Move the training-only device kernels (the windowed-attention backward and the other device VJPs) into a package that only trainers import, so a trainer edit runs the cuda lane alone. The move touches pinned media paths once, so it needs its reviewed delta. Batch: devicemath's six lanes, once; media reconciliation yes; guards no (devicemath is outside the surface)."
+        }
+      ]
+    },
+    {
+      "id": "loop-parts-wire-or-delete",
+      "title": "Trace the model-level loop parts' consumers, then retire the unreached",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Trace the model-level loop parts' consumers, then retire the unreached",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1",
+          "rationale": "Filed 2026-09-30 when improvement-loop closed the loop through the scorecard: measure, turn gaps into rows, then judge on held-out data and promote or revert.\n\nModel-level loop parts exist as separate pieces that the closed loop does not reach: strategy experiments, the improvement-fitness proof (cmd/loop -publish-fitness), rollout promotion, the circuit breaker, live rollback, quarantine re-entry, the autonomy ratchet and calibration. Together they are thousands of lines, each started by hand from cmd/recipe or cmd/seam-align.\n\nRecommendation: delete what the loop does not reach, and re-file any part a real scorecard gap later calls for. The loop's own chain already covers promotion (scorecard-gated fast-forward of main) and rollback (refusal leaves main where it is). Keep only a part that a gap the loop has actually filed needs.\n\nThe alternative is to wire each part into the loop's promote step, for example rollout promotion behind the held-out verdict. That is the owner's decision, since the doctrine names these parts core.\n\nServes: the promote-or-revert stage. Disappears: the unreached parts, or their standalone entry points if wired. Evidence: deadcode and the loop's own chain (cmd/loop improve.go). Batch: host.\n\nLanes (expected; the gate reads them from the diff): cuda until lanes-false-reach lands.\n\nOwner 2026-09-30: agreed, delete. The closed loop reused existing owners, so the unreached parts are exactly the limbo to cut.\n\nRe-scoped 2026-09-30 (owner review): trace, then retire. Each part's real consumers are traced first (entry points, stored records it writes that something reads, tests only). Refusing to advance main is not post-deployment rollback, so the live-rollback and circuit-breaker parts are judged on their own consumers, not assumed covered by the loop. Small confirmed deletions can land earlier, with any batch that touches their owner. Trace 2026-09-30 (from lanes-false-reach's measurement): internal/loop's circuit_breaker.go, live_rollback.go, rollout_promotion.go and quarantine_reentry.go (547 lines) are consumed in production only by cmd/recipe (breaker.go, live_rollback.go, promote_rollout.go, reenter.go), plus internal/loop's rsi_control_plane_test.go. They do not import scorecard. That production edge (cmd/recipe -\u003e internal/loop -\u003e scorecard) is the only lane reach left for loop and scorecard edits: audio (6m36s) and cuda (4m28s) on 14f3e021b. Retiring them, or moving them out of internal/loop to their one consumer, takes loop-driver and scorecard edits out of both lanes, saving about 11 minutes a landing. Decide each part on its own consumers: refusing to advance main is not post-deployment rollback.\n\nSQA 2026-09-30: SQA-066 (P2) publishes complete realization dependencies before recording composition attempts. SQA-067 (P2) carries the selected composition target through the stages instead of recovering it from donor names. Moving these parts out of internal/loop also takes loop and scorecard edits out of the audio and cuda lanes."
+        }
+      ]
+    },
+    {
       "id": "promotion-correctness",
       "title": "Promote only on current, comparable held-out evidence",
       "owner": "master-lead",
@@ -22,6 +59,28 @@
           "status": "open",
           "verify": "go test ./internal/scorecard ./internal/loop -run '^(TestComparisonIsTyped|TestLoopPromotesOnlyOnHeldOutFitness)$' -count=1",
           "rationale": "SQA-063 (P1), confirmed: Gaps only walks the published rows, and fell() needs an equal label, so a vanished baseline row or a switched suite (the \"another suite scores lower\" scenario) counts as holding. SQA-040 (P1): rows are paired by display name and task, not identity. SQA-041 (P2): serving aggregates mix measurement origins and lose their scope.\nOne comparison in internal/scorecard returns holding, regressed or unknown over the baseline's required scope. It pairs rows by model and task identity and typed metric, suite, protocol and source kind, with aggregates keeping their origin. Withheld, Gaps and validate's scorecardMoves all consume it. A missing row or changed contract is withheld until an explicit adoption; newly added optional metrics do not block. The no-fallback baseline, the local-only fast-forward and the expected-ref check stay. The internal/loop scenario \"another suite scores lower\" changes from promoting to withheld.\nOwner decision to take after both steps land: seed refs/heads/main at a measured commit, so the loop can promote at all.\nServes: promote or revert. Disappears: name- and label-keyed matching. Evidence: scorecard records. Batch: internal/scorecard and internal/loop reach audio and cuda through cmd/recipe until loop-parts-wire-or-delete moves those parts; no guards; no media."
+        },
+        {
+          "id": "seed-main",
+          "title": "Seed refs/heads/main at a measured commit, the owner's decision",
+          "status": "open",
+          "verify": "git rev-parse --verify refs/heads/main",
+          "rationale": "Local refs/heads/main does not exist, so every improvement cycle is withheld: \"no earlier scorecard measured the commit refs/heads/main holds\". After current-evidence and typed-comparison land, the owner chooses the commit main starts at (recommended: the commit of the newest complete scorecard record), and the next cycle can promote. It is never pushed. Batch: none (a local ref)."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-inference",
+      "title": "Measure inference's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure inference's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-inference",
+          "rationale": "- Bonsai-27B-Q1_0 held-out-quality: no evaluation of a derived benchmark suite\n- Bonsai-27B-Q1_0 failure-rate: no completed serving attempts recorded\n- Carbon-500M-f16-ropefix first-output: no benchmark time to first token and no serving prefill sample\n- Carbon-500M-f16-ropefix throughput: no benchmark decode rate and no served decode phase with output tokens\n- Carbon-500M-f16-ropefix failure-rate: no completed serving attempts recorded\n- Carbon-500M-f16-ropefix load-time: no benchmark load time and no recorded load phase\n- Carbon-500M-f16-ropefix peak-device-memory: no benchmark or serving peak device memory\n- MiniCPM5-1B-native-chat failure-rate: no completed serving attempts recorded\n- Qwen3.5-9B failure-rate: no completed serving attempts recorded\n- Unlimited-OCR-bf16 held-out-quality: no evaluation of a derived benchmark suite\n- Unlimited-OCR-bf16 failure-rate: no completed serving attempts recorded\n- gemma-4-12B-it-fp8 failure-rate: no completed serving attempts recorded\n- gemma-4-12B-it-fp8-native failure-rate: no completed serving attempts recorded\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline.\n\nOwner focus, 2026-09-30: ranked right after promotion-correctness. Under the strict rule, main promotes only when every applicable row has held-out quality, and the text models users run lack it. Measure held-out quality first, starting with the models users run; the other cells in this row follow. It is also the first real measurement of user-visible quality."
         }
       ]
     },
@@ -62,39 +121,31 @@
       ]
     },
     {
-      "id": "lane-cost",
-      "title": "Cut lane cost where a change's reach is wider than what it can affect",
+      "id": "training-publishes-servable-model",
+      "title": "Training publishes a servable model plus a binary resume sidecar",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
-          "id": "build-context",
-          "title": "Select lanes in the build context they run in",
+          "id": "servable-model",
+          "title": "Publish a training run's result as a model artifact the server, validate and the scorecard load directly",
           "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLaneSelectionUsesTheLaneBuildContext$' -count=1",
-          "rationale": "SQA-037 (P2): lane selection lists packages without the build tags a lane runs with, so a change confined to a tagged-only dependency can leave its lane unselected. Declare each lane's build context once in its descriptor, for selection and execution, and delete listDirectories' duplicate decoder. Batch: internal/landing reaches no lane."
+          "verify": "go test ./cmd/train -run '^TestTrainedModelLoadsForServing$' -count=1",
+          "rationale": "Owner-agreed design, 2026-09-30. Today a checkpoint is checkpoint.json plus a model.safetensors of the trained tensors only; for E4B that means no embeddings. Nothing turns it back into a servable model: the text serving path never loads checkpoints, gguf convert takes Hugging Face directories, and gguf merge joins shards. So a trained text model cannot be served, benchmarked, put on the scorecard or promoted, and the loop's train, judge and promote chain has no candidate.\nThe published result is the trained model:\n- the source family's layout, in the training dtype (bf16 or f32);\n- quantizing for serving is a separate derived artifact;\n- frozen tensors are shared from the base by content address, not copied;\n- an adapter or LoRA run publishes an adapter artifact that references its base;\n- scratch constructions (the controller) already are models.\nLineage to the base model, dataset, program and run stays as small lineage records. The held-out judge, the scorecard and promotion all refer to this one model identity. That is the fix SQA-014 asks for, so training-judge-integrity/heldout-binds-result binds to it.\nServes: train, then judge and promote. Disappears: the checkpoint's trained-tensors-only weights file as the output of training. Evidence: the model artifact and its lineage. Batch: cmd/train and trainingworkflow reach the cuda and server lanes; no guards, since trainingprogram is off the surface; no media unless a pinned trainer file moves."
         },
         {
-          "id": "training-kernels",
-          "title": "Move training-only device kernels out of devicemath",
+          "id": "resume-sidecar",
+          "title": "Keep momentum, stream position and RNG in a binary resume sidecar bound to the model",
           "status": "open",
-          "verify": "go test ./internal/landing -run '^TestTrainingKernelEditReachesOnlyTrainingLanes$' -count=1",
-          "rationale": "Owner, 2026-09-30: \"why are testing audio?\". The E4B landing (096df8d2f) ran the audio, webui, model-journey, e4b and cuda lanes because it restored one training-only VJP in internal/devicemath, which every GPU inference lane imports. Move the training-only device kernels (the windowed-attention backward and the other device VJPs) into a package that only trainers import, so a trainer edit runs the cuda lane alone. The move touches pinned media paths once, so it needs its reviewed delta. Batch: devicemath's six lanes, once; media reconciliation yes; guards no (devicemath is outside the surface)."
-        }
-      ]
-    },
-    {
-      "id": "loop-parts-wire-or-delete",
-      "title": "Trace the model-level loop parts' consumers, then retire the unreached",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
+          "verify": "go test ./internal/trainingprogram -run '^TestResumeSidecarRoundTripsBitExact$' -count=1",
+          "rationale": "Momentum, the dataset stream position and RNG only continue a run; they are not the model.\nMeasured 2026-09-30 for E4B's 3,973,352,490 trained parameters:\n- the momentum trains as f32 (15.9 GB) but is widened to f64 (31.8 GB) and written as JSON;\n- that is 21.6 to 23.6 bytes per value compact (86 to 94 GB) and 28.6 to 30.6 indented (114 to 122 GB on disk);\n- one publish serializes it five times and parses it once: NewCheckpoint's JSONID, MarshalIndent, then Batch's LoadCheckpoint parse and JSONID, ValidateIdentity's clone and JSONID, and a marshal that only measures length;\n- that exceeds memory, and even with unlimited memory it is about 27 min of CPU.\nReplace it with a sidecar in the trained dtype:\n- raw f32 momentum, streamed to disk and hashed while it is written;\n- stream position and RNG in a small document;\n- the sidecar is bound to the model by digest, and a run's sidecar may be collected once the run is judged.\nDelete the widening, the inline momentum array, and Batch's re-parse and length marshal. The round trip stays bit-exact. This closes finding evidence:sha256:c27671c2; dispose it when this lands.\nBatch: trainingprogram and hostoptimizer reach the cuda and server lanes; no guards."
+        },
         {
-          "id": "do",
-          "title": "Trace the model-level loop parts' consumers, then retire the unreached",
+          "id": "e4b-publishes",
+          "title": "The real E4B route publishes a model that serves",
           "status": "open",
-          "verify": "go test ./cmd/loop -count=1",
-          "rationale": "Filed 2026-09-30 when improvement-loop closed the loop through the scorecard: measure, turn gaps into rows, then judge on held-out data and promote or revert.\n\nModel-level loop parts exist as separate pieces that the closed loop does not reach: strategy experiments, the improvement-fitness proof (cmd/loop -publish-fitness), rollout promotion, the circuit breaker, live rollback, quarantine re-entry, the autonomy ratchet and calibration. Together they are thousands of lines, each started by hand from cmd/recipe or cmd/seam-align.\n\nRecommendation: delete what the loop does not reach, and re-file any part a real scorecard gap later calls for. The loop's own chain already covers promotion (scorecard-gated fast-forward of main) and rollback (refusal leaves main where it is). Keep only a part that a gap the loop has actually filed needs.\n\nThe alternative is to wire each part into the loop's promote step, for example rollout promotion behind the held-out verdict. That is the owner's decision, since the doctrine names these parts core.\n\nServes: the promote-or-revert stage. Disappears: the unreached parts, or their standalone entry points if wired. Evidence: deadcode and the loop's own chain (cmd/loop improve.go). Batch: host.\n\nLanes (expected; the gate reads them from the diff): cuda until lanes-false-reach lands.\n\nOwner 2026-09-30: agreed, delete. The closed loop reused existing owners, so the unreached parts are exactly the limbo to cut.\n\nRe-scoped 2026-09-30 (owner review): trace, then retire. Each part's real consumers are traced first (entry points, stored records it writes that something reads, tests only). Refusing to advance main is not post-deployment rollback, so the live-rollback and circuit-breaker parts are judged on their own consumers, not assumed covered by the loop. Small confirmed deletions can land earlier, with any batch that touches their owner. Trace 2026-09-30 (from lanes-false-reach's measurement): internal/loop's circuit_breaker.go, live_rollback.go, rollout_promotion.go and quarantine_reentry.go (547 lines) are consumed in production only by cmd/recipe (breaker.go, live_rollback.go, promote_rollout.go, reenter.go), plus internal/loop's rsi_control_plane_test.go. They do not import scorecard. That production edge (cmd/recipe -\u003e internal/loop -\u003e scorecard) is the only lane reach left for loop and scorecard edits: audio (6m36s) and cuda (4m28s) on 14f3e021b. Retiring them, or moving them out of internal/loop to their one consumer, takes loop-driver and scorecard edits out of both lanes, saving about 11 minutes a landing. Decide each part on its own consumers: refusing to advance main is not post-deployment rollback.\n\nSQA 2026-09-30: SQA-066 (P2) publishes complete realization dependencies before recording composition attempts. SQA-067 (P2) carries the selected composition target through the stages instead of recovering it from donor names. Moving these parts out of internal/loop also takes loop and scorecard edits out of the audio and cuda lanes."
+          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train -run '^TestE4BRoutePublishesAServableModel$' -count=1",
+          "rationale": "The proof end to end: train -route e4b on the real Gemma-4 E4B publishes its trained model and resume sidecar, and the server opens the model and answers a held-out prompt. The trainer landed in 096df8d2f but could not publish at this size. The hybrid 9B route should follow the same path (about 270 GB of JSON today). Batch: the cuda and e4b lanes."
         }
       ]
     },
@@ -160,7 +211,7 @@
           "title": "Bind held-out approval to the immutable trained output and exact evaluation inputs",
           "status": "open",
           "verify": "go test ./internal/trainingworkflow -run '^TestHeldoutApprovalReconstructsTheTrainedResult$' -count=1",
-          "rationale": "SQA-014 (P1): held-out approval cannot identify and reconstruct the trained result, and can accept inconsistent metric declarations. Extend the held-out report and publication contracts to bind the trained output and the exact evaluation inputs. Re-judge from retained case facts, not aggregates. Extend the TabFM and reloaded DPO fixtures for tampering. SQA-017 (P2): held-out lookup guesses the partner from all same-seed children; bind it to the actual pair. Batch: trainingworkflow reaches the server lanes."
+          "rationale": "SQA-014 (P1): held-out approval cannot identify and reconstruct the trained result, and can accept inconsistent metric declarations. Extend the held-out report and publication contracts to bind the trained output and the exact evaluation inputs. Re-judge from retained case facts, not aggregates. Extend the TabFM and reloaded DPO fixtures for tampering. SQA-017 (P2): held-out lookup guesses the partner from all same-seed children; bind it to the actual pair. Batch: trainingworkflow reaches the server lanes.\n\n2026-09-30: once training-publishes-servable-model/servable-model lands, bind approval to the published model's identity."
         },
         {
           "id": "route-publication-authority",
@@ -462,21 +513,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-image-gen",
           "rationale": "- Krea-2-Turbo first-output: no benchmark time to first token and no serving prefill sample\n- Krea-2-Turbo held-out-quality: no evaluation of a derived benchmark suite\n- Krea-2-Turbo failure-rate: no completed serving attempts recorded\n- Krea-2-Turbo load-time: no benchmark load time and no recorded load phase\n- Krea-2-Turbo peak-device-memory: no benchmark or serving peak device memory\n- SenseNova-U1-8B-MoT-Infographic-V3 first-output: no benchmark time to first token and no serving prefill sample\n- SenseNova-U1-8B-MoT-Infographic-V3 held-out-quality: no evaluation of a derived benchmark suite\n- SenseNova-U1-8B-MoT-Infographic-V3 failure-rate: no completed serving attempts recorded\n- SenseNova-U1-8B-MoT-Infographic-V3 load-time: no benchmark load time and no recorded load phase\n- SenseNova-U1-8B-MoT-Infographic-V3 peak-device-memory: no benchmark or serving peak device memory\n- SimpleDiffusion-TensorProductAttentionRope first-output: no benchmark time to first token and no serving prefill sample\n- SimpleDiffusion-TensorProductAttentionRope held-out-quality: no evaluation of a derived benchmark suite\n- SimpleDiffusion-TensorProductAttentionRope failure-rate: no completed serving attempts recorded\n- SimpleDiffusion-TensorProductAttentionRope load-time: no benchmark load time and no recorded load phase\n- SimpleDiffusion-TensorProductAttentionRope peak-device-memory: no benchmark or serving peak device memory\n- Un-0 first-output: no benchmark time to first token and no serving prefill sample\n- Un-0 held-out-quality: no evaluation of a derived benchmark suite\n- Un-0 failure-rate: no completed serving attempts recorded\n- Un-0 load-time: no benchmark load time and no recorded load phase\n- Un-0 peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unmeasured-inference",
-      "title": "Measure inference's unmeasured cells",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure inference's unmeasured cells",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-inference",
-          "rationale": "- Bonsai-27B-Q1_0 held-out-quality: no evaluation of a derived benchmark suite\n- Bonsai-27B-Q1_0 failure-rate: no completed serving attempts recorded\n- Carbon-500M-f16-ropefix first-output: no benchmark time to first token and no serving prefill sample\n- Carbon-500M-f16-ropefix throughput: no benchmark decode rate and no served decode phase with output tokens\n- Carbon-500M-f16-ropefix failure-rate: no completed serving attempts recorded\n- Carbon-500M-f16-ropefix load-time: no benchmark load time and no recorded load phase\n- Carbon-500M-f16-ropefix peak-device-memory: no benchmark or serving peak device memory\n- MiniCPM5-1B-native-chat failure-rate: no completed serving attempts recorded\n- Qwen3.5-9B failure-rate: no completed serving attempts recorded\n- Unlimited-OCR-bf16 held-out-quality: no evaluation of a derived benchmark suite\n- Unlimited-OCR-bf16 failure-rate: no completed serving attempts recorded\n- gemma-4-12B-it-fp8 failure-rate: no completed serving attempts recorded\n- gemma-4-12B-it-fp8-native failure-rate: no completed serving attempts recorded\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     },

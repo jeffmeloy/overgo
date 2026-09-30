@@ -42,20 +42,24 @@
       "title": "Promote only on current, comparable held-out evidence",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 380,
+        "reason": "current-evidence: one current-evidence decision for the dry run, -run and the inventory, and -repo carried to guard and media launches. Measured +379 nodes (SQA-053, SQA-046)."
+      },
       "steps": [
-        {
-          "id": "current-evidence",
-          "title": "Reuse validation evidence only when it is current, not because the last commit left its surface alone",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestReuseNeedsCurrentEvidence$' -count=1",
-          "rationale": "SQA-053 (P1), confirmed: validate -run reuses a cell when baseline..HEAD, HEAD~1 by default, did not move its surface, and credits the activation as evidence. A surface moved two commits back is reused as current, and that reuse now feeds promotion. Make inventory, the dry run and -run take one current-evidence decision from the validation owners: the current surface identity and the accepted record's own bindings, read once per invocation. Keep activation separate from acceptance, and keep unknown, inactive, unbound and operator-owned outcomes explicit. A short diff remains a reason to run, never proof of currency.\nSQA-046 (P2), same owner: validation drops the selected store when it launches guard and media work; carry -repo through.\nServes: measure and promote. Disappears: activation-as-evidence credit and the inventory-only currency branch. Evidence: validation records and surface digests. Batch: cmd/validate reaches no lane; no guards; no media."
-        },
         {
           "id": "typed-comparison",
           "title": "Compare scorecards by identity and typed metric; an incomparable or vanished quality is unknown, not holding",
           "status": "open",
           "verify": "go test ./internal/scorecard ./internal/loop -run '^(TestComparisonIsTyped|TestLoopPromotesOnlyOnHeldOutFitness)$' -count=1",
           "rationale": "SQA-063 (P1), confirmed: Gaps only walks the published rows, and fell() needs an equal label, so a vanished baseline row or a switched suite (the \"another suite scores lower\" scenario) counts as holding. SQA-040 (P1): rows are paired by display name and task, not identity. SQA-041 (P2): serving aggregates mix measurement origins and lose their scope.\nOne comparison in internal/scorecard returns holding, regressed or unknown over the baseline's required scope. It pairs rows by model and task identity and typed metric, suite, protocol and source kind, with aggregates keeping their origin. Withheld, Gaps and validate's scorecardMoves all consume it. A missing row or changed contract is withheld until an explicit adoption; newly added optional metrics do not block. The no-fallback baseline, the local-only fast-forward and the expected-ref check stay. The internal/loop scenario \"another suite scores lower\" changes from promoting to withheld.\nOwner decision to take after both steps land: seed refs/heads/main at a measured commit, so the loop can promote at all.\nServes: promote or revert. Disappears: name- and label-keyed matching. Evidence: scorecard records. Batch: internal/scorecard and internal/loop reach audio and cuda through cmd/recipe until loop-parts-wire-or-delete moves those parts; no guards; no media."
+        },
+        {
+          "id": "smoke-repo",
+          "title": "Bind DNA models' guard to the smoke lane on the selected store",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestDNAGuardBindsTheSmokeLane$' -count=1",
+          "rationale": "Filed 2026-09-30 by current-evidence. That step correctly refuses the stale reuse: Carbon, the DNA model, has a smoke run older than the inference-surface moves since 8e140ca0628c. But the text guard is the wrong producer for a DNA model, and cmd/smoke-lane has no -repo flag, so its cell stays unbound. Until this lands, validate -run reports '1 have no bound command' and exits nonzero, which withholds every improvement cycle. Add -repo to cmd/smoke-lane and bind it in reacquireCommand for DNA cells; then re-run Carbon's smoke through validate -run. Batch: cmd/validate and cmd/smoke-lane reach no lane."
         },
         {
           "id": "seed-main",

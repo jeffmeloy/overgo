@@ -22,18 +22,23 @@ const (
 )
 
 // reacquireCommand builds the command that re-acquires one validation cell's
-// evidence. It binds only the commands whose invocation is fully determined by
-// the cell today; an unbound kind returns an error so -run reports incomplete
-// coverage rather than fabricating a wrong command. Binding the remaining
-// modality producers (media proofs, accuracy benchmarks) is incremental.
-func reacquireCommand(cell ModelValidation) (string, []string, error) {
+// evidence into store, the one store this command selected and read, so the
+// producer never resolves a default of its own. It binds only the commands
+// whose invocation is fully determined by the cell today; an unbound kind --
+// a DNA model's smoke run, whose lane takes no -repo, or an accuracy
+// benchmark -- returns an error so -run reports incomplete coverage rather
+// than fabricating a wrong command.
+func reacquireCommand(cell ModelValidation, store string) (string, []string, error) {
 	switch cell.Validation {
 	case "guard":
-		if cell.Location == "" {
+		switch {
+		case cell.Location == "":
 			return "", nil, errors.New("guard re-acquisition needs a served model location")
+		case dnaGuard(cell):
+			return "", nil, errors.New("a DNA model's smoke run cannot be re-acquired into the selected store: the smoke lane takes no -repo")
 		}
 		return "go", []string{
-			"run", "./cmd/longform", "-guard", "-publish",
+			"run", "./cmd/longform", "-guard", "-publish", "-repo", store,
 			"-corpus", guardCorpus, "-budget", guardBudget, "-model-budget", guardModelBudget,
 			cell.Location,
 		}, nil
@@ -44,28 +49,29 @@ func reacquireCommand(cell ModelValidation) (string, []string, error) {
 		if cell.Location == "" {
 			return "", nil, errors.New("a capability measurement needs the model's location")
 		}
-		return "go", []string{"run", "./cmd/recipe", "measure", "-task", string(cell.Kind), cell.Location}, nil
+		return "go", []string{"run", "./cmd/recipe", "measure", "-repo", store, "-task", string(cell.Kind), cell.Location}, nil
 	default:
 		return "", nil, fmt.Errorf("no re-acquisition command bound for %s/%s", cell.Kind, cell.Validation)
 	}
 }
 
 // executeRun runs the selected cells' re-acquisition commands smallest-first
-// through the process owner. A cell that fails is reported, not accepted, and
-// the rest still run: one model's broken measurement withholds no other's.
-// Cells without a bound command are reported as incomplete coverage. An
-// empty run set is the clean "nothing to re-acquire" result the dry run
-// predicts for a commit that moves no surface.
-func executeRun(ctx context.Context, output io.Writer, root string, plan Plan) error {
+// through the process owner, each into the selected store. A cell that fails
+// is reported, not accepted, and the rest still run: one model's broken
+// measurement withholds no other's. Cells without a bound command are
+// reported as incomplete coverage. An empty run set is the clean "nothing to
+// re-acquire" result the dry run predicts when every judged cell's evidence
+// is current.
+func executeRun(ctx context.Context, output io.Writer, root, store string, plan Plan) error {
 	if len(plan.Run) == 0 {
-		fmt.Fprintf(output, "validate -run: nothing to re-acquire; %d reused, %d operator-owned, %d registered-inactive\n",
-			len(plan.Reuse), len(plan.OperatorOwned), len(plan.RegisteredInactive))
+		fmt.Fprintf(output, "validate -run: nothing to re-acquire; %d reused, %d unknown, %d operator-owned, %d registered-inactive\n",
+			len(plan.Reuse), len(plan.Unknown), len(plan.OperatorOwned), len(plan.RegisteredInactive))
 		return nil
 	}
 	var unbound, failed []string
 	acquired := 0
 	for index, sel := range plan.Run {
-		name, args, err := reacquireCommand(sel.ModelValidation)
+		name, args, err := reacquireCommand(sel.ModelValidation, store)
 		if err != nil {
 			unbound = append(unbound, fmt.Sprintf("%s %s: %v", displayName(sel.ModelValidation), sel.Validation, err))
 			continue

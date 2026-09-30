@@ -37,7 +37,7 @@ func TestInventoryResolvesARelativeRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	cells := []ModelValidation{{Model: model, Location: weights}}
-	inventory := buildInventory(directories, cells, nil, func(ModelValidation) error { return nil })
+	inventory := buildInventory(directories, cells, nil, func(ModelValidation) error { return nil }, "C:/stores/selected")
 	if len(inventory) != 1 || inventory[0].Standing != standingRegistered || len(inventory[0].Models) != 1 {
 		t.Fatalf("a registered model under a relative root was not tied to its directory: %+v", inventory)
 	}
@@ -72,13 +72,13 @@ func TestEveryEvidenceEntryHasACurrencyOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	evidence, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("accepted"))
+	activation, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("accepted"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	cells := []ModelValidation{{Model: model, Location: "C:/models/Trained/m.safetensors", Validation: "training-proof", Surface: "training", Evidence: evidence}}
+	cells := []ModelValidation{{Model: model, Location: "C:/models/Trained/m.safetensors", Validation: "training-proof", Surface: "training", Recipe: activation}}
 	inventory := buildInventory([]modelDirectory{{Path: "C:/models/Trained", Weights: true}}, cells, nil,
-		func(ModelValidation) error { return errCellNotJudged })
+		func(ModelValidation) error { return errCellNotJudged }, "C:/stores/selected")
 	if got := inventory[0].Models[0]; got.Standing != standingActivated || got.Currency != excludedSurfaces["training"] {
 		t.Fatalf("training-only model = %s %q", got.Standing, got.Currency)
 	}
@@ -97,14 +97,14 @@ func TestInventoryNamesTheProvenFile(t *testing.T) {
 		}
 		return id
 	}
-	evidence, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("accepted"))
+	activation, err := artifact.IdentifyBytes(artifact.KindRecipe, []byte("accepted"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	superseded, proven, unproven := identify("superseded"), identify("proven"), identify("unproven")
 	cells := []ModelValidation{
 		{Model: superseded, Location: "C:/models/Model/model-f16.gguf"},
-		{Model: proven, Location: "C:/models/Model/model-ropefix.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
+		{Model: proven, Location: "C:/models/Model/model-ropefix.gguf", Validation: guardValidation, Surface: "inference", Recipe: activation},
 		{Model: unproven, Location: "C:/models/Other/model.gguf"},
 	}
 	directories := []modelDirectory{{Path: "C:/models/Model", Weights: true}, {Path: "C:/models/Other", Weights: true}}
@@ -114,7 +114,7 @@ func TestInventoryNamesTheProvenFile(t *testing.T) {
 		}
 		return nil
 	}
-	inventory := buildInventory(directories, cells, nil, currency)
+	inventory := buildInventory(directories, cells, nil, currency, "C:/stores/selected")
 	if inventory[0].Standing != standingActivated || inventory[0].Proven != "C:/models/Model/model-ropefix.gguf" {
 		t.Fatalf("directory %s = %s proven %q", inventory[0].Directory, inventory[0].Standing, inventory[0].Proven)
 	}

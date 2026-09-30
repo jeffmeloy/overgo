@@ -18,11 +18,11 @@ import (
 // config file the conversion recorded whose content is the directory's own, so
 // a converted file that lives elsewhere still counts and one that merely
 // shares the directory's name does not. A model is validated when every cell
-// carries accepted evidence and none is stale; a directory takes its best
-// model's standing, and a superseded artifact beside a validated one keeps its
-// own command without lowering the directory. A directory with weights and no
-// tied model is unregistered and names the command that registers it; one with
-// neither is not a model.
+// is activated, none is stale and its evidence is current; a directory takes
+// its best model's standing, and a superseded artifact beside a validated one
+// keeps its own command, into the selected store, without lowering the
+// directory. A directory with weights and no tied model is unregistered and
+// names the command that registers it; one with neither is not a model.
 func TestModelInventory(t *testing.T) {
 	t.Parallel()
 	identify := func(kind artifact.Kind, text string) artifact.ID {
@@ -32,14 +32,14 @@ func TestModelInventory(t *testing.T) {
 		}
 		return id
 	}
-	evidence := identify(artifact.KindRecipe, "accepted")
+	activation := identify(artifact.KindRecipe, "accepted")
 	located, converted, superseded, named := identify(artifact.KindModel, "located"), identify(artifact.KindModel, "converted"), identify(artifact.KindModel, "superseded"), identify(artifact.KindModel, "named")
 	cells := []ModelValidation{
-		{Model: located, Location: `C:\models\Located\weights.safetensors`, Validation: "guard", Surface: "inference", Evidence: evidence, Stale: "surface moved"},
-		{Model: located, Location: `C:\models\Located\weights.safetensors`, Validation: "bbh", Surface: "evaluation", Evidence: evidence},
-		{Model: converted, Location: `C:\checkpoints\elsewhere.gguf`, Validation: "guard", Surface: "inference", Evidence: evidence},
+		{Model: located, Location: `C:\models\Located\weights.safetensors`, Validation: "guard", Surface: "inference", Recipe: activation, Stale: "surface moved"},
+		{Model: located, Location: `C:\models\Located\weights.safetensors`, Validation: "bbh", Surface: "evaluation", Recipe: activation},
+		{Model: converted, Location: `C:\checkpoints\elsewhere.gguf`, Validation: "guard", Surface: "inference", Recipe: activation},
 		{Model: superseded, Location: `C:\checkpoints\elsewhere-old.gguf`},
-		{Model: named, Location: `C:\checkpoints\Unregistered-f16.gguf`, Validation: "guard", Surface: "inference", Evidence: evidence},
+		{Model: named, Location: `C:\checkpoints\Unregistered-f16.gguf`, Validation: "guard", Surface: "inference", Recipe: activation},
 	}
 	directories := []modelDirectory{
 		{Path: "C:/models/Unregistered", Weights: true, ModelType: "llama", ConfigDigests: []string{"own-digest"}},
@@ -49,7 +49,7 @@ func TestModelInventory(t *testing.T) {
 	}
 	recorded := map[artifact.ID][]string{converted: {"shared-digest"}, superseded: {"shared-digest"}, named: {"a-different-directory"}}
 	var standings []string
-	for _, entry := range buildInventory(directories, cells, recorded, func(ModelValidation) error { return nil }) {
+	for _, entry := range buildInventory(directories, cells, recorded, func(ModelValidation) error { return nil }, "C:/stores/selected") {
 		var line strings.Builder
 		line.WriteString(filepath.Base(entry.Directory) + " " + entry.Standing)
 		for _, tied := range entry.Models {
@@ -59,7 +59,7 @@ func TestModelInventory(t *testing.T) {
 	}
 	want := []string{
 		"Converted validated converted-from:validated converted-from:registered commands=go run ./cmd/recipe verify -task TASK -input SUITE.json " + superseded.String(),
-		"Located registered location:registered commands=go run ./cmd/longform -guard -publish -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + ` C:\models\Located\weights.safetensors`,
+		"Located registered location:registered commands=go run ./cmd/longform -guard -publish -repo C:/stores/selected -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + ` C:\models\Located\weights.safetensors`,
 		"Unregistered unregistered commands=go run ./cmd/validate -onboard C:/models/Unregistered",
 		"docs not-a-model commands=",
 	}
@@ -98,11 +98,11 @@ func TestModelInventory(t *testing.T) {
 // a model validated only when its guard evidence is current. An accepted
 // recipe says a model was validated once; the guard record is keyed to the
 // inference code surface, and any change to the closure of that surface
-// expires it, so a model whose cells all carry accepted evidence but whose
-// guard ran on another surface is activated, keeps the reason with the run
-// that lifts it, and keeps the guard's command. A cell without accepted
-// evidence outranks the guard question: that model is registered and its guard
-// is not asked about. A model that earns no guard is activated too, and says
+// expires it, so a model whose cells are all activated but whose guard ran on
+// another surface is activated, keeps the reason with the run that lifts it,
+// and keeps the guard's command. A cell without an activation outranks the
+// guard question: that model is registered and its guard is not asked about.
+// A model that earns no guard is activated too, and says
 // that its evidence is unchecked here: nothing is called validated on a claim
 // this command cannot check. A directory takes its best model's standing.
 func TestInventoryValidatedMeansCurrentAtTheSurface(t *testing.T) {
@@ -114,17 +114,17 @@ func TestInventoryValidatedMeansCurrentAtTheSurface(t *testing.T) {
 		}
 		return id
 	}
-	evidence := identify(artifact.KindRecipe, "accepted")
+	activation := identify(artifact.KindRecipe, "accepted")
 	current, expired, unverified, image := identify(artifact.KindModel, "current"), identify(artifact.KindModel, "expired"), identify(artifact.KindModel, "unverified"), identify(artifact.KindModel, "image")
 	cells := []ModelValidation{
-		{Model: current, Location: "C:/models/Current/m.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
-		{Model: expired, Location: "C:/models/Expired/m.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
-		{Model: expired, Location: "C:/models/Expired/m.gguf", Validation: "bbh", Surface: "evaluation", Evidence: evidence},
-		{Model: unverified, Location: "C:/models/Unverified/m.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
+		{Model: current, Location: "C:/models/Current/m.gguf", Validation: guardValidation, Surface: "inference", Recipe: activation},
+		{Model: expired, Location: "C:/models/Expired/m.gguf", Validation: guardValidation, Surface: "inference", Recipe: activation},
+		{Model: expired, Location: "C:/models/Expired/m.gguf", Validation: "bbh", Surface: "evaluation", Recipe: activation},
+		{Model: unverified, Location: "C:/models/Unverified/m.gguf", Validation: guardValidation, Surface: "inference", Recipe: activation},
 		{Model: unverified, Location: "C:/models/Unverified/m.gguf", Validation: "bbh", Surface: "evaluation"},
-		{Model: image, Location: "C:/models/Image/m.safetensors", Validation: "image-proof", Surface: "image", Evidence: evidence},
-		{Model: expired, Location: "C:/models/Both/old.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
-		{Model: current, Location: "C:/models/Both/new.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
+		{Model: image, Location: "C:/models/Image/m.safetensors", Validation: "image-proof", Surface: "image", Recipe: activation},
+		{Model: expired, Location: "C:/models/Both/old.gguf", Validation: guardValidation, Surface: "inference", Recipe: activation},
+		{Model: current, Location: "C:/models/Both/new.gguf", Validation: guardValidation, Surface: "inference", Recipe: activation},
 	}
 	var asked []string
 	currency := func(cell ModelValidation) error {
@@ -144,7 +144,7 @@ func TestInventoryValidatedMeansCurrentAtTheSurface(t *testing.T) {
 		{Path: "C:/models/Unverified", Weights: true}, {Path: "C:/models/Image", Weights: true}, {Path: "C:/models/Both", Weights: true},
 	}
 	var standings []string
-	for _, entry := range buildInventory(directories, cells, nil, currency) {
+	for _, entry := range buildInventory(directories, cells, nil, currency, "C:/stores/selected") {
 		var line strings.Builder
 		line.WriteString(filepath.Base(entry.Directory) + " " + entry.Standing)
 		for _, tied := range entry.Models {
@@ -166,6 +166,6 @@ func TestInventoryValidatedMeansCurrentAtTheSurface(t *testing.T) {
 		t.Fatalf("inventory:\n%s\nwant:\n%s", strings.Join(standings, "\n"), strings.Join(want, "\n"))
 	}
 	if slices.ContainsFunc(asked, func(location string) bool { return strings.Contains(location, "Unverified") }) {
-		t.Errorf("the guard was asked about a model with no accepted evidence: %v", asked)
+		t.Errorf("the guard was asked about a model with a cell not activated: %v", asked)
 	}
 }

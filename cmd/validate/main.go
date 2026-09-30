@@ -1,9 +1,10 @@
 // validate selects and runs the minimal sufficient end-to-end validation of the
 // whole system for one commit: it accounts for every registered model, derives
-// the appropriate validation for each declared function, and runs only the
-// validations whose surface the commit's changes moved, reusing every cell that
-// stays pinned. The default dry run computes and prints the plan without loading
-// a model or a device; -run executes the selected cells. -claims holds the
+// the appropriate validation for each declared function, and runs the
+// validations whose surface the commit's changes moved or whose accepted
+// record is not bound to the identity the code is at now, reusing only
+// current evidence. The default dry run computes and prints the plan without
+// loading a model or a device; -run executes the selected cells. -claims holds the
 // claims compatibility.json and the training specifications make to the
 // sources they bind and checks the matrices published from them; a claim whose
 // source moved is rebound only after -claims -run re-runs its verify.
@@ -16,7 +17,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -24,7 +24,6 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/gitauthority"
-	"overgo/internal/inferencesurface"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/scorecard"
@@ -55,8 +54,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		Purpose:  "select the minimal sufficient end-to-end validation for a commit and, with -run, execute it",
 		Audience: "the master-lead session and its unattended driver validating the whole system per commit",
 		Constraints: []string{
-			"the default dry run loads no model and opens no device; it prints the plan as JSON",
-			"a cell runs only when the commit's changes move its surface or it has no accepted evidence",
+			"the default dry run itself loads no model and opens no device: it reads the guard records, smoke runs and acceptance receipts (go test's cache replays unchanged ones) and prints the plan as JSON",
+			"a cell runs when the commit's changes move its surface or its accepted record is not bound to the identity the code is at now; it is reused only when that record is current",
 			"every registered model is accounted for; each available model is dispatched by its declared functions",
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
 			"-scorecard reads the store and the serving source: it loads no model, opens no device and needs no commit range",
@@ -118,8 +117,13 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		return err
 	}
 
+	// One store, resolved once and absolute: the store this command reads is
+	// the one every producer it launches at the repository root writes.
 	storeRoot, err := dataroot.StoreRoot(*repository)
 	if err != nil {
+		return err
+	}
+	if storeRoot, err = filepath.Abs(storeRoot); err != nil {
 		return err
 	}
 	store, err := overgodb.OpenReadOnly(storeRoot)
@@ -128,6 +132,10 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	}
 	defer store.Close()
 	registered, err := registeredCells(ctx, store)
+	if err != nil {
+		return err
+	}
+	read, err := readAcceptedRecords(ctx, *root, storeRoot, store, registered)
 	if err != nil {
 		return err
 	}
@@ -140,50 +148,12 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		// The surface the code is at now: a guard record is current only when
-		// it ran on this one.
-		surface, err := inferencesurface.Digest(ctx, *root)
-		if err != nil {
-			return err
-		}
-		records, err := latestGuardRecords(ctx, *root, storeRoot)
-		if err != nil {
-			return err
-		}
-		// One receipt per acceptance package, asked for once.
-		receipts := map[string]testReport{}
-		for _, pkg := range surfacePackages {
-			if _, asked := receipts[pkg]; asked {
-				continue
-			}
-			receipt, err := packageTests(ctx, *root, pkg)
-			if err != nil {
-				return err
-			}
-			receipts[pkg] = receipt
-		}
-		// Each cell's currency has one owner: the long-form guard for the
-		// inference surface, an acceptance package's receipt for the media,
-		// specialized and speech surfaces; the rest are not judged here.
-		currency := func(cell ModelValidation) error {
-			if cell.Validation == guardValidation && slices.Contains(strings.Split(cell.Modality, ","), dnaModality) {
-				run, found, err := latestSmokeRun(ctx, store, cell.Model, cell.Evidence)
-				if err != nil {
-					return err
-				}
-				return smokeCurrent(ctx, *root, cell.Model, run, found)
-			}
-			if cell.Validation == guardValidation {
-				return guardCurrent(records, cell.Location, surface)
-			}
-			return mediaCurrent(receipts[surfacePackages[cell.Surface]], cell.Surface)
-		}
-		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, currency))
+		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, read.current, storeRoot))
 	}
 
-	plan := SelectValidation(Inputs{Baseline: base, Head: head, ChangedPaths: changed, AffectedSurfaces: affected, Registered: registered})
+	plan := SelectValidation(Inputs{Baseline: base, Head: head, ChangedPaths: changed, AffectedSurfaces: affected, Registered: registered, Current: read.current})
 	if *execute {
-		return executeRun(ctx, output, *root, plan)
+		return executeRun(ctx, output, *root, storeRoot, plan)
 	}
 	return clioptions.WritePrettyJSON(output, plan)
 }
@@ -220,18 +190,13 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 				continue
 			}
 			for _, validation := range validations {
-				cell := ModelValidation{
+				// The activation's recipe finds the accepted record; whether that
+				// record holds at this tree is the current-evidence decision's.
+				cells = append(cells, ModelValidation{
 					Model: entry.Model, ModelName: name, Location: entry.Location,
-					Kind: capability.Task, Modality: modality,
+					Kind: capability.Task, Modality: modality, Recipe: capability.Recipe,
 					Validation: validation.Validation, Surface: validation.Surface, Stale: capability.Stale,
-				}
-				// An active, non-stale activation carries accepted evidence pinned
-				// by its recipe; a stale one has none and must re-acquire. Binding
-				// the exact accepted record and its measured cost is a later cell.
-				if capability.Stale == "" {
-					cell.Evidence = capability.Recipe
-				}
-				cells = append(cells, cell)
+				})
 			}
 		}
 	}

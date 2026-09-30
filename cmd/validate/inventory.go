@@ -80,7 +80,8 @@ type InventoryModel struct {
 	Standing string      `json:"standing"`
 	// Currency says why the model's evidence is not current at this tree --
 	// a guard record from another surface, an acceptance receipt absent or
-	// failed -- with the run that lifts it; empty when it is current.
+	// failed -- and the directory's commands hold the run that lifts it;
+	// empty when it is current.
 	Currency string            `json:"currency,omitzero"`
 	Cells    []ModelValidation `json:"cells"`
 }
@@ -157,18 +158,17 @@ func convertedSources(ctx context.Context, store overgodb.DocumentReader) (map[a
 // buildInventory ties the registered cells to the directories and states each
 // directory's standing. A model is tied by its location beneath the directory,
 // or by a recorded config file whose content is the directory's own; never by
-// a name. A model with a cell that lacks accepted evidence, or a stale one, is
-// registered. One whose cells all carry accepted evidence is activated -- and
-// validated only when its guard record, the evidence keyed to the inference
-// code surface, ran on the surface the code is at now and met its floors: an
-// accepted recipe says the model was validated once, not that it is. The other
-// validations are keyed to surfaces this command cannot yet check, so a model
-// that earns no guard is activated and says so: nothing is called validated on
-// an unchecked claim. A directory takes the standing of its best model, because
-// a superseded artifact left beside a validated one -- a conversion from before
+// a name. A model with a cell that lacks an activation, or a stale one, is
+// registered. One whose cells are all activated is activated -- and validated
+// only when the current-evidence decision the plan takes too finds its judged
+// evidence current: an accepted recipe says the model was validated once, not
+// that it is. A cell no owner judges is passed over, so a model with no judged
+// cell is activated and says so: nothing is called validated on an unchecked
+// claim. A directory takes the standing of its best model, because a
+// superseded artifact left beside a validated one -- a conversion from before
 // a fix -- does not make the model any less validated. Every model that is not
-// validated keeps its command.
-func buildInventory(directories []modelDirectory, cells []ModelValidation, converted map[artifact.ID][]string, currency func(cell ModelValidation) error) []DirectoryInventory {
+// validated keeps its command, into the selected store.
+func buildInventory(directories []modelDirectory, cells []ModelValidation, converted map[artifact.ID][]string, currency func(cell ModelValidation) error, store string) []DirectoryInventory {
 	inventory := make([]DirectoryInventory, 0, len(directories))
 	for _, directory := range directories {
 		entry := DirectoryInventory{
@@ -194,7 +194,7 @@ func buildInventory(directories []modelDirectory, cells []ModelValidation, conve
 			}
 			entry.Models[index].Cells = append(entry.Models[index].Cells, cell)
 		}
-		entry.Standing, entry.Commands = directoryStanding(directory, entry.Models, currency)
+		entry.Standing, entry.Commands = directoryStanding(directory, entry.Models, currency, store)
 		if entry.Standing != standingRegistered {
 			if proven := slices.IndexFunc(entry.Models, func(model InventoryModel) bool { return model.Standing == entry.Standing }); proven >= 0 {
 				entry.Proven = entry.Models[proven].Location
@@ -208,8 +208,8 @@ func buildInventory(directories []modelDirectory, cells []ModelValidation, conve
 
 // directoryStanding states the standing and the commands that would advance
 // it: onboarding an unregistered directory, re-acquiring a cell with no
-// accepted evidence. It states each model's own standing in place.
-func directoryStanding(directory modelDirectory, models []InventoryModel, currency func(cell ModelValidation) error) (string, []string) {
+// current evidence. It states each model's own standing in place.
+func directoryStanding(directory modelDirectory, models []InventoryModel, currency func(cell ModelValidation) error, store string) (string, []string) {
 	if len(models) == 0 {
 		if !directory.Weights {
 			return standingNotAModel, nil
@@ -219,7 +219,7 @@ func directoryStanding(directory modelDirectory, models []InventoryModel, curren
 	var commands []string
 	advance := func(cell ModelValidation, model artifact.ID) {
 		command := verifyCommand + model.String()
-		if name, args, err := reacquireCommand(cell); err == nil {
+		if name, args, err := reacquireCommand(cell, store); err == nil {
 			command = name + " " + strings.Join(args, " ")
 		}
 		if !slices.Contains(commands, command) {
@@ -230,13 +230,13 @@ func directoryStanding(directory modelDirectory, models []InventoryModel, curren
 	for index, tied := range models {
 		standing := standingValidated
 		for _, cell := range tied.Cells {
-			if !cell.Evidence.Valid() || cell.Stale != "" {
+			if !cell.Recipe.Valid() || cell.Stale != "" {
 				standing = standingRegistered
 				advance(cell, tied.Model)
 			}
 		}
 		// Whether evidence is current is asked only of a model whose every
-		// cell carries accepted evidence: a missing one outranks the question.
+		// cell is activated: a missing activation outranks the question.
 		// A cell no owner can judge yet is passed over; a model with no judged
 		// cell is not called validated on an unchecked claim.
 		judged, unchecked := false, uncheckedEvidence

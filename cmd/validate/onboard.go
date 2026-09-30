@@ -41,13 +41,17 @@ type onboarding struct {
 }
 
 // newOnboarding binds the steps to the data roots, the repository root and
-// the output the steps print to.
+// the output the steps print to, with the store resolved once and absolute
+// for every step.
 func newOnboarding(root, repository string, output io.Writer) (onboarding, error) {
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return onboarding{}, err
 	}
-	store := cmp.Or(strings.TrimSpace(repository), roots.Store)
+	store, err := filepath.Abs(cmp.Or(strings.TrimSpace(repository), roots.Store))
+	if err != nil {
+		return onboarding{}, err
+	}
 	return onboarding{
 		store: store, checkpoints: roots.Checkpoints,
 		registered: func(ctx context.Context, directory string) (tied []InventoryModel, err error) {
@@ -69,7 +73,7 @@ func newOnboarding(root, repository string, output io.Writer) (onboarding, error
 				return nil, err
 			}
 			unjudged := func(ModelValidation) error { return errCellNotJudged }
-			return buildInventory([]modelDirectory{read}, cells, converted, unjudged)[0].Models, nil
+			return buildInventory([]modelDirectory{read}, cells, converted, unjudged, store)[0].Models, nil
 		},
 		run: func(ctx context.Context, name string, args []string) error {
 			return runCell(ctx, output, root, name, args)
@@ -131,7 +135,7 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 	if err != nil {
 		return fmt.Errorf("onboard: validate %s: %w", model, err)
 	}
-	name, args, err := reacquireCommand(ModelValidation{Validation: guardValidation, Location: model})
+	name, args, err := reacquireCommand(ModelValidation{Validation: guardValidation, Location: model}, steps.store)
 	if err != nil {
 		return err
 	}

@@ -59,13 +59,10 @@ func TestOneCommandOnboardsADeclaredModel(t *testing.T) {
 	if err := onboard(directory); err != nil {
 		t.Fatal(err)
 	}
-	guard, arguments, err := reacquireCommand(ModelValidation{Validation: guardValidation, Location: converted})
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Conversion and the guard both name the one selected store.
 	want := []string{
 		"go run ./cmd/gguf convert -source " + directory + " -output " + converted + " -record STORE",
-		guard + " " + strings.Join(arguments, " "),
+		"go run ./cmd/longform -guard -publish -repo STORE -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + " " + converted,
 	}
 	if !slices.Equal(ran, want) || !slices.Equal(validated, []string{converted + "|"}) {
 		t.Fatalf("onboarding ran %q and validated %q, want %q and %q", ran, validated, want, converted)
@@ -100,7 +97,7 @@ func TestOneCommandOnboardsADeclaredModel(t *testing.T) {
 		t.Fatalf("a directory with no model was onboarded: %v, ran %q, validated %q", err, ran, validated)
 	}
 
-	if commands := buildInventory([]modelDirectory{{Path: directory, Weights: true}}, nil, nil, nil)[0].Commands; !slices.Equal(commands, []string{onboardCommand + filepath.ToSlash(directory)}) {
+	if commands := buildInventory([]modelDirectory{{Path: directory, Weights: true}}, nil, nil, nil, "STORE")[0].Commands; !slices.Equal(commands, []string{onboardCommand + filepath.ToSlash(directory)}) {
 		t.Fatalf("an unregistered directory names %q", commands)
 	}
 }

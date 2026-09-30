@@ -27,6 +27,12 @@ const dnaModality = "dna"
 // smokeRerun is how a DNA model's smoke run is re-acquired.
 const smokeRerun = "run: go run ./cmd/smoke-lane -budget 15m -model %s"
 
+// dnaGuard reports a DNA model's inference cell, whose evidence is its smoke
+// run rather than a long-form record.
+func dnaGuard(cell ModelValidation) bool {
+	return cell.Validation == guardValidation && slices.Contains(strings.Split(cell.Modality, ","), dnaModality)
+}
+
 // latestSmokeRun finds the newest bound run of the model's active recipe that
 // took the model as an input: the smoke lane's record of serving it.
 func latestSmokeRun(ctx context.Context, store *overgodb.Store, model, recipe artifact.ID) (runrecord.Run, bool, error) {

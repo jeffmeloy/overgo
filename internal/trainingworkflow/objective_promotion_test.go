@@ -134,30 +134,32 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	suite := evaluation.NumericTargetSuite{Scorers: []evaluation.NumericScorerSpec{{Kind: evaluation.NumericAbsoluteError}}}
+	var cases []evaluation.HeldoutCase
 	for index, record := range view.Records {
-		suite.Cases = append(suite.Cases, evaluation.NumericTargetCase{Record: record.ID, Values: []float64{float64(index), 1}})
+		cases = append(cases, evaluation.HeldoutCase{Record: record.ID, Values: []float64{float64(index), 1}})
 	}
-	plan, err := evaluation.CompileNumericTargetPlan(view, suite)
+	plan, err := evaluation.CompileHeldoutPlan(declared, view, cases)
 	if err != nil {
 		t.Fatal(err)
 	}
-	forecast := func(offset float64) evaluation.NumericTargetReport {
-		var observations []evaluation.NumericTargetObservation
-		for _, target := range plan.Cases {
+	// forecastBy reports each case's values shifted by offset under plan.
+	forecastBy := func(plan evaluation.HeldoutPlan, offset float64) evaluation.HeldoutReport {
+		t.Helper()
+		var observations []evaluation.HeldoutObservation
+		for _, target := range cases {
 			values := slices.Clone(target.Values)
 			for index := range values {
 				values[index] += offset
 			}
-			observations = append(observations, evaluation.NumericTargetObservation{Record: target.Record, Values: values})
+			observations = append(observations, evaluation.HeldoutObservation{Record: target.Record, Values: values})
 		}
-		report, err := evaluation.ScoreNumericTargets(plan, observations)
+		report, err := plan.Score(observations)
 		if err != nil {
 			t.Fatal(err)
 		}
 		return report
 	}
-	base, trained, regressed := forecast(2), forecast(1), forecast(3)
+	base, trained, regressed := forecastBy(plan, 2), forecastBy(plan, 1), forecastBy(plan, 3)
 	commit := func(key string, stage func(string) (artifact.Batch, error)) {
 		t.Helper()
 		batch, err := stage(key)
@@ -170,10 +172,10 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 	}
 	commit("test-view", view.Batch)
 	commit("test-plan", plan.Batch)
-	for index, report := range []evaluation.NumericTargetReport{base, trained, regressed} {
+	for index, report := range []evaluation.HeldoutReport{base, trained, regressed} {
 		commit(fmt.Sprintf("test-report-%d", index), report.Batch)
 	}
-	judge := func(key string, objective trainingprogram.ObjectiveDocument, view evaluation.SFTEvaluationView, candidate evaluation.NumericTargetReport) artifact.ID {
+	judge := func(key string, objective trainingprogram.ObjectiveDocument, view evaluation.SFTEvaluationView, candidate evaluation.HeldoutReport) artifact.ID {
 		t.Helper()
 		verdict, err := evaluation.JudgeHeldout(objective, view, plan, base, candidate, observation)
 		if err != nil {
@@ -204,25 +206,14 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 		t.Fatal(err)
 	}
 	commit("test-other-view", otherView.Batch)
-	otherPlan, err := evaluation.CompileNumericTargetPlan(otherView, suite)
+	otherPlan, err := evaluation.CompileHeldoutPlan(renamed, otherView, cases)
 	if err != nil {
 		t.Fatal(err)
 	}
 	commit("test-other-plan", otherPlan.Batch)
-	scoreOther := func(key string, offset float64) evaluation.NumericTargetReport {
+	scoreOther := func(key string, offset float64) evaluation.HeldoutReport {
 		t.Helper()
-		var observations []evaluation.NumericTargetObservation
-		for _, target := range otherPlan.Cases {
-			values := slices.Clone(target.Values)
-			for index := range values {
-				values[index] += offset
-			}
-			observations = append(observations, evaluation.NumericTargetObservation{Record: target.Record, Values: values})
-		}
-		report, err := evaluation.ScoreNumericTargets(otherPlan, observations)
-		if err != nil {
-			t.Fatal(err)
-		}
+		report := forecastBy(otherPlan, offset)
 		commit(key, report.Batch)
 		return report
 	}

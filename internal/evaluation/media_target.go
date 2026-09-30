@@ -2,13 +2,17 @@ package evaluation
 
 import (
 	"cmp"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
+	"overgo/internal/tensor/dtype"
+	"overgo/internal/trainingprogram"
 )
 
 const (
@@ -166,7 +170,7 @@ func (plan mediaTargetPlan) Batch(key string) (artifact.Batch, error) {
 	for _, target := range plan.Cases {
 		parents = append(parents, target.Expected)
 	}
-	return mediaTargetPlanCodec.Batch(key, plan, artifact.DependencyLineage(plan.ID, parents...), nil)
+	return mediaTargetPlanCodec.Batch(key, plan, artifact.UniqueDependencyLineage(plan.ID, parents...), nil)
 }
 
 // scoreMediaTargets verifies media observations against a compiled plan.
@@ -221,7 +225,115 @@ func (report mediaTargetReport) Batch(key string) (artifact.Batch, error) {
 	for _, record := range report.Records {
 		parents = append(parents, record.Output)
 	}
-	return mediaTargetReportCodec.Batch(key, report, artifact.DependencyLineage(report.ID, parents...), nil)
+	return mediaTargetReportCodec.Batch(key, report, artifact.UniqueDependencyLineage(report.ID, parents...), nil)
+}
+
+// signalVerifierProfile prefixes the profile naming the verifier that
+// measures a declared signal metric.
+const signalVerifierProfile = "overgo/verifier/signal/"
+
+// signalUnit is the unit every signal metric reports in.
+const signalUnit = "dB"
+
+// signalOracles are the deterministic checks a produced signal passes before
+// it is measured: it holds as many values as the expected signal, all
+// finite.
+var signalOracles = []mediaOracle{mediaExtent, mediaFiniteValues}
+
+// compileSignalHeldout is the media signal held-out slice: each case's
+// expected signal is an output artifact, and each observation's produced
+// signal passes the signal oracles and is measured against it by the
+// declared metric, higher being better.
+func compileSignalHeldout(view SFTEvaluationView, metric trainingprogram.EvaluationMetric, cases []HeldoutCase) (HeldoutPlan, error) {
+	verifier, err := artifact.IdentifyBytes(artifact.KindProfile, []byte(signalVerifierProfile+string(metric)))
+	if err != nil {
+		return HeldoutPlan{}, err
+	}
+	suite := mediaTargetSuite{Oracles: signalOracles, Scorers: []mediaScorerSpec{{
+		Name: string(metric), Kind: mediaSignalScorer, Verifier: verifier, Unit: signalUnit, Direction: runrecord.DirectionMaximize,
+	}}}
+	expected := make(map[string][]float64, len(cases))
+	declared := []artifact.Descriptor{{ID: verifier}}
+	for _, target := range cases {
+		descriptor, err := signalDescriptor(target.Values)
+		if err != nil {
+			return HeldoutPlan{}, err
+		}
+		suite.Cases = append(suite.Cases, mediaTargetCase{Record: target.Record, Expected: descriptor.ID})
+		expected[target.Record], declared = target.Values, append(declared, descriptor)
+	}
+	plan, err := compileMediaTargetPlan(view, suite)
+	if err != nil {
+		return HeldoutPlan{}, err
+	}
+	return HeldoutPlan{
+		id: plan.ID, view: plan.View,
+		batch: func(key string) (artifact.Batch, error) { return declaring(plan.Batch, key, declared) },
+		score: func(observations []HeldoutObservation) (HeldoutReport, error) {
+			measured := make([]mediaTargetObservation, len(observations))
+			outputs := make([]artifact.Descriptor, len(observations))
+			for index, observation := range observations {
+				result, output, err := measureSignal(metric, verifier, observation, expected[observation.Record])
+				if err != nil {
+					return HeldoutReport{}, err
+				}
+				measured[index], outputs[index] = result, output
+			}
+			report, err := scoreMediaTargets(plan, measured)
+			if err != nil {
+				return HeldoutReport{}, err
+			}
+			scored := report.heldout()
+			scored.batch = func(key string) (artifact.Batch, error) { return declaring(report.Batch, key, outputs) }
+			return scored, nil
+		},
+	}, nil
+}
+
+// measureSignal checks a produced signal with the signal oracles and, when
+// it passes them, measures it against the expected signal by metric.
+func measureSignal(metric trainingprogram.EvaluationMetric, verifier artifact.ID, observation HeldoutObservation, expected []float64) (mediaTargetObservation, artifact.Descriptor, error) {
+	output, err := signalDescriptor(observation.Values)
+	if err != nil {
+		return mediaTargetObservation{}, artifact.Descriptor{}, err
+	}
+	extent := len(expected) > 0 && len(observation.Values) == len(expected)
+	finite := !slices.ContainsFunc(observation.Values, func(value float64) bool { return !checked.Finite64(value) })
+	measured := mediaTargetObservation{Record: observation.Record, Output: output.ID, Oracles: []mediaOracleResult{
+		{Kind: mediaExtent, Passed: extent}, {Kind: mediaFiniteValues, Passed: finite},
+	}}
+	if !extent || !finite {
+		return mediaTargetObservation{}, artifact.Descriptor{}, fmt.Errorf("evaluation: record %q produced signal fails its oracles", observation.Record)
+	}
+	value, err := trainingprogram.EvaluateNative(metric, dtype.ConvertSlice[float32](observation.Values), dtype.ConvertSlice[float32](expected))
+	if err != nil {
+		return mediaTargetObservation{}, artifact.Descriptor{}, err
+	}
+	measured.Verifiers = []mediaVerifierResult{{Name: string(metric), Verifier: verifier, Value: value}}
+	return measured, output, nil
+}
+
+// signalDescriptor names a signal as the output artifact its values encode.
+func signalDescriptor(values []float64) (artifact.Descriptor, error) {
+	data, err := binary.Append(nil, binary.LittleEndian, values)
+	if err != nil {
+		return artifact.Descriptor{}, err
+	}
+	id, err := artifact.IdentifyBytes(artifact.KindOutput, data)
+	return artifact.Descriptor{ID: id, Size: uint64(len(data))}, err
+}
+
+// declaring stages a document with the artifacts its lineage names beside
+// it, so a commit knows every parent.
+func declaring(stage func(string) (artifact.Batch, error), key string, declared []artifact.Descriptor) (artifact.Batch, error) {
+	batch, err := stage(key)
+	batch.Artifacts = append(batch.Artifacts, declared...)
+	return batch, err
+}
+
+// heldout is the report as the held-out judge reads it.
+func (report mediaTargetReport) heldout() HeldoutReport {
+	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
 }
 
 func canonicalizeMediaTargetPlan(plan *mediaTargetPlan) error {

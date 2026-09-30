@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
@@ -16,20 +15,23 @@ import (
 )
 
 // HeldoutExample is one dataset record a model trains on or is judged on:
-// its input, and its target values or label.
+// its input, and its target values, label or accepted answers.
 type HeldoutExample struct {
 	// Record is the dataset record the example was read from; the runner
 	// sets it before handing the example to Train or Predict.
-	Record string
-	Input  []float64
-	Target []float64
-	Label  string
+	Record  string
+	Input   []float64
+	Target  []float64
+	Label   string
+	Answers []string
 }
 
-// HeldoutPrediction is a model's answer for one example.
+// HeldoutPrediction is a model's answer for one example: values, a label,
+// or generated text.
 type HeldoutPrediction struct {
 	Values []float64
 	Label  string
+	Text   string
 }
 
 // HeldoutRun trains a model under a registered objective and judges it on
@@ -76,10 +78,6 @@ func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (Hel
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	scorer, found := evaluation.HeldoutNumericScorer(objective.Metric)
-	if !found {
-		return HeldoutResult{}, fmt.Errorf("training workflow: no held-out scorer measures %q", objective.Metric)
-	}
 	training, heldout, err := ObjectiveMemberships(ctx, store, objective)
 	if err != nil {
 		return HeldoutResult{}, err
@@ -92,19 +90,19 @@ func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (Hel
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	suite := evaluation.NumericTargetSuite{Scorers: []evaluation.NumericScorerSpec{{Kind: scorer}}}
+	var cases []evaluation.HeldoutCase
 	for _, record := range view.Records {
 		example, found := run.Examples[record.ID]
 		if !found {
 			return HeldoutResult{}, fmt.Errorf("training workflow: held-out record %q has no example", record.ID)
 		}
-		suite.Cases = append(suite.Cases, evaluation.NumericTargetCase{Record: record.ID, Values: slices.Clone(example.Target), Label: example.Label})
+		cases = append(cases, evaluation.HeldoutCase{Record: record.ID, Values: example.Target, Label: example.Label, Answers: example.Answers})
 	}
-	plan, err := evaluation.CompileNumericTargetPlan(view, suite)
+	plan, err := evaluation.CompileHeldoutPlan(objective, view, cases)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	baseline, err := predictHeldout(plan, run)
+	baseline, err := predictHeldout(plan, cases, run)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -128,28 +126,38 @@ func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (Hel
 	if err := errors.Join(trainErr, err); err != nil {
 		return HeldoutResult{}, err
 	}
-	candidate, err := predictHeldout(plan, run)
+	candidate, err := predictHeldout(plan, cases, run)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
+	return publishHeldout(ctx, store, objective, view, plan, baseline, candidate, observation)
+}
+
+// publishHeldout judges the base and trained models' reports on the
+// objective's held-out view and publishes the view, plan, both reports and
+// the verdict as one batch.
+func publishHeldout(
+	ctx context.Context,
+	store artifact.Repository,
+	objective trainingprogram.ObjectiveDocument,
+	view evaluation.SFTEvaluationView,
+	plan evaluation.HeldoutPlan,
+	baseline, candidate evaluation.HeldoutReport,
+	observation artifact.ID,
+) (HeldoutResult, error) {
 	verdict, err := evaluation.JudgeHeldout(objective, view, plan, baseline, candidate, observation)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	batch := artifact.Batch{Key: "training/heldout/" + verdict.ID.String()}
-	for _, stage := range []func(string) (artifact.Batch, error){view.Batch, plan.Batch, baseline.Batch, candidate.Batch, verdict.Batch} {
-		part, err := stage(batch.Key)
-		if err != nil {
-			return HeldoutResult{}, err
-		}
-		batch.Contents = append(batch.Contents, part.Contents...)
-		batch.Lineage = append(batch.Lineage, part.Lineage...)
+	batch, err := evaluation.HeldoutBatch(view, plan, baseline, candidate, verdict)
+	if err != nil {
+		return HeldoutResult{}, err
 	}
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return HeldoutResult{}, err
 	}
 	return HeldoutResult{
-		Observation: observation, View: view.ID, Plan: plan.ID, Baseline: baseline.ID, Candidate: candidate.ID,
+		Observation: observation, View: view.ID, Plan: plan.ID(), Baseline: baseline.ID(), Candidate: candidate.ID(),
 		Verdict: verdict.ID, Passed: verdict.Passed,
 	}, nil
 }
@@ -238,18 +246,20 @@ func membershipExamples(membership dataset.Membership, examples map[string]Heldo
 	return selected, nil
 }
 
-func predictHeldout(plan evaluation.NumericTargetPlan, run HeldoutRun) (evaluation.NumericTargetReport, error) {
-	observations := make([]evaluation.NumericTargetObservation, 0, len(plan.Cases))
-	for _, target := range plan.Cases {
+func predictHeldout(plan evaluation.HeldoutPlan, cases []evaluation.HeldoutCase, run HeldoutRun) (evaluation.HeldoutReport, error) {
+	observations := make([]evaluation.HeldoutObservation, 0, len(cases))
+	for _, target := range cases {
 		example := run.Examples[target.Record]
 		example.Record = target.Record
 		prediction, err := run.Predict(example)
 		if err != nil {
-			return evaluation.NumericTargetReport{}, fmt.Errorf("training workflow: held-out record %q: %w", target.Record, err)
+			return evaluation.HeldoutReport{}, fmt.Errorf("training workflow: held-out record %q: %w", target.Record, err)
 		}
-		observations = append(observations, evaluation.NumericTargetObservation{Record: target.Record, Values: prediction.Values, Label: prediction.Label})
+		observations = append(observations, evaluation.HeldoutObservation{
+			Record: target.Record, Values: prediction.Values, Label: prediction.Label, Text: prediction.Text,
+		})
 	}
-	return evaluation.ScoreNumericTargets(plan, observations)
+	return plan.Score(observations)
 }
 
 // readAllDecodeWorkers decodes a one-time read sequentially: ReadAll serves

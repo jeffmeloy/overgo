@@ -23,8 +23,8 @@ const (
 type numericScorer string
 
 const (
-	// NumericAbsoluteError scores mean absolute residual over target values; minimized.
-	NumericAbsoluteError numericScorer = "absolute-error"
+	// numericAbsoluteError scores mean absolute residual over target values; minimized.
+	numericAbsoluteError numericScorer = "absolute-error"
 	// numericSquaredError scores mean squared residual over target values; minimized.
 	numericSquaredError numericScorer = "squared-error"
 	// numericQuantileLoss scores mean pinball loss at the spec quantile; minimized.
@@ -34,8 +34,8 @@ const (
 	numericLabelAccuracy numericScorer = "label-accuracy"
 )
 
-// NumericScorerSpec declares one numeric scorer with its unit and, for quantile loss only, a quantile in (0, 1).
-type NumericScorerSpec struct {
+// numericScorerSpec declares one numeric scorer with its unit and, for quantile loss only, a quantile in (0, 1).
+type numericScorerSpec struct {
 	Kind     numericScorer `json:"kind"`
 	Unit     string        `json:"unit,omitzero"`
 	Quantile *float64      `json:"quantile,omitempty"`
@@ -47,32 +47,32 @@ type numericAssumption struct {
 	Value string `json:"value"`
 }
 
-// NumericTargetCase binds a held-out record to expected values or label and stated assumptions.
-type NumericTargetCase struct {
+// numericTargetCase binds a held-out record to expected values or label and stated assumptions.
+type numericTargetCase struct {
 	Record      string              `json:"record"`
 	Values      []float64           `json:"values,omitempty"`
 	Label       string              `json:"label,omitzero"`
 	Assumptions []numericAssumption `json:"assumptions,omitempty"`
 }
 
-// NumericTargetSuite declares scorers and cases before binding to a held-out view.
-type NumericTargetSuite struct {
-	Scorers []NumericScorerSpec `json:"scorers"`
-	Cases   []NumericTargetCase `json:"cases"`
+// numericTargetSuite declares scorers and cases before binding to a held-out view.
+type numericTargetSuite struct {
+	Scorers []numericScorerSpec `json:"scorers"`
+	Cases   []numericTargetCase `json:"cases"`
 }
 
-// NumericTargetPlan binds a numeric suite to one held-out view and its time-series or table output signature.
-type NumericTargetPlan struct {
+// numericTargetPlan binds a numeric suite to one held-out view and its time-series or table output signature.
+type numericTargetPlan struct {
 	ID        artifact.ID                      `json:"-"`
 	Version   uint16                           `json:"version"`
 	View      artifact.ID                      `json:"view"`
 	Signature recipecontract.ModalitySignature `json:"signature"`
-	Scorers   []NumericScorerSpec              `json:"scorers"`
-	Cases     []NumericTargetCase              `json:"cases"`
+	Scorers   []numericScorerSpec              `json:"scorers"`
+	Cases     []numericTargetCase              `json:"cases"`
 }
 
-// NumericTargetObservation carries one record's predicted values or label.
-type NumericTargetObservation struct {
+// numericTargetObservation carries one record's predicted values or label.
+type numericTargetObservation struct {
 	Record string    `json:"record"`
 	Values []float64 `json:"values,omitempty"`
 	Label  string    `json:"label,omitzero"`
@@ -95,8 +95,8 @@ type numericRecordResult struct {
 	Scores        []numericScore      `json:"scores"`
 }
 
-// NumericTargetReport holds per-record numeric results and per-scorer mean metrics for one plan.
-type NumericTargetReport struct {
+// numericTargetReport holds per-record numeric results and per-scorer mean metrics for one plan.
+type numericTargetReport struct {
 	ID      artifact.ID           `json:"-"`
 	Version uint16                `json:"version"`
 	Plan    artifact.ID           `json:"plan"`
@@ -107,23 +107,23 @@ type NumericTargetReport struct {
 var (
 	numericTargetPlanCodec = artifact.JSONDocumentCodec(
 		"numeric target plan", artifact.KindProfile, numericTargetPlanMedia, numericTargetPlanSchema,
-		canonicalizeNumericTargetPlan, func(value NumericTargetPlan) artifact.ID { return value.ID },
-		func(value *NumericTargetPlan, id artifact.ID) { value.ID = id }, cloneNumericTargetPlan,
+		canonicalizeNumericTargetPlan, func(value numericTargetPlan) artifact.ID { return value.ID },
+		func(value *numericTargetPlan, id artifact.ID) { value.ID = id }, cloneNumericTargetPlan,
 	)
 	numericTargetReportCodec = artifact.JSONDocumentCodec(
 		"numeric target report", artifact.KindEvaluation, numericTargetReportMedia, numericTargetReportSchema,
-		canonicalizeNumericTargetReport, func(value NumericTargetReport) artifact.ID { return value.ID },
-		func(value *NumericTargetReport, id artifact.ID) { value.ID = id }, cloneNumericTargetReport,
+		canonicalizeNumericTargetReport, func(value numericTargetReport) artifact.ID { return value.ID },
+		func(value *numericTargetReport, id artifact.ID) { value.ID = id }, cloneNumericTargetReport,
 	)
 )
 
-// CompileNumericTargetPlan binds a numeric suite to a held-out dataset view.
-func CompileNumericTargetPlan(view SFTEvaluationView, suite NumericTargetSuite) (NumericTargetPlan, error) {
+// compileNumericTargetPlan binds a numeric suite to a held-out dataset view.
+func compileNumericTargetPlan(view SFTEvaluationView, suite numericTargetSuite) (numericTargetPlan, error) {
 	if _, err := view.Content(); err != nil {
-		return NumericTargetPlan{}, err
+		return numericTargetPlan{}, err
 	}
 	if len(suite.Cases) != len(view.Records) {
-		return NumericTargetPlan{}, errors.New("evaluation: numeric target cases differ from held-out view")
+		return numericTargetPlan{}, errors.New("evaluation: numeric target cases differ from held-out view")
 	}
 	records := make(map[string]struct{}, len(view.Records))
 	for _, record := range view.Records {
@@ -131,34 +131,34 @@ func CompileNumericTargetPlan(view SFTEvaluationView, suite NumericTargetSuite) 
 	}
 	for _, target := range suite.Cases {
 		if _, found := records[target.Record]; !found {
-			return NumericTargetPlan{}, errors.New("evaluation: numeric target record is outside held-out view")
+			return numericTargetPlan{}, errors.New("evaluation: numeric target record is outside held-out view")
 		}
 	}
-	return numericTargetPlanCodec.NewInitial(NumericTargetPlan{
+	return numericTargetPlanCodec.NewInitial(numericTargetPlan{
 		View: view.ID, Signature: view.Signature.Clone(),
 		Scorers: slices.Clone(suite.Scorers), Cases: cloneNumericCases(suite.Cases),
 	})
 }
 
 // Batch stages the plan with lineage to its view.
-func (plan NumericTargetPlan) Batch(key string) (artifact.Batch, error) {
+func (plan numericTargetPlan) Batch(key string) (artifact.Batch, error) {
 	return numericTargetPlanCodec.Batch(key, plan, artifact.DependencyLineage(plan.ID, plan.View), nil)
 }
 
-// ScoreNumericTargets evaluates numeric observations with declared scorers.
-func ScoreNumericTargets(plan NumericTargetPlan, observations []NumericTargetObservation) (NumericTargetReport, error) {
+// scoreNumericTargets evaluates numeric observations with declared scorers.
+func scoreNumericTargets(plan numericTargetPlan, observations []numericTargetObservation) (numericTargetReport, error) {
 	if err := numericTargetPlanCodec.ValidateIdentity(plan); err != nil || len(observations) != len(plan.Cases) {
-		return NumericTargetReport{}, errors.New("evaluation: numeric target observations differ from plan")
+		return numericTargetReport{}, errors.New("evaluation: numeric target observations differ from plan")
 	}
 	observations = cloneNumericObservations(observations)
-	slices.SortFunc(observations, func(a, b NumericTargetObservation) int { return cmp.Compare(a.Record, b.Record) })
-	report := NumericTargetReport{
+	slices.SortFunc(observations, func(a, b numericTargetObservation) int { return cmp.Compare(a.Record, b.Record) })
+	report := numericTargetReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.ID,
 		Records: make([]numericRecordResult, len(plan.Cases)), Metrics: make([]runrecord.Metric, len(plan.Scorers)),
 	}
 	for index, target := range plan.Cases {
 		if observations[index].Record != target.Record {
-			return NumericTargetReport{}, errors.New("evaluation: numeric target records differ")
+			return numericTargetReport{}, errors.New("evaluation: numeric target records differ")
 		}
 		result := numericRecordResult{
 			Record: target.Record, Expected: slices.Clone(target.Values), Actual: slices.Clone(observations[index].Values),
@@ -168,7 +168,7 @@ func ScoreNumericTargets(plan NumericTargetPlan, observations []NumericTargetObs
 		for scorerIndex, scorer := range plan.Scorers {
 			value, err := scoreNumericRecord(scorer, target, observations[index])
 			if err != nil {
-				return NumericTargetReport{}, err
+				return numericTargetReport{}, err
 			}
 			result.Scores[scorerIndex] = numericScore{Name: scorer.Kind, Value: value}
 			report.Metrics[scorerIndex].Value += value
@@ -189,11 +189,40 @@ func ScoreNumericTargets(plan NumericTargetPlan, observations []NumericTargetObs
 }
 
 // Batch stages the report with lineage to its plan.
-func (report NumericTargetReport) Batch(key string) (artifact.Batch, error) {
+func (report numericTargetReport) Batch(key string) (artifact.Batch, error) {
 	return numericTargetReportCodec.Batch(key, report, artifact.DependencyLineage(report.ID, report.Plan), nil)
 }
 
-func scoreNumericRecord(scorer NumericScorerSpec, target NumericTargetCase, observation NumericTargetObservation) (float64, error) {
+// compileNumericHeldout is the numeric held-out slice: one scorer over each
+// case's target values or label, and each observation's predicted ones.
+func compileNumericHeldout(view SFTEvaluationView, scorer numericScorer, cases []HeldoutCase) (HeldoutPlan, error) {
+	suite := numericTargetSuite{Scorers: []numericScorerSpec{{Kind: scorer}}}
+	for _, target := range cases {
+		suite.Cases = append(suite.Cases, numericTargetCase{Record: target.Record, Values: slices.Clone(target.Values), Label: target.Label})
+	}
+	plan, err := compileNumericTargetPlan(view, suite)
+	if err != nil {
+		return HeldoutPlan{}, err
+	}
+	return HeldoutPlan{id: plan.ID, view: plan.View, batch: plan.Batch, score: func(observations []HeldoutObservation) (HeldoutReport, error) {
+		predicted := make([]numericTargetObservation, len(observations))
+		for index, observation := range observations {
+			predicted[index] = numericTargetObservation{Record: observation.Record, Values: observation.Values, Label: observation.Label}
+		}
+		report, err := scoreNumericTargets(plan, predicted)
+		if err != nil {
+			return HeldoutReport{}, err
+		}
+		return report.heldout(), nil
+	}}, nil
+}
+
+// heldout is the report as the held-out judge reads it.
+func (report numericTargetReport) heldout() HeldoutReport {
+	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
+}
+
+func scoreNumericRecord(scorer numericScorerSpec, target numericTargetCase, observation numericTargetObservation) (float64, error) {
 	if scorer.Kind == numericLabelAccuracy {
 		if target.Label != "" {
 			if target.Label == observation.Label {
@@ -225,7 +254,7 @@ func scoreNumericRecord(scorer NumericScorerSpec, target NumericTargetCase, obse
 		}
 		residual := expected - actual
 		switch scorer.Kind {
-		case NumericAbsoluteError:
+		case numericAbsoluteError:
 			sum += math.Abs(residual)
 		case numericSquaredError:
 			sum += residual * residual
@@ -237,7 +266,7 @@ func scoreNumericRecord(scorer NumericScorerSpec, target NumericTargetCase, obse
 	return sum / float64(len(target.Values)), nil
 }
 
-func canonicalizeNumericTargetPlan(plan *NumericTargetPlan) error {
+func canonicalizeNumericTargetPlan(plan *numericTargetPlan) error {
 	if plan == nil || plan.Version != artifact.InitialDocumentVersion || plan.View.Kind() != artifact.KindProfile ||
 		plan.Signature.Validate() != nil || len(plan.Signature.Inputs) != 1 || len(plan.Signature.Outputs) != 1 ||
 		len(plan.Scorers) == 0 || len(plan.Cases) == 0 {
@@ -246,19 +275,19 @@ func canonicalizeNumericTargetPlan(plan *NumericTargetPlan) error {
 	// Text scores only as label accuracy over token ids: the fraction of
 	// next tokens predicted. A numeric error has no meaning over token ids.
 	modality := plan.Signature.Outputs[0]
-	tokenAccuracy := modality == recipecontract.ModalityText && !slices.ContainsFunc(plan.Scorers, func(scorer NumericScorerSpec) bool {
+	tokenAccuracy := modality == recipecontract.ModalityText && !slices.ContainsFunc(plan.Scorers, func(scorer numericScorerSpec) bool {
 		return scorer.Kind != numericLabelAccuracy
 	})
 	if modality != recipecontract.ModalityTimeSeries && modality != recipecontract.ModalityTable && !tokenAccuracy {
 		return errors.New("evaluation: unsupported numeric target modality")
 	}
-	slices.SortFunc(plan.Scorers, func(a, b NumericScorerSpec) int { return cmp.Compare(a.Kind, b.Kind) })
+	slices.SortFunc(plan.Scorers, func(a, b numericScorerSpec) int { return cmp.Compare(a.Kind, b.Kind) })
 	for index, scorer := range plan.Scorers {
 		if !validNumericScorer(scorer) || index > 0 && plan.Scorers[index-1].Kind == scorer.Kind {
 			return errors.New("evaluation: invalid or duplicate numeric scorer")
 		}
 	}
-	slices.SortFunc(plan.Cases, func(a, b NumericTargetCase) int { return cmp.Compare(a.Record, b.Record) })
+	slices.SortFunc(plan.Cases, func(a, b numericTargetCase) int { return cmp.Compare(a.Record, b.Record) })
 	for index := range plan.Cases {
 		target := &plan.Cases[index]
 		slices.SortFunc(target.Assumptions, func(a, b numericAssumption) int { return cmp.Compare(a.Name, b.Name) })
@@ -269,15 +298,15 @@ func canonicalizeNumericTargetPlan(plan *NumericTargetPlan) error {
 	return nil
 }
 
-func validNumericScorer(scorer NumericScorerSpec) bool {
+func validNumericScorer(scorer numericScorerSpec) bool {
 	if scorer.Kind == numericQuantileLoss {
 		return scorer.Quantile != nil && checked.Finite64(*scorer.Quantile) && *scorer.Quantile > 0 && *scorer.Quantile < 1
 	}
-	return (scorer.Kind == NumericAbsoluteError || scorer.Kind == numericSquaredError || scorer.Kind == numericLabelAccuracy) && scorer.Quantile == nil &&
+	return (scorer.Kind == numericAbsoluteError || scorer.Kind == numericSquaredError || scorer.Kind == numericLabelAccuracy) && scorer.Quantile == nil &&
 		(scorer.Kind != numericLabelAccuracy || scorer.Unit == "")
 }
 
-func validNumericCase(target NumericTargetCase, scorers []NumericScorerSpec) bool {
+func validNumericCase(target numericTargetCase, scorers []numericScorerSpec) bool {
 	for index, assumption := range target.Assumptions {
 		if assumption.Name == "" || assumption.Value == "" || index > 0 && target.Assumptions[index-1].Name == assumption.Name {
 			return false
@@ -300,7 +329,7 @@ func classIDs(values []float64) bool {
 	})
 }
 
-func canonicalizeNumericTargetReport(report *NumericTargetReport) error {
+func canonicalizeNumericTargetReport(report *numericTargetReport) error {
 	if report == nil || report.Version != artifact.InitialDocumentVersion || report.Plan.Kind() != artifact.KindProfile ||
 		len(report.Records) == 0 || len(report.Metrics) == 0 {
 		return errors.New("evaluation: invalid numeric target report")
@@ -324,7 +353,7 @@ func canonicalizeNumericTargetReport(report *NumericTargetReport) error {
 	return nil
 }
 
-func cloneNumericCases(values []NumericTargetCase) []NumericTargetCase {
+func cloneNumericCases(values []numericTargetCase) []numericTargetCase {
 	result := slices.Clone(values)
 	for index := range result {
 		result[index].Values = slices.Clone(result[index].Values)
@@ -333,7 +362,7 @@ func cloneNumericCases(values []NumericTargetCase) []NumericTargetCase {
 	return result
 }
 
-func cloneNumericTargetPlan(plan NumericTargetPlan) NumericTargetPlan {
+func cloneNumericTargetPlan(plan numericTargetPlan) numericTargetPlan {
 	plan.Signature = plan.Signature.Clone()
 	plan.Scorers = slices.Clone(plan.Scorers)
 	for index := range plan.Scorers {
@@ -346,7 +375,7 @@ func cloneNumericTargetPlan(plan NumericTargetPlan) NumericTargetPlan {
 	return plan
 }
 
-func cloneNumericObservations(values []NumericTargetObservation) []NumericTargetObservation {
+func cloneNumericObservations(values []numericTargetObservation) []numericTargetObservation {
 	result := slices.Clone(values)
 	for index := range result {
 		result[index].Values = slices.Clone(result[index].Values)
@@ -354,7 +383,7 @@ func cloneNumericObservations(values []NumericTargetObservation) []NumericTarget
 	return result
 }
 
-func cloneNumericTargetReport(report NumericTargetReport) NumericTargetReport {
+func cloneNumericTargetReport(report numericTargetReport) numericTargetReport {
 	report.Records = slices.Clone(report.Records)
 	for index := range report.Records {
 		record := &report.Records[index]

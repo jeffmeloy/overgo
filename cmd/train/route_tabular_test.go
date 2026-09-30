@@ -79,49 +79,13 @@ func TestTrainTabularRegressionObjective(t *testing.T) {
 func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric, tables []tabularicl.Request, untrained func(float32) float32, base, trained float64) {
 	t.Helper()
 	ctx := t.Context()
-	corpus := t.TempDir()
-	for table, request := range tables {
-		data, err := json.Marshal(request)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("table-%02d.json", table)), data, 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
 	root := t.TempDir()
 	store, err := overgodb.Open(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "tables", corpus)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var records []dataset.Record
-	for index := range uint64(len(tables)) {
-		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
-		records = append(records, dataset.Record{ID: id, Group: id})
-	}
-	split, err := dataset.BuildGroupSplit(registered.Dataset, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	splitBatch, err := split.PublicationBatch("test-split", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
-		t.Fatal(err)
-	}
-	var training artifact.ID
-	for _, membership := range split.Memberships {
-		if membership.Partition == "train" {
-			training = membership.ID
-		}
-	}
-	objective, modelPath := registerTableObjective(t, ctx, store, root, registered.Dataset, training, metric)
+	objective, modelPath := registerTableSplit(t, ctx, store, root, tables, nil, metric)
 
 	task := tableObjectiveTasks[metric]
 	if task != tables[0].Task {
@@ -179,6 +143,56 @@ func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric
 	if err != nil || approved.Authority != trainingprogram.ObjectiveApproved {
 		t.Fatalf("approval = (%q, %v), want approved on the held-out verdict", approved.Authority, err)
 	}
+}
+
+// registerTableSplit registers the tables as a dataset, one request file per
+// record, splits it in halves by group, groups[i] being table i's group or,
+// for nil groups, each record its own, and registers a table-prediction
+// objective judged by metric over its training membership.
+func registerTableSplit(t *testing.T, ctx context.Context, store *overgodb.Store, root string, tables []tabularicl.Request, groups []string, metric trainingprogram.EvaluationMetric) (trainingprogram.ObjectiveDocument, string) {
+	t.Helper()
+	corpus := t.TempDir()
+	for table, request := range tables {
+		data, err := json.Marshal(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Names that sort in table order keep record i table i.
+		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("table-%04d.json", table)), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "tables", corpus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var records []dataset.Record
+	for index := range uint64(len(tables)) {
+		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
+		group := id
+		if groups != nil {
+			group = groups[index]
+		}
+		records = append(records, dataset.Record{ID: id, Group: group})
+	}
+	split, err := dataset.BuildGroupSplit(registered.Dataset, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	splitBatch, err := split.PublicationBatch("test-split", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
+		t.Fatal(err)
+	}
+	var training artifact.ID
+	for _, membership := range split.Memberships {
+		if membership.Partition == "train" {
+			training = membership.ID
+		}
+	}
+	return registerTableObjective(t, ctx, store, root, registered.Dataset, training, metric)
 }
 
 // registerTableObjective registers a table-prediction objective judged by

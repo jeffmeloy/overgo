@@ -68,12 +68,19 @@ func CompileSFTEvaluationView(
 			return SFTEvaluationView{}, errors.New("evaluation: held-out group occurs in training membership")
 		}
 	}
+	// A bounded objective is judged on its first held-out records by
+	// identity, the order a membership keeps them in: a subset no score
+	// chose.
+	records := slices.Clone(heldout.Records)
+	if bound := int(objective.HeldoutRecords); bound > 0 {
+		records = records[:min(bound, len(records))]
+	}
 	return sftEvaluationViewCodec.NewInitial(SFTEvaluationView{
 		Objective: objective.ID, Dataset: objective.Dataset,
 		TrainingMembership: training.ID, HeldoutMembership: heldout.ID,
 		Processors: slices.Clone(objective.Processors), Projectors: slices.Clone(objective.Projectors),
 		Codecs: slices.Clone(objective.Codecs), Signature: objective.Signature.Clone(),
-		Records: slices.Clone(heldout.Records),
+		Records: records,
 	})
 }
 

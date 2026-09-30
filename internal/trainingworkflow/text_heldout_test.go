@@ -1,6 +1,7 @@
 package trainingworkflow
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,6 +21,42 @@ import (
 // held-out verdict compares next-token accuracy before and after on the
 // held-out files, and the verdict climbs the objective to approved.
 func TestTextObjectiveApprovesOnHeldOutGain(t *testing.T) {
+	var documents []string
+	for index := range 12 {
+		// Distinct lengths keep every file its own record; the pattern
+		// fixes each next token.
+		documents = append(documents, strings.Repeat("abcd", 5)[:6+index])
+	}
+	approveTextObjective(t, documents, trainingprogram.MetricTokenAccuracy)
+}
+
+// TestGenerationObjectiveApprovesOnHeldOutAnswers trains a tiny dense model
+// under a token-prediction objective judged by generated answers: each
+// record is a prompt over a and b whose accepted answer is cd after a
+// prompt ending in a and dc after one ending in b. Training reads each
+// training prompt followed by its answer; the held-out verdict compares
+// how many held-out prompts the base and trained models answer, generating
+// greedily, and the verdict climbs the objective to approved.
+func TestGenerationObjectiveApprovesOnHeldOutAnswers(t *testing.T) {
+	var documents []string
+	for _, prompt := range []string{"aa", "ab", "ba", "bb", "aaa", "aab", "aba", "abb", "baa", "bab", "bba", "bbb"} {
+		answer := map[byte]string{'a': "cd", 'b': "dc"}[prompt[len(prompt)-1]]
+		document, err := json.Marshal(map[string]any{"prompt": prompt, "answers": []string{answer}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		documents = append(documents, string(document))
+	}
+	approveTextObjective(t, documents, trainingprogram.MetricGeneratedAnswer)
+}
+
+// approveTextObjective registers the documents as a dataset, one file per
+// record, split in halves by record, under a token-prediction objective
+// judged by metric; it trains a tiny dense model through the held-out text
+// run and holds the verdict to passing and the objective to climbing to
+// approved on it.
+func approveTextObjective(t *testing.T, documents []string, metric trainingprogram.EvaluationMetric) {
+	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
 	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
@@ -31,12 +68,8 @@ func TestTextObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	if err := os.MkdirAll(corpus, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	const files = 12
-	for index := range files {
-		// Distinct lengths keep every file its own record; the pattern
-		// fixes each next token.
-		text := strings.Repeat("abcd", 5)[:6+index]
-		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("text-%02d.txt", index)), []byte(text), 0o600); err != nil {
+	for index, document := range documents {
+		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("text-%02d.txt", index)), []byte(document), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -50,7 +83,7 @@ func TestTextObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		t.Fatal(err)
 	}
 	var records []dataset.Record
-	for index := range uint64(files) {
+	for index := range uint64(len(documents)) {
 		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
 		records = append(records, dataset.Record{ID: id, Group: id})
 	}
@@ -76,7 +109,7 @@ func TestTextObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		Name: "texts", Kind: trainingprogram.ObjectiveTokenPrediction, Signature: textSignature,
 		Dataset: registered.Dataset, Split: training, Processors: []artifact.ID{derived(artifact.KindProfile, "processor")},
 		Loss: derived(artifact.KindProfile, "loss"), Evaluation: derived(artifact.KindProfile, "evaluation"),
-		Metric: trainingprogram.MetricTokenAccuracy, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
+		Metric: metric, Evidence: []artifact.ID{derived(artifact.KindEvidence, "note")},
 		Authority: trainingprogram.ObjectiveDeclared,
 	})
 	if err != nil {
@@ -89,6 +122,15 @@ func TestTextObjectiveApprovesOnHeldOutGain(t *testing.T) {
 	if err != nil || !result.Passed {
 		t.Fatalf("text held-out run = (passed=%t, %v), want a passed verdict", result.Passed, err)
 	}
+	var verdict struct {
+		BaselineValue  float64 `json:"baseline_value"`
+		CandidateValue float64 `json:"candidate_value"`
+	}
+	content, found, err := artifact.ReadContent(ctx, store, result.Verdict)
+	if err != nil || !found || json.Unmarshal(content.Data, &verdict) != nil {
+		t.Fatalf("verdict %s content = (found %t, %v)", result.Verdict, found, err)
+	}
+	t.Logf("held-out %s %.4f -> %.4f", metric, verdict.BaselineValue, verdict.CandidateValue)
 	if _, err := PromoteObjectiveAdaptive(ctx, store, alias, []artifact.ID{result.Observation}); err != nil {
 		t.Fatal(err)
 	}

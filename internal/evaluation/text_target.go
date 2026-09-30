@@ -200,6 +200,35 @@ func (report textTargetReport) Batch(key string) (artifact.Batch, error) {
 	return textTargetReportCodec.Batch(key, report, artifact.DependencyLineage(report.ID, report.Plan), nil)
 }
 
+// compileTextHeldout is the generated-text held-out slice: one scorer over
+// each case's accepted answers, and the text each observation generated.
+func compileTextHeldout(view SFTEvaluationView, scorer textScorerSpec, cases []HeldoutCase) (HeldoutPlan, error) {
+	suite := textTargetSuite{Scorers: []textScorerSpec{scorer}}
+	for _, target := range cases {
+		suite.Cases = append(suite.Cases, textTargetCase{Record: target.Record, Answers: slices.Clone(target.Answers)})
+	}
+	plan, err := compileTextTargetPlan(view, suite)
+	if err != nil {
+		return HeldoutPlan{}, err
+	}
+	return HeldoutPlan{id: plan.ID, view: plan.View, batch: plan.Batch, score: func(observations []HeldoutObservation) (HeldoutReport, error) {
+		generated := make([]textTargetObservation, len(observations))
+		for index, observation := range observations {
+			generated[index] = textTargetObservation{Record: observation.Record, Raw: observation.Text}
+		}
+		report, err := scoreTextTargets(plan, generated)
+		if err != nil {
+			return HeldoutReport{}, err
+		}
+		return report.heldout(), nil
+	}}, nil
+}
+
+// heldout is the report as the held-out judge reads it.
+func (report textTargetReport) heldout() HeldoutReport {
+	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
+}
+
 func scoreTextObservation(scorer textScorerSpec, target textTargetCase, observation textTargetObservation) (float64, error) {
 	switch scorer.Kind {
 	case textContinuationLikelihood:

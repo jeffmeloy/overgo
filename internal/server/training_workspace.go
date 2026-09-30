@@ -164,13 +164,13 @@ func (workspace *trainingWorkspace) executeWorkflow(
 	reporter.Progress(completed, &total)
 	dpo := slices.Grow([]trainingprogram.DPOObservation(nil), input.Steps)
 	grpo := slices.Grow([]trainingprogram.GRPOObservation(nil), input.Steps)
-	result, executeErr := trainingworkflow.Execute(ctx, trainingworkflow.Request{
+	request := trainingworkflow.Request{
 		Repository:     workspace.store,
 		Recipe:         recipeID,
 		ModelDirectory: policyDirectory, ReferenceDirectory: referenceDirectory,
 		DatasetPath: datasetPath, OutputDirectory: output, ResumeDirectory: resumeDirectory,
 		Steps:          input.Steps,
-		ObjectiveScale: input.ObjectiveScale, Host: true,
+		ObjectiveScale: input.ObjectiveScale, Host: true, Observations: workspace.store,
 		ObserveDPO: func(observation trainingprogram.DPOObservation) {
 			dpo = append(dpo, observation)
 			completed++
@@ -183,13 +183,24 @@ func (workspace *trainingWorkspace) executeWorkflow(
 			reporter.Progress(completed, &total)
 			reportGRPO(reporter, observation)
 		},
-	})
+	}
+	result, executeErr := trainingworkflow.Execute(ctx, request)
 	if executeErr != nil {
 		return workspace.fail(ctx, definition.ID, inputs, executeErr)
 	}
+	// A DPO run whose objective holds out pairs is approved or refused on
+	// them; GRPO has no held-out target scorer yet, so its decision waits
+	// for an evaluation.
+	var heldout trainingworkflow.HeldoutResult
+	judged := false
+	if workspace.objective == trainingprogram.ObjectiveDPO {
+		if heldout, judged, err = trainingworkflow.JudgePreferenceHeldout(ctx, workspace.store, request, result); err != nil {
+			return workspace.fail(ctx, definition.ID, inputs, err)
+		}
+	}
 	reporter.Publishing()
 	return workspace.publish(ctx, definition.ID, inputs, policy, reference, input.Dataset,
-		result.Checkpoint, output, dpo, grpo)
+		result.Checkpoint, output, dpo, grpo, heldout, judged)
 }
 
 func (workspace *trainingWorkspace) outputPath(name string) (string, error) {
@@ -200,7 +211,9 @@ func (workspace *trainingWorkspace) outputPath(name string) (string, error) {
 	return filepath.Join(workspace.roots.Checkpoints, name), nil
 }
 
-func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, policy, reference, dataset artifact.ID, checkpoint trainingprogram.Checkpoint, path string, dpo []trainingprogram.DPOObservation, grpo []trainingprogram.GRPOObservation) (operation.Completion, error) {
+// publish records the run, its trace and its decision: approved or refused
+// on the held-out verdict when one judged the run, else awaiting evaluation.
+func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, policy, reference, dataset artifact.ID, checkpoint trainingprogram.Checkpoint, path string, dpo []trainingprogram.DPOObservation, grpo []trainingprogram.GRPOObservation, heldout trainingworkflow.HeldoutResult, judged bool) (operation.Completion, error) {
 	data, err := checkpoint.Marshal()
 	if err != nil {
 		return operation.Completion{}, err
@@ -231,6 +244,9 @@ func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifa
 		return operation.Completion{}, err
 	}
 	decision, err := runrecord.NewTrainingDecision(run.ID, recipeID, policy, checkpoint.ID(), trace.ID)
+	if err == nil && judged {
+		decision, err = decision.Judged(heldout.Verdict, heldout.Passed)
+	}
 	if err != nil {
 		return operation.Completion{}, err
 	}
@@ -248,7 +264,11 @@ func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifa
 	if _, err := artifact.CommitBatch(ctx, workspace.store, batch); err != nil {
 		return operation.Completion{}, err
 	}
-	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{checkpoint.ID(), trace.ID, decision.ID}}, nil
+	outputs := []artifact.ID{checkpoint.ID(), trace.ID, decision.ID}
+	if judged {
+		outputs = append(outputs, heldout.Verdict)
+	}
+	return operation.Completion{Run: run.ID, Outputs: outputs}, nil
 }
 
 func reportGRPO(reporter operation.Reporter, observation trainingprogram.GRPOObservation) {

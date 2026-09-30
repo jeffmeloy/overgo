@@ -163,6 +163,36 @@ func (report preferenceTargetReport) Batch(key string) (artifact.Batch, error) {
 	return preferenceTargetReportCodec.Batch(key, report, artifact.DependencyLineage(report.ID, report.Plan), nil)
 }
 
+// CompilePreferenceHeldoutPlan is the preference held-out slice: a DPO
+// objective's held-out pairs, each scored by a model as policy against the
+// frozen reference the policy names, at its scale.
+func CompilePreferenceHeldoutPlan(objective trainingprogram.ObjectiveDocument, view SFTEvaluationView, policy trainingprogram.PreferencePolicy) (HeldoutPlan, error) {
+	plan, err := compilePreferenceTargetPlan(objective, view, preferenceTargetSuite{Policy: policy})
+	if err != nil {
+		return HeldoutPlan{}, err
+	}
+	return HeldoutPlan{id: plan.ID, view: plan.View, batch: plan.Batch, score: func(observations []HeldoutObservation) (HeldoutReport, error) {
+		scored := make([]preferenceTargetObservation, len(observations))
+		for index, observation := range observations {
+			scores := observation.Preference
+			scored[index] = preferenceTargetObservation{
+				Record: observation.Record, PolicyChosen: scores.PolicyChosen, PolicyRejected: scores.PolicyRejected,
+				ReferenceChosen: scores.ReferenceChosen, ReferenceRejected: scores.ReferenceRejected,
+			}
+		}
+		report, err := scorePreferenceTargets(plan, scored)
+		if err != nil {
+			return HeldoutReport{}, err
+		}
+		return report.heldout(), nil
+	}}, nil
+}
+
+// heldout is the report as the held-out judge reads it.
+func (report preferenceTargetReport) heldout() HeldoutReport {
+	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
+}
+
 func canonicalizePreferenceTargetPlan(plan *preferenceTargetPlan) error {
 	if plan == nil || plan.Version != artifact.InitialDocumentVersion || plan.View.Kind() != artifact.KindProfile ||
 		plan.Objective.Kind() != artifact.KindProfile || plan.Heldout.Kind() != artifact.KindDatasetShard ||

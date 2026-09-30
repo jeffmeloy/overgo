@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/dataset"
 	"overgo/internal/densecausal"
 	"overgo/internal/hostoptimizer"
 
@@ -259,8 +260,12 @@ func (session denseSession) prepare() (densePrepared, error) {
 	if err != nil {
 		return densePrepared{}, fmt.Errorf("training workflow: load reference: %w", err)
 	}
+	_, membership, err := recipeObjective(session.ctx, session.request.Repository, session.runtime.Definition())
+	if err != nil {
+		return densePrepared{}, err
+	}
 	batches, units, stream, data, err := preferenceBatchesResume(
-		session.ctx, session.raw, session.request.Steps, session.encode, session.resumeStream,
+		session.ctx, session.raw, session.request.Steps, session.encode, session.resumeStream, membership,
 	)
 	if err != nil {
 		return densePrepared{}, err
@@ -273,6 +278,25 @@ func (session denseSession) prepare() (densePrepared, error) {
 		units: units, data: data, stream: stream, reference: reference, pairs: batches,
 		preference: &trainingprogram.PreferencePolicy{Reference: referenceID, Scale: session.request.ObjectiveScale},
 	}, nil
+}
+
+// recipeObjective loads the objective a recipe binds and the committed
+// training membership it splits its dataset by: nil for an objective that
+// trains on all of it, or a recipe that binds none.
+func recipeObjective(ctx context.Context, reader artifact.Reader, definition recipe.Definition) (trainingprogram.ObjectiveDocument, *dataset.Membership, error) {
+	id, bound := definition.PrimaryDependency(recipe.DependencyObjective)
+	if !bound {
+		return trainingprogram.ObjectiveDocument{}, nil, nil
+	}
+	objective, err := trainingprogram.LoadObjective(ctx, reader, id)
+	if err != nil {
+		return trainingprogram.ObjectiveDocument{}, nil, err
+	}
+	membership, found, err := dataset.LoadMembership(ctx, reader, objective.Split)
+	if err != nil || !found {
+		return objective, nil, err
+	}
+	return objective, &membership, nil
 }
 
 func (session denseSession) execute(prepared densePrepared, plan trainingprogram.TrainingSessionPlan) (Result, densecausal.TrainState, error) {

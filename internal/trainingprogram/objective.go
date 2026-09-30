@@ -113,6 +113,12 @@ const (
 	// MetricTableMSE is a regression head's mean squared error over its
 	// query rows; lower is better.
 	MetricTableMSE EvaluationMetric = "table-mse"
+	// MetricGeneratedAnswer is the fraction of prompts whose generated text
+	// matches an accepted answer; higher is better.
+	MetricGeneratedAnswer EvaluationMetric = "generated-answer"
+	// MetricPreferenceLoss is a policy's mean DPO loss over preference pairs
+	// against its reference; lower is better.
+	MetricPreferenceLoss EvaluationMetric = "preference-loss"
 )
 
 type ObjectiveSpec struct {
@@ -127,8 +133,12 @@ type ObjectiveSpec struct {
 	Loss       artifact.ID
 	Evaluation artifact.ID
 	Metric     EvaluationMetric
-	Evidence   []artifact.ID
-	Authority  ObjectiveAuthority
+	// HeldoutRecords bounds how many held-out records a verdict scores, the
+	// first by record identity, where scoring one record is costly; zero
+	// scores every one.
+	HeldoutRecords uint32
+	Evidence       []artifact.ID
+	Authority      ObjectiveAuthority
 }
 
 // ObjectiveDocument binds one trainable modality pair to OvergoDB evidence.
@@ -151,8 +161,11 @@ type objectiveBody struct {
 	Loss       artifact.ID                      `json:"loss"`
 	Evaluation artifact.ID                      `json:"evaluation"`
 	Metric     EvaluationMetric                 `json:"metric"`
-	Evidence   []artifact.ID                    `json:"evidence"`
-	Authority  ObjectiveAuthority               `json:"authority"`
+	// HeldoutRecords is omitted at zero, so objectives that score every
+	// held-out record keep their identities.
+	HeldoutRecords uint32             `json:"heldout_records,omitzero"`
+	Evidence       []artifact.ID      `json:"evidence"`
+	Authority      ObjectiveAuthority `json:"authority"`
 }
 
 var objectiveCodec = artifact.DocumentCodec[ObjectiveDocument]{
@@ -168,7 +181,7 @@ var objectiveCodec = artifact.DocumentCodec[ObjectiveDocument]{
 		*value = ObjectiveDocument{Version: body.Version, ObjectiveSpec: ObjectiveSpec{
 			Name: body.Name, Kind: body.Kind, Signature: body.Signature, Dataset: body.Dataset, Split: body.Split,
 			Processors: body.Processors, Projectors: body.Projectors, Codecs: body.Codecs,
-			Loss: body.Loss, Evaluation: body.Evaluation, Metric: body.Metric,
+			Loss: body.Loss, Evaluation: body.Evaluation, Metric: body.Metric, HeldoutRecords: body.HeldoutRecords,
 			Evidence: body.Evidence, Authority: body.Authority,
 		}}
 		return nil
@@ -178,7 +191,8 @@ var objectiveCodec = artifact.DocumentCodec[ObjectiveDocument]{
 			Version: value.Version, Name: value.Name, Kind: value.Kind, Signature: value.Signature,
 			Dataset: value.Dataset, Split: value.Split, Processors: value.Processors,
 			Projectors: value.Projectors, Codecs: value.Codecs, Loss: value.Loss,
-			Evaluation: value.Evaluation, Metric: value.Metric, Evidence: value.Evidence, Authority: value.Authority,
+			Evaluation: value.Evaluation, Metric: value.Metric, HeldoutRecords: value.HeldoutRecords,
+			Evidence: value.Evidence, Authority: value.Authority,
 		})
 	},
 	Canonicalize: canonicalizeObjective,
@@ -505,7 +519,7 @@ func objectivePairKey(signature recipecontract.ModalitySignature) string {
 func metricValidForModality(modality recipecontract.Modality, metric EvaluationMetric) bool {
 	switch modality {
 	case recipecontract.ModalityText:
-		return metric == MetricTokenAccuracy
+		return metric == MetricTokenAccuracy || metric == MetricGeneratedAnswer || metric == MetricPreferenceLoss
 	case recipecontract.ModalityImage:
 		return metric == MetricImagePSNRSigned || metric == MetricImagePSNRUnit
 	case recipecontract.ModalityAudio:

@@ -30,7 +30,7 @@ func dpoFixture(t *testing.T) (*Model, *Model, trainingdata.PreferencePair) {
 
 func TestDPOSelectedScoresMatchMaterialized(t *testing.T) {
 	policy, _, pair := dpoFixture(t)
-	got, err := policy.sequenceLogProb(pair.Chosen)
+	got, err := policy.SequenceLogProb(pair.Chosen)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,11 +60,11 @@ func TestDPOStepImprovesPreferenceMargin(t *testing.T) {
 
 func dpoMargin(t *testing.T, model *Model, pair trainingdata.PreferencePair) float64 {
 	t.Helper()
-	chosen, err := model.sequenceLogProb(pair.Chosen)
+	chosen, err := model.SequenceLogProb(pair.Chosen)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rejected, err := model.sequenceLogProb(pair.Rejected)
+	rejected, err := model.SequenceLogProb(pair.Rejected)
 	if err != nil {
 		t.Fatal(err)
 	}

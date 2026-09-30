@@ -10,13 +10,14 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-// heldoutFixture is a forecast objective bound to the training half of a
-// real group split, its held-out view, and a numeric plan over the held-out
-// records.
+// heldoutFixture is a forecast or table objective bound to the training half
+// of a real group split, its held-out view, and the held-out plan its metric
+// compiles over the held-out records' cases.
 type heldoutFixture struct {
 	objective trainingprogram.ObjectiveDocument
 	view      SFTEvaluationView
-	plan      NumericTargetPlan
+	plan      HeldoutPlan
+	cases     []HeldoutCase
 	split     dataset.SplitPlan
 }
 
@@ -71,30 +72,30 @@ func newHeldoutFixture(t *testing.T, metric trainingprogram.EvaluationMetric) he
 	if err != nil {
 		t.Fatal(err)
 	}
-	suite := NumericTargetSuite{Scorers: []NumericScorerSpec{{Kind: NumericAbsoluteError}, {Kind: numericLabelAccuracy}}}
+	var cases []HeldoutCase
 	for index, record := range view.Records {
-		suite.Cases = append(suite.Cases, NumericTargetCase{Record: record.ID, Values: []float64{float64(index), 1}, Label: "rising"})
+		cases = append(cases, HeldoutCase{Record: record.ID, Values: []float64{float64(index), 1}, Label: "rising"})
 	}
-	plan, err := CompileNumericTargetPlan(view, suite)
+	plan, err := CompileHeldoutPlan(objective, view, cases)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return heldoutFixture{objective: objective, view: view, plan: plan, split: split}
+	return heldoutFixture{objective: objective, view: view, plan: plan, cases: cases, split: split}
 }
 
 // score reports each held-out case's values shifted by offset and labeled
 // label, as a model's forecasts would be.
-func (f heldoutFixture) score(t *testing.T, offset float64, label string) NumericTargetReport {
+func (f heldoutFixture) score(t *testing.T, offset float64, label string) HeldoutReport {
 	t.Helper()
-	var observations []NumericTargetObservation
-	for _, target := range f.plan.Cases {
+	var observations []HeldoutObservation
+	for _, target := range f.cases {
 		values := make([]float64, len(target.Values))
 		for index, value := range target.Values {
 			values[index] = value + offset
 		}
-		observations = append(observations, NumericTargetObservation{Record: target.Record, Values: values, Label: label})
+		observations = append(observations, HeldoutObservation{Record: target.Record, Values: values, Label: label})
 	}
-	report, err := ScoreNumericTargets(f.plan, observations)
+	report, err := f.plan.Score(observations)
 	if err != nil {
 		t.Fatal(err)
 	}

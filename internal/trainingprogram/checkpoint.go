@@ -99,14 +99,16 @@ type checkpointDocument struct {
 
 func (c Checkpoint) ID() artifact.ID { return c.id }
 
+// checkpointContract is the canonical checkpoint document's contract.
+var checkpointContract = artifact.JSONContract(artifact.KindCheckpoint, "overgo/training-checkpoint/v1")
+
 // Content returns the canonical checkpoint document with its existing identity.
 // Weight bytes remain in the separately identified Safetensors artifact.
 func (c Checkpoint) Content() (artifact.Content, error) {
 	if err := c.ValidateIdentity(); err != nil {
 		return artifact.Content{}, err
 	}
-	return artifact.JSONContent(artifact.JSONContract(artifact.KindCheckpoint, "overgo/training-checkpoint/v1"),
-		checkpointDocument{Version: artifact.InitialDocumentVersion, Checkpoint: c})
+	return artifact.JSONContent(checkpointContract, checkpointDocument{Version: artifact.InitialDocumentVersion, Checkpoint: c})
 }
 
 // Batch binds a complete on-disk checkpoint to its canonical document, weights,
@@ -116,9 +118,24 @@ func (c Checkpoint) Batch(key, directory string) (artifact.Batch, error) {
 	if err != nil || loaded.ID() != c.ID() {
 		return artifact.Batch{}, errors.Join(errors.New("training checkpoint: publication differs"), err)
 	}
-	content, err := c.Content()
+	if err := c.ValidateIdentity(); err != nil {
+		return artifact.Batch{}, err
+	}
+	payload, err := json.Marshal(checkpointDocument{Version: artifact.InitialDocumentVersion, Checkpoint: c})
 	if err != nil {
 		return artifact.Batch{}, err
+	}
+	// A document over the store's content bound, one whose optimizer state
+	// is large, is recorded by identity and size alone: its directory holds
+	// it, and LoadCheckpoint reads it there.
+	var contents []artifact.Content
+	declared := []artifact.Descriptor{{ID: c.id, Size: uint64(len(payload)), MediaType: checkpointContract.MediaType, Schema: checkpointContract.Schema}}
+	if len(payload) <= artifact.MaxContentBytes {
+		content, err := checkpointContract.ContentBytes(payload)
+		if err != nil {
+			return artifact.Batch{}, err
+		}
+		contents, declared = []artifact.Content{content}, nil
 	}
 	weightsPath := filepath.Join(directory, CheckpointWeights)
 	info, err := os.Stat(weightsPath)
@@ -133,11 +150,11 @@ func (c Checkpoint) Batch(key, directory string) (artifact.Batch, error) {
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	batch, err := artifact.NewDocumentBatch(key, []artifact.Content{content}, c.ArtifactLineage(), nil)
+	batch, err := artifact.NewDocumentBatch(key, contents, c.ArtifactLineage(), nil)
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	batch.Artifacts = []artifact.Descriptor{{ID: c.Weights, Size: uint64(info.Size()), MediaType: "application/vnd.safetensors"}}
+	batch.Artifacts = append(declared, artifact.Descriptor{ID: c.Weights, Size: uint64(info.Size()), MediaType: "application/vnd.safetensors"})
 	batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: c.ID(), Parent: c.Weights, Relation: artifact.RelationContains})
 	batch.Locations = []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}, {Location: weightsLocation, Action: artifact.LocationAdd}}
 	return batch, batch.Validate()

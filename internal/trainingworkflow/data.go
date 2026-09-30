@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/dataset"
 	"overgo/internal/recipecontract"
 	"overgo/internal/trainingdata"
 )
@@ -248,7 +249,10 @@ func parseRollouts(raw []byte, encode func(string) ([]int, error)) ([]encodedRol
 	return result, evaluators, nil
 }
 
-func preferenceBatchesResume(ctx context.Context, raw []byte, steps int, encode func(string) ([]int, error), resume *trainingdata.StreamState) ([]trainingdata.PreferenceBatch, int, trainingdata.StreamState, batchAuthority, error) {
+// preferenceBatchesResume reads the preference dataset raw as batches of
+// one pair each. A membership keeps only its records, the membership then
+// being the split the batches are read from; nil reads every pair.
+func preferenceBatchesResume(ctx context.Context, raw []byte, steps int, encode func(string) ([]int, error), resume *trainingdata.StreamState, membership *dataset.Membership) ([]trainingdata.PreferenceBatch, int, trainingdata.StreamState, batchAuthority, error) {
 	documents, err := parsePreferences(raw, encode)
 	if err != nil {
 		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
@@ -256,6 +260,18 @@ func preferenceBatchesResume(ctx context.Context, raw []byte, steps int, encode 
 	authority, processor, err := datasetAuthority(raw, "preference-token-pair")
 	if err != nil {
 		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
+	}
+	if membership != nil {
+		if membership.Source != authority.Dataset {
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, errors.New("training workflow: membership splits another preference dataset")
+		}
+		documents = slices.DeleteFunc(documents, func(document preparedPreference) bool {
+			return !slices.ContainsFunc(membership.Records, func(record dataset.Record) bool { return record.ID == document.id })
+		})
+		if len(documents) != len(membership.Records) {
+			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, errors.New("training workflow: membership names pairs the preference dataset lacks")
+		}
+		authority.Split = membership.ID
 	}
 	records := make([]trainingdata.RawRecord, len(documents))
 	for index, document := range documents {

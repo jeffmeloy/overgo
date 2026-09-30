@@ -112,11 +112,11 @@ func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePa
 	if err != nil {
 		return trainingprogram.DPOObservation{}, nil, err
 	}
-	referenceChosen, err := reference.sequenceLogProb(pair.Chosen)
+	referenceChosen, err := reference.SequenceLogProb(pair.Chosen)
 	if err != nil {
 		return trainingprogram.DPOObservation{}, nil, err
 	}
-	referenceRejected, err := reference.sequenceLogProb(pair.Rejected)
+	referenceRejected, err := reference.SequenceLogProb(pair.Rejected)
 	if err != nil {
 		return trainingprogram.DPOObservation{}, nil, err
 	}
@@ -177,7 +177,9 @@ func completionCount(mask []bool) uint64 {
 	return count
 }
 
-func (m *Model) sequenceLogProb(sequence trainingdata.PreferenceSequence) (sequencescore.Score, error) {
+// SequenceLogProb scores a sequence's completion tokens: the summed log
+// probability the model gives each one after the tokens before it.
+func (m *Model) SequenceLogProb(sequence trainingdata.PreferenceSequence) (sequencescore.Score, error) {
 	trace, err := m.sequenceTrace(sequence)
 	if err != nil {
 		return sequencescore.Score{}, err

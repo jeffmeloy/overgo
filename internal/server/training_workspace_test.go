@@ -1,13 +1,16 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/dataset"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/operation"
@@ -79,6 +82,129 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 // championAlias names the DPO fixture's champion, which training leaves on its parent.
 const championAlias = "models/training-workspace/champion"
 
+// trainPartition and heldoutPartition name a split preference dataset's
+// memberships; splitSeed assigns its groups to them.
+const (
+	trainPartition   = "train"
+	heldoutPartition = "heldout"
+	splitSeed        = 17
+)
+
+// TestPreferenceWorkspaceScoresHeldOutPairs runs the workspace's DPO
+// objective over a preference dataset split by group: training reads only
+// the training membership, where every pair prefers c to d after its
+// prompt, and the decision is the held-out verdict on the other pairs,
+// scored against the reference. A policy trained toward c gains on
+// held-out pairs that also prefer c and is approved; on held-out pairs that
+// prefer d it has no gain and is refused, its parent kept.
+func TestPreferenceWorkspaceScoresHeldOutPairs(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name             string
+		chosen, rejected string
+		approved         bool
+	}{
+		{name: "gain", chosen: "c", rejected: "d", approved: true},
+		{name: "no-gain", chosen: "d", rejected: "c"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			prompts := []string{"a", "b", "aa", "ab", "ba", "bb", "aaa", "aab", "aba", "abb", "baa", "bab"}
+			var records []dataset.Record
+			for index := range prompts {
+				records = append(records, dataset.Record{ID: fmt.Sprintf("pair-%02d", index), Group: fmt.Sprintf("group-%02d", index)})
+			}
+			// Assignment follows the groups and seed alone, so the held-out
+			// pairs are known before the dataset they split is written.
+			partitions := []dataset.SplitPartition{{Name: heldoutPartition, Weight: 1}, {Name: trainPartition, Weight: 1}}
+			assigned, err := dataset.BuildGroupSplit(testutil.ArtifactID(t, artifact.KindDataset, "unwritten"), records, splitSeed, partitions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			heldout := map[string]bool{}
+			for _, membership := range assigned.Memberships {
+				for _, record := range membership.Records {
+					heldout[record.ID] = membership.Partition == heldoutPartition
+				}
+			}
+			var lines bytes.Buffer
+			for index, record := range records {
+				chosen, rejected := "c", "d"
+				if heldout[record.ID] {
+					chosen, rejected = test.chosen, test.rejected
+				}
+				line, err := json.Marshal(map[string]string{"id": record.ID, "group": record.Group, "prompt": prompts[index], "chosen": chosen, "rejected": rejected})
+				if err != nil {
+					t.Fatal(err)
+				}
+				lines.Write(append(line, '\n'))
+			}
+			source, err := artifact.IdentifyBytes(artifact.KindDataset, lines.Bytes())
+			if err != nil {
+				t.Fatal(err)
+			}
+			split, err := dataset.BuildGroupSplit(source, records, splitSeed, partitions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var training artifact.ID
+			for _, membership := range split.Memberships {
+				if membership.Partition == trainPartition {
+					training = membership.ID
+				}
+			}
+			fixture := newDPOFixture(t, lines.Bytes(), &split)
+			capabilities, err := fixture.workspace.WorkflowCapabilities(ctx, WorkflowTraining)
+			if err != nil || len(capabilities) != 1 {
+				t.Fatalf("capabilities=%+v err=%v", capabilities, err)
+			}
+			input, err := json.Marshal(map[string]any{"dataset": fixture.dataset, "output": "trained", "steps": 12, "objective_scale": 0.1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			completion, err := fixture.workspace.ExecuteWorkflow(ctx, WorkflowTraining, capabilities[0], input, testReporter{})
+			if err != nil || len(completion.Outputs) != 4 || completion.Outputs[3].Kind() != artifact.KindEvaluation {
+				t.Fatalf("completion=%+v err=%v, want a checkpoint, trace, decision and held-out verdict", completion, err)
+			}
+			checkpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(fixture.roots.Checkpoints, "trained"))
+			if err != nil || checkpoint.Split != training {
+				t.Fatalf("checkpoint split=%s err=%v, want the training membership %s", checkpoint.Split, err, training)
+			}
+			var verdict struct {
+				Metric         trainingprogram.EvaluationMetric `json:"metric"`
+				BaselineValue  float64                          `json:"baseline_value"`
+				CandidateValue float64                          `json:"candidate_value"`
+				Passed         bool                             `json:"passed"`
+			}
+			readJSON(t, fixture.store, completion.Outputs[3], &verdict)
+			var decision runrecord.TrainingDecision
+			readJSON(t, fixture.store, completion.Outputs[2], &decision)
+			want := "refused"
+			if test.approved {
+				want = "approved"
+			}
+			if verdict.Metric != trainingprogram.MetricPreferenceLoss || verdict.Passed != test.approved ||
+				string(decision.State) != want || decision.Verdict != completion.Outputs[3] || decision.Rollback != fixture.policy {
+				t.Fatalf("verdict=%+v decision=%+v, want %s on the held-out preference loss", verdict, decision, want)
+			}
+			t.Logf("held-out preference loss %.6f -> %.6f: %s", verdict.BaselineValue, verdict.CandidateValue, decision.State)
+		})
+	}
+}
+
+// readJSON decodes the committed document id into value.
+func readJSON(t *testing.T, store *overgodb.Store, id artifact.ID, value any) {
+	t.Helper()
+	content, found, err := artifact.ReadContent(t.Context(), store, id)
+	if err != nil || !found {
+		t.Fatalf("content %s found=%t err=%v", id, found, err)
+	}
+	if err := json.Unmarshal(content.Data, value); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // dpoTrainingFixture: a tiny DPO program activated in a fresh store, its
 // training workspace over the fixture roots, and the dataset a run trains on.
 type dpoTrainingFixture struct {
@@ -90,6 +216,16 @@ type dpoTrainingFixture struct {
 }
 
 func newDPOTrainingFixture(t *testing.T) dpoTrainingFixture {
+	t.Helper()
+	return newDPOFixture(t, []byte("{\"id\":\"pair\",\"prompt\":\"ab\",\"chosen\":\"c\",\"rejected\":\"d\"}\n"+
+		"{\"id\":\"pair-2\",\"prompt\":\"ba\",\"chosen\":\"dc\",\"rejected\":\"cd\"}\n"), nil)
+}
+
+// newDPOFixture activates a tiny DPO program over the preference dataset
+// datasetData. With a split, its objective trains on the split's training
+// membership and is judged by held-out preference loss; without one, it
+// trains on every pair.
+func newDPOFixture(t *testing.T, datasetData []byte, split *dataset.SplitPlan) dpoTrainingFixture {
 	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
@@ -109,8 +245,6 @@ func newDPOTrainingFixture(t *testing.T) dpoTrainingFixture {
 	referencePath := filepath.Join(roots.Models, "reference")
 	policy := writeWorkspaceModel(t, policyPath, weights, shapes)
 	reference := writeWorkspaceModel(t, referencePath, referenceWeights, referenceShapes)
-	datasetData := []byte("{\"id\":\"pair\",\"prompt\":\"ab\",\"chosen\":\"c\",\"rejected\":\"d\"}\n" +
-		"{\"id\":\"pair-2\",\"prompt\":\"ba\",\"chosen\":\"dc\",\"rejected\":\"cd\"}\n")
 	if err := os.MkdirAll(roots.Datasets, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -122,9 +256,26 @@ func newDPOTrainingFixture(t *testing.T) dpoTrainingFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	split, err := artifact.IdentifyBytes(artifact.KindDatasetShard, append([]byte("all\x00"), datasetData...))
+	trainingSplit, err := artifact.IdentifyBytes(artifact.KindDatasetShard, append([]byte("all\x00"), datasetData...))
 	if err != nil {
 		t.Fatal(err)
+	}
+	metric := trainingprogram.MetricTokenAccuracy
+	if split != nil {
+		batch, err := split.PublicationBatch("fixture/training-workspace/split", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: dataset, Size: uint64(len(datasetData))})
+		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+			t.Fatal(err)
+		}
+		for _, membership := range split.Memberships {
+			if membership.Partition == trainPartition {
+				trainingSplit = membership.ID
+			}
+		}
+		metric = trainingprogram.MetricPreferenceLoss
 	}
 	processor := testutil.ArtifactID(t, artifact.KindProfile, "overgo/training/preference-token-pair/v1")
 	evaluation := testutil.ArtifactID(t, artifact.KindProfile, "dpo evaluation")
@@ -145,9 +296,9 @@ func newDPOTrainingFixture(t *testing.T) dpoTrainingFixture {
 			Inputs:  []recipecontract.Modality{recipecontract.ModalityText},
 			Outputs: []recipecontract.Modality{recipecontract.ModalityText},
 		},
-		Dataset: dataset, Split: split, Processors: []artifact.ID{processor},
+		Dataset: dataset, Split: trainingSplit, Processors: []artifact.ID{processor},
 		Loss: testutil.ArtifactID(t, artifact.KindProfile, "dpo loss"), Evaluation: evaluation,
-		Metric: trainingprogram.MetricTokenAccuracy, Evidence: []artifact.ID{evidence},
+		Metric: metric, Evidence: []artifact.ID{evidence},
 		Authority: trainingprogram.ObjectiveApproved,
 	})
 	if err != nil {
@@ -163,8 +314,11 @@ func newDPOTrainingFixture(t *testing.T) dpoTrainingFixture {
 		t.Fatal(err)
 	}
 	authorities := []artifact.ID{
-		split, processor, objective.Loss, evidence, policies.Precision, policies.Placement,
+		processor, objective.Loss, evidence, policies.Precision, policies.Placement,
 		policies.Memory, policies.Checkpoint, policies.Evaluation, policies.Promotion,
+	}
+	if split == nil {
+		authorities = append(authorities, trainingSplit)
 	}
 	descriptors := make([]artifact.Descriptor, len(authorities))
 	for index, id := range authorities {

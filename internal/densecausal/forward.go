@@ -266,18 +266,27 @@ func (m *Model) logits(final []float32, seq int) []float32 {
 	return out
 }
 
+// Logits runs the forward pass over tokens and returns every position's
+// next-token logits, row-major by position.
+func (m *Model) Logits(tokens []int) ([]float32, error) {
+	states, err := m.forwardStates(tokens)
+	if err != nil {
+		return nil, err
+	}
+	return m.logits(states[m.Dims.Layers], len(tokens)), nil
+}
+
 // Loss: forward-only causal-LM loss (mean CE, positions 0..n-2 predicting
 // tokens 1..n-1) plus the full logits. The gradient path is LossAndGrads.
 func (m *Model) Loss(tokens []int) (float64, []float32, error) {
 	if len(tokens) < 2 {
 		return 0, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
-	states, err := m.forwardStates(tokens)
+	logits, err := m.Logits(tokens)
 	if err != nil {
 		return 0, nil, err
 	}
 	seq := len(tokens)
-	logits := m.logits(states[m.Dims.Layers], seq)
 	dLogits := make([]float32, (seq-1)*m.Dims.Vocab)
 	loss := hostmath.SoftmaxCrossEntropy(dLogits, logits[:(seq-1)*m.Dims.Vocab], tokens[1:], seq-1, m.Dims.Vocab)
 	return loss, logits, nil

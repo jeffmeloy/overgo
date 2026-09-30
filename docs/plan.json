@@ -10,13 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "model-report",
-          "title": "Render the model report on demand; docs/model_compatibility.json leaves the tree",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1",
-          "rationale": "S2: the 80 KB model report is rendered on demand. It roots no store identity that no other document names. The retained-publication tests compare against the rendered report, and the README links change. Batch: lanes none."
-        },
-        {
           "id": "media-report",
           "title": "Re-root the media report's store identities, then take media_report.json and MEDIA_REPORT.md out of the tree",
           "status": "open",

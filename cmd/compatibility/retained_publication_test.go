@@ -153,10 +153,8 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 			t.Fatal(err)
 		}
 	}
-	var report modelsReport
-	if err := jsonfile.DecodeStrict(filepath.Join(root, modelsReportPath), &report); err != nil {
-		t.Fatal(err)
-	}
+	// The report a reader renders from these specifications and this store.
+	report := renderedModelsReport(t)
 	matches := 0
 	for _, prototype := range report.Prototypes {
 		for _, model := range prototype.Models {

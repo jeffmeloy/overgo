@@ -58,9 +58,9 @@ default. See [SECURITY.md](SECURITY.md) for authentication and network settings.
 
 The table summarizes implementation areas. Available operations depend on the
 active model, recipe, backend, and workspace. The [compatibility matrix](docs/COMPATIBILITY.md)
-and [model catalog](docs/model_compatibility.json) record verification scope;
-the [training report](docs/TRAINING_COMPATIBILITY.md) distinguishes bounded
-smoke runs from broader training claims.
+and the model catalog (`go run ./cmd/compatibility -models -models-repo <store>`)
+record verification scope; the [training report](docs/TRAINING_COMPATIBILITY.md)
+distinguishes bounded smoke runs from broader training claims.
 
 | Area | Operations |
 | --- | --- |
@@ -203,7 +203,8 @@ Plan changes retain their acceptance requirements.
 
 - [API manifest](docs/api_manifest.json) — commands, routes, and typed contracts
 - [Benchmark report](docs/BENCHMARK.md) — evaluation and performance results
-- [Model catalog](docs/model_compatibility.json) — model-specific records
+- Model catalog — model-specific records, rendered on demand by
+  `go run ./cmd/compatibility -models -models-repo <store>`
 - [Media report](docs/MEDIA_REPORT.md) — media recipes, runs, and outputs
 - [Training compatibility](docs/TRAINING_COMPATIBILITY.md) — training evidence and scope
 - [Compatibility matrix](docs/COMPATIBILITY.md) — features and verification references

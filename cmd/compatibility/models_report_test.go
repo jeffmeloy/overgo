@@ -5,11 +5,72 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/dataroot"
+	"overgo/internal/gitauthority"
+	"overgo/internal/overgodb"
+	"overgo/internal/strictjson"
 	"overgo/internal/testutil"
 )
+
+// TestCompatibilityReportsAreRenderedOnDemand pins that the model report
+// left the tree: docs/model_compatibility.json is not tracked, and the report
+// renders from its inputs -- the typed verification specifications joined
+// against the store -- into the typed report a reader decodes.
+func TestCompatibilityReportsAreRenderedOnDemand(t *testing.T) {
+	t.Parallel()
+	root := testutil.RepoRoot(t)
+	tracked, err := gitauthority.Query(t.Context(), root, "ls-files", "--", "docs/model_compatibility.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tracked) != 0 {
+		t.Fatal("docs/model_compatibility.json is committed; the model report renders with go run ./cmd/compatibility -models")
+	}
+	if report := renderedModelsReport(t); len(report.Prototypes) == 0 {
+		t.Fatal("the rendered model report is empty")
+	}
+}
+
+// modelsReportRender renders the model report once per test process, from
+// the checkout's specifications and the retained store, decoded strictly as
+// a reader would. The report is a function of the checkout and the store,
+// which a test process does not change, and a render parses every present
+// model file's header.
+var modelsReportRender = sync.OnceValues(func() (modelsReport, error) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		return modelsReport{}, err
+	}
+	roots, err := dataroot.Resolve(root)
+	if err != nil {
+		return modelsReport{}, err
+	}
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
+	if err != nil {
+		return modelsReport{}, err
+	}
+	defer store.Close()
+	data, err := generateModelsReport(root, store)
+	if err != nil {
+		return modelsReport{}, err
+	}
+	var report modelsReport
+	return report, strictjson.DecodeBytes(data, &report)
+})
+
+// renderedModelsReport is the report a reader renders now.
+func renderedModelsReport(t *testing.T) modelsReport {
+	t.Helper()
+	report, err := modelsReportRender()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return report
+}
 
 // TestModelsReportNestsSpecificModels pins the report contract:
 // prototypes are identified without status, each specific model nests
@@ -65,7 +126,7 @@ func TestModelsReportNestsSpecificModels(t *testing.T) {
 	if err := os.Remove(malformed); err != nil {
 		t.Fatal(err)
 	}
-	data, err := generateModelsReport(root, filepath.Join(root, "absent-store"))
+	data, err := generateModelsReport(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +155,7 @@ func TestModelsReportNestsSpecificModels(t *testing.T) {
 			{"capability": "inference", "tier": "real-artifact-smoke", "commit": commit, "evidence": []string{proof.String()}},
 		},
 	})
-	data, err = generateModelsReport(root, filepath.Join(root, "absent-store"))
+	data, err = generateModelsReport(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

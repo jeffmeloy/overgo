@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "loop-improve-on-demand",
-      "title": "Promote only against a scorecard of main, then run one bounded cycle",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 470,
-        "reason": "the promotion rule (scorecard.Record.Withheld and the outcome's reason, +107) and, batched with it, dev-loop-metrics' lane measurement in internal/landing (+360). Measured +467 nodes."
-      },
-      "steps": [
-        {
-          "id": "first-run",
-          "title": "Run one bounded improvement cycle on the real store and file its gaps",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestPromotionWaitsForAHoldingScorecard$' -count=1",
-          "rationale": "Owner review 2026-09-30: after the promotion rule and dev-loop-metrics land, run go run ./cmd/loop -improve once on the real store. It proves measure, compare, promote or refuse, and file gaps; it is not a train-and-improve cycle. The landing carries the rows it filed, and its message names the published record, whether main was promoted or why it was withheld.\n\nServes: the whole loop. Disappears: nothing. Evidence: the published scorecard record and the filed rows; the verify pins the cycle it ran. Batch: plan only (no lanes, no guards, no media)."
-        }
-      ]
-    },
-    {
       "id": "lanes-false-reach",
       "title": "Cut false lane reach: keep plan and loop edits out of the cuda lane",
       "owner": "master-lead",
@@ -314,6 +295,216 @@
           "status": "open",
           "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
           "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-failing-inference",
+      "title": "Fix the inference attempts that failed",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fix the inference attempts that failed",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-failing-inference",
+          "rationale": "- Qwen3.8-27B failure-rate: 3 of 35 attempts failed, 0 cancelled\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-forecast",
+      "title": "Measure forecast's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure forecast's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-forecast",
+          "rationale": "- timesfm-2.5-200m-transformers first-output: no benchmark time to first token and no serving prefill sample\n- timesfm-2.5-200m-transformers held-out-quality: no evaluation of a derived benchmark suite\n- timesfm-2.5-200m-transformers failure-rate: no completed serving attempts recorded\n- timesfm-2.5-200m-transformers load-time: no benchmark load time and no recorded load phase\n- timesfm-2.5-200m-transformers peak-device-memory: no benchmark or serving peak device memory\n- timesfm-3.0-pytorch held-out-quality: no evaluation of a derived benchmark suite\n- timesfm-3.0-pytorch load-time: no benchmark load time and no recorded load phase\n- timesfm-3.0-pytorch peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-generation",
+      "title": "Measure generation's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure generation's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-generation",
+          "rationale": "- Fractale-350M-base first-output: no benchmark time to first token and no serving prefill sample\n- Fractale-350M-base throughput: no benchmark decode rate and no served decode phase with output tokens\n- Fractale-350M-base held-out-quality: no evaluation of a derived benchmark suite\n- Fractale-350M-base failure-rate: no completed serving attempts recorded\n- Fractale-350M-base load-time: no benchmark load time and no recorded load phase\n- Fractale-350M-base peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-image-embedding",
+      "title": "Measure image-embedding's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure image-embedding's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-image-embedding",
+          "rationale": "- webssl-dino300m-full2b-224 first-output: no benchmark time to first token and no serving prefill sample\n- webssl-dino300m-full2b-224 held-out-quality: no evaluation of a derived benchmark suite\n- webssl-dino300m-full2b-224 failure-rate: no completed serving attempts recorded\n- webssl-dino300m-full2b-224 load-time: no benchmark load time and no recorded load phase\n- webssl-dino300m-full2b-224 peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-image-gen",
+      "title": "Measure image-gen's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure image-gen's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-image-gen",
+          "rationale": "- Krea-2-Turbo first-output: no benchmark time to first token and no serving prefill sample\n- Krea-2-Turbo held-out-quality: no evaluation of a derived benchmark suite\n- Krea-2-Turbo failure-rate: no completed serving attempts recorded\n- Krea-2-Turbo load-time: no benchmark load time and no recorded load phase\n- Krea-2-Turbo peak-device-memory: no benchmark or serving peak device memory\n- SenseNova-U1-8B-MoT-Infographic-V3 first-output: no benchmark time to first token and no serving prefill sample\n- SenseNova-U1-8B-MoT-Infographic-V3 held-out-quality: no evaluation of a derived benchmark suite\n- SenseNova-U1-8B-MoT-Infographic-V3 failure-rate: no completed serving attempts recorded\n- SenseNova-U1-8B-MoT-Infographic-V3 load-time: no benchmark load time and no recorded load phase\n- SenseNova-U1-8B-MoT-Infographic-V3 peak-device-memory: no benchmark or serving peak device memory\n- SimpleDiffusion-TensorProductAttentionRope first-output: no benchmark time to first token and no serving prefill sample\n- SimpleDiffusion-TensorProductAttentionRope held-out-quality: no evaluation of a derived benchmark suite\n- SimpleDiffusion-TensorProductAttentionRope failure-rate: no completed serving attempts recorded\n- SimpleDiffusion-TensorProductAttentionRope load-time: no benchmark load time and no recorded load phase\n- SimpleDiffusion-TensorProductAttentionRope peak-device-memory: no benchmark or serving peak device memory\n- Un-0 first-output: no benchmark time to first token and no serving prefill sample\n- Un-0 held-out-quality: no evaluation of a derived benchmark suite\n- Un-0 failure-rate: no completed serving attempts recorded\n- Un-0 load-time: no benchmark load time and no recorded load phase\n- Un-0 peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-inference",
+      "title": "Measure inference's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure inference's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-inference",
+          "rationale": "- Bonsai-27B-Q1_0 held-out-quality: no evaluation of a derived benchmark suite\n- Bonsai-27B-Q1_0 failure-rate: no completed serving attempts recorded\n- Carbon-500M-f16-ropefix first-output: no benchmark time to first token and no serving prefill sample\n- Carbon-500M-f16-ropefix throughput: no benchmark decode rate and no served decode phase with output tokens\n- Carbon-500M-f16-ropefix failure-rate: no completed serving attempts recorded\n- Carbon-500M-f16-ropefix load-time: no benchmark load time and no recorded load phase\n- Carbon-500M-f16-ropefix peak-device-memory: no benchmark or serving peak device memory\n- MiniCPM5-1B-native-chat failure-rate: no completed serving attempts recorded\n- Qwen3.5-9B failure-rate: no completed serving attempts recorded\n- Unlimited-OCR-bf16 held-out-quality: no evaluation of a derived benchmark suite\n- Unlimited-OCR-bf16 failure-rate: no completed serving attempts recorded\n- gemma-4-12B-it-fp8 failure-rate: no completed serving attempts recorded\n- gemma-4-12B-it-fp8-native failure-rate: no completed serving attempts recorded\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-projection",
+      "title": "Measure projection's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure projection's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-projection",
+          "rationale": "- Qwen3.8-27B first-output: no benchmark time to first token and no serving prefill sample\n- Qwen3.8-27B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.8-27B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen3.8-27B failure-rate: no completed serving attempts recorded\n- Qwen3.8-27B load-time: no benchmark load time and no recorded load phase\n- Qwen3.8-27B peak-device-memory: no benchmark or serving peak device memory\n- gemma-4-E4B-it first-output: no benchmark time to first token and no serving prefill sample\n- gemma-4-E4B-it throughput: no benchmark decode rate and no served decode phase with output tokens\n- gemma-4-E4B-it held-out-quality: no evaluation of a derived benchmark suite\n- gemma-4-E4B-it failure-rate: no completed serving attempts recorded\n- gemma-4-E4B-it load-time: no benchmark load time and no recorded load phase\n- gemma-4-E4B-it peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-seq2seq",
+      "title": "Measure seq2seq's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure seq2seq's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-seq2seq",
+          "rationale": "- needle first-output: no benchmark time to first token and no serving prefill sample\n- needle throughput: no benchmark decode rate and no served decode phase with output tokens\n- needle held-out-quality: no evaluation of a derived benchmark suite\n- needle failure-rate: no completed serving attempts recorded\n- needle load-time: no benchmark load time and no recorded load phase\n- needle peak-device-memory: no benchmark or serving peak device memory\n- needle setup-steps: the lifecycle chain names an absent event\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-speech",
+      "title": "Measure speech's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure speech's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-speech",
+          "rationale": "- pocket-tts first-output: no benchmark time to first token and no serving prefill sample\n- pocket-tts held-out-quality: no evaluation of a derived benchmark suite\n- pocket-tts failure-rate: no completed serving attempts recorded\n- pocket-tts load-time: no benchmark load time and no recorded load phase\n- pocket-tts peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-tabular",
+      "title": "Measure tabular's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure tabular's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-tabular",
+          "rationale": "- tabfm-1.0.0-pytorch first-output: no benchmark time to first token and no serving prefill sample\n- tabfm-1.0.0-pytorch held-out-quality: no evaluation of a derived benchmark suite\n- tabfm-1.0.0-pytorch failure-rate: no completed serving attempts recorded\n- tabfm-1.0.0-pytorch load-time: no benchmark load time and no recorded load phase\n- tabfm-1.0.0-pytorch peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-training",
+      "title": "Measure training's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure training's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- Hy-Embodied-RxBrain-1.0 held-out-quality: no evaluation of a derived benchmark suite\n- Hy-Embodied-RxBrain-1.0 peak-device-memory: training sessions record device-wide memory use, not their own peak\n- LiveEdit throughput: no benchmark decode rate and no served decode phase with output tokens\n- LiveEdit held-out-quality: no evaluation of a derived benchmark suite\n- LiveEdit peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Qwen2.5-0.5B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen2.5-0.5B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen2.5-0.5B peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Qwen3.5-4B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-4B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen3.5-4B peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Qwen3.5-9B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-9B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen3.5-9B peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Wan2.1-T2V-1.3B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Wan2.1-T2V-1.3B held-out-quality: no evaluation of a derived benchmark suite\n- Wan2.1-T2V-1.3B peak-device-memory: training sessions record device-wide memory use, not their own peak\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-transcription",
+      "title": "Measure transcription's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure transcription's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-transcription",
+          "rationale": "- granite-speech-5.0-470m-turboctc first-output: no benchmark time to first token and no serving prefill sample\n- granite-speech-5.0-470m-turboctc throughput: no benchmark decode rate and no served decode phase with output tokens\n- granite-speech-5.0-470m-turboctc held-out-quality: no evaluation of a derived benchmark suite\n- granite-speech-5.0-470m-turboctc failure-rate: no completed serving attempts recorded\n- granite-speech-5.0-470m-turboctc load-time: no benchmark load time and no recorded load phase\n- granite-speech-5.0-470m-turboctc peak-device-memory: no benchmark or serving peak device memory\n- nemotron-3.5-asr-streaming-0.6b first-output: no benchmark time to first token and no serving prefill sample\n- nemotron-3.5-asr-streaming-0.6b throughput: no benchmark decode rate and no served decode phase with output tokens\n- nemotron-3.5-asr-streaming-0.6b held-out-quality: no evaluation of a derived benchmark suite\n- nemotron-3.5-asr-streaming-0.6b failure-rate: no completed serving attempts recorded\n- nemotron-3.5-asr-streaming-0.6b load-time: no benchmark load time and no recorded load phase\n- nemotron-3.5-asr-streaming-0.6b peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-video-gen",
+      "title": "Measure video-gen's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure video-gen's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-video-gen",
+          "rationale": "- LiveEdit first-output: no benchmark time to first token and no serving prefill sample\n- LiveEdit held-out-quality: no evaluation of a derived benchmark suite\n- LiveEdit failure-rate: no completed serving attempts recorded\n- LiveEdit load-time: no benchmark load time and no recorded load phase\n- LiveEdit peak-device-memory: no benchmark or serving peak device memory\n- Un-0 first-output: no benchmark time to first token and no serving prefill sample\n- Un-0 held-out-quality: no evaluation of a derived benchmark suite\n- Un-0 failure-rate: no completed serving attempts recorded\n- Un-0 load-time: no benchmark load time and no recorded load phase\n- Un-0 peak-device-memory: no benchmark or serving peak device memory\n- Wan2.1-T2V-1.3B first-output: no benchmark time to first token and no serving prefill sample\n- Wan2.1-T2V-1.3B held-out-quality: no evaluation of a derived benchmark suite\n- Wan2.1-T2V-1.3B failure-rate: no completed serving attempts recorded\n- Wan2.1-T2V-1.3B load-time: no benchmark load time and no recorded load phase\n- Wan2.1-T2V-1.3B peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-vqa",
+      "title": "Measure vqa's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure vqa's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-vqa",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 first-output: no benchmark time to first token and no serving prefill sample\n- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- Hy-Embodied-RxBrain-1.0 held-out-quality: no evaluation of a derived benchmark suite\n- Hy-Embodied-RxBrain-1.0 failure-rate: no completed serving attempts recorded\n- Hy-Embodied-RxBrain-1.0 load-time: no benchmark load time and no recorded load phase\n- Hy-Embodied-RxBrain-1.0 peak-device-memory: no benchmark or serving peak device memory\n- Hy-Embodied-RxBrain-1.0 setup-steps: the lifecycle chain names an absent event\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     },

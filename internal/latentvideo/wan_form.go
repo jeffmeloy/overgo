@@ -9,17 +9,17 @@ import (
 	"overgo/internal/sampling"
 )
 
-// ReferenceEncoderConfig carries the two published umT5 encoder-config
+// referenceEncoderConfig carries the two published umT5 encoder-config
 // facts the Wan checkpoint cannot carry (relative_attention_max_distance
 // and layer_norm_epsilon); the encoder's geometry derives from its tensor
 // shapes.
-var ReferenceEncoderConfig = EncoderConfig{RelativeMaxDistance: 128, NormEps: 1e-6}
+var referenceEncoderConfig = encoderConfig{RelativeMaxDistance: 128, NormEps: 1e-6}
 
-// ReferenceNegativePrompt is the reference implementation's default
+// referenceNegativePrompt is the reference implementation's default
 // negative prompt (wan/configs/shared_config.py, sample_neg_prompt): the
 // unconditional branch of a prompt-form request that names no negative
 // prompt of its own.
-const ReferenceNegativePrompt = "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+const referenceNegativePrompt = "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
 
 // The reference artifact names inside a Wan model directory that the text
 // pipeline reads beside the denoiser: the umT5 encoder checkpoint and the
@@ -38,8 +38,8 @@ func WanTextConditioningSpec(modelDirectory string, textLen int) TextConditionin
 		EncoderCheckpoint:   filepath.Join(modelDirectory, wanEncoderCheckpoint),
 		ProjectionDir:       modelDirectory,
 		SequenceLength:      textLen,
-		RelativeMaxDistance: ReferenceEncoderConfig.RelativeMaxDistance,
-		NormEps:             ReferenceEncoderConfig.NormEps,
+		RelativeMaxDistance: referenceEncoderConfig.RelativeMaxDistance,
+		NormEps:             referenceEncoderConfig.NormEps,
 	}
 }
 
@@ -57,7 +57,7 @@ func (request WanRequest) PromptForm() bool {
 // seed on its device.
 func ValidateWanRequestForm(request WanRequest) error {
 	if !request.PromptForm() {
-		return ValidateWanRequest(request)
+		return validateWanRequest(request)
 	}
 	for _, value := range []int{request.Frames, request.Width, request.Height, request.Steps} {
 		if value < 0 {
@@ -102,7 +102,7 @@ func (request WanRequest) withGeneration(policy generationPolicy) WanRequest {
 		request.Seed = policy.Seed
 	}
 	if request.PromptForm() && request.NegativePrompt == "" {
-		request.NegativePrompt = ReferenceNegativePrompt
+		request.NegativePrompt = referenceNegativePrompt
 	}
 	return request
 }

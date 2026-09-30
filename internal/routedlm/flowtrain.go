@@ -43,6 +43,8 @@ type FlowHeadTrainer struct {
 	stepper   optimizer.Stepper
 	config    optimizer.Config
 	step      int
+
+	optimizerPlan optimizer.Plan
 }
 
 type span struct{ start, end int }
@@ -98,6 +100,7 @@ func NewFlowHeadTrainer(plan FlowPlan, head FlowMLPWeights, policy trainingprogr
 		*spans[i] = span{specs[i].Start, specs[i].End}
 		copy(trainer.weights[specs[i].Start:specs[i].End], s.values)
 	}
+	trainer.optimizerPlan = compiled
 	trainer.stepper, err = optimizer.NewStepper(trainer.weights, trainer.gradients, compiled, trainer.config)
 	if err != nil {
 		return nil, err
@@ -110,6 +113,19 @@ func (t *FlowHeadTrainer) ParameterCount() int { return len(t.weights) }
 
 // Config exposes the derived hyperparameters for evidence.
 func (t *FlowHeadTrainer) Config() optimizer.Config { return t.config }
+
+// OptimizerPlan is the compiled Muon plan over the packed organ: one group
+// per fm_head tensor.
+func (t *FlowHeadTrainer) OptimizerPlan() optimizer.Plan { return t.optimizerPlan }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (t *FlowHeadTrainer) Snapshot() optimizer.State { return t.stepper.Snapshot() }
+
+// SaveWeights writes the trained organ at path, the weights Snapshot pairs
+// with.
+func (t *FlowHeadTrainer) SaveWeights(path string) error {
+	return optimizer.SavePlanWeights(path, t.optimizerPlan, t.weights)
+}
 
 // Close releases the stepper backend.
 func (t *FlowHeadTrainer) Close() error { return t.stepper.Close() }

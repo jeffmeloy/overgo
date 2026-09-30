@@ -1,12 +1,5 @@
 package plan
 
-import (
-	"slices"
-	"strings"
-
-	"overgo/internal/worklease"
-)
-
 // Ref names one plan row as an exact item/step identity.
 type Ref struct {
 	Item string `json:"item"`
@@ -38,39 +31,6 @@ func ReadyFrontier(d Plan) ([]Ref, error) {
 		}
 	}
 	return frontier, nil
-}
-
-// FrontierClaimsOverlap compares repo-relative claims across lanes: distinct
-// worktrees still collide when they claim the same relative surface, because
-// their gated commits meet again at merge time.
-func FrontierClaimsOverlap(left, right worklease.WorkspaceClaims) bool {
-	if left.WholeWorktree || right.WholeWorktree {
-		return true
-	}
-	for _, write := range left.Write {
-		for _, path := range slices.Concat(right.Read, right.Write) {
-			if worklease.ClaimPathsOverlap(write, path) {
-				return true
-			}
-		}
-	}
-	for _, write := range right.Write {
-		for _, read := range left.Read {
-			if worklease.ClaimPathsOverlap(write, read) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// FormatFrontier renders one row per line for operator and driver consumption.
-func FormatFrontier(frontier []Ref) string {
-	lines := make([]string, 0, len(frontier))
-	for _, ref := range frontier {
-		lines = append(lines, ref.String())
-	}
-	return strings.Join(lines, "\n")
 }
 
 // A plan reference joins its item and step with a slash.

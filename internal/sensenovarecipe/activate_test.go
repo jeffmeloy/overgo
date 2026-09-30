@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/routedlm"
@@ -75,14 +76,11 @@ func TestSenseNovaImageGenRoundTripSynthetic(t *testing.T) {
 // TestSenseNovaImageGenActiveOnCheckpoint runs the full path on the REAL
 // read-only checkpoint: derive facts through routedlm, build the
 // content-addressed inventory, register + activate, then round-trip resolve +
-// prove the model bytes are present. Gated by OVERGO_SENSENOVA_MODEL so CI and
-// plan-verify skip (mirrors TestActiveRecipeQwen35Open).
+// prove the model bytes are present. It resolves the checkpoint through the
+// store's registrations, and skips under -short.
 func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	testskip.Short(t)
-	modelDir := os.Getenv("OVERGO_SENSENOVA_MODEL")
-	if modelDir == "" {
-		testskip.NotApplicable(t, "set OVERGO_SENSENOVA_MODEL for real SenseNova activation")
-	}
+	modelDir := modeltest.Directory(t, "SenseNova-U1-8B-MoT-Infographic-V3")
 	ctx := t.Context()
 
 	facts, err := Derive(modelDir)

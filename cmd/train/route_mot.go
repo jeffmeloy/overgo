@@ -75,22 +75,24 @@ func loadMotTensorAsset(fixturesDir, asset string, golden motGoldenTensor) ([]fl
 // ladder runs), the trainable surface is the vision-branch fork of every
 // layer as f32 masters from the BF16 serving storage, the objective is the
 // pipeline's own next-token cross-entropy at the prompt's text positions,
-// and the run publishes one typed session observation: the full-pipeline run
-// the organ cells named as their promotion gate.
+// and the run publishes one typed session observation and the trained fork
+// as a checkpoint: the full-pipeline run the organ cells named as their
+// promotion gate.
 func trainMot(flags *flag.FlagSet, args []string) error {
 	modelDir := flags.String("model", "", "branch-routed checkpoint dir")
 	fixturesDir := flags.String("fixtures", "", "golden fixture dir")
 	bindingName := flags.String("binding", "", "branch binding name")
 	steps := clioptions.IntOverride(flags, "steps", "required observed training steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
+	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
 	stimulus := flags.String("stimulus", "docs/verification/rxbrain-mot-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
+	out := flags.String("out", "", "directory the trained vision fork's checkpoint publishes to")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	ctx := context.Background()
-	if *modelDir == "" || *fixturesDir == "" || *bindingName == "" || *steps <= 0 {
-		return fmt.Errorf("train -route mot: model, fixtures, binding, and positive steps required")
+	if *modelDir == "" || *fixturesDir == "" || *bindingName == "" || *out == "" || *steps <= 0 {
+		return fmt.Errorf("train -route mot: model, fixtures, binding, out, and positive steps required")
 	}
 
 	binding, err := motBinding(*bindingName)
@@ -219,5 +221,7 @@ func trainMot(flags *flag.FlagSet, args []string) error {
 	return boundedRun{name: "train -route mot", plan: plan, session: session,
 		step: func(int) (optimizer.ObservedStepResult, error) { return trainer.Step(hidden, mask, targets) },
 		loss: func() (float64, error) { return trainer.Loss(hidden, mask, targets) },
+		// Every update trains on the one declared prompt.
+		publish: func(ctx context.Context) error { return session.publishPlanned(ctx, *out, trainer, plan.Updates()) },
 	}.train(ctx)
 }

@@ -22,7 +22,7 @@ func TestWanRequestFormAdmitsPromptOrTensors(t *testing.T) {
 	filled := prompt.withGeneration(policy)
 	if filled.Frames != 81 || filled.Width != 832 || filled.Height != 480 || filled.Steps != 50 ||
 		filled.Shift != 5 || filled.GuideScale != 6 || filled.Seed != 31 ||
-		filled.NegativePrompt != ReferenceNegativePrompt || !filled.PromptForm() {
+		filled.NegativePrompt != referenceNegativePrompt || !filled.PromptForm() {
 		t.Fatalf("profile defaults = %+v", filled)
 	}
 	partial := WanRequest{Prompt: "a fox", NegativePrompt: "blurry", Frames: 5, Steps: 2, Seed: 7}.withGeneration(policy)
@@ -86,8 +86,8 @@ func TestWanTextConditioningSpecLocatesThePipeline(t *testing.T) {
 		EncoderCheckpoint:   filepath.Join(directory, "models_t5_umt5-xxl-enc-bf16.pth"),
 		ProjectionDir:       directory,
 		SequenceLength:      512,
-		RelativeMaxDistance: ReferenceEncoderConfig.RelativeMaxDistance,
-		NormEps:             ReferenceEncoderConfig.NormEps,
+		RelativeMaxDistance: referenceEncoderConfig.RelativeMaxDistance,
+		NormEps:             referenceEncoderConfig.NormEps,
 	}
 	if spec != want {
 		t.Fatalf("spec = %+v want %+v", spec, want)

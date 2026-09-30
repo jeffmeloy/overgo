@@ -103,14 +103,18 @@ func (p *TensorPack) NewStepper(config Config) (Stepper, error) {
 	return NewStepper(p.weights, p.gradients, p.plan, config)
 }
 
-// Save writes every packed tensor at path as a named F32 safetensors tensor
-// with its [rows, cols] plan geometry: the weights the Snapshot of the pack's
-// stepper pairs with.
-func (p *TensorPack) Save(path string) error {
-	tensors := make(map[string][]float32, p.plan.GroupCount())
-	shapes := make(map[string][]int, p.plan.GroupCount())
-	for _, group := range p.plan.Groups() {
-		tensors[group.Name] = p.weights[group.Start:group.End]
+// Save writes every packed tensor at path as SavePlanWeights does: the
+// weights the Snapshot of the pack's stepper pairs with.
+func (p *TensorPack) Save(path string) error { return SavePlanWeights(path, p.plan, p.weights) }
+
+// SavePlanWeights writes each group of plan at path as a named F32
+// safetensors tensor over its span of weights, with its [rows, cols]
+// geometry: the weights the Snapshot of a stepper over that plan pairs with.
+func SavePlanWeights(path string, plan Plan, weights []float32) error {
+	tensors := make(map[string][]float32, plan.GroupCount())
+	shapes := make(map[string][]int, plan.GroupCount())
+	for _, group := range plan.Groups() {
+		tensors[group.Name] = weights[group.Start:group.End]
 		shapes[group.Name] = []int{group.Rows, group.Cols}
 	}
 	return safetensors.Save(path, tensors, shapes, nil)

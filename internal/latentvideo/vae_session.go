@@ -45,9 +45,9 @@ type vaeDeviceBuffer struct {
 	elements int
 }
 
-// VAEDecoderCUDASession: device residency plus streaming state for one
+// vaeDecoderCUDASession: device residency plus streaming state for one
 // compiled decoder plan.
-type VAEDecoderCUDASession struct {
+type vaeDecoderCUDASession struct {
 	Plan        VAEDecoderPlan
 	WeightBytes uint64
 
@@ -66,7 +66,7 @@ type VAEDecoderCUDASession struct {
 
 // NewVAEDecoderCUDASession: loads the kernel module and uploads every decoder
 // weight tensor once (f32, the checkpoint dtype the host oracle serves).
-func NewVAEDecoderCUDASession(checkpoint string, plan VAEDecoderPlan, ordinal int) (session *VAEDecoderCUDASession, err error) {
+func NewVAEDecoderCUDASession(checkpoint string, plan VAEDecoderPlan, ordinal int) (session *vaeDecoderCUDASession, err error) {
 	session, err = newVAECUDASession(checkpoint, plan.vaePlanCore, ordinal)
 	if session != nil {
 		session.Plan = plan
@@ -74,7 +74,7 @@ func NewVAEDecoderCUDASession(checkpoint string, plan VAEDecoderPlan, ordinal in
 	return session, err
 }
 
-func newVAECUDASession(checkpoint string, plan vaePlanCore, ordinal int) (session *VAEDecoderCUDASession, err error) {
+func newVAECUDASession(checkpoint string, plan vaePlanCore, ordinal int) (session *vaeDecoderCUDASession, err error) {
 	if len(plan.Operations) == 0 {
 		return nil, errors.New("vae cuda session: empty plan")
 	}
@@ -82,7 +82,7 @@ func newVAECUDASession(checkpoint string, plan vaePlanCore, ordinal int) (sessio
 	if err != nil {
 		return nil, err
 	}
-	session = &VAEDecoderCUDASession{
+	session = &vaeDecoderCUDASession{
 		Plan:    VAEDecoderPlan{vaePlanCore: plan},
 		worker:  worker,
 		buffers: make(map[media.CodecWorkspaceKey]vaeDeviceBuffer),
@@ -107,7 +107,7 @@ func newVAECUDASession(checkpoint string, plan vaePlanCore, ordinal int) (sessio
 		}
 		session.module = module
 		kernels := plan.CodecProgram.KernelABIs()
-		for abi := media.CodecKernelFirstABI; abi < media.CodecKernelABICount; abi++ {
+		for abi := range media.CodecKernelABICount {
 			if !kernels.Has(abi) {
 				continue
 			}
@@ -127,7 +127,7 @@ func newVAECUDASession(checkpoint string, plan vaePlanCore, ordinal int) (sessio
 	return session, nil
 }
 
-func (s *VAEDecoderCUDASession) uploadWeights(checkpoint string) error {
+func (s *vaeDecoderCUDASession) uploadWeights(checkpoint string) error {
 	reader, err := pytorchzip.Open(checkpoint)
 	if err != nil {
 		return err
@@ -167,7 +167,7 @@ func (s *VAEDecoderCUDASession) uploadWeights(checkpoint string) error {
 
 // buffer: typed grow-only device workspace; growth synchronizes the stream
 // before freeing the prior allocation (queued kernels may still read it).
-func (s *VAEDecoderCUDASession) buffer(state *device.State, key media.CodecWorkspaceKey, elements int) (driver.DevicePtr, error) {
+func (s *vaeDecoderCUDASession) buffer(state *device.State, key media.CodecWorkspaceKey, elements int) (driver.DevicePtr, error) {
 	if !checked.PositiveInts(elements) {
 		return 0, fmt.Errorf("vae cuda buffer %+v: elements=%d", key, elements)
 	}
@@ -211,7 +211,7 @@ func launchVAEKernel(state *device.State, function driver.Function, grid, block 
 	return err
 }
 
-func (s *VAEDecoderCUDASession) conv3d(state *device.State, out, x, cache driver.DevicePtr, cacheT int, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w, kt, kh, kw int) error {
+func (s *vaeDecoderCUDASession) conv3d(state *device.State, out, x, cache driver.DevicePtr, cacheT int, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w, kt, kh, kw int) error {
 	positions := frames * h * w
 	tile := kernel.VAEConvTile()
 	channelTiles := (cOut + tile - 1) / tile
@@ -228,7 +228,7 @@ func (s *VAEDecoderCUDASession) conv3d(state *device.State, out, x, cache driver
 		&ktArg, &khArg, &kwArg, &padT, &padH, &padW, &cacheTArg)
 }
 
-func (s *VAEDecoderCUDASession) rmsNorm(state *device.State, out, x, gamma driver.DevicePtr, c, plane int, silu bool) error {
+func (s *vaeDecoderCUDASession) rmsNorm(state *device.State, out, x, gamma driver.DevicePtr, c, plane int, silu bool) error {
 	channels, planeArg, applySiLU := uint32(c), uint32(plane), uint32(tensor.FirstOffset)
 	if silu {
 		applySiLU = uint32(tensor.SingletonExtent)
@@ -238,7 +238,7 @@ func (s *VAEDecoderCUDASession) rmsNorm(state *device.State, out, x, gamma drive
 		&out, &x, &gamma, &channels, &planeArg, &applySiLU)
 }
 
-func (s *VAEDecoderCUDASession) addInPlace(state *device.State, out, a, b driver.DevicePtr, elements int) error {
+func (s *vaeDecoderCUDASession) addInPlace(state *device.State, out, a, b driver.DevicePtr, elements int) error {
 	count := uint32(elements)
 	return launchVAEKernel(state, s.kernels[media.CodecKernelAdd], kernel.ElementwiseGrid(elements), kernel.DefaultBlock1D(), kernel.NoSharedMemoryBytes(),
 		&a, &b, &out, &count)
@@ -247,7 +247,7 @@ func (s *VAEDecoderCUDASession) addInPlace(state *device.State, out, a, b driver
 // updateCache: reference temporal_cache_update semantics on device; the new
 // cache lands in the opposite slot so in-flight consumers of the prior cache
 // stay valid on the stream.
-func (s *VAEDecoderCUDASession) updateCache(state *device.State, owner media.CodecWorkspaceKey, prior vaeDeviceCache, x driver.DevicePtr, c, frames, spatial int, replicatePrefix bool) (vaeDeviceCache, error) {
+func (s *vaeDecoderCUDASession) updateCache(state *device.State, owner media.CodecWorkspaceKey, prior vaeDeviceCache, x driver.DevicePtr, c, frames, spatial int, replicatePrefix bool) (vaeDeviceCache, error) {
 	nextFrames := min(tensor.PairedExtent, frames)
 	mode := uint32(tensor.FirstOffset)
 	if replicatePrefix {
@@ -276,7 +276,7 @@ func (s *VAEDecoderCUDASession) updateCache(state *device.State, owner media.Cod
 // runOp executes one op on one device chunk [cIn][frames][h][w], mutating the
 // op's temporal state exactly as the host runVAEOp does. actName is the
 // ping-pong activation target for this op's output.
-func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex int, op media.CodecOperation[pytorchzip.TensorBinding], values vaeDeviceWeights, opState *vaeDeviceOpState, x driver.DevicePtr, activation media.CodecWorkspaceKey, frames, h, w int) (driver.DevicePtr, int, int, int, error) {
+func (s *vaeDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex int, op media.CodecOperation[pytorchzip.TensorBinding], values vaeDeviceWeights, opState *vaeDeviceOpState, x driver.DevicePtr, activation media.CodecWorkspaceKey, frames, h, w int) (driver.DevicePtr, int, int, int, error) {
 	spatial := h * w
 	c := op.InputChannels
 	cachedConv := func(out, input driver.DevicePtr, cache *vaeDeviceCache, weight, bias driver.DevicePtr, cOut, kt, kh, kw int) error {
@@ -535,7 +535,7 @@ func (s *VAEDecoderCUDASession) runOp(state *device.State, opIndex, chunkIndex i
 	return 0, 0, 0, 0, fmt.Errorf("vae cuda decode: unsupported op %d", op.Operator)
 }
 
-func (s *VAEDecoderCUDASession) upsample2D(state *device.State, out, x, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w int) error {
+func (s *vaeDecoderCUDASession) upsample2D(state *device.State, out, x, weight, bias driver.DevicePtr, cIn, cOut, frames, h, w int) error {
 	scale := media.CodecUpsampleSpatial.SpatialScale()
 	outH, outW := scale*h, scale*w
 	elements := cOut * frames * outH * outW
@@ -547,7 +547,7 @@ func (s *VAEDecoderCUDASession) upsample2D(state *device.State, out, x, weight, 
 		&cInArg, &cOutArg, &framesArg, &heightArg, &widthArg, &outHArg, &outWArg, &count)
 }
 
-func (s *VAEDecoderCUDASession) downsample2D(state *device.State, out, x, weight, bias driver.DevicePtr, channels, frames, h, w int) error {
+func (s *vaeDecoderCUDASession) downsample2D(state *device.State, out, x, weight, bias driver.DevicePtr, channels, frames, h, w int) error {
 	scale := media.CodecDownsampleSpatial.SpatialScale()
 	outH, outW := h/scale, w/scale
 	elements := channels * frames * outH * outW
@@ -558,7 +558,7 @@ func (s *VAEDecoderCUDASession) downsample2D(state *device.State, out, x, weight
 		&out, &x, &weight, &bias, &channelsArg, &framesArg, &heightArg, &widthArg, &outHArg, &outWArg, &count)
 }
 
-func (s *VAEDecoderCUDASession) temporalDownsample(state *device.State, out, x, prior, weight, bias driver.DevicePtr, channels, frames, priorFrames, spatial, outFrames int) error {
+func (s *vaeDecoderCUDASession) temporalDownsample(state *device.State, out, x, prior, weight, bias driver.DevicePtr, channels, frames, priorFrames, spatial, outFrames int) error {
 	elements := channels * outFrames * spatial
 	channelsArg, framesArg, priorFramesArg := uint32(channels), uint32(frames), uint32(priorFrames)
 	spatialArg, outFramesArg, count := uint32(spatial), uint32(outFrames), uint32(elements)
@@ -569,12 +569,12 @@ func (s *VAEDecoderCUDASession) temporalDownsample(state *device.State, out, x, 
 // Decode streams the plan over the latent volume on CUDA: host denorm
 // (z*std+mean) per chunk, upload, the op chain with device temporal caches,
 // clamp to [-1,1], then per-frame device-to-host emission through the sink.
-func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, error) {
+func (s *vaeDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, error) {
 	return s.DecodeContext(s.ctx, stats, z, latentFrames, latentH, latentW, sink)
 }
 
 // DecodeContext streams frames using the request's cancellation context.
-func (s *VAEDecoderCUDASession) DecodeContext(ctx context.Context, stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, error) {
+func (s *vaeDecoderCUDASession) DecodeContext(ctx context.Context, stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, error) {
 	if err := ctx.Err(); err != nil {
 		return VAEDecodeStats{}, err
 	}
@@ -684,17 +684,17 @@ func (s *VAEDecoderCUDASession) DecodeContext(ctx context.Context, stats VAELate
 }
 
 // MemoryStats: runtime-owned device allocation accounting.
-func (s *VAEDecoderCUDASession) MemoryStats() (driver.MemoryStats, error) {
+func (s *vaeDecoderCUDASession) MemoryStats() (driver.MemoryStats, error) {
 	return s.worker.MemoryStats(s.ctx)
 }
 
 // Profile: accumulated per-op synchronized wall (nil unless enabled).
-func (s *VAEDecoderCUDASession) Profile() map[string]time.Duration {
+func (s *vaeDecoderCUDASession) Profile() map[string]time.Duration {
 	return s.profile
 }
 
 // Close: frees weights and workspaces, unloads the module, stops the worker.
-func (s *VAEDecoderCUDASession) Close() error {
+func (s *vaeDecoderCUDASession) Close() error {
 	if s == nil {
 		return nil
 	}

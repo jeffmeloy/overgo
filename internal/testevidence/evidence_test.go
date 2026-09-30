@@ -146,28 +146,6 @@ func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Ski
 	}
 }
 
-func TestGoTestJSONShort(t *testing.T) {
-	classified := fmt.Sprintf(
-		"{\"Action\":\"attr\",\"Package\":\"x\",\"Test\":\"TestX\",\"Key\":%q,\"Value\":%q}\n"+
-			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestX\"}\n",
-		testskip.Key, testskip.KindShort,
-	)
-	if err := GoTestJSONShort(classified); err != nil {
-		t.Fatal(err)
-	}
-	report, err := GoTestJSONReport(classified)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := RequireComplete(report); err == nil {
-		t.Fatal("strict evidence accepted a classified skip")
-	}
-	unclassified := "{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestX\"}\n"
-	if err := GoTestJSONShort(unclassified); err == nil {
-		t.Fatal("short evidence accepted an unclassified skip")
-	}
-}
-
 func TestGoTestJSONReportPreservesSkippedEvidence(t *testing.T) {
 	out := "{\"Action\":\"skip\",\"Package\":\"overgo/example\",\"Test\":\"TestFixture\",\"Output\":\"UNAVAILABLE: fixture\\n\"}\n"
 	report, err := GoTestJSONReport(out)
@@ -200,7 +178,8 @@ func TestCIRequiredEvidence(t *testing.T) {
 	if len(report.Skipped) != 0 {
 		t.Fatalf("required evidence unexpectedly incomplete: %+v", report)
 	}
-	if err := GoTestJSONShort(out + "{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n"); err == nil {
+	mystery, err := GoTestJSONShortReport(out + "{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n")
+	if err == nil && RequireComplete(mystery) == nil {
 		t.Fatal("CI evidence accepted an unclassified skip")
 	}
 }

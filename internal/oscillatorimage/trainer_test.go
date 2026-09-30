@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/checkpointtest"
 	"overgo/internal/optimizer"
 	"overgo/internal/testskip"
+	"overgo/internal/trainingprogram"
 )
 
 func testTrainingConfig() optimizer.Config {
@@ -70,6 +72,30 @@ func TestTrainerUpdatesModelFieldsInPlace(t *testing.T) {
 	if slices.Equal(before, m.Omega) {
 		t.Fatal("optimizer update did not reach model fields")
 	}
+}
+
+// TestTrainerCheckpointRoundTripIsBitExact trains one step, publishes the
+// trainer's weights and optimizer state as a checkpoint, and reads both back
+// bit for bit as the model fields the forward reads.
+func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	m := tinyModel()
+	trainer, err := NewTrainer(m, testTrainingConfig(), 11)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	if _, err := trainer.Step(); err != nil {
+		t.Fatal(err)
+	}
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentL2, nil, trainer.OptimizerPlan())
+	if err != nil {
+		t.Fatal(err)
+	}
+	trained := map[string][]float32{}
+	for _, tensor := range m.trainableLayout() {
+		trained[tensor.name] = *tensor.field
+	}
+	checkpointtest.RequireRoundTrip(t, program, trainer, trained)
 }
 
 func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {

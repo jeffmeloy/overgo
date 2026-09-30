@@ -33,12 +33,12 @@ type TextConditioningSpec struct {
 	NormEps             float64
 }
 
-// TextConditioningResult: the projected SequenceLength x Dim context.
-type TextConditioningResult struct {
+// textConditioningResult: the projected SequenceLength x Dim context.
+type textConditioningResult struct {
 	Context               []float32
 	Rows, Dim             int
 	TokenCount            int
-	Encoder               EncoderStats
+	Encoder               encoderStats
 	ProjectionSourceBytes int64
 }
 
@@ -55,19 +55,19 @@ type projectionWeights struct {
 // TextConditioning tokenizes prompt, streams the encoder, projects, and pads
 // to SequenceLength rows (pad rows repeat the first inactive projected row,
 // the reference's padding convention).
-func TextConditioning(ctx context.Context, spec TextConditioningSpec, prompt string) (TextConditioningResult, error) {
+func TextConditioning(ctx context.Context, spec TextConditioningSpec, prompt string) (textConditioningResult, error) {
 	if err := ctx.Err(); err != nil {
-		return TextConditioningResult{}, err
+		return textConditioningResult{}, err
 	}
 	weights, sourceBytes, err := loadProjectionWeights(spec.ProjectionDir)
 	if err != nil {
-		return TextConditioningResult{}, err
+		return textConditioningResult{}, err
 	}
 	return textConditioningWithWeights(ctx, spec, prompt, weights, sourceBytes)
 }
 
-func textConditioningWithWeights(ctx context.Context, spec TextConditioningSpec, prompt string, weights projectionWeights, sourceBytes int64) (TextConditioningResult, error) {
-	var out TextConditioningResult
+func textConditioningWithWeights(ctx context.Context, spec TextConditioningSpec, prompt string, weights projectionWeights, sourceBytes int64) (textConditioningResult, error) {
+	var out textConditioningResult
 	if err := ctx.Err(); err != nil {
 		return out, err
 	}
@@ -83,7 +83,7 @@ func textConditioningWithWeights(ctx context.Context, spec TextConditioningSpec,
 		return out, err
 	}
 	metas := catalog.Tensors
-	plan, err := CompileEncoderPlan(metas, EncoderConfig{RelativeMaxDistance: spec.RelativeMaxDistance, NormEps: spec.NormEps})
+	plan, err := CompileEncoderPlan(metas, encoderConfig{RelativeMaxDistance: spec.RelativeMaxDistance, NormEps: spec.NormEps})
 	if err != nil {
 		return out, err
 	}
@@ -124,7 +124,7 @@ func textConditioningWithWeights(ctx context.Context, spec TextConditioningSpec,
 	if err := ctx.Err(); err != nil {
 		return out, err
 	}
-	return TextConditioningResult{
+	return textConditioningResult{
 		Context: context, Rows: spec.SequenceLength, Dim: dim,
 		TokenCount: tokenCount, Encoder: encoderStats, ProjectionSourceBytes: sourceBytes,
 	}, nil

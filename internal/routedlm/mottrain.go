@@ -61,6 +61,8 @@ type ModalityTransformerTrainer struct {
 	stepper   optimizer.Stepper
 	config    optimizer.Config
 	step      int
+
+	optimizerPlan optimizer.Plan
 }
 
 // NewModalityTransformerTrainer packs the vision branch of each layer as f32
@@ -161,6 +163,7 @@ func NewModalityTransformerTrainer(cfg Config, layers []LayerWeights, finalNorm 
 		w.QKV.QVision, w.QKV.KVision, w.QKV.VVision, w.QKV.OVision = BF16Matrix{}, BF16Matrix{}, BF16Matrix{}, BF16Matrix{}
 		w.Output.GateVision, w.Output.UpVision, w.Output.DownVision = BF16Matrix{}, BF16Matrix{}, BF16Matrix{}
 	}
+	t.optimizerPlan = compiled
 	t.stepper, err = optimizer.NewStepper(t.weights, t.gradients, compiled, t.config)
 	if err != nil {
 		return nil, err
@@ -173,6 +176,19 @@ func (t *ModalityTransformerTrainer) ParameterCount() int { return len(t.weights
 
 // Config exposes the derived hyperparameters for evidence.
 func (t *ModalityTransformerTrainer) Config() optimizer.Config { return t.config }
+
+// OptimizerPlan is the compiled Muon plan over the packed vision fork: one
+// group per layer tensor.
+func (t *ModalityTransformerTrainer) OptimizerPlan() optimizer.Plan { return t.optimizerPlan }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (t *ModalityTransformerTrainer) Snapshot() optimizer.State { return t.stepper.Snapshot() }
+
+// SaveWeights writes the trained vision fork at path, the weights Snapshot
+// pairs with.
+func (t *ModalityTransformerTrainer) SaveWeights(path string) error {
+	return optimizer.SavePlanWeights(path, t.optimizerPlan, t.weights)
+}
 
 // Close releases the stepper backend.
 func (t *ModalityTransformerTrainer) Close() error { return t.stepper.Close() }

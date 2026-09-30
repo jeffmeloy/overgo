@@ -34,7 +34,7 @@ func TestTextConditioningCancellationBeforeIO(t *testing.T) {
 	if _, _, _, err := RawTextRows(ctx, TextConditioningSpec{}, "prompt"); !errors.Is(err, context.Canceled) {
 		t.Fatal("raw text rows attempted I/O after cancellation", err)
 	}
-	if _, _, err := EncodeTokensStreamed(ctx, "", EncoderPlan{}, nil, nil); !errors.Is(err, context.Canceled) {
+	if _, _, err := EncodeTokensStreamed(ctx, "", encoderPlan{}, nil, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal("streamed encoder attempted I/O after cancellation", err)
 	}
 }

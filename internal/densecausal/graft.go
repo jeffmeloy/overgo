@@ -31,6 +31,10 @@ type Graft struct {
 	DonorUp           []float32 // [DonorIntermediate x DonorHidden]
 	DonorDown         []float32 // [DonorHidden x DonorIntermediate]
 	bridge            []float32
+
+	// The Muon plan and optimizer the bridge's last TrainBridge stepped.
+	optimizerPlan optimizer.Plan
+	muon          *optimizer.Optimizer
 }
 
 // BridgeGradNames key the two trainable bridge matrices in Grads.
@@ -234,6 +238,7 @@ func (m *Model) TrainBridge(gr *Graft, batches [][]int, baseLR, mu float64, step
 	if err != nil {
 		return nil, err
 	}
+	gr.optimizerPlan, gr.muon = plan, opt
 	losses := make([]float64, 0, steps)
 	for step := range steps {
 		batch := batches[step%len(batches)]
@@ -248,4 +253,17 @@ func (m *Model) TrainBridge(gr *Graft, batches [][]int, baseLR, mu float64, step
 		losses = append(losses, loss)
 	}
 	return losses, nil
+}
+
+// OptimizerPlan is the Muon plan the bridge's last TrainBridge compiled: one
+// group per bridge matrix.
+func (gr *Graft) OptimizerPlan() optimizer.Plan { return gr.optimizerPlan }
+
+// Snapshot copies the optimizer state the bridge's last TrainBridge left.
+func (gr *Graft) Snapshot() optimizer.State { return gr.muon.Snapshot() }
+
+// SaveWeights writes the trained bridge at path, the weights Snapshot pairs
+// with.
+func (gr *Graft) SaveWeights(path string) error {
+	return optimizer.SavePlanWeights(path, gr.optimizerPlan, gr.bridge)
 }

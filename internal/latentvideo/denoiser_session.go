@@ -307,7 +307,7 @@ func (s *DenoiserCUDASession) ForwardHead(patchTokens, blockE, headE []float32, 
 }
 
 // Denoise: the shared guided UniPC loop over this session.
-func (s *DenoiserCUDASession) Denoise(ctx context.Context, request DenoiseRequest) (DenoiseResult, error) {
+func (s *DenoiserCUDASession) Denoise(ctx context.Context, request DenoiseRequest) (denoiseResult, error) {
 	if ctx != nil {
 		s.ctx = ctx
 	}

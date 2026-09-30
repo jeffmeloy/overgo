@@ -22,11 +22,11 @@ import (
 //go:embed edit_profiles.json
 var editPolicyCatalogJSON []byte
 
-// EditPolicy declares the reference-edit schedule a LiveEdit checkpoint
+// editPolicy declares the reference-edit schedule a LiveEdit checkpoint
 // runs under: the causal chunking, the denoising timesteps, and the flow
 // schedule their sigmas compile from. The catalog restates the upstream
 // few-step configuration (LiveEdit/configs/wan_mm-ar-forcing-local.yaml).
-type EditPolicy struct {
+type editPolicy struct {
 	Checkpoint           string  `json:"checkpoint"`
 	FramesPerChunk       int     `json:"frames_per_chunk"`
 	LocalAttentionFrames int     `json:"local_attention_frames"`
@@ -52,12 +52,12 @@ func LiveEditArtifacts(modelDirectory string) (wanDirectory, checkpoint string) 
 	return filepath.Join(filepath.Dir(modelDirectory), wanBaseDirectory), filepath.Join(modelDirectory, liveEditCheckpoint)
 }
 
-// ResolveEditPolicy reads the declared policy for the checkpoint a LiveEdit
+// resolveEditPolicy reads the declared policy for the checkpoint a LiveEdit
 // directory carries, refusing an absent checkpoint or an undeclared one.
-func ResolveEditPolicy(modelDirectory string) (EditPolicy, error) {
-	var catalog []EditPolicy
+func resolveEditPolicy(modelDirectory string) (editPolicy, error) {
+	var catalog []editPolicy
 	if err := strictjson.DecodeBytes(editPolicyCatalogJSON, &catalog); err != nil {
-		return EditPolicy{}, fmt.Errorf("latent video: decode edit policy catalog: %w", err)
+		return editPolicy{}, fmt.Errorf("latent video: decode edit policy catalog: %w", err)
 	}
 	_, checkpoint := LiveEditArtifacts(modelDirectory)
 	for _, policy := range catalog {
@@ -65,14 +65,14 @@ func ResolveEditPolicy(modelDirectory string) (EditPolicy, error) {
 			continue
 		}
 		if _, err := os.Stat(checkpoint); err != nil {
-			return EditPolicy{}, err
+			return editPolicy{}, err
 		}
 		return policy, policy.validate()
 	}
-	return EditPolicy{}, fmt.Errorf("latent video: no edit policy declares checkpoint %s", filepath.Base(checkpoint))
+	return editPolicy{}, fmt.Errorf("latent video: no edit policy declares checkpoint %s", filepath.Base(checkpoint))
 }
 
-func (policy EditPolicy) validate() error {
+func (policy editPolicy) validate() error {
 	if !checked.PositiveInts(policy.FramesPerChunk, policy.LocalAttentionFrames, policy.InferenceSteps) {
 		return errors.New("latent video: incomplete edit policy")
 	}
@@ -86,7 +86,7 @@ func (policy EditPolicy) validate() error {
 // clip: its latent frames must fill whole chunks beyond the first and fit
 // the local attention history, so a clip the policy cannot chunk is
 // refused with the counts it admits.
-func (policy EditPolicy) admitLatentFrames(latent int) error {
+func (policy editPolicy) admitLatentFrames(latent int) error {
 	chunk, window := policy.FramesPerChunk, policy.LocalAttentionFrames
 	if _, aligned := checked.DivExactInt(latent, chunk); !aligned || !checked.GreaterInt(latent, chunk) || !checked.AtMostInt(latent, window+chunk) {
 		return fmt.Errorf("latent video: the clip's %d latent frames do not fit the edit policy (multiples of %d above %d, at most %d)",
@@ -103,9 +103,9 @@ func (request ReferenceEditRequest) ClipForm() bool {
 		len(request.Condition.TextContext) == 0 && len(request.Source.Pixels) == 0
 }
 
-// ValidateReferenceEditRequestForm admits the complete request or the clip
+// validateReferenceEditRequestForm admits the complete request or the clip
 // form: a prompt, a source clip artifact id, and a non-negative seed.
-func ValidateReferenceEditRequestForm(request ReferenceEditRequest) error {
+func validateReferenceEditRequestForm(request ReferenceEditRequest) error {
 	if !request.ClipForm() {
 		return ValidateReferenceEditRequest(request)
 	}
@@ -115,10 +115,10 @@ func ValidateReferenceEditRequestForm(request ReferenceEditRequest) error {
 	return nil
 }
 
-// SourceVideoFromGIF decodes an animated GIF into the planar signed-unit
+// sourceVideoFromGIF decodes an animated GIF into the planar signed-unit
 // source video the reference edit consumes, compositing each frame over
 // the logical screen so a partial frame resolves against its predecessors.
-func SourceVideoFromGIF(data []byte) (SourceVideo, error) {
+func sourceVideoFromGIF(data []byte) (SourceVideo, error) {
 	animation, err := gif.DecodeAll(bytes.NewReader(data))
 	if err != nil {
 		return SourceVideo{}, err
@@ -158,7 +158,7 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 	if !request.ClipForm() {
 		return ReferenceEditRequest{}, errors.New("latent video: request is not a clip form")
 	}
-	if err := ValidateReferenceEditRequestForm(request); err != nil {
+	if err := validateReferenceEditRequestForm(request); err != nil {
 		return ReferenceEditRequest{}, err
 	}
 	content, found, err := artifact.ReadContent(ctx, reader, request.SourceArtifact)
@@ -171,11 +171,11 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 	if content.Descriptor.MediaType != media.GIFMediaType {
 		return ReferenceEditRequest{}, fmt.Errorf("latent video: source clip %s is %s, not a GIF", request.SourceArtifact, content.Descriptor.MediaType)
 	}
-	source, err := SourceVideoFromGIF(content.Data)
+	source, err := sourceVideoFromGIF(content.Data)
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}
-	policy, err := ResolveEditPolicy(modelDirectory)
+	policy, err := resolveEditPolicy(modelDirectory)
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}

@@ -23,28 +23,28 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-// EncoderConfig: checkpoint geometry plus explicit profile policy
+// encoderConfig: checkpoint geometry plus explicit profile policy
 // (RelativeMaxDistance and NormEps are model facts the checkpoint does not
 // carry; everything else derives from tensor shapes).
-type EncoderConfig struct {
+type encoderConfig struct {
 	VocabSize, Layers, Dim, Heads, FFNDim, RelativeBuckets int
 	RelativeMaxDistance                                    int
 	NormEps                                                float64
 }
 
-// TensorIssue: one contract violation found while compiling a plan.
-type TensorIssue struct {
+// tensorIssue: one contract violation found while compiling a plan.
+type tensorIssue struct {
 	Name, Want, Got string
 }
 
-// EncoderPlan: validated checkpoint contract with runtime bindings.
-type EncoderPlan struct {
+// encoderPlan: validated checkpoint contract with runtime bindings.
+type encoderPlan struct {
 	OK               bool
-	Missing          []TensorIssue
-	Unexpected       []TensorIssue
-	DTypeMismatches  []TensorIssue
-	ShapeMismatches  []TensorIssue
-	Config           EncoderConfig
+	Missing          []tensorIssue
+	Unexpected       []tensorIssue
+	DTypeMismatches  []tensorIssue
+	ShapeMismatches  []tensorIssue
+	Config           encoderConfig
 	bindings         []pytorchzip.TensorBinding
 	blockWeightBytes []int64
 }
@@ -65,8 +65,8 @@ const (
 
 // deriveEncoderConfig reconstructs geometry from tensor shapes; policy
 // supplies only RelativeMaxDistance and NormEps.
-func deriveEncoderConfig(byName map[string]pytorchzip.TensorMeta, policy EncoderConfig) (EncoderConfig, error) {
-	c := EncoderConfig{RelativeMaxDistance: policy.RelativeMaxDistance, NormEps: policy.NormEps}
+func deriveEncoderConfig(byName map[string]pytorchzip.TensorMeta, policy encoderConfig) (encoderConfig, error) {
+	c := encoderConfig{RelativeMaxDistance: policy.RelativeMaxDistance, NormEps: policy.NormEps}
 	norm, ok := byName["norm.weight"]
 	if !ok {
 		return c, fmt.Errorf("encoder config: norm.weight missing or not 1-d")
@@ -128,34 +128,34 @@ func deriveEncoderConfig(byName map[string]pytorchzip.TensorMeta, policy Encoder
 }
 
 // CompileEncoderPlan validates the full tensor contract and binds it.
-func CompileEncoderPlan(metas []pytorchzip.TensorMeta, policy EncoderConfig) (EncoderPlan, error) {
-	var plan EncoderPlan
+func CompileEncoderPlan(metas []pytorchzip.TensorMeta, policy encoderConfig) (encoderPlan, error) {
+	var plan encoderPlan
 	byName := make(map[string]pytorchzip.TensorMeta, len(metas))
 	for _, m := range metas {
 		byName[m.Name] = m
 	}
 	config, configErr := deriveEncoderConfig(byName, policy)
 	if configErr != nil {
-		plan.Missing = append(plan.Missing, TensorIssue{Name: "config", Want: configErr.Error()})
+		plan.Missing = append(plan.Missing, tensorIssue{Name: "config", Want: configErr.Error()})
 	} else {
 		plan.Config = config
 		expected := expectedEncoderSpecs(config)
 		for _, m := range metas {
 			if _, ok := expected[m.Name]; !ok {
-				plan.Unexpected = append(plan.Unexpected, TensorIssue{Name: m.Name, Got: fmt.Sprint(m.Shape)})
+				plan.Unexpected = append(plan.Unexpected, tensorIssue{Name: m.Name, Got: fmt.Sprint(m.Shape)})
 			}
 		}
 		for name, spec := range expected {
 			got, ok := byName[name]
 			if !ok {
-				plan.Missing = append(plan.Missing, TensorIssue{Name: name, Want: fmt.Sprint(spec.shape)})
+				plan.Missing = append(plan.Missing, tensorIssue{Name: name, Want: fmt.Sprint(spec.shape)})
 				continue
 			}
 			if got.DType != pytorchzip.BFloat16StorageClass() {
-				plan.DTypeMismatches = append(plan.DTypeMismatches, TensorIssue{Name: name, Want: pytorchzip.BFloat16StorageClass(), Got: got.DType})
+				plan.DTypeMismatches = append(plan.DTypeMismatches, tensorIssue{Name: name, Want: pytorchzip.BFloat16StorageClass(), Got: got.DType})
 			}
 			if !slices.Equal(got.Shape, spec.shape) {
-				plan.ShapeMismatches = append(plan.ShapeMismatches, TensorIssue{Name: name, Want: fmt.Sprint(spec.shape), Got: fmt.Sprint(got.Shape)})
+				plan.ShapeMismatches = append(plan.ShapeMismatches, tensorIssue{Name: name, Want: fmt.Sprint(spec.shape), Got: fmt.Sprint(got.Shape)})
 			}
 		}
 	}
@@ -171,7 +171,7 @@ func CompileEncoderPlan(metas []pytorchzip.TensorMeta, policy EncoderConfig) (En
 
 type tensorSpec struct{ shape []int64 }
 
-func expectedEncoderSpecs(c EncoderConfig) map[string]tensorSpec {
+func expectedEncoderSpecs(c encoderConfig) map[string]tensorSpec {
 	vocab, dim, dimFFN := int64(c.VocabSize), int64(c.Dim), int64(c.FFNDim)
 	numBuckets, numHeads := int64(c.RelativeBuckets), int64(c.Heads)
 	specs := map[string]tensorSpec{
@@ -218,7 +218,7 @@ func encoderTensorNames(layers int) []string {
 	return append(names, "norm.weight")
 }
 
-func compileEncoderBindings(metas []pytorchzip.TensorMeta, config EncoderConfig) ([]pytorchzip.TensorBinding, []int64, error) {
+func compileEncoderBindings(metas []pytorchzip.TensorMeta, config encoderConfig) ([]pytorchzip.TensorBinding, []int64, error) {
 	names := encoderTensorNames(config.Layers)
 	bindings, err := pytorchzip.CompileBindings(metas, names)
 	if err != nil {
@@ -238,7 +238,7 @@ func compileEncoderBindings(metas []pytorchzip.TensorMeta, config EncoderConfig)
 	return bindings, blockWeightBytes, nil
 }
 
-func (p EncoderPlan) validateRuntimeBindings() error {
+func (p encoderPlan) validateRuntimeBindings() error {
 	want := len(encoderTensorNames(p.Config.Layers))
 	if !p.OK || !checked.PositiveInts(p.Config.Layers) || !checked.Equal(len(p.bindings), want) || !checked.Equal(len(p.blockWeightBytes), p.Config.Layers) {
 		return fmt.Errorf("encoder runtime plan: ok=%t layers=%d bindings=%d/%d block_bytes=%d", p.OK, p.Config.Layers, len(p.bindings), want, len(p.blockWeightBytes))
@@ -254,10 +254,10 @@ type encoderBlockWeights struct {
 	PosEmbedding []float32
 }
 
-// EncoderStats: measured streaming behavior; PeakHeapAllocBytes is the
+// encoderStats: measured streaming behavior; PeakHeapAllocBytes is the
 // largest sampled Go heap live-set DELTA over the entry baseline
 // (memory-bounding evidence robust to unrelated resident heap).
-type EncoderStats struct {
+type encoderStats struct {
 	Layers              int
 	TokenRows           int
 	EmbeddingBytesRead  int64
@@ -273,8 +273,8 @@ type EncoderStats struct {
 
 // EncodeTokensStreamed runs the full encoder, loading one block's weights at
 // a time (peak host memory ~ one F32-decoded block, never the checkpoint).
-func EncodeTokensStreamed(ctx context.Context, checkpoint string, plan EncoderPlan, tokenIDs, mask []int) ([]float32, EncoderStats, error) {
-	var stats EncoderStats
+func EncodeTokensStreamed(ctx context.Context, checkpoint string, plan encoderPlan, tokenIDs, mask []int) ([]float32, encoderStats, error) {
+	var stats encoderStats
 	if err := ctx.Err(); err != nil {
 		return nil, stats, err
 	}

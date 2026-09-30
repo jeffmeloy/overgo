@@ -5,7 +5,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"maps"
 	"math"
+	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,19 +21,22 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/latentimage"
 	"overgo/internal/optimizer"
+	"overgo/internal/overgodb"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/quant"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 // flowOrganRoute names the flow-organ route in its bounded run's refusals.
 const flowOrganRoute = "train -route flow-organ"
 
 // trainFlowOrgan is the flow-organ route: bounded observed training of one
-// trainable organ of a real artifact, chosen by -organ.
+// trainable organ of a real artifact, chosen by -organ, under a supervised
+// session that publishes the trained organ as a checkpoint.
 func trainFlowOrgan(flags *flag.FlagSet, args []string) error {
 	model := flags.String("model", "", "model directory (safetensors + config.json)")
 	organ := flags.String("organ", "flow-head", "trainable organ: flow-head (SenseNova fm_head), latent-bridge (RxBrain llm2vae/vae2llm), denoiser-final (Krea-2 MMDiT output head), video-head (Wan2.1 head), edit-head, or ternary-master")
@@ -39,24 +45,76 @@ func trainFlowOrgan(flags *flag.FlagSet, args []string) error {
 	timestep := flags.Float64("timestep", 0.25, "flow timestep in [0,1)")
 	tensorName := flags.String("tensor", "blk.0.ffn_gate.weight", "ternary-master: the quantized matrix to train")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
+	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
+	stimulusPath := flags.String("stimulus", "", "committed stimulus declaration grounding the recipe dataset")
+	out := flags.String("out", "", "directory the trained organ's checkpoint publishes to")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	switch *organ {
-	case "flow-head":
-		return trainFlowHead(*model, *steps, *rows, *timestep, *maxWall)
-	case "latent-bridge":
-		return runLatentBridge(*model, *steps, *rows, *maxWall)
-	case "denoiser-final":
-		return runDenoiserFinal(*model, latentimage.KreaFinalLayerBinding(), *steps, *rows, *maxWall)
-	case "video-head":
-		return runDenoiserFinal(*model, latentimage.WanHeadBinding(), *steps, *rows, *maxWall)
-	case "edit-head":
-		return runEditHead(*model, *steps, *rows, *maxWall)
-	case "ternary-master":
-		return runTernaryMaster(*model, *tensorName, *steps, *rows, *maxWall)
+	organs := map[string]func(organRun) error{
+		"flow-head":      func(run organRun) error { return trainFlowHead(run, *timestep) },
+		"latent-bridge":  runLatentBridge,
+		"denoiser-final": func(run organRun) error { return runDenoiserFinal(run, latentimage.KreaFinalLayerBinding()) },
+		"video-head":     func(run organRun) error { return runDenoiserFinal(run, latentimage.WanHeadBinding()) },
+		"edit-head":      runEditHead,
+		"ternary-master": func(run organRun) error { return runTernaryMaster(run, *tensorName) },
 	}
-	return fmt.Errorf("%s: unknown organ %q (flow-head, latent-bridge, denoiser-final, video-head, edit-head, ternary-master)", flags.Name(), *organ)
+	train, known := organs[*organ]
+	if !known {
+		return fmt.Errorf("%s: unknown organ %q (%s)", flags.Name(), *organ, strings.Join(slices.Sorted(maps.Keys(organs)), ", "))
+	}
+	if *model == "" || *stimulusPath == "" || *out == "" || *steps <= 0 || *rows <= 0 {
+		return fmt.Errorf("%s: model, stimulus, and out are required; steps and rows must be positive", flags.Name())
+	}
+	roots, err := dataroot.ResolveCurrent()
+	if err != nil {
+		return err
+	}
+	path := roots.ResolveModelPath(*model)
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	// A directory identifies by its weights file; the edit head's .pt and
+	// the ternary master's GGUF are their own identity.
+	weights := path
+	if info.IsDir() {
+		if weights, err = trainingworkflow.IdentifyModelWeights(path); err != nil {
+			return err
+		}
+	}
+	ctx := context.Background()
+	store, err := overgodb.Open(*storePath)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	session, err := openSession(ctx, store, weights, *stimulusPath)
+	if err != nil {
+		return err
+	}
+	return train(organRun{session: session, model: path, out: *out, steps: *steps, rows: *rows, maxWall: *maxWall})
+}
+
+// organRun is what every organ's bounded run shares: its supervised
+// session, the resolved model path, the run's bounds, and where the trained
+// organ's checkpoint publishes.
+type organRun struct {
+	session     routeSession
+	model, out  string
+	steps, rows int
+	maxWall     time.Duration
+}
+
+// train takes the organ through the shared bounded run under plan and
+// publishes what trainer trained; every update trains on the one declared
+// stimulus.
+func (run organRun) train(plan trainingprogram.TrainingSessionPlan, trainer planned, step func(int) (optimizer.ObservedStepResult, error), loss func() (float64, error)) error {
+	return boundedRun{name: flowOrganRoute, plan: plan, session: run.session, step: step, loss: loss,
+		publish: func(ctx context.Context) error {
+			return run.session.publishPlanned(ctx, run.out, trainer, plan.Updates())
+		},
+	}.train(context.Background())
 }
 
 // probeSession compiles a route's bounded run under the builtin optimizer
@@ -70,16 +128,9 @@ func probeSession(objective trainingprogram.ObjectiveKind, steps, parameters int
 
 // runDenoiserFinal: the Krea-2-family MMDiT output head trains the velocity
 // MSE objective on a deterministic committed stimulus.
-func runDenoiserFinal(modelDir string, binding latentimage.FinalLayerBinding, steps, rows int, maxWall time.Duration) error {
-	if modelDir == "" || steps <= 0 || rows <= 0 {
-		return fmt.Errorf("train -route flow-organ:-model is required; -steps and -rows must be positive")
-	}
-	roots, err := dataroot.ResolveCurrent()
-	if err != nil {
-		return err
-	}
+func runDenoiserFinal(run organRun, binding latentimage.FinalLayerBinding) error {
 	loadStart := time.Now()
-	src, err := safetensors.OpenSource(roots.ResolveModelPath(modelDir))
+	src, err := safetensors.OpenSource(run.model)
 	if err != nil {
 		return err
 	}
@@ -88,24 +139,24 @@ func runDenoiserFinal(modelDir string, binding latentimage.FinalLayerBinding, st
 	if err != nil {
 		return err
 	}
-	return trainHeadStimulus(weights, steps, rows, maxWall, loadStart)
+	return trainHeadStimulus(run, weights, loadStart)
 }
 
 // trainHeadStimulus: the shared bounded observed run for final-layer heads.
-func trainHeadStimulus(weights latentimage.FinalLayerWeights, steps, rows int, maxWall time.Duration, loadStart time.Time) error {
+func trainHeadStimulus(run organRun, weights latentimage.FinalLayerWeights, loadStart time.Time) error {
 	trainer, err := latentimage.NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
 		return err
 	}
 	defer trainer.Close()
-	session, err := probeSession(trainingprogram.ObjectiveFlowMatching, steps, trainer.ParameterCount(), maxWall)
+	session, err := probeSession(trainingprogram.ObjectiveFlowMatching, run.steps, trainer.ParameterCount(), run.maxWall)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("trainable parameters=%d hidden=%d out=%d derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s\n",
 		trainer.ParameterCount(), weights.Hidden, weights.Out,
-		trainer.Config().BaseLearningRate, trainer.Config().Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
-	xF32, zF32, targetF32, err := stimulus(session, rows, weights.Hidden, weights.Out)
+		trainer.Config().BaseLearningRate, trainer.Config().Momentum, run.rows, time.Since(loadStart).Round(time.Millisecond))
+	xF32, zF32, targetF32, err := stimulus(session, run.rows, weights.Hidden, weights.Out)
 	if err != nil {
 		return err
 	}
@@ -121,24 +172,16 @@ func trainHeadStimulus(weights latentimage.FinalLayerWeights, steps, rows int, m
 	for i, v := range targetF32 {
 		target[i] = float64(v)
 	}
-	return boundedRun{name: flowOrganRoute, plan: session,
-		step: func(int) (optimizer.ObservedStepResult, error) { return trainer.Step(hidden, temb, target) },
-		loss: func() (float64, error) { return trainer.Loss(hidden, temb, target) },
-	}.train(context.Background())
+	return run.train(session, trainer,
+		func(int) (optimizer.ObservedStepResult, error) { return trainer.Step(hidden, temb, target) },
+		func() (float64, error) { return trainer.Loss(hidden, temb, target) })
 }
 
 // runEditHead: the LiveEdit (Wan-family) output head trains from the .pt
 // checkpoint through the same LayerNorm head trainer as Wan.
-func runEditHead(modelPath string, steps, rows int, maxWall time.Duration) error {
-	if modelPath == "" || steps <= 0 || rows <= 0 {
-		return fmt.Errorf("train -route flow-organ:-model is required; -steps and -rows must be positive")
-	}
-	roots, err := dataroot.ResolveCurrent()
-	if err != nil {
-		return err
-	}
+func runEditHead(run organRun) error {
 	loadStart := time.Now()
-	path := roots.ResolveModelPath(modelPath)
+	path := run.model
 	catalog, err := pytorchzip.ReadCatalog(path)
 	if err != nil {
 		return err
@@ -183,25 +226,20 @@ func runEditHead(modelPath string, steps, rows int, maxWall time.Duration) error
 		Hidden: int(linearShape[1]), Out: int(linearShape[0]),
 		Table: values[0], Linear: values[1], Bias: values[2],
 	}
-	return trainHeadStimulus(weights, steps, rows, maxWall, loadStart)
+	return trainHeadStimulus(run, weights, loadStart)
 }
 
 // runTernaryMaster: the master-weight lane for ternary serving artifacts.
 // One quantized matrix dequantizes into f32 masters, the masters train a
-// linear MSE objective on a deterministic committed stimulus, and the
-// trained masters REQUANTIZE back to the serving dtype -- descent is
-// required through the ternary round trip, proving the lane moves the
-// serving artifact's behavior rather than a float shadow.
-func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall time.Duration) error {
-	if modelPath == "" || tensorName == "" || steps <= 0 || rows <= 0 {
-		return fmt.Errorf("train -route flow-organ:-model and -tensor are required; -steps and -rows must be positive")
-	}
-	roots, err := dataroot.ResolveCurrent()
-	if err != nil {
-		return err
-	}
+// linear MSE objective on a deterministic committed stimulus, the trained
+// masters publish as the checkpoint, and they REQUANTIZE back to the
+// serving dtype -- descent is required through the ternary round trip,
+// proving the lane moves the serving artifact's behavior rather than a
+// float shadow.
+func runTernaryMaster(run organRun, tensorName string) error {
+	rows := run.rows
 	loadStart := time.Now()
-	file, err := gguf.Open(roots.ResolveModelPath(modelPath))
+	file, err := gguf.Open(run.model)
 	if err != nil {
 		return err
 	}
@@ -277,7 +315,7 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 		return err
 	}
 	gradients := make([]float32, len(masters))
-	session, err := probeSession(trainingprogram.ObjectiveFlowMatching, steps, len(masters), maxWall)
+	session, err := probeSession(trainingprogram.ObjectiveFlowMatching, run.steps, len(masters), run.maxWall)
 	if err != nil {
 		return err
 	}
@@ -287,6 +325,7 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 		return err
 	}
 	defer stepper.Close()
+	trained := ternaryMasters{masters: masters, plan: plan, stepper: stepper}
 	fmt.Printf("trainable parameters=%d matrix=%dx%d dtype=%v derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s"+"\n",
 		len(masters), out, in, info.Type, config.BaseLearningRate, config.Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
 
@@ -335,8 +374,8 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 		return err
 	}
 	var updates int
-	if err := (boundedRun{name: flowOrganRoute, plan: session,
-		step: func(int) (optimizer.ObservedStepResult, error) {
+	if err := run.train(session, trained,
+		func(int) (optimizer.ObservedStepResult, error) {
 			loss := evaluate(masters)
 			y := make([]float32, rows*out)
 			hostmath.Linear(y, xF32, masters, rows, in, out)
@@ -354,8 +393,7 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 			}
 			return optimizer.Advance(stepper, config, &updates, loss, math.Sqrt(gradientSquared))
 		},
-		loss: func() (float64, error) { return evaluate(masters), nil },
-	}).train(context.Background()); err != nil {
+		func() (float64, error) { return evaluate(masters), nil }); err != nil {
 		return err
 	}
 	servingAfter, err := servingLoss()
@@ -369,18 +407,31 @@ func runTernaryMaster(modelPath, tensorName string, steps, rows int, maxWall tim
 	return nil
 }
 
+// ternaryMasters is the f32 master matrix a ternary-master run trains over
+// its one-group plan, the weights its checkpoint publishes.
+type ternaryMasters struct {
+	masters []float32
+	plan    optimizer.Plan
+	stepper optimizer.Stepper
+}
+
+// OptimizerPlan is the one-group Muon plan over the masters.
+func (m ternaryMasters) OptimizerPlan() optimizer.Plan { return m.plan }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (m ternaryMasters) Snapshot() optimizer.State { return m.stepper.Snapshot() }
+
+// SaveWeights writes the trained masters at path, the weights Snapshot pairs
+// with.
+func (m ternaryMasters) SaveWeights(path string) error {
+	return optimizer.SavePlanWeights(path, m.plan, m.masters)
+}
+
 // runLatentBridge: the RxBrain-family projection pair trains its bridge
 // reconstruction objective on a deterministic committed stimulus.
-func runLatentBridge(modelDir string, steps, rows int, maxWall time.Duration) error {
-	if modelDir == "" || steps <= 0 || rows <= 0 {
-		return fmt.Errorf("train -route flow-organ:-model is required; -steps and -rows must be positive")
-	}
-	roots, err := dataroot.ResolveCurrent()
-	if err != nil {
-		return err
-	}
+func runLatentBridge(run organRun) error {
 	loadStart := time.Now()
-	src, err := safetensors.OpenSource(roots.ResolveModelPath(modelDir))
+	src, err := safetensors.OpenSource(run.model)
 	if err != nil {
 		return err
 	}
@@ -394,22 +445,21 @@ func runLatentBridge(modelDir string, steps, rows int, maxWall time.Duration) er
 		return err
 	}
 	defer trainer.Close()
-	session, err := probeSession(trainingprogram.ObjectiveLatentL2, steps, trainer.ParameterCount(), maxWall)
+	session, err := probeSession(trainingprogram.ObjectiveLatentL2, run.steps, trainer.ParameterCount(), run.maxWall)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("trainable parameters=%d hidden=%d latent=%d derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s\n",
 		trainer.ParameterCount(), weights.Hidden, weights.Latent,
-		trainer.Config().BaseLearningRate, trainer.Config().Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
+		trainer.Config().BaseLearningRate, trainer.Config().Momentum, run.rows, time.Since(loadStart).Round(time.Millisecond))
 
-	hidden, _, _, err := stimulus(session, rows, weights.Hidden, 1)
+	hidden, _, _, err := stimulus(session, run.rows, weights.Hidden, 1)
 	if err != nil {
 		return err
 	}
-	return boundedRun{name: flowOrganRoute, plan: session,
-		step: func(int) (optimizer.ObservedStepResult, error) { return trainer.Step(hidden) },
-		loss: func() (float64, error) { return trainer.Loss(hidden) },
-	}.train(context.Background())
+	return run.train(session, trainer,
+		func(int) (optimizer.ObservedStepResult, error) { return trainer.Step(hidden) },
+		func() (float64, error) { return trainer.Loss(hidden) })
 }
 
 // stimulus: the committed deterministic probe pair — xorshift32 seeded rows,
@@ -446,18 +496,12 @@ func stimulus(session trainingprogram.TrainingSessionPlan, rows, hidden, flowDim
 // the fm_head organ as f32 masters decoded from the BF16 serving storage,
 // trains on a deterministic committed stimulus with derived hyperparameters
 // (base LR n_params^-1/2, momentum from the CLT effective-samples rule),
-// observes every step with a first-step projection guard, and proves descent
-// by re-evaluating the same pair's loss after the observed steps.
-// Full-pipeline MoT training remains the promotion gate beyond the organ.
-func trainFlowHead(modelDir string, steps, rows int, timestep float64, maxWall time.Duration) error {
-	if modelDir == "" || steps <= 0 || rows <= 0 {
-		return fmt.Errorf("train -route flow-organ:-model is required; -steps and -rows must be positive")
-	}
-	roots, err := dataroot.ResolveCurrent()
-	if err != nil {
-		return err
-	}
-	directory := roots.ResolveModelPath(modelDir)
+// observes every step with a first-step projection guard, proves descent by
+// re-evaluating the same pair's loss after the observed steps, and publishes
+// the trained organ. Full-pipeline MoT training remains the promotion gate
+// beyond the organ.
+func trainFlowHead(run organRun, timestep float64) error {
+	directory := run.model
 	loadStart := time.Now()
 	binding := routedlm.SenseNovaBinding()
 	flowProfile, err := routedlm.InspectFlowProfile(directory)
@@ -490,21 +534,21 @@ func trainFlowHead(modelDir string, steps, rows int, timestep float64, maxWall t
 		return err
 	}
 	defer trainer.Close()
-	session, err := probeSession(trainingprogram.ObjectiveFlowMatching, steps, trainer.ParameterCount(), maxWall)
+	session, err := probeSession(trainingprogram.ObjectiveFlowMatching, run.steps, trainer.ParameterCount(), run.maxWall)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("trainable parameters=%d hidden=%d flow_dim=%d derived_lr=%.4g derived_momentum=%.4f rows=%d load_wall=%s\n",
 		trainer.ParameterCount(), plan.Hidden, plan.FlowDim,
-		trainer.Config().BaseLearningRate, trainer.Config().Momentum, rows, time.Since(loadStart).Round(time.Millisecond))
+		trainer.Config().BaseLearningRate, trainer.Config().Momentum, run.rows, time.Since(loadStart).Round(time.Millisecond))
 
-	x, z, target, err := stimulus(session, rows, plan.Hidden, plan.FlowDim)
+	x, z, target, err := stimulus(session, run.rows, plan.Hidden, plan.FlowDim)
 	if err != nil {
 		return err
 	}
-	return boundedRun{name: flowOrganRoute, plan: session,
-		step: func(int) (optimizer.ObservedStepResult, error) { return trainer.Step(x, z, target, timestep) },
-		loss: func() (float64, error) {
+	return run.train(session, trainer,
+		func(int) (optimizer.ObservedStepResult, error) { return trainer.Step(x, z, target, timestep) },
+		func() (float64, error) {
 			v, err := trainer.Velocity(x, z, timestep)
 			if err != nil {
 				return 0, err
@@ -516,6 +560,5 @@ func trainFlowHead(modelDir string, steps, rows int, timestep float64, maxWall t
 				total += d * d * invN
 			}
 			return total, nil
-		},
-	}.train(context.Background())
+		})
 }

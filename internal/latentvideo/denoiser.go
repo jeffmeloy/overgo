@@ -328,8 +328,8 @@ type DenoiserPrecision struct {
 	RoundAttentionStorage bool
 }
 
-// DenoiserHistory fixes one chunk's retained self-attention boundary.
-type DenoiserHistory struct {
+// denoiserHistory fixes one chunk's retained self-attention boundary.
+type denoiserHistory struct {
 	Tokens     int
 	StartFrame int
 }
@@ -337,18 +337,18 @@ type DenoiserHistory struct {
 // CompileDenoiserProgramPrecision: builds both graphs under one precision
 // declaration.
 func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision) (*DenoiserProgram, error) {
-	return compileDenoiserProgram(c, weights, geometry, precision, DenoiserHistory{})
+	return compileDenoiserProgram(c, weights, geometry, precision, denoiserHistory{})
 }
 
-// CompileDenoiserProgramHistory adds retained rotated-K/value inputs.
-func CompileDenoiserProgramHistory(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision, history DenoiserHistory) (*DenoiserProgram, error) {
+// compileDenoiserProgramHistory adds retained rotated-K/value inputs.
+func compileDenoiserProgramHistory(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision, history denoiserHistory) (*DenoiserProgram, error) {
 	if !checked.PositiveInts(history.Tokens, history.StartFrame) {
 		return nil, fmt.Errorf("denoiser history: tokens/start frame must be positive")
 	}
 	return compileDenoiserProgram(c, weights, geometry, precision, history)
 }
 
-func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision, history DenoiserHistory) (*DenoiserProgram, error) {
+func compileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision, history denoiserHistory) (*DenoiserProgram, error) {
 	matmulWeightType := precision.MatmulWeights
 	if weights == nil {
 		return nil, fmt.Errorf("denoiser program: weights are nil")
@@ -501,20 +501,20 @@ func feedValue(node *tensor.Tensor, data []float32, what string) (reference.Valu
 	return reference.Value{Shape: node.Shape, Data: data}, nil
 }
 
-// ContextProjection: one branch's per-block cross-attention K/V.
-type ContextProjection struct {
+// contextProjection: one branch's per-block cross-attention K/V.
+type contextProjection struct {
 	Keys, Values [][]float32
 }
 
 // ProjectContext: runs the context graph once for one text context.
-func (p *DenoiserProgram) ProjectContext(run graphruntime.Runner, context []float32) (ContextProjection, error) {
+func (p *DenoiserProgram) ProjectContext(run graphruntime.Runner, context []float32) (contextProjection, error) {
 	feeds := make(map[*tensor.Tensor]reference.Value, len(p.contextWeightInputs)+1)
 	if err := p.weightFeeds(p.contextWeightInputs, feeds); err != nil {
-		return ContextProjection{}, err
+		return contextProjection{}, err
 	}
 	value, err := feedValue(p.contextInput, context, "context")
 	if err != nil {
-		return ContextProjection{}, err
+		return contextProjection{}, err
 	}
 	feeds[p.contextInput] = value
 	outputs := make([]*tensor.Tensor, 0, 2*len(p.contextKeys))
@@ -522,9 +522,9 @@ func (p *DenoiserProgram) ProjectContext(run graphruntime.Runner, context []floa
 	outputs = append(outputs, p.contextValues...)
 	results, err := run(outputs, feeds)
 	if err != nil {
-		return ContextProjection{}, fmt.Errorf("denoiser context projection: %w", err)
+		return contextProjection{}, fmt.Errorf("denoiser context projection: %w", err)
 	}
-	projection := ContextProjection{}
+	projection := contextProjection{}
 	for layer := range p.contextKeys {
 		projection.Keys = append(projection.Keys, results[p.contextKeys[layer]].Data)
 		projection.Values = append(projection.Values, results[p.contextValues[layer]].Data)
@@ -537,7 +537,7 @@ func (p *DenoiserProgram) ProjectContext(run graphruntime.Runner, context []floa
 func (p *DenoiserProgram) Forward(
 	run graphruntime.Runner,
 	patchTokens, blockE, headE []float32,
-	context ContextProjection,
+	context contextProjection,
 	outputs []*tensor.Tensor,
 ) (map[*tensor.Tensor]reference.Value, error) {
 	if len(context.Keys) != len(p.stepCrossKeys) || len(context.Values) != len(p.stepCrossValues) {
@@ -620,25 +620,25 @@ type DenoiseRequest struct {
 	StepHook func(step int, timestep int64)
 }
 
-// DenoiseStepTrace: per-step sampler boundary tensors.
-type DenoiseStepTrace struct {
+// denoiseStepTrace: per-step sampler boundary tensors.
+type denoiseStepTrace struct {
 	Timestep                           int64
 	SampleIn, CondOutput, UncondOutput []float32
 	ModelOutput, SampleOut             []float32
 }
 
-// DenoiseResult: final latent plus optional per-step traces.
-type DenoiseResult struct {
+// denoiseResult: final latent plus optional per-step traces.
+type denoiseResult struct {
 	Latent    []float32
 	Timesteps []int64
 	Sigmas    []float32
-	Steps     []DenoiseStepTrace
+	Steps     []denoiseStepTrace
 }
 
-// DenoiseBackend: one execution engine for the guided step loop. Branch
+// denoiseBackend: one execution engine for the guided step loop. Branch
 // contexts are opaque engine-resident cross-attention projections;
 // ForwardHead returns the head patches [seq*patchOut] for one branch.
-type DenoiseBackend interface {
+type denoiseBackend interface {
 	ProjectBranchContexts(conditional, unconditional []float32) (any, any, error)
 	ForwardHead(patchTokens, blockE, headE []float32, branchContext any) ([]float32, error)
 }
@@ -661,7 +661,7 @@ func (b graphRunnerBackend) ProjectBranchContexts(conditional, unconditional []f
 }
 
 func (b graphRunnerBackend) ForwardHead(patchTokens, blockE, headE []float32, branchContext any) ([]float32, error) {
-	projection, ok := branchContext.(ContextProjection)
+	projection, ok := branchContext.(contextProjection)
 	if !ok {
 		return nil, fmt.Errorf("denoise forward: branch context is %T, need ContextProjection", branchContext)
 	}
@@ -673,13 +673,13 @@ func (b graphRunnerBackend) ForwardHead(patchTokens, blockE, headE []float32, br
 }
 
 // Denoise: the full guided UniPC trajectory through the step graph.
-func (p *DenoiserProgram) Denoise(run graphruntime.Runner, request DenoiseRequest) (DenoiseResult, error) {
+func (p *DenoiserProgram) Denoise(run graphruntime.Runner, request DenoiseRequest) (denoiseResult, error) {
 	return p.DenoiseWithBackend(graphRunnerBackend{program: p, run: run}, request)
 }
 
 // DenoiseWithBackend: the guided UniPC trajectory over one execution engine.
-func (p *DenoiserProgram) DenoiseWithBackend(backend DenoiseBackend, request DenoiseRequest) (DenoiseResult, error) {
-	var result DenoiseResult
+func (p *DenoiserProgram) DenoiseWithBackend(backend denoiseBackend, request DenoiseRequest) (denoiseResult, error) {
+	var result denoiseResult
 	elements := p.Geometry.Elements()
 	timesteps, sigmas, err := sampling.UniPCSchedule(p.Config.Policy.NumTrainTimesteps, request.Steps, request.Shift)
 	if err != nil {
@@ -732,9 +732,9 @@ func (p *DenoiserProgram) DenoiseWithBackend(backend DenoiseBackend, request Den
 		if err := sampling.GuideInto(guided, condOut, uncondOut, request.GuideScale); err != nil {
 			return result, err
 		}
-		var trace DenoiseStepTrace
+		var trace denoiseStepTrace
 		if request.TraceSteps {
-			trace = DenoiseStepTrace{
+			trace = denoiseStepTrace{
 				Timestep:   timestep,
 				SampleIn:   append([]float32(nil), sample...),
 				CondOutput: condOut, UncondOutput: uncondOut,

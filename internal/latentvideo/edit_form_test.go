@@ -21,7 +21,7 @@ func TestEditPolicyDeclaresTheReferenceSchedule(t *testing.T) {
 	if err := os.MkdirAll(edit, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ResolveEditPolicy(edit); err == nil {
+	if _, err := resolveEditPolicy(edit); err == nil {
 		t.Fatal("a directory without the checkpoint resolved a policy")
 	}
 	wanDirectory, checkpoint := LiveEditArtifacts(edit)
@@ -31,7 +31,7 @@ func TestEditPolicyDeclaresTheReferenceSchedule(t *testing.T) {
 	if err := os.WriteFile(checkpoint, []byte("checkpoint"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	policy, err := ResolveEditPolicy(edit)
+	policy, err := resolveEditPolicy(edit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestReferenceEditRequestFormAdmitsClipOrTensors(t *testing.T) {
 	if !clip.ClipForm() {
 		t.Fatal("clip form not recognised")
 	}
-	if err := ValidateReferenceEditRequestForm(clip); err != nil {
+	if err := validateReferenceEditRequestForm(clip); err != nil {
 		t.Fatal(err)
 	}
 	encoded, err := json.Marshal(clip)
@@ -80,7 +80,7 @@ func TestReferenceEditRequestFormAdmitsClipOrTensors(t *testing.T) {
 		"artifact only": {SourceArtifact: clip.SourceArtifact},
 		"negative seed": {Prompt: "a fox", Seed: -1, SourceArtifact: clip.SourceArtifact},
 	} {
-		if ValidateReferenceEditRequestForm(request) == nil {
+		if validateReferenceEditRequestForm(request) == nil {
 			t.Errorf("%s: admitted %+v", name, request)
 		}
 	}
@@ -93,7 +93,7 @@ func TestReferenceEditRequestFormAdmitsClipOrTensors(t *testing.T) {
 	if tensor.ClipForm() {
 		t.Fatal("tensor form read as a clip form")
 	}
-	if err := ValidateReferenceEditRequestForm(tensor); err != nil {
+	if err := validateReferenceEditRequestForm(tensor); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -132,7 +132,7 @@ func TestSourceVideoFromGIFRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := SourceVideoFromGIF(video.Data)
+	source, err := sourceVideoFromGIF(video.Data)
 	if err != nil {
 		t.Fatal(err)
 	}

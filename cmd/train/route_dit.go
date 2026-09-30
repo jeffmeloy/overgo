@@ -12,11 +12,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
 	"overgo/internal/media"
+	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/runrecord"
@@ -184,11 +184,11 @@ func contextDiff(got, want []float32) (maxDiff, meanDiff float64) {
 // Conditioning is real: raw umt5-xxl rows for the committed g1 prompt
 // through the streamed host encoder, x0 seeded from the committed sha-pinned
 // g3/g4 final latents, noise from the golden Philox plan. The run publishes
-// one typed session observation. With -checkpoint it trains the
-// reference-edit (.pt) variant whose 32-channel patch embedding concatenates
-// a real source latent (gradient stops at the source channels): the full
-// video-diffusion training run the organ cells named as their promotion
-// gate.
+// one typed session observation and the trained DiT as a checkpoint. With
+// -checkpoint it trains the reference-edit (.pt) variant whose 32-channel
+// patch embedding concatenates a real source latent (gradient stops at the
+// source channels): the full video-diffusion training run the organ cells
+// named as their promotion gate.
 func trainDiT(flags *flag.FlagSet, args []string) error {
 	modelDir := flags.String("model-dir", "", "video checkpoint dir")
 	checkpoint := flags.String("checkpoint", "", "reference-edit .pt checkpoint (empty: train the safetensors DiT)")
@@ -199,9 +199,10 @@ func trainDiT(flags *flag.FlagSet, args []string) error {
 	scheduleIndex := clioptions.IntOverride(flags, "schedule-index", "required committed schedule index")
 	steps := clioptions.IntOverride(flags, "steps", "required observed training steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
-	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation and recipe authority")
+	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
 	stimulus := flags.String("stimulus", "docs/verification/wan-dit-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
-	objectiveAlias := flags.String("objective-alias", "", "registered objective alias to train under; empty uses the token bootstrap")
+	objectiveAlias := flags.String("objective-alias", "", "registered objective alias to train under, publishing no checkpoint; empty uses the token bootstrap")
+	out := flags.String("out", "", "directory the trained DiT's checkpoint publishes to; required unless -objective-alias")
 	t5Cache := flags.String("t5-cache", "", "optional cache base path for the streamed raw text rows")
 	vidgenRoot := flags.String("vidgen-root", "", "VidGen corpus directory; set to train on real VAE-encoded captioned clips instead of fixture latents")
 	clipCount := flags.Int("clips", 4, "captioned clips to train over when -vidgen-root is set")
@@ -210,8 +211,17 @@ func trainDiT(flags *flag.FlagSet, args []string) error {
 	}
 	overrides := clioptions.ExplicitOverrides(flags)
 	ctx := context.Background()
-	if *modelDir == "" || *steps <= 0 || !overrides.Has("schedule-index") {
-		return fmt.Errorf("%s: model, positive steps, and schedule index required", flags.Name())
+	name := flags.Name()
+	// A registered objective's processors are declared identities, not
+	// executable ones, so its training membership materializes no stream a
+	// checkpoint could record its position in, and the run trains on fixture
+	// or corpus latents outside that membership: an -objective-alias run
+	// publishes no checkpoint, and every other run publishes one at -out.
+	if *objectiveAlias != "" && *out != "" {
+		return fmt.Errorf("%s: an -objective-alias run publishes no checkpoint; its objective's declared processors materialize no stream to record a position in", name)
+	}
+	if *modelDir == "" || *steps <= 0 || !overrides.Has("schedule-index") || *objectiveAlias == "" && *out == "" {
+		return fmt.Errorf("%s: model, out, positive steps, and schedule index required", name)
 	}
 	var fixture ditProbeFixture
 	if err := jsonfile.Decode(filepath.Join(*fixturesDir, "g3_denoise.json"), &fixture); err != nil {
@@ -233,36 +243,15 @@ func trainDiT(flags *flag.FlagSet, args []string) error {
 	if *checkpoint != "" {
 		weightsPath = *checkpoint
 	}
-	modelFile, err := os.Open(weightsPath)
-	if err != nil {
-		return err
-	}
-	modelID, _, err := artifact.Identify(artifact.KindModel, modelFile)
-	modelFile.Close()
-	if err != nil {
-		return err
-	}
-	var recipeID artifact.ID
+	var session routeSession
 	if *objectiveAlias != "" {
-		recipeID, err = trainingworkflow.BootstrapObjectiveRecipe(ctx, store, weightsPath, *objectiveAlias)
+		session, err = objectiveSession(ctx, store, weightsPath, *objectiveAlias)
 	} else {
-		recipeID, err = trainingworkflow.BootstrapTokenRecipe(ctx, store, weightsPath, *stimulus)
+		session, err = openSession(ctx, store, weightsPath, *stimulus)
 	}
 	if err != nil {
 		return err
 	}
-	observer, err := trainingworkflow.NewObserver(store, false)
-	if err != nil {
-		return err
-	}
-	if err := observer.Admit(ctx, modelID, recipeID); err != nil {
-		return err
-	}
-	authority, err := trainingworkflow.ResolveSessionAuthority(ctx, store, modelID, recipeID)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("session admitted: model=%s recipe=%s\n", modelID, recipeID)
 
 	loadStarted := time.Now()
 	profile, err := latentvideo.ResolveProfile(*modelDir)
@@ -333,19 +322,19 @@ func trainDiT(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	trainer, err := latentvideo.NewDiTTrainer(cfg, textDim, geometry, tensors, authority.Optimizer)
+	trainer, err := latentvideo.NewDiTTrainer(cfg, textDim, geometry, tensors, session.authority.Optimizer)
 	if err != nil {
 		return err
 	}
 	defer trainer.Close()
-	session, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
-		Objective: authority.Objective, Updates: *steps, MaximumSequence: geometry.Seq,
-		MaxProjectedWall: *maxWall, Parameters: trainer.ParameterCount(), Optimizer: authority.Optimizer,
+	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: session.authority.Objective, Updates: *steps, MaximumSequence: geometry.Seq,
+		MaxProjectedWall: *maxWall, Parameters: trainer.ParameterCount(), Optimizer: session.authority.Optimizer,
 	})
 	if err != nil {
 		return err
 	}
-	observer.Phase(runrecord.PhaseLoad, time.Since(loadStarted))
+	session.observer.Phase(runrecord.PhaseLoad, time.Since(loadStarted))
 	fmt.Printf("full DiT: layers=%d trainable_parameters=%d seq=%d latent=%dx%dx%dx%d text_tokens=%d\n",
 		cfg.NumLayers, trainer.ParameterCount(), geometry.Seq,
 		geometry.Channels, geometry.LatentFrames, geometry.LatentHeight, geometry.LatentWidth, textTokens)
@@ -509,52 +498,29 @@ func trainDiT(flags *flag.FlagSet, args []string) error {
 		}
 		return sum / float64(len(batches)), nil
 	}
-	initial, err := meanLoss()
-	if err != nil {
-		return err
+	fmt.Printf("objective: flow-matching MSE over %d latent elements, %d batches\n", noiseElements, len(batches))
+	run := boundedRun{name: name, plan: plan, session: session,
+		step: func(step int) (optimizer.ObservedStepResult, error) { return trainer.Step(batches[step%len(batches)]) },
+		loss: meanLoss,
 	}
-	fmt.Printf("initial loss %.6f (flow-matching MSE over %d latent elements, %d batches)\n", initial, noiseElements, len(batches))
+	if *out != "" {
+		// Every update trains on one batch of the conditioning the stimulus
+		// declaration grounds.
+		run.publish = func(ctx context.Context) error { return session.publishPlanned(ctx, *out, trainer, plan.Updates()) }
+	}
+	return run.train(ctx)
+}
 
-	trainStarted := time.Now()
-	runErr := func() error {
-		for step := 0; step < session.Updates(); step++ {
-			stepStarted := time.Now()
-			result, err := trainer.Step(batches[step%len(batches)])
-			if err != nil {
-				return err
-			}
-			observer.SampleStep()
-			wall := time.Since(stepStarted)
-			fmt.Printf("step %d/%d loss %.6f grad_l2 %.6f lr %.6g wall %s\n",
-				result.Step, session.Updates(), result.Loss, result.GradientL2, result.LearningRate, wall.Round(time.Millisecond))
-			if result.GradientL2 <= 0 {
-				return fmt.Errorf("train -route dit:step %d gradient norm %g", result.Step, result.GradientL2)
-			}
-			if step == 0 {
-				if err := session.AdmitStepWall(wall); err != nil {
-					return fmt.Errorf("train -route dit:%w", err)
-				}
-			}
-		}
-		final, err := meanLoss()
-		if err != nil {
-			return err
-		}
-		fmt.Printf("after-evaluation loss %.6f (initial %.6f)\n", final, initial)
-		if !(final < initial) {
-			return fmt.Errorf("train -route dit:no descent: %.6f -> %.6f", initial, final)
-		}
-		return nil
-	}()
-	observer.Phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
-	streamed := uint64(session.Updates()) * uint64(geometry.Seq)
-	observation, observeErr := observer.Finish(ctx, modelID, recipeID, runErr, streamed)
-	if runErr != nil {
-		return runErr
+// objectiveSession admits a session under the training recipe activated for
+// the model weights from a registered objective.
+func objectiveSession(ctx context.Context, store *overgodb.Store, weights, alias string) (routeSession, error) {
+	recipeID, err := trainingworkflow.BootstrapObjectiveRecipe(ctx, store, weights, alias)
+	if err != nil {
+		return routeSession{}, err
 	}
-	if observeErr != nil {
-		return observeErr
+	session, err := bindSession(ctx, store, recipeID)
+	if err != nil {
+		return routeSession{}, err
 	}
-	fmt.Printf("session observation: %s\n", observation)
-	return nil
+	return session.admitted(ctx)
 }

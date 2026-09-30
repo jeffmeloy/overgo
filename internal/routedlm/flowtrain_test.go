@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/checkpointtest"
 	"overgo/internal/trainingprogram"
 
 	"overgo/internal/tensor/dtype"
@@ -97,6 +98,30 @@ func TestFlowHeadTrainerDescendsAndDerivesHyperparameters(t *testing.T) {
 	if !(last.Loss < first.Loss) {
 		t.Fatalf("flow head loss did not descend: %.6f -> %.6f", first.Loss, last.Loss)
 	}
+}
+
+// TestFlowHeadTrainerCheckpointRoundTripIsBitExact trains one step,
+// publishes the trainer's organ and optimizer state as a checkpoint, and
+// reads both back bit for bit under every fm_head tensor name.
+func TestFlowHeadTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	plan, head := tinyFlowHead(6, 4)
+	trainer, err := NewFlowHeadTrainer(plan, head, trainingprogram.BuiltinOptimizerPolicy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	x, z, target := flowStimulus(3, plan.Hidden, plan.FlowDim)
+	if _, err := trainer.Step(x, z, target, 0.25); err != nil {
+		t.Fatal(err)
+	}
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, trainer.OptimizerPlan())
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
+		"fm_head.0.weight": trainer.view(trainer.w0), "fm_head.0.bias": trainer.view(trainer.b0),
+		"fm_head.2.weight": trainer.view(trainer.w2), "fm_head.2.bias": trainer.view(trainer.b2),
+	})
 }
 
 func TestFlowHeadStepGradientMatchesFiniteDifference(t *testing.T) {

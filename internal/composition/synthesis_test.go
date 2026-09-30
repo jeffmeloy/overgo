@@ -83,6 +83,9 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 		outcome.Result.SessionPlan.Components[1].Session != recipe.SessionCapacity {
 		t.Fatalf("outcome=%+v", outcome)
 	}
+	if bridge := outcome.Result.Outcomes[0].Bridge; bridge == nil || bridge.Snapshot().Step != 1 {
+		t.Fatalf("seed outcome carries bridge %v, want the one-step trained bridge its checkpoint publishes", bridge)
+	}
 	if _, found, err := artifact.ReadContent(t.Context(), store, outcome.Result.Recipe); err != nil || !found {
 		t.Fatalf("compiled recipe absent: found=%t err=%v", found, err)
 	}

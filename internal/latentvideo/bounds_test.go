@@ -20,8 +20,8 @@ func TestProfileControlBoundsFollowTheStrides(t *testing.T) {
 	var config DenoiserConfig
 	config.Policy = profile.Policy
 	config.PatchSize[tensor.FirstOffset], config.PatchSize[tensor.SingletonExtent], config.PatchSize[tensor.PairedExtent] = 1, 2, 2
-	bounds := ProfileControlBounds(profile, config)
-	want := map[string]ControlBound{
+	bounds := profileControlBounds(profile, config)
+	want := map[string]controlBound{
 		"width":  {Default: profile.Generation.Width, Step: profile.Policy.VAEStride[tensor.PairedExtent] * 2},
 		"height": {Default: profile.Generation.Height, Step: profile.Policy.VAEStride[tensor.SingletonExtent] * 2},
 		"frames": {Default: profile.Generation.Frames, Step: profile.Policy.VAEStride[tensor.FirstOffset], Rate: profile.SampleFPS},

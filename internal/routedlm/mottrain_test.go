@@ -1,10 +1,12 @@
 package routedlm
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"testing"
 
+	"overgo/internal/checkpointtest"
 	"overgo/internal/trainingprogram"
 )
 
@@ -188,4 +190,29 @@ func TestModalityTransformerStepDescends(t *testing.T) {
 	if !(final < first) {
 		t.Fatalf("loss did not descend: %g -> %g (last step loss %g)", first, final, last.Loss)
 	}
+}
+
+// TestModalityTransformerCheckpointRoundTripIsBitExact trains one step,
+// publishes the trainer's vision fork and optimizer state as a checkpoint,
+// and reads both back bit for bit under every layer tensor name.
+func TestModalityTransformerCheckpointRoundTripIsBitExact(t *testing.T) {
+	trainer, hidden, mask, targets := motTestTrainer(t)
+	if _, err := trainer.Step(hidden, mask, targets); err != nil {
+		t.Fatal(err)
+	}
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveTokenPrediction, nil, trainer.OptimizerPlan())
+	if err != nil {
+		t.Fatal(err)
+	}
+	trained := map[string][]float32{}
+	for layer, spans := range trainer.spans {
+		for suffix, section := range map[string]span{
+			suffixInputNorm: spans.inputNorm, suffixQProj: spans.q, suffixKProj: spans.k, suffixVProj: spans.v,
+			suffixOProj: spans.o, suffixPostNorm: spans.postNorm, suffixGateProj: spans.gate, suffixUpProj: spans.up,
+			suffixDownProj: spans.down,
+		} {
+			trained[fmt.Sprintf("layers.%d.vision.%s", layer, suffix)] = trainer.view(section)
+		}
+	}
+	checkpointtest.RequireRoundTrip(t, program, trainer, trained)
 }

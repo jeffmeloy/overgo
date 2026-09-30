@@ -33,36 +33,36 @@ type ReferenceEditRuntimeConfig struct {
 	TextContext                  []float32
 }
 
-type ReferenceEditRuntimeResult struct {
+type referenceEditRuntimeResult struct {
 	Latent         []float32
-	Sampler        EditSamplerStats
-	Source         SourceEncodeStats
+	Sampler        editSamplerStats
+	Source         sourceEncodeStats
 	Decode         VAEDecodeStats
-	Denoiser       ReferenceEditDenoiserStats
+	Denoiser       referenceEditDenoiserStats
 	DenoiseWallSec float64
 	DenoiseMemory  driver.MemoryStats
 	DecoderMemory  driver.MemoryStats
 }
 
-// ReferenceEditRuntime composes shared codec, transformer, sampler, and decode
+// referenceEditRuntime composes shared codec, transformer, sampler, and decode
 // owners. Host crossings are typed latent/patch publication boundaries.
-type ReferenceEditRuntime struct {
+type referenceEditRuntime struct {
 	mu sync.Mutex
 
 	config            ReferenceEditRuntimeConfig
 	base              DenoiserConfig
-	checkpoint        ReferenceEditCheckpoint
-	sourcePlan        SourceCodecPlan
-	editPlan          EditPlan
-	encoder           *VAEEncoderCUDASession
-	denoiser          *ReferenceEditDenoiserCUDASession
-	decoder           *VAEDecoderCUDASession
+	checkpoint        referenceEditCheckpoint
+	sourcePlan        sourceCodecPlan
+	editPlan          editPlan
+	encoder           *vaeEncoderCUDASession
+	denoiser          *referenceEditDenoiserCUDASession
+	decoder           *vaeDecoderCUDASession
 	sourceFingerprint [sha256.Size]byte
 	sourceLatent      []float32
-	sourceStats       SourceEncodeStats
+	sourceStats       sourceEncodeStats
 }
 
-func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *ReferenceEditRuntime, err error) {
+func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *referenceEditRuntime, err error) {
 	if config.WanDirectory == "" || config.EditCheckpoint == "" || len(config.TextContext) == 0 || len(config.Timesteps) == 0 || len(config.Sigmas) != len(config.Timesteps) {
 		return nil, errors.New("reference edit runtime: incomplete config")
 	}
@@ -103,7 +103,7 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *Refere
 	if latent.LatentFrames > config.LocalAttentionFrames+config.FramesPerChunk {
 		return nil, errors.New("reference edit runtime: sliding history window is not compiled")
 	}
-	editPlan, err := CompileEditPlan(EditModelConfig{
+	editPlan, err := compileEditPlan(editModelConfig{
 		PatchSize: checkpoint.Config.PatchSize, InputChannels: checkpoint.Config.InDim,
 		Dim: checkpoint.Config.Dim, TextLength: checkpoint.Config.TextLen,
 		Layers: checkpoint.Config.NumLayers, TrainSteps: checkpoint.Config.Policy.NumTrainTimesteps,
@@ -122,7 +122,7 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *Refere
 		Grid: [3]int{config.FramesPerChunk / checkpoint.Config.PatchSize[0], latent.Grid[1], latent.Grid[2]},
 	}
 	chunkGeometry.Seq = chunkGeometry.Grid[0] * chunkGeometry.Grid[1] * chunkGeometry.Grid[2]
-	runtime = &ReferenceEditRuntime{
+	runtime = &referenceEditRuntime{
 		config: config, base: base, checkpoint: checkpoint, sourcePlan: sourcePlan, editPlan: editPlan,
 	}
 	defer func() {
@@ -131,9 +131,9 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *Refere
 			runtime = nil
 		}
 	}()
-	runtime.encoder, err = NewVAEEncoderCUDASession(vaeCheckpoint, encoderGraph, config.DeviceOrdinal)
+	runtime.encoder, err = newVAEEncoderCUDASession(vaeCheckpoint, encoderGraph, config.DeviceOrdinal)
 	if err == nil {
-		runtime.denoiser, err = NewReferenceEditDenoiserCUDASession(
+		runtime.denoiser, err = newReferenceEditDenoiserCUDASession(
 			context.Background(), checkpoint, chunkGeometry, config.Layers,
 			config.FramesPerChunk, config.LocalAttentionFrames, latent.LatentFrames, config.DeviceOrdinal, config.TextContext,
 		)
@@ -149,7 +149,7 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *Refere
 	return runtime, err
 }
 
-func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []float32, sink VideoFrameSink) (result ReferenceEditRuntimeResult, err error) {
+func (r *referenceEditRuntime) Run(ctx context.Context, source, initialNoise []float32, sink VideoFrameSink) (result referenceEditRuntimeResult, err error) {
 	if r == nil {
 		return result, errors.New("reference edit runtime: closed")
 	}
@@ -198,10 +198,10 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 	}
 	result.Source = sourceStats
 	denoiseStarted := time.Now()
-	result.Latent, result.Sampler, err = RunEditSampler(ctx, EditSamplerRequest{
+	result.Latent, result.Sampler, err = runEditSampler(ctx, editSamplerRequest{
 		Plan: r.editPlan, InitialNoise: initialNoise, Source: sourceLatent,
-		Sigmas: r.config.Sigmas, ContextTimestep: r.config.ContextTimestep, Arithmetic: EditBF16,
-		Denoise: func(ctx context.Context, step EditStep, combined, flow []float32) error {
+		Sigmas: r.config.Sigmas, ContextTimestep: r.config.ContextTimestep, Arithmetic: editBF16,
+		Denoise: func(ctx context.Context, step editStep, combined, flow []float32) error {
 			headE, blockE, err := CompileTimestepConditioning([]float64{float64(step.Timestep)}, r.denoiser.cold.timestepWeights)
 			if err != nil {
 				return err
@@ -210,7 +210,7 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 			if err != nil {
 				return err
 			}
-			head, err := r.denoiser.RunChunk(ctx, patches, blockE, headE, step.StartFrame, step.Pass == EditContextRefresh)
+			head, err := r.denoiser.RunChunk(ctx, patches, blockE, headE, step.StartFrame, step.Pass == editContextRefresh)
 			if err != nil {
 				return err
 			}
@@ -221,7 +221,7 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 			copy(flow, decoded)
 			return nil
 		},
-		Noise: func(ctx context.Context, step EditStep, destination []float32) error {
+		Noise: func(ctx context.Context, step editStep, destination []float32) error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
@@ -300,7 +300,7 @@ func (s *editNoiseStream) plan(elements int) (sampling.CounterNoisePlan, uint64,
 	return sampling.CompileCounterNoisePlan(s.seed, s.offset, elements, s.smCount, s.threadsPerSM)
 }
 
-func (r *ReferenceEditRuntime) Close() error {
+func (r *referenceEditRuntime) Close() error {
 	if r == nil {
 		return nil
 	}
@@ -322,9 +322,9 @@ func (r *ReferenceEditRuntime) Close() error {
 	return errors.Join(errs...)
 }
 
-func (r *ReferenceEditRuntime) Plan() EditPlan {
+func (r *referenceEditRuntime) Plan() editPlan {
 	if r == nil {
-		return EditPlan{}
+		return editPlan{}
 	}
 	return r.editPlan
 }

@@ -28,7 +28,7 @@ type SourceVideoShape struct {
 	Width    int
 }
 
-type SourceCodecPlan struct {
+type sourceCodecPlan struct {
 	Source       SourceVideoShape
 	Latent       SourceVideoShape
 	SourceChunks []int
@@ -36,22 +36,22 @@ type SourceCodecPlan struct {
 }
 
 // CompileSourceCodecBoundary derives the encoder's exact temporal and spatial boundary.
-func CompileSourceCodecBoundary(profile SourceCodecProfile, source SourceVideoShape) (SourceCodecPlan, error) {
+func CompileSourceCodecBoundary(profile SourceCodecProfile, source SourceVideoShape) (sourceCodecPlan, error) {
 	if !checked.PositiveInts(profile.InputChannels, profile.LatentChannels) {
-		return SourceCodecPlan{}, errors.New("source codec: invalid channel or source extent")
+		return sourceCodecPlan{}, errors.New("source codec: invalid channel or source extent")
 	}
 	if !checked.Equal(source.Channels, profile.InputChannels) {
-		return SourceCodecPlan{}, errors.New("source codec: invalid channel or source extent")
+		return sourceCodecPlan{}, errors.New("source codec: invalid channel or source extent")
 	}
 	volume, err := media.DownsampledVolumeExactSpatial(source.Frames, source.Height, source.Width, profile.Stride)
 	if err != nil {
-		return SourceCodecPlan{}, fmt.Errorf("source codec: %w", err)
+		return sourceCodecPlan{}, fmt.Errorf("source codec: %w", err)
 	}
 	if err := media.ValidateChannelMoments(profile.LatentStats.Mean, profile.LatentStats.Std, profile.LatentChannels); err != nil {
-		return SourceCodecPlan{}, fmt.Errorf("source codec: latent statistics: %w", err)
+		return sourceCodecPlan{}, fmt.Errorf("source codec: latent statistics: %w", err)
 	}
 	chunks := media.CausalChunkSchedule(source.Frames, profile.Stride[tensor.FirstOffset])
-	return SourceCodecPlan{
+	return sourceCodecPlan{
 		Source: source,
 		Latent: SourceVideoShape{
 			Channels: profile.LatentChannels,
@@ -65,27 +65,27 @@ func CompileSourceCodecBoundary(profile SourceCodecProfile, source SourceVideoSh
 }
 
 // SourceElements returns the validated planar source size.
-func (p SourceCodecPlan) SourceElements() (int, error) {
+func (p sourceCodecPlan) SourceElements() (int, error) {
 	return checkedProduct(p.Source.Channels, p.Source.Frames, p.Source.Height, p.Source.Width)
 }
 
 // LatentElements returns the validated channel-major latent size.
-func (p SourceCodecPlan) LatentElements() (int, error) {
+func (p sourceCodecPlan) LatentElements() (int, error) {
 	return checkedProduct(p.Latent.Channels, p.Latent.Frames, p.Latent.Height, p.Latent.Width)
 }
 
-// NormalizeSourceLatent applies the adaptive encoder's channel-wise affine.
-func NormalizeSourceLatent(out, meanOutput []float32, plan SourceCodecPlan) error {
+// normalizeSourceLatent applies the adaptive encoder's channel-wise affine.
+func normalizeSourceLatent(out, meanOutput []float32, plan sourceCodecPlan) error {
 	plane := plan.Latent.Frames * plan.Latent.Height * plan.Latent.Width
 	return media.NormalizePlanarChannelsInto(out, meanOutput, plan.Profile.LatentStats.Mean, plan.Profile.LatentStats.Std, plan.Latent.Channels, plane)
 }
 
 // EncodeSourceVideo runs the checkpoint-derived causal encoder chunk stream.
-func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodecPlan, source []float32) ([]float32, error) {
+func EncodeSourceVideo(checkpoint string, graph vaeEncoderPlan, plan sourceCodecPlan, source []float32) ([]float32, error) {
 	return encodeSourceVideo(context.Background(), checkpoint, graph, plan, source)
 }
 
-func encodeSourceVideo(ctx context.Context, checkpoint string, graph VAEEncoderPlan, plan SourceCodecPlan, source []float32) ([]float32, error) {
+func encodeSourceVideo(ctx context.Context, checkpoint string, graph vaeEncoderPlan, plan sourceCodecPlan, source []float32) ([]float32, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -178,10 +178,10 @@ func encodeSourceVideo(ctx context.Context, checkpoint string, graph VAEEncoderP
 		return nil, fmt.Errorf("source codec: consumed source=%d/%d latent=%d/%d", sourceFrame, plan.Source.Frames, latentFrame, plan.Latent.Frames)
 	}
 	latent := make([]float32, len(means))
-	return latent, NormalizeSourceLatent(latent, means, plan)
+	return latent, normalizeSourceLatent(latent, means, plan)
 }
 
-func validateSourceCodecPlan(plan SourceCodecPlan) error {
+func validateSourceCodecPlan(plan sourceCodecPlan) error {
 	expected, err := CompileSourceCodecBoundary(plan.Profile, plan.Source)
 	if err != nil {
 		return err

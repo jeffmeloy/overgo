@@ -17,7 +17,7 @@ var normalizeEscapedWidthWhitespace = tokenizer.NormalizeEscapedWidthWhitespace
 
 // referenceEncoderPolicy: the production encoder facts, under the name the
 // encoder tests have always used.
-var referenceEncoderPolicy = ReferenceEncoderConfig
+var referenceEncoderPolicy = referenceEncoderConfig
 
 func arithmeticFloat32Sequence(start, step float64, n int) []float32 {
 	out := make([]float32, n)
@@ -100,7 +100,7 @@ func TestEncoderBlockTensorNames(t *testing.T) {
 	if len(names) != blockTensorCount || names[0] != "blocks.3.norm1.weight" || names[len(names)-1] != "blocks.3.pos_embedding.embedding.weight" {
 		t.Fatalf("bad block names: %v", names)
 	}
-	if err := (EncoderPlan{OK: true, Config: EncoderConfig{VocabSize: 256384, Layers: 24, Dim: 4096, Heads: 64, FFNDim: 10240, RelativeBuckets: 32, RelativeMaxDistance: 128, NormEps: 1e-6}}).validateRuntimeBindings(); err == nil {
+	if err := (encoderPlan{OK: true, Config: encoderConfig{VocabSize: 256384, Layers: 24, Dim: 4096, Heads: 64, FFNDim: 10240, RelativeBuckets: 32, RelativeMaxDistance: 128, NormEps: 1e-6}}).validateRuntimeBindings(); err == nil {
 		t.Fatal("incomplete runtime bindings accepted")
 	}
 }

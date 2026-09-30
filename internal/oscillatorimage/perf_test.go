@@ -1,7 +1,7 @@
 package oscillatorimage
 
 import (
-	"sort"
+	"slices"
 	"testing"
 	"time"
 )
@@ -34,7 +34,7 @@ func TestGenerateWall(t *testing.T) {
 		}
 		walls = append(walls, time.Since(start))
 	}
-	sort.Slice(walls, func(i, j int) bool { return walls[i] < walls[j] })
+	slices.Sort(walls)
 	t.Logf("load=%v per-generate median=%v min=%v max=%v (batch %d, %d repeats)",
 		loadWall, walls[repeats/2]/batch, walls[0]/batch, walls[repeats-1]/batch, batch, repeats)
 }

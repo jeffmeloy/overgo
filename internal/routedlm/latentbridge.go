@@ -70,6 +70,7 @@ type LatentBridgeTrainer struct {
 	downW, downB   span
 	upW, upB       span
 	stepper        optimizer.Stepper
+	optimizerPlan  optimizer.Plan
 	config         optimizer.Config
 	step           int
 }
@@ -118,6 +119,7 @@ func NewLatentBridgeTrainer(w LatentBridgeWeights, policy trainingprogram.Optimi
 		*spans[i] = span{specs[i].Start, specs[i].End}
 		copy(trainer.weights[specs[i].Start:specs[i].End], s.values)
 	}
+	trainer.optimizerPlan = plan
 	trainer.stepper, err = optimizer.NewStepper(trainer.weights, trainer.gradients, plan, trainer.config)
 	if err != nil {
 		return nil, err
@@ -130,6 +132,19 @@ func (t *LatentBridgeTrainer) ParameterCount() int { return len(t.weights) }
 
 // Config exposes the derived hyperparameters for evidence.
 func (t *LatentBridgeTrainer) Config() optimizer.Config { return t.config }
+
+// OptimizerPlan is the compiled Muon plan over the packed pair: one group
+// per projection tensor.
+func (t *LatentBridgeTrainer) OptimizerPlan() optimizer.Plan { return t.optimizerPlan }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (t *LatentBridgeTrainer) Snapshot() optimizer.State { return t.stepper.Snapshot() }
+
+// SaveWeights writes the trained pair at path, the weights Snapshot pairs
+// with.
+func (t *LatentBridgeTrainer) SaveWeights(path string) error {
+	return optimizer.SavePlanWeights(path, t.optimizerPlan, t.weights)
+}
 
 // Close releases the stepper backend.
 func (t *LatentBridgeTrainer) Close() error { return t.stepper.Close() }

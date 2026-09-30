@@ -17,7 +17,7 @@ import (
 	"overgo/internal/tensor"
 )
 
-type SourceEncodeStats struct {
+type sourceEncodeStats struct {
 	WallSeconds     float64
 	WeightBytes     uint64
 	PeakDeviceBytes uint64
@@ -26,22 +26,22 @@ type SourceEncodeStats struct {
 	CacheHit        bool
 }
 
-// VAEEncoderCUDASession shares the resident causal-codec executor with decode.
-type VAEEncoderCUDASession struct {
-	Plan  VAEEncoderPlan
-	codec *VAEDecoderCUDASession
+// vaeEncoderCUDASession shares the resident causal-codec executor with decode.
+type vaeEncoderCUDASession struct {
+	Plan  vaeEncoderPlan
+	codec *vaeDecoderCUDASession
 }
 
-func NewVAEEncoderCUDASession(checkpoint string, plan VAEEncoderPlan, ordinal int) (*VAEEncoderCUDASession, error) {
+func newVAEEncoderCUDASession(checkpoint string, plan vaeEncoderPlan, ordinal int) (*vaeEncoderCUDASession, error) {
 	codec, err := newVAECUDASession(checkpoint, plan.vaePlanCore, ordinal)
 	if err != nil {
 		return nil, err
 	}
-	return &VAEEncoderCUDASession{Plan: plan, codec: codec}, nil
+	return &vaeEncoderCUDASession{Plan: plan, codec: codec}, nil
 }
 
-func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan, source []float32) ([]float32, SourceEncodeStats, error) {
-	var stats SourceEncodeStats
+func (s *vaeEncoderCUDASession) Encode(ctx context.Context, plan sourceCodecPlan, source []float32) ([]float32, sourceEncodeStats, error) {
+	var stats sourceEncodeStats
 	if s == nil || s.codec == nil {
 		return nil, stats, errors.New("source codec CUDA session: closed")
 	}
@@ -125,17 +125,17 @@ func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan
 		return nil, stats, fmt.Errorf("source codec CUDA consumed source=%d/%d latent=%d/%d", sourceFrame, plan.Source.Frames, latentFrame, plan.Latent.Frames)
 	}
 	latent := make([]float32, len(means))
-	if err := NormalizeSourceLatent(latent, means, plan); err != nil {
+	if err := normalizeSourceLatent(latent, means, plan); err != nil {
 		return nil, stats, err
 	}
-	stats = SourceEncodeStats{WallSeconds: time.Since(started).Seconds(), WeightBytes: s.codec.WeightBytes, SourceChunks: len(plan.SourceChunks), LatentFrames: latentFrame}
+	stats = sourceEncodeStats{WallSeconds: time.Since(started).Seconds(), WeightBytes: s.codec.WeightBytes, SourceChunks: len(plan.SourceChunks), LatentFrames: latentFrame}
 	if memory, memoryErr := s.codec.MemoryStats(); memoryErr == nil {
 		stats.PeakDeviceBytes = memory.PeakBytes
 	}
 	return latent, stats, nil
 }
 
-func (s *VAEEncoderCUDASession) Close() error {
+func (s *vaeEncoderCUDASession) Close() error {
 	if s == nil || s.codec == nil {
 		return nil
 	}

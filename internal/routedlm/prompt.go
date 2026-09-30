@@ -32,10 +32,7 @@ func VisualSegments(modalityMask []int) [][2]int {
 	for _, sep := range separators {
 		segEnd := sep[0] - 1
 		if segEnd >= segStart {
-			endExclusive := segEnd + 2
-			if endExclusive > len(modalityMask) {
-				endExclusive = len(modalityMask)
-			}
+			endExclusive := min(segEnd+2, len(modalityMask))
 			segments = append(segments, [2]int{segStart, endExclusive})
 		}
 		segStart = sep[1] + 1

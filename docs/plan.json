@@ -10,13 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "candidate-realization",
-          "title": "Move composition's candidate realization out of the inference surface",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestCandidateRealizationLeavesTheSurface$' -count=1",
-          "rationale": "Change 3: composition/candidate_realization.go holds bridgetrain, hostoptimizer and optimizer in the surface. Moving it to its training owner takes those three out. Verify the preserved behaviour, the build and test closure, and the surface invalidation separately. Batch: the lanes composition reaches; expires the guards."
-        },
-        {
           "id": "dataset",
           "title": "Move modelrecipe's dataset responsibility to dataset",
           "status": "open",

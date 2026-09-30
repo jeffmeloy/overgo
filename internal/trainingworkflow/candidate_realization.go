@@ -1,4 +1,4 @@
-package composition
+package trainingworkflow
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/bridgetrain"
+	"overgo/internal/composition"
 	"overgo/internal/hostoptimizer"
 )
 
@@ -58,9 +59,9 @@ func (forward RecordedSeamForward) Forward(_ context.Context, input []float32) (
 // evidence, the assembled composed-model record referencing every frozen
 // donor tensor in place, and the align residual the adapter started from.
 type CandidateRealization struct {
-	Candidate CompositionCandidate
+	Candidate composition.CompositionCandidate
 	Adapter   bridgetrain.Result
-	Composite ComposedModelDocument
+	Composite composition.ComposedModelDocument
 	Residual  float64
 }
 
@@ -76,7 +77,7 @@ type CandidateRealization struct {
 func RealizeCompositionCandidate(
 	ctx context.Context,
 	reader artifact.Reader,
-	candidate CompositionCandidate,
+	candidate composition.CompositionCandidate,
 	target artifact.ID,
 	activations RealizationSeamActivations,
 	training RealizationTraining,
@@ -85,22 +86,22 @@ func RealizeCompositionCandidate(
 	if target.Kind() != artifact.KindModel || candidate.Donor.Kind() != artifact.KindModel {
 		return CandidateRealization{}, errors.New("composition: realization requires exact target and donor model identities")
 	}
-	adapter, residual, err := AlignSeamAdapter(activations.Source, activations.Target)
+	adapter, residual, err := composition.AlignSeamAdapter(activations.Source, activations.Target)
 	if err != nil {
 		return CandidateRealization{}, err
 	}
-	if rung := adapterRungFor(residual); rung != candidate.Adapter {
+	if rung := composition.AdapterRungFor(residual); rung != candidate.Adapter {
 		return CandidateRealization{}, fmt.Errorf(
 			"composition: seam activations admit the %q rung but the candidate was enumerated as %q; the measurement drifted",
 			rung, candidate.Adapter,
 		)
 	}
 	realization := CandidateRealization{Candidate: candidate, Residual: residual}
-	document := ComposedModelDocument{
+	document := composition.ComposedModelDocument{
 		Architecture: assembly.Architecture, Recipe: assembly.Recipe,
 		Parents: []artifact.ID{target, candidate.Donor},
 	}
-	if candidate.Adapter != AdapterIdentity {
+	if candidate.Adapter != composition.AdapterIdentity {
 		rows, columns := len(adapter), len(adapter[0])
 		weights := make([]float32, 0, rows*columns)
 		for _, row := range adapter {
@@ -129,7 +130,7 @@ func RealizeCompositionCandidate(
 		document.Adapter = result.BridgeAfter
 		document.Checkpoint = result.Checkpoint
 	}
-	composite, err := NewComposedModel(document)
+	composite, err := composition.NewComposedModel(document)
 	if err != nil {
 		return CandidateRealization{}, err
 	}

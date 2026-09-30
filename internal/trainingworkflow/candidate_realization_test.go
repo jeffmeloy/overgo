@@ -1,4 +1,4 @@
-package composition
+package trainingworkflow
 
 import (
 	"strings"
@@ -6,10 +6,46 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/bridgetrain"
+	"overgo/internal/composition"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
+
+// seamSamples generates deterministic pseudo-activations wide enough to
+// determine a linear map, using a fixed linear congruential stream so the
+// fixture is reproducible without process randomness.
+func seamSamples(samples, width int, seed uint64) [][]float64 {
+	state := seed
+	next := func() float64 {
+		state = state*6364136223846793005 + 1442695040888963407
+		return float64(int64(state>>33))/float64(1<<30) - 1
+	}
+	rows := make([][]float64, samples)
+	for row := range rows {
+		rows[row] = make([]float64, width)
+		for column := range rows[row] {
+			rows[row][column] = next()
+		}
+	}
+	return rows
+}
+
+func applyLinearMap(source [][]float64, adapter [][]float64, noise func(row, column int) float64) [][]float64 {
+	width := len(adapter[0])
+	target := make([][]float64, len(source))
+	for row := range source {
+		target[row] = make([]float64, width)
+		for column := range width {
+			total := 0.0
+			for k := range source[row] {
+				total += source[row][k] * adapter[k][column]
+			}
+			target[row][column] = total + noise(row, column)
+		}
+	}
+	return target
+}
 
 // TestCandidateRealizationFreezesDonorsTrainsAdapter pins the realization
 // contract: the interface adapter initializes from the seam alignment's
@@ -50,9 +86,9 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 	linearTarget := applyLinearMap(source, [][]float64{{1, 0.5}, {-0.25, 1}}, func(row, column int) float64 {
 		return 0.2 * seamSamples(24, 2, 733)[row][column]
 	})
-	candidate := CompositionCandidate{
+	candidate := composition.CompositionCandidate{
 		Donor: donorID, Component: "blk.10.ffn_gate.weight",
-		Seam: SeamLayerBoundary, Adapter: AdapterLinear, Residual: 0.2, Fitness: 0.8,
+		Seam: composition.SeamLayerBoundary, Adapter: composition.AdapterLinear, Residual: 0.2, Fitness: 0.8,
 	}
 	sourceForward := &testutil.FrozenForwardStub{Model: donorID}
 	targetForward := &testutil.FrozenForwardStub{Model: targetID}
@@ -97,7 +133,7 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 
 	identical := applyLinearMap(source, [][]float64{{1, 0.5}, {-0.25, 1}}, func(int, int) float64 { return 0 })
 	graft := candidate
-	graft.Adapter = AdapterIdentity
+	graft.Adapter = composition.AdapterIdentity
 	direct, err := RealizeCompositionCandidate(
 		ctx, store, graft, targetID,
 		RealizationSeamActivations{Source: source, Target: identical},

@@ -75,12 +75,12 @@ func seamBoundaryFor(descriptor CanonicalComponentDescriptor) SeamBoundary {
 	}
 }
 
-// adapterRungFor chooses the adapter class the residual admits. The rungs
+// AdapterRungFor chooses the adapter class the residual admits. The rungs
 // split at mathematical boundaries, not tuned thresholds: identity when
 // the residual is within the float rounding floor of zero, linear while
 // the fitted map explains at least half the target energy (residual² at
 // most one half), and a trained bridge beyond that.
-func adapterRungFor(residual float64) AdapterRung {
+func AdapterRungFor(residual float64) AdapterRung {
 	if residual <= math.Sqrt(math.Nextafter(1, 2)-1) {
 		return AdapterIdentity
 	}
@@ -137,7 +137,7 @@ func EnumerateCompositionCandidates(
 		candidates = append(candidates, CompositionCandidate{
 			Donor: hit.Descriptor.Model, Component: hit.Descriptor.Name,
 			Seam:     seamBoundaryFor(hit.Descriptor),
-			Adapter:  adapterRungFor(measurement.Residual),
+			Adapter:  AdapterRungFor(measurement.Residual),
 			Residual: measurement.Residual, Fitness: measurement.Fitness,
 		})
 	}

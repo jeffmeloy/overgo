@@ -1,4 +1,4 @@
-package composition
+package trainingworkflow
 
 import (
 	"context"
@@ -8,21 +8,18 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/composition"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
-func driverTargets(t *testing.T, count int) []CompositionTarget {
-	t.Helper()
+// driverTargets labels count targets; the driver hands each target to the
+// enumerate stage and reads nothing else of it.
+func driverTargets(count int) []CompositionTarget {
 	targets := make([]CompositionTarget, 0, count)
 	for index := range count {
-		name := "driver-target-" + string(rune('a'+index))
-		targets = append(targets, CompositionTarget{
-			Label: name,
-			Component: descriptorComponent(t, name, "blk.10.ffn_gate.weight",
-				descriptorStatistics(0.001, 0.02, 0.01, 0.1, 0.2)),
-		})
+		targets = append(targets, CompositionTarget{Label: "driver-target-" + string(rune('a'+index))})
 	}
 	return targets
 }
@@ -36,17 +33,17 @@ func driverStages(
 	promotion := testutil.ArtifactID(t, artifact.KindEvidence, "driver-promotion")
 	testutil.PublishArtifact(t, store, testutil.ArtifactID(t, artifact.KindModel, "driver-base"))
 	stages := CompositionDriverStages{
-		Enumerate: func(context.Context, CompositionTarget) ([]CompositionCandidate, error) {
-			return []CompositionCandidate{{
+		Enumerate: func(context.Context, CompositionTarget) ([]composition.CompositionCandidate, error) {
+			return []composition.CompositionCandidate{{
 				Donor: donor, Component: "blk.10.ffn_gate.weight",
-				Seam: SeamLayerBoundary, Adapter: AdapterLinear, Residual: 0.3, Fitness: 0.8,
+				Seam: composition.SeamLayerBoundary, Adapter: composition.AdapterLinear, Residual: 0.3, Fitness: 0.8,
 			}}, nil
 		},
-		Realize: func(ctx context.Context, candidate CompositionCandidate) (CandidateRealization, error) {
+		Realize: func(ctx context.Context, candidate composition.CompositionCandidate) (CandidateRealization, error) {
 			realizations++
 			recipeID := testutil.ArtifactID(t, artifact.KindRecipe, fmt.Sprintf("driver-recipe-%d", realizations))
 			testutil.PublishArtifact(t, store, recipeID)
-			composite, err := NewComposedModel(ComposedModelDocument{
+			composite, err := composition.NewComposedModel(composition.ComposedModelDocument{
 				Architecture: "llama",
 				Recipe:       recipeID,
 				Parents:      []artifact.ID{testutil.ArtifactID(t, artifact.KindModel, "driver-base"), candidate.Donor},
@@ -63,21 +60,21 @@ func driverStages(
 			}
 			return CandidateRealization{Candidate: candidate, Composite: composite}, nil
 		},
-		Score: func(_ context.Context, realization CandidateRealization) (CompositeScore, error) {
+		Score: func(_ context.Context, realization CandidateRealization) (composition.CompositeScore, error) {
 			attempts++
 			quality := 0.6
 			if !fit(attempts) {
 				quality = 0.4
 			}
-			return CompositeScore{
+			return composition.CompositeScore{
 				Composite:  realization.Composite.ID,
 				Evaluation: testutil.ArtifactID(t, artifact.KindEvidence, "driver-evaluation"),
-				Dimensions: map[string]CompositeDimension{
+				Dimensions: map[string]composition.CompositeDimension{
 					"quality": {Baseline: 0.5, Candidate: quality, Direction: runrecord.DirectionMaximize},
 				},
 			}, nil
 		},
-		Promote: func(context.Context, CompositeFitnessVerdict, CandidateRealization) (artifact.ID, error) {
+		Promote: func(context.Context, composition.CompositeFitnessVerdict, CandidateRealization) (artifact.ID, error) {
 			return promotion, nil
 		},
 		OperatorStop: func() bool { return *stopped },
@@ -127,7 +124,7 @@ func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
 	// Measured history: six attempts, two promotions — one success has
 	// historically cost three attempts, so this run may spend three.
 	history := []bool{false, true, false, false, true, false}
-	report, err := RunCompositionImprovementLoop(ctx, store, driverTargets(t, 5), stages, history)
+	report, err := RunCompositionImprovementLoop(ctx, store, driverTargets(5), stages, history)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +145,7 @@ func TestCompositionImprovementLoopClosesUnderBudget(t *testing.T) {
 	}
 	missing := stages
 	missing.Promote = nil
-	if _, err := RunCompositionImprovementLoop(ctx, store, driverTargets(t, 1), missing, history); err == nil ||
+	if _, err := RunCompositionImprovementLoop(ctx, store, driverTargets(1), missing, history); err == nil ||
 		!strings.Contains(err.Error(), "every stage owner") {
 		t.Fatalf("stageless driver ran: %v", err)
 	}
@@ -172,7 +169,7 @@ func TestCompositionLoopSaturationStops(t *testing.T) {
 	// History with a recovered two-failure streak: saturation = 3, budget =
 	// ceil(5/1) = 5, so saturation is the binding stop for an unfit run.
 	history := []bool{false, false, true, false, false}
-	report, err := RunCompositionImprovementLoop(ctx, store, driverTargets(t, 6), stages, history)
+	report, err := RunCompositionImprovementLoop(ctx, store, driverTargets(6), stages, history)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +188,7 @@ func TestCompositionLoopSaturationStops(t *testing.T) {
 	}
 
 	stopped = true
-	halted, err := RunCompositionImprovementLoop(ctx, store, driverTargets(t, 2), stages, history)
+	halted, err := RunCompositionImprovementLoop(ctx, store, driverTargets(2), stages, history)
 	if err != nil || halted.Stop != DriverStopOperator || len(halted.Attempts) != 0 {
 		t.Fatalf("operator stop = (%+v, %v)", halted, err)
 	}

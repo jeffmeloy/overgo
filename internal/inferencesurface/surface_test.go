@@ -82,6 +82,22 @@ func TestTrainingLeavesTheSurface(t *testing.T) {
 	}
 }
 
+// TestCandidateRealizationLeavesTheSurface holds the adapter trainer and its
+// optimizers outside the inference surface. The surface reached them only
+// through composition's candidate realization and the improvement driver
+// that sequences it, which trainingworkflow now owns.
+func TestCandidateRealizationLeavesTheSurface(t *testing.T) {
+	packages, err := Packages(t.Context(), "../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pkg := range packages {
+		if slices.Contains([]string{"overgo/internal/bridgetrain", "overgo/internal/hostoptimizer", "overgo/internal/optimizer"}, pkg.ImportPath) {
+			t.Errorf("the inference surface reaches training package %s", pkg.ImportPath)
+		}
+	}
+}
+
 // TestSurfaceCoversEmbeddedInputsAndModules holds the surface to every
 // input inference reads, not only its Go sources: a file a closure package
 // embeds (the architecture catalog, the runtime policies, the compiled

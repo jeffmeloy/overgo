@@ -1,4 +1,4 @@
-package composition
+package trainingworkflow
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"overgo/internal/artifact"
+	"overgo/internal/composition"
 )
 
 const (
@@ -29,7 +30,7 @@ const (
 // component to improve.
 type CompositionTarget struct {
 	Label     string
-	Component CatalogComponent
+	Component composition.CatalogComponent
 }
 
 // CompositionDriverStages binds the tested owners the driver sequences.
@@ -37,10 +38,10 @@ type CompositionTarget struct {
 // promotion own their own refusals, and the driver owns only the order,
 // the derived bounds, and the record.
 type CompositionDriverStages struct {
-	Enumerate func(context.Context, CompositionTarget) ([]CompositionCandidate, error)
-	Realize   func(context.Context, CompositionCandidate) (CandidateRealization, error)
-	Score     func(context.Context, CandidateRealization) (CompositeScore, error)
-	Promote   func(context.Context, CompositeFitnessVerdict, CandidateRealization) (artifact.ID, error)
+	Enumerate func(context.Context, CompositionTarget) ([]composition.CompositionCandidate, error)
+	Realize   func(context.Context, composition.CompositionCandidate) (CandidateRealization, error)
+	Score     func(context.Context, CandidateRealization) (composition.CompositeScore, error)
+	Promote   func(context.Context, composition.CompositeFitnessVerdict, CandidateRealization) (artifact.ID, error)
 	// OperatorStop reports external stop authority; the driver checks it
 	// before every attempt and never overrides it.
 	OperatorStop func() bool
@@ -150,7 +151,7 @@ func RunCompositionImprovementLoop(
 				score, err := stages.Score(ctx, realization)
 				if err != nil {
 					attempt.Refusal = driverRefusal("score", err)
-				} else if verdicts, err := ScoreCompositeSelection([]CompositeScore{score}); err != nil {
+				} else if verdicts, err := composition.ScoreCompositeSelection([]composition.CompositeScore{score}); err != nil {
 					attempt.Refusal = driverRefusal("select", err)
 				} else if verdict := verdicts[0]; !verdict.Fit {
 					attempt.Refusal = fmt.Sprintf("select: regressed=%v", verdict.Regressed)

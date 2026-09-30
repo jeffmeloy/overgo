@@ -4,11 +4,40 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "promotion-correctness",
+      "title": "Promote only on current, comparable held-out evidence",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "current-evidence",
+          "title": "Reuse validation evidence only when it is current, not because the last commit left its surface alone",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestReuseNeedsCurrentEvidence$' -count=1",
+          "rationale": "SQA-053 (P1), confirmed: validate -run reuses a cell when baseline..HEAD, HEAD~1 by default, did not move its surface, and credits the activation as evidence. A surface moved two commits back is reused as current, and that reuse now feeds promotion. Make inventory, the dry run and -run take one current-evidence decision from the validation owners: the current surface identity and the accepted record's own bindings, read once per invocation. Keep activation separate from acceptance, and keep unknown, inactive, unbound and operator-owned outcomes explicit. A short diff remains a reason to run, never proof of currency.\nSQA-046 (P2), same owner: validation drops the selected store when it launches guard and media work; carry -repo through.\nServes: measure and promote. Disappears: activation-as-evidence credit and the inventory-only currency branch. Evidence: validation records and surface digests. Batch: cmd/validate reaches no lane; no guards; no media."
+        },
+        {
+          "id": "typed-comparison",
+          "title": "Compare scorecards by identity and typed metric; an incomparable or vanished quality is unknown, not holding",
+          "status": "open",
+          "verify": "go test ./internal/scorecard ./internal/loop -run '^(TestComparisonIsTyped|TestLoopPromotesOnlyOnHeldOutFitness)$' -count=1",
+          "rationale": "SQA-063 (P1), confirmed: Gaps only walks the published rows, and fell() needs an equal label, so a vanished baseline row or a switched suite (the \"another suite scores lower\" scenario) counts as holding. SQA-040 (P1): rows are paired by display name and task, not identity. SQA-041 (P2): serving aggregates mix measurement origins and lose their scope.\nOne comparison in internal/scorecard returns holding, regressed or unknown over the baseline's required scope. It pairs rows by model and task identity and typed metric, suite, protocol and source kind, with aggregates keeping their origin. Withheld, Gaps and validate's scorecardMoves all consume it. A missing row or changed contract is withheld until an explicit adoption; newly added optional metrics do not block. The no-fallback baseline, the local-only fast-forward and the expected-ref check stay. The internal/loop scenario \"another suite scores lower\" changes from promoting to withheld.\nOwner decision to take after both steps land: seed refs/heads/main at a measured commit, so the loop can promote at all.\nServes: promote or revert. Disappears: name- and label-keyed matching. Evidence: scorecard records. Batch: internal/scorecard and internal/loop reach audio and cuda through cmd/recipe until loop-parts-wire-or-delete moves those parts; no guards; no media."
+        }
+      ]
+    },
+    {
       "id": "compatibility-into-validate",
       "title": "Fold cmd/compatibility into validate, re-verifying claims whose source moves",
       "owner": "master-lead",
       "status": "open",
       "steps": [
+        {
+          "id": "claim-evidence",
+          "title": "Credit a claim only with the typed result of a run over the bytes it binds",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^(TestReverifyBindsTestedBytes|TestReverifyRebindsOnlyPassingClaims)$' -count=1",
+          "rationale": "SQA-068 (P2), confirmed: reverifyClaims runs a claim's test and then rebinds the claim to whatever bytes exist afterwards (cmd/validate/claims.go), so an edit during a long device run would take the credit. SQA-044 (P2): it credits a pass by the \"--- PASS:\" text. SQA-028 (P2): the browser lane keeps its own duplicate test-event parser, losing package identity.\nRecord the claim's source, test and manifest identities before the run and publish exactly those. Refuse, or narrowly retry, when they moved; publish conditionally so unrelated manifest edits survive. Credit outcomes through the existing testevidence interpreter, package-qualified, in reverifyClaims and in the browser lane, and delete the duplicate parser.\nRanked first in this row because it corrects code landed on 2026-09-30 (250592fd4). Batch: cmd/validate reaches no lane; the browser-lane part reaches webui; no guards; no media."
+        },
         {
           "id": "media-campaign",
           "title": "Fold the media campaign's receipts into one committed record, if one can replace several pins without weakening them",
@@ -21,29 +50,36 @@
           "title": "Fold the rest of cmd/compatibility into cmd/validate and delete it",
           "status": "open",
           "verify": "go run ./cmd/validate -claims \u0026\u0026 go test ./cmd/validate -count=1 -run '^TestCompatibilityCommandIsGone$'",
-          "rationale": "S5: media, samples, census, record-verification, the model report, and every test and testdata move into cmd/validate. In the same commit: the internal/landing pins.go glob, validate media_receipt's mediaAcceptancePackage, the testutil parallel list, the processing test's source paths, and api-manifest. The coverage proofs whose Verify strings name ./cmd/compatibility are re-acquired by running them (two include smoke-lane GPU runs), then re-pinned. Batch: lanes none; the test-stage cost moves into validate."
+          "rationale": "S5: media, samples, census, record-verification, the model report, and every test and testdata move into cmd/validate. In the same commit: the internal/landing pins.go glob, validate media_receipt's mediaAcceptancePackage, the testutil parallel list, the processing test's source paths, and api-manifest. The coverage proofs whose Verify strings name ./cmd/compatibility are re-acquired by running them (two include smoke-lane GPU runs), then re-pinned. Batch: lanes none; the test-stage cost moves into validate.\n\nSQA 2026-09-30: SQA-019 (P2) removes weak source censuses, sharing only classifications with useful consumers. SQA-065 (P2): share identical fresh claim verifiers within reverifyClaims through the result owner."
         },
         {
           "id": "evidence",
           "title": "Refresh the accepted evidence the audits read, by re-running it",
           "status": "open",
           "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/compatibility ./cmd/longform -run '^(TestAcceptedCapabilityCensus|TestAcceptedFP8Guard|TestRetiredGuardRecords|TestAcceptedGuardCatalog)$' -count=1 -v",
-          "rationale": "S6: after the guard re-acquisition of 2026-09-30 (10 of 10 published at surface 50f89def), the audits still fail. The accepted baselines they compare against lack realized residency ('comparison lacks matching realized residency'), and the census needs the owner's review of 11 identities (snapshot 209, live 220). Re-acquire the accepted baselines with realized residency, or retire those comparisons against a replacement that covers their contract; never hand-edit. The guard audits move beside validate's guard_records.go."
+          "rationale": "S6: after the guard re-acquisition of 2026-09-30 (10 of 10 published at surface 50f89def), the audits still fail. The accepted baselines they compare against lack realized residency ('comparison lacks matching realized residency'), and the census needs the owner's review of 11 identities (snapshot 209, live 220). Re-acquire the accepted baselines with realized residency, or retire those comparisons against a replacement that covers their contract; never hand-edit. The guard audits move beside validate's guard_records.go.\n\nSQA 2026-09-30: SQA-044 (P2): required acceptances are credited by the typed interpreter, never by exit status. SQA-053 is handled in promotion-correctness/current-evidence."
         }
       ]
     },
     {
-      "id": "preference-kto",
-      "title": "Train on unpaired preference feedback with KTO",
+      "id": "lane-cost",
+      "title": "Cut lane cost where a change's reach is wider than what it can affect",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
-          "id": "do",
-          "title": "Train on unpaired preference feedback with KTO",
+          "id": "build-context",
+          "title": "Select lanes in the build context they run in",
           "status": "open",
-          "verify": "go test ./internal/trainingprogram -run '^TestKTOModeTrainsOnUnpairedFeedback$' -count=1",
-          "rationale": "Split from preference-loss-variants on 2026-09-30. ORPO and SimPO landed there as modes of the DPO objective. KTO does not fit the paired preference data shape.\n\nKTO (Ethayarajh et al. 2024) is L = E[λ_y − v(x,y)], with r = log πθ(y|x) − log πref(y|x).\n- The KL estimate z0 = max(0, mean of r over mismatched pairs (x_i, y_j), j≠i) is taken within a microbatch, with no gradient through it.\n- For a desirable completion v = λ_D·σ(β(r − z0)); for an undesirable one v = λ_U·σ(β(z0 − r)).\n\nWhat the current path lacks:\n1. Unpaired data: records of prompt, completion and a desirable or undesirable label. This needs a new dataset kind and processor, plus its materialize path in trainingworkflow/data.go. The preference-token-pair processor, parsePreferences and trainingdata.PreferencePair all require a chosen and a rejected completion.\n2. More than one prompt per step. unitBatchPolicy steps once per pair. KTO needs microbatches of at least 2, sequences spliced from one example's prompt and another's completion (scored under both policy and reference), and gradients summed across examples. sequenceGradientSum could extend to this.\n3. λ_D and λ_U in PreferencePolicy. The paper advises λ_D·n_D / (λ_U·n_U) between 1 and 4/3.\n4. A held-out judge for unpaired records, since the current slice scores pairs by DPO loss.\n\nDo not substitute TRL's kto_pair: its matched-pair KL term carries gradient, so it is not the paper's definition.\n\nServes: preference training on unpaired feedback (thumbs-up and thumbs-down data). Disappears: nothing. Evidence: the held-out unpaired slice judges it. Batch: surface (densecausal, trainingprogram).\n\nLanes (expected; the gate reads them from the diff): all (densecausal and trainingprogram are surface).\n\nOwner review 2026-09-30: ordered by user value and held-out availability. After e4b-full-parameter-trainer: its held-out unpaired preference set is still to be chosen."
+          "verify": "go test ./internal/landing -run '^TestLaneSelectionUsesTheLaneBuildContext$' -count=1",
+          "rationale": "SQA-037 (P2): lane selection lists packages without the build tags a lane runs with, so a change confined to a tagged-only dependency can leave its lane unselected. Declare each lane's build context once in its descriptor, for selection and execution, and delete listDirectories' duplicate decoder. Batch: internal/landing reaches no lane."
+        },
+        {
+          "id": "training-kernels",
+          "title": "Move training-only device kernels out of devicemath",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestTrainingKernelEditReachesOnlyTrainingLanes$' -count=1",
+          "rationale": "Owner, 2026-09-30: \"why are testing audio?\". The E4B landing (096df8d2f) ran the audio, webui, model-journey, e4b and cuda lanes because it restored one training-only VJP in internal/devicemath, which every GPU inference lane imports. Move the training-only device kernels (the windowed-attention backward and the other device VJPs) into a package that only trainers import, so a trainer edit runs the cuda lane alone. The move touches pinned media paths once, so it needs its reviewed delta. Batch: devicemath's six lanes, once; media reconciliation yes; guards no (devicemath is outside the surface)."
         }
       ]
     },
@@ -58,7 +94,95 @@
           "title": "Trace the model-level loop parts' consumers, then retire the unreached",
           "status": "open",
           "verify": "go test ./cmd/loop -count=1",
-          "rationale": "Filed 2026-09-30 when improvement-loop closed the loop through the scorecard: measure, turn gaps into rows, then judge on held-out data and promote or revert.\n\nModel-level loop parts exist as separate pieces that the closed loop does not reach: strategy experiments, the improvement-fitness proof (cmd/loop -publish-fitness), rollout promotion, the circuit breaker, live rollback, quarantine re-entry, the autonomy ratchet and calibration. Together they are thousands of lines, each started by hand from cmd/recipe or cmd/seam-align.\n\nRecommendation: delete what the loop does not reach, and re-file any part a real scorecard gap later calls for. The loop's own chain already covers promotion (scorecard-gated fast-forward of main) and rollback (refusal leaves main where it is). Keep only a part that a gap the loop has actually filed needs.\n\nThe alternative is to wire each part into the loop's promote step, for example rollout promotion behind the held-out verdict. That is the owner's decision, since the doctrine names these parts core.\n\nServes: the promote-or-revert stage. Disappears: the unreached parts, or their standalone entry points if wired. Evidence: deadcode and the loop's own chain (cmd/loop improve.go). Batch: host.\n\nLanes (expected; the gate reads them from the diff): cuda until lanes-false-reach lands.\n\nOwner 2026-09-30: agreed, delete. The closed loop reused existing owners, so the unreached parts are exactly the limbo to cut.\n\nRe-scoped 2026-09-30 (owner review): trace, then retire. Each part's real consumers are traced first (entry points, stored records it writes that something reads, tests only). Refusing to advance main is not post-deployment rollback, so the live-rollback and circuit-breaker parts are judged on their own consumers, not assumed covered by the loop. Small confirmed deletions can land earlier, with any batch that touches their owner. Trace 2026-09-30 (from lanes-false-reach's measurement): internal/loop's circuit_breaker.go, live_rollback.go, rollout_promotion.go and quarantine_reentry.go (547 lines) are consumed in production only by cmd/recipe (breaker.go, live_rollback.go, promote_rollout.go, reenter.go), plus internal/loop's rsi_control_plane_test.go. They do not import scorecard. That production edge (cmd/recipe -\u003e internal/loop -\u003e scorecard) is the only lane reach left for loop and scorecard edits: audio (6m36s) and cuda (4m28s) on 14f3e021b. Retiring them, or moving them out of internal/loop to their one consumer, takes loop-driver and scorecard edits out of both lanes, saving about 11 minutes a landing. Decide each part on its own consumers: refusing to advance main is not post-deployment rollback."
+          "rationale": "Filed 2026-09-30 when improvement-loop closed the loop through the scorecard: measure, turn gaps into rows, then judge on held-out data and promote or revert.\n\nModel-level loop parts exist as separate pieces that the closed loop does not reach: strategy experiments, the improvement-fitness proof (cmd/loop -publish-fitness), rollout promotion, the circuit breaker, live rollback, quarantine re-entry, the autonomy ratchet and calibration. Together they are thousands of lines, each started by hand from cmd/recipe or cmd/seam-align.\n\nRecommendation: delete what the loop does not reach, and re-file any part a real scorecard gap later calls for. The loop's own chain already covers promotion (scorecard-gated fast-forward of main) and rollback (refusal leaves main where it is). Keep only a part that a gap the loop has actually filed needs.\n\nThe alternative is to wire each part into the loop's promote step, for example rollout promotion behind the held-out verdict. That is the owner's decision, since the doctrine names these parts core.\n\nServes: the promote-or-revert stage. Disappears: the unreached parts, or their standalone entry points if wired. Evidence: deadcode and the loop's own chain (cmd/loop improve.go). Batch: host.\n\nLanes (expected; the gate reads them from the diff): cuda until lanes-false-reach lands.\n\nOwner 2026-09-30: agreed, delete. The closed loop reused existing owners, so the unreached parts are exactly the limbo to cut.\n\nRe-scoped 2026-09-30 (owner review): trace, then retire. Each part's real consumers are traced first (entry points, stored records it writes that something reads, tests only). Refusing to advance main is not post-deployment rollback, so the live-rollback and circuit-breaker parts are judged on their own consumers, not assumed covered by the loop. Small confirmed deletions can land earlier, with any batch that touches their owner. Trace 2026-09-30 (from lanes-false-reach's measurement): internal/loop's circuit_breaker.go, live_rollback.go, rollout_promotion.go and quarantine_reentry.go (547 lines) are consumed in production only by cmd/recipe (breaker.go, live_rollback.go, promote_rollout.go, reenter.go), plus internal/loop's rsi_control_plane_test.go. They do not import scorecard. That production edge (cmd/recipe -\u003e internal/loop -\u003e scorecard) is the only lane reach left for loop and scorecard edits: audio (6m36s) and cuda (4m28s) on 14f3e021b. Retiring them, or moving them out of internal/loop to their one consumer, takes loop-driver and scorecard edits out of both lanes, saving about 11 minutes a landing. Decide each part on its own consumers: refusing to advance main is not post-deployment rollback.\n\nSQA 2026-09-30: SQA-066 (P2) publishes complete realization dependencies before recording composition attempts. SQA-067 (P2) carries the selected composition target through the stages instead of recovering it from donor names. Moving these parts out of internal/loop also takes loop and scorecard edits out of the audio and cuda lanes."
+        }
+      ]
+    },
+    {
+      "id": "loop-control-integrity",
+      "title": "Land exactly the checked bytes, and honour every recorded stop",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "one-candidate",
+          "title": "Publish the candidate the gate checked, and undo only what the landing wrote",
+          "status": "open",
+          "verify": "go test ./internal/landing -run '^TestLandingPublishesTheCheckedCandidate$' -count=1",
+          "rationale": "SQA-034 (P1): the gate checks the dirty tree, then stages the live tree late, so bytes changed during a gate would be committed unverified; and a failed publication restores the whole plan unconditionally, which can overwrite concurrent plan work. Bind validation and publication to one prepared candidate through the Git index and tree with the expected parent. Recovery undoes only the version this landing wrote. Extend the small landing fixture; no transaction framework. Batch: internal/landing reaches no lane."
+        },
+        {
+          "id": "stop-reconciliation",
+          "title": "Reconcile store-backed operator stops left at the stop-file cutover",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run '^TestNoStoreStopIsOutstanding$' -count=1",
+          "rationale": "SQA-043 (P1): the stop-file cutover reads only the file, so a stop recorded in the store before it would stop blocking dispatch. First establish whether any store-backed stop was outstanding at cutover. If none was, close this with that measurement. If one was, convert it once through the plan owner, keeping its worktree, owner, scope and explicit resume, then retire the conversion code. Batch: cmd/plan reaches no lane."
+        },
+        {
+          "id": "gate-rules",
+          "title": "Fix the gate rules that misread code, and let the loop see a landed merge",
+          "status": "open",
+          "verify": "go test ./internal/landing ./cmd/loophook -run '^(TestFallbackLintAcceptsLazyReads|TestExportUseCountsConsumers|TestProgressSeesALandedMerge)$' -count=1",
+          "rationale": "SQA-039 (P2): the fallback lint demands eager evaluation of reads that can panic. SQA-036 (P2): export-use linting adds a test-name policy while still confusing names with consumers. SQA-038 (P2): a landed merge is invisible to the loop's progress check. Batch: no lanes."
+        }
+      ]
+    },
+    {
+      "id": "store-and-operation-safety",
+      "title": "Keep the store and in-flight operations whole through failures",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "journal-cutover",
+          "title": "Publish rebuilt and repaired stores through the one cutover owner",
+          "status": "open",
+          "verify": "go test ./internal/overgodb/... ./cmd/overgodb -run '^(TestFailedReplacementKeepsTheLivePath|TestRepairRefusesACorruptJournal)$' -count=1",
+          "rationale": "SQA-049 (P1): direct journal swaps can strand the live path after a failed replacement. SQA-048 (P2): repair can report a corrupt store as clean because it owns a weaker decoder. Retire the direct swap branches and repair's own decoder. A complete, validated candidate goes through the existing store cutover owner, with its rollback and locking. Recovering a corrupt source stays separate from the cutover. Batch: overgodb reaches most lanes, so run it as one batch."
+        },
+        {
+          "id": "operation-completion",
+          "title": "Make an operation's terminal transition atomic with its cleanup",
+          "status": "open",
+          "verify": "go test ./internal/operation -run '^TestTerminalTransitionIsAtomic$' -count=1",
+          "rationale": "SQA-052 (P1): recovery or retention can act on a terminal operation before its attempt finishes cleanup. The result is a wrong cancel, a stranded waiter, a wrong completion or a panic. In the existing Manager, bind run and Wait to the entry they started with, and finish its cleanup and close its done in the same locked transition that makes the terminal status visible. Delete the lookup-by-ID cleanup and the duplicate terminal publication. SQA-059 (P2) belongs here too: aborted artifact and speech responses leave their content reader unclosed. SQA-055 (P2): FP8 plan construction loses allocated descriptors before error cleanup. Batch: internal/operation and internal/server reach webui, model-journey, audio, e4b and cuda."
+        }
+      ]
+    },
+    {
+      "id": "training-judge-integrity",
+      "title": "Tie every approval and published checkpoint to what actually trained",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "heldout-binds-result",
+          "title": "Bind held-out approval to the immutable trained output and exact evaluation inputs",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -run '^TestHeldoutApprovalReconstructsTheTrainedResult$' -count=1",
+          "rationale": "SQA-014 (P1): held-out approval cannot identify and reconstruct the trained result, and can accept inconsistent metric declarations. Extend the held-out report and publication contracts to bind the trained output and the exact evaluation inputs. Re-judge from retained case facts, not aggregates. Extend the TabFM and reloaded DPO fixtures for tampering. SQA-017 (P2): held-out lookup guesses the partner from all same-seed children; bind it to the actual pair. Batch: trainingworkflow reaches the server lanes."
+        },
+        {
+          "id": "route-publication-authority",
+          "title": "Publish each route's actual initial state, program, data and RNG, never guesses",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestRoutePublicationRecordsActualAuthority$' -count=1",
+          "rationale": "SQA-061 (P2): shared route publication records guessed authority: token and text guesses and counter state. Use the scratch-session seam where its contract fits (the controller route already does), pass the real facts for the other routes, and refuse unsupported resumable authority explicitly. SQA-027 (P2): shared and objective-route training drop cooperative cancellation. SQA-057 (P2): training setup failures bypass the shared session's cleanup. Batch: cmd/train reaches the cuda lane."
+        }
+      ]
+    },
+    {
+      "id": "preference-kto",
+      "title": "Train on unpaired preference feedback with KTO",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Train on unpaired preference feedback with KTO",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram -run '^TestKTOModeTrainsOnUnpairedFeedback$' -count=1",
+          "rationale": "Split from preference-loss-variants on 2026-09-30. ORPO and SimPO landed there as modes of the DPO objective. KTO does not fit the paired preference data shape.\n\nKTO (Ethayarajh et al. 2024) is L = E[λ_y − v(x,y)], with r = log πθ(y|x) − log πref(y|x).\n- The KL estimate z0 = max(0, mean of r over mismatched pairs (x_i, y_j), j≠i) is taken within a microbatch, with no gradient through it.\n- For a desirable completion v = λ_D·σ(β(r − z0)); for an undesirable one v = λ_U·σ(β(z0 − r)).\n\nWhat the current path lacks:\n1. Unpaired data: records of prompt, completion and a desirable or undesirable label. This needs a new dataset kind and processor, plus its materialize path in trainingworkflow/data.go. The preference-token-pair processor, parsePreferences and trainingdata.PreferencePair all require a chosen and a rejected completion.\n2. More than one prompt per step. unitBatchPolicy steps once per pair. KTO needs microbatches of at least 2, sequences spliced from one example's prompt and another's completion (scored under both policy and reference), and gradients summed across examples. sequenceGradientSum could extend to this.\n3. λ_D and λ_U in PreferencePolicy. The paper advises λ_D·n_D / (λ_U·n_U) between 1 and 4/3.\n4. A held-out judge for unpaired records, since the current slice scores pairs by DPO loss.\n\nDo not substitute TRL's kto_pair: its matched-pair KL term carries gradient, so it is not the paper's definition.\n\nServes: preference training on unpaired feedback (thumbs-up and thumbs-down data). Disappears: nothing. Evidence: the held-out unpaired slice judges it. Batch: surface (densecausal, trainingprogram).\n\nLanes (expected; the gate reads them from the diff): all (densecausal and trainingprogram are surface).\n\nOwner review 2026-09-30: ordered by user value and held-out availability. After e4b-full-parameter-trainer: its held-out unpaired preference set is still to be chosen.\n\nSQA 2026-09-30, SQA-064 (P2): score-only dense forwards keep training snapshots they never use; drop them where only a score is needed. Note: densecausal and trainingprogram left the inference surface on 2026-09-30, so this row no longer expires guards."
         }
       ]
     },
@@ -93,6 +217,50 @@
           "status": "open",
           "verify": "go test ./internal/server -run '^TestServedModelHoldsTheDeviceClaim$' -count=1",
           "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out. 2026-09-25: the device lane of 69368990 failed 'physical resource is already reserved' in devicemath while two other gate processes held the GPU, and passed unchanged on re-run; a claim every GPU user takes turns that into a wait with a named holder instead of a failed lane and a manual re-run. Found 2026-09-26: every CUDA context already takes the shared device claim (driver.ContextCreate calls processcontrol.ShareResource), so a served model holds it for its context's life, and a timed-out exclusive wait already names its holders (01cbf544, TestResourceWaitNamesItsHolders). What remains is proof, not mechanism: a device test that a served model's context holds the claim an exclusive reservation then waits on.\n\nServes: loop speed. Disappears: the unclaimed GPU users that cause lane refusals. Batch: host.\n\nLanes (expected; the gate reads them from the diff): device, model-journey.\n\nConsolidated 2026-09-30 (owner review) with recovery-failures-seen: its remaining proof, a served model's context holding the claim an exclusive reservation waits on, is the ownership case of that row's foreign-gate drill, and lands with it. Observed 2026-09-30: while longform -guard held the GPU, cmd/train's route tests (TestTrainRoutesReachTheMediaTrainers, TestSeq2SeqRoutePublishesCheckpoint, TestThoughtBankRoutePublishesCheckpoint), run with -short and without OVERGO_CUDA_TEST, failed at once with 'processcontrol: physical resource is already reserved: GPU-...' instead of waiting for the holder. So any landing whose test stage runs cmd/train during a guard or device run is refused by the machine, not by the change. The proof this row owes includes those host-stage tests waiting on the claim, not failing."
+        }
+      ]
+    },
+    {
+      "id": "tests-pin-behaviour",
+      "title": "Delete tests that pin internal structure or bookkeeping, package by package",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete tests that pin internal structure or bookkeeping, package by package",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1",
+          "rationale": "Owner 2026-09-26: delete tests that only check bookkeeping; keep parity, golden, journey and API-contract tests. internal/server holds 33,963 lines of tests against 22,354 of code. No analyzer is built to sort tests: the target is net-deleted test lines per package, largest first, reviewed by what each deleted test pinned (a helper's shape, a file name, a private table, a removed mechanism's bookkeeping, as lane_executable_test.go did). Each package lands as its own slice; this row starts with internal/server, and its check is that the package's remaining tests pass. Test-only, so no production class. Order 2026-09-27 (owner review): internal/server first (34k lines of tests against 22k of code), then internal/model (22k against 18k).\n\nServes: landing speed. Disappears: tests that pin structure or bookkeeping, largest packages first. Batch: host, package by package.\n\nLanes (expected; the gate reads them from the diff): the lanes of each package it trims. From goldens-own-parity 2026-09-30: internal/audioparity runs TestVADArtifactRefusals, TestVADStreamRecovery, TestCPUASRReference (about 16.5 s) and TestCanonicalAudioModelRegistration twice, once top-level and once as a subtest of an acceptance. The one-line fix used for the VAD comparisons (a helper run once, inside the claim-bearing acceptance) applies. The CPU-ASR pair sits in the byte-frozen second_asr_test.go, so it needs that file's pin moved first.\n\nSQA 2026-09-30, SQA-065 (P2): start the recurring test-cost audit at the 19-package cuda expansion (a45132880, a1c6b6673; first affected landing 68afbc6ea), with adaptiveparity's recorded 10 min 58 s first. For each expensive selected test, name its independent requirement, the overlapping owner and the input that invalidates it, then retain, consolidate, narrow or reuse. A test needing a lane is not a reason to run it on every landing that selects the lane."
+        }
+      ]
+    },
+    {
+      "id": "serving-and-onboarding-fixes",
+      "title": "Fix the serving and onboarding defects the SQA review found",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sampler-state",
+          "title": "Resume a continued turn with its saved sampler state",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestContinuationRestoresSamplerState$' -count=1",
+          "rationale": "SQA-029 (P2): exact continuation rebuilds the sampler from parameters, so stochastic or constrained output can diverge. It is the sampler-side sibling of the replay fix in 4c36894ad. Use sampling.SaveState and LoadState as the continuation's sampler state. SQA-058 (P2): default sampler resolution overrides an explicitly empty public chain. Batch: sampling is on the inference surface, so this expires the guards."
+        },
+        {
+          "id": "measurement-and-gui",
+          "title": "Stop treating retained digests as inputs, and acquire generation capabilities once per projection",
+          "status": "open",
+          "verify": "go test ./cmd/validate ./internal/server -run '^(TestMeasurementNeedsExecutableInput|TestManifestAcquiresEachCapabilityOnce)$' -count=1",
+          "rationale": "SQA-054 (P2): automatic measurement treats a retained request digest as executable input. SQA-060 (P2): GUI manifest projections repeatedly acquire the same generation capabilities. Batch: the server lanes."
+        },
+        {
+          "id": "onboarding-source-binding",
+          "title": "Bind a reused conversion to the source it was converted from",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestOnboardingReusesOnlyTheSameSourcesConversion$' -count=1",
+          "rationale": "SQA-045 (P2): onboarding reuses a conversion by basename without binding it to the requested source. Batch: no lanes."
         }
       ]
     },
@@ -142,21 +310,6 @@
       ]
     },
     {
-      "id": "tests-pin-behaviour",
-      "title": "Delete tests that pin internal structure or bookkeeping, package by package",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete tests that pin internal structure or bookkeeping, package by package",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1",
-          "rationale": "Owner 2026-09-26: delete tests that only check bookkeeping; keep parity, golden, journey and API-contract tests. internal/server holds 33,963 lines of tests against 22,354 of code. No analyzer is built to sort tests: the target is net-deleted test lines per package, largest first, reviewed by what each deleted test pinned (a helper's shape, a file name, a private table, a removed mechanism's bookkeeping, as lane_executable_test.go did). Each package lands as its own slice; this row starts with internal/server, and its check is that the package's remaining tests pass. Test-only, so no production class. Order 2026-09-27 (owner review): internal/server first (34k lines of tests against 22k of code), then internal/model (22k against 18k).\n\nServes: landing speed. Disappears: tests that pin structure or bookkeeping, largest packages first. Batch: host, package by package.\n\nLanes (expected; the gate reads them from the diff): the lanes of each package it trims. From goldens-own-parity 2026-09-30: internal/audioparity runs TestVADArtifactRefusals, TestVADStreamRecovery, TestCPUASRReference (about 16.5 s) and TestCanonicalAudioModelRegistration twice, once top-level and once as a subtest of an acceptance. The one-line fix used for the VAD comparisons (a helper run once, inside the claim-bearing acceptance) applies. The CPU-ASR pair sits in the byte-frozen second_asr_test.go, so it needs that file's pin moved first."
-        }
-      ]
-    },
-    {
       "id": "landing-hermetic-tests",
       "title": "Move live-evidence acceptance tests off the landing path",
       "owner": "master-lead",
@@ -167,7 +320,7 @@
           "title": "Move live-evidence acceptance tests off the landing path",
           "status": "open",
           "verify": "go test ./internal/landing -run '^TestLandingTestsRunWithoutTheLiveStore$' -count=1",
-          "rationale": "Owner review 2026-09-27. Measured: 088a4774c's test stage re-ran 17 suites for 6 min 56 s (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s) because plan -stop had written a record into the live store at 17:56:23; the next plan-only landing, with no store write before it, ran 4 packages in 40 s. Suites that read the live store re-run on every store write, and their verdict depends on the machine's store rather than the commit. The gate runs go test with OVERGO_DATA_ROOT pointing at an empty scratch directory and OVERGO_AUDIO_REFERENCE_STORE unset (construction: no test can reach the live store through the environment); the 16 test files that name the store by path (overgodb-store, gitauthority.CanonicalOvergoDBDirectory) become hermetic on fixtures or scratch stores, or move off the landing path to the scheduled scorecard and validate, where live-store checks belong. Predicted effect: landings stop paying for store writes; a narrow landing's test stage stays near a minute. Measured 2026-09-27 before starting: with the data root pointed at an empty directory, 133 tests in 77 files across 12 packages fail (cmd/compatibility 32 files, internal/audioparity 19, internal/evaluation 10, speechsynth, server and others): retained-evidence acceptance tests and a few live model-file tests. They re-run when the evidence changes, which is correct; the measured 7-minute landing came from a control record (plan -stop) written into the evidence store, which stop-state-out-of-store removes. Moving them means splitting mixed files across 12 packages and a scheduled evidence run. Do it only if dev-loop measurement shows real evidence writes costing landings. Re-raised 2026-09-27 under landing-wall-budget: the four slowest suites a landing re-runs are these, and they re-run on dependency changes as well as store writes, so the stop-file fix alone does not bring landings under the budget. Updated 2026-09-27 after 32ad2b892: the store-write cause is gone. The data lives outside the module folder, so a store write re-runs nothing. The audio acceptances run in their own lane (780d83550). What remains is hermeticity: these suites' verdicts depend on the machine's data. That does not speed up landings, because a lane would run exactly when their code changes, as go test does now. So the row ranks after the user-visible fixes. Measured 2026-09-28 after the lanes landed: go test ./... with OVERGO_DATA_ROOT on an empty folder fails 92 tests in 12 packages: cmd/compatibility 56 (40 top-level accepted-evidence and acceptance projections, opening the store through retainedReferenceStore in 34 places and dataroot.Resolve in about 36), internal/evaluation 16, internal/speechsynth 7, internal/server 4, internal/audioparity 2, and one each in oscillatorimage, modelintake, dataset, capabilityruntime, cmd/smoke-lane, cmd/longform and cmd/benchmark-report. The work: consolidate each package's live-store entry into one helper behind testskip.StoreAcceptance, and run the packages in a store lane (without the five failing audits, tracked in refresh-accepted-evidence). The benefit is hermeticity only: with the data outside the module, a lane runs these exactly when go test does now. Ranked after plan-tool-plain-data.\n\nServes: loop speed. Disappears: live-evidence suites on the landing path. Batch: host.\n\nLanes (expected; the gate reads them from the diff): the lanes of the suites it moves.\n\nOwner review 2026-09-30: justified as robustness unless the gate's timing shows a saving."
+          "rationale": "Owner review 2026-09-27. Measured: 088a4774c's test stage re-ran 17 suites for 6 min 56 s (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s) because plan -stop had written a record into the live store at 17:56:23; the next plan-only landing, with no store write before it, ran 4 packages in 40 s. Suites that read the live store re-run on every store write, and their verdict depends on the machine's store rather than the commit. The gate runs go test with OVERGO_DATA_ROOT pointing at an empty scratch directory and OVERGO_AUDIO_REFERENCE_STORE unset (construction: no test can reach the live store through the environment); the 16 test files that name the store by path (overgodb-store, gitauthority.CanonicalOvergoDBDirectory) become hermetic on fixtures or scratch stores, or move off the landing path to the scheduled scorecard and validate, where live-store checks belong. Predicted effect: landings stop paying for store writes; a narrow landing's test stage stays near a minute. Measured 2026-09-27 before starting: with the data root pointed at an empty directory, 133 tests in 77 files across 12 packages fail (cmd/compatibility 32 files, internal/audioparity 19, internal/evaluation 10, speechsynth, server and others): retained-evidence acceptance tests and a few live model-file tests. They re-run when the evidence changes, which is correct; the measured 7-minute landing came from a control record (plan -stop) written into the evidence store, which stop-state-out-of-store removes. Moving them means splitting mixed files across 12 packages and a scheduled evidence run. Do it only if dev-loop measurement shows real evidence writes costing landings. Re-raised 2026-09-27 under landing-wall-budget: the four slowest suites a landing re-runs are these, and they re-run on dependency changes as well as store writes, so the stop-file fix alone does not bring landings under the budget. Updated 2026-09-27 after 32ad2b892: the store-write cause is gone. The data lives outside the module folder, so a store write re-runs nothing. The audio acceptances run in their own lane (780d83550). What remains is hermeticity: these suites' verdicts depend on the machine's data. That does not speed up landings, because a lane would run exactly when their code changes, as go test does now. So the row ranks after the user-visible fixes. Measured 2026-09-28 after the lanes landed: go test ./... with OVERGO_DATA_ROOT on an empty folder fails 92 tests in 12 packages: cmd/compatibility 56 (40 top-level accepted-evidence and acceptance projections, opening the store through retainedReferenceStore in 34 places and dataroot.Resolve in about 36), internal/evaluation 16, internal/speechsynth 7, internal/server 4, internal/audioparity 2, and one each in oscillatorimage, modelintake, dataset, capabilityruntime, cmd/smoke-lane, cmd/longform and cmd/benchmark-report. The work: consolidate each package's live-store entry into one helper behind testskip.StoreAcceptance, and run the packages in a store lane (without the five failing audits, tracked in refresh-accepted-evidence). The benefit is hermeticity only: with the data outside the module, a lane runs these exactly when go test does now. Ranked after plan-tool-plain-data.\n\nServes: loop speed. Disappears: live-evidence suites on the landing path. Batch: host.\n\nLanes (expected; the gate reads them from the diff): the lanes of the suites it moves.\n\nOwner review 2026-09-30: justified as robustness unless the gate's timing shows a saving.\n\nSQA 2026-09-30: SQA-056 (P2): a registered GGUF that fails to read is reported as an inapplicable test; it must fail. SQA-044 and SQA-037 are handled in compatibility-into-validate and lane-cost."
         }
       ]
     },
@@ -183,7 +336,7 @@
           "title": "Store the Unicode NFD table as one packed string",
           "status": "open",
           "verify": "go test ./internal/tokenizer -run '^TestNFDTableIsPacked$' -count=1",
-          "rationale": "Owner review 2026-09-27: internal/tokenizer/nfd_table.go is a generated 13,243-line map literal (the tokenizer's 19k lines of code against 2.9k of tests are mostly this). Encode the same data as one packed string decoded once at init, with its generator in Go. The tokenizer parity fixtures pin the table. About -13k lines.\n\nServes: the tokenizer. Disappears: about 13k generated lines, replaced by one packed string. Batch: surface (the tokenizer is in the inference closure).\n\nLanes (expected; the gate reads them from the diff): all (the tokenizer is surface).\n\nOwner review 2026-09-30: judged as a storage, build and startup comparison, not a line count."
+          "rationale": "Owner review 2026-09-27: internal/tokenizer/nfd_table.go is a generated 13,243-line map literal (the tokenizer's 19k lines of code against 2.9k of tests are mostly this). Encode the same data as one packed string decoded once at init, with its generator in Go. The tokenizer parity fixtures pin the table. About -13k lines.\n\nServes: the tokenizer. Disappears: about 13k generated lines, replaced by one packed string. Batch: surface (the tokenizer is in the inference closure).\n\nLanes (expected; the gate reads them from the diff): all (the tokenizer is surface).\n\nOwner review 2026-09-30: judged as a storage, build and startup comparison, not a line count.\n\nSQA 2026-09-30, SQA-062 (P2): remove the algorithmic Hangul entries before repacking the decomposition table; Hangul decomposes by formula."
         }
       ]
     },
@@ -248,7 +401,7 @@
           "title": "Fix the inference attempts that failed",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-failing-inference",
-          "rationale": "- Qwen3.8-27B failure-rate: 3 of 35 attempts failed, 0 cancelled\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline. Triage 2026-09-30 (master-lead): the three failures are Qwen3.8-27B serving attempts on 2026-08-30 under recipe 6595ed03 (the first ran 3m39s, the next two failed in about 22 ms), recorded only as failure=execution_failed. internal/server/serving_observation.go executionOutcome drops the error, which the operation status keeps (internal/operation/runtime.go Failure), so the scorecard cannot say what failed. Two causes to fix before the row can close: (1) the serving observation should carry the failure's cause, so a failing gap names it; (2) failure-rate counts every attempt under a recipe, so a fix shipped in code (not as a new recipe) never closes the gap. Judge failures against attempts after the change that claims the fix, not all time. Reproduce first: serve Qwen3.8-27B now through the same path."
+          "rationale": "- Qwen3.8-27B failure-rate: 3 of 35 attempts failed, 0 cancelled\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline. Triage 2026-09-30 (master-lead): the three failures are Qwen3.8-27B serving attempts on 2026-08-30 under recipe 6595ed03 (the first ran 3m39s, the next two failed in about 22 ms), recorded only as failure=execution_failed. internal/server/serving_observation.go executionOutcome drops the error, which the operation status keeps (internal/operation/runtime.go Failure), so the scorecard cannot say what failed. Two causes to fix before the row can close: (1) the serving observation should carry the failure's cause, so a failing gap names it; (2) failure-rate counts every attempt under a recipe, so a fix shipped in code (not as a new recipe) never closes the gap. Judge failures against attempts after the change that claims the fix, not all time. Reproduce first: serve Qwen3.8-27B now through the same path.\n\nSQA 2026-09-30, SQA-041 (P2): serving aggregates mix measurement origins. Its fix, in promotion-correctness/typed-comparison, also gives this gap an honest scope."
         }
       ]
     },

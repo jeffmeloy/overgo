@@ -53,7 +53,7 @@ jobs:
       - name: Verify compatibility claims
         env:
           CGO_ENABLED: "0"
-        run: go run ./cmd/compatibility -check
+        run: go run ./cmd/validate -claims
 
   race:
     runs-on: ubuntu-latest

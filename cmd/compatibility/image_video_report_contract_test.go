@@ -35,7 +35,6 @@ func TestImageVideoReportContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	writeTestManifest(t, root, []claim{}, testModels())
 	writeEmptyAcceptedCoverage(t, root)
 	register := func(task recipe.Task) recipe.Definition {
 		t.Helper()

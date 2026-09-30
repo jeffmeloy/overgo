@@ -20,9 +20,7 @@ import (
 func TestModelsReportNestsSpecificModels(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeTestManifest(t, root, []claim{}, map[string]modelClaim{
-		"zeta": {Features: []string{"z"}},
-	})
+	testutil.WriteTextFile(t, root, "compatibility.json", `{"models": {"zeta": {"features": ["z"]}}}`)
 	weights := filepath.Join(root, "weights", "model.safetensors")
 	if err := os.MkdirAll(filepath.Dir(weights), 0o755); err != nil {
 		t.Fatal(err)

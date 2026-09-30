@@ -3,7 +3,10 @@
 // the appropriate validation for each declared function, and runs only the
 // validations whose surface the commit's changes moved, reusing every cell that
 // stays pinned. The default dry run computes and prints the plan without loading
-// a model or a device; -run executes the selected cells.
+// a model or a device; -run executes the selected cells. -claims holds the
+// claims compatibility.json and the training specifications make to the
+// sources they bind and checks the matrices published from them; a claim whose
+// source moved is rebound only after -claims -run re-runs its verify.
 package main
 
 import (
@@ -46,6 +49,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	scorecardView := flags.Bool("scorecard", false, "print the user scorecard: for every activated model and task, time to first output, throughput, held-out quality, failures, load time, peak device memory and setup steps, each read from the store or listed as a gap with its reason, and the share of served models supported by declaration alone; runs nothing")
 	publish := flags.Bool("publish", false, "with -scorecard: write it as the newest record in the scorecards directory beside the store and list what moved since the previous record")
 	gap := flags.String("gap", "", "with -scorecard: fail while the gap this key names is open on the scorecard the store holds, judged against the newest published record's baseline; the verifier of the row the loop proposed for it")
+	claims := flags.Bool("claims", false, "check compatibility.json's claims and the training specifications against their bound sources and the matrices published from them; with -run, re-run the verify of every claim whose bound source moved, rebind the claims that pass, and write the matrices again")
 	command := clioptions.Command{
 		Name:     "validate",
 		Purpose:  "select the minimal sufficient end-to-end validation for a commit and, with -run, execute it",
@@ -57,6 +61,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
 			"-scorecard reads the store and the serving source: it loads no model, opens no device and needs no commit range",
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
+			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
 			"help opens no store and reads nothing",
 		},
 	}
@@ -91,6 +96,9 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			records = ""
 		}
 		return writeScorecard(ctx, store, *root, records, output)
+	}
+	if *claims {
+		return publishedClaims(ctx, output, *root, *execute)
 	}
 
 	head, err := revParse(ctx, *root, "HEAD")

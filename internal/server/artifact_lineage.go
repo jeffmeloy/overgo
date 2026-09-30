@@ -90,8 +90,8 @@ func (h *Handler) artifactLineage(response http.ResponseWriter, request *http.Re
 		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
 	}
-	if workspace, declared := h.generator.(WorkflowWorkspaceAPI); declared {
-		capabilities, err := workspace.WorkflowCapabilities(ctx, workflowGeneration)
+	if h.config.Workflows != nil {
+		capabilities, err := h.config.Workflows.WorkflowCapabilities(ctx, workflowGeneration)
 		if err != nil {
 			writeGenerationError(response, err)
 			return

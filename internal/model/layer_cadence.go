@@ -27,8 +27,8 @@ const (
 	slidingCadenceExceptLast
 )
 
-// LayerCadencePolicy: recurrent, expert, and sliding layer schedules.
-type LayerCadencePolicy struct {
+// layerCadencePolicy: recurrent, expert, and sliding layer schedules.
+type layerCadencePolicy struct {
 	Recurrent             recurrentCadence
 	MoE                   moeCadence
 	Sliding               slidingCadence
@@ -38,7 +38,7 @@ type LayerCadencePolicy struct {
 	FullIndexerPeriod     uint32
 }
 
-func (p LayerCadencePolicy) fullIndexer(context, layer uint32) bool {
+func (p layerCadencePolicy) fullIndexer(context, layer uint32) bool {
 	if p.FullIndexerEveryLayer ||
 		p.FullIndexerContext > tensor.FirstOffset && context < p.FullIndexerContext {
 		return true
@@ -47,7 +47,7 @@ func (p LayerCadencePolicy) fullIndexer(context, layer uint32) bool {
 		(layer-p.FullIndexerPrefix)%p.FullIndexerPeriod == tensor.FirstOffset)
 }
 
-func (p LayerCadencePolicy) recurrent(spec Spec, block uint32) bool {
+func (p layerCadencePolicy) recurrent(spec Spec, block uint32) bool {
 	if block >= spec.BlockCount {
 		return false
 	}
@@ -59,7 +59,7 @@ func (p LayerCadencePolicy) recurrent(spec Spec, block uint32) bool {
 		(block+tensor.SingletonExtent)%spec.FullAttentionInterval != tensor.FirstOffset
 }
 
-func (p LayerCadencePolicy) moe(spec Spec, block uint32) bool {
+func (p layerCadencePolicy) moe(spec Spec, block uint32) bool {
 	if block >= spec.BlockCount {
 		return false
 	}
@@ -78,7 +78,7 @@ func (p LayerCadencePolicy) moe(spec Spec, block uint32) bool {
 	}
 }
 
-func (p LayerCadencePolicy) sliding(spec Spec, block uint32) bool {
+func (p layerCadencePolicy) sliding(spec Spec, block uint32) bool {
 	if block >= spec.BlockCount {
 		return false
 	}
@@ -97,7 +97,7 @@ func (p LayerCadencePolicy) sliding(spec Spec, block uint32) bool {
 		block%spec.SlidingPattern < spec.SlidingPattern-tensor.SingletonExtent
 }
 
-func (p LayerCadencePolicy) periodicRescale(spec Spec, block uint32) bool {
+func (p layerCadencePolicy) periodicRescale(spec Spec, block uint32) bool {
 	return spec.RescaleEvery > tensor.FirstOffset &&
 		(block+tensor.SingletonExtent)%spec.RescaleEvery == tensor.FirstOffset
 }

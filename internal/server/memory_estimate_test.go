@@ -80,7 +80,7 @@ func TestRunMemoryEstimateFromMeasuredRecords(t *testing.T) {
 	}
 
 	fixture := newDPOTrainingFixture(t)
-	training, err := New(Config{Repository: fixture.store}, &workspaceTestRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: fixture.workspace})
+	training, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}

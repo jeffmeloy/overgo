@@ -8,127 +8,127 @@ import (
 	"overgo/internal/tensor"
 )
 
-// RuntimeCacheBinding: indexed cache operand.
-type RuntimeCacheBinding uint8
+// runtimeCacheBinding: indexed cache operand.
+type runtimeCacheBinding uint8
 
 const (
-	RuntimeCacheNone RuntimeCacheBinding = iota
-	RuntimeCachePrimaryKey
-	RuntimeCachePrimaryValue
-	RuntimeCacheConvolution
-	RuntimeCacheSSM
-	RuntimeCacheIndexerKey
-	RuntimeCacheCrossKey
-	RuntimeCacheCrossValue
+	runtimeCacheNone runtimeCacheBinding = iota
+	runtimeCachePrimaryKey
+	runtimeCachePrimaryValue
+	runtimeCacheConvolution
+	runtimeCacheSSM
+	runtimeCacheIndexerKey
+	runtimeCacheCrossKey
+	runtimeCacheCrossValue
 	runtimeCacheBindingCount
 )
 
-// RuntimeTensorBinding: indexed auxiliary tensor operand.
-type RuntimeTensorBinding uint8
+// runtimeTensorBinding: indexed auxiliary tensor operand.
+type runtimeTensorBinding uint8
 
 const (
-	RuntimeTensorNone RuntimeTensorBinding = iota
-	RuntimeTensorPerLayerInput
-	RuntimeTensorCurrentPositions
-	RuntimeTensorEncoder
+	runtimeTensorNone runtimeTensorBinding = iota
+	runtimeTensorPerLayerInput
+	runtimeTensorCurrentPositions
+	runtimeTensorEncoder
 	runtimeTensorBindingCount
 )
 
-// LayerOperator: semantic execution stage.
-type LayerOperator uint8
+// layerOperator: semantic execution stage.
+type layerOperator uint8
 
 const (
-	LayerOperatorNone LayerOperator = iota
-	LayerOperatorAttentionInputNorm
-	LayerOperatorLatentAttention
-	LayerOperatorHyperAttention
-	LayerOperatorHyperFeedForward
-	LayerOperatorAttentionNorm
-	LayerOperatorCrossAttentionNorm
-	LayerOperatorAttentionPostNorm
-	LayerOperatorAttentionCausalProjection
-	LayerOperatorAttentionGatedProjection
-	LayerOperatorAttentionOutputProjection
-	LayerOperatorAttentionBidirectionalFusedQKV
-	LayerOperatorAttentionBidirectionalQKNorm
-	LayerOperatorAttentionCausalPostQKNorm
-	LayerOperatorAttentionSharedKVQKNorm
-	LayerOperatorAttentionBidirectionalEncoder
-	LayerOperatorAttentionPairedCausalProjection
-	LayerOperatorAttentionSharedCacheQKNorm
-	LayerOperatorAttentionPlannedProjection
-	LayerOperatorAttentionRelativeBidirectional
-	LayerOperatorAttentionRelativeCausal
-	LayerOperatorAttentionCross
-	LayerOperatorHybridMix
-	LayerOperatorRecurrentMix
-	LayerOperatorFeedForwardNorm
-	// LayerOperatorFeedForwardPolicy runs the feed-forward declared by the
+	layerOperatorNone layerOperator = iota
+	layerOperatorAttentionInputNorm
+	layerOperatorLatentAttention
+	layerOperatorHyperAttention
+	layerOperatorHyperFeedForward
+	layerOperatorAttentionNorm
+	layerOperatorCrossAttentionNorm
+	layerOperatorAttentionPostNorm
+	layerOperatorAttentionCausalProjection
+	layerOperatorAttentionGatedProjection
+	layerOperatorAttentionOutputProjection
+	layerOperatorAttentionBidirectionalFusedQKV
+	layerOperatorAttentionBidirectionalQKNorm
+	layerOperatorAttentionCausalPostQKNorm
+	layerOperatorAttentionSharedKVQKNorm
+	layerOperatorAttentionBidirectionalEncoder
+	layerOperatorAttentionPairedCausalProjection
+	layerOperatorAttentionSharedCacheQKNorm
+	layerOperatorAttentionPlannedProjection
+	layerOperatorAttentionRelativeBidirectional
+	layerOperatorAttentionRelativeCausal
+	layerOperatorAttentionCross
+	layerOperatorHybridMix
+	layerOperatorRecurrentMix
+	layerOperatorFeedForwardNorm
+	// layerOperatorFeedForwardPolicy runs the feed-forward declared by the
 	// layer plan: routed expert composition when a router is present,
 	// the dense feed-forward runtime otherwise.
-	LayerOperatorFeedForwardPolicy
-	LayerOperatorFeedForwardRoutedSquaredReLU
-	LayerOperatorFeedForwardRoutedSwiGLU
-	LayerOperatorFeedForwardParallelGatedGELU
-	LayerOperatorFeedForwardEncoder
-	LayerOperatorFeedForwardRelative
-	LayerOperatorFeedForwardPostNorm
-	LayerOperatorCacheSentinel
-	LayerOperatorScale
-	LayerOperatorResidual
-	LayerOperatorRMSNorm
-	LayerOperatorScaledSkip
-	LayerOperatorOutputAdapter
-	LayerOperatorGatedTokenShiftSquaredReLU
-	LayerOperatorTokenShiftSquaredReLU
-	LayerOperatorAttentionResidualNorm
-	LayerOperatorInputResidualNorm
-	LayerOperatorFeedForwardResidualNorm
-	LayerOperatorPairedInputNorm
-	LayerOperatorResidualScale
-	LayerOperatorFeedForwardInputNorm
-	LayerOperatorFeedForwardOutput
-	LayerOperatorActivationProjection
-	LayerOperatorActivatedOutput
+	layerOperatorFeedForwardPolicy
+	layerOperatorFeedForwardRoutedSquaredReLU
+	layerOperatorFeedForwardRoutedSwiGLU
+	layerOperatorFeedForwardParallelGatedGELU
+	layerOperatorFeedForwardEncoder
+	layerOperatorFeedForwardRelative
+	layerOperatorFeedForwardPostNorm
+	layerOperatorCacheSentinel
+	layerOperatorScale
+	layerOperatorResidual
+	layerOperatorRMSNorm
+	layerOperatorScaledSkip
+	layerOperatorOutputAdapter
+	layerOperatorGatedTokenShiftSquaredReLU
+	layerOperatorTokenShiftSquaredReLU
+	layerOperatorAttentionResidualNorm
+	layerOperatorInputResidualNorm
+	layerOperatorFeedForwardResidualNorm
+	layerOperatorPairedInputNorm
+	layerOperatorResidualScale
+	layerOperatorFeedForwardInputNorm
+	layerOperatorFeedForwardOutput
+	layerOperatorActivationProjection
+	layerOperatorActivatedOutput
 )
 
-// LayerOperatorInstruction: compiled operator and operand indexes.
-type LayerOperatorInstruction struct {
-	Operator    LayerOperator
+// layerOperatorInstruction: compiled operator and operand indexes.
+type layerOperatorInstruction struct {
+	Operator    layerOperator
 	Scalar      float32
 	CacheCount  uint8
 	TensorCount uint8
-	Caches      [runtimeCacheBindingCount]RuntimeCacheBinding
-	Tensors     [runtimeTensorBindingCount]RuntimeTensorBinding
+	Caches      [runtimeCacheBindingCount]runtimeCacheBinding
+	Tensors     [runtimeTensorBindingCount]runtimeTensorBinding
 }
 
-// LayerProgram: ordered recipe instructions.
-type LayerProgram struct {
-	Instructions []LayerOperatorInstruction
+// layerProgram: ordered recipe instructions.
+type layerProgram struct {
+	Instructions []layerOperatorInstruction
 }
 
-func (p LayerProgram) valid() bool {
+func (p layerProgram) valid() bool {
 	return len(p.Instructions) != tensor.FirstOffset
 }
 
-func (p LayerProgram) equal(other LayerProgram) bool {
+func (p layerProgram) equal(other layerProgram) bool {
 	return slices.Equal(p.Instructions, other.Instructions)
 }
 
-// LayerCompositionPolicy: semantic block-stage composition.
-type LayerCompositionPolicy uint8
+// layerCompositionPolicy: semantic block-stage composition.
+type layerCompositionPolicy uint8
 
 const (
-	LayerCompositionStandard LayerCompositionPolicy = iota
-	LayerCompositionRecurrentOnly
-	LayerCompositionAttentionOnly
-	LayerCompositionFeedForwardOnly
-	LayerCompositionIdentity
+	layerCompositionStandard layerCompositionPolicy = iota
+	layerCompositionRecurrentOnly
+	layerCompositionAttentionOnly
+	layerCompositionFeedForwardOnly
+	layerCompositionIdentity
 )
 
-func (p LayerProgram) Instruction(index uint32) (LayerOperatorInstruction, bool) {
+func (p layerProgram) Instruction(index uint32) (layerOperatorInstruction, bool) {
 	if uint64(index) >= uint64(len(p.Instructions)) {
-		return LayerOperatorInstruction{}, false
+		return layerOperatorInstruction{}, false
 	}
 	return p.Instructions[index], true
 }
@@ -137,23 +137,23 @@ func (p LayerProgram) Instruction(index uint32) (LayerOperatorInstruction, bool)
 type CachePolicy uint8
 
 const (
-	CacheAttention CachePolicy = iota
-	CacheSentinel
-	CacheSelectiveScan
-	CacheGroupedSelectiveScan
-	CacheDoubleTokenShiftRecurrence
-	CacheSingleTokenShiftRecurrence
-	CacheVariableTokenShiftRecurrence
-	CacheKeyedDelta
-	CacheGatedDelta
-	CacheShortConvolution
-	CacheHybridAttentionScan
+	cacheAttention CachePolicy = iota
+	cacheSentinel
+	cacheSelectiveScan
+	cacheGroupedSelectiveScan
+	cacheDoubleTokenShiftRecurrence
+	cacheSingleTokenShiftRecurrence
+	cacheVariableTokenShiftRecurrence
+	cacheKeyedDelta
+	cacheGatedDelta
+	cacheShortConvolution
+	cacheHybridAttentionScan
 	CacheCrossAttention
 	CacheCompressedAttention
 )
 
 func (p CachePolicy) PrimaryMode() CacheStateMode {
-	if p >= CacheSelectiveScan && p <= CacheShortConvolution {
+	if p >= cacheSelectiveScan && p <= cacheShortConvolution {
 		return CacheStateFixed
 	}
 	return CacheStateToken
@@ -163,25 +163,25 @@ func (p CachePolicy) PrimaryMode() CacheStateMode {
 type CacheFallbackPolicy uint8
 
 const (
-	CacheFallbackNone CacheFallbackPolicy = iota
-	CacheFallbackFeedForward
-	CacheFallbackMissingKV
+	cacheFallbackNone CacheFallbackPolicy = iota
+	cacheFallbackFeedForward
+	cacheFallbackMissingKV
 )
 
-// CacheWritePolicy: compiled cache graph capabilities.
-type CacheWritePolicy uint8
+// cacheWritePolicy: compiled cache graph capabilities.
+type cacheWritePolicy uint8
 
 const (
-	CacheWriteFixed CacheWritePolicy = iota
-	CacheWriteConcatOnly
-	CacheWriteConcatOrAppend
+	cacheWriteFixed cacheWritePolicy = iota
+	cacheWriteConcatOnly
+	cacheWriteConcatOrAppend
 )
 
 // CachedGraphPolicy: cached decoder graph composition.
 type CachedGraphPolicy uint8
 
 const (
-	CachedGraphLayered CachedGraphPolicy = iota
+	cachedGraphLayered CachedGraphPolicy = iota
 	CachedGraphDense
 )
 
@@ -189,32 +189,32 @@ const (
 type LayerTopologyPolicy uint8
 
 const (
-	LayerTopologyPlannedDecoder LayerTopologyPolicy = iota
-	LayerTopologyBidirectionalEncoder
-	LayerTopologyBidirectionalFusedQKV
-	LayerTopologyBidirectionalQKNorm
+	layerTopologyPlannedDecoder LayerTopologyPolicy = iota
+	layerTopologyBidirectionalEncoder
+	layerTopologyBidirectionalFusedQKV
+	layerTopologyBidirectionalQKNorm
 	LayerTopologyCausalPostQKNormSkip
-	LayerTopologySharedKVAdapter
-	LayerTopologySplitProjection
-	LayerTopologyDynamicWKV6
-	LayerTopologyAffineWKV6
-	LayerTopologyDynamicWKV7
-	LayerTopologyKeyedDeltaHybrid
-	LayerTopologyCompressedHyper
+	layerTopologySharedKVAdapter
+	layerTopologySplitProjection
+	layerTopologyDynamicWKV6
+	layerTopologyAffineWKV6
+	layerTopologyDynamicWKV7
+	layerTopologyKeyedDeltaHybrid
+	layerTopologyCompressedHyper
 )
 
-// OutputHeadPolicy: compiled terminal projection source.
-type OutputHeadPolicy uint8
+// outputHeadPolicy: compiled terminal projection source.
+type outputHeadPolicy uint8
 
 const (
-	OutputHeadTokenEmbedding OutputHeadPolicy = iota
+	outputHeadTokenEmbedding outputHeadPolicy = iota
 	OutputHeadDedicated
 )
 
-// TerminalPlan: compiled final normalization and projection.
-type TerminalPlan struct {
+// terminalPlan: compiled final normalization and projection.
+type terminalPlan struct {
 	Normalization OutputNormPolicy
-	OutputHead    OutputHeadPolicy
+	OutputHead    outputHeadPolicy
 }
 
 // DeepstackSource: compiled projected-stream source.
@@ -228,8 +228,8 @@ const (
 // LayerPlan: derived layer execution contract.
 type LayerPlan struct {
 	Layer               uint32
-	Program             LayerProgram
-	Composition         LayerCompositionPolicy
+	Program             layerProgram
+	Composition         layerCompositionPolicy
 	Cache               CachePolicy
 	Attention           AttentionPolicy
 	EncoderOperator     EncoderOperatorPolicy
@@ -239,7 +239,7 @@ type LayerPlan struct {
 	Residual            ResidualPolicy
 	FeedForward         FeedForwardPolicy
 	CacheMode           CacheStateMode
-	CacheWrite          CacheWritePolicy
+	CacheWrite          cacheWritePolicy
 	Recurrent           bool
 	Sliding             bool
 	UsesRoPE            bool
@@ -255,22 +255,22 @@ type LayerPlan struct {
 	AttentionBlocks     AttentionBlockPolicy
 	EmbeddingSkip       bool
 	PerLayerInput       bool
-	Normalization       NormalizationPlan
-	Rotary              RotaryPlan
+	Normalization       normalizationPlan
+	Rotary              rotaryPlan
 	AttentionGraph      AttentionGraphPlan
-	Experts             MoEGraphPlan
-	ExpertComposition   ExpertCompositionPlan
-	DenseWeights        DenseWeightPlan
+	Experts             moEGraphPlan
+	ExpertComposition   expertCompositionPlan
+	DenseWeights        denseWeightPlan
 	rotaryCatalog       rotaryCatalogPlan
 	ExplicitEncoder     bool
 	AllowNonCausalCache bool
 	DeciSparse          bool
-	QKPreprocess        QKPreprocessPlan
-	QueryScale          QueryScalePlan
-	AttentionOutput     AttentionOutputPlan
-	ResidualStages      ResidualStagePlan
+	QKPreprocess        qkPreprocessPlan
+	QueryScale          queryScalePlan
+	AttentionOutput     attentionOutputPlan
+	ResidualStages      residualStagePlan
 	Mixer               RecurrentMixerPolicy
-	RecurrentRuntime    RecurrentRuntimePolicy
+	RecurrentRuntime    recurrentRuntimePolicy
 	PeriodicScale       float32
 }
 
@@ -285,7 +285,7 @@ func (p LayerPlan) ExactAttentionReplay() bool {
 func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent bool) (LayerPlan, error) {
 	recurrent = recurrent || s.IsRecurrentLayer(layer)
 	hasKV := s.LayerHasKV(layer)
-	sharedKV := profile.Has(ArchitectureSharedKV) && !hasKV
+	sharedKV := profile.Has(architectureSharedKV) && !hasKV
 	var kvSource uint32
 	if sharedKV {
 		kvSource = s.LayerSharedKVSource(layer)
@@ -293,21 +293,21 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 	deepstackBefore, deepstackAfter := deepstackSources(s, profile, layer)
 	auxiliaryInput, auxiliaryOutput := auxiliaryFlow(s, profile, layer)
 	temperature := profile.Temperature
-	if temperature == AttentionTemperatureNoRoPE && s.UsesRoPE(layer) {
+	if temperature == attentionTemperatureNoRoPE && s.UsesRoPE(layer) {
 		temperature = AttentionTemperatureNone
 	}
 	normalization := profile.Runtime.normalizationPlan(s, profile)
 	cache := cachePolicy(s, profile, layer, recurrent)
 	mixer := compileRecurrentMixer(profile, recurrent)
-	composition := LayerCompositionStandard
+	composition := layerCompositionStandard
 	if mixer == recurrentMixerSparseGroupedSelectiveScan {
 		switch {
 		case recurrent:
-			composition = LayerCompositionRecurrentOnly
+			composition = layerCompositionRecurrentOnly
 		case s.LayerHasFeedForward(layer):
-			composition = LayerCompositionFeedForwardOnly
+			composition = layerCompositionFeedForwardOnly
 		default:
-			composition = LayerCompositionAttentionOnly
+			composition = layerCompositionAttentionOnly
 		}
 	}
 	deciSparse := profile.DeciSparse &&
@@ -316,18 +316,18 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 	if deciSparse {
 		switch {
 		case !s.LayerHasFeedForward(layer):
-			composition = LayerCompositionIdentity
+			composition = layerCompositionIdentity
 		case !s.LayerHasAttention(layer):
-			composition = LayerCompositionFeedForwardOnly
+			composition = layerCompositionFeedForwardOnly
 		}
 	}
 	residualStages := s.residualStagePlan(profile, normalization)
 	var periodicScale float32
-	if (profile.LayerTopology == LayerTopologyDynamicWKV6 || profile.LayerTopology == LayerTopologyAffineWKV6) &&
+	if (profile.LayerTopology == layerTopologyDynamicWKV6 || profile.LayerTopology == layerTopologyAffineWKV6) &&
 		s.IsPeriodicRescaleLayer(layer) {
 		periodicScale = profile.Runtime.Recurrent.PeriodicResidualScale
 	}
-	if profile.LayerTopology == LayerTopologyAffineWKV6 {
+	if profile.LayerTopology == layerTopologyAffineWKV6 {
 		residualStages.residualScale = periodicScale
 	}
 	experts := s.moeGraphPlan(profile, layer)
@@ -339,15 +339,15 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 	if profile.Attention == AttentionGatedDelta {
 		experts.NormalizeTopKProb = true
 	}
-	if profile.Attention == AttentionShortConvolution && recurrent {
+	if profile.Attention == attentionShortConvolution && recurrent {
 		experts.NormalizeTopKProb = true
 		experts.SelectionBias = true
 	}
-	cacheWrite := CacheWriteFixed
+	cacheWrite := cacheWriteFixed
 	if cache.PrimaryMode().TokenAligned() {
-		cacheWrite = CacheWriteConcatOnly
+		cacheWrite = cacheWriteConcatOnly
 		if mixer == recurrentMixerNone || profile.Attention == AttentionGatedDelta {
-			cacheWrite = CacheWriteConcatOrAppend
+			cacheWrite = cacheWriteConcatOrAppend
 		}
 	}
 	plan := LayerPlan{
@@ -355,7 +355,7 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 		Attention:           profile.Attention,
 		EncoderOperator:     profile.EncoderOperator,
 		LatentAttention:     profile.LatentAttention,
-		LatentYaRNQuery:     profile.Has(ArchitectureLatentYaRNQuery),
+		LatentYaRNQuery:     profile.Has(architectureLatentYaRNQuery),
 		Position:            profile.Position,
 		Residual:            profile.Residual,
 		FeedForward:         profile.FeedForward,
@@ -366,7 +366,7 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 		Recurrent:           recurrent,
 		Sliding:             s.IsSlidingLayer(layer),
 		UsesRoPE:            s.UsesRoPE(layer),
-		MultiAxis:           profile.Has(ArchitectureMultiAxisPositions),
+		MultiAxis:           profile.Has(architectureMultiAxisPositions),
 		HasKV:               hasKV,
 		SharedKV:            sharedKV,
 		KVSource:            kvSource,
@@ -376,7 +376,7 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 		AuxiliaryOutput:     auxiliaryOutput,
 		Temperature:         temperature,
 		AttentionBlocks:     profile.AttentionBlocks,
-		EmbeddingSkip:       profile.Has(ArchitectureEmbeddingSkip),
+		EmbeddingSkip:       profile.Has(architectureEmbeddingSkip),
 		PerLayerInput:       s.hasPerLayerEmbeddings(profile),
 		Normalization:       normalization,
 		Rotary:              s.rotaryPlan(profile, layer),
@@ -411,7 +411,7 @@ func (p ModelPlan) SupportsCapacityCache() bool {
 	}
 	for _, layer := range p.layers {
 		if layer.CacheMode.TokenAligned() &&
-			(layer.CacheWrite != CacheWriteConcatOrAppend || layer.SharedKV) {
+			(layer.CacheWrite != cacheWriteConcatOrAppend || layer.SharedKV) {
 			return false
 		}
 	}
@@ -420,7 +420,7 @@ func (p ModelPlan) SupportsCapacityCache() bool {
 
 // SupportsMultiAxisPositionsWithProfile: bound-profile MRoPE contract.
 func (s Spec) SupportsMultiAxisPositionsWithProfile(profile ArchitectureProfile) bool {
-	if !profile.Has(ArchitectureMultiAxisPositions) {
+	if !profile.Has(architectureMultiAxisPositions) {
 		return false
 	}
 	sections := false
@@ -452,7 +452,7 @@ func validAttentionTemperature(spec Spec) bool {
 
 func deepstackSources(s Spec, profile ArchitectureProfile, layer uint32) (DeepstackSource, DeepstackSource) {
 	switch profile.Deepstack {
-	case DeepstackMappedBefore:
+	case deepstackMappedBefore:
 		if layer == tensor.FirstOffset || int(layer) >= len(s.DeepstackMapping) {
 			return DeepstackSourceNone, DeepstackSourceNone
 		}
@@ -465,7 +465,7 @@ func deepstackSources(s Spec, profile ArchitectureProfile, layer uint32) (Deepst
 		default:
 			return DeepstackSource(source - tensor.SingletonExtent), DeepstackSourceNone
 		}
-	case DeepstackSequentialAfter:
+	case deepstackSequentialAfter:
 		if layer < s.DeepstackLayerCount {
 			return DeepstackSourceNone, DeepstackSource(layer)
 		}
@@ -475,11 +475,11 @@ func deepstackSources(s Spec, profile ArchitectureProfile, layer uint32) (Deepst
 
 func auxiliaryFlow(s Spec, profile ArchitectureProfile, layer uint32) (AuxiliaryFlow, AuxiliaryFlow) {
 	switch profile.Auxiliary {
-	case AuxiliaryRecurrentValue:
+	case auxiliaryRecurrentValue:
 		if layer == tensor.FirstOffset {
-			return AuxiliaryNone, AuxiliaryRecurrentValue
+			return AuxiliaryNone, auxiliaryRecurrentValue
 		}
-		return AuxiliaryRecurrentValue, AuxiliaryNone
+		return auxiliaryRecurrentValue, AuxiliaryNone
 	case AuxiliarySparseTopK:
 		if s.LayerHasFullIndexer(layer) {
 			return AuxiliaryNone, AuxiliarySparseTopK
@@ -499,18 +499,18 @@ type ModelPlan struct {
 	cacheSchemas  []LayerCacheSchema
 	cacheLayers   uint32
 	cachedGraph   CachedGraphPolicy
-	normalization NormalizationPlan
-	terminal      TerminalPlan
+	normalization normalizationPlan
+	terminal      terminalPlan
 	draft         DraftPlan
-	cacheProject  CacheProjectionProgram
-	projections   [projectionRoleCount]ProjectionProgram
-	sequenceOut   SequenceOutputProgram
+	cacheProject  cacheProjectionProgram
+	projections   [projectionRoleCount]projectionProgram
+	sequenceOut   sequenceOutputProgram
 	forward       ForwardProgram
-	input         ProjectedInputProgram
+	input         projectedInputProgram
 }
 
-// ProjectedInputProgram: compiled projected-input and specialized-output admission.
-type ProjectedInputProgram struct {
+// projectedInputProgram: compiled projected-input and specialized-output admission.
+type projectedInputProgram struct {
 	Overrides          EmbeddingOverridePolicy
 	AttentionBlocks    AttentionBlockPolicy
 	DeepstackStreams   uint32
@@ -519,22 +519,22 @@ type ProjectedInputProgram struct {
 	ClassifierHead     bool
 }
 
-func compileProjectedInputProgram(spec Spec, profile ArchitectureProfile) ProjectedInputProgram {
+func compileProjectedInputProgram(spec Spec, profile ArchitectureProfile) projectedInputProgram {
 	var deepstackStreams uint32
-	if profile.Deepstack != DeepstackNone {
+	if profile.Deepstack != deepstackNone {
 		deepstackStreams = spec.DeepstackLayerCount
 	}
-	return ProjectedInputProgram{
+	return projectedInputProgram{
 		Overrides: profile.Overrides, AttentionBlocks: profile.AttentionBlocks,
 		DeepstackStreams:   deepstackStreams,
 		MultiAxis:          spec.SupportsMultiAxisPositionsWithProfile(profile),
 		PerLayerEmbeddings: spec.hasPerLayerEmbeddings(profile),
-		ClassifierHead:     profile.Has(ArchitectureClassifierHead),
+		ClassifierHead:     profile.Has(architectureClassifierHead),
 	}
 }
 
 func (s Spec) hasPerLayerEmbeddings(profile ArchitectureProfile) bool {
-	return profile.Has(ArchitecturePerLayerEmbeddings) && s.EmbeddingPerLayer > tensor.FirstOffset
+	return profile.Has(architecturePerLayerEmbeddings) && s.EmbeddingPerLayer > tensor.FirstOffset
 }
 
 // CompileModelPlanWithProfile: compiles a resolved policy without registry lookup.
@@ -561,7 +561,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 	plan := ModelPlan{
 		spec: spec, profile: profile, layers: make([]LayerPlan, layers), cacheLayers: cacheLayers,
 		normalization: profile.Runtime.normalizationPlan(spec, profile),
-		terminal:      TerminalPlan{Normalization: profile.OutputNorm},
+		terminal:      terminalPlan{Normalization: profile.OutputNorm},
 		draft:         profile.DraftPlan(spec.NextNPredictLayers),
 		cacheProject:  compileCacheProjectionProgram(spec, profile),
 		projections:   compileProjectionPrograms(spec, profile),
@@ -604,7 +604,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 			}
 		}
 	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
-		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.OptionalCatalogDraft != nil) {
+		(plan.draft.Kind != draftOptionalSingleCatalog || weights.OptionalCatalogDraft != nil) {
 		executable, layer := draftExecutableSpec(spec, plan.draft)
 		draftLayer, err := executable.planLayer(executable.Profile(), layer, false)
 		if err != nil {
@@ -622,7 +622,7 @@ func CompileModelPlanWithProfile(spec Spec, weights Weights, profile Architectur
 }
 
 // Normalization returns the immutable model normalization contract.
-func (p ModelPlan) Normalization() NormalizationPlan { return p.normalization }
+func (p ModelPlan) Normalization() normalizationPlan { return p.normalization }
 
 // Spec returns the immutable bound model metadata.
 func (p ModelPlan) Spec() Spec { return p.spec }
@@ -649,7 +649,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	if plan.draft.AppendedBlocks {
 		wantDraftLayers = int(plan.draft.Heads)
 	} else if plan.draft.SingleCatalog && plan.draft.SessionEligible() &&
-		(plan.draft.Kind != DraftOptionalSingleCatalog || weights.OptionalCatalogDraft != nil) {
+		(plan.draft.Kind != draftOptionalSingleCatalog || weights.OptionalCatalogDraft != nil) {
 		wantDraftLayers = tensor.SingletonExtent
 	}
 	if len(plan.draftLayers) != wantDraftLayers {
@@ -660,7 +660,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	}
 	for offset, layer := range plan.draftLayers {
 		wantLayer := spec.BlockCount + uint32(offset)
-		if plan.draft.Kind == DraftSingleCatalog {
+		if plan.draft.Kind == draftSingleCatalog {
 			wantLayer = tensor.FirstOffset
 		}
 		if layer.Layer != wantLayer {
@@ -679,7 +679,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			return fmt.Errorf("model plan draft layer %d operator program is inconsistent", offset)
 		}
 	}
-	if spec.SharedKVLayers > tensor.FirstOffset && (!plan.profile.Has(ArchitectureSharedKV) ||
+	if spec.SharedKVLayers > tensor.FirstOffset && (!plan.profile.Has(architectureSharedKV) ||
 		spec.SharedKVLayers >= spec.BlockCount) {
 		return fmt.Errorf("model plan architecture %s has invalid shared-KV layer count %d", spec.Architecture, spec.SharedKVLayers)
 	}
@@ -731,11 +731,11 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 	}
 	if spec.DeepstackLayerCount > tensor.FirstOffset {
 		switch plan.profile.Deepstack {
-		case DeepstackMappedBefore:
+		case deepstackMappedBefore:
 			if len(spec.DeepstackMapping) < len(plan.layers) {
 				return fmt.Errorf("model plan deepstack map has %d entries for %d layers", len(spec.DeepstackMapping), len(plan.layers))
 			}
-		case DeepstackSequentialAfter:
+		case deepstackSequentialAfter:
 			if int(spec.DeepstackLayerCount) > len(plan.layers) {
 				return fmt.Errorf("model plan has %d deepstack streams for %d layers", spec.DeepstackLayerCount, len(plan.layers))
 			}
@@ -743,7 +743,7 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			return fmt.Errorf("model plan architecture %s has no deepstack policy", spec.Architecture)
 		}
 	}
-	if plan.profile.AttentionBlocks != AttentionBlocksNone && !plan.profile.Has(ArchitectureMultimodal) {
+	if plan.profile.AttentionBlocks != AttentionBlocksNone && !plan.profile.Has(architectureMultimodal) {
 		return fmt.Errorf("model plan architecture %s has attention blocks without multimodal support", spec.Architecture)
 	}
 	if attentionTemperatureConfigured(spec) {
@@ -751,12 +751,12 @@ func validateModelPlan(spec Spec, weights Weights, plan ModelPlan) error {
 			return fmt.Errorf("model plan architecture %s has an invalid attention temperature contract", spec.Architecture)
 		}
 	}
-	if norm.PostNormLayout == PostNormLayoutOutputLayer &&
-		(norm.Operation != NormalizationLayer || norm.PreAttention || !norm.PostAttention || !norm.Bias) {
+	if norm.PostNormLayout == postNormLayoutOutputLayer &&
+		(norm.Operation != normalizationLayer || norm.PreAttention || !norm.PostAttention || !norm.Bias) {
 		return fmt.Errorf("model plan architecture %s has an invalid output-layer normalization layout", spec.Architecture)
 	}
 	draft := plan.profile.DraftPlan(spec.NextNPredictLayers)
-	if spec.NextNPredictLayers > tensor.FirstOffset && (draft.Kind == DraftNone || !draft.HasHead(firstDraftHead)) {
+	if spec.NextNPredictLayers > tensor.FirstOffset && (draft.Kind == draftNone || !draft.HasHead(firstDraftHead)) {
 		return fmt.Errorf("model plan architecture %s has no draft policy for %d heads", spec.Architecture, spec.NextNPredictLayers)
 	}
 	return nil
@@ -770,12 +770,12 @@ func cachedGraphPolicy(
 	if len(layers) == tensor.FirstOffset || forward.Operation != ForwardOperationCached ||
 		recurrent ||
 		forward.AlternateStates() {
-		return CachedGraphLayered
+		return cachedGraphLayered
 	}
 	for _, layer := range layers {
-		if layer.Mixer != recurrentMixerNone || layer.Attention != AttentionStandard ||
-			layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
-			return CachedGraphLayered
+		if layer.Mixer != recurrentMixerNone || layer.Attention != attentionStandard ||
+			layer.Cache != cacheAttention && layer.Cache != cacheSentinel {
+			return cachedGraphLayered
 		}
 	}
 	return CachedGraphDense
@@ -812,7 +812,7 @@ func (p ModelPlan) Compiled() bool { return p.profile.Name != "" }
 func (p ModelPlan) Forward() ForwardProgram { return p.forward }
 
 // ProjectedInput returns compiled projected-input admission.
-func (p ModelPlan) ProjectedInput() ProjectedInputProgram { return p.input }
+func (p ModelPlan) ProjectedInput() projectedInputProgram { return p.input }
 
 // LayerCount: compiled trunk layer count.
 func (p ModelPlan) LayerCount() int { return len(p.layers) }
@@ -929,21 +929,21 @@ func (p ModelPlan) CacheLayerCount() uint32 { return p.cacheLayers }
 func (p ModelPlan) CachedGraph() CachedGraphPolicy { return p.cachedGraph }
 
 // Terminal: compiled output stages.
-func (p ModelPlan) Terminal() TerminalPlan { return p.terminal }
+func (p ModelPlan) Terminal() terminalPlan { return p.terminal }
 
 // Projection: compiled auxiliary projection program; absent roles fail on Build.
-func (p ModelPlan) Projection(role ProjectionRole) ProjectionProgram {
+func (p ModelPlan) Projection(role ProjectionRole) projectionProgram {
 	if role >= projectionRoleCount {
-		return ProjectionProgram{}
+		return projectionProgram{}
 	}
 	return p.projections[role]
 }
 
 // CacheProjection: compiled auxiliary K/V projection program.
-func (p ModelPlan) CacheProjection() CacheProjectionProgram { return p.cacheProject }
+func (p ModelPlan) CacheProjection() cacheProjectionProgram { return p.cacheProject }
 
 // SequenceOutput: compiled terminal sequence program.
-func (p ModelPlan) SequenceOutput() SequenceOutputProgram { return p.sequenceOut }
+func (p ModelPlan) SequenceOutput() sequenceOutputProgram { return p.sequenceOut }
 
 // AudioWaveform: compiled semantic-token waveform plan.
 func (p ModelPlan) AudioWaveform() AudioWaveformPlan { return p.forward.Waveform }
@@ -951,228 +951,228 @@ func (p ModelPlan) AudioWaveform() AudioWaveformPlan { return p.forward.Waveform
 // Draft: compiled speculative policy.
 func (p ModelPlan) Draft() DraftPlan { return p.draft }
 
-func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProgram, error) {
+func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (layerProgram, error) {
 	recurrent := plan.Recurrent
 	composition := plan.Composition
-	if profile.LayerTopology == LayerTopologySplitProjection {
+	if profile.LayerTopology == layerTopologySplitProjection {
 		return newLayerProgram(
-			layerStage(LayerOperatorActivationProjection),
-			layerStage(LayerOperatorActivatedOutput),
+			layerStage(layerOperatorActivationProjection),
+			layerStage(layerOperatorActivatedOutput),
 		)
 	}
-	if profile.Attention == AttentionShortConvolution && recurrent {
+	if profile.Attention == attentionShortConvolution && recurrent {
 		return residualMixerProgram(
-			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy,
+			attentionLayerStage(layerOperatorRecurrentMix), layerOperatorFeedForwardPolicy,
 		)
 	}
-	if profile.LayerTopology == LayerTopologyAffineWKV6 {
+	if profile.LayerTopology == layerTopologyAffineWKV6 {
 		return residualMixerProgram(
-			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy,
+			attentionLayerStage(layerOperatorRecurrentMix), layerOperatorFeedForwardPolicy,
 			plan.ResidualStages.residualScale,
 		)
 	}
 	if profile.Attention == AttentionGatedDelta {
-		mixer := attentionLayerStage(LayerOperatorAttentionGatedProjection)
+		mixer := attentionLayerStage(layerOperatorAttentionGatedProjection)
 		if recurrent {
-			mixer = attentionLayerStage(LayerOperatorRecurrentMix)
+			mixer = attentionLayerStage(layerOperatorRecurrentMix)
 		}
-		return residualMixerProgram(mixer, LayerOperatorFeedForwardRoutedSwiGLU)
+		return residualMixerProgram(mixer, layerOperatorFeedForwardRoutedSwiGLU)
 	}
 	if plan.Mixer == recurrentMixerAttentionGroupedSelectiveScan {
 		return residualMixerProgram(
-			hybridLayerStage(), LayerOperatorFeedForwardPolicy,
+			hybridLayerStage(), layerOperatorFeedForwardPolicy,
 		)
 	}
 	if plan.Mixer == recurrentMixerScaledGroupedSelectiveScan {
 		return newLayerProgram(
-			layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorRecurrentMix),
-			scaleLayerStage(plan.ResidualStages.residualScale), layerStage(LayerOperatorResidual),
-			layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardPolicy),
-			scaleLayerStage(plan.ResidualStages.residualScale), layerStage(LayerOperatorResidual),
+			layerStage(layerOperatorAttentionNorm), attentionLayerStage(layerOperatorRecurrentMix),
+			scaleLayerStage(plan.ResidualStages.residualScale), layerStage(layerOperatorResidual),
+			layerStage(layerOperatorFeedForwardNorm), layerStage(layerOperatorFeedForwardPolicy),
+			scaleLayerStage(plan.ResidualStages.residualScale), layerStage(layerOperatorResidual),
 		)
 	}
 	if plan.Mixer == recurrentMixerWeightedSelectiveScan {
 		return residualMixerProgram(
-			attentionLayerStage(LayerOperatorRecurrentMix), LayerOperatorFeedForwardPolicy,
+			attentionLayerStage(layerOperatorRecurrentMix), layerOperatorFeedForwardPolicy,
 		)
 	}
 	if plan.Mixer == recurrentMixerNormalizedSelectiveScan {
 		return newLayerProgram(
-			layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorRecurrentMix),
-			layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-			layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardPolicy),
-			layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
+			layerStage(layerOperatorAttentionNorm), attentionLayerStage(layerOperatorRecurrentMix),
+			layerStage(layerOperatorAttentionPostNorm), layerStage(layerOperatorResidual),
+			layerStage(layerOperatorFeedForwardNorm), layerStage(layerOperatorFeedForwardPolicy),
+			layerStage(layerOperatorFeedForwardPostNorm), layerStage(layerOperatorResidual),
 		)
 	}
 	if plan.Mixer == recurrentMixerSparseGroupedSelectiveScan {
 		switch composition {
-		case LayerCompositionRecurrentOnly:
+		case layerCompositionRecurrentOnly:
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorRecurrentMix),
-				layerStage(LayerOperatorResidual),
+				layerStage(layerOperatorAttentionNorm), attentionLayerStage(layerOperatorRecurrentMix),
+				layerStage(layerOperatorResidual),
 			)
-		case LayerCompositionAttentionOnly:
+		case layerCompositionAttentionOnly:
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionCausalProjection),
-				layerStage(LayerOperatorResidual),
+				layerStage(layerOperatorAttentionNorm), attentionLayerStage(layerOperatorAttentionCausalProjection),
+				layerStage(layerOperatorResidual),
 			)
-		case LayerCompositionFeedForwardOnly:
+		case layerCompositionFeedForwardOnly:
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorCacheSentinel),
-				layerStage(LayerOperatorFeedForwardRoutedSquaredReLU), layerStage(LayerOperatorResidual),
+				layerStage(layerOperatorAttentionNorm), attentionLayerStage(layerOperatorCacheSentinel),
+				layerStage(layerOperatorFeedForwardRoutedSquaredReLU), layerStage(layerOperatorResidual),
 			)
 		default:
-			return LayerProgram{}, errors.New("layer program has unsupported sparse composition")
+			return layerProgram{}, errors.New("layer program has unsupported sparse composition")
 		}
 	}
 	if plan.Mixer == recurrentMixerSelectiveScan || plan.Mixer == recurrentMixerGroupedSelectiveScan {
 		return newLayerProgram(
-			layerStage(LayerOperatorAttentionNorm),
-			attentionLayerStage(LayerOperatorRecurrentMix),
-			layerStage(LayerOperatorResidual),
+			layerStage(layerOperatorAttentionNorm),
+			attentionLayerStage(layerOperatorRecurrentMix),
+			layerStage(layerOperatorResidual),
 		)
 	}
 	switch {
 	default:
 		if profile.Forward.Session == ForwardSessionPairedProjection {
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionSharedCacheQKNorm),
-				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardPolicy),
-				layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidualScale),
+				layerStage(layerOperatorAttentionNorm), attentionLayerStage(layerOperatorAttentionSharedCacheQKNorm),
+				layerStage(layerOperatorAttentionPostNorm), layerStage(layerOperatorResidual),
+				layerStage(layerOperatorFeedForwardNorm), layerStage(layerOperatorFeedForwardPolicy),
+				layerStage(layerOperatorFeedForwardPostNorm), layerStage(layerOperatorResidualScale),
 			)
 		}
 		if profile.Forward.Session == ForwardSessionFeatureDraft {
 			return newLayerProgram(
-				pairedInputLayerStage(), attentionLayerStage(LayerOperatorAttentionPairedCausalProjection),
-				layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
-				layerStage(LayerOperatorFeedForwardPolicy), layerStage(LayerOperatorResidual),
+				pairedInputLayerStage(), attentionLayerStage(layerOperatorAttentionPairedCausalProjection),
+				layerStage(layerOperatorResidual), layerStage(layerOperatorFeedForwardNorm),
+				layerStage(layerOperatorFeedForwardPolicy), layerStage(layerOperatorResidual),
 			)
 		}
-		if profile.LayerTopology == LayerTopologyDynamicWKV6 {
-			stages := []LayerOperatorInstruction{
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorRecurrentMix),
-				layerStage(LayerOperatorResidual), tokenShiftLayerStage(LayerOperatorGatedTokenShiftSquaredReLU),
-				layerStage(LayerOperatorResidual),
+		if profile.LayerTopology == layerTopologyDynamicWKV6 {
+			stages := []layerOperatorInstruction{
+				layerStage(layerOperatorAttentionNorm), attentionLayerStage(layerOperatorRecurrentMix),
+				layerStage(layerOperatorResidual), tokenShiftLayerStage(layerOperatorGatedTokenShiftSquaredReLU),
+				layerStage(layerOperatorResidual),
 			}
 			if positiveFinite(plan.PeriodicScale) {
 				stages = append(stages, scaleLayerStage(plan.PeriodicScale))
 			}
 			return newLayerProgram(stages...)
 		}
-		if profile.LayerTopology == LayerTopologyDynamicWKV7 {
-			stages := []LayerOperatorInstruction{
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorRecurrentMix),
-				layerStage(LayerOperatorResidual),
+		if profile.LayerTopology == layerTopologyDynamicWKV7 {
+			stages := []layerOperatorInstruction{
+				layerStage(layerOperatorAttentionNorm), attentionLayerStage(layerOperatorRecurrentMix),
+				layerStage(layerOperatorResidual),
 			}
-			if profile.Normalization == NormalizationLayer {
-				stages = append(stages, tokenShiftLayerStage(LayerOperatorTokenShiftSquaredReLU))
+			if profile.Normalization == normalizationLayer {
+				stages = append(stages, tokenShiftLayerStage(layerOperatorTokenShiftSquaredReLU))
 			} else {
-				stages = append(stages, layerStage(LayerOperatorFeedForwardNorm),
-					layerStage(LayerOperatorFeedForwardPolicy))
+				stages = append(stages, layerStage(layerOperatorFeedForwardNorm),
+					layerStage(layerOperatorFeedForwardPolicy))
 			}
-			return newLayerProgram(append(stages, layerStage(LayerOperatorResidual))...)
+			return newLayerProgram(append(stages, layerStage(layerOperatorResidual))...)
 		}
-		if profile.LayerTopology == LayerTopologySharedKVAdapter {
+		if profile.LayerTopology == layerTopologySharedKVAdapter {
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionSharedKVQKNorm),
-				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorFeedForwardParallelGatedGELU), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorOutputAdapter),
+				layerStage(layerOperatorAttentionNorm), attentionLayerStage(layerOperatorAttentionSharedKVQKNorm),
+				layerStage(layerOperatorAttentionPostNorm), layerStage(layerOperatorResidual),
+				layerStage(layerOperatorFeedForwardParallelGatedGELU), layerStage(layerOperatorResidual),
+				layerStage(layerOperatorOutputAdapter),
 			)
 		}
 		if profile.LayerTopology == LayerTopologyCausalPostQKNormSkip {
 			return newLayerProgram(
-				layerStage(LayerOperatorRMSNorm), attentionLayerStage(LayerOperatorAttentionCausalPostQKNorm),
-				layerStage(LayerOperatorResidual), layerStage(LayerOperatorRMSNorm),
-				layerStage(LayerOperatorFeedForwardPolicy), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorScaledSkip),
+				layerStage(layerOperatorRMSNorm), attentionLayerStage(layerOperatorAttentionCausalPostQKNorm),
+				layerStage(layerOperatorResidual), layerStage(layerOperatorRMSNorm),
+				layerStage(layerOperatorFeedForwardPolicy), layerStage(layerOperatorResidual),
+				layerStage(layerOperatorScaledSkip),
 			)
 		}
-		if profile.LayerTopology == LayerTopologyBidirectionalQKNorm {
+		if profile.LayerTopology == layerTopologyBidirectionalQKNorm {
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionNorm), attentionLayerStage(LayerOperatorAttentionBidirectionalQKNorm),
-				layerStage(LayerOperatorAttentionPostNorm), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardPolicy),
-				layerStage(LayerOperatorFeedForwardPostNorm), layerStage(LayerOperatorResidual),
+				layerStage(layerOperatorAttentionNorm), attentionLayerStage(layerOperatorAttentionBidirectionalQKNorm),
+				layerStage(layerOperatorAttentionPostNorm), layerStage(layerOperatorResidual),
+				layerStage(layerOperatorFeedForwardNorm), layerStage(layerOperatorFeedForwardPolicy),
+				layerStage(layerOperatorFeedForwardPostNorm), layerStage(layerOperatorResidual),
 			)
 		}
-		if profile.LayerTopology == LayerTopologyBidirectionalFusedQKV {
+		if profile.LayerTopology == layerTopologyBidirectionalFusedQKV {
 			return newLayerProgram(
-				attentionLayerStage(LayerOperatorAttentionBidirectionalFusedQKV), layerStage(LayerOperatorResidual),
-				layerStage(LayerOperatorFeedForwardNorm), layerStage(LayerOperatorFeedForwardPolicy),
-				layerStage(LayerOperatorResidual),
+				attentionLayerStage(layerOperatorAttentionBidirectionalFusedQKV), layerStage(layerOperatorResidual),
+				layerStage(layerOperatorFeedForwardNorm), layerStage(layerOperatorFeedForwardPolicy),
+				layerStage(layerOperatorResidual),
 			)
 		}
-		if profile.LayerTopology == LayerTopologyBidirectionalEncoder {
-			stages := []LayerOperatorInstruction{
-				attentionLayerStage(LayerOperatorAttentionBidirectionalEncoder),
-				layerStage(LayerOperatorAttentionResidualNorm),
+		if profile.LayerTopology == layerTopologyBidirectionalEncoder {
+			stages := []layerOperatorInstruction{
+				attentionLayerStage(layerOperatorAttentionBidirectionalEncoder),
+				layerStage(layerOperatorAttentionResidualNorm),
 			}
 			if profile.EncoderOperator.usesALiBiQKNorm() {
-				stages = append(stages, layerStage(LayerOperatorInputResidualNorm))
+				stages = append(stages, layerStage(layerOperatorInputResidualNorm))
 			}
 			return newLayerProgram(append(stages,
-				layerStage(LayerOperatorFeedForwardEncoder),
-				layerStage(LayerOperatorFeedForwardResidualNorm),
+				layerStage(layerOperatorFeedForwardEncoder),
+				layerStage(layerOperatorFeedForwardResidualNorm),
 			)...)
 		}
 		if plan.DeciSparse {
-			stages := []LayerOperatorInstruction{attentionLayerStage(LayerOperatorCacheSentinel)}
-			if plan.Composition == LayerCompositionIdentity {
+			stages := []layerOperatorInstruction{attentionLayerStage(layerOperatorCacheSentinel)}
+			if plan.Composition == layerCompositionIdentity {
 				return newLayerProgram(stages...)
 			}
-			if plan.Composition != LayerCompositionFeedForwardOnly {
-				stages = append(stages, layerStage(LayerOperatorAttentionNorm),
-					layerStage(LayerOperatorAttentionOutputProjection),
-					layerStage(LayerOperatorResidual))
+			if plan.Composition != layerCompositionFeedForwardOnly {
+				stages = append(stages, layerStage(layerOperatorAttentionNorm),
+					layerStage(layerOperatorAttentionOutputProjection),
+					layerStage(layerOperatorResidual))
 			}
 			return newLayerProgram(append(stages,
-				layerStage(LayerOperatorFeedForwardNorm),
-				layerStage(LayerOperatorFeedForwardPolicy),
-				layerStage(LayerOperatorResidual),
+				layerStage(layerOperatorFeedForwardNorm),
+				layerStage(layerOperatorFeedForwardPolicy),
+				layerStage(layerOperatorResidual),
 			)...)
 		}
-		if profile.LayerTopology == LayerTopologyPlannedDecoder && !plan.DeciSparse {
+		if profile.LayerTopology == layerTopologyPlannedDecoder && !plan.DeciSparse {
 			return newLayerProgram(
-				layerStage(LayerOperatorAttentionInputNorm),
-				attentionLayerStage(LayerOperatorAttentionPlannedProjection),
-				layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardInputNorm),
-				layerStage(LayerOperatorFeedForwardPolicy),
-				layerStage(LayerOperatorFeedForwardOutput), layerStage(LayerOperatorResidual),
+				layerStage(layerOperatorAttentionInputNorm),
+				attentionLayerStage(layerOperatorAttentionPlannedProjection),
+				layerStage(layerOperatorResidual), layerStage(layerOperatorFeedForwardInputNorm),
+				layerStage(layerOperatorFeedForwardPolicy),
+				layerStage(layerOperatorFeedForwardOutput), layerStage(layerOperatorResidual),
 			)
 		}
-		return LayerProgram{}, errors.New("layer program has no compiled topology")
-	case profile.LayerTopology == LayerTopologyKeyedDeltaHybrid:
+		return layerProgram{}, errors.New("layer program has no compiled topology")
+	case profile.LayerTopology == layerTopologyKeyedDeltaHybrid:
 		if !recurrent {
 			return latentLayerProgram(
 				profile, plan.ResidualStages.residualScale,
-				[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
+				[]runtimeCacheBinding{runtimeCachePrimaryKey, runtimeCachePrimaryValue}, nil,
 			)
 		}
 		return residualMixerProgram(
-			attentionLayerStage(LayerOperatorRecurrentMix),
-			LayerOperatorFeedForwardPolicy,
+			attentionLayerStage(layerOperatorRecurrentMix),
+			layerOperatorFeedForwardPolicy,
 		)
-	case plan.Attention == AttentionLatent:
+	case plan.Attention == attentionLatent:
 		return latentLayerProgram(
 			profile, plan.ResidualStages.residualScale,
-			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
+			[]runtimeCacheBinding{runtimeCachePrimaryKey, runtimeCachePrimaryValue}, nil,
 		)
 	case plan.Attention == AttentionSparseLatent:
 		return latentLayerProgram(
 			profile, plan.ResidualStages.residualScale,
-			[]RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheIndexerKey},
-			[]RuntimeTensorBinding{RuntimeTensorPerLayerInput},
+			[]runtimeCacheBinding{runtimeCachePrimaryKey, runtimeCachePrimaryValue, runtimeCacheIndexerKey},
+			[]runtimeTensorBinding{runtimeTensorPerLayerInput},
 		)
-	case profile.LayerTopology == LayerTopologyCompressedHyper:
+	case profile.LayerTopology == layerTopologyCompressedHyper:
 		return newLayerProgram(
 			leafLayerStage(
-				LayerOperatorHyperAttention,
-				[]RuntimeCacheBinding{RuntimeCachePrimaryKey},
-				[]RuntimeTensorBinding{RuntimeTensorCurrentPositions},
+				layerOperatorHyperAttention,
+				[]runtimeCacheBinding{runtimeCachePrimaryKey},
+				[]runtimeTensorBinding{runtimeTensorCurrentPositions},
 			),
-			layerStage(LayerOperatorHyperFeedForward),
+			layerStage(layerOperatorHyperFeedForward),
 		)
 	}
 }
@@ -1180,14 +1180,14 @@ func compileLayerProgram(plan LayerPlan, profile ArchitectureProfile) (LayerProg
 func (p LayerPlan) splitProjection() bool {
 	prefix, prefixOK := p.Program.Instruction(tensor.FirstOffset)
 	suffix, suffixOK := p.Program.Instruction(tensor.SingletonExtent)
-	return prefixOK && suffixOK && prefix.Operator == LayerOperatorActivationProjection &&
-		suffix.Operator == LayerOperatorActivatedOutput
+	return prefixOK && suffixOK && prefix.Operator == layerOperatorActivationProjection &&
+		suffix.Operator == layerOperatorActivatedOutput
 }
 
-func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOperator, scale ...float32) (LayerProgram, error) {
-	stages := []LayerOperatorInstruction{
-		layerStage(LayerOperatorAttentionNorm), mixer, layerStage(LayerOperatorResidual),
-		layerStage(LayerOperatorFeedForwardNorm), layerStage(feedForward), layerStage(LayerOperatorResidual),
+func residualMixerProgram(mixer layerOperatorInstruction, feedForward layerOperator, scale ...float32) (layerProgram, error) {
+	stages := []layerOperatorInstruction{
+		layerStage(layerOperatorAttentionNorm), mixer, layerStage(layerOperatorResidual),
+		layerStage(layerOperatorFeedForwardNorm), layerStage(feedForward), layerStage(layerOperatorResidual),
 	}
 	if len(scale) != 0 && positiveFinite(scale[tensor.FirstOffset]) {
 		stages = append(stages, scaleLayerStage(scale[tensor.FirstOffset]))
@@ -1198,26 +1198,26 @@ func residualMixerProgram(mixer LayerOperatorInstruction, feedForward LayerOpera
 func latentLayerProgram(
 	profile ArchitectureProfile,
 	scale float32,
-	caches []RuntimeCacheBinding,
-	tensors []RuntimeTensorBinding,
-) (LayerProgram, error) {
-	stages := []LayerOperatorInstruction{
-		layerStage(LayerOperatorAttentionNorm),
-		leafLayerStage(LayerOperatorLatentAttention, caches, tensors),
-		layerStage(LayerOperatorResidual), layerStage(LayerOperatorFeedForwardNorm),
-		layerStage(LayerOperatorFeedForwardPolicy),
+	caches []runtimeCacheBinding,
+	tensors []runtimeTensorBinding,
+) (layerProgram, error) {
+	stages := []layerOperatorInstruction{
+		layerStage(layerOperatorAttentionNorm),
+		leafLayerStage(layerOperatorLatentAttention, caches, tensors),
+		layerStage(layerOperatorResidual), layerStage(layerOperatorFeedForwardNorm),
+		layerStage(layerOperatorFeedForwardPolicy),
 	}
 	if profile.LatentAttention == latentAttentionNeoXResidualScale {
 		stages = append(stages, scaleLayerStage(scale))
 	}
-	return newLayerProgram(append(stages, layerStage(LayerOperatorResidual))...)
+	return newLayerProgram(append(stages, layerStage(layerOperatorResidual))...)
 }
 
 func leafLayerStage(
-	operator LayerOperator,
-	caches []RuntimeCacheBinding,
-	tensors []RuntimeTensorBinding,
-) LayerOperatorInstruction {
+	operator layerOperator,
+	caches []runtimeCacheBinding,
+	tensors []runtimeTensorBinding,
+) layerOperatorInstruction {
 	instruction := layerStage(operator)
 	instruction.CacheCount = uint8(len(caches))
 	instruction.TensorCount = uint8(len(tensors))
@@ -1226,83 +1226,83 @@ func leafLayerStage(
 	return instruction
 }
 
-func layerStage(operator LayerOperator) LayerOperatorInstruction {
-	return LayerOperatorInstruction{Operator: operator}
+func layerStage(operator layerOperator) layerOperatorInstruction {
+	return layerOperatorInstruction{Operator: operator}
 }
 
-func scaleLayerStage(scale float32) LayerOperatorInstruction {
-	return LayerOperatorInstruction{Operator: LayerOperatorScale, Scalar: scale}
+func scaleLayerStage(scale float32) layerOperatorInstruction {
+	return layerOperatorInstruction{Operator: layerOperatorScale, Scalar: scale}
 }
 
-func attentionLayerStage(operator LayerOperator) LayerOperatorInstruction {
+func attentionLayerStage(operator layerOperator) layerOperatorInstruction {
 	return leafLayerStage(
-		operator, []RuntimeCacheBinding{RuntimeCachePrimaryKey, RuntimeCachePrimaryValue}, nil,
+		operator, []runtimeCacheBinding{runtimeCachePrimaryKey, runtimeCachePrimaryValue}, nil,
 	)
 }
 
-func hybridLayerStage() LayerOperatorInstruction {
+func hybridLayerStage() layerOperatorInstruction {
 	return leafLayerStage(
-		LayerOperatorHybridMix,
-		[]RuntimeCacheBinding{
-			RuntimeCachePrimaryKey, RuntimeCachePrimaryValue, RuntimeCacheConvolution, RuntimeCacheSSM,
+		layerOperatorHybridMix,
+		[]runtimeCacheBinding{
+			runtimeCachePrimaryKey, runtimeCachePrimaryValue, runtimeCacheConvolution, runtimeCacheSSM,
 		}, nil,
 	)
 }
 
-func tokenShiftLayerStage(operator LayerOperator) LayerOperatorInstruction {
-	return leafLayerStage(operator, []RuntimeCacheBinding{RuntimeCachePrimaryKey}, nil)
+func tokenShiftLayerStage(operator layerOperator) layerOperatorInstruction {
+	return leafLayerStage(operator, []runtimeCacheBinding{runtimeCachePrimaryKey}, nil)
 }
 
-func pairedInputLayerStage() LayerOperatorInstruction {
+func pairedInputLayerStage() layerOperatorInstruction {
 	return leafLayerStage(
-		LayerOperatorPairedInputNorm, nil, []RuntimeTensorBinding{RuntimeTensorPerLayerInput},
+		layerOperatorPairedInputNorm, nil, []runtimeTensorBinding{runtimeTensorPerLayerInput},
 	)
 }
 
-func relativeEncoderProgram() (LayerProgram, error) {
+func relativeEncoderProgram() (layerProgram, error) {
 	return newLayerProgram(
-		layerStage(LayerOperatorAttentionNorm),
-		layerStage(LayerOperatorAttentionRelativeBidirectional),
-		layerStage(LayerOperatorResidual),
-		layerStage(LayerOperatorFeedForwardRelative),
-		layerStage(LayerOperatorResidual),
+		layerStage(layerOperatorAttentionNorm),
+		layerStage(layerOperatorAttentionRelativeBidirectional),
+		layerStage(layerOperatorResidual),
+		layerStage(layerOperatorFeedForwardRelative),
+		layerStage(layerOperatorResidual),
 	)
 }
 
-func relativeDecoderProgram() (LayerProgram, error) {
+func relativeDecoderProgram() (layerProgram, error) {
 	return newLayerProgram(
-		layerStage(LayerOperatorAttentionNorm),
-		attentionLayerStage(LayerOperatorAttentionRelativeCausal),
-		layerStage(LayerOperatorResidual),
-		layerStage(LayerOperatorCrossAttentionNorm),
+		layerStage(layerOperatorAttentionNorm),
+		attentionLayerStage(layerOperatorAttentionRelativeCausal),
+		layerStage(layerOperatorResidual),
+		layerStage(layerOperatorCrossAttentionNorm),
 		leafLayerStage(
-			LayerOperatorAttentionCross,
-			[]RuntimeCacheBinding{RuntimeCacheCrossKey, RuntimeCacheCrossValue},
-			[]RuntimeTensorBinding{RuntimeTensorEncoder},
+			layerOperatorAttentionCross,
+			[]runtimeCacheBinding{runtimeCacheCrossKey, runtimeCacheCrossValue},
+			[]runtimeTensorBinding{runtimeTensorEncoder},
 		),
-		layerStage(LayerOperatorResidual),
-		layerStage(LayerOperatorFeedForwardRelative),
-		layerStage(LayerOperatorResidual),
+		layerStage(layerOperatorResidual),
+		layerStage(layerOperatorFeedForwardRelative),
+		layerStage(layerOperatorResidual),
 	)
 }
 
-func newLayerProgram(stages ...LayerOperatorInstruction) (LayerProgram, error) {
+func newLayerProgram(stages ...layerOperatorInstruction) (layerProgram, error) {
 	if len(stages) == tensor.FirstOffset {
-		return LayerProgram{}, errors.New("layer program is empty")
+		return layerProgram{}, errors.New("layer program is empty")
 	}
-	return LayerProgram{Instructions: stages}, nil
+	return layerProgram{Instructions: stages}, nil
 }
 
 func cachePolicy(spec Spec, profile ArchitectureProfile, layer uint32, recurrent bool) CachePolicy {
-	if recurrent && profile.RecurrentCache != CacheAttention {
+	if recurrent && profile.RecurrentCache != cacheAttention {
 		return profile.RecurrentCache
 	}
-	if profile.Cache != CacheAttention {
+	if profile.Cache != cacheAttention {
 		return profile.Cache
 	}
-	if profile.CacheFallback == CacheFallbackFeedForward && spec.LayerHasFeedForward(layer) ||
-		profile.CacheFallback == CacheFallbackMissingKV && !spec.LayerHasKVHeads(layer) {
-		return CacheSentinel
+	if profile.CacheFallback == cacheFallbackFeedForward && spec.LayerHasFeedForward(layer) ||
+		profile.CacheFallback == cacheFallbackMissingKV && !spec.LayerHasKVHeads(layer) {
+		return cacheSentinel
 	}
-	return CacheAttention
+	return cacheAttention
 }

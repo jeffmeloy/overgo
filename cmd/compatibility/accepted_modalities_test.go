@@ -35,8 +35,6 @@ func TestAcceptedModalityCoverage(t *testing.T) {
 	t.Run("case-denominators", TestProtocolCaseProjection)
 	t.Run("resource-denominators", TestResourceCaseProjection)
 	output := acceptedProtocolCoverageProjection(t)
-	// Current resource admission stays separate; this checks the original source.
-	checkE4BResourceRefresh(t, false)
 	root := testutil.RepoRoot(t)
 	for path, want := range map[string][]byte{mediaReportPath: output.Markdown, mediaProjectionPath: output.JSON} {
 		got, err := os.ReadFile(filepath.Join(root, path))

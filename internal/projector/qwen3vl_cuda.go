@@ -10,12 +10,12 @@ import (
 	"overgo/internal/tensor/reference"
 )
 
-func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qwen3VLOutput, error) {
+func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (qwen3VLOutput, error) {
 	rows := input.GridT * input.GridH * input.GridW
 	patchArea := r.spec.PatchSize * r.spec.PatchSize
 	pixels0, pixels1, temporalWidth, err := splitTemporalPatchPairs(input.PixelValues, rows, patchArea)
 	if err != nil {
-		return Qwen3VLOutput{}, err
+		return qwen3VLOutput{}, err
 	}
 	builder := tensor.NewBuilder()
 	input0 := builder.Input(visionInputTensor+".0", dtype.F32, tensor.MustShape(uint64(temporalWidth), uint64(rows)))
@@ -88,13 +88,13 @@ func (r *Qwen3VLRunner) encodeGraph(ctx context.Context, input Qwen3VLImage) (Qw
 	targets := append([]*tensor.Tensor{output}, deepstack...)
 	results, err := graph.execute(targets...)
 	if err != nil {
-		return Qwen3VLOutput{}, fmt.Errorf("projector: execute Qwen3-VL graph: %w", err)
+		return qwen3VLOutput{}, fmt.Errorf("projector: execute Qwen3-VL graph: %w", err)
 	}
 	streams := make([]reference.Value, len(deepstack))
 	for index, target := range deepstack {
 		streams[index] = results[target]
 	}
-	return Qwen3VLOutput{
+	return qwen3VLOutput{
 		Embeddings: results[output], DeepstackEmbeddings: streams,
 		GridT: input.GridT, GridH: input.GridH, GridW: input.GridW, MergeSize: r.spec.MergeSize,
 	}, nil

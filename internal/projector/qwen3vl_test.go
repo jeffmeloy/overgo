@@ -43,8 +43,8 @@ func fixtureMediaPreprocessOptions(t *testing.T, options OpenOptions) OpenOption
 func (qwen3VLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
 	ids := make([]tokenizer.TokenID, 0, len(text))
 	for len(text) > 0 {
-		if strings.HasPrefix(text, Qwen3VLImagePad) {
-			ids, text = append(ids, 8), text[len(Qwen3VLImagePad):]
+		if strings.HasPrefix(text, qwen3VLImagePad) {
+			ids, text = append(ids, 8), text[len(qwen3VLImagePad):]
 		} else {
 			ids, text = append(ids, 1), text[1:]
 		}
@@ -91,7 +91,7 @@ func TestQwen3VLRealFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	processed, err := PreprocessQwen3VLImage(input, runner.Spec(), fixtureMediaPreprocessProfile(t).Image)
+	processed, err := PreprocessQwen3VLFrames([]image.Image{input}, runner.Spec(), fixtureMediaPreprocessProfile(t).Image)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestQwen3VLRunnerTinyFixture(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
 		}
 	}
-	output, err := runner.EncodeImage(t.Context(), input, Qwen3VLPreprocessOptions{
+	output, err := runner.EncodeImage(t.Context(), input, qwen3VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
@@ -193,7 +193,7 @@ func TestQwen3VLDeepstackTinyFixture(t *testing.T) {
 		t.Fatalf("deepstack flags = %v", runner.Spec().DeepstackLayers)
 	}
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	output, err := runner.EncodeImage(t.Context(), input, Qwen3VLPreprocessOptions{
+	output, err := runner.EncodeImage(t.Context(), input, qwen3VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
@@ -213,7 +213,7 @@ func TestQwen3VLDeepstackCUDAMatchesCPU(t *testing.T) {
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen3VLDeepstackMetadata(), tinyQwen3VLDeepstackTensors())
 	cpu, cuda := parityRunners[*Qwen3VLRunner](t, path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	options := Qwen3VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
+	options := qwen3VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
 	want, err := cpu.EncodeImage(t.Context(), input, options)
 	if err != nil {
 		t.Fatal(err)
@@ -324,7 +324,7 @@ func compareFloat32Tolerance(t *testing.T, name string, got, want []float32, tol
 }
 
 func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
-	spec := Qwen3VLSpec{
+	spec := qwen3VLSpec{
 		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1),
 		MergerIntermediate: 16, OutputHidden: 6, MergeSize: fixtureSpatialMerge,
 	}
@@ -334,7 +334,7 @@ func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
 			input.SetRGBA(x, y, color.RGBA{R: uint8(y*4 + x), A: fixtureOpaqueAlpha})
 		}
 	}
-	processed, err := PreprocessQwen3VLImage(input, spec, Qwen3VLPreprocessOptions{
+	processed, err := PreprocessQwen3VLFrames([]image.Image{input}, spec, qwen3VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {
@@ -353,7 +353,7 @@ func TestPreprocessQwen3VLImageMergedOrder(t *testing.T) {
 }
 
 func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
-	spec := Qwen3VLSpec{
+	spec := qwen3VLSpec{
 		visionBackboneSpec: fixtureVisionBackbone(4, 2, 4, 8, 1, 1),
 		MergerIntermediate: 16, OutputHidden: 6, MergeSize: fixtureSpatialMerge,
 	}
@@ -367,7 +367,7 @@ func TestPreprocessQwen3VLFramesTemporalOrder(t *testing.T) {
 		}
 		frames[index] = frame
 	}
-	processed, err := PreprocessQwen3VLFrames(frames, spec, Qwen3VLPreprocessOptions{
+	processed, err := PreprocessQwen3VLFrames(frames, spec, qwen3VLPreprocessOptions{
 		MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget,
 	})
 	if err != nil {

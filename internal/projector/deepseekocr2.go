@@ -19,26 +19,26 @@ const (
 	deepSeekOCR2ProjectorType = "deepseekocr2"
 )
 
-type DeepSeekOCR2Spec struct {
-	DeepSeekOCRSpec
+type deepSeekOCR2Spec struct {
+	deepSeekOCRSpec
 	KVHeads       int
 	RopeFrequency float32
 }
 
-type DeepSeekOCR2Runner struct {
+type deepSeekOCR2Runner struct {
 	projectorResources
-	spec         DeepSeekOCR2Spec
+	spec         deepSeekOCR2Spec
 	samPosition  reference.Value
 	separator    reference.Value
 	dynamicTiles bool
 }
 
-func openDeepSeekOCR2(ctx context.Context, file *gguf.File, options OpenOptions) (*DeepSeekOCR2Runner, error) {
-	spec, err := ReadDeepSeekOCR2Spec(file)
+func openDeepSeekOCR2(ctx context.Context, file *gguf.File, options OpenOptions) (*deepSeekOCR2Runner, error) {
+	spec, err := readDeepSeekOCR2Spec(file)
 	if err != nil {
 		return nil, err
 	}
-	runner := &DeepSeekOCR2Runner{projectorResources: projectorResources{file: file}, spec: spec, dynamicTiles: !options.DisableDynamicTiles}
+	runner := &deepSeekOCR2Runner{projectorResources: projectorResources{file: file}, spec: spec, dynamicTiles: !options.DisableDynamicTiles}
 	runner.samPosition, err = loadProjectorHostTensor(ctx, file, "v.sam.pos_embd.weight")
 	if err != nil {
 		return nil, err
@@ -59,39 +59,39 @@ func openDeepSeekOCR2(ctx context.Context, file *gguf.File, options OpenOptions)
 	return runner, nil
 }
 
-func (r *DeepSeekOCR2Runner) Spec() DeepSeekOCR2Spec {
+func (r *deepSeekOCR2Runner) Spec() deepSeekOCR2Spec {
 	if r == nil {
-		return DeepSeekOCR2Spec{}
+		return deepSeekOCR2Spec{}
 	}
 	return r.spec
 }
 
-func ReadDeepSeekOCR2Spec(file *gguf.File) (DeepSeekOCR2Spec, error) {
+func readDeepSeekOCR2Spec(file *gguf.File) (deepSeekOCR2Spec, error) {
 	base, err := readDeepSeekOCRBaseSpec(file, deepSeekOCR2ProjectorType)
 	if err != nil {
-		return DeepSeekOCR2Spec{}, err
+		return deepSeekOCR2Spec{}, err
 	}
 	kvHeads, err := metadataUint32(file, visionKVHeadCountKey)
 	if err != nil {
-		return DeepSeekOCR2Spec{}, err
+		return deepSeekOCR2Spec{}, err
 	}
 	ropeFrequency, err := metadataFloat32(file, visionRopeFrequencyKey)
 	if err != nil {
-		return DeepSeekOCR2Spec{}, err
+		return deepSeekOCR2Spec{}, err
 	}
-	spec := DeepSeekOCR2Spec{DeepSeekOCRSpec: base, KVHeads: int(kvHeads), RopeFrequency: ropeFrequency}
+	spec := deepSeekOCR2Spec{deepSeekOCRSpec: base, KVHeads: int(kvHeads), RopeFrequency: ropeFrequency}
 	if spec.KVHeads <= 0 || spec.Heads%spec.KVHeads != 0 || !checked.PositiveFinite32(spec.RopeFrequency) {
-		return DeepSeekOCR2Spec{}, fmt.Errorf("projector: invalid DeepSeek-OCR-2 KV head count %d", spec.KVHeads)
+		return deepSeekOCR2Spec{}, fmt.Errorf("projector: invalid DeepSeek-OCR-2 KV head count %d", spec.KVHeads)
 	}
 	spec.TensorNames = deepSeekOCR2TensorNames(file, spec)
 	if err := validateDeepSeekOCR2Catalog(file, spec); err != nil {
-		return DeepSeekOCR2Spec{}, err
+		return deepSeekOCR2Spec{}, err
 	}
 	return spec, nil
 }
 
-func deepSeekOCR2TensorNames(file *gguf.File, spec DeepSeekOCR2Spec) []string {
-	names := append(deepSeekOCRSAMTensorNames(spec.DeepSeekOCRSpec),
+func deepSeekOCR2TensorNames(file *gguf.File, spec deepSeekOCR2Spec) []string {
+	names := append(deepSeekOCRSAMTensorNames(spec.deepSeekOCRSpec),
 		"v.resample_query_768.weight", "v.resample_query_1024.weight",
 		multimodalProjectionWeight, multimodalProjectionBias, visionViewSeparatorTensor)
 	names = appendPresentTensorNames(names, file,
@@ -105,7 +105,7 @@ func deepSeekOCR2TensorNames(file *gguf.File, spec DeepSeekOCR2Spec) []string {
 	})
 }
 
-func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
+func validateDeepSeekOCR2Catalog(file *gguf.File, spec deepSeekOCR2Spec) error {
 	if err := validateProjectorTensorNames(file, spec.TensorNames); err != nil {
 		return err
 	}
@@ -151,11 +151,11 @@ func validateDeepSeekOCR2Catalog(file *gguf.File, spec DeepSeekOCR2Spec) error {
 	return nil
 }
 
-func (r *DeepSeekOCR2Runner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
+func (r *deepSeekOCR2Runner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
 	if r == nil || r.file == nil {
 		return reference.Value{}, errRunnerClosed
 	}
-	input, err := preprocessDeepSeekOCRImage(source, r.spec.DeepSeekOCRSpec, r.dynamicTiles)
+	input, err := preprocessDeepSeekOCRImage(source, r.spec.deepSeekOCRSpec, r.dynamicTiles)
 	if err != nil {
 		return reference.Value{}, err
 	}
@@ -169,7 +169,7 @@ func (r *DeepSeekOCR2Runner) EncodeImage(ctx context.Context, source image.Image
 	return r.assemble(values, input.GridW, input.GridH)
 }
 
-func (r *DeepSeekOCR2Runner) encodeTile(ctx context.Context, source image.Image, overview bool) (reference.Value, error) {
+func (r *deepSeekOCR2Runner) encodeTile(ctx context.Context, source image.Image, overview bool) (reference.Value, error) {
 	bounds := source.Bounds()
 	size := bounds.Dx()
 	_, aligned := checked.DivExactInt(size, r.spec.PatchSize)
@@ -178,7 +178,7 @@ func (r *DeepSeekOCR2Runner) encodeTile(ctx context.Context, source image.Image,
 	}
 	builder := tensor.NewBuilder()
 	input := builder.Input(visionInputTensor, dtype.F32, tensor.MustShape(media.RGBChannels, uint64(size), uint64(size)))
-	shared := DeepSeekOCRRunner{spec: r.spec.DeepSeekOCRSpec}
+	shared := DeepSeekOCRRunner{spec: r.spec.deepSeekOCRSpec}
 	graph := newProjectorGraphRuntime(ctx, r.file, r.cuda, builder)
 	graph.hostFeeds[input] = pixelsValue(input, shared.tilePixels(source))
 	output := r.buildGraph(builder, input, size, overview, graph.weight, graph.hostFeeds)
@@ -189,8 +189,8 @@ func (r *DeepSeekOCR2Runner) encodeTile(ctx context.Context, source image.Image,
 	return results[output], nil
 }
 
-func (r *DeepSeekOCR2Runner) buildGraph(builder *tensor.Builder, input *tensor.Tensor, size int, overview bool, weight func(string) *tensor.Tensor, hostFeeds map[*tensor.Tensor]reference.Value) *tensor.Tensor {
-	shared := DeepSeekOCRRunner{spec: r.spec.DeepSeekOCRSpec, samPosition: r.samPosition}
+func (r *deepSeekOCR2Runner) buildGraph(builder *tensor.Builder, input *tensor.Tensor, size int, overview bool, weight func(string) *tensor.Tensor, hostFeeds map[*tensor.Tensor]reference.Value) *tensor.Tensor {
+	shared := DeepSeekOCRRunner{spec: r.spec.deepSeekOCRSpec, samPosition: r.samPosition}
 	hidden := shared.buildSAMGraph(builder, input, size, weight, hostFeeds)
 	patches := hidden.Shape.Dims[tensor.SingletonExtent] * hidden.Shape.Dims[tensor.PairedExtent]
 	hidden = builder.Reshape(hidden, hidden.Shape.Dims[tensor.FirstOffset], patches)
@@ -262,7 +262,7 @@ func (r *DeepSeekOCR2Runner) buildGraph(builder *tensor.Builder, input *tensor.T
 	return builder.Add(projected, builder.Reshape(weight(multimodalProjectionBias), uint64(r.spec.OutputHidden), tensor.SingletonExtent))
 }
 
-func (r *DeepSeekOCR2Runner) assemble(values []reference.Value, gridW, gridH int) (reference.Value, error) {
+func (r *deepSeekOCR2Runner) assemble(values []reference.Value, gridW, gridH int) (reference.Value, error) {
 	if len(values) != gridW*gridH+tensor.SingletonExtent {
 		return reference.Value{}, errors.New("projector: DeepSeek-OCR-2 tile grid is inconsistent")
 	}
@@ -281,7 +281,7 @@ func (r *DeepSeekOCR2Runner) assemble(values []reference.Value, gridW, gridH int
 	return reference.Value{Shape: tensor.MustShape(uint64(r.spec.OutputHidden), uint64(len(output)/r.spec.OutputHidden)), Data: output}, nil
 }
 
-func (r *DeepSeekOCR2Runner) validateGraphs() error {
+func (r *deepSeekOCR2Runner) validateGraphs() error {
 	for _, item := range []struct {
 		size     int
 		overview bool

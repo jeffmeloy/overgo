@@ -74,15 +74,15 @@ type trainingWorkflowInput struct {
 	ObjectiveScale float64     `json:"objective_scale"`
 }
 
-func (workspace *trainingWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
-	if workspace == nil || ctx == nil || reporter == nil || kind != WorkflowTraining || task != recipe.TaskTraining || recipeID != workspace.program.Definition().ID {
+func (workspace *trainingWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, capability WorkflowCapability, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
+	if workspace == nil || ctx == nil || reporter == nil || kind != WorkflowTraining || capability.Task != recipe.TaskTraining || capability.Recipe != workspace.program.Definition().ID {
 		return operation.Completion{}, errors.New("training workspace: workflow is not admitted")
 	}
 	var input trainingWorkflowInput
 	if err := strictjson.DecodeBytes(raw, &input); err != nil {
 		return operation.Completion{}, err
 	}
-	return workspace.executeWorkflow(ctx, recipeID, input, reporter)
+	return workspace.executeWorkflow(ctx, capability.Recipe, input, reporter)
 }
 
 // PreviewWorkflow pages the input's dataset as this workspace's objective

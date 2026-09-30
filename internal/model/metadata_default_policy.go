@@ -13,23 +13,23 @@ import (
 type RopeDimensionDefaultPolicy uint8
 
 const (
-	RopeDimensionDefaultNone RopeDimensionDefaultPolicy = iota
-	RopeDimensionDefaultKeyLength
-	RopeDimensionDefaultKeyLengthOverride
+	ropeDimensionDefaultNone RopeDimensionDefaultPolicy = iota
+	ropeDimensionDefaultKeyLength
+	ropeDimensionDefaultKeyLengthOverride
 )
 
 // SharedExpertDefaultPolicy: omitted shared-expert width relationship.
 type SharedExpertDefaultPolicy uint8
 
 const (
-	SharedExpertDefaultNone SharedExpertDefaultPolicy = iota
-	SharedExpertDefaultModelFeedForward
-	SharedExpertDefaultExpertFeedForward
-	SharedExpertDefaultExpertProduct
+	sharedExpertDefaultNone SharedExpertDefaultPolicy = iota
+	sharedExpertDefaultModelFeedForward
+	sharedExpertDefaultExpertFeedForward
+	sharedExpertDefaultExpertProduct
 )
 
-// MetadataDefaultPolicy: serialized architecture defaults and override keys.
-type MetadataDefaultPolicy struct {
+// metadataDefaultPolicy: serialized architecture defaults and override keys.
+type metadataDefaultPolicy struct {
 	AttentionSoftcap           float32
 	AttentionOutputScale       float32
 	EmbeddingScale             float32
@@ -67,22 +67,22 @@ type MetadataDefaultPolicy struct {
 	SharedExpert               SharedExpertDefaultPolicy
 }
 
-func (p MetadataDefaultPolicy) uint(values map[string]gguf.Value, prefix, key string, fallback uint32) uint32 {
+func (p metadataDefaultPolicy) uint(values map[string]gguf.Value, prefix, key string, fallback uint32) uint32 {
 	return optionalOr(values, prefix+key, gguf.ValueTypeUint32, fallback)
 }
 
-func (p MetadataDefaultPolicy) readSharedExpertFeedForward(
+func (p metadataDefaultPolicy) readSharedExpertFeedForward(
 	values map[string]gguf.Value,
 	prefix string,
 	spec Spec,
 ) (uint32, error) {
 	var fallback uint32
 	switch p.SharedExpert {
-	case SharedExpertDefaultModelFeedForward:
+	case sharedExpertDefaultModelFeedForward:
 		fallback = spec.FeedForwardLength
-	case SharedExpertDefaultExpertFeedForward:
+	case sharedExpertDefaultExpertFeedForward:
 		fallback = spec.ExpertFeedForward
-	case SharedExpertDefaultExpertProduct:
+	case sharedExpertDefaultExpertProduct:
 		if spec.ExpertFeedForward == tensor.FirstOffset || spec.SharedExpertCount > math.MaxUint32/spec.ExpertFeedForward {
 			return 0, errors.New("shared expert feed-forward extent overflows")
 		}
@@ -100,7 +100,7 @@ func derivedExpertFeedForward(spec Spec) (uint32, error) {
 	return spec.FeedForwardLength / spec.ExpertUsedCount, nil
 }
 
-func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string, spec *Spec) {
+func (p metadataDefaultPolicy) read(values map[string]gguf.Value, prefix string, spec *Spec) {
 	readFloat := func(key string, fallback float32) float32 {
 		if value, ok := optional[float32](values, prefix+key, gguf.ValueTypeFloat32); ok {
 			return value
@@ -141,9 +141,9 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 			values, prefix+"attention.sliding_window_pattern", gguf.ValueTypeUint32, p.SlidingPattern,
 		)
 	}
-	if p.RopeDimension != RopeDimensionDefaultNone {
+	if p.RopeDimension != ropeDimensionDefaultNone {
 		spec.RopeDimensionCount = spec.KeyLength
-		if p.RopeDimension == RopeDimensionDefaultKeyLengthOverride {
+		if p.RopeDimension == ropeDimensionDefaultKeyLengthOverride {
 			if value, ok := optional[uint32](values, prefix+"rope.dimension_count", gguf.ValueTypeUint32); ok {
 				spec.RopeDimensionCount = value
 			}
@@ -176,7 +176,7 @@ func (p MetadataDefaultPolicy) read(values map[string]gguf.Value, prefix string,
 	}
 }
 
-func (p MetadataDefaultPolicy) readPosition(spec *Spec) {
+func (p metadataDefaultPolicy) readPosition(spec *Spec) {
 	if p.RopeDisabled {
 		spec.RopeDisabled = true
 		spec.MaxALiBiBias = p.MaxALiBiBias

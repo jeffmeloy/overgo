@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -98,6 +100,13 @@ type WorkflowCapability struct {
 	// model is projected from the compiled recipe by native workspace owners.
 	// It must not be inferred from an unrelated co-hosted text runner.
 	model artifact.ID
+	// workspace is the member of a workspace set that listed the capability,
+	// so its run goes there without listing again.
+	workspace WorkflowWorkspaceAPI
+	// execution and directory are what a store generation listing resolved,
+	// so its run resolves neither again.
+	execution modelrecipe.CapabilityEvidenceSelection
+	directory string
 	// Native streaming remains attached to the selected workspace capability;
 	// aggregating workspaces does not create a separate audio registry.
 	transcriptionStream func(context.Context, speechrecognition.StreamRequest) (*transcriptionHTTPStream, error)
@@ -114,7 +123,8 @@ const (
 
 type WorkflowWorkspaceAPI interface {
 	WorkflowCapabilities(context.Context, WorkflowKind) ([]WorkflowCapability, error)
-	ExecuteWorkflow(context.Context, WorkflowKind, recipe.Task, artifact.ID, json.RawMessage, operation.Reporter) (operation.Completion, error)
+	// ExecuteWorkflow runs a capability the workspace listed, as listed.
+	ExecuteWorkflow(context.Context, WorkflowKind, WorkflowCapability, json.RawMessage, operation.Reporter) (operation.Completion, error)
 }
 
 // workflowPreviewAPI is a workflow workspace that shows one page of a run's
@@ -135,7 +145,7 @@ func (set WorkflowWorkspaceSet) PreviewWorkflow(ctx context.Context, kind Workfl
 		if _, err = selectWorkflowCapability(capabilities, task, recipeID); err != nil {
 			continue
 		}
-		return PreviewWorkflowIn(ctx, workspace, kind, task, recipeID, raw, position, limit)
+		return previewWorkflowIn(ctx, workspace, kind, task, recipeID, raw, position, limit)
 	}
 	return nil, errors.New("workflow workspace: task and recipe are not admitted")
 }
@@ -143,9 +153,8 @@ func (set WorkflowWorkspaceSet) PreviewWorkflow(ctx context.Context, kind Workfl
 // errWorkflowPreviewUnavailable: the workflow reads its input only when it runs.
 var errWorkflowPreviewUnavailable = errors.New("workflow workspace: this workflow has no input preview")
 
-// PreviewWorkflowIn asks a workspace for a preview, as a runtime that wraps
-// its workspaces forwards it.
-func PreviewWorkflowIn(ctx context.Context, workspace WorkflowWorkspaceAPI, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
+// previewWorkflowIn asks a workspace for a preview.
+func previewWorkflowIn(ctx context.Context, workspace WorkflowWorkspaceAPI, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
 	previewer, ok := workspace.(workflowPreviewAPI)
 	if !ok {
 		return nil, errWorkflowPreviewUnavailable
@@ -179,22 +188,20 @@ func (set WorkflowWorkspaceSet) WorkflowCapabilities(ctx context.Context, kind W
 		if err != nil {
 			return nil, err
 		}
-		capabilities = append(capabilities, current...)
+		for _, capability := range current {
+			capability.workspace = cmp.Or(capability.workspace, workspace)
+			capabilities = append(capabilities, capability)
+		}
 	}
 	return capabilities, nil
 }
 
-func (set WorkflowWorkspaceSet) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
-	for _, workspace := range set {
-		capabilities, err := workspace.WorkflowCapabilities(ctx, kind)
-		if err != nil {
-			return operation.Completion{}, err
-		}
-		if _, err = selectWorkflowCapability(capabilities, task, recipeID); err == nil {
-			return workspace.ExecuteWorkflow(ctx, kind, task, recipeID, raw, reporter)
-		}
+// ExecuteWorkflow runs the capability in the member workspace that listed it.
+func (set WorkflowWorkspaceSet) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, capability WorkflowCapability, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
+	if capability.workspace == nil {
+		return operation.Completion{}, errors.New("workflow workspace: task and recipe are not admitted")
 	}
-	return operation.Completion{}, errors.New("workflow workspace: task and recipe are not admitted")
+	return capability.workspace.ExecuteWorkflow(ctx, kind, capability, raw, reporter)
 }
 
 type workflowRequest struct {
@@ -254,15 +261,20 @@ func validateWorkflowSources(ctx context.Context, repository *overgodb.Store, so
 	return nil
 }
 
-// workflowRoute serves one workflow kind's route over the workflow workspace.
-func workflowRoute(kind WorkflowKind, serve func(*Handler, WorkflowWorkspaceAPI, http.ResponseWriter, *http.Request, WorkflowKind)) routeHandler {
-	return generatorWorkspace(string(kind)+" workspace is unavailable", func(h *Handler, workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
-		serve(h, workspace, response, request, kind)
-	})
+// workflowRoute serves one workflow kind's route over the workflow
+// workspace; a launch without one answers 501 with what is missing.
+func workflowRoute(kind WorkflowKind, serve func(*Handler, http.ResponseWriter, *http.Request, WorkflowKind)) routeHandler {
+	return func(h *Handler, response http.ResponseWriter, request *http.Request) {
+		if h.config.Workflows == nil {
+			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, string(kind)+" workspace is unavailable")
+			return
+		}
+		serve(h, response, request, kind)
+	}
 }
 
-func (h *Handler) workflowCapabilities(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
-	capabilities, err := workspace.WorkflowCapabilities(request.Context(), kind)
+func (h *Handler) workflowCapabilities(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
+	capabilities, err := h.config.Workflows.WorkflowCapabilities(request.Context(), kind)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
@@ -281,12 +293,12 @@ func (h *Handler) workflowCapabilities(workspace WorkflowWorkspaceAPI, response 
 // admitWorkflow decodes a submission and holds it to the checks a run
 // makes: an active capability, its controls, stored sources; a refusal
 // is written.
-func (h *Handler) admitWorkflow(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) (workflowRequest, WorkflowCapability, bool) {
+func (h *Handler) admitWorkflow(response http.ResponseWriter, request *http.Request, kind WorkflowKind) (workflowRequest, WorkflowCapability, bool) {
 	var body workflowRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return body, WorkflowCapability{}, false
 	}
-	capabilities, err := workspace.WorkflowCapabilities(request.Context(), kind)
+	capabilities, err := h.config.Workflows.WorkflowCapabilities(request.Context(), kind)
 	if err != nil {
 		writeGenerationError(response, err)
 		return body, WorkflowCapability{}, false
@@ -307,12 +319,12 @@ func (h *Handler) admitWorkflow(workspace WorkflowWorkspaceAPI, response http.Re
 	return body, capability, true
 }
 
-func (h *Handler) workflowRun(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
-	body, capability, admitted := h.admitWorkflow(workspace, response, request, kind)
+func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
+	body, capability, admitted := h.admitWorkflow(response, request, kind)
 	if !admitted {
 		return
 	}
-	id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), workspace, kind, capability, body.Input, body.Sources)
+	id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), kind, capability, body.Input, body.Sources)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
@@ -331,8 +343,8 @@ type workflowCommand struct {
 // submission without running it: a generation recipe also runs from
 // cmd/recipe on the same executor catalog and store, and every submission
 // runs again by posting it to this server.
-func (h *Handler) workflowCommands(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
-	body, capability, admitted := h.admitWorkflow(workspace, response, request, kind)
+func (h *Handler) workflowCommands(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
+	body, capability, admitted := h.admitWorkflow(response, request, kind)
 	if !admitted {
 		return
 	}
@@ -373,7 +385,7 @@ type workflowPreviewRequest struct {
 
 // workflowPreview answers one page of a run's input as the workflow reads it;
 // the input need hold only what the preview reads.
-func (h *Handler) workflowPreview(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
+func (h *Handler) workflowPreview(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
 	var body workflowPreviewRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return
@@ -382,7 +394,7 @@ func (h *Handler) workflowPreview(workspace WorkflowWorkspaceAPI, response http.
 		writeInvalidRequestMessage(response, "invalid workflow preview page")
 		return
 	}
-	preview, err := PreviewWorkflowIn(request.Context(), workspace, kind, body.Task, body.Recipe, body.Input, body.Position, body.Limit)
+	preview, err := previewWorkflowIn(request.Context(), h.config.Workflows, kind, body.Task, body.Recipe, body.Input, body.Position, body.Limit)
 	if errors.Is(err, errWorkflowPreviewUnavailable) {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, err.Error())
 		return
@@ -394,9 +406,9 @@ func (h *Handler) workflowPreview(workspace WorkflowWorkspaceAPI, response http.
 	writeJSON(response, http.StatusOK, preview)
 }
 
+// submitWorkflow runs the capability as its listing resolved it.
 func (h *Handler) submitWorkflow(
 	ctx context.Context,
-	workspace WorkflowWorkspaceAPI,
 	kind WorkflowKind,
 	capability WorkflowCapability,
 	input json.RawMessage,
@@ -422,7 +434,7 @@ func (h *Handler) submitWorkflow(
 			func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
 				return operation.ExecuteReentrant(ctx, h.repository, reporter, request, intent,
 					func(ctx context.Context) (operation.Completion, error) {
-						return workspace.ExecuteWorkflow(withWorkflowSources(ctx, sources), kind, capability.Task, capability.Recipe, input, reporter)
+						return h.config.Workflows.ExecuteWorkflow(withWorkflowSources(ctx, sources), kind, capability, input, reporter)
 					})
 			})
 	}

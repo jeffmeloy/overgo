@@ -8,34 +8,34 @@ import (
 
 func (s Spec) validateEncoderMetadata() error {
 	switch s.Profile().Validation.Encoder {
-	case EncoderValidationTokenTypesMatchingHeads:
+	case encoderValidationTokenTypesMatchingHeads:
 		if s.TokenTypeCount > tensor.FirstOffset && s.HeadCountKV == s.HeadCount && s.KeyLength == s.ValueLength {
 			return nil
 		}
 		return errors.New("BERT metadata is invalid")
-	case EncoderValidationTokenTypesALiBi:
+	case encoderValidationTokenTypesALiBi:
 		if s.TokenTypeCount > tensor.FirstOffset && s.KeyLength == s.ValueLength &&
 			s.MaxALiBiBias == s.Profile().MetadataDefaults.MaxALiBiBias {
 			return nil
 		}
 		return errors.New("JinaBERT v2 metadata is invalid")
-	case EncoderValidationRotaryOptionalExperts:
+	case encoderValidationRotaryOptionalExperts:
 		if validEncoderRotary(s) && validOptionalEncoderExperts(s) {
 			return nil
 		}
 		return errors.New("JinaBERT v3 metadata is invalid")
-	case EncoderValidationFullRotary:
+	case encoderValidationFullRotary:
 		if s.RopeDimensionCount == s.KeyLength && s.KeyLength == s.ValueLength &&
 			validRotaryDimension(s.RopeDimensionCount, s.KeyLength) {
 			return nil
 		}
 		return errors.New("NeoBERT attention metadata is invalid")
-	case EncoderValidationRotary:
+	case encoderValidationRotary:
 		if validEncoderRotary(s) {
 			return nil
 		}
 		return errors.New("NomicBERT metadata is invalid")
-	case EncoderValidationRotaryPeriodicExperts:
+	case encoderValidationRotaryPeriodicExperts:
 		if validEncoderRotary(s) && s.MoELayerStep > tensor.SingletonExtent {
 			return nil
 		}

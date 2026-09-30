@@ -43,8 +43,8 @@ const (
 
 func (o projectionOutputs) valid() bool { return o > projectionNoOutputs && o < projectionOutputsCount }
 
-// ProjectionProgram: compiled input, normalization, and output math.
-type ProjectionProgram struct {
+// projectionProgram: compiled input, normalization, and output math.
+type projectionProgram struct {
 	input   projectionInput
 	norm    projectionNorm
 	width   uint64
@@ -65,7 +65,7 @@ type ProjectionResult struct {
 }
 
 // Build executes the compiled projection program.
-func (p ProjectionProgram) Build(
+func (p projectionProgram) Build(
 	builder *tensor.Builder,
 	operands ProjectionOperands,
 ) (ProjectionResult, error) {
@@ -112,24 +112,24 @@ func (p ProjectionProgram) Build(
 	return result, builder.Err()
 }
 
-func compileProjectionPrograms(spec Spec, profile ArchitectureProfile) [projectionRoleCount]ProjectionProgram {
-	var programs [projectionRoleCount]ProjectionProgram
+func compileProjectionPrograms(spec Spec, profile ArchitectureProfile) [projectionRoleCount]projectionProgram {
+	var programs [projectionRoleCount]projectionProgram
 	switch profile.Forward.Session {
 	case ForwardSessionFeatureDraft:
-		programs[ProjectionFeature] = ProjectionProgram{
+		programs[ProjectionFeature] = projectionProgram{
 			width: uint64(len(spec.TargetLayers)) * uint64(spec.TargetHiddenSize), outputs: projectionPrimary,
 		}
 	case ForwardSessionPairedFeatures:
-		programs[ProjectionFeature] = ProjectionProgram{
+		programs[ProjectionFeature] = projectionProgram{
 			width: uint64(len(spec.TargetLayers)) * uint64(spec.EmbeddingLength),
 			norm:  projectionNormAfter, epsilon: spec.RMSNormEpsilon, outputs: projectionPrimary,
 		}
 	case ForwardSessionPairedProjection:
-		programs[ProjectionPairedInput] = ProjectionProgram{
+		programs[ProjectionPairedInput] = projectionProgram{
 			input: projectionScaledPair, width: uint64(spec.TargetHiddenSize),
 			scale: hostmath.Sqrt32(uint64(spec.TargetHiddenSize)), outputs: projectionPrimary,
 		}
-		programs[ProjectionPairedOutput] = ProjectionProgram{
+		programs[ProjectionPairedOutput] = projectionProgram{
 			width: uint64(spec.EmbeddingLength), norm: projectionNormBefore,
 			epsilon: spec.RMSNormEpsilon, outputs: projectionPrimarySecondary,
 		}

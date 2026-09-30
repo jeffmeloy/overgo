@@ -81,16 +81,16 @@ type rasterPatchPlan struct {
 	interpolation rasterInterpolation
 }
 
-func preprocessRasterPatches(source image.Image, plan rasterPatchPlan, options RasterPatchOptions) (RasterPatchImage, error) {
+func preprocessRasterPatches(source image.Image, plan rasterPatchPlan, options rasterPatchOptions) (rasterPatchImage, error) {
 	if source == nil {
-		return RasterPatchImage{}, errors.New("projector: image is nil")
+		return rasterPatchImage{}, errors.New("projector: image is nil")
 	}
 	if !checked.PositiveInts(plan.patchSize, plan.mergeSize) {
-		return RasterPatchImage{}, errors.New("projector: invalid raster patch geometry")
+		return rasterPatchImage{}, errors.New("projector: invalid raster patch geometry")
 	}
 	for channel := range plan.std {
 		if !checked.PositiveFinite32(plan.std[channel]) {
-			return RasterPatchImage{}, fmt.Errorf("projector: invalid raster normalization channel %d", channel)
+			return rasterPatchImage{}, fmt.Errorf("projector: invalid raster normalization channel %d", channel)
 		}
 	}
 	budget := pixelBudget(options)
@@ -100,7 +100,7 @@ func preprocessRasterPatches(source image.Image, plan rasterPatchPlan, options R
 	bounds := source.Bounds()
 	resizedH, resizedW, err := budget.resize(bounds.Dy(), bounds.Dx(), plan.patchSize*plan.mergeSize)
 	if err != nil {
-		return RasterPatchImage{}, err
+		return rasterPatchImage{}, err
 	}
 	var resized *image.RGBA
 	switch plan.interpolation {
@@ -109,17 +109,17 @@ func preprocessRasterPatches(source image.Image, plan rasterPatchPlan, options R
 	case rasterBilinear:
 		resized = resizeImageBilinear(source, resizedW, resizedH)
 	default:
-		return RasterPatchImage{}, errors.New("projector: invalid raster interpolation")
+		return rasterPatchImage{}, errors.New("projector: invalid raster interpolation")
 	}
 	return patchRasterImage(resized, plan.patchSize, plan.mean, plan.std)
 }
 
-func patchRasterImage(source image.Image, patchSize int, mean, std [media.RGBChannels]float32) (RasterPatchImage, error) {
+func patchRasterImage(source image.Image, patchSize int, mean, std [media.RGBChannels]float32) (rasterPatchImage, error) {
 	bounds := source.Bounds()
 	gridH, heightOK := checked.DivExactInt(bounds.Dy(), patchSize)
 	gridW, widthOK := checked.DivExactInt(bounds.Dx(), patchSize)
 	if !heightOK || !widthOK || !checked.PositiveInts(gridH, gridW) {
-		return RasterPatchImage{}, errors.New("projector: raster is not patch aligned")
+		return rasterPatchImage{}, errors.New("projector: raster is not patch aligned")
 	}
 	patchArea := patchSize * patchSize
 	patchWidth := media.RGBChannels * patchArea
@@ -139,7 +139,7 @@ func patchRasterImage(source image.Image, patchSize int, mean, std [media.RGBCha
 			}
 		}
 	}
-	return RasterPatchImage{PixelValues: pixels, GridH: gridH, GridW: gridW}, nil
+	return rasterPatchImage{PixelValues: pixels, GridH: gridH, GridW: gridW}, nil
 }
 
 func resizeFitBicubic(source image.Image, width, height int, fill color.Color) image.Image {

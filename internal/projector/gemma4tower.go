@@ -18,7 +18,7 @@ const (
 	gemma4AudioTowerProjectorType  = "gemma4audio"
 )
 
-type Gemma4VisionTowerSpec struct {
+type gemma4VisionTowerSpec struct {
 	Layers           int
 	Hidden           int
 	Heads            int
@@ -38,7 +38,7 @@ type Gemma4VisionTowerSpec struct {
 	HiddenActivation string
 }
 
-type Gemma4AudioTowerSpec struct {
+type gemma4AudioTowerSpec struct {
 	Layers           int
 	Hidden           int
 	Heads            int
@@ -65,27 +65,27 @@ type Gemma4AudioTowerSpec struct {
 	HiddenActivation string
 }
 
-type Gemma4TowerSpec struct {
-	Vision Gemma4VisionTowerSpec
-	Audio  Gemma4AudioTowerSpec
+type gemma4TowerSpec struct {
+	Vision gemma4VisionTowerSpec
+	Audio  gemma4AudioTowerSpec
 }
 
 type Gemma4TowerRunner struct {
 	projectorResources
 	mediaPreprocessOwner
-	spec      Gemma4TowerSpec
+	spec      gemma4TowerSpec
 	audioPlan *audioFrontendPlan
 }
 
-func (r *Gemma4TowerRunner) Spec() Gemma4TowerSpec {
+func (r *Gemma4TowerRunner) Spec() gemma4TowerSpec {
 	if r == nil {
-		return Gemma4TowerSpec{}
+		return gemma4TowerSpec{}
 	}
 	return r.spec
 }
 
-func ReadGemma4TowerSpec(file *gguf.File) (Gemma4TowerSpec, error) {
-	var spec Gemma4TowerSpec
+func readGemma4TowerSpec(file *gguf.File) (gemma4TowerSpec, error) {
+	var spec gemma4TowerSpec
 	if err := validateVisionProjector(file, visionTowerTypeKey, gemma4VisionTowerProjectorType); err != nil {
 		return spec, err
 	}
@@ -182,7 +182,7 @@ func ReadGemma4TowerSpec(file *gguf.File) (Gemma4TowerSpec, error) {
 	return spec, nil
 }
 
-func (s Gemma4TowerSpec) validate() error {
+func (s gemma4TowerSpec) validate() error {
 	vision, audio := s.Vision, s.Audio
 	if err := vision.validate(); err != nil {
 		return err
@@ -204,7 +204,7 @@ func (s Gemma4TowerSpec) validate() error {
 	return nil
 }
 
-func (vision Gemma4VisionTowerSpec) validate() error {
+func (vision gemma4VisionTowerSpec) validate() error {
 	_, headAxesOK := checked.DivExactInt(vision.HeadDim, tensor.PairedExtent*tensor.PairedExtent)
 	_, groupedHeadsOK := checked.DivExactInt(vision.Heads, vision.KVHeads)
 	if !checked.PositiveInts(
@@ -231,7 +231,7 @@ func addClippedLinearCatalog(required map[string][]uint64, base string, shape []
 	}
 }
 
-func validateGemma4TowerCatalog(file *gguf.File, spec Gemma4TowerSpec) ([]string, error) {
+func validateGemma4TowerCatalog(file *gguf.File, spec gemma4TowerSpec) ([]string, error) {
 	vision, audio := spec.Vision, spec.Audio
 	hidden := uint64(vision.Hidden)
 	patchPixels := uint64(vision.PatchSize * vision.PatchSize * media.RGBChannels)

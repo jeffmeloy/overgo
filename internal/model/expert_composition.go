@@ -93,8 +93,8 @@ func (c expertSupplementalCatalog) has(item expertSupplementalCatalog) bool {
 	return c&item != expertSupplementalCatalog(tensor.FirstOffset)
 }
 
-// ExpertPolicy: routed/shared expert planning policy.
-type ExpertPolicy struct {
+// expertPolicy: routed/shared expert planning policy.
+type expertPolicy struct {
 	Composition           expertCompositionKind
 	Condition             expertCompositionCondition
 	Normalization         expertNormalizationPolicy
@@ -113,7 +113,7 @@ type ExpertPolicy struct {
 	SupplementalCatalog   expertSupplementalCatalog
 }
 
-func (p ExpertPolicy) usesCatalog(spec Spec, block uint32, routerPresent, nextN bool) bool {
+func (p expertPolicy) usesCatalog(spec Spec, block uint32, routerPresent, nextN bool) bool {
 	switch p.Catalog {
 	case expertCatalogAlways:
 		return true
@@ -132,7 +132,7 @@ func (p ExpertPolicy) usesCatalog(spec Spec, block uint32, routerPresent, nextN 
 	}
 }
 
-func (p ExpertPolicy) compositionKind(spec Spec) expertCompositionKind {
+func (p expertPolicy) compositionKind(spec Spec) expertCompositionKind {
 	switch p.Condition {
 	case expertCompositionWithShared:
 		if spec.SharedExpertFF == tensor.FirstOffset {
@@ -150,14 +150,14 @@ func (p ExpertPolicy) compositionKind(spec Spec) expertCompositionKind {
 	return p.Composition
 }
 
-// ExpertCompositionPlan: compiled routed/shared expert composition.
-type ExpertCompositionPlan struct {
+// expertCompositionPlan: compiled routed/shared expert composition.
+type expertCompositionPlan struct {
 	kind                expertCompositionKind
 	routerInputOriginal bool
 	residualScale       float32
 }
 
-func (p ExpertCompositionPlan) Validate(spec Spec) error {
+func (p expertCompositionPlan) Validate(spec Spec) error {
 	if p.kind == expertGrouped && (spec.ExpertsPerGroup == tensor.FirstOffset ||
 		spec.ExpertCount == tensor.FirstOffset || spec.ExpertCount%spec.ExpertsPerGroup != tensor.FirstOffset) {
 		return errors.New("grouped expert composition is invalid")
@@ -165,9 +165,9 @@ func (p ExpertCompositionPlan) Validate(spec Spec) error {
 	return nil
 }
 
-func (s Spec) expertCompositionPlan(profile ArchitectureProfile) ExpertCompositionPlan {
+func (s Spec) expertCompositionPlan(profile ArchitectureProfile) expertCompositionPlan {
 	policy := profile.Experts
-	plan := ExpertCompositionPlan{
+	plan := expertCompositionPlan{
 		kind: policy.compositionKind(s), routerInputOriginal: policy.RouterInputOriginal,
 	}
 	if policy.ResidualScale && s.HasExperts() {
@@ -176,12 +176,12 @@ func (s Spec) expertCompositionPlan(profile ArchitectureProfile) ExpertCompositi
 	return plan
 }
 
-func (p ExpertCompositionPlan) buildDenseRoutedSeparateNorm(
+func (p expertCompositionPlan) buildDenseRoutedSeparateNorm(
 	builder *tensor.Builder,
 	input, residual *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
-	experts MoEGraphPlan,
+	experts moEGraphPlan,
 ) (*tensor.Tensor, error) {
 	denseInput := builder.WeightedRMSNorm(residual, weights.FeedForwardNorm, spec.RMSNormEpsilon)
 	denseGate := builder.MulMat(weights.FeedForwardGate, denseInput)
@@ -195,7 +195,7 @@ func (p ExpertCompositionPlan) buildDenseRoutedSeparateNorm(
 	return builder.Add(dense, routed), nil
 }
 
-func (p ExpertCompositionPlan) Build(
+func (p expertCompositionPlan) Build(
 	builder *tensor.Builder,
 	input, residual, normalized *tensor.Tensor,
 	spec Spec,
@@ -245,7 +245,7 @@ func (p ExpertCompositionPlan) Build(
 		chunkPlan.TopK = chunkTopK
 		chunkPlan.ExpertIndexDivisor = spec.ExpertsPerGroup
 		chunk := chunkPlan.Build(
-			builder, routed, weights.FeedForwardRouter, MoEGraphInputs{
+			builder, routed, weights.FeedForwardRouter, moEGraphInputs{
 				RouterInput: normalized, Gate: weights.FeedForwardGateChunkExperts,
 				Up: weights.FeedForwardUpChunkExperts, Down: weights.FeedForwardDownChunkExperts,
 			},

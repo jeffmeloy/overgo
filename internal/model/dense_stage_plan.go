@@ -20,8 +20,8 @@ const (
 	qkNormRMS
 )
 
-// QKPreprocessPlan: compiled Q/K normalization stages.
-type QKPreprocessPlan struct {
+// qkPreprocessPlan: compiled Q/K normalization stages.
+type qkPreprocessPlan struct {
 	Projection qkNormKind
 	Heads      qkNormKind
 	PostRotary qkNormKind
@@ -45,9 +45,9 @@ const (
 	queryScalePolicyEmbeddingHead
 )
 
-// DenseStagePolicy: architecture-owned dense stage selection.
-type DenseStagePolicy struct {
-	QK                           QKPreprocessPlan
+// denseStagePolicy: architecture-owned dense stage selection.
+type denseStagePolicy struct {
+	QK                           qkPreprocessPlan
 	QKHeadsMinBlocks             uint32
 	NonRecurrentQKNoBias         bool
 	PostRotaryRMSExcludedExperts uint32
@@ -63,7 +63,7 @@ type DenseStagePolicy struct {
 	EmbeddingHeadScaleBlocks     uint32
 }
 
-func (s Spec) qkPreprocessPlan(profile ArchitectureProfile, layer uint32) QKPreprocessPlan {
+func (s Spec) qkPreprocessPlan(profile ArchitectureProfile, layer uint32) qkPreprocessPlan {
 	policy := profile.DenseStages
 	plan := policy.QK
 	if policy.QKHeadsMinBlocks != tensor.FirstOffset && s.BlockCount < policy.QKHeadsMinBlocks {
@@ -79,12 +79,12 @@ func (s Spec) qkPreprocessPlan(profile ArchitectureProfile, layer uint32) QKPrep
 	return plan
 }
 
-func (p QKPreprocessPlan) Apply(
+func (p qkPreprocessPlan) Apply(
 	builder *tensor.Builder,
 	query, key *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
-	normalization NormalizationPlan,
+	normalization normalizationPlan,
 	stage qkStage,
 ) (*tensor.Tensor, *tensor.Tensor, error) {
 	kinds := [...]qkNormKind{p.Projection, p.Heads, p.PostRotary}
@@ -96,7 +96,7 @@ func applyQKNorm(
 	query, key *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
-	normalization NormalizationPlan,
+	normalization normalizationPlan,
 	kind qkNormKind,
 ) (*tensor.Tensor, *tensor.Tensor, error) {
 	qWeight, kWeight := weights.AttentionQNorm, weights.AttentionKNorm
@@ -151,8 +151,8 @@ const (
 	queryScaleTemperature
 )
 
-// QueryScalePlan: compiled pre-attention scaling order.
-type QueryScalePlan struct {
+// queryScalePlan: compiled pre-attention scaling order.
+type queryScalePlan struct {
 	kind          queryScaleKind
 	embeddingHead bool
 }
@@ -172,8 +172,8 @@ const (
 	attentionGateFlat
 )
 
-// AttentionOutputPlan: compiled attention-output stages.
-type AttentionOutputPlan struct {
+// attentionOutputPlan: compiled attention-output stages.
+type attentionOutputPlan struct {
 	gate          attentionGateKind
 	headGate      bool
 	flatGate      bool
@@ -186,9 +186,9 @@ type AttentionOutputPlan struct {
 	residualScale float32
 }
 
-func (s Spec) attentionOutputPlan(profile ArchitectureProfile, norm NormalizationPlan) AttentionOutputPlan {
+func (s Spec) attentionOutputPlan(profile ArchitectureProfile, norm normalizationPlan) attentionOutputPlan {
 	policy := profile.DenseStages
-	plan := AttentionOutputPlan{
+	plan := attentionOutputPlan{
 		valueScale: s.AttentionValueScale, scaleValue: policy.AttentionValueScale,
 		sandwichNorm: s.SandwichNorm,
 		postNorm:     norm.PostAttention, residualScale: s.ResidualScale,
@@ -199,7 +199,7 @@ func (s Spec) attentionOutputPlan(profile ArchitectureProfile, norm Normalizatio
 	return plan
 }
 
-func (p AttentionOutputPlan) PrepareGate(
+func (p attentionOutputPlan) PrepareGate(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	weights LayerGraphWeights,
@@ -214,7 +214,7 @@ func (p AttentionOutputPlan) PrepareGate(
 	return builder.Sigmoid(gate)
 }
 
-func (p AttentionOutputPlan) ApplyGate(
+func (p attentionOutputPlan) ApplyGate(
 	builder *tensor.Builder,
 	attention, gate *tensor.Tensor,
 	weights LayerGraphWeights,
@@ -238,7 +238,7 @@ func (p AttentionOutputPlan) ApplyGate(
 	return builder.Multiply(attention, gate)
 }
 
-func (p AttentionOutputPlan) ApplyProjection(
+func (p attentionOutputPlan) ApplyProjection(
 	builder *tensor.Builder,
 	attention *tensor.Tensor,
 	spec Spec,
@@ -283,16 +283,16 @@ const (
 	residualGPTOSS
 )
 
-// ResidualStagePlan: compiled residual and FFN normalization flow.
-type ResidualStagePlan struct {
+// residualStagePlan: compiled residual and FFN normalization flow.
+type residualStagePlan struct {
 	kind          residualStageKind
 	postOnly      bool
 	sandwichNorm  bool
 	residualScale float32
 }
 
-func (s Spec) residualStagePlan(profile ArchitectureProfile, norm NormalizationPlan) ResidualStagePlan {
-	plan := ResidualStagePlan{
+func (s Spec) residualStagePlan(profile ArchitectureProfile, norm normalizationPlan) residualStagePlan {
+	plan := residualStagePlan{
 		postOnly: !norm.PreAttention, sandwichNorm: s.SandwichNorm,
 		residualScale: s.ResidualScale,
 	}
@@ -301,13 +301,13 @@ func (s Spec) residualStagePlan(profile ArchitectureProfile, norm NormalizationP
 		plan.kind = residualSequential
 	} else if policy.Residual != residualSequential {
 		plan.kind = policy.Residual
-	} else if profile.Residual == ResidualParallel {
+	} else if profile.Residual == residualParallel {
 		plan.kind = residualShared
 	}
 	return plan
 }
 
-func (p ResidualStagePlan) AfterAttention(
+func (p residualStagePlan) AfterAttention(
 	builder *tensor.Builder,
 	residual, normalized *tensor.Tensor,
 	spec Spec,
@@ -319,12 +319,12 @@ func (p ResidualStagePlan) AfterAttention(
 	return normalized
 }
 
-func (p ResidualStagePlan) FeedForwardInput(
+func (p residualStagePlan) FeedForwardInput(
 	builder *tensor.Builder,
 	input, residual, normalized, feedForwardNormalized *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
-	normalization NormalizationPlan,
+	normalization normalizationPlan,
 ) *tensor.Tensor {
 	switch p.kind {
 	case residualFeedForwardNormalized:
@@ -347,12 +347,12 @@ func (p ResidualStagePlan) FeedForwardInput(
 	return normalization.Apply(builder, residual, weights.FeedForwardNorm, weights.FeedForwardNormBias)
 }
 
-func (p ResidualStagePlan) ApplyFeedForwardOutput(
+func (p residualStagePlan) ApplyFeedForwardOutput(
 	builder *tensor.Builder,
 	feedForward *tensor.Tensor,
 	spec Spec,
 	weights LayerGraphWeights,
-	norm NormalizationPlan,
+	norm normalizationPlan,
 ) *tensor.Tensor {
 	if p.sandwichNorm {
 		feedForward = builder.WeightedRMSNorm(feedForward, weights.FeedForwardNorm, spec.RMSNormEpsilon)
@@ -366,31 +366,31 @@ func (p ResidualStagePlan) ApplyFeedForwardOutput(
 	return feedForward
 }
 
-func (s Spec) queryScalePlan(profile ArchitectureProfile, layer uint32) QueryScalePlan {
+func (s Spec) queryScalePlan(profile ArchitectureProfile, layer uint32) queryScalePlan {
 	switch profile.DenseStages.QueryScale {
 	case queryScalePolicyTemperatureWithoutRoPE:
 		if s.UsesRoPE(layer) {
-			return QueryScalePlan{kind: queryScaleScores}
+			return queryScalePlan{kind: queryScaleScores}
 		}
-		return QueryScalePlan{kind: queryScaleTemperature}
+		return queryScalePlan{kind: queryScaleTemperature}
 	case queryScalePolicyConfiguredTemperature:
 		if !positiveFinite(s.AttentionTempScale) {
-			return QueryScalePlan{kind: queryScaleScores}
+			return queryScalePlan{kind: queryScaleScores}
 		}
-		return QueryScalePlan{kind: queryScaleTemperature}
+		return queryScalePlan{kind: queryScaleTemperature}
 	case queryScalePolicyPreDot:
-		return QueryScalePlan{kind: queryScalePreDot}
+		return queryScalePlan{kind: queryScalePreDot}
 	case queryScalePolicyEmbeddingHead:
-		return QueryScalePlan{
+		return queryScalePlan{
 			kind:          queryScalePreDot,
 			embeddingHead: profile.DenseStages.EmbeddingHeadScaleBlocks == s.BlockCount,
 		}
 	default:
-		return QueryScalePlan{kind: queryScaleScores}
+		return queryScalePlan{kind: queryScaleScores}
 	}
 }
 
-func (p QueryScalePlan) Apply(
+func (p queryScalePlan) Apply(
 	builder *tensor.Builder,
 	query *tensor.Tensor,
 	spec Spec,

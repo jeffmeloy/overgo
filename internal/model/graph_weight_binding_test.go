@@ -24,14 +24,14 @@ func TestCompiledWeightSlotsOwnValidation(t *testing.T) {
 }
 
 func TestBindSequenceOutputGraphWeights(t *testing.T) {
-	info := &AudioDecoderWeights{
+	info := &audioDecoderWeights{
 		InputConv: gguf.TensorInfo{Name: "input"},
 		Output:    gguf.TensorInfo{Name: "output"},
-		PosNet: []WavPosNetWeights{{
+		PosNet: []wavPosNetWeights{{
 			Norm1:      gguf.TensorInfo{Name: "residual_norm"},
 			AttentionQ: gguf.TensorInfo{Name: "residual_query"},
 		}},
-		ConvNext: []WavConvNextWeights{{
+		ConvNext: []wavConvNextWeights{{
 			Depthwise: gguf.TensorInfo{Name: "depthwise"},
 			Gamma:     gguf.TensorInfo{Name: "gamma"},
 		}},

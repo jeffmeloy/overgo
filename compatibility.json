@@ -357,13 +357,13 @@
      "contains": "func (h *Handler) nativeAudioTranscriptions(",
      "path": "internal/server/native_audio_transcriptions.go",
      "role": "source",
-     "identity": "file:sha256:b519057eabffd82e8cafdea68fff4b0bd453d2d4c979e4fe066f64bf6abb6f6e"
+     "identity": "file:sha256:11a66ab21b7aed6ec1380368b6060c22c88a7ebe65ddc7f5835ccfab48cafe0a"
     },
     {
      "contains": "func TestAudioTranscriptionsAcceptance(",
      "path": "internal/server/audio_transcriptions_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:53f57e8037e036431af01ebef5003dc865835844a3eb5f5533ac637b1263fdcf"
+     "identity": "evidence:sha256:dc6f35e40cda698fd1a93b837cc23a2240e9a2b7b19d90876091781a8b06608e"
     }
    ],
    "id": "openai-audio-transcriptions",
@@ -506,7 +506,7 @@
      "contains": "func CompileObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:d4f9198aa1dbc495c1bbaefcd7525624d4877b3adefff2983962e737b4e86702"
+     "identity": "file:sha256:4d7ecae3f8c42958b6815d1870bb3b5dafd8ae8fb0bcebe1a75c2c53e0ef5c74"
     },
     {
      "contains": "func AudioProcessor(",
@@ -534,7 +534,7 @@
      "contains": "func CompileTrainingObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:d4f9198aa1dbc495c1bbaefcd7525624d4877b3adefff2983962e737b4e86702"
+     "identity": "file:sha256:4d7ecae3f8c42958b6815d1870bb3b5dafd8ae8fb0bcebe1a75c2c53e0ef5c74"
     },
     {
      "contains": "func CompileObjectiveProgram(",
@@ -582,13 +582,13 @@
      "contains": "func OpenAs[T Projector](",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:a767c533ff199ac23252d6b4200c565e241d934d138480fad1aedcea0e8331a7"
+     "identity": "file:sha256:5dc0bca5c64830b0c675b4ff73e3ab7211d6796adfc52922286b96025385489c"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:3b4dea5f42c3eef1e772e39a7b633ece4436568cd4fb51ddca41b0eee9599886"
+     "identity": "evidence:sha256:366b7eb3bf4779c1c9f8c1657a8129cf9bb92c1704096588f29e56e146622b51"
     }
    ],
    "id": "gemma4-multimodal-oracle",
@@ -605,14 +605,14 @@
      "path": "internal/projector/gemma4tower_audio.go",
      "symbol": "EncodeAudioFeatures",
      "role": "source",
-     "identity": "file:sha256:4a12223337c45751f7f8e837533c510ffc80b9fae53e747535b2bf2e0c0cd3d2"
+     "identity": "file:sha256:260b115921f6ce0287dd4e937b0006809c3af73de3f1aeee9e09255134da0a00"
     },
     {
      "contains": "func (r *Gemma4TowerRunner) EncodeAudioTrace(",
      "path": "internal/projector/gemma4tower_audio_frontend.go",
      "symbol": "EncodeAudioTrace",
      "role": "source",
-     "identity": "file:sha256:56b502a0a102bdcb97a853c6359467b4e090c02ca1070197ec693d37996d9fe6"
+     "identity": "file:sha256:79000eb04f95b09c8a0cb642859359399f598846a536f675733da869f8758ea4"
     },
     {
      "contains": "func TestMultimodalInputMatrix(",
@@ -641,7 +641,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:3b4dea5f42c3eef1e772e39a7b633ece4436568cd4fb51ddca41b0eee9599886"
+     "identity": "evidence:sha256:366b7eb3bf4779c1c9f8c1657a8129cf9bb92c1704096588f29e56e146622b51"
     }
    ],
    "id": "gemma-e4b-image-language-oracle",
@@ -669,7 +669,7 @@
      "contains": "func TestMultimodalInputMatrix(",
      "path": "internal/adaptiveparity/multimodal_input_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:3b4dea5f42c3eef1e772e39a7b633ece4436568cd4fb51ddca41b0eee9599886"
+     "identity": "evidence:sha256:366b7eb3bf4779c1c9f8c1657a8129cf9bb92c1704096588f29e56e146622b51"
     }
    ],
    "id": "qwen35-image-video-language-oracle",
@@ -707,7 +707,7 @@
      "contains": "func NewAudioProjectionProfile(",
      "path": "internal/projector/audio_profile.go",
      "role": "source",
-     "identity": "file:sha256:40ffff5cbbca3ded8eca5e8c35ecd9f62df141c9218ba24dcff35bcfb1dd9d96"
+     "identity": "file:sha256:0acba6ef7a983be18f23d27c3ef59f23ea5ea386ffd18cf9be5488c7efbfb72f"
     },
     {
      "contains": "func TestAudioProjectionProfileRoundTrip(",
@@ -793,13 +793,13 @@
      "contains": "func CompileModelPlanWithProfile(",
      "path": "internal/model/layer_plan.go",
      "role": "source",
-     "identity": "file:sha256:627d8530ef59107105b6bb386418bbd7605d2149f44eb6414e920a22ba24c2e1"
+     "identity": "file:sha256:d922cbb58256a89d0586ff0146a40ff486c519f04f92d3f1ee29e3db52830b63"
     },
     {
      "contains": "func TestCompileModelPlanPinsLayerPolicies(",
      "path": "internal/model/layer_plan_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:9ea031b8e296baf1297ac2f965a9b70c75739d565fc8a6f0c462ec975e4ccafd"
+     "identity": "evidence:sha256:d611605966e67dfc8017e2ef84c009c635ca4ace8521e1f7ae530c77c9e29385"
     }
    ],
    "id": "compiled-model-plan",
@@ -899,7 +899,7 @@
      "contains": "func compileQwen3VLImagePrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:a767c533ff199ac23252d6b4200c565e241d934d138480fad1aedcea0e8331a7"
+     "identity": "file:sha256:5dc0bca5c64830b0c675b4ff73e3ab7211d6796adfc52922286b96025385489c"
     },
     {
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
@@ -920,7 +920,7 @@
      "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:a767c533ff199ac23252d6b4200c565e241d934d138480fad1aedcea0e8331a7"
+     "identity": "file:sha256:5dc0bca5c64830b0c675b4ff73e3ab7211d6796adfc52922286b96025385489c"
     },
     {
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
@@ -941,7 +941,7 @@
      "contains": "func compileGemma4MediaPrompt(",
      "path": "internal/projector/prompt.go",
      "role": "source",
-     "identity": "file:sha256:a767c533ff199ac23252d6b4200c565e241d934d138480fad1aedcea0e8331a7"
+     "identity": "file:sha256:5dc0bca5c64830b0c675b4ff73e3ab7211d6796adfc52922286b96025385489c"
     },
     {
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
@@ -1220,13 +1220,13 @@
      "contains": "func LookupArchitecture(",
      "path": "internal/model/architecture.go",
      "role": "source",
-     "identity": "file:sha256:6cf0364d965f19599529efbadfd273b9dda7e541baa3ada2579940d3a16973ee"
+     "identity": "file:sha256:c6678f951a706fca22172cfcda4003644b10468e012185b5a3b7314ff59d0cf3"
     },
     {
      "contains": "func TestArchitectureRegistryProfiles(",
      "path": "internal/model/architecture_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:ff02822925b62d4c4bab3e69f1b80c9ae2c726949a829c4012ddca599621869a"
+     "identity": "evidence:sha256:8e555ae839d55bd294518be2cbbf08de1599ac383c93e39e2505bf3e8725b2e1"
     }
    ],
    "id": "architecture-profiles",
@@ -1241,7 +1241,7 @@
      "contains": "func (p CompiledLayerProgram) Build(",
      "path": "internal/model/graph_dispatch.go",
      "role": "source",
-     "identity": "file:sha256:f40401f07b321852ae8dee013a0cf45f3b24843f4b6ad6ad15c28d98e6ee4eda"
+     "identity": "file:sha256:3925fcc81112c9b92a4572f21496047e63f9aac7bf4660da92d382dfbcc12144"
     },
     {
      "contains": "func ReadWeights(",
@@ -1253,7 +1253,7 @@
      "contains": "func TestLayerProgramsCoverTypedProfiles(",
      "path": "internal/model/graph_dispatch_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:84a4fa8f17bdb69c275cf54c9730a7a8d3a84b981b7766199d1735af10c5814f"
+     "identity": "evidence:sha256:807062752ba2b15c33d20ce809dec43f2bab26ba8048e2f17424724934690406"
     }
    ],
    "id": "neutral-layer-dispatch",
@@ -1337,7 +1337,7 @@
      "contains": "func TestPocketTTSProductionParity(",
      "path": "internal/adaptiveparity/pocket_tts_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:2c2ec814520e54466f2f69600b955329a1dbeefa88fbe72161be7cb3cf1fbf44"
+     "identity": "evidence:sha256:32fd3e9b776b3a7fa1b36dad9e49d9003e1cdbf87e11da2733391d9f9b5ae5c3"
     }
    ],
    "id": "pocket-tts-production-oracle",
@@ -1486,13 +1486,13 @@
      "path": "internal/server/streaming_transcriptions.go",
      "contains": "func (h *Handler) nativeStreamingTranscriptions(",
      "role": "source",
-     "identity": "file:sha256:38682ce9624850a8b4d2dfa0167b03683b0b100bf87bf6af13bcf2a4d6693d52"
+     "identity": "file:sha256:75e857963a417b87286963a435bbc46a1af2cd2ac7ff8145845f665981abcc22"
     },
     {
      "path": "internal/server/streaming_transcriptions_test.go",
      "contains": "func TestStreamingTranscriptionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:103e7494203cc5f50c746f5c0b4c649320de151bed85057f9b6e05d34772105c"
+     "identity": "evidence:sha256:fe061c5251d2fb926cc98f4d093fb535304e74918e6420d82f20c3b203a743fa"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -1543,7 +1543,7 @@
      "path": "cmd/server/transcription.go",
      "contains": "func serveTranscription(",
      "role": "source",
-     "identity": "file:sha256:4b13cf3fc2d958dae4f68d00dab5925ee33c7dae95b9e27c82108036c914c918"
+     "identity": "file:sha256:ac3b686485cdc7a50b7cfb116f45e2ccb8417b14ae8175d59f63c9f674b57c96"
     },
     {
      "path": "internal/audioparity/live_service_test.go",

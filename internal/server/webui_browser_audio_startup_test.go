@@ -14,12 +14,6 @@ import (
 	"testing"
 )
 
-// Expose only workflows: this fixture has no loaded text model or model properties.
-type coldStartWorkflow struct {
-	GenerationRefused
-	WorkflowWorkspaceAPI
-}
-
 func coldStartSpeechFixture(t *testing.T) (*IdleShell, *speechSurfaceGenerator) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
@@ -30,7 +24,8 @@ func coldStartSpeechFixture(t *testing.T) (*IdleShell, *speechSurfaceGenerator) 
 	generator := &speechSurfaceGenerator{retired: true, generationWorkspaceGenerator: &generationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "cold-speech-run"), capability: WorkflowCapability{
 		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "cold-speech-recipe"), Name: "Local speech (UI fixture)", Outputs: []recipe.Output{{Name: "audio", Data: recipe.DataAudio}}, Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}}, Controls: []workflowControl{{Name: "text", Type: workflowControlText, Required: true}, {Name: "voice", Type: workflowControlText, Required: true, Choices: []string{"alba", "marius"}}},
 	}}}
-	handler, err := New(Config{Repository: store, RuntimePolicy: testRuntimePolicy()}, &coldStartWorkflow{GenerationRefused: GenerationRefused{Reason: "No chat model is loaded"}, WorkflowWorkspaceAPI: generator})
+	// Only workflows: this fixture has no loaded text model or model properties.
+	handler, err := New(Config{Repository: store, RuntimePolicy: testRuntimePolicy(), Workflows: generator}, GenerationRefused{Reason: "No chat model is loaded"})
 	if err != nil {
 		t.Fatal(err)
 	}

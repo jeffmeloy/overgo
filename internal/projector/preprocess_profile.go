@@ -26,8 +26,8 @@ var mediaPreprocessCatalogJSON []byte
 type MediaPreprocessProfile struct {
 	ID                         artifact.ID      `json:"-"`
 	Version                    uint16           `json:"version"`
-	Image                      MediaPixelBudget `json:"image"`
-	Video                      MediaPixelBudget `json:"video"`
+	Image                      mediaPixelBudget `json:"image"`
+	Video                      mediaPixelBudget `json:"video"`
 	AudioAttentionRopeFreqBase float32          `json:"audio_attention_rope_freq_base,omitzero"`
 	ModelConfig                artifact.ID      `json:"model_config,omitzero"`
 	ImageAttention             string           `json:"image_attention,omitzero"`
@@ -50,7 +50,7 @@ var mediaPreprocessProfileCodec = artifact.JSONDocumentCodec(
 				(profile.ImageAttention != "causal" && profile.ImageAttention != "vision") {
 				return errors.New("projector: image attention requires a bound model declaration")
 			}
-			if profile.Image == (MediaPixelBudget{}) && profile.Video == (MediaPixelBudget{}) && profile.AudioAttentionRopeFreqBase == 0 {
+			if profile.Image == (mediaPixelBudget{}) && profile.Video == (mediaPixelBudget{}) && profile.AudioAttentionRopeFreqBase == 0 {
 				return nil // Encoder geometry is declared in its artifact.
 			}
 		}
@@ -58,7 +58,7 @@ var mediaPreprocessProfileCodec = artifact.JSONDocumentCodec(
 			if !checked.PositiveFinite32(profile.AudioAttentionRopeFreqBase) {
 				return errors.New("projector: invalid audio attention frequency base")
 			}
-			if profile.Image == (MediaPixelBudget{}) && profile.Video == (MediaPixelBudget{}) {
+			if profile.Image == (mediaPixelBudget{}) && profile.Video == (mediaPixelBudget{}) {
 				return nil // Raster geometry is already declared by the tower artifact.
 			}
 		}

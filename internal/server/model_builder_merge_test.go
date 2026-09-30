@@ -111,7 +111,7 @@ func TestModelBuilderMergeRun(t *testing.T) {
 	}
 	execute := func(capability WorkflowCapability, input string) (runrecord.Run, error) {
 		t.Helper()
-		completion, err := workspace.ExecuteWorkflow(ctx, workflowModelBuild, recipe.TaskMerge, capability.Recipe, json.RawMessage(input), &recordingReporter{})
+		completion, err := workspace.ExecuteWorkflow(ctx, workflowModelBuild, capability, json.RawMessage(input), &recordingReporter{})
 		if err != nil {
 			return runrecord.Run{}, err
 		}

@@ -4,20 +4,20 @@ package model
 type MetadataReadPolicy uint16
 
 const (
-	MetadataReadJaisScale MetadataReadPolicy = 1 << iota
-	MetadataReadGPTJRotary
-	MetadataReadCommandRLogits
-	MetadataReadBaichuanBlocks
-	MetadataReadVisualSections
-	MetadataReadQwen3VLDeepstack
-	MetadataReadSmolLM3NoRoPE
-	MetadataReadOLMoClamp
-	MetadataReadGLMDSAGating
-	MetadataReadALiBi
-	MetadataReadZeroALiBiDefault
+	metadataReadJaisScale MetadataReadPolicy = 1 << iota
+	metadataReadGPTJRotary
+	metadataReadCommandRLogits
+	metadataReadBaichuanBlocks
+	metadataReadVisualSections
+	metadataReadQwen3VLDeepstack
+	metadataReadSmolLM3NoRoPE
+	metadataReadOLMoClamp
+	metadataReadGLMDSAGating
+	metadataReadALiBi
+	metadataReadZeroALiBiDefault
 )
 
-const allMetadataReadPolicies = (MetadataReadZeroALiBiDefault << 1) - 1
+const allMetadataReadPolicies = (metadataReadZeroALiBiDefault << 1) - 1
 
 func (p ArchitectureProfile) readsMetadata(policy MetadataReadPolicy) bool {
 	return p.MetadataRead&policy == policy

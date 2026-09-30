@@ -9,47 +9,47 @@ import (
 type EmbeddingScalePolicy uint8
 
 const (
-	EmbeddingScaleIdentity EmbeddingScalePolicy = iota
-	EmbeddingScaleSqrtWidth
+	embeddingScaleIdentity EmbeddingScalePolicy = iota
+	embeddingScaleSqrtWidth
 )
 
 // LogitScalePolicy: metadata scale direction.
 type LogitScalePolicy uint8
 
 const (
-	LogitScaleReciprocal LogitScalePolicy = iota
-	LogitScaleDirect
+	logitScaleReciprocal LogitScalePolicy = iota
+	logitScaleDirect
 )
 
 // NormalizationPlacementPolicy: block normalization placement.
 type NormalizationPlacementPolicy uint8
 
 const (
-	NormalizationPlacementCapabilities NormalizationPlacementPolicy = iota
-	NormalizationPlacementPostOnly
+	normalizationPlacementCapabilities NormalizationPlacementPolicy = iota
+	normalizationPlacementPostOnly
 )
 
 // NormalizationBiasPolicy: affine bias selection.
 type NormalizationBiasPolicy uint8
 
 const (
-	NormalizationBiasAutomatic NormalizationBiasPolicy = iota
-	NormalizationBiasNever
-	NormalizationBiasAlways
+	normalizationBiasAutomatic NormalizationBiasPolicy = iota
+	normalizationBiasNever
+	normalizationBiasAlways
 )
 
-// RuntimePolicy: scalar and normalization runtime decisions.
-type RuntimePolicy struct {
+// runtimePolicy: scalar and normalization runtime decisions.
+type runtimePolicy struct {
 	EmbeddingScale          EmbeddingScalePolicy
 	LogitScale              LogitScalePolicy
 	NormalizationPlacement  NormalizationPlacementPolicy
 	NormalizationBias       NormalizationBiasPolicy
-	Recurrent               RecurrentRuntimePolicy
+	Recurrent               recurrentRuntimePolicy
 	ActivationResidualScale float32
 }
 
-// RecurrentRuntimePolicy: recurrent scalar contract.
-type RecurrentRuntimePolicy struct {
+// recurrentRuntimePolicy: recurrent scalar contract.
+type recurrentRuntimePolicy struct {
 	HeadNormEpsilon       float32
 	KeyNormEpsilon        float32
 	PeriodicResidualScale float32
@@ -57,26 +57,26 @@ type RecurrentRuntimePolicy struct {
 	InnerWidthMultiplier  uint32
 }
 
-func (p RecurrentRuntimePolicy) validInnerWidth(spec Spec) bool {
+func (p recurrentRuntimePolicy) validInnerWidth(spec Spec) bool {
 	return p.InnerWidthMultiplier == tensor.FirstOffset ||
 		uint64(spec.SSMInnerSize) == uint64(p.InnerWidthMultiplier)*uint64(spec.EmbeddingLength)
 }
 
-func (p RuntimePolicy) inputEmbeddingScale(spec Spec) float32 {
+func (p runtimePolicy) inputEmbeddingScale(spec Spec) float32 {
 	if positiveFinite(spec.EmbeddingScale) {
 		return spec.EmbeddingScale
 	}
-	if p.EmbeddingScale == EmbeddingScaleSqrtWidth {
+	if p.EmbeddingScale == embeddingScaleSqrtWidth {
 		return hostmath.Sqrt32(uint64(spec.EmbeddingLength))
 	}
 	return tensor.UnitScale
 }
 
-func (p RuntimePolicy) outputLogitMultiplier(spec Spec) float32 {
+func (p runtimePolicy) outputLogitMultiplier(spec Spec) float32 {
 	if !positiveFinite(spec.LogitScale) {
 		return tensor.UnitScale
 	}
-	if p.LogitScale == LogitScaleDirect {
+	if p.LogitScale == logitScaleDirect {
 		return spec.LogitScale
 	}
 	return tensor.UnitScale / spec.LogitScale
@@ -89,25 +89,25 @@ func (s Spec) resolvedAttentionScale(keyLength uint64) float32 {
 	return hostmath.InvSqrt32(keyLength)
 }
 
-func (p RuntimePolicy) normalizationPlan(spec Spec, profile ArchitectureProfile) NormalizationPlan {
+func (p runtimePolicy) normalizationPlan(spec Spec, profile ArchitectureProfile) normalizationPlan {
 	operation := profile.Normalization
-	pre := !profile.Has(ArchitecturePostOnlyNorm)
-	post := profile.Has(ArchitecturePostNorm)
-	if p.NormalizationPlacement == NormalizationPlacementPostOnly {
+	pre := !profile.Has(architecturePostOnlyNorm)
+	post := profile.Has(architecturePostNorm)
+	if p.NormalizationPlacement == normalizationPlacementPostOnly {
 		pre, post = false, true
 	}
-	bias := operation == NormalizationLayer
+	bias := operation == normalizationLayer
 	epsilon := spec.RMSNormEpsilon
-	if operation == NormalizationLayer || operation == NormalizationUnweightedLayer || operation == NormalizationWeightOnlyLayer {
+	if operation == normalizationLayer || operation == NormalizationUnweightedLayer || operation == normalizationWeightOnlyLayer {
 		epsilon = spec.LayerNormEpsilon
 	}
 	switch p.NormalizationBias {
-	case NormalizationBiasNever:
+	case normalizationBiasNever:
 		bias = false
-	case NormalizationBiasAlways:
+	case normalizationBiasAlways:
 		bias = true
 	}
-	return NormalizationPlan{
+	return normalizationPlan{
 		Operation: operation, PreAttention: pre, PreFeedForward: pre,
 		PostAttention: post, PostFeedForward: post, Bias: bias,
 		RMSBias:        profile.DenseWeights.RMSNormBias,

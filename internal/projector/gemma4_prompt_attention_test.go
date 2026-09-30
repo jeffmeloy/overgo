@@ -30,12 +30,12 @@ func TestGemma4TowerCausalMediaPrompts(t *testing.T) {
 			source := test.source
 			source.width = 2
 			value := reference.Value{Shape: tensor.MustShape(2, 2), Data: []float32{1, 2, 3, 4}}
-			source.image = func(context.Context, image.Image) (Gemma4Output, error) { return Gemma4Output{Embeddings: value}, nil }
-			source.audio = func(context.Context, []float32) (Gemma4AudioOutput, error) {
-				return Gemma4AudioOutput{Embeddings: value}, nil
+			source.image = func(context.Context, image.Image) (gemma4Output, error) { return gemma4Output{Embeddings: value}, nil }
+			source.audio = func(context.Context, []float32) (gemma4AudioOutput, error) {
+				return gemma4AudioOutput{Embeddings: value}, nil
 			}
-			source.video = func(context.Context, []image.Image) (Gemma4VideoOutput, error) {
-				return Gemma4VideoOutput{Embeddings: value, Frames: 2, TokensPerFrame: 1}, nil
+			source.video = func(context.Context, []image.Image) (gemma4VideoOutput, error) {
+				return gemma4VideoOutput{Embeddings: value, Frames: 2, TokensPerFrame: 1}, nil
 			}
 			picture := image.NewRGBA(image.Rect(0, 0, 1, 1))
 			program := compileGemma4ImageProgram(source)

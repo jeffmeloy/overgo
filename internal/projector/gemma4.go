@@ -21,7 +21,7 @@ const (
 	gemma4UVProjectorType = "gemma4uv"
 )
 
-type Gemma4Spec struct {
+type gemma4Spec struct {
 	TeacherPatch     int
 	PoolKernel       int
 	ModelPatch       int
@@ -34,20 +34,20 @@ type Gemma4Spec struct {
 	RMSNormEpsilon   float32
 }
 
-type Gemma4Image struct {
+type gemma4Image struct {
 	PixelValues []float32
 	Positions   []int
 	GridH       int
 	GridW       int
 }
 
-type Gemma4Output struct {
+type gemma4Output struct {
 	Embeddings reference.Value
 	GridH      int
 	GridW      int
 }
 
-type Gemma4VideoOutput struct {
+type gemma4VideoOutput struct {
 	Embeddings     reference.Value
 	Frames         int
 	TokensPerFrame int
@@ -56,57 +56,57 @@ type Gemma4VideoOutput struct {
 type Gemma4Runner struct {
 	projectorResources
 	mediaPreprocessOwner
-	spec Gemma4Spec
+	spec gemma4Spec
 }
 
-func (r *Gemma4Runner) Spec() Gemma4Spec {
+func (r *Gemma4Runner) Spec() gemma4Spec {
 	if r == nil {
-		return Gemma4Spec{}
+		return gemma4Spec{}
 	}
 	return r.spec
 }
 
-func ReadGemma4Spec(file *gguf.File) (Gemma4Spec, error) {
+func readGemma4Spec(file *gguf.File) (gemma4Spec, error) {
 	if err := validateVisionProjector(file, visionTowerTypeKey, gemma4UVProjectorType); err != nil {
-		return Gemma4Spec{}, err
+		return gemma4Spec{}, err
 	}
 	teacherPatch, err := metadataUint32(file, visionPatchSizeKey)
 	if err != nil {
-		return Gemma4Spec{}, err
+		return gemma4Spec{}, err
 	}
 	hidden, err := metadataUint32(file, visionProjectionKey)
 	if err != nil {
-		return Gemma4Spec{}, err
+		return gemma4Spec{}, err
 	}
 	rmsEpsilon, err := metadataFloat32(file, visionNormEpsilonKey)
 	if err != nil {
-		return Gemma4Spec{}, err
+		return gemma4Spec{}, err
 	}
 	layerNormEpsilon, err := metadataFloat32(file, visionProjectorNormKey)
 	if err != nil {
-		return Gemma4Spec{}, err
+		return gemma4Spec{}, err
 	}
 	declaredImageTokens, err := metadataUint32(file, visionMaxSoftTokensKey)
 	if err != nil {
-		return Gemma4Spec{}, err
+		return gemma4Spec{}, err
 	}
 	videoTokens, err := metadataUint32(file, visionVideoSoftTokensKey)
 	if err != nil {
-		return Gemma4Spec{}, err
+		return gemma4Spec{}, err
 	}
 	patch, ok := file.Tensor(visionPatchWeightTensor)
 	if !ok {
-		return Gemma4Spec{}, errors.New("projector: Gemma 4 patch tensor is unavailable")
+		return gemma4Spec{}, errors.New("projector: Gemma 4 patch tensor is unavailable")
 	}
 	if err := tensorcatalog.ValidateInfo(patch, tensorcatalog.Requirement{Rank: tensor.PairedExtent, NonEmpty: true}); err != nil {
-		return Gemma4Spec{}, fmt.Errorf("projector: Gemma 4 patch tensor: %w", err)
+		return gemma4Spec{}, fmt.Errorf("projector: Gemma 4 patch tensor: %w", err)
 	}
 	position, ok := file.Tensor(visionPositionWeightTensor)
 	if !ok {
-		return Gemma4Spec{}, errors.New("projector: Gemma 4 position tensor is unavailable")
+		return gemma4Spec{}, errors.New("projector: Gemma 4 position tensor is unavailable")
 	}
 	if err := tensorcatalog.ValidateInfo(position, tensorcatalog.Requirement{Rank: tensor.TripleExtent, NonEmpty: true}); err != nil {
-		return Gemma4Spec{}, fmt.Errorf("projector: Gemma 4 position tensor: %w", err)
+		return gemma4Spec{}, fmt.Errorf("projector: Gemma 4 position tensor: %w", err)
 	}
 	teacherPatchInt, teacherOK := checked.Int(uint64(teacherPatch))
 	hiddenInt, hiddenOK := checked.Int(uint64(hidden))
@@ -115,27 +115,27 @@ func ReadGemma4Spec(file *gguf.File) (Gemma4Spec, error) {
 	imageTokensInt, imageOK := checked.Int(uint64(declaredImageTokens))
 	videoTokensInt, videoOK := checked.Int(uint64(videoTokens))
 	if !teacherOK || !hiddenOK || !patchOK || !positionOK || !imageOK || !videoOK {
-		return Gemma4Spec{}, errors.New("projector: Gemma 4 dimensions exceed native limits")
+		return gemma4Spec{}, errors.New("projector: Gemma 4 dimensions exceed native limits")
 	}
 	modelPatchArea, channelAligned := checked.DivExact64(patch.Shape[0], media.RGBChannels)
 	modelPatch, square := tensor.SquareSideInt(modelPatchArea)
 	poolKernel, teacherAligned := checked.DivExact64(uint64(modelPatch), uint64(teacherPatchInt))
 	if !channelAligned || !square || !teacherAligned {
-		return Gemma4Spec{}, fmt.Errorf("projector: invalid Gemma 4 patch width %d", patchWidth)
+		return gemma4Spec{}, fmt.Errorf("projector: invalid Gemma 4 patch width %d", patchWidth)
 	}
-	spec := Gemma4Spec{
+	spec := gemma4Spec{
 		TeacherPatch: teacherPatchInt, PoolKernel: int(poolKernel),
 		ModelPatch: modelPatch, PatchWidth: patchWidth, Hidden: hiddenInt,
 		PositionCount: positionCount, MaxImageTokens: imageTokensInt, MaxVideoTokens: videoTokensInt,
 		LayerNormEpsilon: layerNormEpsilon, RMSNormEpsilon: rmsEpsilon,
 	}
 	if err := spec.validate(); err != nil {
-		return Gemma4Spec{}, err
+		return gemma4Spec{}, err
 	}
 	return spec, nil
 }
 
-func (s Gemma4Spec) validate() error {
+func (s gemma4Spec) validate() error {
 	if s.TeacherPatch <= 0 || s.PoolKernel <= 0 || s.ModelPatch != s.TeacherPatch*s.PoolKernel ||
 		s.PatchWidth != s.ModelPatch*s.ModelPatch*media.RGBChannels || s.Hidden <= 0 || s.PositionCount <= 0 ||
 		s.MaxImageTokens <= 0 || s.MaxVideoTokens <= 0 ||
@@ -145,7 +145,7 @@ func (s Gemma4Spec) validate() error {
 	return nil
 }
 
-func validateGemma4Catalog(file *gguf.File, spec Gemma4Spec) ([]string, error) {
+func validateGemma4Catalog(file *gguf.File, spec gemma4Spec) ([]string, error) {
 	required := map[string][]uint64{
 		visionPatchWeightTensor:    {uint64(spec.PatchWidth), uint64(spec.Hidden)},
 		visionPatchBiasTensor:      {uint64(spec.Hidden)},
@@ -161,18 +161,18 @@ func validateGemma4Catalog(file *gguf.File, spec Gemma4Spec) ([]string, error) {
 	return validateProjectorTensorCatalog(file, required)
 }
 
-func PreprocessGemma4Image(source image.Image, spec Gemma4Spec) (Gemma4Image, error) {
+func preprocessGemma4Image(source image.Image, spec gemma4Spec) (gemma4Image, error) {
 	if source == nil {
-		return Gemma4Image{}, errors.New("projector: image is nil")
+		return gemma4Image{}, errors.New("projector: image is nil")
 	}
 	if err := spec.validate(); err != nil {
-		return Gemma4Image{}, err
+		return gemma4Image{}, err
 	}
 	bounds := source.Bounds()
 	height, width := bounds.Dy(), bounds.Dx()
 	resizedH, resizedW, err := gemma4ResizeTarget(height, width, spec)
 	if err != nil {
-		return Gemma4Image{}, err
+		return gemma4Image{}, err
 	}
 	resized := source
 	if resizedH != height || resizedW != width {
@@ -199,10 +199,10 @@ func PreprocessGemma4Image(source image.Image, spec Gemma4Spec) (Gemma4Image, er
 			}
 		}
 	}
-	return Gemma4Image{PixelValues: pixels, Positions: positions, GridH: gridH, GridW: gridW}, nil
+	return gemma4Image{PixelValues: pixels, Positions: positions, GridH: gridH, GridW: gridW}, nil
 }
 
-func gemma4ResizeTarget(height, width int, spec Gemma4Spec) (int, int, error) {
+func gemma4ResizeTarget(height, width int, spec gemma4Spec) (int, int, error) {
 	if height <= 0 || width <= 0 {
 		return 0, 0, fmt.Errorf("projector: invalid image geometry %dx%d", width, height)
 	}
@@ -220,38 +220,38 @@ func gemma4ResizeTarget(height, width int, spec Gemma4Spec) (int, int, error) {
 	return resizedH, resizedW, nil
 }
 
-func (r *Gemma4Runner) EncodeImage(ctx context.Context, source image.Image) (Gemma4Output, error) {
+func (r *Gemma4Runner) EncodeImage(ctx context.Context, source image.Image) (gemma4Output, error) {
 	if r == nil || r.file == nil {
-		return Gemma4Output{}, errRunnerClosed
+		return gemma4Output{}, errRunnerClosed
 	}
-	input, err := PreprocessGemma4Image(source, r.spec)
+	input, err := preprocessGemma4Image(source, r.spec)
 	if err != nil {
-		return Gemma4Output{}, err
+		return gemma4Output{}, err
 	}
 	return r.encodeWithTrace(ctx, input, nil)
 }
 
 // EncodeVideoFrames: frame-major projection; bounded tokens per frame.
-func (r *Gemma4Runner) EncodeVideoFrames(ctx context.Context, frames []image.Image) (Gemma4VideoOutput, error) {
+func (r *Gemma4Runner) EncodeVideoFrames(ctx context.Context, frames []image.Image) (gemma4VideoOutput, error) {
 	if r == nil || r.file == nil {
-		return Gemma4VideoOutput{}, errRunnerClosed
+		return gemma4VideoOutput{}, errRunnerClosed
 	}
 	if len(frames) == 0 {
-		return Gemma4VideoOutput{}, errors.New("projector: video has no frames")
+		return gemma4VideoOutput{}, errors.New("projector: video has no frames")
 	}
 	videoSpec := r.spec
 	videoSpec.MaxImageTokens = r.spec.MaxVideoTokens
-	var combined Gemma4Image
+	var combined gemma4Image
 	var gridH, gridW int
 	for index, frame := range frames {
-		input, err := PreprocessGemma4Image(frame, videoSpec)
+		input, err := preprocessGemma4Image(frame, videoSpec)
 		if err != nil {
-			return Gemma4VideoOutput{}, fmt.Errorf("projector: preprocess video frame %d: %w", index, err)
+			return gemma4VideoOutput{}, fmt.Errorf("projector: preprocess video frame %d: %w", index, err)
 		}
 		if index == 0 {
 			gridH, gridW = input.GridH, input.GridW
 		} else if input.GridH != gridH || input.GridW != gridW {
-			return Gemma4VideoOutput{}, errors.New("projector: Gemma 4 video frames produce inconsistent grids")
+			return gemma4VideoOutput{}, errors.New("projector: Gemma 4 video frames produce inconsistent grids")
 		}
 		combined.PixelValues = append(combined.PixelValues, input.PixelValues...)
 		combined.Positions = append(combined.Positions, input.Positions...)
@@ -259,16 +259,16 @@ func (r *Gemma4Runner) EncodeVideoFrames(ctx context.Context, frames []image.Ima
 	combined.GridH, combined.GridW = gridH*len(frames), gridW
 	output, err := r.encodeWithTrace(ctx, combined, nil)
 	if err != nil {
-		return Gemma4VideoOutput{}, err
+		return gemma4VideoOutput{}, err
 	}
-	return Gemma4VideoOutput{
+	return gemma4VideoOutput{
 		Embeddings: output.Embeddings, Frames: len(frames), TokensPerFrame: gridH * gridW,
 	}, nil
 }
 
 type gemma4Trace func(string, []float32)
 
-func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, trace gemma4Trace) (Gemma4Output, error) {
+func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input gemma4Image, trace gemma4Trace) (gemma4Output, error) {
 	if r.cuda != nil {
 		return r.encodeCUDAWithTrace(ctx, input, trace)
 	}
@@ -277,16 +277,16 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 		rowStorage{elements: len(input.Positions), width: tensor.PairedExtent},
 	)
 	if err != nil {
-		return Gemma4Output{}, fmt.Errorf("projector: Gemma 4 input: %w", err)
+		return gemma4Output{}, fmt.Errorf("projector: Gemma 4 input: %w", err)
 	}
 	pixels, err := media.InterleavedToPlanarRows(input.PixelValues, rows, media.RGBChannels)
 	if err != nil {
-		return Gemma4Output{}, err
+		return gemma4Output{}, err
 	}
 	dtype.RoundBF16Slice(pixels)
 	ln1Weight, ln1Bias, err := r.loadPair(ctx, "v.patch_norm.1.weight", "v.patch_norm.1.bias")
 	if err != nil {
-		return Gemma4Output{}, err
+		return gemma4Output{}, err
 	}
 	ln1 := make([]float32, len(pixels))
 	hostmath.LayerNormF32AffineInto(ln1, pixels, ln1Weight.Data, ln1Bias.Data, rows, r.spec.PatchWidth, r.spec.LayerNormEpsilon)
@@ -294,14 +294,14 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	traceGemma4(trace, "patch_ln1", ln1)
 	patchWeight, patchBias, err := r.loadPair(ctx, visionPatchWeightTensor, visionPatchBiasTensor)
 	if err != nil {
-		return Gemma4Output{}, err
+		return gemma4Output{}, err
 	}
 	hidden := hostmath.LinearF64BiasFirstNew(ln1, patchWeight.Data, patchBias.Data, rows, r.spec.PatchWidth, r.spec.Hidden)
 	dtype.RoundBF16Slice(hidden)
 	traceGemma4(trace, "patch_dense", hidden)
 	ln2Weight, ln2Bias, err := r.loadPair(ctx, "v.patch_norm.2.weight", "v.patch_norm.2.bias")
 	if err != nil {
-		return Gemma4Output{}, err
+		return gemma4Output{}, err
 	}
 	ln2 := make([]float32, len(hidden))
 	hostmath.LayerNormF32AffineInto(ln2, hidden, ln2Weight.Data, ln2Bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
@@ -309,13 +309,13 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	traceGemma4(trace, "patch_ln2", ln2)
 	position, err := r.load(ctx, visionPositionWeightTensor)
 	if err != nil {
-		return Gemma4Output{}, err
+		return gemma4Output{}, err
 	}
 	for row := range rows {
 		x := input.Positions[row*tensor.PairedExtent]
 		y := input.Positions[row*tensor.PairedExtent+tensor.SingletonExtent]
 		if x < tensor.FirstOffset || y < tensor.FirstOffset || x >= r.spec.PositionCount || y >= r.spec.PositionCount {
-			return Gemma4Output{}, fmt.Errorf("projector: position %d,%d exceeds table", x, y)
+			return gemma4Output{}, fmt.Errorf("projector: position %d,%d exceeds table", x, y)
 		}
 		for channel := range r.spec.Hidden {
 			xValue := position.Data[x*r.spec.Hidden+channel]
@@ -326,7 +326,7 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	}
 	ln3Weight, ln3Bias, err := r.loadPair(ctx, "v.patch_norm.3.weight", "v.patch_norm.3.bias")
 	if err != nil {
-		return Gemma4Output{}, err
+		return gemma4Output{}, err
 	}
 	posNorm := make([]float32, len(ln2))
 	hostmath.LayerNormF32AffineInto(posNorm, ln2, ln3Weight.Data, ln3Bias.Data, rows, r.spec.Hidden, r.spec.LayerNormEpsilon)
@@ -338,16 +338,16 @@ func (r *Gemma4Runner) encodeWithTrace(ctx context.Context, input Gemma4Image, t
 	traceGemma4(trace, "pre_projection_norm", preProjection)
 	projection, err := r.load(ctx, multimodalInputProjection)
 	if err != nil {
-		return Gemma4Output{}, err
+		return gemma4Output{}, err
 	}
 	embeddings := hostmath.LinearF64BiasFirstNew(preProjection, projection.Data, nil, rows, r.spec.Hidden, r.spec.Hidden)
 	dtype.RoundBF16Slice(embeddings)
 	traceGemma4(trace, "embedding_projection", embeddings)
 	value, err := reference.NewValue(tensor.MustShape(uint64(r.spec.Hidden), uint64(rows)), embeddings)
 	if err != nil {
-		return Gemma4Output{}, err
+		return gemma4Output{}, err
 	}
-	return Gemma4Output{
+	return gemma4Output{
 		Embeddings: value,
 		GridH:      input.GridH, GridW: input.GridW,
 	}, nil

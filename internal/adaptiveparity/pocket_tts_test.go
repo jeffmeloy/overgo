@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -130,7 +130,7 @@ func TestPocketTTSProductionParity(t *testing.T) {
 			}
 			walls[run] = time.Since(started)
 		}
-		sort.Slice(walls, func(left, right int) bool { return walls[left] < walls[right] })
+		slices.Sort(walls)
 		if os.Getenv("OVERGO_POCKET_TTS_BASELINE") == "1" && walls[1] > pocketWarmLimit {
 			t.Fatalf("warm synthesis %s exceeds %s", walls[1], pocketWarmLimit)
 		}

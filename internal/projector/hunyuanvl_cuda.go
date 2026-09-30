@@ -13,7 +13,7 @@ import (
 
 const interpolationExtentBias = 0.1
 
-func (r *HunyuanVLRunner) encodeGraph(ctx context.Context, input RasterPatchImage) (gridOutput, error) {
+func (r *hunyuanVLRunner) encodeGraph(ctx context.Context, input rasterPatchImage) (gridOutput, error) {
 	rows, patchWidth, err := validateSpatialPatchStorage(
 		len(input.PixelValues), input.GridH, input.GridW, r.spec.PatchSize, media.RGBChannels,
 	)

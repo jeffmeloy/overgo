@@ -45,14 +45,14 @@ func (r *projectorResources) deviceMemoryStats(ctx context.Context, resetPeak bo
 type rasterPatchEncoder struct {
 	resources *projectorResources
 	plan      rasterPatchPlan
-	execute   func(context.Context, RasterPatchImage) (gridOutput, error)
+	execute   func(context.Context, rasterPatchImage) (gridOutput, error)
 }
 
 // EncodeImage executes the compiled raster projection.
 func (program rasterPatchEncoder) EncodeImage(
 	ctx context.Context,
 	source image.Image,
-	options RasterPatchOptions,
+	options rasterPatchOptions,
 ) (gridOutput, error) {
 	return executePreparedProjector(
 		ctx, program.resources != nil && program.resources.file != nil,

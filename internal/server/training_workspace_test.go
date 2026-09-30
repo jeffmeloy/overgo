@@ -39,7 +39,7 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, recipe.TaskTraining, definition.ID, input, testReporter{})
+	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capabilities[0], input, testReporter{})
 	if err != nil || completion.Run.Kind() != artifact.KindRun || len(completion.Outputs) != 3 ||
 		completion.Outputs[0].Kind() != artifact.KindCheckpoint || completion.Outputs[1].Kind() != artifact.KindEvidence ||
 		completion.Outputs[2].Kind() != artifact.KindEvidence {

@@ -12,19 +12,19 @@ import (
 
 func (r *Gemma4Runner) encodeCUDAWithTrace(
 	ctx context.Context,
-	input Gemma4Image,
+	input gemma4Image,
 	trace gemma4Trace,
-) (Gemma4Output, error) {
+) (gemma4Output, error) {
 	rows, err := validateGridStorage(input.GridH, input.GridW,
 		rowStorage{elements: len(input.PixelValues), width: r.spec.PatchWidth},
 		rowStorage{elements: len(input.Positions), width: tensor.PairedExtent},
 	)
 	if err != nil {
-		return Gemma4Output{}, fmt.Errorf("projector: Gemma 4 input: %w", err)
+		return gemma4Output{}, fmt.Errorf("projector: Gemma 4 input: %w", err)
 	}
 	pixels, err := media.InterleavedToPlanarRows(input.PixelValues, rows, media.RGBChannels)
 	if err != nil {
-		return Gemma4Output{}, err
+		return gemma4Output{}, err
 	}
 
 	builder := tensor.NewBuilder()
@@ -50,7 +50,7 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 		x := input.Positions[row*tensor.PairedExtent]
 		y := input.Positions[row*tensor.PairedExtent+tensor.SingletonExtent]
 		if x < tensor.FirstOffset || y < tensor.FirstOffset || x >= r.spec.PositionCount || y >= r.spec.PositionCount {
-			return Gemma4Output{}, fmt.Errorf("projector: position %d,%d exceeds table", x, y)
+			return gemma4Output{}, fmt.Errorf("projector: position %d,%d exceeds table", x, y)
 		}
 		xRows[row] = uint32(x)
 		yRows[row] = uint32(r.spec.PositionCount + y)
@@ -67,7 +67,7 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 	}
 	results, err := graph.execute(outputs...)
 	if err != nil {
-		return Gemma4Output{}, fmt.Errorf("projector: execute Gemma 4 CUDA graph: %w", err)
+		return gemma4Output{}, fmt.Errorf("projector: execute Gemma 4 CUDA graph: %w", err)
 	}
 	if trace != nil {
 		stages := []string{
@@ -77,7 +77,7 @@ func (r *Gemma4Runner) encodeCUDAWithTrace(
 			traceGemma4(trace, name, results[outputs[index]].Data)
 		}
 	}
-	return Gemma4Output{
+	return gemma4Output{
 		Embeddings: results[embeddings], GridH: input.GridH, GridW: input.GridW,
 	}, nil
 }
@@ -86,8 +86,8 @@ func (r *Gemma4Runner) encodeAudioCUDA(
 	ctx context.Context,
 	frames []float32,
 	rows int,
-	spec Gemma4AudioSpec,
-) (Gemma4AudioOutput, error) {
+	spec gemma4AudioSpec,
+) (gemma4AudioOutput, error) {
 	builder := tensor.NewBuilder()
 	input := builder.Input(
 		"audio_frames", dtype.F32, tensor.MustShape(uint64(spec.SamplesPerToken), uint64(rows)),
@@ -101,7 +101,7 @@ func (r *Gemma4Runner) encodeAudioCUDA(
 	graph.hostFeeds[input] = reference.Value{Shape: input.Shape, Data: frames}
 	results, err := graph.execute(embeddings)
 	if err != nil {
-		return Gemma4AudioOutput{}, fmt.Errorf("projector: execute Gemma 4 audio CUDA graph: %w", err)
+		return gemma4AudioOutput{}, fmt.Errorf("projector: execute Gemma 4 audio CUDA graph: %w", err)
 	}
-	return Gemma4AudioOutput{Embeddings: results[embeddings]}, nil
+	return gemma4AudioOutput{Embeddings: results[embeddings]}, nil
 }

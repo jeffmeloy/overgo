@@ -8,34 +8,6 @@ import (
 	"testing"
 )
 
-func TestRequireCompleteHistoryRejectsReplacementRefs(t *testing.T) {
-	repository := t.TempDir()
-	gitTestCommand(t, repository, "init", "-q")
-	gitTestCommand(t, repository, "config", "user.email", "authority@example.invalid")
-	gitTestCommand(t, repository, "config", "user.name", "Authority Test")
-	gitTestCommand(t, repository, "commit", "--allow-empty", "-q", "-m", "base")
-	base := gitTestCommand(t, repository, "rev-parse", "HEAD")
-	gitTestCommand(t, repository, "commit", "--allow-empty", "-q", "-m", "replacement")
-	replacement := gitTestCommand(t, repository, "rev-parse", "HEAD")
-	gitTestCommand(t, repository, "replace", base, replacement)
-
-	err := RequireCompleteHistory(t.Context(), repository)
-	if err == nil || !strings.Contains(err.Error(), "replacement refs") {
-		t.Fatalf("replacement authority error = %v", err)
-	}
-}
-
-func TestRequireCompleteHistoryRejectsCustomReplacementNamespace(t *testing.T) {
-	repository := t.TempDir()
-	gitTestCommand(t, repository, "init", "-q")
-	t.Setenv("GIT_REPLACE_REF_BASE", "refs/overgo-audit/")
-
-	err := RequireCompleteHistory(t.Context(), repository)
-	if err == nil || !strings.Contains(err.Error(), "custom replacement-ref namespace") {
-		t.Fatalf("custom replacement authority error = %v", err)
-	}
-}
-
 func TestRepositoryEnvironmentRemovesGitOverrides(t *testing.T) {
 	t.Setenv("OVERGO_GIT_AUTHORITY_SENTINEL", "preserved")
 	t.Setenv("GIT_DIR", t.TempDir())

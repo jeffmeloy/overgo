@@ -22,14 +22,14 @@ func TestArchitectureRegistryProfiles(t *testing.T) {
 		name       string
 		capability ArchitectureCapability
 	}{
-		{"llama", ArchitectureNormalRoPE},
-		{"deepseek32", ArchitectureSparseLatent | ArchitectureLatent},
-		{"qwen35moe", ArchitectureMoE | ArchitectureRecurrent},
-		{"t5", ArchitectureRoPEDisabled},
-		{"llada", ArchitectureNonCausal | ArchitectureDiffusion},
-		{"qwen3vl", ArchitectureMultimodal},
-		{"gemma3n", ArchitectureSharedKV | ArchitecturePerLayerEmbeddings},
-		{"talkie", ArchitectureEmbeddingSkip},
+		{"llama", architectureNormalRoPE},
+		{"deepseek32", architectureSparseLatent | architectureLatent},
+		{"qwen35moe", architectureMoE | architectureRecurrent},
+		{"t5", architectureRoPEDisabled},
+		{"llada", architectureNonCausal | architectureDiffusion},
+		{"qwen3vl", architectureMultimodal},
+		{"gemma3n", architectureSharedKV | architecturePerLayerEmbeddings},
+		{"talkie", architectureEmbeddingSkip},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -76,11 +76,11 @@ func TestResolvedProfilePrefersExactBinding(t *testing.T) {
 func TestRuntimeBehaviorUsesBoundProfilePolicies(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name: runtimePolicyFixtureArchitecture, Normalization: NormalizationRMS,
-		Rotary: RotaryPolicy{Usage: RotaryUsageSlidingOnly},
-		Runtime: RuntimePolicy{
-			EmbeddingScale: EmbeddingScaleSqrtWidth, LogitScale: LogitScaleDirect,
-			NormalizationPlacement: NormalizationPlacementPostOnly,
-			NormalizationBias:      NormalizationBiasAlways,
+		Rotary: rotaryPolicy{Usage: rotaryUsageSlidingOnly},
+		Runtime: runtimePolicy{
+			EmbeddingScale: embeddingScaleSqrtWidth, LogitScale: logitScaleDirect,
+			NormalizationPlacement: normalizationPlacementPostOnly,
+			NormalizationBias:      normalizationBiasAlways,
 		},
 	}
 	spec := Spec{
@@ -105,7 +105,7 @@ func TestRuntimeBehaviorUsesBoundProfilePolicies(t *testing.T) {
 func TestEncoderValidationUsesBoundProfilePolicy(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name:       runtimePolicyFixtureArchitecture,
-		Validation: ValidationPolicy{Encoder: EncoderValidationTokenTypesMatchingHeads},
+		Validation: validationPolicy{Encoder: encoderValidationTokenTypesMatchingHeads},
 	}
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
@@ -127,7 +127,7 @@ func TestEncoderValidationUsesBoundProfilePolicy(t *testing.T) {
 func TestAttentionValidationUsesBoundProfilePolicy(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name:       runtimePolicyFixtureArchitecture,
-		Validation: ValidationPolicy{Attention: AttentionValidationFullRotary},
+		Validation: validationPolicy{Attention: attentionValidationFullRotary},
 	}
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
@@ -148,7 +148,7 @@ func TestAttentionValidationUsesBoundProfilePolicy(t *testing.T) {
 func TestMLAValidationUsesBoundProfilePolicy(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name:       runtimePolicyFixtureArchitecture,
-		Validation: ValidationPolicy{MLA: MLAValidationScaledLatent},
+		Validation: validationPolicy{MLA: mlaValidationScaledLatent},
 	}
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
@@ -168,7 +168,7 @@ func TestMLAValidationUsesBoundProfilePolicy(t *testing.T) {
 func TestRecurrentValidationUsesBoundProfilePolicy(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name:       runtimePolicyFixtureArchitecture,
-		Validation: ValidationPolicy{Recurrent: RecurrentValidationTargetLayerBlock},
+		Validation: validationPolicy{Recurrent: recurrentValidationTargetLayerBlock},
 	}
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
@@ -186,7 +186,7 @@ func TestRecurrentValidationUsesBoundProfilePolicy(t *testing.T) {
 func TestHybridValidationUsesBoundProfilePolicy(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name:       runtimePolicyFixtureArchitecture,
-		Validation: ValidationPolicy{Hybrid: HybridValidationSharedExperts},
+		Validation: validationPolicy{Hybrid: hybridValidationSharedExperts},
 	}
 	spec := Spec{
 		CommonSpec: CommonSpec{Architecture: runtimePolicyFixtureArchitecture},
@@ -206,7 +206,7 @@ func TestHybridValidationUsesBoundProfilePolicy(t *testing.T) {
 func TestIndexerCadenceUsesBoundProfilePolicy(t *testing.T) {
 	profile := ArchitectureProfile{
 		Name:    runtimePolicyFixtureArchitecture,
-		Cadence: LayerCadencePolicy{FullIndexerEveryLayer: true},
+		Cadence: layerCadencePolicy{FullIndexerEveryLayer: true},
 	}
 	spec := Spec{CommonSpec: CommonSpec{
 		Architecture: runtimePolicyFixtureArchitecture,
@@ -220,11 +220,11 @@ func TestIndexerCadenceUsesBoundProfilePolicy(t *testing.T) {
 
 func TestArchitectureProfileDraftPlan(t *testing.T) {
 	for architecture, want := range map[string]DraftPlan{
-		"qwen35":     {Kind: DraftSingleCatalog, Heads: 1, SingleCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle, QueryCopies: 2},
-		"step35":     {Kind: DraftAppendedMultiCarry, Heads: 2, AppendedBlocks: true, CarryRawHidden: true, Session: DraftSessionMulti},
-		"hy_v3":      {Kind: DraftAppendedMulti, Heads: 2, AppendedBlocks: true, Session: DraftSessionMulti},
+		"qwen35":     {Kind: draftSingleCatalog, Heads: 1, SingleCatalog: true, SupportsMTPOnly: true, Session: DraftSessionSingle, QueryCopies: 2},
+		"step35":     {Kind: draftAppendedMultiCarry, Heads: 2, AppendedBlocks: true, CarryRawHidden: true, Session: DraftSessionMulti},
+		"hy_v3":      {Kind: draftAppendedMulti, Heads: 2, AppendedBlocks: true, Session: DraftSessionMulti},
 		"glm4":       {Kind: DraftAppendedSingle, Heads: 1, AppendedBlocks: true, Session: DraftSessionSingle},
-		"cohere2moe": {Kind: DraftOptionalSingleCatalog, Heads: 1, SingleCatalog: true, OptionalCatalog: true, SupportsMTPOnly: true, ScaleLogits: true, Normalization: DraftNormalizationArchitecture, Session: DraftSessionSingle},
+		"cohere2moe": {Kind: draftOptionalSingleCatalog, Heads: 1, SingleCatalog: true, OptionalCatalog: true, SupportsMTPOnly: true, ScaleLogits: true, Normalization: draftNormalizationArchitecture, Session: DraftSessionSingle},
 	} {
 		profile, _ := LookupArchitecture(architecture)
 		heads := want.Heads
@@ -243,14 +243,14 @@ func TestArchitectureProfileDeepSeekLayoutPolicy(t *testing.T) {
 		"deepseek2": true, "deepseek32": true, "mistral4": true, "glm-dsa": false,
 	} {
 		profile, ok := LookupArchitecture(architecture)
-		if !ok || !profile.Has(ArchitectureLatentKVLayout) ||
-			profile.Has(ArchitectureLatentYaRNQuery) != wantGraph {
+		if !ok || !profile.Has(architectureLatentKVLayout) ||
+			profile.Has(architectureLatentYaRNQuery) != wantGraph {
 			t.Fatalf("%s DeepSeek policies = %064b", architecture, profile.Capabilities)
 		}
 	}
 	for _, architecture := range []string{"deepseek", "deepseek2-ocr", "minicpm3"} {
 		profile, _ := LookupArchitecture(architecture)
-		if profile.Has(ArchitectureLatentKVLayout) {
+		if profile.Has(architectureLatentKVLayout) {
 			t.Fatalf("%s unexpectedly has DeepSeek2 layout", architecture)
 		}
 	}
@@ -285,20 +285,20 @@ func TestArchitectureProfileOutputNormPolicy(t *testing.T) {
 		policy OutputNormPolicy
 		tensor string
 	}{
-		"llama":          {OutputNormModel, "output_norm.weight"},
+		"llama":          {outputNormModel, "output_norm.weight"},
 		"bert":           {OutputNormAbsent, ""},
 		"nomic-bert-moe": {OutputNormAbsent, ""},
-		"neo-bert":       {OutputNormEncoder, "enc.output_norm.weight"},
-		"t5encoder":      {OutputNormEncoder, "enc.output_norm.weight"},
-		"t5":             {OutputNormDecoder, "dec.output_norm.weight"},
-		"lfm2":           {OutputNormTokenEmbedding, "token_embd_norm.weight"},
+		"neo-bert":       {outputNormEncoder, "enc.output_norm.weight"},
+		"t5encoder":      {outputNormEncoder, "enc.output_norm.weight"},
+		"t5":             {outputNormDecoder, "dec.output_norm.weight"},
+		"lfm2":           {outputNormTokenEmbedding, "token_embd_norm.weight"},
 	} {
 		profile, ok := LookupArchitecture(architecture)
 		if !ok || profile.OutputNorm != want.policy || profile.OutputNormTensor() != want.tensor {
 			t.Fatalf("%s output norm = %v/%q, want %v/%q",
 				architecture, profile.OutputNorm, profile.OutputNormTensor(), want.policy, want.tensor)
 		}
-		if want.policy == OutputNormAbsent && !profile.Has(ArchitectureOutputLayerNormLayout) {
+		if want.policy == OutputNormAbsent && !profile.Has(architectureOutputLayerNormLayout) {
 			t.Fatalf("%s has no BERT normalization layout", architecture)
 		}
 	}
@@ -306,14 +306,14 @@ func TestArchitectureProfileOutputNormPolicy(t *testing.T) {
 
 func TestArchitectureProfileFusedQKVPolicy(t *testing.T) {
 	for architecture, capabilities := range map[string]ArchitectureCapability{
-		"bloom": ArchitectureFusedQKV | ArchitectureRequiresFusedQKV | ArchitectureRequiresFusedQKVBias,
-		"mpt":   ArchitectureFusedQKV | ArchitectureRequiresFusedQKV,
-		"phi3":  ArchitectureFusedQKV | ArchitectureRejectsOrphanFusedQKVBias,
+		"bloom": architectureFusedQKV | architectureRequiresFusedQKV | architectureRequiresFusedQKVBias,
+		"mpt":   architectureFusedQKV | architectureRequiresFusedQKV,
+		"phi3":  architectureFusedQKV | architectureRejectsOrphanFusedQKVBias,
 		"llama": 0,
 	} {
 		profile, ok := LookupArchitecture(architecture)
-		mask := ArchitectureFusedQKV | ArchitectureRequiresFusedQKV |
-			ArchitectureRequiresFusedQKVBias | ArchitectureRejectsOrphanFusedQKVBias
+		mask := architectureFusedQKV | architectureRequiresFusedQKV |
+			architectureRequiresFusedQKVBias | architectureRejectsOrphanFusedQKVBias
 		if !ok || profile.Capabilities&mask != capabilities {
 			t.Fatalf("%s fused QKV capabilities = %064b", architecture, profile.Capabilities)
 		}
@@ -327,11 +327,11 @@ func TestArchitectureProfileProjectedInputPolicies(t *testing.T) {
 		deepstack    DeepstackPolicy
 		blocks       AttentionBlockPolicy
 	}{
-		{"llama", EmbeddingOverrideStandard, DeepstackNone, AttentionBlocksNone},
-		{"cogvlm", EmbeddingOverrideVisualSpan, DeepstackNone, AttentionBlocksNone},
-		{"gemma4", EmbeddingOverrideRawScaled, DeepstackNone, AttentionBlocksUncached},
-		{"granite", EmbeddingOverrideMappedBase, DeepstackMappedBefore, AttentionBlocksNone},
-		{"qwen3vl", EmbeddingOverrideStandard, DeepstackSequentialAfter, AttentionBlocksNone},
+		{"llama", embeddingOverrideStandard, deepstackNone, AttentionBlocksNone},
+		{"cogvlm", EmbeddingOverrideVisualSpan, deepstackNone, AttentionBlocksNone},
+		{"gemma4", EmbeddingOverrideRawScaled, deepstackNone, AttentionBlocksUncached},
+		{"granite", EmbeddingOverrideMappedBase, deepstackMappedBefore, AttentionBlocksNone},
+		{"qwen3vl", embeddingOverrideStandard, deepstackSequentialAfter, AttentionBlocksNone},
 	}
 	for _, test := range tests {
 		profile, ok := LookupArchitecture(test.architecture)
@@ -344,7 +344,7 @@ func TestArchitectureProfileProjectedInputPolicies(t *testing.T) {
 
 func TestArchitectureProfileLayerSideInputPolicies(t *testing.T) {
 	for architecture, want := range map[string]AuxiliaryFlow{
-		"llama": AuxiliaryNone, "rwkv7": AuxiliaryRecurrentValue, "arwkv7": AuxiliaryRecurrentValue,
+		"llama": AuxiliaryNone, "rwkv7": auxiliaryRecurrentValue, "arwkv7": auxiliaryRecurrentValue,
 		"glm-dsa": AuxiliarySparseTopK, "deepseek32": AuxiliaryNone,
 	} {
 		profile, _ := LookupArchitecture(architecture)
@@ -353,7 +353,7 @@ func TestArchitectureProfileLayerSideInputPolicies(t *testing.T) {
 		}
 	}
 	for architecture, want := range map[string]AttentionTemperaturePolicy{
-		"llama": AttentionTemperatureNone, "llama4": AttentionTemperatureNoRoPE,
+		"llama": AttentionTemperatureNone, "llama4": attentionTemperatureNoRoPE,
 		"deepseek2": AttentionTemperatureConfigured, "mistral3": AttentionTemperatureConfigured,
 		"mistral4": AttentionTemperatureConfigured,
 	} {
@@ -365,7 +365,7 @@ func TestArchitectureProfileLayerSideInputPolicies(t *testing.T) {
 }
 
 func TestArchitectureProfileNormTensorCatalog(t *testing.T) {
-	for architecture, want := range map[string]PostNormTensorNames{
+	for architecture, want := range map[string]postNormTensorNames{
 		"llama": {
 			AttentionWeight: "post_attention_norm.weight", FeedForwardWeight: "post_ffw_norm.weight",
 		},

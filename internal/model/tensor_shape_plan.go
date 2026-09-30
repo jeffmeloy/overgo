@@ -9,8 +9,8 @@ func (s Spec) ssmConvolutionWindow() uint64 {
 	return uint64(s.SSMConvKernel) - tensor.SingletonExtent
 }
 
-// TensorShapePlan: layer tensor and cache dimensions.
-type TensorShapePlan struct {
+// tensorShapePlan: layer tensor and cache dimensions.
+type tensorShapePlan struct {
 	Embedding   uint64
 	FeedForward uint64
 	QueryHeads  uint64
@@ -21,8 +21,8 @@ type TensorShapePlan struct {
 	ExpertWidth uint64
 }
 
-func (s Spec) TensorShapes(layer uint32) TensorShapePlan {
-	return TensorShapePlan{
+func (s Spec) TensorShapes(layer uint32) tensorShapePlan {
+	return tensorShapePlan{
 		Embedding: uint64(s.EmbeddingLength), FeedForward: uint64(s.LayerFeedForwardLength(layer)),
 		QueryHeads: uint64(s.LayerHeadCount(layer)), KVHeads: uint64(s.LayerKVHeadCount(layer)),
 		Key: uint64(s.LayerKeyLength(layer)), Value: uint64(s.LayerValueLength(layer)),
@@ -30,46 +30,46 @@ func (s Spec) TensorShapes(layer uint32) TensorShapePlan {
 	}
 }
 
-func (p TensorShapePlan) EmbeddingVector() []uint64 {
+func (p tensorShapePlan) EmbeddingVector() []uint64 {
 	return []uint64{p.Embedding}
 }
 
-func (p TensorShapePlan) QueryProjectionWidth() uint64 {
+func (p tensorShapePlan) QueryProjectionWidth() uint64 {
 	return p.QueryHeads * p.Key
 }
 
-func (p TensorShapePlan) KeyProjectionWidth() uint64 {
+func (p tensorShapePlan) KeyProjectionWidth() uint64 {
 	return p.KVHeads * p.Key
 }
 
-func (p TensorShapePlan) ValueProjectionWidth() uint64 {
+func (p tensorShapePlan) ValueProjectionWidth() uint64 {
 	return p.KVHeads * p.Value
 }
 
-func (p TensorShapePlan) AttentionOutputWidth() uint64 {
+func (p tensorShapePlan) AttentionOutputWidth() uint64 {
 	return p.QueryHeads * p.Value
 }
 
-func (p TensorShapePlan) FeedForwardUp(multiplier uint64) []uint64 {
+func (p tensorShapePlan) FeedForwardUp(multiplier uint64) []uint64 {
 	return []uint64{p.Embedding, p.FeedForwardUpWidth(multiplier)}
 }
 
-func (p TensorShapePlan) FeedForwardUpWidth(multiplier uint64) uint64 {
+func (p tensorShapePlan) FeedForwardUpWidth(multiplier uint64) uint64 {
 	return multiplier * p.FeedForward
 }
 
-func (p TensorShapePlan) FeedForwardDown() []uint64 {
+func (p tensorShapePlan) FeedForwardDown() []uint64 {
 	return []uint64{p.FeedForward, p.Embedding}
 }
 
-func (p TensorShapePlan) ExpertRouter() []uint64 {
+func (p tensorShapePlan) ExpertRouter() []uint64 {
 	return []uint64{p.Embedding, p.Experts}
 }
 
-func (p TensorShapePlan) ExpertUp(multiplier uint64) []uint64 {
+func (p tensorShapePlan) ExpertUp(multiplier uint64) []uint64 {
 	return []uint64{p.Embedding, multiplier * p.ExpertWidth, p.Experts}
 }
 
-func (p TensorShapePlan) ExpertDown() []uint64 {
+func (p tensorShapePlan) ExpertDown() []uint64 {
 	return []uint64{p.ExpertWidth, p.Embedding, p.Experts}
 }

@@ -36,19 +36,19 @@ func draftWeightCatalog(
 // DraftCatalog returns one indexed compiled draft tensor catalog.
 func (w Weights) DraftCatalog(kind DraftKind, offset uint32) (DraftWeightCatalog, bool) {
 	switch kind {
-	case DraftSingleCatalog:
+	case draftSingleCatalog:
 		if offset == tensor.FirstOffset && w.SingleCatalogDraft != nil {
 			item := w.SingleCatalogDraft
 			return draftWeightCatalog(kind, item.MTPOnly, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, nil, item.OutputNorm, item.Output), true
 		}
-	case DraftAppendedMultiCarry:
+	case draftAppendedMultiCarry:
 		if offset < uint32(len(w.AppendedMultiCarryDraft)) {
 			item := w.AppendedMultiCarryDraft[offset]
 			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
 		}
-	case DraftAppendedMulti:
+	case draftAppendedMulti:
 		if offset < uint32(len(w.AppendedMultiDraft)) {
 			item := w.AppendedMultiDraft[offset]
 			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
@@ -60,7 +60,7 @@ func (w Weights) DraftCatalog(kind DraftKind, offset uint32) (DraftWeightCatalog
 			return draftWeightCatalog(kind, false, item.Layer, item.EHProjection, item.EmbeddingNorm,
 				item.HiddenNorm, item.TokenEmbedding, item.LayerOutputNorm, item.OutputNorm, item.Output), true
 		}
-	case DraftOptionalSingleCatalog:
+	case draftOptionalSingleCatalog:
 		if offset == tensor.FirstOffset && w.OptionalCatalogDraft != nil {
 			item := w.OptionalCatalogDraft
 			return draftWeightCatalog(kind, item.MTPOnly, item.Layer, item.EHProjection, item.EmbeddingNorm,
@@ -80,7 +80,7 @@ func (w Weights) DraftCatalogs() []DraftWeightCatalog {
 		count++
 	}
 	result := make([]DraftWeightCatalog, 0, count)
-	for _, kind := range []DraftKind{DraftSingleCatalog, DraftAppendedMultiCarry, DraftAppendedMulti, DraftAppendedSingle, DraftOptionalSingleCatalog} {
+	for _, kind := range []DraftKind{draftSingleCatalog, draftAppendedMultiCarry, draftAppendedMulti, DraftAppendedSingle, draftOptionalSingleCatalog} {
 		for offset := uint32(tensor.FirstOffset); ; offset++ {
 			catalog, ok := w.DraftCatalog(kind, offset)
 			if !ok {

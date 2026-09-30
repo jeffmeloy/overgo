@@ -34,15 +34,15 @@ const (
 type RotaryUsagePolicy uint8
 
 const (
-	RotaryUsageStandard RotaryUsagePolicy = iota
-	RotaryUsageSlidingMetadata
-	RotaryUsageDensePrefixOrSliding
-	RotaryUsagePeriodicZeroBased
-	RotaryUsageSlidingOnly
+	rotaryUsageStandard RotaryUsagePolicy = iota
+	rotaryUsageSlidingMetadata
+	rotaryUsageDensePrefixOrSliding
+	rotaryUsagePeriodicZeroBased
+	rotaryUsageSlidingOnly
 )
 
-// RotaryPolicy: architecture-owned rotary selection.
-type RotaryPolicy struct {
+// rotaryPolicy: architecture-owned rotary selection.
+type rotaryPolicy struct {
 	Kind                      rotaryPolicyKind
 	MultiAxis                 multiAxisRotaryPolicy
 	Usage                     RotaryUsagePolicy
@@ -52,8 +52,8 @@ type RotaryPolicy struct {
 	FactorPairs               bool
 }
 
-// AttentionGraphPolicy: architecture-owned attention controls.
-type AttentionGraphPolicy struct {
+// attentionGraphPolicy: architecture-owned attention controls.
+type attentionGraphPolicy struct {
 	UseSinks      bool
 	ChunkedWindow bool
 	GatedDelta    gatedDeltaPolicy
@@ -75,8 +75,8 @@ func applyRoPEPairWithOptions(
 	return builder.RoPEWithOptions(query, options), builder.RoPEWithOptions(key, options)
 }
 
-// RotaryPlan: compiled per-layer rotary graph.
-type RotaryPlan struct {
+// rotaryPlan: compiled per-layer rotary graph.
+type rotaryPlan struct {
 	interleavedSections bool
 	kind                rotaryGraphKind
 	layout              tensor.RoPELayout
@@ -95,7 +95,7 @@ type RotaryPlan struct {
 }
 
 // Apply: shared query/key rotary graph.
-func (p RotaryPlan) Apply(
+func (p rotaryPlan) Apply(
 	builder *tensor.Builder,
 	query, key *tensor.Tensor,
 	positions []uint32,
@@ -109,7 +109,7 @@ func (p RotaryPlan) Apply(
 }
 
 // ApplyOne: single-tensor rotary graph.
-func (p RotaryPlan) ApplyOne(
+func (p rotaryPlan) ApplyOne(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	positions []uint32,
@@ -122,7 +122,7 @@ func (p RotaryPlan) ApplyOne(
 	)
 }
 
-func (p RotaryPlan) resolveFactors(
+func (p rotaryPlan) resolveFactors(
 	builder *tensor.Builder,
 	frequencyFactors *tensor.Tensor,
 ) *tensor.Tensor {
@@ -137,7 +137,7 @@ func (p RotaryPlan) resolveFactors(
 	return frequencyFactors
 }
 
-func (p RotaryPlan) applyOne(
+func (p rotaryPlan) applyOne(
 	builder *tensor.Builder,
 	input *tensor.Tensor,
 	positions []uint32,
@@ -178,15 +178,15 @@ func (p RotaryPlan) applyOne(
 	return input
 }
 
-func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
+func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) rotaryPlan {
 	if !s.UsesRoPE(layer) {
-		return RotaryPlan{}
+		return rotaryPlan{}
 	}
 	rotaryDimensions := s.KeyLength
 	if s.RopeDimensionCount > tensor.FirstOffset {
 		rotaryDimensions = s.LayerRopeDimensionCount(layer)
 	}
-	plan := RotaryPlan{
+	plan := rotaryPlan{
 		kind: rotaryGraphSingle, layout: tensor.RoPELayoutNeoX,
 		rotaryDimensions: rotaryDimensions, frequencyBase: s.RopeFrequencyBase,
 		frequencyScale: tensor.UnitScale,
@@ -272,7 +272,7 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 	if policy.FactorPairs {
 		plan.factorPairs = rotaryDimensions / tensor.PairedExtent
 	}
-	if profile.Has(ArchitectureLongRoPE) && s.RopeScalingType != ropeScalingYaRN &&
+	if profile.Has(architectureLongRoPE) && s.RopeScalingType != ropeScalingYaRN &&
 		positiveFinite(s.RopeAttentionFactor) && s.RopeAttentionFactor != tensor.UnitScale {
 		plan.outputScale = s.RopeAttentionFactor
 	}
@@ -326,8 +326,8 @@ func (s Spec) attentionGraphPlan(profile ArchitectureProfile, layer uint32) Atte
 	return plan
 }
 
-// MoEGraphPlan: compiled routed-expert controls.
-type MoEGraphPlan struct {
+// moEGraphPlan: compiled routed-expert controls.
+type moEGraphPlan struct {
 	TopK                  uint32
 	NormalizeTopKProb     bool
 	Scale                 float32
@@ -340,8 +340,8 @@ type MoEGraphPlan struct {
 	SwiGLUClamp           float32
 }
 
-// MoEGraphInputs: routed-expert tensor bindings.
-type MoEGraphInputs struct {
+// moEGraphInputs: routed-expert tensor bindings.
+type moEGraphInputs struct {
 	RouterInput     *tensor.Tensor
 	Gate            *tensor.Tensor
 	Up              *tensor.Tensor
@@ -353,10 +353,10 @@ type MoEGraphInputs struct {
 }
 
 // Build: materializes compiled routed-expert controls.
-func (p MoEGraphPlan) Build(
+func (p moEGraphPlan) Build(
 	builder *tensor.Builder,
 	input, router *tensor.Tensor,
-	inputs MoEGraphInputs,
+	inputs moEGraphInputs,
 ) *tensor.Tensor {
 	return builder.MoEWithOptions(input, router, inputs.Up, inputs.Down, tensor.MoEOptions{
 		RouterInput: inputs.RouterInput, Gate: inputs.Gate,
@@ -369,7 +369,7 @@ func (p MoEGraphPlan) Build(
 }
 
 // BuildLayer: standard layer-weight bindings.
-func (p MoEGraphPlan) BuildLayer(
+func (p moEGraphPlan) BuildLayer(
 	builder *tensor.Builder,
 	input, routerInput *tensor.Tensor,
 	weights LayerGraphWeights,
@@ -397,14 +397,14 @@ func (p MoEGraphPlan) BuildLayer(
 			Down:   weights.FeedForwardDownBias,
 		}
 	}
-	return p.Build(builder, input, weights.FeedForwardRouter, MoEGraphInputs{
+	return p.Build(builder, input, weights.FeedForwardRouter, moEGraphInputs{
 		RouterInput: routerInput, Gate: gate, Up: up,
 		Down: weights.FeedForwardDownExperts, SelectionBias: selectionBias,
 		ExpertScale: weights.FeedForwardDownExpertsScale, Biases: biases,
 	})
 }
 
-func (s Spec) moeGraphPlan(profile ArchitectureProfile, layer uint32) MoEGraphPlan {
+func (s Spec) moeGraphPlan(profile ArchitectureProfile, layer uint32) moEGraphPlan {
 	policy := profile.Experts
 	routing := tensor.MoERoutingSoftmax
 	if s.ExpertGatingFunc == expertGatingSigmoid {
@@ -431,7 +431,7 @@ func (s Spec) moeGraphPlan(profile ArchitectureProfile, layer uint32) MoEGraphPl
 	if policy.ClampSwiGLU {
 		clamp = s.LayerExpertSwiGLUClamp(layer)
 	}
-	return MoEGraphPlan{
+	return moEGraphPlan{
 		TopK: s.ExpertUsedCount, NormalizeTopKProb: normalize,
 		Scale: s.ExpertWeightsScale, Routing: routing, Activation: activation,
 		SelectionBias: policy.SelectionBias, OptionalSelectionBias: policy.OptionalSelectionBias,

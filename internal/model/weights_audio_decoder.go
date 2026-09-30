@@ -15,9 +15,9 @@ func readAudioDecoderWeightCatalog(catalog weightCatalog, spec Spec) (Weights, e
 		return Weights{}, fmt.Errorf("sequence-output residual program has %d stages for %d blocks", len(residuals), spec.PosNetBlockCount)
 	}
 	result := Weights{}
-	wav := &AudioDecoderWeights{
-		PosNet:   make([]WavPosNetWeights, spec.PosNetBlockCount),
-		ConvNext: make([]WavConvNextWeights, spec.ConvNextBlockCount),
+	wav := &audioDecoderWeights{
+		PosNet:   make([]wavPosNetWeights, spec.PosNetBlockCount),
+		ConvNext: make([]wavConvNextWeights, spec.ConvNextBlockCount),
 	}
 	if err := bindTensorProgram(catalog, "", []tensorBinding{
 		requiredTensor(tokenEmbeddingWeightTensor, &result.TokenEmbedding, uint64(spec.EmbeddingLength), uint64(spec.VocabularySize)),

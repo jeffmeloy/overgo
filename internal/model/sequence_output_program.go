@@ -48,8 +48,8 @@ const (
 	sequenceResidualOperatorCount
 )
 
-// SequenceOutputProgram: ordered sequence terminal math.
-type SequenceOutputProgram struct {
+// sequenceOutputProgram: ordered sequence terminal math.
+type sequenceOutputProgram struct {
 	residuals                  []sequenceResidualOperator
 	convolutions, groupCount   uint32
 	embedding, positionWidth   uint64
@@ -57,7 +57,7 @@ type SequenceOutputProgram struct {
 }
 
 // Build executes the compiled sequence-output program.
-func (p SequenceOutputProgram) Build(
+func (p sequenceOutputProgram) Build(
 	builder *tensor.Builder,
 	embeddings *tensor.Tensor,
 	weights SequenceOutputGraphWeights,
@@ -185,11 +185,11 @@ func (p SequenceOutputProgram) Build(
 	return current, nil
 }
 
-func compileSequenceOutputProgram(spec Spec, profile ArchitectureProfile) SequenceOutputProgram {
+func compileSequenceOutputProgram(spec Spec, profile ArchitectureProfile) sequenceOutputProgram {
 	if profile.Forward.Operation != ForwardOperationAudioTokens {
-		return SequenceOutputProgram{}
+		return sequenceOutputProgram{}
 	}
-	return SequenceOutputProgram{
+	return sequenceOutputProgram{
 		residuals: slices.Clone(profile.Forward.SequenceResiduals), convolutions: spec.ConvNextBlockCount,
 		embedding: uint64(spec.EmbeddingLength), positionWidth: uint64(spec.PosNetEmbeddingLength),
 		groupCount: spec.GroupNormGroups, groupEpsilon: spec.GroupNormEpsilon,

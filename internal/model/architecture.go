@@ -8,12 +8,12 @@ import (
 type DraftKind uint8
 
 const (
-	DraftNone DraftKind = iota
-	DraftSingleCatalog
-	DraftAppendedMultiCarry
-	DraftAppendedMulti
+	draftNone DraftKind = iota
+	draftSingleCatalog
+	draftAppendedMultiCarry
+	draftAppendedMulti
 	DraftAppendedSingle
-	DraftOptionalSingleCatalog
+	draftOptionalSingleCatalog
 )
 
 const (
@@ -21,21 +21,21 @@ const (
 	singleDraftHeadCount
 )
 
-// DraftSessionPolicy: runtime coordinator cardinality.
-type DraftSessionPolicy uint8
+// draftSessionPolicy: runtime coordinator cardinality.
+type draftSessionPolicy uint8
 
 const (
-	DraftSessionNone DraftSessionPolicy = iota
+	draftSessionNone draftSessionPolicy = iota
 	DraftSessionSingle
 	DraftSessionMulti
 )
 
-// DraftNormalizationPolicy: draft projection normalization operator.
-type DraftNormalizationPolicy uint8
+// draftNormalizationPolicy: draft projection normalization operator.
+type draftNormalizationPolicy uint8
 
 const (
-	DraftNormalizationWeightedRMS DraftNormalizationPolicy = iota
-	DraftNormalizationArchitecture
+	draftNormalizationWeightedRMS draftNormalizationPolicy = iota
+	draftNormalizationArchitecture
 )
 
 // DraftPlan: compiled catalog and session contract.
@@ -48,14 +48,14 @@ type DraftPlan struct {
 	SupportsMTPOnly bool
 	CarryRawHidden  bool
 	ScaleLogits     bool
-	Normalization   DraftNormalizationPolicy
-	Session         DraftSessionPolicy
+	Normalization   draftNormalizationPolicy
+	Session         draftSessionPolicy
 	QueryCopies     uint32
 }
 
 // HasHead: bounded catalog head.
 func (p DraftPlan) HasHead(offset uint32) bool {
-	if p.Kind == DraftNone || p.Heads == firstDraftHead || p.SingleCatalog && p.Heads != singleDraftHeadCount {
+	if p.Kind == draftNone || p.Heads == firstDraftHead || p.SingleCatalog && p.Heads != singleDraftHeadCount {
 		return false
 	}
 	return offset < p.Heads
@@ -86,11 +86,11 @@ func (p DraftPlan) Block(trunk, offset uint32) uint32 {
 type OutputNormPolicy uint8
 
 const (
-	OutputNormModel OutputNormPolicy = iota
+	outputNormModel OutputNormPolicy = iota
 	OutputNormAbsent
-	OutputNormEncoder
-	OutputNormDecoder
-	OutputNormTokenEmbedding
+	outputNormEncoder
+	outputNormDecoder
+	outputNormTokenEmbedding
 )
 
 // NormalizationPolicy: model normalization contract.
@@ -98,10 +98,10 @@ type NormalizationPolicy uint8
 
 const (
 	NormalizationRMS NormalizationPolicy = iota
-	NormalizationLayer
+	normalizationLayer
 	NormalizationUnweightedLayer
 	NormalizationUnweightedRMS
-	NormalizationWeightOnlyLayer
+	normalizationWeightOnlyLayer
 	// NormalizationMAD: mean-absolute-deviation normalization, the
 	// constructed (scratch) topology's norm. Registered so constructed
 	// components speak the same policy vocabulary as inherited ones.
@@ -112,7 +112,7 @@ const (
 type PositionPolicy uint8
 
 const (
-	PositionNeoX PositionPolicy = iota
+	positionNeoX PositionPolicy = iota
 	PositionNormal
 	// PositionLearnedAbsolute: learned absolute position embeddings plus
 	// optional lag bias, the constructed topology's position contract.
@@ -124,31 +124,31 @@ type ResidualPolicy uint8
 
 const (
 	ResidualSequential ResidualPolicy = iota
-	ResidualParallel
+	residualParallel
 )
 
 // FeedForwardPolicy: dense activation/layout contract.
 type FeedForwardPolicy uint8
 
 const (
-	FeedForwardSwiGLU FeedForwardPolicy = iota
-	FeedForwardSequentialGELU
-	FeedForwardFusedGateUp
-	FeedForwardGELU
-	FeedForwardSquaredReLU
-	FeedForwardXIELU
-	FeedForwardGEGLU
+	feedForwardSwiGLU FeedForwardPolicy = iota
+	feedForwardSequentialGELU
+	feedForwardFusedGateUp
+	feedForwardGELU
+	feedForwardSquaredReLU
+	feedForwardXIELU
+	feedForwardGEGLU
 	// FeedForwardReLU: plain gateless ReLU MLP, the constructed topology's
 	// feed-forward contract.
 	FeedForwardReLU
 )
 
 func (p FeedForwardPolicy) separateGate() bool {
-	return p == FeedForwardSwiGLU || p == FeedForwardGEGLU
+	return p == feedForwardSwiGLU || p == feedForwardGEGLU
 }
 
 func (p FeedForwardPolicy) upProjectionCopies() uint64 {
-	if p == FeedForwardFusedGateUp {
+	if p == feedForwardFusedGateUp {
 		return fusedGateUpProjectionCopies
 	}
 	return separateProjectionCopies
@@ -163,18 +163,18 @@ const (
 type AttentionPolicy uint8
 
 const (
-	AttentionStandard AttentionPolicy = iota
-	AttentionLatent
+	attentionStandard AttentionPolicy = iota
+	attentionLatent
 	AttentionSparseLatent
 	AttentionGatedDelta
-	AttentionShortConvolution
+	attentionShortConvolution
 )
 
 // EmbeddingOverridePolicy: projected-embedding application order.
 type EmbeddingOverridePolicy uint8
 
 const (
-	EmbeddingOverrideStandard EmbeddingOverridePolicy = iota
+	embeddingOverrideStandard EmbeddingOverridePolicy = iota
 	EmbeddingOverrideVisualSpan
 	EmbeddingOverrideRawScaled
 	EmbeddingOverrideMappedBase
@@ -184,9 +184,9 @@ const (
 type DeepstackPolicy uint8
 
 const (
-	DeepstackNone DeepstackPolicy = iota
-	DeepstackMappedBefore
-	DeepstackSequentialAfter
+	deepstackNone DeepstackPolicy = iota
+	deepstackMappedBefore
+	deepstackSequentialAfter
 )
 
 // AttentionBlockPolicy: projected attention-mask contract.
@@ -202,7 +202,7 @@ type AuxiliaryFlow uint8
 
 const (
 	AuxiliaryNone AuxiliaryFlow = iota
-	AuxiliaryRecurrentValue
+	auxiliaryRecurrentValue
 	AuxiliarySparseTopK
 )
 
@@ -212,31 +212,31 @@ type AttentionTemperaturePolicy uint8
 const (
 	AttentionTemperatureNone AttentionTemperaturePolicy = iota
 	AttentionTemperatureConfigured
-	AttentionTemperatureNoRoPE
+	attentionTemperatureNoRoPE
 )
 
 // PostNormLayoutPolicy: post-attention/FFN tensor namespace.
 type PostNormLayoutPolicy uint8
 
 const (
-	PostNormLayoutStandard PostNormLayoutPolicy = iota
-	PostNormLayoutOutputLayer
-	PostNormLayoutGrok
+	postNormLayoutStandard PostNormLayoutPolicy = iota
+	postNormLayoutOutputLayer
+	postNormLayoutGrok
 )
 
 // FeedForwardNormLayoutPolicy: pre-FFN tensor namespace.
 type FeedForwardNormLayoutPolicy uint8
 
 const (
-	FeedForwardNormLayoutStandard FeedForwardNormLayoutPolicy = iota
-	FeedForwardNormLayoutBare
-	FeedForwardNormLayoutAttentionOutput
-	FeedForwardNormLayoutAttentionPost
-	FeedForwardNormLayoutPostAttention
+	feedForwardNormLayoutStandard FeedForwardNormLayoutPolicy = iota
+	feedForwardNormLayoutBare
+	feedForwardNormLayoutAttentionOutput
+	feedForwardNormLayoutAttentionPost
+	feedForwardNormLayoutPostAttention
 )
 
-// NormalizationPlan: compiled operation, placement, bias, and tensor layout.
-type NormalizationPlan struct {
+// normalizationPlan: compiled operation, placement, bias, and tensor layout.
+type normalizationPlan struct {
 	Operation         NormalizationPolicy
 	PreAttention      bool
 	PreFeedForward    bool
@@ -250,43 +250,43 @@ type NormalizationPlan struct {
 }
 
 // PostNormTensors: post-norm tensor namespace.
-func (p NormalizationPlan) PostNormTensors() PostNormTensorNames {
+func (p normalizationPlan) PostNormTensors() postNormTensorNames {
 	switch p.PostNormLayout {
-	case PostNormLayoutOutputLayer:
-		return PostNormTensorNames{
+	case postNormLayoutOutputLayer:
+		return postNormTensorNames{
 			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
 			AttentionBias: "attn_output_norm.bias", FeedForwardBias: "layer_output_norm.bias",
 		}
-	case PostNormLayoutGrok:
-		return PostNormTensorNames{
+	case postNormLayoutGrok:
+		return postNormTensorNames{
 			AttentionWeight: "attn_output_norm.weight", FeedForwardWeight: "layer_output_norm.weight",
 			FeedForwardAlternate: "ffn_post_norm.weight",
 		}
 	default:
-		return PostNormTensorNames{
+		return postNormTensorNames{
 			AttentionWeight: postAttentionNormWeightTensor, FeedForwardWeight: "post_ffw_norm.weight",
 		}
 	}
 }
 
 // FeedForwardNormTensor: pre-FFN tensor namespace.
-func (p NormalizationPlan) FeedForwardNormTensor() string {
+func (p normalizationPlan) FeedForwardNormTensor() string {
 	switch p.FeedForwardLayout {
-	case FeedForwardNormLayoutBare:
+	case feedForwardNormLayoutBare:
 		return "ffn_norm"
-	case FeedForwardNormLayoutAttentionOutput:
+	case feedForwardNormLayoutAttentionOutput:
 		return "attn_output_norm.weight"
-	case FeedForwardNormLayoutAttentionPost:
+	case feedForwardNormLayoutAttentionPost:
 		return "attn_post_norm.weight"
-	case FeedForwardNormLayoutPostAttention:
+	case feedForwardNormLayoutPostAttention:
 		return postAttentionNormWeightTensor
 	default:
 		return feedForwardNormWeightTensor
 	}
 }
 
-// PostNormTensorNames: post-norm tensor catalog entry.
-type PostNormTensorNames struct {
+// postNormTensorNames: post-norm tensor catalog entry.
+type postNormTensorNames struct {
 	AttentionWeight      string
 	FeedForwardWeight    string
 	FeedForwardAlternate string
@@ -298,42 +298,42 @@ type PostNormTensorNames struct {
 type ArchitectureCapability uint64
 
 const (
-	ArchitectureNonCausal ArchitectureCapability = 1 << iota
-	ArchitectureRoPEDisabled
-	ArchitectureMoE
-	ArchitectureRecurrent
-	ArchitectureEncoderOnly
-	ArchitectureDiffusion
-	ArchitectureMultimodal
-	ArchitectureLatentYaRNQuery
-	ArchitectureSparseLatent
-	ArchitectureLatent
+	architectureNonCausal ArchitectureCapability = 1 << iota
+	architectureRoPEDisabled
+	architectureMoE
+	architectureRecurrent
+	architectureEncoderOnly
+	architectureDiffusion
+	architectureMultimodal
+	architectureLatentYaRNQuery
+	architectureSparseLatent
+	architectureLatent
 	architectureReservedGEGLU
-	ArchitecturePostNorm
-	ArchitecturePostOnlyNorm
-	ArchitectureNormalRoPE
-	ArchitectureParallelResidual
-	ArchitectureSequentialGELU
-	ArchitectureFusedGateUp
-	ArchitectureLongRoPE
-	ArchitectureGELU
-	ArchitectureSquaredReLU
-	ArchitectureGatedDelta
-	ArchitectureShortConvolution
-	ArchitectureMultiAxisPositions
-	ArchitectureRequiresOutput
-	ArchitectureClassifierHead
-	ArchitectureBiasFreeProjections
-	ArchitectureFusedQKV
-	ArchitectureRequiresFusedQKV
-	ArchitectureRequiresFusedQKVBias
-	ArchitectureRejectsOrphanFusedQKVBias
-	ArchitectureSharedKV
+	architecturePostNorm
+	architecturePostOnlyNorm
+	architectureNormalRoPE
+	architectureParallelResidual
+	architectureSequentialGELU
+	architectureFusedGateUp
+	architectureLongRoPE
+	architectureGELU
+	architectureSquaredReLU
+	architectureGatedDelta
+	architectureShortConvolution
+	architectureMultiAxisPositions
+	architectureRequiresOutput
+	architectureClassifierHead
+	architectureBiasFreeProjections
+	architectureFusedQKV
+	architectureRequiresFusedQKV
+	architectureRequiresFusedQKVBias
+	architectureRejectsOrphanFusedQKVBias
+	architectureSharedKV
 	architectureReservedAltUp
-	ArchitecturePerLayerEmbeddings
-	ArchitectureEmbeddingSkip
-	ArchitectureOutputLayerNormLayout
-	ArchitectureLatentKVLayout
+	architecturePerLayerEmbeddings
+	architectureEmbeddingSkip
+	architectureOutputLayerNormLayout
+	architectureLatentKVLayout
 )
 
 // ArchitectureProfile: registry entry and capability set.
@@ -362,20 +362,20 @@ type ArchitectureProfile struct {
 	RecurrentMixer            RecurrentMixerPolicy
 	CacheFallback             CacheFallbackPolicy
 	LayerTopology             LayerTopologyPolicy
-	DenseStages               DenseStagePolicy
-	DenseWeights              DenseWeightPolicy
-	ModelCatalog              ModelCatalogPolicy
-	Rotary                    RotaryPolicy
-	AttentionGraph            AttentionGraphPolicy
-	Experts                   ExpertPolicy
-	Metadata                  MetadataShapePolicy
+	DenseStages               denseStagePolicy
+	DenseWeights              denseWeightPolicy
+	ModelCatalog              modelCatalogPolicy
+	Rotary                    rotaryPolicy
+	AttentionGraph            attentionGraphPolicy
+	Experts                   expertPolicy
+	Metadata                  metadataShapePolicy
 	MetadataRead              MetadataReadPolicy
-	MetadataDefaults          MetadataDefaultPolicy
-	Validation                ValidationPolicy
+	MetadataDefaults          metadataDefaultPolicy
+	Validation                validationPolicy
 	EncoderOperator           EncoderOperatorPolicy
 	LatentAttention           latentAttentionPolicy
-	Cadence                   LayerCadencePolicy
-	Runtime                   RuntimePolicy
+	Cadence                   layerCadencePolicy
+	Runtime                   runtimePolicy
 	DeciSparse                bool
 }
 
@@ -401,20 +401,20 @@ func (p ArchitectureProfile) equal(other ArchitectureProfile) bool {
 func (p ArchitectureProfile) DraftPlan(heads uint32) DraftPlan {
 	plan := DraftPlan{Kind: p.DraftKind, Heads: heads, QueryCopies: p.DraftQueryCopies}
 	switch p.DraftKind {
-	case DraftSingleCatalog:
+	case draftSingleCatalog:
 		plan.SingleCatalog = true
 		plan.SupportsMTPOnly, plan.Session = true, DraftSessionSingle
-	case DraftAppendedMultiCarry:
+	case draftAppendedMultiCarry:
 		plan.AppendedBlocks, plan.Session = true, DraftSessionMulti
 		plan.CarryRawHidden = true
-	case DraftAppendedMulti:
+	case draftAppendedMulti:
 		plan.AppendedBlocks, plan.Session = true, DraftSessionMulti
 	case DraftAppendedSingle:
 		plan.AppendedBlocks, plan.Session = true, DraftSessionSingle
-	case DraftOptionalSingleCatalog:
+	case draftOptionalSingleCatalog:
 		plan.SingleCatalog, plan.OptionalCatalog = true, true
 		plan.SupportsMTPOnly, plan.Session = true, DraftSessionSingle
-		plan.Normalization, plan.ScaleLogits = DraftNormalizationArchitecture, true
+		plan.Normalization, plan.ScaleLogits = draftNormalizationArchitecture, true
 	}
 	return plan
 }
@@ -424,11 +424,11 @@ func (p ArchitectureProfile) OutputNormTensor() string {
 	switch p.OutputNorm {
 	case OutputNormAbsent:
 		return ""
-	case OutputNormEncoder:
+	case outputNormEncoder:
 		return "enc.output_norm.weight"
-	case OutputNormDecoder:
+	case outputNormDecoder:
 		return "dec.output_norm.weight"
-	case OutputNormTokenEmbedding:
+	case outputNormTokenEmbedding:
 		return "token_embd_norm.weight"
 	default:
 		return outputNormWeightTensor
@@ -436,13 +436,13 @@ func (p ArchitectureProfile) OutputNormTensor() string {
 }
 
 // PostNormTensors: post-norm tensor namespace.
-func (p ArchitectureProfile) PostNormTensors() PostNormTensorNames {
-	return NormalizationPlan{PostNormLayout: p.PostNormLayout}.PostNormTensors()
+func (p ArchitectureProfile) PostNormTensors() postNormTensorNames {
+	return normalizationPlan{PostNormLayout: p.PostNormLayout}.PostNormTensors()
 }
 
 // FeedForwardNormTensor: pre-FFN tensor namespace.
 func (p ArchitectureProfile) FeedForwardNormTensor() string {
-	return NormalizationPlan{FeedForwardLayout: p.FFNNormLayout}.FeedForwardNormTensor()
+	return normalizationPlan{FeedForwardLayout: p.FFNNormLayout}.FeedForwardNormTensor()
 }
 
 // LookupArchitecture: registered profile lookup.

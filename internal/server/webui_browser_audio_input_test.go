@@ -21,7 +21,7 @@ func TestWebUIBrowserAudioInput(t *testing.T) {
 	for _, earlyKey := range []bool{true, false} {
 		t.Run("early-key="+strconv.FormatBool(earlyKey), func(t *testing.T) {
 			fixture := newTranscriptionHTTPFixture(t, nil)
-			handler, err := New(Config{Repository: fixture.store, RuntimePolicy: testRuntimePolicy(), APIKey: testAPIKey}, &coldStartWorkflow{GenerationRefused: GenerationRefused{Reason: "no chat model is loaded"}, WorkflowWorkspaceAPI: fixture.workspace})
+			handler, err := New(Config{Repository: fixture.store, RuntimePolicy: testRuntimePolicy(), APIKey: testAPIKey, Workflows: fixture.workspace}, GenerationRefused{Reason: "no chat model is loaded"})
 			if err != nil {
 				t.Fatal(err)
 			}

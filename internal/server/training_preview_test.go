@@ -15,7 +15,7 @@ import (
 func TestDatasetPreviewShowsTrainedTokens(t *testing.T) {
 	t.Parallel()
 	fixture := newDPOTrainingFixture(t)
-	handler, err := New(Config{Repository: fixture.store}, &workspaceTestRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: fixture.workspace})
+	handler, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}

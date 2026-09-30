@@ -45,7 +45,6 @@ func resolveTranscriptionServing(ctx context.Context, repository, reference stri
 
 // transcriptionRuntime serves transcription only; its text generation refuses.
 type transcriptionRuntime struct {
-	*llamaserver.TranscriptionWorkspace
 	llamaserver.GenerationRefused
 	model artifact.ID
 }
@@ -94,10 +93,10 @@ func serveTranscription(ctx context.Context, definition recipe.Definition, confi
 	handler, err := llamaserver.New(llamaserver.Config{
 		RuntimePolicy: hostPolicy, ModelID: options.modelID, APIKey: options.apiKey,
 		MaxConcurrent: options.maxConcurrent, RequestTimeout: options.requestTimeout,
-		Repository: store, OvergoDBPath: options.repository, WebUIDir: options.webuiDir,
+		Repository: store, OvergoDBPath: options.repository, WebUIDir: options.webuiDir, Workflows: workspace,
 		LibraryIntake: serverLibraryIntake(), ProviderKeys: providerIntake.Keys,
 	}, &transcriptionRuntime{
-		TranscriptionWorkspace: workspace, model: definition.Model,
+		model:             definition.Model,
 		GenerationRefused: llamaserver.GenerationRefused{Reason: "the selected model serves transcription, not text generation"},
 	})
 	if err != nil {

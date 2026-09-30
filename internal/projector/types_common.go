@@ -22,14 +22,14 @@ type gridImage struct {
 	GridW       int
 }
 
-// MediaPixelBudget defines validated raster area bounds.
-type MediaPixelBudget struct {
+// mediaPixelBudget defines validated raster area bounds.
+type mediaPixelBudget struct {
 	MinPixels int `json:"min_pixels"`
 	MaxPixels int `json:"max_pixels"`
 }
 
-type pixelBudget = MediaPixelBudget
-type RasterPatchOptions = MediaPixelBudget
+type pixelBudget = mediaPixelBudget
+type rasterPatchOptions = mediaPixelBudget
 
 type mediaPreprocessOwner struct{ preprocess MediaPreprocessProfile }
 
@@ -37,7 +37,7 @@ func (owner *mediaPreprocessOwner) setMediaPreprocess(profile MediaPreprocessPro
 	owner.preprocess = profile
 }
 
-type RasterPatchImage = gridImage
+type rasterPatchImage = gridImage
 
 type gridOutput struct {
 	Embeddings reference.Value

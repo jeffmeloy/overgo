@@ -27,7 +27,7 @@ func (t *cogVLMPromptTokenizer) TokenizeText(text string, addSpecial, _ bool) ([
 }
 
 func TestCogVLMVisionRunnerTinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*CogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
+	runner, err := openImageProjectorAs[*cogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestCogVLMVisionRunnerTinyFixture(t *testing.T) {
 }
 
 func TestCogVLMPromptMarksVisualExpertBlock(t *testing.T) {
-	runner, err := openImageProjectorAs[*CogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
+	runner, err := openImageProjectorAs[*cogVLMVisionRunner](writeTinyCogVLM(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestOpenImageProjectorDispatchesCogVLM(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer projector.Close()
-	if _, ok := projector.(*CogVLMVisionRunner); !ok {
+	if _, ok := projector.(*cogVLMVisionRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
 	}
 }
@@ -84,7 +84,7 @@ func TestCogVLMCUDAMatchesCPU(t *testing.T) {
 	input := patternedRGBA(4, 4, func(x, y int) color.RGBA {
 		return color.RGBA{R: uint8(x * 45), G: uint8(y * 51), B: uint8((x + y) * 27), A: fixtureOpaqueAlpha}
 	})
-	referenceParityCase[*CogVLMVisionRunner](t, "CogVLM", path, input, 3e-3)
+	referenceParityCase[*cogVLMVisionRunner](t, "CogVLM", path, input, 3e-3)
 }
 
 func writeTinyCogVLM(t *testing.T, patterned bool) string {

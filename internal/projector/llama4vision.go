@@ -17,7 +17,7 @@ import (
 
 const llama4ProjectorType = "llama4"
 
-type Llama4VisionSpec struct {
+type llama4VisionSpec struct {
 	visionBackboneSpec
 	OutputHidden        int
 	AdapterIntermediate int
@@ -30,56 +30,56 @@ type Llama4VisionSpec struct {
 	FusedQKV            []bool
 }
 
-type Llama4VisionTile gridImage
+type llama4VisionTile gridImage
 
-type Llama4VisionInput struct {
-	Tiles []Llama4VisionTile
+type llama4VisionInput struct {
+	Tiles []llama4VisionTile
 	GridH int
 	GridW int
 }
 
-type Llama4VisionOutput struct {
+type llama4VisionOutput struct {
 	Embeddings reference.Value
 	TileCount  int
 	GridH      int
 	GridW      int
 }
 
-type Llama4VisionRunner struct {
+type llama4VisionRunner struct {
 	projectorResources
-	spec      Llama4VisionSpec
+	spec      llama4VisionSpec
 	attention visionAttentionPlan
 }
 
-func (r *Llama4VisionRunner) Spec() Llama4VisionSpec {
+func (r *llama4VisionRunner) Spec() llama4VisionSpec {
 	if r == nil {
-		return Llama4VisionSpec{}
+		return llama4VisionSpec{}
 	}
 	return r.spec
 }
 
-func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
-	spec := Llama4VisionSpec{}
+func readLlama4VisionSpec(file *gguf.File) (llama4VisionSpec, error) {
+	spec := llama4VisionSpec{}
 	if err := readRotaryVisionBackbone(file, llama4ProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
-		return Llama4VisionSpec{}, err
+		return llama4VisionSpec{}, err
 	}
 	merge, err := metadataUint32(file, visionProjectorScaleKey)
 	if err != nil {
-		return Llama4VisionSpec{}, err
+		return llama4VisionSpec{}, err
 	}
 	maxGridSide, err := metadataUint32(file, visionMaxGridSideKey)
 	if err != nil {
-		return Llama4VisionSpec{}, err
+		return llama4VisionSpec{}, err
 	}
 	mlp1, ok := file.Tensor("mm.model.mlp.1.weight")
 	adapterIntermediate, mlp1OK := matrixRowsInt(mlp1, ok)
 	if !mlp1OK {
-		return Llama4VisionSpec{}, errors.New("projector: Llama-4 first adapter tensor is unavailable or invalid")
+		return llama4VisionSpec{}, errors.New("projector: Llama-4 first adapter tensor is unavailable or invalid")
 	}
 	mlp2, ok := file.Tensor("mm.model.mlp.2.weight")
 	adapterHidden, mlp2OK := matrixRowsInt(mlp2, ok)
 	if !mlp2OK {
-		return Llama4VisionSpec{}, errors.New("projector: Llama-4 second adapter tensor is unavailable or invalid")
+		return llama4VisionSpec{}, errors.New("projector: Llama-4 second adapter tensor is unavailable or invalid")
 	}
 	spec.AdapterIntermediate = adapterIntermediate
 	spec.AdapterHidden = adapterHidden
@@ -93,14 +93,14 @@ func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 	}
 	useGELU, err := optionalMetadataBool(file, visionUseGELUKey)
 	if err != nil {
-		return Llama4VisionSpec{}, err
+		return llama4VisionSpec{}, err
 	}
 	useSiLU, err := optionalMetadataBool(file, visionUseSiLUKey)
 	if err != nil {
-		return Llama4VisionSpec{}, err
+		return llama4VisionSpec{}, err
 	}
 	if useGELU && useSiLU {
-		return Llama4VisionSpec{}, errors.New("projector: Llama-4 GELU and SiLU flags conflict")
+		return llama4VisionSpec{}, errors.New("projector: Llama-4 GELU and SiLU flags conflict")
 	}
 	if useGELU {
 		spec.Activation = visionGELU
@@ -108,12 +108,12 @@ func ReadLlama4VisionSpec(file *gguf.File) (Llama4VisionSpec, error) {
 		spec.Activation = visionSiLU
 	}
 	if err := spec.validate(); err != nil {
-		return Llama4VisionSpec{}, err
+		return llama4VisionSpec{}, err
 	}
 	return spec, nil
 }
 
-func (s Llama4VisionSpec) validate() error {
+func (s llama4VisionSpec) validate() error {
 	if err := s.visionBackboneSpec.validateRotary(); err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (s Llama4VisionSpec) validate() error {
 	return nil
 }
 
-func validateLlama4VisionCatalog(file *gguf.File, spec Llama4VisionSpec) ([]string, error) {
+func validateLlama4VisionCatalog(file *gguf.File, spec llama4VisionSpec) ([]string, error) {
 	patches := spec.ImageSize / spec.PatchSize
 	shuffleWidth := spec.Hidden * spec.MergeSize * spec.MergeSize
 	required := map[string][]uint64{
@@ -147,13 +147,13 @@ func validateLlama4VisionCatalog(file *gguf.File, spec Llama4VisionSpec) ([]stri
 	return validateProjectorTensorCatalog(file, required)
 }
 
-func PreprocessLlama4VisionImage(source image.Image, spec Llama4VisionSpec) (Llama4VisionInput, error) {
+func preprocessLlama4VisionImage(source image.Image, spec llama4VisionSpec) (llama4VisionInput, error) {
 	if err := spec.validate(); err != nil {
-		return Llama4VisionInput{}, err
+		return llama4VisionInput{}, err
 	}
 	bounds, err := imageBounds(source)
 	if err != nil {
-		return Llama4VisionInput{}, err
+		return llama4VisionInput{}, err
 	}
 	gridTiles, _ := checked.MulInt(spec.MaxGridSide, spec.MaxGridSide)
 	images := make([]image.Image, tensor.FirstOffset, gridTiles+tensor.SingletonExtent)
@@ -169,15 +169,15 @@ func PreprocessLlama4VisionImage(source image.Image, spec Llama4VisionSpec) (Lla
 		}
 	}
 	images = append(images, resizeFitBicubic(source, spec.ImageSize, spec.ImageSize, nil))
-	tiles := make([]Llama4VisionTile, len(images))
+	tiles := make([]llama4VisionTile, len(images))
 	for index, current := range images {
 		patches, err := patchRasterImage(current, spec.PatchSize, spec.ImageMean, spec.ImageStd)
 		if err != nil {
-			return Llama4VisionInput{}, err
+			return llama4VisionInput{}, err
 		}
-		tiles[index] = Llama4VisionTile(patches)
+		tiles[index] = llama4VisionTile(patches)
 	}
-	return Llama4VisionInput{Tiles: tiles, GridH: gridH, GridW: gridW}, nil
+	return llama4VisionInput{Tiles: tiles, GridH: gridH, GridW: gridW}, nil
 }
 
 func llama4BestGrid(width, height, size, maxSide int) (int, int) {
@@ -211,13 +211,13 @@ func cropImage(source image.Image, rectangle image.Rectangle) image.Image {
 	return output
 }
 
-func (r *Llama4VisionRunner) EncodeImage(ctx context.Context, source image.Image) (Llama4VisionOutput, error) {
+func (r *llama4VisionRunner) EncodeImage(ctx context.Context, source image.Image) (llama4VisionOutput, error) {
 	if r == nil || r.file == nil {
-		return Llama4VisionOutput{}, errRunnerClosed
+		return llama4VisionOutput{}, errRunnerClosed
 	}
-	input, err := PreprocessLlama4VisionImage(source, r.spec)
+	input, err := preprocessLlama4VisionImage(source, r.spec)
 	if err != nil {
-		return Llama4VisionOutput{}, err
+		return llama4VisionOutput{}, err
 	}
 	var embeddings []float32
 	rows := tensor.FirstOffset
@@ -230,19 +230,19 @@ func (r *Llama4VisionRunner) EncodeImage(ctx context.Context, source image.Image
 			value, tileErr = r.encodeTile(ctx, tile)
 		}
 		if tileErr != nil {
-			return Llama4VisionOutput{}, fmt.Errorf("projector: encode Llama-4 tile %d: %w", index, tileErr)
+			return llama4VisionOutput{}, fmt.Errorf("projector: encode Llama-4 tile %d: %w", index, tileErr)
 		}
 		embeddings = append(embeddings, value.Data...)
 		rows += int(value.Shape.Dims[tensor.SingletonExtent])
 	}
 	value, err := reference.NewValue(tensor.MustShape(uint64(r.spec.OutputHidden), uint64(rows)), embeddings)
 	if err != nil {
-		return Llama4VisionOutput{}, err
+		return llama4VisionOutput{}, err
 	}
-	return Llama4VisionOutput{Embeddings: value, TileCount: len(input.Tiles), GridH: input.GridH, GridW: input.GridW}, nil
+	return llama4VisionOutput{Embeddings: value, TileCount: len(input.Tiles), GridH: input.GridH, GridW: input.GridW}, nil
 }
 
-func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionTile) (reference.Value, error) {
+func (r *llama4VisionRunner) encodeTile(ctx context.Context, input llama4VisionTile) (reference.Value, error) {
 	patchRows, patchWidth, err := validateSpatialPatchStorage(
 		len(input.PixelValues), input.GridH, input.GridW, r.spec.PatchSize, media.RGBChannels,
 	)
@@ -318,7 +318,7 @@ func (r *Llama4VisionRunner) encodeTile(ctx context.Context, input Llama4VisionT
 	return reference.NewValue(tensor.MustShape(uint64(r.spec.OutputHidden), uint64(mergePlan.outputRows)), output)
 }
 
-func (r *Llama4VisionRunner) runLayer(ctx context.Context, hidden []float32, gridH, gridW, layer int) error {
+func (r *llama4VisionRunner) runLayer(ctx context.Context, hidden []float32, gridH, gridW, layer int) error {
 	rows := gridH*gridW + tensor.SingletonExtent
 	prefix := fmt.Sprintf("v.blk.%d.", layer)
 	norm, err := r.affineNormalize(ctx, hidden, rows, prefix+"ln1")
@@ -402,7 +402,7 @@ func applySpatialRotaryQK(qkv []float32, gridH, gridW, hidden, heads int, theta 
 	}
 }
 
-func (r *Llama4VisionRunner) activate(value float32) float32 {
+func (r *llama4VisionRunner) activate(value float32) float32 {
 	switch r.spec.Activation {
 	case visionGELU:
 		return float32(hostmath.GELUTanh(float64(value)))
@@ -413,7 +413,7 @@ func (r *Llama4VisionRunner) activate(value float32) float32 {
 	}
 }
 
-func (r *Llama4VisionRunner) affineNormalize(ctx context.Context, input []float32, rows int, prefix string) ([]float32, error) {
+func (r *llama4VisionRunner) affineNormalize(ctx context.Context, input []float32, rows int, prefix string) ([]float32, error) {
 	weight, bias, err := r.loadPair(ctx, prefix+".weight", prefix+".bias")
 	if err != nil {
 		return nil, err
@@ -423,7 +423,7 @@ func (r *Llama4VisionRunner) affineNormalize(ctx context.Context, input []float3
 	return output, nil
 }
 
-func (r *Llama4VisionRunner) projectQKV(ctx context.Context, input []float32, rows int, prefix string, layer int) ([]float32, error) {
+func (r *llama4VisionRunner) projectQKV(ctx context.Context, input []float32, rows int, prefix string, layer int) ([]float32, error) {
 	if r.spec.FusedQKV[layer] {
 		weight, err := r.load(ctx, prefix+"attn_qkv.weight")
 		if err != nil {
@@ -453,7 +453,7 @@ func (r *Llama4VisionRunner) projectQKV(ctx context.Context, input []float32, ro
 	return qkv, nil
 }
 
-func (r *Llama4VisionRunner) optionalBias(ctx context.Context, name string) ([]float32, error) {
+func (r *llama4VisionRunner) optionalBias(ctx context.Context, name string) ([]float32, error) {
 	if !hasTensor(r.file, name) {
 		return nil, nil
 	}

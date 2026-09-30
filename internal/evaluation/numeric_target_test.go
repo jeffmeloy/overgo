@@ -20,6 +20,7 @@ func TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions(t *testing
 			Scorers: []NumericScorerSpec{
 				{Kind: NumericAbsoluteError, Unit: "declared-unit"},
 				{Kind: numericQuantileLoss, Unit: "declared-unit", Quantile: &quantile},
+				{Kind: numericSquaredError, Unit: "declared-unit"},
 				{Kind: numericLabelAccuracy},
 			},
 			Cases: []NumericTargetCase{{

@@ -22,7 +22,7 @@ func TestWebUIBrowserMemoryEstimate(t *testing.T) {
 		t.Skip(testskip.Inapplicable + ": the memory estimate leg uses Chromium through cmd/webui-lane")
 	}
 	fixture := newDPOTrainingFixture(t)
-	handler, err := New(Config{Repository: fixture.store}, &workspaceTestRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: fixture.workspace})
+	handler, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
 	}

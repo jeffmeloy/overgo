@@ -15,9 +15,9 @@ type gemmaPromptSource struct {
 	assistant           string
 	bidirectionalImages bool
 	policyErr           error
-	image               func(context.Context, image.Image) (Gemma4Output, error)
-	audio               func(context.Context, []float32) (Gemma4AudioOutput, error)
-	video               func(context.Context, []image.Image) (Gemma4VideoOutput, error)
+	image               func(context.Context, image.Image) (gemma4Output, error)
+	audio               func(context.Context, []float32) (gemma4AudioOutput, error)
+	video               func(context.Context, []image.Image) (gemma4VideoOutput, error)
 	sampleRate          func() (int, error)
 }
 
@@ -32,21 +32,21 @@ func gemma4PromptSource(r *Gemma4Runner) gemmaPromptSource {
 func gemma4TowerPromptSource(r *Gemma4TowerRunner) gemmaPromptSource {
 	return bindGemmaPromptAttention(gemmaPromptSource{
 		width: r.spec.Vision.ProjectionDim,
-		image: func(ctx context.Context, source image.Image) (Gemma4Output, error) {
+		image: func(ctx context.Context, source image.Image) (gemma4Output, error) {
 			output, err := r.EncodeVisionImage(ctx, source)
-			return Gemma4Output{Embeddings: output.Embeddings}, err
+			return gemma4Output{Embeddings: output.Embeddings}, err
 		},
-		audio: func(ctx context.Context, samples []float32) (Gemma4AudioOutput, error) {
+		audio: func(ctx context.Context, samples []float32) (gemma4AudioOutput, error) {
 			profile, err := NewAudioProjectionProfile(r.preprocess.AudioAttentionRopeFreqBase)
 			if err != nil {
-				return Gemma4AudioOutput{}, err
+				return gemma4AudioOutput{}, err
 			}
 			output, err := r.EncodeAudio(ctx, samples, r.spec.Audio.SampleRate, profile)
-			return Gemma4AudioOutput{Embeddings: output.Embeddings}, err
+			return gemma4AudioOutput{Embeddings: output.Embeddings}, err
 		},
-		video: func(ctx context.Context, frames []image.Image) (Gemma4VideoOutput, error) {
+		video: func(ctx context.Context, frames []image.Image) (gemma4VideoOutput, error) {
 			output, err := r.EncodeVisionFrames(ctx, frames)
-			return Gemma4VideoOutput{Embeddings: output.Embeddings, Frames: output.Frames, TokensPerFrame: output.TokensPerFrame}, err
+			return gemma4VideoOutput{Embeddings: output.Embeddings, Frames: output.Frames, TokensPerFrame: output.TokensPerFrame}, err
 		},
 		sampleRate: func() (int, error) { return r.spec.Audio.SampleRate, nil },
 	}, r.preprocess)

@@ -30,7 +30,7 @@ func (s Spec) validateBaseMetadata() error {
 		return errors.New("attention head count is not divisible by KV head count")
 	case !policy.AttentionFree && (s.KeyLength == tensor.FirstOffset || s.ValueLength == tensor.FirstOffset):
 		return errors.New("model attention key/value length is zero")
-	case policy.BaseRotary == BaseRotaryValidationPaired &&
+	case policy.BaseRotary == baseRotaryValidationPaired &&
 		!validRotaryDimension(s.RopeDimensionCount, s.KeyLength):
 		return errors.New("paired rotary dimension count is invalid")
 	case !policy.RopeFrequencyOptional && !s.RopeDisabled && !positiveFinite(s.RopeFrequencyBase):

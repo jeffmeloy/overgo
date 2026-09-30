@@ -18,8 +18,8 @@ func (t *mimoVLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenize
 	t.texts = append(t.texts, text)
 	ids := make([]tokenizer.TokenID, 0, len(text))
 	for len(text) > 0 {
-		if strings.HasPrefix(text, Qwen3VLImagePad) {
-			ids, text = append(ids, 8), text[len(Qwen3VLImagePad):]
+		if strings.HasPrefix(text, qwen3VLImagePad) {
+			ids, text = append(ids, 8), text[len(qwen3VLImagePad):]
 		} else {
 			ids, text = append(ids, 1), text[1:]
 		}
@@ -28,7 +28,7 @@ func (t *mimoVLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenize
 }
 
 func TestMiMoVLRunnerTinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*MiMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
+	runner, err := openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,13 +51,13 @@ func TestOpenImageProjectorDispatchesMiMoVL(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer projector.Close()
-	if _, ok := projector.(*MiMoVLRunner); !ok {
+	if _, ok := projector.(*miMoVLRunner); !ok {
 		t.Fatalf("projector type = %T", projector)
 	}
 }
 
 func TestMiMoVLPromptContract(t *testing.T) {
-	runner, err := openImageProjectorAs[*MiMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
+	runner, err := openImageProjectorAs[*miMoVLRunner](writeTinyMiMoVL(t, tinyMiMoVLTensors(false)), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,8 +69,8 @@ func TestMiMoVLPromptContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tok.texts) < 2 || !strings.Contains(tok.texts[0], "<|im_start|>system\n"+MiMoVLSystemPrompt+"<|im_end|>") ||
-		!strings.Contains(tok.texts[0], "<|vision_start|>"+strings.Repeat(Qwen3VLImagePad, 4)+"<|vision_end|>") {
+	if len(tok.texts) < 2 || !strings.Contains(tok.texts[0], "<|im_start|>system\n"+miMoVLSystemPrompt+"<|im_end|>") ||
+		!strings.Contains(tok.texts[0], "<|vision_start|>"+strings.Repeat(qwen3VLImagePad, 4)+"<|vision_end|>") {
 		t.Fatalf("prompt text = %q", tok.texts)
 	}
 	if prompt.EmbeddingWidth != 4 || len(prompt.Embeddings) != 16 || len(prompt.EmbeddingTokenIndices) != 4 ||
@@ -95,7 +95,7 @@ func TestMiMoVLColumnOrderRoundTrip(t *testing.T) {
 func TestMiMoVLCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyMiMoVL(t, tinyMiMoVLTensors(true))
-	cpu, cuda := parityRunners[*MiMoVLRunner](t, path, OpenOptions{})
+	cpu, cuda := parityRunners[*miMoVLRunner](t, path, OpenOptions{})
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := range 4 {
 		for x := range 4 {

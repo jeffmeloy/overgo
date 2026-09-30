@@ -116,13 +116,7 @@ func idleWorkbench(repository *overgodb.Store, intake server.LibraryIntake, cata
 	// Media recipes execute through the existing store workspace without loading a chat model.
 	generation := server.NewStoreGenerationWorkspace(repository, server.BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), catalogLimit)
 	return server.New(server.Config{
-		RuntimePolicy: policy, Repository: repository, LibraryIntake: intake,
+		RuntimePolicy: policy, Repository: repository, LibraryIntake: intake, Workflows: generation,
 		HubToken: os.Getenv("OVERGO_HF_TOKEN"), HubDownloadRoot: hubRoot,
-	}, &idleRuntime{GenerationRefused: server.GenerationRefused{Reason: "Choose a chat model to send a conversation."}, WorkflowWorkspaceAPI: generation})
-}
-
-// idleRuntime retains explicit text refusal alongside admitted media workflows.
-type idleRuntime struct {
-	server.GenerationRefused
-	server.WorkflowWorkspaceAPI
+	}, server.GenerationRefused{Reason: "Choose a chat model to send a conversation."})
 }

@@ -41,7 +41,7 @@ func TestWebUIBrowserCopyCommand(t *testing.T) {
 			},
 		},
 	}
-	handler := newTestHandlerForRepository(t, store, generator)
+	handler := newTestHandlerForRepository(t, store, generator, func(config *Config) { config.Workflows = generator })
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))

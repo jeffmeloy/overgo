@@ -16,50 +16,50 @@ import (
 
 const cogVLMProjectorType = "cogvlm"
 
-type CogVLMVisionSpec struct {
+type cogVLMVisionSpec struct {
 	visionBackboneSpec
 	OutputHidden        int
 	AdapterIntermediate int
 	GatedFFN            []bool
 }
 
-type CogVLMVisionRunner struct {
+type cogVLMVisionRunner struct {
 	projectorResources
-	spec      CogVLMVisionSpec
+	spec      cogVLMVisionSpec
 	attention visionAttentionPlan
 }
 
-func (r *CogVLMVisionRunner) Spec() CogVLMVisionSpec {
+func (r *cogVLMVisionRunner) Spec() cogVLMVisionSpec {
 	if r == nil {
-		return CogVLMVisionSpec{}
+		return cogVLMVisionSpec{}
 	}
 	return r.spec
 }
 
-func ReadCogVLMVisionSpec(file *gguf.File) (CogVLMVisionSpec, error) {
-	spec := CogVLMVisionSpec{}
+func readCogVLMVisionSpec(file *gguf.File) (cogVLMVisionSpec, error) {
+	spec := cogVLMVisionSpec{}
 	if err := readVisionBackbone(file, cogVLMProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
-		return CogVLMVisionSpec{}, err
+		return cogVLMVisionSpec{}, err
 	}
 	if err := readProjectionNorm(file, &spec.ProjectionNormEpsilon); err != nil {
-		return CogVLMVisionSpec{}, err
+		return cogVLMVisionSpec{}, err
 	}
 	up, ok := file.Tensor("mm.up.weight")
 	spec.AdapterIntermediate, ok = matrixRowsInt(up, ok)
 	if !ok {
-		return CogVLMVisionSpec{}, errors.New("projector: CogVLM adapter up tensor is unavailable or invalid")
+		return cogVLMVisionSpec{}, errors.New("projector: CogVLM adapter up tensor is unavailable or invalid")
 	}
 	spec.GatedFFN = make([]bool, spec.Layers)
 	for layer := range spec.GatedFFN {
 		spec.GatedFFN[layer] = hasTensor(file, fmt.Sprintf("v.blk.%d.ffn_gate.weight", layer))
 	}
 	if err := spec.validate(); err != nil {
-		return CogVLMVisionSpec{}, err
+		return cogVLMVisionSpec{}, err
 	}
 	return spec, nil
 }
 
-func (s CogVLMVisionSpec) validate() error {
+func (s cogVLMVisionSpec) validate() error {
 	if err := s.visionBackboneSpec.validate(); err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (s CogVLMVisionSpec) validate() error {
 	return nil
 }
 
-func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) ([]string, error) {
+func validateCogVLMVisionCatalog(file *gguf.File, spec cogVLMVisionSpec) ([]string, error) {
 	grid := spec.ImageSize / spec.PatchSize
 	required := map[string][]uint64{
 		visionClassEmbeddingTensor: {uint64(spec.Hidden), uint64(tensor.SingletonExtent)},
@@ -112,7 +112,7 @@ func validateCogVLMVisionCatalog(file *gguf.File, spec CogVLMVisionSpec) ([]stri
 	return validateProjectorTensorCatalog(file, required)
 }
 
-func PreprocessCogVLMImage(source image.Image, spec CogVLMVisionSpec) ([]float32, error) {
+func preprocessCogVLMImage(source image.Image, spec cogVLMVisionSpec) ([]float32, error) {
 	if err := spec.validate(); err != nil {
 		return nil, err
 	}
@@ -127,18 +127,18 @@ func PreprocessCogVLMImage(source image.Image, spec CogVLMVisionSpec) ([]float32
 	return patches.PixelValues, nil
 }
 
-func (r *CogVLMVisionRunner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
+func (r *cogVLMVisionRunner) EncodeImage(ctx context.Context, source image.Image) (reference.Value, error) {
 	if r == nil || r.file == nil {
 		return reference.Value{}, errRunnerClosed
 	}
-	pixels, err := PreprocessCogVLMImage(source, r.spec)
+	pixels, err := preprocessCogVLMImage(source, r.spec)
 	if err != nil {
 		return reference.Value{}, err
 	}
 	return r.encodeGraph(ctx, pixels)
 }
 
-func compileCogVLMImagePrompt(r *CogVLMVisionRunner) compiledImagePromptProgram {
+func compileCogVLMImagePrompt(r *cogVLMVisionRunner) compiledImagePromptProgram {
 	return compiledImagePromptProgram{Custom: func(
 		ctx context.Context,
 		tokenizerAPI ImageTokenizer,

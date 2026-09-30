@@ -11,7 +11,7 @@ import (
 
 const paddleOCRProjectorType = "paddleocr"
 
-type PaddleOCRSpec struct {
+type paddleOCRSpec struct {
 	visionBackboneSpec
 	ProjectorIntermediate int
 	OutputHidden          int
@@ -24,36 +24,36 @@ type PaddleOCRSpec struct {
 	FusedQKV              []bool
 }
 
-type PaddleOCRRunner struct {
+type paddleOCRRunner struct {
 	projectorResources
 	rasterPatchEncoder
-	spec      PaddleOCRSpec
+	spec      paddleOCRSpec
 	attention visionAttentionPlan
 }
 
-func ReadPaddleOCRSpec(file *gguf.File) (PaddleOCRSpec, error) {
-	spec := PaddleOCRSpec{}
+func readPaddleOCRSpec(file *gguf.File) (paddleOCRSpec, error) {
+	spec := paddleOCRSpec{}
 	if err := readRotaryVisionBackbone(file, paddleOCRProjectorType, &spec.OutputHidden, &spec.visionBackboneSpec); err != nil {
-		return PaddleOCRSpec{}, err
+		return paddleOCRSpec{}, err
 	}
 	if err := readProjectionNorm(file, &spec.ProjectionNormEpsilon); err != nil {
-		return PaddleOCRSpec{}, err
+		return paddleOCRSpec{}, err
 	}
 	if err := readMetadataIntFields(file,
 		metadataIntField{visionMinPixelsKey, &spec.MinPixels},
 		metadataIntField{visionMaxPixelsKey, &spec.MaxPixels},
 		metadataIntField{visionSpatialMergeKey, &spec.MergeSize},
 	); err != nil {
-		return PaddleOCRSpec{}, err
+		return paddleOCRSpec{}, err
 	}
 	activation, err := readVisionActivationFlags(file)
 	if err != nil {
-		return PaddleOCRSpec{}, err
+		return paddleOCRSpec{}, err
 	}
 	merger, ok := file.Tensor("mm.1.weight")
 	spec.ProjectorIntermediate, ok = matrixRowsInt(merger, ok)
 	if !ok {
-		return PaddleOCRSpec{}, errors.New("projector: PaddleOCR merger tensor is unavailable or invalid")
+		return paddleOCRSpec{}, errors.New("projector: PaddleOCR merger tensor is unavailable or invalid")
 	}
 	spec.Activation = activation
 	spec.PreLayerNorm = hasTensor(file, visionPreNormWeightTensor)
@@ -63,7 +63,7 @@ func ReadPaddleOCRSpec(file *gguf.File) (PaddleOCRSpec, error) {
 		spec.FusedQKV[layer] = hasTensor(file, fmt.Sprintf("v.blk.%d.attn_qkv.weight", layer))
 	}
 	if err := spec.validate(); err != nil {
-		return PaddleOCRSpec{}, err
+		return paddleOCRSpec{}, err
 	}
 	return spec, nil
 }
@@ -109,7 +109,7 @@ func hasTensor(file *gguf.File, name string) bool {
 	return ok
 }
 
-func (s PaddleOCRSpec) validate() error {
+func (s paddleOCRSpec) validate() error {
 	if err := s.visionBackboneSpec.validateRotary(); err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func (s PaddleOCRSpec) validate() error {
 	return nil
 }
 
-func validatePaddleOCRCatalog(file *gguf.File, spec PaddleOCRSpec) ([]string, error) {
+func validatePaddleOCRCatalog(file *gguf.File, spec paddleOCRSpec) ([]string, error) {
 	required := map[string][]uint64{
 		"mm.input_norm.weight": {uint64(spec.Hidden)}, "mm.input_norm.bias": {uint64(spec.Hidden)},
 		"mm.1.weight":                {uint64(spec.Hidden * spec.MergeSize * spec.MergeSize), uint64(spec.ProjectorIntermediate)},

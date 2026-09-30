@@ -22,8 +22,7 @@ func (h *Handler) nativeAudioTranscriptions(response http.ResponseWriter, reques
 		h.nativeStreamingTranscriptions(response, request)
 		return
 	}
-	workspace, ok := h.generator.(WorkflowWorkspaceAPI)
-	if !ok || h.repository == nil {
+	if h.config.Workflows == nil || h.repository == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "transcription workspace is unavailable")
 		return
 	}
@@ -37,7 +36,7 @@ func (h *Handler) nativeAudioTranscriptions(response http.ResponseWriter, reques
 		writeInvalidRequest(response, err)
 		return
 	}
-	capabilities, err := workspace.WorkflowCapabilities(request.Context(), workflowGeneration)
+	capabilities, err := h.config.Workflows.WorkflowCapabilities(request.Context(), workflowGeneration)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
@@ -72,7 +71,7 @@ func (h *Handler) nativeAudioTranscriptions(response http.ResponseWriter, reques
 		writeInvalidRequest(response, err)
 		return
 	}
-	status, err := h.waitNativeWorkflow(request.Context(), workspace, capability, input)
+	status, err := h.waitNativeWorkflow(request.Context(), capability, input)
 	if err != nil {
 		writeGenerationError(response, err)
 		return

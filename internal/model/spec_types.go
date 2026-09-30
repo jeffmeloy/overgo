@@ -209,20 +209,20 @@ type RecurrentSpec struct {
 	GateLoRARank          uint32
 }
 
-// PoolingType: serialized encoder pooling contract.
-type PoolingType uint32
+// poolingType: serialized encoder pooling contract.
+type poolingType uint32
 
 const (
-	PoolingUnspecified PoolingType = iota
-	PoolingMean
-	PoolingCLS
-	PoolingLast
-	PoolingRank
+	poolingUnspecified poolingType = iota
+	poolingMean
+	poolingCLS
+	poolingLast
+	poolingRank
 )
 
-func (p PoolingType) Valid() bool {
+func (p poolingType) Valid() bool {
 	switch p {
-	case PoolingUnspecified, PoolingMean, PoolingCLS, PoolingLast, PoolingRank:
+	case poolingUnspecified, poolingMean, poolingCLS, poolingLast, poolingRank:
 		return true
 	default:
 		return false
@@ -235,7 +235,7 @@ type EncoderSpec struct {
 	RelativeBuckets     uint32
 	DecoderBlockCount   uint32
 	DecoderStartTokenID uint32
-	PoolingType         PoolingType
+	PoolingType         poolingType
 	ClassifierLabels    []string
 	DFlashBlockSize     uint32
 }

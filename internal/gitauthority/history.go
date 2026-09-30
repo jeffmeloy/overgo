@@ -14,47 +14,6 @@ import (
 	"overgo/internal/processcontrol"
 )
 
-// RequireCompleteHistory rejects local mechanisms that can hide or rewrite
-// ancestry from an authority decision.
-func RequireCompleteHistory(ctx context.Context, repository string) error {
-	if ctx == nil || strings.TrimSpace(repository) == "" {
-		return errors.New("git authority: repository and context are required")
-	}
-	if replacementBase := strings.TrimSpace(os.Getenv("GIT_REPLACE_REF_BASE")); replacementBase != "" {
-		return errors.New("git authority: custom replacement-ref namespace cannot prove immutable Git objects")
-	}
-	pathOutput, err := output(ctx, repository, "rev-parse", "--path-format=absolute", "--git-path", "info/grafts")
-	if err != nil {
-		return fmt.Errorf("git authority: locate legacy Git grafts: %w", err)
-	}
-	graftsPath := filepath.Clean(strings.TrimSpace(string(pathOutput)))
-	if graftsPath == "" || !filepath.IsAbs(graftsPath) {
-		return errors.New("git authority: legacy Git grafts path is not absolute")
-	}
-	grafts, err := os.ReadFile(graftsPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("git authority: inspect legacy Git grafts: %w", err)
-	}
-	if len(grafts) != 0 {
-		return errors.New("git authority: nonempty legacy Git grafts cannot prove completion history")
-	}
-	replacements, err := output(ctx, repository, "for-each-ref", "--format=%(refname)", "refs/replace/")
-	if err != nil {
-		return fmt.Errorf("git authority: inspect replacement refs: %w", err)
-	}
-	if strings.TrimSpace(string(replacements)) != "" {
-		return errors.New("git authority: replacement refs cannot prove immutable Git objects")
-	}
-	shallowOutput, err := output(ctx, repository, "rev-parse", "--is-shallow-repository")
-	if err != nil {
-		return fmt.Errorf("git authority: inspect completion history depth: %w", err)
-	}
-	if strings.TrimSpace(string(shallowOutput)) != "false" {
-		return errors.New("git authority: shallow repository cannot prove complete completion history")
-	}
-	return nil
-}
-
 // RepositoryRoot returns the absolute non-bare worktree root only when the
 // requested directory is that exact root. Discovery ignores ambient Git
 // overrides and rejects ambiguous output.

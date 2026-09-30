@@ -455,7 +455,7 @@ func buildRoutedSquaredReLUFeedForwardMix(
 	builder *tensor.Builder,
 	normalized *tensor.Tensor,
 	weights LayerGraphWeights,
-	plan MoEGraphPlan,
+	plan moEGraphPlan,
 ) (*tensor.Tensor, error) {
 	if builder == nil || normalized == nil {
 		return nil, errors.New("sparse grouped feed-forward input is invalid")

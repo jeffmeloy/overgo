@@ -11,7 +11,7 @@ func (s Spec) validateAttentionMetadata() error {
 	validation := s.Profile().Validation
 	defaults := s.Profile().MetadataDefaults
 	attention := validation.Attention
-	if attention == AttentionValidationQKNormEpsilon && !positiveFinite(s.QKNormEpsilon) {
+	if attention == attentionValidationQKNormEpsilon && !positiveFinite(s.QKNormEpsilon) {
 		return errors.New("Chameleon Q/K LayerNorm epsilon must be positive")
 	}
 	if validation.MultiAxisRoPE {
@@ -31,10 +31,10 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("Qwen3-VL deepstack layer count exceeds block count")
 		}
 	}
-	if attention == AttentionValidationMatchingAttentionKVHeads && s.HeadCountKV != s.HeadCount {
+	if attention == attentionValidationMatchingAttentionKVHeads && s.HeadCountKV != s.HeadCount {
 		return errors.New("Jais2 requires matching attention and KV head counts")
 	}
-	if attention == AttentionValidationPerLayerAttentionAndFeedForward {
+	if attention == attentionValidationPerLayerAttentionAndFeedForward {
 		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerKVHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerFeedForward) != int(s.BlockCount) {
@@ -48,7 +48,7 @@ func (s Spec) validateAttentionMetadata() error {
 			}
 		}
 	}
-	if attention == AttentionValidationPerLayerSlidingAttention {
+	if attention == attentionValidationPerLayerSlidingAttention {
 		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerKVHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerFeedForward) != int(s.BlockCount) {
@@ -67,7 +67,7 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("PLaMo 3 rotary or sliding-attention metadata is invalid")
 		}
 	}
-	if attention == AttentionValidationSparseLayerAttention {
+	if attention == attentionValidationSparseLayerAttention {
 		if len(s.LayerHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerKVHeadCounts) != int(s.BlockCount) ||
 			len(s.LayerFeedForward) != int(s.BlockCount) {
@@ -95,7 +95,7 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("Deci LongRoPE metadata is invalid")
 		}
 	}
-	if attention == AttentionValidationScaledSlidingAttention {
+	if attention == attentionValidationScaledSlidingAttention {
 		switch {
 		case !positiveFinite(s.RopeFrequencySWA):
 			return errors.New("Gemma 3 sliding RoPE frequency base must be positive")
@@ -105,7 +105,7 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("Gemma 3 sliding attention pattern must be at least 2")
 		}
 	}
-	if attention == AttentionValidationSharedKVAlternatingState {
+	if attention == attentionValidationSharedKVAlternatingState {
 		switch {
 		case s.BlockCount != validation.RequiredBlockCount &&
 			s.BlockCount != validation.AlternateBlockCount:
@@ -133,7 +133,7 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("Gemma 3n final logit softcap must be positive")
 		}
 	}
-	if attention == AttentionValidationPerLayerDualRotaryAttention {
+	if attention == attentionValidationPerLayerDualRotaryAttention {
 		switch {
 		case s.KeyLength == tensor.FirstOffset || s.ValueLength == tensor.FirstOffset || s.KeyLength != s.ValueLength ||
 			s.KeyLengthSWA == tensor.FirstOffset || s.ValueLengthSWA == tensor.FirstOffset || s.KeyLengthSWA != s.ValueLengthSWA:
@@ -157,7 +157,7 @@ func (s Spec) validateAttentionMetadata() error {
 			}
 		}
 	}
-	if attention == AttentionValidationTargetHiddenDualRotaryAttention {
+	if attention == attentionValidationTargetHiddenDualRotaryAttention {
 		switch {
 		case s.TargetHiddenSize == tensor.FirstOffset || s.TargetHiddenSize == s.EmbeddingLength:
 			return errors.New("Gemma 4 assistant target hidden size is invalid")
@@ -173,7 +173,7 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("Gemma 4 assistant sliding-attention metadata is invalid")
 		}
 	}
-	if attention == AttentionValidationRequiredSlidingFrequency {
+	if attention == attentionValidationRequiredSlidingFrequency {
 		switch {
 		case !positiveFinite(s.RopeFrequencySWA):
 			return errors.New("Gemma 2 sliding RoPE frequency base must be positive")
@@ -181,7 +181,7 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("Gemma 2 sliding attention pattern must be at least 2")
 		}
 	}
-	if attention == AttentionValidationOptionalSlidingFrequency {
+	if attention == attentionValidationOptionalSlidingFrequency {
 		switch {
 		case s.SlidingWindow > tensor.FirstOffset && !positiveFinite(s.RopeFrequencySWA):
 			return errors.New("OLMo2 sliding RoPE frequency base must be positive")
@@ -189,7 +189,7 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("OLMo2 sliding attention pattern must be at least 2")
 		}
 	}
-	if attention == AttentionValidationRequiredSlidingRotary || attention == AttentionValidationRequiredSlidingRotaryExperts {
+	if attention == attentionValidationRequiredSlidingRotary || attention == attentionValidationRequiredSlidingRotaryExperts {
 		switch {
 		case !validRotaryDimension(s.RopeDimensionCount, s.KeyLength):
 			return errors.New("Cohere2 rotary dimension count is invalid")
@@ -201,35 +201,35 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("Cohere2 sliding attention pattern must be at least 2")
 		}
 	}
-	if attention == AttentionValidationRequiredSlidingRotaryExperts &&
+	if attention == attentionValidationRequiredSlidingRotaryExperts &&
 		(s.LeadingDenseBlocks >= s.BlockCount || !validExpertDimensions(s) ||
 			s.ExpertGatingFunc != expertGatingSigmoid || s.HasSharedExperts() && s.SharedExpertFF == tensor.FirstOffset) {
 		return errors.New("Cohere2-MoE expert metadata is invalid")
 	}
-	if attention == AttentionValidationPeriodicExperts &&
+	if attention == attentionValidationPeriodicExperts &&
 		(!validExpertDimensions(s) || s.MoELayerStep == tensor.FirstOffset || s.LeadingDenseBlocks >= s.BlockCount) {
 		return errors.New("ERNIE 4.5 MoE expert metadata is invalid")
 	}
-	if attention == AttentionValidationPartialRotaryRequired &&
+	if attention == attentionValidationPartialRotaryRequired &&
 		!validRotaryDimension(s.RopeDimensionCount, s.KeyLength) {
 		return errors.New("StableLM rotary dimension count is invalid")
 	}
-	if attention == AttentionValidationPartialRotaryFixed &&
+	if attention == attentionValidationPartialRotaryFixed &&
 		!validRotaryDimension(s.RopeDimensionCount, s.KeyLength) {
 		return errors.New("Phi-2 rotary dimension count is invalid")
 	}
-	if attention == AttentionValidationScaledPartialRotary &&
+	if attention == attentionValidationScaledPartialRotary &&
 		(!validRotaryDimension(s.RopeDimensionCount, s.KeyLength) ||
 			s.OriginalContextLength == tensor.FirstOffset || !positiveFinite(s.RopeAttentionFactor)) {
 		return errors.New("Phi-3 RoPE metadata is invalid")
 	}
-	if attention == AttentionValidationFullScaledRotary &&
+	if attention == attentionValidationFullScaledRotary &&
 		(s.RopeDimensionCount != s.KeyLength || !validRotaryDimension(s.RopeDimensionCount, s.KeyLength) ||
 			s.KeyLength != s.ValueLength || s.OriginalContextLength == tensor.FirstOffset ||
 			!positiveFinite(s.RopeAttentionFactor)) {
 		return errors.New("Pangu Embedded RoPE metadata is invalid")
 	}
-	if attention == AttentionValidationFullHeadSlidingRotary {
+	if attention == attentionValidationFullHeadSlidingRotary {
 		switch {
 		case s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength:
 			return errors.New("ModernBERT requires full-head matching key/value attention")
@@ -240,7 +240,7 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("ModernBERT sliding attention metadata is invalid")
 		}
 	}
-	if attention == AttentionValidationSlidingRotaryEmbeddingProjection {
+	if attention == attentionValidationSlidingRotaryEmbeddingProjection {
 		switch {
 		case s.KeyLength != s.ValueLength:
 			return errors.New("Gemma embedding requires matching key/value head widths")
@@ -256,12 +256,12 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("Gemma embedding dense-3 output width must match embedding length")
 		}
 	}
-	if attention == AttentionValidationFullRotary &&
+	if attention == attentionValidationFullRotary &&
 		(s.KeyLength != s.ValueLength || s.RopeDimensionCount != s.KeyLength ||
 			!validRotaryDimension(s.RopeDimensionCount, s.KeyLength)) {
 		return errors.New("Talkie attention metadata is invalid")
 	}
-	if attention == AttentionValidationFullScaledRotaryXIELU {
+	if attention == attentionValidationFullScaledRotaryXIELU {
 		if s.RopeDimensionCount != s.KeyLength || !validRotaryDimension(s.RopeDimensionCount, s.KeyLength) ||
 			s.OriginalContextLength == tensor.FirstOffset || !positiveFinite(s.RopeAttentionFactor) {
 			return errors.New("Apertus RoPE metadata is invalid")
@@ -282,48 +282,48 @@ func (s Spec) validateAttentionMetadata() error {
 			}
 		}
 	}
-	if attention == AttentionValidationOptionalRotaryBase && s.RopeDimensionCount > tensor.FirstOffset &&
+	if attention == attentionValidationOptionalRotaryBase && s.RopeDimensionCount > tensor.FirstOffset &&
 		!validRotaryDimension(s.RopeDimensionCount, s.KeyLength) {
 		return errors.New("GPT-NeoX rotary dimension count is invalid")
 	}
-	if attention == AttentionValidationHalvedFeedForward &&
+	if attention == attentionValidationHalvedFeedForward &&
 		(s.HeadCountKV != s.HeadCount || !validRotaryDimension(s.RopeDimensionCount, s.KeyLength)) {
 		return errors.New("Qwen attention metadata is invalid")
 	}
-	if attention == AttentionValidationMultiAxisAttention &&
+	if attention == attentionValidationMultiAxisAttention &&
 		(!validRotaryDimension(s.RopeDimensionCount, s.KeyLength) || s.KeyLength != s.ValueLength) {
 		return errors.New("ChatGLM attention metadata is invalid")
 	}
-	if attention == AttentionValidationVisualExpertAttention &&
+	if attention == attentionValidationVisualExpertAttention &&
 		(s.HeadCountKV != s.HeadCount || s.KeyLength != s.ValueLength ||
 			uint64(s.KeyLength)*uint64(s.HeadCount) != uint64(s.EmbeddingLength) ||
 			s.RopeDimensionCount != s.KeyLength) {
 		return errors.New("CogVLM attention metadata is invalid")
 	}
-	if attention == AttentionValidationLayerwiseQKNorm &&
+	if attention == attentionValidationLayerwiseQKNorm &&
 		(s.RopeDimensionCount != s.KeyLength || s.KeyLength != s.ValueLength ||
 			!validRotaryDimension(s.RopeDimensionCount, s.KeyLength) || !positiveFinite(s.RopeFrequencyBase)) {
 		return fmt.Errorf("%s attention metadata is invalid", s.Architecture)
 	}
-	if attention == AttentionValidationLayerwiseQKNorm {
+	if attention == attentionValidationLayerwiseQKNorm {
 		for _, section := range s.RopeSections {
 			if section < tensor.FirstOffset {
 				return errors.New("Hunyuan MRoPE section count is negative")
 			}
 		}
 	}
-	if (attention == AttentionValidationOptionalRopeSections || attention == AttentionValidationOptionalRopeSectionsExperts) &&
+	if (attention == attentionValidationOptionalRopeSections || attention == attentionValidationOptionalRopeSectionsExperts) &&
 		!validRotaryDimension(s.RopeDimensionCount, s.KeyLength) {
 		return errors.New("GLM4 rotary dimension count is invalid")
 	}
-	if attention == AttentionValidationOptionalRopeSections || attention == AttentionValidationOptionalRopeSectionsExperts {
+	if attention == attentionValidationOptionalRopeSections || attention == attentionValidationOptionalRopeSectionsExperts {
 		for _, section := range s.RopeSections {
 			if section < tensor.FirstOffset {
 				return errors.New("GLM4 MRoPE section count is negative")
 			}
 		}
 	}
-	if attention == AttentionValidationOptionalRopeSectionsExperts &&
+	if attention == attentionValidationOptionalRopeSectionsExperts &&
 		(s.LeadingDenseBlocks >= s.BlockCount || !validMoESelection(s.ExpertUsedCount, s.ExpertCount) ||
 			s.ExpertFeedForward == tensor.FirstOffset ||
 			s.SharedExpertCount == tensor.FirstOffset || s.SharedExpertFF == tensor.FirstOffset ||
@@ -331,7 +331,7 @@ func (s Spec) validateAttentionMetadata() error {
 			!positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("GLM4-MoE expert metadata is invalid")
 	}
-	if attention == AttentionValidationSharedKVAttention {
+	if attention == attentionValidationSharedKVAttention {
 		switch {
 		case s.RopeDimensionCount != s.KeyLength || !validRotaryDimension(s.RopeDimensionCount, s.KeyLength):
 			return errors.New("EXAONE 4 rotary dimension count must equal the key length")
@@ -341,11 +341,11 @@ func (s Spec) validateAttentionMetadata() error {
 			return errors.New("EXAONE 4 sliding RoPE frequency base must be positive")
 		}
 	}
-	if attention == AttentionValidationOptionalRotaryBaseGQA && s.RopeDimensionCount > tensor.FirstOffset &&
+	if attention == attentionValidationOptionalRotaryBaseGQA && s.RopeDimensionCount > tensor.FirstOffset &&
 		s.RopeDimensionCount != s.KeyLength {
 		return errors.New("Falcon rotary dimension count must equal the key length")
 	}
-	if attention == AttentionValidationOptionalExperts && s.HasExperts() &&
+	if attention == attentionValidationOptionalExperts && s.HasExperts() &&
 		(!validExpertDimensions(s) || !positiveFinite(s.ExpertWeightsScale)) {
 		return errors.New("Refact expert metadata is invalid")
 	}

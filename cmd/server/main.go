@@ -252,7 +252,6 @@ func run() error {
 			repoPath = roots.Store
 		}
 	}
-	var generator llamaserver.Generator = runner
 	var workspaceStore *overgodb.Store
 	if repoPath != "" {
 		workspaceStore, err = overgodb.Open(repoPath)
@@ -329,8 +328,9 @@ func run() error {
 				llamaserver.GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, sourceCommit))
 		}
 	}
+	var workflows llamaserver.WorkflowWorkspaceAPI
 	if len(workflowWorkspaces) > 0 {
-		generator = &serverRuntime{Runner: runner, WorkflowWorkspaceAPI: workflowWorkspaces}
+		workflows = workflowWorkspaces
 	}
 	var evaluationWorkspace llamaserver.EvaluationWorkspaceAPI
 	// The workspace opens whenever a trustworthy commit identity exists:
@@ -443,6 +443,7 @@ func run() error {
 		HubDownloadRoot:    hubRoot,
 		WebUIDir:           *webuiDir,
 		Evaluation:         evaluationWorkspace,
+		Workflows:          workflows,
 		AgentEmbedder:      agentRetrieval,
 		AgentReranker:      agentRetrieval,
 		LibraryIntake:      serverLibraryIntake(),
@@ -455,7 +456,7 @@ func run() error {
 			StatePositions: *analysisPositions, MDSIterations: *analysisMDSIterations,
 			MDSTolerance: *analysisMDSTolerance,
 		},
-	}, generator)
+	}, runner)
 	if err != nil {
 		return err
 	}

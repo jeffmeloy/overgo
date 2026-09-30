@@ -175,17 +175,9 @@ type ggufWriteInput struct {
 
 // ExecuteWorkflow writes the capability's model through its writer and
 // records the run with the written file's identity and location.
-func (workspace *GGUFWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
-	if workspace == nil || ctx == nil || reporter == nil {
+func (workspace *GGUFWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, capability WorkflowCapability, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
+	if workspace == nil || ctx == nil || reporter == nil || (kind != workflowExport && kind != workflowModelBuild) {
 		return operation.Completion{}, errors.New("gguf workspace: workflow is not admitted")
-	}
-	capabilities, err := workspace.WorkflowCapabilities(ctx, kind)
-	if err != nil {
-		return operation.Completion{}, err
-	}
-	capability, err := selectWorkflowCapability(capabilities, task, recipeID)
-	if err != nil {
-		return operation.Completion{}, err
 	}
 	if capability.Refusal != "" {
 		return operation.Completion{}, errors.New("gguf workspace: " + capability.Refusal)
@@ -197,8 +189,9 @@ func (workspace *GGUFWorkspace) ExecuteWorkflow(ctx context.Context, kind Workfl
 	inputs := []artifact.ID{capability.Model}
 	runtime := mergeRecipeRuntime
 	var file string
+	var err error
 	stopwatch := processmeasure.NewStopwatch()
-	if task == recipe.TaskExport {
+	if capability.Task == recipe.TaskExport {
 		runtime = exportRecipeRuntime
 		file, err = workspace.writers.Export(capability.Location, workspace.root, input.Output, input.Type)
 	} else {

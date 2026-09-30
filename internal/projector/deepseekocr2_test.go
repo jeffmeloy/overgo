@@ -12,7 +12,7 @@ import (
 )
 
 func TestDeepSeekOCR2TinyFixture(t *testing.T) {
-	runner, err := openImageProjectorAs[*DeepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{})
+	runner, err := openImageProjectorAs[*deepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func TestDeepSeekOCR2TinyFixture(t *testing.T) {
 }
 
 func TestDeepSeekOCR2LocalTilesRemainIndependent(t *testing.T) {
-	runner, err := openImageProjectorAs[*DeepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{})
+	runner, err := openImageProjectorAs[*deepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestDeepSeekOCR2LocalTilesRemainIndependent(t *testing.T) {
 }
 
 func TestDeepSeekOCR2PromptContract(t *testing.T) {
-	runner, err := openImageProjectorAs[*DeepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{})
+	runner, err := openImageProjectorAs[*deepSeekOCR2Runner](writeTinyDeepSeekOCR2(t, false), OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestOpenImageProjectorDispatchesDeepSeekOCR2(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer projector.Close()
-	if _, ok := projector.(*DeepSeekOCR2Runner); !ok {
+	if _, ok := projector.(*deepSeekOCR2Runner); !ok {
 		t.Fatalf("projector type = %T", projector)
 	}
 }
@@ -77,7 +77,7 @@ func TestDeepSeekOCR2CUDAMatchesCPU(t *testing.T) {
 	input := patternedRGBA(32, 32, func(x, y int) color.RGBA {
 		return color.RGBA{R: uint8(x * 7), G: uint8(y * 5), B: uint8((x + y) * 3), A: fixtureOpaqueAlpha}
 	})
-	referenceParityCase[*DeepSeekOCR2Runner](t, "DeepSeek-OCR-2", path, input, 4e-3)
+	referenceParityCase[*deepSeekOCR2Runner](t, "DeepSeek-OCR-2", path, input, 4e-3)
 }
 
 func writeTinyDeepSeekOCR2(t *testing.T, patterned bool) string {

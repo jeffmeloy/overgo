@@ -32,13 +32,17 @@ var tableSignature = recipecontract.ModalitySignature{
 	Outputs: []recipecontract.Modality{recipecontract.ModalityTable},
 }
 
-// tableObjectiveTask is the head a table-prediction objective trains: its
-// verdict is label accuracy, which only a classification head answers.
-const tableObjectiveTask = "classification"
+// tableObjectiveTasks names the head a table-prediction objective trains by
+// the metric its verdict declares: label accuracy only a classification head
+// answers, squared error only a regression head.
+var tableObjectiveTasks = map[trainingprogram.EvaluationMetric]string{
+	trainingprogram.MetricTableAccuracy: tabularicl.TaskClassification,
+	trainingprogram.MetricTableMSE:      tabularicl.TaskRegression,
+}
 
-// trainTabular is the tabular route: fine-tuning a TabFM classification
-// head's decoder under a registered table-prediction objective, whose
-// held-out verdict and trained checkpoint it publishes.
+// trainTabular is the tabular route: fine-tuning the decoder of the TabFM
+// head its registered table-prediction objective's metric names, and
+// publishing the objective's held-out verdict and the trained checkpoint.
 func trainTabular(flags *flag.FlagSet, args []string) error {
 	model := flags.String("model", "", "TabFM model directory")
 	objectiveAlias := flags.String("objective", "", "registered table-prediction objective alias: train on its training membership, one request JSON per dataset file, and judge on its held-out one")
@@ -64,9 +68,9 @@ func trainTabular(flags *flag.FlagSet, args []string) error {
 	return reportVerdict(os.Stdout, result)
 }
 
-// trainTableObjective fine-tunes a TabFM classification head under a
-// registered table-prediction objective and publishes its held-out verdict
-// and the trained decoder's checkpoint at out: each record of the
+// trainTableObjective fine-tunes the TabFM head a registered
+// table-prediction objective's metric names and publishes its held-out
+// verdict and the trained decoder's checkpoint at out: each record of the
 // objective's registered dataset is one request file, the head trains only
 // on the training membership's requests, and the base and trained heads are
 // judged on the held-out requests' query rows.
@@ -75,18 +79,19 @@ func trainTableObjective(ctx context.Context, store *overgodb.Store, alias, mode
 	if err != nil {
 		return trainingworkflow.HeldoutResult{}, err
 	}
-	if objective.Kind != trainingprogram.ObjectiveTablePrediction {
-		return trainingworkflow.HeldoutResult{}, fmt.Errorf("objective %q trains %q, not table prediction", alias, objective.Kind)
+	task, found := tableObjectiveTasks[objective.Metric]
+	if objective.Kind != trainingprogram.ObjectiveTablePrediction || !found {
+		return trainingworkflow.HeldoutResult{}, fmt.Errorf("objective %q trains %q judged by %q, which no TabFM head answers", alias, objective.Kind, objective.Metric)
 	}
-	headDir := filepath.Join(model, tableObjectiveTask)
+	headDir := filepath.Join(model, task)
 	head, err := tabularicl.LoadHead(headDir)
 	if err != nil {
 		return trainingworkflow.HeldoutResult{}, err
 	}
-	if !head.Dims.IsClassifier {
-		return trainingworkflow.HeldoutResult{}, fmt.Errorf("table accuracy judges a classification head; %s is not one", headDir)
+	if head.Dims.IsClassifier != (task == tabularicl.TaskClassification) {
+		return trainingworkflow.HeldoutResult{}, fmt.Errorf("table metric %q judges a %s head; %s is not one", objective.Metric, task, headDir)
 	}
-	requests, examples, training, err := objectiveRequests(ctx, store, objective, tableObjectiveTask)
+	requests, examples, training, err := objectiveRequests(ctx, store, objective, task)
 	if err != nil {
 		return trainingworkflow.HeldoutResult{}, err
 	}
@@ -116,14 +121,14 @@ func trainTableObjective(ctx context.Context, store *overgodb.Store, alias, mode
 			return publishTrained(ctx, store, recipeID, out, trainer, trainingdata.StreamState{Identity: training, Position: uint64(plan.Updates())})
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
-			return predictClasses(head, requests[example.Record])
+			return predictQueryRows(head, requests[example.Record])
 		},
 	})
 }
 
 // objectiveRequests reads both of the objective's memberships as request
-// documents and keys each by its record: the example's target is the class
-// of every query row. It also returns the identity of the materialized
+// documents and keys each by its record: the example's target is every query
+// row's class or value. It also returns the identity of the materialized
 // training membership, the stream a checkpoint records its position in.
 func objectiveRequests(ctx context.Context, store *overgodb.Store, objective trainingprogram.ObjectiveDocument, task string) (map[string]tabularicl.Request, map[string]trainingworkflow.HeldoutExample, artifact.ID, error) {
 	training, heldout, err := trainingworkflow.ObjectiveMemberships(ctx, store, objective)
@@ -189,21 +194,26 @@ func trainTable(trainer *tabularicl.Trainer, requests map[string]tabularicl.Requ
 	return nil
 }
 
-// predictClasses answers a request's query rows with each row's most
-// likely class. The query rows' own labels are hidden from the head, which
-// reads only the context rows' labels.
-func predictClasses(head *tabularicl.Head, request tabularicl.Request) (trainingworkflow.HeldoutPrediction, error) {
-	labels := slices.Clone(request.Y)
-	clear(labels[request.TrainRows:])
-	outputs, err := head.Predict(request.X, labels, request.Rows, request.Cols, request.TrainRows, request.CatCols)
+// predictQueryRows answers a request's query rows: a classification head
+// with each row's most likely class, a regression head with each row's one
+// emitted value. The query rows' own targets are hidden from the head, which
+// reads only the context rows' targets.
+func predictQueryRows(head *tabularicl.Head, request tabularicl.Request) (trainingworkflow.HeldoutPrediction, error) {
+	targets := slices.Clone(request.Y)
+	clear(targets[request.TrainRows:])
+	outputs, err := head.Predict(request.X, targets, request.Rows, request.Cols, request.TrainRows, request.CatCols)
 	if err != nil {
 		return trainingworkflow.HeldoutPrediction{}, err
 	}
 	width := head.Dims.OutDim
-	classes := make([]float64, 0, request.Rows-request.TrainRows)
+	values := make([]float64, 0, request.Rows-request.TrainRows)
 	for row := request.TrainRows; row < request.Rows; row++ {
 		scores := outputs[row*width : (row+1)*width]
-		classes = append(classes, float64(slices.Index(scores, slices.Max(scores))))
+		value := float64(scores[0])
+		if head.Dims.IsClassifier {
+			value = float64(slices.Index(scores, slices.Max(scores)))
+		}
+		values = append(values, value)
 	}
-	return trainingworkflow.HeldoutPrediction{Values: classes}, nil
+	return trainingworkflow.HeldoutPrediction{Values: values}, nil
 }

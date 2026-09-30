@@ -268,7 +268,7 @@ func buildHyperFeedForwardStage(
 	moePlan.Routing = tensor.MoERoutingSqrtSoftplus
 	moePlan.SelectionBias = true
 	moePlan.SwiGLUClamp = spec.LayerExpertSwiGLUClamp(layerIndex)
-	moe := moePlan.Build(builder, current, weights.FeedForwardRouter, MoEGraphInputs{
+	moe := moePlan.Build(builder, current, weights.FeedForwardRouter, moEGraphInputs{
 		Gate: weights.FeedForwardGateExperts, Up: weights.FeedForwardUpExperts,
 		Down: weights.FeedForwardDownExperts, SelectionBias: weights.FeedForwardRouterBias,
 		SelectedExperts: selected,
@@ -527,7 +527,7 @@ func buildDynamicWKV7MixCached(
 		weights.TimeMixReceptance,
 		weights.TimeMixOutput,
 	}
-	if layerPlan.Normalization.Operation == NormalizationLayer {
+	if layerPlan.Normalization.Operation == normalizationLayer {
 		required = append(required, weights.TimeMixLN)
 		required = append(required, weights.TimeMixLNBias)
 	}
@@ -654,8 +654,8 @@ func buildTokenShiftFeedForwardMix(
 	spec Spec,
 	weights LayerGraphWeights,
 	pastShift, nextAttentionShift *tensor.Tensor,
-	operator LayerOperator,
-	normalization NormalizationPlan,
+	operator layerOperator,
+	normalization normalizationPlan,
 	tokenShiftCount uint32,
 ) (DenseBlockResult, error) {
 	required := graphWeights{
@@ -665,10 +665,10 @@ func buildTokenShiftFeedForwardMix(
 		weights.ChannelMixKey,
 		weights.ChannelMixValue,
 	}
-	if operator == LayerOperatorGatedTokenShiftSquaredReLU {
+	if operator == layerOperatorGatedTokenShiftSquaredReLU {
 		required = append(required, weights.ChannelMixLerpR)
 		required = append(required, weights.ChannelMixReceptance)
-	} else if operator != LayerOperatorTokenShiftSquaredReLU {
+	} else if operator != layerOperatorTokenShiftSquaredReLU {
 		return DenseBlockResult{}, errors.New("token-shift feed-forward policy is invalid")
 	}
 	if err := required.validate("token-shift feed-forward"); err != nil {
@@ -701,7 +701,7 @@ func buildTokenShiftFeedForwardMix(
 	channel := builder.MulMat(
 		weights.ChannelMixValue, builder.ReLUSquared(builder.MulMat(weights.ChannelMixKey, keyInput)),
 	)
-	if operator == LayerOperatorGatedTokenShiftSquaredReLU {
+	if operator == layerOperatorGatedTokenShiftSquaredReLU {
 		receptanceInput := builder.Add(normalized, builder.Multiply(
 			shift, builder.Reshape(weights.ChannelMixLerpR, embedding, tensor.SingletonExtent),
 		))

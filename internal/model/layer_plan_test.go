@@ -15,7 +15,7 @@ func TestValidateModelPlanRejectsMutatedProgram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan.layers[0].Program.Instructions[0].Operator = LayerOperatorNone
+	plan.layers[0].Program.Instructions[0].Operator = layerOperatorNone
 	if err := validateModelPlan(spec, Weights{}, plan); err == nil ||
 		!strings.Contains(err.Error(), "operator program is inconsistent") {
 		t.Fatalf("mutated program error = %v", err)
@@ -34,8 +34,8 @@ func TestCompileModelPlanOwnsTerminalPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tied.Terminal().Normalization != OutputNormModel ||
-		tied.Terminal().OutputHead != OutputHeadTokenEmbedding {
+	if tied.Terminal().Normalization != outputNormModel ||
+		tied.Terminal().OutputHead != outputHeadTokenEmbedding {
 		t.Fatalf("tied terminal = %+v", tied.Terminal())
 	}
 	output := gguf.TensorInfo{Name: "output.weight"}
@@ -56,7 +56,7 @@ func TestCompileModelPlanOwnsDraftPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Draft().Kind != DraftAppendedMultiCarry || plan.Draft().Heads != spec.NextNPredictLayers ||
+	if plan.Draft().Kind != draftAppendedMultiCarry || plan.Draft().Heads != spec.NextNPredictLayers ||
 		plan.Draft().Session != DraftSessionMulti {
 		t.Fatalf("draft plan = %+v", plan.Draft())
 	}
@@ -89,7 +89,7 @@ func TestDraftProgramPreservesBoundProfileIdentity(t *testing.T) {
 	if draft.Spec().Architecture != architecture || draft.Spec().Profile().Name != architecture {
 		t.Fatalf("draft identity = %q/%q", draft.Spec().Architecture, draft.Spec().Profile().Name)
 	}
-	if draft.Spec().Profile().Has(ArchitectureMoE) || draft.Spec().Profile().Experts != (ExpertPolicy{}) {
+	if draft.Spec().Profile().Has(architectureMoE) || draft.Spec().Profile().Experts != (expertPolicy{}) {
 		t.Fatalf("draft layer retained routed policy: %+v", draft.Spec().Profile())
 	}
 }
@@ -132,7 +132,7 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 		{
 			name:      "llama",
 			spec:      Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}},
-			attention: AttentionStandard, mode: CacheStateToken,
+			attention: attentionStandard, mode: CacheStateToken,
 		},
 		{
 			name:      "dsa",
@@ -150,7 +150,7 @@ func TestPlanLayerDerivesExecutionPolicy(t *testing.T) {
 		{
 			name:      "lfm2",
 			spec:      Spec{CommonSpec: CommonSpec{Architecture: "lfm2", BlockCount: 1}},
-			recurrent: true, attention: AttentionShortConvolution, mode: CacheStateFixed,
+			recurrent: true, attention: attentionShortConvolution, mode: CacheStateFixed,
 		},
 	}
 	for _, test := range tests {
@@ -209,19 +209,19 @@ func TestCompileModelPlanPinsLayerPolicies(t *testing.T) {
 	}{
 		{
 			name: "mamba", spec: Spec{CommonSpec: CommonSpec{Architecture: "mamba", BlockCount: 1}},
-			mixer: recurrentMixerSelectiveScan, cache: CacheSelectiveScan,
+			mixer: recurrentMixerSelectiveScan, cache: cacheSelectiveScan,
 		},
 		{
 			name: "jamba attention", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
-			cache: CacheAttention,
+			cache: cacheAttention,
 		},
 		{
 			name: "jamba recurrent", spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
-			layer: LayerWeights{Recurrent: true}, mixer: recurrentMixerWeightedSelectiveScan, cache: CacheSelectiveScan,
+			layer: LayerWeights{Recurrent: true}, mixer: recurrentMixerWeightedSelectiveScan, cache: cacheSelectiveScan,
 		},
 		{
 			name: "DSA", spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
-			attention: AttentionSparseLatent, cache: CacheAttention,
+			attention: AttentionSparseLatent, cache: cacheAttention,
 		},
 		{
 			name: "DeepSeek 4", spec: Spec{
@@ -254,18 +254,18 @@ func TestCompileModelPlanWithProfilePinsResolvedPolicy(t *testing.T) {
 	if !ok {
 		t.Fatal("llama profile is absent")
 	}
-	profile.Attention = AttentionShortConvolution
+	profile.Attention = attentionShortConvolution
 	plan, err := CompileModelPlanWithProfile(
 		Spec{CommonSpec: CommonSpec{Architecture: "llama", BlockCount: 1}}, Weights{}, profile,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Profile().Attention != AttentionShortConvolution || plan.layers[0].Attention != AttentionShortConvolution {
+	if plan.Profile().Attention != attentionShortConvolution || plan.layers[0].Attention != attentionShortConvolution {
 		t.Fatalf("resolved profile was not pinned: %+v", plan)
 	}
 	wantNormalization := plan.Normalization()
-	profile.Normalization = NormalizationLayer
+	profile.Normalization = normalizationLayer
 	if plan.Normalization() != wantNormalization {
 		t.Fatal("compiled normalization followed mutable profile state")
 	}
@@ -311,43 +311,43 @@ func TestCompileModelPlanSelectsCachedGraphPolicy(t *testing.T) {
 		{
 			name: "AltUp",
 			spec: Spec{CommonSpec: CommonSpec{Architecture: "gemma3n", BlockCount: 1}},
-			want: CachedGraphLayered,
+			want: cachedGraphLayered,
 		},
 		{
 			name: "MLA",
 			spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek2", BlockCount: 1}},
-			want: CachedGraphLayered,
+			want: cachedGraphLayered,
 		},
 		{
 			name: "DSA",
 			spec: Spec{CommonSpec: CommonSpec{Architecture: "deepseek32", BlockCount: 1}},
-			want: CachedGraphLayered,
+			want: cachedGraphLayered,
 		},
 		{
 			name: "recurrent",
 			spec: Spec{CommonSpec: CommonSpec{Architecture: "rwkv7", BlockCount: 1}},
-			want: CachedGraphLayered,
+			want: cachedGraphLayered,
 		},
 		{
 			name: "hybrid attention-only layer",
 			spec: Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
-			want: CachedGraphLayered,
+			want: cachedGraphLayered,
 		},
 		{
 			name:    "hybrid recurrent layer",
 			spec:    Spec{CommonSpec: CommonSpec{Architecture: "jamba", BlockCount: 1}},
 			weights: Weights{Layers: []LayerWeights{{Recurrent: true}}},
-			want:    CachedGraphLayered,
+			want:    cachedGraphLayered,
 		},
 		{
 			name: "encoder",
 			spec: Spec{CommonSpec: CommonSpec{Architecture: "bert", BlockCount: 1}},
-			want: CachedGraphLayered,
+			want: cachedGraphLayered,
 		},
 		{
 			name: "empty",
 			spec: Spec{CommonSpec: CommonSpec{Architecture: "llama"}},
-			want: CachedGraphLayered,
+			want: cachedGraphLayered,
 		},
 	}
 	for _, test := range tests {
@@ -393,8 +393,8 @@ func TestCachedLayerTopologyRequiresCompatibleLayers(t *testing.T) {
 			t.Fatalf("%s selected dense graph with AltUp", architecture)
 		}
 		for _, layer := range plan.layers {
-			if layer.Mixer != recurrentMixerNone || layer.Attention != AttentionStandard ||
-				layer.Cache != CacheAttention && layer.Cache != CacheSentinel {
+			if layer.Mixer != recurrentMixerNone || layer.Attention != attentionStandard ||
+				layer.Cache != cacheAttention && layer.Cache != cacheSentinel {
 				t.Fatalf("%s selected dense graph for layer %+v", architecture, layer)
 			}
 		}
@@ -518,8 +518,8 @@ func TestPlanLayerCompilesProjectedStreams(t *testing.T) {
 func TestPlanLayerCompilesAuxiliaryFlow(t *testing.T) {
 	rwkv := Spec{CommonSpec: CommonSpec{Architecture: "rwkv7", BlockCount: 2}}
 	first, second := bindFixtureSpec(rwkv).PlanLayer(0, false), bindFixtureSpec(rwkv).PlanLayer(1, false)
-	if first.AuxiliaryInput != AuxiliaryNone || first.AuxiliaryOutput != AuxiliaryRecurrentValue ||
-		second.AuxiliaryInput != AuxiliaryRecurrentValue || second.AuxiliaryOutput != AuxiliaryNone {
+	if first.AuxiliaryInput != AuxiliaryNone || first.AuxiliaryOutput != auxiliaryRecurrentValue ||
+		second.AuxiliaryInput != auxiliaryRecurrentValue || second.AuxiliaryOutput != AuxiliaryNone {
 		t.Fatalf("RWKV auxiliary plans = %+v / %+v", first, second)
 	}
 	dsa := Spec{
@@ -546,7 +546,7 @@ func TestPlanLayerCompilesAttentionTemperature(t *testing.T) {
 	if got := bindFixtureSpec(llama4).PlanLayer(0, false).Temperature; got != AttentionTemperatureNone {
 		t.Fatalf("Llama4 RoPE layer temperature = %v", got)
 	}
-	if got := bindFixtureSpec(llama4).PlanLayer(1, false).Temperature; got != AttentionTemperatureNoRoPE {
+	if got := bindFixtureSpec(llama4).PlanLayer(1, false).Temperature; got != attentionTemperatureNoRoPE {
 		t.Fatalf("Llama4 no-RoPE layer temperature = %v", got)
 	}
 }
@@ -577,12 +577,12 @@ func TestNormPlanCompilesOperationPlacementBiasAndLayout(t *testing.T) {
 		postLayout   PostNormLayoutPolicy
 		ffnLayout    FeedForwardNormLayoutPolicy
 	}{
-		{"bert", 1e-5, NormalizationLayer, false, true, true, PostNormLayoutOutputLayer, FeedForwardNormLayoutStandard},
-		{"olmo2", 0, NormalizationRMS, false, true, false, PostNormLayoutStandard, FeedForwardNormLayoutStandard},
-		{"grok", 0, NormalizationRMS, true, true, false, PostNormLayoutGrok, FeedForwardNormLayoutStandard},
-		{"dbrx", 1e-5, NormalizationLayer, true, false, false, PostNormLayoutStandard, FeedForwardNormLayoutAttentionOutput},
-		{"falcon-h1", 0, NormalizationRMS, true, false, false, PostNormLayoutStandard, FeedForwardNormLayoutBare},
-		{"talkie", 0, NormalizationUnweightedRMS, true, false, false, PostNormLayoutStandard, FeedForwardNormLayoutStandard},
+		{"bert", 1e-5, normalizationLayer, false, true, true, postNormLayoutOutputLayer, feedForwardNormLayoutStandard},
+		{"olmo2", 0, NormalizationRMS, false, true, false, postNormLayoutStandard, feedForwardNormLayoutStandard},
+		{"grok", 0, NormalizationRMS, true, true, false, postNormLayoutGrok, feedForwardNormLayoutStandard},
+		{"dbrx", 1e-5, normalizationLayer, true, false, false, postNormLayoutStandard, feedForwardNormLayoutAttentionOutput},
+		{"falcon-h1", 0, NormalizationRMS, true, false, false, postNormLayoutStandard, feedForwardNormLayoutBare},
+		{"talkie", 0, NormalizationUnweightedRMS, true, false, false, postNormLayoutStandard, feedForwardNormLayoutStandard},
 	}
 	for _, test := range tests {
 		spec := Spec{CommonSpec: CommonSpec{Architecture: test.architecture, LayerNormEpsilon: test.epsilon}}

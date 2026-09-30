@@ -22,7 +22,7 @@ const (
 	windowModeColumn
 )
 
-type MiMoVLSpec struct {
+type miMoVLSpec struct {
 	visionBackboneSpec
 	ProjectionDim      int
 	MergerIntermediate int
@@ -35,35 +35,35 @@ type MiMoVLSpec struct {
 	WindowModes        []spatialWindowMode
 }
 
-type MiMoVLInput gridImage
-type MiMoVLOutput gridOutput
+type miMoVLInput gridImage
+type miMoVLOutput gridOutput
 
-type MiMoVLRunner struct {
+type miMoVLRunner struct {
 	projectorResources
-	spec MiMoVLSpec
+	spec miMoVLSpec
 }
 
-func (r *MiMoVLRunner) Spec() MiMoVLSpec {
+func (r *miMoVLRunner) Spec() miMoVLSpec {
 	if r == nil {
-		return MiMoVLSpec{}
+		return miMoVLSpec{}
 	}
 	return r.spec
 }
 
-func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
+func readMiMoVLSpec(file *gguf.File) (miMoVLSpec, error) {
 	useSiLU, err := metadataBool(file, visionUseSiLUKey)
 	if err != nil {
-		return MiMoVLSpec{}, err
+		return miMoVLSpec{}, err
 	}
 	if !useSiLU {
-		return MiMoVLSpec{}, errors.New("projector: MiMo-VL SiLU is disabled")
+		return miMoVLSpec{}, errors.New("projector: MiMo-VL SiLU is disabled")
 	}
-	spec := MiMoVLSpec{}
+	spec := miMoVLSpec{}
 	if err := readRotaryVisionBackbone(file, mimoVLProjectorType, &spec.ProjectionDim, &spec.visionBackboneSpec); err != nil {
-		return MiMoVLSpec{}, err
+		return miMoVLSpec{}, err
 	}
 	if err := readProjectionNorm(file, &spec.ProjectionNormEpsilon); err != nil {
-		return MiMoVLSpec{}, err
+		return miMoVLSpec{}, err
 	}
 	if err := readMetadataIntFields(file,
 		metadataIntField{visionKVHeadCountKey, &spec.KVHeads},
@@ -72,11 +72,11 @@ func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
 		metadataIntField{visionMinPixelsKey, &spec.MinPixels},
 		metadataIntField{visionMaxPixelsKey, &spec.MaxPixels},
 	); err != nil {
-		return MiMoVLSpec{}, err
+		return miMoVLSpec{}, err
 	}
 	modeValues, err := metadataInts(file, "clip.vision.wa_pattern_mode", tensorRequired, false)
 	if err != nil {
-		return MiMoVLSpec{}, err
+		return miMoVLSpec{}, err
 	}
 	modes := make([]spatialWindowMode, len(modeValues))
 	for index, value := range modeValues {
@@ -84,37 +84,37 @@ func ReadMiMoVLSpec(file *gguf.File) (MiMoVLSpec, error) {
 		switch mode {
 		case windowModeGlobal, windowModeRow, windowModeColumn:
 		default:
-			return MiMoVLSpec{}, fmt.Errorf("projector: MiMo-VL window mode %d at layer %d is invalid", value, index)
+			return miMoVLSpec{}, fmt.Errorf("projector: MiMo-VL window mode %d at layer %d is invalid", value, index)
 		}
 		modes[index] = mode
 	}
 	qkv, ok := file.Tensor("v.blk.0.attn_qkv.weight")
 	if !ok || qkv.Dimensions != tensor.PairedExtent {
-		return MiMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV tensor is unavailable")
+		return miMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV tensor is unavailable")
 	}
 	if !checked.PositiveInts(spec.Heads, spec.KVHeads) {
-		return MiMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV width is invalid")
+		return miMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV width is invalid")
 	}
 	kvWidth, ok := checked.Mul64(uint64(spec.KVHeads), tensor.PairedExtent)
 	denominator, ok := checked.Add64(uint64(spec.Heads), kvWidth)
 	headDim, ok := checked.DivExact64(qkv.Shape[tensor.SingletonExtent], denominator)
 	spec.HeadDim, ok = checked.Int(headDim)
 	if !ok {
-		return MiMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV width is invalid")
+		return miMoVLSpec{}, errors.New("projector: MiMo-VL fused QKV width is invalid")
 	}
 	merger, ok := file.Tensor(projectionFirstWeightTensor)
 	spec.MergerIntermediate, ok = matrixRowsInt(merger, ok)
 	if !ok {
-		return MiMoVLSpec{}, errors.New("projector: MiMo-VL merger tensor is unavailable")
+		return miMoVLSpec{}, errors.New("projector: MiMo-VL merger tensor is unavailable")
 	}
 	spec.WindowModes = modes
 	if err := spec.validate(); err != nil {
-		return MiMoVLSpec{}, err
+		return miMoVLSpec{}, err
 	}
 	return spec, nil
 }
 
-func (s MiMoVLSpec) validate() error {
+func (s miMoVLSpec) validate() error {
 	if err := s.visionBackboneSpec.validateRotary(); err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (s MiMoVLSpec) validate() error {
 	return nil
 }
 
-func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) ([]string, error) {
+func validateMiMoVLCatalog(file *gguf.File, spec miMoVLSpec) ([]string, error) {
 	qWidth := spec.Heads * spec.HeadDim
 	kvWidth := spec.KVHeads * spec.HeadDim
 	required := map[string][]uint64{
@@ -167,30 +167,30 @@ func validateMiMoVLCatalog(file *gguf.File, spec MiMoVLSpec) ([]string, error) {
 	return validateProjectorTensorCatalog(file, required)
 }
 
-func PreprocessMiMoVLImage(source image.Image, spec MiMoVLSpec) (MiMoVLInput, error) {
+func preprocessMiMoVLImage(source image.Image, spec miMoVLSpec) (miMoVLInput, error) {
 	if err := spec.validate(); err != nil {
-		return MiMoVLInput{}, err
+		return miMoVLInput{}, err
 	}
-	preprocessSpec := Qwen3VLSpec{
+	preprocessSpec := qwen3VLSpec{
 		visionBackboneSpec: spec.visionBackboneSpec,
 		MergerIntermediate: spec.MergerIntermediate, OutputHidden: spec.ProjectionDim, MergeSize: spec.MergeSize,
 	}
-	input, err := preprocessQwen3VLFrames([]image.Image{source, source}, preprocessSpec, Qwen3VLPreprocessOptions{
+	input, err := preprocessQwen3VLFrames([]image.Image{source, source}, preprocessSpec, qwen3VLPreprocessOptions{
 		MinPixels: spec.MinPixels, MaxPixels: spec.MaxPixels,
 	})
 	if err != nil {
-		return MiMoVLInput{}, err
+		return miMoVLInput{}, err
 	}
-	return MiMoVLInput{PixelValues: input.PixelValues, GridH: input.GridH, GridW: input.GridW}, nil
+	return miMoVLInput{PixelValues: input.PixelValues, GridH: input.GridH, GridW: input.GridW}, nil
 }
 
-func (r *MiMoVLRunner) EncodeImage(ctx context.Context, source image.Image) (MiMoVLOutput, error) {
+func (r *miMoVLRunner) EncodeImage(ctx context.Context, source image.Image) (miMoVLOutput, error) {
 	if r == nil || r.file == nil {
-		return MiMoVLOutput{}, errRunnerClosed
+		return miMoVLOutput{}, errRunnerClosed
 	}
-	input, err := PreprocessMiMoVLImage(source, r.spec)
+	input, err := preprocessMiMoVLImage(source, r.spec)
 	if err != nil {
-		return MiMoVLOutput{}, err
+		return miMoVLOutput{}, err
 	}
 	return r.encodeGraph(ctx, input)
 }

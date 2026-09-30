@@ -45,15 +45,15 @@ func (generator *speechSurfaceGenerator) WorkflowCapabilities(ctx context.Contex
 	return capabilities, nil
 }
 
-func (generator *speechSurfaceGenerator) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
+func (generator *speechSurfaceGenerator) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, capability WorkflowCapability, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
 	generator.mu.Lock()
-	generator.recipeUsed = recipeID
+	generator.recipeUsed = capability.Recipe
 	err := json.Unmarshal(raw, &generator.speech)
 	generator.mu.Unlock()
 	if err != nil {
 		return operation.Completion{}, err
 	}
-	completion, err := generator.generationWorkspaceGenerator.ExecuteWorkflow(ctx, kind, task, recipeID, raw, reporter)
+	completion, err := generator.generationWorkspaceGenerator.ExecuteWorkflow(ctx, kind, capability, raw, reporter)
 	if err != nil {
 		return completion, err
 	}
@@ -84,7 +84,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 		},
 	}}}
 	generator.secondRecipe = testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface-alternate")
-	handler, err := New(Config{Repository: store}, generator)
+	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
 	if err != nil {
 		t.Fatal(err)
 	}

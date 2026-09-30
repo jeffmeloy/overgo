@@ -49,13 +49,13 @@ func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 			profile.MetadataDefaults.AttentionSoftcap = -1
 		},
 		"alternate-state defaults": func(profile *ArchitectureProfile) {
-			profile.Validation.Attention = AttentionValidationSharedKVAlternatingState
+			profile.Validation.Attention = attentionValidationSharedKVAlternatingState
 		},
 		"paired-feature draft default": func(profile *ArchitectureProfile) {
-			profile.Validation.Recurrent = RecurrentValidationTargetLayerBlock
+			profile.Validation.Recurrent = recurrentValidationTargetLayerBlock
 		},
 		"metadata read relationship": func(profile *ArchitectureProfile) {
-			profile.MetadataRead = MetadataReadQwen3VLDeepstack
+			profile.MetadataRead = metadataReadQwen3VLDeepstack
 		},
 		"Qwen GDN graph": func(profile *ArchitectureProfile) {
 			profile.AttentionGraph.GatedDelta = gatedDeltaSeparateProjections
@@ -64,7 +64,7 @@ func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 			profile.Rotary.MultiAxis = multiAxisRotaryAlways
 		},
 		"fused QKV requirement": func(profile *ArchitectureProfile) {
-			profile.Capabilities = ArchitectureRequiresFusedQKV
+			profile.Capabilities = architectureRequiresFusedQKV
 		},
 	}
 	for name, mutate := range tests {
@@ -110,7 +110,7 @@ func TestArchitectureRotarySectionBinding(t *testing.T) {
 			t.Errorf("%s: interleaved sections = %v, want %v", name, got, want)
 		}
 	}
-	profile := ArchitectureProfile{Name: fixtureArchitectureName, Rotary: RotaryPolicy{MultiAxis: multiAxisRotaryInterleaved}}
+	profile := ArchitectureProfile{Name: fixtureArchitectureName, Rotary: rotaryPolicy{MultiAxis: multiAxisRotaryInterleaved}}
 	if err := ValidateArchitectureProfile(profile); err == nil {
 		t.Fatal("interleaved sections without multi-axis positions accepted")
 	}

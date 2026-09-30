@@ -14,18 +14,18 @@ import (
 )
 
 const (
-	// DenseToMoERouterEvidenceVersion is the immutable calibration version.
-	DenseToMoERouterEvidenceVersion = artifact.InitialDocumentVersion
-	// DenseToMoERouterEvidenceMediaType identifies router calibration evidence.
-	DenseToMoERouterEvidenceMediaType = "application/vnd.overgo.dense-to-moe-router-evidence+json"
-	// DenseToMoERouterEvidenceSchema identifies router calibration evidence.
-	DenseToMoERouterEvidenceSchema = "overgo/dense-to-moe-router-evidence/v1"
-	// DenseToMoERouterPlanVersion is the immutable derived-router version.
-	DenseToMoERouterPlanVersion = artifact.InitialDocumentVersion
-	// DenseToMoERouterPlanMediaType identifies derived router plans.
-	DenseToMoERouterPlanMediaType = "application/vnd.overgo.dense-to-moe-router-plan+json"
-	// DenseToMoERouterPlanSchema identifies derived router plans.
-	DenseToMoERouterPlanSchema = "overgo/dense-to-moe-router-plan/v1"
+	// denseToMoERouterEvidenceVersion is the immutable calibration version.
+	denseToMoERouterEvidenceVersion = artifact.InitialDocumentVersion
+	// denseToMoERouterEvidenceMediaType identifies router calibration evidence.
+	denseToMoERouterEvidenceMediaType = "application/vnd.overgo.dense-to-moe-router-evidence+json"
+	// denseToMoERouterEvidenceSchema identifies router calibration evidence.
+	denseToMoERouterEvidenceSchema = "overgo/dense-to-moe-router-evidence/v1"
+	// denseToMoERouterPlanVersion is the immutable derived-router version.
+	denseToMoERouterPlanVersion = artifact.InitialDocumentVersion
+	// denseToMoERouterPlanMediaType identifies derived router plans.
+	denseToMoERouterPlanMediaType = "application/vnd.overgo.dense-to-moe-router-plan+json"
+	// denseToMoERouterPlanSchema identifies derived router plans.
+	denseToMoERouterPlanSchema = "overgo/dense-to-moe-router-plan/v1"
 )
 
 // DenseToMoERouterSample is one layer activation with exact relevant experts.
@@ -48,8 +48,8 @@ type DenseToMoERouterEvidence struct {
 	ID              artifact.ID              `json:"-"`
 }
 
-// DenseToMoERouterLayer contains expert-major, contiguous router rows.
-type DenseToMoERouterLayer struct {
+// denseToMoERouterLayer contains expert-major, contiguous router rows.
+type denseToMoERouterLayer struct {
 	Layer   uint32    `json:"layer"`
 	Weights []float32 `json:"weights"`
 }
@@ -61,13 +61,13 @@ type DenseToMoERouterPlan struct {
 	Experts  []artifact.ID           `json:"experts"`
 	TopK     uint32                  `json:"top_k"`
 	Width    uint32                  `json:"width"`
-	Layers   []DenseToMoERouterLayer `json:"layers"`
+	Layers   []denseToMoERouterLayer `json:"layers"`
 	ID       artifact.ID             `json:"-"`
 }
 
 var denseToMoERouterEvidenceCodec = artifact.JSONDocumentCodec(
 	"dense-to-MoE router evidence", artifact.KindEvidence,
-	DenseToMoERouterEvidenceMediaType, DenseToMoERouterEvidenceSchema,
+	denseToMoERouterEvidenceMediaType, denseToMoERouterEvidenceSchema,
 	canonicalizeDenseToMoERouterEvidence,
 	func(value DenseToMoERouterEvidence) artifact.ID { return value.ID },
 	func(value *DenseToMoERouterEvidence, id artifact.ID) { value.ID = id },
@@ -76,7 +76,7 @@ var denseToMoERouterEvidenceCodec = artifact.JSONDocumentCodec(
 
 var denseToMoERouterPlanCodec = artifact.JSONDocumentCodec(
 	"dense-to-MoE router plan", artifact.KindProfile,
-	DenseToMoERouterPlanMediaType, DenseToMoERouterPlanSchema,
+	denseToMoERouterPlanMediaType, denseToMoERouterPlanSchema,
 	canonicalizeDenseToMoERouterPlan,
 	func(value DenseToMoERouterPlan) artifact.ID { return value.ID },
 	func(value *DenseToMoERouterPlan, id artifact.ID) { value.ID = id },
@@ -85,7 +85,7 @@ var denseToMoERouterPlanCodec = artifact.JSONDocumentCodec(
 
 // NewDenseToMoERouterEvidence seals activation evidence and split lineage.
 func NewDenseToMoERouterEvidence(value DenseToMoERouterEvidence) (DenseToMoERouterEvidence, error) {
-	value.Version, value.ID = DenseToMoERouterEvidenceVersion, artifact.ID{}
+	value.Version, value.ID = denseToMoERouterEvidenceVersion, artifact.ID{}
 	return denseToMoERouterEvidenceCodec.New(value)
 }
 
@@ -99,9 +99,9 @@ func CompileDenseToMoERouter(evidence DenseToMoERouterEvidence) (DenseToMoERoute
 	width := uint32(len(evidence.Training[0].Hidden))
 	layers := denseToMoELayerCount(evidence.Training, evidence.HeldOut)
 	plan := DenseToMoERouterPlan{
-		Version: DenseToMoERouterPlanVersion, Evidence: evidence.ID,
+		Version: denseToMoERouterPlanVersion, Evidence: evidence.ID,
 		Experts: slices.Clone(evidence.Experts), TopK: topK, Width: width,
-		Layers: make([]DenseToMoERouterLayer, layers),
+		Layers: make([]denseToMoERouterLayer, layers),
 	}
 	for layer := range layers {
 		weights, err := deriveDenseToMoELayer(
@@ -110,7 +110,7 @@ func CompileDenseToMoERouter(evidence DenseToMoERouterEvidence) (DenseToMoERoute
 		if err != nil {
 			return DenseToMoERouterPlan{}, err
 		}
-		plan.Layers[layer] = DenseToMoERouterLayer{Layer: uint32(layer), Weights: weights}
+		plan.Layers[layer] = denseToMoERouterLayer{Layer: uint32(layer), Weights: weights}
 	}
 	if err := screenDenseToMoERouter(plan, evidence.HeldOut); err != nil {
 		return DenseToMoERouterPlan{}, err
@@ -162,7 +162,7 @@ func (value DenseToMoERouterPlan) Batch(key string) (artifact.Batch, error) {
 }
 
 func canonicalizeDenseToMoERouterEvidence(value *DenseToMoERouterEvidence) error {
-	if value == nil || value.Version != DenseToMoERouterPlanVersion ||
+	if value == nil || value.Version != denseToMoERouterPlanVersion ||
 		value.TrainingDataset.Kind() != artifact.KindDataset || value.HeldOutDataset.Kind() != artifact.KindDataset ||
 		value.TrainingDataset == value.HeldOutDataset || value.TrainingRun.Kind() != artifact.KindRun ||
 		value.HeldOutRun.Kind() != artifact.KindRun || value.TrainingRun == value.HeldOutRun ||
@@ -228,7 +228,7 @@ func canonicalizeDenseToMoERouterEvidence(value *DenseToMoERouterEvidence) error
 }
 
 func canonicalizeDenseToMoERouterPlan(value *DenseToMoERouterPlan) error {
-	if value == nil || value.Version != DenseToMoERouterEvidenceVersion ||
+	if value == nil || value.Version != denseToMoERouterEvidenceVersion ||
 		value.Evidence.Kind() != artifact.KindEvidence || len(value.Experts) < tensor.PairedExtent ||
 		uint64(len(value.Experts)) > math.MaxUint32 ||
 		value.TopK == 0 || value.TopK >= uint32(len(value.Experts)) || value.Width == 0 || len(value.Layers) == 0 {

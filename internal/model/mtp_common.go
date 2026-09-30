@@ -11,7 +11,7 @@ func (p CompiledLayerProgram) BuildDraftInput(
 	builder *tensor.Builder,
 	tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection *tensor.Tensor,
 ) (*tensor.Tensor, error) {
-	if p.draft.Kind == DraftNone {
+	if p.draft.Kind == draftNone {
 		return nil, errors.New("compiled layer has no draft-input policy")
 	}
 	return buildMTPInput(
@@ -25,7 +25,7 @@ func (p CompiledLayerProgram) BuildDraftOutputs(
 	builder *tensor.Builder,
 	input, outputNorm, output *tensor.Tensor,
 ) (logits, nextHidden *tensor.Tensor, err error) {
-	if p.draft.Kind == DraftNone {
+	if p.draft.Kind == draftNone {
 		return nil, nil, errors.New("compiled layer has no draft-output policy")
 	}
 	return buildMTPOutputs(
@@ -45,8 +45,8 @@ func draftExecutableSpec(spec Spec, plan DraftPlan) (Spec, uint32) {
 		return spec, spec.BlockCount
 	}
 	profile := spec.Profile()
-	profile.Capabilities &^= ArchitectureMoE
-	profile.Experts = ExpertPolicy{}
+	profile.Capabilities &^= architectureMoE
+	profile.Experts = expertPolicy{}
 	// The single-catalog draft block is a full-attention layer even on
 	// hybrid trunks: the weight catalog binds attention tensors, so the
 	// executable plan must not inherit the trunk's recurrent cadence.
@@ -59,7 +59,7 @@ func buildMTPInput(
 	builder *tensor.Builder,
 	tokenEmbedding, targetHidden, embeddingNorm, hiddenNorm, projection *tensor.Tensor,
 	spec Spec,
-	architectureNormalization NormalizationPlan,
+	architectureNormalization normalizationPlan,
 	plan DraftPlan,
 ) (*tensor.Tensor, error) {
 	if builder == nil || tokenEmbedding == nil || targetHidden == nil || embeddingNorm == nil ||
@@ -83,7 +83,7 @@ func buildMTPOutputs(
 	builder *tensor.Builder,
 	input, outputNorm, output *tensor.Tensor,
 	spec Spec,
-	architectureNormalization NormalizationPlan,
+	architectureNormalization normalizationPlan,
 	plan DraftPlan,
 ) (logits, nextHidden *tensor.Tensor, err error) {
 	if builder == nil || input == nil || outputNorm == nil || output == nil {
@@ -113,10 +113,10 @@ func normalizeMTP(
 	builder *tensor.Builder,
 	input, weight *tensor.Tensor,
 	spec Spec,
-	architecture NormalizationPlan,
-	normalization DraftNormalizationPolicy,
+	architecture normalizationPlan,
+	normalization draftNormalizationPolicy,
 ) *tensor.Tensor {
-	if normalization == DraftNormalizationArchitecture {
+	if normalization == draftNormalizationArchitecture {
 		return architecture.Apply(builder, input, weight, nil)
 	}
 	return builder.WeightedRMSNorm(input, weight, spec.RMSNormEpsilon)

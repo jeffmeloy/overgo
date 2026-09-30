@@ -50,12 +50,12 @@ func TestExportQuantizedGGUF(t *testing.T) {
 		t.Fatalf("export capability = %+v", capability)
 	}
 	run := func(input string) error {
-		_, err := workspace.ExecuteWorkflow(ctx, workflowExport, recipe.TaskExport, capability.Recipe, json.RawMessage(input), &recordingReporter{})
+		_, err := workspace.ExecuteWorkflow(ctx, workflowExport, capability, json.RawMessage(input), &recordingReporter{})
 		return err
 	}
 
 	reporter := &recordingReporter{}
-	completion, err := workspace.ExecuteWorkflow(ctx, workflowExport, recipe.TaskExport, capability.Recipe, json.RawMessage(`{"type":"f16","output":"shared"}`), reporter)
+	completion, err := workspace.ExecuteWorkflow(ctx, workflowExport, capability, json.RawMessage(`{"type":"f16","output":"shared"}`), reporter)
 	if err != nil || !reporter.published || len(completion.Outputs) != 1 {
 		t.Fatalf("export = %+v published=%v err=%v", completion, reporter.published, err)
 	}
@@ -124,7 +124,7 @@ func TestGGUFRunsBindTheirSource(t *testing.T) {
 		if err != nil || len(capabilities) != 1 {
 			t.Fatalf("export capabilities = %+v, %v", capabilities, err)
 		}
-		completion, err := workspace.ExecuteWorkflow(ctx, workflowExport, recipe.TaskExport, capabilities[0].Recipe,
+		completion, err := workspace.ExecuteWorkflow(ctx, workflowExport, capabilities[0],
 			json.RawMessage(`{"type":"f16","output":"`+output+`"}`), &recordingReporter{})
 		if err != nil {
 			t.Fatal(err)

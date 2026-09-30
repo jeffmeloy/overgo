@@ -35,8 +35,7 @@ func (generator *trainingExportGenerator) WorkflowCapabilities(_ context.Context
 func (generator *trainingExportGenerator) ExecuteWorkflow(
 	ctx context.Context,
 	kind WorkflowKind,
-	_ recipe.Task,
-	_ artifact.ID,
+	_ WorkflowCapability,
 	_ json.RawMessage,
 	reporter operation.Reporter,
 ) (operation.Completion, error) {
@@ -80,7 +79,7 @@ func TestGUITrainingAndExportShareServices(t *testing.T) {
 			workflowExport:   testutil.ArtifactID(t, artifact.KindRun, "export-run"),
 		},
 	}
-	handler, err := New(Config{Repository: store}, generator)
+	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
 	if err != nil {
 		t.Fatal(err)
 	}

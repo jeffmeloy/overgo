@@ -20,7 +20,7 @@ func TestWebUIBrowserTrainingPreview(t *testing.T) {
 		t.Skip(testskip.Inapplicable + ": the training preview leg uses Chromium through cmd/webui-lane")
 	}
 	fixture := newDPOTrainingFixture(t)
-	handler := newTestHandlerForRepository(t, fixture.store, &workspaceTestRuntime{fakeGenerator: &fakeGenerator{}, WorkflowWorkspaceAPI: fixture.workspace})
+	handler := newTestHandlerForRepository(t, fixture.store, &fakeGenerator{}, func(config *Config) { config.Workflows = fixture.workspace })
 	server := httptest.NewServer(handler)
 	defer server.Close()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))

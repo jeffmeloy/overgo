@@ -45,10 +45,10 @@ func TestGenerationRunPublishesServingObservation(t *testing.T) {
 		t.Fatalf("capabilities = %+v, %v", capabilities, err)
 	}
 	reporter := &recordingReporter{}
-	if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, recipe.TaskImageGen, capabilities[0].Recipe, json.RawMessage(`{"class":1}`), reporter); err != nil {
+	if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capabilities[0], json.RawMessage(`{"class":1}`), reporter); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, recipe.TaskImageGen, capabilities[0].Recipe, json.RawMessage(`{"class":2}`), reporter); err == nil {
+	if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capabilities[0], json.RawMessage(`{"class":2}`), reporter); err == nil {
 		t.Fatal("the refused generation succeeded")
 	}
 	rows, err := scorecard.Build(ctx, store)

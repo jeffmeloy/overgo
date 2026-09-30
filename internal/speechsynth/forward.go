@@ -46,10 +46,10 @@ func (m *Model) AppendForward(st *DecodeState, x []float32, T int) {
 		l := &m.layers[li]
 		hostmath.LayerNormInto(xn, x, l.norm1W, l.norm1B, T, d, m.Normalization.TransformerLayer)
 		hostmath.Linear(qkv, xn, l.inProj, T, d, tensor.TripleExtent*d)
-		for t := tensor.FirstOffset; t < T; t++ {
+		for t := range T {
 			base := t * tensor.TripleExtent * d
 			qr, kr, vr := qkv[base:base+d], qkv[base+d:base+tensor.PairedExtent*d], qkv[base+tensor.PairedExtent*d:(t+tensor.SingletonExtent)*tensor.TripleExtent*d]
-			for head := tensor.FirstOffset; head < h; head++ {
+			for head := range h {
 				hostmath.ApplyRotaryInterleaved(qr[head*hd:(head+tensor.SingletonExtent)*hd], m.invFreq, rows0+t)
 				hostmath.ApplyRotaryInterleaved(kr[head*hd:(head+tensor.SingletonExtent)*hd], m.invFreq, rows0+t)
 			}

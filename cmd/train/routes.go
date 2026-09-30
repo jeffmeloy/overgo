@@ -17,14 +17,18 @@ const routeFlag = "-route"
 // A route that needs a platform's device registers itself from that
 // platform's file.
 var trainRoutes = map[string]func(flags *flag.FlagSet, args []string) error{
+	"diffusionimage":  trainDiffusionImage,
 	"dit":             trainDiT,
 	"flow-organ":      trainFlowOrgan,
 	"graft":           trainGraft,
 	"mixture":         trainMixture,
 	"mot":             trainMot,
 	"oscillatorimage": trainOscillatorImage,
+	"seq2seq":         trainSeq2Seq,
 	"seriesforecast":  trainSeriesForecast,
+	"speech":          trainSpeech,
 	"tabular":         trainTabular,
+	"thoughtbank":     trainThoughtBank,
 }
 
 // runRoute dispatches args (the route name, then its flags) to the named

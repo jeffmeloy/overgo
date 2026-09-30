@@ -34,6 +34,8 @@ type JointTrainer struct {
 	checkpointReady bool
 	program         trainingprogram.TrainingProgram
 	execution       trainingprogram.Execution[jointTrainingState]
+	// gradientL2 is the norm of the gradient the latest step applied.
+	gradientL2 float64
 }
 
 // NewJointTrainer selects host Muon explicitly when host is true; otherwise it
@@ -73,6 +75,25 @@ func NewJointTrainer(model *Model, config optimizer.Config, host bool) (*JointTr
 }
 
 func (t *JointTrainer) Program() trainingprogram.TrainingProgram { return t.program }
+
+// OptimizerPlan is the plan the trainer's Muon steps: every trained tensor.
+func (t *JointTrainer) OptimizerPlan() optimizer.Plan { return t.pack.Plan() }
+
+// Snapshot copies the optimizer state the next step continues from, from
+// whichever backend steps.
+func (t *JointTrainer) Snapshot() optimizer.State {
+	if t.host != nil {
+		return t.host.Snapshot()
+	}
+	return t.stepper.Snapshot()
+}
+
+// SaveWeights writes the trained tensors at path, the weights Snapshot pairs
+// with.
+func (t *JointTrainer) SaveWeights(path string) error { return t.pack.Save(path) }
+
+// GradientL2 is the norm of the gradient the latest step applied.
+func (t *JointTrainer) GradientL2() float64 { return t.gradientL2 }
 
 func (t *JointTrainer) Step(example TrainingExample) (float64, error) {
 	if t == nil || t.pack == nil || !t.checkpointReady {
@@ -178,6 +199,7 @@ func (t *JointTrainer) optimize(state *jointTrainingState) error {
 	if err := t.pack.GatherGradients(t.gradients); err != nil {
 		return err
 	}
+	t.gradientL2 = t.pack.GradientL2()
 	t.checkpointReady = false
 	if t.host != nil {
 		t.host.Step()

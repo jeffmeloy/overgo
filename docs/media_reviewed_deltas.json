@@ -876,6 +876,32 @@
         ]
       },
       "scope": "latentimage's final layer and routedlm's flow head, latent bridge and modality transformer pack their parameters through optimizer.TensorPack (ordered sections, BF16 masters) instead of by hand. The receipt runs, on the device, each trainer's descent, finite-difference gradient checks and bit-exact checkpoint round trip."
+    },
+    {
+      "changes": {
+        "internal/diffusionimage/model_graph.go": {
+          "after_sha256": "c226a82587756203d0383b2d76a71b4e33c46b2195d753f037000af3adf7c526",
+          "before_sha256": "cf9aa97462ecc7d3ade7c6f947ab96be6bbbe3bd334715f2178ebb94ec71d730",
+          "reason": "go fix's range-over-int and slices.Sort modernizations, which the landing gate applies to every changed package; no behaviour change."
+        },
+        "internal/diffusionimage/train.go": {
+          "after_sha256": "4c60ae5ba723001e4b894ad66dfefcc80a492a939248edaab0501435ece83bc6",
+          "before_sha256": "c11d12e9675adf0d3539c5755911b5c9255d1049e417e56507ee59f4d1fe0ef4",
+          "reason": "the trainer gains OptimizerPlan, Snapshot, SaveWeights and GradientL2, and Model gains TrainableParameterCount, so the new diffusionimage train route publishes its checkpoint; one line in optimize records the gradient norm; training is unchanged."
+        }
+      },
+      "evidence": "evidence:sha256:559abe4cca8960bcc4164478ccdf3e950ca1bdbded72346ef6a3658925919d1e",
+      "id": "diffusionimage-train-route",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/diffusionimage": [
+          "TestOTFlowObjectiveMatchesTorch",
+          "TestTinyModelTrainDescends",
+          "TestTrainerCheckpointRoundTripIsBitExact",
+          "TestRealCheckpointMuonPlanCompiles"
+        ]
+      },
+      "scope": "The diffusion-image trainer exposes its optimizer plan, state and weights so a train route publishes its checkpoint through the shared run. The receipt runs, on the device, the OT flow objective against its torch golden, descent on the tiny model, the bit-exact checkpoint round trip and the real checkpoint's Muon plan."
     }
   ],
   "paths": [

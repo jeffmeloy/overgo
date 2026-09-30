@@ -50,14 +50,14 @@ func (m *Model) layerForwardTrace(l *attnLayer, x []float32, T int) ([]float32, 
 	qkv := make([]float32, T*tensor.TripleExtent*d)
 	hostmath.Linear(qkv, tr.xn1, l.inProj, T, d, tensor.TripleExtent*d)
 	tr.q, tr.k, tr.v = make([]float32, T*d), make([]float32, T*d), make([]float32, T*d)
-	for t := tensor.FirstOffset; t < T; t++ {
+	for t := range T {
 		row := qkv[t*tensor.TripleExtent*d : (t+tensor.SingletonExtent)*tensor.TripleExtent*d]
 		copy(tr.q[t*d:(t+tensor.SingletonExtent)*d], row[:d])
 		copy(tr.k[t*d:(t+tensor.SingletonExtent)*d], row[d:tensor.PairedExtent*d])
 		copy(tr.v[t*d:(t+tensor.SingletonExtent)*d], row[tensor.PairedExtent*d:])
 	}
-	for t := tensor.FirstOffset; t < T; t++ {
-		for h := tensor.FirstOffset; h < heads; h++ {
+	for t := range T {
+		for h := range heads {
 			hostmath.ApplyRotaryInterleaved(tr.q[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, t)
 			hostmath.ApplyRotaryInterleaved(tr.k[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, t)
 		}
@@ -116,14 +116,14 @@ func (m *Model) layerBackward(li int, x, dOut []float32, T int, g Grads) []float
 	for i := range dq { // chain through the folded score scale
 		dq[i] *= m.scoreScale
 	}
-	for t := tensor.FirstOffset; t < T; t++ {
-		for h := tensor.FirstOffset; h < heads; h++ {
+	for t := range T {
+		for h := range heads {
 			hostmath.RotaryInterleavedBackward(dq[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, t)
 			hostmath.RotaryInterleavedBackward(dk[(t*heads+h)*hd:(t*heads+h+tensor.SingletonExtent)*hd], m.invFreq, t)
 		}
 	}
 	dqkv := make([]float32, T*tensor.TripleExtent*d)
-	for t := tensor.FirstOffset; t < T; t++ {
+	for t := range T {
 		row := dqkv[t*tensor.TripleExtent*d : (t+tensor.SingletonExtent)*tensor.TripleExtent*d]
 		copy(row[:d], dq[t*d:(t+tensor.SingletonExtent)*d])
 		copy(row[d:tensor.PairedExtent*d], dk[t*d:(t+tensor.SingletonExtent)*d])
@@ -371,7 +371,7 @@ func (m *Model) LossAndGrads(textIDs []int, z []float32, frames int, noiseSeed i
 	}
 	var loss float64
 	norm := float64(latent * frames)
-	for t := tensor.FirstOffset; t < frames; t++ {
+	for t := range frames {
 		pos := len(textIDs) + t
 		m.OutNormInto(cond, final[pos*d:(pos+tensor.SingletonExtent)*d], tensor.SingletonExtent)
 		for i := range x0 {

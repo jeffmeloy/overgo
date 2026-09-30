@@ -13,6 +13,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
+	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
 
@@ -32,6 +33,8 @@ func run() error {
 	resume := flag.String("resume", "", "resume checkpoint directory")
 	reference := flag.String("reference", "", "frozen reference model directory for DPO")
 	scale := clioptions.Float64Override(flag.CommandLine, "objective-scale", "RL objective scale")
+	preferenceMode := flag.String("preference-mode", "", "DPO objective loss mode: empty for DPO's own, or the reference-free simpo or orpo")
+	preferenceMargin := clioptions.Float64Override(flag.CommandLine, "preference-margin", "SimPO target reward margin")
 	steps := clioptions.IntOverride(flag.CommandLine, "steps", "Muon update steps; omitted derives from dataset units")
 	maximumSequence := clioptions.IntOverride(flag.CommandLine, "seq", "maximum token sequence; omitted derives from model context")
 	host := flag.Bool("host", false, "force host execution")
@@ -91,6 +94,7 @@ func run() error {
 		ResumeDirectory: *resume, ReferenceDirectory: *reference,
 		Steps: *steps, MaximumSequence: *maximumSequence,
 		ObjectiveScale: *scale, Host: *host, FreezeLexical: *freezeLexical,
+		PreferenceMode: trainingprogram.PreferenceMode(*preferenceMode), PreferenceMargin: *preferenceMargin,
 		Progress: os.Stderr, MaxProjectedWall: *maxWall,
 	})
 	if err != nil {

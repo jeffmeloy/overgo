@@ -36,6 +36,9 @@ func LoadGenerator(directory string) (*Generator, error) {
 	return &Generator{model: model, tokenizer: table}, nil
 }
 
+// Model is the loaded model the generator decodes with and a trainer trains.
+func (g *Generator) Model() *Model { return g.model }
+
 func (g *Generator) encodeRequest(request textgeneration.Request) (encodedRequest, error) {
 	if g == nil || g.model == nil || g.tokenizer == nil {
 		return encodedRequest{}, errors.New("seq2seq: generator is unavailable")

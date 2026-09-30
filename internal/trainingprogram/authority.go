@@ -129,15 +129,31 @@ type ProgramSpec struct {
 	Preference *PreferencePolicy
 }
 
-// PreferencePolicy seals reference and objective scale facts.
+// PreferencePolicy seals the DPO objective's reference, scale and loss mode.
 type PreferencePolicy struct {
 	Reference artifact.ID
-	Scale     float64
+	// Scale is β for DPO and SimPO, and the odds-ratio weight λ for ORPO.
+	Scale float64
+	// Mode is the loss the objective takes over a pair. DPO's own mode is
+	// the zero value and is omitted, so DPO programs keep their identities.
+	Mode PreferenceMode `json:",omitempty"`
+	// Margin is SimPO's target reward margin γ; no other mode has one.
+	Margin float64 `json:",omitzero"`
 }
 
 func (policy PreferencePolicy) Validate() error {
-	if policy.Reference.Kind() != artifact.KindModel || policy.Scale <= 0 || !finite(policy.Scale) {
+	if policy.Reference.Kind() != artifact.KindModel {
 		return errors.New("training program: DPO requires reference model and finite positive scale")
+	}
+	return policy.validLoss()
+}
+
+// validLoss requires a finite positive scale, a declared mode, and a finite
+// nonnegative margin that only SimPO carries.
+func (policy PreferencePolicy) validLoss() error {
+	if policy.Scale <= 0 || !finite(policy.Scale) || !slices.Contains(preferenceModes, policy.Mode) ||
+		policy.Margin < 0 || !finite(policy.Margin) || policy.Margin != 0 && policy.Mode != PreferenceSimPO {
+		return fmt.Errorf("training program: invalid DPO scale %g, mode %q or margin %g", policy.Scale, policy.Mode, policy.Margin)
 	}
 	return nil
 }

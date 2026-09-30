@@ -14,14 +14,15 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
-// JudgePreferenceHeldout judges a finished DPO run on the held-out pairs of
-// its recipe objective's split: the base policy the run started from and
-// the trained policy it published each score every held-out pair against
-// the run's frozen reference, and the verdict passes when the trained
-// policy strictly improves the objective's declared preference metric. The
-// pairs are read from the run's dataset through the held-out membership
-// alone. judged is false for an objective whose split is no committed
-// membership: it holds no held-out pairs to judge on.
+// JudgePreferenceHeldout judges a finished DPO run, in any of its loss
+// modes, on the held-out pairs of its recipe objective's split: the base
+// policy the run started from and the trained policy it published each
+// score every held-out pair against the run's frozen reference by DPO's own
+// loss, and the verdict passes when the trained policy strictly improves
+// the objective's declared preference metric. The pairs are read from the
+// run's dataset through the held-out membership alone. judged is false for
+// an objective whose split is no committed membership: it holds no held-out
+// pairs to judge on.
 func JudgePreferenceHeldout(ctx context.Context, store artifact.Repository, request Request, result Result) (_ HeldoutResult, judged bool, _ error) {
 	definition, err := recipe.RequireDefinition(ctx, store, request.Recipe)
 	if err != nil {

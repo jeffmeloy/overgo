@@ -1,14 +1,17 @@
 package densecausal
 
 import (
+	"cmp"
 	"math"
 	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/hostmath"
+	"overgo/internal/sequencescore"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
+	"overgo/internal/trainingprogram"
 )
 
 func dpoFixture(t *testing.T) (*Model, *Model, trainingdata.PreferencePair) {
@@ -49,7 +52,7 @@ func TestDPOSelectedScoresMatchMaterialized(t *testing.T) {
 func TestDPOStepImprovesPreferenceMargin(t *testing.T) {
 	policy, reference, pair := dpoFixture(t)
 	before := dpoMargin(t, policy, pair)
-	if _, _, err := policy.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), derivedTestLearningRate(t, policy), 0.9, 0.1, nil, nil); err != nil {
+	if _, _, err := policy.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), derivedTestLearningRate(t, policy), 0.9, dpoPolicy, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	after := dpoMargin(t, policy, pair)
@@ -77,7 +80,7 @@ func TestDPOReferenceRemainsFrozen(t *testing.T) {
 	for name, values := range reference.Weights {
 		want[name] = slices.Clone(values)
 	}
-	if _, _, err := policy.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), derivedTestLearningRate(t, policy), 0.9, 0.1, nil, nil); err != nil {
+	if _, _, err := policy.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), derivedTestLearningRate(t, policy), 0.9, dpoPolicy, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	for name, values := range want {
@@ -91,15 +94,15 @@ func TestDPOResumeMatchesUninterrupted(t *testing.T) {
 	uninterrupted, reference, pair := dpoFixture(t)
 	resumed, _, _ := dpoFixture(t)
 	batches := dpoBatches(t, pair, 2)
-	_, wantState, err := uninterrupted.TrainDPOBatchesResume(reference, batches, derivedTestLearningRate(t, uninterrupted), 0.9, 0.1, nil, nil)
+	_, wantState, err := uninterrupted.TrainDPOBatchesResume(reference, batches, derivedTestLearningRate(t, uninterrupted), 0.9, dpoPolicy, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, firstState, err := resumed.TrainDPOBatchesResume(reference, batches[:1], derivedTestLearningRate(t, resumed), 0.9, 0.1, nil, nil)
+	_, firstState, err := resumed.TrainDPOBatchesResume(reference, batches[:1], derivedTestLearningRate(t, resumed), 0.9, dpoPolicy, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, gotState, err := resumed.TrainDPOBatchesResume(reference, batches[1:], derivedTestLearningRate(t, resumed), 0.9, 0.1, &firstState, nil)
+	_, gotState, err := resumed.TrainDPOBatchesResume(reference, batches[1:], derivedTestLearningRate(t, resumed), 0.9, dpoPolicy, &firstState, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,4 +129,53 @@ func dpoBatches(t *testing.T, pair trainingdata.PreferencePair, count int) []tra
 		}
 	}
 	return batches
+}
+
+// dpoPolicy is DPO's own loss mode at β = 0.1.
+var dpoPolicy = trainingprogram.PreferencePolicy{Scale: 0.1}
+
+// TestPreferenceModesDescend takes one step of the DPO trainer on the tiny
+// model in each loss mode, at the scales the papers train with, and
+// requires the step to observe that mode's loss and lower it.
+func TestPreferenceModesDescend(t *testing.T) {
+	for _, policy := range []trainingprogram.PreferencePolicy{
+		dpoPolicy,
+		{Mode: trainingprogram.PreferenceSimPO, Scale: 2, Margin: 1},
+		{Mode: trainingprogram.PreferenceORPO, Scale: 0.1},
+	} {
+		t.Run(cmp.Or(string(policy.Mode), "dpo"), func(t *testing.T) {
+			model, reference, pair := dpoFixture(t)
+			before := preferenceLoss(t, model, reference, pair, policy)
+			observations, _, err := model.TrainDPOBatchesResume(reference, dpoBatches(t, pair, 1), derivedTestLearningRate(t, model), 0.9, policy, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			after := preferenceLoss(t, model, reference, pair, policy)
+			if len(observations) != 1 || observations[0].Loss != before || !(after < before) {
+				t.Fatalf("observed %+v, %s loss before=%g after=%g", observations, policy.Mode, before, after)
+			}
+			t.Logf("loss %.6f -> %.6f", before, after)
+		})
+	}
+}
+
+// preferenceLoss is the pair's loss under policy, with model as the policy
+// and reference as the frozen reference.
+func preferenceLoss(t *testing.T, model, reference *Model, pair trainingdata.PreferencePair, policy trainingprogram.PreferencePolicy) float64 {
+	t.Helper()
+	score := func(scorer *Model, sequence trainingdata.PreferenceSequence) sequencescore.Score {
+		result, err := scorer.SequenceLogProb(sequence)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	result, err := policy.Loss(trainingprogram.PreferenceScores{
+		PolicyChosen: score(model, pair.Chosen), PolicyRejected: score(model, pair.Rejected),
+		ReferenceChosen: score(reference, pair.Chosen), ReferenceRejected: score(reference, pair.Rejected),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result.Loss
 }

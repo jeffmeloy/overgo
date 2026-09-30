@@ -92,7 +92,7 @@ func (graph *modelGraph) transformerTokens(block *attnBlock, config Config, inpu
 		a := linear(value, wa, nil, c, heads*r, suffix+".a")
 		b := linear(value, wb, nil, c, r*headDim, suffix+".b")
 		var output *tensor.Tensor
-		for factor := uint64(0); factor < r; factor++ {
+		for factor := range r {
 			term := graph.builder.Multiply(
 				graph.builder.GroupSlice(a, factor, 1, heads, r),
 				graph.builder.GroupSlice(b, factor*headDim, headDim, 1, headDim),

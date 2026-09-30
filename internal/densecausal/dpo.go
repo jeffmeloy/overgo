@@ -20,7 +20,8 @@ type RLState struct {
 func (m *Model) TrainDPOBatchesResume(
 	reference *Model,
 	batches []trainingdata.PreferenceBatch,
-	baseLR, momentum, scale float64,
+	baseLR, momentum float64,
+	preference trainingprogram.PreferencePolicy,
 	resume *RLState,
 	observe func(trainingprogram.DPOObservation),
 ) ([]trainingprogram.DPOObservation, RLState, error) {
@@ -40,7 +41,7 @@ func (m *Model) TrainDPOBatchesResume(
 			if pair.SharedPrefix <= 0 {
 				return nil, RLState{}, errors.New("densecausal: DPO pair lacks exact prefix")
 			}
-			observation, grads, err := m.dpoLossAndGrads(reference, pair, scale)
+			observation, grads, err := m.dpoLossAndGrads(reference, pair, preference)
 			if err != nil {
 				return nil, RLState{}, err
 			}
@@ -103,7 +104,7 @@ func (run rlRun) stepObserved(grads Grads) (uint64, float64, float64, float64, e
 // state is the optimizer state and stream position the run reached.
 func (run rlRun) state() RLState { return RLState{Optimizer: run.Snapshot(), Stream: run.stream} }
 
-func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePair, scale float64) (trainingprogram.DPOObservation, Grads, error) {
+func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePair, preference trainingprogram.PreferencePolicy) (trainingprogram.DPOObservation, Grads, error) {
 	policyChosen, err := m.sequenceTrace(pair.Chosen)
 	if err != nil {
 		return trainingprogram.DPOObservation{}, nil, err
@@ -124,7 +125,7 @@ func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePa
 		PolicyChosen: policyChosen.score, PolicyRejected: policyRejected.score,
 		ReferenceChosen: referenceChosen, ReferenceRejected: referenceRejected,
 	}
-	objective, err := trainingprogram.DPOLoss(scores, scale)
+	objective, err := preference.Loss(scores)
 	if err != nil {
 		return trainingprogram.DPOObservation{}, nil, err
 	}

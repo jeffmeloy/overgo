@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/checkpointtest"
 	"overgo/internal/optimizer"
 	"overgo/internal/trainingprogram"
 )
@@ -96,6 +97,31 @@ func TestTinyModelTrainDescends(t *testing.T) {
 	if !(last < first*maxFrac) {
 		t.Fatalf("loss did not clearly descend: %.6f -> %.6f", first, last)
 	}
+}
+
+// TestTrainerCheckpointRoundTripIsBitExact steps the tiny model once,
+// publishes every tensor and the optimizer state as a checkpoint, and reads
+// both back bit for bit.
+func TestTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	fx := loadGolden[uditTinyFixture](t, "udit_tiny")
+	m := compileTiny(t, fx)
+	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(m.TrainableParameterCount())
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := NewTrainer(m, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	x, target := fixedFlowPath(t, fx.X, fx.B, 0.001)
+	if _, err := trainer.Step(x, target, fx.B, fx.H, fx.W); err != nil {
+		t.Fatal(err)
+	}
+	if !(trainer.GradientL2() > 0) {
+		t.Fatalf("step gradient norm %g, want a gradient", trainer.GradientL2())
+	}
+	checkpointtest.RequireRoundTrip(t, trainer.Program(), trainer, m.raw)
 }
 
 // TestRealCheckpointMuonPlanCompiles: every real tensor has Muon geometry.

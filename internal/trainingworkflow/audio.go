@@ -44,7 +44,8 @@ func executeAudioTraining(ctx context.Context, request Request) (result Result, 
 	repository, writable := request.Repository.(artifact.Repository)
 	if ctx == nil || !writable || repository == nil || request.Audio == nil || request.Recipe.Kind() != artifact.KindRecipe ||
 		request.OutputDirectory == "" || request.Steps < 0 || request.ModelDirectory != "" || request.DatasetPath != "" ||
-		request.ReferenceDirectory != "" || request.ObjectiveScale != 0 || request.FreezeLexical || request.MaximumSequence != 0 {
+		request.ReferenceDirectory != "" || request.ObjectiveScale != 0 || request.PreferenceMode != "" || request.PreferenceMargin != 0 ||
+		request.FreezeLexical || request.MaximumSequence != 0 {
 		return result, errors.New("audio training: writable repository, exact recipe and output required; dense-only inputs refuse")
 	}
 	if err := ctx.Err(); err != nil {

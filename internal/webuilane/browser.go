@@ -254,18 +254,36 @@ func (browser *Browser) Eventually(ctx context.Context, expression string) error
 // holds; a predicate that answers a promise (a fetch) holds on what the
 // promise settles to, never on the promise itself; a throwing or rejecting
 // predicate reads as not yet holding, and a hidden page checks on its task
-// queue where animation frames stop.
+// queue where animation frames stop. Every DOM mutation and visibility
+// change also asks again: a page whose frames stall (a headless page the
+// browser stops drawing) still answers once what it shows holds.
 func predicateWait(expression string) string {
 	return `new Promise((resolve) => {
-	const check = () => {
+	let done = false;
+	const holds = () => {
 		let answer = false;
 		try { answer = (` + expression + `); } catch (_) { answer = false; }
-		Promise.resolve(answer).then((ready) => ready, () => false).then((ready) => {
-			if (ready) { resolve(true); return; }
-			if (document.visibilityState === "visible") requestAnimationFrame(check); else setTimeout(check);
+		return Promise.resolve(answer).then((ready) => ready, () => false);
+	};
+	const observer = new MutationObserver(() => poke());
+	const finish = () => {
+		if (done) return;
+		done = true;
+		observer.disconnect();
+		document.removeEventListener("visibilitychange", poke);
+		resolve(true);
+	};
+	const poke = () => { if (!done) holds().then((ready) => { if (ready) finish(); }); };
+	const loop = () => {
+		if (done) return;
+		holds().then((ready) => {
+			if (ready) { finish(); return; }
+			if (document.visibilityState === "visible") requestAnimationFrame(loop); else setTimeout(loop);
 		});
 	};
-	check();
+	observer.observe(document, {childList: true, subtree: true, attributes: true, characterData: true});
+	document.addEventListener("visibilitychange", poke);
+	loop();
 })`
 }
 

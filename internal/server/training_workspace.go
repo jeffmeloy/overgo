@@ -49,25 +49,36 @@ func (workspace *trainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 		return nil, nil
 	}
 	definition := workspace.program.Definition()
+	controls := []workflowControl{
+		{Name: "dataset", Type: workflowControlDataset, Required: true},
+		{Name: "resume", Type: workflowControlCheckpoint},
+		{Name: "output", Type: workflowControlOutput, Required: true},
+		{Name: "steps", Type: workflowControlInteger, Required: true},
+		{Name: "objective_scale", Type: workflowControlNumber, Required: true},
+	}
+	// DPO's loss modes: unset trains DPO's own; the margin is SimPO's.
+	if workspace.objective == trainingprogram.ObjectiveDPO {
+		controls = append(controls,
+			workflowControl{Name: "preference_mode", Type: workflowControlText, Choices: []string{
+				string(trainingprogram.PreferenceSimPO), string(trainingprogram.PreferenceORPO),
+			}},
+			workflowControl{Name: "preference_margin", Type: workflowControlNumber},
+		)
+	}
 	return []WorkflowCapability{{
 		Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model,
-		Inputs: definition.Inputs, Outputs: definition.Outputs,
-		Controls: []workflowControl{
-			{Name: "dataset", Type: workflowControlDataset, Required: true},
-			{Name: "resume", Type: workflowControlCheckpoint},
-			{Name: "output", Type: workflowControlOutput, Required: true},
-			{Name: "steps", Type: workflowControlInteger, Required: true},
-			{Name: "objective_scale", Type: workflowControlNumber, Required: true},
-		},
+		Inputs: definition.Inputs, Outputs: definition.Outputs, Controls: controls,
 	}}, nil
 }
 
 type trainingWorkflowInput struct {
-	Dataset        artifact.ID `json:"dataset"`
-	Resume         artifact.ID `json:"resume"`
-	Output         string      `json:"output"`
-	Steps          int         `json:"steps"`
-	ObjectiveScale float64     `json:"objective_scale"`
+	Dataset          artifact.ID                    `json:"dataset"`
+	Resume           artifact.ID                    `json:"resume"`
+	Output           string                         `json:"output"`
+	Steps            int                            `json:"steps"`
+	ObjectiveScale   float64                        `json:"objective_scale"`
+	PreferenceMode   trainingprogram.PreferenceMode `json:"preference_mode"`
+	PreferenceMargin float64                        `json:"preference_margin"`
 }
 
 func (workspace *trainingWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, capability WorkflowCapability, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
@@ -171,6 +182,7 @@ func (workspace *trainingWorkspace) executeWorkflow(
 		DatasetPath: datasetPath, OutputDirectory: output, ResumeDirectory: resumeDirectory,
 		Steps:          input.Steps,
 		ObjectiveScale: input.ObjectiveScale, Host: true, Observations: workspace.store,
+		PreferenceMode: input.PreferenceMode, PreferenceMargin: input.PreferenceMargin,
 		ObserveDPO: func(observation trainingprogram.DPOObservation) {
 			dpo = append(dpo, observation)
 			completed++

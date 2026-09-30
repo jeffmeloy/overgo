@@ -28,7 +28,7 @@ type objectiveRun struct {
 // a verdict, not a checkpoint.
 var objectiveConflictingFlags = []string{
 	"audio-manifest", "bootstrap-recipe", "dataset", "freeze-lexical", "objective-scale",
-	"out", "preview-dataset", "recipe", "reference", "resume",
+	"out", "preference-margin", "preference-mode", "preview-dataset", "recipe", "reference", "resume",
 }
 
 // objectiveModeConflicts names, sorted, the flags in set that an -objective

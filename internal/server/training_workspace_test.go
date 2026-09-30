@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -96,16 +97,19 @@ const (
 // prompt, and the decision is the held-out verdict on the other pairs,
 // scored against the reference. A policy trained toward c gains on
 // held-out pairs that also prefer c and is approved; on held-out pairs that
-// prefer d it has no gain and is refused, its parent kept.
+// prefer d it has no gain and is refused, its parent kept. A loss mode the
+// workspace offers trains through the same objective and verdict.
 func TestPreferenceWorkspaceScoresHeldOutPairs(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
 		name             string
 		chosen, rejected string
+		mode             trainingprogram.PreferenceMode
 		approved         bool
 	}{
 		{name: "gain", chosen: "c", rejected: "d", approved: true},
 		{name: "no-gain", chosen: "d", rejected: "c"},
+		{name: "orpo-gain", chosen: "c", rejected: "d", mode: trainingprogram.PreferenceORPO, approved: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -156,10 +160,12 @@ func TestPreferenceWorkspaceScoresHeldOutPairs(t *testing.T) {
 			}
 			fixture := newDPOFixture(t, lines.Bytes(), &split)
 			capabilities, err := fixture.workspace.WorkflowCapabilities(ctx, WorkflowTraining)
-			if err != nil || len(capabilities) != 1 {
-				t.Fatalf("capabilities=%+v err=%v", capabilities, err)
+			if err != nil || len(capabilities) != 1 || !slices.ContainsFunc(capabilities[0].Controls, func(control workflowControl) bool {
+				return control.Name == "preference_mode" && slices.Contains(control.Choices, string(trainingprogram.PreferenceORPO))
+			}) {
+				t.Fatalf("capabilities=%+v err=%v, want the DPO loss modes offered", capabilities, err)
 			}
-			input, err := json.Marshal(map[string]any{"dataset": fixture.dataset, "output": "trained", "steps": 12, "objective_scale": 0.1})
+			input, err := json.Marshal(map[string]any{"dataset": fixture.dataset, "output": "trained", "steps": 12, "objective_scale": 0.1, "preference_mode": test.mode})
 			if err != nil {
 				t.Fatal(err)
 			}

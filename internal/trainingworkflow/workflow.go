@@ -40,6 +40,10 @@ type Request struct {
 	ObjectiveScale     float64
 	Host               bool
 	FreezeLexical      bool
+	// PreferenceMode and PreferenceMargin select the DPO objective's loss
+	// mode and SimPO's target reward margin; other objectives refuse them.
+	PreferenceMode   trainingprogram.PreferenceMode
+	PreferenceMargin float64
 	// Observations: optional typed run evidence.
 	Observations artifact.Repository
 
@@ -118,6 +122,9 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 		return Result{}, err
 	}
 	runtime, objective, optimizerPolicy := authority.Program, authority.Objective, authority.Optimizer
+	if objective != trainingprogram.ObjectiveDPO && (request.PreferenceMode != "" || request.PreferenceMargin != 0) {
+		return Result{}, errors.New("training workflow: a preference mode or margin needs the DPO objective")
+	}
 	switch objective {
 	case trainingprogram.ObjectiveDPO:
 		if request.ReferenceDirectory == "" || request.ObjectiveScale <= 0 || request.FreezeLexical {
@@ -276,7 +283,10 @@ func (session denseSession) prepare() (densePrepared, error) {
 	}
 	return densePrepared{
 		units: units, data: data, stream: stream, reference: reference, pairs: batches,
-		preference: &trainingprogram.PreferencePolicy{Reference: referenceID, Scale: session.request.ObjectiveScale},
+		preference: &trainingprogram.PreferencePolicy{
+			Reference: referenceID, Scale: session.request.ObjectiveScale,
+			Mode: session.request.PreferenceMode, Margin: session.request.PreferenceMargin,
+		},
 	}, nil
 }
 
@@ -319,7 +329,7 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 		}
 		observations, state, err := session.model.TrainDPOBatchesResume(
 			prepared.reference, prepared.pairs, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
-			session.request.ObjectiveScale, resume, session.request.ObserveDPO,
+			*prepared.preference, resume, session.request.ObserveDPO,
 		)
 		return Result{
 			Backend: "host", Objective: session.objective, DPO: observations,

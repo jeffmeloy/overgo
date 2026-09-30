@@ -296,15 +296,12 @@ func (c *CodecDecoder) forwardTimeMajor(ctx context.Context, x []float32, T int)
 	attn := make([]float32, d)
 	proj := make([]float32, d)
 	h1 := make([]float32, ff)
-	for t := tensor.FirstOffset; t < T; t++ {
+	for t := range T {
 		if err := context.Cause(ctx); err != nil {
 			return err
 		}
 		cur := x[t*d : (t+tensor.SingletonExtent)*d]
-		lo := t + tensor.SingletonExtent - c.window
-		if lo < tensor.FirstOffset {
-			lo = tensor.FirstOffset
-		}
+		lo := max(t+tensor.SingletonExtent-c.window, tensor.FirstOffset)
 		for li := range c.layers {
 			l := &c.layers[li]
 			hostmath.LayerNormInto(xn, cur, l.norm1W, l.norm1B, tensor.SingletonExtent, d, c.normalization.TransformerLayer)

@@ -72,6 +72,28 @@
         "60m"
       ]
     },
+    "gguf:gemma4": {
+      "trainer": "train -route e4b",
+      "argv": [
+        "go",
+        "run",
+        "./cmd/train",
+        "-route",
+        "e4b",
+        "-store",
+        "{store}",
+        "-model",
+        "{input}",
+        "-out",
+        "{out}",
+        "-dataset",
+        "docs/verification/e4b-adapter-training-dataset.txt",
+        "-steps",
+        "3",
+        "-max-wall",
+        "60m"
+      ]
+    },
     "gguf:qwen35": {
       "trainer": "train -route hybrid-stack",
       "argv": [

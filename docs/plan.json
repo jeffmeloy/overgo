@@ -33,21 +33,6 @@
       ]
     },
     {
-      "id": "e4b-full-parameter-trainer",
-      "title": "Train Gemma-4 E4B with full-parameter gradients",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Train Gemma-4 E4B with full-parameter gradients",
-          "status": "open",
-          "verify": "go test ./internal/hostmath -run '^TestE4BFullParameterStepMatchesHost$' -count=1",
-          "rationale": "Latent training pieces the audit found (2026-09-24): hostmath/e4b_backward.go (host) and devicemath WindowedCausalAttentionBackwardDevice (device, moved to tests in 39934bd8) are halves of a Gemma-4 E4B backward kit with no trainer; E4B trains today only through the single-layer adapter-train-probe. Build a full-parameter E4B trainer on them, following hybrid-stack-train-probe, and route it by the checkpoint's declared architecture. Restore the device function to production when the trainer uses it. Done when TestE4BFullParameterStepMatchesHost runs one full-parameter step on a tiny E4B-shaped model with device gradients matching the host kit.\n\nServes: training Gemma-4 E4B end to end. Disappears: nothing. Evidence: judged on held-out data by heldout-judge-every-objective, which comes first. Batch: surface.\n\nLanes (expected; the gate reads them from the diff): all, e4b first.\n\nOwner review 2026-09-30: ordered by user value and held-out availability. Ranked before preference-kto: E4B is a model users run and its held-out text suites already measure it."
-        }
-      ]
-    },
-    {
       "id": "preference-kto",
       "title": "Train on unpaired preference feedback with KTO",
       "owner": "master-lead",

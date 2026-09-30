@@ -50,20 +50,7 @@ func trainAdapter(flags *flag.FlagSet, args []string) (err error) {
 	if *modelPath == "" || *datasetPath == "" || *out == "" || *steps <= 0 || uint64(*layer) > uint64(^uint32(0)) {
 		return fmt.Errorf("%s: model, dataset, out, valid layer, and positive steps required", flags.Name())
 	}
-	text, err := os.ReadFile(*datasetPath)
-	if err != nil {
-		return err
-	}
-	file, err := gguf.Open(*modelPath)
-	if err != nil {
-		return err
-	}
-	vocabulary, loadErr := tokenizer.Load(file)
-	err = errors.Join(loadErr, file.Close())
-	if err != nil {
-		return err
-	}
-	ids, err := vocabulary.Encode(string(text), tokenizer.EncodeOptions{AddSpecial: true})
+	text, ids, err := datasetTokens(*modelPath, *datasetPath)
 	if err != nil {
 		return err
 	}
@@ -126,4 +113,23 @@ func trainAdapter(flags *flag.FlagSet, args []string) (err error) {
 		return err
 	}
 	return clioptions.WritePrettyJSON(os.Stdout, result)
+}
+
+// datasetTokens reads a text dataset and encodes it, specials added, with
+// the tokenizer the GGUF artifact at modelPath declares.
+func datasetTokens(modelPath, datasetPath string) ([]byte, []tokenizer.TokenID, error) {
+	text, err := os.ReadFile(datasetPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	file, err := gguf.Open(modelPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	vocabulary, loadErr := tokenizer.Load(file)
+	if err := errors.Join(loadErr, file.Close()); err != nil {
+		return nil, nil, err
+	}
+	ids, err := vocabulary.Encode(string(text), tokenizer.EncodeOptions{AddSpecial: true})
+	return text, ids, err
 }

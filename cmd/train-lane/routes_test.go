@@ -44,7 +44,7 @@ func TestTrainerRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("committed route catalog: %v", err)
 	}
-	for _, key := range []string{"gguf:qwen35", "dir:t2v", "file:pt", "dir:unified_mot"} {
+	for _, key := range []string{"gguf:qwen35", "gguf:gemma4", "dir:t2v", "file:pt", "dir:unified_mot"} {
 		if _, declared := catalog.Routes[key]; !declared {
 			t.Fatalf("committed catalog declares no %q route", key)
 		}
@@ -74,6 +74,13 @@ func TestTrainerRoute(t *testing.T) {
 			t.Fatalf("hybrid route environment pair %q is not NAME=value", pair)
 		}
 	}
+
+	e4bGGUF := routeFixtureGGUF(t, "gemma4")
+	route, err = resolveRoute(catalog, e4bGGUF, "store-root", "", "checkpoint-target", dense)
+	if err != nil || route.Name != "gguf:gemma4" || !slices.Contains(route.Argv, "e4b") {
+		t.Fatalf("gemma4 gguf route = (%+v, %v), want the e4b trainer", route, err)
+	}
+	assertSubstituted(t, route, e4bGGUF, "store-root")
 
 	videoDir := routeFixtureDirectory(t, "t2v")
 	route, err = resolveRoute(catalog, videoDir, "store-root", "", "checkpoint-target", dense)

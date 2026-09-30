@@ -902,6 +902,28 @@
         ]
       },
       "scope": "The diffusion-image trainer exposes its optimizer plan, state and weights so a train route publishes its checkpoint through the shared run. The receipt runs, on the device, the OT flow objective against its torch golden, descent on the tiny model, the bit-exact checkpoint round trip and the real checkpoint's Muon plan."
+    },
+    {
+      "changes": {
+        "internal/devicemath/windowed_attention_backward_cuda_windows.go": {
+          "after_sha256": "45d1a45c8e529566e2d99e2161582e239ce34fa67d9065cc04386e19e2409cd3",
+          "before_sha256": "dffd04b5ef2660519100a2ded59125800f8fa2b7abe5feb8093f2276354f09e5",
+          "reason": "WindowedCausalAttentionBackwardDevice returns to production with its pre-39934bd8 bytes (one literal 1.0 written 1), because the E4B full-parameter trainer now calls it for every layer's attention VJP; the function is unchanged."
+        }
+      },
+      "evidence": "evidence:sha256:e4a34d7ea3ef1e226ab4f84fc829c4725c302bebc39b96cf3383f9f844baf111",
+      "id": "e4b-full-parameter-trainer",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/devicemath": [
+          "TestWindowedCausalAttentionBackwardDeviceMatchesHost"
+        ],
+        "overgo/internal/e4btrain": [
+          "TestE4BFullParameterStepMatchesHost",
+          "TestE4BHostGradientsMatchFiniteDifference"
+        ]
+      },
+      "scope": "The windowed causal attention backward returns to production for the Gemma-4 E4B full-parameter trainer. The receipt runs, on the device, the device-versus-host attention VJP, one full-parameter E4B step whose device gradients match the host kit, and the host kit against finite differences."
     }
   ],
   "paths": [

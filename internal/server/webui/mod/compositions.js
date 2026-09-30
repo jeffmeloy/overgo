@@ -35,7 +35,7 @@
       panel.append(
         el("div", { class: "section-title", text: "Composition authority" }),
         el("div", { class: "note", text: "Inventory, compatibility refusals, training controls, evaluation evidence, promotion history, active selection, and runtime evidence come from OvergoDB." }),
-        el("div", { class: "row my-12" }, refresh, status), host);
+        el("div", { class: "row my-s3" }, refresh, status), host);
 
       async function activate(recipe) {
         status.textContent = "activating " + fmt.shortID(recipe);

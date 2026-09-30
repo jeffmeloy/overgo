@@ -875,7 +875,7 @@
     const run = el("button", { class: "btn", onclick: () => surface.execute() }, options.runLabel);
     const cancel = el("button", { class: "btn alt", hidden: true }, "cancel");
     const out = el("div");
-    panel.append(prompt, el("div", { class: "row my-10" }, ...options.fields.map(([label, input]) => el("label", { class: "inline-field" }, el("span", { class: "note", text: label }), input)), run, cancel),
+    panel.append(prompt, el("div", { class: "row my-s3" }, ...options.fields.map(([label, input]) => el("label", { class: "inline-field" }, el("span", { class: "note", text: label }), input)), run, cancel),
       ...(options.note ? [el("div", { class: "note", text: options.note })] : []), out);
     const runAction = runner(run, cancel, {
       // The surface also stands in the inspector, outside any tab; running again recovers either.
@@ -1226,7 +1226,7 @@
     const text = el("span", { text: message });
     const retry = el("button", { class: "btn alt", text: "probe again" });
     const card = el("div", { class: "card" }, el("div", { class: "probe" }, dot, text),
-      el("p", { class: "note mt-18", text: "Start the server (overgo_gui.bat, or cmd/server with a model) and this page enters on its own." }),
+      el("p", { class: "note mt-s4", text: "Start the server (overgo_gui.bat, or cmd/server with a model) and this page enters on its own." }),
       el("div", { class: "actions" }, retry));
     panels.appendChild(el("div", { class: "center tall" }, card));
     async function probe() {

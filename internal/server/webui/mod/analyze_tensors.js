@@ -75,7 +75,7 @@
       table.appendChild(body);
       panel.appendChild(table);
 
-      const detail = el("div", { class: "mt-14" });
+      const detail = el("div", { class: "mt-s4" });
       panel.appendChild(detail);
 
       async function showNeighbors(name) {

@@ -178,7 +178,7 @@
       }}, "next");
       panel.append(
         el("div", { class: "section-title", text: "Training runs" }),
-        el("div", { class: "row mb-10" }, prev, next, status));
+        el("div", { class: "row mb-s3" }, prev, next, status));
       const host = el("div");
       const detail = el("div");
       panel.append(host, detail);

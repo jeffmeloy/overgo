@@ -368,6 +368,7 @@
   },
   "radius": {
     "radius-m": "10px",
+    "radius-pill": "999px",
     "radius-s": "6px"
   }
 }

@@ -16,7 +16,7 @@
       const status = el("span", { class: "note" });
       const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "Previous");
       const next = el("button", { class: "btn alt", onclick: () => { offset += limit; load(); } }, "Next");
-      const controls = el("div", { class: "row mb-12" }, search, prev, next, status);
+      const controls = el("div", { class: "row mb-s3" }, search, prev, next, status);
       const host = el("div");
       panel.append(controls, host);
 

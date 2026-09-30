@@ -60,7 +60,7 @@
         const edges = [];
         data.neighbors.forEach((neighbors, i) => neighbors.forEach((j) => edges.push([i, j])));
         out.appendChild(overgo.viz.graph(data.layout, edges, { labels: labels, colors: colors }));
-        out.appendChild(el("div", { class: "note mt-8",
+        out.appendChild(el("div", { class: "note mt-s2",
           text: "The matrix and neighbor graph are primary. The 2D layout is a rank-preserving summary only — read it together with the stress above (higher stress = the 2D placement is a poorer summary)." }));
       }
 

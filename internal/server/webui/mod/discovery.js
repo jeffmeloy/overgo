@@ -28,7 +28,7 @@
         };
         for (const entry of models) {
           const capabilities = el("span", {}, ...(entry.capabilities || []).map((capability) => el("span", {
-            class: "tag mr-4", title: capability.stale || capability.recipe, text: capability.task + standing(capability) })));
+            class: "tag mr-s1", title: capability.stale || capability.recipe, text: capability.task + standing(capability) })));
           // A hosted model retires from its row with the section's reason; the catalog relists without it.
           const retire = (entry.location || "").startsWith("remote://") ? el("button", { class: "btn alt", text: "Retire", onclick: async () => {
             try { await overgo.api.post("/library/providers/retire", { location: entry.location, reason: providerReason.value.trim() || "retired from the Library tab" }); refreshCatalog(); } catch (err) { catalogNote.replaceChildren(overgo.failure(err)); }

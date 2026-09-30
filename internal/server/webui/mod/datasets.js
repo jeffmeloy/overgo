@@ -24,7 +24,7 @@
             el("button", { class: "btn alt", text: "Import a chat dataset", onclick: () => overgo.openLibrary("input[aria-label='Chat dataset file on disk']") }));
           return;
         }
-        const search = el("input", { "aria-label": "Filter datasets", class: "text mw-440 my-8", type: "search", placeholder: "filter by name / source / modality / format…", });
+        const search = el("input", { "aria-label": "Filter datasets", class: "text mw-440 my-s2", type: "search", placeholder: "filter by name / source / modality / format…", });
         const host = el("div");
         const preview = el("div");
         panel.replaceChildren(

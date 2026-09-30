@@ -3,8 +3,12 @@ package webuilane
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -109,4 +113,74 @@ func TestCraftFloorTokenContrast(t *testing.T) {
 	if ratio := contrast(white, black); ratio != 21 {
 		t.Fatalf("white on black = %v, want 21", ratio)
 	}
+}
+
+// hairlinePixels is the widest literal length a spacing, radius or type size
+// may hold outside the scales: a hairline offset, never a step.
+const hairlinePixels = 2
+
+// scaledProperty names the properties whose lengths read the spacing, radius
+// and type scales.
+func scaledProperty(property string) bool {
+	return strings.HasPrefix(property, "margin") || strings.HasPrefix(property, "padding") ||
+		slices.Contains([]string{"gap", "row-gap", "column-gap", "border-radius", "font", "font-size"}, property)
+}
+
+func stylesheetRules(t *testing.T) []cssRule {
+	t.Helper()
+	stylesheet, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(StylesheetPath)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parseCSS(string(stylesheet))
+}
+
+// TestStylesheetReadsItsScales holds every spacing, radius and type size to
+// the stylesheet's own scales: a literal past a hairline is a step the scale
+// lacks or a drift from it, which is how 5, 6, 10, 14, 18 and 22px gaps came
+// to sit beside the 4-8-12-16-24 scale and no two panels spaced alike.
+func TestStylesheetReadsItsScales(t *testing.T) {
+	t.Parallel()
+	cssRule{rules: stylesheetRules(t)}.walk(func(rule cssRule) {
+		for _, declaration := range rule.declarations {
+			if !scaledProperty(declaration.property) {
+				continue
+			}
+			for _, word := range strings.FieldsFunc(declaration.value, func(r rune) bool { return strings.ContainsRune(" (),/", r) }) {
+				number, isPixels := strings.CutSuffix(word, "px")
+				if length, err := strconv.ParseFloat(number, 64); isPixels && err == nil && math.Abs(length) > hairlinePixels {
+					t.Errorf("%s { %s:%s } reads no scale; use a --s, --t or --radius token", rule.prelude, declaration.property, declaration.value)
+				}
+			}
+		}
+	})
+}
+
+// TestStylesheetSetsEachPropertyOnce holds each selector to one value per
+// property within a block: a later rule that sets it again leaves the first
+// declaration dead, so the source no longer says what shows -- the flat
+// surfaces once kept a border, radius and fill that a rule further down
+// cancelled.
+func TestStylesheetSetsEachPropertyOnce(t *testing.T) {
+	t.Parallel()
+	var visit func(block string, rules []cssRule)
+	visit = func(block string, rules []cssRule) {
+		declared := map[string]string{}
+		for _, rule := range rules {
+			if strings.HasPrefix(rule.prelude, "@") {
+				visit(rule.prelude, rule.rules)
+				continue
+			}
+			for selector := range strings.SplitSeq(rule.prelude, ",") {
+				for _, declaration := range rule.declarations {
+					key := strings.TrimSpace(selector) + " { " + declaration.property
+					if first, found := declared[key]; found {
+						t.Errorf("%s: %s } is set again by %q after %q", block, key, rule.prelude, first)
+					}
+					declared[key] = rule.prelude
+				}
+			}
+		}
+	}
+	visit("top level", stylesheetRules(t))
 }

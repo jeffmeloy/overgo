@@ -244,18 +244,25 @@ func Run(world World, config Config) (Outcome, error) {
 	}
 }
 
-// improve measures an emptied plan, promotes the measured commit only when
-// no held-out quality fell below the baseline's, and proposes the gaps as
-// rows. A failed validation leaves stale cells, so it promotes nothing; its
-// record still names the gaps. A world that does not measure adds nothing.
+// improve runs one improvement cycle when the plan empties. A world that
+// does not measure adds nothing.
 func improve(world World, outcome *Outcome) (int, error) {
 	improver, measures := world.(ImprovementWorld)
 	if !measures {
 		return 0, nil
 	}
+	return Improve(improver, outcome)
+}
+
+// Improve runs one improvement cycle: it measures the scorecard, promotes
+// the measured commit only when no held-out quality fell below the
+// baseline's, and proposes the gaps as rows. A failed validation leaves
+// stale cells, so it promotes nothing; its record still names the gaps. The
+// driver runs it when the plan empties, and cmd/loop -improve on demand.
+func Improve(improver ImprovementWorld, outcome *Outcome) (int, error) {
 	published, baseline, err := improver.Measure()
 	if published == nil {
-		return 0, errors.Join(errors.New("loop: the plan is empty, but no scorecard was published"), err)
+		return 0, errors.Join(errors.New("loop: no scorecard was published"), err)
 	}
 	gaps := published.Gaps(baseline)
 	if err == nil && !slices.ContainsFunc(gaps, scorecard.Gap.Regressed) {

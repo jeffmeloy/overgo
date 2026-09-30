@@ -41,7 +41,6 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
-	"overgo/internal/scorecard"
 )
 
 // The loop's pause marker lives in the checkout's process state; the legacy
@@ -96,6 +95,7 @@ func run(args []string) error {
 	resumeMediaExperimentSpec := flags.String("resume-media-experiment", "", "resume one media experiment from this spec, reusing retained acquisitions and publishing the report without opening a model")
 	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step> -message-file <file>")
 	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
+	improveOnce := flags.Bool("improve", false, "run one improvement cycle now, as an emptied plan does: measure the scorecard, fast-forward main if held-out quality holds, and file the gaps as rows")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -108,6 +108,11 @@ func run(args []string) error {
 	}
 	*repoPath = resolved
 	switch {
+	case *improveOnce:
+		var outcome loop.Outcome
+		added, err := loop.Improve(improvementFor(*repoPath), &outcome)
+		fmt.Printf("loop: improvement cycle promoted=%q proposed=%d row(s)\n", outcome.Promoted, added)
+		return err
 	case *publishStrategySpec != "":
 		return publishStrategy(*repoPath, *publishStrategySpec, os.Stdout)
 	case *experimentSpec != "":
@@ -187,9 +192,7 @@ func run(args []string) error {
 	}
 	// An empty plan runs the full scorecard, promotes what holds and turns
 	// the gaps into the next rows.
-	world := &execWorld{config: loaded, strategy: strategy, promptPrefix: string(prompt.Data), campaign: campaign, improvement: improvement{
-		root: loopWorktree, plan: plan.Path, records: scorecard.Directory(*repoPath), measure: func() error { return measureScorecard(*repoPath) },
-	}}
+	world := &execWorld{config: loaded, strategy: strategy, promptPrefix: string(prompt.Data), campaign: campaign, improvement: improvementFor(*repoPath)}
 	outcome, err := loop.Run(world, strategy.Loop)
 	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; promoted=%q; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
 		outcome.Reason, outcome.Invocations, outcome.Parked, outcome.Promoted)

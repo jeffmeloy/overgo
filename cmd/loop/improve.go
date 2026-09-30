@@ -26,6 +26,15 @@ type improvement struct {
 	measure func() error
 }
 
+// improvementFor is the loop's improvement world over a store: this
+// checkout's plan, the store's published scorecards, and the scorecard run.
+func improvementFor(store string) improvement {
+	return improvement{
+		root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store),
+		measure: func() error { return measureScorecard(store) },
+	}
+}
+
 // Measure runs the scorecard and returns the record it published and that
 // record's baseline. A failed validation returns its error beside the
 // record; a run that published nothing returns none.

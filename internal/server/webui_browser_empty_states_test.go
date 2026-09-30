@@ -68,7 +68,7 @@ func TestWebUIBrowserEmptyStates(t *testing.T) {
 	// Runs with none: a sentence, no pager, no header-only table.
 	check(`(() => { location.hash = 'runs'; return true; })()`)
 	settle(`!!document.querySelector('#panel-runs.active') && document.querySelector('#panel-runs').textContent.includes('No training runs yet.')`)
-	check(`(() => { const shown = ` + visible + `; const buttons = [...document.querySelectorAll('#panel-runs button')].filter(button => ['prev', 'next'].includes(button.textContent)); return buttons.length === 2 && buttons.every(button => !shown(button)) && !document.querySelector('#panel-runs table'); })()`)
+	check(`(() => { const shown = ` + visible + `; const buttons = [...document.querySelectorAll('#panel-runs button')].filter(button => ['Previous', 'Next'].includes(button.textContent)); return buttons.length === 2 && buttons.every(button => !shown(button)) && !document.querySelector('#panel-runs table'); })()`)
 
 	// A long conversation title wraps, the whole title in its tooltip.
 	const title = "compare the quarterly results across every regional office"

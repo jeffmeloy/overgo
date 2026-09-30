@@ -124,8 +124,8 @@
     const { el, fmt } = overgo;
     const status = el("span", { class: "note", role: "status" });
     const body = el("div");
-    const prev = el("button", { class: "btn alt", text: "prev", disabled: true });
-    const next = el("button", { class: "btn alt", text: "next", disabled: true });
+    const prev = el("button", { class: "btn alt", text: "Previous", disabled: true });
+    const next = el("button", { class: "btn alt", text: "Next", disabled: true });
     let position = 0;
     const show = overgo.read(body, (signal) => overgo.api.post("/training/preview", { ...request(), position, limit: 1 }, { signal }), (preview) => {
       status.textContent = preview.records ? "record " + (position + 1) + " of " + fmt.grouped(preview.records) : "no records";
@@ -172,10 +172,10 @@
       const prev = el("button", { class: "btn alt", onclick: () => {
         const page = prior.pop() || { cursor: "", start: 0 };
         cursor = page.cursor; start = page.start; load();
-      }}, "prev");
+      }}, "Previous");
       const next = el("button", { class: "btn alt", onclick: () => {
         prior.push({ cursor, start }); cursor = nextCursor; start += limit; load();
-      }}, "next");
+      }}, "Next");
       panel.append(
         el("div", { class: "section-title", text: "Training runs" }),
         el("div", { class: "row mb-s3" }, prev, next, status));

@@ -57,11 +57,11 @@ func TestWebUIBrowserTrainingPreview(t *testing.T) {
 	// The first record: the prompt masked, each response trained, token by token.
 	settle(`previewStatus() === 'record 1 of 2' && !!previewSequence('chosen') && !!previewSequence('rejected')`)
 	check(`previewTokens('chosen', 'masked') === 'ab' && previewTokens('chosen', 'trained') === 'c' && previewTokens('rejected', 'masked') === 'ab' && previewTokens('rejected', 'trained') === 'd'`)
-	check(`previewSequence('chosen').textContent.startsWith('chosen · 1 trained of 3 tokens') && previewButton('prev').disabled && !previewButton('next').disabled`)
+	check(`previewSequence('chosen').textContent.startsWith('chosen · 1 trained of 3 tokens') && previewButton('Previous').disabled && !previewButton('Next').disabled`)
 	check(`[...previewPanel().querySelectorAll('[aria-label="Token lengths"] .pbar-row')].length > 0 && previewPanel().querySelector('[aria-label="Token lengths"]').textContent.includes('4 sequences')`)
 
 	// The next record pages in.
-	check(`(() => { previewButton('next').click(); return true; })()`)
-	settle(`previewStatus() === 'record 2 of 2' && previewTokens('chosen', 'masked') === 'ba' && previewTokens('chosen', 'trained') === 'dc' && previewButton('next').disabled && !previewButton('prev').disabled`)
+	check(`(() => { previewButton('Next').click(); return true; })()`)
+	settle(`previewStatus() === 'record 2 of 2' && previewTokens('chosen', 'masked') === 'ba' && previewTokens('chosen', 'trained') === 'dc' && previewButton('Next').disabled && !previewButton('Previous').disabled`)
 	webuilane.Leg(t, "training preview leg", "the preview showed each record's prompt masked and responses trained token by token, paged between records, and drew the token lengths of every sequence")
 }

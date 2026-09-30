@@ -91,11 +91,11 @@
         const table = overgo.table(["name", "definition", "state", "authority", "select"], inventory.map((item) => [
           item.name, artifactLink(item.definition), el("span", { text: item.refusal || item.state }), artifactLink(item.activation),
           el("button", { class: "btn alt", text: item.name === selected ? "Selected" : "Open", onclick: () => { selected = item.name; renderAll(); } })]));
-        const pause = el("button", { class: "btn alt", text: "Pause", disabled: !selected });
-        const resume = el("button", { class: "btn", text: "Resume", disabled: !selected });
-        pause.addEventListener("click", () => transition("paused"));
-        resume.addEventListener("click", () => transition("active"));
-        inventoryHost.replaceChildren(table, el("div", { class: "row" }, pause, resume));
+        // The selected agent offers the one transition its state allows: an active agent pauses, a paused one resumes.
+        const current = inventory.find((item) => item.name === selected);
+        const paused = !!current && current.state === "paused";
+        const toggle = current && el("button", { class: "btn alt", text: paused ? "Resume" : "Pause", onclick: () => transition(paused ? "active" : "paused") });
+        inventoryHost.replaceChildren(table, el("div", { class: "row" }, toggle));
       }
 
       publish.addEventListener("click", () => overgo.act(status, async () => {

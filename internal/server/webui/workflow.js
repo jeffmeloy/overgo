@@ -285,7 +285,7 @@
         const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
         // command: the commands that reproduce this submission outside the page; a changed entry clears them.
         const command = el("button", { class: "btn alt", text: "Show command" });
-        const commands = el("div", { class: "workflow-commands", "aria-label": "Reproducing commands" });
+        const commands = el("div", { class: "workflow-commands", role: "group", "aria-label": "Reproducing commands" });
         // The task first, then its inputs, then the action that runs them.
         panel.append(
           el("div", { class: "section-title", text: overgo.title }),

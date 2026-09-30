@@ -282,6 +282,9 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .control textarea { min-height:72px; resize:vertical; }
 .intake-strip { display:flex; flex-wrap:wrap; gap:var(--s1); }
 .preset-chips { display:flex; flex-wrap:wrap; gap:var(--s1); grid-column:1 / -1; }
+/* Saved presets read as one row across the form: the list, a name for the next one, and its save. */
+.presets { grid-column:1 / -1; flex-wrap:nowrap; }
+.presets .text { width:auto; flex:0 1 16rem; min-width:0; }
 .chip { border:1px solid var(--line); border-radius:var(--radius-pill); background:var(--bg1); color:var(--dim); padding:2px var(--s3); min-height:24px; font:var(--t-sm) var(--font); cursor:pointer; }
 .chip:hover { color:var(--ink); border-color:var(--dim); }
 .chip[aria-selected="true"] { color:var(--ink); border-color:var(--acc); background:var(--acc-soft); }
@@ -400,7 +403,6 @@ summary::-webkit-details-marker { display:none; }
 
 /* ---- front page: the conversation first, the workbench one click away ---- */
 .shell.front .sidebar .nav-group { display:none; }
-.shell.front .sidebar { width:200px; }
 .shell.front .wrap { width:100%; }
 /* The conversation and composer share one reading measure. */
 .shell.front .composer { max-width:var(--front); margin-left:auto; margin-right:auto; }

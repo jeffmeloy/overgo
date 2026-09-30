@@ -29,7 +29,7 @@
         } });
         const landing = status.landing || {};
         loop.replaceChildren(...[
-          el("div", { class: "row" }, el("h3", { text: "Unattended loop" }), el("span", { class: "tag loop-state" + (state === "running" ? " ok" : state === "stopped" ? " caution" : ""), text: state }), el("span", { class: "grow" }), stop),
+          el("div", { class: "row" }, el("h3", { text: "Unattended loop" }), el("span", { class: "tag loop-state" + (state === "running" ? " ok" : state === "stopped" ? " caution" : ""), text: state }), el("span", { class: "grow" }), status.running && !status.stopped && stop),
           el("p", { class: "loop-row", text: status.complete ? "The plan is complete." : "Works " + status.row + ": " + status.row_title }),
           status.stopped ? el("p", { class: "note loop-stop", text: "Stopped (" + status.stop_reason + "). Resume from the checkout with plan -resume-stop." }) : null,
           landing.commit ? el("p", { class: "note loop-landing", text: "Last landing: " + landing.subject + " (" + landing.row + ", " + landing.commit.slice(0, 12) + ", " + new Date(landing.at).toLocaleString() + ")" }) : null,
@@ -129,7 +129,7 @@
 
       function renderOperations() {
         if (!current.size) {
-          operations.replaceChildren(el("p", { class: "note empty-table", text: "No operations yet. Work you start (a generation, a training run, a validation) shows here while it runs, with its decisions." }), dagHost);
+          operations.replaceChildren(el("p", { class: "note empty-table", text: "Nothing is running now. Work you start (a generation, a training run, a validation) shows here while it runs, with its decisions; finished work is listed below." }), dagHost);
           return;
         }
         const table = el("table", { class: "grid" }, overgo.headerRow(["state", "task", "recipe", "progress", "attempts", "run", "outputs", "failure", "decision", "dag"]));

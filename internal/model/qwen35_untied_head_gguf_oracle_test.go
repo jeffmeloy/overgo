@@ -1,13 +1,12 @@
 package model_test
 
 import (
-	"cmp"
 	"fmt"
-	"os"
 	"testing"
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/modeltest"
 	"overgo/internal/testskip"
 )
 
@@ -17,18 +16,11 @@ import (
 // hybrid layer-type synthesis from full_attention_interval, tensor-inventory
 // completeness, and the distinct untied head — without any forward/decode.
 //
-// Skips when the artifact is absent (worktree-safe). Override the location with
-// OVERGO_QWEN35_9B_GGUF; otherwise the local-models.json models root is used.
-const qwen35_9BDefaultPath = `C:\Users\jeffm\adaptive_new\models\Qwen3.5-9B-Q8_0.gguf`
-
+// It resolves the GGUF through the store's registrations, and cannot apply
+// where the store has not registered it.
 func qwen35_9BPath(t *testing.T) string {
 	t.Helper()
-	path := os.Getenv("OVERGO_QWEN35_9B_GGUF")
-	path = cmp.Or(path, qwen35_9BDefaultPath)
-	if _, err := os.Stat(path); err != nil {
-		t.Skipf("Qwen3.5-9B GGUF absent (%s); set OVERGO_QWEN35_9B_GGUF to run", path)
-	}
-	return path
+	return modeltest.Directory(t, "Qwen3.5-9B-Q8_0.gguf")
 }
 
 func TestQwen35_9BUntiedHeadGGUFStructuralOracle(t *testing.T) {

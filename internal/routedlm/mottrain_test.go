@@ -112,7 +112,8 @@ func TestModalityTransformerGradientMatchesFiniteDifference(t *testing.T) {
 	if _, _, err := trainer.lossAndGradients(hidden, mask, targets); err != nil {
 		t.Fatal(err)
 	}
-	analytic := append([]float32(nil), trainer.gradients...)
+	_, gradients := trainer.pack.Slabs()
+	analytic := append([]float32(nil), gradients...)
 	// Directional derivatives per tensor: FD noise on single elements sits at
 	// the f32 forward noise floor; a whole-tensor random direction both
 	// covers every element and lifts the measured magnitude above it.
@@ -121,24 +122,25 @@ func TestModalityTransformerGradientMatchesFiniteDifference(t *testing.T) {
 	for layer := range trainer.spans {
 		sp := trainer.spans[layer]
 		for _, section := range []struct {
-			name string
-			s    span
+			name  string
+			group int
 		}{
 			{"inputNorm", sp.inputNorm}, {"q", sp.q}, {"k", sp.k}, {"v", sp.v}, {"o", sp.o},
 			{"postNorm", sp.postNorm}, {"gate", sp.gate}, {"up", sp.up}, {"down", sp.down},
 		} {
-			size := section.s.end - section.s.start
-			direction := make([]float64, size)
+			values := trainer.view(section.group)
+			start := trainer.OptimizerPlan().Groups()[section.group].Start
+			direction := make([]float64, len(values))
 			var norm float64
 			for i := range direction {
 				direction[i] = rng.NormFloat64()
 				norm += direction[i] * direction[i]
 			}
 			norm = math.Sqrt(norm)
-			saved := append([]float32(nil), trainer.weights[section.s.start:section.s.end]...)
+			saved := append([]float32(nil), values...)
 			shift := func(sign float64) {
 				for i := range direction {
-					trainer.weights[section.s.start+i] = saved[i] + float32(sign*epsilon*direction[i]/norm)
+					values[i] = saved[i] + float32(sign*epsilon*direction[i]/norm)
 				}
 			}
 			shift(1)
@@ -151,11 +153,11 @@ func TestModalityTransformerGradientMatchesFiniteDifference(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			copy(trainer.weights[section.s.start:section.s.end], saved)
+			copy(values, saved)
 			numeric := (plus - minus) / (2 * epsilon)
 			var got float64
 			for i := range direction {
-				got += float64(analytic[section.s.start+i]) * direction[i] / norm
+				got += float64(analytic[start+i]) * direction[i] / norm
 			}
 			scale := max(max(math.Abs(numeric), math.Abs(got)), 1e-3)
 			if math.Abs(numeric-got)/scale > 2e-2 {
@@ -206,7 +208,7 @@ func TestModalityTransformerCheckpointRoundTripIsBitExact(t *testing.T) {
 	}
 	trained := map[string][]float32{}
 	for layer, spans := range trainer.spans {
-		for suffix, section := range map[string]span{
+		for suffix, section := range map[string]int{
 			suffixInputNorm: spans.inputNorm, suffixQProj: spans.q, suffixKProj: spans.k, suffixVProj: spans.v,
 			suffixOProj: spans.o, suffixPostNorm: spans.postNorm, suffixGateProj: spans.gate, suffixUpProj: spans.up,
 			suffixDownProj: spans.down,

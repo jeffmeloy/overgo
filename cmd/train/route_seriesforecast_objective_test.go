@@ -12,9 +12,16 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipecontract"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
+
+// forecastSignature is the time-series pair a forecast objective trains.
+var forecastSignature = recipecontract.ModalitySignature{
+	Inputs:  []recipecontract.Modality{recipecontract.ModalityTimeSeries},
+	Outputs: []recipecontract.Modality{recipecontract.ModalityTimeSeries},
+}
 
 // TestForecastObjectiveProbeScoresOnlyHeldoutRecords walks a registered
 // light-curve dataset through a forecast objective's split: the probe's

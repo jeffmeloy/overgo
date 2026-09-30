@@ -1,15 +1,29 @@
 package optimizer
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
+	"math"
 	"slices"
 
 	"overgo/internal/checked"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensor/dtype"
 )
 
 // TensorGeometry: named tensor matrix geometry.
 type TensorGeometry func(name string, length int) (rows, cols int, err error)
+
+// TensorSection is one group of a pack in layout order: its name, its
+// [rows, cols] geometry, and its initial F32 values or, when Values is
+// empty, the BF16 storage the pack decodes into F32 master weights.
+type TensorSection struct {
+	Name       string
+	Rows, Cols int
+	Values     []float32
+	BF16       []uint16
+}
 
 // TensorPack: deterministic tensor binding over flat optimizer storage.
 type TensorPack struct {
@@ -19,49 +33,83 @@ type TensorPack struct {
 	bindings  [][]float32
 }
 
-// NewTensorPack binds named tensors to one validated optimizer plan.
+// NewTensorPack binds named tensors, in name order, to one validated
+// optimizer plan; Scatter publishes the packed weights back to them.
 func NewTensorPack(tensors map[string][]float32, geometry TensorGeometry) (*TensorPack, error) {
-	if geometry == nil {
-		return nil, fmt.Errorf("optimizer tensor pack: geometry is required")
-	}
-	names := make([]string, 0, len(tensors))
-	total := 0
-	maxInt := int(^uint(0) >> 1)
-	for name, values := range tensors {
-		if len(values) > maxInt-total {
-			return nil, fmt.Errorf("optimizer tensor pack: parameter count overflow")
-		}
-		names = append(names, name)
-		total += len(values)
-	}
-	slices.Sort(names)
-
-	pack := &TensorPack{
-		weights:   make([]float32, total),
-		gradients: make([]float32, total),
-		bindings:  make([][]float32, 0, len(names)),
-	}
-	specs := make([]GroupSpec, 0, len(names))
-	offset := 0
-	for _, name := range names {
-		values := tensors[name]
-		rows, cols, err := geometry(name, len(values))
-		if err != nil {
-			return nil, fmt.Errorf("optimizer tensor pack: %s: %w", name, err)
-		}
-		end := offset + len(values)
-		copy(pack.weights[offset:end], values)
-		pack.bindings = append(pack.bindings, values)
-		specs = append(specs, GroupSpec{
-			Name: name, Start: offset, End: end, Rows: rows, Cols: cols,
-		})
-		offset = end
-	}
-	plan, err := CompilePlan(total, specs)
+	sections, err := nameOrder(tensors, geometry)
 	if err != nil {
 		return nil, err
 	}
-	pack.plan = plan
+	pack, err := NewSectionPack(sections)
+	if err != nil {
+		return nil, err
+	}
+	for _, section := range sections {
+		pack.bindings = append(pack.bindings, section.Values)
+	}
+	return pack, nil
+}
+
+// TensorPlan compiles the plan NewTensorPack binds tensors to, without
+// storage.
+func TensorPlan(tensors map[string][]float32, geometry TensorGeometry) (Plan, error) {
+	sections, err := nameOrder(tensors, geometry)
+	if err != nil {
+		return Plan{}, err
+	}
+	return sectionPlan(sections)
+}
+
+// nameOrder lays named tensors out as sections in name order.
+func nameOrder(tensors map[string][]float32, geometry TensorGeometry) ([]TensorSection, error) {
+	if geometry == nil {
+		return nil, fmt.Errorf("optimizer tensor pack: geometry is required")
+	}
+	sections := make([]TensorSection, 0, len(tensors))
+	for _, name := range slices.Sorted(maps.Keys(tensors)) {
+		rows, cols, err := geometry(name, len(tensors[name]))
+		if err != nil {
+			return nil, fmt.Errorf("optimizer tensor pack: %s: %w", name, err)
+		}
+		sections = append(sections, TensorSection{Name: name, Rows: rows, Cols: cols, Values: tensors[name]})
+	}
+	return sections, nil
+}
+
+// sectionPlan compiles sections, in order, into one contiguous plan.
+func sectionPlan(sections []TensorSection) (Plan, error) {
+	specs := make([]GroupSpec, len(sections))
+	total := 0
+	for index, section := range sections {
+		end, valid := checked.AddInt(total, cmp.Or(len(section.Values), len(section.BF16)))
+		if !valid {
+			return Plan{}, fmt.Errorf("optimizer tensor pack: parameter count overflow")
+		}
+		specs[index] = GroupSpec{Name: section.Name, Start: total, End: end, Rows: section.Rows, Cols: section.Cols}
+		total = end
+	}
+	return CompilePlan(total, specs)
+}
+
+// NewSectionPack packs sections, in declaration order, into one validated
+// optimizer plan over storage the pack owns.
+func NewSectionPack(sections []TensorSection) (*TensorPack, error) {
+	plan, err := sectionPlan(sections)
+	if err != nil {
+		return nil, err
+	}
+	pack := &TensorPack{
+		weights:   make([]float32, plan.ParameterCount()),
+		gradients: make([]float32, plan.ParameterCount()),
+		plan:      plan,
+	}
+	for index, section := range sections {
+		weights := pack.Weights(index)
+		copy(weights, section.Values)
+		for offset, value := range section.BF16 {
+			weights[offset] = dtype.BF16ToFloat32(value)
+		}
+	}
 	return pack, nil
 }
 
@@ -80,15 +128,41 @@ func (p *TensorPack) ParameterCount() int { return len(p.weights) }
 
 func (p *TensorPack) Plan() Plan { return p.plan }
 
+// Slabs are the packed weight and gradient storage the plan's groups span.
+func (p *TensorPack) Slabs() (weights, gradients []float32) { return p.weights, p.gradients }
+
+// Weights is the packed weight span of the plan's group-th group.
+func (p *TensorPack) Weights(group int) []float32 {
+	spec := p.plan.Groups()[group]
+	return p.weights[spec.Start:spec.End:spec.End]
+}
+
+// Gradients is the packed gradient span of the plan's group-th group.
+func (p *TensorPack) Gradients(group int) []float32 {
+	spec := p.plan.Groups()[group]
+	return p.gradients[spec.Start:spec.End:spec.End]
+}
+
+// ClearGradients zeroes the whole packed gradient slab.
+func (p *TensorPack) ClearGradients() { clear(p.gradients) }
+
+// GradientL2 is the L2 norm of the whole packed gradient slab.
+func (p *TensorPack) GradientL2() float64 {
+	var squared float64
+	for _, gradient := range p.gradients {
+		squared += float64(gradient) * float64(gradient)
+	}
+	return math.Sqrt(squared)
+}
+
 // BindMapViews makes packed slabs authoritative for map-backed tensors.
 func (p *TensorPack) BindMapViews(tensors map[string][]float32) map[string][]float32 {
 	gradients := make(map[string][]float32, len(p.bindings))
 	for index := range p.bindings {
-		group := p.plan.Groups()[index]
-		weights := p.weights[group.Start:group.End:group.End]
-		tensors[group.Name] = weights
-		p.bindings[index] = weights
-		gradients[group.Name] = p.gradients[group.Start:group.End:group.End]
+		name := p.plan.Groups()[index].Name
+		tensors[name] = p.Weights(index)
+		p.bindings[index] = tensors[name]
+		gradients[name] = p.Gradients(index)
 	}
 	return gradients
 }
@@ -123,8 +197,7 @@ func SavePlanWeights(path string, plan Plan, weights []float32) error {
 // Scatter publishes packed weights to bound model tensors.
 func (p *TensorPack) Scatter() {
 	for index, values := range p.bindings {
-		group := p.plan.Groups()[index]
-		copy(values, p.weights[group.Start:group.End])
+		copy(values, p.Weights(index))
 	}
 }
 
@@ -134,8 +207,7 @@ func (p *TensorPack) RestoreWeights(tensors map[string][]float32) error {
 	if p == nil || p.plan.Identity() == "" || len(tensors) != p.plan.GroupCount() {
 		return fmt.Errorf("optimizer tensor pack: restored tensor set differs")
 	}
-	for index := range p.plan.GroupCount() {
-		group, _ := p.plan.Group(index)
+	for _, group := range p.plan.Groups() {
 		values, found := tensors[group.Name]
 		if !found || len(values) != group.End-group.Start {
 			return fmt.Errorf("optimizer tensor pack: %s restored shape differs", group.Name)
@@ -149,8 +221,7 @@ func (p *TensorPack) RestoreWeights(tensors map[string][]float32) error {
 	// Stage before publishing: replacement views may alias packed or bound
 	// storage, including another group's range.
 	restored := make([]float32, len(p.weights))
-	for index := range p.plan.GroupCount() {
-		group, _ := p.plan.Group(index)
+	for _, group := range p.plan.Groups() {
 		copy(restored[group.Start:group.End], tensors[group.Name])
 	}
 	copy(p.weights, restored)
@@ -161,12 +232,11 @@ func (p *TensorPack) RestoreWeights(tensors map[string][]float32) error {
 
 // GatherGradients replaces the complete packed gradient slab.
 func (p *TensorPack) GatherGradients(gradients map[string][]float32) error {
-	for index := range p.bindings {
-		group := p.plan.Groups()[index]
-		destination := p.gradients[group.Start:group.End]
-		clear(destination)
+	for index, group := range p.plan.Groups() {
+		destination := p.Gradients(index)
 		source, ok := gradients[group.Name]
 		if !ok {
+			clear(destination)
 			continue
 		}
 		if len(source) != len(destination) {

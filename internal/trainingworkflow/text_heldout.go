@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/dataset"
 	"overgo/internal/densecausal"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
@@ -60,7 +59,25 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.MaximumSequence > 0 {
 		sequence = min(sequence, request.MaximumSequence)
 	}
-	examples, err := textObjectiveExamples(ctx, store, objective, encode, sequence)
+	// Each record is one UTF-8 document; its example is its first sequence
+	// tokens: the input is the sequence, the target every token after the
+	// first.
+	examples, _, err := ObjectiveExamples(ctx, store, objective, []byte("overgo/training/text-utf8/v1"), recipecontract.ModalityText,
+		trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, "utf-8"),
+		func(example trainingdata.Example) (HeldoutExample, error) {
+			if len(example.Values) != 1 {
+				return HeldoutExample{}, errors.New("not one text document")
+			}
+			tokens, err := encode(string(example.Values[0].Data))
+			if err != nil {
+				return HeldoutExample{}, err
+			}
+			tokens = tokens[:min(len(tokens), sequence)]
+			if len(tokens) < 2 {
+				return HeldoutExample{}, fmt.Errorf("encodes to %d token(s); a next-token target needs two", len(tokens))
+			}
+			return HeldoutExample{Input: dtype.ConvertSlice[float64](tokens), Target: dtype.ConvertSlice[float64](tokens[1:])}, nil
+		})
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -94,52 +111,6 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			return nextTokens(model, example)
 		},
 	})
-}
-
-// textObjectiveExamples reads both memberships as UTF-8 text, one record per
-// file, and turns each into its first sequence tokens: the input is the
-// sequence, the target every token after the first.
-func textObjectiveExamples(ctx context.Context, store *overgodb.Store, objective trainingprogram.ObjectiveDocument, encode func(string) ([]int, error), sequence int) (map[string]HeldoutExample, error) {
-	training, heldout, err := ObjectiveMemberships(ctx, store, objective)
-	if err != nil {
-		return nil, err
-	}
-	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training/text-utf8/v1"))
-	if err != nil {
-		return nil, err
-	}
-	examples := map[string]HeldoutExample{}
-	for _, membership := range []dataset.Membership{training, heldout} {
-		materialized, err := trainingdata.Materialize(ctx, store, trainingdata.Authority{
-			Dataset: objective.Dataset, Split: membership.ID, Processors: []artifact.ID{processorID}, Signature: textSignature,
-		}, []trainingdata.ProcessorBinding{{
-			Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityText},
-			Process: trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, "utf-8"),
-		}})
-		if err != nil {
-			return nil, err
-		}
-		read, err := ReadAll(ctx, materialized)
-		closeErr := materialized.Close()
-		if err != nil || closeErr != nil {
-			return nil, fmt.Errorf("training workflow: %s membership: %w", membership.Partition, errors.Join(err, closeErr))
-		}
-		for _, example := range read {
-			if len(example.Values) != 1 {
-				return nil, fmt.Errorf("training workflow: record %s is not one text document", example.ID)
-			}
-			tokens, err := encode(string(example.Values[0].Data))
-			if err != nil {
-				return nil, fmt.Errorf("training workflow: record %s: %w", example.ID, err)
-			}
-			tokens = tokens[:min(len(tokens), sequence)]
-			if len(tokens) < 2 {
-				return nil, fmt.Errorf("training workflow: record %s encodes to %d token(s); a next-token target needs two", example.ID, len(tokens))
-			}
-			examples[example.ID] = HeldoutExample{Input: dtype.ConvertSlice[float64](tokens), Target: dtype.ConvertSlice[float64](tokens[1:])}
-		}
-	}
-	return examples, nil
 }
 
 // nextTokens answers a record with the model's most likely next token at

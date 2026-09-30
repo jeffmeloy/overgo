@@ -1,24 +1,17 @@
 package hfgguf
 
 import (
-	"cmp"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/hfrepo"
-	"overgo/internal/testskip"
+	"overgo/internal/modeltest"
 )
 
 // deepSeekOCRCheckpoint locates a DeepSeek-OCR family checkpoint for the
 // conversion tests, or explains why none applies here.
 func deepSeekOCRCheckpoint(t *testing.T) *hfrepo.Repository {
 	t.Helper()
-	directory := cmp.Or(os.Getenv("OVERGO_DEEPSEEK_OCR_CHECKPOINT"), filepath.Join("C:/Users/jeffm/adaptive_new/models", "Unlimited-OCR"))
-	if _, err := os.Stat(filepath.Join(directory, "config.json")); err != nil {
-		testskip.NotApplicable(t, "no DeepSeek-OCR checkpoint at "+directory)
-	}
-	repository, err := hfrepo.Open(directory)
+	repository, err := hfrepo.Open(modeltest.Directory(t, "Unlimited-OCR"))
 	if err != nil {
 		t.Fatal(err)
 	}

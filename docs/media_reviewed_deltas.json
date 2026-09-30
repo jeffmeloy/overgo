@@ -828,6 +828,54 @@
         ]
       },
       "scope": "Every train route publishes the weights it trains: the DiT, flow-organ, mot and oscillatorimage trainers gain OptimizerPlan, Snapshot and SaveWeights, and the dit route moves onto the shared run. latentvideo's names no other package selects are unexported, and deadcode's test-only wrappers are deleted. The receipt runs, on the device with the integration tag, every new checkpoint round trip bit-exact, the DiT, VAE and denoiser goldens, and the Wan lifecycle acceptance on the real checkpoint."
+    },
+    {
+      "changes": {
+        "internal/latentimage/train.go": {
+          "after_sha256": "79453e61a5d3ee677b0a25a1688334219dbc30e857657960f522ed21413f7472",
+          "before_sha256": "41a8a70faf58d45b74d88d39c2c8d880a184fef9166a1f30f864ccf7722d6114",
+          "reason": "FinalLayerTrainer packs its parameters through optimizer.TensorPack's ordered sections instead of by hand; groups keep their order, so the plan identity and checkpoint are unchanged."
+        },
+        "internal/routedlm/flowtrain.go": {
+          "after_sha256": "f48a208bcf1a2c1222d7d7e9e2370cdb780a9c298870fa493dba88ff46e6a512",
+          "before_sha256": "a8e9cdef8445c9986733d981b06afa7d1b19cc6767612acc418fceb7441a7c0e",
+          "reason": "the flow head packs through a TensorPack section with BF16 master weights, deleting bf16Masters and the span type; training is unchanged."
+        },
+        "internal/routedlm/latentbridge.go": {
+          "after_sha256": "8110f15a88a7c81102944cc700493e89509fdb0eef677e87bc6b79a3f05ba971",
+          "before_sha256": "3c79d3800cd6d38d39d1b09c56f52a505785dab1d3c3fbe7b1e0b876aa3a48bc",
+          "reason": "the latent bridge packs through a TensorPack section, and Reconstruct shares the forward pass with the gradient pass; training is unchanged."
+        },
+        "internal/routedlm/mottrain.go": {
+          "after_sha256": "991daff53fb8b1109131d88105b8d184a76954e66cb3644f91c2dbb6cea2bc86",
+          "before_sha256": "05f0a7b3b1728510f4f462eb0b416af4d797a3e9a531945f677158cd34d032a5",
+          "reason": "the vision fork packs per layer through TensorPack sections with BF16 masters; training is unchanged."
+        }
+      },
+      "evidence": "evidence:sha256:df92fe717d615cc7aac847e32e7e858d689aebc02b63c048571001bcbd66a1c1",
+      "id": "training-internals-shared-tensorpack",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/latentimage": [
+          "TestFinalLayerTrainerDescends",
+          "TestFinalLayerTrainerCheckpointRoundTripIsBitExact",
+          "TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference",
+          "TestFinalLayerGradientMatchesFiniteDifference"
+        ],
+        "overgo/internal/routedlm": [
+          "TestFlowHeadTrainerDescendsAndDerivesHyperparameters",
+          "TestFlowHeadTrainerCheckpointRoundTripIsBitExact",
+          "TestFlowHeadStepGradientMatchesFiniteDifference",
+          "TestLatentBridgeTrainerDescends",
+          "TestLatentBridgeTrainerCheckpointRoundTripIsBitExact",
+          "TestLatentBridgeGradientMatchesFiniteDifference",
+          "TestModalityTransformerDerivedHyperparameters",
+          "TestModalityTransformerGradientMatchesFiniteDifference",
+          "TestModalityTransformerStepDescends",
+          "TestModalityTransformerCheckpointRoundTripIsBitExact"
+        ]
+      },
+      "scope": "latentimage's final layer and routedlm's flow head, latent bridge and modality transformer pack their parameters through optimizer.TensorPack (ordered sections, BF16 masters) instead of by hand. The receipt runs, on the device, each trainer's descent, finite-difference gradient checks and bit-exact checkpoint round trip."
     }
   ],
   "paths": [

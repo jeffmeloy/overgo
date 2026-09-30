@@ -119,8 +119,8 @@ func TestFlowHeadTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
-		"fm_head.0.weight": trainer.view(trainer.w0), "fm_head.0.bias": trainer.view(trainer.b0),
-		"fm_head.2.weight": trainer.view(trainer.w2), "fm_head.2.bias": trainer.view(trainer.b2),
+		"fm_head.0.weight": trainer.view(flowW0), "fm_head.0.bias": trainer.view(flowB0),
+		"fm_head.2.weight": trainer.view(flowW2), "fm_head.2.bias": trainer.view(flowB2),
 	})
 }
 
@@ -158,19 +158,21 @@ func TestFlowHeadStepGradientMatchesFiniteDifference(t *testing.T) {
 	if math.Abs(stepLoss-baseline) > 1e-9 || gradientL2 <= 0 {
 		t.Fatalf("loss %.9g disagrees with evaluation %.9g (grad_l2=%g)", stepLoss, baseline, gradientL2)
 	}
-	analytic := append([]float32(nil), probe.gradients...)
+	_, gradients := probe.pack.Slabs()
+	analytic := append([]float32(nil), gradients...)
 
 	for _, index := range []int{0, 7, len(analytic)/2 + 1, len(analytic) - 2, len(analytic) - 1} {
 		fresh, err := NewFlowHeadTrainer(plan, head, trainingprogram.BuiltinOptimizerPolicy())
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := fresh.weights[index]
-		fresh.weights[index] = original + epsilon
+		weights, _ := fresh.pack.Slabs()
+		original := weights[index]
+		weights[index] = original + epsilon
 		plus := loss(fresh)
-		fresh.weights[index] = original - epsilon
+		weights[index] = original - epsilon
 		minus := loss(fresh)
-		fresh.weights[index] = original
+		weights[index] = original
 		numeric := (plus - minus) / (2 * epsilon)
 		_ = fresh.Close()
 		got := float64(analytic[index])

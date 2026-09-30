@@ -10,6 +10,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipecontract"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
@@ -180,6 +181,48 @@ func ObjectiveMemberships(ctx context.Context, reader artifact.Reader, objective
 		return dataset.Membership{}, dataset.Membership{}, fmt.Errorf("training workflow: objective %q split has %d held-out memberships, want one", objective.Name, len(heldout))
 	}
 	return training, heldout[0], nil
+}
+
+// ObjectiveExamples materializes both of the objective's memberships through
+// the one process the processor profile names, serving modality to itself,
+// and decodes each processed record into its example, keyed by record. It
+// also returns the identity of the materialized training membership, the
+// stream a checkpoint records its position in.
+func ObjectiveExamples(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, profile []byte, modality recipecontract.Modality, process trainingdata.Processor, decode func(trainingdata.Example) (HeldoutExample, error)) (map[string]HeldoutExample, artifact.ID, error) {
+	training, heldout, err := ObjectiveMemberships(ctx, reader, objective)
+	if err != nil {
+		return nil, artifact.ID{}, err
+	}
+	processor, err := artifact.IdentifyBytes(artifact.KindProfile, profile)
+	if err != nil {
+		return nil, artifact.ID{}, err
+	}
+	modalities := []recipecontract.Modality{modality}
+	examples := map[string]HeldoutExample{}
+	var stream artifact.ID
+	for _, membership := range []dataset.Membership{training, heldout} {
+		materialized, err := trainingdata.Materialize(ctx, reader, trainingdata.Authority{
+			Dataset: objective.Dataset, Split: membership.ID, Processors: []artifact.ID{processor},
+			Signature: recipecontract.ModalitySignature{Inputs: modalities, Outputs: modalities},
+		}, []trainingdata.ProcessorBinding{{Artifact: processor, Modalities: modalities, Process: process}})
+		if err != nil {
+			return nil, artifact.ID{}, err
+		}
+		if membership.ID == training.ID {
+			stream = materialized.Identity()
+		}
+		read, err := ReadAll(ctx, materialized)
+		closeErr := materialized.Close()
+		if err != nil || closeErr != nil {
+			return nil, artifact.ID{}, fmt.Errorf("training workflow: %s membership: %w", membership.Partition, errors.Join(err, closeErr))
+		}
+		for _, record := range read {
+			if examples[record.ID], err = decode(record); err != nil {
+				return nil, artifact.ID{}, fmt.Errorf("training workflow: record %s: %w", record.ID, err)
+			}
+		}
+	}
+	return examples, stream, nil
 }
 
 func membershipExamples(membership dataset.Membership, examples map[string]HeldoutExample) ([]HeldoutExample, error) {

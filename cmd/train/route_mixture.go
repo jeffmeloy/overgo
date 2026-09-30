@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -106,10 +105,14 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 	}
 	trainingWindow := tokens[:window]
 
-	plan, err := model.TrainingPlan()
+	// The pack is optimizer storage only: the model's compiled layer bindings
+	// alias its own weight slices, so updates scatter back into those slices
+	// after every step rather than repointing the map.
+	pack, err := model.TrainingPack()
 	if err != nil {
 		return err
 	}
+	plan := pack.Plan()
 	program, err := trainingprogram.CompileObjectiveProgram(session.authority.Objective, nil, plan)
 	if err != nil {
 		return err
@@ -122,18 +125,7 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 		return err
 	}
 	config := runPlan.Optimizer()
-	weights := make([]float32, plan.ParameterCount())
-	gradients := make([]float32, plan.ParameterCount())
-	// The flat buffers are optimizer storage only: the model's compiled layer
-	// bindings alias its own weight slices, so updates scatter back into
-	// those slices after every step rather than repointing the map.
-	groups := make(map[string]optimizer.GroupSpec, plan.GroupCount())
-	for index := 0; index < plan.GroupCount(); index++ {
-		group, _ := plan.Group(index)
-		groups[group.Name] = group.GroupSpec
-		copy(weights[group.Start:group.End], model.Weights[group.Name])
-	}
-	stepper, err := optimizer.NewStepper(weights, gradients, plan, config)
+	stepper, err := pack.NewStepper(config)
 	if err != nil {
 		return err
 	}
@@ -148,28 +140,21 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 			if err != nil {
 				return optimizer.ObservedStepResult{}, err
 			}
-			clear(gradients)
 			var missing []string
-			var gradientSquared float64
-			for group, values := range grads {
-				span, ok := groups[group]
-				if !ok {
+			for group := range grads {
+				if _, ok := model.Weights[group]; !ok {
 					missing = append(missing, group)
-					continue
-				}
-				copy(gradients[span.Start:span.End], values)
-				for _, g := range values {
-					gradientSquared += float64(g) * float64(g)
 				}
 			}
 			if len(missing) > 0 {
 				slices.Sort(missing)
 				return optimizer.ObservedStepResult{}, fmt.Errorf("%s: gradients outside the compiled plan: %v", name, missing)
 			}
-			result, err := optimizer.Advance(stepper, config, &updates, loss, math.Sqrt(gradientSquared))
-			for tensor, span := range groups {
-				copy(model.Weights[tensor], weights[span.Start:span.End])
+			if err := pack.GatherGradients(grads); err != nil {
+				return optimizer.ObservedStepResult{}, err
 			}
+			result, err := optimizer.Advance(stepper, config, &updates, loss, pack.GradientL2())
+			pack.Scatter()
 			return result, err
 		},
 		loss: func() (float64, error) {

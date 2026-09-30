@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -480,12 +481,7 @@ func templateAddsSpecialPrefix(node postProcessorNode) bool {
 			return true
 		}
 	}
-	for _, child := range node.Processors {
-		if templateAddsSpecialPrefix(child) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(node.Processors, templateAddsSpecialPrefix)
 }
 
 func mergeStrings(raw []json.RawMessage) ([]string, error) {
@@ -811,8 +807,8 @@ func permuteRopeRows(reader io.Reader, shape []uint64, dataType gguf.DType, head
 	half := headDim / 2
 	for head := uint64(0); head < uint64(heads); head++ {
 		base := head * headDim
-		for pair := uint64(0); pair < half; pair++ {
-			for split := uint64(0); split < 2; split++ {
+		for pair := range half {
+			for split := range uint64(2) {
 				sourceRow := base + split*half + pair
 				destinationRow := base + pair*2 + split
 				copy(

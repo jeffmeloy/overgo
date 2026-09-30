@@ -3,7 +3,6 @@
 package densecausal
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -79,46 +78,32 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 
 	// Successful allocations admit residency. A free-memory snapshot cannot
 	// reserve capacity against concurrent consumers.
-	names, weights, gradients, plan, err := m.trainSetup()
-	if err != nil {
-		return nil, err
-	}
-	if baseLR <= 0 {
-		return nil, errors.New("densecausal: positive recipe-derived learning rate required")
-	}
-	config := optimizer.Config{BaseLearningRate: baseLR, Momentum: mu, Schedule: optimizer.ScheduleConstant}
 	// Host optimizer owns the non-layer-matrix groups; its float64 momentum and the
 	// `weights` buffer reproduce the reference host trajectory for those groups.
-	opt, err := optimizer.New(weights, gradients, plan, config)
+	opt, err := m.newDenseUpdate(baseLR, mu, resume)
 	if err != nil {
 		return nil, err
 	}
-	if resume != nil {
-		if err := opt.Restore(*resume); err != nil {
-			return nil, err
-		}
-	}
+	weights, _ := opt.pack.Slabs()
+	plan := opt.pack.Plan()
 	initialState := opt.Snapshot()
 
 	// Flat offset of every tensor within the sorted plan buffer.
-	offset := make(map[string]int, len(names))
-	acc := 0
-	for _, name := range names {
-		offset[name] = acc
-		acc += len(m.Weights[name])
+	offset := make(map[string]int, plan.GroupCount())
+	for _, group := range plan.Groups() {
+		offset[group.Name] = group.Start
 	}
 
 	// Layer block [layerStart, layerEnd): all "model.layers." tensors are contiguous
 	// in sorted order. The resident dW/dG/dM cover exactly this block (offsets rebased
 	// to layerStart) so no device memory is spent on the host-owned tail tensors.
 	layerStart, layerEnd := -1, 0
-	for _, name := range names {
-		if strings.HasPrefix(name, "model.layers.") {
+	for _, group := range plan.Groups() {
+		if strings.HasPrefix(group.Name, "model.layers.") {
 			if layerStart < 0 {
-				layerStart = offset[name]
+				layerStart = group.Start
 			}
-			end := offset[name] + len(m.Weights[name])
-			layerEnd = max(layerEnd, end)
+			layerEnd = max(layerEnd, group.End)
 		}
 	}
 	if layerStart < 0 {
@@ -226,7 +211,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 			Weights: dFinalW, Gradient: dFinalG, Momentum: dFinalM, Rows: d.Hidden, Cols: 1,
 		})
 	}
-	residentMuon, err := optimizer.NewResidentMatrixMuonTrainingPlan(worker, updates, config)
+	residentMuon, err := optimizer.NewResidentMatrixMuonTrainingPlan(worker, updates, constantMuon(baseLR, mu))
 	if err != nil {
 		return nil, err
 	}
@@ -333,17 +318,15 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 			gradEmbed := hostmath.GradientSlot(g, m.tensors.embedding.name, len(embed))
 			scatterEmbeddingGradient(gradEmbed, dxEmbed, tokens, d.Hidden)
 		}
-		off := 0
-		for _, name := range names {
-			n := len(m.Weights[name])
-			if !isLayerMatrixName(name) {
-				if gg, ok := g[name]; ok {
-					copy(gradients[off:off+n], gg)
-				} else {
-					clear(gradients[off : off+n])
-				}
+		for index, group := range plan.Groups() {
+			if isLayerMatrixName(group.Name) {
+				continue
 			}
-			off += n
+			if gg, ok := g[group.Name]; ok {
+				copy(opt.pack.Gradients(index), gg)
+			} else {
+				clear(opt.pack.Gradients(index))
+			}
 		}
 
 		// Host Muon: non-layer groups. Device Muon: resident layer matrices.
@@ -366,13 +349,10 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 
 		// Scatter the updated host-owned (non-matrix) weights back into the model for
 		// the next step's host embedding lookup and tail. Matrix slots stay device-side.
-		off = 0
-		for _, name := range names {
-			n := len(m.Weights[name])
-			if !isLayerMatrixName(name) && !(frozenLexical && name == m.tensors.finalNorm.name) {
-				copy(m.Weights[name], weights[off:off+n])
+		for index, group := range plan.Groups() {
+			if !isLayerMatrixName(group.Name) && !(frozenLexical && group.Name == m.tensors.finalNorm.name) {
+				copy(m.Weights[group.Name], opt.pack.Weights(index))
 			}
-			off += n
 		}
 		// The observer sees the FULL step -- forward, backward, host and
 		// device updates, scatter -- so a pathological optimizer phase is
@@ -430,6 +410,6 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 	if stateOut != nil {
 		*stateOut = state
 	}
-	scatter(m, names, weights)
+	opt.pack.Scatter()
 	return trajectory, nil
 }

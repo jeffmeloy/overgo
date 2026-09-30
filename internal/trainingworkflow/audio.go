@@ -214,7 +214,6 @@ func executeAudioTraining(ctx context.Context, request Request) (result Result, 
 	}
 	result.Backend, result.Objective, result.Optimizer = "host-reference", trainingprogram.ObjectiveCTC, state.Config
 	request.Steps = result.Plan.Updates()
-	guard := stepGuard(request, result.Backend)
 	execution, err := adapter.Bind(ctx)
 	if err != nil {
 		return result, err
@@ -252,7 +251,12 @@ func executeAudioTraining(ctx context.Context, request Request) (result Result, 
 		result.Losses = append(result.Losses, prepared.Loss)
 		result.StreamPosition = stream.Snapshot().Position
 		observer.SampleStep()
-		if err := guard(step, prepared.Loss, time.Since(started)); err != nil {
+		wall := time.Since(started)
+		if request.Progress != nil {
+			fmt.Fprintf(request.Progress, "step %d/%d loss %.6f wall %s backend %s\n",
+				step+1, request.Steps, prepared.Loss, wall.Round(time.Millisecond), result.Backend)
+		}
+		if err := result.Plan.AdmitStepWall(wall); err != nil {
 			return result, err
 		}
 		if request.Progress != nil {

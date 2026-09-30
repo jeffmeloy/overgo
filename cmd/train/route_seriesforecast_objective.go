@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -11,7 +10,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/dataroot"
-	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/seriesforecast"
@@ -20,12 +18,6 @@ import (
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
-
-// forecastSignature is the time-series pair a forecast objective trains.
-var forecastSignature = recipecontract.ModalitySignature{
-	Inputs:  []recipecontract.Modality{recipecontract.ModalityTimeSeries},
-	Outputs: []recipecontract.Modality{recipecontract.ModalityTimeSeries},
-}
 
 // runObjective trains the model under a registered forecast objective and
 // publishes its held-out verdict and the trained checkpoint at out: both
@@ -100,46 +92,15 @@ func runObjective(storeRoot, alias, modelDir, out string, steps int, maxWall tim
 // also returns the identity of the materialized training membership, the
 // stream a checkpoint records its position in.
 func objectiveExamples(ctx context.Context, store *overgodb.Store, objective trainingprogram.ObjectiveDocument, patchLen, horizon int) (map[string]trainingworkflow.HeldoutExample, artifact.ID, error) {
-	training, heldout, err := trainingworkflow.ObjectiveMemberships(ctx, store, objective)
-	if err != nil {
-		return nil, artifact.ID{}, err
-	}
-	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, fmt.Appendf(nil, "light-curve-train-v1/%d/%d", patchLen, horizon))
-	if err != nil {
-		return nil, artifact.ID{}, err
-	}
 	processor, err := seriesforecast.LightCurveTrainingProcessor(patchLen, horizon)
 	if err != nil {
 		return nil, artifact.ID{}, err
 	}
-	examples := map[string]trainingworkflow.HeldoutExample{}
-	var stream artifact.ID
-	for _, membership := range []dataset.Membership{training, heldout} {
-		materialized, err := trainingdata.Materialize(ctx, store, trainingdata.Authority{
-			Dataset: objective.Dataset, Split: membership.ID, Processors: []artifact.ID{processorID}, Signature: forecastSignature,
-		}, []trainingdata.ProcessorBinding{{
-			Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityTimeSeries}, Process: processor,
-		}})
-		if err != nil {
-			return nil, artifact.ID{}, err
-		}
-		if membership.ID == training.ID {
-			stream = materialized.Identity()
-		}
-		batch, err := trainingworkflow.ReadAll(ctx, materialized)
-		closeErr := materialized.Close()
-		if err != nil || closeErr != nil {
-			return nil, artifact.ID{}, fmt.Errorf("train -route seriesforecast:%s membership: %w", membership.Partition, errors.Join(err, closeErr))
-		}
-		for _, example := range batch {
+	return trainingworkflow.ObjectiveExamples(ctx, store, objective, fmt.Appendf(nil, "light-curve-train-v1/%d/%d", patchLen, horizon), recipecontract.ModalityTimeSeries, processor,
+		func(example trainingdata.Example) (trainingworkflow.HeldoutExample, error) {
 			input, target, err := seriesforecast.TrainingPair(example)
-			if err != nil {
-				return nil, artifact.ID{}, fmt.Errorf("train -route seriesforecast:record %s: %w", example.ID, err)
-			}
-			examples[example.ID] = trainingworkflow.HeldoutExample{Input: dtype.ConvertSlice[float64](input), Target: dtype.ConvertSlice[float64](target)}
-		}
-	}
-	return examples, stream, nil
+			return trainingworkflow.HeldoutExample{Input: dtype.ConvertSlice[float64](input), Target: dtype.ConvertSlice[float64](target)}, err
+		})
 }
 
 // trainForecast takes updates optimizer steps over the training examples in

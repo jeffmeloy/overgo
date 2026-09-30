@@ -1,7 +1,6 @@
 package inference
 
 import (
-	"cmp"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/modeltest"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
@@ -31,9 +31,8 @@ import (
 // fixture (fixtures/qwen35_9b_serving_smoke.json) is regenerated on device with
 // OVERGO_WRITE_9B_SMOKE_FIXTURE=1 and asserted byte-for-byte otherwise.
 //
-// Skips when the artifact is absent (worktree-safe). Override with
-// OVERGO_QWEN35_9B_GGUF.
-const qwen35_9BDefaultPath = `C:\Users\jeffm\adaptive_new\models\Qwen3.5-9B-Q8_0.gguf`
+// It resolves the GGUF through the store's registrations, and cannot apply
+// where the store has not registered it.
 
 // qwen35_9BArtifactSHA256 pins the exact GGUF this smoke fixture was captured
 // against (provenance; the fixture's generated ids are only meaningful for this
@@ -63,12 +62,7 @@ type qwen35_9BSmokeFixture struct {
 
 func qwen35_9BServingPath(t *testing.T) string {
 	t.Helper()
-	path := os.Getenv("OVERGO_QWEN35_9B_GGUF")
-	path = cmp.Or(path, qwen35_9BDefaultPath)
-	if _, err := os.Stat(path); err != nil {
-		t.Skipf("Qwen3.5-9B GGUF absent (%s); set OVERGO_QWEN35_9B_GGUF to run", path)
-	}
-	return path
+	return modeltest.Directory(t, qwen35Fixture)
 }
 
 func TestQwen35_9BServingSmoke(t *testing.T) {

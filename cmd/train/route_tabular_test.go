@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipecontract"
 	"overgo/internal/tabularicl"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -20,6 +21,12 @@ import (
 // tableObjectiveAlias names the table-prediction objective each test
 // registers in its own store.
 const tableObjectiveAlias = "objective.registered.tables"
+
+// tableSignature is the table pair a table-prediction objective trains.
+var tableSignature = recipecontract.ModalitySignature{
+	Inputs:  []recipecontract.Modality{recipecontract.ModalityTable},
+	Outputs: []recipecontract.Modality{recipecontract.ModalityTable},
+}
 
 // TestTabularObjectiveApprovesOnLabelAccuracyGain walks a registered
 // dataset of TabFM requests through a table-prediction objective: its

@@ -48,25 +48,6 @@ type Request struct {
 	MaxProjectedWall time.Duration
 }
 
-func stepGuard(request Request, backend string) densecausal.TrainObserver {
-	return func(step int, loss float64, stepWall time.Duration) error {
-		if request.Progress != nil {
-			fmt.Fprintf(request.Progress, "step %d/%d loss %.6f wall %s backend %s\n",
-				step+1, request.Steps, loss, stepWall.Round(time.Millisecond), backend)
-		}
-		if request.MaxProjectedWall > 0 {
-			projected := stepWall * time.Duration(request.Steps)
-			if projected > request.MaxProjectedWall {
-				return fmt.Errorf(
-					"training workflow: step %d took %s on backend %s; %d steps project to %s, over the %s bound -- rerun with a longer -max-wall if intended",
-					step+1, stepWall.Round(time.Second), backend, request.Steps,
-					projected.Round(time.Minute), request.MaxProjectedWall)
-			}
-		}
-		return nil
-	}
-}
-
 type Result struct {
 	// Candidate is a published, inactive serving recipe for the checkpoint.
 	Candidate      artifact.ID
@@ -247,7 +228,7 @@ func (session denseSession) run() (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: compile authority: %w", err)
 	}
-	result, state, err := session.execute(prepared)
+	result, state, err := session.execute(prepared, plan)
 	if err != nil {
 		return Result{}, err
 	}
@@ -294,7 +275,7 @@ func (session denseSession) prepare() (densePrepared, error) {
 	}, nil
 }
 
-func (session denseSession) execute(prepared densePrepared) (Result, densecausal.TrainState, error) {
+func (session denseSession) execute(prepared densePrepared, plan trainingprogram.TrainingSessionPlan) (Result, densecausal.TrainState, error) {
 	if session.objective == trainingprogram.ObjectiveGRPO {
 		var resume *densecausal.RLState
 		if session.resumed.ID().Valid() {
@@ -334,13 +315,13 @@ func (session denseSession) execute(prepared densePrepared) (Result, densecausal
 		fmt.Fprintf(session.request.Progress, "lane %s: %d steps, %d batches, frozen_lexical=%t\n",
 			lane, session.request.Steps, len(prepared.tokens), session.request.FreezeLexical)
 	}
-	guard := stepGuard(session.request, lane)
-	observe := guard
-	if session.stepSample != nil {
-		observe = func(step int, loss float64, stepWall time.Duration) error {
-			session.stepSample()
-			return guard(step, loss, stepWall)
+	observe := func(step int, loss float64, stepWall time.Duration) error {
+		session.stepSample()
+		if session.request.Progress != nil {
+			fmt.Fprintf(session.request.Progress, "step %d/%d loss %.6f wall %s backend %s\n",
+				step+1, session.request.Steps, loss, stepWall.Round(time.Millisecond), lane)
 		}
+		return plan.AdmitStepWall(stepWall)
 	}
 	var collector *routerObservationCollector
 	var observeRouter densecausal.MoERouterObserver

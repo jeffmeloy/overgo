@@ -3,8 +3,6 @@ package densecausal
 import (
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
 	"time"
 
 	"overgo/internal/checked"
@@ -46,23 +44,9 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 	if err := validateTokenBatches(batches); err != nil {
 		return nil, optimizer.State{}, err
 	}
-	names, weights, gradients, plan, err := m.trainSetup()
+	update, err := m.newDenseUpdate(baseLR, mu, resume)
 	if err != nil {
 		return nil, optimizer.State{}, err
-	}
-	if baseLR <= 0 {
-		return nil, optimizer.State{}, errors.New("densecausal: positive recipe-derived learning rate required")
-	}
-	opt, err := optimizer.New(weights, gradients, plan, optimizer.Config{
-		BaseLearningRate: baseLR, Momentum: mu, Schedule: optimizer.ScheduleConstant,
-	})
-	if err != nil {
-		return nil, optimizer.State{}, err
-	}
-	if resume != nil {
-		if err := opt.Restore(*resume); err != nil {
-			return nil, optimizer.State{}, err
-		}
 	}
 
 	trajectory := make([]float64, 0, len(batches))
@@ -72,22 +56,62 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 	}
 	for step, tokens := range batches {
 		stepStarted := time.Now()
-		scatter(m, names, weights)
 		loss, grads, err := m.trainingLossAndGrads(tokens, firstStep+step, observeRouter)
 		if err != nil {
 			return nil, optimizer.State{}, err
 		}
 		trajectory = append(trajectory, loss)
-		m.gatherGrads(names, gradients, grads)
-		opt.Step()
+		if _, err := update.step(grads); err != nil {
+			return nil, optimizer.State{}, err
+		}
 		if observe != nil {
 			if err := observe(step, loss, time.Since(stepStarted)); err != nil {
 				return nil, optimizer.State{}, err
 			}
 		}
 	}
-	scatter(m, names, weights)
-	return trajectory, opt.Snapshot(), nil
+	return trajectory, update.Snapshot(), nil
+}
+
+// constantMuon: the dense trainers' Muon settings, the recipe-derived base
+// rate and momentum under the constant schedule.
+func constantMuon(baseLR, momentum float64) optimizer.Config {
+	return optimizer.Config{BaseLearningRate: baseLR, Momentum: momentum, Schedule: optimizer.ScheduleConstant}
+}
+
+// denseUpdate is the Muon update the dense trainers share: every model
+// tensor packed in name order, stepped under constantMuon.
+type denseUpdate struct {
+	pack *optimizer.TensorPack
+	*optimizer.Optimizer
+}
+
+// newDenseUpdate packs the model at the recipe-derived rate and restores
+// the optimizer state a resume carries.
+func (m *Model) newDenseUpdate(baseLR, momentum float64, resume *TrainState) (denseUpdate, error) {
+	if baseLR <= 0 {
+		return denseUpdate{}, errors.New("densecausal: positive recipe-derived learning rate required")
+	}
+	pack, err := m.TrainingPack()
+	if err != nil {
+		return denseUpdate{}, err
+	}
+	update, err := pack.NewOptimizer(constantMuon(baseLR, momentum))
+	if err == nil && resume != nil {
+		err = update.Restore(*resume)
+	}
+	return denseUpdate{pack: pack, Optimizer: update}, err
+}
+
+// step gathers one update's gradients, takes the Muon step, and publishes
+// the stepped weights to the model tensors.
+func (u denseUpdate) step(grads Grads) (optimizer.StepResult, error) {
+	if err := u.pack.GatherGradients(grads); err != nil {
+		return optimizer.StepResult{}, err
+	}
+	result := u.Step()
+	u.pack.Scatter()
+	return result, nil
 }
 
 func validateTokenBatches(batches [][]int) error {
@@ -102,81 +126,20 @@ func validateTokenBatches(batches [][]int) error {
 	return nil
 }
 
-// trainSetup: sorted tensors, flat buffers, compiled geometry.
-func (m *Model) trainSetup() (names []string, weights, gradients []float32, plan optimizer.Plan, err error) {
-	names, plan, err = m.trainingPlan()
-	if err != nil {
-		return nil, nil, nil, optimizer.Plan{}, err
-	}
-	weights = make([]float32, plan.ParameterCount())
-	gradients = make([]float32, plan.ParameterCount())
-	offset := 0
-	for _, name := range names {
-		copy(weights[offset:], m.Weights[name])
-		offset += len(m.Weights[name])
-	}
-	return names, weights, gradients, plan, nil
-}
-
 // TrainingPlan compiles dense parameter and Muon identity without storage.
 func (m *Model) TrainingPlan() (optimizer.Plan, error) {
-	_, plan, err := m.trainingPlan()
-	return plan, err
+	return optimizer.TensorPlan(m.Weights, m.muonGeometry)
 }
 
-func (m *Model) trainingPlan() ([]string, optimizer.Plan, error) {
-	names := slices.Sorted(maps.Keys(m.Weights))
-	var totalElements uint64
-	for _, name := range names {
-		var valid bool
-		totalElements, valid = checked.Add64(totalElements, uint64(len(m.Weights[name])))
-		if !valid {
-			return nil, optimizer.Plan{}, fmt.Errorf("densecausal: trainable parameter count overflows uint64")
-		}
-	}
-	total, valid := checked.Int(totalElements)
-	if !valid {
-		return nil, optimizer.Plan{}, fmt.Errorf("densecausal: trainable parameter count exceeds int")
-	}
-	specs := make([]optimizer.GroupSpec, 0, len(names))
-	offset := 0
-	for _, name := range names {
-		values := m.Weights[name]
-		rows, cols, err := tensorGeometry(m.Shapes[name], len(values))
-		if err != nil {
-			return nil, optimizer.Plan{}, fmt.Errorf("densecausal: %s: %w", name, err)
-		}
-		specs = append(specs, optimizer.GroupSpec{
-			Name: name, Start: offset, End: offset + len(values), Rows: rows, Cols: cols,
-		})
-		offset += len(values)
-	}
-	plan, err := optimizer.CompilePlan(total, specs)
-	return names, plan, err
+// TrainingPack packs every model tensor over the TrainingPlan; its Scatter
+// publishes the packed weights back to the model tensors.
+func (m *Model) TrainingPack() (*optimizer.TensorPack, error) {
+	return optimizer.NewTensorPack(m.Weights, m.muonGeometry)
 }
 
-// gatherGrads: tensor gradients -> flat plan order; absent tensors zeroed.
-func (m *Model) gatherGrads(names []string, gradients []float32, grads Grads) {
-	offset := 0
-	for _, name := range names {
-		n := len(m.Weights[name])
-		if g, ok := grads[name]; ok {
-			copy(gradients[offset:offset+n], g)
-		} else {
-			clear(gradients[offset : offset+n])
-		}
-		offset += n
-	}
-}
-
-// scatter copies the flat optimizer weight buffer back into the model tensors.
-func scatter(m *Model, names []string, weights []float32) {
-	offset := 0
-	for _, name := range names {
-		n := len(m.Weights[name])
-		copy(m.Weights[name], weights[offset:offset+n])
-		offset += n
-	}
+// muonGeometry: a model tensor's stored shape -> Muon geometry.
+func (m *Model) muonGeometry(name string, length int) (int, int, error) {
+	return tensorGeometry(m.Shapes[name], length)
 }
 
 // tensorGeometry: stored shape -> Muon matrix/vector geometry.

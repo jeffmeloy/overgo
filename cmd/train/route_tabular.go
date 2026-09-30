@@ -16,7 +16,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
-	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/tabularicl"
@@ -25,12 +24,6 @@ import (
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
-
-// tableSignature is the table pair a table-prediction objective trains.
-var tableSignature = recipecontract.ModalitySignature{
-	Inputs:  []recipecontract.Modality{recipecontract.ModalityTable},
-	Outputs: []recipecontract.Modality{recipecontract.ModalityTable},
-}
 
 // tableObjectiveTasks names the head a table-prediction objective trains by
 // the metric its verdict declares: label accuracy only a classification head
@@ -131,48 +124,21 @@ func trainTableObjective(ctx context.Context, store *overgodb.Store, alias, mode
 // row's class or value. It also returns the identity of the materialized
 // training membership, the stream a checkpoint records its position in.
 func objectiveRequests(ctx context.Context, store *overgodb.Store, objective trainingprogram.ObjectiveDocument, task string) (map[string]tabularicl.Request, map[string]trainingworkflow.HeldoutExample, artifact.ID, error) {
-	training, heldout, err := trainingworkflow.ObjectiveMemberships(ctx, store, objective)
-	if err != nil {
-		return nil, nil, artifact.ID{}, err
-	}
-	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/tabular-request/json/v1"))
-	if err != nil {
-		return nil, nil, artifact.ID{}, err
-	}
 	requests := map[string]tabularicl.Request{}
-	examples := map[string]trainingworkflow.HeldoutExample{}
-	var stream artifact.ID
-	for _, membership := range []dataset.Membership{training, heldout} {
-		materialized, err := trainingdata.Materialize(ctx, store, trainingdata.Authority{
-			Dataset: objective.Dataset, Split: membership.ID, Processors: []artifact.ID{processorID}, Signature: tableSignature,
-		}, []trainingdata.ProcessorBinding{{
-			Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityTable},
-			Process: trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityTable, "json"),
-		}})
-		if err != nil {
-			return nil, nil, artifact.ID{}, err
-		}
-		if membership.ID == training.ID {
-			stream = materialized.Identity()
-		}
-		read, err := trainingworkflow.ReadAll(ctx, materialized)
-		closeErr := materialized.Close()
-		if err != nil || closeErr != nil {
-			return nil, nil, artifact.ID{}, fmt.Errorf("%s membership: %w", membership.Partition, errors.Join(err, closeErr))
-		}
-		for _, example := range read {
+	examples, stream, err := trainingworkflow.ObjectiveExamples(ctx, store, objective, []byte("overgo/tabular-request/json/v1"), recipecontract.ModalityTable,
+		trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityTable, "json"),
+		func(example trainingdata.Example) (trainingworkflow.HeldoutExample, error) {
 			var request tabularicl.Request
 			if len(example.Values) != 1 || json.Unmarshal(example.Values[0].Data, &request) != nil {
-				return nil, nil, artifact.ID{}, fmt.Errorf("record %s is not one request document", example.ID)
+				return trainingworkflow.HeldoutExample{}, errors.New("not one request document")
 			}
 			if err := tabularicl.ValidateRequest(request); err != nil || request.Task != task {
-				return nil, nil, artifact.ID{}, fmt.Errorf("record %s is not a valid %s request: %v", example.ID, task, err)
+				return trainingworkflow.HeldoutExample{}, fmt.Errorf("not a valid %s request: %v", task, err)
 			}
 			requests[example.ID] = request
-			examples[example.ID] = trainingworkflow.HeldoutExample{Target: dtype.ConvertSlice[float64](request.Y[request.TrainRows:])}
-		}
-	}
-	return requests, examples, stream, nil
+			return trainingworkflow.HeldoutExample{Target: dtype.ConvertSlice[float64](request.Y[request.TrainRows:])}, nil
+		})
+	return requests, examples, stream, err
 }
 
 // trainTable takes updates optimizer steps over the training requests in

@@ -102,6 +102,11 @@ func TestWebUIBrowserStandaloneTabs(t *testing.T) {
 	evaluations.config.Evaluation = fixture
 	check, settle = page(evaluations, "evaluations")
 	settle(`!!document.querySelector('#panel-evaluations input[type=checkbox]')`)
+	// Each plan's box is named for its suite, and Run follows the plans it runs.
+	check(`(() => {
+  const box = document.querySelector('#panel-evaluations input[type=checkbox]'), run = tabButtons('Run')[0];
+  return box.labels.length === 1 && box.labels[0].textContent.startsWith('Run the ') && !!(box.compareDocumentPosition(run) & Node.DOCUMENT_POSITION_FOLLOWING);
+})()`)
 	check(`(() => { document.querySelector('#panel-evaluations input[type=checkbox]').click(); tabButtons('Run')[0].click(); return true; })()`)
 	settle(`document.querySelector('#panel-evaluations .note').textContent.startsWith('completed')`)
 	campaign.mu.Lock()

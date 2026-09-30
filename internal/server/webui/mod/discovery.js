@@ -36,7 +36,7 @@
           } }) : "";
           // A model reads by its file and what it does; its identity follows for reference.
           const line = overgo.tableRow([el("span", { title: entry.location || "", text: names.get(entry.model) }), capabilities,
-            el("span", { class: "note mono", title: entry.model, text: fmt.shortID(entry.model) }), entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]);
+            el("span", { class: "note mono nowrap", title: entry.model, text: fmt.shortID(entry.model) }), entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]);
           ["Model", "Capabilities", "Identity", "Status"].forEach((label, index) => { line.children[index].dataset.label = label; });
           catalogBody.appendChild(line);
         }

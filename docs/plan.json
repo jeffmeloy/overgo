@@ -47,21 +47,6 @@
       ]
     },
     {
-      "id": "wire-dense-to-moe",
-      "title": "Wire or delete dense-to-MoE upcycling",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Wire or delete dense-to-MoE upcycling",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestDenseToMoERoutePublishesCheckpoint$' -count=1",
-          "rationale": "Split from wire-remaining-trainers on 2026-09-30. Dense-to-MoE upcycling (modelmerge.DenseToMoEArtifact over model.CompileDenseToMoERouter) is reached only by tests.\n\nThis is construction, not gradient training. The compiler derives centered, normalized expert centroids from activation evidence, and admits the router only when every held-out label wins with a strict routing margin. Nothing in the repository produces DenseToMoERouterEvidence, because there is no activation capture step.\n\nA route needs:\n- an activation-capture step over a dense model and a labelled corpus;\n- the target model-definition artifact and its recipe;\n- optionally, a trainable part such as a Muon router fine-tune, so the route publishes through the shared run like the others.\n\nThe owner decides whether upcycling belongs in the product. If it does, wire capture, compile and publish, then judge on the router's held-out margins. If not, delete modelmerge's dense-to-MoE path and model's router compiler.\n\nServes: the train stage (a MoE made from a dense model). Disappears: the test-only path, one way or the other. Evidence: the held-out routing-margin check the compiler already enforces. Batch: surface (internal/model).\n\nLanes (expected; the gate reads them from the diff): all (internal/model is surface).\n\nOwner review 2026-09-30: the keep-or-delete decision comes first, against a measured gap; wiring waits on keep."
-        }
-      ]
-    },
-    {
       "id": "e4b-full-parameter-trainer",
       "title": "Train Gemma-4 E4B with full-parameter gradients",
       "owner": "master-lead",

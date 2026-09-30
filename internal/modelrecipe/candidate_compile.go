@@ -230,7 +230,7 @@ func CompileAdmittedCandidate(
 	admission, err := runrecord.RequireReplayedCandidateAdmission(
 		ctx, reader, admissionID, candidate, adapters...,
 	)
-	if err != nil || admission.Candidate != candidate.ID() {
+	if err != nil {
 		return CandidateCompilation{}, errors.Join(
 			errors.New("model recipe: candidate compilation admission does not replay"), err,
 		)

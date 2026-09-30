@@ -513,15 +513,45 @@ func requireAdmittedKnowledgeCandidate(
 	if err != nil {
 		return runrecord.CandidateAdmission{}, modelrecipe.Candidate{}, err
 	}
-	replayed, err := runrecord.RequireReplayedCandidateAdmission(
-		ctx, reader, admission.ID, candidate, modelrecipe.CandidateAdmissionAdapters()...,
-	)
-	if err != nil || replayed.ID != admission.ID {
+	if _, err := runrecord.RequireReplayedCandidateAdmission(
+		ctx, reader, admission.ID, candidate,
+		append(modelrecipe.CandidateAdmissionAdapters(), datasetTransformAdmissionAdapter{})...,
+	); err != nil {
 		return runrecord.CandidateAdmission{}, modelrecipe.Candidate{}, errors.Join(
 			errors.New("evaluation: candidate admission does not replay"), err,
 		)
 	}
 	return admission, candidate, nil
+}
+
+// datasetTransformAdmissionAdapter admits a candidate's dataset-transform
+// component through the dataset owner. It lives with the knowledge candidates
+// that carry one, so the model recipe, and with it the inference surface, does
+// not link the dataset package.
+type datasetTransformAdmissionAdapter struct{}
+
+// CandidateDomain names the dataset owner's immutable transform contract.
+func (datasetTransformAdmissionAdapter) CandidateDomain() string {
+	return string(modelrecipe.CandidateDatasetTransform)
+}
+
+// ValidateCandidateComponent binds the transform owner's exact stored facts
+// to the common candidate subject and execution evidence.
+func (datasetTransformAdmissionAdapter) ValidateCandidateComponent(
+	ctx context.Context,
+	reader artifact.Reader,
+	facts runrecord.CandidateAdmissionFacts,
+	component runrecord.CandidateAdmissionComponent,
+) error {
+	transform, err := dataset.RequireDatasetTransform(ctx, reader, component.Specification)
+	if err != nil {
+		return err
+	}
+	spec := transform.Spec()
+	if spec.Code != facts.Code || spec.Environment != facts.Environment || !slices.Contains(spec.Outputs, facts.Subject) {
+		return errors.New("evaluation: dataset transform differs from candidate subject or execution evidence")
+	}
+	return nil
 }
 
 func verifyKnowledgeCandidate(

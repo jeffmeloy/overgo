@@ -98,6 +98,22 @@ func TestCandidateRealizationLeavesTheSurface(t *testing.T) {
 	}
 }
 
+// TestDatasetLeavesTheSurface holds the dataset package outside the inference
+// surface, so a dataset edit does not expire every text model's guards. The
+// surface reached it only through the model recipe's dataset-transform
+// admission adapter, which evaluation's knowledge candidates now own.
+func TestDatasetLeavesTheSurface(t *testing.T) {
+	packages, err := Packages(t.Context(), "../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pkg := range packages {
+		if pkg.ImportPath == "overgo/internal/dataset" {
+			t.Errorf("the inference surface reaches dataset package %s", pkg.ImportPath)
+		}
+	}
+}
+
 // TestSurfaceCoversEmbeddedInputsAndModules holds the surface to every
 // input inference reads, not only its Go sources: a file a closure package
 // embeds (the architecture catalog, the runtime policies, the compiled

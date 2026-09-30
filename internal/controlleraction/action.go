@@ -487,8 +487,7 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 			return nil, nil, err
 		}
 		admission, err := runrecord.AdmitCandidate(
-			ctx, reader, candidate, action.Admission.Authority,
-			append(modelrecipe.CandidateAdmissionAdapters(), composition.CandidateAdmissionAdapter())...,
+			ctx, reader, candidate, action.Admission.Authority, evaluation.CandidateAdmissionAdapters()...,
 		)
 		if err != nil {
 			return nil, nil, err

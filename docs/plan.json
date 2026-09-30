@@ -10,13 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "dataset",
-          "title": "Move modelrecipe's dataset responsibility to dataset",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestDatasetLeavesTheSurface$' -count=1",
-          "rationale": "Change 4 of the owner's list: modelrecipe's dataset responsibility moves to internal/dataset, its existing owner. Verify the preserved behaviour, the build and test closure, and the surface invalidation separately. Batch: expires the guards."
-        },
-        {
           "id": "capability-tables",
           "title": "Keep non-text capability edits out of the inference surface",
           "status": "open",

@@ -32,6 +32,13 @@ type EvidenceDriverRequest struct {
 	ResourceBudget    artifact.ID               `json:"resource_budget"`
 }
 
+// CandidateAdmissionAdapters is the adapter set a candidate is admitted and
+// replayed against: the model recipe's core set, the dataset transform, and
+// the composition owner's same-base plugin.
+func CandidateAdmissionAdapters() []runrecord.CandidateComponentAdmissionAdapter {
+	return append(modelrecipe.CandidateAdmissionAdapters(), datasetTransformAdmissionAdapter{}, composition.CandidateAdmissionAdapter())
+}
+
 // CompileEvidenceDriverDecision replays the current incumbent and every
 // candidate admission, then delegates all selection, budget, and stop
 // derivation to runrecord. It publishes and executes nothing.
@@ -58,7 +65,7 @@ func CompileEvidenceDriverDecision(
 	options[0] = incumbent
 	seenCandidates := make(map[artifact.ID]struct{}, len(request.Candidates))
 	seenAdmissions := make(map[artifact.ID]struct{}, len(request.Candidates))
-	adapters := append(modelrecipe.CandidateAdmissionAdapters(), composition.CandidateAdmissionAdapter())
+	adapters := CandidateAdmissionAdapters()
 	for _, reference := range request.Candidates {
 		if reference.Candidate.Kind() != artifact.KindRecipe || reference.Admission.Kind() != artifact.KindEvidence {
 			return runrecord.DriverDecision{}, errors.New("evaluation: invalid evidence driver candidate authority")
@@ -78,7 +85,7 @@ func CompileEvidenceDriverDecision(
 		admission, err := runrecord.RequireReplayedCandidateAdmission(
 			ctx, reader, reference.Admission, candidate, adapters...,
 		)
-		if err != nil || admission.Candidate != candidate.ID() {
+		if err != nil {
 			return runrecord.DriverDecision{}, errors.Join(
 				errors.New("evaluation: evidence driver candidate admission is foreign or stale"), err,
 			)

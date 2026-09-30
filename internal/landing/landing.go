@@ -313,6 +313,10 @@ func (l *landing) test(ctx context.Context) error {
 // names: the slowest few are where a landing's test time went.
 const reportedPackages = 5
 
+// cachedMarker ends go test's line for a package it replayed from its cache
+// rather than ran.
+const cachedMarker = "\t(cached)"
+
 // ranPackages names the packages go test ran rather than replayed from its
 // cache, slowest first, so the measured test time says what it was spent on.
 func ranPackages(output string) string {
@@ -328,7 +332,7 @@ func ranPackages(output string) string {
 			continue
 		}
 		switch {
-		case parsed.Action == "output" && strings.Contains(parsed.Output, "\t(cached)"):
+		case parsed.Action == "output" && strings.Contains(parsed.Output, cachedMarker):
 			cached[parsed.Package] = true
 		case (parsed.Action == "pass" || parsed.Action == "fail") && !cached[parsed.Package]:
 			ran = append(ran, parsed)

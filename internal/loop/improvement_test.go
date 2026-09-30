@@ -3,6 +3,7 @@ package loop
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -39,11 +40,12 @@ func (w *improvingWorld) Propose(_ scorecard.Record, gaps []scorecard.Gap) (int,
 
 // TestLoopPromotesOnlyOnHeldOutFitness empties the plan against scripted
 // scorecards and holds promotion to the held-out quality cells alone, judged
-// like for like: a fall in the metric's own direction on the same suite
-// refuses it, whatever else improved, while slower throughput, a failed
-// attempt, a new suite or a first record with nothing to compare promote.
-// A failed validation promotes nothing. Every run proposes its gaps, and a
-// refusal's gaps name the regression.
+// like for like against a baseline measured on main: a fall in the metric's
+// own direction on the same suite refuses it, whatever else improved, while
+// slower throughput, a failed attempt or a new suite promote. No baseline,
+// a row without held-out quality and a failed validation promote nothing,
+// and the outcome says why. Every run proposes its gaps, and a refusal for a
+// fall proposes the fall.
 func TestLoopPromotesOnlyOnHeldOutFitness(t *testing.T) {
 	t.Parallel()
 	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-fitness")
@@ -63,31 +65,37 @@ func TestLoopPromotesOnlyOnHeldOutFitness(t *testing.T) {
 		cells[metric.Failures] = scorecard.Cell{Value: failures, Label: "attempts", Source: source}
 		return &scorecard.Record{Commit: commit, Rows: []scorecard.Row{{Name: "model", Task: recipe.TaskInference, Cells: cells}}}
 	}
+	const fell = "fell below the baseline"
 	for _, scenario := range []struct {
 		name                string
 		baseline, published *scorecard.Record
 		measureErr          error
-		promotes            bool
+		withheld            string
 	}{
-		{name: "held quality, slower and failing", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.5, "mmlu"), 30, 0.1), promotes: true},
-		{name: "accuracy fell while throughput rose", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.4, "mmlu"), 50, 0)},
-		{name: "perplexity rose", baseline: record("a", perplexity(900), 40, 0), published: record("b", perplexity(950), 40, 0)},
-		{name: "perplexity fell", baseline: record("a", perplexity(900), 40, 0), published: record("b", perplexity(850), 40, 0), promotes: true},
-		{name: "another suite scores lower", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.2, "mmlu-pro"), 40, 0), promotes: true},
-		{name: "first record", published: record("b", accuracy(0.2, "mmlu"), 40, 0), promotes: true},
-		{name: "failed validation", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.6, "mmlu"), 40, 0), measureErr: errors.New("validate -run failed")},
+		{name: "held quality, slower and failing", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.5, "mmlu"), 30, 0.1)},
+		{name: "accuracy fell while throughput rose", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.4, "mmlu"), 50, 0), withheld: fell},
+		{name: "perplexity rose", baseline: record("a", perplexity(900), 40, 0), published: record("b", perplexity(950), 40, 0), withheld: fell},
+		{name: "perplexity fell", baseline: record("a", perplexity(900), 40, 0), published: record("b", perplexity(850), 40, 0)},
+		{name: "another suite scores lower", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.2, "mmlu-pro"), 40, 0)},
+		{name: "no scorecard of main", published: record("b", accuracy(0.9, "mmlu"), 40, 0), withheld: "no earlier scorecard measured the commit refs/heads/main holds"},
+		{name: "held-out quality missing", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", scorecard.Cell{Reason: "no held-out suite ran"}, 40, 0), withheld: "has no inference held-out quality: no held-out suite ran"},
+		{name: "failed validation", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.6, "mmlu"), 40, 0), measureErr: errors.New("validate -run failed"), withheld: "a validation failed"},
 	} {
 		world := &improvingWorld{published: scenario.published, baseline: scenario.baseline, measureErr: scenario.measureErr}
 		outcome, err := Run(world, Config{MaxAttemptsPerStep: 1, MaxInvocations: 1})
 		if (err != nil) != (scenario.measureErr != nil) || outcome.Reason != ReasonPlanComplete {
 			t.Fatalf("%s: outcome=%+v err=%v", scenario.name, outcome, err)
 		}
-		if promoted := slices.Equal(world.promoted, []string{"b"}); promoted != scenario.promotes || (outcome.Promoted == "b") != promoted {
-			t.Fatalf("%s: promoted %v (outcome %q), want promotion %v", scenario.name, world.promoted, outcome.Promoted, scenario.promotes)
+		promotes := scenario.withheld == ""
+		if promoted := slices.Equal(world.promoted, []string{"b"}); promoted != promotes || (outcome.Promoted == "b") != promoted {
+			t.Fatalf("%s: promoted %v (outcome %q), want promotion %v", scenario.name, world.promoted, outcome.Promoted, promotes)
 		}
-		regressed := slices.ContainsFunc(world.proposed, scorecard.Gap.Regressed)
-		if regressed != (!scenario.promotes && scenario.measureErr == nil) {
-			t.Fatalf("%s: proposed %+v; a refusal proposes its regression, a promotion none", scenario.name, world.proposed)
+		if promotes != (outcome.Withheld == "") || !strings.Contains(outcome.Withheld, scenario.withheld) {
+			t.Fatalf("%s: withheld %q, want %q", scenario.name, outcome.Withheld, scenario.withheld)
+		}
+		regressed := slices.ContainsFunc(world.proposed, func(gap scorecard.Gap) bool { return strings.HasPrefix(gap.Key, "scorecard-regressed-") })
+		if regressed != (scenario.withheld == fell) {
+			t.Fatalf("%s: proposed %+v; a refusal for a fall proposes the fall, nothing else does", scenario.name, world.proposed)
 		}
 	}
 	world := &improvingWorld{measureErr: errors.New("validate -scorecard -publish failed")}

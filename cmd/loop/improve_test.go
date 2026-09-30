@@ -104,6 +104,54 @@ func TestScorecardGapsBecomeProposals(t *testing.T) {
 	}
 }
 
+// gitFixture runs git in directory as a fixture author and returns its
+// trimmed output.
+func gitFixture(t *testing.T, directory string, arguments ...string) string {
+	t.Helper()
+	command := exec.Command("git", append([]string{"-c", "user.name=fixture", "-c", "user.email=fixture@example.com", "-c", "commit.gpgsign=false"}, arguments...)...)
+	command.Dir = directory
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v: %s", arguments, err, output)
+	}
+	return strings.TrimSpace(string(output))
+}
+
+// TestNoScorecardOfMainPromotesNothing publishes two scorecards of a commit
+// main does not hold, the second better than the first. Neither measured
+// main, so there is no baseline: main stays and the outcome says why, rather
+// than judging the commit against its own earlier record.
+func TestNoScorecardOfMainPromotesNothing(t *testing.T) {
+	t.Parallel()
+	repository := t.TempDir()
+	gitFixture(t, repository, "init", "-q", "-b", "master")
+	gitFixture(t, repository, "commit", "-q", "--allow-empty", "-m", "main")
+	gitFixture(t, repository, "branch", "main")
+	held := gitFixture(t, repository, "rev-parse", "main")
+	gitFixture(t, repository, "commit", "-q", "--allow-empty", "-m", "measured")
+	measured := gitFixture(t, repository, "rev-parse", "HEAD")
+
+	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-no-main-baseline")
+	records := filepath.Join(t.TempDir(), "scorecards")
+	published := time.Date(2026, time.September, 30, 12, 0, 0, 0, time.UTC)
+	publish := func(accuracy float64) error {
+		published = published.Add(time.Hour)
+		_, err := scorecard.Publish(records, published, scorecard.Record{Commit: measured, Rows: []scorecard.Row{scoredRow(source, "alpha", recipe.TaskInference, accuracy, 0, scorecard.Cell{Value: 1, Source: source})}})
+		return err
+	}
+	if err := publish(0.5); err != nil {
+		t.Fatal(err)
+	}
+	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func() error { return publish(0.6) }}
+	var outcome loop.Outcome
+	if _, err := loop.Improve(improver, &outcome); err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Promoted != "" || !strings.Contains(outcome.Withheld, "no earlier scorecard measured the commit") || gitFixture(t, repository, "rev-parse", "main") != held {
+		t.Fatalf("promoted %q, withheld %q, main %s; want main unmoved at %s and the missing baseline stated", outcome.Promoted, outcome.Withheld, gitFixture(t, repository, "rev-parse", "main"), held)
+	}
+}
+
 // planWorld drives the loop over a plan file: its worker lands the
 // dispatched row the way the gate does, by removing it, and records which
 // commit the promoted branch held when it ran.
@@ -155,16 +203,7 @@ func (w *planWorld) Paused() bool { return false }
 func TestPromotionWaitsForAHoldingScorecard(t *testing.T) {
 	t.Parallel()
 	repository, remote := t.TempDir(), t.TempDir()
-	git := func(directory string, arguments ...string) string {
-		t.Helper()
-		command := exec.Command("git", append([]string{"-c", "user.name=fixture", "-c", "user.email=fixture@example.com", "-c", "commit.gpgsign=false"}, arguments...)...)
-		command.Dir = directory
-		output, err := command.CombinedOutput()
-		if err != nil {
-			t.Fatalf("git %v: %v: %s", arguments, err, output)
-		}
-		return strings.TrimSpace(string(output))
-	}
+	git := func(directory string, arguments ...string) string { return gitFixture(t, directory, arguments...) }
 	git(remote, "init", "-q", "--bare")
 	git(repository, "init", "-q", "-b", "master")
 	git(repository, "commit", "-q", "--allow-empty", "-m", "promoted")

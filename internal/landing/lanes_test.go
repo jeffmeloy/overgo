@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/testskip"
 )
@@ -117,6 +118,43 @@ func TestCUDATestsNeedALane(t *testing.T) {
 	}
 	if !slices.Equal(uncovered, []string{"internal/unlaned"}) {
 		t.Fatalf("uncovered CUDA tests = %q, want only internal/unlaned", uncovered)
+	}
+}
+
+// TestLanesMeasurementLine pins the lanes stage's entry in the Measured line
+// over fake lane results: the discovery time, the turn wait, each passed
+// lane with the admission waits its device lines add up to and the packages
+// its go test lines executed or replayed from cache, a lane whose output
+// carries neither with its time alone, and the unreached lanes as skipped.
+// With no lane reached there is no turn to wait for.
+func TestLanesMeasurementLine(t *testing.T) {
+	t.Parallel()
+	device := "[device] phase=1/3 heartbeat=running elapsed=0.0s command=go run ./cmd/cuda-info\n" +
+		"[device] resource=GPU-1 mode=shared state=admitted wait=1.5s\n" +
+		"[device] resource=GPU-1 mode=shared state=admitted wait=250ms\n"
+	cuda := "ok  \tovergo/internal/hybridtrain\t61.204s\n" +
+		"ok  \tovergo/internal/torchrng\t(cached)\n" +
+		"ok  \tovergo/cmd/recipe\t(cached)\n" +
+		"    trainer_test.go:12: ok  \tquoted by a test log\n" +
+		"?   \tovergo/internal/fixture\t[no test files]\n"
+	got := describeLanes(41200*time.Millisecond, 12*time.Minute, []string{
+		describeLane("device", 2*time.Minute, device),
+		describeLane("cuda", 30*time.Minute+time.Second, cuda),
+		describeLane("webui", 3*time.Second, "webui lane: PASS browser=edge\n"),
+	}, []string{"audio", "e4b"})
+	want := "discovery 41.2s, turn wait 12m0s, device passed 2m0s admission 1.75s, " +
+		"cuda passed 30m1s executed 1 cached 2, webui passed 3s, skipped audio e4b"
+	if got != want {
+		t.Errorf("lanes measurement = %q, want %q", got, want)
+	}
+	if got := describeLanes(900*time.Millisecond, 0, nil, []string{"device", "cuda"}); got != "discovery 900ms, skipped device cuda" {
+		t.Errorf("lanes measurement with no lane reached = %q", got)
+	}
+	// The device lane writes the admitted line; reworded, it would read as a
+	// lane that never claimed the device.
+	source, err := os.ReadFile(filepath.Join("..", "..", "cmd", "device-lane", "admission.go"))
+	if err != nil || !strings.Contains(string(source), admittedMarker) {
+		t.Fatalf("cmd/device-lane no longer prints %q when the device admits a step: %v", admittedMarker, err)
 	}
 }
 

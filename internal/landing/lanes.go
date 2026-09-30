@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/devicescope"
@@ -178,7 +179,9 @@ const laneTurn = "overgo-landing-lanes"
 // machine waits for it rather than running its lanes beside these on the
 // one GPU. A turn, not a claim on the device: a claim would make every lane
 // process its member and erase the process identities the device's own
-// admission tests exercise.
+// admission tests exercise. The measurement says how long finding the
+// reached lanes and waiting for the turn took, and how each lane ended; a
+// lane that refuses the landing logs its time.
 func (l *landing) lanes(ctx context.Context) error {
 	changed, err := os.CreateTemp("", "overgo-landing-paths-*.txt")
 	if err != nil {
@@ -193,6 +196,8 @@ func (l *landing) lanes(ctx context.Context) error {
 		return err
 	}
 	var reached []lane
+	var skipped []string
+	started := time.Now()
 	for _, candidate := range lanes {
 		reaches, err := l.reaches(ctx, candidate)
 		if err != nil {
@@ -200,25 +205,92 @@ func (l *landing) lanes(ctx context.Context) error {
 		}
 		if reaches {
 			reached = append(reached, candidate)
+		} else {
+			skipped = append(skipped, candidate.name)
 		}
 	}
+	discovery := time.Since(started).Round(time.Millisecond)
 	if len(reached) == 0 {
+		l.details["lanes"] = describeLanes(discovery, 0, nil, skipped)
 		return nil
 	}
 	fmt.Fprintln(l.Log, "land: lanes wait for the host's lane turn")
+	waiting := time.Now()
 	return processcontrol.ResourceTransaction(laneTurn, func() error {
+		turnWait := time.Since(waiting).Round(time.Millisecond)
+		var passed []string
 		for _, candidate := range reached {
 			fmt.Fprintf(l.Log, "land: lane %s runs\n", candidate.name)
 			var environment []string
 			if len(candidate.environment) > 0 {
 				environment = append(os.Environ(), candidate.environment...)
 			}
-			if _, err := l.run(ctx, environment, "go", candidate.command(changed.Name())...); err != nil {
+			began := time.Now()
+			output, err := l.run(ctx, environment, "go", candidate.command(changed.Name())...)
+			wall := time.Since(began).Round(time.Millisecond)
+			if err != nil {
+				fmt.Fprintf(l.Log, "land: lane %s refused after %s\n", candidate.name, wall)
 				return fmt.Errorf("lane %s: %w", candidate.name, err)
 			}
+			passed = append(passed, describeLane(candidate.name, wall, output))
 		}
+		l.details["lanes"] = describeLanes(discovery, turnWait, passed, skipped)
 		return nil
 	})
+}
+
+// passedPackage opens go test's line for a package that passed, in its
+// plain output and in the output events of -json alike.
+const passedPackage = "ok  \t"
+
+// admittedMarker precedes the wait in the line the device lane prints when
+// the device admits one of its steps (cmd/device-lane's holdSharedLease).
+const admittedMarker = "state=admitted wait="
+
+// describeLane is a passed lane's entry in the measurement: its wall time;
+// the device admission wait its admitted lines add up to, where the lane
+// claims the device; and, where its output carries go test's package lines,
+// how many packages go test executed and how many it replayed from cache.
+func describeLane(name string, wall time.Duration, output string) string {
+	claimed := false
+	var admission time.Duration
+	executed, cached := 0, 0
+	for line := range strings.Lines(output) {
+		_, wait, found := strings.Cut(line, admittedMarker)
+		if waited, err := time.ParseDuration(strings.TrimSpace(wait)); found && err == nil {
+			claimed, admission = true, admission+waited
+		}
+		switch {
+		case !strings.HasPrefix(line, passedPackage):
+		case strings.Contains(line, cachedMarker):
+			cached++
+		default:
+			executed++
+		}
+	}
+	entry := fmt.Sprintf("%s passed %s", name, wall)
+	if claimed {
+		entry += fmt.Sprintf(" admission %s", admission)
+	}
+	if executed+cached > 0 {
+		entry += fmt.Sprintf(" executed %d cached %d", executed, cached)
+	}
+	return entry
+}
+
+// describeLanes is the lanes stage's measurement: the time finding the
+// reached lanes took, the wait for the host's lane turn when a lane ran,
+// each passed lane's entry, and the lanes the change did not reach.
+func describeLanes(discovery, turnWait time.Duration, passed, skipped []string) string {
+	entries := []string{"discovery " + discovery.String()}
+	if len(passed) > 0 {
+		entries = append(entries, "turn wait "+turnWait.String())
+	}
+	entries = append(entries, passed...)
+	if len(skipped) > 0 {
+		entries = append(entries, "skipped "+strings.Join(skipped, " "))
+	}
+	return strings.Join(entries, ", ")
 }
 
 // reaches reports whether a changed path lies in a package of the lane's

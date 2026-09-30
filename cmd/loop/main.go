@@ -111,7 +111,7 @@ func run(args []string) error {
 	case *improveOnce:
 		var outcome loop.Outcome
 		added, err := loop.Improve(improvementFor(*repoPath), &outcome)
-		fmt.Printf("loop: improvement cycle promoted=%q proposed=%d row(s)\n", outcome.Promoted, added)
+		fmt.Printf("loop: improvement cycle promoted=%q withheld=%q proposed=%d row(s)\n", outcome.Promoted, outcome.Withheld, added)
 		return err
 	case *publishStrategySpec != "":
 		return publishStrategy(*repoPath, *publishStrategySpec, os.Stdout)
@@ -194,8 +194,8 @@ func run(args []string) error {
 	// the gaps into the next rows.
 	world := &execWorld{config: loaded, strategy: strategy, promptPrefix: string(prompt.Data), campaign: campaign, improvement: improvementFor(*repoPath)}
 	outcome, err := loop.Run(world, strategy.Loop)
-	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; promoted=%q; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
-		outcome.Reason, outcome.Invocations, outcome.Parked, outcome.Promoted)
+	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; promoted=%q; withheld=%q; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
+		outcome.Reason, outcome.Invocations, outcome.Parked, outcome.Promoted, outcome.Withheld)
 	return err
 }
 

@@ -14,7 +14,6 @@ package loop
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"overgo/internal/scorecard"
@@ -109,6 +108,8 @@ type Outcome struct {
 	ObligationsDue uint64
 	// Promoted is the commit the last holding scorecard promoted, if any.
 	Promoted string
+	// Withheld is why the last scorecard promoted nothing, if it did not.
+	Withheld string
 }
 
 const (
@@ -255,23 +256,28 @@ func improve(world World, outcome *Outcome) (int, error) {
 }
 
 // Improve runs one improvement cycle: it measures the scorecard, promotes
-// the measured commit only when no held-out quality fell below the
-// baseline's, and proposes the gaps as rows. A failed validation leaves
-// stale cells, so it promotes nothing; its record still names the gaps. The
-// driver runs it when the plan empties, and cmd/loop -improve on demand.
+// the measured commit only when the record is not withheld (a baseline
+// measured on the promoted branch, every held-out quality measured, none
+// fallen), and proposes the gaps as rows. A failed validation leaves stale
+// cells, so it promotes nothing; its record still names the gaps. The
+// outcome says why a commit was withheld. The driver runs it when the plan
+// empties, and cmd/loop -improve on demand.
 func Improve(improver ImprovementWorld, outcome *Outcome) (int, error) {
 	published, baseline, err := improver.Measure()
 	if published == nil {
 		return 0, errors.Join(errors.New("loop: no scorecard was published"), err)
 	}
-	gaps := published.Gaps(baseline)
-	if err == nil && !slices.ContainsFunc(gaps, scorecard.Gap.Regressed) {
+	outcome.Withheld = published.Withheld(baseline)
+	if err != nil {
+		outcome.Withheld = "a validation failed, so the scorecard's cells are stale"
+	}
+	if outcome.Withheld == "" {
 		if err := improver.Promote(published.Commit); err != nil {
 			return 0, fmt.Errorf("loop: promote: %w", err)
 		}
 		outcome.Promoted = published.Commit
 	}
-	added, proposeErr := improver.Propose(*published, gaps)
+	added, proposeErr := improver.Propose(*published, published.Gaps(baseline))
 	return added, errors.Join(err, proposeErr)
 }
 

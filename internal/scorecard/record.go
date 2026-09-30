@@ -102,8 +102,9 @@ func (record Record) explained() error {
 }
 
 // Baseline is the record the newest one is judged against: the newest
-// earlier record that measured the commit the promoted branch holds, else
-// the one just before it. One record or none has no baseline.
+// earlier record that measured the commit the promoted branch holds. Without
+// one there is no baseline: an earlier record of another commit is not what
+// users run, so it judges nothing.
 func Baseline(ctx context.Context, root string, records []Record) (*Record, error) {
 	if len(records) <= 1 {
 		return nil, nil
@@ -118,7 +119,28 @@ func Baseline(ctx context.Context, root string, records []Record) (*Record, erro
 			return &earlier[index], nil
 		}
 	}
-	return &earlier[len(earlier)-1], nil
+	return nil, nil
+}
+
+// Withheld reports why the record may not promote its commit, or "" when it
+// may: promotion needs a baseline measured on the promoted branch, a
+// held-out quality on every row it applies to, and none below the
+// baseline's.
+func (record Record) Withheld(baseline *Record) string {
+	if baseline == nil {
+		return "no earlier scorecard measured the commit " + PromotedBranch + " holds"
+	}
+	for _, row := range record.Rows {
+		if cell := row.Cells[metric.Quality]; !cell.NotApplicable && !cell.Measured() {
+			return fmt.Sprintf("%s has no %s held-out quality: %s", row.Name, row.Task, cell.Reason)
+		}
+	}
+	for _, gap := range record.Gaps(baseline) {
+		if gap.kind == gapRegressed {
+			return gap.Title
+		}
+	}
+	return ""
 }
 
 // The kinds of gap. Their names order the rows: failures a user met, then
@@ -137,10 +159,6 @@ type Gap struct {
 	Key, Title, Detail string
 	kind               string
 }
-
-// Regressed reports a held-out quality below the baseline's: the gap that
-// refuses promotion.
-func (gap Gap) Regressed() bool { return gap.kind == gapRegressed }
 
 // Gaps lists the record's gaps against the baseline, which may be nil: each
 // cell no record measures, each failure-rate above zero, and each held-out

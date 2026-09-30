@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "preference-loss-variants",
-      "title": "Add ORPO and SimPO as modes of the DPO objective",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add ORPO and SimPO as modes of the DPO objective",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram -run '^TestPreferenceLossVariantsShareTheDPOPath$' -count=1",
-          "rationale": "GUI lane suggestion from the owner-directed LlamaFactory review (2026-09-25): ORPO, SimPO and KTO are loss variants over the existing DPO chosen/rejected pair path (LlamaFactory hparams/finetuning_args.py pref_loss sigmoid, hinge, ipo, kto_pair, orpo, simpo with simpo_gamma; train/dpo, train/kto), with no new optimizer, so they stay Muon-only. Add them as modes of the one DPO objective, not new objectives, judged by heldout-preference-slice's held-out preference verdict. Parked behind the consolidation phase. Done when TestPreferenceLossVariantsShareTheDPOPath trains each variant through the DPO path and scores it on held-out pairs.\n\nServes: preference training. Disappears: nothing is added as a new objective kind: ORPO, SimPO and KTO are modes of the existing DPO objective. Evidence: the held-out preference slice judges each. Batch: host."
-        }
-      ]
-    },
-    {
       "id": "wire-controller-cluster",
       "title": "Give the controller training cluster a train route on the shared run",
       "owner": "master-lead",

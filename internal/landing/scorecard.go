@@ -51,11 +51,11 @@ var timedMetrics = []struct {
 // options and environment. It reports and never refuses: a slice that does
 // not measure says why.
 func (l *landing) scorecard(ctx context.Context) error {
-	reached, err := l.reaches(ctx, slice)
+	reaches, err := discover(l.Repo, slice)
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(filepath.Join(l.Repo, filepath.FromSlash(sliceDocument))); !reached || err != nil {
+	if _, err := os.Stat(filepath.Join(l.Repo, filepath.FromSlash(sliceDocument))); !reaches(slice, l.paths) || err != nil {
 		l.details["scorecard"] = "not reached"
 		return nil
 	}

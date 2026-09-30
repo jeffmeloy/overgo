@@ -15,6 +15,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/devicescope"
+	"overgo/internal/gosource"
 	"overgo/internal/processcontrol"
 	"overgo/internal/testskip"
 )
@@ -26,7 +27,10 @@ type lane struct {
 	name     string
 	packages []string
 	prefixes []string
-	command  func(changed string) []string
+	// tags are the lane's build context: go lists its closure and runs its
+	// command, after the command's verb, with them.
+	tags    string
+	command func(changed string) []string
 	// environment is added to the gate's own for the lane's command.
 	environment []string
 }
@@ -69,18 +73,16 @@ var lanes = []lane{
 		// Thoughtbank's real-checkpoint suite, behind the modeltest tag:
 		// training parity, code completion and the process probe on the
 		// local Fractale checkpoint.
-		name: "thoughtbank", packages: []string{"./internal/thoughtbank"},
-		command:     func(string) []string { return []string{"test", "-tags", "modeltest", "./internal/thoughtbank"} },
+		name: "thoughtbank", packages: []string{"./internal/thoughtbank"}, tags: "modeltest",
+		command:     func(string) []string { return []string{"test", "./internal/thoughtbank"} },
 		environment: []string{cudaTestEnvironment},
 	},
 	{
 		// The integration-tagged suites: Wan's real-model runtime and
 		// reference edit on the local Wan2.1-T2V-1.3B and the retained
 		// capture beside the data, and the quantizer's pinned checks.
-		name: "integration", packages: []string{"./internal/latentvideo", "./internal/quant"},
-		command: func(string) []string {
-			return []string{"test", "-tags", "integration", "./internal/latentvideo", "./internal/quant"}
-		},
+		name: "integration", packages: []string{"./internal/latentvideo", "./internal/quant"}, tags: "integration",
+		command:     func(string) []string { return []string{"test", "./internal/latentvideo", "./internal/quant"} },
 		environment: []string{cudaTestEnvironment},
 	},
 	{
@@ -152,13 +154,8 @@ func uncoveredCUDATests(repo string) ([]string, error) {
 // cudaCovered reports whether a device lane scope covers the package
 // directory or a lane runs it with the device opted in.
 func cudaCovered(directory string) bool {
-	for _, scope := range devicescope.Packages() {
-		if directory == scope || scope == "internal/cuda" && strings.HasPrefix(directory, "internal/cuda/") {
-			return true
-		}
-	}
-	return slices.ContainsFunc(lanes, func(candidate lane) bool {
-		return slices.Contains(candidate.environment, cudaTestEnvironment) && slices.Contains(candidate.packages, "./"+directory)
+	return lane{packages: devicePackages()}.owns(directory) || slices.ContainsFunc(lanes, func(candidate lane) bool {
+		return slices.Contains(candidate.environment, cudaTestEnvironment) && candidate.owns(directory)
 	})
 }
 
@@ -198,12 +195,12 @@ func (l *landing) lanes(ctx context.Context) error {
 	var reached []lane
 	var skipped []string
 	started := time.Now()
+	reaches, err := discover(l.Repo, lanes...)
+	if err != nil {
+		return err
+	}
 	for _, candidate := range lanes {
-		reaches, err := l.reaches(ctx, candidate)
-		if err != nil {
-			return err
-		}
-		if reaches {
+		if reaches(candidate, l.paths) {
 			reached = append(reached, candidate)
 		} else {
 			skipped = append(skipped, candidate.name)
@@ -226,7 +223,7 @@ func (l *landing) lanes(ctx context.Context) error {
 				environment = append(os.Environ(), candidate.environment...)
 			}
 			began := time.Now()
-			output, err := l.run(ctx, environment, "go", candidate.command(changed.Name())...)
+			output, err := l.run(ctx, environment, "go", slices.Insert(candidate.command(changed.Name()), 1, "-tags", candidate.tags)...)
 			wall := time.Since(began).Round(time.Millisecond)
 			if err != nil {
 				fmt.Fprintf(l.Log, "land: lane %s refused after %s\n", candidate.name, wall)
@@ -293,63 +290,81 @@ func describeLanes(discovery, turnWait time.Duration, passed, skipped []string) 
 	return strings.Join(entries, ", ")
 }
 
-// reaches reports whether a changed path lies in a package of the lane's
-// test closure, or under a prefix that triggers it. The module files reach
-// every lane: a dependency change can move any of them.
-func (l *landing) reaches(ctx context.Context, candidate lane) (bool, error) {
-	if slices.ContainsFunc(l.paths, func(name string) bool {
-		return name == "go.mod" || name == "go.sum" ||
-			slices.ContainsFunc(candidate.prefixes, func(prefix string) bool { return strings.HasPrefix(name, prefix) })
-	}) {
-		return true, nil
-	}
-	closure, err := l.listDirectories(ctx, append([]string{"-deps", "-test"}, candidate.packages...))
-	if err != nil {
-		return false, err
-	}
-	own, err := l.listDirectories(ctx, candidate.packages)
-	if err != nil {
-		return false, err
-	}
-	root := strings.ReplaceAll(l.Repo, "\\", "/")
-	for _, name := range l.paths {
-		directory := path.Join(root, path.Dir(name))
-		// A test file compiles only into its own package's test binary, so
-		// it reaches the lane only when that package is the lane's.
-		if strings.HasSuffix(name, "_test.go") {
-			if own[directory] {
-				return true, nil
-			}
-			continue
-		}
-		if closure[directory] {
-			return true, nil
-		}
-		// A data file nested under a closure package, testdata or an
-		// embedded recipe, is that package's input; a Go file belongs to its
-		// own package, so only data walks up.
-		for parent := directory; !strings.HasSuffix(name, ".go") && parent != root && parent != path.Dir(parent); {
-			parent = path.Dir(parent)
-			if closure[parent] {
-				return true, nil
+// discover lists the lanes' test closures once per build context -- lanes
+// share a listing only when they build with the same tags -- and returns
+// whether changed paths reach a lane: a module file reaches every lane, a
+// path under one of its prefixes reaches it, and so does a path in its test
+// closure, what its own packages' test binaries import, or such a package
+// imports without tests. A package or dependency a listing cannot load
+// refuses the landing.
+func discover(repo string, candidates ...lane) (func(lane, []string) bool, error) {
+	patterns := map[string][]string{}
+	for _, candidate := range candidates {
+		for _, pattern := range candidate.packages {
+			// A lane package this checkout does not hold, as in a fixture
+			// repository, reaches nothing; one it holds must load.
+			base, _ := strings.CutSuffix(strings.TrimPrefix(pattern, "./"), "/...")
+			if _, err := os.Stat(filepath.Join(repo, filepath.FromSlash(base))); err == nil {
+				patterns[candidate.tags] = append(patterns[candidate.tags], pattern)
 			}
 		}
 	}
-	return false, nil
+	selections := map[string]gosource.BuildSelection{}
+	for tags, packages := range patterns {
+		selection, err := gosource.HostBuildSelection(repo, append([]string{"-tags", tags, "-deps", "-test"}, packages...)...)
+		if err != nil {
+			return nil, err
+		}
+		selections[tags] = selection
+	}
+	return func(candidate lane, paths []string) bool {
+		selection, directories, closure := selections[candidate.tags], map[string]string{}, map[string]bool{}
+		for file, importPath := range selection.Packages {
+			directories[importPath] = path.Dir(file)
+		}
+		// The listing holds every lane of the build context, so the lane's
+		// closure is taken from its own packages: each one, what it imports,
+		// and what its test binary imports. A dependency compiled for a test
+		// binary is listed as "path [binary]"; one outside the repository has
+		// no directory.
+		for file, importPath := range selection.Packages {
+			if !candidate.owns(path.Dir(file)) {
+				continue
+			}
+			for _, dependency := range slices.Concat([]string{importPath}, selection.Dependencies[importPath], selection.Dependencies[importPath+".test"]) {
+				dependency, _, _ = strings.Cut(dependency, " [")
+				closure[directories[dependency]] = true
+			}
+		}
+		return slices.ContainsFunc(paths, func(name string) bool {
+			if name == "go.mod" || name == "go.sum" || slices.ContainsFunc(candidate.prefixes, func(prefix string) bool { return strings.HasPrefix(name, prefix) }) {
+				return true
+			}
+			// A test file compiles only into its own package's test binary,
+			// so it reaches the lane only when that package is the lane's.
+			if strings.HasSuffix(name, "_test.go") {
+				return candidate.owns(path.Dir(name))
+			}
+			// A data file nested under a closure package, testdata or an
+			// embedded recipe, is that package's input; a Go file belongs to
+			// its own package, so only data walks up.
+			for parent := path.Dir(name); !closure[parent]; parent = path.Dir(parent) {
+				if strings.HasSuffix(name, ".go") || parent == "." {
+					return false
+				}
+			}
+			return true
+		})
+	}, nil
 }
 
-// listDirectories is the set of package directories go list names for the
-// arguments, with forward slashes.
-func (l *landing) listDirectories(ctx context.Context, arguments []string) (map[string]bool, error) {
-	listed, err := l.run(ctx, nil, "go", append([]string{"list", "-e", "-f", "{{.Dir}}"}, arguments...)...)
-	if err != nil {
-		return nil, err
-	}
-	directories := map[string]bool{}
-	for directory := range strings.Lines(listed) {
-		directories[strings.ReplaceAll(strings.TrimSpace(directory), "\\", "/")] = true
-	}
-	return directories, nil
+// owns reports whether one of the lane's package patterns, ./directory or
+// ./directory/..., names the directory.
+func (candidate lane) owns(directory string) bool {
+	return slices.ContainsFunc(candidate.packages, func(pattern string) bool {
+		base, recursive := strings.CutSuffix(strings.TrimPrefix(pattern, "./"), "/...")
+		return directory == base || recursive && strings.HasPrefix(directory, base+"/")
+	})
 }
 
 // devicePackages are the device lane's scopes as package patterns; the cuda

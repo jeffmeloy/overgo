@@ -2,9 +2,7 @@ package landing
 
 import (
 	"fmt"
-	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -12,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/gosource"
 	"overgo/internal/testskip"
 )
 
@@ -42,20 +41,10 @@ func TestLandingRunKeepsEachStreamOwned(t *testing.T) {
 	}
 }
 
-// TestLaneReachSkipsOtherPackagesTests reaches a lane from production code
-// in its closure and from its own packages' tests, never from another
-// package's tests: a test file compiles only into its own test binary.
-func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
-	t.Parallel()
-	repo := t.TempDir()
-	for name, content := range map[string]string{
-		"go.mod":      "module fixture\n\ngo 1.26\n",
-		"a/a.go":      "package a\n\nimport \"fixture/b\"\n\nvar A = b.B\n",
-		"a/a_test.go": "package a\n",
-		"b/b.go":      "package b\n\nvar B = 1\n",
-		"b/b_test.go": "package b\n",
-		"c/c.go":      "package c\n",
-	} {
+// writeModule writes a fixture module's files under repo.
+func writeModule(t *testing.T, repo string, files map[string]string) {
+	t.Helper()
+	for name, content := range files {
 		path := filepath.Join(repo, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -64,7 +53,27 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+}
+
+// TestLaneReachSkipsOtherPackagesTests reaches a lane from production code
+// in its closure and from its own packages' tests, never from another
+// package's tests: a test file compiles only into its own test binary.
+func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
+	t.Parallel()
+	repo := t.TempDir()
+	writeModule(t, repo, map[string]string{
+		"go.mod":      "module fixture\n\ngo 1.26\n",
+		"a/a.go":      "package a\n\nimport \"fixture/b\"\n\nvar A = b.B\n",
+		"a/a_test.go": "package a\n",
+		"b/b.go":      "package b\n\nvar B = 1\n",
+		"b/b_test.go": "package b\n",
+		"c/c.go":      "package c\n",
+	})
 	candidate := lane{packages: []string{"./a"}}
+	reaches, err := discover(repo, candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for changed, want := range map[string]bool{
 		"b/b.go":      true,
 		"a/a_test.go": true,
@@ -75,48 +84,116 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 		// not.
 		"b/testdata/golden.json": true,
 		"c/testdata/golden.json": false,
+		// A module file can move any lane's dependencies.
+		"go.mod": true,
 	} {
-		l := &landing{Options: Options{Repo: repo, Log: io.Discard}, paths: []string{changed}}
-		reached, err := l.reaches(t.Context(), candidate)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if reached != want {
+		if reached := reaches(candidate, []string{changed}); reached != want {
 			t.Errorf("a change to %s reached the lane = %t, want %t", changed, reached, want)
 		}
 	}
 }
 
+// TestLaneSelectionUsesTheLaneBuildContext selects each tagged lane of the
+// table in the build context its command runs in. In a fixture module the
+// lane's package imports a dependency only from a test file behind the
+// lane's tags, and the dependency's one file carries them too: a change to
+// it selects the lane, but neither the same packages listed without the
+// tags nor another lane sharing the tagged listing. Unrelated documentation
+// selects nothing, and a dependency the tagged build cannot load refuses
+// the selection while the untagged one, which never compiles it, still
+// lists. No lane's command names tags of its own: the go command takes
+// them from the descriptor.
+func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
+	t.Parallel()
+	var tagged []lane
+	for _, candidate := range lanes {
+		if slices.Contains(candidate.command(""), "-tags") {
+			t.Errorf("lane %s's command names its own tags; its build context belongs in the descriptor", candidate.name)
+		}
+		if candidate.tags != "" {
+			tagged = append(tagged, candidate)
+		}
+	}
+	if len(tagged) == 0 {
+		t.Fatal("no lane builds with tags; the tagged suites would run nowhere")
+	}
+	for _, candidate := range tagged {
+		t.Run(candidate.name, func(t *testing.T) {
+			t.Parallel()
+			constraint := "//go:build " + strings.ReplaceAll(candidate.tags, ",", " && ") + "\n\n"
+			repo := t.TempDir()
+			writeModule(t, repo, map[string]string{
+				"go.mod":           "module fixture\n\ngo 1.26\n",
+				"a/a.go":           "package a\n",
+				"a/tagged_test.go": constraint + "package a\n\nimport _ \"fixture/b\"\n",
+				"b/b.go":           constraint + "package b\n",
+				"c/c.go":           "package c\n",
+				"docs/notes.md":    "notes\n",
+			})
+			own := lane{name: candidate.name, packages: []string{"./a"}, tags: candidate.tags}
+			untagged := lane{name: "untagged", packages: own.packages}
+			neighbour := lane{name: "neighbour", packages: []string{"./c"}, tags: candidate.tags}
+			reaches, err := discover(repo, own, untagged, neighbour)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, selection := range []struct {
+				selected lane
+				changed  string
+				want     bool
+			}{
+				{own, "b/b.go", true},
+				{own, "a/tagged_test.go", true},
+				{own, "c/c.go", false},
+				{own, "docs/notes.md", false},
+				{untagged, "b/b.go", false},
+				{neighbour, "b/b.go", false},
+				{neighbour, "c/c.go", true},
+			} {
+				if reached := reaches(selection.selected, []string{selection.changed}); reached != selection.want {
+					t.Errorf("a change to %s selected lane %s = %t, want %t", selection.changed, selection.selected.name, reached, selection.want)
+				}
+			}
+			writeModule(t, repo, map[string]string{"a/tagged_test.go": constraint + "package a\n\nimport _ \"fixture/missing\"\n"})
+			if _, err := discover(repo, own); err == nil || !strings.Contains(err.Error(), "missing") {
+				t.Errorf("a dependency the tagged build cannot load: discovery error = %v, want it named", err)
+			}
+			if _, err := discover(repo, untagged); err != nil {
+				t.Errorf("the untagged build, which never compiles the tagged test, refused: %v", err)
+			}
+		})
+	}
+}
+
 // TestPlanAndLoopEditsReachLanesOnlyThroughProduction selects lanes over
 // the real module the way the lanes stage does, for an edit to the plan and
-// one to the loop. A lane either edit reaches must hold the package in its
-// production closure, the code its tests build and run; a test import alone
-// would make every plan or loop edit pay for device work that never runs
-// it. The cure is moving the fixture that needs the import out of the lane
-// or importing the smaller owner it uses. The loop's one real reach today is
-// cmd/recipe's production import of it (the breaker, rollback, promotion and
-// re-entry verbs), which the audio and cuda lanes build.
+// one to the loop. A lane either edit reaches must compile the file into its
+// production closure in its build context, the code its tests build and
+// run; a test import alone would make every plan or loop edit pay for device
+// work that never runs it. The cure is moving the fixture that needs the
+// import out of the lane or importing the smaller owner it uses. The loop's
+// one real reach today is cmd/recipe's production import of it (the breaker,
+// rollback, promotion and re-entry verbs), which the audio and cuda lanes
+// build.
 func TestPlanAndLoopEditsReachLanesOnlyThroughProduction(t *testing.T) {
 	t.Parallel()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
+	reaches, err := discover(repo, lanes...)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, candidate := range lanes {
 		t.Run(candidate.name, func(t *testing.T) {
 			t.Parallel()
-			l := &landing{Options: Options{Repo: repo, Log: io.Discard}}
-			production, err := l.listDirectories(t.Context(), append([]string{"-deps"}, candidate.packages...))
+			production, err := gosource.HostBuildSelection(repo, append([]string{"-tags", candidate.tags, "-deps"}, candidate.packages...)...)
 			if err != nil {
 				t.Fatal(err)
 			}
 			for _, edit := range []string{"internal/plan/plan.go", "internal/loop/driver.go"} {
-				l.paths = []string{edit}
-				reached, err := l.reaches(t.Context(), candidate)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if owner := path.Join(filepath.ToSlash(repo), path.Dir(edit)); reached && !production[owner] {
+				if reaches(candidate, []string{edit}) && !production.Files[edit] {
 					t.Errorf("an edit to %s reaches lane %s only through a test import", edit, candidate.name)
 				}
 			}
@@ -146,16 +223,15 @@ func TestTrainingKernelEditReachesOnlyTrainingLanes(t *testing.T) {
 			t.Fatalf("the trainer-only kernel is not where the lanes are asked about: %v", err)
 		}
 	}
+	reaches, err := discover(repo, lanes...)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, candidate := range lanes {
 		t.Run(candidate.name, func(t *testing.T) {
 			t.Parallel()
 			for _, edit := range edits {
-				l := &landing{Options: Options{Repo: repo, Log: io.Discard}, paths: []string{edit}}
-				reached, err := l.reaches(t.Context(), candidate)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if want := candidate.name == "cuda"; reached != want {
+				if reached, want := reaches(candidate, []string{edit}), candidate.name == "cuda"; reached != want {
 					t.Errorf("an edit to %s reaches lane %s = %t, want %t", edit, candidate.name, reached, want)
 				}
 			}

@@ -8,14 +8,11 @@
       "title": "Cut lane cost where a change's reach is wider than what it can affect",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 124,
+        "reason": "build-context: lanes share one discovery per build context, 3 go list calls instead of 16, and a lane package a checkout lacks reaches nothing. Measured +124 nodes; training-kernels was 0."
+      },
       "steps": [
-        {
-          "id": "build-context",
-          "title": "Select lanes in the build context they run in",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLaneSelectionUsesTheLaneBuildContext$' -count=1",
-          "rationale": "SQA-037 (P2): lane selection lists packages without the build tags a lane runs with, so a change confined to a tagged-only dependency can leave its lane unselected. Declare each lane's build context once in its descriptor, for selection and execution, and delete listDirectories' duplicate decoder. Batch: internal/landing reaches no lane."
-        },
         {
           "id": "training-out-of-serving-packages",
           "title": "Move training code out of the packages serving links, so serving lanes stop reaching devicemath",

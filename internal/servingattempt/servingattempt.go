@@ -1,16 +1,19 @@
-// Package servingattempt records one execution of a capability that returns
-// its output whole, an image, a clip, a prediction, as the serving attempt
-// the user scorecard counts. The server's generation workspace and the
-// recipe command's run and measure verbs record through it, so a page's
-// generation and a command line's count alike.
+// Package servingattempt records one serving attempt as the observation the
+// user scorecard counts, and parks a failed one as a finding. The server,
+// its generation workspace and the recipe command's run and measure verbs
+// record through it, so a page's attempt and a command line's count alike.
+// Recording is local: it writes only to the store the server or command was
+// opened on, and a server without a store records nothing.
 package servingattempt
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/finding"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -59,6 +62,28 @@ func RecordWholeOutput(ctx context.Context, store artifact.Repository, attempt W
 	case attempt.Cause != nil:
 		observation.Outcome, observation.Failure = runrecord.OutcomeFailed, failureCode
 	}
-	_, err = runrecord.PublishServingObservation(ctx, store, observation)
+	_, err = Record(ctx, store, observation)
 	return err
+}
+
+// Record publishes one serving observation, the attempt the scorecard's
+// failure rate counts, and parks a failed one as an open finding that cites
+// it and its recipe: a failure a user met becomes the loop's work beside the
+// scorecard's gaps. It returns the published observation even when the
+// finding could not be parked.
+func Record(ctx context.Context, store artifact.Repository, observation runrecord.ServingObservation) (runrecord.ServingObservation, error) {
+	published, err := runrecord.PublishServingObservation(ctx, store, observation)
+	if err != nil || published.Outcome != runrecord.OutcomeFailed {
+		return published, err
+	}
+	_, batch, err := finding.NewTextBatch(
+		fmt.Sprintf("A %s serving attempt failed: %s", published.Task, published.Failure),
+		finding.SeverityHigh, []string{published.Recipe.String()}, []string{published.ID.String()},
+		"fix what the failed attempt records; the recipe's failure-rate cell and the loop's failing-attempts row close with it",
+		fmt.Sprintf("go run ./cmd/validate -scorecard shows a failed %s attempt under the recipe", published.Task),
+	)
+	if err == nil {
+		_, err = artifact.Publish(ctx, store, batch)
+	}
+	return published, err
 }

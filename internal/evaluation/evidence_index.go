@@ -53,6 +53,9 @@ type EvalSummary struct {
 	Prompting string             `json:"prompting"`
 	Record    artifact.ID        `json:"record,omitzero"`
 	Metrics   map[string]float64 `json:"metrics"`
+	// Directions says which way each metric improves: the scorecard judges
+	// a held-out regression by it.
+	Directions map[string]runrecord.Direction `json:"-"`
 	// Reproducible: the run's environment is one the store can reproduce;
 	// false for a hosted model scored through the relay.
 	Reproducible bool `json:"reproducible"`
@@ -192,11 +195,12 @@ func LatestEvidence(
 		}
 		seenSuite[record.Recipe][key] = true
 		metrics := make(map[string]float64, len(record.Metrics))
+		directions := make(map[string]runrecord.Direction, len(record.Metrics))
 		for _, metric := range record.Metrics {
-			metrics[metric.Name] = metric.Value
+			metrics[metric.Name], directions[metric.Name] = metric.Value, metric.Direction
 		}
 		index.EvaluationsByRecipe[record.Recipe] = append(index.EvaluationsByRecipe[record.Recipe], EvalSummary{
-			Suite: suite, Prompting: prompting, Record: record.ID, Metrics: metrics, Reproducible: reproducible,
+			Suite: suite, Prompting: prompting, Record: record.ID, Metrics: metrics, Directions: directions, Reproducible: reproducible,
 		})
 		return nil
 	})

@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "improvement-loop",
-      "title": "Close the improvement loop: scorecard gaps become the work, and a held-out verdict promotes or reverts",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Close the improvement loop: scorecard gaps become the work, and a held-out verdict promotes or reverts",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestScorecardHasNoUnexplainedCell$' -count=1 \u0026\u0026 go test ./internal/loop -run '^TestLoopPromotesOnlyOnHeldOutFitness$' -count=1 \u0026\u0026 go test ./cmd/loop -run '^(TestScorecardGapsBecomeProposals|TestPromotionWaitsForAHoldingScorecard)$' -count=1 \u0026\u0026 go test ./internal/server -run '^TestServingFailureBecomesAFinding$' -count=1",
-          "rationale": "The milestone. The scorecard's gaps become rows as plain plan data; a held-out verdict then promotes master to main or reverts. Real serving failures (local, opt-in) become findings and scorecard cells.\n\nAbsorbed 2026-09-29, rationale kept:\n\nuser-scorecard (One user-facing scorecard across every model, the definition of improvement):\n- do, verify `go test ./cmd/validate -run '^TestScorecardHasNoUnexplainedCell$' -count=1`: Absorbs, 2026-09-27: model-regression-baseline (full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under budgets, accepted record ids pinned), benchmark-completion (compare only cells whose checkpoint, precision, split, shots, template, scoring and extraction agree; keep the 100-case MMLU label; TestAcceptedPublishedComparison rejects omitted cells, duplicates, stale identities and failed outcomes), final-model-validation (a bounded long-lived server run: concurrency, context grow and shrink, cancellation, failure, reload, VRAM plateauing within budget), benchmark-27b (operator only, -budget 3h per launch, resuming exact remaining cases; the row reads completed evidence and never starts the pass), gemma-12b-accuracy (the unquantized google/gemma-4-12B-it was downloaded 2026-09-28 on the owner's answer, to compare with the 12B FP8 twins, which score 0.5-1.2 nats per token worse than E4B on the guard corpus while overgo's 12B graph matches the transformers reference, so the suspect is the third-party quant) and validate-all-models (RAE is the remaining unvalidated model, rae-generation-path). Done when every model's row has every cell measured or carrying a stated reason. Correction 2026-09-28: the lanes are not off the landing path. d836b7deb put them back, and the landing now runs eight lanes (device, webui, model-journey, audio, thoughtbank, integration, cuda, e4b) when a change reaches them. Owner answer 2026-09-28: the full scorecard runs from the loop when the plan empties, not on a schedule. The scheduled step landed that path: validate -run, then validate -scorecard -publish writes a record beside the store with what moved since the previous one. What it still lacks, taken on here: validate -run binds a re-acquisition command only for the guard. Each modality run the scheduled step named needs its own command before the loop's scorecard measures it rather than reads old records: tabular, vqa, projection, training, activity detection, every model that is not its task's smallest, and latent-image scratch seeding.\n\nloop-fitness-scorecard (Drive the unattended loop by the scorecard: its gaps are the work, its held-out cells the fitness):\n- chain, verify `go test ./internal/loop -run '^TestLoopPromotesOnlyOnHeldOutFitness$' -count=1`: Owner recommendation 2026-09-27: chain the existing model-loop parts (internal/loop strategy, experiment, held-out fitness, rollout promotion) into one path, with the circuit breaker and rollback as guards, whose fitness is the scorecard's held-out cells.\n- do, verify `go test ./cmd/loop -run '^TestScorecardGapsBecomeProposals$' -count=1`: A scheduled scorecard regression, or the weakest metric, becomes a typed proposal the unattended loop admits (plan -admit-proposal), so its work comes from what users feel. Keep the held-out rows high so the loop improves real quality rather than its own tests.\n\npromote-on-scorecard (Promote master to main only when the scorecard holds, and revert on a regression):\n- do, verify `go test ./cmd/loop -run '^TestPromotionWaitsForAHoldingScorecard$' -count=1`: Owner recommendation 2026-09-27. main mirrors master, so unattended changes reach users directly. Promote master to main automatically only when the scorecard shows no regression, and revert automatically when one appears, so users see only improvements and nobody has to watch releases. Until this lands, pushing stays on the owner's explicit request.\n\nusage-signal-findings (Turn real serving failures into findings and scorecard cells (local, opt-in)):\n- do, verify `go test ./internal/server -run '^TestServingFailureBecomesAFinding$' -count=1`: Owner recommendation 2026-09-27. Benchmarks miss what users hit. The server already records serving observations per request (time to first token via the prefill sample, outcome, peak device memory); make the recording an explicit local opt-in, feed the scorecard from it, and turn every crash or refusal into a finding automatically, so real failures become the unattended loop's work supply beside the benchmark's gaps.\n\nServes: measure, find the gap, promote or revert. Disappears: the separate scorecard, fitness and promotion paths. Evidence: the scorecard run (validate -run, then validate -scorecard -publish, from the loop when the plan empties) is the promotion evidence; nothing is measured twice. Batch: host."
-        }
-      ]
-    },
-    {
       "id": "wire-remaining-trainers",
       "title": "Give every remaining trainer a train route that publishes a checkpoint",
       "owner": "master-lead",
@@ -75,6 +60,21 @@
           "status": "open",
           "verify": "go test ./internal/mediacapability -run '^TestRAEImageCapabilityGenerates$' -count=1",
           "rationale": "internal/rae generates class-conditional ImageNet images, matched to the PyTorch reference: the ViT-XL decoder, the DiT-DH velocity, and Euler over the reference's shifted grid. Only tests call it. Serve it through the image-gen capability, as the other image models are:\n- a module in the recipe catalog;\n- a resolver for the collection directory: the DiT checkpoint, decoder, latent statistics and the DINOv2 encoder's image processor;\n- a request naming an ImageNet class and a seed;\n- classifier-free guidance when the reference's sampler config uses it.\ncmd/validate then gives RAE its image proof, and user-scorecard's validate-all-models loses its last unvalidated model.\n\nRegistering the module edits internal/modelrecipe, an inference-surface root, which would expire every text model's guard. So this row waits on surface-without-capability-tables. Predicted effect: first-output and held-out-quality become measurable for RAE on the image route.\n\nServes: RAE image generation for users. Evidence: the activation run is both the acceptance and the RAE scorecard row. Batch: surface."
+        }
+      ]
+    },
+    {
+      "id": "loop-parts-wire-or-delete",
+      "title": "Delete or wire the model-level loop parts the closed loop does not reach",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete or wire the model-level loop parts the closed loop does not reach",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1",
+          "rationale": "Filed 2026-09-30 when improvement-loop closed the loop through the scorecard: measure, turn gaps into rows, then judge on held-out data and promote or revert.\n\nModel-level loop parts exist as separate pieces that the closed loop does not reach: strategy experiments, the improvement-fitness proof (cmd/loop -publish-fitness), rollout promotion, the circuit breaker, live rollback, quarantine re-entry, the autonomy ratchet and calibration. Together they are thousands of lines, each started by hand from cmd/recipe or cmd/seam-align.\n\nRecommendation: delete what the loop does not reach, and re-file any part a real scorecard gap later calls for. The loop's own chain already covers promotion (scorecard-gated fast-forward of main) and rollback (refusal leaves main where it is). Keep only a part that a gap the loop has actually filed needs.\n\nThe alternative is to wire each part into the loop's promote step, for example rollout promotion behind the held-out verdict. That is the owner's decision, since the doctrine names these parts core.\n\nServes: the promote-or-revert stage. Disappears: the unreached parts, or their standalone entry points if wired. Evidence: deadcode and the loop's own chain (cmd/loop improve.go). Batch: host."
         }
       ]
     },
@@ -536,7 +536,8 @@
             "wire-remaining-trainers/do",
             "compatibility-into-validate/do",
             "goldens-own-parity/do",
-            "commands-into-tables/do"
+            "commands-into-tables/do",
+            "loop-parts-wire-or-delete/do"
           ]
         }
       ]

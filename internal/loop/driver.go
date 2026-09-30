@@ -6,13 +6,18 @@
 // bored -- is just an event: the driver re-reads the plan and either advances,
 // retries the same step with the failure tail as feedback, or parks loudly
 // after the attempt budget. Continuity is a for-loop in a process that cannot
-// be talked out of anything, so it works regardless of harness or model.
+// be talked out of anything, so it works regardless of harness or model. When
+// the plan empties, the scorecard measures what the work changed, a holding
+// held-out quality promotes it, and the gaps become the next rows.
 package loop
 
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
+
+	"overgo/internal/scorecard"
 )
 
 // Step identifies one dispatched unit of plan work.
@@ -76,6 +81,25 @@ type ObligationWorld interface {
 	ReplayObligations() (due uint64, err error)
 }
 
+// ImprovementWorld is the optional world extension that closes the
+// improvement loop each time the plan empties: the scorecard run is the
+// promotion evidence, the promoted branch moves only when the run's
+// held-out quality holds against its baseline, and the run's gaps return as
+// plan rows, the next work.
+type ImprovementWorld interface {
+	// Measure runs the scorecard and returns the record it published and the
+	// baseline that record is judged against, nil when there is none. A
+	// failed validation returns its error beside the published record; a run
+	// that published nothing returns no record.
+	Measure() (published, baseline *scorecard.Record, err error)
+	// Promote moves the promoted branch forward to the measured commit. It
+	// never pushes.
+	Promote(commit string) error
+	// Propose writes the gaps the plan does not hold as rows and reports how
+	// many it added.
+	Propose(published scorecard.Record, gaps []scorecard.Gap) (added int, err error)
+}
+
 // Outcome reports why Run returned.
 type Outcome struct {
 	Reason      string
@@ -83,6 +107,8 @@ type Outcome struct {
 	Parked      []string
 	// ObligationsDue is the last replay's count of follow-ups still owed.
 	ObligationsDue uint64
+	// Promoted is the commit the last holding scorecard promoted, if any.
+	Promoted string
 }
 
 const (
@@ -134,8 +160,11 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, fmt.Errorf("loop: read plan: %w", err)
 		}
 		if !open {
-			outcome.Reason = ReasonPlanComplete
-			return outcome, nil
+			if added, err := improve(world, &outcome); err != nil || added == 0 {
+				outcome.Reason = ReasonPlanComplete
+				return outcome, err
+			}
+			continue
 		}
 		if step.Key() != lastKey {
 			lastKey, attempts, feedback = step.Key(), 0, ""
@@ -213,6 +242,30 @@ func Run(world World, config Config) (Outcome, error) {
 		feedback = "attempt " + fmt.Sprint(attempts) + " verify failure:\n" + truncate(failure, 2000) +
 			"\nworker tail:\n" + truncate(tail, 1000)
 	}
+}
+
+// improve measures an emptied plan, promotes the measured commit only when
+// no held-out quality fell below the baseline's, and proposes the gaps as
+// rows. A failed validation leaves stale cells, so it promotes nothing; its
+// record still names the gaps. A world that does not measure adds nothing.
+func improve(world World, outcome *Outcome) (int, error) {
+	improver, measures := world.(ImprovementWorld)
+	if !measures {
+		return 0, nil
+	}
+	published, baseline, err := improver.Measure()
+	if published == nil {
+		return 0, errors.Join(errors.New("loop: the plan is empty, but no scorecard was published"), err)
+	}
+	gaps := published.Gaps(baseline)
+	if err == nil && !slices.ContainsFunc(gaps, scorecard.Gap.Regressed) {
+		if err := improver.Promote(published.Commit); err != nil {
+			return 0, fmt.Errorf("loop: promote: %w", err)
+		}
+		outcome.Promoted = published.Commit
+	}
+	added, proposeErr := improver.Propose(*published, gaps)
+	return added, errors.Join(err, proposeErr)
 }
 
 // LaunchError marks a worker that could not start at all, as distinct from a

@@ -1,0 +1,97 @@
+package loop
+
+import (
+	"errors"
+	"slices"
+	"testing"
+
+	"overgo/internal/artifact"
+	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
+	"overgo/internal/scorecard"
+	"overgo/internal/scorecard/metric"
+	"overgo/internal/testutil"
+)
+
+// improvingWorld is an emptied plan whose scorecard run publishes the
+// scripted record against the scripted baseline.
+type improvingWorld struct {
+	fakeWorld
+	published, baseline *scorecard.Record
+	measureErr          error
+	promoted            []string
+	proposed            []scorecard.Gap
+}
+
+func (w *improvingWorld) Measure() (*scorecard.Record, *scorecard.Record, error) {
+	return w.published, w.baseline, w.measureErr
+}
+
+func (w *improvingWorld) Promote(commit string) error {
+	w.promoted = append(w.promoted, commit)
+	return nil
+}
+
+func (w *improvingWorld) Propose(_ scorecard.Record, gaps []scorecard.Gap) (int, error) {
+	w.proposed = gaps
+	return 0, nil
+}
+
+// TestLoopPromotesOnlyOnHeldOutFitness empties the plan against scripted
+// scorecards and holds promotion to the held-out quality cells alone, judged
+// like for like: a fall in the metric's own direction on the same suite
+// refuses it, whatever else improved, while slower throughput, a failed
+// attempt, a new suite or a first record with nothing to compare promote.
+// A failed validation promotes nothing. Every run proposes its gaps, and a
+// refusal's gaps name the regression.
+func TestLoopPromotesOnlyOnHeldOutFitness(t *testing.T) {
+	t.Parallel()
+	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-fitness")
+	accuracy := func(value float64, suite string) scorecard.Cell {
+		return scorecard.Cell{Value: value, Label: "accuracy, " + suite, Source: source, Direction: runrecord.DirectionMaximize}
+	}
+	perplexity := func(value float64) scorecard.Cell {
+		return scorecard.Cell{Value: value, Label: "perplexity, store/dna", Source: source, Direction: runrecord.DirectionMinimize}
+	}
+	record := func(commit string, quality scorecard.Cell, throughput, failures float64) *scorecard.Record {
+		cells := map[metric.Name]scorecard.Cell{}
+		for _, column := range metric.Columns {
+			cells[column] = scorecard.Cell{Value: 1, Source: source}
+		}
+		cells[metric.Quality] = quality
+		cells[metric.Throughput] = scorecard.Cell{Value: throughput, Unit: "tok/s", Source: source}
+		cells[metric.Failures] = scorecard.Cell{Value: failures, Label: "attempts", Source: source}
+		return &scorecard.Record{Commit: commit, Rows: []scorecard.Row{{Name: "model", Task: recipe.TaskInference, Cells: cells}}}
+	}
+	for _, scenario := range []struct {
+		name                string
+		baseline, published *scorecard.Record
+		measureErr          error
+		promotes            bool
+	}{
+		{name: "held quality, slower and failing", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.5, "mmlu"), 30, 0.1), promotes: true},
+		{name: "accuracy fell while throughput rose", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.4, "mmlu"), 50, 0)},
+		{name: "perplexity rose", baseline: record("a", perplexity(900), 40, 0), published: record("b", perplexity(950), 40, 0)},
+		{name: "perplexity fell", baseline: record("a", perplexity(900), 40, 0), published: record("b", perplexity(850), 40, 0), promotes: true},
+		{name: "another suite scores lower", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.2, "mmlu-pro"), 40, 0), promotes: true},
+		{name: "first record", published: record("b", accuracy(0.2, "mmlu"), 40, 0), promotes: true},
+		{name: "failed validation", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.6, "mmlu"), 40, 0), measureErr: errors.New("validate -run failed")},
+	} {
+		world := &improvingWorld{published: scenario.published, baseline: scenario.baseline, measureErr: scenario.measureErr}
+		outcome, err := Run(world, Config{MaxAttemptsPerStep: 1, MaxInvocations: 1})
+		if (err != nil) != (scenario.measureErr != nil) || outcome.Reason != ReasonPlanComplete {
+			t.Fatalf("%s: outcome=%+v err=%v", scenario.name, outcome, err)
+		}
+		if promoted := slices.Equal(world.promoted, []string{"b"}); promoted != scenario.promotes || (outcome.Promoted == "b") != promoted {
+			t.Fatalf("%s: promoted %v (outcome %q), want promotion %v", scenario.name, world.promoted, outcome.Promoted, scenario.promotes)
+		}
+		regressed := slices.ContainsFunc(world.proposed, scorecard.Gap.Regressed)
+		if regressed != (!scenario.promotes && scenario.measureErr == nil) {
+			t.Fatalf("%s: proposed %+v; a refusal proposes its regression, a promotion none", scenario.name, world.proposed)
+		}
+	}
+	world := &improvingWorld{measureErr: errors.New("validate -scorecard -publish failed")}
+	if outcome, err := Run(world, Config{MaxAttemptsPerStep: 1, MaxInvocations: 1}); err == nil || len(world.promoted) != 0 || world.proposed != nil {
+		t.Fatalf("a run that published no scorecard: outcome=%+v err=%v promoted=%v proposed=%v", outcome, err, world.promoted, world.proposed)
+	}
+}

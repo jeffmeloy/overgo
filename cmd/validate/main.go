@@ -24,6 +24,7 @@ import (
 	"overgo/internal/inferencesurface"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/scorecard"
 )
 
 // catalogLimit bounds the registered-model listing; a truncated denominator is
@@ -44,6 +45,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
 	scorecardView := flags.Bool("scorecard", false, "print the user scorecard: for every activated model and task, time to first output, throughput, held-out quality, failures, load time, peak device memory and setup steps, each read from the store or listed as a gap with its reason, and the share of served models supported by declaration alone; runs nothing")
 	publish := flags.Bool("publish", false, "with -scorecard: write it as the newest record in the scorecards directory beside the store and list what moved since the previous record")
+	gap := flags.String("gap", "", "with -scorecard: fail while the gap this key names is open on the scorecard the store holds, judged against the newest published record's baseline; the verifier of the row the loop proposed for it")
 	command := clioptions.Command{
 		Name:     "validate",
 		Purpose:  "select the minimal sufficient end-to-end validation for a commit and, with -run, execute it",
@@ -81,9 +83,12 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			return err
 		}
 		defer store.Close()
-		records := ""
-		if *publish {
-			records = filepath.Join(filepath.Dir(storeRoot), scorecardDirectory)
+		records := scorecard.Directory(storeRoot)
+		if *gap != "" {
+			return openGap(ctx, store, *root, records, *gap, output)
+		}
+		if !*publish {
+			records = ""
 		}
 		return writeScorecard(ctx, store, *root, records, output)
 	}

@@ -30,14 +30,16 @@ const catalogLimit = 4096
 // Cell is one measured value with its unit, what it measures and the record
 // it came from, or the reason no record measures it. NotApplicable marks a
 // metric the task's output cannot have: its reason says why, and no
-// measurement is missing.
+// measurement is missing. Direction says which way a held-out quality
+// improves.
 type Cell struct {
-	Value         float64
-	Unit          string
-	Label         string
-	Source        artifact.ID
-	Reason        string
-	NotApplicable bool
+	Value         float64             `json:"value,omitzero"`
+	Unit          string              `json:"unit,omitzero"`
+	Label         string              `json:"label,omitzero"`
+	Source        artifact.ID         `json:"source,omitzero"`
+	Reason        string              `json:"reason,omitzero"`
+	NotApplicable bool                `json:"not_applicable,omitzero"`
+	Direction     runrecord.Direction `json:"direction,omitzero"`
 }
 
 // wholeOutputTasks return their output whole, an image, a clip or a
@@ -55,12 +57,12 @@ func (c Cell) Measured() bool { return c.Reason == "" }
 // recipe's profile dependency declares; a recipe that resolves no
 // architecture profile, a media or specialized one, leaves it empty.
 type Row struct {
-	Model        artifact.ID
-	Name         string
-	Task         recipe.Task
-	Recipe       artifact.ID
-	Architecture string
-	Cells        map[metric.Name]Cell
+	Model        artifact.ID          `json:"model,omitzero"`
+	Name         string               `json:"name"`
+	Task         recipe.Task          `json:"task"`
+	Recipe       artifact.ID          `json:"recipe,omitzero"`
+	Architecture string               `json:"architecture,omitzero"`
+	Cells        map[metric.Name]Cell `json:"cells"`
 }
 
 // Build reads the scorecard from the store: one row for every activation
@@ -317,7 +319,7 @@ func qualityCell(summaries []evaluation.EvalSummary, descriptors map[string]eval
 	if !ok {
 		return gap("the latest evaluation reports no metric")
 	}
-	return Cell{Value: value, Label: fmt.Sprintf("%s, %s (%s)", name, best.Suite, best.Prompting), Source: best.Record}
+	return Cell{Value: value, Label: fmt.Sprintf("%s, %s (%s)", name, best.Suite, best.Prompting), Source: best.Record, Direction: best.Directions[name]}
 }
 
 func failureCell(observed *servingSummary) Cell {

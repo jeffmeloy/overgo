@@ -21,10 +21,16 @@ import (
 
 func TestImageVideoReportContract(t *testing.T) {
 	t.Parallel()
-	t.Run("focused update refuses before store access", func(t *testing.T) {
-		args := []string{"-update-media", "-media-scope", "image-video", "-models-repo", filepath.Join(t.TempDir(), "absent")}
-		if err := runArgs(args); err == nil || !strings.Contains(err.Error(), "always writes the complete docs/MEDIA_REPORT.md") {
-			t.Fatalf("focused update must preserve complete report: %v", err)
+	t.Run("focused render refuses before store access", func(t *testing.T) {
+		args := []string{"-media", "markdown", "-media-scope", "image-video", "-models-repo", filepath.Join(t.TempDir(), "absent")}
+		if err := runArgs(args); err == nil || !strings.Contains(err.Error(), "the media report always renders every media task") {
+			t.Fatalf("focused render must keep the complete report: %v", err)
+		}
+	})
+	t.Run("unknown render format refuses before store access", func(t *testing.T) {
+		args := []string{"-media", "html", "-models-repo", filepath.Join(t.TempDir(), "absent")}
+		if err := runArgs(args); err == nil || !strings.Contains(err.Error(), "usage: compatibility -media markdown|json") {
+			t.Fatalf("unknown media format accepted: %v", err)
 		}
 	})
 	ctx := t.Context()

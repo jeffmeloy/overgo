@@ -11,9 +11,8 @@ import (
 	"overgo/internal/runrecord"
 )
 
-const mediaProjectionPath = "docs/media_report.json"
-
-// A rebuildable view, never generation acceptance or another evidence ledger.
+// A view rendered on demand, never generation acceptance or another evidence
+// ledger.
 type mediaProjection struct {
 	Version    uint16                      `json:"version"`
 	Tasks      []recipe.Task               `json:"tasks"`

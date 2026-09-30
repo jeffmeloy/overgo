@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -34,24 +33,10 @@ func TestAcceptedModalityCoverage(t *testing.T) {
 	}
 	t.Run("case-denominators", TestProtocolCaseProjection)
 	t.Run("resource-denominators", TestResourceCaseProjection)
+	// The report is rendered on demand, never committed: its projection is
+	// held to the declared protocols here, not to a stored copy.
 	output := acceptedProtocolCoverageProjection(t)
 	root := testutil.RepoRoot(t)
-	for path, want := range map[string][]byte{mediaReportPath: output.Markdown, mediaProjectionPath: output.JSON} {
-		got, err := os.ReadFile(filepath.Join(root, path))
-		if err != nil {
-			t.Fatal(err)
-		}
-		got = bytes.ReplaceAll(got, []byte("\r\n"), []byte("\n"))
-		if !bytes.Equal(got, want) {
-			index := 0
-			for index < len(got) && index < len(want) && got[index] == want[index] {
-				index++
-			}
-			before, _, _ := bytes.Cut(got[index:], []byte("\n"))
-			after, _, _ := bytes.Cut(want[index:], []byte("\n"))
-			t.Fatalf("%s is stale at byte %d: stored line suffix=%q derived=%q; regenerate with compatibility -update-media", path, index, before, after)
-		}
-	}
 	var projection mediaProjection
 	if err := json.Unmarshal(output.JSON, &projection); err != nil {
 		t.Fatal(err)

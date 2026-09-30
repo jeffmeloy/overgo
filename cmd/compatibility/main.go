@@ -1,7 +1,7 @@
-// Command compatibility renders the model report, publishes the media
-// report, exports media samples, publishes and checks the capability census,
-// and commits verification records. The claims and the matrices published
-// from them are cmd/validate's.
+// Command compatibility renders the model and media reports, exports media
+// samples, publishes and checks the capability census, and commits
+// verification records. The claims and the matrices published from them are
+// cmd/validate's.
 package main
 
 import (
@@ -35,12 +35,12 @@ func run() error {
 func runArgs(args []string) error {
 	flags := flag.NewFlagSet("compatibility", flag.ExitOnError)
 	models := flags.Bool("models", false, "print the nested model compatibility report joined against the store")
-	updateMedia := flags.Bool("update-media", false, "write JSON measurements and the media capability report from store activations and verification claims")
+	media := flags.String("media", "", "print the media capability report rendered from store activations and the verification specifications: markdown, or json for its typed projection; its links resolve from docs/")
 	mediaScopeName := flags.String("media-scope", "all", "sample export tasks: all or image-video; the report always includes all media")
 	publishCensus := flags.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
 	checkCensus := flags.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
 	exportSamples := flags.Bool("export-samples", false, "export healthy media activations' generation outputs as decodable files under docs/media_samples")
-	modelsRepo := flags.String("models-repo", "overgodb-store", "OvergoDB store for -models prototype resolution")
+	modelsRepo := flags.String("models-repo", "overgodb-store", "OvergoDB store the -models and -media reports, the sample export and the census read")
 	recordVerification := flags.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims)")
 	recordStore := flags.String("record", "", "OvergoDB root for -record-verification")
 	if err := flags.Parse(args); err != nil {
@@ -50,11 +50,11 @@ func runArgs(args []string) error {
 	if err != nil {
 		return err
 	}
-	if *mediaScopeName != "all" && (!*exportSamples || *updateMedia) || *updateMedia && *exportSamples {
-		return errors.New("usage: compatibility -update-media [-models-repo <overgodb>] or -export-samples [-media-scope all|image-video] [-models-repo <overgodb>]; -update-media always writes the complete docs/MEDIA_REPORT.md")
+	if *mediaScopeName != "all" && (!*exportSamples || *media != "") || *media != "" && *exportSamples {
+		return errors.New("usage: compatibility -media markdown|json [-models-repo <overgodb>] or -export-samples [-media-scope all|image-video] [-models-repo <overgodb>]; the media report always renders every media task")
 	}
 	if *publishCensus || *checkCensus != "" {
-		if flags.NArg() != 0 || *publishCensus && *checkCensus != "" || *models || *updateMedia || *exportSamples || *recordVerification != "" {
+		if flags.NArg() != 0 || *publishCensus && *checkCensus != "" || *models || *media != "" || *exportSamples || *recordVerification != "" {
 			return errors.New("usage: compatibility [-publish-census|-check-census <id>] [-models-repo <overgodb>]")
 		}
 		return runCapabilityCensus(*modelsRepo, *publishCensus, *checkCensus, os.Stdout)
@@ -65,22 +65,20 @@ func runArgs(args []string) error {
 		}
 		return exportMediaSamples(".", *modelsRepo, mediaScope)
 	}
-	if *updateMedia {
-		if flags.NArg() != 0 || *recordVerification != "" {
-			return errors.New("usage: compatibility -update-media [-models-repo <overgodb>]")
+	if *media != "" {
+		if flags.NArg() != 0 || *recordVerification != "" || *media != "markdown" && *media != "json" {
+			return errors.New("usage: compatibility -media markdown|json [-models-repo <overgodb>]")
 		}
 		data, err := generateMediaReport(".", *modelsRepo)
 		if err != nil {
 			return err
 		}
-		if err := clioptions.WriteOutputFile(filepath.FromSlash(mediaProjectionPath), data.JSON); err != nil {
-			return err
+		rendered := data.Markdown
+		if *media == "json" {
+			rendered = data.JSON
 		}
-		if err := clioptions.WriteOutputFile(filepath.FromSlash(mediaReportPath), data.Markdown); err != nil {
-			return err
-		}
-		fmt.Printf("wrote %s and %s\n", mediaProjectionPath, mediaReportPath)
-		return nil
+		_, err = os.Stdout.Write(rendered)
+		return err
 	}
 	if *models {
 		if flags.NArg() != 0 || *recordVerification != "" {
@@ -102,7 +100,7 @@ func runArgs(args []string) error {
 		}
 		return runRecordVerification(*recordVerification, *recordStore, os.Stdout)
 	}
-	return errors.New("usage: compatibility -models|-update-media|-export-samples|-publish-census|-check-census <id>|-record-verification <spec.json>; the claims and the matrices published from them are checked by go run ./cmd/validate -claims")
+	return errors.New("usage: compatibility -models|-media markdown|json|-export-samples|-publish-census|-check-census <id>|-record-verification <spec.json>; the claims and the matrices published from them are checked by go run ./cmd/validate -claims")
 }
 
 // runRecordVerification commits one typed model-verification record: the

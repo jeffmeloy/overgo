@@ -205,7 +205,9 @@ Plan changes retain their acceptance requirements.
 - [Benchmark report](docs/BENCHMARK.md) — evaluation and performance results
 - Model catalog — model-specific records, rendered on demand by
   `go run ./cmd/compatibility -models -models-repo <store>`
-- [Media report](docs/MEDIA_REPORT.md) — media recipes, runs, and outputs
+- Media report — media recipes, runs, and outputs, rendered on demand by
+  `go run ./cmd/compatibility -media markdown -models-repo <store>`
+  (`-media json` for its typed projection)
 - [Training compatibility](docs/TRAINING_COMPATIBILITY.md) — training evidence and scope
 - [Compatibility matrix](docs/COMPATIBILITY.md) — features and verification references
 - [Development plan](docs/plan.json) — current work and completion checks

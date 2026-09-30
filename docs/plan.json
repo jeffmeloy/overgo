@@ -10,13 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "media-report",
-          "title": "Re-root the media report's store identities, then take media_report.json and MEDIA_REPORT.md out of the tree",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestMediaReportIsRenderedOnDemand$' -count=1",
-          "rationale": "S3: media_report.json is the only checkout root of 322 store identities (180 model, 52 evidence, 35 run, 24 profile, 19 evaluation, 7 recipe, 5 file). Measure them against the store and re-root them first, then delete the two committed reports and the currency half of TestAcceptedModalityCoverage. Batch: lanes none."
-        },
-        {
           "id": "media-campaign",
           "title": "Fold the media campaign's receipts into one committed record, if one can replace several pins without weakening them",
           "status": "open",

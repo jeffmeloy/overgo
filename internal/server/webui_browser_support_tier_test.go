@@ -99,7 +99,7 @@ func TestWebUIBrowserSupportTier(t *testing.T) {
 	settle(`[...document.querySelectorAll('dialog[open] .row[tabindex]')].length === 2`)
 	check(`(() => {
   const tier = (name) => ([...document.querySelectorAll('dialog[open] .row[tabindex]')].find(row => row.querySelector('.mono').textContent === name) || document.body).querySelector('.support-tier');
-  return tier(` + "`" + health.Model + "`" + `).textContent === 'self-consistent · guarded' && tier('bare.gguf').textContent === 'registered' && tier('bare.gguf').dataset.tier === 'registered';
+  return tier(` + "`" + health.Model + "`" + `).textContent === 'self-consistent · guarded' && tier('bare.gguf').textContent === 'registered' && tier('bare.gguf').classList.contains('caution');
 })()`)
 	check(`(() => { document.querySelector('dialog[open]').dispatchEvent(new Event('cancel')); return true; })()`)
 	settle(`!document.querySelector('dialog[open]')`)

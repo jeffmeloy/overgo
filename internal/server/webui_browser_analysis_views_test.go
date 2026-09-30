@@ -48,6 +48,9 @@ func TestWebUIBrowserAnalysisViews(t *testing.T) {
 	var modelReads, healthReads, statesCaptures atomic.Int64
 	// held: the first capture's request, released when the leg ends.
 	held := make(chan struct{})
+	// arrived: closed once the first capture reaches the server, so the leg
+	// cancels a request in flight rather than one the page has yet to send.
+	arrived := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/analyze/model":
@@ -57,6 +60,7 @@ func TestWebUIBrowserAnalysisViews(t *testing.T) {
 		case "/analyze/states":
 			// The first capture is held until the page abandons it.
 			if statesCaptures.Add(1) == 1 {
+				close(arrived)
 				select {
 				case <-r.Context().Done():
 				case <-held:
@@ -109,6 +113,11 @@ func TestWebUIBrowserAnalysisViews(t *testing.T) {
 	settle(`!!analysisButton('capture')`)
 	check(`(() => { analysisButton('capture').click(); return true; })()`)
 	settle(`!!analysisButton('cancel')`)
+	select {
+	case <-arrived:
+	case <-ctx.Done():
+		t.Fatal("the capture never reached the server")
+	}
 	check(`(() => { analysisButton('cancel').click(); return true; })()`)
 	// The surface shows [cancelled] only when the held request rejects as
 	// aborted, which the view's forwarded signal alone causes.

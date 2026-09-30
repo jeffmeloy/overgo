@@ -213,7 +213,7 @@
         ];
         if (walk.receipts) {
           parts.push(el("div", {}, "receipts ", ...walk.receipts.flatMap((receipt) => [
-            el("span", { class: receipt.state === "failed" ? "tag tag-danger" : "tag", text: receipt.state }), " ",
+            el("span", { class: receipt.state === "failed" ? "tag caution" : "tag", text: receipt.state }), " ",
             artifactLink(receipt.id), " ",
           ])));
         }

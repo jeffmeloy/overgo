@@ -253,6 +253,11 @@
     return String(n);
   }
   // duration: milliseconds as whole seconds, minutes or hours and minutes.
+  // elapsed: a measured span in the unit that reads it, milliseconds under a second and seconds under a minute.
+  function elapsed(ms) {
+    ms = Number(ms);
+    return ms < 1000 ? ms.toFixed(1) + " ms" : ms < 60000 ? (ms / 1000).toFixed(2) + " s" : duration(ms);
+  }
   function duration(ms) {
     const seconds = Math.max(1, Math.round(Number(ms) / 1000));
     if (seconds < 60) return seconds + "s";
@@ -511,8 +516,8 @@
   // evidence in the title.
   function supportTag(support, node = el("span")) {
     const beside = support.rungs.filter((rung) => rung.held && (rung.name === "guarded" || rung.name === "trainable")).map((rung) => rung.name);
-    node.className = "tag support-tier";
-    node.dataset.tier = support.tier;
+    // Registered alone reads as a caution, parity-checked as trusted; self-consistent is plain.
+    node.className = "tag support-tier" + (support.tier === "registered" ? " caution" : support.tier === "parity-checked" ? " ok" : "");
     node.textContent = [support.tier, ...beside].join(" · ");
     node.title = support.rungs.map((rung) => (rung.held ? "✓ " : "✗ ") + rung.name + ": " + rung.detail).join("\n");
     return node;
@@ -769,7 +774,7 @@
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors,
     getKey, setKey, modelInfo,
     displayToken, stat, turnTrend, fold, openLibrary, workspace, viewsOf, requestedView,
-    fmt: { grouped, bytes, compact, duration, shortID },
+    fmt: { grouped, bytes, compact, duration, elapsed, shortID },
   };
 
   // ---- shell wiring: the server manifest owns navigation order, labels and refusal; modules register only ----
@@ -1140,7 +1145,7 @@
             for (const capability of item.capabilities || []) facts.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier && capability.tier !== "verified" ? " · " + capability.tier : "") }));
             if (item.stale) {
               facts.open = true;
-              facts.appendChild(el("span", { class: "tag tag-danger", title: item.stale, text: "unservable: " + item.stale }));
+              facts.appendChild(el("span", { class: "tag caution", title: item.stale, text: "unservable: " + item.stale }));
               // A keyless hosted model takes its key here; the proxy and the served child hold it in memory only, and the picker relists.
               if (item.key_environment) {
                 const key = el("input", { class: "keyfield", type: "password", placeholder: item.key_environment, "aria-label": "provider key" });
@@ -1151,7 +1156,7 @@
               return row;
             }
             // The model already serving says so in place of an offer to serve it again.
-            if (name === modelPill.textContent) { row.appendChild(el("span", { class: "tag user_defined", text: "Serving" })); return row; }
+            if (name === modelPill.textContent) { row.appendChild(el("span", { class: "tag ok", text: "Serving" })); return row; }
             row.appendChild(el("button", { class: "btn alt", text: "Serve", "data-serve": "", disabled: modelSwitchPending, onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
           }));
         const first = panel.querySelector(".row"); if (first) first.focus();

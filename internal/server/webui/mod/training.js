@@ -203,7 +203,7 @@
         if (record) renderTrace(overgo, evidence, record, baseline && baseline.run !== record.run ? baseline : null);
       }, { loading: "Loading the run…" });
 
-      function outcomeClass(outcome) { return outcome === "succeeded" ? "user_defined" : (outcome === "failed" ? "control" : ""); }
+      function outcomeClass(outcome) { return outcome === "succeeded" ? "ok" : (outcome === "failed" ? "caution" : ""); }
       const load = overgo.read(host, (signal) => {
         const query = new URLSearchParams({ limit: String(limit) });
         if (cursor) query.set("cursor", cursor);

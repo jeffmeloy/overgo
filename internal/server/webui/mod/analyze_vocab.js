@@ -41,7 +41,7 @@
         next.disabled = last >= data.matched;
 
         const table = overgo.table(["id", "token", "type", "score"], data.tokens.map((token) => [String(token.id),
-          token.text === "" ? "∅" : token.text, el("span", { class: "tag " + token.type, text: token.type }), token.score ? token.score.toFixed(4) : "0"]));
+          token.text === "" ? "∅" : token.text, el("span", { class: "tag token-" + token.type, text: token.type }), token.score ? token.score.toFixed(4) : "0"]));
         host.replaceChildren(table);
       }, { loading: "Loading tokens…" });
       overgo.onRelease(() => clearTimeout(timer));

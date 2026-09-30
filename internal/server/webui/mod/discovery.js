@@ -36,7 +36,7 @@
           // A model reads by its file and what it does; its identity follows for reference.
           const line = overgo.tableRow([el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), capabilities,
             el("span", { class: "note mono", title: entry.model, text: fmt.shortID(entry.model) }), entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]);
-          ["Model", "Capabilities", "Identity", ""].forEach((label, index) => { line.children[index].dataset.label = label; });
+          ["Model", "Capabilities", "Identity", "Status"].forEach((label, index) => { line.children[index].dataset.label = label; });
           catalogBody.appendChild(line);
         }
       }, { loading: "Loading the catalog…" });
@@ -62,7 +62,7 @@
           searchNote.textContent = results.length ? counted : "No results";
           for (const listing of results) {
             const download = el("button", { class: "btn alt", onclick: () => startDownload(listing.id) }, "Add");
-            resultsBody.appendChild(overgo.tableRow([listing.id, fmt.compact(listing.downloads || 0), fmt.compact(listing.likes || 0), listing.gated ? el("span", { class: "tag control", text: "gated" }) : download]));
+            resultsBody.appendChild(overgo.tableRow([listing.id, fmt.compact(listing.downloads || 0), fmt.compact(listing.likes || 0), listing.gated ? el("span", { class: "tag caution", text: "gated" }) : download]));
           }
         });
       }
@@ -140,7 +140,7 @@
         if (event !== "hub.downloads") return;
         jobsBody.replaceChildren(...(data || []).map((job) => {
           const progress = job.total > 0 ? Math.floor(job.received * 100 / job.total) + "%" : "";
-          const state = job.state === "failed" ? el("span", { class: "tag control", text: "failed" }) : job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) : el("span", { class: "tag byte", text: progress || "running" });
+          const state = job.state === "failed" ? el("span", { class: "tag caution", text: "failed" }) : job.state === "succeeded" ? el("span", { class: "tag ok", text: "done" }) : el("span", { class: "tag", text: progress || "running" });
           return overgo.tableRow([job.repository, state, job.file || (job.state === "failed" ? job.error : ""), job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : ""), lifecycle(job)]);
         }));
         for (const job of data || []) if (job.state === "succeeded" && chained.delete(job.repository)) add(job);
@@ -213,7 +213,7 @@
       panel.append(
         el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: () => { refreshCatalog(); refreshScorecard(); } })),
         catalogNote,
-        el("table", { class: "grid stack hide-empty" }, el("thead", null, overgo.headerRow(["Model", "Capabilities", "Identity", ""])), catalogBody),
+        el("table", { class: "grid stack hide-empty" }, el("thead", null, overgo.headerRow(["Model", "Capabilities", "Identity", "Status"])), catalogBody),
         scorecard,
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),
@@ -228,7 +228,7 @@
       const localButton = el("button", { class: "btn alt", text: "Add a local model", onclick: () => {
         const path = localModel.value.trim(); if (!path) return;
         const job = { id: "local:" + path, kind: "models", state: "succeeded", repository: path, destination: path, projector: localProjector.value.trim() };
-        localBody.replaceChildren(overgo.tableRow([path, el("span", { class: "tag user_defined", text: "local" }), job.projector, "", lifecycle(job)]));
+        localBody.replaceChildren(overgo.tableRow([path, el("span", { class: "tag ok", text: "local" }), job.projector, "", lifecycle(job)]));
         add(job);
       } });
       const fromDisk = [el("div", { class: "section-title", text: "Add a model from disk" }), el("div", { class: "row" }, localModel, localProjector, localButton)];
@@ -239,7 +239,7 @@
       const datasetButton = el("button", { class: "btn alt", text: "Import a dataset file", onclick: () => {
         const path = datasetSource.value.trim(), name = datasetName.value.trim(); if (!path || !name) return;
         const job = { id: "import:" + path, kind: "datasets", state: "succeeded", repository: name, source: path };
-        localBody.replaceChildren(overgo.tableRow([name, el("span", { class: "tag user_defined", text: "import" }), path, "", lifecycle(job)]));
+        localBody.replaceChildren(overgo.tableRow([name, el("span", { class: "tag ok", text: "import" }), path, "", lifecycle(job)]));
         add(job);
       } });
       // Each way a model or dataset comes in is its own section; Downloads then follows what they started.

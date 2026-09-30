@@ -53,19 +53,18 @@ button, input, select, textarea, summary { touch-action:manipulation; }
   *, *::before, *::after { transition-duration:0s !important; }
 }
 /* chevron: the drawn disclosure mark (a turned corner, never a text glyph); .open turns it down. */
-.chevron::after, .fold > summary::before {
+.chevron::after, summary::before {
   content:""; display:inline-block; width:6px; height:6px; margin:0 var(--s2) 2px 2px; vertical-align:middle;
   border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(-45deg);
   transition:transform .12s;
 }
-.chevron.open::after, .fold[open] > summary::before { transform:rotate(45deg); }
+.chevron.open::after, details[open] > summary::before { transform:rotate(45deg); }
 ::-webkit-scrollbar { width:10px; height:10px; }
 ::-webkit-scrollbar-thumb { background:var(--line); border-radius:var(--radius-s); border:2px solid var(--bg0); }
 ::-webkit-scrollbar-thumb:hover { background:var(--faint); }
 ::-webkit-scrollbar-track { background:transparent; }
 
 .wordmark { font:650 var(--t-xl)/1 var(--font); letter-spacing:-.02em; color:var(--ink); }
-.mono { font-family:var(--mono); }
 .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
 .dim { color:var(--dim); }
 
@@ -211,18 +210,22 @@ table.grid th, table.grid td { text-align:left; padding:var(--s2) var(--s3); bor
 table.grid th { color:var(--dim); font:600 var(--t-sm) var(--font);
   position:sticky; top:0; background:var(--bg0); }
 table.grid tbody tr:hover { background:color-mix(in srgb, var(--bg2) 60%, transparent); }
-table.grid td.mono { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+table.grid td.mono { font-family:var(--mono); font-size:var(--t-sm); font-variant-numeric:tabular-nums; }
+/* A link in a table reads as its accent alone, underlined only under the pointer, like a link button. */
+table.grid a { text-decoration:none; }
+table.grid a:hover { text-decoration:underline; }
 .tag {
   display:inline-block; font:var(--t-sm) var(--font); border-radius:var(--radius-s); padding:1px var(--s2);
   border:1px solid var(--line); color:var(--dim);
 }
-.tag.control { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 40%, transparent); }
-.tag.byte { color:var(--acc); border-color:color-mix(in srgb, var(--acc) 40%, transparent); }
-.tag.user_defined { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
-.tag.tag-danger { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
-/* Support tiers: registered reads as a caution, self-consistent plain, parity-checked as trusted. */
-.tag.support-tier[data-tier="registered"] { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
-.tag.support-tier[data-tier="parity-checked"] { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
+/* A status reads in one of two tones: ok for done, running or trusted, caution for failed, waiting or refused;
+   a neutral state stays plain. */
+.tag.ok { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
+.tag.caution { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
+/* A vocabulary token's kind: control in amber, byte in the accent, user-defined in the ok tone. */
+.tag.token-control { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 40%, transparent); }
+.tag.token-byte { color:var(--acc); border-color:color-mix(in srgb, var(--acc) 40%, transparent); }
+.tag.token-user_defined { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
 /* The device memory bar beside the pill: the model's owners in the accent, largest darkest, other processes
    in amber, and the track is free. */
 .memory-bar { display:flex; flex:none; width:min(96px, 16vw); height:var(--s2); border-radius:var(--radius-s); overflow:hidden; background:var(--bg3); border:1px solid var(--line); }
@@ -233,12 +236,10 @@ table.grid td.mono { font-family:var(--mono); font-variant-numeric:tabular-nums;
 .memory-part.owner-2 { background:color-mix(in srgb, var(--acc) 45%, var(--bg3)); }
 .memory-part.owner-3 { background:color-mix(in srgb, var(--acc) 30%, var(--bg3)); }
 .memory-part.other { background:var(--amber); }
-/* The unattended loop on the Runtime tab: running reads as live, stopped as a caution. */
+/* The unattended loop on the Runtime tab, its state on a status tag. */
 .loop-status { border:1px solid var(--line); border-radius:var(--radius-m); padding:var(--s3) var(--s4); margin:var(--s3) 0; }
 .loop-status h3 { margin:0; }
 .loop-status p { margin:var(--s2) 0 0; overflow-wrap:anywhere; }
-.tag.loop-state[data-state="running"] { color:var(--ok); border-color:color-mix(in srgb, var(--ok) 40%, transparent); }
-.tag.loop-state[data-state="stopped"] { color:var(--amber); border-color:color-mix(in srgb, var(--amber) 55%, transparent); }
 /* What got better: each kind of move under its heading, better in the ok tone and worse as a caution. */
 .scorecard-moves h4 { margin:var(--s2) 0 var(--s1); font-size:var(--t-md); }
 .scorecard-moves ul { margin:0; padding-left:var(--s4); }
@@ -309,6 +310,7 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .artifact img, .artifact video { display:block; width:100%; aspect-ratio:1; object-fit:contain; background:var(--bg2); margin-bottom:var(--s2); border-radius:var(--radius-s); }
 .artifact audio { display:block; width:100%; margin-bottom:var(--s2); }
 .link-button { border:0; padding:0; background:none; color:var(--acc); font:inherit; cursor:pointer; min-width:24px; min-height:24px; display:inline-flex; align-items:center; justify-content:center; }
+.link-button:hover { text-decoration:underline; }
 .dataset-example { border-top:1px solid var(--line); padding:var(--s3) 0; }
 .preview-text { white-space:pre-wrap; overflow-wrap:anywhere; font:var(--t-sm) var(--mono); }
 textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
@@ -379,8 +381,7 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 /* Collapsible sections: the summary is the section header with the
    native disclosure control; folded panels keep dense pages short. */
 .fold { margin:var(--s2) 0; }
-.fold > summary { cursor:pointer; list-style:none; }
-.fold > summary::-webkit-details-marker { display:none; }
+summary::-webkit-details-marker { display:none; }
 
 /* ---- composer and thread (composer.js): shared by chat, agent, image,
    video and speech surfaces ---- */
@@ -461,7 +462,7 @@ button.pill { font:inherit; cursor:pointer; }
 .mw-420 { max-width:420px; } .mw-440 { max-width:440px; } .fit-width { max-width:100%; }
 .mt-s2 { margin-top:var(--s2); } .mt-s4 { margin-top:var(--s4); } .mb-s3 { margin-bottom:var(--s3); }
 .my-s2 { margin:var(--s2) 0; } .my-s3 { margin:var(--s3) 0; } .mr-s1 { margin-right:var(--s1); }
-.faint { color:var(--faint); } .amber { color:var(--amber); } .clickable { cursor:pointer; } .tall { min-height:60vh; }
+.mono { font-family:var(--mono); } .faint { color:var(--faint); } .amber { color:var(--amber); } .clickable { cursor:pointer; } .tall { min-height:60vh; }
 .thumb-preview { max-height:48px; max-width:96px; }
 .system-prompt { min-height:52px; }
 .mono-lines { font-family:var(--mono); line-height:1.7; }
@@ -477,7 +478,7 @@ button.pill { font:inherit; cursor:pointer; }
    its control stands in the second. */
 .picker-card > .row[tabindex] > * { grid-column:1; justify-self:start; max-width:100%; }
 .picker-card > .row[tabindex] > .mono { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:500 var(--t-base) var(--font); }
-.picker-card > .row[tabindex] > .btn, .picker-card > .row[tabindex] > .tag.user_defined { grid-column:2; grid-row:1 / span 3; justify-self:end; }
+.picker-card > .row[tabindex] > .btn, .picker-card > .row[tabindex] > .tag.ok { grid-column:2; grid-row:1 / span 3; justify-self:end; }
 .picker-facts { min-width:0; }
 .picker-facts .note { display:block; white-space:normal; }
 .picker-facts .keyfield { flex:1 1 120px; min-width:0; }
@@ -541,7 +542,8 @@ dialog::backdrop { background:var(--backdrop); }
 .settings-fields { display:grid; grid-template-columns:1fr 1fr; gap:var(--s4); }
 .connection-status { margin-top:var(--s3); }
 .connection-alert { flex:none; color:var(--err); padding:var(--s2) var(--s4); border-bottom:1px solid var(--line); font-size:var(--t-md); }
-summary { cursor:pointer; min-height:32px; }
+/* Every disclosure opens on the drawn chevron, never the platform's triangle. */
+summary { cursor:pointer; min-height:32px; list-style:none; }
 .picker-facts summary { font-size:var(--t-md); color:var(--dim); }
 .picker-facts .mono { display:block; overflow-wrap:anywhere; }
 @media (max-width:860px) {
@@ -648,5 +650,6 @@ table.grid th::first-letter { text-transform:uppercase; }
   table.grid.stack tr:has(> th) { display:none; }
   table.grid.stack tr { padding:var(--s2) 0; border-bottom:1px solid var(--line-soft); }
   table.grid.stack td { display:grid; width:100%; grid-template-columns:minmax(0, 2fr) minmax(0, 3fr); gap:var(--s3); padding:2px 0; border:0; }
+  table.grid.stack td > * { justify-self:start; }
   table.grid.stack td::before { content:attr(data-label); color:var(--dim); font:var(--t-sm) var(--font); }
 }

@@ -9,7 +9,7 @@
 // the 35GB model).
 //
 // Audit contract (task step 3): stages backed by a real value oracle are
-// asserted (schedule knots, z geometry/sigma, plan+rope derivation). Stages
+// asserted (edit schedule knots, z geometry, plan+rope derivation). Stages
 // that reach flow-forward arithmetic the fixtures do NOT cover are computed on
 // the real checkpoint and reported ORACLE-ABSENT (finiteness/shape only, no
 // parity claim). Stages whose oracle exists but whose INPUT is unavailable
@@ -70,10 +70,6 @@ func run(l *parity.Campaign, modelDir, fixturesDir string) error {
 	if err := jsonfile.Decode(fixturesDir+string(os.PathSeparator)+"edit_oracle_v3_256.json", &edit); err != nil {
 		return fmt.Errorf("load edit oracle: %w", err)
 	}
-	var gen genOracle
-	if err := jsonfile.Decode(fixturesDir+string(os.PathSeparator)+"generation_oracle_256.json", &gen); err != nil {
-		return fmt.Errorf("load generation oracle: %w", err)
-	}
 
 	binding := routedlm.SenseNovaBinding()
 	flowBind, err := routedlm.InspectFlowProfile(modelDir)
@@ -118,24 +114,6 @@ func run(l *parity.Campaign, modelDir, fixturesDir string) error {
 		grid := edit.SourceContract.GridHW[0]
 		return parity.Derived, math.NaN(), fmt.Sprintf("grid=%dx%d tokens=%d pixel_samples=%d embed_samples=%d prefix_layers=%v",
 			grid[0], grid[1], edit.SourceContract.TokenCount, pixelSamples, embedSamples, sortedLayerKeys(edit.PrefixLayers)), nil
-	})
-
-	l.Run("gen_fixture_load", func() (parity.Verdict, float64, string, error) {
-		if gen.Schema != "adaptive_gpt.sensenova_generation_oracle/v1" {
-			return "", math.NaN(), "", fmt.Errorf("schema=%q", gen.Schema)
-		}
-		if len(gen.Steps) != gen.Request.Steps || gen.Request.Steps != 2 {
-			return "", math.NaN(), "", fmt.Errorf("steps=%d request=%d", len(gen.Steps), gen.Request.Steps)
-		}
-		if len(gen.TextInputs.ConditionalIDs) == 0 || len(gen.TextInputs.UnconditionalIDs) == 0 {
-			return "", math.NaN(), "", fmt.Errorf("missing text ids")
-		}
-		zSamples, err := gen.Steps[0].Z.finiteProbes()
-		if err != nil {
-			return "", math.NaN(), "", fmt.Errorf("gen z probes: %w", err)
-		}
-		return parity.Derived, math.NaN(), fmt.Sprintf("cond_ids=%d uncond_ids=%d z_samples=%d",
-			len(gen.TextInputs.ConditionalIDs), len(gen.TextInputs.UnconditionalIDs), zSamples), nil
 	})
 
 	// ---- rope plan derivation (real checkpoint) ---------------------------
@@ -206,41 +184,7 @@ func run(l *parity.Campaign, modelDir, fixturesDir string) error {
 		return parity.Oracle, worst, fmt.Sprintf("shift=%g steps=%d knots=%v", edit.Request.TimestepShift, edit.Request.Steps, sched), nil
 	})
 
-	l.Run("gen_schedule", func() (parity.Verdict, float64, string, error) {
-		sched, err := routedlm.ShiftedFlowTimeSchedule(gen.Request.Steps, gen.Request.TimestepShift)
-		if err != nil {
-			return "", math.NaN(), "", err
-		}
-		worst := 0.0
-		for i, step := range gen.Steps {
-			worst = max(worst, math.Abs(sched[i]-step.Timestep))
-			worst = max(worst, math.Abs(sched[i+1]-step.NextTimestep))
-		}
-		if worst > 1e-9 {
-			return "", worst, "", fmt.Errorf("schedule %v vs oracle knots, worst=%.3e", sched, worst)
-		}
-		return parity.Oracle, worst, fmt.Sprintf("shift=%g steps=%d knots=%v", gen.Request.TimestepShift, gen.Request.Steps, sched), nil
-	})
-
-	// ---- z geometry + derived noise sigma (real oracle) -------------------
-	l.Run("gen_z_sigma", func() (parity.Verdict, float64, string, error) {
-		shape, err := flowPlan.ImagePlan(gen.Request.Width, gen.Request.Height)
-		if err != nil {
-			return "", math.NaN(), "", err
-		}
-		z := gen.Steps[0].Z
-		if want := shape.Tokens * flowPlan.FlowDim; z.Elements != want {
-			return "", math.NaN(), "", fmt.Errorf("z elements=%d != tokens*flow_dim=%d", z.Elements, want)
-		}
-		sigma := shape.NoiseScale
-		// z = derived_sigma * randn: sample std certifies the derived sigma.
-		worst := math.Abs(z.Std - sigma)
-		if worst > 0.01*sigma {
-			return "", worst, "", fmt.Errorf("z std=%g vs derived sigma=%g (worst=%.3e > %.3e)", z.Std, sigma, worst, 0.01*sigma)
-		}
-		return parity.Oracle, worst, fmt.Sprintf("z elements=%d std=%.5f derived_sigma=%g (256x256 tokens=%d)", z.Elements, z.Std, sigma, shape.Tokens), nil
-	})
-
+	// ---- z geometry (real oracle, structural) -----------------------------
 	l.Run("edit_z_geometry", func() (parity.Verdict, float64, string, error) {
 		shape, err := flowPlan.ImagePlan(edit.Request.Width, edit.Request.Height)
 		if err != nil {

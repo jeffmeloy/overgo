@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -83,6 +84,43 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 		if reached != want {
 			t.Errorf("a change to %s reached the lane = %t, want %t", changed, reached, want)
 		}
+	}
+}
+
+// TestPlanAndLoopEditsReachLanesOnlyThroughProduction selects lanes over
+// the real module the way the lanes stage does, for an edit to the plan and
+// one to the loop. A lane either edit reaches must hold the package in its
+// production closure, the code its tests build and run; a test import alone
+// would make every plan or loop edit pay for device work that never runs
+// it. The cure is moving the fixture that needs the import out of the lane
+// or importing the smaller owner it uses. The loop's one real reach today is
+// cmd/recipe's production import of it (the breaker, rollback, promotion and
+// re-entry verbs), which the audio and cuda lanes build.
+func TestPlanAndLoopEditsReachLanesOnlyThroughProduction(t *testing.T) {
+	t.Parallel()
+	repo, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, candidate := range lanes {
+		t.Run(candidate.name, func(t *testing.T) {
+			t.Parallel()
+			l := &landing{Options: Options{Repo: repo, Log: io.Discard}}
+			production, err := l.listDirectories(t.Context(), append([]string{"-deps"}, candidate.packages...))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, edit := range []string{"internal/plan/plan.go", "internal/loop/driver.go"} {
+				l.paths = []string{edit}
+				reached, err := l.reaches(t.Context(), candidate)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if owner := path.Join(filepath.ToSlash(repo), path.Dir(edit)); reached && !production[owner] {
+					t.Errorf("an edit to %s reaches lane %s only through a test import", edit, candidate.name)
+				}
+			}
+		})
 	}
 }
 

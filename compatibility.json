@@ -239,7 +239,7 @@
      "path": "internal/audioparity/segmented_transcription_test.go",
      "contains": "func TestValidatedTranscriptionConsumers(",
      "role": "artifact",
-     "identity": "evidence:sha256:7c0e1ae3f6f06e192a8594d40a0be312f0175aa46fe1c562bee2486ac36ba2ea"
+     "identity": "evidence:sha256:64c4c824d150fa9c24dfa4c6b8ab048edaeeadb18293d3367cc386421ed4de84"
     },
     {
      "path": "internal/audioparity/testdata/segmented_reference.json",
@@ -268,7 +268,7 @@
      "path": "internal/audioparity/vad_acceptance_test.go",
      "contains": "func TestVADOfflineAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:268292ac07e1d0ab79c8b3de7b7653c2a1f57fbeb9d53d974a964706cdf81203"
+     "identity": "evidence:sha256:cd28ec4dfa7e3430ee39b615b4a95ade3ea1c39906a80f86ef9336c7f5464eeb"
     },
     {
      "path": "internal/audioparity/testdata/vad_reference.json",
@@ -297,7 +297,7 @@
      "path": "internal/audioparity/vad_acceptance_test.go",
      "contains": "func TestVADStreamingAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:268292ac07e1d0ab79c8b3de7b7653c2a1f57fbeb9d53d974a964706cdf81203"
+     "identity": "evidence:sha256:cd28ec4dfa7e3430ee39b615b4a95ade3ea1c39906a80f86ef9336c7f5464eeb"
     },
     {
      "path": "internal/audioparity/testdata/vad_boundaries.json",
@@ -1046,7 +1046,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:dd4bacc83551324e8c88454216808005ca1f63204c087660acbd8132fb7849de"
+     "identity": "file:sha256:5ecffd3e97444c06ec6df7f1c4f25d2753dff53dfa39fa0552b0e9f6621a3188"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -1199,7 +1199,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:dd4bacc83551324e8c88454216808005ca1f63204c087660acbd8132fb7849de"
+     "identity": "file:sha256:5ecffd3e97444c06ec6df7f1c4f25d2753dff53dfa39fa0552b0e9f6621a3188"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
@@ -1328,24 +1328,30 @@
   {
    "evidence": [
     {
-     "contains": "func LoadSynthesizer(",
-     "path": "internal/speechsynth/runtime.go",
+     "contains": "func (m *Model) GenerateLatents(",
+     "path": "internal/speechsynth/generate.go",
      "role": "source",
-     "identity": "file:sha256:e98bdd7493c1e520ae390e80ab5e59677cc0d9e8b8280f05787162b840c89a97"
+     "identity": "file:sha256:829b6b36c354ac012f3d3c4c4e9a887a3c39cd8eca2f52232e12e96dcb15fb1a"
     },
     {
-     "contains": "func TestPocketTTSProductionParity(",
-     "path": "internal/adaptiveparity/pocket_tts_test.go",
+     "contains": "func (m *Model) LatentsToPCM(",
+     "path": "internal/speechsynth/codec.go",
+     "role": "source",
+     "identity": "file:sha256:06ea446ab28d3a89d373a8472ec11ef418345cd7ddaf93bf83d58a8dc81d9d92"
+    },
+    {
+     "contains": "func TestSpeakE2EProducesReferenceAudio(",
+     "path": "internal/speechsynth/codec_golden_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:32fd3e9b776b3a7fa1b36dad9e49d9003e1cdbf87e11da2733391d9f9b5ae5c3"
+     "identity": "evidence:sha256:9095b101f804d2201947c98f2ecde6f02a788d0eec2c946e749131fcfe242f30"
     }
    ],
    "id": "pocket-tts-production-oracle",
    "evidence_tier": "pinned-oracle",
-   "verify": "go test -tags integration ./internal/adaptiveparity -run '^TestPocketTTSProductionParity$' -count=1 -v",
+   "verify": "go test ./internal/speechsynth -run '^TestSpeakE2EProducesReferenceAudio$' -count=1 -v",
    "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
    "status": "implemented",
-   "summary": "Pocket-TTS executes through its compiled speech recipe and matches pinned latent, EOS, PCM, WAV, rate, channel, and heap evidence."
+   "summary": "Pocket-TTS generation with the reference's recorded noise decodes to the pinned PCM waveform, its end-to-end summary and the reference WAV at the codec's mono sample rate."
   },
   {
    "evidence": [

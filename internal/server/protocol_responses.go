@@ -391,6 +391,10 @@ func (h *Handler) streamResponses(
 			return
 		}
 		defer turnBuffer.stop()
+		// A continued turn's text begins with the stopped turn's partial, as
+		// its stored message does, so a page that follows it replays the
+		// whole reply.
+		turnBuffer.append(session.prefix)
 		// Reserve the response identity and prompt before the client can observe
 		// it. A restart leaves an inconclusive record, never a reused ID.
 		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, turn, runrecord.OutcomeInconclusive, "", turnRecord{continues: session.continues}); err != nil {

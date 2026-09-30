@@ -250,6 +250,16 @@ func (browser *Browser) Eventually(ctx context.Context, expression string) error
 	}
 }
 
+// Reload reloads the page and returns once the new document has loaded, so
+// a check that follows reads the reloaded page, never the one it replaced:
+// the replaced document carries a mark the reloaded one lacks.
+func (browser *Browser) Reload(ctx context.Context) error {
+	if err := browser.Evaluate(ctx, `window.webuiLaneReplaced = true; location.reload()`, nil); err != nil && !navigationInterrupted(err) {
+		return err
+	}
+	return browser.Eventually(ctx, `!window.webuiLaneReplaced && document.readyState === "complete"`)
+}
+
 // predicateWait wraps a predicate in a promise the page resolves once it
 // holds; a predicate that answers a promise (a fetch) holds on what the
 // promise settles to, never on the promise itself; a throwing or rejecting

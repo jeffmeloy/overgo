@@ -9,6 +9,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
+	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodeltest"
 	"overgo/internal/testutil"
@@ -138,6 +139,35 @@ func TestControllerActionsAreAllowlistedTransformations(t *testing.T) {
 	batch, err = CompileTransaction(t.Context(), nil, scheduling)
 	if err != nil || len(batch.Contents) != 1 || len(batch.Lineage) == 0 {
 		t.Fatalf("scheduler compile = (%+v, %v)", batch, err)
+	}
+
+	components := []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "component objective 0"), testutil.ArtifactID(t, artifact.KindProfile, "component objective 1")}
+	objective := Action{Version: ActionVersion, Kind: KindObjectiveComposition, Objective: &ObjectiveCompositionAction{Spec: trainingprogram.ObjectiveCompositionSpec{
+		ObjectiveSpec: trainingprogram.ObjectiveSpec{
+			Name: "controller aggregate", Kind: trainingprogram.ObjectiveTokenPrediction,
+			Signature: recipecontract.ModalitySignature{
+				Inputs:  []recipecontract.Modality{recipecontract.ModalityText},
+				Outputs: []recipecontract.Modality{recipecontract.ModalityText},
+			},
+			Dataset:    testutil.ArtifactID(t, artifact.KindDataset, "aggregate corpus"),
+			Split:      testutil.ArtifactID(t, artifact.KindDatasetShard, "aggregate split"),
+			Processors: []artifact.ID{testutil.ArtifactID(t, artifact.KindProfile, "controller processor")},
+			Loss:       testutil.ArtifactID(t, artifact.KindProfile, "token loss"),
+			Evaluation: testutil.ArtifactID(t, artifact.KindProfile, "controller evaluator"),
+			Metric:     trainingprogram.MetricTokenAccuracy,
+			Evidence:   []artifact.ID{testutil.ArtifactID(t, artifact.KindEvidence, "objective evidence")},
+			Authority:  trainingprogram.ObjectiveAdaptive,
+		},
+		Components: components,
+	}}}
+	batch, err = CompileTransaction(t.Context(), nil, objective)
+	if err != nil || len(batch.Contents) != 1 || len(batch.Lineage) != len(components) {
+		t.Fatalf("objective composition compile = (%+v, %v), want one composition derived from each component", batch, err)
+	}
+	for _, lineage := range batch.Lineage {
+		if lineage.Child != batch.Contents[0].Descriptor.ID || lineage.Relation != artifact.RelationDerivedFrom {
+			t.Fatalf("objective composition lineage %+v does not derive the composition from its components", lineage)
+		}
 	}
 
 	if _, err := compile(Action{Version: ActionVersion, Kind: "run-shell", Chain: chain.Chain}); err == nil {

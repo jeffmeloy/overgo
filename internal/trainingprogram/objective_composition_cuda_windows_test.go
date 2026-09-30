@@ -11,7 +11,6 @@ import (
 	"unicode/utf8"
 
 	"overgo/internal/artifact"
-	"overgo/internal/controlleraction"
 	"overgo/internal/controllertrain"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostoptimizer"
@@ -90,15 +89,13 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	action := controlleraction.Action{
-		Version: controlleraction.ActionVersion, Kind: controlleraction.KindObjectiveComposition,
-		Objective: &controlleraction.ObjectiveCompositionAction{Spec: composition.ObjectiveCompositionSpec},
-	}
-	batch, err := controlleraction.CompileTransaction(ctx, store, action)
+	compositionContent, err := composition.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, batch); err != nil {
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "objective-composition", Contents: []artifact.Content{compositionContent}, Lineage: composition.Lineage(),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	compileObjectiveRun(t, ctx, store, composition, contract)

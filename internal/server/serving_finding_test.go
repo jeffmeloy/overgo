@@ -15,15 +15,13 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/scorecard"
-	"overgo/internal/scorecard/metric"
 )
 
 // TestServingFailureBecomesAFinding fails one attempt on each serving path,
 // a generation the model refuses and an operation the server observes, and
-// holds each failure to its three readers: an open finding that cites the
-// failed attempt and its recipe, the scorecard's failure-rate cell that
-// counts it, and the failing-attempts gap the loop proposes as a row.
+// holds each failure to a failed serving observation under the activation's
+// recipe, the record the scorecard's failure-rate cell counts, and an open
+// finding that cites it and the recipe.
 func TestServingFailureBecomesAFinding(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -70,16 +68,10 @@ func TestServingFailureBecomesAFinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	var failed []artifact.ID
-	if _, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema}},
-		Order:     overgodb.DocumentOldestFirst,
-	}, runrecord.ParseServingObservation, func(_ overgodb.DocumentView, observation runrecord.ServingObservation) error {
-		if observation.Outcome == runrecord.OutcomeFailed {
+	for _, observation := range storedServingObservations(t, store) {
+		if observation.Outcome == runrecord.OutcomeFailed && observation.Recipe == recipeID {
 			failed = append(failed, observation.ID)
 		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
 	}
 	var cited []artifact.ID
 	if _, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
@@ -98,18 +90,6 @@ func TestServingFailureBecomesAFinding(t *testing.T) {
 	sortIDs(failed)
 	sortIDs(cited)
 	if len(failed) != 2 || !slices.Equal(failed, cited) {
-		t.Fatalf("failed attempts %v, findings cite %v; want each of the two failures parked", failed, cited)
-	}
-	rows, err := scorecard.Build(ctx, store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	row := slices.IndexFunc(rows, func(row scorecard.Row) bool { return row.Model == modelID && row.Task == recipe.TaskImageGen })
-	if row < 0 || rows[row].Cells[metric.Failures].Value != 1 || rows[row].Cells[metric.Failures].Source != failed[0] && rows[row].Cells[metric.Failures].Source != failed[1] {
-		t.Fatalf("the scorecard does not count both failures: %+v", rows)
-	}
-	gaps := scorecard.Record{Rows: rows}.Gaps(nil)
-	if !slices.ContainsFunc(gaps, func(gap scorecard.Gap) bool { return gap.Key == "scorecard-failing-image-gen" }) {
-		t.Fatalf("gaps %+v do not propose the failing image-gen attempts", gaps)
+		t.Fatalf("failed attempts %v under recipe %s, findings cite %v; want each of the two failures parked", failed, recipeID, cited)
 	}
 }

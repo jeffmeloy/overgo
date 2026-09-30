@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"maps"
@@ -166,6 +167,31 @@ func TestResponsesContinueSavedSession(t *testing.T) {
 	continuedTokens, continuedText := stored(continued["id"].(string))
 	if !slices.Equal(continuedTokens.Tokens, referenceTokens.Tokens) || continuedText != referenceText {
 		t.Fatalf("continued %v %q, uninterrupted %v %q", continuedTokens.Tokens, continuedText, referenceTokens.Tokens, referenceText)
+	}
+	// Continued as the page does, stored and streamed, a page that follows
+	// the turn while the server still holds it replays the whole reply, the
+	// stopped partial included, as the stored message reads.
+	replayed := func(body string) (id, text string) {
+		for line := range strings.Lines(body) {
+			var event struct {
+				Type, Delta string
+				Response    struct{ ID string }
+			}
+			if data, found := strings.CutPrefix(strings.TrimSpace(line), "data: "); found && json.Unmarshal([]byte(data), &event) == nil {
+				id = cmp.Or(id, event.Response.ID)
+				if event.Type == "response.output_text.delta" {
+					text += event.Delta
+				}
+			}
+		}
+		return id, text
+	}
+	streamedContinuation := serveTestRequest(handler, http.MethodPost, "/v1/responses",
+		`{"model":"`+testModelID+`","previous_response_id":"`+stoppedID+`","continue":true,"max_output_tokens":5,"stream":true,"store":true}`)
+	continuationID, _ := replayed(streamedContinuation.Body.String())
+	followed := serveTestRequest(handler, http.MethodGet, "/interactions/follow?model="+testModelID+"&response="+continuationID, "")
+	if _, text := replayed(followed.Body.String()); followed.Code != http.StatusOK || text != referenceText {
+		t.Fatalf("following the continued turn %s replayed %q (status %d), want the whole reply %q", continuationID, text, followed.Code, referenceText)
 	}
 }
 

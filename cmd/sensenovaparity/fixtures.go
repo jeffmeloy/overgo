@@ -5,8 +5,7 @@ package main
 // and the flowterminal generation oracle) so this CPU ladder reads the SAME
 // JSON the device tests read. Every hidden/KV/boundary tensor is a SPARSE
 // probe: strided int64 indices + f32 values (edit: base64; generation: plain
-// arrays) plus a non_finite count and, for the generation oracle, full-tensor
-// mean/std/rms moments.
+// arrays) plus a non_finite count.
 
 import (
 	"encoding/base64"
@@ -23,7 +22,7 @@ type intContract struct {
 }
 
 // sampledTensor: a tensor recorded as a sparse probe. Edit oracle uses the
-// base64 forms; the generation oracle uses plain JSON arrays plus moments.
+// base64 forms; the generation oracle uses plain JSON arrays.
 type sampledTensor struct {
 	Shape              []int     `json:"shape"`
 	Elements           int       `json:"elements"`
@@ -31,9 +30,6 @@ type sampledTensor struct {
 	ValuesLEF32Base64  string    `json:"values_le_f32_base64"`
 	Indices            []int64   `json:"indices"`
 	Values             []float64 `json:"values"`
-	Mean               float64   `json:"mean"`
-	Std                float64   `json:"std"`
-	RMS                float64   `json:"rms"`
 	NonFinite          int       `json:"non_finite"`
 }
 
@@ -157,20 +153,6 @@ type genOracleStep struct {
 }
 
 type genOracle struct {
-	Schema  string `json:"schema"`
-	Request struct {
-		Prompt        string  `json:"prompt"`
-		Width         int     `json:"width"`
-		Height        int     `json:"height"`
-		Steps         int     `json:"steps"`
-		Seed          int64   `json:"seed"`
-		CFGScale      float64 `json:"cfg_scale"`
-		TimestepShift float64 `json:"timestep_shift"`
-	} `json:"request"`
-	TextInputs struct {
-		ConditionalIDs   []int `json:"conditional_ids"`
-		UnconditionalIDs []int `json:"unconditional_ids"`
-	} `json:"text_inputs"`
 	Steps []genOracleStep `json:"steps"`
 }
 

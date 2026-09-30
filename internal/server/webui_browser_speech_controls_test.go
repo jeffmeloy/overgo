@@ -210,7 +210,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	check(`(()=>{speechCatalogCalls[4].resolve([]);return true;})()`)
 	check(`!document.querySelector('.mode-controls').textContent.includes('No model is available')`)
 	check(`(()=>{overgo.api.get=speechOriginalGet;const input=document.querySelector('.composer textarea');input.value='Saved without a chat model';input.dispatchEvent(new Event('input'));return !document.querySelector('.composer').textContent.includes('Draft cannot be restored');})()`)
-	if err := browser.Evaluate(ctx, `location.reload()`, nil); err != nil {
+	if err := browser.Reload(ctx); err != nil {
 		t.Fatal(err)
 	}
 	settle(`document.querySelector('.composer textarea')?.value==='Saved without a chat model'`)

@@ -505,7 +505,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		if err := browser.Evaluate(ctx, `new URL(document.querySelector("#panel-chat .msg.media .note a").href).searchParams.get("id")`, &generated); err != nil || generated == "" {
 			t.Fatalf("generated image id = %q, %v", generated, err)
 		}
-		if err := browser.Evaluate(ctx, `location.reload()`, nil); err != nil {
+		if err := browser.Reload(ctx); err != nil {
 			t.Fatal(err)
 		}
 		settle("page back after the reload", `document.readyState === "complete" && !!window.overgo && !!document.querySelector('.composer select[aria-label="mode"]') && `+mediaCards+` === 0`)

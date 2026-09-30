@@ -17,6 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
+	"overgo/internal/scratchmodel"
 	"overgo/internal/scratchmodeltest"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -109,7 +110,11 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	meanOver := func(corpus controllertrain.Corpus) (meanFinal, error) {
 		var total meanFinal
 		for _, seed := range seeds {
-			run, err := controllertrain.TrainSeed(corpus, profile, trainingprogram.BuiltinOptimizerPolicy(), seed, trainingSteps)
+			construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: seed, Steps: trainingSteps}, profile)
+			if err != nil {
+				return meanFinal{}, err
+			}
+			run, err := controllertrain.TrainSeed(corpus, construction, trainingprogram.BuiltinOptimizerPolicy(), trainingSteps)
 			if err != nil {
 				return meanFinal{}, err
 			}

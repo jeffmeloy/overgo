@@ -47,6 +47,22 @@ func BootstrapTokenRecipe(ctx context.Context, store *overgodb.Store, modelPath,
 	if err != nil {
 		return artifact.ID{}, err
 	}
+	return bootstrapTokenObjective(ctx, store, modelID, datasetID, splitID, processorID)
+}
+
+// BootstrapScratchRecipe activates the token-training recipe for a scratch
+// construction, as BootstrapTokenRecipe does for a weights file: the
+// recipe's model is the model the construction initializes, and its
+// objective trains on the construction's dataset and split through the
+// processor that reads its documents.
+func BootstrapScratchRecipe(ctx context.Context, store *overgodb.Store, construction trainingprogram.ScratchConstruction, processor artifact.ID) (artifact.ID, error) {
+	return bootstrapTokenObjective(ctx, store, construction.InitializedModel(), construction.Dataset(), construction.Split(), processor)
+}
+
+// bootstrapTokenObjective activates the token-training recipe for a model
+// under the bootstrap token-prediction objective over a text dataset, its
+// split and the processor that reads it.
+func bootstrapTokenObjective(ctx context.Context, store *overgodb.Store, modelID, datasetID, splitID, processorID artifact.ID) (artifact.ID, error) {
 	profile := func(name string) (artifact.ID, error) {
 		return artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training-bootstrap/"+name))
 	}

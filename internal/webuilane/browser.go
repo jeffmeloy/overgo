@@ -233,10 +233,15 @@ func (browser *Browser) Evaluate(ctx context.Context, expression string, result 
 // interrupts is asked again of the new document.
 func (browser *Browser) Eventually(ctx context.Context, expression string) error {
 	for {
+		var answer json.RawMessage
+		err := browser.Evaluate(ctx, predicateWait(expression), &answer)
 		var ready bool
-		err := browser.Evaluate(ctx, predicateWait(expression), &ready)
-		if err == nil && ready {
+		if err == nil && json.Unmarshal(answer, &ready) == nil && ready {
 			return nil
+		}
+		var shown string
+		if err == nil && json.Unmarshal(answer, &shown) == nil {
+			return fmt.Errorf("webui lane: the page's shell failed to start, so the predicate cannot hold: %s", shown)
 		}
 		if cause := context.Cause(ctx); cause != nil {
 			return errors.Join(errors.New("webui lane: browser predicate did not become true"), cause)
@@ -266,7 +271,9 @@ func (browser *Browser) Reload(ctx context.Context) error {
 // predicate reads as not yet holding, and a hidden page checks on its task
 // queue where animation frames stop. Every DOM mutation and visibility
 // change also asks again: a page whose frames stall (a headless page the
-// browser stops drawing) still answers once what it shows holds.
+// browser stops drawing) still answers once what it shows holds. A shell
+// that failed to start offers only a page reload, after which nothing can
+// hold, so the wait answers with what the page shows instead.
 func predicateWait(expression string) string {
 	return `new Promise((resolve) => {
 	let done = false;
@@ -275,19 +282,25 @@ func predicateWait(expression string) string {
 		try { answer = (` + expression + `); } catch (_) { answer = false; }
 		return Promise.resolve(answer).then((ready) => ready, () => false);
 	};
+	const failed = () => [...document.querySelectorAll("#panels button")].some((button) => button.textContent === "Reload the page");
 	const observer = new MutationObserver(() => poke());
-	const finish = () => {
+	const finish = (answer) => {
 		if (done) return;
 		done = true;
 		observer.disconnect();
 		document.removeEventListener("visibilitychange", poke);
-		resolve(true);
+		resolve(answer);
 	};
-	const poke = () => { if (!done) holds().then((ready) => { if (ready) finish(); }); };
+	const settle = (ready) => {
+		if (ready) finish(true);
+		else if (failed()) finish(document.getElementById("panels").innerText);
+		return done;
+	};
+	const poke = () => { if (!done) holds().then(settle); };
 	const loop = () => {
 		if (done) return;
 		holds().then((ready) => {
-			if (ready) { finish(); return; }
+			if (settle(ready)) return;
 			if (document.visibilityState === "visible") requestAnimationFrame(loop); else setTimeout(loop);
 		});
 	};

@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -16,6 +18,7 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
 	"overgo/internal/tensor"
+	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/trainingprogram"
 )
@@ -31,11 +34,38 @@ type ResidentTrainer struct {
 	gradients    driver.DevicePtr
 	momentum     driver.DevicePtr
 	config       optimizer.Config
+	step         int // the last update Step committed
 	programs     []residentForwardProgram
 	training     trainingprogram.Execution[residentTrainingState]
 	evaluation   trainingprogram.Execution[residentTrainingState]
 	lifecycle    ResidentLifecycle
 	closed       bool
+}
+
+// TrainedState is what a resident trainer trained, copied to the host so
+// it outlives the device: the trained model's identity, its weights, and
+// the optimizer state the next step continues from.
+type TrainedState struct {
+	model   artifact.ID
+	plan    optimizer.Plan
+	weights []float32
+	state   optimizer.State
+}
+
+// Model is the trained model's identity.
+func (s TrainedState) Model() artifact.ID { return s.model }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (s TrainedState) Snapshot() optimizer.State {
+	state := s.state
+	state.Momentum = slices.Clone(state.Momentum)
+	return state
+}
+
+// SaveWeights writes the trained weights at path, one tensor per parameter
+// of the construction's program: the weights Snapshot pairs with.
+func (s TrainedState) SaveWeights(path string) error {
+	return optimizer.SavePlanWeights(path, s.plan, s.weights)
 }
 
 // ResidentLifecycle separates preparation from execution evidence.
@@ -187,6 +217,9 @@ func (t *ResidentTrainer) Step(tokens []int, step int) (float64, error) {
 	state := residentTrainingState{trainer: t, tokens: tokens, step: step}
 	defer state.release()
 	err := t.training.Run(&state)
+	if err == nil {
+		t.step = step
+	}
 	return state.loss, err
 }
 
@@ -217,6 +250,24 @@ func (t *ResidentTrainer) Snapshot() (weights, gradients, momentum []float32, er
 		return nil, nil, nil, err
 	}
 	return weights, gradients, momentum, nil
+}
+
+// Trained copies what the trainer trained to the host: the weights under
+// the construction's optimizer plan and the Muon state its last step left,
+// the f32 device momentum widened exactly.
+func (t *ResidentTrainer) Trained() (TrainedState, error) {
+	weights, _, momentum, err := t.Snapshot()
+	if err != nil {
+		return TrainedState{}, err
+	}
+	model, err := t.construction.IdentifyTrainedModel(weights)
+	if err != nil {
+		return TrainedState{}, err
+	}
+	plan := t.construction.optimizer
+	return TrainedState{model: model, plan: plan, weights: weights, state: optimizer.State{
+		PlanIdentity: plan.Identity(), Config: t.config, Step: t.step, Momentum: dtype.ConvertSlice[float64](momentum),
+	}}, nil
 }
 
 func (t *ResidentTrainer) ResetPeakMemory() error {

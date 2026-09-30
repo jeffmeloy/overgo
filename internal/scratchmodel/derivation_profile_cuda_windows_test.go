@@ -128,7 +128,7 @@ func trainProfile(facts CorpusFacts, profile DerivationProfile) (float64, artifa
 
 func profileArtifact(t *testing.T, kind artifact.Kind, label string) artifact.ID {
 	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(fmt.Sprintf("%s/%s", t.Name(), label)))
+	id, err := artifact.IdentifyBytes(kind, fmt.Appendf(nil, "%s/%s", t.Name(), label))
 	if err != nil {
 		t.Fatal(err)
 	}

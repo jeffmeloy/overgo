@@ -64,9 +64,11 @@ type Record struct {
 	Action Action    `json:"action"`
 }
 
+// Spec is a controller corpus's records, as the controller train route
+// reads them from a JSON file.
 type Spec struct {
-	Train   []Record
-	Holdout []Record
+	Train   []Record `json:"train"`
+	Holdout []Record `json:"holdout"`
 }
 
 // Corpus: immutable external-holdout controller dataset.

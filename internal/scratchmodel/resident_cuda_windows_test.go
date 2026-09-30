@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/checkpointtest"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
@@ -83,6 +84,50 @@ func TestScratchResidentTrajectoryParity(t *testing.T) {
 	if worst > 3e-3 {
 		t.Fatalf("resident scratch trajectory delta %.3e", worst)
 	}
+}
+
+// TestScratchResidentCheckpointRoundTrip trains the oracle construction on
+// the device and holds what it trained to the checkpoint it publishes: the
+// Muon state of the last step and every parameter's trained weights read
+// back bit for bit under the construction's program.
+func TestScratchResidentCheckpointRoundTrip(t *testing.T) {
+	cudatest.Require(t)
+	oracle := loadOracle(t)
+	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const steps = 2
+	trainer, err := NewResidentTrainer(construction, steps, trainingprogram.BuiltinOptimizerPolicy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer trainer.Close()
+	for step := range steps {
+		tokens, err := construction.Tokens(construction.split.Train[step%len(construction.split.Train)])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := trainer.Step(tokens, step+1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	trained, err := trainer.Trained()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if step := trained.Snapshot().Step; step != steps {
+		t.Fatalf("trained state is at step %d, want the last step %d", step, steps)
+	}
+	weights, _, _, err := trainer.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parameters := make(map[string][]float32, len(construction.bindings))
+	for name, binding := range construction.bindings {
+		parameters[name] = weights[binding.start:binding.end]
+	}
+	checkpointtest.RequireRoundTrip(t, construction.Program(), trained, parameters)
 }
 
 func TestScratchResidentStateParity(t *testing.T) {

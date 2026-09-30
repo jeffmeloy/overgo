@@ -214,6 +214,10 @@ func (c Construction) ID() artifact.ID      { return c.id }
 func (c Construction) Dataset() artifact.ID { return c.dataset }
 func (c Construction) SplitID() artifact.ID { return c.splitID }
 
+// Seed is the corpus seed the construction split its documents and drew its
+// initial weights with.
+func (c Construction) Seed() int64 { return c.seed }
+
 // Architecture emits the constructed topology in the executor's registered
 // profile vocabulary -- the interchangeability contract with inherited models.
 func (c Construction) Architecture() model.ArchitectureProfile        { return c.architecture }

@@ -88,13 +88,15 @@ func (run boundedRun) descend() error {
 
 // routeSession is a route's supervised model-session: the recipe the route
 // bootstrapped for its model, that recipe's resolved authority, the text
-// dataset a token recipe grounds, and the observer recording the run. The
-// zero value supervises nothing.
+// dataset a token recipe grounds, the scratch construction a model built
+// from nothing starts from, and the observer recording the run. The zero
+// value supervises nothing.
 type routeSession struct {
 	store         *overgodb.Store
 	model, recipe artifact.ID
 	authority     trainingworkflow.SessionAuthority
 	dataset       string
+	scratch       *trainingprogram.ScratchConstruction
 	observer      *trainingworkflow.Observer
 }
 
@@ -122,6 +124,24 @@ func tokenSession(ctx context.Context, store *overgodb.Store, weights, dataset s
 	}
 	session.dataset = dataset
 	return session, nil
+}
+
+// scratchSession activates the token-training recipe bootstrapped over a
+// scratch construction's dataset for the model it initializes, and admits
+// the session before any weight touches memory; what the session publishes
+// records the construction as its initial state. processor reads the
+// construction's documents.
+func scratchSession(ctx context.Context, store *overgodb.Store, construction trainingprogram.ScratchConstruction, processor artifact.ID) (routeSession, error) {
+	recipeID, err := trainingworkflow.BootstrapScratchRecipe(ctx, store, construction, processor)
+	if err != nil {
+		return routeSession{}, err
+	}
+	session, err := bindSession(ctx, store, recipeID)
+	if err != nil {
+		return routeSession{}, err
+	}
+	session.scratch = &construction
+	return session.admitted(ctx)
 }
 
 // admitted opens the session's observer and admits the session before any
@@ -245,8 +265,14 @@ func (session routeSession) publish(ctx context.Context, target string, program 
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
+	// A model built from nothing starts from its scratch construction; any
+	// other starts from the model the session trains.
+	initial := trainingprogram.InitialStateSpec{Model: session.model}
+	if session.scratch != nil {
+		initial = trainingprogram.InitialStateSpec{Scratch: session.scratch}
+	}
 	plan, err := trainingprogram.CompileTrainingRunPlanFromRepository(ctx, session.store, trainingprogram.RunSpec{
-		Recipe: session.recipe, Initial: trainingprogram.InitialStateSpec{Model: session.model},
+		Recipe: session.recipe, Initial: initial,
 		Dataset: objective.Dataset, Split: objective.Split, Signature: objective.Signature,
 		Processors: objective.Processors, Projectors: objective.Projectors, Codecs: objective.Codecs,
 		Policies: policies, Program: program,
@@ -259,6 +285,22 @@ func (session routeSession) publish(ctx context.Context, target string, program 
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
+	lineage := []trainingprogram.LineageParent{
+		{Artifact: session.model, Relation: artifact.RelationTrainedFrom},
+		{Artifact: objective.Dataset, Relation: artifact.RelationDependsOn},
+		{Artifact: objective.Split, Relation: artifact.RelationDependsOn},
+		{Artifact: program.ID(), Relation: artifact.RelationProducedBy},
+		{Artifact: plan.ID(), Relation: artifact.RelationDependsOn},
+	}
+	// The compiled program and run plan, and the scratch construction a
+	// model built from nothing starts from, are exact external publications
+	// the checkpoint's lineage names; registering them lets the record
+	// resolve.
+	external := []artifact.Descriptor{{ID: program.ID()}, {ID: plan.ID()}}
+	if session.scratch != nil {
+		lineage = append(lineage, trainingprogram.LineageParent{Artifact: session.scratch.ID(), Relation: artifact.RelationDependsOn})
+		external = append(external, artifact.Descriptor{ID: session.scratch.ID()})
+	}
 	checkpoint, err := trainingprogram.PublishCheckpoint(target, trainingprogram.CheckpointSpec{
 		RunPlan: plan.ID(), Program: program.ID(), Model: session.model, Dataset: objective.Dataset, Split: objective.Split,
 		Stream: trainingprogram.DatasetState(stream), Optimizer: state, ParameterCount: len(state.Momentum),
@@ -266,13 +308,7 @@ func (session routeSession) publish(ctx context.Context, target string, program 
 			{Name: "augmentation", Algorithm: rng, Counter: uint64(state.Step)}, {Name: "data", Algorithm: rng, Counter: stream.Position},
 		},
 		Processors: objective.Processors, Projectors: objective.Projectors, Codecs: objective.Codecs,
-		Lineage: []trainingprogram.LineageParent{
-			{Artifact: session.model, Relation: artifact.RelationTrainedFrom},
-			{Artifact: objective.Dataset, Relation: artifact.RelationDependsOn},
-			{Artifact: objective.Split, Relation: artifact.RelationDependsOn},
-			{Artifact: program.ID(), Relation: artifact.RelationProducedBy},
-			{Artifact: plan.ID(), Relation: artifact.RelationDependsOn},
-		},
+		Lineage: lineage,
 	}, write)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
@@ -287,9 +323,7 @@ func (session routeSession) publish(ctx context.Context, target string, program 
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	// The compiled program and run plan are exact external publications the
-	// checkpoint's lineage names; registering them lets the record resolve.
-	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: program.ID()}, artifact.Descriptor{ID: plan.ID()})
+	batch.Artifacts = append(batch.Artifacts, external...)
 	if err := trainingworkflow.PublishTrainingEvidence(ctx, session.store, trainingworkflow.TrainingEvidencePublication{Batch: batch}); err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}

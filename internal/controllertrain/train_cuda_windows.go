@@ -26,19 +26,18 @@ type SeedRun struct {
 	Recipe            artifact.ID
 	ScratchDataset    artifact.ID
 	ScratchSplit      artifact.ID
+	// Trained is what the run trained, the checkpoint a route publishes.
+	Trained scratchmodel.TrainedState
 }
 
-func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, policy trainingprogram.OptimizerPolicy, seed int64, steps int) (SeedRun, error) {
+// TrainSeed trains construction, the scratch model the corpus's training
+// documents derive for one seed, for steps updates on the device, one
+// training document of its split per update in order, and judges it on the
+// corpus's held-out records before and after.
+func TrainSeed(corpus Corpus, construction scratchmodel.Construction, policy trainingprogram.OptimizerPolicy, steps int) (SeedRun, error) {
 	started := processmeasure.NewStopwatch()
 	if steps <= 0 {
 		return SeedRun{}, errors.New("controller training: steps must be positive")
-	}
-	construction, err := scratchmodel.Compile(
-		scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: seed, Steps: steps},
-		profile,
-	)
-	if err != nil {
-		return SeedRun{}, err
 	}
 	inputs, err := prepareEvaluationInputs(construction, corpus)
 	if err != nil {
@@ -78,14 +77,11 @@ func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, policy tra
 	if err != nil {
 		return SeedRun{}, err
 	}
-	weights, _, _, err := trainer.Snapshot()
+	trained, err := trainer.Trained()
 	if err != nil {
 		return SeedRun{}, err
 	}
-	model, err := construction.IdentifyTrainedModel(weights)
-	if err != nil {
-		return SeedRun{}, err
-	}
+	model := trained.Model()
 	memory, err := trainer.MemoryStats()
 	if err != nil {
 		return SeedRun{}, err
@@ -105,13 +101,13 @@ func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, policy tra
 	}
 	return SeedRun{
 		Evidence: SeedEvidence{
-			Seed: seed, Model: model, Run: run.ID, Evaluation: evaluation.ID,
+			Seed: construction.Seed(), Model: model, Run: run.ID, Evaluation: evaluation.ID,
 			Initial: initial, Final: final,
 			Cost: ResourceCost{WallNS: wall, PeakDeviceBytes: memory.PeakBytes},
 		},
 		InitialModel: initialModel, InitialRun: initialRun, InitialEvaluation: initialEvaluation,
 		Run: run, Evaluation: evaluation, Recipe: recipeID,
-		ScratchDataset: construction.Dataset(), ScratchSplit: construction.SplitID(),
+		ScratchDataset: construction.Dataset(), ScratchSplit: construction.SplitID(), Trained: trained,
 	}, nil
 }
 

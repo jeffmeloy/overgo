@@ -1,6 +1,6 @@
 //go:build windows
 
-package devicemath
+package devicegrad
 
 import (
 	"math"
@@ -28,10 +28,17 @@ func TestWindowedCausalAttentionBackwardDeviceMatchesHost(t *testing.T) {
 
 	const seq, nh, nkv, hd = 7, 4, 2, 8
 	rng := rand.New(rand.NewSource(1234))
-	q := randSlice(rng, seq*nh*hd)
-	k := randSlice(rng, seq*nkv*hd)
-	v := randSlice(rng, seq*nkv*hd)
-	dOut := randSlice(rng, seq*nh*hd)
+	randSlice := func(n int) []float32 {
+		s := make([]float32, n)
+		for i := range s {
+			s[i] = float32(rng.NormFloat64())
+		}
+		return s
+	}
+	q := randSlice(seq * nh * hd)
+	k := randSlice(seq * nkv * hd)
+	v := randSlice(seq * nkv * hd)
+	dOut := randSlice(seq * nh * hd)
 
 	maxDiff := func(got, want []float32) float64 {
 		var m float64

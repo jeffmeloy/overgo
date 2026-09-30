@@ -17,11 +17,11 @@
           "rationale": "SQA-037 (P2): lane selection lists packages without the build tags a lane runs with, so a change confined to a tagged-only dependency can leave its lane unselected. Declare each lane's build context once in its descriptor, for selection and execution, and delete listDirectories' duplicate decoder. Batch: internal/landing reaches no lane."
         },
         {
-          "id": "training-kernels",
-          "title": "Move training-only device kernels out of devicemath",
+          "id": "training-out-of-serving-packages",
+          "title": "Move training code out of the packages serving links, so serving lanes stop reaching devicemath",
           "status": "open",
-          "verify": "go test ./internal/landing -run '^TestTrainingKernelEditReachesOnlyTrainingLanes$' -count=1",
-          "rationale": "Owner, 2026-09-30: \"why are testing audio?\". The E4B landing (096df8d2f) ran the audio, webui, model-journey, e4b and cuda lanes because it restored one training-only VJP in internal/devicemath, which every GPU inference lane imports. Move the training-only device kernels (the windowed-attention backward and the other device VJPs) into a package that only trainers import, so a trainer edit runs the cuda lane alone. The move touches pinned media paths once, so it needs its reviewed delta. Batch: devicemath's six lanes, once; media reconciliation yes; guards no (devicemath is outside the surface)."
+          "verify": "go test ./internal/landing -run '^TestDevicemathEditReachesOnlyTrainingLanes$' -count=1",
+          "rationale": "Measured 2026-09-30 by training-kernels: no serving path calls devicemath. The webui, e4b, model-journey and audio lanes reach it only through training code that serving packages link:\n- internal/server imports trainingworkflow, which reaches densecausal's TrainDeviceResident;\n- internal/server imports modelbuilder, which reaches scratchmodel's ResidentTrainer;\n- cmd/server and cmd/recipe import mediacapability, which reaches diffusionimage's resblock and final-projection VJPs, which only tests call.\nAlso, production code only tests call: densecausal deviceLayerForwardCached and deviceLossAndGrads, scratchmodel DeviceLossAndGrad, diffusionimage compileResBlockVJP and compileFinalProjectionVJP. And exports nothing calls: devicemath FrozenCausalTailPlanSizes and WriteResident.\nSplit each so that serving links only the forward code, and the device training paths sit where only trainers import them. Delete what only tests reach, unless it is an unwired capability (feedback-capabilities-not-dead-code). Then a devicemath edit runs the cuda and device lanes only. The hybrid layer set (about 6,600 nodes, used only by hybridtrain) builds on devicemath's unexported CUDA session; moving it means exporting that session first, and is its own step if this one leaves it. Batch: the lanes of the packages split, once; pinned media paths (devicemath, diffusionimage) need reviewed deltas."
         }
       ]
     },

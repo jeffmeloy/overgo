@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/devicemath"
+	"overgo/internal/devicegrad"
 	"overgo/internal/optimizer"
 	"overgo/internal/tensor/dtype"
 )
@@ -55,7 +55,7 @@ func (t *Trainer) Step() (optimizer.ObservedStepResult, error) {
 
 // attention is the device's windowed attention VJP.
 func (t *Trainer) attention(dq, dk, dv, q, k, v, dOut []float32, seq, heads, kvHeads, headDim, window int) error {
-	gq, gk, gv, err := devicemath.WindowedCausalAttentionBackwardDevice(t.worker, q, k, v, dOut, seq, heads, kvHeads, headDim, window)
+	gq, gk, gv, err := devicegrad.WindowedCausalAttentionBackwardDevice(t.worker, q, k, v, dOut, seq, heads, kvHeads, headDim, window)
 	if err != nil {
 		return err
 	}

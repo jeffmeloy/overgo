@@ -124,6 +124,45 @@ func TestPlanAndLoopEditsReachLanesOnlyThroughProduction(t *testing.T) {
 	}
 }
 
+// TestTrainingKernelEditReachesOnlyTrainingLanes selects lanes over the real
+// module the way the lanes stage does, for an edit to a trainer-only device
+// kernel and to its test. devicegrad's importers are trainers that no
+// serving package builds, so the edit runs the cuda lane, which builds the
+// trainers, and no other: not the device lane's kernel contracts, the
+// served-model lanes (webui, model-journey, e4b) or audio. The same kernel
+// in devicemath reached six lanes, through the serving packages that also
+// train (trainingworkflow's dense-causal backend, modelbuilder's scratch
+// trainer, mediacapability's diffusion VJPs).
+func TestTrainingKernelEditReachesOnlyTrainingLanes(t *testing.T) {
+	t.Parallel()
+	repo, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const kernel = "internal/devicegrad/windowed_attention_backward_cuda_windows.go"
+	edits := []string{kernel, strings.TrimSuffix(kernel, ".go") + "_test.go"}
+	for _, edit := range edits {
+		if _, err := os.Stat(filepath.Join(repo, filepath.FromSlash(edit))); err != nil {
+			t.Fatalf("the trainer-only kernel is not where the lanes are asked about: %v", err)
+		}
+	}
+	for _, candidate := range lanes {
+		t.Run(candidate.name, func(t *testing.T) {
+			t.Parallel()
+			for _, edit := range edits {
+				l := &landing{Options: Options{Repo: repo, Log: io.Discard}, paths: []string{edit}}
+				reached, err := l.reaches(t.Context(), candidate)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if want := candidate.name == "cuda"; reached != want {
+					t.Errorf("an edit to %s reaches lane %s = %t, want %t", edit, candidate.name, reached, want)
+				}
+			}
+		})
+	}
+}
+
 // TestCUDATestsNeedALane holds the rules stage to the CUDA-gated tests'
 // runner: a package whose tests call cudatest.Require is named unless a
 // device lane scope covers it or a lane that opts into the device runs it,

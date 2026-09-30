@@ -924,6 +924,42 @@
         ]
       },
       "scope": "The windowed causal attention backward returns to production for the Gemma-4 E4B full-parameter trainer. The receipt runs, on the device, the device-versus-host attention VJP, one full-parameter E4B step whose device gradients match the host kit, and the host kit against finite differences."
+    },
+    {
+      "changes": {
+        "internal/devicemath/cross_entropy_resident_cuda_windows.go": {
+          "after_sha256": "",
+          "before_sha256": "c7d54d4acf8724761c789eab4e2678eddd975066711545fec367d73272f7d9fd",
+          "reason": "an empty stub (a package clause and an empty import) left by the test-only entry-points delta; deleted."
+        },
+        "internal/devicemath/training_glue_resident_cuda_windows.go": {
+          "after_sha256": "",
+          "before_sha256": "c7d54d4acf8724761c789eab4e2678eddd975066711545fec367d73272f7d9fd",
+          "reason": "an empty stub (a package clause and an empty import) left by the test-only entry-points delta; deleted."
+        },
+        "internal/devicemath/windowed_attention_backward_cuda_windows.go": {
+          "after_sha256": "",
+          "before_sha256": "45d1a45c8e529566e2d99e2161582e239ce34fa67d9065cc04386e19e2409cd3",
+          "reason": "WindowedCausalAttentionBackwardDevice moves unchanged (one call now qualified devicemath.MultiHeadAttentionBackward) to internal/devicegrad, a package only trainers import, so a training-kernel edit reaches the cuda lane alone; devicemath keeps every kernel serving and the other trainers call."
+        }
+      },
+      "evidence": "evidence:sha256:6e093b012a42825eb559f1284fc2ae4b7ae573e1f16b1bebbd65a7f70742e827",
+      "id": "training-kernels-to-devicegrad",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/devicegrad": [
+          "TestWindowedCausalAttentionBackwardDeviceMatchesHost"
+        ],
+        "overgo/internal/devicemath": [
+          "TestMultiHeadAttentionBackwardGradCheck",
+          "TestMultiHeadAttentionBackwardMatchesHostCausal"
+        ],
+        "overgo/internal/e4btrain": [
+          "TestE4BFullParameterStepMatchesHost",
+          "TestE4BHostGradientsMatchFiniteDifference"
+        ]
+      },
+      "scope": "The windowed causal attention backward leaves devicemath for internal/devicegrad, which only trainers import, and two empty devicemath stubs go. The receipt runs, on the device, the moved kernel against the host, the devicemath attention backward it composes, and one full-parameter E4B step with its finite-difference check."
     }
   ],
   "paths": [

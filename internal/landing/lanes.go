@@ -94,11 +94,11 @@ var lanes = []lane{
 	{
 		// The CUDA suites the device lane's fixture-free scopes leave out:
 		// the real-model inference and dense-causal checks, image and video
-		// generation, media capability, the trainers, the scratch and routed
-		// models, adaptive parity, long-form evaluation and the recipe,
-		// evaluate, composite-generation and train commands. One package at
-		// a time shares the device; go test's cache replays each until code
-		// it reads changes.
+		// generation, media capability, the trainers and the device kernels
+		// only they call, the scratch and routed models, adaptive parity,
+		// long-form evaluation and the recipe, evaluate, composite-generation
+		// and train commands. One package at a time shares the device; go
+		// test's cache replays each until code it reads changes.
 		name: "cuda", packages: cudaPackages,
 		// adaptiveparity alone runs about 11 minutes, past go test's
 		// default per-binary timeout.
@@ -165,7 +165,7 @@ func cudaCovered(directory string) bool {
 // cudaPackages are the packages whose CUDA tests the cuda lane runs.
 var cudaPackages = []string{
 	"./internal/diffusionimage", "./internal/latentimage", "./internal/mediacapability", "./internal/scratchmodel",
-	"./internal/modeldevice", "./internal/hybridtrain", "./internal/e4btrain", "./internal/controllertrain", "./internal/trainingprogram",
+	"./internal/modeldevice", "./internal/hybridtrain", "./internal/e4btrain", "./internal/devicegrad", "./internal/controllertrain", "./internal/trainingprogram",
 	"./internal/torchrng", "./internal/routedlm", "./internal/longform", "./internal/sensenovarecipe",
 	"./internal/inference", "./internal/densecausal", "./internal/adaptiveparity",
 	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/composite-generation-lane", "./cmd/train",

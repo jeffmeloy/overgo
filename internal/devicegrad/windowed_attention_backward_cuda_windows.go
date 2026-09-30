@@ -1,12 +1,16 @@
 //go:build windows
 
-package devicemath
+// Package devicegrad holds the device kernels only trainers call, so an edit
+// here reaches only the lanes that build a trainer, never the serving lanes
+// devicemath reaches. It imports devicemath; devicemath never imports it.
+package devicegrad
 
 import (
 	"fmt"
 	"math"
 
 	"overgo/internal/cuda/device"
+	"overgo/internal/devicemath"
 )
 
 // windowedCausalSoftmaxGQA builds the per-head softmax weights p[nh*seq*seq] the
@@ -51,15 +55,12 @@ func windowedCausalSoftmaxGQA(q, k []float32, seq, nh, nkv, hd, window int) []fl
 }
 
 // WindowedCausalAttentionBackwardDevice computes dQ/dK/dV of sliding-window
-// causal multi-head (GQA) attention on the device -- the VJP counterpart of
-// hostmath.WindowedCausalAttention and the device analogue of
-// hostmath.WindowedCausalAttentionBackward. It materializes the windowed causal
-// softmax band (window<=0 => full causal prefix, bit-identical to the pre-existing
-// full-causal device path) and runs the verified device MultiHeadAttentionBackward.
-// The window enters only through the zeroed p band, so no attention kernel changes
-// and masked keys contribute no gradient. Score scale is 1 (caller folds
-// 1/sqrt(headDim) into q, matching the forward). Q is [seq, heads*headDim]; K/V
-// are [seq, kvHeads*headDim]; dOut is [seq, heads*headDim].
+// causal multi-head (GQA) attention on the device: the VJP of
+// hostmath.WindowedCausalAttention, matching hostmath's backward. It zeroes the
+// softmax outside the window band (window<=0 is the full causal prefix) and runs
+// devicemath's MultiHeadAttentionBackward, so masked keys contribute no gradient.
+// Score scale is 1 (the caller folds 1/sqrt(headDim) into q, as the forward does).
+// Q and dOut are [seq, heads*headDim]; K and V are [seq, kvHeads*headDim].
 func WindowedCausalAttentionBackwardDevice(worker *device.Worker, q, k, v, dOut []float32, seq, heads, kvHeads, headDim, window int) (dQ, dK, dV []float32, err error) {
 	if seq <= 0 || heads <= 0 || kvHeads <= 0 || headDim <= 0 || heads%kvHeads != 0 ||
 		len(q) != seq*heads*headDim || len(k) != seq*kvHeads*headDim ||
@@ -67,5 +68,5 @@ func WindowedCausalAttentionBackwardDevice(worker *device.Worker, q, k, v, dOut 
 		return nil, nil, nil, fmt.Errorf("WindowedCausalAttentionBackwardDevice: shape mismatch (seq=%d heads=%d kvHeads=%d headDim=%d)", seq, heads, kvHeads, headDim)
 	}
 	p := windowedCausalSoftmaxGQA(q, k, seq, heads, kvHeads, headDim, window)
-	return MultiHeadAttentionBackward(worker, q, k, v, p, dOut, seq, heads, kvHeads, headDim, 1)
+	return devicemath.MultiHeadAttentionBackward(worker, q, k, v, p, dOut, seq, heads, kvHeads, headDim, 1)
 }

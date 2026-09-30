@@ -10,6 +10,7 @@ import (
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/oscillatorimage"
+	"overgo/internal/rae"
 	"overgo/internal/recipe"
 	"overgo/internal/speechsynth"
 	"overgo/internal/vqaserve"
@@ -93,6 +94,7 @@ var requestTypes = map[recipe.ModuleID]any{
 	modelrecipe.ModuleOscillatorImagePrepare: oscillatorimage.Request{},
 	modelrecipe.ModuleOscillatorVideoPrepare: oscillatorimage.VideoRequest{},
 	modelrecipe.ModuleDiffusionImagePrepare:  diffusionimage.Request{},
+	modelrecipe.ModuleRAEImagePrepare:        rae.Request{},
 	modelrecipe.ModuleLatentVideoPrepare:     latentvideo.WanRequest{},
 	modelrecipe.ModuleReferenceVideoPrepare:  latentvideo.ReferenceEditRequest{},
 	modelrecipe.ModuleSpeechTokenize:         speechsynth.SynthesisRequest{},
@@ -167,8 +169,7 @@ func applyBounds(controls []Control, bounds map[string]Bounds) {
 // request when it is required.
 func describe(request reflect.Type) ([]Control, string) {
 	var controls []Control
-	for index := range request.NumField() {
-		field := request.Field(index)
+	for field := range request.Fields() {
 		name, options, _ := strings.Cut(field.Tag.Get("json"), ",")
 		if name == "" || name == "-" {
 			continue
@@ -177,7 +178,7 @@ func describe(request reflect.Type) ([]Control, string) {
 		control := Control{Name: name}
 		// An artifact id names something the store holds (a clip a page
 		// attaches), which a page fills from a media card rather than types.
-		if field.Type == reflect.TypeOf(artifact.ID{}) {
+		if field.Type == reflect.TypeFor[artifact.ID]() {
 			control.Type, control.Required = ControlArtifact, !optional
 			control.Label, control.Media = field.Tag.Get("label"), field.Tag.Get("media")
 			controls = append(controls, control)

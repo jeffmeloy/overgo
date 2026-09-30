@@ -120,6 +120,7 @@ var generationCapabilities = map[recipe.ModuleID]generationSourceBinding{
 	ModuleLatentImagePrepare:     {recipe.TaskImageGen, latentImageCapability, recipe.DependencyProfile},
 	ModuleDiffusionImagePrepare:  {recipe.TaskImageGen, diffusionImageCapability, ""},
 	ModuleOscillatorImagePrepare: {recipe.TaskImageGen, oscillatorImageCapability, ""},
+	ModuleRAEImagePrepare:        {recipe.TaskImageGen, raeImageCapability, ""},
 	ModuleOscillatorVideoPrepare: {recipe.TaskVideoGen, oscillatorVideoCapability, ""},
 	ModuleLatentVideoPrepare:     {recipe.TaskVideoGen, latentVideoCapability, recipe.DependencyProfile},
 }

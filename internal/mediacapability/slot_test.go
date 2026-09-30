@@ -43,7 +43,7 @@ func TestArtifactControlsDeclareTheirSlot(t *testing.T) {
 		Plain  artifact.ID `json:"plain,omitzero"`
 		Prompt string      `json:"prompt"`
 	}
-	controls, refusal := describe(reflect.TypeOf(request{}))
+	controls, refusal := describe(reflect.TypeFor[request]())
 	if refusal != "" || len(controls) != 3 {
 		t.Fatalf("controls = %+v (%s)", controls, refusal)
 	}

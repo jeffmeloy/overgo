@@ -3,7 +3,10 @@
 // trained ViT decoder -- the space a stage-2 diffusion transformer generates
 // in. A decoder's geometry is read from its checkpoint's own tensors; what
 // they cannot state (attention heads, the norm epsilon) is the reviewed
-// declaration of the reference's decoder configurations.
+// declaration of the reference's decoder configurations. A collection is
+// served through the image-gen capability with the reviewed declaration of
+// the reference configuration it samples with: an ImageNet class and a seed
+// in, the decoded image out.
 package rae
 
 import (
@@ -36,6 +39,10 @@ type decoderDeclaration struct {
 // statisticsEpsilon keeps the latent scale positive where a channel's
 // variance is zero, as the reference's decode does.
 const statisticsEpsilon = 1e-5
+
+// processorConfig is the file in an encoder's repository that holds its
+// image processor: the pixel mean and deviation it normalizes by.
+const processorConfig = "preprocessor_config.json"
 
 // layerPrefix names one decoder layer's tensors in the checkpoint.
 const layerPrefix = "decoder_layers."
@@ -122,7 +129,7 @@ func loadDecoder(checkpoint, statistics, encoder string) (*vitDecoder, error) {
 		Mean []float32 `json:"image_mean"`
 		Std  []float32 `json:"image_std"`
 	}
-	if err := jsonfile.Decode(filepath.Join(encoder, "preprocessor_config.json"), &preprocess); err != nil {
+	if err := jsonfile.Decode(filepath.Join(encoder, processorConfig), &preprocess); err != nil {
 		return nil, fmt.Errorf("rae: encoder image processor: %w", err)
 	}
 	d.pixelMean, d.pixelStd = preprocess.Mean, preprocess.Std

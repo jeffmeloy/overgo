@@ -24,6 +24,7 @@ func imageCapability() Capability {
 		Execute: capabilityruntime.ExecutorCatalog{
 			modelrecipe.ModuleDiffusionImagePrepare:  diffusion,
 			modelrecipe.ModuleOscillatorImagePrepare: oscillator,
+			modelrecipe.ModuleRAEImagePrepare:        raeImage,
 		}.Execute,
 	}
 }

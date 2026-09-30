@@ -77,6 +77,7 @@ func imageCapability() Capability {
 			modelrecipe.ModuleLatentImagePrepare:     latent,
 			modelrecipe.ModuleOscillatorImagePrepare: oscillator,
 			modelrecipe.ModuleDiffusionImagePrepare:  diffusion,
+			modelrecipe.ModuleRAEImagePrepare:        raeImage,
 		}.Execute,
 	}
 }

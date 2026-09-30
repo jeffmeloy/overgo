@@ -350,6 +350,7 @@ func TestTypedImageRecipeSelectsRuntimeWithoutPlacement(t *testing.T) {
 		{"oscillator", ModuleOscillatorImagePrepare, artifact.ID{}, recipe.DataClassConditioning, recipe.PlacementHost, []recipe.ModuleID{ModuleOscillatorImagePrepare, ModuleOscillatorImageIntegrate, ModuleOscillatorImageDecode}},
 		{"diffusion", ModuleDiffusionImagePrepare, artifact.ID{}, recipe.DataImageTensor, recipe.PlacementHost, []recipe.ModuleID{ModuleDiffusionImagePrepare, ModuleDiffusionImageIntegrate, ModuleDiffusionImageDecode}},
 		{"routed", ModuleRoutedImagePrepare, profileID, recipe.DataPromptConditioning, recipe.PlacementHybrid, []recipe.ModuleID{ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode}},
+		{"rae", ModuleRAEImagePrepare, artifact.ID{}, recipe.DataClassConditioning, recipe.PlacementHost, []recipe.ModuleID{ModuleRAEImagePrepare, ModuleRAEImageIntegrate, ModuleRAEImageDecode}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

@@ -64,21 +64,6 @@
       ]
     },
     {
-      "id": "rae-image-capability",
-      "title": "Serve RAE generation through the image-gen capability",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Serve RAE generation through the image-gen capability",
-          "status": "open",
-          "verify": "go test ./internal/mediacapability -run '^TestRAEImageCapabilityGenerates$' -count=1",
-          "rationale": "internal/rae generates class-conditional ImageNet images, matched to the PyTorch reference: the ViT-XL decoder, the DiT-DH velocity, and Euler over the reference's shifted grid. Only tests call it. Serve it through the image-gen capability, as the other image models are:\n- a module in the recipe catalog;\n- a resolver for the collection directory: the DiT checkpoint, decoder, latent statistics and the DINOv2 encoder's image processor;\n- a request naming an ImageNet class and a seed;\n- classifier-free guidance when the reference's sampler config uses it.\ncmd/validate then gives RAE its image proof, and user-scorecard's validate-all-models loses its last unvalidated model.\n\nRegistering the module edits internal/modelrecipe, an inference-surface root, which would expire every text model's guard. So this row waits on surface-without-capability-tables. Predicted effect: first-output and held-out-quality become measurable for RAE on the image route.\n\nServes: RAE image generation for users. Evidence: the activation run is both the acceptance and the RAE scorecard row. Batch: surface."
-        }
-      ]
-    },
-    {
       "id": "loop-parts-wire-or-delete",
       "title": "Delete or wire the model-level loop parts the closed loop does not reach",
       "owner": "master-lead",

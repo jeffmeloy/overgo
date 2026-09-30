@@ -1,0 +1,11 @@
+{
+  "doc": "The reference configuration an RAE collection is served with (bytetriper/RAE configs/stage2/training/ImageNet256/DiTDH-S_DINOv2-B.yaml at a4d18c4d, the configuration the fixtures/rae goldens hold the port to): the stage-2 DiT-DH checkpoint, the stage-1 ViT-XL decoder and the latent statistics it decodes under, the encoder whose image processor normalized the pixels the decoder reproduces, the Euler grid points of its ODE sampler, and the scale of its classifier-free guidance. Paths are relative to the collection; the encoder is the Hugging Face repository the reference loads, kept beside the collection.",
+  "sampler": {
+    "checkpoint": "DiTs/Dinov2/wReg_base/ImageNet256/DiTDH-S_ep20/stage2_model.pt",
+    "decoder": "decoders/dinov2/wReg_base/ViTXL_n08/model.pt",
+    "statistics": "stats/dinov2/wReg_base/imagenet1k/stat.pt",
+    "encoder": "facebook/dinov2-with-registers-base",
+    "num_steps": 50,
+    "cfg_scale": 1.0
+  }
+}

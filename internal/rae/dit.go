@@ -175,10 +175,11 @@ func loadDiT(checkpoint string) (*diffusionTransformer, error) {
 }
 
 // velocity predicts the flow velocity of one channel-first latent at time t
-// for a class label.
+// for a class label; the label one past the last class is the null class
+// classifier-free guidance steers away from.
 func (m *diffusionTransformer) velocity(latent []float32, t float32, label int) ([]float32, error) {
 	tokens := m.grid * m.grid
-	if !checked.Equal(len(latent), m.latent*tokens) || label < 0 || label >= m.classes {
+	if !checked.Equal(len(latent), m.latent*tokens) || label < 0 || label > m.classes {
 		return nil, fmt.Errorf("rae: latent of %d values or label %d does not fit the DiT", len(latent), label)
 	}
 	rows := make([]float32, tokens*m.latent)

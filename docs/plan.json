@@ -8,6 +8,10 @@
       "title": "Train a text model on WikiText-2 and judge it against its base on held-out records",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 459,
+        "reason": "the objective route packs training records into fixed windows joined by the model's end-of-sequence token, which a safetensors model declares in generation_config.json or config.json"
+      },
       "steps": [
         {
           "id": "do",

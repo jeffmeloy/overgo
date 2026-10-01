@@ -1,6 +1,10 @@
 package trainingworkflow
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +12,7 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/gguf"
 	"overgo/internal/hfbpe"
+	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
 	"overgo/internal/trainingprogram"
 )
@@ -38,11 +43,15 @@ func loadTrainableModel(input string) (*densecausal.Model, error) {
 	return densecausal.Load(input)
 }
 
-// trainableTokenizer: the encoder training reads text with, and each token's
-// text for showing what it read.
+// trainableTokenizer: the encoder training reads text with, each token's
+// text for showing what it read, and the end-of-sequence token the model
+// declares, which separates documents packed into one training window;
+// ended is false when the model declares none.
 type trainableTokenizer struct {
 	encode func(string) ([]int, error)
 	piece  func(int) string
+	end    int
+	ended  bool
 }
 
 // loadTrainableEncoder resolves the text encoder beside the weights.
@@ -52,15 +61,19 @@ func loadTrainableEncoder(input string) (func(string) ([]int, error), error) {
 }
 
 // loadTrainableTokenizer resolves the tokenizer beside the weights: the HF
-// tokenizer files in a safetensors directory, or the tokenizer GGUF
-// metadata embeds.
+// tokenizer files in a safetensors directory, with the end-of-sequence
+// token its configs declare, or the tokenizer GGUF metadata embeds.
 func loadTrainableTokenizer(input string) (trainableTokenizer, error) {
 	if !isGGUFModelInput(input) {
 		loaded, err := hfbpe.Load(input)
 		if err != nil {
 			return trainableTokenizer{}, err
 		}
-		return trainableTokenizer{encode: loaded.Encode, piece: func(id int) string { return loaded.Decode([]int{id}) }}, nil
+		end, ended, err := declaredEnd(input)
+		if err != nil {
+			return trainableTokenizer{}, err
+		}
+		return trainableTokenizer{encode: loaded.Encode, piece: func(id int) string { return loaded.Decode([]int{id}) }, end: end, ended: ended}, nil
 	}
 	file, err := gguf.Open(input)
 	if err != nil {
@@ -85,5 +98,43 @@ func loadTrainableTokenizer(input string) (trainableTokenizer, error) {
 		},
 		// A piece the vocabulary cannot decode shows empty; the id stays beside it.
 		piece: func(id int) string { piece, _ := vocabulary.DecodePiece(tokenizer.TokenID(id), true); return piece },
+		end:   int(vocabulary.EOS), ended: vocabulary.EOS != tokenizer.NullToken,
 	}, nil
+}
+
+// declaredEnd reads the end-of-sequence token a safetensors directory
+// declares: the first of generation_config.json's eos_token_id, else of
+// config.json's, the precedence the HF converter resolves. A trained
+// checkpoint carries config.json alone, so its declaration still reads.
+func declaredEnd(directory string) (int, bool, error) {
+	for _, name := range []string{"generation_config.json", "config.json"} {
+		data, err := os.ReadFile(filepath.Join(directory, name))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return 0, false, err
+		}
+		var declared struct {
+			EOS json.RawMessage `json:"eos_token_id"`
+		}
+		if err := json.Unmarshal(data, &declared); err != nil {
+			return 0, false, fmt.Errorf("training workflow: %s: %w", name, err)
+		}
+		if !strictjson.HasValue(declared.EOS) {
+			continue
+		}
+		var ids []int
+		if json.Unmarshal(declared.EOS, &ids) != nil {
+			var id int
+			if err := json.Unmarshal(declared.EOS, &id); err != nil {
+				return 0, false, fmt.Errorf("training workflow: %s eos_token_id is neither a token nor a list of tokens", name)
+			}
+			ids = []int{id}
+		}
+		if len(ids) != 0 {
+			return ids[0], true, nil
+		}
+	}
+	return 0, false, nil
 }

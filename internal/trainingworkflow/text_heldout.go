@@ -28,9 +28,10 @@ type TextHeldoutRequest struct {
 	// trained result the verdict binds: a GGUF base's trained GGUF, else
 	// its trained tensors.
 	OutputDirectory string
-	Steps           int
-	// MaximumSequence bounds each record's tokens; zero uses the model's
-	// context length.
+	// Steps counts updates, each on one packed training window.
+	Steps int
+	// MaximumSequence is each training window's length and bounds each
+	// held-out record's tokens; zero uses the model's context length.
 	MaximumSequence int
 	Host            bool
 	// Device trains the model when Host is false.
@@ -54,16 +55,30 @@ type generationPrompt struct {
 	length int
 }
 
-// RunTextHeldout trains the model on the training records' token sequences
-// in turn and judges it on the held-out records by the objective's metric.
-// Token accuracy reads each record as one UTF-8 document and asks, at each
-// position of a held-out record, whether the model's most likely next token
-// is the one that follows. Generated answer reads each record as a JSON
-// prompt and its accepted answers, trains on the prompt and its first
-// answer, and asks whether the text the model generates greedily after a
-// held-out prompt is an accepted answer. The model's weights update in
-// place, so the base and trained models answer in one process; the trained
-// model publishes at the request's output directory before it answers.
+// textRecord is what a text run reads of one record beyond its example:
+// every token of the record's training sequence, which training packs into
+// windows, and, for a generation record, what a held-out generation
+// answers it from.
+type textRecord struct {
+	tokens []int
+	prompt generationPrompt
+}
+
+// RunTextHeldout trains the model on fixed windows packed from the training
+// records and judges it on the held-out records by the objective's metric.
+// Training joins the training records' token sequences, in membership
+// order, each followed by the model's end-of-sequence token, and cuts the
+// stream into windows of the run's sequence length, one window per update,
+// as language-model training reads text; the held-out records are never
+// packed. Token accuracy reads each record as one UTF-8 document and asks,
+// at each position of a held-out record, whether the model's most likely
+// next token is the one that follows. Generated answer reads each record as
+// a JSON prompt and its accepted answers, trains on the prompt and its
+// first answer, and asks whether the text the model generates greedily
+// after a held-out prompt is an accepted answer. The model's weights update
+// in place, so the base and trained models answer in one process; the
+// trained model publishes at the request's output directory before it
+// answers.
 func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeldoutRequest) (HeldoutResult, error) {
 	if request.OutputDirectory == "" {
 		return HeldoutResult{}, errors.New("training workflow: a held-out text run publishes its trained model, so it needs an output directory")
@@ -84,6 +99,9 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if err != nil {
 		return HeldoutResult{}, err
 	}
+	if !tokenizer.ended {
+		return HeldoutResult{}, errors.New("training workflow: the model declares no end-of-sequence token to separate the training records packed into one window")
+	}
 	weights, err := IdentifyModelWeights(request.ModelDirectory)
 	if err != nil {
 		return HeldoutResult{}, err
@@ -92,7 +110,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.MaximumSequence > 0 {
 		sequence = min(sequence, request.MaximumSequence)
 	}
-	data, prompts, err := textObjectiveData(ctx, store, objective, tokenizer, sequence)
+	data, records, err := textObjectiveData(ctx, store, objective, tokenizer, sequence)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -112,12 +130,13 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	return RunHeldout(ctx, store, HeldoutRun{
 		Alias: request.Alias, ModelPath: weights, Data: data, Host: request.Host,
 		Train: func(ctx context.Context, recipeID artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error) {
-			if len(shown) == 0 {
-				return trainingprogram.Checkpoint{}, errors.New("training workflow: the training membership holds no text")
+			documents := make([][]int, len(shown))
+			for index, example := range shown {
+				documents[index] = records[example.Record].tokens
 			}
-			batches := make([][]int, plan.Updates())
-			for step := range batches {
-				batches[step] = dtype.ConvertSlice[int](shown[step%len(shown)].Input)
+			batches, position, err := packWindows(documents, tokenizer.end, sequence, plan.Updates())
+			if err != nil {
+				return trainingprogram.Checkpoint{}, err
 			}
 			// The run stops between updates once its context ends.
 			cancelled := func(int, float64, time.Duration) error { return ctx.Err() }
@@ -125,17 +144,48 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			if err != nil {
 				return trainingprogram.Checkpoint{}, err
 			}
-			// Each update read one training record, in membership order.
-			stream := trainingdata.StreamState{Identity: data.Training, Position: uint64(plan.Updates())}
+			stream := trainingdata.StreamState{Identity: data.Training, Position: position}
 			return publishTrainedText(ctx, store, request, model, muonPlan, recipeID, objective, stream, state)
 		},
 		Predict: func(example HeldoutExample) (HeldoutPrediction, error) {
 			if generation {
-				return generateAnswer(model, tokenizer.piece, prompts[example.Record])
+				return generateAnswer(model, tokenizer.piece, records[example.Record].prompt)
 			}
 			return nextTokens(model, example)
 		},
 	})
+}
+
+// packWindows joins the documents, in order, each followed by the token
+// end, into one stream and cuts updates windows of sequence tokens from it.
+// The stream cycles as a training stream cycles its records: a window that
+// reaches the stream's end continues from its start, past the last
+// document's end token, so no token is dropped, nothing is padded (the
+// trainer has no loss mask to exclude padding with) and every window is
+// exactly sequence tokens, even when the whole stream is shorter than one.
+// It also returns how many documents the windows reached, a document
+// counting once its first token entered a window, the stream position a
+// checkpoint records.
+func packWindows(documents [][]int, end, sequence, updates int) ([][]int, uint64, error) {
+	if len(documents) == 0 {
+		return nil, 0, errors.New("training workflow: the training membership holds no text")
+	}
+	var stream []int
+	starts := make([]int, len(documents))
+	for index, document := range documents {
+		starts[index] = len(stream)
+		stream = append(append(stream, document...), end)
+	}
+	windows := make([][]int, updates)
+	for step := range windows {
+		windows[step] = make([]int, sequence)
+		for index := range windows[step] {
+			windows[step][index] = stream[(step*sequence+index)%len(stream)]
+		}
+	}
+	read := updates * sequence
+	begun, _ := slices.BinarySearch(starts, read%len(stream))
+	return windows, uint64(read/len(stream)*len(documents) + begun), nil
 }
 
 // textObjectiveData reads both of a text objective's memberships as the
@@ -143,37 +193,39 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 // document; its example is its first sequence tokens: the input is the
 // sequence, the target every token after the first. A generation record's
 // document is its prompt and answers, its sequence the prompt followed by
-// the first answer, and what a held-out generation answers it from returns
-// keyed by record.
-func textObjectiveData(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, tokenizer trainableTokenizer, sequence int) (ObjectiveData, map[string]generationPrompt, error) {
+// the first answer. Every token of each record's sequence, which training
+// packs, and what a held-out generation answers it from return keyed by
+// record.
+func textObjectiveData(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, tokenizer trainableTokenizer, sequence int) (ObjectiveData, map[string]textRecord, error) {
 	generation := objective.Metric == trainingprogram.MetricGeneratedAnswer
-	prompts := map[string]generationPrompt{}
+	records := map[string]textRecord{}
 	data, err := ObjectiveExamples(ctx, reader, objective, []byte("overgo/training/text-utf8/v1"), recipecontract.ModalityText,
 		trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, "utf-8"),
 		func(example trainingdata.Example) (HeldoutExample, error) {
 			if len(example.Values) != 1 {
 				return HeldoutExample{}, errors.New("not one text document")
 			}
-			text, answers := string(example.Values[0].Data), []string(nil)
+			text, answers, prompt := string(example.Values[0].Data), []string(nil), generationPrompt{}
 			if generation {
-				record, prompt, err := readPromptAnswers(tokenizer.encode, example.Values[0].Data)
-				if err != nil {
+				var record promptAnswers
+				var err error
+				if record, prompt, err = readPromptAnswers(tokenizer.encode, example.Values[0].Data); err != nil {
 					return HeldoutExample{}, err
 				}
-				prompts[example.ID] = prompt
 				text, answers = record.Prompt+record.Answers[0], record.Answers
 			}
 			tokens, err := tokenizer.encode(text)
 			if err != nil {
 				return HeldoutExample{}, err
 			}
+			records[example.ID] = textRecord{tokens: tokens, prompt: prompt}
 			tokens = tokens[:min(len(tokens), sequence)]
 			if len(tokens) < 2 {
 				return HeldoutExample{}, fmt.Errorf("encodes to %d token(s); a next-token target needs two", len(tokens))
 			}
 			return HeldoutExample{Input: dtype.ConvertSlice[float64](tokens), Target: dtype.ConvertSlice[float64](tokens[1:]), Answers: answers}, nil
 		})
-	return data, prompts, err
+	return data, records, err
 }
 
 // publishTrainedText publishes the model a held-out text run trained under

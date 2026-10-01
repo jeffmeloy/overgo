@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
@@ -180,7 +181,7 @@ func SelectValidation(in Inputs) Plan {
 // promotion.
 func (plan *Plan) schedule(sel Selected, baseline *scorecard.Record) {
 	blocking, why := true, "promotion waits on every "+sel.Validation+" cell"
-	if slices.Contains(benchmarkFamilies, sel.Validation) {
+	if benchmark(sel.ModelValidation) {
 		contract, none := comparedContract(baseline, sel.ModelValidation)
 		why = fmt.Sprintf("the baseline scorecard compares %s on %s (%s)", contract.Metric, contract.Suite, contract.Protocol)
 		switch blocking = none == "" && ofFamily(contract.Suite, sel.Validation) && contract.Protocol == sel.Protocol; {
@@ -214,14 +215,23 @@ func comparedContract(baseline *scorecard.Record, cell ModelValidation) (scoreca
 	return baseline.Rows[at].Cells[metric.Quality].Contract, ""
 }
 
-// compareProtocols has each benchmark cell whose family the baseline
-// scorecard compares take the protocol it compares, so the cell's record is
-// judged and re-acquired under that contract rather than under whichever
-// protocol ran last.
-func compareProtocols(cells []ModelValidation, baseline *scorecard.Record) {
-	for index, cell := range cells {
-		if contract, none := comparedContract(baseline, cell); none == "" && ofFamily(contract.Suite, cell.Validation) {
-			cells[index].Protocol = contract.Protocol
+// compareContracts gives each inference activation a benchmark cell on the
+// held-out contract the baseline scorecard compares for it, under the
+// protocol it compares, so the contract is judged and re-acquired as
+// compared rather than under whichever protocol ran last. A compared family
+// the activation has no cell of joins as one; a set outside the derived
+// catalog, named by its dataset alone, is of no family.
+func compareContracts(cells []ModelValidation, baseline *scorecard.Record) []ModelValidation {
+	for _, cell := range cells {
+		contract, _ := comparedContract(baseline, cell)
+		if _, family, derived := strings.Cut(contract.Suite, "/"); derived && benchmark(cell) {
+			at := slices.IndexFunc(cells, func(other ModelValidation) bool { return other.Recipe == cell.Recipe && other.Validation == family })
+			if at < 0 {
+				cell.Validation = family
+				at, cells = len(cells), append(cells, cell)
+			}
+			cells[at].Protocol = contract.Protocol
 		}
 	}
+	return cells
 }

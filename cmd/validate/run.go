@@ -59,7 +59,7 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 		}
 		return "go", []string{"run", "./cmd/recipe", "measure", "-repo", store, "-task", string(cell.Kind), cell.Location}, nil
 	}
-	if !slices.Contains(benchmarkFamilies, cell.Validation) {
+	if !benchmark(cell) {
 		return "", nil, fmt.Errorf("no re-acquisition command bound for %s/%s", cell.Kind, cell.Validation)
 	}
 	if cell.Location == "" {

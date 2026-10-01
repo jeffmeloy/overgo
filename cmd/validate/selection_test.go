@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -70,7 +71,7 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 		cell(model, recipe.TaskInference, "ifeval", "evaluation", chat), cell(model, recipe.TaskTraining, "training-proof", "training", ""),
 		excluded,
 	}
-	compareProtocols(registered, baseline)
+	registered = compareContracts(registered, baseline)
 	if protocols := []string{registered[2].Protocol, registered[3].Protocol, registered[4].Protocol}; !slices.Equal(protocols, []string{chat, raw, chat}) {
 		t.Fatalf("mmlu-pro, bbh and ifeval take protocols %v; want only the compared mmlu-pro to take the baseline's %s", protocols, chat)
 	}
@@ -124,6 +125,130 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 			if named := err != nil && strings.Contains(err.Error(), "compared "+validation+":"); named != slices.Contains(want, validation) {
 				t.Fatalf("-background=%v took %s: %v, want only %v", background, validation, err, want)
 			}
+		}
+	}
+}
+
+// TestEveryComparedContractHasACell holds promotion to a fresh measurement of
+// every held-out contract the baseline scorecard compares, whatever family
+// its suite is. The baseline compares a text model on store/mmlu under the
+// chat template, a family no inference activation is benchmarked on by
+// default; a DNA model on store/dna; another text model on store/mmlu-pro;
+// and a projection on a set outside the derived catalog. After a move of
+// every surface, each compared contract is one blocking cell under the
+// protocol compared, re-run by one evaluate worker on its family; the DNA
+// model's declaration skips its text suites but never dna; the other
+// benchmarks run in the background; and the projection gains no benchmark.
+func TestEveryComparedContractHasACell(t *testing.T) {
+	t.Parallel()
+	root, _, _, _ := surfaceHistory(t)
+	const store = "C:/stores/selected"
+	chat, raw := evaluation.PromptingChatTemplate.Label(), evaluation.PromptingRawCompletion.Label()
+	var suites []evaluation.CompiledSuite
+	for _, family := range []string{"mmlu", "mmlu-pro", "bbh", "ifeval", "dna"} {
+		data, err := json.Marshal(evaluation.ExactSuite{Schema: "fixture/exact", Source: "store/" + family, Cases: []evaluation.ExactCase{
+			{Name: "one", Prompt: "fixture input", MaxTokens: 2, Text: "ok", PromptTokens: 2, GeneratedTokens: 2},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		suite, err := evaluation.CompileSuite(data, evaluation.ListingAuthorities())
+		if err != nil {
+			t.Fatal(err)
+		}
+		suites = append(suites, suite)
+	}
+
+	source := testutil.ArtifactID(t, artifact.KindEvidence, "baseline")
+	baseline := &scorecard.Record{Name: "baseline"}
+	var registered []ModelValidation
+	for _, row := range []struct {
+		name, modality, suite, protocol string
+		task                            recipe.Task
+	}{
+		{"Qwen3.8-27B", "", "store/mmlu", chat, recipe.TaskInference},
+		{"Carbon-500M", "dna", "store/dna", raw, recipe.TaskInference},
+		{"Qwen3.5-4B", "", "store/mmlu-pro", chat, recipe.TaskInference},
+		{"gemma-4-E4B-it", "", testutil.ArtifactID(t, artifact.KindDataset, "captions").String(), raw, recipe.TaskProjection},
+	} {
+		model, activation := testutil.ArtifactID(t, artifact.KindModel, row.name), testutil.ArtifactID(t, artifact.KindRecipe, row.name+"/"+string(row.task))
+		baseline.Rows = append(baseline.Rows, scorecard.Row{Model: model, Name: row.name, Task: row.task, Recipe: activation, Cells: map[metric.Name]scorecard.Cell{
+			metric.Quality: {Value: 0.5, Source: source, Contract: scorecard.Contract{Metric: "accuracy", Origin: "evaluation", Suite: row.suite, Protocol: row.protocol}},
+		}})
+		for _, validation := range kindValidation(row.task) {
+			registered = append(registered, ModelValidation{
+				Model: model, ModelName: row.name, Location: "C:/models/" + row.name + ".gguf", Kind: row.task, Modality: row.modality,
+				Recipe: activation, Validation: validation.Validation, Surface: validation.Surface,
+			})
+		}
+	}
+	registered = compareContracts(registered, baseline)
+
+	// Each benchmark is judged by its family's suite in the catalog and the
+	// model's declared domains; no record measures any of them yet.
+	read := acceptedRecords{bound: map[boundKey]error{}, directories: map[SurfaceID][]string{}, benchmarks: &benchmarkEvidence{suites: suites}}
+	for index, cell := range registered {
+		if cell.Kind != recipe.TaskInference || cell.Surface != "evaluation" {
+			continue
+		}
+		judged, err := read.judgeBound(t.Context(), root, nil, cell)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registered[index] = judged
+	}
+	moved := AffectRecord{Affected: true, Reason: "authority path internal/cuda/driver.go moves every surface"}
+	plan := SelectValidation(Inputs{
+		AffectedSurfaces: map[SurfaceID]AffectRecord{"inference": moved, "evaluation": moved},
+		Registered:       registered, Current: read.current, Scorecard: baseline,
+	})
+
+	benchmarks := func(bucket []Selected) []string {
+		var cells []string
+		for _, sel := range bucket {
+			if sel.Kind == recipe.TaskInference && sel.Surface == "evaluation" {
+				cells = append(cells, sel.ModelName+" "+sel.Validation)
+			}
+		}
+		slices.Sort(cells)
+		return cells
+	}
+	if got, want := benchmarks(plan.Run), []string{"Carbon-500M dna", "Qwen3.5-4B mmlu-pro", "Qwen3.8-27B mmlu"}; !slices.Equal(got, want) {
+		t.Fatalf("promotion waits on benchmarks %v, want the compared %v", got, want)
+	}
+	if got, want := benchmarks(plan.SkipInappropriate), []string{"Carbon-500M bbh", "Carbon-500M ifeval", "Carbon-500M mmlu-pro"}; !slices.Equal(got, want) {
+		t.Fatalf("the DNA model's declaration skipped %v, want its text suites %v", got, want)
+	}
+	if got, want := benchmarks(plan.Background), []string{"Qwen3.5-4B bbh", "Qwen3.5-4B ifeval", "Qwen3.8-27B bbh", "Qwen3.8-27B ifeval", "Qwen3.8-27B mmlu-pro"}; !slices.Equal(got, want) {
+		t.Fatalf("background benchmarks %v, want %v", got, want)
+	}
+	if projection := slices.IndexFunc(registered, func(cell ModelValidation) bool { return cell.Kind == recipe.TaskProjection }); len(registered) != 3*len(kindValidation(recipe.TaskInference))+2+1 ||
+		registered[projection].Validation != "projection-proof" {
+		t.Fatalf("the compared contracts added cells other than mmlu and dna: %+v", registered)
+	}
+
+	for _, row := range baseline.Rows[:3] {
+		contract := row.Cells[metric.Quality].Contract
+		at := slices.IndexFunc(plan.Run, func(sel Selected) bool {
+			return sel.Model == row.Model && sel.Surface == "evaluation" && "store/"+sel.Validation == contract.Suite
+		})
+		if at < 0 {
+			t.Fatalf("%s's compared %s has no blocking cell: run=%+v", row.Name, contract.Suite, plan.Run)
+		}
+		sel := plan.Run[at]
+		if sel.Protocol != contract.Protocol || !strings.HasPrefix(sel.Promotion, "blocking: the baseline scorecard compares accuracy on "+contract.Suite+" ("+contract.Protocol+")") {
+			t.Fatalf("%s's %s cell runs under %s and says %q, want the compared %s", row.Name, sel.Validation, sel.Protocol, sel.Promotion, contract.Protocol)
+		}
+		name, args, err := reacquireCommand(sel.ModelValidation, store)
+		want := []string{
+			"run", "./cmd/evaluate", "-all", "-worker", "-repo", store, "-model-path", sel.Location,
+			"-family", sel.Validation, "-budget", benchmarkBudget.String(),
+		}
+		if contract.Protocol == chat {
+			want = append(want, "-chat-protocol")
+		}
+		if err != nil || name != "go" || !slices.Equal(args, want) {
+			t.Fatalf("%s's %s re-runs as (%q, %v, %v), want go %v", row.Name, sel.Validation, name, args, err, want)
 		}
 	}
 }

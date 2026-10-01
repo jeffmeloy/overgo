@@ -12,6 +12,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
@@ -26,8 +27,9 @@ import (
 // evaluation surface holds the inference and scoring code a benchmark ran
 // through, the training surface the trainers a proof ran.
 
-// benchmarkFamilies are the derived-suite families an inference activation
-// owes an accuracy benchmark on.
+// benchmarkFamilies are the derived-suite families every inference activation
+// owes an accuracy benchmark on, besides the family the baseline scorecard
+// compares for it.
 var benchmarkFamilies = []string{"mmlu-pro", "bbh", "ifeval"}
 
 // templateFamilies score the answer a model generates to an instruction, which
@@ -118,6 +120,12 @@ func (benchmarks benchmarkEvidence) record(ctx context.Context, store *overgodb.
 // family: the catalog names a family's suites by it after the source's root.
 func ofFamily(source, family string) bool { return strings.HasSuffix(source, "/"+family) }
 
+// benchmark reports whether a cell is an accuracy benchmark: of an inference
+// activation's cells, only its benchmarks are on the evaluation surface.
+func benchmark(cell ModelValidation) bool {
+	return cell.Kind == recipe.TaskInference && cell.Surface == "evaluation"
+}
+
 // proofRecord finds a proof cell's record: the verified run its activation
 // accepted.
 func proofRecord(ctx context.Context, store *overgodb.Store, cell ModelValidation) (boundRecord, error) {
@@ -167,7 +175,7 @@ func (read *acceptedRecords) judgeBound(ctx context.Context, root string, store 
 	}
 	var record boundRecord
 	var err error
-	if slices.Contains(benchmarkFamilies, cell.Validation) {
+	if benchmark(cell) {
 		if read.benchmarks == nil {
 			benchmarks := readBenchmarkEvidence(ctx, store)
 			read.benchmarks = &benchmarks

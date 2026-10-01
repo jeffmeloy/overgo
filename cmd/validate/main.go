@@ -229,7 +229,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	compareProtocols(registered, compared)
+	registered = compareContracts(registered, compared)
 	read, err := readAcceptedRecords(ctx, *root, storeRoot, store, registered)
 	if err != nil {
 		return err

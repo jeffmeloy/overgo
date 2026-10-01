@@ -38,21 +38,6 @@
       ]
     },
     {
-      "id": "cycle-compared-families",
-      "title": "Re-run every held-out contract the baseline compares, mmlu and dna included",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Re-run every held-out contract the baseline compares, mmlu and dna included",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestEveryComparedContractHasACell$' -count=1",
-          "rationale": "\n\nFound 2026-10-01 by cycle-promotion-scope: two contracts the baseline scorecard compares have no validate cell, Qwen3.8-27B's store/mmlu (chat-template) and Carbon's store/dna (raw-completion), because benchmarkFamilies (cmd/validate/bound_records.go:31) lists neither family. After a surface move their stale values hold without being re-measured, so a regression there would promote. Add the families (with Carbon's domain rule, which skips text suites for a DNA model but must not skip dna), so every compared contract is a blocking cell; the verify is a fixture test that fails today."
-        }
-      ]
-    },
-    {
       "id": "cycle-proof-commands",
       "title": "Give every blocking proof a re-acquisition command",
       "owner": "master-lead",

@@ -91,25 +91,6 @@
       ]
     },
     {
-      "id": "device-claim-everywhere",
-      "title": "Have every GPU user take the device claim lanes wait on",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 282,
-        "reason": "the swap launcher's wait for device admission"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Have every GPU user take the device claim lanes wait on",
-          "status": "open",
-          "verify": "go test ./internal/processcontrol -run '^TestRecoveryDrills$' -count=1",
-          "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out. 2026-09-25: the device lane of 69368990 failed 'physical resource is already reserved' in devicemath while two other gate processes held the GPU, and passed unchanged on re-run; a claim every GPU user takes turns that into a wait with a named holder instead of a failed lane and a manual re-run. Found 2026-09-26: every CUDA context already takes the shared device claim (driver.ContextCreate calls processcontrol.ShareResource), so a served model holds it for its context's life, and a timed-out exclusive wait already names its holders (01cbf544, TestResourceWaitNamesItsHolders). What remains is proof, not mechanism: a device test that a served model's context holds the claim an exclusive reservation then waits on.\n\nServes: loop speed. Disappears: the unclaimed GPU users that cause lane refusals. Batch: host.\n\nLanes (expected; the gate reads them from the diff): device, model-journey.\n\nConsolidated 2026-09-30 (owner review) with recovery-failures-seen: its remaining proof, a served model's context holding the claim an exclusive reservation waits on, is the ownership case of that row's foreign-gate drill, and lands with it. Observed 2026-09-30: while longform -guard held the GPU, cmd/train's route tests (TestTrainRoutesReachTheMediaTrainers, TestSeq2SeqRoutePublishesCheckpoint, TestThoughtBankRoutePublishesCheckpoint), run with -short and without OVERGO_CUDA_TEST, failed at once with 'processcontrol: physical resource is already reserved: GPU-...' instead of waiting for the holder. So any landing whose test stage runs cmd/train during a guard or device run is refused by the machine, not by the change. The proof this row owes includes those host-stage tests waiting on the claim, not failing.\n\nBuilt 2026-10-01 (scratchpad deviceclaim.patch, +31 nodes): driver.ContextCreate runs its claim through processcontrol.AwaitResource, so a context waits for an exclusive holder instead of failing 'physical resource is already reserved'. The wait takes no lock between attempts; it uses context.Background(), since device.New has about 95 call sites and no context, so it ends with the holder or the process but never names the holder. Naming it needs a context threaded through device.New, a follow-up. Proof: host, processcontrol's TestRecoveryDrills rows (waits on an exclusive holder; an exclusive waits on and names a context's claim); device, TestCUDAContextSharedAdmission in the receipt. It is a surface and pinned-media change (internal/cuda/driver/driver_windows.go, before 668b17c5..., after 3b387558...), so it rides the next surface batch with the transcription recipe and its own reviewed delta."
-        }
-      ]
-    },
-    {
       "id": "tests-pin-behaviour",
       "title": "Delete tests that pin internal structure or bookkeeping, package by package",
       "owner": "master-lead",

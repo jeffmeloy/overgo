@@ -3,6 +3,7 @@
 package driver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -365,37 +366,51 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 }
 
 // ContextCreate creates CUDA context for device; calling goroutine
-// must remain locked to its OS thread while it uses context
+// must remain locked to its OS thread while it uses context. The context
+// holds the device's shared claim for its life. While another process
+// holds the device exclusively, as a guard run or a lane measurement does,
+// creation waits until that holder releases the device or exits instead
+// of failing. No caller context ends the wait: the device worker that
+// creates every context carries none, and every holder is a process whose
+// claim the system ends when it exits.
 func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
-	l.contextMu.Lock()
-	defer l.contextMu.Unlock()
-	if l.dll == nil {
-		return 0, errors.New("CUDA library is closed")
-	}
-	uuid, err := l.deviceUUID(device)
-	if err != nil {
-		return 0, err
-	}
-	release, err := processcontrol.ShareResource(uuid)
-	if err != nil {
-		return 0, err
-	}
-	var context Context
-	var pinned runtime.Pinner
-	pinned.Pin(&context)
-	defer pinned.Unpin()
-	err = processcontrol.ResourceTransaction(uuid, func() error {
-		result, _, _ := l.cuCtxCreate.Call(uintptr(unsafe.Pointer(&context)), uintptr(flags), uintptr(device))
-		return l.result("cuCtxCreate_v2", result)
+	var created Context
+	// Each claim holds contextMu and the wait between claims does not, so
+	// a wait on another process's hold blocks no other call on the library.
+	err := processcontrol.AwaitResource(context.Background(), func() error {
+		l.contextMu.Lock()
+		defer l.contextMu.Unlock()
+		if l.dll == nil {
+			return errors.New("CUDA library is closed")
+		}
+		uuid, err := l.deviceUUID(device)
+		if err != nil {
+			return err
+		}
+		release, err := processcontrol.ShareResource(uuid)
+		if err != nil {
+			return err
+		}
+		var pinned runtime.Pinner
+		pinned.Pin(&created)
+		defer pinned.Unpin()
+		err = processcontrol.ResourceTransaction(uuid, func() error {
+			result, _, _ := l.cuCtxCreate.Call(uintptr(unsafe.Pointer(&created)), uintptr(flags), uintptr(device))
+			return l.result("cuCtxCreate_v2", result)
+		})
+		if err != nil {
+			return errors.Join(err, release())
+		}
+		if l.contextClaims == nil {
+			l.contextClaims = make(map[Context]func() error)
+		}
+		l.contextClaims[created] = release
+		return nil
 	})
 	if err != nil {
-		return 0, errors.Join(err, release())
+		return 0, err
 	}
-	if l.contextClaims == nil {
-		l.contextClaims = make(map[Context]func() error)
-	}
-	l.contextClaims[context] = release
-	return context, nil
+	return created, nil
 }
 
 // ContextDestroy destroys CUDA context

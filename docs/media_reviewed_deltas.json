@@ -1053,6 +1053,36 @@
         ]
       },
       "scope": "FP8 plan construction cleans up the descriptors a failed construction allocated (SQA-055). The receipt runs the device FP8 matmul through cuBLASLt, whose successful plan construction is unchanged."
+    },
+    {
+      "changes": {
+        "internal/cuda/driver/driver_windows.go": {
+          "after_sha256": "3b3875586b1e80ce5a8fc1a7e64fa03536011cf3728145600e0c4c1471e54d43",
+          "before_sha256": "668b17c58da6c3a6074f74547e3ffc42789e4b86ef1b3c5eebf0d4b6e2c4e9f9",
+          "reason": "ContextCreate takes the shared device claim through processcontrol.AwaitResource, so a context waits for an exclusive holder to release or exit instead of failing with physical resource is already reserved; each attempt holds contextMu only for itself, and an uncontended context is created exactly as before."
+        }
+      },
+      "evidence": "evidence:sha256:30c540b5a3938ee280311743400da485ad3bd1a7426e1d16fdcd4f4f7cce4ae8",
+      "id": "context-awaits-device-claim",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/cuda/cublas": [
+          "TestSGEMMIntegration",
+          "TestRowMajorGEMMF32Integration"
+        ],
+        "overgo/internal/cuda/device": [
+          "TestCUDAContextSharedAdmission",
+          "TestUnavailableDeviceAllowsRecovery",
+          "TestWorkerMemoryRoundTrip"
+        ],
+        "overgo/internal/cuda/driver": [
+          "TestDriverIntegration"
+        ],
+        "overgo/internal/cuda/kernel": [
+          "TestVectorAddIntegration"
+        ]
+      },
+      "scope": "A CUDA context waits on an exclusive device holder instead of failing. The receipt runs the shared-admission ownership proof, recovery inside an exclusive measurement, and contexts on the uncontended path through device, driver, kernel and cuBLAS."
     }
   ],
   "paths": [

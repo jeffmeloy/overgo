@@ -57,6 +57,11 @@ func TestBridgeCheckpointResume(t *testing.T) {
 		second.Optimizer.Step != first.Optimizer.Step+fixture.request.Epochs {
 		t.Fatalf("resume result first=%+v second=%+v", first, second)
 	}
+	// The resumed batch declares its parent, the bridge the first run
+	// committed, again; the declaration changes nothing and the batch commits.
+	if _, err := fixture.store.Commit(t.Context(), second.Batch); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestBridgeTrainingFreezesModels(t *testing.T) {
@@ -101,13 +106,11 @@ func newDatasetTrainingFixture(t *testing.T) datasetTrainingFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The initial bridge is not registered: the training result declares
+	// the weights it starts from, so its batch commits on its own.
 	weights := []float32{0.5, 0, 0, 0.5}
-	bridgeID, err := artifact.JSONID(artifact.KindAdapter, weights)
-	if err != nil {
-		t.Fatal(err)
-	}
 	descriptors := []artifact.Descriptor{
-		{ID: sourceID}, {ID: targetID}, {ID: datasetID}, {ID: trainingPolicy}, {ID: bridgeID},
+		{ID: sourceID}, {ID: targetID}, {ID: datasetID}, {ID: trainingPolicy},
 	}
 	if _, err := store.Commit(ctx, artifact.Batch{Key: "bridge-training/dataset-fixture", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)

@@ -78,8 +78,6 @@ func run(args []string) error {
 	configPath := flags.String("config", "", "machine-local loop configuration (default .overgo-runtime/loop.json)")
 	repoPath := flags.String("repo", "", "OvergoDB root for the evidence doors; empty resolves the store through the data-root contract")
 	publishStrategySpec := flags.String("publish-strategy", "", "publish one strategy from this spec (worker, catalog, loop config) and exit")
-	experimentSpec := flags.String("experiment", "", "replay one strategy experiment from this spec and print the comparison")
-	publishFitnessSpec := flags.String("publish-fitness", "", "publish one pairwise improvement-fitness proof from this request spec")
 	resourceLanesSpec := flags.String("compare-resource-fitness", "", "replay one resource no-regression proof from this lanes spec")
 	resourceRunsSpec := flags.String("compare-resource-runs", "", "judge a baseline and a candidate run's committed resource observations through the resource no-regression owner from this spec ({name, baseline_run, repeat_runs, candidate_run, required_metrics}; repeat_runs are identical-protocol repeats of the baseline that set the measured noise envelope)")
 	deriveRecipesSpec := flags.String("derive-recipes", "", "derive one materialized candidate's per-arm recipes from this spec")
@@ -115,12 +113,8 @@ func run(args []string) error {
 		return err
 	case *publishStrategySpec != "":
 		return publishStrategy(*repoPath, *publishStrategySpec, os.Stdout)
-	case *experimentSpec != "":
-		return compareStrategies(*repoPath, *experimentSpec, os.Stdout)
 	case *resumeMediaExperimentSpec != "":
 		return resumeMediaExperiment(*repoPath, *resumeMediaExperimentSpec, os.Stdout)
-	case *publishFitnessSpec != "":
-		return publishFitness(*repoPath, *publishFitnessSpec, os.Stdout)
 	case *resourceLanesSpec != "":
 		return compareResourceLanes(*repoPath, *resourceLanesSpec, os.Stdout)
 	case *resourceRunsSpec != "":

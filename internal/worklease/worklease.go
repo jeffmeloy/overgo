@@ -86,15 +86,6 @@ type Lease struct {
 	ID              artifact.ID `json:"-"`
 }
 
-// New validates and identifies one immutable lease declaration.
-func New(value Lease) (Lease, error) {
-	if value.Worker != "" {
-		value.Version = DispatchVersion
-		return Codec.New(value)
-	}
-	return Codec.NewInitial(value)
-}
-
 // Codec is the lease document codec: canonical form, identity and contracts.
 var Codec = func() artifact.DocumentCodec[Lease] {
 	codec := artifact.JSONDocumentCodec("work lease", artifact.KindEvidence, MediaType, Schema,
@@ -170,9 +161,6 @@ func Parse(content []byte) (Lease, error) { return Codec.Parse(content) }
 
 // ValidateIdentity checks the lease's canonical form and content-addressed identity.
 func (lease Lease) ValidateIdentity() error { return Codec.ValidateIdentity(lease) }
-
-// WorktreeAlias names the existing CAS ownership binding for a worktree.
-func WorktreeAlias(worktree string) string { return worktreeAlias(worktree) }
 
 // ResolveOwner requires the exact lease to remain the current CAS owner.
 func ResolveOwner(ctx context.Context, reader artifact.Reader, lease Lease) error {

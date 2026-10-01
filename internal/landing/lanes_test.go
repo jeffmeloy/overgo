@@ -166,15 +166,16 @@ func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
 }
 
 // TestPlanAndLoopEditsReachLanesOnlyThroughProduction selects lanes over
-// the real module the way the lanes stage does, for an edit to the plan and
-// one to the loop. A lane either edit reaches must compile the file into its
-// production closure in its build context, the code its tests build and
-// run; a test import alone would make every plan or loop edit pay for device
-// work that never runs it. The cure is moving the fixture that needs the
-// import out of the lane or importing the smaller owner it uses. The loop's
-// one real reach today is cmd/recipe's production import of it (the breaker,
-// rollback, promotion and re-entry verbs), which the audio and cuda lanes
-// build.
+// the real module the way the lanes stage does, for an edit to the plan, to
+// the loop driver and to the scorecard. A lane any of them reaches must
+// compile the file into its production closure in its build context, the
+// code its tests build and run; a test import alone would make every plan or
+// loop edit pay for device work that never runs it. The cure is moving the
+// fixture that needs the import out of the lane or importing the smaller
+// owner it uses. The loop driver and the scorecard it measures with reach
+// neither the audio nor the cuda lane at all: cmd/recipe, which both lanes
+// build, imports neither, so a driver or scorecard edit runs no speech model
+// and no CUDA suite.
 func TestPlanAndLoopEditsReachLanesOnlyThroughProduction(t *testing.T) {
 	t.Parallel()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
@@ -185,6 +186,13 @@ func TestPlanAndLoopEditsReachLanesOnlyThroughProduction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	loopEdits := []string{"internal/loop/driver.go", "internal/scorecard/scorecard.go"}
+	loopFree := []string{"audio", "cuda"}
+	for _, name := range loopFree {
+		if !slices.ContainsFunc(lanes, func(candidate lane) bool { return candidate.name == name }) {
+			t.Fatalf("no lane is named %s; the loop-free check would hold nothing", name)
+		}
+	}
 	for _, candidate := range lanes {
 		t.Run(candidate.name, func(t *testing.T) {
 			t.Parallel()
@@ -192,9 +200,14 @@ func TestPlanAndLoopEditsReachLanesOnlyThroughProduction(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, edit := range []string{"internal/plan/plan.go", "internal/loop/driver.go"} {
-				if reaches(candidate, []string{edit}) && !production.Files[edit] {
+			unreachable := slices.Contains(loopFree, candidate.name)
+			for _, edit := range append([]string{"internal/plan/plan.go"}, loopEdits...) {
+				reached := reaches(candidate, []string{edit})
+				if reached && !production.Files[edit] {
 					t.Errorf("an edit to %s reaches lane %s only through a test import", edit, candidate.name)
+				}
+				if reached && unreachable && slices.Contains(loopEdits, edit) {
+					t.Errorf("an edit to %s reaches lane %s; the loop driver and scorecard must stay out of it", edit, candidate.name)
 				}
 			}
 		})

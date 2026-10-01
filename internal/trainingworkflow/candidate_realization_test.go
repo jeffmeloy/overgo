@@ -74,10 +74,12 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Only the inputs are registered; the adapter, its initial weights and
+	// the composite reach the store through the realization's publication.
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key: "composition/realization-fixture",
 		Artifacts: []artifact.Descriptor{
-			{ID: donorID}, {ID: targetID}, {ID: trainingPolicy}, {ID: datasetID},
+			{ID: donorID}, {ID: targetID}, {ID: trainingPolicy}, {ID: datasetID}, {ID: recipeID},
 		},
 	}); err != nil {
 		t.Fatal(err)
@@ -147,6 +149,19 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 	}
 	if sourceForward.Calls != len(examples)*training.Epochs {
 		t.Fatal("identity graft executed frozen forwards")
+	}
+	// Both realizations publish into the store as returned, and publishing
+	// either again changes nothing.
+	for _, published := range []CandidateRealization{realized, realized, direct, direct} {
+		if err := PublishCandidateRealization(ctx, store, published); err != nil {
+			t.Fatal(err)
+		}
+		if _, found, err := artifact.ReadContent(ctx, store, published.Composite.ID); err != nil || !found {
+			t.Fatalf("composite %s found=%t err=%v", published.Composite.ID, found, err)
+		}
+	}
+	if _, found, err := artifact.ReadContent(ctx, store, realized.Adapter.Checkpoint); err != nil || !found {
+		t.Fatalf("adapter checkpoint found=%t err=%v", found, err)
 	}
 
 	if _, err := RealizeCompositionCandidate(

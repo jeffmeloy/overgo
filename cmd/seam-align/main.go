@@ -18,7 +18,6 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/jsonfile"
-	"overgo/internal/loop"
 	"overgo/internal/overgodb"
 	"overgo/internal/trainingworkflow"
 )
@@ -37,20 +36,8 @@ func run() error {
 	selectFlag := flags.String("select", "", "composite scores JSON path: judge realized composites on the multidimensional fitness ({scores})")
 	emit := flags.String("emit", "", "promotion emission JSON path: emit one fit composite through the ablation-armed gate ({verdict, policy, evidence})")
 	drive := flags.String("drive", "", "driver run JSON path: close the improvement loop over recorded evidence under derived budget and saturation")
-	curve := flags.String("curve", "", "recorded driver attempts JSON path: aggregate the learning curve the autonomy ratchet judges ({attempts})")
-	calibrate := flags.String("calibrate", "", "predicted-versus-measured fitness JSON path: audit the enumeration ranker ({predicted, measured})")
-	ratchet := flags.String("ratchet", "", "autonomy review JSON path: widen or roll back the driver budget on the three recorded instruments")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
-	}
-	if strings.TrimSpace(*ratchet) != "" {
-		return reviewAutonomy(*ratchet)
-	}
-	if strings.TrimSpace(*calibrate) != "" {
-		return calibrateRanker(*calibrate)
-	}
-	if strings.TrimSpace(*curve) != "" {
-		return deriveLearningCurve(*curve)
 	}
 	if strings.TrimSpace(*drive) != "" {
 		return driveImprovementLoop(*repoFlag, *drive)
@@ -101,74 +88,6 @@ func run() error {
 		return err
 	}
 	return encoder.Encode(verdict)
-}
-
-// reviewAutonomy runs one autonomy review over the three recorded
-// instruments: the driver attempt record, the ranker calibration samples,
-// and the latest breaker state per metric.
-func reviewAutonomy(reviewPath string) error {
-	var review struct {
-		CurrentBudget uint64                          `json:"current_budget"`
-		Attempts      []loop.DriverAttemptMeasurement `json:"attempts"`
-		Predicted     []float64                       `json:"predicted"`
-		Measured      []float64                       `json:"measured"`
-		Safety        []loop.CircuitBreakerTransition `json:"safety"`
-	}
-	if err := jsonfile.DecodeStrict(reviewPath, &review); err != nil {
-		return err
-	}
-	curve, err := loop.DeriveDriverLearningCurve(review.Attempts)
-	if err != nil {
-		return err
-	}
-	calibration, err := loop.CalibrateCandidatePredictions(review.Predicted, review.Measured)
-	if err != nil {
-		return err
-	}
-	decision, err := loop.RatchetDriverAutonomy(review.CurrentBudget, curve, calibration, review.Safety)
-	if err != nil {
-		return err
-	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetEscapeHTML(false)
-	return encoder.Encode(decision)
-}
-
-// calibrateRanker audits the enumeration ranker's predicted fitness
-// against measured outcomes with the shared concordance audit.
-func calibrateRanker(samplesPath string) error {
-	var samples struct {
-		Predicted []float64 `json:"predicted"`
-		Measured  []float64 `json:"measured"`
-	}
-	if err := jsonfile.DecodeStrict(samplesPath, &samples); err != nil {
-		return err
-	}
-	calibration, err := loop.CalibrateCandidatePredictions(samples.Predicted, samples.Measured)
-	if err != nil {
-		return err
-	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetEscapeHTML(false)
-	return encoder.Encode(calibration)
-}
-
-// deriveLearningCurve aggregates recorded driver attempts into the
-// learning curve the autonomy ratchet judges.
-func deriveLearningCurve(attemptsPath string) error {
-	var recorded struct {
-		Attempts []loop.DriverAttemptMeasurement `json:"attempts"`
-	}
-	if err := jsonfile.DecodeStrict(attemptsPath, &recorded); err != nil {
-		return err
-	}
-	curve, err := loop.DeriveDriverLearningCurve(recorded.Attempts)
-	if err != nil {
-		return err
-	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetEscapeHTML(false)
-	return encoder.Encode(curve)
 }
 
 // realizationSpecification binds one realization's recorded evidence, as
@@ -272,6 +191,11 @@ func driveImprovementLoop(repository, runPath string) error {
 	byLabel := make(map[string]driveTargetSpecification, len(specification.Targets))
 	targets := make([]trainingworkflow.CompositionTarget, 0, len(specification.Targets))
 	for _, target := range specification.Targets {
+		// Every stage binds its target's evidence by label, so a label
+		// names exactly one target.
+		if _, repeated := byLabel[target.Label]; repeated {
+			return fmt.Errorf("target label %q repeats; each target needs its own label", target.Label)
+		}
 		byLabel[target.Label] = target
 		var catalogComponent *composition.CatalogComponent
 		for componentIndex := range components {
@@ -294,19 +218,19 @@ func driveImprovementLoop(repository, runPath string) error {
 			)
 			return candidates, err
 		},
-		Realize: func(realizeCtx context.Context, candidate composition.CompositionCandidate) (trainingworkflow.CandidateRealization, error) {
-			return byLabel[candidateLabel(byLabel, candidate)].realize(realizeCtx, store, candidate)
+		Realize: func(realizeCtx context.Context, target trainingworkflow.CompositionTarget, candidate composition.CompositionCandidate) (trainingworkflow.CandidateRealization, error) {
+			return byLabel[target.Label].realize(realizeCtx, store, candidate)
 		},
-		Score: func(_ context.Context, realization trainingworkflow.CandidateRealization) (composition.CompositeScore, error) {
-			bound := byLabel[candidateLabel(byLabel, realization.Candidate)]
+		Score: func(_ context.Context, target trainingworkflow.CompositionTarget, realization trainingworkflow.CandidateRealization) (composition.CompositeScore, error) {
+			bound := byLabel[target.Label]
 			return composition.CompositeScore{
 				Composite:  realization.Composite.ID,
 				Evaluation: bound.Score.Evaluation,
 				Dimensions: bound.Score.Dimensions,
 			}, nil
 		},
-		Promote: func(_ context.Context, verdict composition.CompositeFitnessVerdict, realization trainingworkflow.CandidateRealization) (artifact.ID, error) {
-			bound := byLabel[candidateLabel(byLabel, realization.Candidate)]
+		Promote: func(promoteCtx context.Context, target trainingworkflow.CompositionTarget, verdict composition.CompositeFitnessVerdict, _ trainingworkflow.CandidateRealization) (artifact.ID, error) {
+			bound := byLabel[target.Label]
 			policy, err := composition.NewRepresentationBridgePromotionPolicy(bound.Promotion.Policy)
 			if err != nil {
 				return artifact.ID{}, err
@@ -315,7 +239,7 @@ func driveImprovementLoop(repository, runPath string) error {
 			if err != nil {
 				return artifact.ID{}, err
 			}
-			return promotion.ID, nil
+			return promotion.ID, publishPromotion(promoteCtx, store, policy, promotion)
 		},
 		OperatorStop: func() bool { return false },
 	}
@@ -330,17 +254,30 @@ func driveImprovementLoop(repository, runPath string) error {
 	return encoder.Encode(report)
 }
 
-// candidateLabel resolves which target specification a candidate belongs
-// to by its donor and component; single-target runs bind directly.
-func candidateLabel(byLabel map[string]driveTargetSpecification, candidate composition.CompositionCandidate) string {
-	for label, target := range byLabel {
-		for _, measurement := range target.Measurements {
-			if measurement.Donor == candidate.Donor && measurement.Component == candidate.Component {
-				return label
-			}
-		}
+// publishPromotion commits one emitted promotion with the policy it was
+// judged under, so the driver attempt that cites it cites stored evidence;
+// a promotion already held changes nothing.
+func publishPromotion(
+	ctx context.Context, store *overgodb.Store,
+	policy composition.RepresentationBridgePromotionPolicy, promotion composition.RepresentationBridgePromotion,
+) error {
+	policyContent, err := policy.Content()
+	if err != nil {
+		return err
 	}
-	return ""
+	promotionContent, err := promotion.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"composition/promotion/"+promotion.ID.String(),
+		[]artifact.Content{policyContent, promotionContent}, promotion.Lineage(), nil,
+	)
+	if err != nil {
+		return err
+	}
+	_, err = artifact.Publish(ctx, store, batch)
+	return err
 }
 
 // selectComposites judges realized composites on the multidimensional
@@ -412,16 +349,7 @@ func realizeCandidate(repository, specificationPath string) error {
 	if err != nil {
 		return err
 	}
-	if realized.Adapter.BridgeAfter.Valid() {
-		if _, err := artifact.CommitBatch(ctx, store, realized.Adapter.Batch); err != nil {
-			return err
-		}
-	}
-	compositeBatch, err := realized.Composite.Batch("composition/realized/" + realized.Composite.ID.String())
-	if err != nil {
-		return err
-	}
-	if _, err := artifact.CommitBatch(ctx, store, compositeBatch); err != nil {
+	if err := trainingworkflow.PublishCandidateRealization(ctx, store, realized); err != nil {
 		return err
 	}
 	encoder := json.NewEncoder(os.Stdout)

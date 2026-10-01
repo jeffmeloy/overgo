@@ -137,3 +137,22 @@ func RealizeCompositionCandidate(
 	realization.Composite = composite
 	return realization, nil
 }
+
+// PublishCandidateRealization commits one realization before anything cites
+// it: the trained adapter with its checkpoint when the rung trained one,
+// then the composite record that references them. Both seam-align -realize
+// and the improvement driver publish through it; a repeated or resumed
+// publication is already held and changes nothing.
+func PublishCandidateRealization(ctx context.Context, store artifact.Repository, realization CandidateRealization) error {
+	if realization.Adapter.BridgeAfter.Valid() {
+		if _, err := artifact.Publish(ctx, store, realization.Adapter.Batch); err != nil {
+			return err
+		}
+	}
+	batch, err := realization.Composite.Batch("composition/realized/" + realization.Composite.ID.String())
+	if err != nil {
+		return err
+	}
+	_, err = artifact.Publish(ctx, store, batch)
+	return err
+}

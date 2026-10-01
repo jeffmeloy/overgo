@@ -36,12 +36,15 @@ type CompositionTarget struct {
 // CompositionDriverStages binds the tested owners the driver sequences.
 // Each stage is a pure seam: enumeration, realization, scoring, and
 // promotion own their own refusals, and the driver owns only the order,
-// the derived bounds, and the record.
+// the derived bounds, the publication of what it realized, and the record.
+// Every stage receives the target the attempt selected, so a stage binds
+// that target's own evidence and never recovers it from the candidate.
+// Promote returns the identity of promotion evidence it committed.
 type CompositionDriverStages struct {
 	Enumerate func(context.Context, CompositionTarget) ([]composition.CompositionCandidate, error)
-	Realize   func(context.Context, composition.CompositionCandidate) (CandidateRealization, error)
-	Score     func(context.Context, CandidateRealization) (composition.CompositeScore, error)
-	Promote   func(context.Context, composition.CompositeFitnessVerdict, CandidateRealization) (artifact.ID, error)
+	Realize   func(context.Context, CompositionTarget, composition.CompositionCandidate) (CandidateRealization, error)
+	Score     func(context.Context, CompositionTarget, CandidateRealization) (composition.CompositeScore, error)
+	Promote   func(context.Context, CompositionTarget, composition.CompositeFitnessVerdict, CandidateRealization) (artifact.ID, error)
 	// OperatorStop reports external stop authority; the driver checks it
 	// before every attempt and never overrides it.
 	OperatorStop func() bool
@@ -100,9 +103,10 @@ func DeriveDriverBounds(history []bool) (budget, saturation uint64) {
 }
 
 // RunCompositionImprovementLoop closes the driver: for each target it
-// enumerates, realizes the best-ranked candidate, scores it on the
-// unscalarized fitness, and promotes or refuses through the ablation
-// gate, publishing every attempt to the store before moving on. The run
+// enumerates, realizes and publishes the best-ranked candidate, scores it
+// on the unscalarized fitness, and promotes or refuses through the
+// ablation gate, publishing every attempt to the store before moving on;
+// an attempt cites only a composite and promotion the store holds. The run
 // stops at its derived attempt budget, at the derived consecutive-failure
 // saturation, on operator stop, or when the targets are exhausted — and
 // the report names which.
@@ -143,12 +147,14 @@ func RunCompositionImprovementLoop(
 		} else {
 			candidate := candidates[0]
 			attempt.Donor, attempt.Component = candidate.Donor, candidate.Component
-			realization, err := stages.Realize(ctx, candidate)
+			realization, err := stages.Realize(ctx, target, candidate)
 			if err != nil {
 				attempt.Refusal = driverRefusal("realize", err)
+			} else if err := PublishCandidateRealization(ctx, store, realization); err != nil {
+				attempt.Refusal = driverRefusal("publish", err)
 			} else {
 				attempt.Composite = realization.Composite.ID
-				score, err := stages.Score(ctx, realization)
+				score, err := stages.Score(ctx, target, realization)
 				if err != nil {
 					attempt.Refusal = driverRefusal("score", err)
 				} else if verdicts, err := composition.ScoreCompositeSelection([]composition.CompositeScore{score}); err != nil {
@@ -157,7 +163,10 @@ func RunCompositionImprovementLoop(
 					attempt.Refusal = fmt.Sprintf("select: regressed=%v", verdict.Regressed)
 				} else {
 					attempt.Fit = true
-					promotion, err := stages.Promote(ctx, verdict, realization)
+					promotion, err := stages.Promote(ctx, target, verdict, realization)
+					if err == nil {
+						err = requireCommitted(ctx, store, promotion)
+					}
 					if err != nil {
 						attempt.Refusal = driverRefusal("promote", err)
 					} else {
@@ -194,6 +203,18 @@ func driverRefusal(stage string, err error) string {
 	return stage + ": " + err.Error()
 }
 
+// requireCommitted refuses an identity the store does not hold, so an
+// attempt record cites only evidence that exists.
+func requireCommitted(ctx context.Context, store artifact.Repository, id artifact.ID) error {
+	if _, found, err := store.Artifact(ctx, id); err != nil || !found {
+		return errors.Join(err, fmt.Errorf("%s is not committed", id))
+	}
+	return nil
+}
+
+// publishDriverAttempt commits one attempt record citing the donor and
+// whatever of the composite and promotion it reached; a repeated attempt
+// is already held and changes nothing.
 func publishDriverAttempt(
 	ctx context.Context, store artifact.Repository, attempt CompositionDriverAttempt,
 ) error {
@@ -219,6 +240,6 @@ func publishDriverAttempt(
 	if err != nil {
 		return err
 	}
-	_, err = artifact.CommitBatch(ctx, store, batch)
+	_, err = artifact.Publish(ctx, store, batch)
 	return err
 }

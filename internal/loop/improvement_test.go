@@ -2,6 +2,7 @@ package loop
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -22,6 +23,12 @@ type improvingWorld struct {
 	measureErr          error
 	promoted            []string
 	proposed            []scorecard.Gap
+	// filled holds what was promoted and proposed when each fill ran.
+	filled []string
+}
+
+func (w *improvingWorld) Fill() {
+	w.filled = append(w.filled, fmt.Sprintf("promoted %v, proposed %d", w.promoted, len(w.proposed)))
 }
 
 func (w *improvingWorld) Measure() (*scorecard.Record, *scorecard.Record, error) {
@@ -47,7 +54,9 @@ func (w *improvingWorld) Propose(_ scorecard.Record, gaps []scorecard.Gap) (int,
 // lost -- is unknown and refuses it too. No baseline, a row without held-out
 // quality and a failed validation promote nothing, and the outcome says why.
 // Every run proposes its gaps: a refusal for a fall proposes the fall, and a
-// refusal for an unknown quality proposes measuring it again.
+// refusal for an unknown quality proposes measuring it again. Every run that
+// published fills the validations promotion does not compare once, after its
+// decision and proposals.
 func TestLoopPromotesOnlyOnHeldOutFitness(t *testing.T) {
 	t.Parallel()
 	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-fitness")
@@ -101,6 +110,9 @@ func TestLoopPromotesOnlyOnHeldOutFitness(t *testing.T) {
 		if promoted := slices.Equal(world.promoted, []string{"b"}); promoted != promotes || (outcome.Promoted == "b") != promoted {
 			t.Fatalf("%s: promoted %v (outcome %q), want promotion %v", scenario.name, world.promoted, outcome.Promoted, promotes)
 		}
+		if decided := fmt.Sprintf("promoted %v, proposed %d", world.promoted, len(world.proposed)); !slices.Equal(world.filled, []string{decided}) {
+			t.Fatalf("%s: filled %q, want one fill after the decision (%s)", scenario.name, world.filled, decided)
+		}
 		if promotes != (outcome.Withheld == "") || !strings.Contains(outcome.Withheld, scenario.withheld) {
 			t.Fatalf("%s: withheld %q, want %q", scenario.name, outcome.Withheld, scenario.withheld)
 		}
@@ -112,7 +124,7 @@ func TestLoopPromotesOnlyOnHeldOutFitness(t *testing.T) {
 		}
 	}
 	world := &improvingWorld{measureErr: errors.New("validate -scorecard -publish failed")}
-	if outcome, err := Run(world, Config{MaxAttemptsPerStep: 1, MaxInvocations: 1}); err == nil || len(world.promoted) != 0 || world.proposed != nil {
-		t.Fatalf("a run that published no scorecard: outcome=%+v err=%v promoted=%v proposed=%v", outcome, err, world.promoted, world.proposed)
+	if outcome, err := Run(world, Config{MaxAttemptsPerStep: 1, MaxInvocations: 1}); err == nil || len(world.promoted) != 0 || world.proposed != nil || world.filled != nil {
+		t.Fatalf("a run that published no scorecard: outcome=%+v err=%v promoted=%v proposed=%v filled=%v", outcome, err, world.promoted, world.proposed, world.filled)
 	}
 }

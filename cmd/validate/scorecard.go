@@ -74,6 +74,18 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, root, records st
 	return err
 }
 
+// promotionBaseline is the scorecard the cycle's next record is judged
+// against: of those published beside the store, the newest that measured the
+// commit the promoted branch holds, as Baseline chooses it for the record the
+// cycle publishes after them. Nil when none did.
+func promotionBaseline(ctx context.Context, root, storeRoot string) (*scorecard.Record, error) {
+	published, err := scorecard.Records(scorecard.Directory(storeRoot))
+	if err != nil {
+		return nil, err
+	}
+	return scorecard.Baseline(ctx, root, append(published, scorecard.Record{}))
+}
+
 // openGap fails while the gap key names is open on the scorecard the store
 // holds now, judged against the newest published record's baseline: the
 // verifier of the row the loop proposed for the gap.

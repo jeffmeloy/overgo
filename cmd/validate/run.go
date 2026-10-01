@@ -77,36 +77,42 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 	return "go", args, nil
 }
 
-// executeRun runs the selected cells' re-acquisition commands smallest-first
-// through the process owner, each into the selected store, then the selected
-// cycle lanes. A cell or lane that fails is reported, not accepted, and the
-// rest still run: one model's broken measurement withholds no other's, and
-// the failure withholds promotion. Cells without a bound command are
-// reported as incomplete coverage. An empty run set is the clean "nothing to
-// re-acquire" result the dry run predicts when every judged cell's evidence
-// and every cycle lane's pass is current.
-func executeRun(ctx context.Context, output io.Writer, root, store string, plan Plan) error {
-	if len(plan.Run) == 0 && !slices.ContainsFunc(plan.Suites, func(suite SelectedSuite) bool { return suite.Run }) {
+// executeRun runs the cells promotion waits on smallest-first through the
+// process owner, each into the selected store, then the selected cycle
+// lanes; with background it runs the background cells alone, which the loop
+// asks for after promotion's decision. A cell or lane that fails is
+// reported, not accepted, and the rest still run: one model's broken
+// measurement withholds no other's, and a blocking failure withholds
+// promotion. Cells without a bound command are reported as incomplete
+// coverage. An empty run set is the clean "nothing to re-acquire" result the
+// dry run predicts when every judged cell's evidence and every cycle lane's
+// pass is current.
+func executeRun(ctx context.Context, output io.Writer, root, store string, plan Plan, background bool) error {
+	cells, suites := plan.Run, plan.Suites
+	if background {
+		cells, suites = plan.Background, nil
+	}
+	if len(cells) == 0 && !slices.ContainsFunc(suites, func(suite SelectedSuite) bool { return suite.Run }) {
 		fmt.Fprintf(output, "validate -run: nothing to re-acquire; %d reused, %d unknown, %d operator-owned, %d registered-inactive\n",
 			len(plan.Reuse), len(plan.Unknown), len(plan.OperatorOwned), len(plan.RegisteredInactive))
 		return nil
 	}
 	var unbound, failed []string
 	acquired := 0
-	for index, sel := range plan.Run {
+	for index, sel := range cells {
 		name, args, err := reacquireCommand(sel.ModelValidation, store)
 		if err != nil {
 			unbound = append(unbound, fmt.Sprintf("%s %s: %v", displayName(sel.ModelValidation), sel.Validation, err))
 			continue
 		}
-		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s)\n", index+1, len(plan.Run), sel.Validation, displayName(sel.ModelValidation), sel.Reason)
+		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s; %s)\n", index+1, len(cells), sel.Validation, displayName(sel.ModelValidation), sel.Reason, sel.Promotion)
 		if err := runCell(ctx, output, root, name, args); err != nil {
 			failed = append(failed, fmt.Sprintf("%s %s: %v", displayName(sel.ModelValidation), sel.Validation, err))
 			continue
 		}
 		acquired++
 	}
-	for _, suite := range plan.Suites {
+	for _, suite := range suites {
 		if !suite.Run {
 			continue
 		}

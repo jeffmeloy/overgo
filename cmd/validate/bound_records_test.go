@@ -54,13 +54,15 @@ func TestBenchmarkCurrencyFollowsItsSurface(t *testing.T) {
 	}
 	plan := SelectValidation(Inputs{AffectedSurfaces: map[SurfaceID]AffectRecord{"evaluation": {}}, Registered: cells, Current: read.current})
 
+	// No baseline scorecard compares any of them, so those that run are
+	// background.
 	ranCells := map[string]Selected{}
-	for _, selected := range plan.Run {
+	for _, selected := range plan.Background {
 		ranCells[selected.ModelName] = selected
 	}
-	if len(plan.Run) != 2 || !strings.Contains(ranCells[older.ModelName].Reason, "evaluation surface moved since") ||
+	if len(plan.Run) != 0 || len(plan.Background) != 2 || !strings.Contains(ranCells[older.ModelName].Reason, "evaluation surface moved since") ||
 		!strings.Contains(ranCells[unmeasured.ModelName].Reason, "no mmlu-pro record") {
-		t.Fatalf("the stale and the unmeasured benchmark did not run: run=%+v", plan.Run)
+		t.Fatalf("the stale and the unmeasured benchmark did not run in the background: run=%+v background=%+v", plan.Run, plan.Background)
 	}
 	if len(plan.Reuse) != 1 || plan.Reuse[0].Model != current.Model {
 		t.Fatalf("a benchmark bound to the current surface was not reused: reuse=%+v run=%+v", plan.Reuse, plan.Run)

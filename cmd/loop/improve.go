@@ -21,17 +21,23 @@ import (
 // taken; records is the directory the scorecards are published in.
 type improvement struct {
 	root, plan, records string
-	// measure runs the validations the last commit made stale and publishes
-	// the scorecard.
-	measure func() error
+	// measure runs the stale validations promotion waits on and publishes
+	// the scorecard; fill runs the stale ones it does not compare.
+	measure, fill func() error
 }
 
 // improvementFor is the loop's improvement world over a store: this
-// checkout's plan, the store's published scorecards, and the scorecard run.
+// checkout's plan, the store's published scorecards, the scorecard run and
+// the background validations.
 func improvementFor(store string) improvement {
 	return improvement{
 		root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store),
 		measure: func() error { return measureScorecard(store) },
+		fill: func() error {
+			out, err := runTool("go", "run", "./cmd/validate", "-run", "-background", "-repo", store)
+			fmt.Print(out)
+			return err
+		},
 	}
 }
 
@@ -117,10 +123,20 @@ func (w improvement) Propose(published scorecard.Record, gaps []scorecard.Gap) (
 // proposalStep is the one step a proposed row has.
 const proposalStep = "do"
 
-// measureScorecard measures again the validations the last commit made
-// stale, then publishes the scorecard of store with what moved since the
-// previous one. A failed validation does not withhold the others' numbers:
-// the scorecard publishes regardless and the failure is returned beside it.
+// Fill runs the background validations, the suites the baseline scorecard
+// does not compare, after the cycle's decision: their evidence flows
+// without delaying or withholding a promotion, and a failure is reported
+// here and changes nothing the cycle decided.
+func (w improvement) Fill() {
+	if err := w.fill(); err != nil {
+		fmt.Printf("loop: the background validations failed: %v\n", err)
+	}
+}
+
+// measureScorecard measures again the stale validations promotion waits on,
+// then publishes the scorecard of store with what moved since the previous
+// one. A failed validation does not withhold the others' numbers: the
+// scorecard publishes regardless and the failure is returned beside it.
 func measureScorecard(store string) error {
 	var failed []error
 	for _, command := range [][]string{{"go", "run", "./cmd/validate", "-run", "-repo", store}, {"go", "run", "./cmd/validate", "-scorecard", "-publish", "-repo", store}} {

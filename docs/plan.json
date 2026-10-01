@@ -23,6 +23,51 @@
       ]
     },
     {
+      "id": "first-trained-improvement",
+      "title": "Train a text model on WikiText-2 and judge it against its base on held-out records",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Train a text model on WikiText-2 and judge it against its base on held-out records",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-training",
+          "rationale": "\n\nDoctrine 2026-10-01: progress is counted in promotions, and until a cycle has promoted, rows that close it rank first. No row trained a model and judged it on held-out data. WikiText-2 train is on disk; split into 600 articles (scratchpad asr/articles, byte-exact) so a group split can hold out records. Steps: register the articles as a text dataset (dataset-catalog -register), declare a token-prediction objective with a committed 9:1 train/heldout split (training-objective -split-group record -split-weights train=9,heldout=1), train Qwen2.5-0.5B on it with train -objective (publishes the trained model and a v2 held-out verdict bound to it), then the scorecard's training row for Qwen2.5-0.5B reads trained token accuracy. The verify should narrow to that row once its gap key exists; the unscored-training gap also lists the other five training rows."
+        }
+      ]
+    },
+    {
+      "id": "cycle-compared-families",
+      "title": "Re-run every held-out contract the baseline compares, mmlu and dna included",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Re-run every held-out contract the baseline compares, mmlu and dna included",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestEveryComparedContractHasACell$' -count=1",
+          "rationale": "\n\nFound 2026-10-01 by cycle-promotion-scope: two contracts the baseline scorecard compares have no validate cell, Qwen3.8-27B's store/mmlu (chat-template) and Carbon's store/dna (raw-completion), because benchmarkFamilies (cmd/validate/bound_records.go:31) lists neither family. After a surface move their stale values hold without being re-measured, so a regression there would promote. Add the families (with Carbon's domain rule, which skips text suites for a DNA model but must not skip dna), so every compared contract is a blocking cell; the verify is a fixture test that fails today."
+        }
+      ]
+    },
+    {
+      "id": "cycle-proof-commands",
+      "title": "Give every blocking proof a re-acquisition command",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give every blocking proof a re-acquisition command",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestEveryBlockingProofHasACommand$' -count=1",
+          "rationale": "\n\nFound 2026-10-01 by cycle-promotion-scope: 9 blocking proof cells have no re-acquisition command (cmd/validate/run.go:63): 7 training-proof and 2 projection-proof. After any move of the training or evaluation surface, validate -run reports incomplete coverage and the cycle withholds promotion until they are bound. Since f031f6f04 a training activation is verified only by a real run (Observer.Verify), so a training proof's command is a bounded real run of its route (cmd/train) on its recipe; a projection proof's command is the projection evaluation that produced it. Bind each, keeping every proof's acceptance contract; the verify is a fixture test that fails today."
+        }
+      ]
+    },
+    {
       "id": "compatibility-into-validate",
       "title": "Fold cmd/compatibility into validate, re-verifying claims whose source moves",
       "owner": "master-lead",
@@ -667,7 +712,11 @@
             "recovery-failures-seen/do",
             "scorecard-reads-task-heldout/do",
             "invariant-tables/do",
-            "gate-cycle-split/do"
+            "gate-cycle-split/do",
+            "first-trained-improvement/do",
+            "cycle-promotion-scope/do",
+            "cycle-compared-families/do",
+            "cycle-proof-commands/do"
           ]
         }
       ]

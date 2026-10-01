@@ -97,6 +97,10 @@ type ImprovementWorld interface {
 	// Propose writes the gaps the plan does not hold as rows and reports how
 	// many it added.
 	Propose(published scorecard.Record, gaps []scorecard.Gap) (added int, err error)
+	// Fill runs the validations promotion does not compare, after the
+	// cycle's decision, so their evidence flows without delaying or
+	// withholding a promotion. It reports its own failure.
+	Fill()
 }
 
 // Outcome reports why Run returned.
@@ -258,10 +262,11 @@ func improve(world World, outcome *Outcome) (int, error) {
 // Improve runs one improvement cycle: it measures the scorecard, promotes
 // the measured commit only when the record is not withheld (a baseline
 // measured on the promoted branch, every held-out quality measured, none
-// fallen), and proposes the gaps as rows. A failed validation leaves stale
-// cells, so it promotes nothing; its record still names the gaps. The
-// outcome says why a commit was withheld. The driver runs it when the plan
-// empties, and cmd/loop -improve on demand.
+// fallen), proposes the gaps as rows, then fills the validations promotion
+// does not compare. A failed validation leaves stale cells, so it promotes
+// nothing; its record still names the gaps. The outcome says why a commit
+// was withheld. The driver runs it when the plan empties, and cmd/loop
+// -improve on demand.
 func Improve(improver ImprovementWorld, outcome *Outcome) (int, error) {
 	published, baseline, err := improver.Measure()
 	if published == nil {
@@ -278,6 +283,7 @@ func Improve(improver ImprovementWorld, outcome *Outcome) (int, error) {
 		outcome.Promoted = published.Commit
 	}
 	added, proposeErr := improver.Propose(*published, published.Gaps(baseline))
+	improver.Fill()
 	return added, errors.Join(err, proposeErr)
 }
 

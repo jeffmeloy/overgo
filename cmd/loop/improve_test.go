@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -143,7 +144,7 @@ func TestNoScorecardOfMainPromotesNothing(t *testing.T) {
 	if err := publish(0.5); err != nil {
 		t.Fatal(err)
 	}
-	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func() error { return publish(0.6) }}
+	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func() error { return publish(0.6) }, fill: func() error { return nil }}
 	var outcome loop.Outcome
 	if _, err := loop.Improve(improver, &outcome); err != nil {
 		t.Fatal(err)
@@ -200,7 +201,9 @@ func (w *planWorld) Paused() bool { return false }
 // of the new commit has a lower held-out accuracy: main stays, and the fall
 // becomes the row the worker lands. The next scorecard holds, and main
 // fast-forwards to the measured commit, which the remote never receives.
-// A main holding a commit the measured one lacks is refused, not rewound.
+// Each cycle's background validations fail, which neither stops the loop
+// nor withholds the promotion. A main holding a commit the measured one
+// lacks is refused, not rewound.
 func TestPromotionWaitsForAHoldingScorecard(t *testing.T) {
 	t.Parallel()
 	repository, remote := t.TempDir(), t.TempDir()
@@ -234,10 +237,15 @@ func TestPromotionWaitsForAHoldingScorecard(t *testing.T) {
 	if err := publish(); err != nil {
 		t.Fatal(err)
 	}
-	world := &planWorld{promoted: promoted, improvement: improvement{root: repository, plan: emptyPlan(t), records: records, measure: publish}}
+	fills := 0
+	fill := func() error {
+		fills++
+		return errors.New("a background suite failed")
+	}
+	world := &planWorld{promoted: promoted, improvement: improvement{root: repository, plan: emptyPlan(t), records: records, measure: publish, fill: fill}}
 	outcome, err := loop.Run(world, loop.Config{MaxAttemptsPerStep: 1, MaxInvocations: 2})
-	if err != nil || outcome.Reason != loop.ReasonPlanComplete || len(world.parked) != 0 {
-		t.Fatalf("outcome=%+v err=%v parked=%v", outcome, err, world.parked)
+	if err != nil || outcome.Reason != loop.ReasonPlanComplete || len(world.parked) != 0 || fills != len(scripted)-1 {
+		t.Fatalf("outcome=%+v err=%v parked=%v fills=%d", outcome, err, world.parked, fills)
 	}
 	if !slices.Equal(world.heldAt, []string{promotedCommit}) {
 		t.Fatalf("the worker ran %d times with main at %v; want once, on the fall, with main unmoved at %s", len(world.heldAt), world.heldAt, promotedCommit)

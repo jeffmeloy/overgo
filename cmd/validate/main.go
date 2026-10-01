@@ -58,7 +58,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	root := flags.String("root", ".", "repository root: the commit range and surfaces are read from it")
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data-root contract")
 	baseline := flags.String("baseline", "HEAD~1", "commit to diff against; the change set is baseline..HEAD")
-	execute := flags.Bool("run", false, "execute the selected validations (default: dry run prints the plan only)")
+	execute := flags.Bool("run", false, "execute the selected validations promotion waits on and the cycle lanes (default: dry run prints the plan only)")
+	background := flags.Bool("background", false, "with -run: execute the background validations instead, the suites the baseline scorecard does not compare, which never block promotion")
 	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as validated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
 	scorecardView := flags.Bool("scorecard", false, "print the user scorecard: for every activated model and task, time to first output, throughput, held-out quality, failures, load time, peak device memory and setup steps, each read from the store or listed as a gap with its reason, and the share of served models supported by declaration alone; runs nothing")
@@ -86,6 +87,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		Constraints: []string{
 			"the default dry run itself loads no model and opens no device: it reads the guard records, smoke runs and acceptance receipts (go test's cache replays unchanged ones) and prints the plan as JSON",
 			"a cell runs when the commit's changes move its surface or its accepted record is not bound to the identity the code is at now; it is reused only when that record is current",
+			"promotion waits on every guard, serving cell, proof and cycle lane, and on a benchmark that re-measures the held-out contract the baseline scorecard beside the store compares; any other benchmark that runs is background, and -run -background runs those",
 			"every registered model is accounted for; each available model is dispatched by its declared functions",
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
 			"-scorecard reads the store and the serving source: it loads no model, opens no device and needs no commit range",
@@ -223,6 +225,11 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
+	compared, err := promotionBaseline(ctx, *root, storeRoot)
+	if err != nil {
+		return err
+	}
+	compareProtocols(registered, compared)
 	read, err := readAcceptedRecords(ctx, *root, storeRoot, store, registered)
 	if err != nil {
 		return err
@@ -239,12 +246,12 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, read.current, storeRoot))
 	}
 
-	plan := SelectValidation(Inputs{Baseline: base, Head: head, ChangedPaths: changed, AffectedSurfaces: affected, Registered: registered, Current: read.current})
+	plan := SelectValidation(Inputs{Baseline: base, Head: head, ChangedPaths: changed, AffectedSurfaces: affected, Registered: registered, Current: read.current, Scorecard: compared})
 	if plan.Suites, err = cycleSuites(ctx, *root, head, changed); err != nil {
 		return err
 	}
 	if *execute {
-		return executeRun(ctx, output, *root, storeRoot, plan)
+		return executeRun(ctx, output, *root, storeRoot, plan, *background)
 	}
 	return clioptions.WritePrettyJSON(output, plan)
 }

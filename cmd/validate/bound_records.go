@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -82,13 +83,13 @@ func readBenchmarkEvidence(ctx context.Context, store *overgodb.Store) benchmark
 }
 
 // record finds a benchmark cell's record: its recipe's newest evaluation of
-// the family's suite, under whichever protocol ran last, which is the one the
-// scorecard reads. A family no record measures yet takes its first protocol.
-// The cell is inapplicable when its model declares evaluation domains that
-// admit no suite of the family, as evaluate's own routing finds.
+// the family's suite, under the protocol the cell names when the baseline
+// scorecard compares it, else under whichever protocol ran last. A family no
+// record measures yet takes the named protocol or its first. The cell is
+// inapplicable when its model declares evaluation domains that admit no
+// suite of the family, as evaluate's own routing finds.
 func (benchmarks benchmarkEvidence) record(ctx context.Context, store *overgodb.Store, cell ModelValidation) (boundRecord, error) {
-	family := func(source string) bool { return strings.HasSuffix(source, "/"+cell.Validation) }
-	compiles := func(suite evaluation.CompiledSuite) bool { return family(suite.Descriptor().Source) }
+	compiles := func(suite evaluation.CompiledSuite) bool { return ofFamily(suite.Descriptor().Source, cell.Validation) }
 	switch domains := strings.Split(cell.Modality, ","); {
 	case !slices.ContainsFunc(benchmarks.suites, compiles):
 		return boundRecord{refusal: fmt.Errorf("the active catalog compiles no %s suite", cell.Validation)}, nil
@@ -96,7 +97,7 @@ func (benchmarks benchmarkEvidence) record(ctx context.Context, store *overgodb.
 		return boundRecord{refusal: fmt.Errorf("%w: it declares %s", errCellInapplicable, cell.Modality)}, nil
 	}
 	for _, summary := range benchmarks.evidence.EvaluationsByRecipe[cell.Recipe] {
-		if !family(summary.Suite) {
+		if !ofFamily(summary.Suite, cell.Validation) || cell.Protocol != "" && summary.Prompting != cell.Protocol {
 			continue
 		}
 		evaluated, err := runrecord.RequireEvaluation(ctx, store, summary.Record)
@@ -110,8 +111,12 @@ func (benchmarks benchmarkEvidence) record(ctx context.Context, store *overgodb.
 	if slices.Contains(templateFamilies, cell.Validation) {
 		protocol = evaluation.PromptingChatTemplate.Label()
 	}
-	return boundRecord{protocol: protocol, cost: int64(benchmarkBudget)}, nil
+	return boundRecord{protocol: cmp.Or(cell.Protocol, protocol), cost: int64(benchmarkBudget)}, nil
 }
+
+// ofFamily reports whether a suite, named by its source, is of a benchmark
+// family: the catalog names a family's suites by it after the source's root.
+func ofFamily(source, family string) bool { return strings.HasSuffix(source, "/"+family) }
 
 // proofRecord finds a proof cell's record: the verified run its activation
 // accepted.

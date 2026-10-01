@@ -1,5 +1,5 @@
 {
- "model": "model:sha256:5df7bae0614c37f11e40fa6659d0cb0e6621812c24831d862d20061036ed51ba",
+ "model": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
  "name": "granite-speech-5.0-470m-turboctc",
  "model_file": "C:/Users/jeffm/overgo/models/granite-speech-5.0-470m-turboctc/model.safetensors",
  "evidence_files": [

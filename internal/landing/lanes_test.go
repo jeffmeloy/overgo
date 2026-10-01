@@ -262,6 +262,8 @@ func TestReachInvariants(t *testing.T) {
 		{"internal/routedlm/flowterminal_model_test.go", gateLanes, false, "models", "the flow terminal runs the real SenseNova artifact"},
 		{"internal/speechsynth/train_step_model_test.go", gateLanes, false, "models", "joint Muon training steps the real speech artifact"},
 		{"internal/tabularicl/predict_wall_test.go", gateLanes, false, "models", "the predict wall loads every real TabICL head"},
+		{"cmd/benchmark-report/accepted_coverage_test.go", gateLanes, false, "models", "MMLU-Pro coverage reads the live store's evaluations, so a store write would otherwise refuse an unrelated landing"},
+		{"cmd/validate/verification_workflow_model_test.go", gateLanes, false, "models", "the media report projection reads the live store's activations, so an activation change would otherwise refuse an unrelated landing"},
 		{"internal/modelintake/projection_test.go", gateLanes, false, "models", "projection intake hashes the stored model and projector pair"},
 		{"cmd/train/route_tabular_tabfm_test.go", gateLanes, false, "models", "the TabFM objective trains the real classification head"},
 		{"cmd/validate/accepted_coverage_report_test.go", gateLanes, false, "models", "the coverage projection reads the live store's accepted evidence"},

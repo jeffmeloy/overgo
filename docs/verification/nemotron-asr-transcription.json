@@ -1,5 +1,5 @@
 {
- "model": "model:sha256:162ed771f9ba22a37ee936f2d1d2019ebb01743d45051ac1c3cc63cf0d92c5f7",
+ "model": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
  "name": "nemotron-3.5-asr-streaming-0.6b",
  "model_file": "C:/Users/jeffm/overgo/models/nemotron-3.5-asr-streaming-0.6b/model.safetensors",
  "evidence_files": [

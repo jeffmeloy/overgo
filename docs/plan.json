@@ -140,6 +140,10 @@
       "title": "Move live-evidence acceptance tests off the landing path",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1,
+        "reason": "cmd/benchmark-report joins the cycle's models lane package list"
+      },
       "steps": [
         {
           "id": "do",

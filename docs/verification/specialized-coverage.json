@@ -73,12 +73,12 @@
       ]
     },
     {
-      "Model": "model:sha256:5df7bae0614c37f11e40fa6659d0cb0e6621812c24831d862d20061036ed51ba",
+      "Model": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
       "Domains": null,
       "Cells": [
         {
           "Task": "transcription",
-          "Recipe": "recipe:sha256:2a980d7a7b1057e4ca31756359282aeb955a0a8b5e8577182a0e9dfb78dc0c21",
+          "Recipe": "recipe:sha256:1b4b53fffac099482864cac908112d4da98319ef6c6670974505fe594a48c114",
           "Proofs": [
             "speech-transcription-verification/do"
           ],
@@ -87,12 +87,12 @@
       ]
     },
     {
-      "Model": "model:sha256:162ed771f9ba22a37ee936f2d1d2019ebb01743d45051ac1c3cc63cf0d92c5f7",
+      "Model": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
       "Domains": null,
       "Cells": [
         {
           "Task": "transcription",
-          "Recipe": "recipe:sha256:09e4454fb71f158c386cbafb92a86b5b2979da8808aaabc872509b5cfd3da3e9",
+          "Recipe": "recipe:sha256:1f1acf2ab1b5287ef7fa7068d92f8fea64467611b61c450ce1e0a9a717fd35e5",
           "Proofs": [
             "speech-transcription-verification/do"
           ],

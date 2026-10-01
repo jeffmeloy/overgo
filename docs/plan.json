@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-unmeasured-inference",
-      "title": "Measure inference's unmeasured cells",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2370,
-        "reason": "recipe measure for inference recipes (+1242 in inference_measure.go) with validate's serving cell, plus the transcription-report and held-out-verdict readers in evaluation and the scorecard's verdict join"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure inference's unmeasured cells",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-inference",
-          "rationale": "- Bonsai-27B-Q1_0 held-out-quality: no evaluation of a derived benchmark suite\n- Bonsai-27B-Q1_0 failure-rate: no completed serving attempts recorded\n- Carbon-500M-f16-ropefix first-output: no benchmark time to first token and no serving prefill sample\n- Carbon-500M-f16-ropefix throughput: no benchmark decode rate and no served decode phase with output tokens\n- Carbon-500M-f16-ropefix failure-rate: no completed serving attempts recorded\n- Carbon-500M-f16-ropefix load-time: no benchmark load time and no recorded load phase\n- Carbon-500M-f16-ropefix peak-device-memory: no benchmark or serving peak device memory\n- MiniCPM5-1B-native-chat failure-rate: no completed serving attempts recorded\n- Qwen3.5-9B failure-rate: no completed serving attempts recorded\n- Unlimited-OCR-bf16 held-out-quality: no evaluation of a derived benchmark suite\n- Unlimited-OCR-bf16 failure-rate: no completed serving attempts recorded\n- gemma-4-12B-it-fp8 failure-rate: no completed serving attempts recorded\n- gemma-4-12B-it-fp8-native failure-rate: no completed serving attempts recorded\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline.\n\nOwner focus, 2026-09-30: ranked right after promotion-correctness. Under the strict rule, main promotes only when every applicable row has held-out quality, and the text models users run lack it. Measure held-out quality first, starting with the models users run; the other cells in this row follow. It is also the first real measurement of user-visible quality."
-        }
-      ]
-    },
-    {
       "id": "first-trained-improvement",
       "title": "Train a text model on WikiText-2 and judge it against its base on held-out records",
       "owner": "master-lead",

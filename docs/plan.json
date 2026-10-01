@@ -23,6 +23,21 @@
       ]
     },
     {
+      "id": "ocr-mmlu-coverage",
+      "title": "Complete or scope Unlimited-OCR's MMLU-Pro chat coverage so the cycle's coverage acceptance holds",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Complete or scope Unlimited-OCR's MMLU-Pro chat coverage so the cycle's coverage acceptance holds",
+          "status": "open",
+          "verify": "go test -tags modeltest ./cmd/benchmark-report -run '^TestAcceptedSmallModelMMLUPro$' -count=1",
+          "rationale": "\n\nMeasured 2026-10-01: Unlimited-OCR-bf16 scored mmlu-pro raw-completion 0.119 (1h44m alone); its chat-template run hit evaluate's 6h budget at 9234 of 12032 cases (2.34 s per case, score 0.021 so far) and committed nothing. TestAcceptedSmallModelMMLUPro, which since 1d6d291e8 runs in the cycle's models lane, requires every model with an mmlu-pro record to carry both protocols, so the first cycle fails on OCR and withholds promotion. Options: (a) finish the chat run with a 9h budget (about 7.8h of GPU for a near-zero score on a model that is not a chat model); (b) scope the acceptance to the models its comment means (small and mid text chat models), reading a declared non-chat domain or task from the recipe rather than a name list; (c) run OCR's held-out quality on an OCR suite instead (OCRBench, a download awaiting the owner). Recommended: (b) with (c) once approved; the acceptance's own comment already exempts non-text models, and an OCR model's mmlu-pro chat score measures nothing users meet."
+        }
+      ]
+    },
+    {
       "id": "compatibility-into-validate",
       "title": "Fold cmd/compatibility into validate, re-verifying claims whose source moves",
       "owner": "master-lead",
@@ -82,11 +97,18 @@
       "status": "open",
       "steps": [
         {
+          "id": "model-slice",
+          "title": "Trim internal/model's structural tests",
+          "status": "open",
+          "verify": "go test ./internal/model -count=1",
+          "rationale": "The second slice of tests-pin-behaviour; its record is on the do step's rationale."
+        },
+        {
           "id": "do",
           "title": "Delete tests that pin internal structure or bookkeeping, package by package",
           "status": "open",
-          "verify": "go test ./internal/model -count=1",
-          "rationale": "Owner 2026-09-26: delete tests that only check bookkeeping; keep parity, golden, journey and API-contract tests. internal/server holds 33,963 lines of tests against 22,354 of code. No analyzer is built to sort tests: the target is net-deleted test lines per package, largest first, reviewed by what each deleted test pinned (a helper's shape, a file name, a private table, a removed mechanism's bookkeeping, as lane_executable_test.go did). Each package lands as its own slice; this row starts with internal/server, and its check is that the package's remaining tests pass. Test-only, so no production class. Order 2026-09-27 (owner review): internal/server first (34k lines of tests against 22k of code), then internal/model (22k against 18k).\n\nServes: landing speed. Disappears: tests that pin structure or bookkeeping, largest packages first. Batch: host, package by package.\n\nLanes (expected; the gate reads them from the diff): the lanes of each package it trims. From goldens-own-parity 2026-09-30: internal/audioparity runs TestVADArtifactRefusals, TestVADStreamRecovery, TestCPUASRReference (about 16.5 s) and TestCanonicalAudioModelRegistration twice, once top-level and once as a subtest of an acceptance. The one-line fix used for the VAD comparisons (a helper run once, inside the claim-bearing acceptance) applies. The CPU-ASR pair sits in the byte-frozen second_asr_test.go, so it needs that file's pin moved first.\n\nSQA 2026-09-30, SQA-065 (P2): start the recurring test-cost audit at the 19-package cuda expansion (a45132880, a1c6b6673; first affected landing 68afbc6ea), with adaptiveparity's recorded 10 min 58 s first. For each expensive selected test, name its independent requirement, the overlapping owner and the input that invalidates it, then retain, consolidate, narrow or reuse. A test needing a lane is not a reason to run it on every landing that selects the lane.\n\nSlice 1, internal/server (2026-10-01, landed with recovery-failures-seen): 1,492 net test lines deleted (33,597 to 32,105; 209 to 194 files). Source scans, retired-mechanism bans, private-table pins and duplicate setups were removed or merged, each listed in the landing message. Kept: the 11 claim-bound files, lint ratchets and security bans, lane isolation tests, device evidence producers. TestFrontPageLibraryProjector (33 s, the only check of libraryintake.ModelFiles) dominates the package's test time. Next slice: internal/model (22k lines of tests against 18k of code)."
+          "verify": "go test ./internal/audioparity -count=1",
+          "rationale": "Owner 2026-09-26: delete tests that only check bookkeeping; keep parity, golden, journey and API-contract tests. internal/server holds 33,963 lines of tests against 22,354 of code. No analyzer is built to sort tests: the target is net-deleted test lines per package, largest first, reviewed by what each deleted test pinned (a helper's shape, a file name, a private table, a removed mechanism's bookkeeping, as lane_executable_test.go did). Each package lands as its own slice; this row starts with internal/server, and its check is that the package's remaining tests pass. Test-only, so no production class. Order 2026-09-27 (owner review): internal/server first (34k lines of tests against 22k of code), then internal/model (22k against 18k).\n\nServes: landing speed. Disappears: tests that pin structure or bookkeeping, largest packages first. Batch: host, package by package.\n\nLanes (expected; the gate reads them from the diff): the lanes of each package it trims. From goldens-own-parity 2026-09-30: internal/audioparity runs TestVADArtifactRefusals, TestVADStreamRecovery, TestCPUASRReference (about 16.5 s) and TestCanonicalAudioModelRegistration twice, once top-level and once as a subtest of an acceptance. The one-line fix used for the VAD comparisons (a helper run once, inside the claim-bearing acceptance) applies. The CPU-ASR pair sits in the byte-frozen second_asr_test.go, so it needs that file's pin moved first.\n\nSQA 2026-09-30, SQA-065 (P2): start the recurring test-cost audit at the 19-package cuda expansion (a45132880, a1c6b6673; first affected landing 68afbc6ea), with adaptiveparity's recorded 10 min 58 s first. For each expensive selected test, name its independent requirement, the overlapping owner and the input that invalidates it, then retain, consolidate, narrow or reuse. A test needing a lane is not a reason to run it on every landing that selects the lane.\n\nSlice 1, internal/server (2026-10-01, landed with recovery-failures-seen): 1,492 net test lines deleted (33,597 to 32,105; 209 to 194 files). Source scans, retired-mechanism bans, private-table pins and duplicate setups were removed or merged, each listed in the landing message. Kept: the 11 claim-bound files, lint ratchets and security bans, lane isolation tests, device evidence producers. TestFrontPageLibraryProjector (33 s, the only check of libraryintake.ModelFiles) dominates the package's test time. Next slice: internal/model (22k lines of tests against 18k of code).\n\nSlice 2, internal/model (2026-10-01): 1,155 net test lines deleted (22,284 to 21,129). Removed: the metadata-op string table for 56 architectures and the 173-slot binding list from deleted mechanisms, per-family GraphInputs field sets (one reflection loop since 80a6d73ea), catalog self-comparisons, private binder and plan pins; merged identical-body and one-line-wrapper tests into tables; added ReadSpec tests for hunyuan-moe and nemotron_h, the two architectures that had none. Next slice: internal/audioparity (8,488 test lines against 1,491 of code), which runs in the cycle's audio lane."
         }
       ]
     },
@@ -126,16 +148,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1,
-        "reason": "cmd/benchmark-report joins the cycle's models lane package list"
+        "nodes": 2,
+        "reason": "the cycle's models lane lists internal/evaluation and internal/dataset"
       },
       "steps": [
         {
-          "id": "do",
-          "title": "Move live-evidence acceptance tests off the landing path",
+          "id": "registered-gguf",
+          "title": "Fail a test when a registered GGUF cannot be read",
           "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingTestsRunWithoutTheLiveStore$' -count=1",
-          "rationale": "Owner review 2026-09-27. Measured: 088a4774c's test stage re-ran 17 suites for 6 min 56 s (audioparity 376 s, cmd/compatibility 192 s, capabilityruntime 122 s, modelintake 119 s, server 71 s) because plan -stop had written a record into the live store at 17:56:23; the next plan-only landing, with no store write before it, ran 4 packages in 40 s. Suites that read the live store re-run on every store write, and their verdict depends on the machine's store rather than the commit. The gate runs go test with OVERGO_DATA_ROOT pointing at an empty scratch directory and OVERGO_AUDIO_REFERENCE_STORE unset (construction: no test can reach the live store through the environment); the 16 test files that name the store by path (overgodb-store, gitauthority.CanonicalOvergoDBDirectory) become hermetic on fixtures or scratch stores, or move off the landing path to the scheduled scorecard and validate, where live-store checks belong. Predicted effect: landings stop paying for store writes; a narrow landing's test stage stays near a minute. Measured 2026-09-27 before starting: with the data root pointed at an empty directory, 133 tests in 77 files across 12 packages fail (cmd/compatibility 32 files, internal/audioparity 19, internal/evaluation 10, speechsynth, server and others): retained-evidence acceptance tests and a few live model-file tests. They re-run when the evidence changes, which is correct; the measured 7-minute landing came from a control record (plan -stop) written into the evidence store, which stop-state-out-of-store removes. Moving them means splitting mixed files across 12 packages and a scheduled evidence run. Do it only if dev-loop measurement shows real evidence writes costing landings. Re-raised 2026-09-27 under landing-wall-budget: the four slowest suites a landing re-runs are these, and they re-run on dependency changes as well as store writes, so the stop-file fix alone does not bring landings under the budget. Updated 2026-09-27 after 32ad2b892: the store-write cause is gone. The data lives outside the module folder, so a store write re-runs nothing. The audio acceptances run in their own lane (780d83550). What remains is hermeticity: these suites' verdicts depend on the machine's data. That does not speed up landings, because a lane would run exactly when their code changes, as go test does now. So the row ranks after the user-visible fixes. Measured 2026-09-28 after the lanes landed: go test ./... with OVERGO_DATA_ROOT on an empty folder fails 92 tests in 12 packages: cmd/compatibility 56 (40 top-level accepted-evidence and acceptance projections, opening the store through retainedReferenceStore in 34 places and dataroot.Resolve in about 36), internal/evaluation 16, internal/speechsynth 7, internal/server 4, internal/audioparity 2, and one each in oscillatorimage, modelintake, dataset, capabilityruntime, cmd/smoke-lane, cmd/longform and cmd/benchmark-report. The work: consolidate each package's live-store entry into one helper behind testskip.StoreAcceptance, and run the packages in a store lane (without the five failing audits, tracked in refresh-accepted-evidence). The benefit is hermeticity only: with the data outside the module, a lane runs these exactly when go test does now. Ranked after plan-tool-plain-data.\n\nServes: loop speed. Disappears: live-evidence suites on the landing path. Batch: host.\n\nLanes (expected; the gate reads them from the diff): the lanes of the suites it moves.\n\nOwner review 2026-09-30: justified as robustness unless the gate's timing shows a saving.\n\nSQA 2026-09-30: SQA-056 (P2): a registered GGUF that fails to read is reported as an inapplicable test; it must fail. SQA-044 and SQA-037 are handled in compatibility-into-validate and lane-cost."
+          "verify": "go test ./internal/modeltest -run '^TestRegisteredGGUFSelection$' -count=1",
+          "rationale": "SQA-056 (P2), built 2026-10-01 in scratchpad hermetic.patch (internal/modeltest/gguf.go, apply with --include='internal/modeltest/*'): modeltest.GGUF chooses through smallestGGUF; an absent registered file is skipped, a present file whose header cannot be read fails, and a failed read is no longer cached as no architecture. +95 nodes; it reaches the device, cuda and webui lanes, so it waits for an idle GPU (device measurement tests need exclusivity). Also from that build: 60 tests in 16 packages skip without the data root but run against it (oscillatorimage 11, speechsynth 13, diffusionimage 6, seq2seq 6, seriesforecast 6, rae 3, densecausal 3, others); their verdicts depend on this machine's data and belong to the cycle next."
         }
       ]
     },
@@ -657,7 +679,8 @@
             "cycle-promotion-scope/do",
             "cycle-compared-families/do",
             "cycle-proof-commands/do",
-            "projection-proof-producer/do"
+            "projection-proof-producer/do",
+            "ocr-mmlu-coverage/do"
           ]
         }
       ]

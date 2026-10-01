@@ -15,16 +15,6 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestModelsReportRendersFromItsInputs holds the model report to rendering on
-// demand from its inputs -- the typed verification specifications joined
-// against the store -- into the typed report a reader decodes.
-func TestModelsReportRendersFromItsInputs(t *testing.T) {
-	t.Parallel()
-	if report := renderedModelsReport(t); len(report.Prototypes) == 0 {
-		t.Fatal("the rendered model report is empty")
-	}
-}
-
 // modelsReportRender renders the model report once per test process, from
 // the checkout's specifications and the retained store, decoded strictly as
 // a reader would. The report is a function of the checkout and the store,

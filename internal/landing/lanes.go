@@ -167,6 +167,7 @@ var modelPackages = []string{
 	"./internal/mediacapability", "./internal/sensenovarecipe", "./internal/routedlm", "./internal/inference", "./internal/adaptiveparity",
 	"./internal/composition", "./internal/speechsynth", "./internal/tabularicl", "./internal/modelintake", "./internal/server",
 	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/train", "./cmd/validate", "./cmd/benchmark-report",
+	"./internal/evaluation", "./internal/dataset",
 }
 
 // CycleLane is one lane of the improvement cycle: the go command's arguments

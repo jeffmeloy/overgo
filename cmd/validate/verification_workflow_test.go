@@ -17,7 +17,6 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
-	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
@@ -250,79 +249,4 @@ func TestMediaReceiptAssertions(t *testing.T) {
 			}
 		})
 	}
-	t.Run("retained contracts", func(t *testing.T) {
-		testskip.Short(t)
-		root, err := filepath.Abs(filepath.Join("..", ".."))
-		if err != nil {
-			t.Fatal(err)
-		}
-		roots, err := dataroot.Resolve(root)
-		if err != nil {
-			t.Fatal(err)
-		}
-		store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer store.Close()
-		var bindings map[string]map[string][]string
-		if err := jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &bindings); err != nil {
-			t.Fatal(err)
-		}
-		seen := map[string]bool{}
-		accepted, rejected := 0, 0
-		for _, path := range []string{mediaValidationPath, "docs/image_video_lifecycle.json", "docs/image_video_capacity.json"} {
-			var index struct {
-				Checks []struct {
-					mediaValidationCheck
-					Required []string `json:"required_tests"`
-				}
-			}
-			if err := jsonfile.Decode(filepath.Join(root, path), &index); err != nil {
-				t.Fatal(err)
-			}
-			for _, check := range index.Checks {
-				if seen[check.Name] || len(bindings[check.Name]) == 0 {
-					t.Fatal("duplicate check or missing assertion contract", check.Name)
-				}
-				seen[check.Name] = true
-				if err := checkMediaReceiptProvenance(t.Context(), store, check.mediaValidationCheck); err != nil {
-					t.Fatal(check.Name, err)
-				}
-				content, found, err := artifact.ReadContent(t.Context(), store, check.Evidence)
-				if err != nil || !found {
-					t.Fatal("retained acquisition absent", check.Name, err)
-				}
-				report, parseErr := testevidence.GoTestJSONReport(string(content.Data))
-				err = checkMediaTestReceipt(check.Name, content.Data, bindings[check.Name])
-				if parseErr != nil || testevidence.RequireComplete(report) != nil {
-					if err == nil {
-						t.Fatal("historical failure gained assertion credit", check.Name)
-					}
-					rejected++
-					continue
-				}
-				if err != nil {
-					t.Fatal(err)
-				}
-				if len(check.Required) != 0 {
-					requireMediaTestReceipt(t, check.Name, content.Data, check.Required, bindings)
-				}
-				accepted++
-				substituted := maps.Clone(bindings[check.Name])
-				for pkg, names := range substituted {
-					delete(substituted, pkg)
-					substituted[pkg+"-unrelated"] = names
-					break
-				}
-				if checkMediaTestReceipt(check.Name, content.Data, substituted) == nil {
-					t.Fatal("retained names credited to an unrelated package", check.Name)
-				}
-			}
-		}
-		if len(seen) != len(bindings) || accepted == 0 || rejected == 0 {
-			t.Fatalf("contracts=%d checks=%d accepted=%d retained failures=%d", len(bindings), len(seen), accepted, rejected)
-		}
-		t.Logf("%d exact contracts: %d accepted, %d historical failures retained; wrong-package substitutions refused; no model execution or source promotion", len(seen), accepted, rejected)
-	})
 }

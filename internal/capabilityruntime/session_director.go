@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"overgo/internal/artifact"
@@ -827,7 +828,7 @@ func decodeJSONInput[Input any](
 		return input, artifact.Content{}, errors.New("capability runtime: program model differs from binding")
 	}
 	content, err := artifact.JSONContent(
-		artifact.JSONContract(artifact.KindFile, "overgo."+name+"-input.v1"), input,
+		artifact.JSONContract(artifact.KindFile, "overgo."+name+requestSchema), input,
 	)
 	if err != nil {
 		return input, artifact.Content{}, err
@@ -849,6 +850,16 @@ func decodeJSONInput[Input any](
 // megabyte holds every settings-shaped request while excluding the
 // embedded-tensor classes measured at tens of megabytes.
 const inlineRequestBytes = 1 << 20
+
+// requestSchema ends the schema of a request a run retains whole.
+const requestSchema = "-input.v1"
+
+// RetainedRequest is the request a run retained whole; an oversized request
+// keeps only its digest, which nothing can execute.
+func RetainedRequest(content artifact.Content) (string, bool) {
+	descriptor := content.Descriptor
+	return string(content.Data), descriptor.ID.Kind() == artifact.KindFile && strings.HasSuffix(descriptor.Schema, requestSchema)
+}
 
 // digestRequestContent replaces an oversized request document with its
 // durable footprint: the full request's digest and size for identity,

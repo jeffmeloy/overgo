@@ -98,14 +98,14 @@ func TestSamplerStateRejectsMalformedOrMismatchedData(t *testing.T) {
 }
 
 func TestSamplerOrderParticipatesInStateSignature(t *testing.T) {
-	implicit, err := New(Config{Temperature: 1, Seed: 7, Samplers: DefaultSamplerOrder(), RepeatPenalty: 1})
+	implicit, err := New(Config{Temperature: 1, Seed: 7, Samplers: defaultSamplerOrder, RepeatPenalty: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	explicitDefault, err := New(Config{
 		Temperature:   1,
 		Seed:          7,
-		Samplers:      DefaultSamplerOrder(),
+		Samplers:      defaultSamplerOrder,
 		RepeatPenalty: 1,
 	})
 	if err != nil {
@@ -131,6 +131,23 @@ func TestSamplerOrderParticipatesInStateSignature(t *testing.T) {
 	}
 	if err := custom.LoadState(state); err == nil {
 		t.Fatal("custom order accepted default-order state")
+	}
+	// An explicitly empty chain runs no stage, so it never resumes the
+	// state of the omitted order it would otherwise share a signature with.
+	omitted, err := New(Config{Temperature: 1, Seed: 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty, err := New(Config{Temperature: 1, Seed: 7, Samplers: []SamplerStage{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	omittedState, err := omitted.SaveState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := empty.LoadState(omittedState); err == nil {
+		t.Fatal("explicitly empty chain accepted the omitted order's state")
 	}
 }
 
@@ -383,7 +400,7 @@ func TestSamplerGBNFStateResumesExactly(t *testing.T) {
 	}
 	config := Config{
 		GBNF: grammar, Temperature: 0, TopP: 1, TypicalP: 1, RepeatPenalty: 1,
-		Samplers: DefaultSamplerOrder(),
+		Samplers: defaultSamplerOrder,
 	}
 	original, err := New(config)
 	if err != nil {
@@ -440,7 +457,7 @@ func TestSamplerLazyGBNFStateRestoresBufferedTriggerHistory(t *testing.T) {
 	}
 	config := Config{
 		GBNF: grammar, Temperature: 0, TopP: 1, TypicalP: 1, RepeatPenalty: 1,
-		Samplers: DefaultSamplerOrder(),
+		Samplers: defaultSamplerOrder,
 	}
 	source, err := New(config)
 	if err != nil {

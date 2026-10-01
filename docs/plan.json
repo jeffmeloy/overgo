@@ -155,35 +155,6 @@
       ]
     },
     {
-      "id": "serving-and-onboarding-fixes",
-      "title": "Fix the serving and onboarding defects the SQA review found",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "sampler-state",
-          "title": "Resume a continued turn with its saved sampler state",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestContinuationRestoresSamplerState$' -count=1",
-          "rationale": "SQA-029 (P2): exact continuation rebuilds the sampler from parameters, so stochastic or constrained output can diverge. It is the sampler-side sibling of the replay fix in 4c36894ad. Use sampling.SaveState and LoadState as the continuation's sampler state. SQA-058 (P2): default sampler resolution overrides an explicitly empty public chain. Batch: sampling is on the inference surface, so this expires the guards."
-        },
-        {
-          "id": "measurement-and-gui",
-          "title": "Stop treating retained digests as inputs, and acquire generation capabilities once per projection",
-          "status": "open",
-          "verify": "go test ./cmd/validate ./internal/server -run '^(TestMeasurementNeedsExecutableInput|TestManifestAcquiresEachCapabilityOnce)$' -count=1",
-          "rationale": "SQA-054 (P2): automatic measurement treats a retained request digest as executable input. SQA-060 (P2): GUI manifest projections repeatedly acquire the same generation capabilities. Batch: the server lanes."
-        },
-        {
-          "id": "onboarding-source-binding",
-          "title": "Bind a reused conversion to the source it was converted from",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestOnboardingReusesOnlyTheSameSourcesConversion$' -count=1",
-          "rationale": "SQA-045 (P2): onboarding reuses a conversion by basename without binding it to the requested source. Batch: no lanes."
-        }
-      ]
-    },
-    {
       "id": "surface-without-capability-tables",
       "title": "Narrow the inference surface one responsibility at a time",
       "owner": "master-lead",

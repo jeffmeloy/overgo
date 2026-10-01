@@ -1,5 +1,7 @@
 package sampling
 
+import "slices"
+
 // Policy defines recipe-owned sampler defaults. Request-only grammar, bias,
 // infill, and tokenized DRY state remain explicit inputs.
 type Policy struct {
@@ -47,7 +49,7 @@ func (p Policy) Config() Config {
 		DryMultiplier: p.DryMultiplier, DryBase: p.DryBase,
 		DryAllowedLength: p.DryAllowedLength, DryPenaltyLastN: p.DryPenaltyLastN,
 		Mirostat: p.Mirostat, MirostatTau: p.MirostatTau, MirostatEta: p.MirostatEta,
-		Seed: p.Seed, Samplers: cloneSamplerOrder(p.Samplers),
+		Seed: p.Seed, Samplers: slices.Clone(p.Samplers),
 	}
 }
 

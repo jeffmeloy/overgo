@@ -195,9 +195,6 @@ func run() error {
 	clioptions.ApplyDefault(explicit, "seed", seed, policy.Sampling.Seed)
 	clioptions.ApplyDefault(explicit, "video-max-frames", videoMaxFrames, policy.Video.MaxFrames)
 	clioptions.ApplyDefault(explicit, "video-fps", videoFPS, policy.Video.FPS)
-	if _, set := explicit["samplers"]; !set {
-		*samplerNames = sampling.FormatSamplerOrder(policy.Sampling.Samplers)
-	}
 	if _, set := explicit["dry-sequence-breaker"]; !set {
 		dryBreakers = append(dryBreakers, policy.Sampling.DryBreakers...)
 	}
@@ -292,9 +289,14 @@ func run() error {
 		len(grammarTriggerTokenValues) > 0 {
 		return errors.New("generate: lazy grammar options require GBNF source")
 	}
-	samplerOrder, err := sampling.ParseSamplerOrder(*samplerNames)
-	if err != nil {
-		return fmt.Errorf("generate: parse samplers: %w", err)
+	// An unset -samplers runs the policy's chain as it is named, an omitted
+	// one included; a set one, even none, is the chain.
+	samplerOrder := policy.Sampling.Samplers
+	if _, set := explicit["samplers"]; set {
+		samplerOrder, err = sampling.ParseSamplerOrder(*samplerNames)
+		if err != nil {
+			return fmt.Errorf("generate: parse samplers: %w", err)
+		}
 	}
 	var infillVocabulary *sampling.InfillVocabulary
 	if slices.Contains(samplerOrder, sampling.SamplerInfill) {

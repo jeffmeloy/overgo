@@ -236,6 +236,11 @@ func (h *Handler) continueResponses(response http.ResponseWriter, request *http.
 		return
 	}
 	defer plan.release()
+	// The sampler resumes from the stopped turn's state, or the turn is refused.
+	if err := plan.sampler.LoadState(parameters.State); err != nil {
+		sessionRefusal(response, fmt.Sprintf("response %s cannot resume its sampler: %v", body.PreviousResponseID, err))
+		return
+	}
 	plan.held = continued.session.held
 	h.runResponseTurn(response, request, body, plan, nil, continued.turn, continued.parent, false, nil, continued.session)
 }
@@ -303,7 +308,7 @@ func (h *Handler) runResponseTurn(
 		stored := message
 		stored.Content = session.prefix + message.Content
 		if err := h.publishTurn(context.WithoutCancel(request.Context()), responseID, parent, append(turn, stored), runrecord.OutcomeSucceeded, reason,
-			session, result.ids, result.pump.held(), reason == runrecord.InteractionOutputLimit); err != nil {
+			session, plan.sampler, result.ids, result.pump.held(), reason == runrecord.InteractionOutputLimit); err != nil {
 			writeError(response, http.StatusInternalServerError, "response_not_durable", err.Error())
 			return
 		}
@@ -367,7 +372,7 @@ func (h *Handler) streamResponses(
 				partial.Content, held = session.prefix+generated.pump.text(), generated.pump.held()
 			}
 			if publishErr := h.publishTurn(context.WithoutCancel(request.Context()), responseID, parent, append(turn, partial), outcome, "",
-				session, generated.ids, held, outcome == runrecord.OutcomeCancelled); publishErr != nil {
+				session, plan.sampler, generated.ids, held, outcome == runrecord.OutcomeCancelled); publishErr != nil {
 				err = errors.Join(err, publishErr)
 				status = "failed"
 			}
@@ -767,7 +772,7 @@ func (h *Handler) streamResponses(
 		stored := parsedMessage
 		stored.Content = session.prefix + parsedMessage.Content
 		if err := h.publishTurn(context.WithoutCancel(request.Context()), responseID, parent, append(turn, stored), runrecord.OutcomeSucceeded, reason,
-			session, result.ids, result.pump.held(), reason == runrecord.InteractionOutputLimit); err != nil {
+			session, plan.sampler, result.ids, result.pump.held(), reason == runrecord.InteractionOutputLimit); err != nil {
 			fail(err)
 			return
 		}

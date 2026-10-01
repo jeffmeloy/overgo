@@ -85,7 +85,7 @@ func TestVideoRoutesDeliverDeclaredOutput(t *testing.T) {
 	if _, dedicated := routesByPath["/v1/videos/edits"]; dedicated {
 		t.Fatal("the retired video-edit route is still routed")
 	}
-	if supported, _ := handler.workspaceCapability(t.Context(), "workflow.video-edit"); supported {
+	if supported, _ := handler.workspaceCapability(t.Context(), workspaceListing{}, "workflow.video-edit"); supported {
 		t.Fatal("the retired video-edit workflow is still a workspace capability")
 	}
 }

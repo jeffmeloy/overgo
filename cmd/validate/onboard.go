@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -98,12 +99,14 @@ func newOnboarding(root, repository string, output io.Writer) (onboarding, error
 // conversion back to it; the model registers and activates through the
 // library's recorded and replayed exact suite, so no golden is copied by hand;
 // and the long-form guard publishes the quality record its standing is judged
-// by. A GGUF the store already ties to the directory -- by location or by the
-// config its conversion recorded -- is onboarded instead of converting again,
-// so a run a failed step stopped is simply run again. A directory with an
-// activated model is refused, since validating again would re-record its
-// goldens: the inventory states its standing and the command that advances
-// it. The first step that fails stops the command and is named.
+// by. The one GGUF the store already ties to the directory -- by location or
+// by the config its conversion recorded -- is onboarded instead of converting
+// again, so a run a failed step stopped is simply run again; several are
+// refused. A conversion is written only where no file is, and an untied file
+// there is neither validated nor overwritten. A directory with an activated
+// model is refused, since validating again would re-record its goldens: the
+// inventory states its standing and the command that advances it. The first
+// step that fails stops the command and is named.
 func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory string) error {
 	model, projector, convert, err := onboardingModel(directory, filepath.Join(steps.checkpoints, conversionDirectory))
 	if err != nil {
@@ -114,17 +117,29 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 		if err != nil {
 			return err
 		}
+		var bound []string
 		for _, registered := range tied {
 			if slices.ContainsFunc(registered.Cells, func(cell ModelValidation) bool { return cell.Kind != "" }) {
 				return fmt.Errorf("onboard: %s is already activated as %s; validate -inventory states its standing and the command that advances it",
 					directory, registered.Location)
 			}
-			if convert && strings.EqualFold(filepath.Ext(registered.Location), ggufExtension) {
-				model, convert = registered.Location, false
+			if convert && strings.EqualFold(filepath.Ext(registered.Location), ggufExtension) && !slices.Contains(bound, registered.Location) {
+				bound = append(bound, registered.Location)
 			}
+		}
+		if len(bound) > 1 {
+			return fmt.Errorf("onboard: the store ties %s to %d conversions (%s); onboard the one meant by its file",
+				directory, len(bound), strings.Join(bound, ", "))
+		}
+		if len(bound) == 1 {
+			model, convert = bound[0], false
 		}
 	}
 	if convert {
+		if _, err := os.Lstat(model); !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("onboard: the store ties %s to no conversion of %s: it may be another directory's or a partial one; move it aside and run again (%v)",
+				model, directory, cmp.Or(err, fs.ErrExist))
+		}
 		fmt.Fprintf(output, "onboard: convert %s to %s\n", directory, model)
 		if err := steps.run(ctx, "go", []string{"run", "./cmd/gguf", "convert", "-source", directory, "-output", model, "-record", steps.store}); err != nil {
 			return fmt.Errorf("onboard: convert %s: %w", directory, err)
@@ -148,8 +163,9 @@ func (steps onboarding) onboard(ctx context.Context, output io.Writer, directory
 }
 
 // onboardingModel resolves the GGUF a path onboards as: the file itself, the
-// one model GGUF and any projector a directory holds, or the conversion of a
-// Hugging Face directory, written unless it already exists.
+// one model GGUF and any projector a directory holds, or the conversion a
+// Hugging Face directory is written to, convert reporting that the directory
+// onboards through one.
 func onboardingModel(path, conversions string) (model, projector string, convert bool, err error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -166,9 +182,7 @@ func onboardingModel(path, conversions string) (model, projector string, convert
 	if _, err := os.Stat(filepath.Join(path, modelConfigFile)); err != nil {
 		return "", "", false, fmt.Errorf("onboard: %s holds neither a GGUF nor a Hugging Face %s", path, modelConfigFile)
 	}
-	model = filepath.Join(conversions, filepath.Base(path)+ggufExtension)
-	_, err = os.Stat(model)
-	return model, "", err != nil, nil
+	return filepath.Join(conversions, filepath.Base(path)+ggufExtension), "", true, nil
 }
 
 // stageReporter prints the library validation's progress as the one command

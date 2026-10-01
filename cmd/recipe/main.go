@@ -506,11 +506,11 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 		return err
 	}
 	modelID := source.Inventory.Manifest.ID
-	request, err := verifiedRequest(ctx, store, modelID, task)
+	selected, err := modelrecipe.ResolveActiveExecution(ctx, store, modelID, task, modelrecipe.SessionWarm)
 	if err != nil {
 		return err
 	}
-	selected, err := modelrecipe.ResolveActiveExecution(ctx, store, modelID, task, modelrecipe.SessionWarm)
+	request, err := verifiedRequest(ctx, store, selected.Activation)
 	if err != nil {
 		return err
 	}
@@ -521,68 +521,26 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 	return json.NewEncoder(os.Stdout).Encode(capabilityruntime.Unwrap(output))
 }
 
-// verifiedRequest is the request the capability's verification ran: the
-// recorded input of a run the activation's lifecycle chain cites, newest
-// first.
-func verifiedRequest(ctx context.Context, store *overgodb.Store, model artifact.ID, task recipe.Task) (string, error) {
-	activation, found, err := modelrecipe.ActiveRecord(ctx, store, model, task)
+// verifiedRequest is the request the activation's accepted verification ran,
+// when that run retained it whole. A request it kept only as a digest, or
+// not at all, is a measurement gap reported before anything executes, so no
+// serving attempt fails on input that was never runnable.
+func verifiedRequest(ctx context.Context, store artifact.Reader, activation modelrecipe.Activation) (string, error) {
+	verification, err := runrecord.VerifyEvidence(ctx, store, activation.Definition.ID, activation.Event.Evidence)
 	if err != nil {
 		return "", err
 	}
-	if !found {
-		return "", fmt.Errorf("recipe: %s has no active %s capability", model, task)
-	}
-	for event := activation.Event; ; {
-		for _, evidence := range event.Evidence {
-			if evidence.Kind() != artifact.KindRun {
-				continue
-			}
-			verification, err := runrecord.RequireRun(ctx, store, evidence)
-			if err != nil {
-				return "", err
-			}
-			for _, input := range verification.Inputs {
-				content, found, err := artifact.ReadContent(ctx, store, input)
-				if err != nil {
-					return "", err
-				}
-				if found {
-					return string(content.Data), nil
-				}
-			}
-		}
-		if event.PreviousEvent == nil {
-			break
-		}
-		previous, found, err := recipe.ReadLifecycleEvent(ctx, store, *event.PreviousEvent)
+	for _, input := range verification.Run.Inputs {
+		content, found, err := artifact.ReadContent(ctx, store, input)
 		if err != nil {
 			return "", err
 		}
-		if !found {
-			break
+		if request, retained := capabilityruntime.RetainedRequest(content); found && retained {
+			return request, nil
 		}
-		event = previous
 	}
-	// A run of the recipe from the page records its request as its last
-	// input; the newest one stands in for a verification that recorded none.
-	var request string
-	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema}},
-		Order:     overgodb.DocumentNewestFirst,
-	}, runrecord.ParseRun, func(_ overgodb.DocumentView, run runrecord.Run) error {
-		if request != "" || run.Recipe != activation.Definition.ID || len(run.Inputs) == 0 {
-			return nil
-		}
-		content, found, err := artifact.ReadContent(ctx, store, run.Inputs[len(run.Inputs)-1])
-		if found {
-			request = string(content.Data)
-		}
-		return err
-	})
-	if err != nil || request != "" {
-		return request, err
-	}
-	return "", fmt.Errorf("recipe: no run of %s's %s capability recorded its request: run it once from the page, or verify it again with -input", model, task)
+	return "", fmt.Errorf("recipe: %s's accepted verification run %s retained no runnable request (a request over the inline bound keeps only its digest): verify it again with an -input it can retain",
+		activation.Definition.ID, verification.Run.ID)
 }
 
 func parseSessionOverride(text string) (modelintake.SessionOverride, error) {

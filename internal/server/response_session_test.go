@@ -70,11 +70,13 @@ func openSessionRunner(t *testing.T, contextLength uint32, adapters ...inference
 	return runner
 }
 
-// TestResponsesContinueSavedSession: a turn stopped after three tokens keeps
-// its token context, and continuing it produces the tokens and text of the
-// uninterrupted greedy turn while recomputing one token; a continuation that
-// asks another sampler, or that another model serves, is refused with why.
-func TestResponsesContinueSavedSession(t *testing.T) {
+// TestContinuationRestoresSamplerState: a seeded stochastic turn under a
+// grammar it is partway through, stopped after three tokens, keeps its token
+// context and sampler state, and continuing it produces the tokens and text
+// of the uninterrupted turn while recomputing one token; a continuation that
+// asks another sampler, that another model serves, or whose turn kept no
+// sampler state, is refused with why.
+func TestContinuationRestoresSamplerState(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -111,9 +113,12 @@ func TestResponsesContinueSavedSession(t *testing.T) {
 		}
 		return tokens, transcript.Messages[len(transcript.Messages)-1].Content
 	}
-	turn := map[string]any{"input": "ab", "temperature": 0, "ignore_eos": true, "max_output_tokens": 8, "store": true}
+	// A fresh grammar would begin again with "ab"; only the turn's own state
+	// lets the continuation keep drawing c and d.
+	turn := map[string]any{"input": "ab", "temperature": 1, "seed": 3, "grammar": `root ::= "a" "b" [cd]+`,
+		"ignore_eos": true, "max_output_tokens": 8, "store": true}
 
-	// The uninterrupted greedy turn reaches its output limit and keeps its context.
+	// The uninterrupted turn reaches its output limit and keeps its context.
 	code, reference := post(handler, maps.Clone(turn))
 	if code != http.StatusOK || reference["status"] != "incomplete" {
 		t.Fatalf("reference status=%d %v", code, reference)
@@ -192,6 +197,35 @@ func TestResponsesContinueSavedSession(t *testing.T) {
 	followed := serveTestRequest(handler, http.MethodGet, "/interactions/follow?model="+testModelID+"&response="+continuationID, "")
 	if _, text := replayed(followed.Body.String()); followed.Code != http.StatusOK || text != referenceText {
 		t.Fatalf("following the continued turn %s replayed %q (status %d), want the whole reply %q", continuationID, text, followed.Code, referenceText)
+	}
+
+	// The same stopped turn kept without its sampler state is refused, not
+	// restarted from its parameters.
+	var parameters continuationParameters
+	if err := json.Unmarshal(stoppedTokens.Sampling, &parameters); err != nil || len(parameters.State) == 0 {
+		t.Fatalf("stopped turn kept sampling %s (%v), want its sampler state", stoppedTokens.Sampling, err)
+	}
+	parameters.State = nil
+	stateless, err := json.Marshal(parameters)
+	if err != nil {
+		t.Fatal(err)
+	}
+	interaction, _, err := runrecord.ResolveInteraction(t.Context(), store, stoppedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transcript, err := runrecord.RequireInteractionTranscript(t.Context(), store, interaction.Message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := turnRecord{context: &runrecord.InteractionContext{Tokens: stoppedTokens.Tokens, Sampling: stateless, Held: stoppedTokens.Held}}
+	if err := handler.publishResponseInteraction(t.Context(), "resp_stateless", interaction.Parent,
+		responseMessages(transcript.Messages), runrecord.OutcomeCancelled, "", kept); err != nil {
+		t.Fatal(err)
+	}
+	code, refused = post(handler, map[string]any{"previous_response_id": "resp_stateless", "continue": true, "max_output_tokens": 5})
+	if code != http.StatusConflict || !strings.Contains(refused["error"].(map[string]any)["message"].(string), "cannot resume its sampler") {
+		t.Fatalf("stateless continuation status=%d %v", code, refused)
 	}
 }
 

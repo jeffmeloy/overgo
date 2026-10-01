@@ -31,12 +31,20 @@ const benchmarkBudget = 6 * time.Hour
 // reacquireCommand builds the command that re-acquires one validation cell's
 // evidence into store, the one store this command selected and read, so the
 // producer never resolves a default of its own. It binds only the commands
-// whose invocation is fully determined by the cell today; an unbound kind,
-// such as a projection or training proof, returns an error so -run reports
+// whose invocation is fully determined by the cell as its records were read;
+// an unbound cell, such as a projection proof, returns why, so -run reports
 // incomplete coverage rather than fabricating a wrong command. A DNA model's
 // guard cell is owned by its smoke run, never the text guard.
 func reacquireCommand(cell ModelValidation, store string) (string, []string, error) {
 	switch cell.Validation {
+	case trainingProof:
+		args, _, _, err := trainingRun(cell, store)
+		if err != nil {
+			return "", nil, err
+		}
+		return "go", args, nil
+	case "projection-proof":
+		return "", nil, errors.New("its proof is the verification its activation accepted, and no command both re-runs a projection's verification and re-verifies the active recipe on it")
 	case "guard":
 		switch {
 		case dnaGuard(cell):
@@ -84,9 +92,11 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 // reported, not accepted, and the rest still run: one model's broken
 // measurement withholds no other's, and a blocking failure withholds
 // promotion. Cells without a bound command are reported as incomplete
-// coverage. An empty run set is the clean "nothing to re-acquire" result the
-// dry run predicts when every judged cell's evidence and every cycle lane's
-// pass is current.
+// coverage. A training run runs under its route's environment and publishes
+// its checkpoint beneath a scratch directory emptied before and after it,
+// since its proof is the verification it records. An empty run set is the
+// clean "nothing to re-acquire" result the dry run predicts when every judged
+// cell's evidence and every cycle lane's pass is current.
 func executeRun(ctx context.Context, output io.Writer, root, store string, plan Plan, background bool) error {
 	cells, suites := plan.Run, plan.Suites
 	if background {
@@ -106,7 +116,16 @@ func executeRun(ctx context.Context, output io.Writer, root, store string, plan 
 			continue
 		}
 		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s; %s)\n", index+1, len(cells), sel.Validation, displayName(sel.ModelValidation), sel.Reason, sel.Promotion)
-		if err := runCell(ctx, output, root, name, args); err != nil {
+		var environment []string
+		scratch := ""
+		if sel.Validation == trainingProof {
+			_, environment, scratch, _ = trainingRun(sel.ModelValidation, store)
+		}
+		err = os.RemoveAll(scratch)
+		if err == nil {
+			err = runCell(ctx, output, root, name, args, environment...)
+		}
+		if err := errors.Join(err, os.RemoveAll(scratch)); err != nil {
 			failed = append(failed, fmt.Sprintf("%s %s: %v", displayName(sel.ModelValidation), sel.Validation, err))
 			continue
 		}

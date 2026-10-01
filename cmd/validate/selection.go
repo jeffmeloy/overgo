@@ -37,6 +37,11 @@ type ModelValidation struct {
 	Stale          string      `json:"stale,omitzero"`    // activation defect, if any
 	OperatorOnly   bool        `json:"operator_only,omitzero"`
 	OperatorReason string      `json:"operator_reason,omitzero"`
+	// Grounding is the committed data a training recipe's objective reads,
+	// which names the route whose run verifies it again; Conditioning is the
+	// video stack directory a raw DiT checkpoint trains against.
+	Grounding    string `json:"grounding,omitzero"`
+	Conditioning string `json:"conditioning,omitzero"`
 }
 
 // Selected pairs an obligation with the reason it landed in its plan bucket

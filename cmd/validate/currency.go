@@ -73,7 +73,7 @@ type acceptedRecords struct {
 // readAcceptedRecords reads what the cells' owners judge by. A read that
 // fails fails the command: an unread record is neither current nor a reason
 // to spend a device re-acquiring it. It also gives each commit-bound cell, in
-// place, the protocol and cost its re-acquisition takes.
+// place, the protocol, cost and grounding its re-acquisition takes.
 func readAcceptedRecords(ctx context.Context, root, storeRoot string, store *overgodb.Store, cells []ModelValidation) (acceptedRecords, error) {
 	read := acceptedRecords{
 		records: map[string]guardRecord{}, receipts: map[string]testReport{}, smoke: map[artifact.ID]error{},
@@ -106,7 +106,7 @@ func readAcceptedRecords(ctx context.Context, root, storeRoot string, store *ove
 			return acceptedRecords{}, err
 		}
 	}
-	return read, nil
+	return read, groundTraining(ctx, root, store, cells)
 }
 
 // current is the one decision on whether a cell's accepted evidence holds at

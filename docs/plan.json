@@ -19,17 +19,17 @@
       ]
     },
     {
-      "id": "cycle-proof-commands",
-      "title": "Give every blocking proof a re-acquisition command",
+      "id": "projection-proof-producer",
+      "title": "Re-verify the active projection recipes through a producer the cycle can run",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Give every blocking proof a re-acquisition command",
+          "title": "Re-verify the active projection recipes through a producer the cycle can run",
           "status": "open",
           "verify": "go test ./cmd/validate -run '^TestEveryBlockingProofHasACommand$' -count=1",
-          "rationale": "\n\nFound 2026-10-01 by cycle-promotion-scope: 9 blocking proof cells have no re-acquisition command (cmd/validate/run.go:63): 7 training-proof and 2 projection-proof. After any move of the training or evaluation surface, validate -run reports incomplete coverage and the cycle withholds promotion until they are bound. Since f031f6f04 a training activation is verified only by a real run (Observer.Verify), so a training proof's command is a bounded real run of its route (cmd/train) on its recipe; a projection proof's command is the projection evaluation that produced it. Bind each, keeping every proof's acceptance contract; the verify is a fixture test that fails today."
+          "rationale": "\n\nFound 2026-10-01 by cycle-proof-commands: the two projection proofs have no producer that re-verifies the active recipe, so after any evaluation-surface move the cycle withholds promotion on them. Qwen3.8-27B (recipe 3303271c) was accepted on a compile-only recipe verify -task projection from fa86e3ab that no longer exists (verify now requires an exact suite); its stronger exact run d2b6484a (20 cases, run f86f0a94) was never activated, its suite is store-held (evidence 9a59d8a6), and its images under docs/verification/fixtures/qwen27/ were deleted in dc26640ad. gemma-4-E4B (recipe 93a7a292) was accepted from OVERGO_E4B_PUBLISH_PROTOCOL=1 go test ./internal/server -run '^TestE4BHTTPModalities$' plus a separate 30-cell review. Build a projection producer that runs an exact suite on the active projection recipe and re-verifies it, as Observer.Verify does for training (the E4B caption-matching sets the store holds are exact suites), and bind both proofs to it; the 27B needs its exact suite's inputs restored or the proof retired against a replacement covering its contract. The verify's table then has no blocking proof without a command."
         }
       ]
     },
@@ -682,7 +682,8 @@
             "first-trained-improvement/do",
             "cycle-promotion-scope/do",
             "cycle-compared-families/do",
-            "cycle-proof-commands/do"
+            "cycle-proof-commands/do",
+            "projection-proof-producer/do"
           ]
         }
       ]

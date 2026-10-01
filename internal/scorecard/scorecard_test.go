@@ -16,7 +16,8 @@ import (
 // result depends on -- a validation run's deliberate interrupt -- does not.
 // The cells read the summary as a user met it: one failure in two attempts,
 // a whole-output capability's time to its output, and the device memory
-// the success peaked at.
+// the success peaked at. Each keeps its origin and scope, the serving
+// attempts of its recipe, so it compares only with the same population.
 func TestServingCountsWhatUsersHit(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -74,8 +75,8 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 		t.Fatalf("serving summary = %+v, want the user's two attempts and not the validation run's", summary)
 	}
 	var none evaluation.BenchmarkSummary
-	if cell := failureCell(summary); cell.Value != 0.5 {
-		t.Fatalf("failure cell = %+v, want one failure in two attempts", cell)
+	if cell := failureCell(summary); cell.Value != 0.5 || cell.Contract.Origin != originServing || cell.Contract.Scope != recipeID {
+		t.Fatalf("failure cell = %+v, want one failure in two attempts, scoped to the recipe's serving attempts", cell)
 	}
 	if cell := firstOutputCell(recipe.TaskImageGen, none, false, summary); cell.Value != milliseconds(wholeOutputNS) || cell.Unit != "ms" {
 		t.Fatalf("first-output cell = %+v, want the whole output's time", cell)

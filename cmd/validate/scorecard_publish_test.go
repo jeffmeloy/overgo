@@ -14,37 +14,41 @@ import (
 
 // TestScheduledScorecardPublishesDeltas publishes two scorecards into one
 // directory, reads them back oldest first, and holds the second to what
-// moved since the first: a changed value with its delta, a cell that gained
-// its measure, a cell that lost it, a new row and a gone row.
+// moved since the first, rows paired by model and task: a changed value with
+// its delta, under the model's new name; a cell that gained its measure; a
+// cell that lost it; a first output in the same unit from another kind of
+// record, which does not compare; a new row and a gone row, though the two
+// share a name.
 func TestScheduledScorecardPublishesDeltas(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
 	source := testutil.ArtifactID(t, artifact.KindEvidence, "scorecard-deltas")
-	row := func(name string, cells map[metric.Name]scorecard.Cell) scorecard.Row {
+	decode := scorecard.Contract{Metric: "decode rate, median", Origin: "benchmark"}
+	row := func(model, name string, cells map[metric.Name]scorecard.Cell) scorecard.Row {
 		for _, column := range metric.Columns {
 			if _, set := cells[column]; !set {
 				cells[column] = scorecard.Cell{Reason: "not measured in this fixture"}
 			}
 		}
-		return scorecard.Row{Name: name, Task: recipe.TaskInference, Cells: cells}
+		return scorecard.Row{Model: testutil.ArtifactID(t, artifact.KindModel, model), Name: name, Task: recipe.TaskInference, Cells: cells}
 	}
 	before := scorecard.Record{Commit: "a", Rows: []scorecard.Row{
-		row("alpha", map[metric.Name]scorecard.Cell{
-			metric.Throughput:  {Value: 40, Unit: "tok/s", Source: source},
+		row("alpha", "alpha", map[metric.Name]scorecard.Cell{
+			metric.Throughput:  {Value: 40, Unit: "tok/s", Source: source, Contract: decode},
 			metric.Quality:     {Reason: "no held-out record"},
-			metric.PeakMemory:  {Value: 8, Unit: "bytes", Source: source},
-			metric.FirstOutput: {Value: 120, Unit: "ms", Source: source},
+			metric.PeakMemory:  {Value: 8, Unit: "bytes", Source: source, Contract: scorecard.Contract{Metric: "peak device memory", Origin: "benchmark"}},
+			metric.FirstOutput: {Value: 120, Unit: "ms", Source: source, Contract: scorecard.Contract{Metric: "time to first token, median", Origin: "benchmark"}},
 		}),
-		row("retired", map[metric.Name]scorecard.Cell{metric.Throughput: {Value: 9, Unit: "tok/s", Source: source}}),
+		row("retired", "beta", map[metric.Name]scorecard.Cell{metric.Throughput: {Value: 9, Unit: "tok/s", Source: source, Contract: decode}}),
 	}}
 	after := scorecard.Record{Commit: "b", Rows: []scorecard.Row{
-		row("alpha", map[metric.Name]scorecard.Cell{
-			metric.Throughput:  {Value: 45, Unit: "tok/s", Source: source},
+		row("alpha", "alpha-renamed", map[metric.Name]scorecard.Cell{
+			metric.Throughput:  {Value: 45, Unit: "tok/s", Source: source, Contract: decode},
 			metric.Quality:     {Value: 0.7, Unit: "accuracy", Source: source},
 			metric.PeakMemory:  {Reason: "no benchmark record"},
-			metric.FirstOutput: {Value: 120, Unit: "ms", Source: source},
+			metric.FirstOutput: {Value: 130, Unit: "ms", Source: source, Contract: scorecard.Contract{Metric: "time to prefill", Origin: "serving"}},
 		}),
-		row("beta", map[metric.Name]scorecard.Cell{metric.Throughput: {Value: 30, Unit: "tok/s", Source: source}}),
+		row("beta", "beta", map[metric.Name]scorecard.Cell{metric.Throughput: {Value: 30, Unit: "tok/s", Source: source, Contract: decode}}),
 	}}
 	published := time.Date(2026, time.September, 28, 10, 0, 0, 0, time.UTC)
 	for index, record := range []scorecard.Record{before, after} {
@@ -57,11 +61,12 @@ func TestScheduledScorecardPublishesDeltas(t *testing.T) {
 		t.Fatalf("records = %+v, %v; want the two publishes, oldest first", records, err)
 	}
 	want := []string{
-		"- alpha inference, Throughput: 40 to 45 tok/s (+5)",
-		"- alpha inference, Held-out quality: now measured, 0.7 accuracy",
-		"- alpha inference, Peak memory: no longer measured: no benchmark record",
+		"- alpha-renamed inference, First output: measured {Metric:time to prefill Origin:serving Suite: Protocol: Scope:}, the baseline {Metric:time to first token, median Origin:benchmark Suite: Protocol: Scope:}",
+		"- alpha-renamed inference, Throughput: 40 to 45 tok/s (+5)",
+		"- alpha-renamed inference, Held-out quality: now measured, 0.7 accuracy",
+		"- alpha-renamed inference, Peak memory: no longer measured: no benchmark record",
 		"- beta inference: new",
-		"- retired inference: gone",
+		"- beta inference: gone",
 	}
 	if moved := scorecardMoves(records[0], records[1]); !slices.Equal(moved, want) {
 		t.Fatalf("moved =\n%q\nwant\n%q", moved, want)

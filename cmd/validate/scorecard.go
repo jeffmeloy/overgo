@@ -98,38 +98,34 @@ func openGap(ctx context.Context, store *overgodb.Store, root, records, key stri
 	return err
 }
 
-// scorecardMoves lists what moved from the previous record to the current:
-// each cell both measure in the same unit whose value changed, each cell
-// that gained or lost its measure, and each row that is new or gone.
+// scorecardMoves lists what moved from the previous record to the current,
+// by the scorecard's comparison of rows of one model and task: each cell
+// measured on the same contract whose value changed, each cell that gained
+// its measure, each the comparison cannot judge and why, and each row that
+// is new or gone.
 func scorecardMoves(previous, current scorecard.Record) []string {
-	key := func(row scorecard.Row) string { return row.Name + " " + string(row.Task) }
-	before := map[string]scorecard.Row{}
-	for _, row := range previous.Rows {
-		before[key(row)] = row
-	}
 	var moved []string
-	for _, row := range current.Rows {
-		old, found := before[key(row)]
-		delete(before, key(row))
-		if !found {
-			moved = append(moved, "- "+key(row)+": new")
+	for _, pair := range current.Pairs(previous) {
+		switch {
+		case pair.Before == nil:
+			moved = append(moved, "- "+pair.After.Name+" "+string(pair.After.Task)+": new")
+			continue
+		case pair.After == nil:
+			moved = append(moved, "- "+pair.Before.Name+" "+string(pair.Before.Task)+": gone")
 			continue
 		}
 		for _, column := range metric.Columns {
-			now, then := row.Cells[column], old.Cells[column]
-			heading := key(row) + ", " + scorecardHeadings[column]
-			switch {
-			case now.Reason == "" && then.Reason != "":
+			now, then := pair.After.Cells[column], pair.Before.Cells[column]
+			heading := pair.After.Name + " " + string(pair.After.Task) + ", " + scorecardHeadings[column]
+			switch verdict, why := pair.Compare(column); {
+			case verdict == scorecard.Unknown:
+				moved = append(moved, "- "+heading+": "+why)
+			case now.Measured() && !then.Measured():
 				moved = append(moved, fmt.Sprintf("- %s: now measured, %.4g %s", heading, now.Value, now.Unit))
-			case now.Reason != "" && then.Reason == "":
-				moved = append(moved, fmt.Sprintf("- %s: no longer measured: %s", heading, now.Reason))
-			case now.Reason == "" && now.Unit == then.Unit && now.Value != then.Value:
+			case now.Value != then.Value:
 				moved = append(moved, fmt.Sprintf("- %s: %.4g to %.4g %s (%+.4g)", heading, then.Value, now.Value, now.Unit, now.Value-then.Value))
 			}
 		}
-	}
-	for _, gone := range slices.Sorted(maps.Keys(before)) {
-		moved = append(moved, "- "+gone+": gone")
 	}
 	return moved
 }

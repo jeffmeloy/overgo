@@ -18,18 +18,19 @@ import (
 	"overgo/internal/testutil"
 )
 
-// scoredRow is one fully explained scorecard row: every cell measured by
-// source, with the held-out accuracy, the failure rate and the load cell
-// the caller gives.
-func scoredRow(source artifact.ID, name string, task recipe.Task, accuracy, failures float64, load scorecard.Cell) scorecard.Row {
+// scoredRow is one fully explained scorecard row of the model named name:
+// every cell measured by source, with the held-out accuracy, the failure
+// rate and the load cell the caller gives.
+func scoredRow(t *testing.T, source artifact.ID, name string, task recipe.Task, accuracy, failures float64, load scorecard.Cell) scorecard.Row {
 	cells := map[metric.Name]scorecard.Cell{}
 	for _, column := range metric.Columns {
 		cells[column] = scorecard.Cell{Value: 1, Source: source}
 	}
-	cells[metric.Quality] = scorecard.Cell{Value: accuracy, Label: "accuracy, store/mmlu (raw-completion)", Source: source, Direction: runrecord.DirectionMaximize}
+	cells[metric.Quality] = scorecard.Cell{Value: accuracy, Label: "accuracy, store/mmlu (raw-completion)", Source: source, Direction: runrecord.DirectionMaximize,
+		Contract: scorecard.Contract{Metric: "accuracy", Origin: "evaluation", Suite: "store/mmlu", Protocol: "raw-completion"}}
 	cells[metric.Failures] = scorecard.Cell{Value: failures, Label: "attempts", Source: source}
 	cells[metric.Load] = load
-	return scorecard.Row{Name: name, Task: task, Cells: cells}
+	return scorecard.Row{Model: testutil.ArtifactID(t, artifact.KindModel, name), Name: name, Task: task, Cells: cells}
 }
 
 // emptyPlan writes a lane's plan with no rows at a path of its own.
@@ -54,12 +55,12 @@ func TestScorecardGapsBecomeProposals(t *testing.T) {
 	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-proposals")
 	measured := scorecard.Cell{Value: 1, Source: source}
 	unmeasured := scorecard.Cell{Reason: "no benchmark load time and no recorded load phase"}
-	baseline := scorecard.Record{Commit: "a", Rows: []scorecard.Row{scoredRow(source, "alpha", recipe.TaskInference, 0.5, 0, measured)}}
-	image := scoredRow(source, "gamma", recipe.TaskImageGen, 0.5, 0, unmeasured)
+	baseline := scorecard.Record{Commit: "a", Rows: []scorecard.Row{scoredRow(t, source, "alpha", recipe.TaskInference, 0.5, 0, measured)}}
+	image := scoredRow(t, source, "gamma", recipe.TaskImageGen, 0.5, 0, unmeasured)
 	image.Cells[metric.Throughput] = scorecard.Cell{Reason: "image-gen returns its output whole", NotApplicable: true}
 	published := scorecard.Record{Commit: "b", Name: "scorecard-20260929T120000Z.json", Rows: []scorecard.Row{
-		scoredRow(source, "alpha", recipe.TaskInference, 0.4, 0.25, unmeasured),
-		scoredRow(source, "beta", recipe.TaskInference, 0.7, 0, unmeasured),
+		scoredRow(t, source, "alpha", recipe.TaskInference, 0.4, 0.25, unmeasured),
+		scoredRow(t, source, "beta", recipe.TaskInference, 0.7, 0, unmeasured),
 		image,
 	}}
 	improver := improvement{root: t.TempDir(), plan: emptyPlan(t)}
@@ -136,7 +137,7 @@ func TestNoScorecardOfMainPromotesNothing(t *testing.T) {
 	published := time.Date(2026, time.September, 30, 12, 0, 0, 0, time.UTC)
 	publish := func(accuracy float64) error {
 		published = published.Add(time.Hour)
-		_, err := scorecard.Publish(records, published, scorecard.Record{Commit: measured, Rows: []scorecard.Row{scoredRow(source, "alpha", recipe.TaskInference, accuracy, 0, scorecard.Cell{Value: 1, Source: source})}})
+		_, err := scorecard.Publish(records, published, scorecard.Record{Commit: measured, Rows: []scorecard.Row{scoredRow(t, source, "alpha", recipe.TaskInference, accuracy, 0, scorecard.Cell{Value: 1, Source: source})}})
 		return err
 	}
 	if err := publish(0.5); err != nil {
@@ -219,9 +220,9 @@ func TestPromotionWaitsForAHoldingScorecard(t *testing.T) {
 	records := filepath.Join(t.TempDir(), "scorecards")
 	published := time.Date(2026, time.September, 29, 12, 0, 0, 0, time.UTC)
 	scripted := []scorecard.Record{
-		{Commit: promotedCommit, Rows: []scorecard.Row{scoredRow(source, "alpha", recipe.TaskInference, 0.5, 0, scorecard.Cell{Value: 1, Source: source})}},
-		{Commit: measuredCommit, Rows: []scorecard.Row{scoredRow(source, "alpha", recipe.TaskInference, 0.4, 0, scorecard.Cell{Value: 1, Source: source})}},
-		{Commit: measuredCommit, Rows: []scorecard.Row{scoredRow(source, "alpha", recipe.TaskInference, 0.5, 0, scorecard.Cell{Value: 1, Source: source})}},
+		{Commit: promotedCommit, Rows: []scorecard.Row{scoredRow(t, source, "alpha", recipe.TaskInference, 0.5, 0, scorecard.Cell{Value: 1, Source: source})}},
+		{Commit: measuredCommit, Rows: []scorecard.Row{scoredRow(t, source, "alpha", recipe.TaskInference, 0.4, 0, scorecard.Cell{Value: 1, Source: source})}},
+		{Commit: measuredCommit, Rows: []scorecard.Row{scoredRow(t, source, "alpha", recipe.TaskInference, 0.5, 0, scorecard.Cell{Value: 1, Source: source})}},
 	}
 	publish := func() error {
 		count, err := scorecard.Records(records)

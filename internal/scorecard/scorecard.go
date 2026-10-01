@@ -31,7 +31,7 @@ const catalogLimit = 4096
 // it came from, or the reason no record measures it. NotApplicable marks a
 // metric the task's output cannot have: its reason says why, and no
 // measurement is missing. Direction says which way a held-out quality
-// improves.
+// improves; Contract says what the value is, typed, for comparison.
 type Cell struct {
 	Value         float64             `json:"value,omitzero"`
 	Unit          string              `json:"unit,omitzero"`
@@ -40,7 +40,29 @@ type Cell struct {
 	Reason        string              `json:"reason,omitzero"`
 	NotApplicable bool                `json:"not_applicable,omitzero"`
 	Direction     runrecord.Direction `json:"direction,omitzero"`
+	Contract      Contract            `json:"contract,omitzero"`
 }
+
+// Contract is what a measured value is, so two cells compare only when both
+// measure the same thing: the metric, the kind of record it comes from, and
+// for a held-out quality the suite and the prompting protocol it ran under.
+// A serving aggregate's scope is the recipe whose attempts it counts. A cell
+// published before contracts has none, and compares with nothing.
+type Contract struct {
+	Metric   string      `json:"metric"`
+	Origin   string      `json:"origin"`
+	Suite    string      `json:"suite,omitzero"`
+	Protocol string      `json:"protocol,omitzero"`
+	Scope    artifact.ID `json:"scope,omitzero"`
+}
+
+// The kinds of record a cell's value comes from.
+const (
+	originBenchmark  = "benchmark"
+	originServing    = "serving"
+	originEvaluation = "evaluation"
+	originLifecycle  = "lifecycle"
+)
 
 // wholeOutputTasks return their output whole, an image, a clip or a
 // prediction, rather than as a stream of tokens: their time to first output
@@ -171,7 +193,13 @@ type servingSummary struct {
 	firstOutputNS, wholeOutputNS, loadNS []uint64
 	decodeTokens, decodeNS               uint64
 	peakDeviceBytes                      uint64
-	latest                               artifact.ID
+	latest, recipe                       artifact.ID
+}
+
+// cell is a value aggregated from the summary: the metric over the serving
+// attempts of its recipe, read as label says.
+func (summary *servingSummary) cell(value float64, unit, metric, label string) Cell {
+	return Cell{Value: value, Unit: unit, Label: label, Source: summary.latest, Contract: Contract{Metric: metric, Origin: originServing, Scope: summary.recipe}}
 }
 
 // servingByRecipe reads every serving observation, newest first, into one
@@ -196,7 +224,7 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		}
 		summary := summaries[observation.Recipe]
 		if summary == nil {
-			summary = &servingSummary{latest: observation.ID}
+			summary = &servingSummary{latest: observation.ID, recipe: observation.Recipe}
 			summaries[observation.Recipe] = summary
 		}
 		switch observation.Outcome {
@@ -261,6 +289,11 @@ func validationMeasured(ctx context.Context, store *overgodb.Store, id artifact.
 
 func gap(reason string) Cell { return Cell{Reason: reason} }
 
+// benchmarkCell is a value the benchmark record measured.
+func benchmarkCell(value float64, unit, metric string, record artifact.ID) Cell {
+	return Cell{Value: value, Unit: unit, Label: originBenchmark + " " + metric, Source: record, Contract: Contract{Metric: metric, Origin: originBenchmark}}
+}
+
 func inapplicable(reason string) Cell { return Cell{Reason: reason, NotApplicable: true} }
 
 func milliseconds(nanoseconds uint64) float64 {
@@ -274,26 +307,26 @@ func firstOutputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, be
 		return inapplicable("a training session has no first output")
 	}
 	if benchmarked && benchmark.FirstTokenMS != 0 {
-		return Cell{Value: benchmark.FirstTokenMS, Unit: "ms", Label: "benchmark time to first token, median", Source: benchmark.Record}
+		return benchmarkCell(benchmark.FirstTokenMS, "ms", "time to first token, median", benchmark.Record)
 	}
 	if observed != nil && len(observed.firstOutputNS) != 0 {
-		return Cell{Value: milliseconds(runrecord.MedianUint(observed.firstOutputNS)), Unit: "ms",
-			Label: fmt.Sprintf("serving time to prefill, median of %d", len(observed.firstOutputNS)), Source: observed.latest}
+		return observed.cell(milliseconds(runrecord.MedianUint(observed.firstOutputNS)), "ms", "time to prefill",
+			fmt.Sprintf("serving time to prefill, median of %d", len(observed.firstOutputNS)))
 	}
 	if observed != nil && len(observed.wholeOutputNS) != 0 {
-		return Cell{Value: milliseconds(runrecord.MedianUint(observed.wholeOutputNS)), Unit: "ms",
-			Label: fmt.Sprintf("serving time to the whole output, median of %d", len(observed.wholeOutputNS)), Source: observed.latest}
+		return observed.cell(milliseconds(runrecord.MedianUint(observed.wholeOutputNS)), "ms", "time to the whole output",
+			fmt.Sprintf("serving time to the whole output, median of %d", len(observed.wholeOutputNS)))
 	}
 	return gap("no benchmark time to first token and no serving prefill sample")
 }
 
 func throughputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
 	if benchmarked && benchmark.DecodeTokensPerSecond != 0 {
-		return Cell{Value: benchmark.DecodeTokensPerSecond, Unit: "tok/s", Label: "benchmark decode rate, median", Source: benchmark.Record}
+		return benchmarkCell(benchmark.DecodeTokensPerSecond, "tok/s", "decode rate, median", benchmark.Record)
 	}
 	if observed != nil && observed.decodeTokens != 0 && observed.decodeNS != 0 {
 		rate := float64(observed.decodeTokens) / time.Duration(observed.decodeNS).Seconds()
-		return Cell{Value: rate, Unit: "tok/s", Label: "serving output tokens over decode time", Source: observed.latest}
+		return observed.cell(rate, "tok/s", "output tokens over decode time", "serving output tokens over decode time")
 	}
 	if slices.Contains(wholeOutputTasks, task) {
 		return inapplicable(fmt.Sprintf("%s returns its output whole, so its rate is its first-output time", task))
@@ -319,32 +352,32 @@ func qualityCell(summaries []evaluation.EvalSummary, descriptors map[string]eval
 	if !ok {
 		return gap("the latest evaluation reports no metric")
 	}
-	return Cell{Value: value, Label: fmt.Sprintf("%s, %s (%s)", name, best.Suite, best.Prompting), Source: best.Record, Direction: best.Directions[name]}
+	return Cell{Value: value, Label: fmt.Sprintf("%s, %s (%s)", name, best.Suite, best.Prompting), Source: best.Record, Direction: best.Directions[name],
+		Contract: Contract{Metric: name, Origin: originEvaluation, Suite: best.Suite, Protocol: best.Prompting}}
 }
 
 func failureCell(observed *servingSummary) Cell {
 	if observed == nil || observed.attempts == 0 {
 		return gap("no completed serving attempts recorded")
 	}
-	return Cell{Value: float64(observed.failures) / float64(observed.attempts),
-		Label:  fmt.Sprintf("%d of %d attempts failed, %d cancelled", observed.failures, observed.attempts, observed.cancelled),
-		Source: observed.latest}
+	return observed.cell(float64(observed.failures)/float64(observed.attempts), "", "failed share of attempts",
+		fmt.Sprintf("%d of %d attempts failed, %d cancelled", observed.failures, observed.attempts, observed.cancelled))
 }
 
 func loadCell(benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
 	if benchmarked && benchmark.LoadMS != 0 {
-		return Cell{Value: benchmark.LoadMS, Unit: "ms", Label: "benchmark load", Source: benchmark.Record}
+		return benchmarkCell(benchmark.LoadMS, "ms", "load", benchmark.Record)
 	}
 	if observed != nil && len(observed.loadNS) != 0 {
-		return Cell{Value: milliseconds(runrecord.MedianUint(observed.loadNS)), Unit: "ms",
-			Label: fmt.Sprintf("load phase, median of %d", len(observed.loadNS)), Source: observed.latest}
+		return observed.cell(milliseconds(runrecord.MedianUint(observed.loadNS)), "ms", "load phase",
+			fmt.Sprintf("load phase, median of %d", len(observed.loadNS)))
 	}
 	return gap("no benchmark load time and no recorded load phase")
 }
 
 func peakMemoryCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
 	if benchmarked && benchmark.PeakDeviceBytes != 0 {
-		return Cell{Value: float64(benchmark.PeakDeviceBytes), Unit: "bytes", Label: "benchmark peak device memory", Source: benchmark.Record}
+		return benchmarkCell(float64(benchmark.PeakDeviceBytes), "bytes", "peak device memory", benchmark.Record)
 	}
 	if task == recipe.TaskTraining {
 		// A training session samples device-wide use, other processes
@@ -352,7 +385,7 @@ func peakMemoryCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, ben
 		return gap("training sessions record device-wide memory use, not their own peak")
 	}
 	if observed != nil && observed.peakDeviceBytes != 0 {
-		return Cell{Value: float64(observed.peakDeviceBytes), Unit: "bytes", Label: "serving peak device memory", Source: observed.latest}
+		return observed.cell(float64(observed.peakDeviceBytes), "bytes", "peak device memory", "serving peak device memory")
 	}
 	return gap("no benchmark or serving peak device memory")
 }
@@ -390,5 +423,6 @@ func setupCell(ctx context.Context, store *overgodb.Store, model artifact.ID, ta
 	if steps == 0 {
 		return gap("the lifecycle chain never reaches active")
 	}
-	return Cell{Value: float64(steps), Label: "lifecycle transitions to first activation", Source: activation.Event.ID}
+	return Cell{Value: float64(steps), Label: "lifecycle transitions to first activation", Source: activation.Event.ID,
+		Contract: Contract{Metric: "transitions to first activation", Origin: originLifecycle}}
 }

@@ -124,8 +124,8 @@ func Baseline(ctx context.Context, root string, records []Record) (*Record, erro
 
 // Withheld reports why the record may not promote its commit, or "" when it
 // may: promotion needs a baseline measured on the promoted branch, a
-// held-out quality on every row it applies to, and none below the
-// baseline's.
+// held-out quality on every row it applies to, and every held-out quality
+// the baseline measured holding, neither regressed nor Unknown.
 func (record Record) Withheld(baseline *Record) string {
 	if baseline == nil {
 		return "no earlier scorecard measured the commit " + PromotedBranch + " holds"
@@ -136,18 +136,89 @@ func (record Record) Withheld(baseline *Record) string {
 		}
 	}
 	for _, gap := range record.Gaps(baseline) {
-		if gap.kind == gapRegressed {
-			return gap.Title
+		if gap.kind == string(regressed) || gap.kind == string(Unknown) {
+			return gap.Title + ": " + strings.TrimSpace(gap.Detail)
 		}
 	}
 	return ""
 }
 
-// The kinds of gap. Their names order the rows: failures a user met, then
-// held-out regressions, which refuse promotion, then measurements to take.
+// Verdict is how a record holds a cell its baseline measured: holding,
+// regressed, or Unknown, the verdict a consumer outside the package tells
+// apart from a measured change.
+type Verdict string
+
+const (
+	holding   Verdict = "holding"
+	regressed Verdict = "regressed"
+	// Unknown is the verdict on a cell nothing compares: the record lost its
+	// row or the cell, or measured it on another contract. It withholds
+	// promotion until the record measures the cell on the baseline's
+	// contract again, or the promoted branch moves to a commit whose
+	// scorecard adopts the new scope.
+	Unknown Verdict = "unknown"
+)
+
+// Pair is one model and task in a baseline and a record: its row in each,
+// nil where that record has none.
+type Pair struct{ Before, After *Row }
+
+// Pairs pairs the record's rows with the baseline's by model and task, never
+// by display name, so a renamed model keeps its baseline and two models
+// sharing a name never trade theirs: the record's rows in order, each beside
+// its baseline row, then the baseline's rows the record lacks.
+func (record Record) Pairs(baseline Record) []Pair {
+	pairs := make([]Pair, len(record.Rows))
+	for index := range record.Rows {
+		pairs[index].After = &record.Rows[index]
+	}
+	for index, row := range baseline.Rows {
+		at := slices.IndexFunc(record.Rows, func(candidate Row) bool { return candidate.Model == row.Model && candidate.Task == row.Task })
+		if at < 0 {
+			at = len(pairs)
+			pairs = append(pairs, Pair{})
+		}
+		pairs[at].Before = &baseline.Rows[index]
+	}
+	return pairs
+}
+
+// Compare reports how the record's row holds the baseline row's cell in
+// column, and why when it does not hold. A cell the baseline did not
+// measure holds, since the baseline asks nothing of it: a newly measured
+// metric or row never blocks. A measured one has regressed when the record
+// measured it on the same contract and direction and it fell in that
+// direction; it is Unknown when the record lost the row or the cell,
+// measured it on another contract, or the baseline cell has no contract.
+func (pair Pair) Compare(column metric.Name) (Verdict, string) {
+	if pair.Before == nil || !pair.Before.Cells[column].Measured() {
+		return holding, ""
+	}
+	if pair.After == nil {
+		return Unknown, "the record has no row for this model and task"
+	}
+	then, now := pair.Before.Cells[column], pair.After.Cells[column]
+	switch {
+	case !now.Measured():
+		return Unknown, "no longer measured: " + now.Reason
+	case then.Contract == (Contract{}):
+		return Unknown, "the baseline cell was published without a contract"
+	case now.Contract != then.Contract:
+		return Unknown, fmt.Sprintf("measured %+v, the baseline %+v", now.Contract, then.Contract)
+	case now.Direction != then.Direction:
+		return Unknown, fmt.Sprintf("improves in direction %q, the baseline in %q", now.Direction, then.Direction)
+	}
+	if advantage, directed := now.Direction.Advantage(now.Value, then.Value); directed && advantage < 0 {
+		return regressed, fmt.Sprintf("%.4g to %.4g (%s)", then.Value, now.Value, now.Label)
+	}
+	return holding, ""
+}
+
+// The kinds of gap besides the regressed and Unknown verdicts. Their names
+// order the rows: failures a user met, then held-out qualities that fell or
+// that nothing compares, which refuse promotion, then measurements to take.
 const (
 	gapFailing    = "failing"
-	gapRegressed  = "regressed"
 	gapUnmeasured = "unmeasured"
 )
 
@@ -162,36 +233,38 @@ type Gap struct {
 
 // Gaps lists the record's gaps against the baseline, which may be nil: each
 // cell no record measures, each failure-rate above zero, and each held-out
-// quality below the baseline row's cell that measured the same metric on the
-// same suite.
+// quality the baseline measured that Compare finds regressed or Unknown.
 func (record Record) Gaps(baseline *Record) []Gap {
-	before := map[string]Row{}
+	var before Record
 	if baseline != nil {
-		for _, row := range baseline.Rows {
-			before[row.Name+" "+string(row.Task)] = row
-		}
+		before = *baseline
 	}
 	grouped := map[string]*Gap{}
 	// One gap per kind and task: its metrics are lines of the one row, so
 	// a task's missing measurements are one piece of work.
-	add := func(kind string, row Row, column metric.Name, line string) {
+	add := func(kind string, row *Row, column metric.Name, line string) {
 		key := strings.Join([]string{"scorecard", kind, string(row.Task)}, "-")
 		if grouped[key] == nil {
 			grouped[key] = &Gap{Key: key, Title: gapTitle(kind, row.Task), kind: kind}
 		}
 		grouped[key].Detail += "- " + row.Name + " " + string(column) + ": " + line + "\n"
 	}
-	for _, row := range record.Rows {
+	for _, pair := range record.Pairs(before) {
+		verdict, why := pair.Compare(metric.Quality)
+		if pair.After == nil {
+			if verdict != holding {
+				add(string(verdict), pair.Before, metric.Quality, why)
+			}
+			continue
+		}
 		for _, column := range metric.Columns {
-			cell, then := row.Cells[column], before[row.Name+" "+string(row.Task)].Cells[column]
-			switch {
-			case cell.NotApplicable:
-			case !cell.Measured():
-				add(gapUnmeasured, row, column, cell.Reason)
+			switch cell := pair.After.Cells[column]; {
+			case !cell.Measured() && !cell.NotApplicable:
+				add(gapUnmeasured, pair.After, column, cell.Reason)
+			case column == metric.Quality && verdict != holding:
+				add(string(verdict), pair.After, column, why)
 			case column == metric.Failures && cell.Value > 0:
-				add(gapFailing, row, column, cell.Label)
-			case column == metric.Quality && fell(cell, then):
-				add(gapRegressed, row, column, fmt.Sprintf("%.4g to %.4g (%s)", then.Value, cell.Value, cell.Label))
+				add(gapFailing, pair.After, column, cell.Label)
 			}
 		}
 	}
@@ -203,19 +276,13 @@ func (record Record) Gaps(baseline *Record) []Gap {
 	return gaps
 }
 
-// fell reports a measured held-out quality worse than the baseline cell
-// that measured the same metric on the same suite, in the metric's own
-// direction.
-func fell(now, then Cell) bool {
-	advantage, directed := now.Direction.Advantage(now.Value, then.Value)
-	return directed && advantage < 0 && then.Source.Valid() && then.Label == now.Label && then.Direction == now.Direction
-}
-
 // gapTitle names the work a gap asks for.
 func gapTitle(kind string, task recipe.Task) string {
 	switch kind {
-	case gapRegressed:
+	case string(regressed):
 		return fmt.Sprintf("Recover %s held-out quality, which fell below the baseline scorecard", task)
+	case string(Unknown):
+		return fmt.Sprintf("Measure %s held-out quality again on the baseline scorecard's models and contracts", task)
 	case gapFailing:
 		return fmt.Sprintf("Fix the %s attempts that failed", task)
 	default:

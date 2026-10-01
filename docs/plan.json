@@ -28,17 +28,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 380,
-        "reason": "current-evidence: one current-evidence decision for the dry run, -run and the inventory, and -repo carried to guard and media launches. Measured +379 nodes (SQA-053, SQA-046)."
+        "nodes": 830,
+        "reason": "current-evidence +379, typed-comparison +401, smoke-repo +44: SQA-053, 046, 063, 040 and 041 correctness growth."
       },
       "steps": [
-        {
-          "id": "typed-comparison",
-          "title": "Compare scorecards by identity and typed metric; an incomparable or vanished quality is unknown, not holding",
-          "status": "open",
-          "verify": "go test ./internal/scorecard ./internal/loop -run '^(TestComparisonIsTyped|TestLoopPromotesOnlyOnHeldOutFitness)$' -count=1",
-          "rationale": "SQA-063 (P1), confirmed: Gaps only walks the published rows, and fell() needs an equal label, so a vanished baseline row or a switched suite (the \"another suite scores lower\" scenario) counts as holding. SQA-040 (P1): rows are paired by display name and task, not identity. SQA-041 (P2): serving aggregates mix measurement origins and lose their scope.\nOne comparison in internal/scorecard returns holding, regressed or unknown over the baseline's required scope. It pairs rows by model and task identity and typed metric, suite, protocol and source kind, with aggregates keeping their origin. Withheld, Gaps and validate's scorecardMoves all consume it. A missing row or changed contract is withheld until an explicit adoption; newly added optional metrics do not block. The no-fallback baseline, the local-only fast-forward and the expected-ref check stay. The internal/loop scenario \"another suite scores lower\" changes from promoting to withheld.\nOwner decision to take after both steps land: seed refs/heads/main at a measured commit, so the loop can promote at all.\nServes: promote or revert. Disappears: name- and label-keyed matching. Evidence: scorecard records. Batch: internal/scorecard and internal/loop reach audio and cuda through cmd/recipe until loop-parts-wire-or-delete moves those parts; no guards; no media."
-        },
         {
           "id": "smoke-repo",
           "title": "Bind DNA models' guard to the smoke lane on the selected store",

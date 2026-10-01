@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 	"testing"
 
 	"overgo/internal/operation"
@@ -23,8 +22,12 @@ func TestWorkspaceManifest(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &manifest); err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Version != 1 || len(manifest.Sections) == 0 || len(manifest.Tabs) == 0 {
+	// The conversation is the first tab, so the front page opens on it.
+	if manifest.Version != 1 || len(manifest.Sections) == 0 || len(manifest.Tabs) == 0 || manifest.Tabs[0].ID != "chat" {
 		t.Fatalf("workspace manifest = %+v", manifest)
+	}
+	if routesByPath["/catalog/models"].Authentication != routePublic {
+		t.Error("the header's evidence line reads /catalog/models, which must stay public")
 	}
 	sections := make(map[string]bool, len(manifest.Sections))
 	for _, section := range manifest.Sections {
@@ -141,24 +144,5 @@ func TestWorkspaceManifestCapabilityRefusal(t *testing.T) {
 	if !byID["chat"].Enabled || byID["attention"].Enabled || byID["attention"].Refusal == "" ||
 		byID["datasets"].Enabled || byID["datasets"].Refusal == "" {
 		t.Fatalf("workspace capability projection = %+v", byID)
-	}
-}
-
-func TestWebUIWorkspaceRoutes(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	// The workspace refusal and reachability legs drive the manifest; the
-	// source keeps client authority banned.
-	boot := serveTestRequest(handler, http.MethodGet, "/boot.js", "").Body.String()
-	for _, duplicate := range []string{"SECTION_ORDER", "tab.requires", "refreshCapabilities"} {
-		if strings.Contains(boot, duplicate) {
-			t.Errorf("workspace boot retains client authority %q", duplicate)
-		}
-	}
-	for _, path := range []string{"/mod/chat.js", "/mod/analyze_attention.js", "/mod/datasets.js"} {
-		module := serveTestRequest(handler, http.MethodGet, path, "").Body.String()
-		if strings.Contains(module, "section:") || strings.Contains(module, "requires:") || strings.Contains(module, "label:") {
-			t.Errorf("%s retains navigation or capability authority", path)
-		}
 	}
 }

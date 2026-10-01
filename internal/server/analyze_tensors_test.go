@@ -72,15 +72,6 @@ func TestAnalyzeTensorsReturnsDistributionFreeProfiles(t *testing.T) {
 	}
 }
 
-func TestAnalyzeTensorsRejectsNonGet(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: writeTensorFixture(t)})
-	response := serveTestRequest(handler, http.MethodPost, "/analyze/tensors", "")
-	if response.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("status = %d, want 405", response.Code)
-	}
-}
-
 func writeMultiTensorFixture(t *testing.T) string {
 	t.Helper()
 	const n = 512

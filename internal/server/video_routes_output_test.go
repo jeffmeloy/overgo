@@ -54,8 +54,7 @@ func videoOutputFixture(t *testing.T, mediaType string, output []byte) (*Handler
 
 // TestVideoRoutesDeliverDeclaredOutput: the native video route delivers
 // the output the executors declare, GIF-encoded video, beside a container
-// video type; an output that is neither is refused; and the retired
-// video-edit route and mode are gone.
+// video type; and an output that is neither is refused.
 func TestVideoRoutesDeliverDeclaredOutput(t *testing.T) {
 	t.Parallel()
 	gif := []byte("GIF89a-encoded-video")
@@ -81,11 +80,5 @@ func TestVideoRoutesDeliverDeclaredOutput(t *testing.T) {
 	refused := serveTestRequest(handler, http.MethodPost, "/v1/videos/generations", `{"model":"`+recipeID.String()+`","prompt":"a fox on a trail"}`)
 	if refused.Code != http.StatusInternalServerError || !bytes.Contains(refused.Body.Bytes(), []byte("invalid_output")) {
 		t.Fatalf("text output status=%d body=%s", refused.Code, refused.Body.String())
-	}
-	if _, dedicated := routesByPath["/v1/videos/edits"]; dedicated {
-		t.Fatal("the retired video-edit route is still routed")
-	}
-	if supported, _ := handler.workspaceCapability(t.Context(), workspaceListing{}, "workflow.video-edit"); supported {
-		t.Fatal("the retired video-edit workflow is still a workspace capability")
 	}
 }

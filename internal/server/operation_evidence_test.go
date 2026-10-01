@@ -20,6 +20,10 @@ import (
 
 const operationEvidenceSecret = "transcript-content-must-stay-private"
 
+// TestOperationEvidenceProjection: an operation's evidence joins its
+// stages, serving observation, interaction and decision with a summary,
+// cites the interaction's trace without its transcript payload, and a
+// bounded projection says it was truncated.
 func TestOperationEvidenceProjection(t *testing.T) {
 	t.Parallel()
 	fixture, operationID, status := operationEvidenceFixture(t)
@@ -39,6 +43,15 @@ func TestOperationEvidenceProjection(t *testing.T) {
 		len(projection.Serving) != 1 || len(projection.Interactions) != 1 || len(projection.Decisions) != 1 ||
 		projection.Summary.Stages.Completed != len(fixture.definition.Nodes) || projection.Summary.ServingAttempts != 1 {
 		t.Fatalf("operation projection differs: %+v", projection)
+	}
+	if strings.Contains(response.Body.String(), operationEvidenceSecret) || !strings.Contains(response.Body.String(), `"trace"`) {
+		t.Fatalf("trace projection leaked payload or omitted trace identity: %s", response.Body.String())
+	}
+
+	publishOperationInteraction(t, fixture, operationID, *status.Run, "resp_operation_second", "second private payload")
+	bounded, err := fixture.handler.operationEvidenceSnapshot(t.Context(), operationID, 1)
+	if err != nil || len(bounded.Interactions) != 1 || !bounded.Truncated {
+		t.Fatalf("bounded projection=(%+v, %v)", bounded, err)
 	}
 }
 
@@ -71,34 +84,6 @@ func TestOperationSummary(t *testing.T) {
 		summary.Resources.PeakHostBytes != 29 || summary.Resources.PeakDeviceBytes != 11 ||
 		summary.Resources.HostToDeviceBytes != 44 {
 		t.Fatalf("summary=(%+v, %v)", summary, err)
-	}
-}
-
-func TestOperationProjectionBounds(t *testing.T) {
-	t.Parallel()
-	fixture, operationID, status := operationEvidenceFixture(t)
-	defer fixture.store.Close()
-	publishOperationInteraction(t, fixture, operationID, *status.Run, "resp_operation_second", "second private payload")
-	projection, err := fixture.handler.operationEvidenceSnapshot(t.Context(), operationID, 1)
-	if err != nil || len(projection.Interactions) != 1 || !projection.Truncated {
-		t.Fatalf("bounded projection=(%+v, %v)", projection, err)
-	}
-}
-
-func TestTracePayloadRedaction(t *testing.T) {
-	t.Parallel()
-	fixture, operationID, _ := operationEvidenceFixture(t)
-	defer fixture.store.Close()
-	projection, err := fixture.handler.operationEvidenceSnapshot(t.Context(), operationID, fixture.handler.config.MaxStoredResponses)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := json.Marshal(projection)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(encoded), operationEvidenceSecret) || !strings.Contains(string(encoded), `"trace"`) {
-		t.Fatalf("trace projection leaked payload or omitted trace identity: %s", encoded)
 	}
 }
 

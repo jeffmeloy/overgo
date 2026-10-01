@@ -8,7 +8,9 @@
 // candidate, with the row's step removed from its plan, is committed onto
 // the HEAD the landing found. Git holds the record: the message says what
 // the gate measured, and the slice's trailer carries it for the next landing
-// to compare against.
+// to compare against. A refusal names the stage that refused it; the loop
+// classes it, an antivirus quarantine as an external prerequisite, and
+// records its class in the checkout's process state, where a recurrence shows.
 package landing
 
 import (
@@ -103,34 +105,17 @@ func Run(ctx context.Context, options Options) (string, error) {
 	if err := l.shipSet(ctx); err != nil {
 		return "", err
 	}
-	checks := []struct {
-		name string
-		run  func(context.Context) error
-	}{
-		{"format", l.format},
-		{"fix", l.fix},
-		{"vet", l.vet},
-		{"rules", l.rules},
-		{"test", l.test},
-		{"lanes", l.lanes},
-		{"verify", l.verify},
-		{"scorecard", l.scorecard},
-	}
+	checks := l.checks()
 	// A change to the plan alone is data the row read above has validated;
 	// nothing compiles it, so only the row's verify can speak to it, and
 	// the tests that read the plan run with the next code landing.
 	if !slices.ContainsFunc(l.paths, func(changed string) bool { return changed != plan.Path }) {
-		checks = slices.DeleteFunc(checks, func(check struct {
-			name string
-			run  func(context.Context) error
-		}) bool {
-			return check.name != "verify"
-		})
+		checks = slices.DeleteFunc(checks, func(check check) bool { return check.name != "verify" })
 	}
 	for _, check := range checks {
 		started := time.Now()
 		if err := check.run(ctx); err != nil {
-			return "", fmt.Errorf("land: %s: %w", check.name, err)
+			return "", fmt.Errorf("%s%s: %w", stagePrefix, check.name, err)
 		}
 		wall := time.Since(started).Round(time.Millisecond)
 		entry := check.name + " " + wall.String()
@@ -142,6 +127,22 @@ func Run(ctx context.Context, options Options) (string, error) {
 	}
 	return l.commit(ctx)
 }
+
+// check is one stage of the gate.
+type check struct {
+	name string
+	run  func(context.Context) error
+}
+
+// checks are the gate's stages in the order they run; a refusal names the
+// stage that refused, and Classify reads the name back.
+func (l *landing) checks() []check {
+	return []check{{"format", l.format}, {"fix", l.fix}, {"vet", l.vet}, {"rules", l.rules},
+		{"test", l.test}, {"lanes", l.lanes}, {"verify", l.verify}, {"scorecard", l.scorecard}}
+}
+
+// stagePrefix opens the refusal of a stage, before the stage's name.
+const stagePrefix = "land: "
 
 // predictedSection opens the part of a landing message that says what the
 // change should do.

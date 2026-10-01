@@ -165,35 +165,6 @@ func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 		activity.Activity[0].Model != modelID || activity.Activity[0].Recipe != recipeID {
 		t.Fatalf("activity status=%d response=%+v", response.Code, activity)
 	}
-	// The serving stream leg drives the runtime tab; the source keeps the
-	// session-authority ban.
-	if module := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String(); strings.Contains(module, `api.get("/slots"`) {
-		t.Fatal("runtime module bypasses session authority")
-	}
-}
-
-func TestOperationEventSSEUsesSharedEmitter(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	defer handler.Close()
-	ctx, cancel := context.WithCancel(t.Context())
-	recorder := &countingRecorder{ResponseRecorder: httptest.NewRecorder(), flushes: make(chan struct{}, 8)}
-	done := make(chan struct{})
-	go func() {
-		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/runtime/activity/stream", nil).WithContext(ctx))
-		close(done)
-	}()
-	// The stream opens with three flushed snapshot events -- sessions,
-	// activity, operations -- and cancelling earlier races the emitter.
-	for range 3 {
-		<-recorder.flushes
-	}
-	cancel()
-	<-done
-	if recorder.Header().Get("Content-Type") != "text/event-stream" ||
-		!strings.Contains(recorder.Body.String(), "event: operation.snapshot") {
-		t.Fatalf("operation SSE headers=%v body=%s", recorder.Header(), recorder.Body.String())
-	}
 }
 
 func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {

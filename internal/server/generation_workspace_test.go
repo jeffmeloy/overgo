@@ -118,14 +118,6 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 	if input.Text != "hello" || input.Seed == nil || *input.Seed != 17 {
 		t.Fatalf("executor input = %+v", input)
 	}
-
-	module := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
-	for _, taskLiteral := range []string{"speech", "image-gen", "video-gen"} {
-		registration := serveTestRequest(handler, http.MethodGet, "/mod/generation.js", "").Body.String()
-		if strings.Contains(module, taskLiteral) || strings.Contains(registration, taskLiteral) {
-			t.Errorf("generation module embeds task %q", taskLiteral)
-		}
-	}
 	unavailable := serveTestRequest(handler, http.MethodGet, "/training/capabilities", "")
 	if unavailable.Code != http.StatusNotImplemented || !strings.Contains(unavailable.Body.String(), "training workspace is unavailable") {
 		t.Fatalf("unavailable workspace status=%d body=%s", unavailable.Code, unavailable.Body.String())

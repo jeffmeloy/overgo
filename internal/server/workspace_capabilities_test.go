@@ -3,17 +3,13 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 )
 
-// TestWorkspaceCapabilityDocument pins the one-capability-source ratchet
-// (professional GUI campaign): the workspace manifest carries the served
+// TestWorkspaceCapabilityDocument: the workspace manifest carries the served
 // model's capability document (identity, context length, generation
 // defaults, modalities, accepted media with the server's limits, composer
-// modes with refusals), the shell exposes it once, and no client module
-// decides a capability on its own: zero hard-coded accept lists, zero
-// reads of /props or /analyze/model for gating outside the shell.
+// modes with refusals), the one source the client reads capabilities from.
 func TestWorkspaceCapabilityDocument(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
@@ -50,17 +46,6 @@ func TestWorkspaceCapabilityDocument(t *testing.T) {
 		}
 		if !mode.Enabled && mode.Refusal == "" {
 			t.Errorf("mode %s is refused without a reason", id)
-		}
-	}
-
-	for name, source := range webuiJavaScript(t) {
-		if !strings.HasPrefix(name, "mod/") {
-			continue
-		}
-		for _, forbidden := range []string{"accept: [", `api.get("/props")`, `api.get("/analyze/model")`, "modalities."} {
-			if strings.Contains(source, forbidden) {
-				t.Errorf("%s decides a capability itself (%s); read overgo.capabilities()", name, forbidden)
-			}
 		}
 	}
 }

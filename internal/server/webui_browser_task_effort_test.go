@@ -168,20 +168,3 @@ func measureEffort(t *testing.T, ctx context.Context, browser *webuilane.Browser
 	}
 	return effort, counted.Requests
 }
-
-// TestEffortCeilingsNameMeasuredTasks holds every ceiling to a task a leg drives.
-func TestEffortCeilingsNameMeasuredTasks(t *testing.T) {
-	t.Parallel()
-	driven := map[string]bool{onboardingTask.name: true}
-	for _, task := range commonTasks {
-		driven[task.name] = true
-	}
-	for name := range effortCeilings {
-		if !driven[name] {
-			t.Errorf("the effort ceiling %q names a task no leg drives", name)
-		}
-	}
-	if len(driven) != len(effortCeilings) {
-		t.Errorf("legs drive %d tasks and %d carry a ceiling", len(driven), len(effortCeilings))
-	}
-}

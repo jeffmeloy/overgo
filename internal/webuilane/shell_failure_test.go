@@ -44,4 +44,16 @@ func TestWaitEndsWhenTheShellFailed(t *testing.T) {
 	if err := browser.Eventually(t.Context(), `(() => { setTimeout(() => document.body.append(Object.assign(document.createElement('i'), {id: 'late'}))); return !!document.getElementById('late'); })()`); err != nil {
 		t.Fatalf("a predicate the page reaches later = %v", err)
 	}
+	// A wait the page then blocks ends naming what the page showed when the
+	// wait began, both ends of a long text, and the error the workspace
+	// recorded: the page reports them itself.
+	if err := browser.Evaluate(t.Context(), `document.getElementById("panels").innerText = "Choose a model " + "x".repeat(2000) + " streamed tail"; window.overgo = {errors: ["model list failed"]}`, nil); err != nil {
+		t.Fatal(err)
+	}
+	err = browser.Eventually(t.Context(), `(() => { setTimeout(() => alert("blocked")); return false; })()`)
+	for _, want := range []string{"JavaScript dialog", `readyState complete, panels "Choose a model x`, "x ... x", `x streamed tail", last error "model list failed"`} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("a wait the page blocked = %v, want it to name %q", err, want)
+		}
+	}
 }

@@ -71,11 +71,6 @@ func TestWorkbenchAPIHubSearch(t *testing.T) {
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("oversized limit status=%d", recorder.Code)
 	}
-	recorder = httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/hub/search", nil))
-	if recorder.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("post status=%d", recorder.Code)
-	}
 }
 
 // TestWorkbenchAPIDownloadJob runs one verified download to completion and

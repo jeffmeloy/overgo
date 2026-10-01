@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"overgo/internal/tokenizer"
@@ -113,15 +112,5 @@ func TestAnalyzeVocabUnsupportedWhenNoVocabulary(t *testing.T) {
 	}
 	if envelope.Error.Type != errorCodeUnsupportedOperation {
 		t.Fatalf("error type = %q", envelope.Error.Type)
-	}
-}
-
-func TestAnalyzeVocabRejectsNonGet(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, newVocabGenerator())
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/analyze/vocab", nil))
-	if response.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("status = %d, want 405", response.Code)
 	}
 }

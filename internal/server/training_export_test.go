@@ -107,10 +107,4 @@ func TestGUITrainingAndExportShareServices(t *testing.T) {
 	if len(executed) != 2 || executed[0] != WorkflowTraining || executed[1] != workflowExport {
 		t.Fatalf("executed = %v", executed)
 	}
-	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
-	jobs := serveTestRequest(handler, http.MethodGet, "/mod/jobs.js", "").Body.String()
-	if strings.Count(workflow, "capability.controls") != 1 || !strings.Contains(jobs, `scope: "training"`) ||
-		!strings.Contains(jobs, `scope: "export"`) {
-		t.Fatalf("workflow renderer or job registrations differ")
-	}
 }

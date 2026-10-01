@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
+	"overgo/internal/landing"
 	"overgo/internal/plan"
 )
 
@@ -31,6 +33,9 @@ const (
 const (
 	// outcomeRefused stops before or at the gate: nothing landed.
 	outcomeRefused = "refused"
+	// outcomeExternal stops at the gate for a cause outside the change:
+	// nothing landed, and the refusal names the probe that re-checks it.
+	outcomeExternal = "external-prerequisite"
 	// outcomeReady landed, and git confirms it.
 	outcomeReady = "ready"
 )
@@ -42,6 +47,8 @@ type landOutcome struct {
 	Outcome   string `json:"outcome"`
 	Commit    string `json:"commit,omitzero"`
 	Detail    string `json:"detail,omitzero"`
+	// Refusal is a refusal's class as the checkout's record holds it.
+	Refusal *landing.Refusal `json:"refusal,omitempty"`
 }
 
 // rowWorld is what the row sequence drives. A step that refuses returns its
@@ -129,7 +136,10 @@ func (w execRowWorld) Landed(reference string) (string, error) {
 const standardInput = "-"
 
 // landCommand runs the row sequence and prints its typed outcome; anything
-// short of a confirmed landing is a failure exit.
+// short of a confirmed landing is a failure exit. A refusal is classed and
+// recorded in the checkout's process state, so the outcome says whether the
+// change or a cause outside it refused the landing, and how often that
+// class of refusal recurred.
 func landCommand(reference, messageFile string, input io.Reader, output io.Writer) error {
 	if strings.Count(reference, "/") != 1 || strings.TrimSpace(messageFile) == "" {
 		return fmt.Errorf("usage: loop -land <item>/<step> -message-file <file, or - for standard input>")
@@ -142,6 +152,13 @@ func landCommand(reference, messageFile string, input io.Reader, output io.Write
 		}
 	}
 	outcome, err := landRow(execRowWorld{message: message}, reference, messageFile)
+	if outcome.Detail != "" {
+		refusal, recordErr := landing.RecordRefusal(loopWorktree, landing.Classify(reference, outcome.Detail))
+		outcome.Refusal, err = &refusal, errors.Join(err, recordErr)
+		if refusal.External != "" {
+			outcome.Outcome = outcomeExternal
+		}
+	}
 	if encodeErr := json.NewEncoder(output).Encode(outcome); err == nil {
 		err = encodeErr
 	}

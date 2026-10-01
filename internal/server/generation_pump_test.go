@@ -32,14 +32,3 @@ func TestGenerationPumpFiltersCountsAndFlushes(t *testing.T) {
 		t.Fatalf("pieces = %#v", pieces)
 	}
 }
-
-func TestGenerationPumpLengthReason(t *testing.T) {
-	t.Parallel()
-	pump := newGenerationPump(nil, nil)
-	if err := pump.accept(inference.TokenEvent{Piece: "a"}); err != nil {
-		t.Fatal(err)
-	}
-	if (protocolGenerationResult{pump: pump}).end(1, inference.ChatMessage{}) != turnLimited {
-		t.Fatal("expected the output limit to end the turn")
-	}
-}

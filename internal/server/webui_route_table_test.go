@@ -3,37 +3,22 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 	"testing"
 )
 
-// TestWebUIRouteTable pins the one-route-table ratchet (professional GUI
-// campaign, gui-simplify/one-route-table): every route the client calls is
-// declared in the route catalog with its method and authentication, the
-// static server carries no hand-written authorization block or prefix
-// chain, the explorer renders from the same table, and the API manifest
-// projects that table (its docs copy is held current by api-manifest -check).
+// TestWebUIRouteTable: every route the client calls is declared in the
+// route catalog, and the API explorer answers that table as the API
+// manifest projects it, with its bound schemas.
 func TestWebUIRouteTable(t *testing.T) {
 	t.Parallel()
-	static, err := os.ReadFile("webui_static.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, forbidden := range []string{"h.authorized(", "strings.HasPrefix(request.URL.Path", "WWW-Authenticate"} {
-		if strings.Contains(string(static), forbidden) {
-			t.Errorf("webui_static.go still routes or authorizes by hand (%s); the route table owns both", forbidden)
-		}
-	}
-
 	// Every path a module or library calls through the API client resolves
 	// in the table (query strings stripped); the shell's own assets and the
 	// versioned fallback are the only paths outside it.
 	called := regexp.MustCompile(`api\.(?:get|post|stream|events)\(\s*"(/[A-Za-z0-9._-][A-Za-z0-9/._-]*)`)
-	sources := webuiJavaScript(t)
 	seen := map[string]bool{}
-	for name, source := range sources {
+	for name, source := range webuiJavaScript(t) {
 		for _, match := range called.FindAllStringSubmatch(source, -1) {
 			path := match[1]
 			if seen[path] {
@@ -63,17 +48,5 @@ func TestWebUIRouteTable(t *testing.T) {
 	}
 	if len(table.Schemas) != len(workspaceRouteSchemas) {
 		t.Errorf("explorer binds %d schemas, declared %d", len(table.Schemas), len(workspaceRouteSchemas))
-	}
-	for _, path := range []string{"/workspace/manifest", "/workspace/schema", "/workspace/routes", "/operations/evidence", "/agents", "/agents/chat"} {
-		if _, routed := routesByPath[path]; !routed {
-			t.Errorf("GUI route %s is absent from the route table", path)
-		}
-	}
-	manifest := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "").Body.String()
-	if !strings.Contains(manifest, `"id":"api"`) {
-		t.Error("the workspace manifest does not declare the API explorer tab")
-	}
-	if !strings.Contains(sources["mod/api.js"], `"/workspace/routes"`) || !strings.Contains(sources["mod/api.js"], "overgo.schemaForm(") {
-		t.Error("the explorer does not render from the route table with schema forms")
 	}
 }

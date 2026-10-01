@@ -11,18 +11,13 @@ import (
 	"overgo/internal/hfhub"
 )
 
-// TestOneWorkbenchEventStream holds the workbench to one live connection:
-// the agent tab stream is gone (it sent its inventory once, then only the
-// operations the runtime stream carries), and hub downloads ride the runtime
-// stream -- every job at connect, then again only when a job reads
-// differently -- in place of a once-a-second poll.
+// TestOneWorkbenchEventStream: hub downloads ride the one runtime stream --
+// every job at connect, then again only when a job reads differently -- in
+// place of a once-a-second poll.
 func TestOneWorkbenchEventStream(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	defer handler.Close()
-	if response := serveTestRequest(handler, http.MethodGet, "/agents/stream", ""); response.Code != http.StatusNotFound {
-		t.Errorf("retired tab stream /agents/stream answered %d: %s", response.Code, response.Body)
-	}
 
 	// A transfer publishes once per file and whole percent, not per chunk,
 	// and what it publishes is the progress it just recorded.

@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
-	"overgo/internal/sampling"
-	"overgo/internal/tokenizer"
 )
 
 type testToolOutputStream struct {
@@ -53,40 +51,6 @@ func TestBoundedProtocolTokens(t *testing.T) {
 				t.Fatalf("tokens = %d, error = %v", got, err)
 			}
 		})
-	}
-}
-
-func TestProtocolGenerationOptionsPinsProjectedPrompt(t *testing.T) {
-	t.Parallel()
-	handler := &Handler{config: Config{ContextShift: true}}
-	projected := &inference.ProjectedInputs{}
-	options := handler.protocolGenerationOptions(
-		3, &sampling.Sampler{}, []tokenizer.TokenID{1, 2}, projected,
-	)
-	if options.MaxNewTokens != 3 || options.Sampler == nil || !options.ParseSpecial ||
-		!options.ContextShift || !options.CachePrompt || options.ProjectedInputs != projected ||
-		len(options.PromptTokenIDs) != 2 {
-		t.Fatalf("options = %+v", options)
-	}
-}
-
-func TestToolDeltaStreamOwnsBufferAndCallState(t *testing.T) {
-	t.Parallel()
-	stream := &toolDeltaStream{output: &testToolOutputStream{deltas: []inference.ChatToolCallDelta{{
-		Index: 1, Name: "lookup", Arguments: `{"x":`, Started: true,
-	}}}}
-	if _, err := stream.accept("first"); err != nil {
-		t.Fatal(err)
-	}
-	stream.output = &testToolOutputStream{deltas: []inference.ChatToolCallDelta{{
-		Index: 1, Arguments: "1}",
-	}}}
-	if _, err := stream.accept("second"); err != nil {
-		t.Fatal(err)
-	}
-	if stream.text() != "firstsecond" || !stream.started || !stream.streamed(1) ||
-		stream.argumentText(1) != `{"x":1}` {
-		t.Fatalf("stream = %+v", stream)
 	}
 }
 

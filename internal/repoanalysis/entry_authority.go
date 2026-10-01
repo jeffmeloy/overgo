@@ -173,11 +173,9 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 	return []EntryAuthorityRule{
 		{
 			Domain:     EntryAuthorityStorage,
-			Owner:      "internal/overgodb owns the canonical journal layout; recovery lanes are enumerated",
+			Owner:      "internal/overgodb owns the canonical journal layout; recovery replays through its reader",
 			OwnerPaths: []string{"internal/overgodb"},
 			Exceptions: map[string]string{
-				"cmd/overgodb/rebuild.go":                  "sanctioned offline rebuild lane; reads and swaps the journal it rebuilds",
-				"cmd/overgodb/repair.go":                   "sanctioned torn-tail repair lane; truncates the journal at the last valid frame",
 				"internal/repoanalysis/entry_authority.go": "single policy owner; the rule table names the journal layout it guards",
 			},
 			Detect: func(file *ast.File) int {

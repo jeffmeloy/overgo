@@ -163,21 +163,27 @@ func precheck(ctx context.Context, repository, backup, checkout, candidate strin
 	if result.Pack, err = overgodb.PackSmallBlobs(ctx, store); err != nil {
 		return result, err
 	}
+	err = prove(ctx, &result, store, checkout)
+	return result, err
+}
+
+// prove runs every consumer check against the candidate store open as store.
+// A candidate that passed carries its proof into service; one that did not is
+// discarded, so nothing is written to it.
+func prove(ctx context.Context, result *receipt, store *overgodb.Store, checkout string) error {
 	result.Checks = runChecks([]namedCheck{
 		{"blob-identity", func() error { _, err := store.VerifyBlobs(ctx); return err }},
-		{"published-chains", func() error { return checkPublishedChains(ctx, checkout, candidate) }},
+		{"published-chains", func() error { return checkPublishedChains(ctx, checkout, result.Candidate) }},
 	})
-	// A candidate that passed carries its proof into service; one that did
-	// not is discarded, so nothing is written to it.
 	if !result.Verdict() {
-		return result, nil
+		return nil
 	}
 	batch, err := result.Batch(ctx, store)
 	if err != nil {
-		return result, err
+		return err
 	}
 	_, err = store.CommitAs(ctx, producer, batch)
-	return result, err
+	return err
 }
 
 type namedCheck struct {

@@ -22,12 +22,7 @@ func TestPrecheckTakesItsOwnBackup(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer store.Close()
-		data := []byte(strings.Repeat(text, 1<<13))
-		id, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
-		if err != nil {
-			t.Fatal(err)
-		}
-		content := artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: "text/plain"}, Data: data}
+		content := textContent(t, strings.Repeat(text, 1<<13))
 		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "backup/" + text, Contents: []artifact.Content{content}}); err != nil {
 			t.Fatal(err)
 		}

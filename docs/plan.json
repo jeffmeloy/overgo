@@ -57,21 +57,6 @@
       ]
     },
     {
-      "id": "store-and-operation-safety",
-      "title": "Keep the store and in-flight operations whole through failures",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "journal-cutover",
-          "title": "Publish rebuilt and repaired stores through the one cutover owner",
-          "status": "open",
-          "verify": "go test ./cmd/overgodb -run '^(TestFailedReplacementKeepsTheLivePath|TestRepairRefusesACorruptJournal)$' -count=1",
-          "rationale": "SQA-049 (P1): direct journal swaps can strand the live path after a failed replacement. SQA-048 (P2): repair can report a corrupt store as clean because it owns a weaker decoder. Retire the direct swap branches and repair's own decoder. A complete, validated candidate goes through the existing store cutover owner, with its rollback and locking. Recovering a corrupt source stays separate from the cutover. Batch: overgodb reaches most lanes, so run it as one batch.\n\nBuilt and verified 2026-10-01 (scratchpad storeops-full.patch; apply with --include='cmd/overgodb/*' --include='internal/overgodb/*' --include=internal/repoanalysis/entry_authority.go): -691 production nodes, both verify tests pass. BLOCKED on an external prerequisite: with this change, Windows Defender quarantines every fresh build of cmd/gate ('the file contains a virus or potentially unwanted software'; deterministic over two builds, while master's gate builds). The gate links internal/overgodb, and deleting MergeBlobTrees changes the binary. Defender settings are the owner's decision, and keeping dead code to dodge the scanner is not done, so this step waits for the owner. operation-completion landed separately."
-        }
-      ]
-    },
-    {
       "id": "training-judge-integrity",
       "title": "Tie every approval and published checkpoint to what actually trained",
       "owner": "master-lead",

@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 )
 
@@ -62,40 +65,93 @@ func TestProofCommitsUnderThisCommandsCapability(t *testing.T) {
 	}
 }
 
-// TestSwapStoresKeepsTheSupersededStore renames the live store aside and the
-// candidate into service, refuses an occupied superseded path, and restores
-// the live store when the candidate cannot take its place.
-func TestSwapStoresKeepsTheSupersededStore(t *testing.T) {
+// TestFailedReplacementKeepsTheLivePath holds a rebuilt store to the one
+// cutover precheck owns. A rebuild whose consumer checks refuse it never
+// replaces the store in service, and a destination that already holds a store
+// is refused before anything is written to it. The swap renames the whole
+// store, so the rebuilt journal goes into service with the blobs it
+// externalized; a swap whose candidate cannot take the live path restores the
+// live store, and one over an occupied superseded path never starts.
+func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 	base := t.TempDir()
 	live, candidate := filepath.Join(base, "store"), filepath.Join(base, "store.candidate")
-	mark := func(directory, text string) {
-		t.Helper()
-		if err := os.MkdirAll(directory, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(directory, "marker"), []byte(text), 0o644); err != nil {
-			t.Fatal(err)
-		}
+	contents := []artifact.Content{
+		textContent(t, "held inline in the journal"),
+		textContent(t, strings.Repeat("held in a blob ", 1<<10)),
 	}
-	read := func(directory string) string {
+	store, err := overgodb.Open(live)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "cutover/fixture", Contents: contents}); err != nil {
+		t.Fatal(err)
+	}
+	original, _ := store.Head()
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// serves opens the store at root and requires head and every content.
+	serves := func(root string, head artifact.CommitID) {
 		t.Helper()
-		data, err := os.ReadFile(filepath.Join(directory, "marker"))
+		store, err := overgodb.OpenReadOnly(root)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("%s does not open: %v", root, err)
 		}
-		return string(data)
+		defer store.Close()
+		if got, _ := store.Head(); got != head {
+			t.Fatalf("%s is at head %s, want %s", root, got, head)
+		}
+		for _, content := range contents {
+			got, found, err := artifact.ReadContent(t.Context(), store, content.Descriptor.ID)
+			if err != nil || !found || !bytes.Equal(got.Data, content.Data) {
+				t.Fatalf("%s does not serve %s: found=%t %v", root, content.Descriptor.ID, found, err)
+			}
+		}
 	}
-	mark(live, "live")
-	mark(candidate, "candidate")
-	superseded, err := swapStores(live, candidate, "bfc908c35167e34af162")
-	if err != nil || read(live) != "candidate" || read(superseded) != "live" || filepath.Base(superseded) != "store.superseded-bfc908c35167" {
+	// A checkout that holds no overgodb command fails the published-chains check.
+	rebuildArgs := []string{"rebuild", "-repo", live, "-destination", candidate, "-checkout", t.TempDir(), "-swap"}
+	if err := runSubcommand(rebuildArgs); err == nil || !strings.Contains(err.Error(), "nothing was swapped") {
+		t.Fatalf("a refused rebuild = %v, want nothing swapped", err)
+	}
+	serves(live, original)
+	rebuilt, err := overgodb.OpenReadOnly(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, _ := rebuilt.Head()
+	if err := rebuilt.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := runSubcommand(rebuildArgs[:len(rebuildArgs)-1]); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("a rebuild into an existing store = %v", err)
+	}
+	serves(candidate, head)
+	if _, err := swapStores(live, filepath.Join(base, "absent"), original.String()); err == nil {
+		t.Fatal("a swap without a candidate succeeded")
+	}
+	serves(live, original)
+	superseded, err := swapStores(live, candidate, original.String())
+	if err != nil || filepath.Base(superseded) != "store.superseded-"+original.String()[:12] {
 		t.Fatalf("swap = (%q, %v)", superseded, err)
 	}
-	mark(candidate, "second")
-	if _, err := swapStores(live, candidate, "bfc908c35167e34af162"); err == nil || read(live) != "candidate" {
+	serves(live, head)
+	serves(superseded, original)
+	if err := os.Mkdir(candidate, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := swapStores(live, candidate, original.String()); err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("swap over an occupied superseded path = %v", err)
 	}
-	if _, err := swapStores(live, filepath.Join(base, "absent"), "0123456789abcdef"); err == nil || read(live) != "candidate" {
-		t.Fatalf("swap without a candidate left the live store at %q: %v", read(live), err)
+	serves(live, head)
+}
+
+// textContent is a plain-text evidence content holding text.
+func textContent(t *testing.T, text string) artifact.Content {
+	t.Helper()
+	data := []byte(text)
+	id, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
+	if err != nil {
+		t.Fatal(err)
 	}
+	return artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data)), MediaType: "text/plain"}, Data: data}
 }

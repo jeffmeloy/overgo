@@ -23,21 +23,6 @@
       ]
     },
     {
-      "id": "scorecard-reads-task-heldout",
-      "title": "Read each task's existing held-out evidence into the scorecard; state not-applicable only where no held-out metric exists",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Read each task's existing held-out evidence into the scorecard; state not-applicable only where no held-out metric exists",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -run '^TestQualityReadsEachTasksHeldoutEvidence$' -count=1",
-          "rationale": " Owner question, 2026-09-30: what do you mean, no held-out suite?\nThe answer, measured on scorecard-20261001T001301Z.json: the held-out-quality cell reads only one kind of evidence, the text benchmark catalog (evaluation.LatestEvidence: mmlu-pro, mmlu, bbh, ifeval, dna). So 27 of 36 rows read 'no evaluation of a derived benchmark suite', even where held-out evidence exists:\n- training rows: the one held-out judge (trainingworkflow.RunHeldout and its verdicts) for preference, generation, TabFM and audio objectives;\n- tabular and forecast: the TabFM and forecast routes judged on held-out rows and series;\n- transcription: the ASR acceptances scored against reference transcripts.\nImage-gen, video-gen, speech (TTS) and image-embedding have reference-parity proofs, which prove correctness rather than held-out quality, so those tasks have no held-out metric yet.\nRecommended, and taken unless the owner says otherwise:\n- quality reads the evidence each task already has, with its typed contract (metric, suite, protocol, origin, scope);\n- a task with no held-out metric reads not-applicable with that reason, and the loop files a gap row to define one.\nPromotion then requires held-out quality wherever it is measurable, and every fall or incomparable change still withholds.\nServes: measure, then promote. Disappears: the text-only quality reader. Evidence: the held-out verdicts and acceptance records the store already holds. Batch: internal/scorecard reaches no lane since 3952a0bdc. Owner, 2026-09-30: 'Teach the scorecard to read the held-out evidence that already exists or download appropriate datasets.' So for a task with no held-out metric, the fallback is not a permanent not-applicable: propose an appropriate held-out dataset and metric (source, files, size, license, and any metric model needed). The owner approves each download file by file, then the task gains a held-out suite. Not-applicable stands only while a proposal is pending, with the proposed dataset in its reason."
-        }
-      ]
-    },
-    {
       "id": "compatibility-into-validate",
       "title": "Fold cmd/compatibility into validate, re-verifying claims whose source moves",
       "owner": "master-lead",

@@ -125,7 +125,9 @@ func Baseline(ctx context.Context, root string, records []Record) (*Record, erro
 // Withheld reports why the record may not promote its commit, or "" when it
 // may: promotion needs a baseline measured on the promoted branch, a
 // held-out quality on every row it applies to, and every held-out quality
-// the baseline measured holding, neither regressed nor Unknown.
+// the baseline measured holding, neither regressed nor Unknown. A task whose
+// held-out evaluation is only proposed reads not applicable, so it withholds
+// nothing until its evaluation lands.
 func (record Record) Withheld(baseline *Record) string {
 	if baseline == nil {
 		return "no earlier scorecard measured the commit " + PromotedBranch + " holds"
@@ -216,10 +218,12 @@ func (pair Pair) Compare(column metric.Name) (Verdict, string) {
 
 // The kinds of gap besides the regressed and Unknown verdicts. Their names
 // order the rows: failures a user met, then held-out qualities that fell or
-// that nothing compares, which refuse promotion, then measurements to take.
+// that nothing compares, which refuse promotion, then measurements to take,
+// then held-out evaluations to define.
 const (
 	gapFailing    = "failing"
 	gapUnmeasured = "unmeasured"
+	gapUnscored   = "unscored"
 )
 
 // Gap is the work one task's shortfall on one metric asks for, with every
@@ -232,8 +236,10 @@ type Gap struct {
 }
 
 // Gaps lists the record's gaps against the baseline, which may be nil: each
-// cell no record measures, each failure-rate above zero, and each held-out
-// quality the baseline measured that Compare finds regressed or Unknown.
+// cell no record measures, each failure-rate above zero, each held-out
+// quality the baseline measured that Compare finds regressed or Unknown, and
+// each held-out quality that is not applicable because its task's held-out
+// evaluation is only proposed.
 func (record Record) Gaps(baseline *Record) []Gap {
 	var before Record
 	if baseline != nil {
@@ -263,6 +269,8 @@ func (record Record) Gaps(baseline *Record) []Gap {
 				add(gapUnmeasured, pair.After, column, cell.Reason)
 			case column == metric.Quality && verdict != holding:
 				add(string(verdict), pair.After, column, why)
+			case column == metric.Quality && cell.NotApplicable:
+				add(gapUnscored, pair.After, column, cell.Reason)
 			case column == metric.Failures && cell.Value > 0:
 				add(gapFailing, pair.After, column, cell.Label)
 			}
@@ -285,6 +293,8 @@ func gapTitle(kind string, task recipe.Task) string {
 		return fmt.Sprintf("Measure %s held-out quality again on the baseline scorecard's models and contracts", task)
 	case gapFailing:
 		return fmt.Sprintf("Fix the %s attempts that failed", task)
+	case gapUnscored:
+		return fmt.Sprintf("Define the held-out evaluation that measures %s quality", task)
 	default:
 		return fmt.Sprintf("Measure %s's unmeasured cells", task)
 	}

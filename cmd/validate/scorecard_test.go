@@ -61,8 +61,8 @@ func TestScorecardRowsEveryServableModel(t *testing.T) {
 			t.Errorf("%s setup steps = %q, want candidate, validated, active", row[1], got)
 		}
 	}
-	if dashes := strings.Count(strings.Join(imageRow[2:], "|"), "—"); dashes != len(scorecardHeadings)-2 || imageRow[3] != "n/a" {
-		t.Errorf("an image model never served shows %d dashes, want every cell but setup steps and its throughput, which does not apply: %v", dashes, imageRow)
+	if dashes := strings.Count(strings.Join(imageRow[2:], "|"), "—"); dashes != len(scorecardHeadings)-3 || imageRow[3] != "n/a" || imageRow[4] != "n/a" {
+		t.Errorf("an image model never served shows %d dashes, want every cell but setup steps, its throughput, which does not apply, and its held-out quality, whose evaluation is only proposed: %v", dashes, imageRow)
 	}
 	for _, row := range [][]string{forecastRow, imageRow} {
 		for index, metric := range []string{"First output", "Throughput", "Held-out quality", "Failures", "Load", "Peak memory", "Setup steps"} {

@@ -29,9 +29,10 @@ const catalogLimit = 4096
 
 // Cell is one measured value with its unit, what it measures and the record
 // it came from, or the reason no record measures it. NotApplicable marks a
-// metric the task's output cannot have: its reason says why, and no
-// measurement is missing. Direction says which way a held-out quality
-// improves; Contract says what the value is, typed, for comparison.
+// metric the task's output cannot have, or a held-out quality whose
+// evaluation is only proposed: its reason says why, and no measurement is
+// missing. Direction says which way a held-out quality improves; Contract
+// says what the value is, typed, for comparison.
 type Cell struct {
 	Value         float64             `json:"value,omitzero"`
 	Unit          string              `json:"unit,omitzero"`
@@ -98,6 +99,9 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 		return nil, fmt.Errorf("scorecard: the activation listing was truncated at %d", catalogLimit)
 	}
 	suites, descriptors := evaluation.DerivedSuiteCatalog(ctx, store, evaluation.ListingAuthorities())
+	if err := nameEvaluatedSets(ctx, store, suites); err != nil {
+		return nil, err
+	}
 	index := evaluation.LatestEvidence(ctx, store, suites, 0)
 	serving, err := servingByRecipe(ctx, store)
 	if err != nil {
@@ -127,7 +131,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			observed := serving[capability.Recipe]
 			row.Cells[metric.FirstOutput] = firstOutputCell(capability.Task, benchmark, measured, observed)
 			row.Cells[metric.Throughput] = throughputCell(capability.Task, benchmark, measured, observed)
-			row.Cells[metric.Quality] = qualityCell(index.EvaluationsByRecipe[capability.Recipe], descriptors)
+			row.Cells[metric.Quality] = qualityCell(capability.Task, index.EvaluationsByRecipe[capability.Recipe], descriptors)
 			row.Cells[metric.Failures] = failureCell(observed)
 			row.Cells[metric.Load] = loadCell(benchmark, measured, observed)
 			row.Cells[metric.PeakMemory] = peakMemoryCell(capability.Task, benchmark, measured, observed)
@@ -334,19 +338,70 @@ func throughputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, ben
 	return gap("no benchmark decode rate and no served decode phase with output tokens")
 }
 
+// nameEvaluatedSets adds to suites, by identity, each set the evaluation
+// circuit scored a recipe on outside the derived catalog. Its evidence binds
+// the evaluation to a plan over the set and its split, so a held-out set of
+// another task, such as E4B projection's image, video and audio caption
+// matching, is read like a derived suite; a gate's or smoke run's wall time
+// has no such evidence.
+func nameEvaluatedSets(ctx context.Context, store *overgodb.Store, suites map[artifact.ID]string) error {
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: evaluation.EvaluationEvidenceMediaType, Schema: evaluation.EvaluationEvidenceSchema,
+		}},
+		// Naming is order-independent; any one order reads them all.
+		Order: overgodb.DocumentOldestFirst,
+	}, evaluation.ParseEvaluationEvidence, func(_ overgodb.DocumentView, evidence evaluation.EvaluationEvidence) error {
+		if _, named := suites[evidence.Dataset]; !named {
+			suites[evidence.Dataset] = evidence.Dataset.String()
+		}
+		return nil
+	})
+	return err
+}
+
+// heldoutProposals names, for each task no held-out evaluation measures yet,
+// the held-out set and metric proposed to measure it. Such a row's quality
+// is not applicable rather than missing: it withholds no promotion, and the
+// loop proposes defining the evaluation. A task's entry goes when its
+// held-out evaluation lands; inference has none, since every inference
+// recipe runs the derived suites.
+var heldoutProposals = map[recipe.Task]string{
+	recipe.TaskGeneration:     "WikiText-2 test (Salesforce/wikitext wikitext-2-raw-v1, 0.7 MB) perplexity, as a sequence-scoring suite",
+	recipe.TaskTraining:       "a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective",
+	recipe.TaskProjection:     "the image, video, multi-image and mixed caption-matching sets the store already scores a projection on",
+	recipe.TaskVQA:            "the image caption-matching set the store already scores a projection on, then A-OKVQA validation (HuggingFaceM4/A-OKVQA, 60 MB) multiple-choice accuracy",
+	recipe.TaskImageGen:       "TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model",
+	recipe.TaskVideoGen:       "held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model",
+	recipe.TaskTranscription:  "LibriSpeech test-clean (on disk) word error rate, as evaluate's transcription report, which the scorecard does not read yet",
+	recipe.TaskSpeech:         "LibriSpeech test-clean texts (on disk), synthesized then transcribed by a local speech recognizer: round-trip word error rate",
+	recipe.TaskSeq2Seq:        "BFCL v3 simple (gorilla-llm/Berkeley-Function-Calling-Leaderboard, 0.3 MB) exact match of the parsed call",
+	recipe.TaskTabular:        "a table-prediction objective over BeyondArena credit-g (TabArena/BeyondArena, 0.2 MB), its held-out rows judged by train -route tabular",
+	recipe.TaskForecast:       "a forecast objective over ETTh1 (github.com/zhouhaoyi/ETDataset, 2.6 MB), its held-out windows judged by train -route seriesforecast",
+	recipe.TaskImageEmbedding: "Imagenette 160 px (fast.ai imagenette2-160, 100 MB) k-nearest-neighbour accuracy from the model's own embeddings",
+}
+
 // qualityCell is the headline metric of the recipe's newest evaluation of
-// its largest derived suite: the most cases say the most about held-out
-// answers, and the newest run is the current one.
-func qualityCell(summaries []evaluation.EvalSummary, descriptors map[string]evaluation.SuiteDescriptor) Cell {
+// its largest held-out suite: the most cases say the most about held-out
+// answers, and the newest run is the current one. A set outside the derived
+// catalog counts no cases, so of two equal suites the one named first is
+// read, the same in every record. A recipe no suite measures reads not
+// applicable when its task has a held-out evaluation proposed, else a gap.
+func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descriptors map[string]evaluation.SuiteDescriptor) Cell {
 	var best *evaluation.EvalSummary
 	for index := range summaries {
-		// Summaries arrive newest first; only a larger suite displaces.
-		if candidate := &summaries[index]; best == nil || descriptors[candidate.Suite].Cases > descriptors[best.Suite].Cases {
+		// Summaries arrive newest first; only a larger suite, or an equal
+		// one named first, displaces.
+		candidate := &summaries[index]
+		if best == nil || cmp.Or(cmp.Compare(descriptors[candidate.Suite].Cases, descriptors[best.Suite].Cases), strings.Compare(best.Suite, candidate.Suite)) > 0 {
 			best = candidate
 		}
 	}
 	if best == nil {
-		return gap("no evaluation of a derived benchmark suite")
+		if proposal, proposed := heldoutProposals[task]; proposed {
+			return inapplicable(fmt.Sprintf("no held-out evaluation for %s yet; proposed: %s", task, proposal))
+		}
+		return gap("no held-out evaluation of this recipe")
 	}
 	name, value, ok := evaluation.HeadlineMetric(best.Metrics)
 	if !ok {

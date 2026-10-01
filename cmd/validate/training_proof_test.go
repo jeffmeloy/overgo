@@ -1,19 +1,30 @@
 package main
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
+	"overgo/internal/jsonfile"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
 )
+
+// fixtureCommit is the commit a fixture verification ran at.
+const fixtureCommit = "0123456789abcdef0123456789abcdef01234567"
 
 // TestEveryBlockingProofHasACommand holds every proof promotion waits on to
 // a command that re-acquires it into the selected store. Each training recipe
@@ -21,8 +32,12 @@ import (
 // reader names the route from that objective alone: the dit route trains a
 // video stack from its directory and a raw checkpoint against that stack, and
 // the dense workflow trains the recipe it is named. A recipe over data no
-// route grounds binds nothing, and a projection proof says which producer it
-// lacks.
+// route grounds binds nothing. Each projection recipe passed a verification
+// the reader names from its gate alone: an exact verification whose plan ran
+// the committed suite re-runs it through recipe verify -reverify against the
+// projector its activation binds, one the E4B serving producer published
+// against the committed oracle runs that producer into the selected store,
+// and an exact verification of another suite grounds nothing.
 func TestEveryBlockingProofHasACommand(t *testing.T) {
 	t.Parallel()
 	ctx, root, models := t.Context(), testutil.RepoRoot(t), t.TempDir()
@@ -77,10 +92,114 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	mot := training("RxBrain", "model-00001-of-00003.safetensors", "docs/verification/rxbrain-mot-training-stimulus.txt")
 	hybrid := training("Qwen35", "qwen35.gguf", "fixtures/qwen35_4b_serving_golden.json")
 	dense, ungrounded := training("Qwen25", "model.safetensors", denseGrounding), training("Unrouted", "model.safetensors", "")
-	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded}
-	affected := map[SurfaceID]AffectRecord{"training": {Affected: true, Reason: "fixture"}}
+
+	projectorPaths := map[string]string{}
+	projection := func(name, evidence string) ModelValidation {
+		key := "fixture/projection/" + name
+		modelWeights, projectorWeights := []byte(name+" model weights"), []byte(name+" projector weights")
+		modelComponent := testutil.ArtifactBytesID(t, artifact.KindTensorSet, modelWeights)
+		projectorComponent := testutil.ArtifactBytesID(t, artifact.KindTensorSet, projectorWeights)
+		directory := filepath.Join(models, name)
+		modelPath, projectorPath := filepath.Join(directory, "model.gguf"), filepath.Join(directory, "mmproj.gguf")
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for path, payload := range map[string][]byte{modelPath: modelWeights, projectorPath: projectorWeights} {
+			if err := os.WriteFile(path, payload, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		model, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: modelComponent}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		projector, err := artifact.NewManifest(artifact.KindProjector, []artifact.Component{{Role: artifact.ComponentWeights, Name: "weights", Artifact: projectorComponent}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Commit(ctx, artifact.Batch{
+			Key: key + "/facts",
+			Artifacts: []artifact.Descriptor{
+				{ID: modelComponent, Size: uint64(len(modelWeights))}, {ID: projectorComponent, Size: uint64(len(projectorWeights))},
+			},
+			Manifests: []artifact.Manifest{model, projector},
+			Locations: []artifact.LocationEvent{
+				{Location: artifact.Location{Artifact: modelComponent, Kind: artifact.LocationFile, Value: modelPath}, Action: artifact.LocationAdd},
+				{Location: artifact.Location{Artifact: projectorComponent, Kind: artifact.LocationFile, Value: projectorPath}, Action: artifact.LocationAdd},
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		definition, err := modelrecipe.ProjectionDefinition(model.ID, projector.ID, artifact.ID{}, recipe.DataImage)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := modelrecipetest.PublishActivation(ctx, store, key, definition); err != nil {
+			t.Fatal(err)
+		}
+		environment, err := runrecord.NewEnvironment(runrecord.Environment{Host: key, OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "test"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		environmentBatch, err := environment.Batch(key + "/environment")
+		if err == nil {
+			_, err = artifact.CommitBatch(ctx, store, environmentBatch)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		gate, err := runrecord.NewGateRecord(definition.ID, environment.ID, fixtureCommit, runrecord.OutcomeSucceeded, "", 1, []runrecord.GateStep{{
+			Name: "candidate-execution", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 1, Evidence: evidence,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		gateBatch, err := gate.Batch(key + "/gate")
+		if err == nil {
+			_, err = artifact.CommitBatch(ctx, store, gateBatch)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		projectorPaths[name] = projectorPath
+		return ModelValidation{
+			Model: model.ID, ModelName: name, Location: modelPath,
+			Kind: recipe.TaskProjection, Validation: projectionProof, Surface: "evaluation", Recipe: definition.ID,
+		}
+	}
+	exactRan := func(suite evaluation.ExactSuite) string {
+		compiled, err := evaluation.CompileExact(suite)
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := evaluation.BindExact(compiled, evaluation.ExactAuthorities{
+			ModelDefinition: testutil.ArtifactID(t, artifact.KindModelDefinition, "exact"), RuntimeRecipe: testutil.ArtifactID(t, artifact.KindRecipe, "exact"),
+			CodeCommit: fixtureCommit, Environment: testutil.ArtifactID(t, artifact.KindEvidence, "exact"),
+			Execution: evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return exactPlan + publish(plan.Content()).String() + ";report=" + testutil.ArtifactID(t, artifact.KindEvaluation, "exact").String() + ";cases=" + strconv.Itoa(len(suite.Cases))
+	}
+	var suite evaluation.ExactSuite
+	if err := jsonfile.DecodeStrict(filepath.Join(root, filepath.FromSlash(projectionSuites[0])), &suite); err != nil {
+		t.Fatal(err)
+	}
+	exact := projection("Qwen27", exactRan(suite))
+	oracle, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(protocolOracle)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	protocol := projection("E4B", fmt.Sprintf("%s%x;model_definition=%s;cases=18", protocolNames, sha256.Sum256(oracle), testutil.ArtifactID(t, artifact.KindModelDefinition, "e4b")))
+	suite.Cases = slices.Clone(suite.Cases)
+	suite.Cases[0].Text += " but another answer"
+	otherSuite := projection("OtherSuite", exactRan(suite))
+
+	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded, exact, protocol, otherSuite}
+	affected := map[SurfaceID]AffectRecord{"training": {Affected: true, Reason: "fixture"}, "evaluation": {Affected: true, Reason: "fixture"}}
 	for _, task := range []recipe.Task{
-		recipe.TaskProjection, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskTranscription,
+		recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskTranscription,
 		recipe.TaskVQA, recipe.TaskSeq2Seq, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskImageEmbedding,
 	} {
 		for _, validation := range kindValidation(task) {
@@ -94,16 +213,30 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	if err := groundTraining(ctx, root, store, cells); err != nil {
 		t.Fatal(err)
 	}
+	if err := groundProjection(ctx, root, store, cells); err != nil {
+		t.Fatal(err)
+	}
 	plan := SelectValidation(Inputs{AffectedSurfaces: affected, Registered: cells, Current: func(ModelValidation) error { return nil }})
 	if len(plan.Run) != len(cells) {
 		t.Fatalf("promotion waits on %d of %d proofs: background=%+v", len(plan.Run), len(cells), plan.Background)
 	}
 
-	refusals := map[string]string{string(recipe.TaskProjection): "re-verifies the active recipe", ungrounded.ModelName: "no cmd/train route grounds"}
+	refusals := map[string]string{ungrounded.ModelName: "no cmd/train route grounds", otherSuite.ModelName: "no committed exact suite or oracle grounds"}
 	commands, environments := map[string][]string{}, map[string][]string{}
 	for _, sel := range plan.Run {
 		_, environments[sel.ModelName], _, _ = trainingRun(sel.ModelValidation, selected)
+		if sel.Validation == projectionProof {
+			_, environments[sel.ModelName], _ = projectionRun(sel.ModelValidation, selected)
+		}
 		name, args, err := reacquireCommand(sel.ModelValidation, selected)
+		if sel.ModelName == protocol.ModelName {
+			if err != nil || name != "go" || !slices.Equal(args, protocolProducer) ||
+				!slices.Contains(environments[sel.ModelName], protocolStore+selected) || !slices.Contains(environments[sel.ModelName], protocolPublish) ||
+				!slices.Contains(environments[sel.ModelName], protocolDevice) {
+				t.Fatalf("%s %s bound (%q, %v, %v) under %v, want the serving producer publishing into the selected store", sel.ModelName, sel.Validation, name, args, err, environments[sel.ModelName])
+			}
+			continue
+		}
 		if refusal, refused := refusals[sel.ModelName]; refused {
 			if err == nil || !strings.Contains(err.Error(), refusal) {
 				t.Fatalf("%s %s bound (%v, %v), want the refusal that it %s", sel.ModelName, sel.Validation, args, err, refusal)
@@ -137,6 +270,17 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		if out := flag(model, "-out"); !strings.HasPrefix(out, os.TempDir()) {
 			t.Errorf("%s publishes its checkpoint at %q, outside the scratch -run empties", model, out)
 		}
+	}
+	verify := commands[exact.ModelName]
+	for name, value := range map[string]string{
+		"run": "./cmd/recipe", "-task": string(recipe.TaskProjection), "-projector": projectorPaths[exact.ModelName], "-input-file": projectionSuites[0],
+	} {
+		if got := flag(exact.ModelName, name); got != value {
+			t.Errorf("%s runs %s %q, want %q: %v", exact.ModelName, name, got, value, verify)
+		}
+	}
+	if !slices.Contains(verify, "-reverify") || verify[len(verify)-1] != exact.Location {
+		t.Errorf("%s runs %v, want its exact suite to re-verify the active recipe on its model", exact.ModelName, verify)
 	}
 	if !slices.Contains(environments[hybrid.ModelName], "GOMEMLIMIT=68GiB") {
 		t.Errorf("the hybrid stack runs without the memory limit its route was recorded under: %v", environments[hybrid.ModelName])

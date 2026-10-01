@@ -73,6 +73,8 @@ func run() error {
 	residencyFlag := flags.String("residency", string(recipe.ResidencyHybridNative),
 		"weight residency: stream | host-cache | device-f32 | device-native | device-native-bf16 | hybrid-native | host-reference")
 	input := flags.String("input", "", "task input as JSON; - reads standard input (verify, run)")
+	inputFile := flags.String("input-file", "", "a file holding the task input, in place of -input (verify, run)")
+	reverify := flags.Bool("reverify", false, "re-verify the model's active projection recipe on the verification this run records; refused when the code derives another recipe (verify -task projection)")
 	alias := flags.String("alias", "", "OvergoDB model alias (run)")
 	selection := flags.String("selection", string(modelrecipe.SessionWarm), "alias session selection: pin | warm | spillover (run)")
 	compatibility := flags.String("compatibility", "", "remote peer compatibility evidence ID (spillover run)")
@@ -81,6 +83,19 @@ func run() error {
 	}
 	if flags.NArg() != 1 {
 		return errors.New("exactly one model reference is required")
+	}
+	if *inputFile != "" {
+		if *input != "" {
+			return errors.New("-input and -input-file name the task input twice")
+		}
+		data, err := os.ReadFile(*inputFile)
+		if err != nil {
+			return err
+		}
+		*input = string(data)
+	}
+	if *reverify && (verb != "verify" || recipe.Task(*task) != recipe.TaskProjection) {
+		return errors.New("-reverify re-verifies a projection recipe: it goes with verify -task projection")
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -124,7 +139,7 @@ func run() error {
 				return residencyErr
 			}
 			if selectedTask == recipe.TaskProjection {
-				return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath), rawInput, sessionOverride, residency)
+				return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath), rawInput, sessionOverride, residency, *reverify)
 			}
 			return verifyInference(repository, path, rawInput, sessionOverride, residency)
 		}

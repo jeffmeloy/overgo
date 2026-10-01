@@ -32,9 +32,10 @@ const benchmarkBudget = 6 * time.Hour
 // evidence into store, the one store this command selected and read, so the
 // producer never resolves a default of its own. It binds only the commands
 // whose invocation is fully determined by the cell as its records were read;
-// an unbound cell, such as a projection proof, returns why, so -run reports
-// incomplete coverage rather than fabricating a wrong command. A DNA model's
-// guard cell is owned by its smoke run, never the text guard.
+// an unbound cell, such as a projection proof nothing committed grounds,
+// returns why, so -run reports incomplete coverage rather than fabricating a
+// wrong command. A DNA model's guard cell is owned by its smoke run, never
+// the text guard.
 func reacquireCommand(cell ModelValidation, store string) (string, []string, error) {
 	switch cell.Validation {
 	case trainingProof:
@@ -43,8 +44,12 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 			return "", nil, err
 		}
 		return "go", args, nil
-	case "projection-proof":
-		return "", nil, errors.New("its proof is the verification its activation accepted, and no command both re-runs a projection's verification and re-verifies the active recipe on it")
+	case projectionProof:
+		args, _, err := projectionRun(cell, store)
+		if err != nil {
+			return "", nil, err
+		}
+		return "go", args, nil
 	case "guard":
 		switch {
 		case dnaGuard(cell):
@@ -94,9 +99,10 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 // promotion. Cells without a bound command are reported as incomplete
 // coverage. A training run runs under its route's environment and publishes
 // its checkpoint beneath a scratch directory emptied before and after it,
-// since its proof is the verification it records. An empty run set is the
-// clean "nothing to re-acquire" result the dry run predicts when every judged
-// cell's evidence and every cycle lane's pass is current.
+// since its proof is the verification it records; a projection proof's
+// producer runs under the environment it publishes by. An empty run set is
+// the clean "nothing to re-acquire" result the dry run predicts when every
+// judged cell's evidence and every cycle lane's pass is current.
 func executeRun(ctx context.Context, output io.Writer, root, store string, plan Plan, background bool) error {
 	cells, suites := plan.Run, plan.Suites
 	if background {
@@ -118,8 +124,11 @@ func executeRun(ctx context.Context, output io.Writer, root, store string, plan 
 		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s; %s)\n", index+1, len(cells), sel.Validation, displayName(sel.ModelValidation), sel.Reason, sel.Promotion)
 		var environment []string
 		scratch := ""
-		if sel.Validation == trainingProof {
+		switch sel.Validation {
+		case trainingProof:
 			_, environment, scratch, _ = trainingRun(sel.ModelValidation, store)
+		case projectionProof:
+			_, environment, _ = projectionRun(sel.ModelValidation, store)
 		}
 		err = os.RemoveAll(scratch)
 		if err == nil {

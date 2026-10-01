@@ -106,7 +106,10 @@ func readAcceptedRecords(ctx context.Context, root, storeRoot string, store *ove
 			return acceptedRecords{}, err
 		}
 	}
-	return read, groundTraining(ctx, root, store, cells)
+	if err := groundTraining(ctx, root, store, cells); err != nil {
+		return acceptedRecords{}, err
+	}
+	return read, groundProjection(ctx, root, store, cells)
 }
 
 // current is the one decision on whether a cell's accepted evidence holds at

@@ -58,7 +58,8 @@ func verifyInference(
 	runtime := &deferredExactRuntime{open: func(ctx context.Context) (exactRuntime, error) {
 		return openExactCandidate(ctx, path, candidate)
 	}}
-	return verifyExactRuntime(ctx, store, candidate.Definition, revision, suite, exactPlan, candidate.Resolved.Document.ID, runtime)
+	_, err = verifyExactRuntime(ctx, store, candidate.Definition, revision, suite, exactPlan, candidate.Resolved.Document.ID, runtime)
+	return err
 }
 
 func prepareExactCandidate(ctx context.Context, store *overgodb.Store, path string,
@@ -238,8 +239,19 @@ func (runtime *projectedExactRuntime) Generate(ctx context.Context, raw string, 
 	return runtime.runner.Generate(ctx, "", options)
 }
 
+// projectionReverification is the decision a re-verification of an active
+// projection recipe records.
+const projectionReverification = "an exact suite ran again under the active projection recipe and matched every case"
+
+// verifyProjection runs an exact suite through the projection recipe the code
+// derives for the model and projector, and with reverify re-verifies the
+// model's active recipe on the verification it records, as a training run
+// re-verifies its recipe: the activation's accepted proof is then bound to the
+// commit that ran it. A derived recipe that is not the active one is refused,
+// since re-verification adopts no recipe and activating another is a reviewed
+// decision.
 func verifyProjection(repository, path, projectorPath, input string,
-	override modelintake.SessionOverride, residency recipe.ResidencyPolicy,
+	override modelintake.SessionOverride, residency recipe.ResidencyPolicy, reverify bool,
 ) error {
 	revision, err := modelintake.CleanRevision(context.Background())
 	if err != nil {
@@ -262,6 +274,15 @@ func verifyProjection(repository, path, projectorPath, input string,
 	_, definition, err := prepareCapability(ctx, store, path, recipe.TaskProjection, mediacapability.Projection(ctx, store, projectorPath))
 	if err != nil {
 		return err
+	}
+	if reverify {
+		active, found, err := modelrecipe.ActiveRecord(ctx, store, definition.Model, recipe.TaskProjection)
+		if err != nil {
+			return err
+		}
+		if !found || active.Definition.ID != definition.ID {
+			return fmt.Errorf("recipe: the code derives %s, which is not the model's active projection recipe: re-verification adopts no recipe", definition.ID)
+		}
 	}
 	if _, published, err := modelrecipe.Status(ctx, store, definition.ID); err != nil {
 		return err
@@ -303,7 +324,15 @@ func verifyProjection(repository, path, projectorPath, input string,
 		}
 		return &projectedExactRuntime{runner: runner, projection: projection}, nil
 	}}
-	return verifyExactRuntime(ctx, store, definition, revision, suite, exactPlan, candidate.Resolved.Document.ID, runtime)
+	verification, err := verifyExactRuntime(ctx, store, definition, revision, suite, exactPlan, candidate.Resolved.Document.ID, runtime)
+	if err != nil || !reverify {
+		return err
+	}
+	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification, recipe.EvidenceVerified, projectionReverification); err != nil {
+		return err
+	}
+	fmt.Printf("projection recipe re-verified and active: %s (run %s at %.12s)\n", definition.ID, verification.Run, revision)
+	return nil
 }
 
 type exactRuntime interface {
@@ -364,13 +393,15 @@ func (runtime *deferredExactRuntime) Close() error {
 }
 
 // verifyExactRuntime shares real execution, failure publication and release for
-// language-only and projected generation. Compilation alone cannot publish success.
+// language-only and projected generation. Compilation alone cannot publish
+// success. It returns the verification it published or replayed, which
+// succeeded when it returns no error.
 func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition recipe.Definition, revision string,
 	suite evaluation.ExactSuite, exactPlan evaluation.ExactPlan, modelDefinition artifact.ID, runtime *deferredExactRuntime,
-) error {
+) (modelrecipe.Verification, error) {
 	environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
 	if err != nil {
-		return errors.Join(err, runtime.Close())
+		return modelrecipe.Verification{}, errors.Join(err, runtime.Close())
 	}
 	evaluationPlan, err := evaluation.BindExact(exactPlan, evaluation.ExactAuthorities{
 		ModelDefinition: modelDefinition,
@@ -380,7 +411,7 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 		Execution:       evaluation.ExecutionPolicy{Lifecycle: evaluation.LifecycleResident},
 	})
 	if err != nil {
-		return errors.Join(fmt.Errorf("recipe: bind exact evaluation: %w", err), runtime.Close())
+		return modelrecipe.Verification{}, errors.Join(fmt.Errorf("recipe: bind exact evaluation: %w", err), runtime.Close())
 	}
 	_, found, err := artifact.ReadContent(ctx, store, environment.ID)
 	if err == nil && !found {
@@ -391,12 +422,12 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 		}
 	}
 	if err != nil {
-		return errors.Join(err, runtime.Close())
+		return modelrecipe.Verification{}, errors.Join(err, runtime.Close())
 	}
 	started := time.Now()
 	retained, retainedReport, err := retainedExactVerification(ctx, store, definition.ID, revision, environment.ID, evaluationPlan.Identity())
 	if err != nil {
-		return errors.Join(err, runtime.Close())
+		return modelrecipe.Verification{}, errors.Join(err, runtime.Close())
 	}
 	if retained.Gate.ID != (artifact.ID{}) {
 		// A terminal record proves the previous lifecycle, including cleanup.
@@ -405,18 +436,18 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 			return nil, errors.New("recipe: terminal verification has incomplete case evidence")
 		}
 	} else if err := runtime.acquire(ctx); err != nil {
-		return errors.Join(err, runtime.Close())
+		return modelrecipe.Verification{}, errors.Join(err, runtime.Close())
 	}
 	reportID, evaluateErr := evaluation.EvaluateExactSharded(ctx, store, runtime, exactPlan, evaluationPlan, nil)
 	closeErr := runtime.Close()
 	if retained.Gate.ID != (artifact.ID{}) {
 		if closeErr != nil || reportID != retainedReport {
-			return errors.Join(evaluateErr, closeErr, errors.New("recipe: retained verification could not be replayed exactly"))
+			return modelrecipe.Verification{}, errors.Join(evaluateErr, closeErr, errors.New("recipe: retained verification could not be replayed exactly"))
 		}
 		if retained.Gate.Outcome == runrecord.OutcomeFailed {
 			evaluateErr = errors.Join(evaluateErr, fmt.Errorf("recipe: retained verification failed: %s", retained.Gate.Steps[0].Evidence))
 		}
-		return errors.Join(evaluateErr, json.NewEncoder(os.Stdout).Encode(map[string]any{
+		return modelrecipe.Verification{Gate: retained.Gate.ID, Run: retained.Run.ID}, errors.Join(evaluateErr, json.NewEncoder(os.Stdout).Encode(map[string]any{
 			"gate_id": retained.Gate.ID.String(), "recipe_id": definition.ID.String(),
 			"run_id": retained.Run.ID.String(), "report_id": reportID.String(),
 			"outcome": retained.Gate.Outcome, "reused": true,
@@ -433,7 +464,7 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 			"cuda:0", "cuda", "contract=exact; "+evidence, "exact-mismatch",
 		)
 		if publishErr != nil {
-			return errors.Join(failure, publishErr)
+			return modelrecipe.Verification{}, errors.Join(failure, publishErr)
 		}
 		if encodeErr := json.NewEncoder(os.Stdout).Encode(map[string]any{
 			"error": failure.Error(), "gate_id": verification.Gate.String(),
@@ -441,18 +472,18 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 			"run_id":    verification.Run.String(),
 			"report_id": reportID.String(),
 		}); encodeErr != nil {
-			return errors.Join(failure, encodeErr)
+			return modelrecipe.Verification{}, errors.Join(failure, encodeErr)
 		}
-		return fmt.Errorf("recipe: exact generation evaluation: %w", failure)
+		return modelrecipe.Verification{}, fmt.Errorf("recipe: exact generation evaluation: %w", failure)
 	}
 	evidence := fmt.Sprintf("contract=exact;plan=%s;report=%s;cases=%d", evaluationPlan.Identity(), reportID, len(suite.Cases))
 	verification, err := modelintake.PublishVerification(
 		ctx, store, definition, revision, time.Since(started), "cuda:0", "cuda", evidence,
 	)
 	if err != nil {
-		return err
+		return modelrecipe.Verification{}, err
 	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{
+	return verification, json.NewEncoder(os.Stdout).Encode(map[string]any{
 		"gate_id": verification.Gate.String(), "recipe_id": definition.ID.String(),
 		"run_id": verification.Run.String(), "report_id": reportID.String(),
 	})

@@ -38,10 +38,13 @@ type ModelValidation struct {
 	OperatorOnly   bool        `json:"operator_only,omitzero"`
 	OperatorReason string      `json:"operator_reason,omitzero"`
 	// Grounding is the committed data a training recipe's objective reads,
-	// which names the route whose run verifies it again; Conditioning is the
-	// video stack directory a raw DiT checkpoint trains against.
+	// which names the route whose run verifies it again, or the committed
+	// exact suite or oracle a projection recipe's verification ran;
+	// Conditioning is the video stack directory a raw DiT checkpoint trains
+	// against, and Projector the projector an exact projection suite runs on.
 	Grounding    string `json:"grounding,omitzero"`
 	Conditioning string `json:"conditioning,omitzero"`
+	Projector    string `json:"projector,omitzero"`
 }
 
 // Selected pairs an obligation with the reason it landed in its plan bucket

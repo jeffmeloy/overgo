@@ -44,7 +44,7 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 	if err := validateTokenBatches(batches); err != nil {
 		return nil, optimizer.State{}, err
 	}
-	update, err := m.newDenseUpdate(baseLR, mu, resume)
+	update, err := m.NewDenseUpdate(baseLR, mu, resume)
 	if err != nil {
 		return nil, optimizer.State{}, err
 	}
@@ -79,38 +79,38 @@ func constantMuon(baseLR, momentum float64) optimizer.Config {
 	return optimizer.Config{BaseLearningRate: baseLR, Momentum: momentum, Schedule: optimizer.ScheduleConstant}
 }
 
-// denseUpdate is the Muon update the dense trainers share: every model
+// DenseUpdate is the Muon update the dense trainers share: every model
 // tensor packed in name order, stepped under constantMuon.
-type denseUpdate struct {
-	pack *optimizer.TensorPack
+type DenseUpdate struct {
+	Pack *optimizer.TensorPack
 	*optimizer.Optimizer
 }
 
-// newDenseUpdate packs the model at the recipe-derived rate and restores
+// NewDenseUpdate packs the model at the recipe-derived rate and restores
 // the optimizer state a resume carries.
-func (m *Model) newDenseUpdate(baseLR, momentum float64, resume *TrainState) (denseUpdate, error) {
+func (m *Model) NewDenseUpdate(baseLR, momentum float64, resume *TrainState) (DenseUpdate, error) {
 	if baseLR <= 0 {
-		return denseUpdate{}, errors.New("densecausal: positive recipe-derived learning rate required")
+		return DenseUpdate{}, errors.New("densecausal: positive recipe-derived learning rate required")
 	}
 	pack, err := m.TrainingPack()
 	if err != nil {
-		return denseUpdate{}, err
+		return DenseUpdate{}, err
 	}
 	update, err := pack.NewOptimizer(constantMuon(baseLR, momentum))
 	if err == nil && resume != nil {
 		err = update.Restore(*resume)
 	}
-	return denseUpdate{pack: pack, Optimizer: update}, err
+	return DenseUpdate{Pack: pack, Optimizer: update}, err
 }
 
 // step gathers one update's gradients, takes the Muon step, and publishes
 // the stepped weights to the model tensors.
-func (u denseUpdate) step(grads Grads) (optimizer.StepResult, error) {
-	if err := u.pack.GatherGradients(grads); err != nil {
+func (u DenseUpdate) step(grads Grads) (optimizer.StepResult, error) {
+	if err := u.Pack.GatherGradients(grads); err != nil {
 		return optimizer.StepResult{}, err
 	}
 	result := u.Step()
-	u.pack.Scatter()
+	u.Pack.Scatter()
 	return result, nil
 }
 

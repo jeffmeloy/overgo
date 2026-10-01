@@ -13,7 +13,7 @@ type sessionSampler struct {
 }
 
 func newSessionSampler() *sessionSampler {
-	worker, err := newDeviceWorker()
+	worker, err := device.New(0)
 	if err != nil {
 		return nil
 	}

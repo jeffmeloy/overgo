@@ -1,10 +1,9 @@
 //go:build windows
 
-package scratchmodel
+package scratchtrain
 
 import (
 	"math"
-	"slices"
 	"testing"
 	"time"
 
@@ -12,13 +11,15 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/scratchmodel"
+	"overgo/internal/scratchmodeltest"
 	"overgo/internal/trainingprogram"
 )
 
 func TestScratchResidentTrajectoryParity(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
+	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,9 +37,9 @@ func TestScratchResidentTrajectoryParity(t *testing.T) {
 	defer trainer.Close()
 	initWall := time.Since(initializedAt)
 	// A resident cache hit must enforce the same boundary as a fresh graph.
-	overflow := make([]int, construction.config.BlockSize+2)
-	invalidTail := make([]int, construction.config.BlockSize+1)
-	invalidTail[len(invalidTail)-1] = construction.config.VocabSize
+	overflow := make([]int, construction.Config().BlockSize+2)
+	invalidTail := make([]int, construction.Config().BlockSize+1)
+	invalidTail[len(invalidTail)-1] = construction.Config().VocabSize
 	for _, tokens := range [][]int{overflow, invalidTail} {
 		if _, err := trainer.forwardProgram(tokens); err == nil {
 			t.Fatal("resident program cache bypassed input admission")
@@ -46,7 +47,7 @@ func TestScratchResidentTrajectoryParity(t *testing.T) {
 	}
 	losses, walls := make([]float64, steps), make([]time.Duration, steps)
 	for step := range steps {
-		tokens, err := construction.Tokens(construction.split.Train[step%len(construction.split.Train)])
+		tokens, err := construction.Tokens(construction.Split().Train[step%len(construction.Split().Train)])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -57,7 +58,7 @@ func TestScratchResidentTrajectoryParity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	validationTokens, err := construction.Tokens(construction.split.Validation[0])
+	validationTokens, err := construction.Tokens(construction.Split().Validation[0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +94,7 @@ func TestScratchResidentTrajectoryParity(t *testing.T) {
 func TestScratchResidentCheckpointRoundTrip(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
+	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +105,7 @@ func TestScratchResidentCheckpointRoundTrip(t *testing.T) {
 	}
 	defer trainer.Close()
 	for step := range steps {
-		tokens, err := construction.Tokens(construction.split.Train[step%len(construction.split.Train)])
+		tokens, err := construction.Tokens(construction.Split().Train[step%len(construction.Split().Train)])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,9 +124,10 @@ func TestScratchResidentCheckpointRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parameters := make(map[string][]float32, len(construction.bindings))
-	for name, binding := range construction.bindings {
-		parameters[name] = weights[binding.start:binding.end]
+	groups := construction.OptimizerPlan().Groups()
+	parameters := make(map[string][]float32, len(groups))
+	for _, group := range groups {
+		parameters[group.Name] = weights[group.Start:group.End]
 	}
 	checkpointtest.RequireRoundTrip(t, construction.Program(), trained, parameters)
 }
@@ -133,26 +135,26 @@ func TestScratchResidentCheckpointRoundTrip(t *testing.T) {
 func TestScratchResidentStateParity(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
-	construction, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
+	construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, scratchmodeltest.Profile(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	const steps = 3
-	hostWeights := slices.Clone(construction.weights)
+	hostWeights := construction.InitialWeights()
 	hostGradients := make([]float32, len(hostWeights))
-	hostModel, err := construction.bindMADTransformer(hostWeights)
+	hostModel, err := construction.BindMADTransformer(hostWeights)
 	if err != nil {
 		t.Fatal(err)
 	}
-	hostGradient, err := construction.bindMADTransformer(hostGradients)
+	hostGradient, err := construction.BindMADTransformer(hostGradients)
 	if err != nil {
 		t.Fatal(err)
 	}
-	config, err := construction.optimizerConfig(trainingprogram.BuiltinOptimizerPolicy(), steps)
+	config, err := construction.OptimizerConfig(trainingprogram.BuiltinOptimizerPolicy(), steps)
 	if err != nil {
 		t.Fatal(err)
 	}
-	hostMuon, err := optimizer.New(hostWeights, hostGradients, construction.optimizer, config)
+	hostMuon, err := optimizer.New(hostWeights, hostGradients, construction.OptimizerPlan(), config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +173,7 @@ func TestScratchResidentStateParity(t *testing.T) {
 	}
 
 	for step := range steps {
-		tokens, err := construction.Tokens(construction.split.Train[step%len(construction.split.Train)])
+		tokens, err := construction.Tokens(construction.Split().Train[step%len(construction.Split().Train)])
 		if err != nil {
 			t.Fatal(err)
 		}

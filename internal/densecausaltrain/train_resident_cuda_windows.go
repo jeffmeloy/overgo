@@ -1,6 +1,10 @@
 //go:build windows
 
-package densecausal
+// Package densecausaltrain trains a dense-causal model resident on the
+// device. It holds the device path densecausal's host trainer does not need,
+// so the serving packages that link densecausal never reach devicemath; only
+// the commands that train import it.
+package densecausaltrain
 
 import (
 	"fmt"
@@ -9,6 +13,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/densecausal"
 	"overgo/internal/devicemath"
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
@@ -23,17 +28,19 @@ func isLayerMatrixName(name string) bool {
 	return strings.HasPrefix(name, "model.layers.") && strings.HasSuffix(name, "_proj.weight")
 }
 
-type DeviceTrainingOptions struct {
+// Options selects the resident policy: a frozen lexical table, phase
+// measurement, the state a resume continues from, and a step observer.
+type Options struct {
 	FrozenLexical bool
 	Measure       bool
-	Resume        *TrainState
+	Resume        *densecausal.TrainState
 	// Observe receives each completed step with its measured wall; a non-nil
 	// return aborts at the step boundary.
-	Observe TrainObserver
+	Observe densecausal.TrainObserver
 }
 
-// DeviceTrainingMeasurement separates synchronized resident phases.
-type DeviceTrainingMeasurement struct {
+// Measurement separates synchronized resident phases.
+type Measurement struct {
 	ForwardBackward      time.Duration
 	HostUpdate           time.Duration
 	DeviceUpdate         time.Duration
@@ -42,26 +49,29 @@ type DeviceTrainingMeasurement struct {
 	DeviceUpdateSteps    []time.Duration
 }
 
-type DeviceTrainingResult struct {
+// Result is a resident run's loss trajectory, the optimizer state its last
+// step left, and its phase measurement when one was asked for.
+type Result struct {
 	Losses      []float64
-	State       TrainState
-	Measurement DeviceTrainingMeasurement
+	State       densecausal.TrainState
+	Measurement Measurement
 }
 
-// TrainDeviceResident runs the selected resident policy.
-func (m *Model) TrainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, options DeviceTrainingOptions) (DeviceTrainingResult, error) {
-	result := DeviceTrainingResult{}
-	var measurement *DeviceTrainingMeasurement
+// TrainDeviceResident trains m on worker, one Muon step per batch, under
+// the selected resident policy.
+func TrainDeviceResident(m *densecausal.Model, worker *device.Worker, batches [][]int, baseLR, mu float64, options Options) (Result, error) {
+	result := Result{}
+	var measurement *Measurement
 	if options.Measure {
 		measurement = &result.Measurement
 	}
 	var err error
-	result.Losses, err = m.trainDeviceResident(worker, batches, baseLR, mu, options.FrozenLexical, measurement, options.Resume, &result.State, options.Observe)
+	result.Losses, err = trainDeviceResident(m, worker, batches, baseLR, mu, options.FrozenLexical, measurement, options.Resume, &result.State, options.Observe)
 	return result, err
 }
 
-func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, baseLR, mu float64, frozenLexical bool, measurement *DeviceTrainingMeasurement, resume *TrainState, stateOut *TrainState, observe TrainObserver) ([]float64, error) {
-	if len(batches) == 0 || len(batches[0]) < 2 {
+func trainDeviceResident(m *densecausal.Model, worker *device.Worker, batches [][]int, baseLR, mu float64, frozenLexical bool, measurement *Measurement, resume *densecausal.TrainState, stateOut *densecausal.TrainState, observe densecausal.TrainObserver) ([]float64, error) {
+	if len(batches) == 0 || len(batches[0]) <= 1 {
 		return nil, fmt.Errorf("densecausal: need at least one batch with two tokens")
 	}
 	tokens := batches[0]
@@ -72,20 +82,22 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 	}
 	steps := len(batches)
 	d := m.Dims
-	if ok, reason := DeviceTrainingSupported(d); !ok {
+	if ok, reason := densecausal.DeviceTrainingSupported(d); !ok {
 		return nil, fmt.Errorf("densecausal resident training: %s", reason)
 	}
+	embeddingName, finalNormName, headName := m.LexicalTensorNames()
+	embed, finalNorm, head := m.Weights[embeddingName], m.Weights[finalNormName], m.Weights[headName]
 
 	// Successful allocations admit residency. A free-memory snapshot cannot
 	// reserve capacity against concurrent consumers.
 	// Host optimizer owns the non-layer-matrix groups; its float64 momentum and the
 	// `weights` buffer reproduce the reference host trajectory for those groups.
-	opt, err := m.newDenseUpdate(baseLR, mu, resume)
+	opt, err := m.NewDenseUpdate(baseLR, mu, resume)
 	if err != nil {
 		return nil, err
 	}
-	weights, _ := opt.pack.Slabs()
-	plan := opt.pack.Plan()
+	weights, _ := opt.Pack.Slabs()
+	plan := opt.Pack.Plan()
 	initialState := opt.Snapshot()
 
 	// Flat offset of every tensor within the sorted plan buffer.
@@ -113,24 +125,26 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 
 	// Per-layer tensor offsets (rebased to the layer block) for the resident stack.
 	offsets := make([]devicemath.LayerTensorOffsets, d.Layers)
-	for i, layer := range m.layers {
-		names := layer.names
+	layerNames := make([]densecausal.LayerTensorNames, d.Layers)
+	for i := range layerNames {
+		names := densecausal.DenseLayerTensorNames(i)
+		layerNames[i] = names
 		offsets[i] = devicemath.LayerTensorOffsets{
-			InLN:     offset[names.inLN] - layerStart,
-			PostLN:   offset[names.postLN] - layerStart,
-			Q:        offset[names.q] - layerStart,
-			K:        offset[names.k] - layerStart,
-			V:        offset[names.v] - layerStart,
-			O:        offset[names.o] - layerStart,
-			Gate:     offset[names.gate] - layerStart,
-			Up:       offset[names.up] - layerStart,
-			Down:     offset[names.down] - layerStart,
+			InLN:     offset[names.InLN] - layerStart,
+			PostLN:   offset[names.PostLN] - layerStart,
+			Q:        offset[names.Q] - layerStart,
+			K:        offset[names.K] - layerStart,
+			V:        offset[names.V] - layerStart,
+			O:        offset[names.O] - layerStart,
+			Gate:     offset[names.Gate] - layerStart,
+			Up:       offset[names.Up] - layerStart,
+			Down:     offset[names.Down] - layerStart,
 			AttnBias: d.AttnBias,
 		}
 		if d.AttnBias {
-			offsets[i].QBias = offset[names.qb] - layerStart
-			offsets[i].KBias = offset[names.kb] - layerStart
-			offsets[i].VBias = offset[names.vb] - layerStart
+			offsets[i].QBias = offset[names.QB] - layerStart
+			offsets[i].KBias = offset[names.KB] - layerStart
+			offsets[i].VBias = offset[names.VB] - layerStart
 		}
 	}
 
@@ -171,12 +185,12 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 
 	var dHead, dFinalW, dFinalG, dFinalM driver.DevicePtr
 	if frozenLexical {
-		dHead, err = devicemath.AllocResidentF32(worker, len(m.tensors.head.values), m.tensors.head.values)
+		dHead, err = devicemath.AllocResidentF32(worker, len(head), head)
 		if err != nil {
 			return nil, err
 		}
 		defer func() { _ = devicemath.FreeResident(worker, dHead) }()
-		dFinalW, err = devicemath.AllocResidentF32(worker, d.Hidden, m.tensors.finalNorm.values)
+		dFinalW, err = devicemath.AllocResidentF32(worker, d.Hidden, finalNorm)
 		if err != nil {
 			return nil, err
 		}
@@ -185,7 +199,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 			_ = devicemath.FreeResident(worker, dFinalW)
 			return nil, err
 		}
-		finalOffset := offset[m.tensors.finalNorm.name]
+		finalOffset := offset[finalNormName]
 		finalMomentum := make([]float32, d.Hidden)
 		for index := range finalMomentum {
 			finalMomentum[index] = float32(initialState.Momentum[finalOffset+index])
@@ -211,7 +225,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 			Weights: dFinalW, Gradient: dFinalG, Momentum: dFinalM, Rows: d.Hidden, Cols: 1,
 		})
 	}
-	residentMuon, err := optimizer.NewResidentMatrixMuonTrainingPlan(worker, updates, constantMuon(baseLR, mu))
+	residentMuon, err := optimizer.NewResidentMatrixMuonTrainingPlan(worker, updates, initialState.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -230,14 +244,13 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		defer frozenSession.Close()
 	}
 	vectorWeights := make([]devicemath.LayerTrainVectors, d.Layers)
-	for i, layer := range m.layers {
-		names := layer.names
-		inNorm, postNorm := offset[names.inLN], offset[names.postLN]
+	for i, names := range layerNames {
+		inNorm, postNorm := offset[names.InLN], offset[names.PostLN]
 		vectorWeights[i] = devicemath.LayerTrainVectors{
 			InLN: weights[inNorm : inNorm+d.Hidden], PostLN: weights[postNorm : postNorm+d.Hidden],
 		}
 		if d.AttnBias {
-			query, key, value := offset[names.qb], offset[names.kb], offset[names.vb]
+			query, key, value := offset[names.QB], offset[names.KB], offset[names.VB]
 			vectorWeights[i].QBias = weights[query : query+d.Heads*d.HeadDim]
 			vectorWeights[i].KBias = weights[key : key+d.KVHeads*d.HeadDim]
 			vectorWeights[i].VBias = weights[value : value+d.KVHeads*d.HeadDim]
@@ -250,7 +263,6 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		stepStarted := time.Now()
 		tokens := batches[step]
 		// Host oracle tail only; production frozen lexical gathers on device.
-		embed := m.tensors.embedding.values
 		var embeds []float32
 		if !frozenLexical {
 			embeds = make([]float32, len(tokens)*d.Hidden)
@@ -262,23 +274,22 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 			}
 		}
 
-		// Host head / final RMSNorm / softmax-CE tail (unchanged from deviceLossAndGrads).
-		g := Grads{}
+		// Host head / final RMSNorm / softmax-CE tail, the host trainer's.
+		g := densecausal.Grads{}
 		var loss float64
 		seq := len(tokens)
 		tail := func(final []float32) ([]float32, error) {
 			normed := make([]float32, seq*d.Hidden)
-			hostmath.RMSNormInto(normed, final, m.tensors.finalNorm.values, seq, d.Hidden, d.RMSEps)
-			head := m.tensors.head.values
+			hostmath.RMSNormInto(normed, final, finalNorm, seq, d.Hidden, d.RMSEps)
 			logits := make([]float32, seq*d.Vocab)
 			hostmath.Linear(logits, normed, head, seq, d.Hidden, d.Vocab)
 			dLogits := make([]float32, seq*d.Vocab)
 			loss = hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
-			gradHead := hostmath.GradientSlot(g, m.tensors.head.name, len(head))
+			gradHead := hostmath.GradientSlot(g, headName, len(head))
 			dNormed := make([]float32, seq*d.Hidden)
 			hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
 			dx := make([]float32, seq*d.Hidden)
-			hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, m.tensors.finalNorm.name, d.Hidden), final, m.tensors.finalNorm.values, dNormed, seq, d.Hidden, d.RMSEps, false)
+			hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, finalNormName, d.Hidden), final, finalNorm, dNormed, seq, d.Hidden, d.RMSEps, false)
 			return dx, nil
 		}
 
@@ -304,35 +315,34 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		trajectory = append(trajectory, loss)
 
 		// Assemble the host gradient buffer for the non-matrix groups only.
-		for i, layer := range m.layers {
-			names := layer.names
-			copy(hostmath.GradientSlot(g, names.inLN, d.Hidden), vectorGrads[i].InLN)
-			copy(hostmath.GradientSlot(g, names.postLN, d.Hidden), vectorGrads[i].PostLN)
+		for i, names := range layerNames {
+			copy(hostmath.GradientSlot(g, names.InLN, d.Hidden), vectorGrads[i].InLN)
+			copy(hostmath.GradientSlot(g, names.PostLN, d.Hidden), vectorGrads[i].PostLN)
 			if d.AttnBias {
-				copy(hostmath.GradientSlot(g, names.qb, d.Heads*d.HeadDim), vectorGrads[i].QBias)
-				copy(hostmath.GradientSlot(g, names.kb, d.KVHeads*d.HeadDim), vectorGrads[i].KBias)
-				copy(hostmath.GradientSlot(g, names.vb, d.KVHeads*d.HeadDim), vectorGrads[i].VBias)
+				copy(hostmath.GradientSlot(g, names.QB, d.Heads*d.HeadDim), vectorGrads[i].QBias)
+				copy(hostmath.GradientSlot(g, names.KB, d.KVHeads*d.HeadDim), vectorGrads[i].KBias)
+				copy(hostmath.GradientSlot(g, names.VB, d.KVHeads*d.HeadDim), vectorGrads[i].VBias)
 			}
 		}
 		if !frozenLexical {
-			gradEmbed := hostmath.GradientSlot(g, m.tensors.embedding.name, len(embed))
-			scatterEmbeddingGradient(gradEmbed, dxEmbed, tokens, d.Hidden)
+			gradEmbed := hostmath.GradientSlot(g, embeddingName, len(embed))
+			densecausal.ScatterEmbeddingGradient(gradEmbed, dxEmbed, tokens, d.Hidden)
 		}
 		for index, group := range plan.Groups() {
 			if isLayerMatrixName(group.Name) {
 				continue
 			}
 			if gg, ok := g[group.Name]; ok {
-				copy(opt.pack.Gradients(index), gg)
+				copy(opt.Pack.Gradients(index), gg)
 			} else {
-				clear(opt.pack.Gradients(index))
+				clear(opt.Pack.Gradients(index))
 			}
 		}
 
 		// Host Muon: non-layer groups. Device Muon: resident layer matrices.
 		hostUpdateStarted := time.Now()
 		stepResult := opt.StepGroups(func(gr optimizer.Group) bool {
-			return !isLayerMatrixName(gr.Name) && !(frozenLexical && (gr.Name == m.tensors.head.name || gr.Name == m.tensors.finalNorm.name))
+			return !isLayerMatrixName(gr.Name) && !(frozenLexical && (gr.Name == headName || gr.Name == finalNormName))
 		})
 		if measurement != nil {
 			measurement.HostUpdate += time.Since(hostUpdateStarted)
@@ -350,8 +360,8 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		// Scatter the updated host-owned (non-matrix) weights back into the model for
 		// the next step's host embedding lookup and tail. Matrix slots stay device-side.
 		for index, group := range plan.Groups() {
-			if !isLayerMatrixName(group.Name) && !(frozenLexical && group.Name == m.tensors.finalNorm.name) {
-				copy(m.Weights[group.Name], opt.pack.Weights(index))
+			if !isLayerMatrixName(group.Name) && !(frozenLexical && group.Name == finalNormName) {
+				copy(m.Weights[group.Name], opt.Pack.Weights(index))
 			}
 		}
 		// The observer sees the FULL step -- forward, backward, host and
@@ -376,7 +386,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		return nil, err
 	}
 	if frozenLexical {
-		finalOffset := offset[m.tensors.finalNorm.name]
+		finalOffset := offset[finalNormName]
 		if err := devicemath.ReadResident(worker, dFinalW, devicemath.ResidentSlice{Data: weights[finalOffset : finalOffset+d.Hidden]}); err != nil {
 			return nil, err
 		}
@@ -398,7 +408,7 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 		}
 	}
 	if frozenLexical {
-		finalOffset := offset[m.tensors.finalNorm.name]
+		finalOffset := offset[finalNormName]
 		finalMomentum := make([]float32, d.Hidden)
 		if err := devicemath.ReadResident(worker, dFinalM, devicemath.ResidentSlice{Data: finalMomentum}); err != nil {
 			return nil, err
@@ -410,6 +420,6 @@ func (m *Model) trainDeviceResident(worker *device.Worker, batches [][]int, base
 	if stateOut != nil {
 		*stateOut = state
 	}
-	opt.pack.Scatter()
+	opt.Pack.Scatter()
 	return trajectory, nil
 }

@@ -1,6 +1,6 @@
 //go:build windows
 
-package scratchmodel
+package scratchtrain
 
 import (
 	"fmt"
@@ -9,13 +9,15 @@ import (
 	"overgo/internal/artifact"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/runrecord"
+	"overgo/internal/scratchmodel"
+	"overgo/internal/scratchmodeltest"
 	"overgo/internal/trainingprogram"
 )
 
 func TestProfilePromotedByDescendantQuality(t *testing.T) {
 	cudatest.Require(t)
 	oracle := loadOracle(t)
-	candidate := testDerivationProfile(t)
+	candidate := scratchmodeltest.Profile(t)
 	incumbent := candidate
 	// The incumbent's normalization epsilon is degraded decisively: a
 	// 2x nudge left the two 100-step losses inside floating-point
@@ -24,20 +26,12 @@ func TestProfilePromotedByDescendantQuality(t *testing.T) {
 	// one.
 	incumbent.Epsilon = candidate.Epsilon * 1e6
 	var err error
-	incumbent, err = NewDerivationProfile(incumbent)
+	incumbent, err = scratchmodel.NewDerivationProfile(incumbent)
 	if err != nil {
 		t.Fatal(err)
-	}
-	content, err := candidate.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
-	parsed, err := derivationProfileCodec.Parse(content.Data)
-	if err != nil || parsed.ID != candidate.ID {
-		t.Fatalf("profile round trip = (%s, %v)", parsed.ID, err)
 	}
 
-	facts := CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: 100}
+	facts := scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: 100}
 	incumbentLoss, incumbentModel, _, err := trainProfile(facts, incumbent)
 	if err != nil {
 		t.Fatal(err)
@@ -85,24 +79,24 @@ func TestProfilePromotedByDescendantQuality(t *testing.T) {
 	}
 }
 
-func trainProfile(facts CorpusFacts, profile DerivationProfile) (float64, artifact.ID, Construction, error) {
-	construction, err := Compile(facts, profile)
+func trainProfile(facts scratchmodel.CorpusFacts, profile scratchmodel.DerivationProfile) (float64, artifact.ID, scratchmodel.Construction, error) {
+	construction, err := scratchmodel.Compile(facts, profile)
 	if err != nil {
-		return 0, artifact.ID{}, Construction{}, err
+		return 0, artifact.ID{}, scratchmodel.Construction{}, err
 	}
 	trainer, err := NewResidentTrainer(construction, facts.Steps, trainingprogram.BuiltinOptimizerPolicy())
 	if err != nil {
-		return 0, artifact.ID{}, Construction{}, err
+		return 0, artifact.ID{}, scratchmodel.Construction{}, err
 	}
 	defer trainer.Close()
 	train := construction.Split().Train
 	for step := 1; step <= facts.Steps; step++ {
 		tokens, tokenErr := construction.Tokens(train[(step-1)%len(train)])
 		if tokenErr != nil {
-			return 0, artifact.ID{}, Construction{}, tokenErr
+			return 0, artifact.ID{}, scratchmodel.Construction{}, tokenErr
 		}
 		if _, stepErr := trainer.Step(tokens, step); stepErr != nil {
-			return 0, artifact.ID{}, Construction{}, stepErr
+			return 0, artifact.ID{}, scratchmodel.Construction{}, stepErr
 		}
 	}
 	validation := construction.Split().Validation
@@ -110,17 +104,17 @@ func trainProfile(facts CorpusFacts, profile DerivationProfile) (float64, artifa
 	for _, document := range validation {
 		tokens, tokenErr := construction.Tokens(document)
 		if tokenErr != nil {
-			return 0, artifact.ID{}, Construction{}, tokenErr
+			return 0, artifact.ID{}, scratchmodel.Construction{}, tokenErr
 		}
 		value, evaluateErr := trainer.Evaluate(tokens)
 		if evaluateErr != nil {
-			return 0, artifact.ID{}, Construction{}, evaluateErr
+			return 0, artifact.ID{}, scratchmodel.Construction{}, evaluateErr
 		}
 		loss += value
 	}
 	weights, _, _, err := trainer.Snapshot()
 	if err != nil {
-		return 0, artifact.ID{}, Construction{}, err
+		return 0, artifact.ID{}, scratchmodel.Construction{}, err
 	}
 	model, err := construction.IdentifyTrainedModel(weights)
 	return loss / float64(len(validation)), model, construction, err

@@ -205,22 +205,6 @@ func finalProjectionLinearWeight(checkpoint []float32, inputChannels, outputChan
 	return weight
 }
 
-func finalProjectionCheckpointGradient(linear []float32, inputChannels, outputChannels, patch int) []float32 {
-	gradient := make([]float32, len(linear))
-	for y := range patch {
-		for x := range patch {
-			for outputChannel := range outputChannels {
-				row := (y*patch+x)*outputChannels + outputChannel
-				for inputChannel := range inputChannels {
-					target := ((inputChannel*outputChannels+outputChannel)*patch+y)*patch + x
-					gradient[target] = linear[row*inputChannels+inputChannel]
-				}
-			}
-		}
-	}
-	return gradient
-}
-
 func nchwToGraphImage(input []float32, channels, height, width int) []float32 {
 	plane := height * width
 	output := make([]float32, len(input))

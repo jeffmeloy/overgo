@@ -161,8 +161,8 @@ func cudaCovered(directory string) bool {
 
 // cudaPackages are the packages whose CUDA tests the cuda lane runs.
 var cudaPackages = []string{
-	"./internal/diffusionimage", "./internal/latentimage", "./internal/mediacapability", "./internal/scratchmodel",
-	"./internal/modeldevice", "./internal/hybridtrain", "./internal/e4btrain", "./internal/devicegrad", "./internal/controllertrain", "./internal/trainingprogram",
+	"./internal/diffusionimage", "./internal/latentimage", "./internal/mediacapability", "./internal/scratchmodel", "./internal/scratchtrain",
+	"./internal/modeldevice", "./internal/hybridtrain", "./internal/e4btrain", "./internal/devicegrad", "./internal/densecausaltrain", "./internal/controllertrain", "./internal/trainingprogram",
 	"./internal/torchrng", "./internal/routedlm", "./internal/longform", "./internal/sensenovarecipe",
 	"./internal/inference", "./internal/densecausal", "./internal/adaptiveparity",
 	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/composite-generation-lane", "./cmd/train",

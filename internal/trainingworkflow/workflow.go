@@ -39,7 +39,9 @@ type Request struct {
 	MaximumSequence    int
 	ObjectiveScale     float64
 	Host               bool
-	FreezeLexical      bool
+	// Device trains the dense-causal model when Host is false.
+	Device        DeviceTrainer
+	FreezeLexical bool
 	// PreferenceMode and PreferenceMargin select the DPO objective's loss
 	// mode and SimPO's target reward margin; other objectives refuse them.
 	PreferenceMode   trainingprogram.PreferenceMode
@@ -373,7 +375,7 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 	}
 	losses, backend, state, err := runTrainingState(
 		session.model, prepared.tokens, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
-		!session.request.Host, session.request.FreezeLexical, resume, observe, observeRouter,
+		session.request.Device, !session.request.Host, session.request.FreezeLexical, resume, observe, observeRouter,
 	)
 	result := Result{
 		Backend: backend, Objective: session.objective, Losses: losses,

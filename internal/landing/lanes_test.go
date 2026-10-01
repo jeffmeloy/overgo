@@ -220,9 +220,9 @@ func TestPlanAndLoopEditsReachLanesOnlyThroughProduction(t *testing.T) {
 // serving package builds, so the edit runs the cuda lane, which builds the
 // trainers, and no other: not the device lane's kernel contracts, the
 // served-model lanes (webui, model-journey, e4b) or audio. The same kernel
-// in devicemath reached six lanes, through the serving packages that also
-// train (trainingworkflow's dense-causal backend, modelbuilder's scratch
-// trainer, mediacapability's diffusion VJPs).
+// in devicemath reached six lanes while the serving packages linked device
+// training; TestDevicemathEditReachesOnlyTrainingLanes holds what a
+// devicemath edit reaches now.
 func TestTrainingKernelEditReachesOnlyTrainingLanes(t *testing.T) {
 	t.Parallel()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
@@ -249,6 +249,45 @@ func TestTrainingKernelEditReachesOnlyTrainingLanes(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestDevicemathEditReachesOnlyTrainingLanes selects lanes over the real
+// module the way the lanes stage does, for an edit to devicemath's CUDA
+// session. No serving path calls devicemath, and the packages the
+// served-model lanes build link only host training, so the edit runs two
+// lanes, each through a chain that trains or runs device kernels:
+//   - device: its kernel-contract scopes include devicemath itself;
+//   - cuda: it builds the trainers that import devicemath, densecausaltrain
+//     (cmd/train's dense-causal backend), scratchtrain (controllertrain),
+//     hybridtrain, and devicegrad (e4btrain).
+//
+// While the device trainers lived in densecausal (reached through
+// trainingworkflow), scratchmodel (through modelbuilder) and diffusionimage
+// (through mediacapability), the same edit also ran webui, model-journey,
+// audio and e4b.
+func TestDevicemathEditReachesOnlyTrainingLanes(t *testing.T) {
+	t.Parallel()
+	repo, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const edit = "internal/devicemath/cuda_scope_windows.go"
+	if _, err := os.Stat(filepath.Join(repo, filepath.FromSlash(edit))); err != nil {
+		t.Fatalf("the devicemath file the lanes are asked about is not there: %v", err)
+	}
+	reaches, err := discover(repo, lanes...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reached []string
+	for _, candidate := range lanes {
+		if reaches(candidate, []string{edit}) {
+			reached = append(reached, candidate.name)
+		}
+	}
+	if want := []string{"device", "cuda"}; !slices.Equal(reached, want) {
+		t.Errorf("an edit to %s reaches lanes %q, want %q", edit, reached, want)
 	}
 }
 

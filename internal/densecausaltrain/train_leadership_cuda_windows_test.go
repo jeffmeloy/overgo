@@ -1,6 +1,6 @@
 //go:build windows
 
-package densecausal
+package densecausaltrain
 
 import (
 	"crypto/sha256"
@@ -17,6 +17,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/densecausal"
 	"overgo/internal/testskip"
 )
 
@@ -61,11 +62,11 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 		corpus != carbonCorpusSHA || protocol != carbonProtocolSHA {
 		t.Fatal("Carbon artifact, config, corpus, or protocol fingerprint differs")
 	}
-	model, err := Load(modelDir)
+	model, err := densecausal.Load(modelDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	warmModel, err := Load(modelDir)
+	warmModel, err := densecausal.Load(modelDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +75,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer worker.Close()
-	if _, err := warmModel.TrainDeviceResident(worker, carbonAdaptiveCausalWindows[:1], 1.33179e-5, 0.95, DeviceTrainingOptions{FrozenLexical: true}); err != nil {
+	if _, err := TrainDeviceResident(warmModel, worker, carbonAdaptiveCausalWindows[:1], 1.33179e-5, 0.95, Options{FrozenLexical: true}); err != nil {
 		t.Fatalf("Carbon warm-up: %v", err)
 	}
 	if err := worker.Do(t.Context(), func(state *device.State) error {
@@ -84,7 +85,7 @@ func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	result, err := model.TrainDeviceResident(worker, carbonAdaptiveCausalWindows, 1.33179e-5, 0.95, DeviceTrainingOptions{FrozenLexical: true, Measure: true})
+	result, err := TrainDeviceResident(model, worker, carbonAdaptiveCausalWindows, 1.33179e-5, 0.95, Options{FrozenLexical: true, Measure: true})
 	totalWall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +156,7 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	if cudatest.MeasurementProcess(t, 0) {
 		return
 	}
-	model, err := Load(artifactDir(t, "Carbon-500M"))
+	model, err := densecausal.Load(artifactDir(t, "Carbon-500M"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +170,8 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	for index := 1; index < len(tokens); index++ {
 		tokens[index] = 151669 + index%64
 	}
-	embed := model.tensors.embedding.values
+	embedding, _, _ := model.LexicalTensorNames()
+	embed := model.Weights[embedding]
 	probes := []int{0, len(embed) / 3, len(embed) - 1}
 	before := make([]float32, len(probes))
 	for index, probe := range probes {
@@ -182,7 +184,7 @@ func TestCarbonResidentTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	result, err := model.TrainDeviceResident(worker, slices.Repeat([][]int{tokens}, 4), derivedTestLearningRate(t, model), 0.95, DeviceTrainingOptions{FrozenLexical: true})
+	result, err := TrainDeviceResident(model, worker, slices.Repeat([][]int{tokens}, 4), derivedTestLearningRate(t, model), 0.95, Options{FrozenLexical: true})
 	wall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)

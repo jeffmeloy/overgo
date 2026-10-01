@@ -12,22 +12,6 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-// FrozenCausalTailPlanSizes lists concurrent resident/session allocations.
-func FrozenCausalTailPlanSizes(seq, vocab, hidden int) []uint64 {
-	bytes := func(elements int) uint64 { return uint64(elements) * f32Bytes }
-	return []uint64{
-		bytes(vocab * hidden),                       // tied lexical table
-		bytes(hidden), bytes(hidden), bytes(hidden), // final norm W/G/M
-		bytes(seq),               // token ids
-		bytes(seq * hidden),      // gathered input
-		bytes(seq * hidden),      // final normalized
-		bytes((seq - 1) * vocab), // logits / dLogits
-		bytes(seq - 1),           // row losses
-		bytes(seq * hidden),      // normalized gradient
-		bytes(seq * hidden),      // hidden gradient
-	}
-}
-
 // FrozenCausalTrainingSession retains compiled modules and training buffers.
 type FrozenCausalTrainingSession struct {
 	worker                            *device.Worker

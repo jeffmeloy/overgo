@@ -62,7 +62,7 @@ func (m *Model) TrainDPOBatchesResume(
 // rlRun is a DPO or GRPO run: the dense update it steps and the stream
 // position its admitted units reached.
 type rlRun struct {
-	denseUpdate
+	DenseUpdate
 	objective string
 	stream    trainingdata.StreamState
 }
@@ -79,7 +79,7 @@ func (m *Model) newRLRun(objective string, baseLR, momentum float64, resume *RLS
 		run.stream, state = resume.Stream, &resume.Optimizer
 	}
 	var err error
-	run.denseUpdate, err = m.newDenseUpdate(baseLR, momentum, state)
+	run.DenseUpdate, err = m.NewDenseUpdate(baseLR, momentum, state)
 	return run, err
 }
 
@@ -246,6 +246,6 @@ func (m *Model) sequenceLogProbGrads(trace preferenceTrace, coefficient float64)
 			return nil, err
 		}
 	}
-	scatterEmbeddingGradient(hostmath.GradientSlot(g, m.tensors.embedding.name, len(m.tensors.embedding.values)), dx, sequence.Tokens, d.Hidden)
+	ScatterEmbeddingGradient(hostmath.GradientSlot(g, m.tensors.embedding.name, len(m.tensors.embedding.values)), dx, sequence.Tokens, d.Hidden)
 	return g, nil
 }

@@ -249,6 +249,15 @@ func (c Construction) Weights(name string) ([]float32, bool) {
 	return slices.Clone(values), ok
 }
 
+// Config is the corpus-derived model configuration.
+func (c Construction) Config() Config { return c.config }
+
+// Offset is where the named parameter starts in the parameter slab.
+func (c Construction) Offset(name string) (int, bool) {
+	binding, ok := c.bindings[name]
+	return binding.start, ok
+}
+
 func (c Construction) weightView(name string) ([]float32, bool) {
 	binding, ok := c.bindings[name]
 	if !ok || binding.start < 0 || binding.start > binding.end || binding.end > len(c.weights) {
@@ -268,7 +277,7 @@ func (c Construction) Tokens(document string) ([]int, error) {
 		tokens = append(tokens, index)
 	}
 	tokens = append(tokens, c.config.BOS)
-	if _, err := c.validateTokens(tokens); err != nil {
+	if _, err := c.ValidateTokens(tokens); err != nil {
 		return nil, err
 	}
 	return tokens, nil
@@ -364,7 +373,9 @@ func deriveLayerCount(steps, blockSize, embedding, tokenCount, minimumLayers int
 	return min(max(minimumLayers, minimumLayers*scale), max(minimumLayers, embedding/2))
 }
 
-func (c Construction) optimizerConfig(policy trainingprogram.OptimizerPolicy, totalSteps int) (optimizer.Config, error) {
+// OptimizerConfig is the policy's Muon configuration for this model's size
+// over totalSteps under the linear decay schedule.
+func (c Construction) OptimizerConfig(policy trainingprogram.OptimizerPolicy, totalSteps int) (optimizer.Config, error) {
 	config, err := policy.Config(c.config.EstimatedParams)
 	if err != nil {
 		return optimizer.Config{}, err
@@ -461,11 +472,11 @@ func compileSharedProgram(parameters []Parameter, bindings map[string]parameterB
 	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
 		Objective: trainingprogram.ObjectiveTokenPrediction,
 		Operators: []trainingprogram.OperatorSpec{
-			{ID: scratchOperatorBatch, Phase: trainingprogram.PhaseBatch},
-			{ID: scratchOperatorForward, Phase: trainingprogram.PhaseForward},
-			{ID: scratchOperatorLossVJP, Phase: trainingprogram.PhaseBackward},
-			{ID: scratchOperatorMuon, Phase: trainingprogram.PhaseOptimize},
-			{ID: scratchOperatorEvaluate, Phase: trainingprogram.PhaseEvaluate},
+			{ID: ScratchOperatorBatch, Phase: trainingprogram.PhaseBatch},
+			{ID: ScratchOperatorForward, Phase: trainingprogram.PhaseForward},
+			{ID: ScratchOperatorLossVJP, Phase: trainingprogram.PhaseBackward},
+			{ID: ScratchOperatorMuon, Phase: trainingprogram.PhaseOptimize},
+			{ID: ScratchOperatorEvaluate, Phase: trainingprogram.PhaseEvaluate},
 		},
 		Parameters: manifest,
 		Optimizer:  plan,
@@ -473,12 +484,18 @@ func compileSharedProgram(parameters []Parameter, bindings map[string]parameterB
 	return plan, program, err
 }
 
+// The scratch program's operators, which a trainer binds by these IDs.
 const (
-	scratchOperatorBatch    = "token-batch"
-	scratchOperatorForward  = "adaptive-causal-forward"
-	scratchOperatorLossVJP  = "adaptive-causal-loss-vjp"
-	scratchOperatorMuon     = "muon"
-	scratchOperatorEvaluate = "held-out-cross-entropy"
+	// ScratchOperatorBatch selects the next token batch.
+	ScratchOperatorBatch = "token-batch"
+	// ScratchOperatorForward runs the causal forward.
+	ScratchOperatorForward = "adaptive-causal-forward"
+	// ScratchOperatorLossVJP takes the loss and its gradient.
+	ScratchOperatorLossVJP = "adaptive-causal-loss-vjp"
+	// ScratchOperatorMuon takes the Muon step.
+	ScratchOperatorMuon = "muon"
+	// ScratchOperatorEvaluate scores held-out cross-entropy.
+	ScratchOperatorEvaluate = "held-out-cross-entropy"
 )
 
 func digestFloats(values []float64) string {

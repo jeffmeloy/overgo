@@ -17,6 +17,10 @@ import (
 	"overgo/internal/trainingworkflow"
 )
 
+// denseDevice trains a dense-causal model on the device; the Windows build,
+// which carries the CUDA worker, registers it.
+var denseDevice trainingworkflow.DeviceTrainer
+
 func main() {
 	clioptions.MainNamed("train", run)
 }
@@ -93,7 +97,7 @@ func run() error {
 		ModelDirectory: *model, DatasetPath: *dataset, OutputDirectory: *output,
 		ResumeDirectory: *resume, ReferenceDirectory: *reference,
 		Steps: *steps, MaximumSequence: *maximumSequence,
-		ObjectiveScale: *scale, Host: *host, FreezeLexical: *freezeLexical,
+		ObjectiveScale: *scale, Host: *host, Device: denseDevice, FreezeLexical: *freezeLexical,
 		PreferenceMode: trainingprogram.PreferenceMode(*preferenceMode), PreferenceMargin: *preferenceMargin,
 		Progress: os.Stderr, MaxProjectedWall: *maxWall,
 	})

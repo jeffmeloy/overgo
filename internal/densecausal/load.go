@@ -75,6 +75,12 @@ func (m *Model) MoERouterLayers() []int {
 	return layers
 }
 
+// LexicalTensorNames names the token embedding, final norm and output head
+// in Weights; a tied head names the embedding.
+func (m *Model) LexicalTensorNames() (embedding, finalNorm, head string) {
+	return m.tensors.embedding.name, m.tensors.finalNorm.name, m.tensors.head.name
+}
+
 type tensorBinding struct {
 	name   string
 	values []float32
@@ -233,19 +239,19 @@ func NewMixtureModel(weights map[string][]float32, shapes map[string][]int, head
 	}
 	d.RopeTheta, d.RMSEps = ropeTheta, rmsEps
 	for layer := 0; ; layer++ {
-		names := denseLayerTensorNames(layer)
-		if _, ok := shapes[names.q]; !ok {
+		names := DenseLayerTensorNames(layer)
+		if _, ok := shapes[names.Q]; !ok {
 			if layer == 0 {
 				return nil, fmt.Errorf("densecausal: no model.layers.0")
 			}
 			d.Layers = layer
 			break
 		}
-		q, err := tensorcatalog.Shape(shapes, names.q, tensor.PairedExtent)
+		q, err := tensorcatalog.Shape(shapes, names.Q, tensor.PairedExtent)
 		if err != nil {
 			return nil, err
 		}
-		k, err := tensorcatalog.Shape(shapes, names.k, tensor.PairedExtent)
+		k, err := tensorcatalog.Shape(shapes, names.K, tensor.PairedExtent)
 		if err != nil {
 			return nil, err
 		}
@@ -267,8 +273,8 @@ func NewMixtureModel(weights map[string][]float32, shapes map[string][]int, head
 		// Dense FFN geometry: the intermediate derives from the first dense
 		// layer and every dense layer must agree; routed layers validate
 		// against the declared policy in compileMoELayer instead.
-		if _, dense := shapes[names.gate]; dense {
-			gate, err := tensorcatalog.Shape(shapes, names.gate, tensor.PairedExtent)
+		if _, dense := shapes[names.Gate]; dense {
+			gate, err := tensorcatalog.Shape(shapes, names.Gate, tensor.PairedExtent)
 			if err != nil {
 				return nil, err
 			}
@@ -321,15 +327,15 @@ func NewMixtureModel(weights map[string][]float32, shapes map[string][]int, head
 
 // layerAttnBias validates the per-layer q/k/v bias triple: absent entirely,
 // or all present with lengths matching the projection out-dims.
-func layerAttnBias(shapes map[string][]int, names layerTensorNames, qOut, kvOut int) (bool, error) {
+func layerAttnBias(shapes map[string][]int, names LayerTensorNames, qOut, kvOut int) (bool, error) {
 	present := 0
 	for _, want := range []struct {
 		name string
 		out  int
 	}{
-		{names.qb, qOut},
-		{names.kb, kvOut},
-		{names.vb, kvOut},
+		{names.QB, qOut},
+		{names.KB, kvOut},
+		{names.VB, kvOut},
 	} {
 		shape, ok := shapes[want.name]
 		if !ok {
@@ -341,7 +347,7 @@ func layerAttnBias(shapes map[string][]int, names layerTensorNames, qOut, kvOut 
 		}
 	}
 	if present != 0 && present != 3 {
-		return false, fmt.Errorf("densecausal: layer containing %q has %d of 3 q/k/v biases", names.q, present)
+		return false, fmt.Errorf("densecausal: layer containing %q has %d of 3 q/k/v biases", names.Q, present)
 	}
 	return present == 3, nil
 }

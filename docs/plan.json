@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "lane-cost",
-      "title": "Cut lane cost where a change's reach is wider than what it can affect",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 124,
-        "reason": "build-context: lanes share one discovery per build context, 3 go list calls instead of 16, and a lane package a checkout lacks reaches nothing. Measured +124 nodes; training-kernels was 0."
-      },
-      "steps": [
-        {
-          "id": "training-out-of-serving-packages",
-          "title": "Move training code out of the packages serving links, so serving lanes stop reaching devicemath",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestDevicemathEditReachesOnlyTrainingLanes$' -count=1",
-          "rationale": "Measured 2026-09-30 by training-kernels: no serving path calls devicemath. The webui, e4b, model-journey and audio lanes reach it only through training code that serving packages link:\n- internal/server imports trainingworkflow, which reaches densecausal's TrainDeviceResident;\n- internal/server imports modelbuilder, which reaches scratchmodel's ResidentTrainer;\n- cmd/server and cmd/recipe import mediacapability, which reaches diffusionimage's resblock and final-projection VJPs, which only tests call.\nAlso, production code only tests call: densecausal deviceLayerForwardCached and deviceLossAndGrads, scratchmodel DeviceLossAndGrad, diffusionimage compileResBlockVJP and compileFinalProjectionVJP. And exports nothing calls: devicemath FrozenCausalTailPlanSizes and WriteResident.\nSplit each so that serving links only the forward code, and the device training paths sit where only trainers import them. Delete what only tests reach, unless it is an unwired capability (feedback-capabilities-not-dead-code). Then a devicemath edit runs the cuda and device lanes only. The hybrid layer set (about 6,600 nodes, used only by hybridtrain) builds on devicemath's unexported CUDA session; moving it means exporting that session first, and is its own step if this one leaves it. Batch: the lanes of the packages split, once; pinned media paths (devicemath, diffusionimage) need reviewed deltas."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unmeasured-inference",
       "title": "Measure inference's unmeasured cells",
       "owner": "master-lead",

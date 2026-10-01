@@ -12,6 +12,7 @@ import (
 	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
+	"overgo/internal/scratchtrain"
 	"overgo/internal/trainingprogram"
 )
 
@@ -27,7 +28,7 @@ type SeedRun struct {
 	ScratchDataset    artifact.ID
 	ScratchSplit      artifact.ID
 	// Trained is what the run trained, the checkpoint a route publishes.
-	Trained scratchmodel.TrainedState
+	Trained scratchtrain.TrainedState
 }
 
 // TrainSeed trains construction, the scratch model the corpus's training
@@ -43,7 +44,7 @@ func TrainSeed(corpus Corpus, construction scratchmodel.Construction, policy tra
 	if err != nil {
 		return SeedRun{}, err
 	}
-	trainer, err := scratchmodel.NewResidentTrainer(construction, steps, policy)
+	trainer, err := scratchtrain.NewResidentTrainer(construction, steps, policy)
 	if err != nil {
 		return SeedRun{}, err
 	}
@@ -141,7 +142,7 @@ func prepareEvaluationInputs(construction scratchmodel.Construction, corpus Corp
 	return inputs, nil
 }
 
-func evaluateSuite(trainer *scratchmodel.ResidentTrainer, inputs evaluationInputs) (SuiteMetrics, error) {
+func evaluateSuite(trainer *scratchtrain.ResidentTrainer, inputs evaluationInputs) (SuiteMetrics, error) {
 	var expectedLoss float64
 	correctAction, correctModality := 0, 0
 	for recordIndex, candidates := range inputs.tokens {

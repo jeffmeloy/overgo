@@ -1,6 +1,11 @@
 //go:build windows
 
-package scratchmodel
+// Package scratchtrain trains a scratch model resident on the device: the
+// compiled forward runs on the executor and the loss VJP and Muon step on
+// resident buffers. It holds the device path scratchmodel's host trainer
+// does not need, so the model builder the server links never reaches
+// devicemath; only the trainers import it.
+package scratchtrain
 
 import (
 	"context"
@@ -17,6 +22,7 @@ import (
 	"overgo/internal/devicemath"
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/scratchmodel"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -25,7 +31,7 @@ import (
 
 // ResidentTrainer owns one scratch model's device training lifecycle.
 type ResidentTrainer struct {
-	construction Construction
+	construction scratchmodel.Construction
 	worker       *device.Worker
 	executor     *executor.Executor
 	resident     *devicemath.ResidentOpsSession
@@ -80,7 +86,7 @@ type residentTrainingState struct {
 	tokens    []int
 	step      int
 	positions int
-	graph     ForwardGraph
+	graph     scratchmodel.ForwardGraph
 	retained  *executor.RetainedOutputs
 	loss      float64
 }
@@ -94,12 +100,16 @@ func (s *residentTrainingState) release() {
 
 type residentForwardProgram struct {
 	*executor.IndexedGraph
-	graph     ForwardGraph
+	graph     scratchmodel.ForwardGraph
 	hostFeeds map[*tensor.Tensor]reference.Value
 }
 
-func NewResidentTrainer(construction Construction, totalSteps int, policy trainingprogram.OptimizerPolicy) (*ResidentTrainer, error) {
-	if totalSteps <= 0 || construction.optimizer.Identity() == "" || len(construction.weights) == 0 {
+// NewResidentTrainer uploads the construction's initial weights to the
+// first device and compiles a forward program for each document extent its
+// split holds, ready for totalSteps Muon steps under policy.
+func NewResidentTrainer(construction scratchmodel.Construction, totalSteps int, policy trainingprogram.OptimizerPolicy) (*ResidentTrainer, error) {
+	plan := construction.OptimizerPlan()
+	if totalSteps <= 0 || plan.Identity() == "" || plan.ParameterCount() == 0 {
 		return nil, errors.New("scratch model: invalid resident trainer")
 	}
 	driverStarted := time.Now()
@@ -107,7 +117,7 @@ func NewResidentTrainer(construction Construction, totalSteps int, policy traini
 	if err != nil {
 		return nil, err
 	}
-	config, err := construction.optimizerConfig(policy, totalSteps)
+	config, err := construction.OptimizerConfig(policy, totalSteps)
 	if err != nil {
 		_ = worker.Close()
 		return nil, err
@@ -131,7 +141,7 @@ func NewResidentTrainer(construction Construction, totalSteps int, policy traini
 	}
 	residentPreparation := time.Since(residentStarted)
 	modelStarted := time.Now()
-	weightBytes := driver.Bytes(construction.weights)
+	weightBytes := driver.Bytes(construction.InitialWeights())
 	trainer.weights, err = trainer.resident.Upload(context.Background(), weightBytes)
 	if err != nil {
 		return fail(err)
@@ -144,7 +154,8 @@ func NewResidentTrainer(construction Construction, totalSteps int, policy traini
 	if err != nil {
 		return fail(err)
 	}
-	for _, documents := range [][]string{construction.split.Train, construction.split.Validation, construction.split.Test} {
+	split := construction.Split()
+	for _, documents := range [][]string{split.Train, split.Validation, split.Test} {
 		for _, document := range documents {
 			tokens, tokenErr := construction.Tokens(document)
 			if tokenErr != nil {
@@ -157,7 +168,7 @@ func NewResidentTrainer(construction Construction, totalSteps int, policy traini
 	}
 	trainer.lifecycle.ModelInitialization = time.Since(modelStarted)
 	programStarted := time.Now()
-	trainer.muon, err = optimizer.NewResidentMuonPlan(worker, construction.optimizer, trainer.config)
+	trainer.muon, err = optimizer.NewResidentMuonPlan(worker, plan, trainer.config)
 	if err != nil {
 		return fail(err)
 	}
@@ -182,6 +193,7 @@ func NewResidentTrainer(construction Construction, totalSteps int, policy traini
 	return trainer, nil
 }
 
+// Lifecycle reports how long the trainer's preparation phases took.
 func (t *ResidentTrainer) Lifecycle() (ResidentLifecycle, error) {
 	if t == nil || t.closed {
 		return ResidentLifecycle{}, errors.New("scratch model: resident trainer unavailable")
@@ -189,6 +201,7 @@ func (t *ResidentTrainer) Lifecycle() (ResidentLifecycle, error) {
 	return t.lifecycle, nil
 }
 
+// Close releases the trainer's device programs, buffers and worker.
 func (t *ResidentTrainer) Close() error {
 	if t == nil || t.closed {
 		return nil
@@ -210,6 +223,8 @@ func (t *ResidentTrainer) Close() error {
 	return result
 }
 
+// Step trains one Muon update, the step'th, on a token batch and returns
+// its loss.
 func (t *ResidentTrainer) Step(tokens []int, step int) (float64, error) {
 	if t == nil || t.closed || step <= 0 {
 		return 0, errors.New("scratch model: resident trainer unavailable")
@@ -223,6 +238,7 @@ func (t *ResidentTrainer) Step(tokens []int, step int) (float64, error) {
 	return state.loss, err
 }
 
+// Evaluate scores a token batch's cross-entropy without updating.
 func (t *ResidentTrainer) Evaluate(tokens []int) (float64, error) {
 	if t == nil || t.closed {
 		return 0, errors.New("scratch model: resident trainer unavailable")
@@ -233,13 +249,13 @@ func (t *ResidentTrainer) Evaluate(tokens []int) (float64, error) {
 	return state.loss, err
 }
 
+// Snapshot copies the resident weights, gradients and momentum to the host.
 func (t *ResidentTrainer) Snapshot() (weights, gradients, momentum []float32, err error) {
 	if t == nil || t.closed {
 		return nil, nil, nil, errors.New("scratch model: resident trainer unavailable")
 	}
-	weights = make([]float32, len(t.construction.weights))
-	gradients = make([]float32, len(t.construction.weights))
-	momentum = make([]float32, len(t.construction.weights))
+	count := t.construction.OptimizerPlan().ParameterCount()
+	weights, gradients, momentum = make([]float32, count), make([]float32, count), make([]float32, count)
 	if err := devicemath.ReadResident(t.worker, t.weights, devicemath.ResidentSlice{Data: weights}); err != nil {
 		return nil, nil, nil, err
 	}
@@ -264,12 +280,13 @@ func (t *ResidentTrainer) Trained() (TrainedState, error) {
 	if err != nil {
 		return TrainedState{}, err
 	}
-	plan := t.construction.optimizer
+	plan := t.construction.OptimizerPlan()
 	return TrainedState{model: model, plan: plan, weights: weights, state: optimizer.State{
 		PlanIdentity: plan.Identity(), Config: t.config, Step: t.step, Momentum: dtype.ConvertSlice[float64](momentum),
 	}}, nil
 }
 
+// ResetPeakMemory restarts the device's peak memory measurement.
 func (t *ResidentTrainer) ResetPeakMemory() error {
 	if t == nil || t.closed {
 		return errors.New("scratch model: resident trainer unavailable")
@@ -280,6 +297,7 @@ func (t *ResidentTrainer) ResetPeakMemory() error {
 	})
 }
 
+// MemoryStats reports the device memory the trainer's worker measured.
 func (t *ResidentTrainer) MemoryStats() (driver.MemoryStats, error) {
 	if t == nil || t.closed {
 		return driver.MemoryStats{}, errors.New("scratch model: resident trainer unavailable")
@@ -287,21 +305,21 @@ func (t *ResidentTrainer) MemoryStats() (driver.MemoryStats, error) {
 	return t.worker.MemoryStats(context.Background())
 }
 
-func (t *ResidentTrainer) forward(tokens []int, positions int) (ForwardGraph, *executor.RetainedOutputs, error) {
+func (t *ResidentTrainer) forward(tokens []int, positions int) (scratchmodel.ForwardGraph, *executor.RetainedOutputs, error) {
 	program, err := t.forwardProgram(tokens)
 	if err != nil {
-		return ForwardGraph{}, nil, err
+		return scratchmodel.ForwardGraph{}, nil, err
 	}
-	if program.graph.positions != positions {
-		return ForwardGraph{}, nil, errors.New("scratch model: compiled batch extent differs")
+	if program.graph.Positions != positions {
+		return scratchmodel.ForwardGraph{}, nil, errors.New("scratch model: compiled batch extent differs")
 	}
-	rows := make([]uint32, program.graph.positions)
-	for index, token := range tokens[:program.graph.positions] {
+	rows := make([]uint32, program.graph.Positions)
+	for index, token := range tokens[:program.graph.Positions] {
 		rows[index] = uint32(token)
 	}
 	attributes := program.Graph.NewRuntimeAttributes()
-	if err := attributes.Set(program.graph.tokenRows, tensor.GetRowsAttributes{Rows: rows}); err != nil {
-		return ForwardGraph{}, nil, err
+	if err := attributes.Set(program.graph.TokenRows, tensor.GetRowsAttributes{Rows: rows}); err != nil {
+		return scratchmodel.ForwardGraph{}, nil, err
 	}
 	retained, err := t.executor.ExecuteRetainedCompiled(
 		context.Background(), program.Graph, program.hostFeeds, program.Inputs, nil, attributes,
@@ -311,33 +329,33 @@ func (t *ResidentTrainer) forward(tokens []int, positions int) (ForwardGraph, *e
 
 func bindResidentProgram(trainer *ResidentTrainer) (trainingprogram.Execution[residentTrainingState], error) {
 	bindings := []trainingprogram.Binding[residentTrainingState]{
-		{Operator: scratchOperatorBatch, Execute: func(state *residentTrainingState) error {
-			positions, err := state.trainer.construction.validateTokens(state.tokens)
+		{Operator: scratchmodel.ScratchOperatorBatch, Execute: func(state *residentTrainingState) error {
+			positions, err := state.trainer.construction.ValidateTokens(state.tokens)
 			state.positions = positions
 			return err
 		}},
-		{Operator: scratchOperatorForward, Execute: func(state *residentTrainingState) error {
+		{Operator: scratchmodel.ScratchOperatorForward, Execute: func(state *residentTrainingState) error {
 			var err error
 			state.graph, state.retained, err = state.trainer.forward(state.tokens, state.positions)
 			return err
 		}},
-		{Operator: scratchOperatorLossVJP, Execute: func(state *residentTrainingState) error {
+		{Operator: scratchmodel.ScratchOperatorLossVJP, Execute: func(state *residentTrainingState) error {
 			var err error
 			state.loss, err = state.trainer.backward(state.graph, state.retained, state.tokens)
 			return err
 		}},
-		{Operator: scratchOperatorMuon, Execute: func(state *residentTrainingState) error {
+		{Operator: scratchmodel.ScratchOperatorMuon, Execute: func(state *residentTrainingState) error {
 			return state.trainer.muon.Step(state.trainer.weights, state.trainer.gradients, state.trainer.momentum, state.step)
 		}},
-		{Operator: scratchOperatorEvaluate, Execute: func(state *residentTrainingState) error {
+		{Operator: scratchmodel.ScratchOperatorEvaluate, Execute: func(state *residentTrainingState) error {
 			value, err := state.retained.CopyToHost(context.Background(), state.graph.Output)
 			if err != nil {
 				return err
 			}
 			gradient := make([]float32, len(value.Data))
 			state.loss = hostmath.SoftmaxCrossEntropy(
-				gradient, value.Data, state.tokens[1:state.graph.positions+1],
-				state.graph.positions, state.trainer.construction.config.VocabSize,
+				gradient, value.Data, state.tokens[1:state.graph.Positions+1],
+				state.graph.Positions, state.trainer.construction.Config().VocabSize,
 			)
 			return nil
 		}},
@@ -346,12 +364,12 @@ func bindResidentProgram(trainer *ResidentTrainer) (trainingprogram.Execution[re
 }
 
 func (t *ResidentTrainer) forwardProgram(tokens []int) (*residentForwardProgram, error) {
-	positions, err := t.construction.validateTokens(tokens)
+	positions, err := t.construction.ValidateTokens(tokens)
 	if err != nil {
 		return nil, err
 	}
 	for index := range t.programs {
-		if t.programs[index].graph.positions == positions {
+		if t.programs[index].graph.Positions == positions {
 			return &t.programs[index], nil
 		}
 	}
@@ -359,11 +377,11 @@ func (t *ResidentTrainer) forwardProgram(tokens []int) (*residentForwardProgram,
 	if err != nil {
 		return nil, err
 	}
-	indexed, err := executor.CompileIndexed(graph.cacheOutputs()...)
+	indexed, err := executor.CompileIndexed(graph.CacheOutputs()...)
 	if err != nil {
 		return nil, err
 	}
-	hostFeeds, err := graph.residentInputs(indexed, t.construction, t.weights)
+	hostFeeds, err := residentInputs(graph, indexed, t.construction, t.weights)
 	if err != nil {
 		return nil, err
 	}
@@ -373,21 +391,22 @@ func (t *ResidentTrainer) forwardProgram(tokens []int) (*residentForwardProgram,
 	return &t.programs[len(t.programs)-1], nil
 }
 
-func (g ForwardGraph) residentInputs(
+func residentInputs(
+	g scratchmodel.ForwardGraph,
 	indexed *executor.IndexedGraph,
-	c Construction,
+	c scratchmodel.Construction,
 	weightSlab driver.DevicePtr,
 ) (map[*tensor.Tensor]reference.Value, error) {
-	if indexed == nil || weightSlab == 0 || g.Mask == nil || len(g.Parameters) != len(c.parameters) {
+	if indexed == nil || weightSlab == 0 || g.Mask == nil || len(g.Parameters) != c.OptimizerPlan().GroupCount() {
 		return nil, errors.New("scratch model: resident graph or slab differs")
 	}
-	mask, err := reference.NewValue(g.Mask.Shape, g.mask)
+	mask, err := reference.NewValue(g.Mask.Shape, g.MaskValues)
 	if err != nil {
 		return nil, err
 	}
 	hostFeeds := map[*tensor.Tensor]reference.Value{g.Mask: mask}
 	for name, input := range g.Parameters {
-		binding, ok := c.bindings[name]
+		start, ok := c.Offset(name)
 		if !ok {
 			return nil, fmt.Errorf("scratch model: resident parameter %q absent", name)
 		}
@@ -395,12 +414,12 @@ func (g ForwardGraph) residentInputs(
 		if !ok {
 			return nil, fmt.Errorf("scratch model: resident parameter %q is not compiled", name)
 		}
-		indexed.Inputs.Pointers[slot] = devicemath.ResidentPtr(weightSlab, binding.start)
+		indexed.Inputs.Pointers[slot] = devicemath.ResidentPtr(weightSlab, start)
 	}
 	return hostFeeds, nil
 }
 
-func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.RetainedOutputs, tokens []int) (float64, error) {
+func (t *ResidentTrainer) backward(graph scratchmodel.ForwardGraph, retained *executor.RetainedOutputs, tokens []int) (float64, error) {
 	var loss float64
 	err := t.resident.Run(func(ops *devicemath.ResidentOps) error {
 		var err error
@@ -410,16 +429,35 @@ func (t *ResidentTrainer) backward(graph ForwardGraph, retained *executor.Retain
 	return loss, err
 }
 
-func scratchBackwardArenaElems(config Config, positions int) int {
+// The fused QKV projection packs the query, key and value blocks, each
+// hidden wide, in that order.
+const (
+	valueBlock = 2
+	qkvBlocks  = 3
+)
+
+// The layer backward's arena buffers: the MLP norm, MLP input, attention
+// output and attention gradients and the fused QKV gradient live across the
+// layer; each head's attention, query, key and value gradients and its
+// score and probability gradients live across the head; the QKV norm and
+// input gradients follow the heads.
+const (
+	layerHiddenBuffers = 4 + qkvBlocks
+	headBuffers        = 4
+	headScoreBuffers   = 2
+	qkvInputBuffers    = 2
+)
+
+func scratchBackwardArenaElems(config scratchmodel.Config, positions int) int {
 	hidden := positions * config.Embedding
-	base := positions*config.MLPWidth + 7*hidden
-	head := 4*positions*config.HeadDim + 2*positions*positions + 1
-	return max(hidden, base+max(head, 2*hidden))
+	base := positions*config.MLPWidth + layerHiddenBuffers*hidden
+	head := headBuffers*positions*config.HeadDim + headScoreBuffers*positions*positions + 1
+	return max(hidden, base+max(head, qkvInputBuffers*hidden))
 }
 
-func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph ForwardGraph, retained *executor.RetainedOutputs, tokens []int) (float64, error) {
-	c := t.construction
-	positions, hidden, vocab := graph.positions, c.config.Embedding, c.config.VocabSize
+func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph scratchmodel.ForwardGraph, retained *executor.RetainedOutputs, tokens []int) (float64, error) {
+	c, config := t.construction, t.construction.Config()
+	positions, hidden, vocab := graph.Positions, config.Embedding, config.VocabSize
 	pointer := func(node *tensor.Tensor) (driver.DevicePtr, error) {
 		value, ok := retained.Value(node)
 		if !ok || value.Pointer == 0 {
@@ -428,18 +466,18 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		return value.Pointer, nil
 	}
 	weight := func(name string) (driver.DevicePtr, error) {
-		binding, ok := c.bindings[name]
+		start, ok := c.Offset(name)
 		if !ok {
 			return 0, fmt.Errorf("scratch model: resident weight %q absent", name)
 		}
-		return devicemath.ResidentPtr(t.weights, binding.start), nil
+		return devicemath.ResidentPtr(t.weights, start), nil
 	}
 	gradient := func(name string) (driver.DevicePtr, error) {
-		binding, ok := c.bindings[name]
+		start, ok := c.Offset(name)
 		if !ok {
 			return 0, fmt.Errorf("scratch model: resident gradient %q absent", name)
 		}
-		return devicemath.ResidentPtr(t.gradients, binding.start), nil
+		return devicemath.ResidentPtr(t.gradients, start), nil
 	}
 	allocatePersistent := func(count int, initial []float32) (driver.DevicePtr, error) {
 		if initial != nil {
@@ -447,7 +485,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		}
 		return ops.AllocF32(count)
 	}
-	if err := ops.Zero(t.gradients, len(c.weights)); err != nil {
+	if err := ops.Zero(t.gradients, c.OptimizerPlan().ParameterCount()); err != nil {
 		return 0, err
 	}
 
@@ -493,32 +531,32 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 	if err := ops.LinearBackwardT(finalHidden, head, logits, dHidden, dHead, positions, hidden, vocab); err != nil {
 		return 0, err
 	}
-	arena, err := ops.NewArena(scratchBackwardArenaElems(c.config, positions))
+	arena, err := ops.NewArena(scratchBackwardArenaElems(config, positions))
 	if err != nil {
 		return 0, err
 	}
 
-	for layer := len(graph.layers) - 1; layer >= 0; layer-- {
+	for layer := len(graph.Layers) - 1; layer >= 0; layer-- {
 		layerMark := arena.Mark()
-		cache := graph.layers[layer]
+		cache := graph.Layers[layer]
 		prefix := fmt.Sprintf("l%d.", layer)
-		attentionOutput, err := pointer(cache.attentionOutput)
+		attentionOutput, err := pointer(cache.AttentionOutput)
 		if err != nil {
 			return 0, err
 		}
-		activation, err := pointer(cache.activation)
+		activation, err := pointer(cache.Activation)
 		if err != nil {
 			return 0, err
 		}
-		preactivation, err := pointer(cache.preactivation)
+		preactivation, err := pointer(cache.Preactivation)
 		if err != nil {
 			return 0, err
 		}
-		mlpNorm, err := pointer(cache.mlpNorm)
+		mlpNorm, err := pointer(cache.MLPNorm)
 		if err != nil {
 			return 0, err
 		}
-		dActivation, err := arena.AllocF32(positions * c.config.MLPWidth)
+		dActivation, err := arena.AllocF32(positions * config.MLPWidth)
 		if err != nil {
 			return 0, err
 		}
@@ -530,10 +568,10 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err != nil {
 			return 0, err
 		}
-		if err := ops.LinearBackwardT(activation, w2, dHidden, dActivation, dW2, positions, c.config.MLPWidth, hidden); err != nil {
+		if err := ops.LinearBackwardT(activation, w2, dHidden, dActivation, dW2, positions, config.MLPWidth, hidden); err != nil {
 			return 0, err
 		}
-		if err := ops.ReLUBackward(dActivation, preactivation, dActivation, positions*c.config.MLPWidth); err != nil {
+		if err := ops.ReLUBackward(dActivation, preactivation, dActivation, positions*config.MLPWidth); err != nil {
 			return 0, err
 		}
 		dMLPNorm, err := arena.AllocF32(positions * hidden)
@@ -548,14 +586,14 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err != nil {
 			return 0, err
 		}
-		if err := ops.LinearBackwardT(mlpNorm, w1, dActivation, dMLPNorm, dW1, positions, hidden, c.config.MLPWidth); err != nil {
+		if err := ops.LinearBackwardT(mlpNorm, w1, dActivation, dMLPNorm, dW1, positions, hidden, config.MLPWidth); err != nil {
 			return 0, err
 		}
 		dMLPInput, err := arena.AllocF32(positions * hidden)
 		if err != nil {
 			return 0, err
 		}
-		if err := ops.MADNormBackward(dMLPNorm, attentionOutput, mlpNorm, dMLPInput, positions, hidden, c.config.Epsilon); err != nil {
+		if err := ops.MADNormBackward(dMLPNorm, attentionOutput, mlpNorm, dMLPInput, positions, hidden, config.Epsilon); err != nil {
 			return 0, err
 		}
 		dAttentionOutput, err := arena.AllocF32(positions * hidden)
@@ -565,7 +603,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err := ops.Add(dHidden, dMLPInput, dAttentionOutput, positions*hidden); err != nil {
 			return 0, err
 		}
-		attention, err := pointer(cache.attention)
+		attention, err := pointer(cache.Attention)
 		if err != nil {
 			return 0, err
 		}
@@ -588,7 +626,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err := ops.StridedRowCopy(dAttentionOutput, dInput, positions, hidden, hidden, 0, hidden, 0); err != nil {
 			return 0, err
 		}
-		dQKV, err := arena.AllocF32(positions * 3 * hidden)
+		dQKV, err := arena.AllocF32(positions * qkvBlocks * hidden)
 		if err != nil {
 			return 0, err
 		}
@@ -600,43 +638,43 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err != nil {
 			return 0, err
 		}
-		for headIndex, headCache := range cache.heads {
+		for headIndex, headCache := range cache.Heads {
 			headMark := arena.Mark()
-			q, err := pointer(headCache.query)
+			q, err := pointer(headCache.Query)
 			if err != nil {
 				return 0, err
 			}
-			k, err := pointer(headCache.key)
+			k, err := pointer(headCache.Key)
 			if err != nil {
 				return 0, err
 			}
-			v, err := pointer(headCache.value)
+			v, err := pointer(headCache.Value)
 			if err != nil {
 				return 0, err
 			}
-			probability, err := pointer(headCache.probability)
+			probability, err := pointer(headCache.Probability)
 			if err != nil {
 				return 0, err
 			}
-			dHeadAttention, err := arena.AllocF32(positions * c.config.HeadDim)
+			dHeadAttention, err := arena.AllocF32(positions * config.HeadDim)
 			if err != nil {
 				return 0, err
 			}
 			if err := ops.StridedRowCopy(
 				dAttention, dHeadAttention,
-				positions, c.config.HeadDim, hidden, headIndex*c.config.HeadDim, c.config.HeadDim, 0,
+				positions, config.HeadDim, hidden, headIndex*config.HeadDim, config.HeadDim, 0,
 			); err != nil {
 				return 0, err
 			}
-			dQ, err := arena.AllocF32(positions * c.config.HeadDim)
+			dQ, err := arena.AllocF32(positions * config.HeadDim)
 			if err != nil {
 				return 0, err
 			}
-			dK, err := arena.AllocF32(positions * c.config.HeadDim)
+			dK, err := arena.AllocF32(positions * config.HeadDim)
 			if err != nil {
 				return 0, err
 			}
-			dV, err := arena.AllocF32(positions * c.config.HeadDim)
+			dV, err := arena.AllocF32(positions * config.HeadDim)
 			if err != nil {
 				return 0, err
 			}
@@ -648,34 +686,34 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 			if err != nil {
 				return 0, err
 			}
-			scaledQuery, err := pointer(headCache.scaledQuery)
+			scaledQuery, err := pointer(headCache.ScaledQuery)
 			if err != nil {
 				return 0, err
 			}
-			temperatureScale, err := pointer(headCache.temperatureScale)
+			temperatureScale, err := pointer(headCache.TemperatureScale)
 			if err != nil {
 				return 0, err
 			}
 			if err := ops.AttentionCoreBackwardWithScratch(
 				scaledQuery, k, v, probability, dHeadAttention,
-				dQ, dK, dV, dScores, dProbability, positions, c.config.HeadDim, 1,
+				dQ, dK, dV, dScores, dProbability, positions, config.HeadDim, 1,
 			); err != nil {
 				return 0, err
 			}
-			if err := ops.ScaleByScalar(dQ, temperatureScale, dQ, positions*c.config.HeadDim); err != nil {
+			if err := ops.ScaleByScalar(dQ, temperatureScale, dQ, positions*config.HeadDim); err != nil {
 				return 0, err
 			}
-			inverseRoot := float32(1 / math.Sqrt(float64(c.config.HeadDim)))
-			if err := ops.Scale(dQ, dQ, inverseRoot, positions*c.config.HeadDim); err != nil {
+			inverseRoot := float32(1 / math.Sqrt(float64(config.HeadDim)))
+			if err := ops.Scale(dQ, dQ, inverseRoot, positions*config.HeadDim); err != nil {
 				return 0, err
 			}
 			for _, copySpec := range []struct {
 				source driver.DevicePtr
 				offset int
-			}{{dQ, headIndex * c.config.HeadDim}, {dK, hidden + headIndex*c.config.HeadDim}, {dV, 2*hidden + headIndex*c.config.HeadDim}} {
+			}{{dQ, headIndex * config.HeadDim}, {dK, hidden + headIndex*config.HeadDim}, {dV, valueBlock*hidden + headIndex*config.HeadDim}} {
 				if err := ops.StridedRowCopy(
 					copySpec.source, dQKV,
-					positions, c.config.HeadDim, c.config.HeadDim, 0, 3*hidden, copySpec.offset,
+					positions, config.HeadDim, config.HeadDim, 0, qkvBlocks*hidden, copySpec.offset,
 				); err != nil {
 					return 0, err
 				}
@@ -689,7 +727,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 			}
 			if err := ops.AttentionScoreAffineBackward(
 				dScores, q, k, dBias, dScale,
-				positions, c.config.HeadDim, c.config.BlockSize,
+				positions, config.HeadDim, config.BlockSize,
 			); err != nil {
 				return 0, err
 			}
@@ -697,7 +735,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 				return 0, err
 			}
 			if err := ops.Scale(
-				dScale, devicemath.ResidentPtr(dLT, layer*c.config.HeadCount+headIndex), -inverseRoot, 1,
+				dScale, devicemath.ResidentPtr(dLT, layer*config.HeadCount+headIndex), -inverseRoot, 1,
 			); err != nil {
 				return 0, err
 			}
@@ -705,7 +743,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 				return 0, err
 			}
 		}
-		qkvNorm, err := pointer(cache.qkvNorm)
+		qkvNorm, err := pointer(cache.QKVNorm)
 		if err != nil {
 			return 0, err
 		}
@@ -721,10 +759,10 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err != nil {
 			return 0, err
 		}
-		if err := ops.LinearBackwardT(qkvNorm, wqkv, dQKV, dQKVNorm, dWQKV, positions, hidden, 3*hidden); err != nil {
+		if err := ops.LinearBackwardT(qkvNorm, wqkv, dQKV, dQKVNorm, dWQKV, positions, hidden, qkvBlocks*hidden); err != nil {
 			return 0, err
 		}
-		input, err := pointer(cache.input)
+		input, err := pointer(cache.Input)
 		if err != nil {
 			return 0, err
 		}
@@ -732,7 +770,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		if err != nil {
 			return 0, err
 		}
-		if err := ops.MADNormBackward(dQKVNorm, input, qkvNorm, dQKVInput, positions, hidden, c.config.Epsilon); err != nil {
+		if err := ops.MADNormBackward(dQKVNorm, input, qkvNorm, dQKVInput, positions, hidden, config.Epsilon); err != nil {
 			return 0, err
 		}
 		if err := ops.Add(dInput, dQKVInput, dInput, positions*hidden); err != nil {
@@ -744,11 +782,11 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		}
 	}
 
-	embedding, err := pointer(graph.embedding)
+	embedding, err := pointer(graph.Embedding)
 	if err != nil {
 		return 0, err
 	}
-	initialNormalized, err := pointer(graph.layers[0].input)
+	initialNormalized, err := pointer(graph.Layers[0].Input)
 	if err != nil {
 		return 0, err
 	}
@@ -756,7 +794,7 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 	if err != nil {
 		return 0, err
 	}
-	if err := ops.MADNormBackward(dHidden, embedding, initialNormalized, dEmbedding, positions, hidden, c.config.Epsilon); err != nil {
+	if err := ops.MADNormBackward(dHidden, embedding, initialNormalized, dEmbedding, positions, hidden, config.Epsilon); err != nil {
 		return 0, err
 	}
 	tokenRows, positionRows := make([]uint32, positions), make([]uint32, positions)
@@ -794,41 +832,4 @@ func (t *ResidentTrainer) backwardWithOps(ops *devicemath.ResidentOps, graph For
 		loss += float64(value)
 	}
 	return loss, nil
-}
-
-func (c Construction) TrainResident(totalSteps int, policy trainingprogram.OptimizerPolicy) (TrainingResult, error) {
-	if totalSteps <= 0 || len(c.split.Train) == 0 || len(c.split.Validation) == 0 {
-		return TrainingResult{}, errors.New("scratch model: invalid resident training run")
-	}
-	trainer, err := NewResidentTrainer(c, totalSteps, policy)
-	if err != nil {
-		return TrainingResult{}, err
-	}
-	defer trainer.Close()
-	result := TrainingResult{Losses: make([]float64, totalSteps)}
-	materialized, batcher, err := c.documentBatcher(c.split.Train)
-	if err != nil {
-		return TrainingResult{}, err
-	}
-	defer materialized.Close()
-	for step := range totalSteps {
-		document, err := nextDocument(context.Background(), batcher)
-		if err != nil {
-			return TrainingResult{}, err
-		}
-		tokens, err := c.Tokens(document)
-		if err != nil {
-			return TrainingResult{}, err
-		}
-		result.Losses[step], err = trainer.Step(tokens, step+1)
-		if err != nil {
-			return TrainingResult{}, err
-		}
-	}
-	validation, err := c.Tokens(c.split.Validation[0])
-	if err != nil {
-		return TrainingResult{}, err
-	}
-	result.ValidationLoss, err = trainer.Evaluate(validation)
-	return result, err
 }

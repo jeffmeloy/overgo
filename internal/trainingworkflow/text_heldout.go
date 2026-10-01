@@ -26,8 +26,10 @@ type TextHeldoutRequest struct {
 	Steps          int
 	// MaximumSequence bounds each record's tokens; zero uses the model's
 	// context length.
-	MaximumSequence  int
-	Host             bool
+	MaximumSequence int
+	Host            bool
+	// Device trains the model when Host is false.
+	Device           DeviceTrainer
 	MaxProjectedWall time.Duration
 }
 
@@ -137,7 +139,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			for step := range batches {
 				batches[step] = dtype.ConvertSlice[int](shown[step%len(shown)].Input)
 			}
-			_, _, _, err := runTrainingState(model, batches, config.BaseLearningRate, config.Momentum, !request.Host, false, nil, nil, nil)
+			_, _, _, err := runTrainingState(model, batches, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, false, nil, nil, nil)
 			return err
 		},
 		Predict: func(example HeldoutExample) (HeldoutPrediction, error) {

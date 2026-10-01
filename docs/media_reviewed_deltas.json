@@ -960,6 +960,81 @@
         ]
       },
       "scope": "The windowed causal attention backward leaves devicemath for internal/devicegrad, which only trainers import, and two empty devicemath stubs go. The receipt runs, on the device, the moved kernel against the host, the devicemath attention backward it composes, and one full-parameter E4B step with its finite-difference check."
+    },
+    {
+      "changes": {
+        "internal/devicemath/causal_tail_resident_cuda_windows.go": {
+          "after_sha256": "f260912c1faf3f7866fa81a6ad34e9e75c81c259d4544734e7d129e3dff68115",
+          "before_sha256": "a464b9392a2e94ad1d74ac854a407ce6b1ff79c527074ea559dd0a5e892c3a60",
+          "reason": "FrozenCausalTailPlanSizes, which nothing called, not even tests, is deleted; the rest is unchanged."
+        },
+        "internal/devicemath/layer_forward_resident_cuda_windows.go": {
+          "after_sha256": "",
+          "before_sha256": "30a6597d17aa7e170c71c8c40ed54c347f429358d12e85a8c834cd9dfbf9c21f",
+          "reason": "LayerForwardResident, LayerForwardWeights and their cache served only densecausal's test-only device forward, which is deleted; the file goes."
+        },
+        "internal/devicemath/layer_resident_ops_cuda_windows.go": {
+          "after_sha256": "cf863edad8b3686daaf925fe4e3daee1148d8859df11b9d7462e3030a842807b",
+          "before_sha256": "f53aa86aecf76e38a86aeadeba56d14e37377c4ef81ffe55a916bac82b4826fd",
+          "reason": "the two gradient-allocation helpers only the deleted test-only forward used are removed."
+        },
+        "internal/devicemath/resident_ops_cuda_windows.go": {
+          "after_sha256": "19ac49f71eca79276a7da2a25ba5c78bee525a699439772c9484d356ef598628",
+          "before_sha256": "40f0be42401b16ba059e8f59cc5c2d6537a90b191c1e157512d9799b11d3e3b4",
+          "reason": "ResidentOpsSession.Do and the SiLU, Conv2D and GroupNorm backward ops served only diffusionimage's test-only VJPs, which are deleted; removed."
+        },
+        "internal/devicemath/stack_resident_across_cuda_windows.go": {
+          "after_sha256": "55c03a1712392b79b121034a9a2dcdc746fe57b95b01a745ffb149cddc2a9177",
+          "before_sha256": "56fcd9f04e42ba5112f8ed10d35a66183fb9b13c8e6c6ab7a433831ebb25e740",
+          "reason": "WriteResident, which nothing called, is deleted."
+        },
+        "internal/devicemath/stack_resident_cuda_windows.go": {
+          "after_sha256": "1cc3619c3605dc4c5a5c01b86886fbcf0043e174759950ade5c2870dbac5d74b",
+          "before_sha256": "72769ae2079f29e46a0c3705ecd54a42b53ecd86dd77db9214b9e50efe431478",
+          "reason": "StackForwardBackwardResident, LayerBackwardResult and shapeOK served only the deleted test-only device loss; removed, and runStack's doc names what still calls it."
+        },
+        "internal/diffusionimage/final_vjp_cuda_windows.go": {
+          "after_sha256": "",
+          "before_sha256": "c5d82df5b3a62d4af14bed97fe3b7826f15834bb7704d9fe29d99d2519d528f7",
+          "reason": "the final-projection device VJP only tests called; nothing composes it into a device trainer (the wired diffusion trainer is the host NewTrainer); deleted."
+        },
+        "internal/diffusionimage/model_graph.go": {
+          "after_sha256": "68a55cde75d3ba99f48bc9082ef86756bf70420e7a3975a94df8b32b14c9899a",
+          "before_sha256": "c226a82587756203d0383b2d76a71b4e33c46b2195d753f037000af3adf7c526",
+          "reason": "finalProjectionCheckpointGradient, orphaned by the deleted VJP, is removed."
+        },
+        "internal/diffusionimage/resblock_vjp_cuda_windows.go": {
+          "after_sha256": "",
+          "before_sha256": "2b4f9807a19a1dd23b6e893dfc4f9af1a718ba97b378279510b0cf28901657d6",
+          "reason": "the resblock device VJP only tests called; deleted for the same reason."
+        }
+      },
+      "evidence": "evidence:sha256:0f64b055517139a4451be2edd025baf5d8a6bfbe064e37bba87ac083bd9d5d53",
+      "id": "training-out-of-serving-packages",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/densecausal": [
+          "TestTrainDeviceResidentDerivedCapacity"
+        ],
+        "overgo/internal/densecausaltrain": [
+          "TestTrainDeviceResidentMatchesHost",
+          "TestTrainDeviceResidentQwen2BiasMatchesHost",
+          "TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss",
+          "TestTrainDeviceResidentResumeExact"
+        ],
+        "overgo/internal/devicemath": [
+          "TestResidentTrainingGlueMatchesHost",
+          "TestResidentOpsSessionMatchesWrappers",
+          "TestResidentArenaReusesStorage"
+        ],
+        "overgo/internal/scratchtrain": [
+          "TestScratchResidentTrajectoryParity",
+          "TestScratchResidentCheckpointRoundTrip",
+          "TestScratchResidentStateParity",
+          "TestProfilePromotedByDescendantQuality"
+        ]
+      },
+      "scope": "Device training code leaves the packages serving links: the dense and scratch resident trainers move to densecausaltrain and scratchtrain, and the device forward, loss and VJP paths only tests reached are deleted, with the devicemath kernels only they used. The receipt runs, on the device, the moved dense trainer against the host (with the Qwen2 bias, frozen lexical and exact resume cases), the moved scratch trainer's trajectory, state and checkpoint parity, the descendant-quality promotion, and the devicemath resident glue, ops session and arena."
     }
   ],
   "paths": [

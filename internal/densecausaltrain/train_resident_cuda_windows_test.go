@@ -1,6 +1,6 @@
 //go:build windows
 
-package densecausal
+package densecausaltrain
 
 import (
 	"math"
@@ -31,7 +31,7 @@ func TestTrainDeviceResidentMatchesHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deviceResult, err := mDev.TrainDeviceResident(worker, batches, derivedTestLearningRate(t, mDev), 0.9, DeviceTrainingOptions{})
+	deviceResult, err := TrainDeviceResident(mDev, worker, batches, derivedTestLearningRate(t, mDev), 0.9, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestTrainDeviceResidentQwen2BiasMatchesHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deviceResult, err := resident.TrainDeviceResident(worker, batches, derivedTestLearningRate(t, resident), 0.9, DeviceTrainingOptions{})
+	deviceResult, err := TrainDeviceResident(resident, worker, batches, derivedTestLearningRate(t, resident), 0.9, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,8 +104,9 @@ func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	embedBefore := slices.Clone(model.tensors.embedding.values)
-	deviceResult, err := model.TrainDeviceResident(worker, slices.Repeat([][]int{tokens}, 8), derivedTestLearningRate(t, model), 0.9, DeviceTrainingOptions{FrozenLexical: true})
+	embedding, _, _ := model.LexicalTensorNames()
+	embedBefore := slices.Clone(model.Weights[embedding])
+	deviceResult, err := TrainDeviceResident(model, worker, slices.Repeat([][]int{tokens}, 8), derivedTestLearningRate(t, model), 0.9, Options{FrozenLexical: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +117,7 @@ func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
 	if !(trajectory[len(trajectory)-1] < trajectory[0]) {
 		t.Fatalf("frozen resident loss %.6f -> %.6f", trajectory[0], trajectory[len(trajectory)-1])
 	}
-	if !slices.Equal(embedBefore, model.tensors.embedding.values) {
+	if !slices.Equal(embedBefore, model.Weights[embedding]) {
 		t.Fatal("frozen lexical table changed")
 	}
 }
@@ -130,16 +131,16 @@ func TestTrainDeviceResidentResumeExact(t *testing.T) {
 	defer worker.Close()
 	batches := [][]int{{1, 5, 9, 3, 7, 2, 11, 4}, {4, 11, 2, 7, 3, 9, 5, 1}}
 	uninterrupted := tinyMuonModel(t)
-	want, err := uninterrupted.TrainDeviceResident(worker, batches, derivedTestLearningRate(t, uninterrupted), 0.9, DeviceTrainingOptions{})
+	want, err := TrainDeviceResident(uninterrupted, worker, batches, derivedTestLearningRate(t, uninterrupted), 0.9, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	resumed := tinyMuonModel(t)
-	first, err := resumed.TrainDeviceResident(worker, batches[:1], derivedTestLearningRate(t, resumed), 0.9, DeviceTrainingOptions{})
+	first, err := TrainDeviceResident(resumed, worker, batches[:1], derivedTestLearningRate(t, resumed), 0.9, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := resumed.TrainDeviceResident(worker, batches[1:], derivedTestLearningRate(t, resumed), 0.9, DeviceTrainingOptions{Resume: &first.State})
+	got, err := TrainDeviceResident(resumed, worker, batches[1:], derivedTestLearningRate(t, resumed), 0.9, Options{Resume: &first.State})
 	if err != nil {
 		t.Fatal(err)
 	}

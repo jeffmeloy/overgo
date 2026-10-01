@@ -20,6 +20,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/scratchmodeltest"
+	"overgo/internal/scratchtrain"
 	"overgo/internal/strictjson"
 	"overgo/internal/trainingprogram"
 )
@@ -116,7 +117,7 @@ func TestScratchTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	initStarted := time.Now()
-	trainer, err := scratchmodel.NewResidentTrainer(construction, oracle.Steps, policy)
+	trainer, err := scratchtrain.NewResidentTrainer(construction, oracle.Steps, policy)
 	if err != nil {
 		t.Fatal(err)
 	}

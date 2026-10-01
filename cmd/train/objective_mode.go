@@ -52,7 +52,7 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 	}
 	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
 		Alias: run.Alias, ModelDirectory: run.Model, Steps: run.Steps, MaximumSequence: run.Sequence,
-		Host: run.Host, MaxProjectedWall: run.MaxWall,
+		Host: run.Host, Device: denseDevice, MaxProjectedWall: run.MaxWall,
 	})
 	if err != nil {
 		return err

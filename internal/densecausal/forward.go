@@ -19,23 +19,25 @@ type layer struct {
 	postLN           []float32
 	gate, up, down   []float32
 	moe              *moeWeights
-	names            layerTensorNames
+	names            LayerTensorNames
 }
 
-type layerTensorNames struct {
-	inLN, q, k, v, o string
-	qb, kb, vb       string
-	postLN           string
-	gate, up, down   string
+// LayerTensorNames names one dense layer's tensors in Model.Weights: the
+// two norms, the attention projections and biases, and the MLP.
+type LayerTensorNames struct {
+	InLN, Q, K, V, O string
+	QB, KB, VB       string
+	PostLN           string
+	Gate, Up, Down   string
 }
 
 func compileLayer(weights map[string][]float32, index int, attentionBias bool, policy MoERouterPolicy, hidden int) (layer, error) {
-	names := denseLayerTensorNames(index)
+	names := DenseLayerTensorNames(index)
 	l := layer{
-		inLN: weights[names.inLN], postLN: weights[names.postLN],
-		q: weights[names.q], k: weights[names.k], v: weights[names.v], o: weights[names.o],
-		qb: weights[names.qb], kb: weights[names.kb], vb: weights[names.vb],
-		gate: weights[names.gate], up: weights[names.up], down: weights[names.down],
+		inLN: weights[names.InLN], postLN: weights[names.PostLN],
+		q: weights[names.Q], k: weights[names.K], v: weights[names.V], o: weights[names.O],
+		qb: weights[names.QB], kb: weights[names.KB], vb: weights[names.VB],
+		gate: weights[names.Gate], up: weights[names.Up], down: weights[names.Down],
 		names: names,
 	}
 	for _, w := range [][]float32{l.inLN, l.q, l.k, l.v, l.o, l.postLN} {
@@ -119,13 +121,15 @@ func compileMoELayer(weights map[string][]float32, index int, policy MoERouterPo
 	return w, nil
 }
 
-func denseLayerTensorNames(index int) layerTensorNames {
+// DenseLayerTensorNames names the tensors of dense layer index, the names
+// the loader binds and the trainers take gradients under.
+func DenseLayerTensorNames(index int) LayerTensorNames {
 	prefix := fmt.Sprintf("model.layers.%d.", index)
-	return layerTensorNames{
-		inLN: prefix + "input_layernorm.weight", postLN: prefix + "post_attention_layernorm.weight",
-		q: prefix + "self_attn.q_proj.weight", k: prefix + "self_attn.k_proj.weight", v: prefix + "self_attn.v_proj.weight", o: prefix + "self_attn.o_proj.weight",
-		qb: prefix + "self_attn.q_proj.bias", kb: prefix + "self_attn.k_proj.bias", vb: prefix + "self_attn.v_proj.bias",
-		gate: prefix + "mlp.gate_proj.weight", up: prefix + "mlp.up_proj.weight", down: prefix + "mlp.down_proj.weight",
+	return LayerTensorNames{
+		InLN: prefix + "input_layernorm.weight", PostLN: prefix + "post_attention_layernorm.weight",
+		Q: prefix + "self_attn.q_proj.weight", K: prefix + "self_attn.k_proj.weight", V: prefix + "self_attn.v_proj.weight", O: prefix + "self_attn.o_proj.weight",
+		QB: prefix + "self_attn.q_proj.bias", KB: prefix + "self_attn.k_proj.bias", VB: prefix + "self_attn.v_proj.bias",
+		Gate: prefix + "mlp.gate_proj.weight", Up: prefix + "mlp.up_proj.weight", Down: prefix + "mlp.down_proj.weight",
 	}
 }
 

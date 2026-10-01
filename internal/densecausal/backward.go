@@ -127,12 +127,14 @@ func (m *Model) lossAndGradsFromStates(
 	embed := m.tensors.embedding.values
 	gradEmbed := hostmath.GradientSlot(g, m.tensors.embedding.name, len(embed))
 	if gradEmbed != nil {
-		scatterEmbeddingGradient(gradEmbed, dx, tokens, d.Hidden)
+		ScatterEmbeddingGradient(gradEmbed, dx, tokens, d.Hidden)
 	}
 	return loss, logits, g, nil
 }
 
-func scatterEmbeddingGradient(embedding, gradient []float32, tokens []int, hidden int) {
+// ScatterEmbeddingGradient adds each token's input gradient row onto its
+// embedding row's gradient.
+func ScatterEmbeddingGradient(embedding, gradient []float32, tokens []int, hidden int) {
 	for token, id := range tokens {
 		row := embedding[id*hidden : (id+1)*hidden]
 		addInPlace(row, gradient[token*hidden:(token+1)*hidden])
@@ -202,21 +204,21 @@ func (m *Model) layerBackwardObserved(
 		h := make([]float32, seq*d.Intermediate)
 		hostmath.SiLUGate(h, gate, up)
 		dH := make([]float32, seq*d.Intermediate)
-		hostmath.LinearBackward(dH, hostmath.GradientSlot(g, l.names.down, d.Hidden*d.Intermediate), nil,
+		hostmath.LinearBackward(dH, hostmath.GradientSlot(g, l.names.Down, d.Hidden*d.Intermediate), nil,
 			h, l.down, dOut, seq, d.Intermediate, d.Hidden, false)
 		dGate := make([]float32, seq*d.Intermediate)
 		dUp := make([]float32, seq*d.Intermediate)
 		hostmath.SiLUGateBackward(dGate, dUp, gate, up, dH)
-		hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, l.names.gate, d.Intermediate*d.Hidden), nil,
+		hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, l.names.Gate, d.Intermediate*d.Hidden), nil,
 			hn, l.gate, dGate, seq, d.Hidden, d.Intermediate, false)
-		hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, l.names.up, d.Intermediate*d.Hidden), nil,
+		hostmath.LinearBackward(dHn, hostmath.GradientSlot(g, l.names.Up, d.Intermediate*d.Hidden), nil,
 			hn, l.up, dUp, seq, d.Hidden, d.Intermediate, true)
 	}
-	hostmath.RMSNormBackward(dh2, hostmath.GradientSlot(g, l.names.postLN, d.Hidden), h2, l.postLN, dHn, seq, d.Hidden, d.RMSEps, true)
+	hostmath.RMSNormBackward(dh2, hostmath.GradientSlot(g, l.names.PostLN, d.Hidden), h2, l.postLN, dHn, seq, d.Hidden, d.RMSEps, true)
 
 	// Attention branch backward.
 	dAttnCore := make([]float32, seq*width)
-	hostmath.LinearBackward(dAttnCore, hostmath.GradientSlot(g, l.names.o, d.Hidden*width), nil,
+	hostmath.LinearBackward(dAttnCore, hostmath.GradientSlot(g, l.names.O, d.Hidden*width), nil,
 		tr.attnCore, l.o, dh2, seq, width, d.Hidden, false)
 	dq := make([]float32, seq*width)
 	dk := make([]float32, seq*kvWidth)
@@ -237,18 +239,18 @@ func (m *Model) layerBackwardObserved(
 	// Optional q/k/v bias grads (qwen2): dB sums dy rows; dx path unchanged.
 	var dbQ, dbK, dbV []float32
 	if l.qb != nil {
-		dbQ = hostmath.GradientSlot(g, l.names.qb, width)
-		dbK = hostmath.GradientSlot(g, l.names.kb, kvWidth)
-		dbV = hostmath.GradientSlot(g, l.names.vb, kvWidth)
+		dbQ = hostmath.GradientSlot(g, l.names.QB, width)
+		dbK = hostmath.GradientSlot(g, l.names.KB, kvWidth)
+		dbV = hostmath.GradientSlot(g, l.names.VB, kvWidth)
 	}
 	dXn := make([]float32, seq*d.Hidden)
-	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, l.names.q, width*d.Hidden), dbQ,
+	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, l.names.Q, width*d.Hidden), dbQ,
 		xn, l.q, dq, seq, d.Hidden, width, false)
-	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, l.names.k, kvWidth*d.Hidden), dbK,
+	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, l.names.K, kvWidth*d.Hidden), dbK,
 		xn, l.k, dk, seq, d.Hidden, kvWidth, true)
-	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, l.names.v, kvWidth*d.Hidden), dbV,
+	hostmath.LinearBackward(dXn, hostmath.GradientSlot(g, l.names.V, kvWidth*d.Hidden), dbV,
 		xn, l.v, dv, seq, d.Hidden, kvWidth, true)
 	dx := dh2
-	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, l.names.inLN, d.Hidden), x, l.inLN, dXn, seq, d.Hidden, d.RMSEps, true)
+	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, l.names.InLN, d.Hidden), x, l.inLN, dXn, seq, d.Hidden, d.RMSEps, true)
 	return dx, nil
 }

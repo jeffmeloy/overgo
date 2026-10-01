@@ -221,19 +221,20 @@ func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) e
 	return nil
 }
 
-// forwardStates runs the stack retaining the residual stream at each layer
-// input (checkpoint posture — backward recomputes everything else).
-// states[l] is layer l's input; states[Layers] is the final pre-norm stream.
-func (m *Model) forwardStates(tokens []int) ([][]float32, error) {
+// forwardStates runs the stack. states[Layers] is the final pre-norm
+// stream. With retain, states[l] is layer l's input (checkpoint posture —
+// backward recomputes everything else); a score-only forward keeps none.
+func (m *Model) forwardStates(tokens []int, retain bool) ([][]float32, error) {
 	d := m.Dims
 	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
-	return m.retainedForwardStates(tokens, func(x []float32, index, seq int) error {
+	return m.retainedForwardStates(tokens, retain, func(x []float32, index, seq int) error {
 		return m.layerForward(x, m.layers[index], invFreq, seq)
 	})
 }
 
 func (m *Model) retainedForwardStates(
 	tokens []int,
+	retain bool,
 	forward func(x []float32, index, sequence int) error,
 ) ([][]float32, error) {
 	d := m.Dims
@@ -251,7 +252,9 @@ func (m *Model) retainedForwardStates(
 	}
 	states := make([][]float32, d.Layers+1)
 	for index := range d.Layers {
-		states[index] = append([]float32(nil), x...)
+		if retain {
+			states[index] = append([]float32(nil), x...)
+		}
 		if err := forward(x, index, seq); err != nil {
 			return nil, err
 		}
@@ -273,7 +276,7 @@ func (m *Model) logits(final []float32, seq int) []float32 {
 // Logits runs the forward pass over tokens and returns every position's
 // next-token logits, row-major by position.
 func (m *Model) Logits(tokens []int) ([]float32, error) {
-	states, err := m.forwardStates(tokens)
+	states, err := m.forwardStates(tokens, false)
 	if err != nil {
 		return nil, err
 	}

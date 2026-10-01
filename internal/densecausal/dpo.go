@@ -179,13 +179,11 @@ func completionCount(mask []bool) uint64 {
 }
 
 // SequenceLogProb scores a sequence's completion tokens: the summed log
-// probability the model gives each one after the tokens before it.
+// probability the model gives each one after the tokens before it. No
+// backward pass follows, so it keeps no layer input.
 func (m *Model) SequenceLogProb(sequence trainingdata.PreferenceSequence) (sequencescore.Score, error) {
-	trace, err := m.sequenceTrace(sequence)
-	if err != nil {
-		return sequencescore.Score{}, err
-	}
-	return trace.score, nil
+	trace, err := m.scoreSequence(sequence, false)
+	return trace.score, err
 }
 
 type preferenceTrace struct {
@@ -195,12 +193,19 @@ type preferenceTrace struct {
 	score    sequencescore.Score
 }
 
+// sequenceTrace scores a sequence keeping what its backward pass reads.
 func (m *Model) sequenceTrace(sequence trainingdata.PreferenceSequence) (preferenceTrace, error) {
+	return m.scoreSequence(sequence, true)
+}
+
+// scoreSequence runs the forward over a sequence and selects its completion
+// tokens' log probabilities; retain keeps each layer's input for backward.
+func (m *Model) scoreSequence(sequence trainingdata.PreferenceSequence, retain bool) (preferenceTrace, error) {
 	rows := len(sequence.Tokens) - 1
 	if rows <= 0 || len(sequence.Completion) != len(sequence.Tokens) || sequence.Completion[0] {
 		return preferenceTrace{}, errors.New("densecausal: invalid preference sequence")
 	}
-	states, err := m.forwardStates(sequence.Tokens)
+	states, err := m.forwardStates(sequence.Tokens, retain)
 	if err != nil {
 		return preferenceTrace{}, err
 	}

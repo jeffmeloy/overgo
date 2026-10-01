@@ -4,7 +4,9 @@ import (
 	"math"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/sequencescore"
+	"overgo/internal/testutil"
 )
 
 func continuationScore(value float64) sequencescore.Score {
@@ -190,17 +192,23 @@ func TestPreferenceModeGradientsFiniteDifference(t *testing.T) {
 }
 
 // TestPreferenceModesRejectInvalidPolicies refuses an undeclared mode, a
-// margin outside SimPO or outside [0, ∞), a nonpositive scale, and an ORPO
-// pair whose chosen completion the policy already predicts with certainty.
+// margin outside SimPO or outside [0, ∞), class weights outside KTO or
+// below zero, a nonpositive scale, an ORPO pair whose chosen completion the
+// policy already predicts with certainty, a pair under KTO, and unpaired
+// completions under a pair mode, alone, or without both classes to weigh.
 func TestPreferenceModesRejectInvalidPolicies(t *testing.T) {
 	scores := PreferenceScores{PolicyChosen: continuationScore(-1), PolicyRejected: continuationScore(-2)}
 	for _, policy := range []PreferencePolicy{
-		{Mode: "kto", Scale: 0.1},
+		{Mode: "ipo", Scale: 0.1},
 		{Scale: 0.1, Margin: 1},
 		{Mode: PreferenceORPO, Scale: 0.1, Margin: 1},
 		{Mode: PreferenceSimPO, Scale: 2, Margin: -1},
 		{Mode: PreferenceSimPO, Scale: 2, Margin: math.NaN()},
 		{Mode: PreferenceSimPO},
+		{Scale: 0.1, DesirableWeight: 1, UndesirableWeight: 1},
+		{Mode: PreferenceKTO, Scale: 0.1},
+		{Mode: PreferenceKTO, Scale: 0.1, DesirableWeight: 1, UndesirableWeight: -1},
+		{Mode: PreferenceKTO, Scale: 0.1, DesirableWeight: 1, UndesirableWeight: 1},
 	} {
 		if _, err := policy.Loss(scores); err == nil {
 			t.Fatalf("accepted policy %+v", policy)
@@ -209,5 +217,25 @@ func TestPreferenceModesRejectInvalidPolicies(t *testing.T) {
 	scores.PolicyChosen = continuationScore(0)
 	if _, err := (PreferencePolicy{Mode: PreferenceORPO, Scale: 0.1}).Loss(scores); err == nil {
 		t.Fatal("ORPO accepted a chosen completion at probability one")
+	}
+	unpaired := UnpairedScores{
+		Policy: continuationScore(-1), Reference: continuationScore(-1),
+		MismatchedPolicy: continuationScore(-2), MismatchedReference: continuationScore(-2),
+	}
+	kto := PreferencePolicy{Mode: PreferenceKTO, Scale: 0.1, DesirableWeight: 1, UndesirableWeight: 1}
+	for _, refused := range []struct {
+		policy   PreferencePolicy
+		examples []UnpairedScores
+	}{
+		{PreferencePolicy{Scale: 0.1}, []UnpairedScores{unpaired, unpaired}},
+		{kto, []UnpairedScores{unpaired}},
+		{kto, []UnpairedScores{unpaired, {}}},
+	} {
+		if _, err := refused.policy.UnpairedLoss(refused.examples); err == nil {
+			t.Fatalf("%q accepted %d unpaired completions", refused.policy.Mode, len(refused.examples))
+		}
+	}
+	if _, err := KTOPolicy(testutil.ArtifactID(t, artifact.KindModel, "reference"), 0.1, 3, 0); err == nil {
+		t.Fatal("KTO weighed desirable completions against none")
 	}
 }

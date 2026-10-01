@@ -61,14 +61,18 @@ type HeldoutCase struct {
 }
 
 // HeldoutObservation is one model's answer for a held-out record: predicted
-// values or a label, a produced signal, generated text, or a preference
-// pair's sequence scores under the model as policy and under its reference.
+// values or a label, a produced signal, generated text, a preference pair's
+// sequence scores under the model as policy and under its reference, or an
+// unpaired completion's, whose mismatched scores follow its prompt with
+// the completion of the record Partner names.
 type HeldoutObservation struct {
 	Record     string
 	Values     []float64
 	Label      string
 	Text       string
 	Preference trainingprogram.PreferenceScores
+	Partner    string
+	Unpaired   trainingprogram.UnpairedScores
 }
 
 // HeldoutPlan measures an objective's declared metric on its held-out view
@@ -90,8 +94,9 @@ type HeldoutReport struct {
 
 // CompileHeldoutPlan binds the target plan that measures the objective's
 // declared metric to its held-out view, one case per view record. A
-// preference objective compiles through CompilePreferenceHeldoutPlan, since
-// its pairs are scored against a reference rather than an expected answer.
+// preference objective compiles through CompilePreferenceHeldoutPlan, or
+// CompileUnpairedHeldoutPlan for unpaired completions, since its records
+// are scored against a reference rather than an expected answer.
 func CompileHeldoutPlan(objective trainingprogram.ObjectiveDocument, view SFTEvaluationView, cases []HeldoutCase) (HeldoutPlan, error) {
 	if view.Objective != objective.ID {
 		return HeldoutPlan{}, errors.New("evaluation: held-out view binds another objective")
@@ -152,6 +157,9 @@ func heldoutMetricName(metric trainingprogram.EvaluationMetric) (string, bool) {
 	}
 	if metric == trainingprogram.MetricPreferenceLoss {
 		return preferenceLossMetric, true
+	}
+	if metric == trainingprogram.MetricUnpairedPreferenceLoss {
+		return unpairedLossMetric, true
 	}
 	return "", false
 }
@@ -390,6 +398,9 @@ func requireHeldout(ctx context.Context, reader artifact.Reader, plan artifact.I
 	case preferenceTargetPlanMedia:
 		return requireTargets(ctx, reader, preferenceTargetPlanCodec, preferenceTargetReportCodec, plan, reports,
 			func(plan preferenceTargetPlan) artifact.ID { return plan.View }, preferenceTargetPlan.rescore)
+	case unpairedTargetPlanMedia:
+		return requireTargets(ctx, reader, unpairedTargetPlanCodec, unpairedTargetReportCodec, plan, reports,
+			func(plan unpairedTargetPlan) artifact.ID { return plan.View }, unpairedTargetPlan.rescore)
 	default:
 		return HeldoutPlan{}, nil, fmt.Errorf("evaluation: %s is not a held-out target plan", plan)
 	}

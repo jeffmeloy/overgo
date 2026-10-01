@@ -46,6 +46,7 @@ type Request struct {
 	FreezeLexical bool
 	// PreferenceMode and PreferenceMargin select the DPO objective's loss
 	// mode and SimPO's target reward margin; other objectives refuse them.
+	// KTO's mode reads the dataset as unpaired completions.
 	PreferenceMode   trainingprogram.PreferenceMode
 	PreferenceMargin float64
 	// Observations: optional typed run evidence.
@@ -66,6 +67,7 @@ type Result struct {
 	Plan           trainingprogram.TrainingSessionPlan
 	Losses         []float64
 	DPO            []trainingprogram.DPOObservation
+	KTO            []trainingprogram.KTOObservation
 	GRPO           []trainingprogram.GRPOObservation
 	StreamPosition uint64
 	Checkpoint     trainingprogram.Checkpoint
@@ -227,6 +229,7 @@ type densePrepared struct {
 	reference  *densecausal.Model
 	tokens     [][]int
 	pairs      []trainingdata.PreferenceBatch
+	unpaired   []trainingdata.UnpairedBatch
 	groups     []trainingdata.RolloutGroup
 	evaluators []artifact.ID
 }
@@ -297,15 +300,28 @@ func (session denseSession) prepare() (densePrepared, error) {
 	if err != nil {
 		return densePrepared{}, err
 	}
+	referenceID, err := identifyModel(session.request.ReferenceDirectory)
+	if err != nil {
+		return densePrepared{}, fmt.Errorf("training workflow: identify reference: %w", err)
+	}
+	if session.request.PreferenceMode == trainingprogram.PreferenceKTO {
+		if session.request.PreferenceMargin != 0 {
+			return densePrepared{}, errors.New("training workflow: KTO has no preference margin")
+		}
+		read, err := unpairedBatchesResume(session.ctx, session.raw, session.request.Steps, session.encode, session.resumeStream, membership)
+		if err != nil {
+			return densePrepared{}, err
+		}
+		policy, err := trainingprogram.KTOPolicy(referenceID, session.request.ObjectiveScale, read.desirable, read.undesirable)
+		return densePrepared{
+			units: read.units, data: read.authority, stream: read.stream, reference: reference, unpaired: read.batches, preference: &policy,
+		}, err
+	}
 	batches, units, stream, data, err := preferenceBatchesResume(
 		session.ctx, session.raw, session.request.Steps, session.encode, session.resumeStream, membership,
 	)
 	if err != nil {
 		return densePrepared{}, err
-	}
-	referenceID, err := identifyModel(session.request.ReferenceDirectory)
-	if err != nil {
-		return densePrepared{}, fmt.Errorf("training workflow: identify reference: %w", err)
 	}
 	return densePrepared{
 		units: units, data: data, stream: stream, reference: reference, pairs: batches,
@@ -352,6 +368,13 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 		var resume *densecausal.RLState
 		if session.resumed.ID().Valid() {
 			resume = &densecausal.RLState{Optimizer: session.resumed.Optimizer, Stream: *session.resumeStream}
+		}
+		if prepared.preference.Mode == trainingprogram.PreferenceKTO {
+			observations, state, err := session.model.TrainKTOBatchesResume(
+				prepared.reference, prepared.unpaired, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
+				*prepared.preference, resume,
+			)
+			return Result{Backend: "host", Objective: session.objective, KTO: observations, StreamPosition: state.Stream.Position}, state.Optimizer, err
 		}
 		observations, state, err := session.model.TrainDPOBatchesResume(
 			prepared.reference, prepared.pairs, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,

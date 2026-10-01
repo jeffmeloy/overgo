@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -58,10 +59,12 @@ func (workspace *trainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 	}
 	// DPO's loss modes: unset trains DPO's own; the margin is SimPO's.
 	if workspace.objective == trainingprogram.ObjectiveDPO {
+		choices := make([]string, len(workspacePreferenceModes))
+		for index, mode := range workspacePreferenceModes {
+			choices[index] = string(mode)
+		}
 		controls = append(controls,
-			workflowControl{Name: "preference_mode", Type: workflowControlText, Choices: []string{
-				string(trainingprogram.PreferenceSimPO), string(trainingprogram.PreferenceORPO),
-			}},
+			workflowControl{Name: "preference_mode", Type: workflowControlText, Choices: choices},
 			workflowControl{Name: "preference_margin", Type: workflowControlNumber},
 		)
 	}
@@ -70,6 +73,11 @@ func (workspace *trainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 		Inputs: definition.Inputs, Outputs: definition.Outputs, Controls: controls,
 	}}, nil
 }
+
+// workspacePreferenceModes are the DPO loss modes the workspace trains
+// besides DPO's own. KTO trains through cmd/train: its unpaired steps have
+// no place in the training trace the workspace records.
+var workspacePreferenceModes = []trainingprogram.PreferenceMode{trainingprogram.PreferenceSimPO, trainingprogram.PreferenceORPO}
 
 type trainingWorkflowInput struct {
 	Dataset          artifact.ID                    `json:"dataset"`
@@ -88,6 +96,9 @@ func (workspace *trainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	var input trainingWorkflowInput
 	if err := strictjson.DecodeBytes(raw, &input); err != nil {
 		return operation.Completion{}, err
+	}
+	if input.PreferenceMode != "" && !slices.Contains(workspacePreferenceModes, input.PreferenceMode) {
+		return operation.Completion{}, fmt.Errorf("training workspace: preference mode %q is not one the workspace trains", input.PreferenceMode)
 	}
 	return workspace.executeWorkflow(ctx, capability.Recipe, input, reporter)
 }

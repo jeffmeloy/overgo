@@ -104,7 +104,7 @@ func (gr *Graft) branchForward(m *Model, x []float32, seq int) []float32 {
 
 // GraftLoss runs the grafted forward and returns mean causal CE.
 func (m *Model) GraftLoss(gr *Graft, tokens []int) (float64, error) {
-	states, _, err := m.graftForwardStates(gr, tokens)
+	states, _, err := m.graftForwardStates(gr, tokens, false)
 	if err != nil {
 		return 0, err
 	}
@@ -124,10 +124,10 @@ func (m *Model) GraftLoss(gr *Graft, tokens []int) (float64, error) {
 // graft layer's output. The returned preBranch buffer retains the pre-add
 // residual stream (checkpoint posture: the branch trace is recomputed from it
 // in backward).
-func (m *Model) graftForwardStates(gr *Graft, tokens []int) ([][]float32, []float32, error) {
+func (m *Model) graftForwardStates(gr *Graft, tokens []int, retain bool) ([][]float32, []float32, error) {
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
 	var preBranch []float32
-	states, err := m.retainedForwardStates(tokens, func(x []float32, index, seq int) error {
+	states, err := m.retainedForwardStates(tokens, retain, func(x []float32, index, seq int) error {
 		if err := m.layerForward(x, m.layers[index], invFreq, seq); err != nil {
 			return err
 		}
@@ -158,7 +158,7 @@ func (m *Model) GraftLossAndBridgeGrads(gr *Graft, tokens []int, bridge Grads) (
 	}
 	clear(downGradient)
 	clear(upGradient)
-	states, preBranch, err := m.graftForwardStates(gr, tokens)
+	states, preBranch, err := m.graftForwardStates(gr, tokens, true)
 	if err != nil {
 		return 0, err
 	}

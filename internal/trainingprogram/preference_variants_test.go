@@ -87,9 +87,29 @@ type preferenceVariantFixture struct {
 	store                            *overgodb.Store
 	recipe                           artifact.ID
 	root, policy, reference, dataset string
+	training, heldout                dataset.Membership
 }
 
+// preferencePrompts are the fixtures' prompts over a and b; every
+// completion prefers c to d after one.
+var preferencePrompts = []string{"a", "b", "aa", "ab", "ba", "bb", "aaa", "aab", "aba", "abb", "baa", "bab"}
+
 func newPreferenceVariantFixture(t *testing.T) preferenceVariantFixture {
+	t.Helper()
+	documents := make([]map[string]any, len(preferencePrompts))
+	for index, prompt := range preferencePrompts {
+		documents[index] = map[string]any{
+			"id": fmt.Sprintf("pair-%02d", index), "group": fmt.Sprintf("group-%02d", index), "prompt": prompt, "chosen": "c", "rejected": "d",
+		}
+	}
+	return newPreferenceFixture(t, documents, "overgo/training/preference-token-pair/v1", trainingprogram.MetricPreferenceLoss)
+}
+
+// newPreferenceFixture commits documents, each with an id and a group, as
+// a dataset split by group, and an active DPO recipe whose objective reads
+// them through the processor profile names, trains on the training
+// membership and declares metric on the held-out one.
+func newPreferenceFixture(t *testing.T, documents []map[string]any, processorProfile string, metric trainingprogram.EvaluationMetric) preferenceVariantFixture {
 	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
@@ -108,12 +128,11 @@ func newPreferenceVariantFixture(t *testing.T) preferenceVariantFixture {
 	}
 	policy := writePreferenceModel(t, fixture.policy, 9)
 	reference := writePreferenceModel(t, fixture.reference, 10)
-	prompts := []string{"a", "b", "aa", "ab", "ba", "bb", "aaa", "aab", "aba", "abb", "baa", "bab"}
-	records := make([]dataset.Record, len(prompts))
+	records := make([]dataset.Record, len(documents))
 	var lines bytes.Buffer
-	for index, prompt := range prompts {
-		records[index] = dataset.Record{ID: fmt.Sprintf("pair-%02d", index), Group: fmt.Sprintf("group-%02d", index)}
-		line, err := json.Marshal(map[string]string{"id": records[index].ID, "group": records[index].Group, "prompt": prompt, "chosen": "c", "rejected": "d"})
+	for index, document := range documents {
+		records[index] = dataset.Record{ID: document["id"].(string), Group: document["group"].(string)}
+		line, err := json.Marshal(document)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -139,14 +158,15 @@ func newPreferenceVariantFixture(t *testing.T) preferenceVariantFixture {
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		t.Fatal(err)
 	}
-	var training artifact.ID
 	for _, membership := range split.Memberships {
 		if membership.Partition == "train" {
-			training = membership.ID
+			fixture.training = membership
+		} else {
+			fixture.heldout = membership
 		}
 	}
 	profile := func(name string) artifact.ID { return testutil.ArtifactID(t, artifact.KindProfile, name) }
-	processor, evaluation := profile("overgo/training/preference-token-pair/v1"), profile("dpo evaluation")
+	processor, evaluation := profile(processorProfile), profile("dpo evaluation")
 	optimizer := trainingprogram.BuiltinOptimizerPolicy()
 	policies := trainingprogram.PolicySpec{
 		Precision: profile("dpo precision"), Placement: profile("dpo placement"), Memory: profile("dpo memory"),
@@ -156,8 +176,8 @@ func newPreferenceVariantFixture(t *testing.T) preferenceVariantFixture {
 	text := []recipecontract.Modality{recipecontract.ModalityText}
 	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "dpo", Kind: trainingprogram.ObjectiveDPO, Signature: recipecontract.ModalitySignature{Inputs: text, Outputs: text},
-		Dataset: source, Split: training, Processors: []artifact.ID{processor}, Loss: profile("dpo loss"), Evaluation: evaluation,
-		Metric: trainingprogram.MetricPreferenceLoss, Evidence: []artifact.ID{evidence}, Authority: trainingprogram.ObjectiveApproved,
+		Dataset: source, Split: fixture.training.ID, Processors: []artifact.ID{processor}, Loss: profile("dpo loss"), Evaluation: evaluation,
+		Metric: metric, Evidence: []artifact.ID{evidence}, Authority: trainingprogram.ObjectiveApproved,
 	})
 	if err != nil {
 		t.Fatal(err)

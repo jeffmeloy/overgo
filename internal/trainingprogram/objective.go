@@ -119,6 +119,10 @@ const (
 	// MetricPreferenceLoss is a policy's mean DPO loss over preference pairs
 	// against its reference; lower is better.
 	MetricPreferenceLoss EvaluationMetric = "preference-loss"
+	// MetricUnpairedPreferenceLoss is a policy's mean KTO loss over unpaired
+	// completions, each labelled desirable or undesirable, against its
+	// reference; lower is better.
+	MetricUnpairedPreferenceLoss EvaluationMetric = "unpaired-preference-loss"
 )
 
 type ObjectiveSpec struct {
@@ -525,7 +529,8 @@ func objectivePairKey(signature recipecontract.ModalitySignature) string {
 func metricValidForModality(modality recipecontract.Modality, metric EvaluationMetric) bool {
 	switch modality {
 	case recipecontract.ModalityText:
-		return metric == MetricTokenAccuracy || metric == MetricGeneratedAnswer || metric == MetricPreferenceLoss
+		return metric == MetricTokenAccuracy || metric == MetricGeneratedAnswer || metric == MetricPreferenceLoss ||
+			metric == MetricUnpairedPreferenceLoss
 	case recipecontract.ModalityImage:
 		return metric == MetricImagePSNRSigned || metric == MetricImagePSNRUnit
 	case recipecontract.ModalityAudio:

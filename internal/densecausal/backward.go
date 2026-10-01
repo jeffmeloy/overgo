@@ -47,7 +47,7 @@ func (m *Model) lossAndGrads(tokens []int, retainLogits bool, observation *route
 	if m.Dims.AttentionWindow > 0 && len(tokens) > m.Dims.AttentionWindow {
 		return 0, nil, nil, fmt.Errorf("densecausal: training sequence %d exceeds the declared attention window %d", len(tokens), m.Dims.AttentionWindow)
 	}
-	states, err := m.forwardStates(tokens)
+	states, err := m.forwardStates(tokens, true)
 	if err != nil {
 		return 0, nil, nil, err
 	}

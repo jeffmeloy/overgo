@@ -257,22 +257,6 @@ func preferenceBatchesResume(ctx context.Context, raw []byte, steps int, encode 
 	if err != nil {
 		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 	}
-	authority, processor, err := datasetAuthority(raw, "preference-token-pair")
-	if err != nil {
-		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
-	}
-	if membership != nil {
-		if membership.Source != authority.Dataset {
-			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, errors.New("training workflow: membership splits another preference dataset")
-		}
-		documents = slices.DeleteFunc(documents, func(document preparedPreference) bool {
-			return !slices.ContainsFunc(membership.Records, func(record dataset.Record) bool { return record.ID == document.id })
-		})
-		if len(documents) != len(membership.Records) {
-			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, errors.New("training workflow: membership names pairs the preference dataset lacks")
-		}
-		authority.Split = membership.ID
-	}
 	records := make([]trainingdata.RawRecord, len(documents))
 	for index, document := range documents {
 		data, err := json.Marshal(document.encoded)
@@ -281,33 +265,25 @@ func preferenceBatchesResume(ctx context.Context, raw []byte, steps int, encode 
 		}
 		records[index] = trainingdata.RawRecord{ID: document.id, Group: document.group, Data: data}
 	}
-	materialized, err := trainingdata.MaterializeRecords(trainingdata.Authority{
-		Dataset: authority.Dataset, Split: authority.Split, Processors: []artifact.ID{processor}, Signature: textSignature,
-	}, processor, records, trainingdata.ProcessorBinding{
-		Artifact: processor, Modalities: []recipecontract.Modality{recipecontract.ModalityText},
-		Process: func(_ context.Context, record trainingdata.RawRecord) (trainingdata.Example, error) {
+	materialized, stream, authority, records, err := recordStream(raw, "preference-token-pair", records, membership, resume,
+		func(_ context.Context, record trainingdata.RawRecord) (trainingdata.Example, error) {
 			var encoded encodedPreference
 			if err := json.Unmarshal(record.Data, &encoded); err != nil {
 				return trainingdata.Example{}, err
 			}
 			chosen, rejected, err := trainingdata.PreferenceTokenValues(encoded.Chosen, encoded.Rejected)
 			return trainingdata.Example{ID: record.ID, Group: record.Group, Values: []trainingdata.Value{chosen, rejected}}, err
-		},
-	})
+		})
 	if err != nil {
 		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	defer materialized.Close()
-	stream, err := trainingdata.NewStream(materialized, resume)
-	if err != nil {
-		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
-	}
 	batcher, err := trainingdata.NewBatcher(stream, unitBatchPolicy)
 	if err != nil {
 		return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 	}
 	if steps == 0 {
-		steps = len(documents)
+		steps = len(records)
 	}
 	batches := make([]trainingdata.PreferenceBatch, steps)
 	for step := range batches {
@@ -320,7 +296,7 @@ func preferenceBatchesResume(ctx context.Context, raw []byte, steps int, encode 
 			return nil, 0, trainingdata.StreamState{}, batchAuthority{}, err
 		}
 	}
-	return batches, len(documents), stream.Snapshot(), authority, nil
+	return batches, len(records), stream.Snapshot(), authority, nil
 }
 
 func parsePreferences(raw []byte, encode func(string) ([]int, error)) ([]preparedPreference, error) {
@@ -359,6 +335,184 @@ func parsePreferences(raw []byte, encode func(string) ([]int, error)) ([]prepare
 		return nil, errors.New("training workflow: preference dataset empty")
 	}
 	return result, nil
+}
+
+// recordStream materializes a dataset's prepared records through process
+// under the processor processorName names and opens their stream at
+// resume. A membership keeps only its records, the membership then being
+// the split read; nil reads every record. The caller closes the dataset.
+func recordStream(raw []byte, processorName string, records []trainingdata.RawRecord, membership *dataset.Membership, resume *trainingdata.StreamState, process trainingdata.Processor) (*trainingdata.Dataset, *trainingdata.Stream, batchAuthority, []trainingdata.RawRecord, error) {
+	authority, processor, err := datasetAuthority(raw, processorName)
+	if err != nil {
+		return nil, nil, batchAuthority{}, nil, err
+	}
+	if membership != nil {
+		if membership.Source != authority.Dataset {
+			return nil, nil, batchAuthority{}, nil, errors.New("training workflow: membership splits another dataset")
+		}
+		records = slices.DeleteFunc(records, func(record trainingdata.RawRecord) bool {
+			return !slices.ContainsFunc(membership.Records, func(member dataset.Record) bool { return member.ID == record.ID })
+		})
+		if len(records) != len(membership.Records) {
+			return nil, nil, batchAuthority{}, nil, errors.New("training workflow: membership names records the dataset lacks")
+		}
+		authority.Split = membership.ID
+	}
+	materialized, err := trainingdata.MaterializeRecords(trainingdata.Authority{
+		Dataset: authority.Dataset, Split: authority.Split, Processors: []artifact.ID{processor}, Signature: textSignature,
+	}, processor, records, trainingdata.ProcessorBinding{
+		Artifact: processor, Modalities: []recipecontract.Modality{recipecontract.ModalityText}, Process: process,
+	})
+	if err != nil {
+		return nil, nil, batchAuthority{}, nil, err
+	}
+	stream, err := trainingdata.NewStream(materialized, resume)
+	if err != nil {
+		return nil, nil, batchAuthority{}, nil, errors.Join(err, materialized.Close())
+	}
+	return materialized, stream, authority, records, nil
+}
+
+// unpairedDocument is one line of an unpaired preference dataset: a prompt,
+// one completion and its label, true for desirable, in TRL's unpaired
+// layout, with the record's id and group.
+type unpairedDocument struct {
+	ID, Group, Prompt, Completion string
+	Label                         *bool
+}
+
+// encodedUnpaired is an unpaired record's prompt and completion as tokens,
+// the first Prompt of them the prompt's, and its label.
+type encodedUnpaired struct {
+	Tokens    []int `json:"tokens"`
+	Prompt    int   `json:"prompt"`
+	Desirable bool  `json:"desirable"`
+}
+
+// unpairedData is what a run reads of an unpaired dataset: its KTO
+// microbatches, the updates one pass over its records takes, the stream
+// state after the microbatches, the data authority, and how many of its
+// records are desirable and undesirable.
+type unpairedData struct {
+	batches                []trainingdata.UnpairedBatch
+	units                  int
+	stream                 trainingdata.StreamState
+	authority              batchAuthority
+	desirable, undesirable int
+}
+
+// ktoMicrobatchExamples is how many unpaired completions one KTO update
+// averages, and so how many mismatched pairs its KL estimate z0 averages.
+// Two define z0; eight is a judgment between the estimate's spread, which
+// narrows with more pairs, and the traces one update holds for its backward
+// pass. A dataset with fewer records takes them all in each update.
+const ktoMicrobatchExamples = 8
+
+// unpairedProcessor names the processor that reads an unpaired preference
+// dataset as labelled token sequences.
+const unpairedProcessor = "preference-token-unpaired"
+
+// unpairedBatchesResume reads the unpaired preference dataset raw as steps
+// KTO microbatches, of ktoMicrobatchExamples records or of every record
+// when it holds fewer; zero steps take one pass over the records. A
+// membership keeps only its records, as preferenceBatchesResume does.
+func unpairedBatchesResume(ctx context.Context, raw []byte, steps int, encode func(string) ([]int, error), resume *trainingdata.StreamState, membership *dataset.Membership) (unpairedData, error) {
+	records, labels, err := parseUnpaired(raw, encode)
+	if err != nil {
+		return unpairedData{}, err
+	}
+	materialized, stream, authority, records, err := recordStream(raw, unpairedProcessor, records, membership, resume,
+		func(_ context.Context, record trainingdata.RawRecord) (trainingdata.Example, error) {
+			var encoded encodedUnpaired
+			if err := json.Unmarshal(record.Data, &encoded); err != nil {
+				return trainingdata.Example{}, err
+			}
+			role, mask := trainingdata.RoleRejected, make([]bool, len(encoded.Tokens))
+			if encoded.Desirable {
+				role = trainingdata.RoleChosen
+			}
+			for index := encoded.Prompt; index < len(mask); index++ {
+				mask[index] = true
+			}
+			value, err := trainingdata.TokenValue(role, encoded.Tokens, mask)
+			return trainingdata.Example{ID: record.ID, Group: record.Group, Values: []trainingdata.Value{value}}, err
+		})
+	if err != nil {
+		return unpairedData{}, err
+	}
+	defer materialized.Close()
+	microbatch := min(ktoMicrobatchExamples, len(records))
+	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: microbatch, MicrobatchExamples: microbatch, DecodeWorkers: 1})
+	if err != nil {
+		return unpairedData{}, err
+	}
+	read := unpairedData{units: (len(records) + microbatch - 1) / microbatch, authority: authority}
+	read.batches = make([]trainingdata.UnpairedBatch, cmp.Or(steps, read.units))
+	for step := range read.batches {
+		batch, err := batcher.Next(ctx)
+		if err != nil {
+			return unpairedData{}, err
+		}
+		if read.batches[step], err = trainingdata.CompileUnpairedBatch(batch, trainingdata.TokenIDs); err != nil {
+			return unpairedData{}, err
+		}
+	}
+	for _, record := range records {
+		if labels[record.ID] {
+			read.desirable++
+		} else {
+			read.undesirable++
+		}
+	}
+	read.stream = stream.Snapshot()
+	return read, nil
+}
+
+// parseUnpaired encodes each record of an unpaired preference dataset as
+// its prompt and completion, requiring the prompt's own tokens to be an
+// exact prefix of the whole, so the completion's tokens are exactly those
+// after them, and returns the records and each record's label.
+func parseUnpaired(raw []byte, encode func(string) ([]int, error)) ([]trainingdata.RawRecord, map[string]bool, error) {
+	if len(raw) == 0 || encode == nil {
+		return nil, nil, errors.New("training workflow: invalid unpaired preference dataset")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	var result []trainingdata.RawRecord
+	labels := map[string]bool{}
+	for {
+		var document unpairedDocument
+		if err := decoder.Decode(&document); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, nil, fmt.Errorf("training workflow: decode unpaired preference: %w", err)
+		}
+		if document.ID == "" || document.Prompt == "" || document.Completion == "" || document.Label == nil {
+			return nil, nil, errors.New("training workflow: unpaired preference requires id, prompt, completion, and label")
+		}
+		prompt, err := encode(document.Prompt)
+		if err != nil {
+			return nil, nil, err
+		}
+		tokens, err := encode(document.Prompt + document.Completion)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(prompt) == 0 || len(tokens) <= len(prompt) || trainingdata.CommonTokenPrefix(prompt, tokens) != len(prompt) {
+			return nil, nil, fmt.Errorf("training workflow: unpaired preference %q: the prompt's tokens must be an exact prefix of the prompt and completion's", document.ID)
+		}
+		data, err := json.Marshal(encodedUnpaired{Tokens: tokens, Prompt: len(prompt), Desirable: *document.Label})
+		if err != nil {
+			return nil, nil, err
+		}
+		result = append(result, trainingdata.RawRecord{ID: document.ID, Group: document.Group, Data: data})
+		labels[document.ID] = *document.Label
+	}
+	if len(result) == 0 {
+		return nil, nil, errors.New("training workflow: unpaired preference dataset empty")
+	}
+	return result, labels, nil
 }
 
 // textProcessor names the processor that reads a dataset as UTF-8 text.

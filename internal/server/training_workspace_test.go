@@ -199,6 +199,31 @@ func TestPreferenceWorkspaceScoresHeldOutPairs(t *testing.T) {
 	}
 }
 
+// TestPreferenceWorkspaceRefusesModesItDoesNotOffer: KTO trains through
+// cmd/train, so the workspace neither offers it nor starts a run in it.
+func TestPreferenceWorkspaceRefusesModesItDoesNotOffer(t *testing.T) {
+	t.Parallel()
+	fixture := newDPOTrainingFixture(t)
+	capabilities, err := fixture.workspace.WorkflowCapabilities(t.Context(), WorkflowTraining)
+	if err != nil || len(capabilities) != 1 || slices.ContainsFunc(capabilities[0].Controls, func(control workflowControl) bool {
+		return slices.Contains(control.Choices, string(trainingprogram.PreferenceKTO))
+	}) {
+		t.Fatalf("capabilities=%+v err=%v, want KTO not offered", capabilities, err)
+	}
+	input, err := json.Marshal(map[string]any{
+		"dataset": fixture.dataset, "output": "trained", "steps": 1, "objective_scale": 0.1, "preference_mode": trainingprogram.PreferenceKTO,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.workspace.ExecuteWorkflow(t.Context(), WorkflowTraining, capabilities[0], input, testReporter{}); err == nil {
+		t.Fatal("the workspace ran a mode it does not offer")
+	}
+	if _, err := os.Stat(filepath.Join(fixture.roots.Checkpoints, "trained")); !os.IsNotExist(err) {
+		t.Fatalf("a refused run left a checkpoint: %v", err)
+	}
+}
+
 // readJSON decodes the committed document id into value.
 func readJSON(t *testing.T, store *overgodb.Store, id artifact.ID, value any) {
 	t.Helper()

@@ -91,25 +91,6 @@
       ]
     },
     {
-      "id": "preference-kto",
-      "title": "Train on unpaired preference feedback with KTO",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 5069,
-        "reason": "KTO as a DPO mode: the unpaired loss and microbatch trainer, the unpaired data kind with its shared record stream, and the unpaired held-out plan and report the v2 verdict re-judges"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Train on unpaired preference feedback with KTO",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram -run '^TestKTOModeTrainsOnUnpairedFeedback$' -count=1",
-          "rationale": "Split from preference-loss-variants on 2026-09-30. ORPO and SimPO landed there as modes of the DPO objective. KTO does not fit the paired preference data shape.\n\nKTO (Ethayarajh et al. 2024) is L = E[λ_y − v(x,y)], with r = log πθ(y|x) − log πref(y|x).\n- The KL estimate z0 = max(0, mean of r over mismatched pairs (x_i, y_j), j≠i) is taken within a microbatch, with no gradient through it.\n- For a desirable completion v = λ_D·σ(β(r − z0)); for an undesirable one v = λ_U·σ(β(z0 − r)).\n\nWhat the current path lacks:\n1. Unpaired data: records of prompt, completion and a desirable or undesirable label. This needs a new dataset kind and processor, plus its materialize path in trainingworkflow/data.go. The preference-token-pair processor, parsePreferences and trainingdata.PreferencePair all require a chosen and a rejected completion.\n2. More than one prompt per step. unitBatchPolicy steps once per pair. KTO needs microbatches of at least 2, sequences spliced from one example's prompt and another's completion (scored under both policy and reference), and gradients summed across examples. sequenceGradientSum could extend to this.\n3. λ_D and λ_U in PreferencePolicy. The paper advises λ_D·n_D / (λ_U·n_U) between 1 and 4/3.\n4. A held-out judge for unpaired records, since the current slice scores pairs by DPO loss.\n\nDo not substitute TRL's kto_pair: its matched-pair KL term carries gradient, so it is not the paper's definition.\n\nServes: preference training on unpaired feedback (thumbs-up and thumbs-down data). Disappears: nothing. Evidence: the held-out unpaired slice judges it. Batch: surface (densecausal, trainingprogram).\n\nLanes (expected; the gate reads them from the diff): all (densecausal and trainingprogram are surface).\n\nOwner review 2026-09-30: ordered by user value and held-out availability. After e4b-full-parameter-trainer: its held-out unpaired preference set is still to be chosen.\n\nSQA 2026-09-30, SQA-064 (P2): score-only dense forwards keep training snapshots they never use; drop them where only a score is needed. Note: densecausal and trainingprogram left the inference surface on 2026-09-30, so this row no longer expires guards."
-        }
-      ]
-    },
-    {
       "id": "device-claim-everywhere",
       "title": "Have every GPU user take the device claim lanes wait on",
       "owner": "master-lead",

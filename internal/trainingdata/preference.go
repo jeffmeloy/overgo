@@ -2,6 +2,7 @@ package trainingdata
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 
 	"overgo/internal/binaryschema"
@@ -64,6 +65,93 @@ func CompilePreferenceBatch(batch Batch, decode TokenDecoder) (PreferenceBatch, 
 		}
 	}
 	return result, nil
+}
+
+// UnpairedExample is one unpaired completion KTO trains on: its prompt and
+// completion as one sequence, its label, and the mismatched sequence its
+// KL estimate scores, this example's prompt with another's completion.
+type UnpairedExample struct {
+	ID, Group  string
+	Desirable  bool
+	Sequence   PreferenceSequence
+	Mismatched PreferenceSequence
+}
+
+// UnpairedBatch is one KTO microbatch and the stream state after it.
+type UnpairedBatch struct {
+	Examples []UnpairedExample
+	State    StreamState
+}
+
+// CompileUnpairedBatch decodes a microbatch of unpaired completions, each
+// one value whose role labels it desirable (chosen) or undesirable
+// (rejected) and whose completion mask selects a suffix after its prompt.
+// Each example's mismatched sequence is its prompt with the next example's
+// completion, cyclically, so the microbatch must hold two or more distinct
+// records for every mismatched pair to cross examples.
+func CompileUnpairedBatch(batch Batch, decode TokenDecoder) (UnpairedBatch, error) {
+	if len(batch.Examples) <= 1 || !batch.State.Identity.Valid() || decode == nil {
+		return UnpairedBatch{}, errors.New("training data: an unpaired microbatch needs two or more examples and a decoder")
+	}
+	result := UnpairedBatch{Examples: make([]UnpairedExample, len(batch.Examples)), State: batch.State}
+	seen := make(map[string]bool, len(batch.Examples))
+	for index, example := range batch.Examples {
+		if example.ID == "" || seen[example.ID] || len(example.Values) != 1 ||
+			example.Values[0].Role != RoleChosen && example.Values[0].Role != RoleRejected {
+			return UnpairedBatch{}, errors.New("training data: an unpaired example is one labelled value of a record its microbatch holds once")
+		}
+		seen[example.ID] = true
+		value := example.Values[0]
+		tokens, err := decode(value)
+		if err != nil {
+			return UnpairedBatch{}, err
+		}
+		if completionStart(tokens, value.Completion) < 0 {
+			return UnpairedBatch{}, fmt.Errorf("training data: unpaired example %q is not a prompt followed by its completion", example.ID)
+		}
+		result.Examples[index] = UnpairedExample{
+			ID: example.ID, Group: example.Group, Desirable: value.Role == RoleChosen,
+			Sequence: PreferenceSequence{Tokens: slices.Clone(tokens), Completion: slices.Clone(value.Completion)},
+		}
+	}
+	for index := range result.Examples {
+		next := result.Examples[(index+1)%len(result.Examples)]
+		var err error
+		if result.Examples[index].Mismatched, err = SpliceCompletion(result.Examples[index].Sequence, next.Sequence); err != nil {
+			return UnpairedBatch{}, err
+		}
+	}
+	return result, nil
+}
+
+// SpliceCompletion is prompt's tokens before its completion followed by
+// completion's completion tokens: the mismatched sequence KTO's KL
+// estimate scores. Both sequences must select a suffix after their prompt.
+func SpliceCompletion(prompt, completion PreferenceSequence) (PreferenceSequence, error) {
+	promptEnd := completionStart(prompt.Tokens, prompt.Completion)
+	start := completionStart(completion.Tokens, completion.Completion)
+	if promptEnd < 0 || start < 0 {
+		return PreferenceSequence{}, errors.New("training data: a spliced sequence is a prompt followed by its completion")
+	}
+	tokens := append(slices.Clone(prompt.Tokens[:promptEnd]), completion.Tokens[start:]...)
+	mask := make([]bool, len(tokens))
+	for index := promptEnd; index < len(mask); index++ {
+		mask[index] = true
+	}
+	return PreferenceSequence{Tokens: tokens, Completion: mask}, nil
+}
+
+// completionStart is where a valid sequence's completion begins when its
+// mask selects exactly the suffix from there, else -1.
+func completionStart(tokens []int, completion []bool) int {
+	if !validPreferenceSequence(tokens, completion) {
+		return -1
+	}
+	start := slices.Index(completion, true)
+	if slices.Contains(completion[start:], false) {
+		return -1
+	}
+	return start
 }
 
 func preferenceValues(example Example) (Value, Value, error) {

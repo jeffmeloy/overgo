@@ -4,6 +4,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 // TestTrainObjectiveModeRefusesRawDatasetInputs holds the -objective mode to
@@ -27,5 +30,22 @@ func TestTrainObjectiveModeRefusesRawDatasetInputs(t *testing.T) {
 	err := runObjectiveMode(t.Context(), nil, objectiveRun{Alias: "objective.registered.texts", Model: "m", Steps: 1}, set, nil)
 	if err == nil || !strings.Contains(err.Error(), "-dataset") {
 		t.Fatalf("a conflicting run = %v, want the conflicting flags named", err)
+	}
+}
+
+// TestPreferenceRunsSayWhenUnjudged: a run of another objective publishes
+// no preference verdict, and a resumed DPO run, which names no base policy,
+// says it is not judged rather than passing silently.
+func TestPreferenceRunsSayWhenUnjudged(t *testing.T) {
+	t.Parallel()
+	var output strings.Builder
+	token := trainingworkflow.Result{Objective: trainingprogram.ObjectiveTokenPrediction}
+	if err := judgePreference(t.Context(), nil, trainingworkflow.Request{}, token, &output); err != nil || output.Len() != 0 {
+		t.Fatalf("a token run = (%q, %v), want nothing judged or said", output.String(), err)
+	}
+	resumed := trainingworkflow.Request{ResumeDirectory: "resume"}
+	if err := judgePreference(t.Context(), nil, resumed, trainingworkflow.Result{Objective: trainingprogram.ObjectiveDPO}, &output); err != nil ||
+		!strings.Contains(output.String(), "not judged") {
+		t.Fatalf("a resumed DPO run = (%q, %v), want it said to be not judged", output.String(), err)
 	}
 }

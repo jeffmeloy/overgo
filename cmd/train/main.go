@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 
@@ -39,7 +40,7 @@ func run() error {
 	resume := flag.String("resume", "", "resume checkpoint directory")
 	reference := flag.String("reference", "", "frozen reference model directory for DPO")
 	scale := clioptions.Float64Override(flag.CommandLine, "objective-scale", "RL objective scale")
-	preferenceMode := flag.String("preference-mode", "", "DPO objective loss mode: empty for DPO's own, or the reference-free simpo or orpo")
+	preferenceMode := flag.String("preference-mode", "", "DPO objective loss mode: empty for DPO's own, the reference-free simpo or orpo, or kto over unpaired completions (JSONL of id, group, prompt, completion and a boolean label, true for desirable)")
 	preferenceMargin := clioptions.Float64Override(flag.CommandLine, "preference-margin", "SimPO target reward margin")
 	steps := clioptions.IntOverride(flag.CommandLine, "steps", "Muon update steps; omitted derives from dataset units")
 	maximumSequence := clioptions.IntOverride(flag.CommandLine, "seq", "maximum token sequence; omitted derives from model context")
@@ -93,7 +94,7 @@ func run() error {
 		}
 	}
 
-	result, err := trainingworkflow.Execute(ctx, trainingworkflow.Request{
+	request := trainingworkflow.Request{
 		Audio:      audio,
 		Repository: store, Recipe: parsedRecipe, Observations: store,
 		ModelDirectory: *model, DatasetPath: *dataset, OutputDirectory: *output,
@@ -102,14 +103,15 @@ func run() error {
 		ObjectiveScale: *scale, Host: *host, Device: denseDevice, FreezeLexical: *freezeLexical,
 		PreferenceMode: trainingprogram.PreferenceMode(*preferenceMode), PreferenceMargin: *preferenceMargin,
 		Progress: os.Stderr, MaxProjectedWall: *maxWall,
-	})
+	}
+	result, err := trainingworkflow.Execute(ctx, request)
 	if err != nil {
 		return err
 	}
 	if result.Observation.Valid() {
 		fmt.Printf("session observation: %s\n", result.Observation)
 	}
-	count := len(result.Losses) + len(result.DPO) + len(result.GRPO)
+	count := len(result.Losses) + len(result.DPO) + len(result.KTO) + len(result.GRPO)
 	fmt.Printf("backend=%s objective=%s batches=%d stream_position=%d steps=%d recipe_lr=%g recipe_momentum=%g\n",
 		result.Backend, result.Objective, count, result.StreamPosition, result.Plan.Updates(),
 		result.Optimizer.BaseLearningRate, result.Optimizer.Momentum)
@@ -119,6 +121,10 @@ func run() error {
 	for _, observation := range result.DPO {
 		fmt.Printf("step %d: loss %.6f relative_margin %.6f\n", observation.Step, observation.Loss, observation.RelativeMargin)
 	}
+	for _, observation := range result.KTO {
+		fmt.Printf("step %d: loss %.6f kl %.6f desirable_reward %.6f (%d) undesirable_reward %.6f (%d)\n", observation.Step, observation.Loss,
+			observation.KL, observation.DesirableReward, observation.Desirable, observation.UndesirableReward, observation.Undesirable)
+	}
 	for _, observation := range result.GRPO {
 		fmt.Printf("step %d: loss %.6f mean_reward %.6f\n", observation.Step, observation.Loss, observation.MeanReward)
 	}
@@ -126,5 +132,23 @@ func run() error {
 	if result.Candidate.Valid() {
 		fmt.Printf("candidate=%s (not activated)\n", result.Candidate)
 	}
-	return nil
+	return judgePreference(ctx, store, request, result, os.Stdout)
+}
+
+// judgePreference publishes the held-out verdict of a preference run from a
+// base policy whose objective holds records out, and says when a run is not
+// judged.
+func judgePreference(ctx context.Context, store *overgodb.Store, request trainingworkflow.Request, result trainingworkflow.Result, output io.Writer) error {
+	if result.Objective != trainingprogram.ObjectiveDPO {
+		return nil
+	}
+	if request.ModelDirectory == "" {
+		_, err := fmt.Fprintln(output, "held-out verdict: not judged; a resumed run names no base policy (-model)")
+		return err
+	}
+	verdict, judged, err := trainingworkflow.JudgePreferenceHeldout(ctx, store, request, result)
+	if err != nil || !judged {
+		return err
+	}
+	return reportVerdict(output, verdict)
 }

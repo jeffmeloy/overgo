@@ -165,129 +165,98 @@ func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
 	}
 }
 
-// TestPlanAndLoopEditsReachLanesOnlyThroughProduction selects lanes over
-// the real module the way the lanes stage does, for an edit to the plan, to
-// the loop driver and to the scorecard. A lane any of them reaches must
-// compile the file into its production closure in its build context, the
-// code its tests build and run; a test import alone would make every plan or
-// loop edit pay for device work that never runs it. The cure is moving the
-// fixture that needs the import out of the lane or importing the smaller
-// owner it uses. The loop driver and the scorecard it measures with reach
-// neither the audio nor the cuda lane at all: cmd/recipe, which both lanes
-// build, imports neither, so a driver or scorecard edit runs no speech model
-// and no CUDA suite.
-func TestPlanAndLoopEditsReachLanesOnlyThroughProduction(t *testing.T) {
-	t.Parallel()
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	reaches, err := discover(repo, lanes...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	loopEdits := []string{"internal/loop/driver.go", "internal/scorecard/scorecard.go"}
-	loopFree := []string{"audio", "cuda"}
-	for _, name := range loopFree {
-		if !slices.ContainsFunc(lanes, func(candidate lane) bool { return candidate.name == name }) {
-			t.Fatalf("no lane is named %s; the loop-free check would hold nothing", name)
-		}
-	}
-	for _, candidate := range lanes {
-		t.Run(candidate.name, func(t *testing.T) {
-			t.Parallel()
-			production, err := gosource.HostBuildSelection(repo, append([]string{"-tags", candidate.tags, "-deps"}, candidate.packages...)...)
-			if err != nil {
-				t.Fatal(err)
-			}
-			unreachable := slices.Contains(loopFree, candidate.name)
-			for _, edit := range append([]string{"internal/plan/plan.go"}, loopEdits...) {
-				reached := reaches(candidate, []string{edit})
-				if reached && !production.Files[edit] {
-					t.Errorf("an edit to %s reaches lane %s only through a test import", edit, candidate.name)
-				}
-				if reached && unreachable && slices.Contains(loopEdits, edit) {
-					t.Errorf("an edit to %s reaches lane %s; the loop driver and scorecard must stay out of it", edit, candidate.name)
-				}
-			}
-		})
-	}
-}
+// The lane sets reach rows name, each written once. Every lane a set names
+// must be in the table, so a renamed or removed lane fails the table rather
+// than silently emptying the rows that name its set.
+var (
+	// servingLanes build or run what serves a model: the page, the
+	// served-model journeys, the speech acceptances and E4B over HTTP.
+	servingLanes = []string{"webui", "model-journey", "audio", "e4b"}
+	// browserOnlyLanes drive a browser and never the device. Every other
+	// lane is a device lane, so a lane added to the table counts as one
+	// until it is named here.
+	browserOnlyLanes = []string{"webui"}
+)
 
-// TestTrainingKernelEditReachesOnlyTrainingLanes selects lanes over the real
-// module the way the lanes stage does, for an edit to a trainer-only device
-// kernel and to its test. devicegrad's importers are trainers that no
-// serving package builds, so the edit runs the cuda lane, which builds the
-// trainers, and no other: not the device lane's kernel contracts, the
-// served-model lanes (webui, model-journey, e4b) or audio. The same kernel
-// in devicemath reached six lanes while the serving packages linked device
-// training; TestDevicemathEditReachesOnlyTrainingLanes holds what a
-// devicemath edit reaches now.
-func TestTrainingKernelEditReachesOnlyTrainingLanes(t *testing.T) {
-	t.Parallel()
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	const kernel = "internal/devicegrad/windowed_attention_backward_cuda_windows.go"
-	edits := []string{kernel, strings.TrimSuffix(kernel, ".go") + "_test.go"}
-	for _, edit := range edits {
-		if _, err := os.Stat(filepath.Join(repo, filepath.FromSlash(edit))); err != nil {
-			t.Fatalf("the trainer-only kernel is not where the lanes are asked about: %v", err)
-		}
-	}
-	reaches, err := discover(repo, lanes...)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, candidate := range lanes {
-		t.Run(candidate.name, func(t *testing.T) {
-			t.Parallel()
-			for _, edit := range edits {
-				if reached, want := reaches(candidate, []string{edit}), candidate.name == "cuda"; reached != want {
-					t.Errorf("an edit to %s reaches lane %s = %t, want %t", edit, candidate.name, reached, want)
-				}
-			}
-		})
-	}
-}
-
-// TestDevicemathEditReachesOnlyTrainingLanes selects lanes over the real
-// module the way the lanes stage does, for an edit to devicemath's CUDA
-// session. No serving path calls devicemath, and the packages the
-// served-model lanes build link only host training, so the edit runs two
-// lanes, each through a chain that trains or runs device kernels:
-//   - device: its kernel-contract scopes include devicemath itself;
-//   - cuda: it builds the trainers that import devicemath, densecausaltrain
-//     (cmd/train's dense-causal backend), scratchtrain (controllertrain),
-//     hybridtrain, and devicegrad (e4btrain).
+// TestReachInvariants pins the boundaries between a changed path and the
+// lanes it must never reach, one row per invariant, all selected by one
+// discovery over the real lane table the way the lanes stage selects them.
+// A row states what must never come back, a set of lanes the path stays out
+// of, never the lanes it reaches today, so a lane it may legitimately reach
+// later is no failure. A production row also holds every lane the path does
+// reach to compiling it into that lane's production closure in the lane's
+// build context, the code its tests build and run: a test import alone would
+// make every such edit pay for a lane that never runs it, and the cure is
+// moving the fixture that needs the import out of the lane or importing the
+// smaller owner it uses.
 //
-// While the device trainers lived in densecausal (reached through
-// trainingworkflow), scratchmodel (through modelbuilder) and diffusionimage
-// (through mediacapability), the same edit also ran webui, model-journey,
-// audio and e4b.
-func TestDevicemathEditReachesOnlyTrainingLanes(t *testing.T) {
+// To pin a new boundary, add a row, never a test function: a representative
+// path that exists, the named set it must not reach (add a set beside the
+// others when none fits), whether only production code may carry it into a
+// lane, and the reason in one line.
+func TestReachInvariants(t *testing.T) {
 	t.Parallel()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	const edit = "internal/devicemath/cuda_scope_windows.go"
-	if _, err := os.Stat(filepath.Join(repo, filepath.FromSlash(edit))); err != nil {
-		t.Fatalf("the devicemath file the lanes are asked about is not there: %v", err)
+	for _, name := range slices.Concat(servingLanes, browserOnlyLanes) {
+		if !slices.ContainsFunc(lanes, func(candidate lane) bool { return candidate.name == name }) {
+			t.Fatalf("no lane is named %s; the rows naming its set would hold nothing", name)
+		}
+	}
+	var deviceLanes []string
+	for _, candidate := range lanes {
+		if !slices.Contains(browserOnlyLanes, candidate.name) {
+			deviceLanes = append(deviceLanes, candidate.name)
+		}
+	}
+	rows := []struct {
+		path         string
+		mustNotReach []string
+		production   bool
+		reason       string
+	}{
+		{"internal/plan/plan.go", deviceLanes, true, "the plan is the loop's work list; editing it runs no model or kernel"},
+		{"internal/landing/landing.go", deviceLanes, true, "the gate chooses the lanes; no lane runs the gate"},
+		{"internal/loop/driver.go", deviceLanes, true, "the loop driver dispatches rows; no speech model or CUDA suite runs it"},
+		{"internal/scorecard/scorecard.go", deviceLanes, true, "the scorecard reads recorded evidence; it measures nothing on the device"},
+		{"internal/devicegrad/windowed_attention_backward_cuda_windows.go", servingLanes, false, "devicegrad holds kernels only trainers call, and no serving package links a trainer"},
+		{"internal/devicegrad/windowed_attention_backward_cuda_windows_test.go", servingLanes, false, "a trainer kernel's test compiles only into devicegrad's own test binary"},
+		{"internal/densecausaltrain/train_resident_cuda_windows.go", servingLanes, false, "the device dense-causal trainer is imported only by the commands that train"},
+		{"internal/scratchtrain/resident_cuda_windows.go", servingLanes, false, "the device scratch trainer is imported only by trainers, never by the model builder the server links"},
+		{"internal/e4btrain/model.go", servingLanes, false, "E4B training is a trainer; serving E4B never links it"},
+		{"internal/devicemath/cuda_scope_windows.go", servingLanes, false, "no serving path calls devicemath; the served-model lanes link only host training"},
 	}
 	reaches, err := discover(repo, lanes...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var reached []string
-	for _, candidate := range lanes {
-		if reaches(candidate, []string{edit}) {
-			reached = append(reached, candidate.name)
+	productions := map[string]gosource.BuildSelection{}
+	for _, row := range rows {
+		if _, err := os.Stat(filepath.Join(repo, filepath.FromSlash(row.path))); err != nil {
+			t.Errorf("row %s holds nothing; point it at a path that still carries the boundary: %v", row.path, err)
+			continue
 		}
-	}
-	if want := []string{"device", "cuda"}; !slices.Equal(reached, want) {
-		t.Errorf("an edit to %s reaches lanes %q, want %q", edit, reached, want)
+		for _, candidate := range lanes {
+			switch {
+			case !reaches(candidate, []string{row.path}):
+			case slices.Contains(row.mustNotReach, candidate.name):
+				t.Errorf("an edit to %s reaches lane %s: %s", row.path, candidate.name, row.reason)
+			case row.production:
+				production, listed := productions[candidate.name]
+				if !listed {
+					production, err = gosource.HostBuildSelection(repo, append([]string{"-tags", candidate.tags, "-deps"}, candidate.packages...)...)
+					if err != nil {
+						t.Fatal(err)
+					}
+					productions[candidate.name] = production
+				}
+				if !production.Files[row.path] {
+					t.Errorf("an edit to %s reaches lane %s only through a test import; move the fixture that needs it out of the lane or import the smaller owner it uses", row.path, candidate.name)
+				}
+			}
+		}
 	}
 }
 

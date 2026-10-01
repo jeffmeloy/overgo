@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -16,28 +15,16 @@ import (
 // to resolve and record artifacts by content identity, so an edit there
 // cannot change what a decode computes over -- yet those two packages moved
 // the surface alone on 21 of its 67 moves in 400 commits, each time
-// expiring every text model's evidence. The surface stops at them; the code
+// expiring every text model's evidence. The surface stops at them, as
+// TestSurfaceInvariants pins. Here an edit to them moves nothing; the code
 // the decode executes -- the CUDA executor, the model and tensor math --
-// must not reach them, so the stop cannot hide compute, and an edit to the
+// must not reach them, so the stop cannot hide compute; and an edit to the
 // executor still moves the surface.
 func TestStoreEditLeavesTheSurfaceUnchanged(t *testing.T) {
 	ctx := t.Context()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
-	}
-	packages, err := Packages(ctx, root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, pkg := range packages {
-		relative, err := filepath.Rel(root, pkg.Dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if slices.Contains(identityAddressed, filepath.ToSlash(relative)) {
-			t.Errorf("the surface descends into identity-addressed %s", relative)
-		}
 	}
 	moves, err := Moves(ctx, root, []string{"internal/overgodb/store.go", "internal/runrecord/run.go"})
 	if err != nil || len(moves) != 0 {

@@ -165,12 +165,6 @@ func PublishFailureNormalization(ctx context.Context, repository artifact.Reposi
 		[]artifact.AliasBinding{{Name: alias, Target: identified.ID}})
 }
 
-// ResolveFailureNormalization returns one observation's classification
-// under one classifier version, when that classifier has run.
-func ResolveFailureNormalization(ctx context.Context, reader artifact.Reader, observation artifact.ID, classifierVersion uint16) (FailureNormalization, bool, error) {
-	return failureNormalizationCodec.Resolve(ctx, reader, failureNormalizationAlias(observation, classifierVersion))
-}
-
 func failureNormalizationAlias(observation artifact.ID, classifierVersion uint16) string {
 	return indexedAlias(failureNormalizationAliasRoot, observation, uint64(classifierVersion))
 }

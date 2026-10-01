@@ -40,8 +40,8 @@ const (
 // contract. A candidate regresses a metric only beyond the baseline plus that
 // envelope, and improves it strictly only beyond the baseline minus it. With
 // no repeats the envelope is zero and any increase is a regression. The
-// envelope is the small-sample mode of the live safety window: a min-max
-// band from n identical runs contains a further identical run with
+// envelope is a small-sample order-statistic band: a min-max band from n
+// identical runs contains a further identical run with
 // probability (n-1)/(n+1), so the number of repeats, not a constant, sets
 // how often an unchanged workload is refused.
 type ResourceFitnessLane struct {

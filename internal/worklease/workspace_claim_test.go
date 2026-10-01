@@ -1,8 +1,6 @@
 package worklease
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -49,26 +47,26 @@ func workspaceClaimOrder(claims WorkspaceClaims) []WorkspaceClaim {
 }
 
 func TestWorkspaceClaims(t *testing.T) {
-	root := t.TempDir()
-	internal := filepath.Join(root, "internal")
-	if err := os.Mkdir(internal, 0o755); err != nil {
-		t.Fatal(err)
+	worktree := "C:/repo/claims"
+	claims := func(read, write []string) WorkspaceClaims {
+		value := WorkspaceClaims{Read: read, Write: write}
+		canonicalizeClaims(&value)
+		return value
 	}
-	worktree, firstClaims := ResolveWorkspaceClaims(root, []string{"docs"}, []string{"internal"})
-	_, secondClaims := ResolveWorkspaceClaims(root, nil, []string{"internal/agentloop"})
+	firstClaims := claims([]string{worktree + "/docs"}, []string{worktree + "/internal"})
 	first := leaseFixture(t, "first", worktree)
 	first.Claims = firstClaims
 	second := leaseFixture(t, "second", worktree)
-	second.Claims = secondClaims
+	second.Claims = claims(nil, []string{worktree + "/internal/agentloop"})
 	if !WorkspaceClaimsConflict(first, second) {
 		t.Fatal("nested write claims did not conflict")
 	}
-	_, readClaims := ResolveWorkspaceClaims(root, []string{"internal"}, nil)
+	readClaims := claims([]string{worktree + "/internal"}, nil)
 	first.Claims, second.Claims = readClaims, readClaims
 	if WorkspaceClaimsConflict(first, second) {
 		t.Fatal("read-only claims conflicted")
 	}
-	_, opaque := ResolveWorkspaceClaims(filepath.Join(root, "missing"), nil, nil)
+	opaque := claims(nil, nil)
 	if !opaque.WholeWorktree || workspaceClaimOrder(opaque)[0].Path != "*" {
 		t.Fatalf("opaque claims = %+v", opaque)
 	}

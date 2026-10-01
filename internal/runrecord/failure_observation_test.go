@@ -75,7 +75,7 @@ func TestFailureNormalizationCorpus(t *testing.T) {
 		for version, want := range map[uint16]FailureNormalization{
 			derived.ClassifierVersion: published, newer.ClassifierVersion: reclassified,
 		} {
-			resolved, found, err := ResolveFailureNormalization(ctx, store, observation.ID, version)
+			resolved, found, err := failureNormalizationCodec.Resolve(ctx, store, failureNormalizationAlias(observation.ID, version))
 			if err != nil || !found || resolved.ID != want.ID || resolved.Cause != want.Cause {
 				t.Fatalf("%s: classifier v%d resolution = %+v found=%v err=%v", sample.name, version, resolved, found, err)
 			}

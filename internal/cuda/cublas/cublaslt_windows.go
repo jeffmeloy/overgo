@@ -80,13 +80,15 @@ func (l *Library) DestroyLt(handle LtHandle) error {
 
 // PlanFP8 builds the descriptors of an m x n x k FP8 product (see
 // FP8Plan) and takes cuBLASLt's first heuristic algorithm needing at
-// most workspaceLimit bytes of workspace.
-func (l *Library) PlanFP8(handle LtHandle, m, n, k, workspaceLimit uint64) (plan *FP8Plan, err error) {
-	plan = &FP8Plan{}
+// most workspaceLimit bytes of workspace. plan owns every descriptor
+// created until the product is built: an error return overwrites the
+// result, never plan, so a failed construction destroys each one.
+func (l *Library) PlanFP8(handle LtHandle, m, n, k, workspaceLimit uint64) (built *FP8Plan, err error) {
+	plan := &FP8Plan{}
 	defer func() {
 		if err != nil {
 			err = errors.Join(err, l.DestroyFP8Plan(plan))
-			plan = nil
+			built = nil
 		}
 	}()
 	status, _, _ := l.lt.descCreate.Call(uintptr(unsafe.Pointer(&plan.desc)), uintptr(ComputeF32), uintptr(DataF32))

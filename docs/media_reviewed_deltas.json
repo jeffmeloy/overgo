@@ -1035,6 +1035,24 @@
         ]
       },
       "scope": "Device training code leaves the packages serving links: the dense and scratch resident trainers move to densecausaltrain and scratchtrain, and the device forward, loss and VJP paths only tests reached are deleted, with the devicemath kernels only they used. The receipt runs, on the device, the moved dense trainer against the host (with the Qwen2 bias, frozen lexical and exact resume cases), the moved scratch trainer's trajectory, state and checkpoint parity, the descendant-quality promotion, and the devicemath resident glue, ops session and arena."
+    },
+    {
+      "changes": {
+        "internal/cuda/cublas/cublaslt_windows.go": {
+          "after_sha256": "f13962b28c762eac29da476df6343c27d7a14a742e8edb24b196e768791dcb3d",
+          "before_sha256": "ca013964f032526c7736d5f7eb3f94f7046a7b4a5b09d3acf90bceb3f9e5fec2",
+          "reason": "FP8 plan construction keeps its descriptors in a local plan for the deferred cleanup and names the result built, so a failed construction destroys the descriptors it allocated instead of nil (SQA-055); a successful plan is built and returned unchanged."
+        }
+      },
+      "evidence": "evidence:sha256:33674568e3f79fc1587b9fbc6469a1b8480b3689a1bf415e5607267f9f281822",
+      "id": "fp8-plan-cleanup",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/cuda/cublas": [
+          "TestMatmulFP8Integration"
+        ]
+      },
+      "scope": "FP8 plan construction cleans up the descriptors a failed construction allocated (SQA-055). The receipt runs the device FP8 matmul through cuBLASLt, whose successful plan construction is unchanged."
     }
   ],
   "paths": [

@@ -84,13 +84,6 @@
       },
       "steps": [
         {
-          "id": "stop-reconciliation",
-          "title": "Reconcile store-backed operator stops left at the stop-file cutover",
-          "status": "open",
-          "verify": "go test ./cmd/plan -run '^TestNoStoreStopIsOutstanding$' -count=1",
-          "rationale": "SQA-043 (P1): the stop-file cutover reads only the file, so a stop recorded in the store before it would stop blocking dispatch. First establish whether any store-backed stop was outstanding at cutover. If none was, close this with that measurement. If one was, convert it once through the plan owner, keeping its worktree, owner, scope and explicit resume, then retire the conversion code. Batch: cmd/plan reaches no lane."
-        },
-        {
           "id": "gate-rules",
           "title": "Fix the gate rules that misread code, and let the loop see a landed merge",
           "status": "open",

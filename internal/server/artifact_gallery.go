@@ -97,6 +97,9 @@ func (h *Handler) artifactContent(response http.ResponseWriter, request *http.Re
 		return
 	}
 	descriptor, reader, found, err := store.OpenContent(request.Context(), id)
+	if closer, ok := reader.(io.Closer); ok {
+		defer closer.Close()
+	}
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return

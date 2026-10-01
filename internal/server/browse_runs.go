@@ -133,6 +133,9 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 
 func loadRunDetail(ctx context.Context, store *overgodb.Store, id artifact.ID) (browseRunDetail, bool, error) {
 	descriptor, reader, found, err := store.OpenContent(ctx, id)
+	if closer, ok := reader.(io.Closer); ok {
+		defer closer.Close()
+	}
 	if err != nil || !found {
 		return browseRunDetail{}, found, err
 	}

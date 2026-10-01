@@ -27,7 +27,7 @@ func init() { trainRoutes["e4b"] = trainE4B }
 // hyperparameters the session's optimizer policy derives from the
 // parameter count; the windowed attention VJP and the Muon step run on the
 // device.
-func trainE4B(flags *flag.FlagSet, args []string) (err error) {
+func trainE4B(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	modelPath := flags.String("model", "", "GGUF artifact path")
 	datasetPath := flags.String("dataset", "", "UTF-8 teacher-forced text dataset")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
@@ -42,11 +42,6 @@ func trainE4B(flags *flag.FlagSet, args []string) (err error) {
 	if *modelPath == "" || *datasetPath == "" || *out == "" || *steps <= 0 || *seq < 0 {
 		return fmt.Errorf("%s: model, dataset, out, positive steps, and nonnegative sequence override required", name)
 	}
-	window, err := datasetWindow(*modelPath, *datasetPath, *seq)
-	if err != nil {
-		return fmt.Errorf("%s: %w", name, err)
-	}
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
@@ -55,6 +50,13 @@ func trainE4B(flags *flag.FlagSet, args []string) (err error) {
 	session, err := openSession(ctx, store, *modelPath, *datasetPath)
 	if err != nil {
 		return err
+	}
+	defer session.settle(ctx, &err)
+	// The window comes from the bytes the session's recipe grounds, which
+	// its checkpoint records its position in.
+	window, err := datasetWindow(*modelPath, session.data, *seq)
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, err)
 	}
 	loadStarted := time.Now()
 	model, err := e4btrain.LoadArtifact(ctx, *modelPath, window)
@@ -94,8 +96,8 @@ func trainE4B(flags *flag.FlagSet, args []string) (err error) {
 
 // datasetWindow is the dataset's leading token window under the artifact's
 // own tokenizer: every token, or the first seq when seq is set.
-func datasetWindow(modelPath, datasetPath string, seq int) ([]uint32, error) {
-	_, ids, err := datasetTokens(modelPath, datasetPath)
+func datasetWindow(modelPath string, text []byte, seq int) ([]uint32, error) {
+	ids, err := datasetTokens(modelPath, text)
 	if err != nil {
 		return nil, err
 	}

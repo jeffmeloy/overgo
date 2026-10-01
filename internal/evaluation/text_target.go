@@ -229,6 +229,12 @@ func (report textTargetReport) heldout() HeldoutReport {
 	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
 }
 
+// rescore scores the observations report retains under plan.
+func (plan textTargetPlan) rescore(report textTargetReport) (HeldoutReport, error) {
+	rescored, err := scoreTextTargets(plan, report.Observations)
+	return rescored.heldout(), err
+}
+
 func scoreTextObservation(scorer textScorerSpec, target textTargetCase, observation textTargetObservation) (float64, error) {
 	switch scorer.Kind {
 	case textContinuationLikelihood:

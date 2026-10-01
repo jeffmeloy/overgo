@@ -37,6 +37,7 @@ type ProbeSpec struct {
 // TrainingSessionPlan seals execution policy for one training run.
 type TrainingSessionPlan struct {
 	id               artifact.ID
+	objective        ObjectiveKind
 	updates          int
 	maximumSequence  int
 	objectiveScale   float64
@@ -84,7 +85,7 @@ func CompileTrainingSessionPlan(spec SessionSpec) (TrainingSessionPlan, error) {
 		return TrainingSessionPlan{}, err
 	}
 	return TrainingSessionPlan{
-		id: id, updates: updates, maximumSequence: spec.MaximumSequence,
+		id: id, objective: spec.Objective, updates: updates, maximumSequence: spec.MaximumSequence,
 		objectiveScale: spec.ObjectiveScale, maxProjectedWall: spec.MaxProjectedWall,
 		optimizer: spec.Optimizer,
 	}, nil
@@ -144,6 +145,9 @@ func (plan TrainingSessionPlan) Updates() int { return plan.updates }
 
 // MaximumSequence returns admitted sequence extent.
 func (plan TrainingSessionPlan) MaximumSequence() int { return plan.maximumSequence }
+
+// Objective returns the loss kind the run steps.
+func (plan TrainingSessionPlan) Objective() ObjectiveKind { return plan.objective }
 
 // ObjectiveScale returns compiled objective scaling.
 func (plan TrainingSessionPlan) ObjectiveScale() float64 { return plan.objectiveScale }

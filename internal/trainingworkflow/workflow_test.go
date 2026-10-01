@@ -44,7 +44,7 @@ func TestTrainingWorkflowRequiresStoredAuthority(t *testing.T) {
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "output"), Steps: 1,
 	})
-	if err == nil || !strings.Contains(err.Error(), "no active training recipe") {
+	if err == nil || !strings.Contains(err.Error(), "not a published training recipe") {
 		t.Fatalf("absent authority error = %v", err)
 	}
 }

@@ -91,19 +91,19 @@ func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric
 	if task != tables[0].Task {
 		t.Fatalf("metric %q trains the %q head, want %q", metric, task, tables[0].Task)
 	}
-	requests, examples, stream, err := objectiveRequests(ctx, store, objective, task)
-	if err != nil || !stream.Valid() {
-		t.Fatalf("objective requests = (training stream %s, %v), want the training membership's stream", stream, err)
+	requests, data, err := objectiveRequests(ctx, store, objective, task)
+	if err != nil || !data.Training.Valid() || !data.Heldout.Valid() {
+		t.Fatalf("objective requests = (streams %s and %s, %v), want both memberships' streams", data.Training, data.Heldout, err)
 	}
-	if len(requests) != len(tables) || len(examples) != len(tables) {
-		t.Fatalf("read %d requests and %d examples, want all %d tables", len(requests), len(examples), len(tables))
+	if len(requests) != len(tables) || len(data.Examples) != len(tables) {
+		t.Fatalf("read %d requests and %d examples, want all %d tables", len(requests), len(data.Examples), len(tables))
 	}
 	learned := false
 	result, err := trainingworkflow.RunHeldout(ctx, store, trainingworkflow.HeldoutRun{
-		Alias: tableObjectiveAlias, ModelPath: modelPath, Examples: examples, Host: true,
-		Train: func(ctx context.Context, recipeID artifact.ID, _ []trainingworkflow.HeldoutExample) error {
+		Alias: tableObjectiveAlias, ModelPath: modelPath, Data: data, Host: true,
+		Train: func(ctx context.Context, recipeID artifact.ID, _ []trainingworkflow.HeldoutExample) (trainingprogram.Checkpoint, error) {
 			learned = true
-			return publishUnderObjective(t, ctx, store, recipeID, trainingprogram.ObjectiveTablePrediction, stream)
+			return publishUnderObjective(t, ctx, store, recipeID, trainingprogram.ObjectiveTablePrediction, data.Training)
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
 			request := requests[example.Record]
@@ -129,11 +129,11 @@ func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric
 	if err != nil || !found {
 		t.Fatalf("verdict %s content = (found %t, %v)", result.Verdict, found, err)
 	}
-	data, err := io.ReadAll(content)
+	document, err := io.ReadAll(content)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := json.Unmarshal(data, &verdict); err != nil || verdict.Metric != metric || verdict.BaselineValue != base || verdict.CandidateValue != trained {
+	if err := json.Unmarshal(document, &verdict); err != nil || verdict.Metric != metric || verdict.BaselineValue != base || verdict.CandidateValue != trained {
 		t.Fatalf("verdict = %+v (%v), want %s from %g to %g", verdict, err, metric, base, trained)
 	}
 	if _, err := trainingworkflow.PromoteObjectiveAdaptive(ctx, store, tableObjectiveAlias, []artifact.ID{result.Observation}); err != nil {

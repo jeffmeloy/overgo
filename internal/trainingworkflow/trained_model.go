@@ -3,8 +3,10 @@ package trainingworkflow
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -80,29 +82,55 @@ func (t storedTensor) ReadAt(data []byte, offset int64) (int, error) {
 	return len(data), nil
 }
 
-// PublishTrainedModel registers the trained model a checkpoint published
-// at directory as an inactive inference candidate, the model the server,
-// validate and the scorecard open, and records its lineage: the base model
-// it trained from, the dataset, program and run plan the checkpoint names,
-// and the checkpoint itself.
-func PublishTrainedModel(ctx context.Context, store artifact.Repository, directory string, checkpoint trainingprogram.Checkpoint) (modelintake.Candidate, error) {
+// RecordCheckpoint records the checkpoint a run published at directory as
+// the run's training evidence: its document, resume sidecar, weights and
+// locations, beside each parent its lineage names that the store does not
+// hold yet. A checkpoint holding a trained model, as a GGUF base's run
+// publishes, also registers that model as an inactive inference candidate,
+// the model the server, validate and the scorecard open, which returns; a
+// checkpoint of trained tensors returns no candidate.
+func RecordCheckpoint(ctx context.Context, store artifact.Repository, directory string, checkpoint trainingprogram.Checkpoint) (modelintake.Candidate, error) {
+	directory, err := filepath.Abs(directory)
+	if err != nil {
+		return modelintake.Candidate{}, err
+	}
+	batch, err := checkpoint.Batch("training/evidence/checkpoint/"+checkpoint.ID().String()+"/"+directory, directory)
+	if err != nil {
+		return modelintake.Candidate{}, err
+	}
+	for _, edge := range batch.Lineage {
+		if slices.ContainsFunc(batch.Artifacts, func(declared artifact.Descriptor) bool { return declared.ID == edge.Parent }) ||
+			slices.ContainsFunc(batch.Contents, func(content artifact.Content) bool { return content.Descriptor.ID == edge.Parent }) {
+			continue
+		}
+		if _, held, err := store.Artifact(ctx, edge.Parent); err != nil {
+			return modelintake.Candidate{}, err
+		} else if !held {
+			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: edge.Parent})
+		}
+	}
+	if err := PublishTrainingEvidence(ctx, store, TrainingEvidencePublication{Batch: batch}); err != nil {
+		return modelintake.Candidate{}, err
+	}
+	if _, err := os.Stat(filepath.Join(directory, trainingprogram.CheckpointModel)); errors.Is(err, os.ErrNotExist) {
+		return modelintake.Candidate{}, nil
+	}
+	return publishTrainedModel(ctx, store, directory, checkpoint)
+}
+
+// publishTrainedModel registers the trained model a recorded checkpoint
+// holds at directory as an inactive inference candidate and records its
+// lineage: the base model it trained from, the dataset, program and run
+// plan the checkpoint names, and the checkpoint itself.
+func publishTrainedModel(ctx context.Context, store artifact.Repository, directory string, checkpoint trainingprogram.Checkpoint) (modelintake.Candidate, error) {
 	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, filepath.Join(directory, trainingprogram.CheckpointModel), modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
-	if err != nil {
-		return modelintake.Candidate{}, err
-	}
-	document, err := checkpoint.Content()
-	if err != nil {
-		return modelintake.Candidate{}, err
-	}
-	directory, err = filepath.Abs(directory)
 	if err != nil {
 		return modelintake.Candidate{}, err
 	}
 	model := candidate.Inventory.Manifest.ID
 	batch := artifact.Batch{
-		Key:      "training/model/" + checkpoint.ID().String() + "/" + directory,
-		Contents: []artifact.Content{document},
-		Lineage:  []artifact.Lineage{{Child: model, Parent: checkpoint.ID(), Relation: artifact.RelationProducedBy}},
+		Key:     "training/model/" + checkpoint.ID().String() + "/" + directory,
+		Lineage: []artifact.Lineage{{Child: model, Parent: checkpoint.ID(), Relation: artifact.RelationProducedBy}},
 	}
 	// A run that trained bytes the store registered from another run's
 	// directory adds where this run's copy is.
@@ -118,7 +146,6 @@ func PublishTrainedModel(ctx context.Context, store artifact.Repository, directo
 		return modelintake.Candidate{}, err
 	}
 	for _, parent := range checkpoint.Lineage {
-		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: parent.Artifact})
 		batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: model, Parent: parent.Artifact, Relation: parent.Relation})
 	}
 	_, err = artifact.Publish(ctx, store, batch)

@@ -26,11 +26,13 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) > 1 && os.Args[1] == routeFlag {
-		return runRoute(os.Args[2:])
-	}
+	// An interrupt ends every run cooperatively: a route's, the dense
+	// workflow's and an objective run's training stops between updates.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	if len(os.Args) > 1 && os.Args[1] == routeFlag {
+		return runRoute(ctx, os.Args[2:])
+	}
 	model := flag.String("model", "", "model directory (safetensors + config.json + tokenizer.json)")
 	dataset := flag.String("dataset", "", "UTF-8 training dataset")
 	output := flag.String("out", "", "output directory for the trained checkpoint")
@@ -46,10 +48,10 @@ func run() error {
 	maxWall := clioptions.DurationOverride(flag.CommandLine, "max-wall", "optional projected-wall bound")
 	storePath := flag.String("store", "overgodb-store", "OvergoDB containing the active training recipe and policies")
 	recipeID := flag.String("recipe", "", "active training recipe artifact ID")
-	bootstrapRecipe := flag.String("bootstrap-recipe", "", "publish, verify, and activate a token-training recipe for the model weights file at this path, then exit")
+	bootstrapRecipe := flag.String("bootstrap-recipe", "", "publish a token-training recipe for the model weights file at this path as a candidate, then exit; the first run under it that succeeds verifies and activates it")
 	previewDataset := flag.String("preview-dataset", "", "validate one speech training example from a source/split/policy JSON manifest without loading a model or updating parameters")
 	audioManifest := flag.String("audio-manifest", "", "CPU CTC adapter source-processing manifest; the active training recipe owns the registered dataset and split")
-	objective := flag.String("objective", "", "registered text objective alias: train on its training split and publish the held-out verdict (table and forecast objectives train through -route tabular and -route seriesforecast)")
+	objective := flag.String("objective", "", "registered text objective alias: train on its training split, publish the trained model at -out and the held-out verdict that binds it (table and forecast objectives train through -route tabular and -route seriesforecast)")
 	flag.Parse()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
@@ -60,7 +62,7 @@ func run() error {
 		set := map[string]bool{}
 		flag.Visit(func(given *flag.Flag) { set[given.Name] = true })
 		return runObjectiveMode(ctx, store, objectiveRun{
-			Alias: *objective, Model: *model, Steps: *steps, Sequence: *maximumSequence, Host: *host, MaxWall: *maxWall,
+			Alias: *objective, Model: *model, Out: *output, Steps: *steps, Sequence: *maximumSequence, Host: *host, MaxWall: *maxWall,
 		}, set, os.Stdout)
 	}
 	if *previewDataset != "" {

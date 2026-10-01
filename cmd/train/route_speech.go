@@ -11,6 +11,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipecontract"
 	"overgo/internal/speechsynth"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -34,7 +35,7 @@ type speechTrace struct {
 // teacher-forced, to reproduce the codec latents a recorded synthesis trace
 // holds for its text under its noise seed, refuses a run whose loss on that
 // trace does not descend, and publishes the trained model as a checkpoint.
-func trainSpeech(flags *flag.FlagSet, args []string) error {
+func trainSpeech(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	model := flags.String("model", "", "speech synthesis model directory (config + safetensors + tokenizer.model)")
 	tracePath := flags.String("trace", "", "recorded synthesis trace JSON (text, seed, quantizer_calls[].in.values); it grounds the recipe dataset")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
@@ -61,16 +62,19 @@ func trainSpeech(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	session, err := openSession(ctx, store, weights, *tracePath)
+	// The trainer steps latent-sequence regression from the trace's text to
+	// its codec latents, the audio the model synthesizes.
+	session, err := openSessionAs(ctx, store, weights, *tracePath,
+		generationContract(trainingprogram.ObjectiveLatentSequence, recipecontract.ModalityText, recipecontract.ModalityAudio, trainingprogram.MetricAudioSNR))
 	if err != nil {
 		return err
 	}
+	defer session.settle(ctx, &err)
 	loaded, err := speechsynth.Load(directory)
 	if err != nil {
 		return err
@@ -118,6 +122,8 @@ func trainSpeech(flags *flag.FlagSet, args []string) error {
 			return loaded.LossAndGrads(example.TextIDs, example.Latents, example.Frames, example.Seed, nil)
 		},
 		// Every update trains on the one trace.
-		publish: func(ctx context.Context) error { return session.publishPlanned(ctx, *out, trainer, plan.Updates()) },
+		publish: func(ctx context.Context) error {
+			return session.publishPlanned(ctx, *out, trainer, plan.Updates())
+		},
 	}.train(ctx)
 }

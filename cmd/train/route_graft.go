@@ -51,11 +51,11 @@ var graftSeeds = []int64{graftSeedFirst, graftSeedSecond, graftSeedThird}
 // or runs the whole-model chain probe (-chain), commits a promotion-blocked
 // bridge proposal (-propose), or runs the bridge synthesis for a committed
 // proposal, publishing its bridges the same way (-synthesize).
-func trainGraft(flags *flag.FlagSet, args []string) error {
-	return graftViability(flags, args, os.Stdout)
+func trainGraft(ctx context.Context, flags *flag.FlagSet, args []string) error {
+	return graftViability(ctx, flags, args, os.Stdout)
 }
 
-func graftViability(flags *flag.FlagSet, args []string, output io.Writer) error {
+func graftViability(ctx context.Context, flags *flag.FlagSet, args []string, output io.Writer) error {
 	flags.SetOutput(io.Discard)
 	targetDir := flags.String("target", "", "target model directory (safetensors)")
 	donorDir := flags.String("donor", "", "donor model directory (safetensors)")
@@ -95,7 +95,7 @@ func graftViability(flags *flag.FlagSet, args []string, output io.Writer) error 
 		if flags.NArg() != 0 || *targetDir == "" || *donorDir == "" || *tokensPath == "" || *recordStore == "" || *out == "" || *deciderIdentity == "" {
 			return errors.New("usage: train -route graft -synthesize <proposal-id> -decider <evidence-id> -target <dir> -donor <dir> -tokens <ids.json> -record <overgodb> -out <dir>")
 		}
-		return runSynthesize(*synthesize, *deciderIdentity, *targetDir, *donorDir, *tokensPath, *recordStore, *out, *steps, *window, *lrScale, *momentum, output)
+		return runSynthesize(ctx, *synthesize, *deciderIdentity, *targetDir, *donorDir, *tokensPath, *recordStore, *out, *steps, *window, *lrScale, *momentum, output)
 	}
 	if *chain {
 		if flags.NArg() != 0 || *scorerDir == "" || *drafterDir == "" || *tokensPath == "" || *recordStore == "" {
@@ -121,7 +121,6 @@ func graftViability(flags *flag.FlagSet, args []string, output io.Writer) error 
 		Train:   [][]int{tokens[:*window], tokens[*window : graftTrainWindows*(*window)]},
 		HeldOut: tokens[graftTrainWindows*(*window) : graftWindows*(*window)],
 	}
-	ctx := context.Background()
 	store, err := overgodb.Open(*recordStore)
 	if err != nil {
 		return err
@@ -169,7 +168,7 @@ func bridgeSession(ctx context.Context, store *overgodb.Store, targetDir, tokens
 	if err != nil {
 		return routeSession{}, err
 	}
-	return tokenSession(ctx, store, weights, tokensPath)
+	return recipeSession(ctx, store, weights, tokensPath, trainingworkflow.TokenContract)
 }
 
 // publishBridges publishes each seed's trained bridge as a checkpoint in its
@@ -255,6 +254,7 @@ func runPropose(retrievalPath, targetModel, verifier, blocker, recordStore strin
 // blocked proposal, emitting a durable typed decision either way and
 // publishing each seed's trained bridge under out.
 func runSynthesize(
+	ctx context.Context,
 	proposalText, deciderText, targetDir, donorDir, tokensPath, recordStore, out string,
 	steps, window int, lrScale, momentum float64,
 	output io.Writer,
@@ -279,7 +279,6 @@ func runSynthesize(
 		return err
 	}
 	defer func() { _ = store.Close() }()
-	ctx := context.Background()
 	content, ok, err := artifact.ReadContent(ctx, store, proposalID)
 	if err != nil {
 		return err

@@ -4,22 +4,26 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/optimizer"
 	"overgo/internal/oscillatorimage"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipecontract"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
 
-// trainOscillatorImage is the oscillatorimage route: under a supervised
-// session it measures the real checkpoint's loss on the evaluation seed,
-// then trains a scratch bootstrap of the same configuration, refuses a run
-// that does not descend, and publishes the trained bootstrap as a
-// checkpoint.
-func trainOscillatorImage(flags *flag.FlagSet, args []string) error {
+// trainOscillatorImage is the oscillatorimage route: it measures the real
+// checkpoint's loss on the evaluation seed, then, under a supervised session
+// whose recipe is the scratch bootstrap's, trains that bootstrap of the real
+// checkpoint's configuration by latent L2 toward class images, refuses a
+// run that does not descend, and publishes the trained bootstrap as a
+// checkpoint whose initial state is the scratch construction.
+func trainOscillatorImage(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	model := flags.String("model", "", "oscillator image model directory (config.json + safetensors)")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
 	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
@@ -36,20 +40,7 @@ func trainOscillatorImage(flags *flag.FlagSet, args []string) error {
 		return err
 	}
 	directory := roots.ResolveModelPath(*model)
-	weights, err := trainingworkflow.IdentifyModelWeights(directory)
-	if err != nil {
-		return err
-	}
-	ctx := context.Background()
-	store, err := overgodb.Open(*storePath)
-	if err != nil {
-		return err
-	}
-	defer store.Close()
-	// The session's recipe is the real checkpoint's, whose configuration the
-	// bootstrap takes; the shared run publishes no scratch initial state, so
-	// the checkpoint names the real checkpoint as the model it trained from.
-	session, err := openSession(ctx, store, weights, *stimulus)
+	declaration, err := os.ReadFile(*stimulus)
 	if err != nil {
 		return err
 	}
@@ -70,6 +61,24 @@ func trainOscillatorImage(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
+	construction, processor, err := bootstrapConstruction(real.Cfg, real.TrainableParameterCount(), seed, declaration)
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.Open(*storePath)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	// The trainer regresses each class's decoded image toward its target:
+	// latent L2 from the class label to an image.
+	session, err := scratchSession(ctx, store, construction, processor,
+		generationContract(trainingprogram.ObjectiveLatentL2, recipecontract.ModalityText, recipecontract.ModalityImage, trainingprogram.MetricImagePSNRUnit))
+	if err != nil {
+		return err
+	}
+	defer session.settle(ctx, &err)
+	session.data = declaration
 	realTrainer, err := oscillatorimage.NewTrainer(real, config, evalSeed)
 	if err != nil {
 		return err
@@ -93,6 +102,66 @@ func trainOscillatorImage(flags *flag.FlagSet, args []string) error {
 		loss: func() (float64, error) { return trainer.Loss(evalSeed), nil },
 		// Every update draws one fresh record of the declared procedural
 		// dataset.
-		publish: func(ctx context.Context) error { return session.publishPlanned(ctx, *out, trainer, plan.Updates()) },
+		publish: func(ctx context.Context) error {
+			return session.publishPlanned(ctx, *out, trainer, plan.Updates())
+		},
 	}.train(ctx)
+}
+
+// bootstrapConstruction is the scratch construction an oscillator image
+// bootstrap starts from: config's topology, its parameters, the normal draw
+// seed initializes them with, and the procedural dataset the declaration
+// grounds, which seed also samples. It returns the processor that reads the
+// declaration.
+func bootstrapConstruction(config oscillatorimage.Config, parameters int, seed int64, declaration []byte) (trainingprogram.ScratchConstruction, artifact.ID, error) {
+	dataset, split, processor, err := trainingworkflow.TextAuthority(declaration)
+	if err != nil {
+		return trainingprogram.ScratchConstruction{}, artifact.ID{}, err
+	}
+	identify := func(kind artifact.Kind, value any) artifact.ID {
+		if err == nil {
+			var id artifact.ID
+			id, err = artifact.JSONID(kind, value)
+			return id
+		}
+		return artifact.ID{}
+	}
+	topology := identify(artifact.KindProfile, struct {
+		Version string                 `json:"version"`
+		Config  oscillatorimage.Config `json:"config"`
+	}{"oscillatorimage-topology-v1", config})
+	manifest := identify(artifact.KindTensorInventory, struct {
+		Version    string      `json:"version"`
+		Topology   artifact.ID `json:"topology"`
+		Parameters int         `json:"parameters"`
+	}{"oscillatorimage-parameters-v1", topology, parameters})
+	initializer := identify(artifact.KindProfile, struct {
+		Version string `json:"version"`
+		Seed    int64  `json:"seed"`
+	}{"oscillatorimage-bootstrap-normal-v1", seed})
+	initialized := identify(artifact.KindModel, struct {
+		Topology    artifact.ID `json:"topology"`
+		Manifest    artifact.ID `json:"manifest"`
+		Initializer artifact.ID `json:"initializer"`
+	}{topology, manifest, initializer})
+	recipeID := identify(artifact.KindRecipe, struct {
+		Dataset artifact.ID `json:"dataset"`
+		Split   artifact.ID `json:"split"`
+		Model   artifact.ID `json:"model"`
+	}{dataset, split, initialized})
+	derivation := identify(artifact.KindProfile, "oscillatorimage-bootstrap-of-configuration-v1")
+	rng := identify(artifact.KindProfile, "go-math-rand-v1")
+	if err != nil {
+		return trainingprogram.ScratchConstruction{}, artifact.ID{}, err
+	}
+	stream := uint64(seed)
+	construction, err := trainingprogram.CompileScratchConstruction(trainingprogram.ScratchSpec{
+		Recipe: recipeID, Dataset: dataset, Split: split, DerivationProfile: derivation, TopologyProfile: topology,
+		ParameterManifest: manifest, InitializerProfile: initializer, InitializedModel: initialized,
+		RNGStreams: []trainingprogram.RNGStreamSpec{
+			{Name: "augmentation", Algorithm: rng, Seed: stream}, {Name: "data", Algorithm: rng, Seed: stream},
+			{Name: "init", Algorithm: rng, Seed: stream}, {Name: "split", Algorithm: rng, Seed: stream},
+		},
+	})
+	return construction, processor, err
 }

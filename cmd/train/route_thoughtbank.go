@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"overgo/internal/clioptions"
@@ -26,7 +25,7 @@ const thoughtbankCheckpoint = "model.pt"
 // embedding to the next token's through a memory slot holding the leading
 // width of the embedding of the token after them, refuses a run whose loss
 // does not descend, and publishes the trained bank as a checkpoint.
-func trainThoughtBank(flags *flag.FlagSet, args []string) error {
+func trainThoughtBank(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	model := flags.String("model", "", "thoughtbank model directory (model.pt + tokenizer.json)")
 	datasetPath := flags.String("dataset", "", "UTF-8 training dataset")
 	layer := flags.Int("layer", 0, "the block whose bank trains")
@@ -48,7 +47,6 @@ func trainThoughtBank(flags *flag.FlagSet, args []string) error {
 	}
 	directory := roots.ResolveModelPath(*model)
 	checkpointPath := filepath.Join(directory, thoughtbankCheckpoint)
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
@@ -58,6 +56,7 @@ func trainThoughtBank(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer session.settle(ctx, &err)
 	weights, _, err := thoughtbank.LoadCheckpoint(checkpointPath)
 	if err != nil {
 		return err
@@ -69,11 +68,7 @@ func trainThoughtBank(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(*datasetPath)
-	if err != nil {
-		return err
-	}
-	tokens, err := tokenizer.Encode(string(raw))
+	tokens, err := tokenizer.Encode(string(session.data))
 	if err != nil {
 		return err
 	}
@@ -124,6 +119,8 @@ func trainThoughtBank(flags *flag.FlagSet, args []string) error {
 		loss: func() (float64, error) { return trainer.Loss(example) },
 		// Every update trains on the one example the dataset's leading
 		// tokens make.
-		publish: func(ctx context.Context) error { return session.publishPlanned(ctx, *out, trainer, plan.Updates()) },
+		publish: func(ctx context.Context) error {
+			return session.publishPlanned(ctx, *out, trainer, plan.Updates())
+		},
 	}.train(ctx)
 }

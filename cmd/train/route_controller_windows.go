@@ -14,6 +14,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/trainingdata"
+	"overgo/internal/trainingworkflow"
 )
 
 // The controller route trains through the resident scratch trainer on the
@@ -27,7 +28,7 @@ func init() { trainRoutes["controller"] = trainController }
 // the corpus's held-out records before and after, refuses a run whose
 // held-out loss does not descend, and publishes the trained model as a
 // checkpoint whose initial state is the scratch construction.
-func trainController(flags *flag.FlagSet, args []string) error {
+func trainController(ctx context.Context, flags *flag.FlagSet, args []string) error {
 	corpusPath := flags.String("corpus", "", "controller corpus: a JSON object of train and holdout records")
 	seed := flags.Int64("seed", 0, "seed the scratch model splits its documents and draws its initial weights with")
 	steps := clioptions.IntOverride(flags, "steps", "required Muon steps")
@@ -48,7 +49,6 @@ func trainController(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
@@ -67,13 +67,18 @@ func trainController(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	session, err := scratchSession(ctx, store, construction.Authority(), construction.Processor())
+	session, err := scratchSession(ctx, store, construction.Authority(), construction.Processor(), trainingworkflow.TokenContract)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("scratch model=%s parameters=%d training documents=%d seed=%d\n",
 		construction.ID(), parameters, len(construction.Split().Train), *seed)
 	runErr := func() error {
+		// The resident trainer takes its updates in one call, so the run
+		// stops only before training and before publication.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		started := time.Now()
 		run, err := controllertrain.TrainSeed(corpus, construction, session.authority.Optimizer, *steps)
 		session.observer.Phase(runrecord.PhaseForwardBackward, time.Since(started))
@@ -86,10 +91,14 @@ func trainController(flags *flag.FlagSet, args []string) error {
 		if !checked.Finite64(after.Loss) || !(after.Loss < before.Loss) {
 			return fmt.Errorf("%s: held-out loss did not descend: before=%.6f after=%.6f", name, before.Loss, after.Loss)
 		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		// The run read its split's training documents in order, one per
 		// update.
 		stream := trainingdata.StreamState{Identity: construction.SplitID(), Position: uint64(*steps)}
-		return session.publishWeights(ctx, *out, construction.Program(), run.Trained, stream)
+		_, err = session.publishWeights(ctx, *out, construction.Program(), run.Trained, stream)
+		return err
 	}()
 	return session.finish(ctx, plan, runErr)
 }

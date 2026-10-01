@@ -54,6 +54,9 @@ type Observer struct {
 	// committed records, never a narrated claim.
 	pre        BracketSlice
 	bracketing bool
+	// finished marks a session whose outcome is recorded; a later Finish
+	// records nothing and releases nothing again.
+	finished bool
 }
 
 // NewObserver starts session measurement.
@@ -73,7 +76,8 @@ func NewObserver(store artifact.Repository, host bool) (*Observer, error) {
 	return observer, nil
 }
 
-// Admit acquires directed training ownership.
+// Admit acquires directed training ownership; a refused admission releases
+// the session's sampler, since no Finish follows it.
 func (o *Observer) Admit(ctx context.Context, model, recipeID artifact.ID) error {
 	if o == nil {
 		return nil
@@ -82,6 +86,7 @@ func (o *Observer) Admit(ctx context.Context, model, recipeID artifact.ID) error
 		"training", o.environment.Device, recipe.SessionRequestCapacity,
 	)
 	if err != nil {
+		o.sampler.close()
 		return fmt.Errorf("training observation: director: %w", err)
 	}
 	lease, err := director.LeaseComponent(ctx, modelrecipe.ComponentSession{
@@ -90,6 +95,7 @@ func (o *Observer) Admit(ctx context.Context, model, recipeID artifact.ID) error
 	}, func(context.Context) (struct{}, error) { return struct{}{}, nil })
 	if err != nil {
 		_ = director.Close(ctx)
+		o.sampler.close()
 		return fmt.Errorf("training observation: admission refused: %w", err)
 	}
 	o.director, o.lease = director, lease
@@ -136,7 +142,8 @@ func (o *Observer) SampleStep() {
 	o.stepUsed, o.stepElapsed, o.stepSampled = used, o.walls.Elapsed(o.clock), true
 }
 
-// Finish releases directed ownership; publishes evidence.
+// Finish releases directed ownership and publishes evidence, once: a
+// session finished already returns no observation.
 func (o *Observer) Finish(
 	ctx context.Context, model, recipeID artifact.ID, runErr error, streamPosition uint64,
 ) (artifact.ID, error) {
@@ -160,9 +167,10 @@ func (o *Observer) finish(
 	streamPosition uint64,
 	result Result,
 ) (artifact.ID, []artifact.ID, artifact.ID, error) {
-	if o == nil {
+	if o == nil || o.finished {
 		return artifact.ID{}, nil, artifact.ID{}, nil
 	}
+	o.finished = true
 	if o.stepSampled {
 		o.hardware = append(o.hardware, runrecord.ServingHardwareSample{
 			Stage: runrecord.ServingHardwarePrefill, ElapsedNS: o.stepElapsed,
@@ -259,6 +267,56 @@ func (o *Observer) finish(
 		}
 	}
 	return published.ID, routerIDs, routerCoverage, nil
+}
+
+// trainingVerificationReason is the activation decision a training run's
+// verification records.
+const trainingVerificationReason = "a training run under the recipe succeeded and published what it trained"
+
+// Verify records the finished session's success under recipeID as the
+// recipe's verification and activates the recipe on it, or reverifies the
+// active recipe: a gate bound to the code revision the run executed, the
+// environment the session observed and the session's wall, whose run
+// depends on evidence, the session's observation and what the run
+// published. A run whose code revision cannot be named, as from a modified
+// tree, leaves the recipe's lifecycle as it was and says so.
+func (o *Observer) Verify(ctx context.Context, recipeID artifact.ID, evidence ...artifact.ID) error {
+	if o == nil {
+		return nil
+	}
+	definition, err := recipe.RequireDefinition(ctx, o.store, recipeID)
+	if err != nil {
+		return err
+	}
+	revision, err := executableCodeCommit(".")
+	if err != nil {
+		fmt.Printf("training recipe %s not verified: %v\n", recipeID, err)
+		return nil
+	}
+	wall := max(uint64(time.Since(o.started)), 1)
+	record, err := runrecord.NewGateRecord(recipeID, o.environment.ID, revision, runrecord.OutcomeSucceeded, "", wall, []runrecord.GateStep{{
+		Name: "training-run", Phase: runrecord.PhaseForwardBackward, Outcome: runrecord.StepSucceeded, DurationNS: wall,
+	}})
+	if err != nil {
+		return err
+	}
+	run := record.Run
+	if record.Run, err = runrecord.NewBoundRun(run.Recipe, run.Outcome, evidence, run.Outputs, run.Failure, run.CodeCommit, run.Environment, run.MeasuredNS, run.Phases); err != nil {
+		return err
+	}
+	batch, err := record.Batch("training/evidence/verification/" + recipeID.String() + "/" + record.Run.ID.String())
+	if err != nil {
+		return err
+	}
+	if err := PublishTrainingEvidence(ctx, o.store, TrainingEvidencePublication{Batch: batch}); err != nil {
+		return err
+	}
+	verification := modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}
+	if err := modelrecipe.ActivateCapability(ctx, o.store, definition, verification, recipe.EvidenceVerified, trainingVerificationReason); err != nil {
+		return err
+	}
+	fmt.Printf("training recipe verified and active: %s (run %s at %.12s)\n", recipeID, record.Run.ID, revision)
+	return nil
 }
 
 func (o *Observer) publishRouterTrainingEvidence(

@@ -37,7 +37,7 @@ type adapterTraining struct {
 // trainAdapter is the adapter route: bounded artifact-declared adapter
 // training of one layer of a GGUF model on a teacher-forced text dataset, as
 // a supervised session whose trained adapter publishes as a checkpoint.
-func trainAdapter(flags *flag.FlagSet, args []string) (err error) {
+func trainAdapter(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	modelPath := flags.String("model", "", "GGUF model")
 	datasetPath := flags.String("dataset", "", "UTF-8 teacher-forced text dataset")
 	layer := flags.Uint("layer", 0, "adapter layer")
@@ -50,21 +50,21 @@ func trainAdapter(flags *flag.FlagSet, args []string) (err error) {
 	if *modelPath == "" || *datasetPath == "" || *out == "" || *steps <= 0 || uint64(*layer) > uint64(^uint32(0)) {
 		return fmt.Errorf("%s: model, dataset, out, valid layer, and positive steps required", flags.Name())
 	}
-	text, ids, err := datasetTokens(*modelPath, *datasetPath)
-	if err != nil {
-		return err
-	}
-	input, target, err := trainingdata.AdjacentTokenRows(ids)
-	if err != nil {
-		return err
-	}
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 	session, err := openSession(ctx, store, *modelPath, *datasetPath)
+	if err != nil {
+		return err
+	}
+	defer session.settle(ctx, &err)
+	ids, err := datasetTokens(*modelPath, session.data)
+	if err != nil {
+		return err
+	}
+	input, target, err := trainingdata.AdjacentTokenRows(ids)
 	if err != nil {
 		return err
 	}
@@ -91,6 +91,9 @@ func trainAdapter(flags *flag.FlagSet, args []string) (err error) {
 	result := adapterTraining{Layer: uint32(*layer), Rows: example.Rows, Parameters: trained.ParameterCount(), Losses: make([]float64, plan.Updates())}
 	runErr := func() error {
 		for index := range result.Losses {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			loss, err := trained.Step(worker, example)
 			if err != nil {
 				return err
@@ -99,7 +102,7 @@ func trainAdapter(flags *flag.FlagSet, args []string) (err error) {
 		}
 		// The dataset is the one record every update trains on, so the run
 		// consumed as many records as it took updates.
-		stream, err := trainingworkflow.TextStream(text, uint64(plan.Updates()))
+		stream, err := trainingworkflow.TextStream(session.data, uint64(plan.Updates()))
 		if err != nil {
 			return err
 		}
@@ -115,21 +118,16 @@ func trainAdapter(flags *flag.FlagSet, args []string) (err error) {
 	return clioptions.WritePrettyJSON(os.Stdout, result)
 }
 
-// datasetTokens reads a text dataset and encodes it, specials added, with
-// the tokenizer the GGUF artifact at modelPath declares.
-func datasetTokens(modelPath, datasetPath string) ([]byte, []tokenizer.TokenID, error) {
-	text, err := os.ReadFile(datasetPath)
-	if err != nil {
-		return nil, nil, err
-	}
+// datasetTokens encodes a text dataset, specials added, with the tokenizer
+// the GGUF artifact at modelPath declares.
+func datasetTokens(modelPath string, text []byte) ([]tokenizer.TokenID, error) {
 	file, err := gguf.Open(modelPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	vocabulary, loadErr := tokenizer.Load(file)
 	if err := errors.Join(loadErr, file.Close()); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	ids, err := vocabulary.Encode(string(text), tokenizer.EncodeOptions{AddSpecial: true})
-	return text, ids, err
+	return vocabulary.Encode(string(text), tokenizer.EncodeOptions{AddSpecial: true})
 }

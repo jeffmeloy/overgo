@@ -24,6 +24,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/pytorchzip"
 	"overgo/internal/quant"
+	"overgo/internal/recipecontract"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor/dtype"
@@ -37,7 +38,7 @@ const flowOrganRoute = "train -route flow-organ"
 // trainFlowOrgan is the flow-organ route: bounded observed training of one
 // trainable organ of a real artifact, chosen by -organ, under a supervised
 // session that publishes the trained organ as a checkpoint.
-func trainFlowOrgan(flags *flag.FlagSet, args []string) error {
+func trainFlowOrgan(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	model := flags.String("model", "", "model directory (safetensors + config.json)")
 	organ := flags.String("organ", "flow-head", "trainable organ: flow-head (SenseNova fm_head), latent-bridge (RxBrain llm2vae/vae2llm), denoiser-final (Krea-2 MMDiT output head), video-head (Wan2.1 head), edit-head, or ternary-master")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
@@ -51,15 +52,26 @@ func trainFlowOrgan(flags *flag.FlagSet, args []string) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	organs := map[string]func(organRun) error{
-		"flow-head":      func(run organRun) error { return trainFlowHead(run, *timestep) },
-		"latent-bridge":  runLatentBridge,
-		"denoiser-final": func(run organRun) error { return runDenoiserFinal(run, latentimage.KreaFinalLayerBinding()) },
-		"video-head":     func(run organRun) error { return runDenoiserFinal(run, latentimage.WanHeadBinding()) },
-		"edit-head":      runEditHead,
-		"ternary-master": func(run organRun) error { return runTernaryMaster(run, *tensorName) },
+	// Each organ trains under the contract of the objective it steps: a flow
+	// head from text conditioning to the image or video its model produces,
+	// the latent bridge by latent L2 into its model's image latents, and the
+	// ternary master by latent L2 on one matrix of a text model.
+	flowTo := func(output recipecontract.Modality, metric trainingprogram.EvaluationMetric) trainingworkflow.RecipeContract {
+		return generationContract(trainingprogram.ObjectiveFlowMatching, recipecontract.ModalityText, output, metric)
 	}
-	train, known := organs[*organ]
+	toImage, toVideo := flowTo(recipecontract.ModalityImage, trainingprogram.MetricImagePSNRUnit), flowTo(recipecontract.ModalityVideo, trainingprogram.MetricVideoPSNRUnit)
+	organs := map[string]struct {
+		contract trainingworkflow.RecipeContract
+		train    func(organRun) error
+	}{
+		"flow-head":      {toImage, func(run organRun) error { return trainFlowHead(run, *timestep) }},
+		"latent-bridge":  {generationContract(trainingprogram.ObjectiveLatentL2, recipecontract.ModalityText, recipecontract.ModalityImage, trainingprogram.MetricImagePSNRUnit), runLatentBridge},
+		"denoiser-final": {toImage, func(run organRun) error { return runDenoiserFinal(run, latentimage.KreaFinalLayerBinding()) }},
+		"video-head":     {toVideo, func(run organRun) error { return runDenoiserFinal(run, latentimage.WanHeadBinding()) }},
+		"edit-head":      {toVideo, runEditHead},
+		"ternary-master": {generationContract(trainingprogram.ObjectiveLatentL2, recipecontract.ModalityText, recipecontract.ModalityText, trainingprogram.MetricTokenAccuracy), func(run organRun) error { return runTernaryMaster(run, *tensorName) }},
+	}
+	chosen, known := organs[*organ]
 	if !known {
 		return fmt.Errorf("%s: unknown organ %q (%s)", flags.Name(), *organ, strings.Join(slices.Sorted(maps.Keys(organs)), ", "))
 	}
@@ -83,23 +95,24 @@ func trainFlowOrgan(flags *flag.FlagSet, args []string) error {
 			return err
 		}
 	}
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	session, err := openSession(ctx, store, weights, *stimulusPath)
+	session, err := openSessionAs(ctx, store, weights, *stimulusPath, chosen.contract)
 	if err != nil {
 		return err
 	}
-	return train(organRun{session: session, model: path, out: *out, steps: *steps, rows: *rows, maxWall: *maxWall})
+	defer session.settle(ctx, &err)
+	return chosen.train(organRun{ctx: ctx, session: session, model: path, out: *out, steps: *steps, rows: *rows, maxWall: *maxWall})
 }
 
-// organRun is what every organ's bounded run shares: its supervised
-// session, the resolved model path, the run's bounds, and where the trained
-// organ's checkpoint publishes.
+// organRun is what every organ's bounded run shares: the context it trains
+// until, its supervised session, the resolved model path, the run's bounds,
+// and where the trained organ's checkpoint publishes.
 type organRun struct {
+	ctx         context.Context
 	session     routeSession
 	model, out  string
 	steps, rows int
@@ -114,7 +127,7 @@ func (run organRun) train(plan trainingprogram.TrainingSessionPlan, trainer plan
 		publish: func(ctx context.Context) error {
 			return run.session.publishPlanned(ctx, run.out, trainer, plan.Updates())
 		},
-	}.train(context.Background())
+	}.train(run.ctx)
 }
 
 // probeSession compiles a route's bounded run under the builtin optimizer
@@ -315,7 +328,9 @@ func runTernaryMaster(run organRun, tensorName string) error {
 		return err
 	}
 	gradients := make([]float32, len(masters))
-	session, err := probeSession(trainingprogram.ObjectiveFlowMatching, run.steps, len(masters), run.maxWall)
+	// The masters regress the matrix's output rows toward the stimulus
+	// targets: latent L2.
+	session, err := probeSession(trainingprogram.ObjectiveLatentL2, run.steps, len(masters), run.maxWall)
 	if err != nil {
 		return err
 	}

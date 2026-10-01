@@ -124,10 +124,12 @@ Optimizer state preserves resolved settings, update count, and momentum.
 
 `cmd/train` is the one training entry point. A registered recipe trains a
 checkpoint; `-objective <alias>` trains a text model on a registered
-objective's training split and publishes its held-out verdict; `-route
-<trainer>`, ahead of other flags, runs a bounded family trainer by name (the
-tabular and seriesforecast routes train under a registered objective and
-publish its verdict and the trained checkpoint):
+objective's training split, publishes the trained model at `-out`, and
+publishes the held-out verdict that binds it; `-route <trainer>`, ahead of
+other flags, runs a bounded family trainer by name (the tabular and
+seriesforecast routes train under a registered objective and publish its
+verdict and the trained checkpoint). A training recipe activates on the
+verification its first successful run records:
 
 ```powershell
 go run ./cmd/train -route oscillatorimage -model Un-0 -steps 2

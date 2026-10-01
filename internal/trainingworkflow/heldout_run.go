@@ -35,24 +35,37 @@ type HeldoutPrediction struct {
 }
 
 // HeldoutRun trains a model under a registered objective and judges it on
-// the objective's held-out split. Examples holds every record of both
-// memberships by record identity; Train sees only the training records, and
-// the recipe the session activated for them, and Predict answers the
-// held-out ones, once before training and once after.
+// the objective's held-out split. Data holds every record of both
+// memberships as ObjectiveExamples read them; Train sees only the training
+// records, and the recipe the session trains them under, and returns the
+// checkpoint the trained model published; Predict answers the held-out
+// records, once before training and once after.
 type HeldoutRun struct {
 	Alias     string
 	ModelPath string
-	Examples  map[string]HeldoutExample
-	Train     func(ctx context.Context, recipe artifact.ID, shown []HeldoutExample) error
+	Data      ObjectiveData
+	Train     func(ctx context.Context, recipe artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error)
 	Predict   func(HeldoutExample) (HeldoutPrediction, error)
 	// Host records the training session as host execution.
 	Host bool
 }
 
-// HeldoutResult names what a held-out run published.
+// HeldoutResult names what a held-out run published: the session
+// observation, the trained checkpoint, the view, plan, both reports and the
+// verdict.
 type HeldoutResult struct {
-	Observation, View, Plan, Baseline, Candidate, Verdict artifact.ID
-	Passed                                                bool
+	Observation, Trained, View, Plan, Baseline, Candidate, Verdict artifact.ID
+	Passed                                                         bool
+}
+
+// ObjectiveData is what a run reads of an objective's dataset through one
+// processor: the example of each record of both memberships, keyed by
+// record, and each membership's materialized identity. Training is the
+// stream a checkpoint records its position in; Heldout is the exact
+// evaluation inputs a held-out verdict binds.
+type ObjectiveData struct {
+	Examples          map[string]HeldoutExample
+	Training, Heldout artifact.ID
 }
 
 // LoadObjectiveAlias loads the objective an alias names, refusing an alias
@@ -71,18 +84,19 @@ func LoadObjectiveAlias(ctx context.Context, reader artifact.Reader, alias strin
 // RunHeldout trains through run.Train on the objective's training
 // membership, records the training session, scores the base and trained
 // model on its held-out membership, and publishes the view, plan, both
-// reports and the verdict. Every held-out record must have an example: a
-// view that skipped some would judge a chosen subset.
+// reports and the verdict, which binds the checkpoint training published
+// and the held-out inputs both models read. Every held-out record must have
+// an example: a view that skipped some would judge a chosen subset.
 func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (HeldoutResult, error) {
 	objective, err := LoadObjectiveAlias(ctx, store, run.Alias)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	training, heldout, err := ObjectiveMemberships(ctx, store, objective)
+	training, heldout, err := objectiveMemberships(ctx, store, objective)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	trainingExamples, err := membershipExamples(training, run.Examples)
+	trainingExamples, err := membershipExamples(training, run.Data.Examples)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -92,7 +106,7 @@ func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (Hel
 	}
 	var cases []evaluation.HeldoutCase
 	for _, record := range view.Records {
-		example, found := run.Examples[record.ID]
+		example, found := run.Data.Examples[record.ID]
 		if !found {
 			return HeldoutResult{}, fmt.Errorf("training workflow: held-out record %q has no example", record.ID)
 		}
@@ -121,8 +135,9 @@ func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (Hel
 	if err := observer.Admit(ctx, modelID, recipeID); err != nil {
 		return HeldoutResult{}, err
 	}
-	trainErr := run.Train(ctx, recipeID, trainingExamples)
-	observation, err := observer.Finish(ctx, modelID, recipeID, trainErr, uint64(len(trainingExamples)))
+	trained, trainErr := run.Train(ctx, recipeID, trainingExamples)
+	// A cancelled run's outcome records too.
+	observation, err := observer.Finish(context.WithoutCancel(ctx), modelID, recipeID, trainErr, uint64(len(trainingExamples)))
 	if err := errors.Join(trainErr, err); err != nil {
 		return HeldoutResult{}, err
 	}
@@ -130,7 +145,13 @@ func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (Hel
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	return publishHeldout(ctx, store, objective, view, plan, baseline, candidate, observation)
+	result, err := publishHeldout(ctx, store, objective, view, plan, baseline, candidate, evaluation.HeldoutTraining{
+		Observation: observation, Model: modelID, Trained: trained, Inputs: run.Data.Heldout,
+	})
+	if err != nil {
+		return HeldoutResult{}, err
+	}
+	return result, observer.Verify(ctx, recipeID, observation, trained.ID(), result.Verdict)
 }
 
 // publishHeldout judges the base and trained models' reports on the
@@ -143,9 +164,9 @@ func publishHeldout(
 	view evaluation.SFTEvaluationView,
 	plan evaluation.HeldoutPlan,
 	baseline, candidate evaluation.HeldoutReport,
-	observation artifact.ID,
+	training evaluation.HeldoutTraining,
 ) (HeldoutResult, error) {
-	verdict, err := evaluation.JudgeHeldout(objective, view, plan, baseline, candidate, observation)
+	verdict, err := evaluation.JudgeHeldout(objective, view, plan, baseline, candidate, training)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -157,15 +178,14 @@ func publishHeldout(
 		return HeldoutResult{}, err
 	}
 	return HeldoutResult{
-		Observation: observation, View: view.ID, Plan: plan.ID(), Baseline: baseline.ID(), Candidate: candidate.ID(),
-		Verdict: verdict.ID, Passed: verdict.Passed,
+		Observation: training.Observation, Trained: training.Trained.ID(), View: view.ID, Plan: plan.ID(),
+		Baseline: baseline.ID(), Candidate: candidate.ID(), Verdict: verdict.ID, Passed: verdict.Passed,
 	}, nil
 }
 
-// ObjectiveMemberships loads the objective's training membership and the
-// held-out membership of the same split: the other partition of its source
-// under the same seed.
-func ObjectiveMemberships(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument) (dataset.Membership, dataset.Membership, error) {
+// objectiveMemberships loads the objective's training membership and the
+// held-out membership its published split pairs it with.
+func objectiveMemberships(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument) (dataset.Membership, dataset.Membership, error) {
 	training, found, err := dataset.LoadMembership(ctx, reader, objective.Split)
 	if err != nil {
 		return dataset.Membership{}, dataset.Membership{}, err
@@ -173,64 +193,52 @@ func ObjectiveMemberships(ctx context.Context, reader artifact.Reader, objective
 	if !found {
 		return dataset.Membership{}, dataset.Membership{}, fmt.Errorf("training workflow: objective %q names no committed training membership", objective.Name)
 	}
-	children, err := reader.Children(ctx, training.Source)
+	heldout, err := dataset.SplitPartner(ctx, reader, training.ID)
 	if err != nil {
-		return dataset.Membership{}, dataset.Membership{}, err
+		return dataset.Membership{}, dataset.Membership{}, fmt.Errorf("training workflow: objective %q: %w", objective.Name, err)
 	}
-	var heldout []dataset.Membership
-	for _, edge := range children {
-		membership, found, err := dataset.LoadMembership(ctx, reader, edge.Child)
-		if err != nil || !found || membership.ID == training.ID || membership.Seed != training.Seed {
-			continue
-		}
-		heldout = append(heldout, membership)
-	}
-	if len(heldout) != 1 {
-		return dataset.Membership{}, dataset.Membership{}, fmt.Errorf("training workflow: objective %q split has %d held-out memberships, want one", objective.Name, len(heldout))
-	}
-	return training, heldout[0], nil
+	return training, heldout, nil
 }
 
 // ObjectiveExamples materializes both of the objective's memberships through
 // the one process the processor profile names, serving modality to itself,
-// and decodes each processed record into its example, keyed by record. It
-// also returns the identity of the materialized training membership, the
-// stream a checkpoint records its position in.
-func ObjectiveExamples(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, profile []byte, modality recipecontract.Modality, process trainingdata.Processor, decode func(trainingdata.Example) (HeldoutExample, error)) (map[string]HeldoutExample, artifact.ID, error) {
-	training, heldout, err := ObjectiveMemberships(ctx, reader, objective)
+// and decodes each processed record into its example.
+func ObjectiveExamples(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, profile []byte, modality recipecontract.Modality, process trainingdata.Processor, decode func(trainingdata.Example) (HeldoutExample, error)) (ObjectiveData, error) {
+	training, heldout, err := objectiveMemberships(ctx, reader, objective)
 	if err != nil {
-		return nil, artifact.ID{}, err
+		return ObjectiveData{}, err
 	}
 	processor, err := artifact.IdentifyBytes(artifact.KindProfile, profile)
 	if err != nil {
-		return nil, artifact.ID{}, err
+		return ObjectiveData{}, err
 	}
 	modalities := []recipecontract.Modality{modality}
-	examples := map[string]HeldoutExample{}
-	var stream artifact.ID
+	data := ObjectiveData{Examples: map[string]HeldoutExample{}}
 	for _, membership := range []dataset.Membership{training, heldout} {
 		materialized, err := trainingdata.Materialize(ctx, reader, trainingdata.Authority{
 			Dataset: objective.Dataset, Split: membership.ID, Processors: []artifact.ID{processor},
 			Signature: recipecontract.ModalitySignature{Inputs: modalities, Outputs: modalities},
 		}, []trainingdata.ProcessorBinding{{Artifact: processor, Modalities: modalities, Process: process}})
 		if err != nil {
-			return nil, artifact.ID{}, err
+			return ObjectiveData{}, err
 		}
 		if membership.ID == training.ID {
-			stream = materialized.Identity()
+			data.Training = materialized.Identity()
+		} else {
+			data.Heldout = materialized.Identity()
 		}
 		read, err := ReadAll(ctx, materialized)
 		closeErr := materialized.Close()
 		if err != nil || closeErr != nil {
-			return nil, artifact.ID{}, fmt.Errorf("training workflow: %s membership: %w", membership.Partition, errors.Join(err, closeErr))
+			return ObjectiveData{}, fmt.Errorf("training workflow: %s membership: %w", membership.Partition, errors.Join(err, closeErr))
 		}
 		for _, record := range read {
-			if examples[record.ID], err = decode(record); err != nil {
-				return nil, artifact.ID{}, fmt.Errorf("training workflow: record %s: %w", record.ID, err)
+			if data.Examples[record.ID], err = decode(record); err != nil {
+				return ObjectiveData{}, fmt.Errorf("training workflow: record %s: %w", record.ID, err)
 			}
 		}
 	}
-	return examples, stream, nil
+	return data, nil
 }
 
 func membershipExamples(membership dataset.Membership, examples map[string]HeldoutExample) ([]HeldoutExample, error) {
@@ -249,7 +257,7 @@ func membershipExamples(membership dataset.Membership, examples map[string]Heldo
 func predictHeldout(plan evaluation.HeldoutPlan, cases []evaluation.HeldoutCase, run HeldoutRun) (evaluation.HeldoutReport, error) {
 	observations := make([]evaluation.HeldoutObservation, 0, len(cases))
 	for _, target := range cases {
-		example := run.Examples[target.Record]
+		example := run.Data.Examples[target.Record]
 		example.Record = target.Record
 		prediction, err := run.Predict(example)
 		if err != nil {

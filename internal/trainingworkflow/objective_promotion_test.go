@@ -14,6 +14,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/runrecord"
 	"overgo/internal/trainingprogram"
 )
 
@@ -129,6 +130,14 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 	if _, err := PromoteObjectiveAdaptive(ctx, store, alias, []artifact.ID{observation}); err != nil {
 		t.Fatal(err)
 	}
+	observed, err := runrecord.RequireServingObservation(ctx, store, observation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := evaluation.HeldoutTraining{
+		Observation: observation, Model: observed.Model, Inputs: derived(artifact.KindProfile, "inputs"),
+		Trained: recordedCheckpoint(t, store, observed.Model, source, training.ID),
+	}
 
 	view, err := evaluation.CompileSFTEvaluationView(declared, training, heldout)
 	if err != nil {
@@ -177,7 +186,7 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 	}
 	judge := func(key string, objective trainingprogram.ObjectiveDocument, view evaluation.SFTEvaluationView, candidate evaluation.HeldoutReport) artifact.ID {
 		t.Helper()
-		verdict, err := evaluation.JudgeHeldout(objective, view, plan, base, candidate, observation)
+		verdict, err := evaluation.JudgeHeldout(objective, view, plan, base, candidate, session)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -217,7 +226,7 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 		commit(key, report.Batch)
 		return report
 	}
-	otherVerdict, err := evaluation.JudgeHeldout(renamed, otherView, otherPlan, scoreOther("test-other-base", 2), scoreOther("test-other-trained", 1), observation)
+	otherVerdict, err := evaluation.JudgeHeldout(renamed, otherView, otherPlan, scoreOther("test-other-base", 2), scoreOther("test-other-trained", 1), session)
 	if err != nil || !otherVerdict.Passed {
 		t.Fatalf("the other objective's verdict = (passed=%t, %v)", otherVerdict.Passed, err)
 	}

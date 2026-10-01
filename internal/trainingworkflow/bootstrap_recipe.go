@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
@@ -16,53 +16,76 @@ import (
 	"overgo/internal/workflowrecipe"
 )
 
-// BootstrapTokenRecipe publishes, verifies, and activates a token-training
-// recipe for one model at the verified evidence tier — the recipe
-// authority a session-supervised training run resolves before touching
-// weights. Every dependency is a real committed artifact: the dataset
-// grounds by content, the split and policy profiles identify by declared
-// names, and the activation reason records that this is the bootstrap.
-// The activated recipe definition identity returns for the caller's run.
+// BootstrapTokenRecipe publishes a token-training recipe for one model as a
+// candidate — the recipe authority a session-supervised training run
+// resolves before touching weights. Every dependency is a real committed
+// artifact: the dataset grounds by content, and the split and policy
+// profiles identify by declared names. The recipe definition identity
+// returns for the caller's run, whose own success verifies and activates
+// it.
 func BootstrapTokenRecipe(ctx context.Context, store *overgodb.Store, modelPath, datasetPath string) (artifact.ID, error) {
-	modelID, err := identifyAndRecordWeights(ctx, store, modelPath)
-	if err != nil {
-		return artifact.ID{}, err
-	}
 	datasetBytes, err := os.ReadFile(datasetPath)
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	datasetID, err := artifact.IdentifyBytes(artifact.KindDataset, datasetBytes)
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	// Split and processor identify exactly as the training run derives them
-	// (datasetAuthority in trainingworkflow), so the run authority equals the
-	// stored objective.
-	splitID, err := artifact.IdentifyBytes(artifact.KindDatasetShard, append([]byte("all\x00"), datasetBytes...))
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training/text-utf8/v1"))
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	return bootstrapTokenObjective(ctx, store, modelID, datasetID, splitID, processorID)
+	return BootstrapRecipe(ctx, store, modelPath, datasetBytes, TokenContract)
 }
 
-// BootstrapScratchRecipe activates the token-training recipe for a scratch
-// construction, as BootstrapTokenRecipe does for a weights file: the
-// recipe's model is the model the construction initializes, and its
-// objective trains on the construction's dataset and split through the
-// processor that reads its documents.
-func BootstrapScratchRecipe(ctx context.Context, store *overgodb.Store, construction trainingprogram.ScratchConstruction, processor artifact.ID) (artifact.ID, error) {
-	return bootstrapTokenObjective(ctx, store, construction.InitializedModel(), construction.Dataset(), construction.Split(), processor)
+// RecipeContract is the objective a bootstrapped training recipe declares:
+// the loss kind the run's trainer steps, the modalities it reads and
+// produces, and the metric that would judge it.
+type RecipeContract struct {
+	Kind      trainingprogram.ObjectiveKind
+	Signature recipecontract.ModalitySignature
+	Metric    trainingprogram.EvaluationMetric
 }
 
-// bootstrapTokenObjective activates the token-training recipe for a model
-// under the bootstrap token-prediction objective over a text dataset, its
-// split and the processor that reads it.
-func bootstrapTokenObjective(ctx context.Context, store *overgodb.Store, modelID, datasetID, splitID, processorID artifact.ID) (artifact.ID, error) {
+// TokenContract is next-token prediction over text, judged by token
+// accuracy.
+var TokenContract = RecipeContract{
+	Kind: trainingprogram.ObjectiveTokenPrediction, Signature: textSignature, Metric: trainingprogram.MetricTokenAccuracy,
+}
+
+// BootstrapRecipe publishes, as BootstrapTokenRecipe does, the training
+// recipe for the model weights at modelPath whose bootstrap objective
+// declares contract over the dataset bytes, the bytes the run reads. A
+// contract no objective admits, such as a loss kind over an output modality
+// its contract excludes, is refused.
+func BootstrapRecipe(ctx context.Context, store *overgodb.Store, modelPath string, datasetBytes []byte, contract RecipeContract) (artifact.ID, error) {
+	modelID, err := identifyAndRecordWeights(ctx, store, modelPath)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	// Dataset, split and processor identify exactly as the training run
+	// derives them, so the run authority equals the stored objective.
+	datasetID, splitID, processorID, err := TextAuthority(datasetBytes)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	return bootstrapObjective(ctx, store, modelID, datasetID, splitID, processorID, contract)
+}
+
+// TextAuthority names a dataset a run reads whole as UTF-8 text: the
+// dataset by its bytes, its one split of every record, and the processor
+// that reads it.
+func TextAuthority(raw []byte) (dataset, split, processor artifact.ID, err error) {
+	authority, _, err := datasetAuthority(raw, textProcessor)
+	return authority.Dataset, authority.Split, authority.Processor, err
+}
+
+// BootstrapScratchRecipe publishes the training recipe for a scratch
+// construction, as BootstrapRecipe does for a weights file: the recipe's
+// model is the model the construction initializes, and its bootstrap
+// objective declares contract over the construction's dataset and split
+// through the processor that reads them.
+func BootstrapScratchRecipe(ctx context.Context, store *overgodb.Store, construction trainingprogram.ScratchConstruction, processor artifact.ID, contract RecipeContract) (artifact.ID, error) {
+	return bootstrapObjective(ctx, store, construction.InitializedModel(), construction.Dataset(), construction.Split(), processor, contract)
+}
+
+// bootstrapObjective publishes the training recipe for a model under the
+// bootstrap objective contract declares over a dataset, its split and the
+// processor that reads it.
+func bootstrapObjective(ctx context.Context, store *overgodb.Store, modelID, datasetID, splitID, processorID artifact.ID, contract RecipeContract) (artifact.ID, error) {
 	profile := func(name string) (artifact.ID, error) {
 		return artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training-bootstrap/"+name))
 	}
@@ -79,24 +102,23 @@ func bootstrapTokenObjective(ctx context.Context, store *overgodb.Store, modelID
 	if err != nil {
 		return artifact.ID{}, err
 	}
+	// The token contract's objective keeps the name it always had, so the
+	// recipes it already bootstrapped keep their identities.
 	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
-		Name: "token prediction bootstrap", Kind: trainingprogram.ObjectiveTokenPrediction,
-		Signature: recipecontract.ModalitySignature{
-			Inputs:  []recipecontract.Modality{recipecontract.ModalityText},
-			Outputs: []recipecontract.Modality{recipecontract.ModalityText},
-		},
-		Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processorID},
+		Name: strings.ReplaceAll(string(contract.Kind), "-", " ") + " bootstrap", Kind: contract.Kind,
+		Signature: contract.Signature.Clone(),
+		Dataset:   datasetID, Split: splitID, Processors: []artifact.ID{processorID},
 		Loss: profiles["loss"], Evaluation: profiles["evaluation"],
-		Metric: trainingprogram.MetricTokenAccuracy, Evidence: []artifact.ID{evidenceID},
+		Metric: contract.Metric, Evidence: []artifact.ID{evidenceID},
 		Authority: trainingprogram.ObjectiveApproved,
 	})
 	if err != nil {
-		return artifact.ID{}, err
+		return artifact.ID{}, fmt.Errorf("training workflow: no bootstrap objective declares %s %v judged by %s: %w", contract.Kind, contract.Signature, contract.Metric, err)
 	}
 	return bootstrapRecipeForObjective(ctx, store, modelID, objective, profiles, evidenceID)
 }
 
-// BootstrapObjectiveRecipe activates the training recipe for a model
+// BootstrapObjectiveRecipe publishes the training recipe for a model
 // under a REGISTERED objective: the objective alias resolves from the
 // store, the objective's own corpus and contracts become the recipe's
 // authority, and the recipe carries the same session-supervised chain
@@ -171,8 +193,10 @@ func identifyAndRecordWeights(ctx context.Context, store *overgodb.Store, modelP
 	return modelID, nil
 }
 
-// bootstrapRecipeForObjective assembles, grounds, and activates the
-// four-node training recipe for one model and one approved objective.
+// bootstrapRecipeForObjective assembles, grounds, and publishes as a
+// candidate the four-node training recipe for one model and one approved
+// objective. No verification is fabricated here: the recipe activates on the
+// verification a run under it records (Observer.Verify).
 func bootstrapRecipeForObjective(
 	ctx context.Context,
 	store *overgodb.Store,
@@ -226,15 +250,15 @@ func bootstrapRecipeForObjective(
 		return artifact.ID{}, err
 	}
 	// Reruns with the same model and dataset re-derive the SAME authority: an
-	// already-active definition returns as-is, and each write below is guarded
+	// already-published definition returns as-is, and each write below is guarded
 	// so the append-only store never sees a same-key batch whose content
 	// drifted with grounding order (ErrBatchKeyConflict on rerun otherwise).
 	state, published, err := modelrecipe.Status(ctx, store, definition.ID)
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	if state == recipe.StatusActive {
-		fmt.Printf("training recipe already active: %s (model %s)\n", definition.ID, modelID)
+	if published {
+		fmt.Printf("training recipe already published: %s (model %s, %s)\n", definition.ID, modelID, state)
 		return definition.ID, nil
 	}
 	if _, ok, err := store.Artifact(ctx, objective.ID); err != nil {
@@ -270,19 +294,9 @@ func bootstrapRecipeForObjective(
 			return artifact.ID{}, err
 		}
 	}
-	if !published {
-		if _, _, err := modelrecipe.PublishCandidate(ctx, store, "training/bootstrap/candidate/"+definition.ID.String(), definition); err != nil {
-			return artifact.ID{}, err
-		}
-	}
-	verification, err := modelrecipetest.PublishVerification(ctx, store, "training/bootstrap/verification/"+definition.ID.String(), definition.ID)
-	if err != nil {
+	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "training/bootstrap/candidate/"+definition.ID.String(), definition); err != nil {
 		return artifact.ID{}, err
 	}
-	if err := modelrecipe.ActivateCapability(ctx, store, definition, verification,
-		recipe.EvidenceVerified, "session-supervised training substrate bootstrap"); err != nil {
-		return artifact.ID{}, err
-	}
-	fmt.Printf("training recipe activated: %s (model %s, experimental evidence tier)\n", definition.ID, modelID)
+	fmt.Printf("training recipe published: %s (model %s); the first run under it that succeeds verifies and activates it\n", definition.ID, modelID)
 	return definition.ID, nil
 }

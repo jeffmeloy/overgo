@@ -222,6 +222,16 @@ func (report numericTargetReport) heldout() HeldoutReport {
 	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
 }
 
+// rescore scores the answers each of report's records retains under plan.
+func (plan numericTargetPlan) rescore(report numericTargetReport) (HeldoutReport, error) {
+	observations := make([]numericTargetObservation, len(report.Records))
+	for index, record := range report.Records {
+		observations[index] = numericTargetObservation{Record: record.Record, Values: record.Actual, Label: record.ActualLabel}
+	}
+	rescored, err := scoreNumericTargets(plan, observations)
+	return rescored.heldout(), err
+}
+
 func scoreNumericRecord(scorer numericScorerSpec, target numericTargetCase, observation numericTargetObservation) (float64, error) {
 	if scorer.Kind == numericLabelAccuracy {
 		if target.Label != "" {

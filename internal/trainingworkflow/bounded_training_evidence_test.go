@@ -52,16 +52,23 @@ func TestTrainingEvidenceJournalAmplificationBound(t *testing.T) {
 	if _, err := Execute(t.Context(), request); err != nil {
 		t.Fatal(err)
 	}
-	_, before := store.Head()
-	request.Steps = 2
-	request.OutputDirectory = filepath.Join(root, "measured-evidence")
-	result, err := Execute(t.Context(), request)
-	if err != nil {
-		t.Fatal(err)
+	// A run commits its checkpoint record, its session evidence and its
+	// verification whatever its steps: a step adds no commit.
+	commits := func(steps int, output string) (Result, uint64) {
+		t.Helper()
+		_, before := store.Head()
+		request.Steps, request.OutputDirectory = steps, filepath.Join(root, output)
+		result, err := Execute(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, after := store.Head()
+		return result, after - before
 	}
-	_, after := store.Head()
-	if after != before+1 {
-		t.Fatalf("two-step evidence advanced journal by %d commits, want one atomic publication", after-before)
+	_, one := commits(1, "one-step-evidence")
+	result, two := commits(2, "two-step-evidence")
+	if two != one {
+		t.Fatalf("two-step evidence advanced the journal by %d commits, a one-step run by %d: want steps to add none", two, one)
 	}
 	coverage, chunk, err := runrecord.RequireMoERouterObservationCoverage(t.Context(), store, result.RouterObservationCoverage)
 	if err != nil || coverage.ObservationCount != 2 || len(chunk.Observations) != 2 {

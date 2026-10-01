@@ -62,7 +62,7 @@ func materializeText(raw []byte) (batchAuthority, *trainingdata.Dataset, error) 
 	if len(raw) == 0 {
 		return batchAuthority{}, nil, errors.New("training workflow: empty text dataset")
 	}
-	authority, processor, err := datasetAuthority(raw, "text-utf8")
+	authority, processor, err := datasetAuthority(raw, textProcessor)
 	if err != nil {
 		return batchAuthority{}, nil, err
 	}
@@ -360,6 +360,9 @@ func parsePreferences(raw []byte, encode func(string) ([]int, error)) ([]prepare
 	}
 	return result, nil
 }
+
+// textProcessor names the processor that reads a dataset as UTF-8 text.
+const textProcessor = "text-utf8"
 
 func datasetAuthority(raw []byte, processorName string) (batchAuthority, artifact.ID, error) {
 	dataset, err := artifact.IdentifyBytes(artifact.KindDataset, raw)

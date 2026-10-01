@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"time"
@@ -37,7 +36,7 @@ const shortestNextTokenWindow = 2
 // plan, proves descent by re-evaluating the same window's loss after the
 // observed steps, and publishes the trained model as a checkpoint, all under
 // a supervised session.
-func trainMixture(flags *flag.FlagSet, args []string) error {
+func trainMixture(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	modelDir := flags.String("model", "", "model directory (safetensors + config.json + tokenizer.json)")
 	datasetPath := flags.String("dataset", "", "UTF-8 training dataset")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
@@ -61,7 +60,6 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
@@ -71,6 +69,7 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer session.settle(ctx, &err)
 	loadStart := time.Now()
 	model, err := densecausal.Load(directory)
 	if err != nil {
@@ -80,11 +79,7 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(*datasetPath)
-	if err != nil {
-		return err
-	}
-	tokens, err := tokenizer.Encode(string(raw))
+	tokens, err := tokenizer.Encode(string(session.data))
 	if err != nil {
 		return err
 	}
@@ -166,19 +161,16 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 		// is a plan group, so the checkpoint holds the whole trained model,
 		// with its config and tokenizer, as the dense workflow's does.
 		publish: func(ctx context.Context) error {
-			stream, err := trainingworkflow.TextStream(raw, uint64(updates))
+			stream, err := trainingworkflow.TextStream(session.data, uint64(updates))
 			if err != nil {
 				return err
 			}
-			checkpoint, err := session.publish(ctx, *out, program, stepper.Snapshot(), stream, func(stage string) error {
+			_, err = session.publish(ctx, *out, program, stepper.Snapshot(), stream, func(stage string) error {
 				if err := safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights), model.Weights, model.Shapes, nil); err != nil {
 					return err
 				}
 				return export.CopyFiles(directory, stage, []string{"config.json", "tokenizer.json"})
 			})
-			if err == nil {
-				fmt.Printf("checkpoint=%s written to %s\n", checkpoint.ID(), *out)
-			}
 			return err
 		},
 	}.train(ctx)

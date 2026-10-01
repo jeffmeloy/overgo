@@ -35,7 +35,7 @@ func JudgePreferenceHeldout(ctx context.Context, store artifact.Repository, requ
 	if objective.Kind != trainingprogram.ObjectiveDPO || request.ModelDirectory == "" || !result.Observation.Valid() {
 		return HeldoutResult{}, false, errors.New("training workflow: a held-out preference verdict needs an observed DPO run from a base policy")
 	}
-	training, heldout, err := ObjectiveMemberships(ctx, store, objective)
+	training, heldout, err := objectiveMemberships(ctx, store, objective)
 	if err != nil {
 		return HeldoutResult{}, false, err
 	}
@@ -43,7 +43,11 @@ func JudgePreferenceHeldout(ctx context.Context, store artifact.Repository, requ
 	if err != nil {
 		return HeldoutResult{}, false, err
 	}
-	pairs, err := heldoutPairs(ctx, request, heldout)
+	pairs, inputs, err := heldoutPairs(ctx, request, heldout)
+	if err != nil {
+		return HeldoutResult{}, false, err
+	}
+	base, err := identifyModel(request.ModelDirectory)
 	if err != nil {
 		return HeldoutResult{}, false, err
 	}
@@ -76,25 +80,27 @@ func JudgePreferenceHeldout(ctx context.Context, store artifact.Repository, requ
 		}
 		reports = append(reports, report)
 	}
-	verdict, err := publishHeldout(ctx, store, objective, view, plan, reports[0], reports[1], result.Observation)
+	verdict, err := publishHeldout(ctx, store, objective, view, plan, reports[0], reports[1], evaluation.HeldoutTraining{
+		Observation: result.Observation, Model: base, Trained: result.Checkpoint, Inputs: inputs,
+	})
 	return verdict, err == nil, err
 }
 
 // heldoutPairs reads the held-out membership's pairs from the run's
 // dataset through the path training reads its own membership by, keyed by
-// record.
-func heldoutPairs(ctx context.Context, request Request, heldout dataset.Membership) (map[string]trainingdata.PreferencePair, error) {
+// record, and the identity of the held-out stream they were read from.
+func heldoutPairs(ctx context.Context, request Request, heldout dataset.Membership) (map[string]trainingdata.PreferencePair, artifact.ID, error) {
 	raw, err := os.ReadFile(request.DatasetPath)
 	if err != nil {
-		return nil, err
+		return nil, artifact.ID{}, err
 	}
 	encode, err := loadTrainableEncoder(request.ModelDirectory)
 	if err != nil {
-		return nil, err
+		return nil, artifact.ID{}, err
 	}
-	batches, _, _, _, err := preferenceBatchesResume(ctx, raw, 0, encode, nil, &heldout)
+	batches, _, stream, _, err := preferenceBatchesResume(ctx, raw, 0, encode, nil, &heldout)
 	if err != nil {
-		return nil, err
+		return nil, artifact.ID{}, err
 	}
 	pairs := make(map[string]trainingdata.PreferencePair, len(batches))
 	for _, batch := range batches {
@@ -102,7 +108,7 @@ func heldoutPairs(ctx context.Context, request Request, heldout dataset.Membersh
 			pairs[pair.ID] = pair
 		}
 	}
-	return pairs, nil
+	return pairs, stream.Identity, nil
 }
 
 // scoreHeldoutPairs scores each view record's chosen and rejected responses

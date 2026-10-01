@@ -5,7 +5,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"os"
 	"strconv"
 
 	"overgo/internal/clioptions"
@@ -23,7 +22,7 @@ import (
 // leading records of a JSON Lines dataset of text pairs, one pair per update
 // cycling through them, refuses a run whose loss over those pairs does not
 // descend, and publishes the trained model as a checkpoint.
-func trainSeq2Seq(flags *flag.FlagSet, args []string) error {
+func trainSeq2Seq(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	model := flags.String("model", "", "encoder-decoder model directory (config.json + safetensors + tokenizer.model)")
 	datasetPath := flags.String("dataset", "", "JSON Lines dataset of text pairs, one record per line")
 	inputField := flags.String("input-field", "", "the JSON field of each record the encoder reads")
@@ -52,7 +51,6 @@ func trainSeq2Seq(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
@@ -62,14 +60,12 @@ func trainSeq2Seq(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer session.settle(ctx, &err)
 	generator, err := seq2seq.LoadGenerator(directory)
 	if err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(*datasetPath)
-	if err != nil {
-		return err
-	}
+	raw := session.data
 	// The run trains on at most one record per update; the loss the run is
 	// held to is the mean over exactly those records.
 	var pairs []seq2seq.TrainingPair
@@ -140,7 +136,8 @@ func trainSeq2Seq(flags *flag.FlagSet, args []string) error {
 			if err != nil {
 				return err
 			}
-			return session.publishWeights(ctx, *out, trainer.Program(), trainer, stream)
+			_, err = session.publishWeights(ctx, *out, trainer.Program(), trainer, stream)
+			return err
 		},
 	}.train(ctx)
 }

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -76,7 +75,7 @@ func promptTokens(path string, raw []byte, caseName string) ([]uint32, error) {
 // requires a strictly decreasing finite loss trajectory, and publishes the
 // trained stack as a checkpoint. A first-step wall projection guard aborts a
 // run that cannot finish inside -max-wall.
-func trainHybridStack(flags *flag.FlagSet, args []string) error {
+func trainHybridStack(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	modelPath := flags.String("model", "", "GGUF artifact path")
 	fixturePath := flags.String("fixture", filepath.Join("fixtures", "qwen35_4b_serving_golden.json"), "serving fixture holding the prompt token IDs")
 	caseName := flags.String("case", "capital", "fixture case whose prompt IDs feed the objective")
@@ -103,18 +102,6 @@ func trainHybridStack(flags *flag.FlagSet, args []string) error {
 		return fmt.Errorf("-steps must be at least %d to observe a loss decrease", tensor.PairedExtent)
 	}
 
-	fixture, err := os.ReadFile(*fixturePath)
-	if err != nil {
-		return err
-	}
-	tokens, err := promptTokens(*fixturePath, fixture, *caseName)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("artifact: %s\n", *modelPath)
-	fmt.Printf("objective tokens: case=%q ids=%v (%d prediction rows)\n", *caseName, tokens, len(tokens)-1)
-
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
@@ -124,6 +111,15 @@ func trainHybridStack(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer session.settle(ctx, &err)
+	// The fixture is the bytes the session's recipe grounds.
+	fixture := session.data
+	tokens, err := promptTokens(*fixturePath, fixture, *caseName)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("artifact: %s\n", *modelPath)
+	fmt.Printf("objective tokens: case=%q ids=%v (%d prediction rows)\n", *caseName, tokens, len(tokens)-1)
 
 	loadStart := time.Now()
 	trained, err := hybridtrain.LoadStackArtifact(ctx, *modelPath, tokens)
@@ -189,6 +185,10 @@ func trainHybridStack(flags *flag.FlagSet, args []string) error {
 		state = final
 		return nil
 	}, Observe: func(step int, loss float64) error {
+		// The run stops after the update its context ended during.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		now := time.Now()
 		wall := now.Sub(previous)
 		previous = now
@@ -223,6 +223,9 @@ func trainHybridStack(flags *flag.FlagSet, args []string) error {
 		}
 	}
 	var checkpoint trainingprogram.Checkpoint
+	if runErr == nil {
+		runErr = ctx.Err()
+	}
 	if runErr == nil {
 		// The fixture is the one record every update trains on, so the run
 		// consumed as many records as it took updates. The checkpoint

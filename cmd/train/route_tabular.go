@@ -36,7 +36,7 @@ var tableObjectiveTasks = map[trainingprogram.EvaluationMetric]string{
 // trainTabular is the tabular route: fine-tuning the decoder of the TabFM
 // head its registered table-prediction objective's metric names, and
 // publishing the objective's held-out verdict and the trained checkpoint.
-func trainTabular(flags *flag.FlagSet, args []string) error {
+func trainTabular(ctx context.Context, flags *flag.FlagSet, args []string) error {
 	model := flags.String("model", "", "TabFM model directory")
 	objectiveAlias := flags.String("objective", "", "registered table-prediction objective alias: train on its training membership, one request JSON per dataset file, and judge on its held-out one")
 	steps := clioptions.IntOverride(flags, "steps", "required decoder update steps")
@@ -48,7 +48,6 @@ func trainTabular(flags *flag.FlagSet, args []string) error {
 	if *model == "" || *objectiveAlias == "" || *out == "" || *steps <= 0 {
 		return fmt.Errorf("%s: model, objective, out, and positive steps required", flags.Name())
 	}
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
@@ -84,7 +83,7 @@ func trainTableObjective(ctx context.Context, store *overgodb.Store, alias, mode
 	if head.Dims.IsClassifier != (task == tabularicl.TaskClassification) {
 		return trainingworkflow.HeldoutResult{}, fmt.Errorf("table metric %q judges a %s head; %s is not one", objective.Metric, task, headDir)
 	}
-	requests, examples, training, err := objectiveRequests(ctx, store, objective, task)
+	requests, data, err := objectiveRequests(ctx, store, objective, task)
 	if err != nil {
 		return trainingworkflow.HeldoutResult{}, err
 	}
@@ -105,13 +104,13 @@ func trainTableObjective(ctx context.Context, store *overgodb.Store, alias, mode
 		// optimizer.NewStepper runs Muon on the CUDA device on Windows
 		// (stepper_windows.go) and on the host elsewhere; the observation
 		// records which.
-		Alias: alias, ModelPath: weights, Examples: examples, Host: runtime.GOOS != "windows",
-		Train: func(ctx context.Context, recipeID artifact.ID, shown []trainingworkflow.HeldoutExample) error {
-			if err := trainTable(trainer, requests, shown, plan.Updates()); err != nil {
-				return err
+		Alias: alias, ModelPath: weights, Data: data, Host: runtime.GOOS != "windows",
+		Train: func(ctx context.Context, recipeID artifact.ID, shown []trainingworkflow.HeldoutExample) (trainingprogram.Checkpoint, error) {
+			if err := trainTable(ctx, trainer, requests, shown, plan.Updates()); err != nil {
+				return trainingprogram.Checkpoint{}, err
 			}
 			// Each update consumed one training request.
-			return publishTrained(ctx, store, recipeID, out, trainer, trainingdata.StreamState{Identity: training, Position: uint64(plan.Updates())})
+			return publishTrained(ctx, store, recipeID, out, trainer, trainingdata.StreamState{Identity: data.Training, Position: uint64(plan.Updates())})
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
 			return predictQueryRows(head, requests[example.Record])
@@ -121,11 +120,10 @@ func trainTableObjective(ctx context.Context, store *overgodb.Store, alias, mode
 
 // objectiveRequests reads both of the objective's memberships as request
 // documents and keys each by its record: the example's target is every query
-// row's class or value. It also returns the identity of the materialized
-// training membership, the stream a checkpoint records its position in.
-func objectiveRequests(ctx context.Context, store *overgodb.Store, objective trainingprogram.ObjectiveDocument, task string) (map[string]tabularicl.Request, map[string]trainingworkflow.HeldoutExample, artifact.ID, error) {
+// row's class or value.
+func objectiveRequests(ctx context.Context, store *overgodb.Store, objective trainingprogram.ObjectiveDocument, task string) (map[string]tabularicl.Request, trainingworkflow.ObjectiveData, error) {
 	requests := map[string]tabularicl.Request{}
-	examples, stream, err := trainingworkflow.ObjectiveExamples(ctx, store, objective, []byte("overgo/tabular-request/json/v1"), recipecontract.ModalityTable,
+	data, err := trainingworkflow.ObjectiveExamples(ctx, store, objective, []byte("overgo/tabular-request/json/v1"), recipecontract.ModalityTable,
 		trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityTable, "json"),
 		func(example trainingdata.Example) (trainingworkflow.HeldoutExample, error) {
 			var request tabularicl.Request
@@ -138,16 +136,19 @@ func objectiveRequests(ctx context.Context, store *overgodb.Store, objective tra
 			requests[example.ID] = request
 			return trainingworkflow.HeldoutExample{Target: dtype.ConvertSlice[float64](request.Y[request.TrainRows:])}, nil
 		})
-	return requests, examples, stream, err
+	return requests, data, err
 }
 
 // trainTable takes updates optimizer steps over the training requests in
-// turn, refusing a step whose loss is not finite.
-func trainTable(trainer *tabularicl.Trainer, requests map[string]tabularicl.Request, shown []trainingworkflow.HeldoutExample, updates int) error {
+// turn until ctx ends, refusing a step whose loss is not finite.
+func trainTable(ctx context.Context, trainer *tabularicl.Trainer, requests map[string]tabularicl.Request, shown []trainingworkflow.HeldoutExample, updates int) error {
 	if len(shown) == 0 {
 		return errors.New("the training membership holds no requests")
 	}
 	for step := range updates {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		result, err := trainer.Step(requests[shown[step%len(shown)].Record])
 		if err != nil {
 			return err

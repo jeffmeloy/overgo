@@ -193,6 +193,17 @@ func (report preferenceTargetReport) heldout() HeldoutReport {
 	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
 }
 
+// rescore scores the sequence scores each of report's records retains under
+// plan.
+func (plan preferenceTargetPlan) rescore(report preferenceTargetReport) (HeldoutReport, error) {
+	observations := make([]preferenceTargetObservation, len(report.Records))
+	for index, record := range report.Records {
+		observations[index] = record.preferenceTargetObservation
+	}
+	rescored, err := scorePreferenceTargets(plan, observations)
+	return rescored.heldout(), err
+}
+
 func canonicalizePreferenceTargetPlan(plan *preferenceTargetPlan) error {
 	if plan == nil || plan.Version != artifact.InitialDocumentVersion || plan.View.Kind() != artifact.KindProfile ||
 		plan.Objective.Kind() != artifact.KindProfile || plan.Heldout.Kind() != artifact.KindDatasetShard ||

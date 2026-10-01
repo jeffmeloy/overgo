@@ -48,10 +48,12 @@ type ScratchConstruction struct {
 	rngStreams         []RNGStreamSpec
 }
 
+// CompileScratchConstruction identifies a model built from nothing. A model
+// that reads no text, such as an image generator, names no tokenizer.
 func CompileScratchConstruction(spec ScratchSpec) (ScratchConstruction, error) {
 	if spec.Recipe.Kind() != artifact.KindRecipe || spec.Dataset.Kind() != artifact.KindDataset ||
 		spec.Split.Kind() != artifact.KindDatasetShard || spec.DerivationProfile.Kind() != artifact.KindProfile ||
-		spec.TopologyProfile.Kind() != artifact.KindProfile || spec.Tokenizer.Kind() != artifact.KindTokenizer ||
+		spec.TopologyProfile.Kind() != artifact.KindProfile || spec.Tokenizer.Valid() && spec.Tokenizer.Kind() != artifact.KindTokenizer ||
 		spec.ParameterManifest.Kind() != artifact.KindTensorInventory || spec.InitializerProfile.Kind() != artifact.KindProfile ||
 		spec.InitializedModel.Kind() != artifact.KindModel {
 		return ScratchConstruction{}, errors.New("training program: invalid scratch construction identities")
@@ -66,7 +68,7 @@ func CompileScratchConstruction(spec ScratchSpec) (ScratchConstruction, error) {
 		Split              artifact.ID     `json:"split"`
 		DerivationProfile  artifact.ID     `json:"derivation_profile"`
 		TopologyProfile    artifact.ID     `json:"topology_profile"`
-		Tokenizer          artifact.ID     `json:"tokenizer"`
+		Tokenizer          artifact.ID     `json:"tokenizer,omitzero"`
 		ParameterManifest  artifact.ID     `json:"parameter_manifest"`
 		InitializerProfile artifact.ID     `json:"initializer_profile"`
 		InitializedModel   artifact.ID     `json:"initialized_model"`

@@ -299,7 +299,13 @@ func objectiveSignatureValid(kind ObjectiveKind, signature recipecontract.Modali
 		return output == recipecontract.ModalityText
 	case ObjectiveFNS:
 		return input == recipecontract.ModalityText && output == recipecontract.ModalityText
-	case ObjectiveLatentL2, ObjectiveLatentSequence:
+	case ObjectiveLatentL2:
+		// Latent L2 regresses what a text-conditioned model produces toward
+		// its target: speech latents, an image generator's output, or a text
+		// model's hidden rows.
+		return input == recipecontract.ModalityText &&
+			(output == recipecontract.ModalityAudio || output == recipecontract.ModalityImage || output == recipecontract.ModalityText)
+	case ObjectiveLatentSequence:
 		return input == recipecontract.ModalityText && output == recipecontract.ModalityAudio
 	case ObjectiveForecast:
 		return input == recipecontract.ModalityTimeSeries && output == recipecontract.ModalityTimeSeries

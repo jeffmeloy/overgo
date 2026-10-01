@@ -76,27 +76,17 @@
       "title": "Tie every approval and published checkpoint to what actually trained",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 3375,
+        "reason": "held-out verdicts bound to the trained checkpoint and re-judged from case facts, routes recording the objective they train with cancellation and cleanup (DiT through a named adapter), scratch construction for the oscillatorimage bootstrap, and real-run verification replacing the test fixture in production"
+      },
       "steps": [
         {
-          "id": "heldout-binds-result",
-          "title": "Bind held-out approval to the immutable trained output and exact evaluation inputs",
+          "id": "dit-authority",
+          "title": "Record the DiT route's real program and honour cancellation",
           "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run '^TestHeldoutApprovalReconstructsTheTrainedResult$' -count=1",
-          "rationale": "SQA-014 (P1): held-out approval cannot identify and reconstruct the trained result, and can accept inconsistent metric declarations. Extend the held-out report and publication contracts to bind the trained output and the exact evaluation inputs. Re-judge from retained case facts, not aggregates. Extend the TabFM and reloaded DPO fixtures for tampering. SQA-017 (P2): held-out lookup guesses the partner from all same-seed children; bind it to the actual pair. Batch: trainingworkflow reaches the server lanes.\n\n2026-09-30: once training-publishes-servable-model/servable-model lands, bind approval to the published model's identity."
-        },
-        {
-          "id": "route-publication-authority",
-          "title": "Publish each route's actual initial state, program, data and RNG, never guesses",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestRoutePublicationRecordsActualAuthority$' -count=1",
-          "rationale": "SQA-061 (P2): shared route publication records guessed authority: token and text guesses and counter state. Use the scratch-session seam where its contract fits (the controller route already does), pass the real facts for the other routes, and refuse unsupported resumable authority explicitly. SQA-027 (P2): shared and objective-route training drop cooperative cancellation. SQA-057 (P2): training setup failures bypass the shared session's cleanup. Batch: cmd/train reaches the cuda lane."
-        },
-        {
-          "id": "real-training-proofs",
-          "title": "Verify training activations with a real training run, not a test fixture",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run '^TestBootstrapVerifiesWithARealRun$' -count=1",
-          "rationale": "Found 2026-09-30 by the benchmark currency owner. internal/trainingworkflow/bootstrap_recipe.go:278 calls modelrecipetest.PublishVerification, a test fixture, from production. All 6 training activations were bootstrapped with a verification bound to the placeholder commit 0123456789ab..., so no training proof can ever be current. Replace it with a verification produced by an actual training run (the shared run's published checkpoint and its held-out verdict), and delete the fixture call from production. Batch: trainingworkflow reaches the server lanes."
+          "verify": "go test ./cmd/train -run '^TestDiTRouteRecordsItsProgram$' -count=1",
+          "rationale": "Left from the 2026-10-01 batch, which made every other route record the objective it trains and honour cooperative cancellation. cmd/train/route_dit.go is in the media lifecycle's reviewed chain, so it was restored byte for byte: DiT still records the token program while training flow matching, and routes.go wraps it without a context. To close: open DiT under openSessionAs with flow matching, text to video; take the route's context; drop the wrapper in routes.go; add a reviewed delta with the file's before and after sha256 and a device receipt (OVERGO_CUDA_TEST=1 go run ./cmd/validate -receipt -repo \u003cstore\u003e -- -p 1 -run '\u003cthe DiT route tests\u003e' ./cmd/train). Also left from SQA-061: counter-RNG values are still guessed at publish, trainers close after the session finishes rather than before, and the controller checks cancellation only before training and before publishing."
         }
       ]
     },

@@ -15,6 +15,7 @@ import (
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -40,22 +41,43 @@ type boundedRun struct {
 // train runs the loop, publishes what descended, and records the outcome
 // as the session observation.
 func (run boundedRun) train(ctx context.Context) error {
-	started := time.Now()
-	err := run.descend()
-	run.session.observer.Phase(runrecord.PhaseForwardBackward, time.Since(started))
-	if err == nil && run.publish != nil {
-		err = run.publish(ctx)
-	}
-	return run.session.finish(ctx, run.plan, err)
+	return run.session.finish(ctx, run.plan, run.trained(ctx))
 }
 
-func (run boundedRun) descend() error {
+// trained runs the loop until ctx ends and publishes what descended. A plan
+// whose objective the session's recipe does not declare is refused before
+// any step: the checkpoint would name a program the run did not execute. A
+// run whose context ended publishes nothing.
+func (run boundedRun) trained(ctx context.Context) error {
+	if trained, declared := run.plan.Objective(), run.session.authority.Objective; trained != declared {
+		return fmt.Errorf("%s: the trainer steps %s, but the session's recipe declares %s; its checkpoint would name a program the run did not execute", run.name, trained, declared)
+	}
+	started := time.Now()
+	err := run.descend(ctx)
+	run.session.observer.Phase(runrecord.PhaseForwardBackward, time.Since(started))
+	if err == nil {
+		err = ctx.Err()
+	}
+	if err != nil || run.publish == nil {
+		return err
+	}
+	return run.publish(ctx)
+}
+
+// descend takes the plan's updates, stopping between updates once ctx ends.
+func (run boundedRun) descend(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	before, err := run.loss()
 	if err != nil {
 		return err
 	}
 	started := time.Now()
 	for step := range run.plan.Updates() {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		stepStarted := time.Now()
 		result, err := run.step(step)
 		if err != nil {
@@ -89,33 +111,61 @@ func (run boundedRun) descend() error {
 
 // routeSession is a route's supervised model-session: the recipe the route
 // bootstrapped for its model, that recipe's resolved authority, the
-// model's weights and the text dataset a token recipe grounds, the scratch
-// construction a model built from nothing starts from, and the observer
-// recording the run. The zero value supervises nothing.
+// model's weights, the dataset bytes the recipe grounds as the session read
+// them, the scratch construction a model built from nothing starts from,
+// the observer recording the run, and the checkpoint it published. The
+// zero value supervises nothing.
 type routeSession struct {
-	store            *overgodb.Store
-	model, recipe    artifact.ID
-	authority        trainingworkflow.SessionAuthority
-	weights, dataset string
-	scratch          *trainingprogram.ScratchConstruction
-	observer         *trainingworkflow.Observer
+	store         *overgodb.Store
+	model, recipe artifact.ID
+	authority     trainingworkflow.SessionAuthority
+	weights       string
+	// data is the dataset as the session read it, once: the bytes its
+	// recipe grounds, the run trains on, and its checkpoint records a
+	// position in.
+	data     []byte
+	scratch  *trainingprogram.ScratchConstruction
+	observer *trainingworkflow.Observer
+	// published is the checkpoint the session published, which its finish
+	// verifies the recipe on; every copy of the session shares it.
+	published *artifact.ID
 }
 
-// openSession activates the token-training recipe bootstrapped over dataset
-// for the model weights and admits the session before any weight touches
-// memory.
+// generationContract is the contract of a trainer that steps kind from
+// input to output, which metric would judge.
+func generationContract(kind trainingprogram.ObjectiveKind, input, output recipecontract.Modality, metric trainingprogram.EvaluationMetric) trainingworkflow.RecipeContract {
+	return trainingworkflow.RecipeContract{
+		Kind: kind, Metric: metric,
+		Signature: recipecontract.ModalitySignature{Inputs: []recipecontract.Modality{input}, Outputs: []recipecontract.Modality{output}},
+	}
+}
+
+// openSession opens the session of a trainer that steps token prediction
+// over a text dataset, as openSessionAs does.
 func openSession(ctx context.Context, store *overgodb.Store, weights, dataset string) (routeSession, error) {
-	session, err := tokenSession(ctx, store, weights, dataset)
+	return openSessionAs(ctx, store, weights, dataset, trainingworkflow.TokenContract)
+}
+
+// openSessionAs publishes the training recipe whose bootstrap objective
+// declares contract over the dataset for the model weights, and admits the
+// session before any weight touches memory. A route opens under the
+// contract its trainer steps.
+func openSessionAs(ctx context.Context, store *overgodb.Store, weights, dataset string, contract trainingworkflow.RecipeContract) (routeSession, error) {
+	session, err := recipeSession(ctx, store, weights, dataset, contract)
 	if err != nil {
 		return routeSession{}, err
 	}
 	return session.admitted(ctx)
 }
 
-// tokenSession binds the token-training recipe bootstrapped over the text
-// dataset for the model weights; it supervises nothing until admitted.
-func tokenSession(ctx context.Context, store *overgodb.Store, weights, dataset string) (routeSession, error) {
-	recipeID, err := trainingworkflow.BootstrapTokenRecipe(ctx, store, weights, dataset)
+// recipeSession binds the training recipe bootstrapped under contract over
+// the dataset for the model weights; it supervises nothing until admitted.
+func recipeSession(ctx context.Context, store *overgodb.Store, weights, dataset string, contract trainingworkflow.RecipeContract) (routeSession, error) {
+	data, err := os.ReadFile(dataset)
+	if err != nil {
+		return routeSession{}, err
+	}
+	recipeID, err := trainingworkflow.BootstrapRecipe(ctx, store, weights, data, contract)
 	if err != nil {
 		return routeSession{}, err
 	}
@@ -123,17 +173,16 @@ func tokenSession(ctx context.Context, store *overgodb.Store, weights, dataset s
 	if err != nil {
 		return routeSession{}, err
 	}
-	session.weights, session.dataset = weights, dataset
+	session.weights, session.data = weights, data
 	return session, nil
 }
 
-// scratchSession activates the token-training recipe bootstrapped over a
-// scratch construction's dataset for the model it initializes, and admits
-// the session before any weight touches memory; what the session publishes
-// records the construction as its initial state. processor reads the
-// construction's documents.
-func scratchSession(ctx context.Context, store *overgodb.Store, construction trainingprogram.ScratchConstruction, processor artifact.ID) (routeSession, error) {
-	recipeID, err := trainingworkflow.BootstrapScratchRecipe(ctx, store, construction, processor)
+// scratchSession publishes the training recipe bootstrapped under contract
+// over a scratch construction's dataset for the model it initializes, and
+// admits the session; what the session publishes records the construction
+// as its initial state. processor reads the construction's dataset.
+func scratchSession(ctx context.Context, store *overgodb.Store, construction trainingprogram.ScratchConstruction, processor artifact.ID, contract trainingworkflow.RecipeContract) (routeSession, error) {
+	recipeID, err := trainingworkflow.BootstrapScratchRecipe(ctx, store, construction, processor, contract)
 	if err != nil {
 		return routeSession{}, err
 	}
@@ -159,9 +208,9 @@ func (session routeSession) admitted(ctx context.Context) (routeSession, error) 
 	return session, nil
 }
 
-// bindSession resolves the authority of an activated training recipe, so
+// bindSession resolves the authority of a published training recipe, so
 // what a run trained under it publishes; the session supervises nothing,
-// since the run that activated the recipe observes itself.
+// since the run that bootstrapped the recipe observes itself.
 func bindSession(ctx context.Context, store *overgodb.Store, recipeID artifact.ID) (routeSession, error) {
 	definition, err := recipe.RequireDefinition(ctx, store, recipeID)
 	if err != nil {
@@ -171,7 +220,7 @@ func bindSession(ctx context.Context, store *overgodb.Store, recipeID artifact.I
 	if err != nil {
 		return routeSession{}, err
 	}
-	return routeSession{store: store, model: definition.Model, recipe: recipeID, authority: authority}, nil
+	return routeSession{store: store, model: definition.Model, recipe: recipeID, authority: authority, published: new(artifact.ID)}, nil
 }
 
 // weightWriter is what a trainer hands the checkpoint it publishes: its
@@ -195,25 +244,21 @@ type planned interface {
 }
 
 // publishTrained publishes, as a checkpoint at target, what trainer trained
-// under the recipe a held-out run's session activated; stream is where the
-// training stopped in the objective's training membership.
-func publishTrained(ctx context.Context, store *overgodb.Store, recipeID artifact.ID, target string, trainer checkpointed, stream trainingdata.StreamState) error {
+// under the recipe a held-out run's session trained under; stream is where
+// the training stopped in the objective's training membership.
+func publishTrained(ctx context.Context, store *overgodb.Store, recipeID artifact.ID, target string, trainer checkpointed, stream trainingdata.StreamState) (trainingprogram.Checkpoint, error) {
 	session, err := bindSession(ctx, store, recipeID)
 	if err != nil {
-		return err
+		return trainingprogram.Checkpoint{}, err
 	}
 	return session.publishWeights(ctx, target, trainer.Program(), trainer, stream)
 }
 
 // publishPlanned publishes, as a checkpoint at target, what trainer trained
-// over records of the session's text dataset, under the program the
+// over records of the dataset the session read, under the program the
 // session's objective compiles over the trainer's optimizer plan.
 func (session routeSession) publishPlanned(ctx context.Context, target string, trainer planned, records int) error {
-	raw, err := os.ReadFile(session.dataset)
-	if err != nil {
-		return err
-	}
-	stream, err := trainingworkflow.TextStream(raw, uint64(records))
+	stream, err := trainingworkflow.TextStream(session.data, uint64(records))
 	if err != nil {
 		return err
 	}
@@ -221,7 +266,8 @@ func (session routeSession) publishPlanned(ctx context.Context, target string, t
 	if err != nil {
 		return err
 	}
-	return session.publishWeights(ctx, target, program, trainer, stream)
+	_, err = session.publishWeights(ctx, target, program, trainer, stream)
+	return err
 }
 
 // servable is a trainer that names each tensor it trains as its GGUF base
@@ -234,42 +280,49 @@ type servable interface {
 // publishWeights publishes, as a checkpoint at target, what trainer trained
 // under program; stream is where the training stopped in the recipe
 // objective's dataset. A servable trainer over a GGUF base publishes the
-// trained model there, registered as the candidate the server opens.
-func (session routeSession) publishWeights(ctx context.Context, target string, program trainingprogram.TrainingProgram, trainer weightWriter, stream trainingdata.StreamState) error {
+// trained model there, which the checkpoint's record registers as the
+// candidate the server opens.
+func (session routeSession) publishWeights(ctx context.Context, target string, program trainingprogram.TrainingProgram, trainer weightWriter, stream trainingdata.StreamState) (trainingprogram.Checkpoint, error) {
 	model, served := trainer.(servable)
 	served = served && strings.EqualFold(filepath.Ext(session.weights), ".gguf")
-	checkpoint, err := session.publish(ctx, target, program, trainer.Snapshot(), stream, func(stage string) error {
+	return session.publish(ctx, target, program, trainer.Snapshot(), stream, func(stage string) error {
 		if served {
 			return trainingworkflow.WriteTrainedModel(session.weights, filepath.Join(stage, trainingprogram.CheckpointModel), model.OptimizerPlan().GroupCount(), model.TrainedTensor)
 		}
 		return trainer.SaveWeights(filepath.Join(stage, trainingprogram.CheckpointWeights))
 	})
-	if err != nil {
-		return err
-	}
-	fmt.Printf("checkpoint=%s written to %s\n", checkpoint.ID(), target)
-	if !served {
-		return nil
-	}
-	candidate, err := trainingworkflow.PublishTrainedModel(ctx, session.store, target, checkpoint)
-	if err == nil {
-		fmt.Printf("model=%s candidate=%s (not activated)\n", candidate.Inventory.Manifest.ID, candidate.Definition.ID)
-	}
-	return err
 }
 
-// finish records the run's outcome as the session observation; the run's own
+// finish records the run's outcome as the session observation, a cancelled
+// run's included, and, when the run succeeded, verifies the session's
+// recipe on it and the checkpoint the session published; the run's own
 // error outranks the observation's.
 func (session routeSession) finish(ctx context.Context, plan trainingprogram.TrainingSessionPlan, runErr error) error {
+	ctx = context.WithoutCancel(ctx)
 	streamed := uint64(plan.Updates()) * uint64(plan.MaximumSequence())
 	observation, err := session.observer.Finish(ctx, session.model, session.recipe, runErr, streamed)
 	if err := cmp.Or(runErr, err); err != nil {
 		return err
 	}
-	if observation.Valid() {
-		fmt.Printf("session observation: %s\n", observation)
+	if !observation.Valid() {
+		return nil
 	}
-	return nil
+	fmt.Printf("session observation: %s\n", observation)
+	evidence := []artifact.ID{observation}
+	if session.published != nil && session.published.Valid() {
+		evidence = append(evidence, *session.published)
+	}
+	return session.observer.Verify(ctx, session.recipe, evidence...)
+}
+
+// settle finishes the session with *err when no run finished it, so a setup
+// that fails after admission still releases what admission acquired and
+// records its outcome; a route defers it as soon as its session opens. A
+// finish that fails reports only when nothing failed before it.
+func (session routeSession) settle(ctx context.Context, err *error) {
+	if _, finishErr := session.observer.Finish(context.WithoutCancel(ctx), session.model, session.recipe, *err, 0); *err == nil {
+		*err = finishErr
+	}
 }
 
 // publish publishes what the session trained as a checkpoint at target and
@@ -313,14 +366,8 @@ func (session routeSession) publish(ctx context.Context, target string, program 
 		{Artifact: program.ID(), Relation: artifact.RelationProducedBy},
 		{Artifact: plan.ID(), Relation: artifact.RelationDependsOn},
 	}
-	// The compiled program and run plan, and the scratch construction a
-	// model built from nothing starts from, are exact external publications
-	// the checkpoint's lineage names; registering them lets the record
-	// resolve.
-	external := []artifact.Descriptor{{ID: program.ID()}, {ID: plan.ID()}}
 	if session.scratch != nil {
 		lineage = append(lineage, trainingprogram.LineageParent{Artifact: session.scratch.ID(), Relation: artifact.RelationDependsOn})
-		external = append(external, artifact.Descriptor{ID: session.scratch.ID()})
 	}
 	checkpoint, err := trainingprogram.PublishCheckpoint(target, trainingprogram.CheckpointSpec{
 		RunPlan: plan.ID(), Program: program.ID(), Model: session.model, Dataset: objective.Dataset, Split: objective.Split,
@@ -334,19 +381,18 @@ func (session routeSession) publish(ctx context.Context, target string, program 
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	// A deterministic rerun publishes the same checkpoint into another
-	// directory, which its record adds; the record's key names the directory.
-	directory, err := filepath.Abs(target)
+	fmt.Printf("checkpoint=%s written to %s\n", checkpoint.ID(), target)
+	// The record names the program, run plan and scratch construction the
+	// checkpoint's lineage cites, and registers a trained GGUF it holds.
+	candidate, err := trainingworkflow.RecordCheckpoint(ctx, session.store, target, checkpoint)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	batch, err := checkpoint.Batch("training/evidence/checkpoint/"+checkpoint.ID().String()+"/"+directory, directory)
-	if err != nil {
-		return trainingprogram.Checkpoint{}, err
+	if candidate.Definition.ID.Valid() {
+		fmt.Printf("model=%s candidate=%s (not activated)\n", candidate.Inventory.Manifest.ID, candidate.Definition.ID)
 	}
-	batch.Artifacts = append(batch.Artifacts, external...)
-	if err := trainingworkflow.PublishTrainingEvidence(ctx, session.store, trainingworkflow.TrainingEvidencePublication{Batch: batch}); err != nil {
-		return trainingprogram.Checkpoint{}, err
+	if session.published != nil {
+		*session.published = checkpoint.ID()
 	}
 	return checkpoint, nil
 }

@@ -8,13 +8,17 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/trainingprogram"
 )
 
 const (
 	heldoutVerdictMediaType = "application/vnd.overgo.heldout-verdict+json"
-	heldoutVerdictSchema    = "overgo/heldout-verdict/v1"
+	// heldoutVerdictSchema's second version binds the trained output and the
+	// exact evaluation inputs; a first-version verdict names neither, so it
+	// identifies no trained result and is not read.
+	heldoutVerdictSchema = "overgo/heldout-verdict/v2"
 )
 
 var heldoutVerdictCodec = artifact.JSONDocumentCodec(
@@ -151,11 +155,23 @@ func heldoutMetricName(metric trainingprogram.EvaluationMetric) (string, bool) {
 	return "", false
 }
 
+// HeldoutTraining is what a held-out verdict binds of the training it
+// judges: the observed training session, the model that session trained,
+// the checkpoint the trained model published, and the held-out membership
+// as the judged models read it, the exact evaluation inputs.
+type HeldoutTraining struct {
+	Observation, Model artifact.ID
+	Trained            trainingprogram.Checkpoint
+	Inputs             artifact.ID
+}
+
 // heldoutVerdict judges a trained model against its base model on one
 // objective's held-out view: both are scored by the same target plan, and
 // the verdict passes when the trained model strictly improves the metric
 // the objective declares, in the metric's own direction. No threshold is
-// involved; Passed is recomputed from the recorded values.
+// involved; Passed is recomputed from the recorded values. Trained names the
+// checkpoint the trained model published and Inputs the held-out membership
+// as the judged models read it.
 type heldoutVerdict struct {
 	ID             artifact.ID                      `json:"-"`
 	Version        uint16                           `json:"version"`
@@ -163,6 +179,8 @@ type heldoutVerdict struct {
 	View           artifact.ID                      `json:"view"`
 	Plan           artifact.ID                      `json:"plan"`
 	Observation    artifact.ID                      `json:"observation"`
+	Trained        artifact.ID                      `json:"trained"`
+	Inputs         artifact.ID                      `json:"inputs"`
 	Baseline       artifact.ID                      `json:"baseline"`
 	Candidate      artifact.ID                      `json:"candidate"`
 	Metric         trainingprogram.EvaluationMetric `json:"metric"`
@@ -173,14 +191,15 @@ type heldoutVerdict struct {
 }
 
 // JudgeHeldout compares the base model's and the trained model's reports on
-// one plan bound to the objective's held-out view. The observation is the
-// training session that produced the trained model.
+// one plan bound to the objective's held-out view. The trained checkpoint
+// must have trained the observed model on exactly the view's training
+// membership of the objective's dataset.
 func JudgeHeldout(
 	objective trainingprogram.ObjectiveDocument,
 	view SFTEvaluationView,
 	plan HeldoutPlan,
 	baseline, candidate HeldoutReport,
-	observation artifact.ID,
+	training HeldoutTraining,
 ) (heldoutVerdict, error) {
 	if _, err := objective.Content(); err != nil {
 		return heldoutVerdict{}, err
@@ -194,6 +213,14 @@ func JudgeHeldout(
 	if view.Objective != objective.ID || plan.view != view.ID || baseline.plan != plan.id || candidate.plan != plan.id {
 		return heldoutVerdict{}, errors.New("evaluation: held-out reports are not bound to this objective's view")
 	}
+	trained := training.Trained
+	if err := trained.ValidateIdentity(); err != nil {
+		return heldoutVerdict{}, err
+	}
+	if trained.Model != training.Model || trained.Dataset != objective.Dataset || trained.Split != view.TrainingMembership {
+		return heldoutVerdict{}, fmt.Errorf("evaluation: checkpoint %s did not train the observed model %s on the objective's training membership %s",
+			trained.ID(), training.Model, view.TrainingMembership)
+	}
 	name, found := heldoutMetricName(objective.Metric)
 	if !found {
 		return heldoutVerdict{}, fmt.Errorf("evaluation: no held-out scorer measures %q", objective.Metric)
@@ -203,8 +230,9 @@ func JudgeHeldout(
 	if !baseFound || !candidateFound || baseMetric.Direction != candidateMetric.Direction {
 		return heldoutVerdict{}, fmt.Errorf("evaluation: held-out reports do not both carry %q", name)
 	}
-	return heldoutVerdictCodec.NewInitial(heldoutVerdict{
-		Objective: objective.ID, View: view.ID, Plan: plan.id, Observation: observation,
+	return heldoutVerdictCodec.New(heldoutVerdict{
+		Version: artifact.SecondDocumentVersion, Objective: objective.ID, View: view.ID, Plan: plan.id,
+		Observation: training.Observation, Trained: trained.ID(), Inputs: training.Inputs,
 		Baseline: baseline.id, Candidate: candidate.id, Metric: objective.Metric,
 		Direction: baseMetric.Direction, BaselineValue: baseMetric.Value, CandidateValue: candidateMetric.Value,
 	})
@@ -216,11 +244,15 @@ func (verdict heldoutVerdict) Content() (artifact.Content, error) {
 }
 
 // Batch stages the verdict with lineage to the objective, view, plan,
-// training observation and both reports it judged.
+// training observation, trained checkpoint, evaluation inputs and both
+// reports it judged; the inputs' identity is declared beside it.
 func (verdict heldoutVerdict) Batch(key string) (artifact.Batch, error) {
-	return heldoutVerdictCodec.Batch(key, verdict, artifact.DependencyLineage(
-		verdict.ID, verdict.Objective, verdict.View, verdict.Plan, verdict.Observation, verdict.Baseline, verdict.Candidate,
-	), nil)
+	return declaring(func(key string) (artifact.Batch, error) {
+		return heldoutVerdictCodec.Batch(key, verdict, artifact.DependencyLineage(
+			verdict.ID, verdict.Objective, verdict.View, verdict.Plan, verdict.Observation, verdict.Trained, verdict.Inputs,
+			verdict.Baseline, verdict.Candidate,
+		), nil)
+	}, key, []artifact.Descriptor{{ID: verdict.Inputs}})
 }
 
 // HeldoutBatch stages the view, plan, both reports and the verdict judged
@@ -247,9 +279,11 @@ func HeldoutBatch(view SFTEvaluationView, plan HeldoutPlan, baseline, candidate 
 // CommittedHeldoutVerdictPassed reads one committed held-out verdict and
 // reports whether it passed for current, re-deriving everything it claims:
 // the objective it judged declares current's contract, its view recompiles
-// from the committed training and held-out memberships, its reports recompute
-// to the same verdict, and its training observation is evidence current
-// already carries.
+// from the committed training membership and the held-out one its published
+// split pairs it with, each report rescores to itself from the cases it
+// retains, its trained checkpoint is committed and trained the model its
+// observed session trained, its reports recompute to the same verdict, and
+// its training observation is evidence current already carries.
 func CommittedHeldoutVerdictPassed(
 	ctx context.Context,
 	reader artifact.Reader,
@@ -275,6 +309,9 @@ func CommittedHeldoutVerdictPassed(
 	if err != nil {
 		return false, err
 	}
+	if partner, err := dataset.SplitPartner(ctx, reader, training.ID); err != nil || partner.ID != heldout.ID {
+		return false, errors.Join(fmt.Errorf("evaluation: verdict %s judges on a membership its split does not pair with the training one", id), err)
+	}
 	recompiled, err := CompileSFTEvaluationView(objective, training, heldout)
 	if err != nil {
 		return false, err
@@ -286,7 +323,11 @@ func CommittedHeldoutVerdictPassed(
 	if err != nil {
 		return false, err
 	}
-	judged, err := JudgeHeldout(objective, view, plan, reports[0], reports[1], verdict.Observation)
+	trained, err := requireTraining(ctx, reader, verdict)
+	if err != nil {
+		return false, err
+	}
+	judged, err := JudgeHeldout(objective, view, plan, reports[0], reports[1], trained)
 	if err != nil {
 		return false, err
 	}
@@ -317,23 +358,26 @@ func requireHeldout(ctx context.Context, reader artifact.Reader, plan artifact.I
 	switch descriptor.MediaType {
 	case numericTargetPlanMedia:
 		return requireTargets(ctx, reader, numericTargetPlanCodec, numericTargetReportCodec, plan, reports,
-			func(plan numericTargetPlan) artifact.ID { return plan.View }, numericTargetReport.heldout)
+			func(plan numericTargetPlan) artifact.ID { return plan.View }, numericTargetPlan.rescore)
 	case textTargetPlanMediaType:
 		return requireTargets(ctx, reader, textTargetPlanCodec, textTargetReportCodec, plan, reports,
-			func(plan textTargetPlan) artifact.ID { return plan.View }, textTargetReport.heldout)
+			func(plan textTargetPlan) artifact.ID { return plan.View }, textTargetPlan.rescore)
 	case mediaTargetPlanMedia:
 		return requireTargets(ctx, reader, mediaTargetPlanCodec, mediaTargetReportCodec, plan, reports,
-			func(plan mediaTargetPlan) artifact.ID { return plan.View }, mediaTargetReport.heldout)
+			func(plan mediaTargetPlan) artifact.ID { return plan.View }, mediaTargetPlan.rescore)
 	case preferenceTargetPlanMedia:
 		return requireTargets(ctx, reader, preferenceTargetPlanCodec, preferenceTargetReportCodec, plan, reports,
-			func(plan preferenceTargetPlan) artifact.ID { return plan.View }, preferenceTargetReport.heldout)
+			func(plan preferenceTargetPlan) artifact.ID { return plan.View }, preferenceTargetPlan.rescore)
 	default:
 		return HeldoutPlan{}, nil, fmt.Errorf("evaluation: %s is not a held-out target plan", plan)
 	}
 }
 
 // requireTargets reads one kind's committed plan and reports through their
-// codecs, as the judge reads them.
+// codecs and rescores each report through the plan from the per-case
+// answers it retains: a report whose cases, scores or metrics are not what
+// those answers score to is refused, so the judge reads metrics only a
+// rescoring derived.
 func requireTargets[Plan, Report any](
 	ctx context.Context,
 	reader artifact.Reader,
@@ -342,7 +386,7 @@ func requireTargets[Plan, Report any](
 	id artifact.ID,
 	reportIDs []artifact.ID,
 	view func(Plan) artifact.ID,
-	heldout func(Report) HeldoutReport,
+	rescore func(Plan, Report) (HeldoutReport, error),
 ) (HeldoutPlan, []HeldoutReport, error) {
 	plan, err := planCodec.Require(ctx, reader, id)
 	if err != nil {
@@ -354,11 +398,43 @@ func requireTargets[Plan, Report any](
 		if err != nil {
 			return HeldoutPlan{}, nil, err
 		}
-		reports[index] = heldout(report)
+		rescored, err := rescore(plan, report)
+		if err == nil && rescored.id != reportID {
+			err = errors.New("its retained cases score to another report")
+		}
+		if err != nil {
+			return HeldoutPlan{}, nil, fmt.Errorf("evaluation: held-out report %s does not rescore under plan %s: %w", reportID, id, err)
+		}
+		reports[index] = rescored
 	}
 	return HeldoutPlan{id: id, view: view(plan), batch: func(key string) (artifact.Batch, error) {
 		return planCodec.Batch(key, plan, nil, nil)
 	}}, reports, nil
+}
+
+// requireTraining reads what a committed verdict binds of the training it
+// judged: its observation, which must be a succeeded training session, and
+// its trained checkpoint, which must be committed.
+func requireTraining(ctx context.Context, reader artifact.Reader, verdict heldoutVerdict) (HeldoutTraining, error) {
+	observation, err := runrecord.RequireServingObservation(ctx, reader, verdict.Observation)
+	if err != nil {
+		return HeldoutTraining{}, err
+	}
+	if observation.Task != recipe.TaskTraining || observation.Outcome != runrecord.OutcomeSucceeded {
+		return HeldoutTraining{}, fmt.Errorf("evaluation: verdict %s observation %s is not a succeeded training session", verdict.ID, verdict.Observation)
+	}
+	content, found, err := artifact.ReadContent(ctx, reader, verdict.Trained)
+	if err != nil {
+		return HeldoutTraining{}, err
+	}
+	if !found {
+		return HeldoutTraining{}, fmt.Errorf("evaluation: verdict %s trained checkpoint %s is not committed", verdict.ID, verdict.Trained)
+	}
+	trained, err := trainingprogram.ParseCheckpoint(content.Data)
+	if err != nil || trained.ID() != verdict.Trained {
+		return HeldoutTraining{}, errors.Join(fmt.Errorf("evaluation: verdict %s trained output %s is not a checkpoint", verdict.ID, verdict.Trained), err)
+	}
+	return HeldoutTraining{Observation: verdict.Observation, Model: observation.Model, Trained: trained, Inputs: verdict.Inputs}, nil
 }
 
 func viewMemberships(ctx context.Context, reader artifact.Reader, view SFTEvaluationView) (dataset.Membership, dataset.Membership, error) {
@@ -385,9 +461,10 @@ func reportMetric(metrics []runrecord.Metric, name string) (runrecord.Metric, bo
 }
 
 func canonicalizeHeldoutVerdict(verdict *heldoutVerdict) error {
-	if verdict == nil || verdict.Version != artifact.InitialDocumentVersion ||
+	if verdict == nil || verdict.Version != artifact.SecondDocumentVersion ||
 		verdict.Objective.Kind() != artifact.KindProfile || verdict.View.Kind() != artifact.KindProfile ||
 		verdict.Plan.Kind() != artifact.KindProfile || verdict.Observation.Kind() != artifact.KindEvidence ||
+		verdict.Trained.Kind() != artifact.KindCheckpoint || verdict.Inputs.Kind() != artifact.KindProfile ||
 		verdict.Baseline.Kind() != artifact.KindEvaluation || verdict.Candidate.Kind() != artifact.KindEvaluation ||
 		verdict.Baseline == verdict.Candidate || verdict.Metric == "" || !validMetricDirection(verdict.Direction) {
 		return errors.New("evaluation: invalid held-out verdict")

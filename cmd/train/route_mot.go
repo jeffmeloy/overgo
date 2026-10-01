@@ -78,7 +78,7 @@ func loadMotTensorAsset(fixturesDir, asset string, golden motGoldenTensor) ([]fl
 // and the run publishes one typed session observation and the trained fork
 // as a checkpoint: the full-pipeline run the organ cells named as their
 // promotion gate.
-func trainMot(flags *flag.FlagSet, args []string) error {
+func trainMot(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	modelDir := flags.String("model", "", "branch-routed checkpoint dir")
 	fixturesDir := flags.String("fixtures", "", "golden fixture dir")
 	bindingName := flags.String("binding", "", "branch binding name")
@@ -90,7 +90,6 @@ func trainMot(flags *flag.FlagSet, args []string) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	ctx := context.Background()
 	if *modelDir == "" || *fixturesDir == "" || *bindingName == "" || *out == "" || *steps <= 0 {
 		return fmt.Errorf("train -route mot: model, fixtures, binding, out, and positive steps required")
 	}
@@ -113,6 +112,7 @@ func trainMot(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer session.settle(ctx, &err)
 
 	// Real prompt: golden-verified token ids, modality mask, and vision rows
 	// through the real merger — the exact splice the serving prefill runs.
@@ -222,6 +222,8 @@ func trainMot(flags *flag.FlagSet, args []string) error {
 		step: func(int) (optimizer.ObservedStepResult, error) { return trainer.Step(hidden, mask, targets) },
 		loss: func() (float64, error) { return trainer.Loss(hidden, mask, targets) },
 		// Every update trains on the one declared prompt.
-		publish: func(ctx context.Context) error { return session.publishPlanned(ctx, *out, trainer, plan.Updates()) },
+		publish: func(ctx context.Context) error {
+			return session.publishPlanned(ctx, *out, trainer, plan.Updates())
+		},
 	}.train(ctx)
 }

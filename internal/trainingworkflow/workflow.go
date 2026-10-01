@@ -122,6 +122,29 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if err := observer.Admit(ctx, modelID, request.Recipe); err != nil {
 		return Result{}, err
 	}
+	// Every exit after admission, a setup refusal included, finishes the
+	// session it admitted.
+	result, runErr := admittedRun(ctx, request, observer, inputDirectory, resumed, resumeStream, modelID)
+	if observer != nil {
+		// A cancelled run's outcome records too.
+		observationID, routerIDs, routerCoverage, observeErr := observer.finishTraining(
+			context.WithoutCancel(ctx), modelID, request.Recipe, runErr, result,
+		)
+		if observeErr != nil && runErr == nil {
+			return Result{}, observeErr
+		}
+		result.Observation, result.RouterObservations = observationID, routerIDs
+		result.RouterObservationCoverage = routerCoverage
+		if runErr == nil {
+			runErr = observer.Verify(ctx, request.Recipe, result.Observation, result.Checkpoint.ID())
+		}
+	}
+	return result, runErr
+}
+
+// admittedRun resolves the admitted session's authority, loads its model,
+// tokenizer and dataset, and trains them.
+func admittedRun(ctx context.Context, request Request, observer *Observer, inputDirectory string, resumed trainingprogram.Checkpoint, resumeStream *trainingdata.StreamState, modelID artifact.ID) (Result, error) {
 	authority, err := ResolveSessionAuthority(ctx, request.Repository, modelID, request.Recipe)
 	if err != nil {
 		return Result{}, err
@@ -177,16 +200,6 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 		resumed: resumed, resumeStream: resumeStream, stepSample: observer.SampleStep,
 	}.run()
 	observer.Phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
-	if observer != nil {
-		observationID, routerIDs, routerCoverage, observeErr := observer.finishTraining(
-			ctx, modelID, request.Recipe, runErr, result,
-		)
-		if observeErr != nil && runErr == nil {
-			return Result{}, observeErr
-		}
-		result.Observation, result.RouterObservations = observationID, routerIDs
-		result.RouterObservationCoverage = routerCoverage
-	}
 	return result, runErr
 }
 
@@ -251,11 +264,12 @@ func (session denseSession) run() (Result, error) {
 		session.inputDirectory, session.request.OutputDirectory, session.model, authority, state,
 	)
 	result.authority = authority
-	// A trained GGUF registers where the run's evidence goes, as the
-	// candidate the server, validate and the scorecard open.
-	if err == nil && isGGUFModelInput(session.inputDirectory) && session.request.Observations != nil {
+	// The checkpoint records where the run's evidence goes, and a trained
+	// GGUF registers there as the candidate the server, validate and the
+	// scorecard open.
+	if err == nil && session.request.Observations != nil {
 		var candidate modelintake.Candidate
-		candidate, err = PublishTrainedModel(session.ctx, session.request.Observations, session.request.OutputDirectory, result.Checkpoint)
+		candidate, err = RecordCheckpoint(session.ctx, session.request.Observations, session.request.OutputDirectory, result.Checkpoint)
 		result.Candidate = candidate.Definition.ID
 	}
 	return result, err

@@ -73,7 +73,7 @@ func requireRoutePublishes(t *testing.T, route string, args ...string) (training
 	root := t.TempDir()
 	storePath, out := filepath.Join(root, "store"), filepath.Join(root, "checkpoint")
 	args = append([]string{route, "-steps", fmt.Sprint(routeTestSteps), "-store", storePath, "-out", out}, args...)
-	if err := runRoute(args); err != nil {
+	if err := runRoute(t.Context(), args); err != nil {
 		t.Fatalf("%s route: %v", route, err)
 	}
 	checkpoint, err := trainingprogram.LoadCheckpoint(out)

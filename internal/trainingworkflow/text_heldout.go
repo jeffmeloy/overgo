@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/densecausal"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/strictjson"
@@ -23,7 +24,11 @@ import (
 type TextHeldoutRequest struct {
 	Alias          string
 	ModelDirectory string
-	Steps          int
+	// OutputDirectory receives the trained model as a checkpoint, the
+	// trained result the verdict binds: a GGUF base's trained GGUF, else
+	// its trained tensors.
+	OutputDirectory string
+	Steps           int
 	// MaximumSequence bounds each record's tokens; zero uses the model's
 	// context length.
 	MaximumSequence int
@@ -57,8 +62,12 @@ type generationPrompt struct {
 // prompt and its accepted answers, trains on the prompt and its first
 // answer, and asks whether the text the model generates greedily after a
 // held-out prompt is an accepted answer. The model's weights update in
-// place, so the base and trained models answer in one process.
+// place, so the base and trained models answer in one process; the trained
+// model publishes at the request's output directory before it answers.
 func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeldoutRequest) (HeldoutResult, error) {
+	if request.OutputDirectory == "" {
+		return HeldoutResult{}, errors.New("training workflow: a held-out text run publishes its trained model, so it needs an output directory")
+	}
 	objective, err := LoadObjectiveAlias(ctx, store, request.Alias)
 	if err != nil {
 		return HeldoutResult{}, err
@@ -83,12 +92,63 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.MaximumSequence > 0 {
 		sequence = min(sequence, request.MaximumSequence)
 	}
+	data, prompts, err := textObjectiveData(ctx, store, objective, tokenizer, sequence)
+	if err != nil {
+		return HeldoutResult{}, err
+	}
+	muonPlan, err := model.TrainingPlan()
+	if err != nil {
+		return HeldoutResult{}, err
+	}
+	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
+		Objective: trainingprogram.ObjectiveTokenPrediction, Updates: request.Steps, MaximumSequence: sequence,
+		MaxProjectedWall: request.MaxProjectedWall,
+		Parameters:       muonPlan.ParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
+	})
+	if err != nil {
+		return HeldoutResult{}, err
+	}
+	config := plan.Optimizer()
+	return RunHeldout(ctx, store, HeldoutRun{
+		Alias: request.Alias, ModelPath: weights, Data: data, Host: request.Host,
+		Train: func(ctx context.Context, recipeID artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error) {
+			if len(shown) == 0 {
+				return trainingprogram.Checkpoint{}, errors.New("training workflow: the training membership holds no text")
+			}
+			batches := make([][]int, plan.Updates())
+			for step := range batches {
+				batches[step] = dtype.ConvertSlice[int](shown[step%len(shown)].Input)
+			}
+			// The run stops between updates once its context ends.
+			cancelled := func(int, float64, time.Duration) error { return ctx.Err() }
+			_, _, state, err := runTrainingState(model, batches, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, false, nil, cancelled, nil)
+			if err != nil {
+				return trainingprogram.Checkpoint{}, err
+			}
+			// Each update read one training record, in membership order.
+			stream := trainingdata.StreamState{Identity: data.Training, Position: uint64(plan.Updates())}
+			return publishTrainedText(ctx, store, request, model, muonPlan, recipeID, objective, stream, state)
+		},
+		Predict: func(example HeldoutExample) (HeldoutPrediction, error) {
+			if generation {
+				return generateAnswer(model, tokenizer.piece, prompts[example.Record])
+			}
+			return nextTokens(model, example)
+		},
+	})
+}
+
+// textObjectiveData reads both of a text objective's memberships as the
+// held-out text run trains and judges them. Each record is one UTF-8
+// document; its example is its first sequence tokens: the input is the
+// sequence, the target every token after the first. A generation record's
+// document is its prompt and answers, its sequence the prompt followed by
+// the first answer, and what a held-out generation answers it from returns
+// keyed by record.
+func textObjectiveData(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, tokenizer trainableTokenizer, sequence int) (ObjectiveData, map[string]generationPrompt, error) {
+	generation := objective.Metric == trainingprogram.MetricGeneratedAnswer
 	prompts := map[string]generationPrompt{}
-	// Each record is one UTF-8 document; its example is its first sequence
-	// tokens: the input is the sequence, the target every token after the
-	// first. A generation record's document is its prompt and answers, and
-	// its sequence the prompt followed by the first answer.
-	examples, _, err := ObjectiveExamples(ctx, store, objective, []byte("overgo/training/text-utf8/v1"), recipecontract.ModalityText,
+	data, err := ObjectiveExamples(ctx, reader, objective, []byte("overgo/training/text-utf8/v1"), recipecontract.ModalityText,
 		trainingdata.Passthrough(trainingdata.RoleInput, recipecontract.ModalityText, "utf-8"),
 		func(example trainingdata.Example) (HeldoutExample, error) {
 			if len(example.Values) != 1 {
@@ -113,42 +173,49 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			}
 			return HeldoutExample{Input: dtype.ConvertSlice[float64](tokens), Target: dtype.ConvertSlice[float64](tokens[1:]), Answers: answers}, nil
 		})
-	if err != nil {
-		return HeldoutResult{}, err
+	return data, prompts, err
+}
+
+// publishTrainedText publishes the model a held-out text run trained under
+// recipeID as a checkpoint at the request's output directory and records
+// it: the program and run plan the recipe's objective compiles over the
+// model's optimizer plan, its dataset, training membership and declared
+// processor, and stream, the position the run reached in the training
+// membership.
+func publishTrainedText(
+	ctx context.Context,
+	store *overgodb.Store,
+	request TextHeldoutRequest,
+	model *densecausal.Model,
+	muonPlan hostoptimizer.Plan,
+	recipeID artifact.ID,
+	objective trainingprogram.ObjectiveDocument,
+	stream trainingdata.StreamState,
+	state densecausal.TrainState,
+) (trainingprogram.Checkpoint, error) {
+	if len(objective.Processors) != 1 {
+		return trainingprogram.Checkpoint{}, fmt.Errorf("training workflow: objective %q declares %d processors; a text checkpoint records one", objective.Name, len(objective.Processors))
 	}
-	muonPlan, err := model.TrainingPlan()
+	modelID, err := identifyModel(request.ModelDirectory)
 	if err != nil {
-		return HeldoutResult{}, err
+		return trainingprogram.Checkpoint{}, err
 	}
-	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
-		Objective: trainingprogram.ObjectiveTokenPrediction, Updates: request.Steps, MaximumSequence: sequence,
-		MaxProjectedWall: request.MaxProjectedWall,
-		Parameters:       muonPlan.ParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
-	})
+	session, err := ResolveSessionAuthority(ctx, store, modelID, recipeID)
 	if err != nil {
-		return HeldoutResult{}, err
+		return trainingprogram.Checkpoint{}, err
 	}
-	config := plan.Optimizer()
-	return RunHeldout(ctx, store, HeldoutRun{
-		Alias: request.Alias, ModelPath: weights, Examples: examples, Host: request.Host,
-		Train: func(_ context.Context, _ artifact.ID, shown []HeldoutExample) error {
-			if len(shown) == 0 {
-				return errors.New("training workflow: the training membership holds no text")
-			}
-			batches := make([][]int, plan.Updates())
-			for step := range batches {
-				batches[step] = dtype.ConvertSlice[int](shown[step%len(shown)].Input)
-			}
-			_, _, _, err := runTrainingState(model, batches, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, false, nil, nil, nil)
-			return err
-		},
-		Predict: func(example HeldoutExample) (HeldoutPrediction, error) {
-			if generation {
-				return generateAnswer(model, tokenizer.piece, prompts[example.Record])
-			}
-			return nextTokens(model, example)
-		},
-	})
+	authority, err := compileAuthority(ctx, store, session.Program, muonPlan, request.ModelDirectory,
+		batchAuthority{Dataset: objective.Dataset, Split: objective.Split, Processor: objective.Processors[0]}, stream,
+		trainingprogram.Checkpoint{}, trainingprogram.ObjectiveTokenPrediction, nil, nil)
+	if err != nil {
+		return trainingprogram.Checkpoint{}, err
+	}
+	checkpoint, err := publishCheckpoint(request.ModelDirectory, request.OutputDirectory, model, authority, state)
+	if err != nil {
+		return trainingprogram.Checkpoint{}, err
+	}
+	_, err = RecordCheckpoint(ctx, store, request.OutputDirectory, checkpoint)
+	return checkpoint, err
 }
 
 // readPromptAnswers reads one generation record and what a held-out

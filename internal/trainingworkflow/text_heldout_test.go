@@ -118,7 +118,7 @@ func approveTextObjective(t *testing.T, documents []string, metric trainingprogr
 	const alias = "objective.registered.texts"
 	registerObjective(t, ctx, store, root, objective, alias)
 
-	result, err := RunTextHeldout(ctx, store, TextHeldoutRequest{Alias: alias, ModelDirectory: modelDirectory, Steps: 48, Host: true})
+	result, err := RunTextHeldout(ctx, store, TextHeldoutRequest{Alias: alias, ModelDirectory: modelDirectory, OutputDirectory: filepath.Join(root, "trained"), Steps: 48, Host: true})
 	if err != nil || !result.Passed {
 		t.Fatalf("text held-out run = (passed=%t, %v), want a passed verdict", result.Passed, err)
 	}

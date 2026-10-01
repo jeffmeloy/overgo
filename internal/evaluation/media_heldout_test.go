@@ -54,7 +54,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		}
 	}
 	const bound = 3
-	observation := derived(artifact.KindEvidence, "observation")
+	session := heldoutTraining(t, store, source, training.ID)
 	objective, err := trainingprogram.NewObjective(trainingprogram.ObjectiveSpec{
 		Name: "speech", Kind: trainingprogram.ObjectiveLatentL2,
 		Signature: recipecontract.ModalitySignature{
@@ -62,7 +62,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		},
 		Dataset: source, Split: training.ID, Processors: []artifact.ID{derived(artifact.KindProfile, "processor")},
 		Loss: derived(artifact.KindProfile, "loss"), Evaluation: derived(artifact.KindProfile, "evaluation"),
-		Metric: trainingprogram.MetricAudioSNR, HeldoutRecords: bound, Evidence: []artifact.ID{observation},
+		Metric: trainingprogram.MetricAudioSNR, HeldoutRecords: bound, Evidence: []artifact.ID{session.Observation},
 		Authority: trainingprogram.ObjectiveAdaptive,
 	})
 	if err != nil {
@@ -118,7 +118,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		t.Fatal(err)
 	}
 	registration.Contents = append(registration.Contents, content)
-	for _, id := range []artifact.ID{source, observation, objective.Processors[0], objective.Loss, objective.Evaluation} {
+	for _, id := range []artifact.ID{source, objective.Processors[0], objective.Loss, objective.Evaluation} {
 		registration.Artifacts = append(registration.Artifacts, artifact.Descriptor{ID: id})
 	}
 	if _, err := artifact.CommitBatch(ctx, store, registration); err != nil {
@@ -129,7 +129,7 @@ func TestMediaObjectiveApprovesOnHeldOutGain(t *testing.T) {
 		report HeldoutReport
 		passed bool
 	}{{"quieter", trained, true}, {"louder", louder, false}} {
-		verdict, err := JudgeHeldout(objective, view, plan, base, candidate.report, observation)
+		verdict, err := JudgeHeldout(objective, view, plan, base, candidate.report, session)
 		if err != nil || verdict.Metric != trainingprogram.MetricAudioSNR || verdict.Passed != candidate.passed {
 			t.Fatalf("%s trained answer = (%+v, %v), want passed %t on held-out SNR", candidate.name, verdict, err, candidate.passed)
 		}

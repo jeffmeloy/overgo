@@ -39,7 +39,7 @@ func TestGraftPublishesEachSeedsBridge(t *testing.T) {
 	if err := os.WriteFile(tokens, []byte("[1, 2, 3, 4, 2, 3, 4, 1, 1, 3, 2, 4]"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := runRoute([]string{"graft", "-target", targetDir, "-donor", donorDir, "-tokens", tokens,
+	if err := runRoute(t.Context(), []string{"graft", "-target", targetDir, "-donor", donorDir, "-tokens", tokens,
 		"-record", storePath, "-out", out, "-steps", "1", "-window", "4"}); err != nil {
 		t.Fatal(err)
 	}

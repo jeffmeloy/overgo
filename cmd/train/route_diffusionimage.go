@@ -13,6 +13,7 @@ import (
 	"overgo/internal/diffusionimage"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipecontract"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -27,7 +28,7 @@ const otSigmaMin = 0.001
 // images a manifest names, all of them one batch, along one seeded
 // optimal-transport path per run, refuses a run whose loss on that path does
 // not descend, and publishes the trained model as a checkpoint.
-func trainDiffusionImage(flags *flag.FlagSet, args []string) error {
+func trainDiffusionImage(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	model := flags.String("model", "", "flow-matching image model directory (config.json + safetensors)")
 	manifest := flags.String("images", "", "UTF-8 manifest naming one training image per line, relative to the manifest; it grounds the recipe dataset")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
@@ -54,16 +55,18 @@ func trainDiffusionImage(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	session, err := openSession(ctx, store, weights, *manifest)
+	// The trainer steps flow matching from the manifest's images to images.
+	session, err := openSessionAs(ctx, store, weights, *manifest,
+		generationContract(trainingprogram.ObjectiveFlowMatching, recipecontract.ModalityImage, recipecontract.ModalityImage, trainingprogram.MetricImagePSNRUnit))
 	if err != nil {
 		return err
 	}
+	defer session.settle(ctx, &err)
 	loaded, err := diffusionimage.Load(directory)
 	if err != nil {
 		return err
@@ -100,7 +103,9 @@ func trainDiffusionImage(flags *flag.FlagSet, args []string) error {
 		},
 		loss: func() (float64, error) { return mean(trainer.OTLoss(batch, otSigmaMin, seed)) },
 		// Every update trains on the one batch the manifest declares.
-		publish: func(ctx context.Context) error { return session.publishPlanned(ctx, *out, trainer, plan.Updates()) },
+		publish: func(ctx context.Context) error {
+			return session.publishPlanned(ctx, *out, trainer, plan.Updates())
+		},
 	}.train(ctx)
 }
 

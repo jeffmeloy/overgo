@@ -336,6 +336,17 @@ func (report mediaTargetReport) heldout() HeldoutReport {
 	return HeldoutReport{id: report.ID, plan: report.Plan, metrics: report.Metrics, batch: report.Batch}
 }
 
+// rescore scores the outputs, oracle results and verifier values each of
+// report's records retains under plan.
+func (plan mediaTargetPlan) rescore(report mediaTargetReport) (HeldoutReport, error) {
+	observations := make([]mediaTargetObservation, len(report.Records))
+	for index, record := range report.Records {
+		observations[index] = mediaTargetObservation{Record: record.Record, Output: record.Output, Oracles: record.Oracles, Verifiers: record.Verifiers}
+	}
+	rescored, err := scoreMediaTargets(plan, observations)
+	return rescored.heldout(), err
+}
+
 func canonicalizeMediaTargetPlan(plan *mediaTargetPlan) error {
 	if plan == nil || plan.Version != artifact.InitialDocumentVersion || plan.View.Kind() != artifact.KindProfile ||
 		plan.Signature.Validate() != nil || len(plan.Signature.Outputs) != 1 || len(plan.Oracles) == 0 ||

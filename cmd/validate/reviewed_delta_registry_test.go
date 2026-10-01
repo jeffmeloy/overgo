@@ -36,7 +36,7 @@ import (
 const mediaReviewedDeltasPath = "docs/media_reviewed_deltas.json"
 
 // mediaReviewedDeltasSHA256 is the registry's accepted canonical identity.
-const mediaReviewedDeltasSHA256 = "adc006f86386bd1a9812e2ff76f2545e374cec98922754eea89bbcc73bb95645"
+const mediaReviewedDeltasSHA256 = "90d37c84665208963521814aaa05757ea843a174fec45e825dcf6c156fd04ffa"
 
 // Receipt kinds: what re-observes a delta's neutrality.
 const (
@@ -646,7 +646,7 @@ func TestReviewedDeltaRegistryEvidence(t *testing.T) {
 		broken.Changes = maps.Clone(delta.Changes)
 		switch delta.Receipt {
 		case mediaReceiptGoTest, mediaReceiptSourceBound:
-			broken.Required = map[string][]string{"overgo/cmd/compatibility": {"TestAbsentFromReceipt"}}
+			broken.Required = map[string][]string{"overgo/cmd/validate": {"TestAbsentFromReceipt"}}
 		case mediaReceiptRotary:
 			path := slices.Sorted(maps.Keys(delta.Changes))[0]
 			change := broken.Changes[path]

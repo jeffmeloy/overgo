@@ -192,7 +192,7 @@ func requireAcceptedCoverage(t *testing.T, root string, coverage acceptedCoverag
 		}
 	})
 	// Reuse the census bound; refuse truncation rather than accept a partial set.
-	entries, truncated, err := discovery.CapabilityCatalogForTasks(t.Context(), store, mediaCatalogLimit, discovery.LoadMemo(t.Context(), store), tasks...)
+	entries, truncated, err := discovery.CapabilityCatalogForTasks(t.Context(), store, catalogLimit, discovery.LoadMemo(t.Context(), store), tasks...)
 	if err != nil || truncated {
 		t.Fatalf("coverage: live denominator unavailable or truncated: %v", err)
 	}
@@ -269,7 +269,7 @@ func requireAcceptedGate(t *testing.T, store *overgodb.Store, proof acceptedGate
 			case "wrong-source":
 				changedProof.Commit = "foreign source"
 			case "wrong-verifier":
-				changedProof.Verify = "go test ./cmd/compatibility -run '^MissingAssertion$'"
+				changedProof.Verify = "go test ./cmd/validate -run '^MissingAssertion$'"
 			case "wrong-check":
 				changedProof.Check = "absent-check"
 			case "missing":

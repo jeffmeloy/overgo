@@ -77,7 +77,7 @@ func loadAcceptedGate(ctx context.Context, store *overgodb.Store, proof accepted
 }
 
 func projectModalityCoverage(ctx context.Context, root string, store *overgodb.Store, names map[artifact.ID]string) (*modalityCoverageProjection, error) {
-	entries, truncated, err := discovery.RegisteredCatalog(ctx, store, mediaCatalogLimit, discovery.LoadMemo(ctx, store))
+	entries, truncated, err := discovery.RegisteredCatalog(ctx, store, catalogLimit, discovery.LoadMemo(ctx, store))
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +335,7 @@ func checkModalityProtocols(values []modalityProtocolProjection) error {
 
 func writeModalityCoverage(output *bytes.Buffer, value *modalityCoverageProjection) {
 	output.WriteString("## Accepted protocol coverage\n\n")
-	fmt.Fprintf(output, "%d registered models; %d task activations; %d activations carry accepted protocols. Counts below are acceptance phases, not examples, quality scores or current performance claims. Producer source revisions and exact verifier commands appear in the typed report (`go run ./cmd/compatibility -media json`); input identities remain in its linked coverage documents. See also [benchmark results](BENCHMARK.md).\n\n", value.Registered, value.Activations, value.AcceptedActivations)
+	fmt.Fprintf(output, "%d registered models; %d task activations; %d activations carry accepted protocols. Counts below are acceptance phases, not examples, quality scores or current performance claims. Producer source revisions and exact verifier commands appear in the typed report (`go run ./cmd/validate -media json`); input identities remain in its linked coverage documents. See also [benchmark results](BENCHMARK.md).\n\n", value.Registered, value.Activations, value.AcceptedActivations)
 	output.WriteString("These are raw registrations, including fixture identities, not a count of validated models. Domains are catalog declarations; accepted input modalities appear in protocol scope even when a catalog domain is undeclared. Local results remain separate from hosted capabilities; mocked provider contracts confer no model-quality evidence. Historical resource evidence retains its original source and does not establish current resource bounds: the device tests that produce it assert those bounds each time they run, and the scorecard reports current peak device memory.\n\n")
 	output.WriteString("| Model | Execution / domains | Task | Implemented / activated / measured | Accepted / required phases | Protocol scope and remaining gap | Repair owner |\n| --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, row := range value.Models {

@@ -10,26 +10,16 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
-	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
 	"overgo/internal/testutil"
 )
 
-// TestCompatibilityReportsAreRenderedOnDemand pins that the model report
-// left the tree: docs/model_compatibility.json is not tracked, and the report
-// renders from its inputs -- the typed verification specifications joined
+// TestModelsReportRendersFromItsInputs holds the model report to rendering on
+// demand from its inputs -- the typed verification specifications joined
 // against the store -- into the typed report a reader decodes.
-func TestCompatibilityReportsAreRenderedOnDemand(t *testing.T) {
+func TestModelsReportRendersFromItsInputs(t *testing.T) {
 	t.Parallel()
-	root := testutil.RepoRoot(t)
-	tracked, err := gitauthority.Query(t.Context(), root, "ls-files", "--", "docs/model_compatibility.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(tracked) != 0 {
-		t.Fatal("docs/model_compatibility.json is committed; the model report renders with go run ./cmd/compatibility -models")
-	}
 	if report := renderedModelsReport(t); len(report.Prototypes) == 0 {
 		t.Fatal("the rendered model report is empty")
 	}

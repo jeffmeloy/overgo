@@ -15,6 +15,7 @@ import (
 // registered-inactive and inapplicable cells, with the run bucket ordered
 // cheapest first.
 func TestSelectValidation(t *testing.T) {
+	t.Parallel()
 	activation := func(seed string) artifact.ID { return testutil.ArtifactID(t, artifact.KindRecipe, seed) }
 	model := func(seed string) artifact.ID { return testutil.ArtifactID(t, artifact.KindModel, seed) }
 	read := acceptedRecords{surface: "surface-now", records: map[string]guardRecord{
@@ -79,6 +80,7 @@ func TestSelectValidation(t *testing.T) {
 // TestSelectValidationStableEmpty proves an empty registration set yields empty,
 // non-nil buckets (a clean commit with nothing to run reads as covered).
 func TestSelectValidationStableEmpty(t *testing.T) {
+	t.Parallel()
 	plan := SelectValidation(Inputs{Baseline: "b", Head: "h"})
 	if plan.Run == nil || plan.Reuse == nil || len(plan.Run) != 0 {
 		t.Fatalf("empty plan not clean: %+v", plan)

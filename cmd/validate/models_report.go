@@ -30,19 +30,6 @@ const (
 	verificationGlob   = "docs/verification/*.json"
 )
 
-// verificationSpecification is one typed model-verification specification
-// under docs/verification: a model's claims, and the committed files that
-// ground their evidence, their datasets and the model itself.
-type verificationSpecification struct {
-	Model         artifact.ID                 `json:"model"`
-	Name          string                      `json:"name"`
-	Supersedes    []artifact.ID               `json:"supersedes,omitempty"`
-	ModelFile     string                      `json:"model_file,omitzero"`
-	EvidenceFiles []string                    `json:"evidence_files,omitempty"`
-	DatasetFiles  []string                    `json:"dataset_files,omitempty"`
-	Claims        []runrecord.CapabilityClaim `json:"claims"`
-}
-
 type modelsReport struct {
 	Schema     string                     `json:"schema"`
 	Note       string                     `json:"note"`
@@ -88,7 +75,7 @@ func generateModelsReport(root string, store *overgodb.Store) ([]byte, error) {
 	}
 	report := modelsReport{
 		Schema: modelsReportSchema,
-		Note: "Rendered by go run ./cmd/compatibility -models from the docs/verification " +
+		Note: "Rendered by go run ./cmd/validate -models from the docs/verification " +
 			"typed specifications joined against the OvergoDB store.",
 		Prototypes: map[string]prototypeModels{},
 	}
@@ -310,10 +297,6 @@ func strongestClaims(claims []runrecord.CapabilityClaim) []runrecord.CapabilityC
 		reduced = append(reduced, byCapability[capability])
 	}
 	return reduced
-}
-
-func trainingCapability(capability string) bool {
-	return capability == "training" || strings.HasSuffix(capability, "-training")
 }
 
 func measured(value uint64) bool {

@@ -17,6 +17,7 @@ import (
 // fabricates a command. The guard publishes into the store the command read,
 // never the default its own working directory would resolve.
 func TestReacquireCommand(t *testing.T) {
+	t.Parallel()
 	guard := ModelValidation{Kind: recipe.TaskInference, Validation: "guard", Location: "C:/models/qwen.gguf"}
 	name, args, err := reacquireCommand(guard, "C:/stores/selected")
 	if err != nil || name != "go" {
@@ -94,6 +95,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 // TestValidateRunEmpty proves an empty run set is the clean no-op the dry run
 // predicts for a commit that moves no surface: no command executes.
 func TestValidateRunEmpty(t *testing.T) {
+	t.Parallel()
 	var out bytes.Buffer
 	plan := Plan{Reuse: []Selected{{}, {}}}
 	if err := executeRun(t.Context(), &out, ".", "C:/stores/selected", plan); err != nil {
@@ -107,6 +109,7 @@ func TestValidateRunEmpty(t *testing.T) {
 // TestValidateRunUnbound proves an unbound cell is reported as incomplete
 // coverage without executing anything, never silently skipped.
 func TestValidateRunUnbound(t *testing.T) {
+	t.Parallel()
 	var out bytes.Buffer
 	model := testutil.ArtifactID(t, artifact.KindModel, "wan")
 	plan := Plan{Run: []Selected{{ModelValidation: ModelValidation{Model: model, ModelName: "Wan", Kind: recipe.TaskVideoGen, Validation: "video-proof"}}}}

@@ -68,7 +68,7 @@ func TestCapabilityCensusContract(t *testing.T) {
 	missingID, _ := register("missing", false, true)
 	inactiveID, _ := register("inactive", true, false)
 	staleID, _ := register("stale", true, true)
-	aliases, err := store.Query(ctx, overgodb.Query{Kind: artifact.KindRecipe, Projection: overgodb.ProjectAliases, MaxResults: mediaCatalogLimit})
+	aliases, err := store.Query(ctx, overgodb.Query{Kind: artifact.KindRecipe, Projection: overgodb.ProjectAliases, MaxResults: catalogLimit})
 	if err != nil || aliases.Truncated {
 		t.Fatalf("aliases = %+v, %v", aliases, err)
 	}
@@ -107,7 +107,7 @@ func TestCapabilityCensusContract(t *testing.T) {
 	}
 
 	memo := discovery.NewMemo()
-	value, err := buildCapabilityCensus(ctx, store, strings.Repeat("b", 40), mediaCatalogLimit, memo)
+	value, err := buildCapabilityCensus(ctx, store, strings.Repeat("b", 40), catalogLimit, memo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,11 +127,11 @@ func TestCapabilityCensusContract(t *testing.T) {
 	if stale := byID[staleID].Capabilities; len(stale) != 1 || stale[0].Recipe != bogus || stale[0].Stale == "" {
 		t.Fatalf("stale recipe identity lost: %+v", stale)
 	}
-	activeOnly, truncated, err := discovery.CapabilityCatalog(ctx, store, mediaCatalogLimit, nil)
+	activeOnly, truncated, err := discovery.CapabilityCatalog(ctx, store, catalogLimit, nil)
 	if err != nil || truncated || len(activeOnly) != 3 {
 		t.Fatalf("active-only catalog changed: %d %t %v", len(activeOnly), truncated, err)
 	}
-	if err := checkCapabilityCensus(ctx, store, value, mediaCatalogLimit); err != nil {
+	if err := checkCapabilityCensus(ctx, store, value, catalogLimit); err != nil {
 		t.Fatal(err)
 	}
 	laterBatch, err := later.Batch("census-fixture/later-publication")
@@ -141,7 +141,7 @@ func TestCapabilityCensusContract(t *testing.T) {
 	if _, err := artifact.CommitBatch(ctx, store, laterBatch); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkCapabilityCensus(ctx, store, value, mediaCatalogLimit); err != nil {
+	if err := checkCapabilityCensus(ctx, store, value, catalogLimit); err != nil {
 		t.Fatalf("later evidence invalidated the frozen before picture: %v", err)
 	}
 	batch, err := capabilityCensusBatch(value)
@@ -200,7 +200,7 @@ func TestCapabilityCensusContract(t *testing.T) {
 			if err != nil {
 				return
 			}
-			if err := checkCapabilityCensus(ctx, store, changed, mediaCatalogLimit); err == nil {
+			if err := checkCapabilityCensus(ctx, store, changed, catalogLimit); err == nil {
 				t.Fatal("invalid census accepted")
 			}
 		})
@@ -214,17 +214,17 @@ func TestCapabilityCensusContract(t *testing.T) {
 	if err := os.Remove(presentPath); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkCapabilityCensus(ctx, store, value, mediaCatalogLimit); err == nil {
+	if err := checkCapabilityCensus(ctx, store, value, catalogLimit); err == nil {
 		t.Fatal("availability drift accepted")
 	}
 	if err := os.WriteFile(presentPath, []byte("present"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkCapabilityCensus(ctx, store, value, mediaCatalogLimit); err != nil {
+	if err := checkCapabilityCensus(ctx, store, value, catalogLimit); err != nil {
 		t.Fatal(err)
 	}
 	register("added", true, false)
-	if err := checkCapabilityCensus(ctx, store, value, mediaCatalogLimit); err == nil {
+	if err := checkCapabilityCensus(ctx, store, value, catalogLimit); err == nil {
 		t.Fatal("new registered identity accepted without disposition")
 	}
 }

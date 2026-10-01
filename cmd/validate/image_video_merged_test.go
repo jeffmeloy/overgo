@@ -139,7 +139,7 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entries, truncated, err := discovery.CapabilityCatalogForTasks(t.Context(), store, mediaCatalogLimit, discovery.LoadMemo(t.Context(), store), scope.Tasks...)
+	entries, truncated, err := discovery.CapabilityCatalogForTasks(t.Context(), store, catalogLimit, discovery.LoadMemo(t.Context(), store), scope.Tasks...)
 	if err != nil || truncated {
 		t.Fatalf("current media catalog incomplete: %v", err)
 	}

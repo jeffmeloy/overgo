@@ -35,7 +35,7 @@ func acceptedProtocolCoverageProjection(t *testing.T) mediaReportOutput {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	entries, truncated, err := discovery.RegisteredCatalog(t.Context(), store, mediaCatalogLimit, discovery.LoadMemo(t.Context(), store))
+	entries, truncated, err := discovery.RegisteredCatalog(t.Context(), store, catalogLimit, discovery.LoadMemo(t.Context(), store))
 	if err != nil || truncated {
 		t.Fatal("full denominator unavailable", err)
 	}

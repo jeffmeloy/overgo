@@ -7,11 +7,15 @@
 // loading a model or a device; -run executes the selected cells. -claims holds the
 // claims compatibility.json and the training specifications make to the
 // sources they bind and checks the matrices published from them; a claim whose
-// source moved is rebound only after -claims -run re-runs its verify.
+// source moved is rebound only after -claims -run re-runs its verify. It also
+// renders the model and media reports from the store on demand, exports the
+// media samples, publishes and checks the capability census, and commits
+// model-verification records.
 package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -49,6 +53,13 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	publish := flags.Bool("publish", false, "with -scorecard: write it as the newest record in the scorecards directory beside the store and list what moved since the previous record")
 	gap := flags.String("gap", "", "with -scorecard: fail while the gap this key names is open on the scorecard the store holds, judged against the newest published record's baseline; the verifier of the row the loop proposed for it")
 	claims := flags.Bool("claims", false, "check compatibility.json's claims and the training specifications against their bound sources and the matrices published from them; with -run, re-run the verify of every claim whose bound source moved, rebind the claims that pass, and write the matrices again")
+	models := flags.Bool("models", false, "print the nested model compatibility report: the docs/verification typed specifications joined against the store")
+	media := flags.String("media", "", "print the media capability report rendered from store activations and the verification specifications: markdown, or json for its typed projection; its links resolve from docs/")
+	exportSamples := flags.Bool("export-samples", false, "export healthy media activations' generation outputs as decodable files under docs/media_samples")
+	mediaScope := flags.String("media-scope", "all", "with -export-samples: the tasks exported, all or image-video; the media report always renders every media task")
+	publishCensus := flags.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
+	checkCensus := flags.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
+	recordVerification := flags.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims) into the store")
 	command := clioptions.Command{
 		Name:     "validate",
 		Purpose:  "select the minimal sufficient end-to-end validation for a commit and, with -run, execute it",
@@ -61,6 +72,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"-scorecard reads the store and the serving source: it loads no model, opens no device and needs no commit range",
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
 			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
+			"-models, -media and -check-census read the store; -export-samples writes only under docs/media_samples; -publish-census and -record-verification write the store",
 			"help opens no store and reads nothing",
 		},
 	}
@@ -98,6 +110,47 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if *claims {
 		return publishedClaims(ctx, output, *root, *execute)
+	}
+	if *media != "" && *media != "markdown" && *media != "json" || *mediaScope != "all" && !*exportSamples {
+		return errors.New("-media renders markdown or json, and -media-scope narrows -export-samples alone; the media report always renders every media task")
+	}
+	if *models || *media != "" || *exportSamples || *publishCensus || *checkCensus != "" || *recordVerification != "" {
+		storeRoot, err := dataroot.StoreRoot(*repository)
+		if err != nil {
+			return err
+		}
+		switch {
+		case *publishCensus || *checkCensus != "":
+			return runCapabilityCensus(storeRoot, *publishCensus, *checkCensus, output)
+		case *recordVerification != "":
+			return runRecordVerification(*recordVerification, storeRoot, output)
+		case *exportSamples:
+			scope, err := resolveMediaReportScope(*mediaScope)
+			if err != nil {
+				return err
+			}
+			return exportMediaSamples(*root, storeRoot, scope)
+		case *media != "":
+			report, err := generateMediaReport(*root, storeRoot)
+			if err != nil {
+				return err
+			}
+			rendered := report.Markdown
+			if *media == "json" {
+				rendered = report.JSON
+			}
+			_, err = output.Write(rendered)
+			return err
+		}
+		store, err := overgodb.OpenReadOnly(storeRoot)
+		if err != nil {
+			return err
+		}
+		report, err := generateModelsReport(*root, store)
+		if err == nil {
+			_, err = output.Write(report)
+		}
+		return errors.Join(err, store.Close())
 	}
 
 	head, err := revParse(ctx, *root, "HEAD")

@@ -40,10 +40,6 @@ func resolveMediaReportScope(name string) (mediaReportScope, error) {
 
 // mediaTasks are the report's scope: output-producing media
 // capabilities, in ladder order.
-// mediaCatalogLimit bounds the catalog read far above the local model
-// population; truncation is reported in the output rather than hidden.
-const mediaCatalogLimit = 4096
-
 var mediaTasks = []recipe.Task{
 	recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVQA,
 }
@@ -70,7 +66,7 @@ func generateMediaReport(root, repository string) (mediaReportOutput, error) {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	entries, truncated, err := discovery.CapabilityCatalogForTasks(ctx, store, mediaCatalogLimit, discovery.LoadMemo(ctx, store), scope.Tasks...)
+	entries, truncated, err := discovery.CapabilityCatalogForTasks(ctx, store, catalogLimit, discovery.LoadMemo(ctx, store), scope.Tasks...)
 	if err != nil {
 		return mediaReportOutput{}, err
 	}
@@ -109,7 +105,7 @@ func generateMediaReport(root, repository string) (mediaReportOutput, error) {
 		return mediaReportOutput{}, err
 	}
 	var output bytes.Buffer
-	output.WriteString("# Media capability report\n\nRendered by `go run ./cmd/compatibility -media markdown` from OvergoDB and the typed verification specifications. Its links resolve from `docs/`.\n\n")
+	output.WriteString("# Media capability report\n\nRendered by `go run ./cmd/validate -media markdown` from OvergoDB and the typed verification specifications. Its links resolve from `docs/`.\n\n")
 	output.WriteString("Activation records identify available recipes. Verification records identify the source and measurements they actually captured. Neither establishes visual quality or a matched optimization comparison by itself. Missing evidence remains unavailable.\n\n")
 	writeModalityCoverage(&output, projection.Coverage)
 	writeMediaValidation(&output, projection.Validation)
@@ -265,7 +261,7 @@ func writeMediaVerdict(output *bytes.Buffer, projection mediaProjection) {
 		tasks[index] = string(task)
 	}
 	fmt.Fprintf(output, "The selected tasks (%s) have %d activations; %d are stale and %d healthy activations cite a readable measured verifier run. Measurements retain their original scope and source revision.\n\n", strings.Join(tasks, ", "), counts.Activations, counts.Stale, counts.MeasuredVerifiers)
-	output.WriteString("The typed projection (`go run ./cmd/compatibility -media json`) contains the same totals, exact integer measurements and original source identities. Activation and historical verification do not establish current generation acceptance.\n\n")
+	output.WriteString("The typed projection (`go run ./cmd/validate -media json`) contains the same totals, exact integer measurements and original source identities. Activation and historical verification do not establish current generation acceptance.\n\n")
 }
 
 // writeMediaSurface renders the public entry points every media
@@ -279,8 +275,8 @@ func writeMediaSurface(output *bytes.Buffer) {
 		{"Verify (candidate execution + gate/run evidence)", "`go run ./cmd/recipe verify -task <task> -repo <overgodb> -input - <model-path> < request.json`"},
 		{"Activate (bind verified evidence to the active alias)", "`go run ./cmd/recipe activate -task <task> -repo <overgodb> -gate <id> -run-id <id> -reason <why> <model-path>`"},
 		{"Run (serve through the active recipe)", "`go run ./cmd/recipe run -task <task> -repo <overgodb> -input - <model-path> < request.json`"},
-		{"Report (this document)", "`go run ./cmd/compatibility -media markdown`"},
-		{"Sample export (recorded generation outputs)", "`go run ./cmd/compatibility -export-samples`"},
+		{"Report (this document)", "`go run ./cmd/validate -media markdown`"},
+		{"Sample export (recorded generation outputs)", "`go run ./cmd/validate -export-samples`"},
 	} {
 		fmt.Fprintf(output, "| %s | %s |\n", row[0], row[1])
 	}
@@ -364,7 +360,7 @@ func writeMediaSamplesSection(
 	rows []reportRow,
 ) error {
 	output.WriteString("\n## Samples\n\n")
-	output.WriteString("Outputs from recorded successful generation runs, exported by `go run ./cmd/compatibility -export-samples` and named by content SHA-256. A successful run does not by itself establish visual quality. Use `-media-scope image-video` with sample export to select the frozen image/video requests. Repeated identical output bytes share one file; each sample cites a producing run.\n\n")
+	output.WriteString("Outputs from recorded successful generation runs, exported by `go run ./cmd/validate -export-samples` and named by content SHA-256. A successful run does not by itself establish visual quality. Use `-media-scope image-video` with sample export to select the frozen image/video requests. Repeated identical output bytes share one file; each sample cites a producing run.\n\n")
 	directory := filepath.Join(root, mediaSamplesDir)
 	linked := 0
 	for _, row := range rows {

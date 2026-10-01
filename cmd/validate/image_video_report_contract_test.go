@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,14 +23,14 @@ import (
 func TestImageVideoReportContract(t *testing.T) {
 	t.Parallel()
 	t.Run("focused render refuses before store access", func(t *testing.T) {
-		args := []string{"-media", "markdown", "-media-scope", "image-video", "-models-repo", filepath.Join(t.TempDir(), "absent")}
-		if err := runArgs(args); err == nil || !strings.Contains(err.Error(), "the media report always renders every media task") {
+		args := []string{"-media", "markdown", "-media-scope", "image-video", "-repo", filepath.Join(t.TempDir(), "absent")}
+		if err := runArgs(t.Context(), args, io.Discard); err == nil || !strings.Contains(err.Error(), "the media report always renders every media task") {
 			t.Fatalf("focused render must keep the complete report: %v", err)
 		}
 	})
 	t.Run("unknown render format refuses before store access", func(t *testing.T) {
-		args := []string{"-media", "html", "-models-repo", filepath.Join(t.TempDir(), "absent")}
-		if err := runArgs(args); err == nil || !strings.Contains(err.Error(), "usage: compatibility -media markdown|json") {
+		args := []string{"-media", "html", "-repo", filepath.Join(t.TempDir(), "absent")}
+		if err := runArgs(t.Context(), args, io.Discard); err == nil || !strings.Contains(err.Error(), "-media renders markdown or json") {
 			t.Fatalf("unknown media format accepted: %v", err)
 		}
 	})

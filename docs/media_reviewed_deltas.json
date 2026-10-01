@@ -7,7 +7,7 @@
       "id": "liveedit-pixel-range",
       "receipt": "document",
       "required_tests": {
-        "overgo/cmd/compatibility": [
+        "overgo/cmd/validate": [
           "TestImageVideoConditionedVideoAcceptance"
         ]
       },
@@ -19,7 +19,7 @@
       "id": "lifecycle",
       "receipt": "document",
       "required_tests": {
-        "overgo/cmd/compatibility": [
+        "overgo/cmd/validate": [
           "TestImageVideoLifecycleAcceptance"
         ]
       },
@@ -138,7 +138,7 @@
       "id": "rotary",
       "receipt": "rotary-ast",
       "required_tests": {
-        "overgo/cmd/compatibility": [
+        "overgo/cmd/validate": [
           "TestMediaRotarySourceIsolation"
         ]
       },

@@ -24,13 +24,14 @@ const (
 	trainingSpecificationPattern = "docs/verification/*training.json"
 )
 
-// verificationSpecification is one typed model-verification specification:
-// a model's claims and the committed files that ground their evidence and
-// datasets.
+// verificationSpecification is one typed model-verification specification
+// under docs/verification: a model's claims, and the committed files that
+// ground their evidence, their datasets and the model itself.
 type verificationSpecification struct {
 	Model         artifact.ID                 `json:"model"`
 	Name          string                      `json:"name"`
 	Supersedes    []artifact.ID               `json:"supersedes,omitempty"`
+	ModelFile     string                      `json:"model_file,omitzero"`
 	EvidenceFiles []string                    `json:"evidence_files,omitempty"`
 	DatasetFiles  []string                    `json:"dataset_files,omitempty"`
 	Claims        []runrecord.CapabilityClaim `json:"claims"`

@@ -40,7 +40,7 @@ func TestMediaReportRendersStoreTruth(t *testing.T) {
 	}
 	text := string(data.Markdown)
 	if !strings.Contains(text, "No media activations stand in the store.") ||
-		!strings.Contains(text, "Rendered by `go run ./cmd/compatibility -media markdown`") {
+		!strings.Contains(text, "Rendered by `go run ./cmd/validate -media markdown`") {
 		t.Fatalf("empty-store report:\n%s", text)
 	}
 	if !strings.Contains(text, "## Measured results") ||

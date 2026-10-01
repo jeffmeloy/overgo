@@ -237,7 +237,7 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	var binding acceptedCensus
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "cmd/compatibility/testdata/media_census.json"), &binding); err != nil {
+	if err := jsonfile.DecodeStrict(filepath.Join(root, "cmd/validate/testdata/media_census.json"), &binding); err != nil {
 		t.Fatal(err)
 	}
 	if err := checkCensusDisposition(t.Context(), store, census.ID, binding); err != nil {
@@ -260,7 +260,7 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 	if err := capabilityCensusCodec.ValidateIdentity(current); err != nil {
 		t.Fatal(err)
 	}
-	live, truncated, err := discovery.RegisteredCatalog(t.Context(), store, mediaCatalogLimit, discovery.LoadMemo(t.Context(), store))
+	live, truncated, err := discovery.RegisteredCatalog(t.Context(), store, catalogLimit, discovery.LoadMemo(t.Context(), store))
 	if err != nil || truncated {
 		t.Fatalf("live registered catalog: truncated=%t: %v", truncated, err)
 	}

@@ -11,6 +11,7 @@ import (
 // hostmath change moves the training surface (this row's own premise), and an
 // inference-source change moves the inference and evaluation surfaces.
 func TestSurfaceAffected(t *testing.T) {
+	t.Parallel()
 	root := "../.."
 	ctx := t.Context()
 
@@ -58,6 +59,7 @@ func TestSurfaceAffected(t *testing.T) {
 // across models: text inference earns a guard and the accuracy benchmarks, an
 // image-gen task its generation proof, and an unknown task nothing.
 func TestKindValidation(t *testing.T) {
+	t.Parallel()
 	if got := len(kindValidation(recipe.TaskInference)); got != 4 {
 		t.Fatalf("inference cells=%d want 4", got)
 	}

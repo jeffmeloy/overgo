@@ -245,7 +245,7 @@ func runCapabilityCensus(repository string, publish bool, checkID string, output
 			return err
 		}
 		memo := discovery.LoadMemo(ctx, store)
-		value, err = buildCapabilityCensus(ctx, store, commit, mediaCatalogLimit, memo)
+		value, err = buildCapabilityCensus(ctx, store, commit, catalogLimit, memo)
 		if err != nil {
 			return err
 		}
@@ -275,7 +275,7 @@ func runCapabilityCensus(repository string, publish bool, checkID string, output
 		if err != nil {
 			return err
 		}
-		if err := checkCapabilityCensus(ctx, store, value, mediaCatalogLimit); err != nil {
+		if err := checkCapabilityCensus(ctx, store, value, catalogLimit); err != nil {
 			return err
 		}
 	}

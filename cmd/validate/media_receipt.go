@@ -23,7 +23,7 @@ import (
 
 // mediaAcceptancePackage is the package whose complete receipt judges media
 // and specialized evidence.
-const mediaAcceptancePackage = "cmd/compatibility"
+const mediaAcceptancePackage = "cmd/validate"
 
 // speechAcceptancePackage is the package whose complete receipt judges speech
 // evidence: the speech synthesizer's goldens, which load the speech model's

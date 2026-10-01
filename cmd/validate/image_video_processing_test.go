@@ -282,7 +282,7 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	// The retained acquisition proved the optimisation's worth at its own
 	// source; the current owners are held to still carry it, and a source
 	// that drops the memo is refused whatever else it keeps.
-	for _, owner := range []string{"cmd/compatibility/media.go", "cmd/compatibility/samples.go"} {
+	for _, owner := range []string{"cmd/validate/media.go", "cmd/validate/samples.go"} {
 		current, err := os.ReadFile(filepath.Join(root, owner))
 		if err != nil {
 			t.Fatal(err)

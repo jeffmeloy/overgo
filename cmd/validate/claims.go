@@ -139,37 +139,55 @@ func publishedClaims(ctx context.Context, output io.Writer, root string, execute
 // sources moved, at this tree, and rebinds each claim whose test passed to
 // the identities its inputs had when the test started. The pass is the typed
 // result testevidence reads from the test's events in its package, never its
-// log text. A claim whose test failed or skipped, or whose inputs or manifest
-// entry moved before its rebinding, keeps its old binding and its reason, so
-// the matrix stays refused until it passes; a device claim passes only when
-// the caller enables the device its verify names.
+// log text. Claims whose verify is the same command share one run of it and
+// its result: each one's inputs are read before that run and must still have
+// those identities when it is rebound. A claim whose test failed or skipped,
+// or whose inputs or manifest entry moved before its rebinding, keeps its old
+// binding and its reason, so the matrix stays refused until it passes; a
+// device claim passes only when the caller enables the device its verify
+// names.
 func reverifyClaims(ctx context.Context, output io.Writer, root string) error {
 	moved, err := movedClaims(root)
 	if err != nil {
 		return err
 	}
-	var refused []string
+	var commands []string
+	sharing := map[string][]claim{}
 	for _, item := range moved {
-		tested := make([]string, len(item.Evidence))
-		for index, proof := range item.Evidence {
-			if tested[index], err = evidenceIdentity(root, item.ID, proof); err != nil {
-				return err
-			}
-		}
 		command := strings.TrimPrefix(item.Verify, deviceVerify)
+		if _, seen := sharing[command]; !seen {
+			commands = append(commands, command)
+		}
+		sharing[command] = append(sharing[command], item)
+	}
+	var refused []string
+	for _, command := range commands {
+		items := sharing[command]
+		tested := make([][]string, len(items))
+		for at, item := range items {
+			tested[at] = make([]string, len(item.Evidence))
+			for index, proof := range item.Evidence {
+				if tested[at][index], err = evidenceIdentity(root, item.ID, proof); err != nil {
+					return err
+				}
+			}
+			fmt.Fprintf(output, "validate -claims -run: re-verifying %s: %s\n", item.ID, item.Verify)
+		}
 		fields := strings.Fields(command)
 		for index, field := range fields {
 			fields[index] = strings.Trim(field, "'")
 		}
-		fmt.Fprintf(output, "validate -claims -run: re-verifying %s: %s\n", item.ID, item.Verify)
 		var events bytes.Buffer
 		ran := runCell(ctx, &events, root, fields[0], append(fields[1:], "-json"))
-		err := cmp.Or(testevidence.VerifyGoTestEvidence(command, events.String()), ran)
-		if err == nil {
-			err = rebindClaim(root, item, tested)
-		}
-		if err != nil {
-			refused = append(refused, fmt.Sprintf("%s (%v)", item.ID, err))
+		verdict := cmp.Or(testevidence.VerifyGoTestEvidence(command, events.String()), ran)
+		for at, item := range items {
+			err := verdict
+			if err == nil {
+				err = rebindClaim(root, item, tested[at])
+			}
+			if err != nil {
+				refused = append(refused, fmt.Sprintf("%s (%v)", item.ID, err))
+			}
 		}
 	}
 	if len(refused) != 0 {

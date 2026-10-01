@@ -113,7 +113,7 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := checkCapabilityCensus(t.Context(), store, current, mediaCatalogLimit); err != nil {
+	if err := checkCapabilityCensus(t.Context(), store, current, catalogLimit); err != nil {
 		t.Fatal(err)
 	}
 	for _, invalid := range []acceptedCensus{

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -138,14 +140,17 @@ func TestRebindClaimsUsesCanonicalBytes(t *testing.T) {
 }
 
 // TestReverifyRebindsOnlyPassingClaims holds a moved claim to its oracle: the
-// claim whose verify test passes at the tree is rebound, and the claim whose
-// test skips keeps its old binding, so the matrix stays refused.
+// claims whose verify test passes at the tree are rebound, and the claim whose
+// test skips keeps its old binding, so the matrix stays refused. Two claims
+// with the same verify share one run of it.
 func TestReverifyRebindsOnlyPassingClaims(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	testutil.WriteTextFile(t, root, "go.mod", "module fixture\n\ngo 1.21\n")
 	passingSource := writeEvidence(t, root, "feature/feature.go", "package feature\n\nfunc Feature() int { return 1 }\n", "func Feature(", roleSource)
-	passingTest := writeEvidence(t, root, "feature/feature_test.go", "package feature\n\nimport \"testing\"\n\nfunc TestFeature(t *testing.T) {}\n", "func TestFeature(", roleArtifact)
+	sharingSource := writeEvidence(t, root, "feature/shared.go", "package feature\n\nfunc Shared() int { return 1 }\n", "func Shared(", roleSource)
+	// The passing test records each run of it beside itself.
+	passingTest := writeEvidence(t, root, "feature/feature_test.go", "package feature\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\nfunc TestFeature(t *testing.T) {\n\truns, err := os.ReadFile(\"runs.txt\")\n\tif err == nil || os.IsNotExist(err) {\n\t\terr = os.WriteFile(\"runs.txt\", append(runs, \"run\\n\"...), 0o600)\n\t}\n\tif err != nil {\n\t\tt.Fatal(err)\n\t}\n}\n", "func TestFeature(", roleArtifact)
 	skippedSource := writeEvidence(t, root, "feature/other.go", "package feature\n\nfunc Other() int { return 1 }\n", "func Other(", roleSource)
 	skippedTest := writeEvidence(t, root, "feature/other_test.go", "package feature\n\nimport \"testing\"\n\nfunc TestOther(t *testing.T) { t.Skip(\"not applicable\") }\n", "func TestOther(", roleArtifact)
 	writeTestManifest(t, root, []claim{{
@@ -156,19 +161,27 @@ func TestReverifyRebindsOnlyPassingClaims(t *testing.T) {
 		ID: "skipped", Status: "implemented", EvidenceTier: tierContract,
 		Verify: "go test ./feature -run '^TestOther$' -count=1 -v", Summary: "Other works.",
 		Evidence: []evidence{skippedSource, skippedTest},
+	}, {
+		ID: "sharing", Status: "implemented", EvidenceTier: tierContract,
+		Verify: "go test ./feature -run '^TestFeature$' -count=1 -v", Summary: "Shared works.",
+		Evidence: []evidence{sharingSource, passingTest},
 	}}, testModels())
 	testutil.WriteTextFile(t, root, "feature/feature.go", "package feature\n\nfunc Feature() int { return 2 }\n")
 	testutil.WriteTextFile(t, root, "feature/other.go", "package feature\n\nfunc Other() int { return 2 }\n")
+	testutil.WriteTextFile(t, root, "feature/shared.go", "package feature\n\nfunc Shared() int { return 2 }\n")
 	moved, err := movedClaims(root)
-	if err != nil || len(moved) != 2 {
-		t.Fatalf("moved claims = %v, %v; want both", moved, err)
+	if err != nil || len(moved) != 3 {
+		t.Fatalf("moved claims = %v, %v; want all three", moved, err)
 	}
-	if err := reverifyClaims(t.Context(), io.Discard, root); err == nil || !strings.Contains(err.Error(), "skipped") || strings.Contains(err.Error(), "passing") {
+	if err := reverifyClaims(t.Context(), io.Discard, root); err == nil || !strings.Contains(err.Error(), "skipped") || strings.Contains(err.Error(), "passing") || strings.Contains(err.Error(), "sharing") {
 		t.Fatalf("re-verification error = %v; want the skipped claim alone refused", err)
 	}
 	moved, err = movedClaims(root)
 	if err != nil || len(moved) != 1 || moved[0].ID != "skipped" {
 		t.Fatalf("moved claims after re-verification = %v, %v; want the skipped claim alone", moved, err)
+	}
+	if runs, err := os.ReadFile(filepath.Join(root, "feature", "runs.txt")); err != nil || strings.Count(string(runs), "run\n") != 1 {
+		t.Fatalf("the shared verify ran %q (%v); want one run for both claims", runs, err)
 	}
 	if _, err := generate(root); err == nil || !strings.Contains(err.Error(), "is stale") {
 		t.Fatalf("matrix over an unverified claim error = %v", err)

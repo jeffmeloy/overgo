@@ -21,8 +21,8 @@ type bytePin struct{ digest, record string }
 
 // bytePins indexes the records that pin current bytes, each by its own field:
 // a coverage document's inputs, the harness the capacity bundle was measured
-// with, and the document digests the complete-mode compatibility tests pass
-// as literal arguments. Every other recorded digest is history.
+// with, and the document digests validate's acceptance tests pass as literal
+// arguments. Every other recorded digest is history.
 func bytePins(repo string) (map[string][]bytePin, error) {
 	pins := map[string][]bytePin{}
 	coverage, err := filepath.Glob(filepath.Join(repo, "docs", "verification", "*-coverage.json"))
@@ -48,7 +48,7 @@ func bytePins(repo string) (map[string][]bytePin, error) {
 	for source, file := range bundle.SourceFiles {
 		pins[source] = append(pins[source], bytePin{file.SHA256, relativeRecord(repo, capacity)})
 	}
-	tests, err := filepath.Glob(filepath.Join(repo, "cmd", "compatibility", "*_test.go"))
+	tests, err := filepath.Glob(filepath.Join(repo, "cmd", "validate", "*_test.go"))
 	if err != nil {
 		return nil, err
 	}

@@ -14,10 +14,10 @@ import (
 // wall. Measured 2026-09-23, serial to parallel: internal/plan 74.6 to about
 // 41 s, cmd/plan 56 to about 26 s, internal/evaluation 50.3 to 11.7 s,
 // internal/overgodb 66.9 to about 15 s, internal/repoanalysis 64.3 to about
-// 26 s, internal/server 50.9 to about 17 s, cmd/compatibility 339.8 to about
-// 66 s in its complete run. In the gate suite only the users
-// of the shared live-checkout fixture are held, since its one-time build
-// belongs in the parallel phase.
+// 26 s, internal/server 50.9 to about 17 s, and the media suite cmd/validate
+// now holds 339.8 to about 66 s in its complete run. In the gate suite only
+// the users of the shared live-checkout fixture are held, since its one-time
+// build belongs in the parallel phase.
 func TestSuitesRunInParallel(t *testing.T) {
 	t.Parallel()
 	for _, suite := range []struct {
@@ -33,7 +33,7 @@ func TestSuitesRunInParallel(t *testing.T) {
 		{directory: "../overgodb"},
 		{directory: "../repoanalysis"},
 		{directory: "../server"},
-		{directory: "../../cmd/compatibility", bound: []string{"verification_workflow_test.go"}},
+		{directory: "../../cmd/validate", bound: []string{"verification_workflow_test.go"}},
 	} {
 		t.Run(suite.directory, func(t *testing.T) {
 			t.Parallel()

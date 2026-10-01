@@ -23,25 +23,6 @@
       ]
     },
     {
-      "id": "promotion-correctness",
-      "title": "Promote only on current, comparable held-out evidence",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 830,
-        "reason": "current-evidence +379, typed-comparison +401, smoke-repo +44: SQA-053, 046, 063, 040 and 041 correctness growth."
-      },
-      "steps": [
-        {
-          "id": "seed-main",
-          "title": "Seed refs/heads/main at a measured commit, the owner's decision",
-          "status": "open",
-          "verify": "git rev-parse --verify refs/heads/main",
-          "rationale": "Local refs/heads/main does not exist, so every improvement cycle is withheld: \"no earlier scorecard measured the commit refs/heads/main holds\". After current-evidence and typed-comparison land, the owner chooses the commit main starts at (recommended: the commit of the newest complete scorecard record), and the next cycle can promote. It is never pushed. Batch: none (a local ref)."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unmeasured-inference",
       "title": "Measure inference's unmeasured cells",
       "owner": "master-lead",

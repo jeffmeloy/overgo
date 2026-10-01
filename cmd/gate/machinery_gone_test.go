@@ -108,3 +108,15 @@ func TestOldGateMachineryGone(t *testing.T) {
 	t.Parallel()
 	requireGone(t, "cmd/coverage-lanes", "docs/coverage_lanes_baseline.json")
 }
+
+// TestUncalledLaneCommandsGone holds the lane commands to the two the gate's
+// lanes run, device-lane and webui-lane. The evaluation, race, smoke, test,
+// train and composite-generation lanes are deleted: validate runs the smoke
+// oracles, the hermetic short lane and the test receipts, cmd/train's tests
+// keep its training routes running, and the composite-generation parity is a
+// cmd/recipe test the cuda lane runs.
+func TestUncalledLaneCommandsGone(t *testing.T) {
+	t.Parallel()
+	requireGone(t, "cmd/eval-lane", "cmd/race-lane", "cmd/smoke-lane", "cmd/test-lane", "cmd/train-lane",
+		"cmd/composite-generation-lane")
+}

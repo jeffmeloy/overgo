@@ -88,7 +88,7 @@ func TestSmokeCurrentFollowsTheInferenceSurface(t *testing.T) {
 		t.Errorf("a failed run was judged current: %v", err)
 	}
 	err = smokeCurrent(t.Context(), root, store, model, runrecord.Run{}, false)
-	if err == nil || !strings.Contains(err.Error(), "smoke-lane") || !strings.Contains(err.Error(), "-repo "+store) {
-		t.Errorf("no run did not name the smoke lane on the selected store: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "validate -smoke") || !strings.Contains(err.Error(), "-repo "+store) {
+		t.Errorf("no run did not name validate -smoke on the selected store: %v", err)
 	}
 }

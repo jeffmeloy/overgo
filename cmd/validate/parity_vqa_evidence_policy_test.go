@@ -3,6 +3,7 @@ package main
 import "testing"
 
 func TestCampaignEvidenceCoversTypedContracts(t *testing.T) {
+	t.Parallel()
 	if len(campaignEvidence.Acceptance) != len(acceptanceClasses) || len(campaignEvidence.Measurement) != len(measurementStages) {
 		t.Fatalf("evidence coverage = %d acceptance, %d measurement", len(campaignEvidence.Acceptance), len(campaignEvidence.Measurement))
 	}
@@ -15,6 +16,7 @@ func TestCampaignEvidenceCoversTypedContracts(t *testing.T) {
 }
 
 func TestProbeValuesCheckUsesEvidenceContract(t *testing.T) {
+	t.Parallel()
 	contract := acceptance(acceptNorm)
 	reference := []float64{1}
 	limit := contract.Absolute + contract.Relative*reference[0]
@@ -27,6 +29,7 @@ func TestProbeValuesCheckUsesEvidenceContract(t *testing.T) {
 }
 
 func TestMeasureUsesEvidenceBudget(t *testing.T) {
+	t.Parallel()
 	budget := measurement(measureTerminal)
 	runs := 0
 	if _, err := measure(budget, func() error { runs++; return nil }); err != nil {

@@ -64,9 +64,9 @@ func TestVerdictClassificationAndRepeatAgreement(t *testing.T) {
 }
 
 func TestRepeatAgreementForMixedVerifier(t *testing.T) {
-	command := "go test ./internal/repoanalysis -run '^TestExample$' && go run ./cmd/test-lane ./..."
-	first := verdictEvidence("pass") + "test-lane: PASS packages=1 tests=1\n"
-	second := verdictEvidence("pass") + "test-lane: PASS packages=1 tests=1\n"
+	command := "go test ./internal/repoanalysis -run '^TestExample$' && go run ./cmd/validate -tests ./..."
+	first := verdictEvidence("pass") + "validate -tests: PASS packages=1 tests=1\n"
+	second := verdictEvidence("pass") + "validate -tests: PASS packages=1 tests=1\n"
 	if err := RepeatAgreementForCommand(command, first, second); err != nil {
 		t.Fatal(err)
 	}

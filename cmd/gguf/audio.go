@@ -1,4 +1,24 @@
-// Command audio-inspect measures and publishes admission for local audio.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io"
+	"os"
+
+	"overgo/internal/artifact"
+	"overgo/internal/audiodsp"
+	"overgo/internal/dataset"
+	"overgo/internal/overgodb"
+	"overgo/internal/recipecontract"
+	"overgo/internal/strictjson"
+)
+
+// audioCommand is gguf audio: it measures local audio and publishes its
+// admission record.
 //
 // WAV admits PCM8/16/24/32, float32/64, G.711 and matching-width extensible
 // subtypes. Native FLAC admits 4..24-bit samples, checking frame CRCs and the
@@ -17,32 +37,13 @@
 // are followed by the measured honesty summary; any quarantine returns nonzero.
 // The policy and expectation JSON under internal/dataset/testdata are pinned
 // validation fixtures, not recommended deployment thresholds.
-package main
-
-import (
-	"context"
-	"encoding/json"
-	"errors"
-	"flag"
-	"fmt"
-	"io"
-	"os"
-
-	"overgo/internal/artifact"
-	"overgo/internal/audiodsp"
-	"overgo/internal/clioptions"
-	"overgo/internal/dataset"
-	"overgo/internal/overgodb"
-	"overgo/internal/recipecontract"
-	"overgo/internal/strictjson"
-)
-
-func main() {
-	clioptions.MainNamed("audio-inspect", func() error { return run(context.Background(), os.Args[1:], os.Stdout) })
+func audioCommand(flags *flag.FlagSet, args []string) error {
+	return inspectAudio(context.Background(), flags, args, os.Stdout)
 }
 
-func run(ctx context.Context, args []string, output io.Writer) error {
-	flags := flag.NewFlagSet("audio-inspect", flag.ContinueOnError)
+// inspectAudio parses the audio flags on flags and writes the inspection's
+// JSON lines and summary to output.
+func inspectAudio(ctx context.Context, flags *flag.FlagSet, args []string, output io.Writer) error {
 	flags.SetOutput(io.Discard)
 	repo := flags.String("repo", "", "OvergoDB root")
 	input := flags.String("input", "", "read-only WAV, FLAC, or Parquet file")
@@ -62,7 +63,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	}
 	if flags.NArg() != 0 || *repo == "" || (*input == "") == (*inputArtifact == "") || *policyPath == "" ||
 		(*column == "" && *limit != 0) || (*column != "" && *limit <= 0) {
-		return errors.New("usage: audio-inspect -repo <store> (-input <file> | -input-artifact <id>) -policy <json> [-column <leaf> -limit <values>] [-expect <json>]")
+		return fmt.Errorf("usage: %s -repo <store> (-input <file> | -input-artifact <id>) -policy <json> [-column <leaf> -limit <values>] [-expect <json>]", flags.Name())
 	}
 	var frontend *audiodsp.Frontend
 	var frontendID artifact.ID
@@ -71,7 +72,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if *frameLimit < 0 || *traceFrames < 0 ||
 		*frontendPath == "" && (*frontendMemory != 0 || *chunkSamples != 0 || *reconstruct || *frameLimit != 0 || *traceFrames != 0) ||
 		*frontendPath != "" && (*frontendMemory == 0 || *chunkSamples <= 0) {
-		return errors.New("audio-inspect: frontend requires explicit memory and chunk size; frontend flags require -frontend")
+		return errors.New("gguf audio: frontend requires explicit memory and chunk size; frontend flags require -frontend")
 	}
 	if *frontendPath != "" {
 		var config audiodsp.FrontendConfig
@@ -124,7 +125,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 			count = 1
 		}
 		if len(expected.Observations) != count {
-			return errors.New("audio-inspect: expectation count differs from requested inputs")
+			return errors.New("gguf audio: expectation count differs from requested inputs")
 		}
 	}
 	store, err := overgodb.Open(*repo)
@@ -140,7 +141,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 			return err
 		}
 		if requested.Kind() != artifact.KindFile {
-			return errors.New("audio-inspect: input artifact must be a file")
+			return errors.New("gguf audio: input artifact must be a file")
 		}
 		inputPath, err = artifact.AvailablePath(ctx, store, requested, artifact.LocationFile)
 		if err != nil {
@@ -157,20 +158,20 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		return err
 	}
 	if !info.Mode().IsRegular() {
-		return errors.New("audio-inspect: input must be a regular file")
+		return errors.New("gguf audio: input must be a regular file")
 	}
 	if *column == "" && uint64(info.Size()) > policy.MaximumEncodedBytes {
-		return errors.New("audio-inspect: input exceeds encoded payload budget")
+		return errors.New("gguf audio: input exceeds encoded payload budget")
 	}
 	id, size, err := artifact.Identify(artifact.KindFile, file)
 	if err != nil {
 		return err
 	}
 	if expected != nil && expected.ContainerSHA256 != id.DigestHex() {
-		return errors.New("audio-inspect: container differs from pinned expectation")
+		return errors.New("gguf audio: container differs from pinned expectation")
 	}
 	if requested.Valid() && requested != id {
-		return errors.New("audio-inspect: input bytes differ from registered artifact")
+		return errors.New("gguf audio: input bytes differ from registered artifact")
 	}
 	location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, inputPath)
 	if err != nil {
@@ -181,7 +182,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		return err
 	}
 	if found && descriptor.Size != size {
-		return errors.New("audio-inspect: source descriptor size differs")
+		return errors.New("gguf audio: source descriptor size differs")
 	}
 	locationID, err := artifact.JSONID(artifact.KindEvidence, location)
 	if err != nil {
@@ -209,7 +210,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 			want := expected.Observations[index]
 			if result.Signal.Source.Audio.DigestHex() != want.EncodedSHA256 || result.DecodedSHA256 != want.DecodedSHA256 ||
 				result.Signal.FrameCount != want.Frames || result.Signal.Format != want.Format || result.Decision.Outcome != want.Outcome {
-				return fmt.Errorf("audio-inspect: decoded output differs from expectation at value %d", index)
+				return fmt.Errorf("gguf audio: decoded output differs from expectation at value %d", index)
 			}
 		}
 		inspected++
@@ -246,19 +247,19 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	if expected != nil {
 		verified = inspected
 	}
-	if _, err := fmt.Fprintf(output, "audio-inspect: inspected=%d accepted=%d quarantined=%d verified=%d; CPU decoding and optional declared DSP; no model inference, training, or GPU execution\n", inspected, accepted, inspected-accepted, verified); err != nil {
+	if _, err := fmt.Fprintf(output, "gguf audio: inspected=%d accepted=%d quarantined=%d verified=%d; CPU decoding and optional declared DSP; no model inference, training, or GPU execution\n", inspected, accepted, inspected-accepted, verified); err != nil {
 		return err
 	}
 	if frontend != nil {
-		if _, err := fmt.Fprintf(output, "audio-inspect: frontend=%s feature_records=%d reconstruction=%t; CPU direct DFT and offline chunks; no ASR or live-stream claim\n", frontendID, featured, *reconstruct); err != nil {
+		if _, err := fmt.Fprintf(output, "gguf audio: frontend=%s feature_records=%d reconstruction=%t; CPU direct DFT and offline chunks; no ASR or live-stream claim\n", frontendID, featured, *reconstruct); err != nil {
 			return err
 		}
 	}
 	if *column != "" && inspected != uint64(*limit) {
-		return errors.New("audio-inspect: container has fewer non-null values than requested")
+		return errors.New("gguf audio: container has fewer non-null values than requested")
 	}
 	if accepted != inspected {
-		return errors.New("audio-inspect: quarantined input")
+		return errors.New("gguf audio: quarantined input")
 	}
 	return nil
 }

@@ -19,7 +19,7 @@ jobs:
       - name: Test
         env:
           CGO_ENABLED: "0"
-        run: go run ./cmd/test-lane ./...
+        run: go run ./cmd/validate -tests ./...
       - name: Verify compatibility claims
         env:
           CGO_ENABLED: "0"

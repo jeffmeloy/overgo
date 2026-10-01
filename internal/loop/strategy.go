@@ -84,11 +84,6 @@ func RequireStrategy(ctx context.Context, reader artifact.Reader, id artifact.ID
 	return strategyCodec.Require(ctx, reader, id)
 }
 
-// Batch materializes the strategy and its dependency lineage for publication.
-func (v Strategy) Batch(key string) (artifact.Batch, error) {
-	return strategyCodec.Batch(key, v, v.Lineage(), nil)
-}
-
 // ValidateIdentity checks the strategy's canonical form and content-addressed identity.
 func (v Strategy) ValidateIdentity() error { return strategyCodec.ValidateIdentity(v) }
 

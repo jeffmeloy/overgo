@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"strings"
@@ -16,38 +15,30 @@ import (
 	"overgo/internal/testevidence"
 )
 
-// receiptVerb publishes a test receipt: the raw go test -json stream of the
-// named packages, kept as evidence in the store. A reviewed reconciliation of
-// an output-neutral source change binds such a receipt and names the tests it
-// must show passing; the lane's own run keeps only a digest of the stream, so
-// the receipt is a run of its own that keeps the bytes.
-const receiptVerb = "receipt"
-
-// receiptKeyPrefix is the batch key of a published receipt.
+// receiptKeyPrefix is the batch key of a published receipt, the one
+// receipts have been published under since they were first kept.
 const receiptKeyPrefix = "test-lane/receipt/"
 
-// receipt runs the packages and publishes the stream that proves them.
-func receipt(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("test-lane receipt", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data-root contract")
-	if err := flags.Parse(args); err != nil || flags.NArg() == 0 {
-		fmt.Fprintln(stderr, "usage: test-lane receipt [-repo STORE] PACKAGE...")
-		return 2
+// runReceipt is validate -receipt: it publishes a test receipt, the raw go
+// test -json stream of the go test arguments args, kept as evidence in the
+// store repository names. A reviewed reconciliation of an output-neutral
+// source change binds such a receipt and names the tests it must show
+// passing, so the receipt keeps the bytes, not a digest of them.
+func runReceipt(ctx context.Context, output io.Writer, repository string, args []string) error {
+	if len(args) == 0 {
+		return errors.New("usage: validate -receipt [-repo STORE] [--] [go test flags] PACKAGE...")
 	}
 	var stream bytes.Buffer
-	run, err := processcontrol.Run(ctx, processcontrol.Command{Path: "go", Args: receiptArgs(flags.Args()), Stdout: &stream, Stderr: stderr})
+	run, err := processcontrol.Run(ctx, processcontrol.Command{Path: "go", Args: receiptArgs(args), Stdout: &stream, Stderr: output})
 	if err != nil || run.ExitCode != 0 {
-		fmt.Fprintf(stderr, "test-lane receipt: go test failed (exit=%d): %v\n", run.ExitCode, err)
-		return 1
+		return fmt.Errorf("validate -receipt: go test failed (exit=%d): %v", run.ExitCode, err)
 	}
-	id, err := publishReceipt(ctx, *repository, stream.Bytes())
+	id, err := publishReceipt(ctx, repository, stream.Bytes())
 	if err != nil {
-		fmt.Fprintf(stderr, "test-lane receipt: %v\n", err)
-		return 1
+		return fmt.Errorf("validate -receipt: %w", err)
 	}
-	fmt.Fprintf(stdout, "test-lane receipt: published %s for %s\n", id, strings.Join(flags.Args(), " "))
-	return 0
+	_, err = fmt.Fprintf(output, "validate -receipt: published %s for %s\n", id, strings.Join(args, " "))
+	return err
 }
 
 // receiptArgs runs the packages one at a time: a receipt proves device tests,

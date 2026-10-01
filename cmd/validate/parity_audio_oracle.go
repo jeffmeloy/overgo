@@ -1,6 +1,3 @@
-//overgo:runtime-inputs caller
-
-// Command audio-oracle verifies and publishes one immutable external audio-oracle election.
 package main
 
 import (
@@ -14,18 +11,14 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/audioparity"
-	"overgo/internal/clioptions"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 )
 
-func main() {
-	clioptions.MainNamed("audio-oracle", run)
-}
-
-func run() error {
-	flags := flag.NewFlagSet("audio-oracle", flag.ContinueOnError)
-	flags.SetOutput(os.Stderr)
+// audioOracleParity is validate -parity audio-oracle: it verifies and
+// publishes one immutable external audio-oracle election, or with
+// -transducer-capture the native transducer traces of a registered model.
+func audioOracleParity(flags *flag.FlagSet, args []string) error {
 	repository := flags.String("repo", "", "OvergoDB root")
 	recordPath := flags.String("election", "", "canonical election JSON")
 	modelRoot := flags.String("model-root", "", "local model Git worktree")
@@ -34,12 +27,12 @@ func run() error {
 	captureSource := flags.String("capture-source", "", "capture script required with -capture")
 	captureTensors := flags.String("capture-tensors", "", "captured Safetensors file required with -capture")
 	transducer := flags.Bool("transducer-capture", false, "publish native transducer traces for an already registered model")
-	if err := flags.Parse(os.Args[1:]); err != nil {
+	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if *transducer {
 		if flags.NArg() != 0 || *repository == "" || *capturePath == "" || *captureSource == "" || *captureTensors == "" || *recordPath != "" || *modelRoot != "" || *datasetRoot != "" {
-			return errors.New("audio-oracle: transducer capture requires only repo, capture, capture-source and capture-tensors")
+			return errors.New("validate -parity audio-oracle: transducer capture requires only repo, capture, capture-source and capture-tensors")
 		}
 		store, err := overgodb.Open(*repository)
 		if err != nil {
@@ -54,17 +47,17 @@ func run() error {
 		return nil
 	}
 	if flags.NArg() != 0 || *repository == "" || *recordPath == "" || *modelRoot == "" || *datasetRoot == "" {
-		return errors.New("usage: audio-oracle -repo <store> -election <json> -model-root <directory> -dataset-root <directory>")
+		return fmt.Errorf("usage: %s -repo <store> -election <json> -model-root <directory> -dataset-root <directory>", flags.Name())
 	}
 	if (*capturePath == "") != (*captureSource == "") || (*capturePath == "") != (*captureTensors == "") {
-		return errors.New("audio-oracle: capture requires report, source and tensor paths together")
+		return errors.New("validate -parity audio-oracle: capture requires report, source and tensor paths together")
 	}
 	encoded, err := os.ReadFile(*recordPath)
 	if err != nil {
 		return err
 	}
 	if len(encoded) == 0 || len(encoded) > artifact.MaxContentBytes {
-		return errors.New("audio-oracle: election document size is invalid")
+		return errors.New("validate -parity audio-oracle: election document size is invalid")
 	}
 	election, err := audioparity.NormalizeElection(encoded)
 	if err != nil {
@@ -83,7 +76,7 @@ func run() error {
 		return err
 	}
 	if !qualification.Loadable {
-		return fmt.Errorf("audio-oracle: artifact is not loadable: %s", strings.Join(qualification.Refusals, "; "))
+		return fmt.Errorf("validate -parity audio-oracle: artifact is not loadable: %s", strings.Join(qualification.Refusals, "; "))
 	}
 	store, err := overgodb.Open(*repository)
 	if err != nil {

@@ -1,6 +1,7 @@
 // Command gguf holds the model-file tools as subcommands, each with its own
 // flags: gguf <subcommand> [flags] [arguments]. They convert Hugging Face
-// checkpoints to GGUF and hash, inspect, merge, split or quantize GGUF files.
+// checkpoints to GGUF, hash, inspect, merge, split or quantize GGUF files,
+// and admit the audio files speech datasets are built from.
 package main
 
 import (
@@ -16,6 +17,7 @@ import (
 
 // subcommands are the model-file tools, each once its own command.
 var subcommands = map[string]func(flags *flag.FlagSet, args []string) error{
+	"audio":          audioCommand,
 	"convert":        convertCommand,
 	"convert-gemma4": convertGemma4Command,
 	"hash":           hashCommand,

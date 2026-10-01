@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package composition_test
 
 import (
 	"encoding/json"
@@ -30,9 +30,8 @@ func TestCompositeGenerationParity(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(directory, dataroot.ConfigFile), data, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Chdir(root)
 	t.Setenv(dataroot.Env, directory)
-	if err := run(); err != nil {
+	if err := runCompositeGeneration(root); err != nil {
 		t.Fatal(err)
 	}
 }

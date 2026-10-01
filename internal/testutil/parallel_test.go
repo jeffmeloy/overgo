@@ -33,7 +33,7 @@ func TestSuitesRunInParallel(t *testing.T) {
 		{directory: "../overgodb"},
 		{directory: "../repoanalysis"},
 		{directory: "../server"},
-		{directory: "../../cmd/validate", bound: []string{"verification_workflow_test.go"}},
+		{directory: "../../cmd/validate", bound: []string{"verification_workflow_test.go", "parity_vqa_recipe_verify_windows_test.go"}},
 	} {
 		t.Run(suite.directory, func(t *testing.T) {
 			t.Parallel()

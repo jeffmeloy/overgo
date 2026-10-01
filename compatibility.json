@@ -683,20 +683,20 @@
    "evidence": [
     {
      "contains": "func executeVQAProgram(",
-     "path": "cmd/vqaparity/recipeserve.go",
+     "path": "cmd/validate/parity_vqa_recipe_serve.go",
      "role": "source",
      "identity": "file:sha256:90e89bd50dc1ade5facbc6d310abe6075f536095853480c28cd2b86d12777fa4"
     },
     {
      "contains": "func TestRxBrainProductionParity(",
-     "path": "cmd/vqaparity/recipeverify_windows_test.go",
+     "path": "cmd/validate/parity_vqa_recipe_verify_windows_test.go",
      "role": "artifact",
      "identity": "evidence:sha256:b8f448d1d77b71ecb9d57d7dd54a0a6d7aad1ddf8b7a4c29612ee946d96ebad1"
     }
    ],
    "id": "rxbrain-vqa-production-oracle",
    "evidence_tier": "device-gated",
-   "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/vqaparity -run '^TestRxBrainProductionParity$' -count=1 -v",
+   "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/validate -run '^TestRxBrainProductionParity$' -count=1 -v",
    "artifact_identity": "sha256:97d121be90fba86b42effe71d2a67c68095a7a74fadd2bb0b848a3c72ed38879+6de406a2da4e3342f6b0186e6e8890a3d73d84f6da3b2f8ac3b8bc6b82721b35+c3e8ab04b94ea11d96ebac29e44e5501c88ed7383525787d4af9b24e9130ccc3",
    "status": "implemented",
    "summary": "RxBrain real-image VQA executes through a compiled and verified recipe, reproduces the exact golden token prefix and coherent EOS answer, then replays bit-exactly through the active alias."

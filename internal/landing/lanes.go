@@ -98,9 +98,10 @@ var lanes = []lane{
 		// the real-model inference and dense-causal checks, image and video
 		// generation, media capability, the trainers and the device kernels
 		// only they call, the scratch and routed models, adaptive parity,
-		// long-form evaluation and the recipe, evaluate, composite-generation
-		// and train commands. One package at a time shares the device; go
-		// test's cache replays each until code it reads changes.
+		// the composite-generation parity on Wan, long-form evaluation and
+		// the recipe, evaluate and train commands. One package at a time
+		// shares the device; go test's cache replays each until code it
+		// reads changes.
 		name: "cuda", packages: cudaPackages,
 		// adaptiveparity alone runs about 11 minutes, past go test's
 		// default per-binary timeout.
@@ -164,8 +165,8 @@ var cudaPackages = []string{
 	"./internal/diffusionimage", "./internal/latentimage", "./internal/mediacapability", "./internal/scratchmodel", "./internal/scratchtrain",
 	"./internal/modeldevice", "./internal/hybridtrain", "./internal/e4btrain", "./internal/devicegrad", "./internal/densecausaltrain", "./internal/controllertrain", "./internal/trainingprogram",
 	"./internal/torchrng", "./internal/routedlm", "./internal/longform", "./internal/sensenovarecipe",
-	"./internal/inference", "./internal/densecausal", "./internal/adaptiveparity",
-	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/composite-generation-lane", "./cmd/train",
+	"./internal/inference", "./internal/densecausal", "./internal/adaptiveparity", "./internal/composition",
+	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/train",
 }
 
 // laneTurn names the host-wide turn a landing holds while its lanes run.

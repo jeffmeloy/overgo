@@ -189,11 +189,12 @@ limits, cancellation, and operator stops while allowing independent work to proc
 For local feedback, run the hermetic lane on the affected packages, for example:
 
 ```powershell
-go run ./cmd/test-lane ./internal/recipe
+go run ./cmd/validate -tests ./internal/recipe
 ```
 
-Device, installed-model, race, and browser checks use `cmd/device-lane`,
-`cmd/smoke-lane`, `cmd/race-lane`, and `cmd/webui-lane`. The gate selects required
+Device and browser checks use `cmd/device-lane` and `cmd/webui-lane`;
+installed models are checked with `go run ./cmd/validate -smoke`, and races
+with `go test -race`. The gate selects required
 checks from the change and its acceptance contract and reuses evidence whose
 relevant inputs still match. Ordinary documentation edits receive document
 checks; embedded documents and runtime inputs retain their dependent checks.

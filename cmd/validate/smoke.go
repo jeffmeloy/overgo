@@ -1,18 +1,15 @@
-// smoke-lane checks declared behavior for every active inference model.
 package main
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
+	"io"
 	"os"
-	"os/signal"
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
@@ -24,35 +21,24 @@ import (
 	"overgo/internal/runrecord"
 )
 
-func main() { clioptions.MainNamed("smoke-lane", func() error { return run(os.Args[1:]) }) }
-
-func run(args []string) error {
-	flags := flag.NewFlagSet("smoke-lane", flag.ContinueOnError)
-	budget := flags.Duration("budget", 0, "total discovery and execution budget (required)")
-	diagnostic := flags.Bool("diagnostic", false, "inspect behavior without publishing evidence")
-	model := flags.String("model", "", "exact model identity; omitted models receive no evidence credit")
-	repository := flags.String("repo", "", "OvergoDB store it reads and records into; empty resolves through the data-root contract")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-	if flags.NArg() != 0 {
-		return errors.New("smoke: unexpected arguments")
-	}
-	if *model != "" {
-		id, err := artifact.ParseID(*model)
+// runSmoke is validate -smoke: it checks the declared behavior of every
+// active inference model, or of the one model names, in the store repository
+// names, and records each run there unless diagnostic. budget bounds
+// discovery and execution together and must be positive.
+func runSmoke(ctx context.Context, output io.Writer, repository string, budget time.Duration, model string, diagnostic bool) error {
+	if model != "" {
+		id, err := artifact.ParseID(model)
 		if err != nil || id.Kind() != artifact.KindModel {
 			return errors.New("smoke: -model requires an exact model identity")
 		}
 	}
-	storeRoot, err := dataroot.StoreRoot(*repository)
+	storeRoot, err := dataroot.StoreRoot(repository)
 	if err != nil {
 		return err
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-	if *budget > 0 {
+	if budget > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeoutCause(ctx, *budget, errors.New("smoke: execution budget exhausted"))
+		ctx, cancel = context.WithTimeoutCause(ctx, budget, errors.New("smoke: execution budget exhausted"))
 		defer cancel()
 	}
 	reader, err := overgodb.OpenReadOnly(storeRoot)
@@ -60,25 +46,25 @@ func run(args []string) error {
 		return err
 	}
 	began := time.Now()
-	fmt.Println("[smoke] checking active recipes and artifact bytes")
+	fmt.Fprintln(output, "[smoke] checking active recipes and artifact bytes")
 	scope := "catalog"
 	var selection []string
-	if *model != "" {
+	if model != "" {
 		scope = "selected"
-		selection = append(selection, *model)
+		selection = append(selection, model)
 	}
 	entries, err := discovery.ServableWithMemo(ctx, reader, 10_000, nil, selection...)
-	fmt.Printf("[smoke] discovery=%.1fs models=%d\n", time.Since(began).Seconds(), len(entries))
+	fmt.Fprintf(output, "[smoke] discovery=%.1fs models=%d\n", time.Since(began).Seconds(), len(entries))
 	if err != nil {
 		return errors.Join(err, reader.Close())
 	}
 	if len(entries) == 0 {
 		return errors.Join(runrecord.LaneError(runrecord.LaneEmpty, "servable matrix has no models"), reader.Close())
 	}
-	if *budget <= 0 {
+	if budget <= 0 {
 		return errors.Join(errors.New("smoke: explicit positive -budget required"), reader.Close())
 	}
-	oracles, err := readSmokeOracles(smokeOraclePath, entries, *model)
+	oracles, err := readSmokeOracles(smokeOraclePath, entries, model)
 	if err != nil {
 		return errors.Join(err, reader.Close())
 	}
@@ -100,7 +86,7 @@ func run(args []string) error {
 		return err
 	}
 	commit := ""
-	if !*diagnostic {
+	if !diagnostic {
 		commit, err = runrecord.VerifyingCommit(".")
 		if err != nil {
 			return err
@@ -109,7 +95,7 @@ func run(args []string) error {
 	started, passed := 0, 0
 	var failure error
 	for _, entry := range entries {
-		if *model != "" && *model != entry.Model.String() {
+		if model != "" && model != entry.Model.String() {
 			continue
 		}
 		if err := ctx.Err(); err != nil {
@@ -120,17 +106,17 @@ func run(args []string) error {
 		began := time.Now()
 		observation, serveErr := serve(ctx, storeRoot, entry, oracles[entry.Model], references[entry.Model])
 		wall := time.Since(began)
-		if !*diagnostic {
+		if !diagnostic {
 			serveErr = errors.Join(serveErr, recordSmokeTransaction(context.WithoutCancel(ctx), storeRoot, entry, oracles[entry.Model], observation, serveErr, wall, commit))
 		}
-		fmt.Printf("[smoke] %s wall=%.1fs error=%v\n", entry.Model, wall.Seconds(), serveErr)
+		fmt.Fprintf(output, "[smoke] %s wall=%.1fs error=%v\n", entry.Model, wall.Seconds(), serveErr)
 		if serveErr != nil {
 			failure = serveErr
 			break
 		}
 		passed++
 	}
-	fmt.Printf("audit: inference scope=%s discovered=%d started=%d passed=%d failed=%d not_started=%d diagnostic=%t; no evidence for models outside scope; no benchmark or modality promotion\n", scope, len(entries), started, passed, started-passed, len(entries)-started, *diagnostic)
+	fmt.Fprintf(output, "audit: inference scope=%s discovered=%d started=%d passed=%d failed=%d not_started=%d diagnostic=%t; no evidence for models outside scope; no benchmark or modality promotion\n", scope, len(entries), started, passed, started-passed, len(entries)-started, diagnostic)
 	if failure != nil || started == 0 {
 		return runrecord.LaneError(runrecord.LaneFailed, fmt.Sprintf("smoke incomplete: %v", failure))
 	}

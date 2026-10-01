@@ -9,7 +9,7 @@ import (
 
 // formerCommands are the model-file commands each subcommand replaced.
 var formerCommands = map[string]string{
-	"convert": "hf-gguf-convert", "convert-gemma4": "gemma4-gguf-convert", "hash": "gguf-hash",
+	"audio": "audio-inspect", "convert": "hf-gguf-convert", "convert-gemma4": "gemma4-gguf-convert", "hash": "gguf-hash",
 	"inspect": "inspect-gguf", "merge": "gguf-merge", "quantize": "gguf-quantize",
 	"safetensors": "inspect-safetensors", "split": "gguf-split",
 }

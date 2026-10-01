@@ -1,10 +1,7 @@
-// vqaparity walks the RxBrain vision-QA fixture parity ladder IN ORDER on
-// the canonical bridgev2 case against overgo's neutral host packages
-// (patchtower + routedlm + hfbpe), asserting each stage at the reference
-// tolerances and stopping at the first failing stage.
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"math"
@@ -28,93 +25,70 @@ type campaignContext struct {
 	fixturesDir string
 }
 
-func main() {
-	modelDir := flag.String("model", `C:\Users\jeffm\adaptive_new\models\Hy-Embodied-RxBrain-1.0`, "checkpoint dir")
-	fixturesDir := flag.String("fixtures", `C:\Users\jeffm\adaptive_new\fixtures`, "fixture dir")
-	logPath := flag.String("log", `build\rxbrain_port_log.txt`, "liveness log path")
-	fromStage := flag.String("from", "", "skip stages before this name")
-	toStage := flag.String("to", "", "stop after this stage name")
-	deviceMode := flag.Bool("device", false, "run the CUDA device terminal parity + measurement")
-	deviceDecodeMode := flag.Bool("device-decode", false, "run the CUDA device 32-layer decode parity + measurement")
-	deviceVisionMode := flag.Bool("device-vision", false, "run the CUDA device vision-blocks parity + measurement")
-	deviceMergerMode := flag.Bool("device-merger", false, "run the CUDA device merger parity + measurement")
-	devicePrefillMode := flag.Bool("device-prefill", false, "run the CUDA device branch-routed prefill parity + measurement")
-	deviceFullMode := flag.Bool("device-full", false, "run the CUDA device full pipeline (merger->prefill->decode) + measurement")
-	recipeServeMode := flag.Bool("recipe-serve", false, "serve the canonical case THROUGH the activated VQA recipe (gate on active recipe, real processor, decode-until-EOS)")
-	recipeVerifyMode := flag.Bool("recipe-verify-activate", false, "verify the canonical real-device VQA case, activate its recipe, then replay through the active recipe")
-	repoFlag := flag.String("repo", "", "OvergoDB store for recipe modes; empty resolves via the data-root contract")
-	imageFlag := flag.String("image", `C:\Users\jeffm\adaptive_new\models\Hy-Embodied-RxBrain-1.0\Hy-Embodied-RxBrain-1.0\demo_cases\bridgev2_move_toy\input\obs_1.jpg`, "serve image path")
-	questionFlag := flag.String("question", "What objects are on the stovetop, and where is the green toy?", "serve question")
-	flag.Parse()
+// vqaParity is validate -parity vqa: it walks the RxBrain vision-QA fixture
+// parity ladder IN ORDER on the canonical bridgev2 case against overgo's
+// neutral host packages (patchtower + routedlm + hfbpe), asserting each stage
+// at the reference tolerances and stopping at the first failing stage. Its
+// device and recipe flags run one device stage or the activated VQA recipe
+// instead.
+func vqaParity(flags *flag.FlagSet, args []string) error {
+	modelDir := flags.String("model", `C:\Users\jeffm\adaptive_new\models\Hy-Embodied-RxBrain-1.0`, "checkpoint dir")
+	fixturesDir := flags.String("fixtures", `C:\Users\jeffm\adaptive_new\fixtures`, "fixture dir")
+	logPath := flags.String("log", `build\rxbrain_port_log.txt`, "liveness log path")
+	fromStage := flags.String("from", "", "skip stages before this name")
+	toStage := flags.String("to", "", "stop after this stage name")
+	deviceMode := flags.Bool("device", false, "run the CUDA device terminal parity + measurement")
+	deviceDecodeMode := flags.Bool("device-decode", false, "run the CUDA device 32-layer decode parity + measurement")
+	deviceVisionMode := flags.Bool("device-vision", false, "run the CUDA device vision-blocks parity + measurement")
+	deviceMergerMode := flags.Bool("device-merger", false, "run the CUDA device merger parity + measurement")
+	devicePrefillMode := flags.Bool("device-prefill", false, "run the CUDA device branch-routed prefill parity + measurement")
+	deviceFullMode := flags.Bool("device-full", false, "run the CUDA device full pipeline (merger->prefill->decode) + measurement")
+	recipeServeMode := flags.Bool("recipe-serve", false, "serve the canonical case THROUGH the activated VQA recipe (gate on active recipe, real processor, decode-until-EOS)")
+	recipeVerifyMode := flags.Bool("recipe-verify-activate", false, "verify the canonical real-device VQA case, activate its recipe, then replay through the active recipe")
+	repoFlag := flags.String("repo", "", "OvergoDB store for recipe modes; empty resolves via the data-root contract")
+	imageFlag := flags.String("image", `C:\Users\jeffm\adaptive_new\models\Hy-Embodied-RxBrain-1.0\Hy-Embodied-RxBrain-1.0\demo_cases\bridgev2_move_toy\input\obs_1.jpg`, "serve image path")
+	questionFlag := flags.String("question", "What objects are on the stovetop, and where is the green toy?", "serve question")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 	l := &campaignContext{Campaign: parity.NewCampaign(*logPath), modelDir: *modelDir, fixturesDir: *fixturesDir}
-	if *recipeVerifyMode {
-		if err := verifyActivateVQA(l, *repoFlag, *imageFlag, *questionFlag); err != nil {
-			l.Log("RECIPE verify ERROR " + err.Error())
-			os.Exit(1)
+	// The first mode named runs, in this order; with none the host ladder runs.
+	for _, mode := range []struct {
+		selected bool
+		label    string
+		run      func() error
+	}{
+		{*recipeVerifyMode, "RECIPE verify", func() error { return verifyActivateVQA(l, *repoFlag, *imageFlag, *questionFlag) }},
+		{*recipeServeMode, "RECIPE serve", func() error { return runRecipeServe(l, *repoFlag, *imageFlag, *questionFlag) }},
+		{*deviceFullMode, "DEVICE FULL", func() error { return runDeviceFull(l) }},
+		{*devicePrefillMode, "DEVICE PREFILL", func() error { return runDevicePrefill(l) }},
+		{*deviceMergerMode, "DEVICE MERGER", func() error { return runDeviceMerger(l) }},
+		{*deviceVisionMode, "DEVICE VISION", func() error { return runDeviceVision(l) }},
+		{*deviceDecodeMode, "DEVICE DECODE", func() error { return runDeviceDecode(l) }},
+		{*deviceMode, "DEVICE", func() error { return vqaDevice(l) }},
+	} {
+		if !mode.selected {
+			continue
 		}
-		return
-	}
-	if *recipeServeMode {
-		if err := runRecipeServe(l, *repoFlag, *imageFlag, *questionFlag); err != nil {
-			l.Log("RECIPE serve ERROR " + err.Error())
-			os.Exit(1)
+		err := mode.run()
+		if err != nil {
+			l.Log(mode.label + " ERROR " + err.Error())
 		}
-		return
+		return err
 	}
-	if *deviceFullMode {
-		if err := runDeviceFull(l); err != nil {
-			l.Log("DEVICE FULL ERROR " + err.Error())
-			os.Exit(1)
-		}
-		return
-	}
-	if *devicePrefillMode {
-		if err := runDevicePrefill(l); err != nil {
-			l.Log("DEVICE PREFILL ERROR " + err.Error())
-			os.Exit(1)
-		}
-		return
-	}
-	if *deviceMergerMode {
-		if err := runDeviceMerger(l); err != nil {
-			l.Log("DEVICE MERGER ERROR " + err.Error())
-			os.Exit(1)
-		}
-		return
-	}
-	if *deviceVisionMode {
-		if err := runDeviceVision(l); err != nil {
-			l.Log("DEVICE VISION ERROR " + err.Error())
-			os.Exit(1)
-		}
-		return
-	}
-	if *deviceDecodeMode {
-		if err := runDeviceDecode(l); err != nil {
-			l.Log("DEVICE DECODE ERROR " + err.Error())
-			os.Exit(1)
-		}
-		return
-	}
-	if *deviceMode {
-		if err := runDevice(l); err != nil {
-			l.Log("DEVICE ERROR " + err.Error())
-			os.Exit(1)
-		}
-		return
-	}
-	if err := run(l, *fromStage, *toStage); err != nil {
+	if err := vqaLadder(l, *fromStage, *toStage); err != nil {
 		l.Log("LADDER ERROR " + err.Error())
-		os.Exit(1)
+		return err
 	}
 	if l.Failed() {
 		l.Log(fmt.Sprintf("LADDER STOPPED after %d/%d stages passed", l.Count(parity.Pass), l.Total()))
-		os.Exit(1)
+		return errors.New("validate -parity vqa: ladder stopped at its first failure")
 	}
 	l.Log(fmt.Sprintf("LADDER COMPLETE %d/%d stages passed", l.Count(parity.Pass), l.Total()))
+	return nil
 }
 
-func run(l *campaignContext, fromStage, toStage string) error {
+func vqaLadder(l *campaignContext, fromStage, toStage string) error {
 	skipUntil := fromStage
 	stopAfter := toStage
 	gate := func(name string, fn func() (string, error)) {
@@ -336,7 +310,7 @@ func run(l *campaignContext, fromStage, toStage string) error {
 	gate("merger", func() (string, error) {
 		values := make([]float32, imageRows*spec.OutHidden)
 		scratch := patchtower.NewMergerScratch(spec)
-		for row := tensor.FirstOffset; row < imageRows; row++ {
+		for row := range imageRows {
 			patchtower.MergerRowInto(values[row*spec.OutHidden:(row+tensor.SingletonExtent)*spec.OutHidden], blockLast, row, gridH, gridW, spec, merger, &scratch)
 		}
 		return probeCheck("merger", values, vg.VisionTensors["merger"], acceptProjection)

@@ -1,7 +1,28 @@
-// sensenovaparity walks the SenseNova-U1 MoT forward path against the
-// device-neutral oracle fixtures (edit_oracle_v3_256.json,
-// generation_oracle_256.json) on the CPU host packages, the way cmd/vqaparity
-// walks the RxBrain ladder. It is the CPU analogue of the adaptive_new
+package main
+
+import (
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"errors"
+	"flag"
+	"fmt"
+	"math"
+	"os"
+
+	"overgo/internal/hfbpe"
+	"overgo/internal/jsonfile"
+	"overgo/internal/parity"
+	"overgo/internal/routedlm"
+	"overgo/internal/safetensors"
+	"overgo/internal/tensor/dtype"
+)
+
+// senseNovaParity is validate -parity sensenova: it walks the SenseNova-U1
+// MoT forward path against the device-neutral oracle fixtures
+// (edit_oracle_v3_256.json, generation_oracle_256.json) on the CPU host
+// packages, the way validate -parity vqa walks the RxBrain ladder. It is the
+// CPU analogue of the adaptive_new
 // CUDA-gated harness (sensenova_edit_cuda_windows_test.go,
 // research_cuda_windows_test.go): it reads the SAME fixture JSON and asserts
 // each stage the fixtures + ported host surface + the read-only checkpoint can
@@ -16,56 +37,40 @@
 // (sparse 64-sample probes, external source image, unported renderer/denoise)
 // are reported FRONTIER with the exact blocker and the exact next stage — a
 // weak check is never dressed up as parity.
-package main
-
-import (
-	"crypto/sha256"
-	"encoding/binary"
-	"encoding/hex"
-	"flag"
-	"fmt"
-	"math"
-	"os"
-
-	"overgo/internal/hfbpe"
-	"overgo/internal/jsonfile"
-	"overgo/internal/parity"
-	"overgo/internal/routedlm"
-	"overgo/internal/safetensors"
-	"overgo/internal/tensor/dtype"
-)
-
-func main() {
-	modelDir := flag.String("model", `C:\Users\jeffm\adaptive_new\models\SenseNova-U1-8B-MoT-Infographic-V3`, "checkpoint dir (READ-ONLY)")
-	fixturesDir := flag.String("fixtures", `C:\Users\jeffm\adaptive_new\fixtures\sensenova`, "fixture dir (READ-ONLY)")
-	logPath := flag.String("log", `build\sensenova_parity_log.txt`, "liveness log path")
-	deviceMode := flag.Bool("device", false, "run the CUDA device denoise-terminal stages after the CPU ladder")
-	flag.Parse()
+func senseNovaParity(flags *flag.FlagSet, args []string) error {
+	modelDir := flags.String("model", `C:\Users\jeffm\adaptive_new\models\SenseNova-U1-8B-MoT-Infographic-V3`, "checkpoint dir (READ-ONLY)")
+	fixturesDir := flags.String("fixtures", `C:\Users\jeffm\adaptive_new\fixtures\sensenova`, "fixture dir (READ-ONLY)")
+	logPath := flags.String("log", `build\sensenova_parity_log.txt`, "liveness log path")
+	deviceMode := flags.Bool("device", false, "run the CUDA device denoise-terminal stages after the CPU ladder")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 
 	l := parity.NewCampaign(*logPath)
 	// First line immediately (liveness).
-	l.Log(fmt.Sprintf("LADDER START sensenovaparity model=%s fixtures=%s device=%v", *modelDir, *fixturesDir, *deviceMode))
+	l.Log(fmt.Sprintf("LADDER START validate -parity sensenova model=%s fixtures=%s device=%v", *modelDir, *fixturesDir, *deviceMode))
 
-	if err := run(l, *modelDir, *fixturesDir); err != nil {
+	if err := senseNovaLadder(l, *modelDir, *fixturesDir); err != nil {
 		l.Log("LADDER ERROR " + err.Error())
-		os.Exit(1)
+		return err
 	}
 	if *deviceMode && !l.Failed() {
-		if err := runDevice(l, *modelDir, *fixturesDir); err != nil {
+		if err := senseNovaDevice(l, *modelDir, *fixturesDir); err != nil {
 			l.Log("DEVICE ERROR " + err.Error())
-			os.Exit(1)
+			return err
 		}
 	}
 	summary := fmt.Sprintf("oracle=%d derive=%d wired=%d frontier=%d",
 		l.Count(parity.Oracle), l.Count(parity.Derived), l.Count(parity.Wired), l.Count(parity.Frontier))
 	if l.Failed() {
 		l.Log("LADDER STOPPED at first FAIL (" + summary + ")")
-		os.Exit(1)
+		return errors.New("validate -parity sensenova: ladder stopped at its first failure")
 	}
 	l.Log("LADDER COMPLETE longest-verifiable-prefix bound (" + summary + ")")
+	return nil
 }
 
-func run(l *parity.Campaign, modelDir, fixturesDir string) error {
+func senseNovaLadder(l *parity.Campaign, modelDir, fixturesDir string) error {
 	var edit editOracle
 	if err := jsonfile.Decode(fixturesDir+string(os.PathSeparator)+"edit_oracle_v3_256.json", &edit); err != nil {
 		return fmt.Errorf("load edit oracle: %w", err)

@@ -37,7 +37,7 @@ func TestAudioFrontendCommandPublishesBoundaryInvariantEvidence(t *testing.T) {
 	for chunk := 1; chunk <= len(samples); chunk++ {
 		args := []string{"-repo", filepath.Join(root, "store"), "-input", input, "-policy", paths[0], "-frontend", paths[1], "-frontend-memory", "1048576", "-chunk-samples", strconv.Itoa(chunk), "-reconstruct", "-trace-frames", "2", "-frame-limit", "4"}
 		var output bytes.Buffer
-		if err := run(t.Context(), args, &output); err != nil {
+		if err := runAudio(t, args, &output); err != nil {
 			t.Fatalf("chunk %d: %v", chunk, err)
 		}
 		var observation frontendObservation

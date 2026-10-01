@@ -62,31 +62,31 @@ type evidencePolicy struct {
 	Measurement map[measurementStage]measurementBudget `json:"measurement"`
 }
 
-//go:embed evidence_policy.json
+//go:embed parity_vqa_evidence_policy.json
 var evidencePolicyJSON []byte
 
 var campaignEvidence = func() evidencePolicy {
 	var policy evidencePolicy
 	if err := json.Unmarshal(evidencePolicyJSON, &policy); err != nil || policy.Version != artifact.InitialDocumentVersion ||
 		len(policy.Acceptance) != len(acceptanceClasses) || len(policy.Measurement) != len(measurementStages) {
-		panic("vqaparity: invalid evidence policy")
+		panic("validate -parity vqa: invalid evidence policy")
 	}
 	for _, class := range acceptanceClasses {
 		acceptance, ok := policy.Acceptance[class]
 		if !ok {
-			panic("vqaparity: acceptance policy absent: " + class)
+			panic("validate -parity vqa: acceptance policy absent: " + class)
 		}
 		if !checked.PositiveFinite64(acceptance.Absolute) || !checked.NonNegativeFinite64(acceptance.Relative) {
-			panic("vqaparity: invalid acceptance policy")
+			panic("validate -parity vqa: invalid acceptance policy")
 		}
 	}
 	for _, stage := range measurementStages {
 		budget, ok := policy.Measurement[stage]
 		if !ok {
-			panic("vqaparity: measurement policy absent: " + stage)
+			panic("validate -parity vqa: measurement policy absent: " + stage)
 		}
 		if !checked.PositiveInts(budget.Warmup, budget.Samples) {
-			panic("vqaparity: invalid measurement policy")
+			panic("validate -parity vqa: invalid measurement policy")
 		}
 	}
 	return policy
@@ -95,7 +95,7 @@ var campaignEvidence = func() evidencePolicy {
 func acceptance(name acceptanceClass) numericAcceptance {
 	value, ok := campaignEvidence.Acceptance[name]
 	if !ok {
-		panic("vqaparity: acceptance policy absent: " + name)
+		panic("validate -parity vqa: acceptance policy absent: " + name)
 	}
 	return value
 }
@@ -103,7 +103,7 @@ func acceptance(name acceptanceClass) numericAcceptance {
 func measurement(name measurementStage) measurementBudget {
 	value, ok := campaignEvidence.Measurement[name]
 	if !ok {
-		panic("vqaparity: measurement policy absent: " + name)
+		panic("validate -parity vqa: measurement policy absent: " + name)
 	}
 	return value
 }

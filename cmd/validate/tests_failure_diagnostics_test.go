@@ -29,6 +29,7 @@ func diagnosticEvent(action, pkg, test, output string) string {
 const blockedAnnouncement = "OVERGO_FAILURE_DIAGNOSTICS_BLOCKED"
 
 func TestFailureDiagnostics(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_FAILURE_DIAGNOSTICS_CHILD") == "wait" {
 		fmt.Fprint(os.Stdout, diagnosticEvent("run", "fixture", "TestBlocked", ""))
 		// Both streams feed the parser, so the fixture announces its block by
@@ -49,28 +50,29 @@ func TestFailureDiagnostics(t *testing.T) {
 		}
 		os.Exit(1)
 	}
-	runFixture := func(t *testing.T, input string, processErr error) (string, string, testevidence.GoTestReport) {
+	runFixture := func(t *testing.T, input string, processErr error) (string, testevidence.GoTestReport) {
 		t.Helper()
-		var stdout, stderr strings.Builder
+		var output strings.Builder
 		report, parseErr := testevidence.GoTestJSONReader(strings.NewReader(input), true, clioptions.DiagnosticTailBytes, nil)
-		code := run(nil, &stdout, &stderr, func([]string) (testevidence.GoTestReport, error) {
+		err := runTests(nil, &output, func([]string) (testevidence.GoTestReport, error) {
 			return report, errors.Join(parseErr, processErr)
 		})
-		if code == 0 {
-			t.Fatalf("failure accepted: report=%+v stdout=%s", report, stdout.String())
+		if err == nil {
+			t.Fatalf("failure accepted: report=%+v output=%s", report, output.String())
 		}
-		return stdout.String(), stderr.String(), report
+		return output.String(), report
 	}
 	t.Run("named assertion survives unrelated passing output", func(t *testing.T) {
-		input := diagnosticEvent("run", "broken", "TestWrong", "") +
+		var input strings.Builder
+		input.WriteString(diagnosticEvent("run", "broken", "TestWrong", "") +
 			diagnosticEvent("output", "broken", "TestWrong", "expected 4, got 7\n") +
 			diagnosticEvent("fail", "broken", "TestWrong", "") +
-			diagnosticEvent("fail", "broken", "", "")
+			diagnosticEvent("fail", "broken", "", ""))
 		for range 100 {
-			input += diagnosticEvent("output", "passing", "TestGood", strings.Repeat("irrelevant", 100)+"\n")
+			input.WriteString(diagnosticEvent("output", "passing", "TestGood", strings.Repeat("irrelevant", 100)+"\n"))
 		}
-		input += diagnosticEvent("pass", "passing", "TestGood", "") + diagnosticEvent("pass", "passing", "", "")
-		_, output, report := runFixture(t, input, nil)
+		input.WriteString(diagnosticEvent("pass", "passing", "TestGood", "") + diagnosticEvent("pass", "passing", "", ""))
+		output, report := runFixture(t, input.String(), nil)
 		if !strings.Contains(output, "broken: TestWrong") || !strings.Contains(output, "expected 4, got 7") || strings.Contains(output, "irrelevant") {
 			t.Fatalf("diagnostic=%s", output)
 		}
@@ -79,13 +81,14 @@ func TestFailureDiagnostics(t *testing.T) {
 		}
 	})
 	t.Run("timeout cause survives stack tail", func(t *testing.T) {
-		input := diagnosticEvent("start", "hung", "", "") + diagnosticEvent("run", "hung", "TestBlocked", "") +
-			diagnosticEvent("output", "hung", "", "panic: test timed out after 1s\n")
+		var input strings.Builder
+		input.WriteString(diagnosticEvent("start", "hung", "", "") + diagnosticEvent("run", "hung", "TestBlocked", "") +
+			diagnosticEvent("output", "hung", "", "panic: test timed out after 1s\n"))
 		for range 100 {
-			input += diagnosticEvent("output", "hung", "", "goroutine stack "+strings.Repeat("frame ", 100)+"\n")
+			input.WriteString(diagnosticEvent("output", "hung", "", "goroutine stack "+strings.Repeat("frame ", 100)+"\n"))
 		}
-		input += diagnosticEvent("output", "hung", "", "last stack frame\n") + diagnosticEvent("fail", "hung", "", "")
-		_, output, report := runFixture(t, input, errors.New("exit status 1"))
+		input.WriteString(diagnosticEvent("output", "hung", "", "last stack frame\n") + diagnosticEvent("fail", "hung", "", ""))
+		output, report := runFixture(t, input.String(), errors.New("exit status 1"))
 		for _, want := range []string{"panic: test timed out after 1s", "unfinished: hung: TestBlocked", "last stack frame"} {
 			if !strings.Contains(output, want) {
 				t.Fatalf("missing %q in %s", want, output)
@@ -96,13 +99,14 @@ func TestFailureDiagnostics(t *testing.T) {
 		}
 	})
 	t.Run("panic reason survives test output", func(t *testing.T) {
-		input := diagnosticEvent("run", "panicpkg", "TestPanic", "") +
-			diagnosticEvent("output", "panicpkg", "TestPanic", "panic: invalid buffer ownership\n")
+		var input strings.Builder
+		input.WriteString(diagnosticEvent("run", "panicpkg", "TestPanic", "") +
+			diagnosticEvent("output", "panicpkg", "TestPanic", "panic: invalid buffer ownership\n"))
 		for range 100 {
-			input += diagnosticEvent("output", "panicpkg", "TestPanic", strings.Repeat("frame ", 100)+"\n")
+			input.WriteString(diagnosticEvent("output", "panicpkg", "TestPanic", strings.Repeat("frame ", 100)+"\n"))
 		}
-		input += diagnosticEvent("fail", "panicpkg", "TestPanic", "")
-		_, output, _ := runFixture(t, input, errors.New("exit status 2"))
+		input.WriteString(diagnosticEvent("fail", "panicpkg", "TestPanic", ""))
+		output, _ := runFixture(t, input.String(), errors.New("exit status 2"))
 		if !strings.Contains(output, "panic: invalid buffer ownership") || !strings.Contains(output, "panicpkg: TestPanic") {
 			t.Fatal(output)
 		}
@@ -110,7 +114,7 @@ func TestFailureDiagnostics(t *testing.T) {
 	t.Run("malformed event preserves earlier verdicts", func(t *testing.T) {
 		input := diagnosticEvent("output", "broken", "TestFirst", "original assertion\n") +
 			diagnosticEvent("fail", "broken", "TestFirst", "") + "{bad event\n"
-		_, output, report := runFixture(t, input, nil)
+		output, report := runFixture(t, input, nil)
 		for _, want := range []string{"decode go test event", "original assertion", "broken: TestFirst", "{bad event"} {
 			if !strings.Contains(output, want) {
 				t.Fatalf("missing %q in %s", want, output)
@@ -121,7 +125,7 @@ func TestFailureDiagnostics(t *testing.T) {
 		}
 	})
 	t.Run("truncated stream is unfinished", func(t *testing.T) {
-		_, output, _ := runFixture(t, diagnosticEvent("start", "partial", "", "")+diagnosticEvent("run", "partial", "TestStillRunning", ""), nil)
+		output, _ := runFixture(t, diagnosticEvent("start", "partial", "", "")+diagnosticEvent("run", "partial", "TestStillRunning", ""), nil)
 		if !strings.Contains(output, "unfinished: partial: TestStillRunning") {
 			t.Fatal(output)
 		}
@@ -129,7 +133,7 @@ func TestFailureDiagnostics(t *testing.T) {
 	t.Run("malformed prefix preserves later diagnostics", func(t *testing.T) {
 		input := "# compiler output\n" + diagnosticEvent("output", "later", "TestAfterMalformed", "assertion after malformed event\n") +
 			diagnosticEvent("fail", "later", "TestAfterMalformed", "") + "source.go:42: undefined: missingSymbol\n"
-		_, output, report := runFixture(t, input, errors.New("exit status 1"))
+		output, report := runFixture(t, input, errors.New("exit status 1"))
 		for _, want := range []string{"decode go test event", "assertion after malformed event", "later: TestAfterMalformed", "undefined: missingSymbol"} {
 			if !strings.Contains(output, want) {
 				t.Fatalf("missing %q in %s", want, output)
@@ -141,18 +145,19 @@ func TestFailureDiagnostics(t *testing.T) {
 	})
 	t.Run("build output names its import path", func(t *testing.T) {
 		input := "{\"Action\":\"build-output\",\"ImportPath\":\"broken/build\",\"Output\":\"undefined: missingBuildSymbol\\n\"}\n"
-		_, output, _ := runFixture(t, input, errors.New("exit status 1"))
+		output, _ := runFixture(t, input, errors.New("exit status 1"))
 		if !strings.Contains(output, "broken/build") || !strings.Contains(output, "missingBuildSymbol") {
 			t.Fatal(output)
 		}
 	})
 	t.Run("advisory skips do not bury failures", func(t *testing.T) {
-		input := diagnosticEvent("output", "broken", "TestFailure", "causal assertion\n") + diagnosticEvent("fail", "broken", "TestFailure", "")
+		var input strings.Builder
+		input.WriteString(diagnosticEvent("output", "broken", "TestFailure", "causal assertion\n") + diagnosticEvent("fail", "broken", "TestFailure", ""))
 		for index := range 100 {
 			name := fmt.Sprintf("TestOptional%d", index)
-			input += diagnosticEvent("output", "optional", name, strings.Repeat("unavailable fixture ", 100)) + diagnosticEvent("skip", "optional", name, "")
+			input.WriteString(diagnosticEvent("output", "optional", name, strings.Repeat("unavailable fixture ", 100)) + diagnosticEvent("skip", "optional", name, ""))
 		}
-		report, err := testevidence.GoTestJSONReader(strings.NewReader(input), false, clioptions.DiagnosticTailBytes, nil)
+		report, err := testevidence.GoTestJSONReader(strings.NewReader(input.String()), false, clioptions.DiagnosticTailBytes, nil)
 		if err != nil || len(report.Skipped) != 100 || len(report.Diagnostics) != 1 || !strings.Contains(report.Diagnostics[0], "causal assertion") {
 			t.Fatalf("err=%v report=%+v", err, report)
 		}
@@ -161,12 +166,12 @@ func TestFailureDiagnostics(t *testing.T) {
 		input := diagnosticEvent("run", "okpkg", "TestWorks", "") +
 			diagnosticEvent("output", "okpkg", "TestWorks", "diagnostic from passing test\n") +
 			diagnosticEvent("pass", "okpkg", "TestWorks", "") + diagnosticEvent("pass", "okpkg", "", "")
-		var output, diagnostic strings.Builder
-		code := run(nil, &output, &diagnostic, func([]string) (testevidence.GoTestReport, error) {
+		var output strings.Builder
+		err := runTests(nil, &output, func([]string) (testevidence.GoTestReport, error) {
 			return testevidence.GoTestJSONReader(strings.NewReader(input), true, clioptions.DiagnosticTailBytes, nil)
 		})
-		if code != 0 || diagnostic.Len() != 0 || !strings.Contains(output.String(), "PASS packages=1 tests=1") {
-			t.Fatalf("code=%d output=%s diagnostic=%s", code, output.String(), diagnostic.String())
+		if err != nil || strings.Contains(output.String(), "diagnostic from passing test") || !strings.Contains(output.String(), "PASS packages=1 tests=1") {
+			t.Fatalf("err=%v output=%s", err, output.String())
 		}
 	})
 	t.Run("malformed subprocess drains pipe", func(t *testing.T) {

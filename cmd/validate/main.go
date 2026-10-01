@@ -10,7 +10,9 @@
 // source moved is rebound only after -claims -run re-runs its verify. It also
 // renders the model and media reports from the store on demand, exports the
 // media samples, publishes and checks the capability census, and commits
-// model-verification records.
+// model-verification records. It also runs the smoke oracles against the
+// active inference models, the reference parity comparisons, the hermetic
+// short test lane and the test receipts reviewed media deltas bind.
 package main
 
 import (
@@ -20,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 
@@ -31,6 +34,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/scorecard"
+	"overgo/internal/testevidence"
 )
 
 // catalogLimit bounds the registered-model listing; a truncated denominator is
@@ -39,7 +43,13 @@ const catalogLimit = 4096
 
 func main() { clioptions.MainNamed("validate", run) }
 
-func run() error { return runArgs(context.Background(), os.Args[1:], os.Stdout) }
+// run ends the work in progress, rather than the process, on an interrupt,
+// so a child test run or a model being served is stopped by its owner.
+func run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	return runArgs(ctx, os.Args[1:], os.Stdout)
+}
 
 func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("validate", flag.ContinueOnError)
@@ -60,6 +70,13 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	publishCensus := flags.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
 	checkCensus := flags.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
 	recordVerification := flags.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims) into the store")
+	smoke := flags.Bool("smoke", false, "serve every active inference model, or the one -model names, against its declared oracle in docs/verification/smoke-oracles.json and record a bound run into the store")
+	budget := flags.Duration("budget", 0, "with -smoke: the total discovery and execution budget; required")
+	smokeModel := flags.String("model", "", "with -smoke: the exact model identity to serve; omitted models receive no evidence credit")
+	diagnostic := flags.Bool("diagnostic", false, "with -smoke: inspect behavior without recording a run")
+	parityRun := flags.Bool("parity", false, "run the reference comparison the first argument names, with the flags after it: audio-oracle, sensenova or vqa")
+	testLane := flags.Bool("tests", false, "run the hermetic short test lane over the packages after the flags (default ./...): a failed, unfinished or unclassified skipped test refuses it")
+	receipt := flags.Bool("receipt", false, "run go test -json, one package at a time, with the go test arguments after the flags, and keep the passing stream in the store as a receipt")
 	command := clioptions.Command{
 		Name:     "validate",
 		Purpose:  "select the minimal sufficient end-to-end validation for a commit and, with -run, execute it",
@@ -73,14 +90,30 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
 			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
 			"-models, -media and -check-census read the store; -export-samples writes only under docs/media_samples; -publish-census and -record-verification write the store",
+			"-smoke loads each selected model on the device and, without -diagnostic, records its run at the checked-out commit into the store",
+			"-parity, -tests and -receipt take their arguments after the flags; -receipt alone writes the store",
 			"help opens no store and reads nothing",
 		},
 	}
 	if handled, err := command.ParseForHelp(flags, args, output); err != nil || handled {
 		return err
 	}
+	switch {
+	case *parityRun:
+		return runParity(flags.Args(), output)
+	case *testLane:
+		return runTests(flags.Args(), output, func(packages []string) (testevidence.GoTestReport, error) { return runGoTest(ctx, packages) })
+	case *receipt:
+		return runReceipt(ctx, output, *repository, flags.Args())
+	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("validate: unexpected arguments %v", flags.Args())
+	}
+	if *smoke {
+		return runSmoke(ctx, output, *repository, *budget, *smokeModel, *diagnostic)
+	}
+	if *budget != 0 || *smokeModel != "" || *diagnostic {
+		return errors.New("-budget, -model and -diagnostic go with -smoke")
 	}
 	if *onboardPath != "" {
 		steps, err := newOnboarding(*root, *repository, output)

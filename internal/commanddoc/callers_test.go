@@ -59,7 +59,7 @@ func TestEveryCommandHasACaller(t *testing.T) {
 }
 
 // namedOutside reports whether any file outside cmd/<name>/ names the command
-// as a whole path segment, so cmd/train does not count for cmd/train-lane.
+// as a whole path segment, so cmd/benchmark-report does not count for cmd/benchmark.
 func namedOutside(texts map[string]string, name string) bool {
 	mention := "cmd/" + name
 	for path, text := range texts {

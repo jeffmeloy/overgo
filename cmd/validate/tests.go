@@ -1,6 +1,3 @@
-// Command test-lane runs the repository's required hermetic test lane and
-// makes incomplete evidence explicit. It is the common Go owner used by CI,
-// release checks, and local automation rather than duplicating shell policy.
 package main
 
 import (
@@ -8,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"os/signal"
 	"strings"
 
 	"overgo/internal/clioptions"
@@ -19,29 +14,18 @@ import (
 
 type testRunner func(packages []string) (testevidence.GoTestReport, error)
 
-func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	if len(os.Args) > 1 && os.Args[1] == receiptVerb {
-		code := receipt(ctx, os.Args[2:], os.Stdout, os.Stderr)
-		stop()
-		os.Exit(code)
-	}
-	code := run(os.Args[1:], os.Stdout, os.Stderr, func(packages []string) (testevidence.GoTestReport, error) {
-		return runGoTest(ctx, packages)
-	})
-	stop()
-	os.Exit(code)
-}
-
-func run(args []string, stdout, stderr io.Writer, runner testRunner) int {
-	packages := args
+// runTests is validate -tests: the repository's hermetic short test lane,
+// the one continuous integration runs. It makes incomplete evidence
+// explicit: a failed or unfinished test, or a skip no short or inapplicable
+// classification owns, refuses the run, and classified skips stay visible
+// without being credited.
+func runTests(packages []string, output io.Writer, runner testRunner) error {
 	if len(packages) == 0 {
 		packages = []string{"./..."}
 	}
 	for _, pkg := range packages {
 		if strings.TrimSpace(pkg) == "" || strings.HasPrefix(pkg, "-") {
-			fmt.Fprintf(stderr, "test-lane: package arguments only; got %q\n", pkg)
-			return 2
+			return fmt.Errorf("validate -tests: package arguments only; got %q", pkg)
 		}
 	}
 	report, runErr := runner(packages)
@@ -51,30 +35,30 @@ func run(args []string, stdout, stderr io.Writer, runner testRunner) int {
 	}
 	if runErr != nil || evidenceErr != nil {
 		if runErr != nil {
-			fmt.Fprintf(stderr, "test-lane: go test failed: %v\n", runErr)
+			fmt.Fprintf(output, "validate -tests: go test failed: %v\n", runErr)
 		}
 		if evidenceErr != nil {
-			fmt.Fprintf(stderr, "test-lane: evidence rejected: %v\n", evidenceErr)
+			fmt.Fprintf(output, "validate -tests: evidence rejected: %v\n", evidenceErr)
 		}
 		for _, failed := range report.Failed {
-			fmt.Fprintf(stderr, "test-lane: failed: %s\n", failed)
+			fmt.Fprintf(output, "validate -tests: failed: %s\n", failed)
 		}
 		for _, unfinished := range report.Unfinished {
-			fmt.Fprintf(stderr, "test-lane: unfinished: %s\n", unfinished)
+			fmt.Fprintf(output, "validate -tests: unfinished: %s\n", unfinished)
 		}
 		for _, diagnostic := range report.Diagnostics {
-			fmt.Fprintf(stderr, "test-lane: diagnostic: %s\n", diagnostic)
+			fmt.Fprintf(output, "validate -tests: diagnostic: %s\n", diagnostic)
 		}
 		for _, skipped := range report.Skipped {
-			fmt.Fprintf(stderr, "test-lane: unclassified skip: %s\n", skipped)
+			fmt.Fprintf(output, "validate -tests: unclassified skip: %s\n", skipped)
 		}
-		return 1
+		return errors.New("validate -tests: the test evidence is incomplete")
 	}
-	fmt.Fprintf(stdout,
-		"test-lane: PASS packages=%d tests=%d classified_short_skips=%d no_test_packages=%d (skips are visible, not credited)\n",
+	_, err := fmt.Fprintf(output,
+		"validate -tests: PASS packages=%d tests=%d classified_short_skips=%d no_test_packages=%d (skips are visible, not credited)\n",
 		report.PassedPackages, report.PassedTests, len(report.ClassifiedSkipped), report.NoTestPackages,
 	)
-	return 0
+	return err
 }
 
 func runGoTest(ctx context.Context, packages []string) (testevidence.GoTestReport, error) {

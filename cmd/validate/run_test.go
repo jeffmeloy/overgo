@@ -41,7 +41,7 @@ func TestReacquireCommand(t *testing.T) {
 // TestDNAGuardBindsTheSmokeLane holds a DNA model's stale guard cell to its
 // owner. Its smoke run predates an inference surface move, so the
 // current-evidence decision refuses it and the cell runs; -run then binds
-// the smoke lane on that model into the selected store, the very command the
+// validate -smoke on that model into the selected store, the very command the
 // refusal names, never the text guard and never no command at all.
 func TestDNAGuardBindsTheSmokeLane(t *testing.T) {
 	t.Parallel()
@@ -61,7 +61,7 @@ func TestDNAGuardBindsTheSmokeLane(t *testing.T) {
 	}
 
 	name, args, err := reacquireCommand(plan.Run[0].ModelValidation, store)
-	want := []string{"run", "./cmd/smoke-lane", "-budget", "15m", "-model", carbon.String(), "-repo", store}
+	want := []string{"run", "./cmd/validate", "-smoke", "-budget", "15m", "-model", carbon.String(), "-repo", store}
 	if err != nil || name != "go" || !slices.Equal(args, want) {
 		t.Fatalf("a stale DNA cell bound (%q, %v, %v), want go %v", name, args, err, want)
 	}

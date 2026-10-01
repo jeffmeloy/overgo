@@ -12,6 +12,7 @@ import (
 )
 
 func TestCIRequiredEvidenceCommand(t *testing.T) {
+	t.Parallel()
 	events := fmt.Sprintf(
 		"{\"Action\":\"pass\",\"Package\":\"x\",\"Test\":\"TestX\"}\n"+
 			"{\"Action\":\"attr\",\"Package\":\"x\",\"Test\":\"TestSlow\",\"Key\":%q,\"Value\":%q}\n"+
@@ -19,21 +20,20 @@ func TestCIRequiredEvidenceCommand(t *testing.T) {
 			"{\"Action\":\"pass\",\"Package\":\"x\"}\n",
 		testskip.Key, testskip.KindShort,
 	)
-	var stdout, stderr bytes.Buffer
-	code := run([]string{"./..."}, &stdout, &stderr, func([]string) (testevidence.GoTestReport, error) {
+	var output bytes.Buffer
+	err := runTests([]string{"./..."}, &output, func([]string) (testevidence.GoTestReport, error) {
 		return testevidence.GoTestJSONShortReport(events)
 	})
-	if code != 0 || stderr.Len() != 0 || !strings.Contains(stdout.String(), "tests=1 classified_short_skips=1") {
-		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	if err != nil || !strings.Contains(output.String(), "tests=1 classified_short_skips=1") {
+		t.Fatalf("err=%v output=%q", err, output.String())
 	}
 
-	stdout.Reset()
-	stderr.Reset()
-	code = run(nil, &stdout, &stderr, func([]string) (testevidence.GoTestReport, error) {
+	output.Reset()
+	err = runTests(nil, &output, func([]string) (testevidence.GoTestReport, error) {
 		report, err := testevidence.GoTestJSONShortReport("{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestMystery\"}\n")
 		return report, errors.Join(err, errors.New("exit status 1"))
 	})
-	if code == 0 || !strings.Contains(stderr.String(), "evidence rejected") {
-		t.Fatalf("incomplete evidence was accepted: code=%d stderr=%q", code, stderr.String())
+	if err == nil || !strings.Contains(output.String(), "evidence rejected") {
+		t.Fatalf("incomplete evidence was accepted: err=%v output=%q", err, output.String())
 	}
 }

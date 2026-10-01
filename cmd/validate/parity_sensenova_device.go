@@ -76,9 +76,9 @@ func maxAbs(a []float32) float64 {
 	return m
 }
 
-// runDevice: the SenseNova generation-lane denoise-step terminal + sampler on
+// senseNovaDevice: the SenseNova generation-lane denoise-step terminal + sampler on
 // the CUDA generic executor, appended to the ladder as device stages.
-func runDevice(l *parity.Campaign, modelDir, fixturesDir string) error {
+func senseNovaDevice(l *parity.Campaign, modelDir, fixturesDir string) error {
 	ctx := context.Background()
 	l.Log("DEVICE denoise-terminal START")
 

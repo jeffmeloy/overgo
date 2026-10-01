@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package composition_test
 
 import (
 	"context"
@@ -88,10 +88,13 @@ var laneCount = checked.Rows[float32]
 
 var laneF32Bytes, _ = dtype.F32.ScalarBytes()
 
-func run() error {
+// runCompositeGeneration validates an active composition against its
+// model-native baseline on identical catalog artifacts and held-out inputs,
+// reading the Wan fixtures under the repository root.
+func runCompositeGeneration(root string) error {
 	ctx := context.Background()
 	var config laneConfig
-	fixtureDirectory := filepath.Join("fixtures", "wan")
+	fixtureDirectory := filepath.Join(root, "fixtures", "wan")
 	if err := jsonfile.Decode(filepath.Join(fixtureDirectory, "composite_generation_lane.json"), &config); err != nil {
 		return err
 	}

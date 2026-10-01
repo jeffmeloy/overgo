@@ -34,11 +34,11 @@ type frontendObservation struct {
 func inspectFeatures(ctx context.Context, repository artifact.Repository, encoder *json.Encoder, frontend *audiodsp.Frontend, config artifact.Content,
 	inspection dataset.AudioInspection, chunkSamples int, reconstruct bool, frameLimit, traceFrames int, workspace *audiodsp.Workspace) error {
 	if inspection.Signal.Format.Channels != 1 {
-		return errors.New("audio-inspect: frontend requires mono input; no implicit downmix")
+		return errors.New("gguf audio: frontend requires mono input; no implicit downmix")
 	}
 	sampleRate, ok := checked.Int(inspection.Signal.Format.SampleRate)
 	if !ok {
-		return errors.New("audio-inspect: sample rate exceeds native integer")
+		return errors.New("gguf audio: sample rate exceeds native integer")
 	}
 	var chunks [][]float32
 	for start := 0; start < len(inspection.Samples); {
@@ -62,7 +62,7 @@ func inspectFeatures(ctx context.Context, repository artifact.Repository, encode
 		return err
 	}
 	if traceFrames > frames {
-		return errors.New("audio-inspect: requested trace exceeds selected frames")
+		return errors.New("gguf audio: requested trace exceeds selected frames")
 	}
 	observation := frontendObservation{Admission: inspection.DecisionID, Config: config.Descriptor.ID, FeaturesSHA256: media.SamplesSHA256(values), Frames: frames, Values: len(values), FrameLimit: frameLimit}
 	if traceFrames != 0 {

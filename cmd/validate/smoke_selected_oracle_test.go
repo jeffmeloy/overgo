@@ -12,6 +12,7 @@ import (
 )
 
 func TestSelectedSmokeOracleBinding(t *testing.T) {
+	t.Parallel()
 	model, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("selected"))
 	other, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("other"))
 	recipe, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("recipe"))

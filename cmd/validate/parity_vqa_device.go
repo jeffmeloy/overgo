@@ -28,8 +28,8 @@ import (
 	"overgo/internal/vqaserve"
 )
 
-// runDevice: device terminal parity + measurement.
-func runDevice(l *campaignContext) error {
+// vqaDevice: device terminal parity + measurement.
+func vqaDevice(l *campaignContext) error {
 	ctx := context.Background()
 	l.Log("DEVICE terminal parity START")
 

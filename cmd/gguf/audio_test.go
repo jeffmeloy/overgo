@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +15,11 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/testutil"
 )
+
+// runAudio runs gguf audio with args on its own flag set, writing to output.
+func runAudio(t *testing.T, args []string, output io.Writer) error {
+	return inspectAudio(t.Context(), flag.NewFlagSet("gguf audio", flag.ContinueOnError), args, output)
+}
 
 func TestAudioDecodeCommand(t *testing.T) {
 	for _, test := range []struct {
@@ -42,7 +49,7 @@ func TestAudioDecodeCommand(t *testing.T) {
 			}
 			args := []string{"-repo", filepath.Join(root, "store"), "-input", input, "-policy", policyPath}
 			var output bytes.Buffer
-			err = run(t.Context(), args, &output)
+			err = runAudio(t, args, &output)
 			if (err == nil) != test.accepted {
 				t.Fatalf("error=%v output=%s", err, &output)
 			}
@@ -54,7 +61,7 @@ func TestAudioDecodeCommand(t *testing.T) {
 				t.Fatalf("output=%s", &output)
 			}
 			output.Reset()
-			if err := run(t.Context(), args, &output); (err == nil) != test.accepted {
+			if err := runAudio(t, args, &output); (err == nil) != test.accepted {
 				t.Fatalf("repeated inspection: %v", err)
 			}
 			// A wrong pinned source must fail before inspecting any samples.
@@ -63,7 +70,7 @@ func TestAudioDecodeCommand(t *testing.T) {
 				t.Fatal(err)
 			}
 			output.Reset()
-			if err := run(t.Context(), append(args, "-expect", expect), &output); err == nil || output.Len() != 0 {
+			if err := runAudio(t, append(args, "-expect", expect), &output); err == nil || output.Len() != 0 {
 				t.Fatal("wrong source expectation accepted")
 			}
 		})
@@ -72,7 +79,7 @@ func TestAudioDecodeCommand(t *testing.T) {
 
 func TestAudioDecodeCommandRequiresExplicitPolicy(t *testing.T) {
 	for _, args := range [][]string{nil, {"-repo", "store"}, {"-repo", "store", "-input", "file", "-policy", "policy", "-column", "bytes"}} {
-		if err := run(t.Context(), args, &bytes.Buffer{}); err == nil {
+		if err := runAudio(t, args, &bytes.Buffer{}); err == nil {
 			t.Fatalf("accepted flags %v", args)
 		}
 	}

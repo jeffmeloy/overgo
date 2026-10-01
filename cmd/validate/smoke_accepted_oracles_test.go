@@ -20,6 +20,7 @@ import (
 )
 
 func TestSmokeOracleRejectsFalseGreen(t *testing.T) {
+	t.Parallel()
 	c := evaluation.GeneratedAnswerCase{Name: "addition", Prompt: "2 + 2?", MaxTokens: 16, Answers: []string{"4"}}
 	good := evaluation.ExactResult{Name: c.Name, PromptTokens: 4, GeneratedTokens: 1, Text: "4"}
 	if err := acceptSmokeAnswer(c, good); err != nil {
@@ -39,6 +40,7 @@ func TestSmokeOracleRejectsFalseGreen(t *testing.T) {
 }
 
 func TestSmokeDeclarationDenominator(t *testing.T) {
+	t.Parallel()
 	model, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
 	recipe, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("recipe"))
 	oracle := smokeOracle{Model: model, Recipe: recipe, Domain: "text", Chat: true, Claim: "arithmetic", Generation: &evaluation.GeneratedAnswerCase{Name: "addition", Prompt: "2+2?", MaxTokens: 16, Answers: []string{"4"}}}
@@ -62,6 +64,7 @@ func TestSmokeDeclarationDenominator(t *testing.T) {
 }
 
 func TestSmokeNativeReferenceRejectsWrongScoring(t *testing.T) {
+	t.Parallel()
 	reference := smokeReferenceCase{Text: "native", IDs: []tokenizer.TokenID{1, 2, 3}, LogProbabilities: []float64{-1, -2}}
 	good := inference.PerplexityResult{TokenCount: 3, EvaluatedTokens: 2, Scores: []inference.TokenScore{{Position: 1, TokenID: 2, NegativeLogLik: 1}, {Position: 2, TokenID: 3, NegativeLogLik: 2}}}
 	if err := acceptSmokeScores(reference, good); err != nil {
@@ -80,6 +83,7 @@ func TestSmokeNativeReferenceRejectsWrongScoring(t *testing.T) {
 // Declarations and counterexamples need no device. The lane checks live catalog
 // identity and executes every case before the plan can close.
 func TestAcceptedSmokeOracles(t *testing.T) {
+	t.Parallel()
 	root := filepath.Join("..", "..")
 	var declarations []smokeOracle
 	if err := jsonfile.DecodeStrict(filepath.Join(root, smokeOraclePath), &declarations); err != nil {
@@ -170,6 +174,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 }
 
 func TestSmokePublishesCompleteBoundRecord(t *testing.T) {
+	t.Parallel()
 	model, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("model"))
 	recipe, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte("recipe"))
 	path := filepath.Join(t.TempDir(), "store")

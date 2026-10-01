@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/trainingprogram"
@@ -338,6 +339,27 @@ func CommittedHeldoutVerdictPassed(
 		return false, fmt.Errorf("evaluation: verdict %s training observation is not evidence of this objective", id)
 	}
 	return verdict.Passed, nil
+}
+
+// VisitHeldoutVerdicts visits every committed held-out verdict, newest
+// first, with the training observation it judged and its declared metric's
+// value for the base and for the trained model. Each value is summarized as
+// an evaluation of the objective's held-out view under the verdict's target
+// plan, in the verdict's direction.
+func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func(observation artifact.ID, base, trained EvalSummary) error) error {
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{heldoutVerdictCodec.Contract}, Order: overgodb.DocumentNewestFirst,
+	}, heldoutVerdictCodec.Parse, func(_ overgodb.DocumentView, verdict heldoutVerdict) error {
+		metric := string(verdict.Metric)
+		summary := func(value float64) EvalSummary {
+			return EvalSummary{
+				Suite: verdict.View.String(), Prompting: verdict.Plan.String(), Record: verdict.ID,
+				Metrics: map[string]float64{metric: value}, Directions: map[string]runrecord.Direction{metric: verdict.Direction},
+			}
+		}
+		return visit(verdict.Observation, summary(verdict.BaselineValue), summary(verdict.CandidateValue))
+	})
+	return err
 }
 
 // IsHeldoutVerdict reports whether a descriptor names a held-out verdict.

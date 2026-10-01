@@ -49,10 +49,11 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 			"-corpus", guardCorpus, "-budget", guardBudget, "-model-budget", guardModelBudget,
 			cell.Location,
 		}, nil
-	case "image-proof", "video-proof", "speech-proof", "vqa-proof", "specialized-proof":
-		// A media or specialized model is measured the way its users meet
-		// it: its active capability runs the request its verification ran,
-		// and the run is recorded as the serving attempt the scorecard reads.
+	case "image-proof", "video-proof", "speech-proof", "vqa-proof", "specialized-proof", servingValidation:
+		// A media, specialized or inference model is measured the way its
+		// users meet it: its active recipe runs the request its verification
+		// ran, and the run is recorded as the serving attempt the scorecard
+		// reads.
 		if cell.Location == "" {
 			return "", nil, errors.New("a capability measurement needs the model's location")
 		}

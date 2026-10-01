@@ -56,12 +56,13 @@ func TestSurfaceAffected(t *testing.T) {
 }
 
 // TestKindValidation proves validation dispatch is by declared task, generic
-// across models: text inference earns a guard and the accuracy benchmarks, an
-// image-gen task its generation proof, and an unknown task nothing.
+// across models: inference earns a guard, a measured serving attempt and the
+// accuracy benchmarks, an image-gen task its generation proof, and an unknown
+// task nothing.
 func TestKindValidation(t *testing.T) {
 	t.Parallel()
-	if got := len(kindValidation(recipe.TaskInference)); got != 4 {
-		t.Fatalf("inference cells=%d want 4", got)
+	if got := len(kindValidation(recipe.TaskInference)); got != 5 {
+		t.Fatalf("inference cells=%d want 5", got)
 	}
 	if got := len(kindValidation(recipe.TaskImageGen)); got != 1 {
 		t.Fatalf("image-gen cells=%d want 1", got)

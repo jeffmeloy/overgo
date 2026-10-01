@@ -40,8 +40,8 @@ var modalitySurfaces = map[SurfaceID]surfaceRoots{
 
 // kindValidation lists the appropriate validations for one declared task, each
 // bound to the surface that pins its evidence. Dispatch is by task, never by
-// model name: a text inference model earns a guard and the accuracy benchmarks,
-// an image-gen model its generation proof, and so on.
+// model name: an inference model earns a guard, a measured serving attempt and
+// the accuracy benchmarks, an image-gen model its generation proof, and so on.
 func kindValidation(task recipe.Task) []struct {
 	Validation string
 	Surface    SurfaceID
@@ -52,7 +52,7 @@ func kindValidation(task recipe.Task) []struct {
 	}
 	switch string(task) {
 	case "inference":
-		cells := []cell{{guardValidation, "inference"}}
+		cells := []cell{{guardValidation, "inference"}, {servingValidation, "inference"}}
 		for _, family := range benchmarkFamilies {
 			cells = append(cells, cell{family, "evaluation"})
 		}

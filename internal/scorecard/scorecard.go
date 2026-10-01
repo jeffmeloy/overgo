@@ -46,7 +46,9 @@ type Cell struct {
 
 // Contract is what a measured value is, so two cells compare only when both
 // measure the same thing: the metric, the kind of record it comes from, and
-// for a held-out quality the suite and the prompting protocol it ran under.
+// for a held-out quality the suite and the protocol it was scored under: the
+// prompting, with a transcription report's normalization, or a held-out
+// verdict's target plan.
 // A serving aggregate's scope is the recipe whose attempts it counts. A cell
 // published before contracts has none, and compares with nothing.
 type Contract struct {
@@ -107,6 +109,10 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 		return nil, err
 	}
 	index := evaluation.LatestEvidence(ctx, store, suites, 0)
+	heldout, err := heldoutRecords(ctx, store, entries)
+	if err != nil {
+		return nil, err
+	}
 	serving, err := servingByRecipe(ctx, store)
 	if err != nil {
 		return nil, err
@@ -136,6 +142,12 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			row.Cells[metric.FirstOutput] = firstOutputCell(capability.Task, benchmark, measured, observed)
 			row.Cells[metric.Throughput] = throughputCell(capability.Task, benchmark, measured, observed)
 			row.Cells[metric.Quality], row.Heldout = qualityCell(capability.Task, index.EvaluationsByRecipe[capability.Recipe], descriptors)
+			if record, found := heldout[capability.Recipe]; found {
+				if circuit := row.Cells[metric.Quality]; circuit.Measured() {
+					row.Heldout = append(row.Heldout, circuit)
+				}
+				row.Cells[metric.Quality], _ = qualityCell(capability.Task, []evaluation.EvalSummary{record}, nil)
+			}
 			row.Cells[metric.Failures] = failureCell(observed)
 			row.Cells[metric.Load] = loadCell(benchmark, measured, observed)
 			row.Cells[metric.PeakMemory] = peakMemoryCell(capability.Task, benchmark, measured, observed)
@@ -364,6 +376,64 @@ func nameEvaluatedSets(ctx context.Context, store *overgodb.Store, suites map[ar
 	return err
 }
 
+// verdictTasks are the served tasks whose held-out quality a held-out
+// verdict's base model measures: a table-prediction or forecast objective
+// scores the served head's own predictions. An inference recipe runs the
+// derived suites instead.
+var verdictTasks = []recipe.Task{recipe.TaskTabular, recipe.TaskForecast}
+
+// heldoutRecords reads, by recipe, the held-out records that score a
+// recipe's own output: the newest transcription report of each recipe, and
+// each held-out verdict, newest first, as the trained model's value for the
+// training recipe its session ran and the base model's value for each
+// tabular or forecast recipe whose model holds the weights the session
+// trained. A model holds them when its manifest names a weights component
+// of the same bytes: the session names a head's weights file, the row the
+// model directory around it. Where one exists it is the recipe's held-out
+// quality, and each set the evaluation circuit scored the recipe on stays
+// among its other held-out qualities, so a baseline measured on one still
+// compares.
+func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discovery.CatalogEntry) (map[artifact.ID]evaluation.EvalSummary, error) {
+	records, err := evaluation.TranscriptionQualities(ctx, store)
+	if err != nil {
+		return nil, err
+	}
+	served := map[string][]artifact.ID{}
+	for _, entry := range entries {
+		for _, capability := range entry.Capabilities {
+			if !slices.Contains(verdictTasks, capability.Task) {
+				continue
+			}
+			manifest, _, err := store.Manifest(ctx, entry.Model)
+			if err != nil {
+				return nil, err
+			}
+			for _, component := range manifest.Components {
+				if component.Role == artifact.ComponentWeights {
+					served[component.Artifact.DigestHex()] = append(served[component.Artifact.DigestHex()], capability.Recipe)
+				}
+			}
+		}
+	}
+	err = evaluation.VisitHeldoutVerdicts(ctx, store, func(observation artifact.ID, base, trained evaluation.EvalSummary) error {
+		session, err := runrecord.RequireServingObservation(ctx, store, observation)
+		if err != nil {
+			return err
+		}
+		read := func(recipeID artifact.ID, summary evaluation.EvalSummary) {
+			if _, found := records[recipeID]; !found {
+				records[recipeID] = summary
+			}
+		}
+		read(session.Recipe, trained)
+		for _, recipeID := range served[session.Model.DigestHex()] {
+			read(recipeID, base)
+		}
+		return nil
+	})
+	return records, err
+}
+
 // heldoutProposals names, for each task no held-out evaluation measures yet,
 // the held-out set and metric proposed to measure it. Such a row's quality
 // is not applicable rather than missing: it withholds no promotion, and the
@@ -377,7 +447,7 @@ var heldoutProposals = map[recipe.Task]string{
 	recipe.TaskVQA:            "the image caption-matching set the store already scores a projection on, then A-OKVQA validation (HuggingFaceM4/A-OKVQA, 60 MB) multiple-choice accuracy",
 	recipe.TaskImageGen:       "TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model",
 	recipe.TaskVideoGen:       "held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model",
-	recipe.TaskTranscription:  "LibriSpeech test-clean (on disk) word error rate, as evaluate's transcription report, which the scorecard does not read yet",
+	recipe.TaskTranscription:  "LibriSpeech test-clean (on disk) word error rate, as evaluate's transcription report",
 	recipe.TaskSpeech:         "LibriSpeech test-clean texts (on disk), synthesized then transcribed by a local speech recognizer: round-trip word error rate",
 	recipe.TaskSeq2Seq:        "BFCL v3 simple (gorilla-llm/Berkeley-Function-Calling-Leaderboard, 0.3 MB) exact match of the parsed call",
 	recipe.TaskTabular:        "a table-prediction objective over BeyondArena credit-g (TabArena/BeyondArena, 0.2 MB), its held-out rows judged by train -route tabular",

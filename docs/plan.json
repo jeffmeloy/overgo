@@ -9,8 +9,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1127,
-        "reason": "benchmark-currency: one currency rule for benchmark and proof cells, with bound evaluate commands. Measured +1127 nodes."
+        "nodes": 2370,
+        "reason": "recipe measure for inference recipes (+1242 in inference_measure.go) with validate's serving cell, plus the transcription-report and held-out-verdict readers in evaluation and the scorecard's verdict join"
       },
       "steps": [
         {

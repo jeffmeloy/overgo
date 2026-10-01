@@ -206,6 +206,9 @@ func run() error {
 			selectedSession, selectedTask, capability, rawInput,
 		)
 	case "measure":
+		if selectedTask == recipe.TaskInference {
+			return measureRunner(repository, path)
+		}
 		if !capabilityKnown || capability.Execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)
 		}

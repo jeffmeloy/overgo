@@ -47,9 +47,9 @@ func TestInventoryResolvesARelativeRoot(t *testing.T) {
 // TestEveryEvidenceEntryHasACurrencyOwner holds every surface a declared task
 // can put evidence on to having something that judges its currency. A surface
 // without leaves its models stale however often the validators run. Inference
-// is judged by the long-form guard or the smoke run, the evaluation and
-// training surfaces by the commit their records ran at, and every other
-// surface by an acceptance package.
+// is judged by the long-form guard or the smoke run and by its measured
+// serving attempt, the evaluation and training surfaces by the commit their
+// records ran at, and every other surface by an acceptance package.
 func TestEveryEvidenceEntryHasACurrencyOwner(t *testing.T) {
 	t.Parallel()
 	for _, task := range []recipe.Task{
@@ -61,7 +61,7 @@ func TestEveryEvidenceEntryHasACurrencyOwner(t *testing.T) {
 		for _, cell := range kindValidation(task) {
 			_, accepted := surfaceAcceptances[cell.Surface]
 			bound := slices.Contains(boundSurfaces, cell.Surface)
-			if !accepted && !bound && cell.Validation != guardValidation {
+			if !accepted && !bound && cell.Validation != guardValidation && cell.Validation != servingValidation {
 				t.Errorf("task %s puts %s evidence on surface %s, which nothing judges", task, cell.Validation, cell.Surface)
 			}
 		}

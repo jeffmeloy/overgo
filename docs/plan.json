@@ -59,13 +59,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "claim-evidence",
-          "title": "Credit a claim only with the typed result of a run over the bytes it binds",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^(TestReverifyBindsTestedBytes|TestReverifyRebindsOnlyPassingClaims)$' -count=1",
-          "rationale": "SQA-068 (P2), confirmed: reverifyClaims runs a claim's test and then rebinds the claim to whatever bytes exist afterwards (cmd/validate/claims.go), so an edit during a long device run would take the credit. SQA-044 (P2): it credits a pass by the \"--- PASS:\" text. SQA-028 (P2): the browser lane keeps its own duplicate test-event parser, losing package identity.\nRecord the claim's source, test and manifest identities before the run and publish exactly those. Refuse, or narrowly retry, when they moved; publish conditionally so unrelated manifest edits survive. Credit outcomes through the existing testevidence interpreter, package-qualified, in reverifyClaims and in the browser lane, and delete the duplicate parser.\nRanked first in this row because it corrects code landed on 2026-09-30 (250592fd4). Batch: cmd/validate reaches no lane; the browser-lane part reaches webui; no guards; no media."
-        },
-        {
           "id": "media-campaign",
           "title": "Fold the media campaign's receipts into one committed record, if one can replace several pins without weakening them",
           "status": "open",

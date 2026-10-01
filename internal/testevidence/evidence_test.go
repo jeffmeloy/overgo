@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -25,6 +26,7 @@ func TestProbe(t *testing.T) {
 }
 func TestOther(t *testing.T) {}
 func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Skip("fixture skip") }) }
+func TestLogsPass(t *testing.T) { t.Log("--- PASS: TestLogsPass (0.00s)"); t.Skip("fixture skip") }
 `
 	if err := os.WriteFile(fixture, []byte(source), 0600); err != nil {
 		t.Fatal(err)
@@ -47,6 +49,7 @@ func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Ski
 		{`^TestProbe$/^fail$`, false},
 		{`^TestProbe$`, false},
 		{`^TestSkippedParent$`, false},
+		{`^TestLogsPass$`, false},
 		{`^TestProbe$/[`, false},
 		{`^TestProbe$/\`, false},
 	} {
@@ -83,6 +86,15 @@ func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Ski
 	otherPackage := strings.ReplaceAll(passing, "command-line-arguments", "example/other")
 	if err := RepeatAgreementForCommand(command, passing+otherPackage, otherPackage+passing); err != nil {
 		t.Fatalf("independent package ordering changed verdicts: %v", err)
+	}
+	// A same-named test skipped in another package keeps its own verdict
+	// in either event order: neither package lends the other its outcome.
+	otherSkipped := strings.ReplaceAll(otherPackage, `"Action":"pass","Package":"example/other","Test":"TestProbe/child"`, `"Action":"skip","Package":"example/other","Test":"TestProbe/child"`)
+	for _, stream := range []string{passing + otherSkipped, otherSkipped + passing} {
+		report, err := GoTestJSONReport(stream)
+		if err != nil || !report.PackagePassed("command-line-arguments") || report.PackagePassed("example/other") || !slices.Equal(report.Skipped, []string{"example/other: TestProbe/child"}) {
+			t.Fatalf("same-named tests across packages exchanged verdicts: %+v, %v", report, err)
+		}
 	}
 	for _, mutation := range []string{"package terminal", "child terminal", "child absent", "child skipped", "child failed", "unrelated skip", "package contradicted"} {
 		t.Run(mutation, func(t *testing.T) {

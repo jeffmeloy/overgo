@@ -15,12 +15,14 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/model"
+	"overgo/internal/testevidence"
 )
 
 // compatibility.json holds the feature claims, each bound by identity to the
@@ -134,37 +136,44 @@ func publishedClaims(ctx context.Context, output io.Writer, root string, execute
 }
 
 // reverifyClaims re-runs the verify test of every claim one of whose bound
-// sources moved, at this tree, and rebinds the claims whose test passed. A
-// claim whose test failed or skipped keeps its old binding, so the matrix
-// stays refused until it passes; a device claim passes only when the caller
-// enables the device its verify names.
+// sources moved, at this tree, and rebinds each claim whose test passed to
+// the identities its inputs had when the test started. The pass is the typed
+// result testevidence reads from the test's events in its package, never its
+// log text. A claim whose test failed or skipped, or whose inputs or manifest
+// entry moved before its rebinding, keeps its old binding and its reason, so
+// the matrix stays refused until it passes; a device claim passes only when
+// the caller enables the device its verify names.
 func reverifyClaims(ctx context.Context, output io.Writer, root string) error {
 	moved, err := movedClaims(root)
 	if err != nil {
 		return err
 	}
-	passed := map[string]bool{}
-	var failed []string
+	var refused []string
 	for _, item := range moved {
-		fields := strings.Fields(strings.TrimPrefix(item.Verify, deviceVerify))
+		tested := make([]string, len(item.Evidence))
+		for index, proof := range item.Evidence {
+			if tested[index], err = evidenceIdentity(root, item.ID, proof); err != nil {
+				return err
+			}
+		}
+		command := strings.TrimPrefix(item.Verify, deviceVerify)
+		fields := strings.Fields(command)
 		for index, field := range fields {
 			fields[index] = strings.Trim(field, "'")
 		}
-		test := strings.Trim(fields[slices.Index(fields, "-run")+1], "^$")
 		fmt.Fprintf(output, "validate -claims -run: re-verifying %s: %s\n", item.ID, item.Verify)
-		var captured bytes.Buffer
-		if err := runCell(ctx, io.MultiWriter(output, &captured), root, fields[0], fields[1:]); err != nil ||
-			!bytes.Contains(captured.Bytes(), []byte("--- PASS: "+test+" (")) {
-			failed = append(failed, item.ID)
-			continue
+		var events bytes.Buffer
+		ran := runCell(ctx, &events, root, fields[0], append(fields[1:], "-json"))
+		err := cmp.Or(testevidence.VerifyGoTestEvidence(command, events.String()), ran)
+		if err == nil {
+			err = rebindClaim(root, item, tested)
 		}
-		passed[item.ID] = true
+		if err != nil {
+			refused = append(refused, fmt.Sprintf("%s (%v)", item.ID, err))
+		}
 	}
-	if err := rebindClaims(root, passed); err != nil {
-		return err
-	}
-	if len(failed) != 0 {
-		return fmt.Errorf("validate -claims -run: %d claim(s) did not pass their verify and keep their old binding: %s", len(failed), strings.Join(failed, ", "))
+	if len(refused) != 0 {
+		return fmt.Errorf("validate -claims -run: %d claim(s) keep their old binding: %s", len(refused), strings.Join(refused, "; "))
 	}
 	return nil
 }
@@ -195,33 +204,37 @@ func movedClaims(root string) ([]claim, error) {
 	return moved, nil
 }
 
-// rebindClaims rewrites the recorded identities of the named claims to their
-// sources' current ones, in place, leaving every other byte of the manifest
-// as written.
-func rebindClaims(root string, rebound map[string]bool) error {
-	if len(rebound) == 0 {
-		return nil
-	}
-	document, err := loadManifest(root)
-	if err != nil {
-		return err
-	}
+// rebindClaim writes a passing claim's tested identities, the ones its
+// inputs had when its verify started, into the manifest as it stands now:
+// only that claim's identities change, so edits made meanwhile elsewhere in
+// the manifest survive. It refuses when the claim's manifest entry or an
+// input it binds moved since its verify started, or when the manifest moves
+// between this read and the write.
+func rebindClaim(root string, tested claim, identities []string) error {
 	manifestFile := filepath.Join(root, manifestPath)
 	raw, err := os.ReadFile(manifestFile)
 	if err != nil {
 		return err
 	}
+	document, err := decodeManifest(raw)
+	if err != nil {
+		return err
+	}
+	if index := slices.IndexFunc(document.Claims, func(item claim) bool { return item.ID == tested.ID }); index < 0 || !reflect.DeepEqual(document.Claims[index], tested) {
+		return errors.New("its manifest entry changed during its verify")
+	}
+	rebound := slices.Clone(raw)
 	cursor := 0
 	for _, item := range document.Claims {
-		for _, proof := range item.Evidence {
+		for index, proof := range item.Evidence {
 			current := proof.Identity
-			if rebound[item.ID] {
-				if current, err = evidenceIdentity(root, item.ID, proof); err != nil {
-					return err
+			if item.ID == tested.ID {
+				if current, err = evidenceIdentity(root, item.ID, proof); err != nil || current != identities[index] {
+					return cmp.Or(err, fmt.Errorf("%s changed during its verify", proof.Path))
 				}
 			}
 			before, after := []byte(proof.Identity), []byte(current)
-			offset := bytes.Index(raw[cursor:], before)
+			offset := bytes.Index(rebound[cursor:], before)
 			if offset < 0 {
 				return fmt.Errorf("compatibility manifest: identity %q not found", proof.Identity)
 			}
@@ -229,16 +242,19 @@ func rebindClaims(root string, rebound map[string]bool) error {
 			if len(before) != len(after) {
 				return errors.New("compatibility manifest: identity length changed")
 			}
-			copy(raw[start:], after)
+			copy(rebound[start:], after)
 			cursor = start + len(after)
 			// A rebound identity's line ends as the rest of the file does:
 			// the carriage return after its closing quote goes.
-			if !bytes.Equal(before, after) && bytes.HasPrefix(raw[cursor:], []byte("\"\r\n")) {
-				raw = append(raw[:cursor+len(`"`)], raw[cursor+len("\"\r"):]...)
+			if !bytes.Equal(before, after) && bytes.HasPrefix(rebound[cursor:], []byte("\"\r\n")) {
+				rebound = append(rebound[:cursor+len(`"`)], rebound[cursor+len("\"\r"):]...)
 			}
 		}
 	}
-	return clioptions.WriteOutputFile(manifestFile, raw)
+	if now, err := os.ReadFile(manifestFile); err != nil || !bytes.Equal(now, raw) {
+		return cmp.Or(err, errors.New("the manifest changed while the claim was rebound"))
+	}
+	return clioptions.WriteOutputFile(manifestFile, rebound)
 }
 
 func generate(root string) ([]byte, error) {
@@ -289,6 +305,10 @@ func loadManifest(root string) (manifest, error) {
 	if err != nil {
 		return manifest{}, err
 	}
+	return decodeManifest(data)
+}
+
+func decodeManifest(data []byte) (manifest, error) {
 	var document manifest
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	if err := decoder.Decode(&document); err != nil {

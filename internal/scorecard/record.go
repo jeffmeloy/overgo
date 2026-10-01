@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -190,7 +191,7 @@ func (record Record) Pairs(baseline Record) []Pair {
 // measure holds, since the baseline asks nothing of it: a newly measured
 // metric or row never blocks. A measured one has regressed when the record
 // measured it on the same contract and direction and it fell in that
-// direction; it is Unknown when the record lost the row or the cell,
+// direction by more than float32 arithmetic resolves; it is Unknown when the record lost the row or the cell,
 // measured it on another contract, or the baseline cell has no contract.
 func (pair Pair) Compare(column metric.Name) (Verdict, string) {
 	if pair.Before == nil || !pair.Before.Cells[column].Measured() {
@@ -210,11 +211,19 @@ func (pair Pair) Compare(column metric.Name) (Verdict, string) {
 	case now.Direction != then.Direction:
 		return Unknown, fmt.Sprintf("improves in direction %q, the baseline in %q", now.Direction, then.Direction)
 	}
-	if advantage, directed := now.Direction.Advantage(now.Value, then.Value); directed && advantage < 0 {
-		return regressed, fmt.Sprintf("%.4g to %.4g (%s)", then.Value, now.Value, now.Label)
+	if advantage, directed := now.Direction.Advantage(now.Value, then.Value); directed && -advantage > float32Precision*max(math.Abs(now.Value), math.Abs(then.Value)) {
+		return regressed, fmt.Sprintf("%.9g to %.9g (%s)", then.Value, now.Value, now.Label)
 	}
 	return holding, ""
 }
+
+// float32Precision is the relative precision of the float32 logits every
+// held-out quality is computed from. Two values closer than this for their
+// size differ in summation order, as a kernel's reduction order does across
+// commits, not in what the model answered: a re-measured perplexity moves by
+// parts per billion, while one case lost in a million moves an accuracy by
+// many times this.
+const float32Precision = 0x1p-23
 
 // The kinds of gap besides the regressed and Unknown verdicts. Their names
 // order the rows: failures a user met, then held-out qualities that fell or

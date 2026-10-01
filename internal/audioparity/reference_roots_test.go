@@ -55,7 +55,8 @@ func audioSources(t *testing.T, root string) gosource.Snapshot {
 
 // The acceptances judge the recorded models, corpus and reference store, not
 // a change: go test skips them unless the store acceptance is opted into,
-// and the landing's audio lane opts in when a change reaches this package.
+// and the improvement cycle's audio lane opts in when a change reaches this
+// package.
 func resolveReferenceRoots(t *testing.T) referenceRoots {
 	t.Helper()
 	testskip.StoreAcceptance(t)

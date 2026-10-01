@@ -78,14 +78,15 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 }
 
 // executeRun runs the selected cells' re-acquisition commands smallest-first
-// through the process owner, each into the selected store. A cell that fails
-// is reported, not accepted, and the rest still run: one model's broken
-// measurement withholds no other's. Cells without a bound command are
+// through the process owner, each into the selected store, then the selected
+// cycle lanes. A cell or lane that fails is reported, not accepted, and the
+// rest still run: one model's broken measurement withholds no other's, and
+// the failure withholds promotion. Cells without a bound command are
 // reported as incomplete coverage. An empty run set is the clean "nothing to
 // re-acquire" result the dry run predicts when every judged cell's evidence
-// is current.
+// and every cycle lane's pass is current.
 func executeRun(ctx context.Context, output io.Writer, root, store string, plan Plan) error {
-	if len(plan.Run) == 0 {
+	if len(plan.Run) == 0 && !slices.ContainsFunc(plan.Suites, func(suite SelectedSuite) bool { return suite.Run }) {
 		fmt.Fprintf(output, "validate -run: nothing to re-acquire; %d reused, %d unknown, %d operator-owned, %d registered-inactive\n",
 			len(plan.Reuse), len(plan.Unknown), len(plan.OperatorOwned), len(plan.RegisteredInactive))
 		return nil
@@ -105,6 +106,17 @@ func executeRun(ctx context.Context, output io.Writer, root, store string, plan 
 		}
 		acquired++
 	}
+	for _, suite := range plan.Suites {
+		if !suite.Run {
+			continue
+		}
+		fmt.Fprintf(output, "validate -run cycle lane %s (%s)\n", suite.Lane, suite.Reason)
+		if err := runCell(ctx, output, root, "go", suite.Arguments, suite.Environment...); err != nil {
+			failed = append(failed, fmt.Sprintf("cycle lane %s: %v", suite.Lane, err))
+			continue
+		}
+		acquired++
+	}
 	var problems []string
 	if len(failed) > 0 {
 		problems = append(problems, fmt.Sprintf("%d failed:\n  %s", len(failed), strings.Join(failed, "\n  ")))
@@ -120,11 +132,12 @@ func executeRun(ctx context.Context, output io.Writer, root, store string, plan 
 }
 
 // runCell executes one re-acquisition command at the repository root through the
-// process owner; the invoked producer guards its own device admission.
-func runCell(ctx context.Context, output io.Writer, root, name string, args []string) error {
+// process owner, with environment added to this process's; the invoked
+// producer guards its own device admission.
+func runCell(ctx context.Context, output io.Writer, root, name string, args []string, environment ...string) error {
 	var stderr bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: name, Args: args, Dir: root, Env: os.Environ(), Stdout: output, Stderr: io.MultiWriter(output, &stderr),
+		Path: name, Args: args, Dir: root, Env: append(os.Environ(), environment...), Stdout: output, Stderr: io.MultiWriter(output, &stderr),
 	})
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))

@@ -62,7 +62,8 @@ type Inputs struct {
 
 // Plan is the validation decision for one commit: run what the commit's
 // changes affect and what holds no current evidence, reuse only what does,
-// name the cells no owner judges, and account for every registered model.
+// name the cells no owner judges, and account for every registered model
+// and every lane of the improvement cycle.
 type Plan struct {
 	Baseline           string      `json:"baseline"`
 	Head               string      `json:"head"`
@@ -74,6 +75,19 @@ type Plan struct {
 	OperatorOwned      []Selected  `json:"operator_owned"`
 	RegisteredInactive []Selected  `json:"registered_inactive"`
 	SkipInappropriate  []Selected  `json:"skip_inappropriate"`
+
+	Suites []SelectedSuite `json:"suites"`
+}
+
+// SelectedSuite is one lane of the improvement cycle, the real-model suites
+// no landing runs, in the plan: whether it runs, why, and the go command's
+// arguments and added environment that run it.
+type SelectedSuite struct {
+	Lane        string   `json:"lane"`
+	Run         bool     `json:"run"`
+	Reason      string   `json:"reason"`
+	Arguments   []string `json:"arguments"`
+	Environment []string `json:"environment,omitzero"`
 }
 
 // SelectValidation reduces the resolved inputs to a validation plan. It is

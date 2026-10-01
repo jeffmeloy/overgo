@@ -1,3 +1,5 @@
+//go:build modeltest
+
 package tabularicl
 
 import (

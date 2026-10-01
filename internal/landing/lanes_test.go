@@ -94,19 +94,19 @@ func TestLaneReachSkipsOtherPackagesTests(t *testing.T) {
 }
 
 // TestLaneSelectionUsesTheLaneBuildContext selects each tagged lane of the
-// table in the build context its command runs in. In a fixture module the
-// lane's package imports a dependency only from a test file behind the
-// lane's tags, and the dependency's one file carries them too: a change to
-// it selects the lane, but neither the same packages listed without the
-// tags nor another lane sharing the tagged listing. Unrelated documentation
-// selects nothing, and a dependency the tagged build cannot load refuses
-// the selection while the untagged one, which never compiles it, still
-// lists. No lane's command names tags of its own: the go command takes
-// them from the descriptor.
+// gate's and the cycle's tables in the build context its command runs in.
+// In a fixture module the lane's package imports a dependency only from a
+// test file behind the lane's tags, and the dependency's one file carries
+// them too: a change to either selects the lane, but neither the same
+// packages listed without the tags nor another lane sharing the tagged
+// listing. Unrelated documentation selects nothing, and a dependency the
+// tagged build cannot load refuses the selection while the untagged one,
+// which never compiles it, still lists. No lane's command names tags of its
+// own: the go command takes them from the descriptor.
 func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
 	t.Parallel()
 	var tagged []lane
-	for _, candidate := range lanes {
+	for _, candidate := range slices.Concat(lanes, cycleLanes) {
 		if slices.Contains(candidate.command(""), "-tags") {
 			t.Errorf("lane %s's command names its own tags; its build context belongs in the descriptor", candidate.name)
 		}
@@ -147,6 +147,7 @@ func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
 				{own, "c/c.go", false},
 				{own, "docs/notes.md", false},
 				{untagged, "b/b.go", false},
+				{untagged, "a/tagged_test.go", false},
 				{neighbour, "b/b.go", false},
 				{neighbour, "c/c.go", true},
 			} {
@@ -166,47 +167,58 @@ func TestLaneSelectionUsesTheLaneBuildContext(t *testing.T) {
 }
 
 // The lane sets reach rows name, each written once. Every lane a set names
-// must be in the table, so a renamed or removed lane fails the table rather
-// than silently emptying the rows that name its set.
+// must be in the gate's or the cycle's table, so a renamed or removed lane
+// fails the table rather than silently emptying the rows that name its set.
 var (
-	// servingLanes build or run what serves a model: the page, the
-	// served-model journeys, the speech acceptances and E4B over HTTP.
-	servingLanes = []string{"webui", "model-journey", "audio", "e4b"}
+	// servingLanes build or run what serves a model: the page at the gate,
+	// and in the cycle the served-model journeys and the speech
+	// acceptances.
+	servingLanes = []string{"webui", "model-journey", "audio"}
 	// browserOnlyLanes drive a browser and never the device. Every other
-	// lane is a device lane, so a lane added to the table counts as one
-	// until it is named here.
+	// gate lane is a device lane, so a lane added to the gate's table counts
+	// as one until it is named here.
 	browserOnlyLanes = []string{"webui"}
 )
 
 // TestReachInvariants pins the boundaries between a changed path and the
-// lanes it must never reach, one row per invariant, all selected by one
-// discovery over the real lane table the way the lanes stage selects them.
-// A row states what must never come back, a set of lanes the path stays out
-// of, never the lanes it reaches today, so a lane it may legitimately reach
-// later is no failure. A production row also holds every lane the path does
-// reach to compiling it into that lane's production closure in the lane's
-// build context, the code its tests build and run: a test import alone would
-// make every such edit pay for a lane that never runs it, and the cure is
-// moving the fixture that needs the import out of the lane or importing the
-// smaller owner it uses.
+// lanes it must never reach, and between a moved suite and the cycle lane
+// that runs it, one row per invariant, all selected by one discovery over
+// each real lane table, the way the lanes stage and validate -run select
+// them. A row states what must never come back, a set of lanes the path
+// stays out of, never the lanes it reaches today, so a lane it may
+// legitimately reach later is no failure. A production row also holds every
+// lane the path does reach to compiling it into that lane's production
+// closure in the lane's build context, the code its tests build and run: a
+// test import alone would make every such edit pay for a lane that never
+// runs it, and the cure is moving the fixture that needs the import out of
+// the lane or importing the smaller owner it uses. A row naming a cycle lane
+// holds a suite moved off the gate: an edit to it must reach that lane, or
+// the cycle would never run what the gate gave up. No gate lane builds with
+// the cycle's tags, so a landing compiles none of the tests behind them.
 //
 // To pin a new boundary, add a row, never a test function: a representative
 // path that exists, the named set it must not reach (add a set beside the
 // others when none fits), whether only production code may carry it into a
-// lane, and the reason in one line.
+// lane, the cycle lane that runs it when it is a moved suite, and the
+// reason in one line.
 func TestReachInvariants(t *testing.T) {
 	t.Parallel()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
 	}
+	everyLane := slices.Concat(lanes, cycleLanes)
 	for _, name := range slices.Concat(servingLanes, browserOnlyLanes) {
-		if !slices.ContainsFunc(lanes, func(candidate lane) bool { return candidate.name == name }) {
+		if !slices.ContainsFunc(everyLane, func(candidate lane) bool { return candidate.name == name }) {
 			t.Fatalf("no lane is named %s; the rows naming its set would hold nothing", name)
 		}
 	}
-	var deviceLanes []string
+	var gateLanes, deviceLanes []string
 	for _, candidate := range lanes {
+		if slices.ContainsFunc(strings.Split(candidate.tags, ","), func(tag string) bool { return slices.Contains(strings.Split(CycleTags, ","), tag) }) {
+			t.Errorf("gate lane %s builds with the cycle's tags %s; a landing would run the suites the cycle owns", candidate.name, candidate.tags)
+		}
+		gateLanes = append(gateLanes, candidate.name)
 		if !slices.Contains(browserOnlyLanes, candidate.name) {
 			deviceLanes = append(deviceLanes, candidate.name)
 		}
@@ -215,22 +227,62 @@ func TestReachInvariants(t *testing.T) {
 		path         string
 		mustNotReach []string
 		production   bool
+		cycle        string
 		reason       string
 	}{
-		{"internal/plan/plan.go", deviceLanes, true, "the plan is the loop's work list; editing it runs no model or kernel"},
-		{"internal/landing/landing.go", deviceLanes, true, "the gate chooses the lanes; no lane runs the gate"},
-		{"internal/loop/driver.go", deviceLanes, true, "the loop driver dispatches rows; no speech model or CUDA suite runs it"},
-		{"internal/scorecard/scorecard.go", deviceLanes, true, "the scorecard reads recorded evidence; it measures nothing on the device"},
-		{"internal/devicegrad/windowed_attention_backward_cuda_windows.go", servingLanes, false, "devicegrad holds kernels only trainers call, and no serving package links a trainer"},
-		{"internal/devicegrad/windowed_attention_backward_cuda_windows_test.go", servingLanes, false, "a trainer kernel's test compiles only into devicegrad's own test binary"},
-		{"internal/densecausaltrain/train_resident_cuda_windows.go", servingLanes, false, "the device dense-causal trainer is imported only by the commands that train"},
-		{"internal/scratchtrain/resident_cuda_windows.go", servingLanes, false, "the device scratch trainer is imported only by trainers, never by the model builder the server links"},
-		{"internal/e4btrain/model.go", servingLanes, false, "E4B training is a trainer; serving E4B never links it"},
-		{"internal/devicemath/cuda_scope_windows.go", servingLanes, false, "no serving path calls devicemath; the served-model lanes link only host training"},
+		{"internal/plan/plan.go", deviceLanes, true, "", "the plan is the loop's work list; editing it runs no model or kernel"},
+		{"internal/landing/landing.go", deviceLanes, true, "", "the gate chooses the lanes; no lane runs the gate"},
+		{"internal/loop/driver.go", deviceLanes, true, "", "the loop driver dispatches rows; no speech model or CUDA suite runs it"},
+		{"internal/scorecard/scorecard.go", deviceLanes, true, "", "the scorecard reads recorded evidence; it measures nothing on the device"},
+		{"internal/devicegrad/windowed_attention_backward_cuda_windows.go", servingLanes, false, "", "devicegrad holds kernels only trainers call, and no serving package links a trainer"},
+		{"internal/devicegrad/windowed_attention_backward_cuda_windows_test.go", servingLanes, false, "", "a trainer kernel's test compiles only into devicegrad's own test binary"},
+		{"internal/densecausaltrain/train_resident_cuda_windows.go", servingLanes, false, "", "the device dense-causal trainer is imported only by the commands that train"},
+		{"internal/scratchtrain/resident_cuda_windows.go", servingLanes, false, "", "the device scratch trainer is imported only by trainers, never by the model builder the server links"},
+		{"internal/e4btrain/model.go", servingLanes, false, "", "E4B training is a trainer; serving E4B never links it"},
+		{"internal/devicemath/cuda_scope_windows.go", servingLanes, false, "", "no serving path calls devicemath; the served-model lanes link only host training"},
+		{"internal/audioparity/vad_acceptance_test.go", gateLanes, false, "audio", "the speech acceptances serve the recorded models against the reference store"},
+		{"cmd/server/main.go", gateLanes, false, "model-journey", "the served-model journeys build the server command and serve real models"},
+		{"internal/server/webui_browser_firstrun_test.go", deviceLanes, false, "model-journey", "the first-run journey serves real models through the swap proxy"},
+		{"internal/server/e4b_modalities_windows_test.go", deviceLanes, false, "models", "E4B over every HTTP route serves the real model"},
+		{"internal/server/webui_library_projector_test.go", deviceLanes, false, "models", "the library projector hashes a stored model and projector pair"},
+		{"internal/thoughtbank/load_model_test.go", gateLanes, false, "models", "the real-checkpoint suite opens Fractale beside the data"},
+		{"internal/latentvideo/runtime_cuda_windows_test.go", gateLanes, false, "models", "Wan's runtime and reference edit open Wan2.1-T2V-1.3B beside the data"},
+		{"internal/quant/quantize_weighted_windows_test.go", gateLanes, false, "models", "the quantizer's pinned check reads the reference build beside the data"},
+		{"internal/diffusionimage/resident_sampling_cuda_windows_test.go", gateLanes, false, "models", "every device test of diffusionimage samples the real SimpleDiffusion checkpoint"},
+		{"internal/mediacapability/video_cuda_windows_test.go", gateLanes, false, "models", "media capability activates real Wan, LiveEdit, Krea and RxBrain checkpoints"},
+		{"internal/mediacapability/image_embedding_test.go", gateLanes, false, "models", "the image embedding capability loads the real DINO checkpoint"},
+		{"internal/sensenovarecipe/runtime_cuda_windows_test.go", gateLanes, false, "models", "SenseNova generates from the real 8B checkpoint"},
+		{"internal/sensenovarecipe/activate_model_test.go", gateLanes, false, "models", "SenseNova's activation derives from the real 8B checkpoint"},
+		{"internal/adaptiveparity/qwen35_training_cuda_windows_test.go", gateLanes, false, "models", "adaptive parity trains real checkpoints beside the data"},
+		{"internal/composition/composite_generation_parity_windows_test.go", gateLanes, false, "models", "composite generation runs the real Wan checkpoint"},
+		{"internal/inference/runner_integration_test.go", gateLanes, false, "models", "the native oracles open real GGUFs"},
+		{"internal/inference/qwen35_9b_serving_smoke_test.go", gateLanes, false, "models", "the 9B serving smoke loads the real Qwen3.5-9B"},
+		{"internal/latentimage/krea_checkpoint_cuda_windows_model_test.go", gateLanes, false, "models", "the resident Krea checks open the real 12.8B checkpoint"},
+		{"internal/latentimage/krea_checkpoint_model_test.go", gateLanes, false, "models", "the host Krea checks decode and encode with the real checkpoint"},
+		{"internal/routedlm/flowterminal_model_test.go", gateLanes, false, "models", "the flow terminal runs the real SenseNova artifact"},
+		{"internal/speechsynth/train_step_model_test.go", gateLanes, false, "models", "joint Muon training steps the real speech artifact"},
+		{"internal/tabularicl/predict_wall_test.go", gateLanes, false, "models", "the predict wall loads every real TabICL head"},
+		{"internal/modelintake/projection_test.go", gateLanes, false, "models", "projection intake hashes the stored model and projector pair"},
+		{"cmd/train/route_tabular_tabfm_test.go", gateLanes, false, "models", "the TabFM objective trains the real classification head"},
+		{"cmd/validate/accepted_coverage_report_test.go", gateLanes, false, "models", "the coverage projection reads the live store's accepted evidence"},
+		{"cmd/validate/accepted_modalities_model_test.go", gateLanes, false, "models", "the modality coverage reads the live store's accepted evidence"},
+		{"cmd/evaluate/transcription_projected_windows_test.go", gateLanes, false, "models", "projected transcription serves the real E4B"},
+		{"cmd/longform/e4b_recovery_windows_test.go", gateLanes, false, "models", "long-form recovery serves the real E4B at 32768 tokens"},
+		{"cmd/recipe/projection_execution_windows_test.go", gateLanes, false, "models", "projection execution serves the real E4B"},
 	}
-	reaches, err := discover(repo, lanes...)
+	gateReaches, err := discover(repo, lanes...)
 	if err != nil {
 		t.Fatal(err)
+	}
+	cycleReaches, err := discover(repo, cycleLanes...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reaches := func(candidate lane, paths []string) bool {
+		if slices.ContainsFunc(lanes, func(gate lane) bool { return gate.name == candidate.name }) {
+			return gateReaches(candidate, paths)
+		}
+		return cycleReaches(candidate, paths)
 	}
 	productions := map[string]gosource.BuildSelection{}
 	for _, row := range rows {
@@ -238,7 +290,10 @@ func TestReachInvariants(t *testing.T) {
 			t.Errorf("row %s holds nothing; point it at a path that still carries the boundary: %v", row.path, err)
 			continue
 		}
-		for _, candidate := range lanes {
+		if moved := slices.IndexFunc(cycleLanes, func(candidate lane) bool { return candidate.name == row.cycle }); row.cycle != "" && (moved < 0 || !cycleReaches(cycleLanes[moved], []string{row.path})) {
+			t.Errorf("an edit to %s reaches no cycle lane %s, so the cycle never runs what the gate gave up: %s", row.path, row.cycle, row.reason)
+		}
+		for _, candidate := range everyLane {
 			switch {
 			case !reaches(candidate, []string{row.path}):
 			case slices.Contains(row.mustNotReach, candidate.name):
@@ -333,15 +388,15 @@ func TestLanesMeasurementLine(t *testing.T) {
 }
 
 // TestAudioLaneOptsIntoTheStoreAcceptance holds the audio acceptances to a
-// runner: go test skips them without the store-acceptance opt-in, so the lane
-// that reaches internal/audioparity must set it.
+// runner: go test skips them without the store-acceptance opt-in, so the
+// cycle lane that reaches internal/audioparity must set it.
 func TestAudioLaneOptsIntoTheStoreAcceptance(t *testing.T) {
 	t.Parallel()
-	index := slices.IndexFunc(lanes, func(candidate lane) bool { return slices.Contains(candidate.packages, "./internal/audioparity") })
+	index := slices.IndexFunc(cycleLanes, func(candidate lane) bool { return slices.Contains(candidate.packages, "./internal/audioparity") })
 	if index < 0 {
-		t.Fatal("no lane reaches internal/audioparity; its acceptances would run nowhere")
+		t.Fatal("no cycle lane reaches internal/audioparity; its acceptances would run nowhere")
 	}
-	if !slices.Contains(lanes[index].environment, testskip.StoreAcceptanceEnv+"=1") {
-		t.Fatalf("lane %s runs internal/audioparity without %s=1; its acceptances would skip", lanes[index].name, testskip.StoreAcceptanceEnv)
+	if !slices.Contains(cycleLanes[index].environment, testskip.StoreAcceptanceEnv+"=1") {
+		t.Fatalf("lane %s runs internal/audioparity without %s=1; its acceptances would skip", cycleLanes[index].name, testskip.StoreAcceptanceEnv)
 	}
 }

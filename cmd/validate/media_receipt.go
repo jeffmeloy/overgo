@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/landing"
 	"overgo/internal/processcontrol"
 )
 
@@ -61,7 +62,8 @@ type testReport struct {
 }
 
 // packageTests runs the acceptances the judged surfaces name in one package
-// at the working tree.
+// at the working tree, built with the cycle's tags: acceptances that read the
+// live store carry them, so no landing runs them.
 func packageTests(ctx context.Context, root, packagePath string) (testReport, error) {
 	var patterns []string
 	for surface, pkg := range surfacePackages {
@@ -72,7 +74,7 @@ func packageTests(ctx context.Context, root, packagePath string) (testReport, er
 	slices.Sort(patterns)
 	var stdout, stderr bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: "go", Args: []string{"test", "-json", "-run", strings.Join(slices.Compact(patterns), "|"), "./" + packagePath}, Dir: root,
+		Path: "go", Args: []string{"test", "-json", "-tags", landing.CycleTags, "-run", strings.Join(slices.Compact(patterns), "|"), "./" + packagePath}, Dir: root,
 		Stdout: &stdout, Stderr: &stderr,
 	})
 	if err != nil {

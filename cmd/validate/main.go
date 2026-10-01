@@ -3,8 +3,10 @@
 // the appropriate validation for each declared function, and runs the
 // validations whose surface the commit's changes moved or whose accepted
 // record is not bound to the identity the code is at now, reusing only
-// current evidence. The default dry run computes and prints the plan without
-// loading a model or a device; -run executes the selected cells. -claims holds the
+// current evidence, and runs the improvement cycle's lanes, the real-model
+// suites no landing runs, that changes since the promoted commit reach. The
+// default dry run computes and prints the plan without loading a model or a
+// device; -run executes the selected cells and lanes. -claims holds the
 // claims compatibility.json and the training specifications make to the
 // sources they bind and checks the matrices published from them; a claim whose
 // source moved is rebound only after -claims -run re-runs its verify. It also
@@ -238,6 +240,9 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	}
 
 	plan := SelectValidation(Inputs{Baseline: base, Head: head, ChangedPaths: changed, AffectedSurfaces: affected, Registered: registered, Current: read.current})
+	if plan.Suites, err = cycleSuites(ctx, *root, head, changed); err != nil {
+		return err
+	}
 	if *execute {
 		return executeRun(ctx, output, *root, storeRoot, plan)
 	}

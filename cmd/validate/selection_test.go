@@ -1,13 +1,72 @@
 package main
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/scorecard"
 	"overgo/internal/testutil"
 )
+
+// TestCycleLanesRunUntilThePromotedCommitHoldsThem selects the improvement
+// cycle's lanes the way it selects cells. In a fixture repository a source
+// change under internal/inference, a package of the models lane, is followed
+// by a notes-only commit, so that commit's range reaches no lane. Without a
+// promoted branch every lane runs. While the promoted branch sits before the
+// source change, the models lane runs, since its pass there no longer holds,
+// and the lanes nothing reached are reused. Once the branch holds the source
+// change every lane is reused, and a range that reaches a lane runs it
+// whatever the branch holds.
+func TestCycleLanesRunUntilThePromotedCommitHoldsThem(t *testing.T) {
+	t.Parallel()
+	root, beforeSurface, beforeDocs, head := surfaceHistory(t)
+	selected := func(changed []string) map[string]SelectedSuite {
+		t.Helper()
+		suites, err := cycleSuites(t.Context(), root, head, changed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lanes := map[string]SelectedSuite{}
+		for _, suite := range suites {
+			lanes[suite.Lane] = suite
+		}
+		return lanes
+	}
+	promote := func(commit string) {
+		t.Helper()
+		if output, err := exec.Command("git", "-C", root, "update-ref", scorecard.PromotedBranch, commit).CombinedOutput(); err != nil {
+			t.Fatalf("promote %s: %v: %s", commit, err, output)
+		}
+	}
+	notes, source := []string{"docs/notes.md"}, []string{"internal/inference/inference.go"}
+	if exec.Command("git", "-C", root, "rev-parse", "--verify", "--quiet", scorecard.PromotedBranch).Run() != nil {
+		for name, lane := range selected(notes) {
+			if !lane.Run || !strings.Contains(lane.Reason, "holds its pass yet") {
+				t.Errorf("with no promoted commit, lane %s = %+v, want it run", name, lane)
+			}
+		}
+	}
+	promote(beforeSurface)
+	lanes := selected(notes)
+	if models := lanes["models"]; !models.Run || !strings.Contains(models.Reason, "changes since the promoted commit") {
+		t.Errorf("a source change since the promoted commit left the models lane %+v", models)
+	}
+	if audio := lanes["audio"]; audio.Run {
+		t.Errorf("no change reaches the audio lane, yet it runs: %+v", audio)
+	}
+	promote(beforeDocs)
+	for name, lane := range selected(notes) {
+		if lane.Run {
+			t.Errorf("the promoted commit holds every change, yet lane %s runs: %+v", name, lane)
+		}
+	}
+	if models := selected(source)["models"]; !models.Run || !strings.Contains(models.Reason, "commit range's changes reach it") {
+		t.Errorf("a range reaching the models lane left it %+v", models)
+	}
+}
 
 // TestSelectValidation covers every decision branch of the pure selection: a
 // commit's changes run the cells whose surface moved or whose accepted record

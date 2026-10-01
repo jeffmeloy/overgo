@@ -304,10 +304,6 @@ func (l *landing) format(ctx context.Context) error {
 	return err
 }
 
-// buildTags are the tags vet and fix read with, so every build-tagged test
-// file is checked.
-const buildTags = "modeltest,integration"
-
 // fix applies go fix's modernizers to the changed packages, as format
 // applies gofmt: a legacy form go fix can rewrite is rewritten, not refused.
 // A directory whose files this platform's build excludes, or that does not
@@ -317,12 +313,12 @@ const buildTags = "modeltest,integration"
 func (l *landing) fix(ctx context.Context) error {
 	directories := l.goPackages()
 	if len(directories) != 0 {
-		listed, err := l.run(ctx, nil, "go", append([]string{"list", "-e", "-tags", buildTags, "-f", "{{if not .Error}}{{.ImportPath}}{{end}}"}, directories...)...)
+		listed, err := l.run(ctx, nil, "go", append([]string{"list", "-e", "-tags", CycleTags, "-f", "{{if not .Error}}{{.ImportPath}}{{end}}"}, directories...)...)
 		if err != nil {
 			return err
 		}
 		if packages := strings.Fields(listed); len(packages) != 0 {
-			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-tags", buildTags}, packages...)...); err != nil {
+			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-tags", CycleTags}, packages...)...); err != nil {
 				return err
 			}
 		}
@@ -338,7 +334,7 @@ func (l *landing) fix(ctx context.Context) error {
 }
 
 func (l *landing) vet(ctx context.Context) error {
-	_, err := l.run(ctx, nil, "go", "vet", "-tags", buildTags, "./...")
+	_, err := l.run(ctx, nil, "go", "vet", "-tags", CycleTags, "./...")
 	return err
 }
 

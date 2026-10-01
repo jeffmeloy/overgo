@@ -50,6 +50,28 @@ var lanes = []lane{
 		command: func(string) []string { return []string{"run", "./cmd/webui-lane"} },
 	},
 	{
+		// The CUDA suites outside the device lane's scopes that build their
+		// own inputs: programs on synthetic weights, the trainers and the
+		// kernels only they call. One package at a time shares the device;
+		// go test's cache replays each until code it reads changes.
+		name: "cuda", packages: cudaPackages,
+		command:     func(string) []string { return append([]string{"test", "-p=1", "-timeout=0"}, cudaPackages...) },
+		environment: []string{cudaTestEnvironment},
+	},
+}
+
+// CycleTags are the build tags of the tests only the improvement cycle runs,
+// those that open real models or read the live store. No gate lane builds
+// with them, so a landing never compiles those tests; vet and fix read with
+// them, so every tagged file is still checked.
+const CycleTags = "modeltest,integration"
+
+// cycleLanes are what the improvement cycle runs in the gate's place: real
+// models, the live store and the served-model journeys, which guard what
+// main is promoted to. validate -run runs one that the changes since the
+// promoted commit reach, and promotion waits on its pass.
+var cycleLanes = []lane{
+	{
 		// A served-model journey or the server command.
 		name:     "model-journey",
 		packages: []string{"./internal/modelswap", "./internal/libraryintake", "./internal/discovery", "./cmd/server"},
@@ -70,42 +92,12 @@ var lanes = []lane{
 		environment: []string{testskip.StoreAcceptanceEnv + "=1"},
 	},
 	{
-		// Thoughtbank's real-checkpoint suite, behind the modeltest tag:
-		// training parity, code completion and the process probe on the
-		// local Fractale checkpoint.
-		name: "thoughtbank", packages: []string{"./internal/thoughtbank"}, tags: "modeltest",
-		command:     func(string) []string { return []string{"test", "./internal/thoughtbank"} },
-		environment: []string{cudaTestEnvironment},
-	},
-	{
-		// The integration-tagged suites: Wan's real-model runtime and
-		// reference edit on the local Wan2.1-T2V-1.3B and the retained
-		// capture beside the data, and the quantizer's pinned checks.
-		name: "integration", packages: []string{"./internal/latentvideo", "./internal/quant"}, tags: "integration",
-		command:     func(string) []string { return []string{"test", "./internal/latentvideo", "./internal/quant"} },
-		environment: []string{cudaTestEnvironment},
-	},
-	{
-		// E4B served over every HTTP route with text, image and audio input.
-		// The package's resource-recovery proof (about 220 s) is an
-		// evidence producer, run when its evidence is refreshed.
-		name: "e4b", packages: []string{"./internal/server"},
-		command:     func(string) []string { return []string{"test", "./internal/server", "-run", "^TestE4BHTTPModalities$"} },
-		environment: []string{cudaTestEnvironment},
-	},
-	{
-		// The CUDA suites the device lane's fixture-free scopes leave out:
-		// the real-model inference and dense-causal checks, image and video
-		// generation, media capability, the trainers and the device kernels
-		// only they call, the scratch and routed models, adaptive parity,
-		// the composite-generation parity on Wan, long-form evaluation and
-		// the recipe, evaluate and train commands. One package at a time
-		// shares the device; go test's cache replays each until code it
-		// reads changes.
-		name: "cuda", packages: cudaPackages,
-		// adaptiveparity alone runs about 11 minutes, past go test's
-		// default per-binary timeout.
-		command:     func(string) []string { return append([]string{"test", "-p=1", "-timeout=0"}, cudaPackages...) },
+		// The real-model suites: tests behind the cycle's tags, and the
+		// packages whose device tests all open real models. One package at a
+		// time shares the device; adaptiveparity alone runs about 11
+		// minutes, past go test's default timeout.
+		name: "models", packages: modelPackages, tags: CycleTags,
+		command:     func(string) []string { return append([]string{"test", "-p=1", "-timeout=0"}, modelPackages...) },
 		environment: []string{cudaTestEnvironment},
 	},
 }
@@ -119,9 +111,10 @@ const cudaTestEnvironment = "OVERGO_CUDA_TEST=1"
 const cudaRequirement = "cudatest" + ".Require("
 
 // uncoveredCUDATests names each package under internal/ or cmd/ whose tests
-// call cudatest.Require but that no device lane scope covers and no lane
-// runs with cudaTestEnvironment: a real-device suite lands with its runner,
-// never behind a variable nothing sets. It walks the tree at every landing;
+// call cudatest.Require but that no device lane scope covers and no gate or
+// cycle lane runs with cudaTestEnvironment: a real-device suite lands with
+// its runner, never behind a variable nothing sets. It walks the tree at
+// every landing;
 // as a test it would make the directory listings a cache input of this
 // package and rerun it on every edit anywhere.
 func uncoveredCUDATests(repo string) ([]string, error) {
@@ -153,20 +146,58 @@ func uncoveredCUDATests(repo string) ([]string, error) {
 }
 
 // cudaCovered reports whether a device lane scope covers the package
-// directory or a lane runs it with the device opted in.
+// directory or a gate or cycle lane runs it with the device opted in.
 func cudaCovered(directory string) bool {
-	return lane{packages: devicePackages()}.owns(directory) || slices.ContainsFunc(lanes, func(candidate lane) bool {
+	return lane{packages: devicePackages()}.owns(directory) || slices.ContainsFunc(slices.Concat(lanes, cycleLanes), func(candidate lane) bool {
 		return slices.Contains(candidate.environment, cudaTestEnvironment) && candidate.owns(directory)
 	})
 }
 
 // cudaPackages are the packages whose CUDA tests the cuda lane runs.
 var cudaPackages = []string{
-	"./internal/diffusionimage", "./internal/latentimage", "./internal/mediacapability", "./internal/scratchmodel", "./internal/scratchtrain",
-	"./internal/modeldevice", "./internal/hybridtrain", "./internal/e4btrain", "./internal/devicegrad", "./internal/densecausaltrain", "./internal/controllertrain", "./internal/trainingprogram",
-	"./internal/torchrng", "./internal/routedlm", "./internal/longform", "./internal/sensenovarecipe",
-	"./internal/inference", "./internal/densecausal", "./internal/adaptiveparity", "./internal/composition",
-	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/train",
+	"./internal/latentimage", "./internal/scratchmodel", "./internal/scratchtrain", "./internal/modeldevice", "./internal/hybridtrain",
+	"./internal/e4btrain", "./internal/devicegrad", "./internal/densecausaltrain", "./internal/controllertrain", "./internal/trainingprogram",
+	"./internal/torchrng", "./internal/routedlm", "./internal/longform", "./internal/inference", "./internal/densecausal", "./cmd/train",
+}
+
+// modelPackages are the packages whose real-model tests the cycle's models
+// lane runs.
+var modelPackages = []string{
+	"./internal/thoughtbank", "./internal/latentvideo", "./internal/quant", "./internal/diffusionimage", "./internal/latentimage",
+	"./internal/mediacapability", "./internal/sensenovarecipe", "./internal/routedlm", "./internal/inference", "./internal/adaptiveparity",
+	"./internal/composition", "./internal/speechsynth", "./internal/tabularicl", "./internal/modelintake", "./internal/server",
+	"./cmd/evaluate", "./cmd/longform", "./cmd/recipe", "./cmd/train", "./cmd/validate",
+}
+
+// CycleLane is one lane of the improvement cycle: the go command's arguments
+// that run it, the environment it adds, and whether changed paths reach it.
+type CycleLane struct {
+	Name        string
+	Arguments   []string
+	Environment []string
+	Reaches     func(paths []string) bool
+}
+
+// CycleLanes lists the improvement cycle's lanes in repo, each reached as
+// discover reaches the gate's.
+func CycleLanes(repo string) ([]CycleLane, error) {
+	reaches, err := discover(repo, cycleLanes...)
+	if err != nil {
+		return nil, err
+	}
+	var listed []CycleLane
+	for _, candidate := range cycleLanes {
+		listed = append(listed, CycleLane{
+			Name: candidate.name, Arguments: candidate.arguments(""), Environment: candidate.environment,
+			Reaches: func(paths []string) bool { return reaches(candidate, paths) },
+		})
+	}
+	return listed, nil
+}
+
+// arguments run the lane, its build tags after the command's verb.
+func (candidate lane) arguments(changed string) []string {
+	return slices.Insert(candidate.command(changed), 1, "-tags", candidate.tags)
 }
 
 // laneTurn names the host-wide turn a landing holds while its lanes run.
@@ -224,7 +255,7 @@ func (l *landing) lanes(ctx context.Context) error {
 				environment = append(os.Environ(), candidate.environment...)
 			}
 			began := time.Now()
-			output, err := l.run(ctx, environment, "go", slices.Insert(candidate.command(changed.Name()), 1, "-tags", candidate.tags)...)
+			output, err := l.run(ctx, environment, "go", candidate.arguments(changed.Name())...)
 			wall := time.Since(began).Round(time.Millisecond)
 			if err != nil {
 				fmt.Fprintf(l.Log, "land: lane %s refused after %s\n", candidate.name, wall)
@@ -296,8 +327,9 @@ func describeLanes(discovery, turnWait time.Duration, passed, skipped []string) 
 // whether changed paths reach a lane: a module file reaches every lane, a
 // path under one of its prefixes reaches it, and so does a path in its test
 // closure, what its own packages' test binaries import, or such a package
-// imports without tests. A package or dependency a listing cannot load
-// refuses the landing.
+// imports without tests; a test file behind tags the lane does not build,
+// such as CycleTags, reaches no lane that leaves it out. A package or
+// dependency a listing cannot load refuses the landing.
 func discover(repo string, candidates ...lane) (func(lane, []string) bool, error) {
 	patterns := map[string][]string{}
 	for _, candidate := range candidates {
@@ -342,9 +374,12 @@ func discover(repo string, candidates ...lane) (func(lane, []string) bool, error
 				return true
 			}
 			// A test file compiles only into its own package's test binary,
-			// so it reaches the lane only when that package is the lane's.
+			// so it reaches the lane only when that package is the lane's and
+			// the lane's build compiles it; a deleted one no longer says
+			// which builds did, so its package's lane is reached.
 			if strings.HasSuffix(name, "_test.go") {
-				return candidate.owns(path.Dir(name))
+				_, absent := os.Stat(filepath.Join(repo, filepath.FromSlash(name)))
+				return candidate.owns(path.Dir(name)) && (selection.Files[name] || errors.Is(absent, fs.ErrNotExist))
 			}
 			// A data file nested under a closure package, testdata or an
 			// embedded recipe, is that package's input; a Go file belongs to

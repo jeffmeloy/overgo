@@ -106,6 +106,27 @@ func TestValidateRunEmpty(t *testing.T) {
 	}
 }
 
+// TestValidateRunCycleLanes runs each selected cycle lane's go command with
+// its environment and only those: a lane that passes is counted, one that
+// fails fails the run by name, so the loop withholds promotion, and a reused
+// lane never starts.
+func TestValidateRunCycleLanes(t *testing.T) {
+	t.Parallel()
+	var out bytes.Buffer
+	plan := Plan{Suites: []SelectedSuite{
+		{Lane: "passes", Run: true, Arguments: []string{"env", "GOFLAGS"}, Environment: []string{"GOFLAGS=-tags=lane-environment"}},
+		{Lane: "fails", Run: true, Arguments: []string{"vet", "./no-such-package"}},
+		{Lane: "reused", Arguments: []string{"env", "GOFLAGS"}},
+	}}
+	err := executeRun(t.Context(), &out, ".", "C:/stores/selected", plan)
+	if err == nil || !strings.Contains(err.Error(), "cycle lane fails") || strings.Contains(err.Error(), "cycle lane passes") {
+		t.Fatalf("cycle lanes run = %v, want only the failing lane named", err)
+	}
+	if !strings.Contains(out.String(), "lane-environment") || strings.Contains(out.String(), "cycle lane reused") {
+		t.Fatalf("cycle lane output = %q, want the passing lane run with its environment and the reused one not started", out.String())
+	}
+}
+
 // TestValidateRunUnbound proves an unbound cell is reported as incomplete
 // coverage without executing anything, never silently skipped.
 func TestValidateRunUnbound(t *testing.T) {

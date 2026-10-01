@@ -3,12 +3,55 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/gitauthority"
 	"overgo/internal/inferencesurface"
+	"overgo/internal/landing"
 	"overgo/internal/overgodb"
+	"overgo/internal/scorecard"
 )
+
+// cycleSuites decides each of the improvement cycle's lanes at root the way
+// a cell is decided: it runs when the commit range's changed paths reach it,
+// or when changes since the promoted commit do, since promotion waited on
+// its pass there; otherwise that pass still holds and it is reused.
+func cycleSuites(ctx context.Context, root, head string, changed []string) ([]SelectedSuite, error) {
+	lanes, err := landing.CycleLanes(root)
+	if err != nil {
+		return nil, err
+	}
+	held, err := gitauthority.Query(ctx, root, "for-each-ref", "--format=%(objectname)", scorecard.PromotedBranch)
+	if err != nil {
+		return nil, err
+	}
+	promoted := strings.TrimSpace(string(held))
+	var since []string
+	if promoted != "" {
+		if since, err = changedPaths(ctx, root, promoted, head); err != nil {
+			return nil, err
+		}
+	}
+	suites := []SelectedSuite{}
+	for _, lane := range lanes {
+		suite := SelectedSuite{Lane: lane.Name, Run: true, Arguments: lane.Arguments, Environment: lane.Environment}
+		switch {
+		case lane.Reaches(changed):
+			suite.Reason = "run: the commit range's changes reach it"
+		case promoted == "":
+			suite.Reason = "run: no " + scorecard.PromotedBranch + " commit holds its pass yet"
+		case lane.Reaches(since):
+			suite.Reason = fmt.Sprintf("run: changes since the promoted commit %.*s reach it", surfaceShown, promoted)
+		default:
+			suite.Run, suite.Reason = false, "reuse: its pass holds at the promoted commit and no change since reaches it"
+		}
+		suites = append(suites, suite)
+	}
+	return suites, nil
+}
 
 // acceptedRecords is what the one current-evidence decision of the plan, -run
 // and the inventory reads, once per invocation and only as the cells need it:

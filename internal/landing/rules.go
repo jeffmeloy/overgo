@@ -7,15 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"go/types"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"overgo/internal/gitauthority"
 	"overgo/internal/gosyntax"
@@ -192,9 +192,10 @@ func literalCounts(snapshot gosyntax.Snapshot) map[string]int {
 }
 
 // newLegacyForms names the forms go fix does not rewrite that a changed
-// file gained: sort.Slice where slices.SortFunc serves, sync.Once where
-// sync.OnceFunc or sync.OnceValue serves, and an if that falls back from an
-// empty string or zero where cmp.Or serves.
+// file gained: sort.Slice where slices.SortFunc serves, and sync.Once where
+// sync.OnceFunc or sync.OnceValue serves. An if that falls back from an
+// empty value is not one: cmp.Or evaluates its fallback even when it is not
+// needed, and a fallback that indexes or dereferences can panic there.
 func newLegacyForms(base, candidate gosyntax.Snapshot) []string {
 	before := legacyFormCounts(base)
 	var findings []string
@@ -242,95 +243,79 @@ func legacyFormCounts(snapshot gosyntax.Snapshot) map[string]int {
 
 // legacyForm names the legacy form node is, if any.
 func legacyForm(node ast.Node, imports map[string]string) string {
-	switch typed := node.(type) {
-	case *ast.SelectorExpr:
-		qualifier, ok := typed.X.(*ast.Ident)
-		if !ok {
-			return ""
-		}
-		switch imports[qualifier.Name] + "." + typed.Sel.Name {
-		case "sort.Slice", "sort.SliceStable":
-			return "sort." + typed.Sel.Name + " (use slices.SortFunc or slices.SortStableFunc)"
-		case "sync.Once":
-			return "sync.Once (use sync.OnceFunc, sync.OnceValue or sync.OnceValues)"
-		}
-	case *ast.IfStmt:
-		if zeroFallback(typed) {
-			return "zero-value fallback if (use cmp.Or)"
-		}
+	selector, ok := node.(*ast.SelectorExpr)
+	if !ok {
+		return ""
+	}
+	qualifier, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return ""
+	}
+	switch imports[qualifier.Name] + "." + selector.Sel.Name {
+	case "sort.Slice", "sort.SliceStable":
+		return "sort." + selector.Sel.Name + " (use slices.SortFunc or slices.SortStableFunc)"
+	case "sync.Once":
+		return "sync.Once (use sync.OnceFunc, sync.OnceValue or sync.OnceValues)"
 	}
 	return ""
 }
 
-// zeroFallback reports an if with no init or else whose one statement
-// assigns the value it compared with "" or 0.
-func zeroFallback(statement *ast.IfStmt) bool {
-	if statement.Init != nil || statement.Else != nil || len(statement.Body.List) != 1 {
-		return false
-	}
-	comparison, ok := statement.Cond.(*ast.BinaryExpr)
-	assignment, assigns := statement.Body.List[0].(*ast.AssignStmt)
-	if !ok || comparison.Op != token.EQL || !assigns || assignment.Tok != token.ASSIGN || len(assignment.Lhs) != 1 {
-		return false
-	}
-	zero := func(expression ast.Expr) bool {
-		literal, ok := expression.(*ast.BasicLit)
-		return ok && (literal.Value == `""` || literal.Value == "``" || literal.Value == "0")
-	}
-	value := comparison.X
-	if zero(value) {
-		value = comparison.Y
-	} else if !zero(comparison.Y) {
-		return false
-	}
-	// cmp.Or evaluates its fallback whether or not it is needed: only a
-	// fallback without a call or a receive reads the same either way.
-	eager := true
-	ast.Inspect(assignment.Rhs[0], func(node ast.Node) bool {
-		switch expression := node.(type) {
-		case *ast.CallExpr:
-			eager = false
-		case *ast.UnaryExpr:
-			eager = eager && expression.Op != token.ARROW
-		}
-		return eager
-	})
-	return eager && types.ExprString(assignment.Lhs[0]) == types.ExprString(value)
-}
+// modulePath is the import path the repository's go.mod declares; a
+// package's import path is it joined with the package's directory.
+const modulePath = "overgo"
 
 // newUnconsumedExports names exported top-level functions, variables and
 // constants a changed internal package gained that no other package's
-// production code names. An export only its own package uses is surface
-// without a consumer. A test-helper package (named for tests: modeltest,
-// testutil) exists for other packages' tests, so their tests consume it.
+// production code selects through an import of that package. An export only
+// its own package uses is surface without a consumer. A test-support
+// package exists for other packages' tests, so their selections count.
 func (l *landing) newUnconsumedExports(base, candidate gosyntax.Snapshot) ([]string, error) {
 	existing := exportedNames(base)
+	corpus := sync.OnceValues(func() (gosyntax.Snapshot, error) { return gosyntax.DiscoverGo(l.Repo, "cmd", "internal") })
+	// support holds, per directory, whether its package is test support:
+	// every production file outside it that imports it is in a test-support
+	// package, and none is a main package. Go's imports are acyclic; a
+	// directory met again while its answer is pending reads as production.
+	support := map[string]bool{}
+	var testSupport func(sources gosyntax.Snapshot, directory string) bool
+	testSupport = func(sources gosyntax.Snapshot, directory string) bool {
+		if known, found := support[directory]; found {
+			return known
+		}
+		support[directory] = false
+		support[directory] = !slices.ContainsFunc(sources.Files, func(file gosyntax.File) bool {
+			if file.Test || path.Dir(file.Path) == directory {
+				return false
+			}
+			names, syntax, err := importNames(file, modulePath+"/"+directory, "")
+			return err != nil || len(names) != 0 && (syntax.Name.Name == "main" || !testSupport(sources, path.Dir(file.Path)))
+		})
+		return support[directory]
+	}
 	var findings []string
-	var corpus map[string][]byte
 	for key, pkg := range exportedNames(candidate) {
 		if _, found := existing[key]; found {
 			continue
 		}
-		if corpus == nil {
-			var err error
-			if corpus, err = l.goSources(); err != nil {
-				return nil, err
-			}
+		sources, err := corpus()
+		if err != nil {
+			return nil, err
 		}
 		directory, name, _ := strings.Cut(key, " ")
-		reference := []byte(pkg + "." + name)
-		testHelper := strings.HasSuffix(pkg, "test") || strings.HasSuffix(pkg, "testutil")
-		consumed := false
-		for file, data := range corpus {
-			if strings.HasSuffix(file, "_test.go") && !testHelper {
+		production, tested := false, false
+		for _, file := range sources.Files {
+			if path.Dir(file.Path) == directory {
 				continue
 			}
-			if path.Dir(file) != directory && bytes.Contains(data, reference) && selects(data, pkg, name) {
-				consumed = true
-				break
+			names, syntax, err := importNames(file, modulePath+"/"+directory, pkg)
+			selected := err != nil || selects(syntax, names, name)
+			if file.Test {
+				tested = tested || selected
+			} else {
+				production = production || selected
 			}
 		}
-		if !consumed {
+		if !production && !(tested && testSupport(sources, directory)) {
 			findings = append(findings, "new export "+pkg+"."+name+" in "+directory+" has no consumer outside its package; unexport it or land its consumer")
 		}
 	}
@@ -378,48 +363,45 @@ func exportedNames(snapshot gosyntax.Snapshot) map[string]string {
 	return names
 }
 
-// selects reports whether Go source selects pkg.name in code: a comment or
-// a string that mentions it is no consumer. A file that does not parse
-// counts as one, since the rule cannot read it.
-func selects(source []byte, pkg, name string) bool {
-	syntax, err := parser.ParseFile(token.NewFileSet(), "", source, parser.SkipObjectResolution)
+// importNames are the names a file imports the package at importPath, named
+// pkg, as, and the file's syntax. A comment or a string that mentions the
+// path, or a same-named package from another path, is no import; a file
+// that names the path but does not parse returns its error, and the rule,
+// which cannot read it, takes it to import the package and select from it.
+func importNames(file gosyntax.File, importPath, pkg string) ([]string, *ast.File, error) {
+	if !bytes.Contains(file.Data, []byte(importPath)) {
+		return nil, nil, nil
+	}
+	syntax, err := file.Syntax()
 	if err != nil {
-		return true
+		return nil, nil, err
+	}
+	var names []string
+	for _, spec := range syntax.Imports {
+		if imported, _ := strconv.Unquote(spec.Path.Value); imported == importPath {
+			local := pkg
+			if spec.Name != nil {
+				local = spec.Name.Name
+			}
+			names = append(names, local)
+		}
+	}
+	return names, syntax, nil
+}
+
+// selects reports whether syntax selects name through one of the names it
+// imports a package as, where no declaration of the file shadows that name.
+func selects(syntax *ast.File, names []string, name string) bool {
+	if len(names) == 0 {
+		return false
 	}
 	found := false
 	ast.Inspect(syntax, func(node ast.Node) bool {
-		if selector, ok := node.(*ast.SelectorExpr); ok {
-			if qualifier, ok := selector.X.(*ast.Ident); ok && qualifier.Name == pkg && selector.Sel.Name == name {
-				found = true
-			}
+		if selector, ok := node.(*ast.SelectorExpr); ok && selector.Sel.Name == name {
+			qualifier, ok := selector.X.(*ast.Ident)
+			found = ok && slices.Contains(names, qualifier.Name) && qualifier.Obj == nil
 		}
 		return !found
 	})
 	return found
-}
-
-// goSources reads every Go file under cmd and internal, tests included:
-// newUnconsumedExports counts a test only as a test helper's consumer.
-func (l *landing) goSources() (map[string][]byte, error) {
-	sources := map[string][]byte{}
-	for _, top := range []string{"cmd", "internal"} {
-		err := filepath.WalkDir(filepath.Join(l.Repo, top), func(name string, entry fs.DirEntry, err error) error {
-			if err != nil || entry.IsDir() || !strings.HasSuffix(name, ".go") {
-				return err
-			}
-			data, err := os.ReadFile(name)
-			if err != nil {
-				return err
-			}
-			relative, err := filepath.Rel(l.Repo, name)
-			if err == nil {
-				sources[filepath.ToSlash(relative)] = data
-			}
-			return err
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-	return sources, nil
 }

@@ -194,9 +194,11 @@ func TestLandingLeavesAConcurrentPlanEditAlone(t *testing.T) {
 	}
 }
 
-// TestLandingPublishesAMergeAsTheMerge holds a landing over a merge in
-// progress to the merge: its head joins HEAD as a parent and the merge ends.
-func TestLandingPublishesAMergeAsTheMerge(t *testing.T) {
+// TestProgressSeesALandedMerge holds a landing over a merge in progress to
+// the merge -- its head joins HEAD as a parent and the merge ends -- and the
+// loop's progress check to reading that merge's own Landed-Row: a row that
+// waits on the landed one has moved forward.
+func TestProgressSeesALandedMerge(t *testing.T) {
 	t.Parallel()
 	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})
 	side := fixture.git("commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "side")
@@ -212,5 +214,10 @@ func TestLandingPublishesAMergeAsTheMerge(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(fixture.repo, ".git", "MERGE_HEAD")); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("the landed merge left the merge in progress: %v", err)
+	}
+	waiting := plan.Plan{Items: []plan.Item{{ID: "later", Status: plan.StatusOpen,
+		Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, DependsOn: []string{"row/do"}}}}}}
+	if moved, err := plan.AcceptedProgressSince(t.Context(), fixture.repo, waiting, "later", "do", l.head); err != nil || !moved {
+		t.Fatalf("the landed merge of row/do moved the row waiting on it: %t, %v; want true", moved, err)
 	}
 }

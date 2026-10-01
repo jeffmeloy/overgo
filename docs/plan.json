@@ -74,25 +74,6 @@
       ]
     },
     {
-      "id": "loop-control-integrity",
-      "title": "Land exactly the checked bytes, and honour every recorded stop",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 244,
-        "reason": "one-candidate: the gate checks and publishes one prepared candidate tree with compare-and-set; a failed publication writes nothing. Measured +244 nodes (SQA-034)."
-      },
-      "steps": [
-        {
-          "id": "gate-rules",
-          "title": "Fix the gate rules that misread code, and let the loop see a landed merge",
-          "status": "open",
-          "verify": "go test ./internal/landing ./cmd/loophook -run '^(TestFallbackLintAcceptsLazyReads|TestExportUseCountsConsumers|TestProgressSeesALandedMerge)$' -count=1",
-          "rationale": "SQA-039 (P2): the fallback lint demands eager evaluation of reads that can panic. SQA-036 (P2): export-use linting adds a test-name policy while still confusing names with consumers. SQA-038 (P2): a landed merge is invisible to the loop's progress check. Batch: no lanes."
-        }
-      ]
-    },
-    {
       "id": "store-and-operation-safety",
       "title": "Keep the store and in-flight operations whole through failures",
       "owner": "master-lead",
@@ -110,7 +91,7 @@
           "title": "Make an operation's terminal transition atomic with its cleanup",
           "status": "open",
           "verify": "go test ./internal/operation -run '^TestTerminalTransitionIsAtomic$' -count=1",
-          "rationale": "SQA-052 (P1): recovery or retention can act on a terminal operation before its attempt finishes cleanup. The result is a wrong cancel, a stranded waiter, a wrong completion or a panic. In the existing Manager, bind run and Wait to the entry they started with, and finish its cleanup and close its done in the same locked transition that makes the terminal status visible. Delete the lookup-by-ID cleanup and the duplicate terminal publication. SQA-059 (P2) belongs here too: aborted artifact and speech responses leave their content reader unclosed. SQA-055 (P2): FP8 plan construction loses allocated descriptors before error cleanup. Batch: internal/operation and internal/server reach webui, model-journey, audio, e4b and cuda."
+          "rationale": "SQA-052 (P1): recovery or retention can act on a terminal operation before its attempt finishes cleanup. The result is a wrong cancel, a stranded waiter, a wrong completion or a panic. In the existing Manager, bind run and Wait to the entry they started with, and finish its cleanup and close its done in the same locked transition that makes the terminal status visible. Delete the lookup-by-ID cleanup and the duplicate terminal publication. SQA-059 (P2) belongs here too: aborted artifact and speech responses leave their content reader unclosed. SQA-055 (P2): FP8 plan construction loses allocated descriptors before error cleanup. Batch: internal/operation and internal/server reach webui, model-journey, audio, e4b and cuda.\n\nSQA-055's FP8 cleanup moved to nfd-table-packed/do, the next surface batch, so this row lands without expiring the guards. Found while building (2026-09-30): internal/server/browse_runs.go:135-139 can leave its reader open when a read fails partway, the same class as SQA-059. Close it here."
         }
       ]
     },
@@ -308,7 +289,7 @@
           "title": "Store the Unicode NFD table as one packed string",
           "status": "open",
           "verify": "go test ./internal/tokenizer -run '^TestNFDTableIsPacked$' -count=1",
-          "rationale": "Owner review 2026-09-27: internal/tokenizer/nfd_table.go is a generated 13,243-line map literal (the tokenizer's 19k lines of code against 2.9k of tests are mostly this). Encode the same data as one packed string decoded once at init, with its generator in Go. The tokenizer parity fixtures pin the table. About -13k lines.\n\nServes: the tokenizer. Disappears: about 13k generated lines, replaced by one packed string. Batch: surface (the tokenizer is in the inference closure).\n\nLanes (expected; the gate reads them from the diff): all (the tokenizer is surface).\n\nOwner review 2026-09-30: judged as a storage, build and startup comparison, not a line count.\n\nSQA 2026-09-30, SQA-062 (P2): remove the algorithmic Hangul entries before repacking the decomposition table; Hangul decomposes by formula."
+          "rationale": "Owner review 2026-09-27: internal/tokenizer/nfd_table.go is a generated 13,243-line map literal (the tokenizer's 19k lines of code against 2.9k of tests are mostly this). Encode the same data as one packed string decoded once at init, with its generator in Go. The tokenizer parity fixtures pin the table. About -13k lines.\n\nServes: the tokenizer. Disappears: about 13k generated lines, replaced by one packed string. Batch: surface (the tokenizer is in the inference closure).\n\nLanes (expected; the gate reads them from the diff): all (the tokenizer is surface).\n\nOwner review 2026-09-30: judged as a storage, build and startup comparison, not a line count.\n\nSQA 2026-09-30, SQA-062 (P2): remove the algorithmic Hangul entries before repacking the decomposition table; Hangul decomposes by formula.\n\nCarries SQA-055 (2026-09-30): the FP8 plan-construction cleanup in internal/cuda/cublas/cublaslt_windows.go (the seven early returns cleared the result before the deferred cleanup ran, so it destroyed nil; the cleanup now holds a local plan and the result is named built). It is built in the scratchpad's storeops.patch (apply with --include=internal/cuda/cublas/cublaslt_windows.go). It was held out of store-and-operation-safety because it moves the inference surface and the pinned media runtime path internal/cuda. It needs a reviewed delta (before ca013964f032526c7736d5f7eb3f94f7046a7b4a5b09d3acf90bceb3f9e5fec2, after f13962b28c762eac29da476df6343c27d7a14a742e8edb24b196e768791dcb3d; only failed-construction cleanup changes) and rides this surface batch's single guard re-acquisition."
         }
       ]
     },

@@ -31,6 +31,7 @@ func run(args []string) error {
 	budget := flags.Duration("budget", 0, "total discovery and execution budget (required)")
 	diagnostic := flags.Bool("diagnostic", false, "inspect behavior without publishing evidence")
 	model := flags.String("model", "", "exact model identity; omitted models receive no evidence credit")
+	repository := flags.String("repo", "", "OvergoDB store it reads and records into; empty resolves through the data-root contract")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -43,7 +44,7 @@ func run(args []string) error {
 			return errors.New("smoke: -model requires an exact model identity")
 		}
 	}
-	roots, err := dataroot.ResolveCurrent()
+	storeRoot, err := dataroot.StoreRoot(*repository)
 	if err != nil {
 		return err
 	}
@@ -54,7 +55,7 @@ func run(args []string) error {
 		ctx, cancel = context.WithTimeoutCause(ctx, *budget, errors.New("smoke: execution budget exhausted"))
 		defer cancel()
 	}
-	reader, err := overgodb.OpenReadOnly(roots.Store)
+	reader, err := overgodb.OpenReadOnly(storeRoot)
 	if err != nil {
 		return err
 	}
@@ -117,10 +118,10 @@ func run(args []string) error {
 		}
 		started++
 		began := time.Now()
-		observation, serveErr := serve(ctx, roots.Store, entry, oracles[entry.Model], references[entry.Model])
+		observation, serveErr := serve(ctx, storeRoot, entry, oracles[entry.Model], references[entry.Model])
 		wall := time.Since(began)
 		if !*diagnostic {
-			serveErr = errors.Join(serveErr, recordSmokeTransaction(context.WithoutCancel(ctx), roots.Store, entry, oracles[entry.Model], observation, serveErr, wall, commit))
+			serveErr = errors.Join(serveErr, recordSmokeTransaction(context.WithoutCancel(ctx), storeRoot, entry, oracles[entry.Model], observation, serveErr, wall, commit))
 		}
 		fmt.Printf("[smoke] %s wall=%.1fs error=%v\n", entry.Model, wall.Seconds(), serveErr)
 		if serveErr != nil {

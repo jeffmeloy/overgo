@@ -25,6 +25,24 @@ func TestLaneOutcomeContract(t *testing.T) {
 	}
 }
 
+// TestRepoSelectsTheStore holds -repo to the store the lane reads: the
+// data root holds no store, so reaching the empty catalog proves the lane
+// opened the one -repo named rather than resolving a default.
+func TestRepoSelectsTheStore(t *testing.T) {
+	t.Setenv(dataroot.Env, t.TempDir())
+	selected := filepath.Join(t.TempDir(), "selected-store")
+	store, err := overgodb.Open(selected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"-repo", selected}); err == nil || !strings.Contains(err.Error(), "outcome=empty") {
+		t.Fatalf("smoke over the -repo store = %v", err)
+	}
+}
+
 func TestSelectedModelPublicationAdmission(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(dataroot.Env, root)

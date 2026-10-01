@@ -24,18 +24,18 @@ const (
 // reacquireCommand builds the command that re-acquires one validation cell's
 // evidence into store, the one store this command selected and read, so the
 // producer never resolves a default of its own. It binds only the commands
-// whose invocation is fully determined by the cell today; an unbound kind --
-// a DNA model's smoke run, whose lane takes no -repo, or an accuracy
-// benchmark -- returns an error so -run reports incomplete coverage rather
-// than fabricating a wrong command.
+// whose invocation is fully determined by the cell today; an unbound kind,
+// such as an accuracy benchmark, returns an error so -run reports incomplete
+// coverage rather than fabricating a wrong command. A DNA model's guard cell
+// is owned by its smoke run, never the text guard.
 func reacquireCommand(cell ModelValidation, store string) (string, []string, error) {
 	switch cell.Validation {
 	case "guard":
 		switch {
+		case dnaGuard(cell):
+			return "go", smokeCommand(cell.Model, store), nil
 		case cell.Location == "":
 			return "", nil, errors.New("guard re-acquisition needs a served model location")
-		case dnaGuard(cell):
-			return "", nil, errors.New("a DNA model's smoke run cannot be re-acquired into the selected store: the smoke lane takes no -repo")
 		}
 		return "go", []string{
 			"run", "./cmd/longform", "-guard", "-publish", "-repo", store,

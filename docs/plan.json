@@ -33,13 +33,6 @@
       },
       "steps": [
         {
-          "id": "smoke-repo",
-          "title": "Bind DNA models' guard to the smoke lane on the selected store",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestDNAGuardBindsTheSmokeLane$' -count=1",
-          "rationale": "Filed 2026-09-30 by current-evidence. That step correctly refuses the stale reuse: Carbon, the DNA model, has a smoke run older than the inference-surface moves since 8e140ca0628c. But the text guard is the wrong producer for a DNA model, and cmd/smoke-lane has no -repo flag, so its cell stays unbound. Until this lands, validate -run reports '1 have no bound command' and exits nonzero, which withholds every improvement cycle. Add -repo to cmd/smoke-lane and bind it in reacquireCommand for DNA cells; then re-run Carbon's smoke through validate -run. Batch: cmd/validate and cmd/smoke-lane reach no lane."
-        },
-        {
           "id": "seed-main",
           "title": "Seed refs/heads/main at a measured commit, the owner's decision",
           "status": "open",

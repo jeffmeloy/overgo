@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
@@ -34,12 +35,37 @@ func TestReacquireCommand(t *testing.T) {
 	if _, _, err := reacquireCommand(ModelValidation{Kind: recipe.TaskImageGen, Validation: "image-proof"}, "C:/stores/selected"); err == nil {
 		t.Fatal("an image proof without a location bound a command")
 	}
-	// A DNA model's guard cell is owned by its smoke run: the text guard is
-	// the wrong producer, and the smoke lane cannot publish into the
-	// selected store, so nothing is bound.
-	dna := ModelValidation{Kind: recipe.TaskInference, Modality: dnaModality, Validation: "guard", Location: "C:/models/carbon.gguf"}
-	if name, args, err := reacquireCommand(dna, "C:/stores/selected"); err == nil {
-		t.Fatalf("a DNA model's guard cell bound %s %v", name, args)
+}
+
+// TestDNAGuardBindsTheSmokeLane holds a DNA model's stale guard cell to its
+// owner. Its smoke run predates an inference surface move, so the
+// current-evidence decision refuses it and the cell runs; -run then binds
+// the smoke lane on that model into the selected store, the very command the
+// refusal names, never the text guard and never no command at all.
+func TestDNAGuardBindsTheSmokeLane(t *testing.T) {
+	t.Parallel()
+	root, beforeSurface, _, _ := surfaceHistory(t)
+	const store = "C:/stores/selected"
+	carbon := testutil.ArtifactID(t, artifact.KindModel, "carbon")
+	cell := ModelValidation{
+		Model: carbon, ModelName: "Carbon", Location: "C:/models/carbon.gguf",
+		Kind: recipe.TaskInference, Modality: dnaModality, Validation: guardValidation, Surface: "inference",
+		Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "carbon-inference"),
+	}
+	stale := runrecord.Run{Outcome: runrecord.OutcomeSucceeded, CodeCommit: beforeSurface}
+	read := acceptedRecords{smoke: map[artifact.ID]error{carbon: smokeCurrent(t.Context(), root, store, carbon, stale, true)}}
+	plan := SelectValidation(Inputs{AffectedSurfaces: map[SurfaceID]AffectRecord{"inference": {}}, Registered: []ModelValidation{cell}, Current: read.current})
+	if len(plan.Run) != 1 || plan.Run[0].Model != carbon || !strings.Contains(plan.Run[0].Reason, "inference surface moved") {
+		t.Fatalf("a stale DNA smoke run was not selected to run: run=%+v reuse=%+v", plan.Run, plan.Reuse)
+	}
+
+	name, args, err := reacquireCommand(plan.Run[0].ModelValidation, store)
+	want := []string{"run", "./cmd/smoke-lane", "-budget", "15m", "-model", carbon.String(), "-repo", store}
+	if err != nil || name != "go" || !slices.Equal(args, want) {
+		t.Fatalf("a stale DNA cell bound (%q, %v, %v), want go %v", name, args, err, want)
+	}
+	if bound := "run: go " + strings.Join(want, " "); !strings.HasSuffix(plan.Run[0].Reason, bound) {
+		t.Fatalf("the refusal %q does not name the bound command %q", plan.Run[0].Reason, bound)
 	}
 }
 

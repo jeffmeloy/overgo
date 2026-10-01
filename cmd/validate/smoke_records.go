@@ -24,8 +24,14 @@ import (
 // dnaModality is the declared evaluation domain of a DNA model.
 const dnaModality = "dna"
 
-// smokeRerun is how a DNA model's smoke run is re-acquired.
-const smokeRerun = "run: go run ./cmd/smoke-lane -budget 15m -model %s"
+// smokeBudget is the smoke lane's execution budget for one DNA model's run.
+const smokeBudget = "15m"
+
+// smokeCommand re-acquires a DNA model's smoke run into the store validate
+// selected and read, so the lane never resolves a default store of its own.
+func smokeCommand(model artifact.ID, store string) []string {
+	return []string{"run", "./cmd/smoke-lane", "-budget", smokeBudget, "-model", model.String(), "-repo", store}
+}
 
 // dnaGuard reports a DNA model's inference cell, whose evidence is its smoke
 // run rather than a long-form record.
@@ -69,9 +75,10 @@ func changedSince(ctx context.Context, root, commit string) ([]string, error) {
 
 // smokeCurrent says why a DNA model's smoke run is not current at this tree:
 // there is none, it failed, or an inference surface source changed since the
-// commit it ran on. Nil means the run stands for the code as it is now.
-func smokeCurrent(ctx context.Context, root string, model artifact.ID, run runrecord.Run, found bool) error {
-	rerun := fmt.Sprintf(smokeRerun, model)
+// commit it ran on. Nil means the run stands for the code as it is now. A
+// refusal names the command that re-acquires the run into store.
+func smokeCurrent(ctx context.Context, root, store string, model artifact.ID, run runrecord.Run, found bool) error {
+	rerun := "run: go " + strings.Join(smokeCommand(model, store), " ")
 	switch {
 	case !found:
 		return fmt.Errorf("no smoke run for this model; %s", rerun)

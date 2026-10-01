@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"overgo/internal/artifact"
 	"overgo/internal/inferencesurface"
@@ -36,7 +36,7 @@ func readAcceptedRecords(ctx context.Context, root, storeRoot string, store *ove
 			if err != nil {
 				return acceptedRecords{}, err
 			}
-			read.smoke[cell.Model] = smokeCurrent(ctx, root, cell.Model, run, found)
+			read.smoke[cell.Model] = smokeCurrent(ctx, root, storeRoot, cell.Model, run, found)
 		case cell.Validation == guardValidation && !dnaGuard(cell) && read.surface == "":
 			if read.surface, err = inferencesurface.Digest(ctx, root); err == nil {
 				read.records, err = latestGuardRecords(ctx, root, storeRoot)
@@ -66,7 +66,7 @@ func (read acceptedRecords) current(cell ModelValidation) error {
 		if refusal, found := read.smoke[cell.Model]; found {
 			return refusal
 		}
-		return fmt.Errorf("no smoke run was read for this model; "+smokeRerun, cell.Model)
+		return errors.New("no smoke run was read for this model")
 	case cell.Validation == guardValidation:
 		return guardCurrent(read.records, cell.Location, read.surface)
 	}

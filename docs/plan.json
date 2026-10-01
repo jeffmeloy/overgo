@@ -23,21 +23,6 @@
       ]
     },
     {
-      "id": "ocr-mmlu-coverage",
-      "title": "Complete or scope Unlimited-OCR's MMLU-Pro chat coverage so the cycle's coverage acceptance holds",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Complete or scope Unlimited-OCR's MMLU-Pro chat coverage so the cycle's coverage acceptance holds",
-          "status": "open",
-          "verify": "go test -tags modeltest ./cmd/benchmark-report -run '^TestAcceptedSmallModelMMLUPro$' -count=1",
-          "rationale": "\n\nMeasured 2026-10-01: Unlimited-OCR-bf16 scored mmlu-pro raw-completion 0.119 (1h44m alone); its chat-template run hit evaluate's 6h budget at 9234 of 12032 cases (2.34 s per case, score 0.021 so far) and committed nothing. TestAcceptedSmallModelMMLUPro, which since 1d6d291e8 runs in the cycle's models lane, requires every model with an mmlu-pro record to carry both protocols, so the first cycle fails on OCR and withholds promotion. Options: (a) finish the chat run with a 9h budget (about 7.8h of GPU for a near-zero score on a model that is not a chat model); (b) scope the acceptance to the models its comment means (small and mid text chat models), reading a declared non-chat domain or task from the recipe rather than a name list; (c) run OCR's held-out quality on an OCR suite instead (OCRBench, a download awaiting the owner). Recommended: (b) with (c) once approved; the acceptance's own comment already exempts non-text models, and an OCR model's mmlu-pro chat score measures nothing users meet."
-        }
-      ]
-    },
-    {
       "id": "compatibility-into-validate",
       "title": "Fold cmd/compatibility into validate, re-verifying claims whose source moves",
       "owner": "master-lead",

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"runtime"
 	"time"
 
 	"overgo/internal/clioptions"
@@ -86,12 +85,8 @@ func trainE4B(flags *flag.FlagSet, args []string) (err error) {
 	return boundedRun{name: name, plan: plan, session: session,
 		step: func(int) (optimizer.ObservedStepResult, error) { return trainer.Step() },
 		loss: trainer.Loss,
-		// The window is the one record every update trains on. The run takes
-		// no more steps, so the gradient slab frees before the checkpoint
-		// widens the momentum.
+		// The window is the one record every update trains on.
 		publish: func(ctx context.Context) error {
-			trainer.ReleaseGradients()
-			runtime.GC()
 			return session.publishPlanned(ctx, *out, trainer, plan.Updates())
 		},
 	}.train(ctx)

@@ -268,6 +268,17 @@ func (m *Model) ParameterCount() int { return len(m.weights) }
 // tensor, named as the artifact names it.
 func (m *Model) OptimizerPlan() optimizer.Plan { return m.plan }
 
+// TrainedTensor is the trained values of the tensor the artifact names
+// name, a view of the master slab, when the model trains it.
+func (m *Model) TrainedTensor(name string) ([]float32, bool) {
+	for _, group := range m.plan.Groups() {
+		if group.Name == name {
+			return m.weights[group.Start:group.End], true
+		}
+	}
+	return nil, false
+}
+
 // SaveWeights writes every trainable tensor at path as a named F32
 // safetensors tensor with its [rows, cols] geometry: the weights a Snapshot
 // of the trainer stepping the model pairs with.

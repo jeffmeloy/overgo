@@ -49,27 +49,17 @@
       "title": "Training publishes a servable model plus a binary resume sidecar",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1611,
+        "reason": "the binary resume sidecar with its identity chain (+751) and the trained-model GGUF writer and registration (+860), net of the deleted JSON momentum path and the synthesized HF staging"
+      },
       "steps": [
-        {
-          "id": "servable-model",
-          "title": "Publish a training run's result as a model artifact the server, validate and the scorecard load directly",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestTrainedModelLoadsForServing$' -count=1",
-          "rationale": "Owner-agreed design, 2026-09-30. Today a checkpoint is checkpoint.json plus a model.safetensors of the trained tensors only; for E4B that means no embeddings. Nothing turns it back into a servable model: the text serving path never loads checkpoints, gguf convert takes Hugging Face directories, and gguf merge joins shards. So a trained text model cannot be served, benchmarked, put on the scorecard or promoted, and the loop's train, judge and promote chain has no candidate.\nThe published result is the trained model:\n- the source family's layout, in the training dtype (bf16 or f32);\n- quantizing for serving is a separate derived artifact;\n- frozen tensors are shared from the base by content address, not copied;\n- an adapter or LoRA run publishes an adapter artifact that references its base;\n- scratch constructions (the controller) already are models.\nLineage to the base model, dataset, program and run stays as small lineage records. The held-out judge, the scorecard and promotion all refer to this one model identity. That is the fix SQA-014 asks for, so training-judge-integrity/heldout-binds-result binds to it.\nServes: train, then judge and promote. Disappears: the checkpoint's trained-tensors-only weights file as the output of training. Evidence: the model artifact and its lineage. Batch: cmd/train and trainingworkflow reach the cuda and server lanes; no guards, since trainingprogram is off the surface; no media unless a pinned trainer file moves."
-        },
-        {
-          "id": "resume-sidecar",
-          "title": "Keep momentum, stream position and RNG in a binary resume sidecar bound to the model",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram -run '^TestResumeSidecarRoundTripsBitExact$' -count=1",
-          "rationale": "Momentum, the dataset stream position and RNG only continue a run; they are not the model.\nMeasured 2026-09-30 for E4B's 3,973,352,490 trained parameters:\n- the momentum trains as f32 (15.9 GB) but is widened to f64 (31.8 GB) and written as JSON;\n- that is 21.6 to 23.6 bytes per value compact (86 to 94 GB) and 28.6 to 30.6 indented (114 to 122 GB on disk);\n- one publish serializes it five times and parses it once: NewCheckpoint's JSONID, MarshalIndent, then Batch's LoadCheckpoint parse and JSONID, ValidateIdentity's clone and JSONID, and a marshal that only measures length;\n- that exceeds memory, and even with unlimited memory it is about 27 min of CPU.\nReplace it with a sidecar in the trained dtype:\n- raw f32 momentum, streamed to disk and hashed while it is written;\n- stream position and RNG in a small document;\n- the sidecar is bound to the model by digest, and a run's sidecar may be collected once the run is judged.\nDelete the widening, the inline momentum array, and Batch's re-parse and length marshal. The round trip stays bit-exact. This closes finding evidence:sha256:c27671c2; dispose it when this lands.\nBatch: trainingprogram and hostoptimizer reach the cuda and server lanes; no guards."
-        },
         {
           "id": "e4b-publishes",
           "title": "The real E4B route publishes a model that serves",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train -run '^TestE4BRoutePublishesAServableModel$' -count=1",
-          "rationale": "The proof end to end: train -route e4b on the real Gemma-4 E4B publishes its trained model and resume sidecar, and the server opens the model and answers a held-out prompt. The trainer landed in 096df8d2f but could not publish at this size. The hybrid 9B route should follow the same path (about 270 GB of JSON today). Batch: the cuda and e4b lanes."
+          "rationale": "The proof end to end: train -route e4b on the real Gemma-4 E4B publishes its trained model and resume sidecar, and the server opens the model and answers a held-out prompt. The trainer landed in 096df8d2f but could not publish at this size. The hybrid 9B route should follow the same path (about 270 GB of JSON today). Batch: the cuda and e4b lanes.\n\nresume-sidecar landed with servable-model in one batch (2026-09-30), since both reach all 8 lanes. What e4b-publishes needs, from that build: (1) frozen tensors shared by content address: write a split GGUF, one shard trained and one frozen (per_layer_token_embd 5.64 GB, token_embd 1.34 GB, rope_freqs), identify the frozen shard by digest first and hard-link it when the store already records a location; today about 7 GB would be copied per run. (2) Value parity: confirm LoadHostLayer returns untransformed GGUF values; a zero-step publish must rewrite zero tensors. (3) The gemma4 architecture profile registered in the route's store. (4) Cost: the f32 sidecar is 15.9 GB written once from the live buffer, and model.gguf about 23 GB, hashed twice (checkpoint identity and FromGGUF). (5) F32 serving uses more VRAM than bf16; quantizing for serving is a separate derived artifact. The test: one CUDA step, activate the registered candidate, open with OpenRunner, answer a held-out prompt. Other routes still to publish servable models: hybrid stack (qwen35, needs a tensor-name mapping to the GGUF), dense causal from an HF base (needs hfconvert as a derived artifact), -objective (publishes nothing; heldout-binds-result binds to the registered model), the E4B per-layer adapter route (needs a GGUF LoRA adapter artifact), and the media routes (each needs a writer in its family's layout)."
         }
       ]
     },

@@ -62,7 +62,7 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 	}
 	stream := id(artifact.KindProfile, "dpo-stream")
 	algorithm := id(artifact.KindProfile, "counter-rng")
-	checkpoint, err := NewCheckpoint(CheckpointSpec{
+	checkpoint, _ := publishTestCheckpoint(t, CheckpointSpec{
 		RunPlan: initial.ID(), Program: program.ID(), Model: policy,
 		Dataset: dataset, Split: split, Stream: DatasetState{Identity: stream, Position: 7},
 		Optimizer: opt.Snapshot(), ParameterCount: 1,
@@ -72,10 +72,7 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 		},
 		Processors: []artifact.ID{processor},
 		Lineage:    []LineageParent{{Artifact: reference, Relation: artifact.RelationDependsOn}},
-	}, id(artifact.KindTensorSet, "dpo-weights"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	})
 	runSpec.Initial = InitialStateSpec{Checkpoint: checkpoint.ID()}
 	resumed, err := CompileTrainingRunPlan(runSpec)
 	if err != nil {

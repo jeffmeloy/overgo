@@ -226,7 +226,7 @@ func (workspace *trainingWorkspace) outputPath(name string) (string, error) {
 // publish records the run, its trace and its decision: approved or refused
 // on the held-out verdict when one judged the run, else awaiting evaluation.
 func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, policy, reference, dataset artifact.ID, checkpoint trainingprogram.Checkpoint, path string, dpo []trainingprogram.DPOObservation, grpo []trainingprogram.GRPOObservation, heldout trainingworkflow.HeldoutResult, judged bool) (operation.Completion, error) {
-	data, err := checkpoint.Marshal()
+	document, err := checkpoint.Content()
 	if err != nil {
 		return operation.Completion{}, err
 	}
@@ -238,7 +238,7 @@ func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifa
 	if err != nil {
 		return operation.Completion{}, err
 	}
-	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: checkpoint.ID(), Size: uint64(len(data))})
+	batch.Artifacts = append(batch.Artifacts, document.Descriptor)
 	var evaluators []artifact.ID
 	seen := make(map[artifact.ID]struct{})
 	for _, observation := range grpo {

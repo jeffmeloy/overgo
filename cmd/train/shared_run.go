@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"overgo/internal/artifact"
@@ -87,17 +88,17 @@ func (run boundedRun) descend() error {
 }
 
 // routeSession is a route's supervised model-session: the recipe the route
-// bootstrapped for its model, that recipe's resolved authority, the text
-// dataset a token recipe grounds, the scratch construction a model built
-// from nothing starts from, and the observer recording the run. The zero
-// value supervises nothing.
+// bootstrapped for its model, that recipe's resolved authority, the
+// model's weights and the text dataset a token recipe grounds, the scratch
+// construction a model built from nothing starts from, and the observer
+// recording the run. The zero value supervises nothing.
 type routeSession struct {
-	store         *overgodb.Store
-	model, recipe artifact.ID
-	authority     trainingworkflow.SessionAuthority
-	dataset       string
-	scratch       *trainingprogram.ScratchConstruction
-	observer      *trainingworkflow.Observer
+	store            *overgodb.Store
+	model, recipe    artifact.ID
+	authority        trainingworkflow.SessionAuthority
+	weights, dataset string
+	scratch          *trainingprogram.ScratchConstruction
+	observer         *trainingworkflow.Observer
 }
 
 // openSession activates the token-training recipe bootstrapped over dataset
@@ -122,7 +123,7 @@ func tokenSession(ctx context.Context, store *overgodb.Store, weights, dataset s
 	if err != nil {
 		return routeSession{}, err
 	}
-	session.dataset = dataset
+	session.weights, session.dataset = weights, dataset
 	return session, nil
 }
 
@@ -223,18 +224,38 @@ func (session routeSession) publishPlanned(ctx context.Context, target string, t
 	return session.publishWeights(ctx, target, program, trainer, stream)
 }
 
+// servable is a trainer that names each tensor it trains as its GGUF base
+// names it, so its run publishes the trained model in the base's layout.
+type servable interface {
+	planned
+	TrainedTensor(name string) ([]float32, bool)
+}
+
 // publishWeights publishes, as a checkpoint at target, what trainer trained
 // under program; stream is where the training stopped in the recipe
-// objective's dataset.
+// objective's dataset. A servable trainer over a GGUF base publishes the
+// trained model there, registered as the candidate the server opens.
 func (session routeSession) publishWeights(ctx context.Context, target string, program trainingprogram.TrainingProgram, trainer weightWriter, stream trainingdata.StreamState) error {
+	model, served := trainer.(servable)
+	served = served && strings.EqualFold(filepath.Ext(session.weights), ".gguf")
 	checkpoint, err := session.publish(ctx, target, program, trainer.Snapshot(), stream, func(stage string) error {
+		if served {
+			return trainingworkflow.WriteTrainedModel(session.weights, filepath.Join(stage, trainingprogram.CheckpointModel), model.OptimizerPlan().GroupCount(), model.TrainedTensor)
+		}
 		return trainer.SaveWeights(filepath.Join(stage, trainingprogram.CheckpointWeights))
 	})
 	if err != nil {
 		return err
 	}
 	fmt.Printf("checkpoint=%s written to %s\n", checkpoint.ID(), target)
-	return nil
+	if !served {
+		return nil
+	}
+	candidate, err := trainingworkflow.PublishTrainedModel(ctx, session.store, target, checkpoint)
+	if err == nil {
+		fmt.Printf("model=%s candidate=%s (not activated)\n", candidate.Inventory.Manifest.ID, candidate.Definition.ID)
+	}
+	return err
 }
 
 // finish records the run's outcome as the session observation; the run's own
@@ -303,7 +324,7 @@ func (session routeSession) publish(ctx context.Context, target string, program 
 	}
 	checkpoint, err := trainingprogram.PublishCheckpoint(target, trainingprogram.CheckpointSpec{
 		RunPlan: plan.ID(), Program: program.ID(), Model: session.model, Dataset: objective.Dataset, Split: objective.Split,
-		Stream: trainingprogram.DatasetState(stream), Optimizer: state, ParameterCount: len(state.Momentum),
+		Stream: trainingprogram.DatasetState(stream), Optimizer: state, ParameterCount: state.Parameters(),
 		RNG: []trainingprogram.RNGState{
 			{Name: "augmentation", Algorithm: rng, Counter: uint64(state.Step)}, {Name: "data", Algorithm: rng, Counter: stream.Position},
 		},

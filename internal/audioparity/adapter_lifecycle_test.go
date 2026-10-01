@@ -290,8 +290,11 @@ func TestASRAdapterPublicationAcceptance(t *testing.T) {
 	}
 	batch, err := checkpoint.Batch("adapter/checkpoint", directory)
 	l.commit(t, batch, err)
+	// The weights, the checkpoint document, and its resume sidecar's
+	// document and momentum.
+	const publicationFiles = 4
 	entries, err := os.ReadDir(directory)
-	if err != nil || len(entries) != 2 {
+	if err != nil || len(entries) != publicationFiles {
 		t.Fatalf("adapter publication must contain only weights and checkpoint state: %v", err)
 	}
 	loaded, err := l.fixture.encoder.WithOutputProjection(t.Context(), directory, l.binding, checkpoint.Weights)

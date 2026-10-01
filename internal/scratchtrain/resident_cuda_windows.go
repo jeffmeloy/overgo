@@ -24,7 +24,6 @@ import (
 	"overgo/internal/optimizer"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/tensor"
-	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/trainingprogram"
 )
@@ -64,7 +63,7 @@ func (s TrainedState) Model() artifact.ID { return s.model }
 // Snapshot copies the optimizer state the next step continues from.
 func (s TrainedState) Snapshot() optimizer.State {
 	state := s.state
-	state.Momentum = slices.Clone(state.Momentum)
+	state.MomentumF32 = slices.Clone(state.MomentumF32)
 	return state
 }
 
@@ -270,7 +269,7 @@ func (t *ResidentTrainer) Snapshot() (weights, gradients, momentum []float32, er
 
 // Trained copies what the trainer trained to the host: the weights under
 // the construction's optimizer plan and the Muon state its last step left,
-// the f32 device momentum widened exactly.
+// in the f32 the device steps.
 func (t *ResidentTrainer) Trained() (TrainedState, error) {
 	weights, _, momentum, err := t.Snapshot()
 	if err != nil {
@@ -282,7 +281,7 @@ func (t *ResidentTrainer) Trained() (TrainedState, error) {
 	}
 	plan := t.construction.OptimizerPlan()
 	return TrainedState{model: model, plan: plan, weights: weights, state: optimizer.State{
-		PlanIdentity: plan.Identity(), Config: t.config, Step: t.step, Momentum: dtype.ConvertSlice[float64](momentum),
+		PlanIdentity: plan.Identity(), Config: t.config, Step: t.step, MomentumF32: momentum,
 	}}, nil
 }
 

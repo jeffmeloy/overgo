@@ -14,12 +14,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/densecausal"
+	artifactexport "overgo/internal/export"
 	"overgo/internal/hostoptimizer"
-
+	"overgo/internal/modelintake"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensorcatalog"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
@@ -105,7 +107,8 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 		if err != nil {
 			return Result{}, fmt.Errorf("training workflow: load checkpoint: %w", err)
 		}
-		inputDirectory = request.ResumeDirectory
+		// A run over a GGUF resumes from the trained model it published.
+		inputDirectory = trainedInput(request.ResumeDirectory)
 		resumeStream = &trainingdata.StreamState{Identity: resumed.Stream.Identity, Position: resumed.Stream.Position}
 	}
 	modelID := resumed.Model
@@ -248,6 +251,13 @@ func (session denseSession) run() (Result, error) {
 		session.inputDirectory, session.request.OutputDirectory, session.model, authority, state,
 	)
 	result.authority = authority
+	// A trained GGUF registers where the run's evidence goes, as the
+	// candidate the server, validate and the scorecard open.
+	if err == nil && isGGUFModelInput(session.inputDirectory) && session.request.Observations != nil {
+		var candidate modelintake.Candidate
+		candidate, err = PublishTrainedModel(session.ctx, session.request.Observations, session.request.OutputDirectory, result.Checkpoint)
+		result.Candidate = candidate.Definition.ID
+	}
 	return result, err
 }
 
@@ -387,17 +397,28 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 	return result, state, err
 }
 
+// publishCheckpoint publishes the trained model in its source's layout
+// with the checkpoint that resumes it: a GGUF source's trained GGUF, which
+// the server opens, or a safetensors directory with its config and
+// tokenizer.
 func publishCheckpoint(source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState) (trainingprogram.Checkpoint, error) {
 	spec, err := authority.checkpointSpec(state)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
 	checkpoint, err := trainingprogram.PublishCheckpoint(target, spec, func(stage string) error {
+		if isGGUFModelInput(source) {
+			return WriteTrainedModel(source, filepath.Join(stage, trainingprogram.CheckpointModel), len(model.Weights), func(name string) ([]float32, bool) {
+				trained, named := tensorcatalog.HFDenseTensorName(name)
+				values, found := model.Weights[trained]
+				return values, named && found
+			})
+		}
 		metadata := map[string]string{"format": "pt", "trainer": "overgo"}
 		if err := safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights), model.Weights, model.Shapes, metadata); err != nil {
 			return err
 		}
-		return stageCheckpointMetadata(source, stage, model)
+		return artifactexport.CopyFiles(source, stage, []string{"config.json", "tokenizer.json"})
 	})
 	if err != nil {
 		return trainingprogram.Checkpoint{}, fmt.Errorf("training workflow: publish checkpoint: %w", err)
@@ -628,7 +649,7 @@ func (authority compiledAuthority) checkpointSpec(state densecausal.TrainState) 
 		RunPlan: authority.runPlan, Program: authority.program, Model: authority.model,
 		Dataset: authority.data.Dataset, Split: authority.data.Split,
 		Stream:    trainingprogram.DatasetState{Identity: authority.stream.Identity, Position: authority.stream.Position},
-		Optimizer: state, ParameterCount: len(state.Momentum), RNG: rng,
+		Optimizer: state, ParameterCount: state.Parameters(), RNG: rng,
 		Processors: []artifact.ID{authority.data.Processor}, Projectors: authority.projectors, Codecs: authority.codecs,
 		Lineage: authority.lineage,
 	}, nil

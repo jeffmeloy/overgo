@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -97,6 +98,10 @@ func TestTrainingLoadsGGUFWeights(t *testing.T) {
 	}
 	defer store.Close()
 	ctx := t.Context()
+	// The trained model registers against the store's architecture profiles.
+	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
+		t.Fatal(err)
+	}
 	recipeID, err := BootstrapTokenRecipe(ctx, store, modelPath, datasetPath)
 	if err != nil {
 		t.Fatal(err)
@@ -123,4 +128,11 @@ func TestTrainingLoadsGGUFWeights(t *testing.T) {
 	if !result.Observation.Valid() {
 		t.Fatal("gguf training recorded no session observation")
 	}
+	// A run over a GGUF publishes the trained model in the GGUF's layout and
+	// resumes from it with its resume sidecar exactly as an uninterrupted
+	// run continues.
+	verifyWorkflowResume(t, filepath.Join(root, "resume"), Request{
+		Repository: store, Recipe: recipeID, Observations: store,
+		ModelDirectory: modelPath, DatasetPath: datasetPath, MaximumSequence: 16, Host: true,
+	})
 }

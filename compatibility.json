@@ -188,7 +188,7 @@
      "path": "internal/audioparity/audio_recovery_test.go",
      "contains": "func TestAudioCancellationAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:b64801bf05091da071e9af0778607e120ce77f74cdf14323956d273156d14cbd"
+     "identity": "evidence:sha256:b8dbdc4a8205c0b82be1bd3225b2b39ddb5be07e90f9ea7a4e864d895ccaf693"
     },
     {
      "path": "internal/speechrecognition/session.go",
@@ -210,7 +210,7 @@
      "path": "internal/audioparity/audio_recovery_test.go",
      "contains": "func TestAudioPublicationRecoveryAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:b64801bf05091da071e9af0778607e120ce77f74cdf14323956d273156d14cbd"
+     "identity": "evidence:sha256:b8dbdc4a8205c0b82be1bd3225b2b39ddb5be07e90f9ea7a4e864d895ccaf693"
     },
     {
      "path": "internal/trainingworkflow/input_projection.go",
@@ -319,7 +319,7 @@
      "contains": "func TestASRAdapterPublicationAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:733ece637c270c44db078e5e4a3056ac1fe84e3d822045d84142285b30a136ab"
+     "identity": "evidence:sha256:abfea550d00c7d15d02b601d4148547b120a35ca2b6457f54ec85ae0e2b12031"
     }
    ],
    "id": "asr-cpu-adapter-publication",
@@ -341,7 +341,7 @@
      "contains": "func TestASRExactResumeAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:733ece637c270c44db078e5e4a3056ac1fe84e3d822045d84142285b30a136ab"
+     "identity": "evidence:sha256:abfea550d00c7d15d02b601d4148547b120a35ca2b6457f54ec85ae0e2b12031"
     }
    ],
    "id": "asr-cpu-exact-adapter-resume",

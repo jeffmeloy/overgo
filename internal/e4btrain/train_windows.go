@@ -6,7 +6,6 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/devicegrad"
 	"overgo/internal/optimizer"
-	"overgo/internal/tensor/dtype"
 )
 
 // Trainer takes full-parameter steps of a Model on one device worker: every
@@ -38,9 +37,6 @@ func NewTrainer(worker *device.Worker, model *Model, config optimizer.Config) (*
 // Step takes one full-parameter update on the window and reports the loss
 // and gradient norm it stepped from.
 func (t *Trainer) Step() (optimizer.ObservedStepResult, error) {
-	if t.gradients == nil {
-		return optimizer.ObservedStepResult{}, errors.New("e4b trainer: the gradient slab was released; the run takes no more steps")
-	}
 	loss, err := t.differentiate(t.attention)
 	if err != nil {
 		return optimizer.ObservedStepResult{}, err
@@ -65,20 +61,9 @@ func (t *Trainer) attention(dq, dk, dv, q, k, v, dOut []float32, seq, heads, kvH
 	return nil
 }
 
-// ReleaseGradients frees the gradient slab once the run takes no more
-// steps, so the widened momentum a checkpoint records takes its place in
-// host memory rather than joining it; a Step after it refuses.
-func (t *Trainer) ReleaseGradients() {
-	t.gradients = nil
-	clear(t.layerGradients)
-	t.globalGradients = globalParameters{}
-}
-
-// Snapshot is the optimizer state the next Step continues from, its f32
-// momentum widened exactly.
+// Snapshot is the optimizer state the next Step continues from. Its f32
+// momentum is the trainer's own buffer, not a copy: at E4B's size a copy
+// is as large as the weights, and the next Step advances it.
 func (t *Trainer) Snapshot() optimizer.State {
-	return optimizer.State{
-		PlanIdentity: t.plan.Identity(), Config: t.config, Step: t.step,
-		Momentum: dtype.ConvertSlice[float64](t.momentum),
-	}
+	return optimizer.State{PlanIdentity: t.plan.Identity(), Config: t.config, Step: t.step, MomentumF32: t.momentum}
 }

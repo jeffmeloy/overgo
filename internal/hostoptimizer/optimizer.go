@@ -6,15 +6,24 @@ import (
 	"errors"
 	"fmt"
 	"math"
+
+	"overgo/internal/checked"
 )
 
-// State is the portable optimizer progress and momentum.
+// State is the portable optimizer progress and momentum. The momentum keeps
+// the dtype its trainer steps: Momentum holds the host optimizer's f64
+// values, MomentumF32 a device stepper's f32 values, and a state holds one.
 type State struct {
 	PlanIdentity string    `json:"plan_identity"`
 	Config       Config    `json:"config"`
 	Step         int       `json:"step"`
 	Momentum     []float64 `json:"momentum"`
+	MomentumF32  []float32 `json:"momentum_f32,omitempty"`
 }
+
+// Parameters is the number of parameters the momentum covers, in whichever
+// dtype it holds.
+func (s State) Parameters() int { return len(s.Momentum) + len(s.MomentumF32) }
 
 // StepResult holds the committed facts of one step.
 type StepResult struct {
@@ -124,7 +133,8 @@ func (o *Optimizer) Snapshot() State {
 	}
 }
 
-// Restore replaces the momentum and step from a validated state.
+// Restore replaces the momentum and step from a validated state; a device
+// stepper's f32 momentum widens exactly.
 func (o *Optimizer) Restore(state State) error {
 	if err := ValidateState(state, o.plan.Identity(), len(o.momentum)); err != nil {
 		return err
@@ -134,6 +144,9 @@ func (o *Optimizer) Restore(state State) error {
 	}
 	o.step = state.Step
 	copy(o.momentum, state.Momentum)
+	for index, value := range state.MomentumF32 {
+		o.momentum[index] = float64(value)
+	}
 	return nil
 }
 
@@ -152,11 +165,16 @@ func ValidateState(state State, planIdentity string, parameterCount int) error {
 	if state.Step < 0 {
 		return errors.New("optimizer state: negative step")
 	}
-	if parameterCount < 0 || len(state.Momentum) != parameterCount {
+	if parameterCount < 0 || state.Parameters() != parameterCount || len(state.Momentum) != 0 && len(state.MomentumF32) != 0 {
 		return errors.New("optimizer state: momentum length mismatch")
 	}
 	for _, value := range state.Momentum {
 		if math.IsNaN(value) || math.IsInf(value, 0) {
+			return errors.New("optimizer state: non-finite momentum")
+		}
+	}
+	for _, value := range state.MomentumF32 {
+		if !checked.Finite32(value) {
 			return errors.New("optimizer state: non-finite momentum")
 		}
 	}

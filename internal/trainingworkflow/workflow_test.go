@@ -422,11 +422,11 @@ func verifyWorkflowResume(t *testing.T, root string, request Request) {
 			}
 		}
 	}
-	wantModel, err := densecausal.Load(filepath.Join(root, "uninterrupted"))
+	wantModel, err := loadTrainableModel(filepath.Join(root, "uninterrupted"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotModel, err := densecausal.Load(filepath.Join(root, "resumed"))
+	gotModel, err := loadTrainableModel(filepath.Join(root, "resumed"))
 	if err != nil {
 		t.Fatal(err)
 	}

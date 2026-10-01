@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"overgo/internal/artifact"
+	"overgo/internal/modelartifact"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 )
@@ -176,6 +177,39 @@ func audioTaskModules() []recipe.Module {
 // decoded-audio contract, processor declaration, tokenizer, and tensor catalog.
 func TranscriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID artifact.ID) (recipe.Definition, error) {
 	return transcriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID, artifact.ID{})
+}
+
+// transcriptionTokenizerFile is the tokenizer a speech recognizer reads.
+const transcriptionTokenizerFile = "tokenizer.json"
+
+// TranscriptionTokenizer is the tokenizer a speech checkpoint's manifest binds
+// as tokenizer.json, the one its recognizer reads.
+func TranscriptionTokenizer(manifest artifact.Manifest) (artifact.ID, bool) {
+	for _, component := range manifest.Components {
+		if component.Role == artifact.ComponentTokenizer && component.Name == transcriptionTokenizerFile {
+			return component.Artifact, true
+		}
+	}
+	return artifact.ID{}, false
+}
+
+// CompileTranscription compiles a speech checkpoint into the transcription
+// recipe the speech runtime loads: the model, tokenizer and tensor inventory
+// of its Hugging Face inventory, the execution profile that declares how it
+// runs, and the audio contract that profile's frontend reads at its sample
+// rate and frame geometry. It returns the recipe and the contract, which
+// publishes with the profile beside the inventory.
+func CompileTranscription(inventory modelartifact.Inventory, profile artifact.ID, sampleRate uint64, frame recipecontract.AudioFrameGeometry) (recipe.Definition, AudioContractDocument, error) {
+	tokenizer, found := TranscriptionTokenizer(inventory.Manifest)
+	if !found {
+		return recipe.Definition{}, AudioContractDocument{}, errors.New("model recipe: the speech checkpoint binds no tokenizer.json")
+	}
+	contract, err := NewAudioContract(recipecontract.AudioFormat{SampleRate: sampleRate, Channels: 1, Encoding: "pcm-f32le"}, frame, artifact.ID{}, artifact.ID{})
+	if err != nil {
+		return recipe.Definition{}, AudioContractDocument{}, err
+	}
+	definition, err := TranscriptionDefinition(inventory.Manifest.ID, contract.ID, profile, tokenizer, inventory.TensorInventory.ID)
+	return definition, contract, err
 }
 
 // ActivityDefinition binds speech activity execution to its exact model,

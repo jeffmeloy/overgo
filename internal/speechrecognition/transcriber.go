@@ -137,8 +137,8 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 	if err != nil {
 		return nil, err
 	}
-	if inventory.Manifest.ID != modelID || inventory.TensorInventory.ID != inventoryID ||
-		!manifestBindsTokenizer(inventory.Manifest, tokenizerID) {
+	if tokenizer, found := modelrecipe.TranscriptionTokenizer(inventory.Manifest); inventory.Manifest.ID != modelID ||
+		inventory.TensorInventory.ID != inventoryID || !found || tokenizer != tokenizerID {
 		return nil, errors.New("speech recognition: model artifacts differ from recipe dependencies")
 	}
 	storedManifest, found, err := repository.Manifest(ctx, modelID)
@@ -458,15 +458,6 @@ func requireRecipeDependencyLineage(ctx context.Context, reader artifact.Reader,
 		}
 	}
 	return nil
-}
-
-func manifestBindsTokenizer(manifest artifact.Manifest, tokenizerID artifact.ID) bool {
-	for _, component := range manifest.Components {
-		if component.Role == artifact.ComponentTokenizer && component.Name == "tokenizer.json" && component.Artifact == tokenizerID {
-			return true
-		}
-	}
-	return false
 }
 
 func uniqueIDs(ids ...artifact.ID) []artifact.ID {

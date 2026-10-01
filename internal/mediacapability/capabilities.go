@@ -167,8 +167,7 @@ var Catalog = map[recipe.Task]Capability{
 	recipe.TaskSpeech: inventoryCapability(speechInventory, capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
 		"speech", speechsynth.ValidateSynthesisRequest,
 		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)),
-	recipe.TaskTranscription: inventoryCapability(transcriptionInventory, capabilityruntime.JSONScalar[speechrecognition.TranscriptionRequest, *speechrecognition.Recognizer, string](
-		"transcription", speechrecognition.ValidateTranscriptionRequest, loadRecognizer, speechrecognition.RegisterRuntime)),
+	recipe.TaskTranscription: transcriptionCapability(),
 	recipe.TaskActivityDetection: inventoryCapability(activityInventory, capabilityruntime.JSONScalar[speechactivity.DetectionRequest, *speechactivity.OfflineDetector, []recipecontract.ActivitySegment](
 		"activity-detection", speechactivity.ValidateDetectionRequest, loadActivityDetector, speechactivity.RegisterRuntime)),
 	recipe.TaskImageGen: imageCapability(),
@@ -208,47 +207,89 @@ func safetensorsInventory(context, path, config string, companions ...modelartif
 	return modelartifact.FromFiles(path, specs)
 }
 
-// transcriptionInventory is a speech recognition checkpoint: its weights, the
-// configuration that names the family its declarations answer for, and the
-// tokenizer that reads its vocabulary back as text.
-func transcriptionInventory(path string) (modelartifact.Inventory, error) {
-	return safetensorsInventory("transcription", path, "config.json",
-		modelartifact.FileSpec{Path: "tokenizer.json", Name: "tokenizer", Role: artifact.ComponentTokenizer})
+// transcriptionCapability registers a speech recognition checkpoint as the
+// transcription recipe the speech runtime loads: its Hugging Face inventory,
+// the identity that runtime recomputes, compiled with the execution profile
+// and audio contract its reviewed declarations give. It executes through the
+// same declarations.
+func transcriptionCapability() Capability {
+	return Capability{
+		Resolve: func(path string) (Source, error) {
+			inventory, err := modelartifact.FromHFPath(path)
+			if err != nil {
+				return Source{}, err
+			}
+			return Source{Inventory: inventory, Define: func(artifact.ID) (recipe.Definition, []artifact.Content, error) {
+				spec, err := reviewedRecognizer(path)
+				if err != nil {
+					return recipe.Definition{}, nil, err
+				}
+				profile, err := spec.Profile()
+				if err != nil {
+					return recipe.Definition{}, nil, err
+				}
+				definition, contract, err := modelrecipe.CompileTranscription(inventory, profile.ID, uint64(profile.Frontend.SampleRate), profile.Frontend.Geometry)
+				if err != nil {
+					return recipe.Definition{}, nil, err
+				}
+				var facts []artifact.Content
+				for _, fact := range []func() (artifact.Content, error){profile.Content, contract.Content} {
+					content, err := fact()
+					if err != nil {
+						return recipe.Definition{}, nil, err
+					}
+					facts = append(facts, content)
+				}
+				return definition, facts, nil
+			}}, nil
+		},
+		Execute: capabilityruntime.JSONScalar[speechrecognition.TranscriptionRequest, *speechrecognition.Recognizer, string](
+			"transcription", speechrecognition.ValidateTranscriptionRequest, loadRecognizer, speechrecognition.RegisterRuntime),
+	}
 }
 
-// loadRecognizer resolves the reviewed declarations for what the checkpoint
-// declares itself to be, and refuses a checkpoint no reviewed declaration
-// answers for rather than loading it against another family's bindings.
-func loadRecognizer(ctx context.Context, _ artifact.Repository, path string, _ recipe.Program, request speechrecognition.TranscriptionRequest) (*speechrecognition.Recognizer, error) {
+// reviewedRecognizer resolves the reviewed declarations for what the
+// checkpoint declares itself to be, and refuses a checkpoint no reviewed
+// declaration answers for rather than binding it to another family's.
+func reviewedRecognizer(path string) (speechrecognition.RecognizerSpec, error) {
 	var declared struct {
 		ModelType string `json:"model_type"`
 	}
 	if err := jsonfile.Decode(filepath.Join(path, "config.json"), &declared); err != nil {
-		return nil, fmt.Errorf("transcription: checkpoint configuration: %w", err)
+		return speechrecognition.RecognizerSpec{}, fmt.Errorf("transcription: checkpoint configuration: %w", err)
 	}
 	reviewed, known, err := audioparity.RecognizerSpecFor(declared.ModelType)
 	if err != nil {
-		return nil, err
+		return speechrecognition.RecognizerSpec{}, err
 	}
 	if !known {
-		return nil, fmt.Errorf("transcription: no reviewed declaration answers for model type %q", declared.ModelType)
+		return speechrecognition.RecognizerSpec{}, fmt.Errorf("transcription: no reviewed declaration answers for model type %q", declared.ModelType)
 	}
 	var declaration speechrecognition.Declaration
 	if err := strictjson.DecodeBytes(reviewed.Execution, &declaration); err != nil {
-		return nil, fmt.Errorf("transcription: %s execution declaration: %w", declared.ModelType, err)
+		return speechrecognition.RecognizerSpec{}, fmt.Errorf("transcription: %s execution declaration: %w", declared.ModelType, err)
 	}
 	var transducer *speechrecognition.TransducerBinding
 	if len(reviewed.Transducer) != 0 {
 		var binding speechrecognition.TransducerBinding
 		if err := strictjson.DecodeBytes(reviewed.Transducer, &binding); err != nil {
-			return nil, fmt.Errorf("transcription: %s decoder declaration: %w", declared.ModelType, err)
+			return speechrecognition.RecognizerSpec{}, fmt.Errorf("transcription: %s decoder declaration: %w", declared.ModelType, err)
 		}
 		transducer = &binding
 	}
-	return speechrecognition.LoadRecognizer(ctx, path, speechrecognition.RecognizerSpec{
+	return speechrecognition.RecognizerSpec{
 		Declaration: declaration, Frontend: reviewed.Frontend,
 		Grouping: reviewed.Grouping, Blank: reviewed.Blank, Transducer: transducer,
-	}, request.MemoryBytes)
+	}, nil
+}
+
+// loadRecognizer loads the checkpoint against its reviewed declarations.
+func loadRecognizer(ctx context.Context, _ artifact.Repository, path string, _ recipe.Program, request speechrecognition.TranscriptionRequest) (*speechrecognition.Recognizer, error) {
+	spec, err := reviewedRecognizer(path)
+	if err != nil {
+		return nil, err
+	}
+	return speechrecognition.LoadRecognizer(ctx, path, spec, request.MemoryBytes)
 }
 
 // activityInventory is a whole-recording activity checkpoint: its weights and

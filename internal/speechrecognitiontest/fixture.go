@@ -102,23 +102,12 @@ func PublishModel(t *testing.T, store artifact.Repository, directory string, pro
 		}
 	}
 	commit(inventory.Batch("transcription-fixture/model/" + inventory.Manifest.ID.String()))
-	var tokenizer artifact.ID
-	for _, component := range inventory.Manifest.Components {
-		if component.Name == "tokenizer.json" {
-			tokenizer = component.Artifact
-		}
-	}
-	contract, err := modelrecipe.NewAudioContract(
-		recipecontract.AudioFormat{SampleRate: uint64(profile.Frontend.SampleRate), Channels: 1, Encoding: "pcm-f32le"}, profile.Frontend.Geometry, artifact.ID{}, artifact.ID{})
+	definition, contract, err := modelrecipe.CompileTranscription(inventory, profile.ID, uint64(profile.Frontend.SampleRate), profile.Frontend.Geometry)
 	if err != nil {
 		t.Fatal(err)
 	}
 	commit(profile.Batch("transcription-fixture/profile/" + profile.ID.String()))
 	commit(contract.Batch("transcription-fixture/contract/" + contract.ID.String()))
-	definition, err := modelrecipe.TranscriptionDefinition(inventory.Manifest.ID, contract.ID, profile.ID, tokenizer, inventory.TensorInventory.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
 	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "transcription-fixture/recipe/"+definition.ID.String(), definition); err != nil {
 		t.Fatal(err)
 	}

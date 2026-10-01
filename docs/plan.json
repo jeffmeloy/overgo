@@ -355,6 +355,10 @@
       "title": "Measure transcription's unmeasured cells",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 320,
+        "reason": "the full speech-recognition recipe compile in modelrecipe and the transcription capability's definer that feeds it from the reviewed declarations"
+      },
       "steps": [
         {
           "id": "do",

@@ -44,18 +44,11 @@
       "status": "open",
       "steps": [
         {
-          "id": "media-campaign",
-          "title": "Fold the media campaign's receipts into one committed record, if one can replace several pins without weakening them",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestMediaCampaignIsOneRecord$' -count=1",
-          "rationale": "S4 (owner decision 2026-09-26: evidence stays in git): all digests, the capacity prior_bundles chain, coverage Inputs and registry deltas land in one commit. It is a pinned-evidence move. Batch: lanes none; media reconciliation yes."
-        },
-        {
           "id": "fold",
           "title": "Fold the rest of cmd/compatibility into cmd/validate and delete it",
           "status": "open",
           "verify": "go run ./cmd/validate -claims \u0026\u0026 go test ./cmd/validate -count=1 -run '^TestCompatibilityCommandIsGone$'",
-          "rationale": "S5: media, samples, census, record-verification, the model report, and every test and testdata move into cmd/validate. In the same commit: the internal/landing pins.go glob, validate media_receipt's mediaAcceptancePackage, the testutil parallel list, the processing test's source paths, and api-manifest. The coverage proofs whose Verify strings name ./cmd/compatibility are re-acquired by running them (two include smoke-lane GPU runs), then re-pinned. Batch: lanes none; the test-stage cost moves into validate.\n\nSQA 2026-09-30: SQA-019 (P2) removes weak source censuses, sharing only classifications with useful consumers. SQA-065 (P2): share identical fresh claim verifiers within reverifyClaims through the result owner."
+          "rationale": "S5: media, samples, census, record-verification, the model report, and every test and testdata move into cmd/validate. In the same commit: the internal/landing pins.go glob, validate media_receipt's mediaAcceptancePackage, the testutil parallel list, the processing test's source paths, and api-manifest. The coverage proofs whose Verify strings name ./cmd/compatibility are re-acquired by running them (two include smoke-lane GPU runs), then re-pinned. Batch: lanes none; the test-stage cost moves into validate.\n\nSQA 2026-09-30: SQA-019 (P2) removes weak source censuses, sharing only classifications with useful consumers. SQA-065 (P2): share identical fresh claim verifiers within reverifyClaims through the result owner.\n\nmedia-campaign retired 2026-09-30, measured and not done. One committed record cannot replace the campaign's pins without weakening them:\n- Ten receipts are pinned by raw bytes in the accepted image-video coverage record. Deleting them makes a fold's own landing stale, unless that accepted proof is re-acquired.\n- media_reviewed_deltas.json and image_video_merged.json change by design. Sharing one digest with frozen receipts would let a routine re-pin re-accept frozen evidence.\n- The gate reads capacity, merged and the registry by path.\n- Report code reads protocol, validation and assertions.\n- The 30 samples are binary byte oracles.\nOnly 9 canonical-only receipts could fold (baseline, capacity_protocol, costs, inventory, memory, processing, processing_protocol, shared_components, transfers), at the cost of costs' raw input identity. When the fold step moves cmd/compatibility into validate, these files move as they are."
         },
         {
           "id": "evidence",
@@ -100,14 +93,11 @@
       "title": "Land exactly the checked bytes, and honour every recorded stop",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 244,
+        "reason": "one-candidate: the gate checks and publishes one prepared candidate tree with compare-and-set; a failed publication writes nothing. Measured +244 nodes (SQA-034)."
+      },
       "steps": [
-        {
-          "id": "one-candidate",
-          "title": "Publish the candidate the gate checked, and undo only what the landing wrote",
-          "status": "open",
-          "verify": "go test ./internal/landing -run '^TestLandingPublishesTheCheckedCandidate$' -count=1",
-          "rationale": "SQA-034 (P1): the gate checks the dirty tree, then stages the live tree late, so bytes changed during a gate would be committed unverified; and a failed publication restores the whole plan unconditionally, which can overwrite concurrent plan work. Bind validation and publication to one prepared candidate through the Git index and tree with the expected parent. Recovery undoes only the version this landing wrote. Extend the small landing fixture; no transaction framework. Batch: internal/landing reaches no lane."
-        },
         {
           "id": "stop-reconciliation",
           "title": "Reconcile store-backed operator stops left at the stop-file cutover",

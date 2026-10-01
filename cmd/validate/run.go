@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
+	"time"
 
+	"overgo/internal/evaluation"
 	"overgo/internal/processcontrol"
 )
 
@@ -21,13 +24,17 @@ const (
 	guardModelBudget = "25m"
 )
 
+// benchmarkBudget bounds one benchmark re-acquisition at evaluate's own
+// ceiling on a pass; a benchmark with no measured wall is ordered by it.
+const benchmarkBudget = 6 * time.Hour
+
 // reacquireCommand builds the command that re-acquires one validation cell's
 // evidence into store, the one store this command selected and read, so the
 // producer never resolves a default of its own. It binds only the commands
 // whose invocation is fully determined by the cell today; an unbound kind,
-// such as an accuracy benchmark, returns an error so -run reports incomplete
-// coverage rather than fabricating a wrong command. A DNA model's guard cell
-// is owned by its smoke run, never the text guard.
+// such as a projection or training proof, returns an error so -run reports
+// incomplete coverage rather than fabricating a wrong command. A DNA model's
+// guard cell is owned by its smoke run, never the text guard.
 func reacquireCommand(cell ModelValidation, store string) (string, []string, error) {
 	switch cell.Validation {
 	case "guard":
@@ -50,9 +57,23 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 			return "", nil, errors.New("a capability measurement needs the model's location")
 		}
 		return "go", []string{"run", "./cmd/recipe", "measure", "-repo", store, "-task", string(cell.Kind), cell.Location}, nil
-	default:
+	}
+	if !slices.Contains(benchmarkFamilies, cell.Validation) {
 		return "", nil, fmt.Errorf("no re-acquisition command bound for %s/%s", cell.Kind, cell.Validation)
 	}
+	if cell.Location == "" {
+		return "", nil, errors.New("a benchmark needs the model's location")
+	}
+	// A benchmark is one evaluate worker over the model and the family's
+	// suite, under the protocol of the record it replaces.
+	args := []string{
+		"run", "./cmd/evaluate", "-all", "-worker", "-repo", store, "-model-path", cell.Location,
+		"-family", cell.Validation, "-budget", benchmarkBudget.String(),
+	}
+	if cell.Protocol == evaluation.PromptingChatTemplate.Label() {
+		args = append(args, "-chat-protocol")
+	}
+	return "go", args, nil
 }
 
 // executeRun runs the selected cells' re-acquisition commands smallest-first

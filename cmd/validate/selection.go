@@ -28,8 +28,9 @@ type ModelValidation struct {
 	Validation     string      `json:"validation,omitzero"` // empty: no validation applicable to the kind
 	Surface        SurfaceID   `json:"surface,omitzero"`
 	Recipe         artifact.ID `json:"recipe,omitzero"`
-	Cost           int64       `json:"cost_ns,omitzero"` // measured wall or declared timeout, for smallest-first
-	Stale          string      `json:"stale,omitzero"`   // activation defect, if any
+	Protocol       string      `json:"protocol,omitzero"` // a benchmark's prompting protocol, which its re-acquisition repeats
+	Cost           int64       `json:"cost_ns,omitzero"`  // measured wall or declared timeout, for smallest-first
+	Stale          string      `json:"stale,omitzero"`    // activation defect, if any
 	OperatorOnly   bool        `json:"operator_only,omitzero"`
 	OperatorReason string      `json:"operator_reason,omitzero"`
 }
@@ -79,9 +80,10 @@ type Plan struct {
 // pure: no store, git, filesystem or device access, so the whole decision is
 // unit-tested. A cell runs when this commit's changes move its surface, its
 // activation is stale, or the current-evidence decision refuses its accepted
-// record; it is reused only when that decision finds the record current, and
-// it is unknown when no owner judges it. A short commit range is a reason to
-// run, never proof that older evidence holds. Everything else is
+// record; it is reused only when that decision finds the record current, it is
+// unknown when no owner judges it, and it is inapplicable when its model's own
+// declaration excludes it. A short commit range is a reason to run, never
+// proof that older evidence holds. Everything else is
 // operator-owned, registered-inactive, or inapplicable. Run is ordered
 // cheapest first so a broken run surfaces on a small model in seconds.
 func SelectValidation(in Inputs) Plan {
@@ -120,8 +122,11 @@ func SelectValidation(in Inputs) Plan {
 				sel.Reason = "reuse: its accepted record is bound to the " + string(mv.Surface) + " identity the code is at now"
 				plan.Reuse = append(plan.Reuse, sel)
 			case errors.Is(refusal, errCellNotJudged):
-				sel.Reason = "unknown: " + cmp.Or(excludedSurfaces[mv.Surface], uncheckedEvidence)
+				sel.Reason = "unknown: " + uncheckedEvidence
 				plan.Unknown = append(plan.Unknown, sel)
+			case errors.Is(refusal, errCellInapplicable):
+				sel.Reason = "skip: " + refusal.Error()
+				plan.SkipInappropriate = append(plan.SkipInappropriate, sel)
 			default:
 				sel.Reason = "run: " + refusal.Error()
 				plan.Run = append(plan.Run, sel)

@@ -52,7 +52,11 @@ func kindValidation(task recipe.Task) []struct {
 	}
 	switch string(task) {
 	case "inference":
-		return []cell{{"guard", "inference"}, {"mmlu-pro", "evaluation"}, {"bbh", "evaluation"}, {"ifeval", "evaluation"}}
+		cells := []cell{{guardValidation, "inference"}}
+		for _, family := range benchmarkFamilies {
+			cells = append(cells, cell{family, "evaluation"})
+		}
+		return cells
 	case "projection":
 		return []cell{{"projection-proof", "evaluation"}}
 	case "image-gen":
@@ -99,39 +103,43 @@ func testOrDocPath(path string) bool {
 // and documentation changes move nothing. This is the commit-change-driven core
 // of "no unnecessary testing".
 func surfaceAffected(ctx context.Context, root string, changed []string) (map[SurfaceID]AffectRecord, error) {
-	global := ""
+	out := make(map[SurfaceID]AffectRecord, len(modalitySurfaces))
+	for id, surface := range modalitySurfaces {
+		// An authority path moves the surface whatever its packages are, so
+		// they are listed only when none changed.
+		moved := surfaceMoves(nil, changed)
+		if !moved.Affected {
+			dirs, err := surfaceDirectories(ctx, root, surface.roots)
+			if err != nil {
+				return nil, err
+			}
+			moved = surfaceMoves(dirs, changed)
+		}
+		out[id] = moved
+	}
+	return out, nil
+}
+
+// surfaceMoves says whether changed paths move the surface whose package
+// directories are dirs, and why: an authority path moves it, as it moves
+// every surface, and so does a change under one of its directories; test and
+// documentation changes move nothing. The commit range and the
+// current-evidence decision both judge movement by it.
+func surfaceMoves(dirs, changed []string) AffectRecord {
+	for _, path := range changed {
+		if !testOrDocPath(path) && globalAuthorityPath(path) {
+			return AffectRecord{Affected: true, Reason: "authority path " + filepath.ToSlash(path) + " moves every surface"}
+		}
+	}
 	for _, path := range changed {
 		if testOrDocPath(path) {
 			continue
 		}
-		if globalAuthorityPath(path) {
-			global = filepath.ToSlash(path)
-			break
+		if dir, ok := containingDirectory(dirs, filepath.ToSlash(path)); ok {
+			return AffectRecord{Affected: true, Reason: "changed " + filepath.ToSlash(path) + " in surface package " + dir}
 		}
 	}
-	out := make(map[SurfaceID]AffectRecord, len(modalitySurfaces))
-	for id, surface := range modalitySurfaces {
-		if global != "" {
-			out[id] = AffectRecord{Affected: true, Reason: "authority path " + global + " moves every surface"}
-			continue
-		}
-		dirs, err := surfaceDirectories(ctx, root, surface.roots)
-		if err != nil {
-			return nil, err
-		}
-		rec := AffectRecord{}
-		for _, path := range changed {
-			if testOrDocPath(path) {
-				continue
-			}
-			if dir, ok := containingDirectory(dirs, filepath.ToSlash(path)); ok {
-				rec = AffectRecord{Affected: true, Reason: "changed " + filepath.ToSlash(path) + " in surface package " + dir}
-				break
-			}
-		}
-		out[id] = rec
-	}
-	return out, nil
+	return AffectRecord{}
 }
 
 // containingDirectory reports the surface package directory that holds a path.

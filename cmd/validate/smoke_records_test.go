@@ -13,9 +13,9 @@ import (
 )
 
 // surfaceHistory writes a fixture repository whose history moves the
-// inference surface and then only documentation, and returns its root with
-// the commit before the surface move, the one before the documentation
-// change, and HEAD.
+// inference surface, and so the evaluation surface that holds it, and then
+// only documentation, and returns its root with the commit before the surface
+// move, the one before the documentation change, and HEAD.
 func surfaceHistory(t *testing.T) (root, beforeSurface, beforeDocs, head string) {
 	t.Helper()
 	root = t.TempDir()
@@ -45,7 +45,7 @@ func surfaceHistory(t *testing.T) (root, beforeSurface, beforeDocs, head string)
 		return ""
 	}
 	write("go.mod", "module fixture\n\ngo 1.26\n")
-	for _, surface := range []string{"internal/inference", "internal/cuda/executor", "internal/modelrecipe"} {
+	for _, surface := range []string{"internal/inference", "internal/cuda/executor", "internal/modelrecipe", "internal/evaluation"} {
 		write(surface+"/"+filepath.Base(surface)+".go", "package "+filepath.Base(surface)+"\n")
 	}
 	write("docs/notes.md", "fixture\n")

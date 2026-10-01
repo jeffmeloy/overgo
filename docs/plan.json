@@ -1,6 +1,6 @@
 {
   "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "overgo improves models, and itself, through its own inference and training, unattended. Every row closes or speeds up the improvement loop (measure, find the gap, train or change, judge on held-out data, promote or revert), or directly serves inference or training; otherwise it is not filed. The milestone is the loop itself (improvement-loop): from there, the scorecard's gaps generate the work.\n\nFinish partly landed rows before opening new ones. A consolidation reuses an existing owner and deletes the implementations it replaces in the same landing. A new shared component is allowed only when no existing owner can serve several real consumers, and it must remove more than it adds.\n\nOne meaningful run serves every obligation whose identity and contract match: it is written once, as one record with many readers. A run never judges what it produced.\n\nA change's landing cost is read from its diff, not declared, as three independent effects, each checked against the diff: the lanes it reaches, whether it expires the inference-surface guards, and whether it needs a pinned-media reconciliation. Lanes are the main cost (20 minutes to over an hour a landing), so false lane reach is cut. A batch is one coherent change, normally one to three related rows, closed before it delays a user-facing result that is ready: an operating limit, not a gate. Before a batch lands, the packages its device lanes will run run on the device first, so a failure shows early. Guards are re-acquired once after the last surface batch of a run of them. Dependency work is verified twice, separately: its build and test closure, and the guard surface, which stops at overgodb and runrecord. A saving is the net recurring cost removed, after the replacement tests and their maintenance. A check retires only when its replacement covers the check's actual acceptance contract; the landing scorecard reports and never refuses, so it replaces no check. The gate writes all numbers; messages name causes, effects and what disappears.\n\nEach row's rationale carries four plain lines: Serves (the loop stage, or the model or capability it runs or trains), Disappears (the owner reused, the implementations deleted, the tests retired or kept), Evidence (the run and record it reads or produces, and who else reads that record), Batch (the lanes its diff reaches, whether it expires the guards, and whether it needs a media reconciliation: three independent effects, each checked against the diff).",
+  "doctrine": "overgo improves models, and itself, through its own inference and training, unattended. Every row closes or speeds up the improvement loop (measure, find the gap, train or change, judge on held-out data, promote or revert), or directly serves inference or training; otherwise it is not filed. The milestone is the loop itself (improvement-loop): from there, the scorecard's gaps generate the work.\n\nFinish partly landed rows before opening new ones. A consolidation reuses an existing owner and deletes the implementations it replaces in the same landing. A new shared component is allowed only when no existing owner can serve several real consumers, and it must remove more than it adds.\n\nOne meaningful run serves every obligation whose identity and contract match: it is written once, as one record with many readers. A run never judges what it produced.\n\nA change's landing cost is read from its diff, not declared, as three independent effects, each checked against the diff: the lanes it reaches, whether it expires the inference-surface guards, and whether it needs a pinned-media reconciliation. Lanes are the main cost (20 minutes to over an hour a landing), so false lane reach is cut. A batch is one coherent change, normally one to three related rows, closed before it delays a user-facing result that is ready: an operating limit, not a gate. Before a batch lands, the packages its device lanes will run run on the device first, so a failure shows early. Guards are re-acquired once after the last surface batch of a run of them. Dependency work is verified twice, separately: its build and test closure, and the guard surface, which stops at overgodb and runrecord. A saving is the net recurring cost removed, after the replacement tests and their maintenance. A check retires only when its replacement covers the check's actual acceptance contract; the landing scorecard reports and never refuses, so it replaces no check. The gate writes all numbers; messages name causes, effects and what disappears.\n\nEach row's rationale carries four plain lines: Serves (the loop stage, or the model or capability it runs or trains), Disappears (the owner reused, the implementations deleted, the tests retired or kept), Evidence (the run and record it reads or produces, and who else reads that record), Batch (the lanes its diff reaches, whether it expires the guards, and whether it needs a media reconciliation: three independent effects, each checked against the diff).\n\nLanding speed is protected by observing it, not by a rule. Each structural boundary (a changed path's lanes, a package kept off the inference surface) is pinned as an invariant row in one table per kind, never as a new test function or a snapshot of today's lists. At each periodic review the gate's measured lines in git log are read: the share of landings that reached no lane, and executed versus cached package counts. A rise means a misplaced check or a new false reach, fixed by moving it and adding a table row. There are no time budgets or timeouts, no ratchet baselines, and no separate tracking subsystem.",
   "lane": "master-lead",
   "items": [
     {
@@ -8,6 +8,10 @@
       "title": "Measure inference's unmeasured cells",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1127,
+        "reason": "benchmark-currency: one currency rule for benchmark and proof cells, with bound evaluate commands. Measured +1127 nodes."
+      },
       "steps": [
         {
           "id": "do",
@@ -15,6 +19,36 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-inference",
           "rationale": "- Bonsai-27B-Q1_0 held-out-quality: no evaluation of a derived benchmark suite\n- Bonsai-27B-Q1_0 failure-rate: no completed serving attempts recorded\n- Carbon-500M-f16-ropefix first-output: no benchmark time to first token and no serving prefill sample\n- Carbon-500M-f16-ropefix throughput: no benchmark decode rate and no served decode phase with output tokens\n- Carbon-500M-f16-ropefix failure-rate: no completed serving attempts recorded\n- Carbon-500M-f16-ropefix load-time: no benchmark load time and no recorded load phase\n- Carbon-500M-f16-ropefix peak-device-memory: no benchmark or serving peak device memory\n- MiniCPM5-1B-native-chat failure-rate: no completed serving attempts recorded\n- Qwen3.5-9B failure-rate: no completed serving attempts recorded\n- Unlimited-OCR-bf16 held-out-quality: no evaluation of a derived benchmark suite\n- Unlimited-OCR-bf16 failure-rate: no completed serving attempts recorded\n- gemma-4-12B-it-fp8 failure-rate: no completed serving attempts recorded\n- gemma-4-12B-it-fp8-native failure-rate: no completed serving attempts recorded\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline.\n\nOwner focus, 2026-09-30: ranked right after promotion-correctness. Under the strict rule, main promotes only when every applicable row has held-out quality, and the text models users run lack it. Measure held-out quality first, starting with the models users run; the other cells in this row follow. It is also the first real measurement of user-visible quality."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-reads-task-heldout",
+      "title": "Read each task's existing held-out evidence into the scorecard; state not-applicable only where no held-out metric exists",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Read each task's existing held-out evidence into the scorecard; state not-applicable only where no held-out metric exists",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -run '^TestQualityReadsEachTasksHeldoutEvidence$' -count=1",
+          "rationale": " Owner question, 2026-09-30: what do you mean, no held-out suite?\nThe answer, measured on scorecard-20261001T001301Z.json: the held-out-quality cell reads only one kind of evidence, the text benchmark catalog (evaluation.LatestEvidence: mmlu-pro, mmlu, bbh, ifeval, dna). So 27 of 36 rows read 'no evaluation of a derived benchmark suite', even where held-out evidence exists:\n- training rows: the one held-out judge (trainingworkflow.RunHeldout and its verdicts) for preference, generation, TabFM and audio objectives;\n- tabular and forecast: the TabFM and forecast routes judged on held-out rows and series;\n- transcription: the ASR acceptances scored against reference transcripts.\nImage-gen, video-gen, speech (TTS) and image-embedding have reference-parity proofs, which prove correctness rather than held-out quality, so those tasks have no held-out metric yet.\nRecommended, and taken unless the owner says otherwise:\n- quality reads the evidence each task already has, with its typed contract (metric, suite, protocol, origin, scope);\n- a task with no held-out metric reads not-applicable with that reason, and the loop files a gap row to define one.\nPromotion then requires held-out quality wherever it is measurable, and every fall or incomparable change still withholds.\nServes: measure, then promote. Disappears: the text-only quality reader. Evidence: the held-out verdicts and acceptance records the store already holds. Batch: internal/scorecard reaches no lane since 3952a0bdc."
+        }
+      ]
+    },
+    {
+      "id": "invariant-tables",
+      "title": "Fold the reach and surface tests into one invariant table each",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fold the reach and surface tests into one invariant table each",
+          "status": "open",
+          "verify": "go test ./internal/landing ./internal/inferencesurface -run '^(TestReachInvariants|TestSurfaceInvariants)$' -count=1",
+          "rationale": " Owner, 2026-09-30: one table per kind, not one test per improvement; pin what must never come back, not the current state.\n- Reach: fold TestPlanAndLoopEditsReachLanesOnlyThroughProduction, TestTrainingKernelEditReachesOnlyTrainingLanes and TestDevicemathEditReachesOnlyTrainingLanes into TestReachInvariants in internal/landing. It is one table of representative changed path to the lanes it must not reach, run through the gate's own discover over the real lane table. Rows state invariants:\n  - plan, landing, loop and scorecard edits reach no device lane;\n  - a training-only path (devicegrad, densecausaltrain, scratchtrain, e4btrain) reaches no serving lane (webui, model-journey, audio, e4b);\n  - a devicemath edit reaches no serving lane.\n  Assert 'not in', never an exact lane list.\n- Surface: fold TestTrainingLeavesTheSurface, TestCandidateRealizationLeavesTheSurface, TestDatasetLeavesTheSurface and the identity-addressed half of TestStoreEditLeavesTheSurfaceUnchanged into TestSurfaceInvariants in internal/inferencesurface. It is one table of packages that must stay out: trainingprogram, trainingdata, trainingworkflow, densecausal, optimizer, hostoptimizer, bridgetrain, dataset, devicegrad, capabilityruntime, overgodb, runrecord.\n- TestLaneSelectionUsesTheLaneBuildContext stays a function: it proves the tag mechanism with a fixture module, a different kind.\n- Each later improvement adds a row.\nServes: loop speed. Disappears: six near-identical test functions. Batch: internal/landing and internal/inferencesurface reach no lane."
         }
       ]
     },
@@ -153,6 +187,13 @@
           "status": "open",
           "verify": "go test ./cmd/train -run '^TestRoutePublicationRecordsActualAuthority$' -count=1",
           "rationale": "SQA-061 (P2): shared route publication records guessed authority: token and text guesses and counter state. Use the scratch-session seam where its contract fits (the controller route already does), pass the real facts for the other routes, and refuse unsupported resumable authority explicitly. SQA-027 (P2): shared and objective-route training drop cooperative cancellation. SQA-057 (P2): training setup failures bypass the shared session's cleanup. Batch: cmd/train reaches the cuda lane."
+        },
+        {
+          "id": "real-training-proofs",
+          "title": "Verify training activations with a real training run, not a test fixture",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -run '^TestBootstrapVerifiesWithARealRun$' -count=1",
+          "rationale": "Found 2026-09-30 by the benchmark currency owner. internal/trainingworkflow/bootstrap_recipe.go:278 calls modelrecipetest.PublishVerification, a test fixture, from production. All 6 training activations were bootstrapped with a verification bound to the placeholder commit 0123456789ab..., so no training proof can ever be current. Replace it with a verification produced by an actual training run (the shared run's published checkpoint and its held-out verdict), and delete the fixture call from production. Batch: trainingworkflow reaches the server lanes."
         }
       ]
     },
@@ -831,7 +872,9 @@
             "loop-improve-on-demand/do",
             "lane-test-cache/do",
             "lanes-false-reach/do",
-            "recovery-failures-seen/do"
+            "recovery-failures-seen/do",
+            "scorecard-reads-task-heldout/do",
+            "invariant-tables/do"
           ]
         }
       ]

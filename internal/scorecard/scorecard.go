@@ -79,6 +79,9 @@ func (c Cell) Measured() bool { return c.Reason == "" }
 // Row is one activated model and task. Architecture is the architecture the
 // recipe's profile dependency declares; a recipe that resolves no
 // architecture profile, a media or specialized one, leaves it empty.
+// Heldout holds the recipe's current held-out qualities besides the
+// headline one, each on its own contract, so a baseline measured on a suite
+// that is no longer the headline is still compared on that suite.
 type Row struct {
 	Model        artifact.ID          `json:"model,omitzero"`
 	Name         string               `json:"name"`
@@ -86,6 +89,7 @@ type Row struct {
 	Recipe       artifact.ID          `json:"recipe,omitzero"`
 	Architecture string               `json:"architecture,omitzero"`
 	Cells        map[metric.Name]Cell `json:"cells"`
+	Heldout      []Cell               `json:"heldout,omitempty"`
 }
 
 // Build reads the scorecard from the store: one row for every activation
@@ -131,7 +135,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			observed := serving[capability.Recipe]
 			row.Cells[metric.FirstOutput] = firstOutputCell(capability.Task, benchmark, measured, observed)
 			row.Cells[metric.Throughput] = throughputCell(capability.Task, benchmark, measured, observed)
-			row.Cells[metric.Quality] = qualityCell(capability.Task, index.EvaluationsByRecipe[capability.Recipe], descriptors)
+			row.Cells[metric.Quality], row.Heldout = qualityCell(capability.Task, index.EvaluationsByRecipe[capability.Recipe], descriptors)
 			row.Cells[metric.Failures] = failureCell(observed)
 			row.Cells[metric.Load] = loadCell(benchmark, measured, observed)
 			row.Cells[metric.PeakMemory] = peakMemoryCell(capability.Task, benchmark, measured, observed)
@@ -384,31 +388,51 @@ var heldoutProposals = map[recipe.Task]string{
 // qualityCell is the headline metric of the recipe's newest evaluation of
 // its largest held-out suite: the most cases say the most about held-out
 // answers, and the newest run is the current one. A set outside the derived
-// catalog counts no cases, so of two equal suites the one named first is
-// read, the same in every record. A recipe no suite measures reads not
-// applicable when its task has a held-out evaluation proposed, else a gap.
-func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descriptors map[string]evaluation.SuiteDescriptor) Cell {
-	var best *evaluation.EvalSummary
-	for index := range summaries {
-		// Summaries arrive newest first; only a larger suite, or an equal
-		// one named first, displaces.
-		candidate := &summaries[index]
-		if best == nil || cmp.Or(cmp.Compare(descriptors[candidate.Suite].Cases, descriptors[best.Suite].Cases), strings.Compare(best.Suite, candidate.Suite)) > 0 {
-			best = candidate
+// catalog counts no cases, so of two equal suites the one named first, then
+// the protocol named first, is read, the same in every record. It also
+// returns the recipe's other current held-out qualities, one per suite and
+// protocol. A recipe no suite measures reads not applicable when its task
+// has a held-out evaluation proposed, else a gap.
+func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descriptors map[string]evaluation.SuiteDescriptor) (Cell, []Cell) {
+	type heldout struct {
+		cases uint64
+		cell  Cell
+	}
+	type suite struct{ name, protocol string }
+	var measured []heldout
+	seen := map[suite]bool{}
+	for _, summary := range summaries {
+		// Summaries arrive newest first, so the first of each suite and
+		// protocol is its current evaluation.
+		if seen[suite{summary.Suite, summary.Prompting}] {
+			continue
+		}
+		seen[suite{summary.Suite, summary.Prompting}] = true
+		if name, value, ok := evaluation.HeadlineMetric(summary.Metrics); ok {
+			measured = append(measured, heldout{cases: descriptors[summary.Suite].Cases, cell: Cell{
+				Value: value, Label: fmt.Sprintf("%s, %s (%s)", name, summary.Suite, summary.Prompting), Source: summary.Record, Direction: summary.Directions[name],
+				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting},
+			}})
 		}
 	}
-	if best == nil {
-		if proposal, proposed := heldoutProposals[task]; proposed {
-			return inapplicable(fmt.Sprintf("no held-out evaluation for %s yet; proposed: %s", task, proposal))
-		}
-		return gap("no held-out evaluation of this recipe")
+	switch {
+	case len(measured) != 0:
+	case len(summaries) != 0:
+		return gap("the latest evaluation reports no metric"), nil
+	case heldoutProposals[task] != "":
+		return inapplicable(fmt.Sprintf("no held-out evaluation for %s yet; proposed: %s", task, heldoutProposals[task])), nil
+	default:
+		return gap("no held-out evaluation of this recipe"), nil
 	}
-	name, value, ok := evaluation.HeadlineMetric(best.Metrics)
-	if !ok {
-		return gap("the latest evaluation reports no metric")
+	slices.SortFunc(measured, func(left, right heldout) int {
+		return cmp.Or(cmp.Compare(right.cases, left.cases), strings.Compare(left.cell.Contract.Suite, right.cell.Contract.Suite),
+			strings.Compare(left.cell.Contract.Protocol, right.cell.Contract.Protocol))
+	})
+	others := make([]Cell, 0, len(measured)-1)
+	for _, other := range measured[1:] {
+		others = append(others, other.cell)
 	}
-	return Cell{Value: value, Label: fmt.Sprintf("%s, %s (%s)", name, best.Suite, best.Prompting), Source: best.Record, Direction: best.Directions[name],
-		Contract: Contract{Metric: name, Origin: originEvaluation, Suite: best.Suite, Protocol: best.Prompting}}
+	return measured[0].cell, others
 }
 
 func failureCell(observed *servingSummary) Cell {

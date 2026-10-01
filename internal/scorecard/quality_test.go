@@ -108,12 +108,15 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	index := evaluation.LatestEvidence(ctx, store, suites, 0)
-	cell := qualityCell(recipe.TaskProjection, index.EvaluationsByRecipe[projection], nil)
+	cell, others := qualityCell(recipe.TaskProjection, index.EvaluationsByRecipe[projection], nil)
 	want := Contract{Metric: "accuracy", Origin: originEvaluation, Suite: first.String(), Protocol: evaluation.PromptingRawCompletion.Label()}
 	if !cell.Measured() || cell.Value != 0.5 || cell.Source != read.ID || cell.Direction != runrecord.DirectionMaximize || cell.Contract != want {
 		t.Fatalf("projection quality = %+v, want the set named first, %+v, from its evaluation", cell, want)
 	}
-	if cell := qualityCell(recipe.TaskVQA, index.EvaluationsByRecipe[timed], nil); cell.Measured() || !cell.NotApplicable || !strings.Contains(cell.Reason, "proposed: ") {
+	if len(others) != 1 || others[0].Value != 0.75 || others[0].Contract.Suite != second.String() {
+		t.Fatalf("other held-out qualities = %+v, want the second set's", others)
+	}
+	if cell, _ := qualityCell(recipe.TaskVQA, index.EvaluationsByRecipe[timed], nil); cell.Measured() || !cell.NotApplicable || !strings.Contains(cell.Reason, "proposed: ") {
 		t.Fatalf("a wall-time record reads as held-out quality %+v, want the task's proposed evaluation", cell)
 	}
 
@@ -125,7 +128,7 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 		cells[metric.Quality] = quality
 		return Row{Model: id(artifact.KindModel, name), Name: name, Task: task, Cells: cells}
 	}
-	proposed := qualityCell(recipe.TaskImageGen, nil, nil)
+	proposed, _ := qualityCell(recipe.TaskImageGen, nil, nil)
 	published := Record{Commit: "b", Rows: []Row{row("projector", recipe.TaskProjection, cell), row("painter", recipe.TaskImageGen, proposed)}}
 	baseline := Record{Commit: "a"}
 	if withheld := published.Withheld(&baseline); withheld != "" {
@@ -135,7 +138,7 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 	if len(gaps) != 1 || gaps[0].Key != "scorecard-unscored-image-gen" || !strings.Contains(gaps[0].Detail, "painter held-out-quality: "+proposed.Reason) {
 		t.Fatalf("gaps = %+v, want one row to define image-gen's held-out evaluation", gaps)
 	}
-	unevaluated := qualityCell(recipe.TaskInference, nil, nil)
+	unevaluated, _ := qualityCell(recipe.TaskInference, nil, nil)
 	published.Rows = append(published.Rows, row("reader", recipe.TaskInference, unevaluated))
 	if unevaluated.NotApplicable || unevaluated.Measured() || !strings.Contains(published.Withheld(&baseline), "reader has no inference held-out quality") {
 		t.Fatalf("an inference recipe nothing evaluated reads %+v and withholds %q, want a gap that withholds", unevaluated, published.Withheld(&baseline))

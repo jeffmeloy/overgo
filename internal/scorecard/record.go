@@ -189,10 +189,13 @@ func (record Record) Pairs(baseline Record) []Pair {
 // Compare reports how the record's row holds the baseline row's cell in
 // column, and why when it does not hold. A cell the baseline did not
 // measure holds, since the baseline asks nothing of it: a newly measured
-// metric or row never blocks. A measured one has regressed when the record
-// measured it on the same contract and direction and it fell in that
-// direction by more than float32 arithmetic resolves; it is Unknown when the record lost the row or the cell,
-// measured it on another contract, or the baseline cell has no contract.
+// metric or row never blocks. A held-out quality is compared on the
+// baseline's contract, read from the row's other held-out qualities when a
+// larger suite has become the headline since. A measured cell has regressed
+// when the record measured it on the same contract and direction and it fell
+// in that direction by more than float32 arithmetic resolves; it is Unknown
+// when the record lost the row or the cell, measured it only on another
+// contract, or the baseline cell has no contract.
 func (pair Pair) Compare(column metric.Name) (Verdict, string) {
 	if pair.Before == nil || !pair.Before.Cells[column].Measured() {
 		return holding, ""
@@ -201,6 +204,9 @@ func (pair Pair) Compare(column metric.Name) (Verdict, string) {
 		return Unknown, "the record has no row for this model and task"
 	}
 	then, now := pair.Before.Cells[column], pair.After.Cells[column]
+	if at := slices.IndexFunc(pair.After.Heldout, func(other Cell) bool { return other.Contract == then.Contract }); column == metric.Quality && now.Contract != then.Contract && at >= 0 {
+		now = pair.After.Heldout[at]
+	}
 	switch {
 	case !now.Measured():
 		return Unknown, "no longer measured: " + now.Reason

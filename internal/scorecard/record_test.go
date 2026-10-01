@@ -47,6 +47,14 @@ func TestComparisonIsTyped(t *testing.T) {
 	lost.Cells[metric.Quality] = inapplicable("the task no longer answers questions")
 	newlyMeasured := row(first, "shared", 0.5, mmlu)
 	newlyMeasured.Cells[metric.Load] = benchmarkCell(1, "ms", "load", source)
+	// A larger suite became the headline; the baseline's suite is still
+	// measured beside it, holding or fallen.
+	larger := with(func(c *Contract) { c.Suite = "store/mmlu-larger" })
+	headlineMoved := func(baselineSuite float64) Row {
+		moved := row(first, "shared", 0.1, larger)
+		moved.Heldout = []Cell{row(first, "shared", baselineSuite, mmlu).Cells[metric.Quality]}
+		return moved
+	}
 	for _, scenario := range []struct {
 		name    string
 		record  Record
@@ -57,6 +65,8 @@ func TestComparisonIsTyped(t *testing.T) {
 		{name: "fall on the same contract", record: record(row(first, "shared", 0.4, mmlu), row(second, "shared", 0.7, mmlu)), verdict: regressed},
 		{name: "one case in a million lost", record: record(row(first, "shared", 0.5-1e-6, mmlu), row(second, "shared", 0.7, mmlu)), verdict: regressed},
 		{name: "a summation-order difference", record: record(row(first, "shared", 0.5*(1-1e-8), mmlu), row(second, "shared", 0.7, mmlu)), verdict: holding},
+		{name: "a larger headline suite, the baseline's suite holding", record: record(headlineMoved(0.5), row(second, "shared", 0.7, mmlu)), verdict: holding},
+		{name: "a larger headline suite, the baseline's suite fallen", record: record(headlineMoved(0.4), row(second, "shared", 0.7, mmlu)), verdict: regressed},
 		{name: "another suite", record: record(row(first, "shared", 0.6, with(func(c *Contract) { c.Suite = "store/mmlu-pro" })), row(second, "shared", 0.7, mmlu)), verdict: Unknown},
 		{name: "another protocol", record: record(row(first, "shared", 0.6, with(func(c *Contract) { c.Protocol = "raw-completion" })), row(second, "shared", 0.7, mmlu)), verdict: Unknown},
 		{name: "another origin", record: record(row(first, "shared", 0.6, with(func(c *Contract) { c.Origin = originBenchmark })), row(second, "shared", 0.7, mmlu)), verdict: Unknown},

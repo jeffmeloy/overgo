@@ -24,7 +24,7 @@
     },
     {
       "id": "first-trained-improvement",
-      "title": "Train a text model on WikiText-2 and judge it against its base on held-out records",
+      "title": "Train Qwen2.5-0.5B on WikiText-2 until it beats its base on held-out records",
       "owner": "master-lead",
       "status": "open",
       "budget": {
@@ -33,11 +33,25 @@
       },
       "steps": [
         {
-          "id": "do",
-          "title": "Train a text model on WikiText-2 and judge it against its base on held-out records",
+          "id": "judge-vs-base",
+          "title": "The scorecard shows a trained model's held-out quality against its base, and a trained model below its base is a gap",
           "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-training",
-          "rationale": "\n\nDoctrine 2026-10-01: progress is counted in promotions, and until a cycle has promoted, rows that close it rank first. No row trained a model and judged it on held-out data. WikiText-2 train is on disk; split into 600 articles (scratchpad asr/articles, byte-exact) so a group split can hold out records. Steps: register the articles as a text dataset (dataset-catalog -register), declare a token-prediction objective with a committed 9:1 train/heldout split (training-objective -split-group record -split-weights train=9,heldout=1), train Qwen2.5-0.5B on it with train -objective (publishes the trained model and a v2 held-out verdict bound to it), then the scorecard's training row for Qwen2.5-0.5B reads trained token accuracy. The verify should narrow to that row once its gap key exists; the unscored-training gap also lists the other five training rows."
+          "verify": "go test ./internal/scorecard -run '^TestTrainedBelowBaseIsAGap$' -count=1",
+          "rationale": "The training row's held-out cell shows only the trained value (0.3634), so nobody reading the scorecard can tell that training made the model worse; the verdict's base value (0.4936) is in the store. Serves: judge. Disappears: nothing. Evidence: held-out verdicts (evaluation.VisitHeldoutVerdicts), read by the scorecard and the cycle's gap proposals. Batch: internal/scorecard; no surface move; no media reconciliation."
+        },
+        {
+          "id": "objective-run",
+          "title": "Objective runs print their per-step loss and accept -freeze-lexical",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestObjectiveMode' -count=1",
+          "rationale": "Measure first: the first judged run recorded no loss trajectory, and -objective refused -freeze-lexical, so neither hypothesis (Muon on the lexical tables, the learning rate) could be tested. Serves: train. Disappears: nothing. Evidence: the run's output; frozen lexical tables enter the training identity. Batch: cmd/train and internal/trainingworkflow lanes."
+        },
+        {
+          "id": "do",
+          "title": "Train Qwen2.5-0.5B on WikiText-2 until it beats its base on held-out records",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-below-base-training",
+          "rationale": "\n\nDoctrine 2026-10-01: progress is counted in promotions, and until a cycle has promoted, rows that close it rank first. No row trained a model and judged it on held-out data. WikiText-2 train is on disk; split into 600 articles (scratchpad asr/articles, byte-exact) so a group split can hold out records. Steps: register the articles as a text dataset (dataset-catalog -register), declare a token-prediction objective with a committed 9:1 train/heldout split (training-objective -split-group record -split-weights train=9,heldout=1), train Qwen2.5-0.5B on it with train -objective (publishes the trained model and a v2 held-out verdict bound to it), then the scorecard's training row for Qwen2.5-0.5B reads trained token accuracy. The verify should narrow to that row once its gap key exists; the unscored-training gap also lists the other five training rows.\n\nFirst judged run 2026-10-02 (f224682d6, 540 steps, seq 512, unfrozen lexical tables, derived Muon lr 4.499e-05, momentum 0.935): training took 6 min; held-out token accuracy base 0.4936, trained 0.3634, verdict evaluation:sha256:3ca3d95b passed=false. The judge refused it correctly; the recipe damages the model. The run recorded no loss trajectory. Hypothesis, unverified: Muon on the tied 151936x896 embedding/head moves every vocabulary row, seen or not; the dense workflow's frozen-lexical protocol avoids it. Measure first: per-step loss and a frozen-lexical run (objective-run step), then the learning rate. The two host-side held-out passes take about 13 min each; the device does the training."
         }
       ]
     },
@@ -72,25 +86,6 @@
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train -run '^TestE4BRoutePublishesAServableModel$' -count=1",
           "rationale": "The proof end to end: train -route e4b on the real Gemma-4 E4B publishes its trained model and resume sidecar, and the server opens the model and answers a held-out prompt. The trainer landed in 096df8d2f but could not publish at this size. The hybrid 9B route should follow the same path (about 270 GB of JSON today). Batch: the cuda and e4b lanes.\n\nresume-sidecar landed with servable-model in one batch (2026-09-30), since both reach all 8 lanes. What e4b-publishes needs, from that build: (1) frozen tensors shared by content address: write a split GGUF, one shard trained and one frozen (per_layer_token_embd 5.64 GB, token_embd 1.34 GB, rope_freqs), identify the frozen shard by digest first and hard-link it when the store already records a location; today about 7 GB would be copied per run. (2) Value parity: confirm LoadHostLayer returns untransformed GGUF values; a zero-step publish must rewrite zero tensors. (3) The gemma4 architecture profile registered in the route's store. (4) Cost: the f32 sidecar is 15.9 GB written once from the live buffer, and model.gguf about 23 GB, hashed twice (checkpoint identity and FromGGUF). (5) F32 serving uses more VRAM than bf16; quantizing for serving is a separate derived artifact. The test: one CUDA step, activate the registered candidate, open with OpenRunner, answer a held-out prompt. Other routes still to publish servable models: hybrid stack (qwen35, needs a tensor-name mapping to the GGUF), dense causal from an HF base (needs hfconvert as a derived artifact), -objective (publishes nothing; heldout-binds-result binds to the registered model), the E4B per-layer adapter route (needs a GGUF LoRA adapter artifact), and the media routes (each needs a writer in its family's layout)."
-        }
-      ]
-    },
-    {
-      "id": "training-judge-integrity",
-      "title": "Tie every approval and published checkpoint to what actually trained",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 3375,
-        "reason": "held-out verdicts bound to the trained checkpoint and re-judged from case facts, routes recording the objective they train with cancellation and cleanup (DiT through a named adapter), scratch construction for the oscillatorimage bootstrap, and real-run verification replacing the test fixture in production"
-      },
-      "steps": [
-        {
-          "id": "dit-authority",
-          "title": "Record the DiT route's real program and honour cancellation",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestDiTRouteRecordsItsProgram$' -count=1",
-          "rationale": "Left from the 2026-10-01 batch, which made every other route record the objective it trains and honour cooperative cancellation. cmd/train/route_dit.go is in the media lifecycle's reviewed chain, so it was restored byte for byte: DiT still records the token program while training flow matching, and routes.go wraps it without a context. To close: open DiT under openSessionAs with flow matching, text to video; take the route's context; drop the wrapper in routes.go; add a reviewed delta with the file's before and after sha256 and a device receipt (OVERGO_CUDA_TEST=1 go run ./cmd/validate -receipt -repo \u003cstore\u003e -- -p 1 -run '\u003cthe DiT route tests\u003e' ./cmd/train). Also left from SQA-061: counter-RNG values are still guessed at publish, trainers close after the session finishes rather than before, and the controller checks cancellation only before training and before publishing."
         }
       ]
     },

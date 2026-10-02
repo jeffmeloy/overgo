@@ -19,6 +19,7 @@ import (
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/pytorchzip"
+	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/trainingprogram"
@@ -180,16 +181,18 @@ func contextDiff(got, want []float32) (maxDiff, meanDiff float64) {
 // text/time embeddings, time projection, modulated head) as f32 masters over
 // the shared Muon stepper with derived hyperparameters; the frozen text
 // encoder and VAE sit outside the surface, and the objective is real flow
-// matching, MSE against v = noise - x0 on the committed shifted schedule.
-// Conditioning is real: raw umt5-xxl rows for the committed g1 prompt
-// through the streamed host encoder, x0 seeded from the committed sha-pinned
-// g3/g4 final latents, noise from the golden Philox plan. The run publishes
-// one typed session observation and the trained DiT as a checkpoint. With
-// -checkpoint it trains the reference-edit (.pt) variant whose 32-channel
-// patch embedding concatenates a real source latent (gradient stops at the
-// source channels): the full video-diffusion training run the organ cells
-// named as their promotion gate.
-func trainDiT(flags *flag.FlagSet, args []string) error {
+// matching, MSE against v = noise - x0 on the committed shifted schedule,
+// which the session's recipe declares from text to video and the run's
+// checkpoint names as its program. Conditioning is real: raw umt5-xxl rows
+// for the committed g1 prompt through the streamed host encoder, x0 seeded
+// from the committed sha-pinned g3/g4 final latents, noise from the golden
+// Philox plan. The run trains until ctx ends, and publishes one typed
+// session observation and the trained DiT as a checkpoint. With -checkpoint
+// it trains the reference-edit (.pt) variant whose 32-channel patch
+// embedding concatenates a real source latent (gradient stops at the source
+// channels): the full video-diffusion training run the organ cells named as
+// their promotion gate.
+func trainDiT(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	modelDir := flags.String("model-dir", "", "video checkpoint dir")
 	checkpoint := flags.String("checkpoint", "", "reference-edit .pt checkpoint (empty: train the safetensors DiT)")
 	fixturesDir := flags.String("fixtures", "fixtures/wan", "committed golden fixture dir (real conditioning and latent seeds)")
@@ -201,7 +204,7 @@ func trainDiT(flags *flag.FlagSet, args []string) error {
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
 	storePath := flags.String("store", "overgodb-store", "OvergoDB for the session observation, recipe authority and checkpoint record")
 	stimulus := flags.String("stimulus", "docs/verification/wan-dit-training-stimulus.txt", "committed stimulus declaration grounding the recipe dataset")
-	objectiveAlias := flags.String("objective-alias", "", "registered objective alias to train under, publishing no checkpoint; empty uses the token bootstrap")
+	objectiveAlias := flags.String("objective-alias", "", "registered flow-matching objective alias to train under, publishing no checkpoint; empty bootstraps flow matching from text to video over -stimulus")
 	out := flags.String("out", "", "directory the trained DiT's checkpoint publishes to; required unless -objective-alias")
 	t5Cache := flags.String("t5-cache", "", "optional cache base path for the streamed raw text rows")
 	vidgenRoot := flags.String("vidgen-root", "", "VidGen corpus directory; set to train on real VAE-encoded captioned clips instead of fixture latents")
@@ -210,7 +213,6 @@ func trainDiT(flags *flag.FlagSet, args []string) error {
 		return err
 	}
 	overrides := clioptions.ExplicitOverrides(flags)
-	ctx := context.Background()
 	name := flags.Name()
 	// A registered objective's processors are declared identities, not
 	// executable ones, so its training membership materializes no stream a
@@ -247,11 +249,15 @@ func trainDiT(flags *flag.FlagSet, args []string) error {
 	if *objectiveAlias != "" {
 		session, err = objectiveSession(ctx, store, weightsPath, *objectiveAlias)
 	} else {
-		session, err = openSession(ctx, store, weightsPath, *stimulus)
+		// The trainer steps flow matching from the stimulus's text
+		// conditioning to video.
+		session, err = openSessionAs(ctx, store, weightsPath, *stimulus,
+			generationContract(trainingprogram.ObjectiveFlowMatching, recipecontract.ModalityText, recipecontract.ModalityVideo, trainingprogram.MetricVideoPSNRUnit))
 	}
 	if err != nil {
 		return err
 	}
+	defer session.settle(ctx, &err)
 
 	loadStarted := time.Now()
 	profile, err := latentvideo.ResolveProfile(*modelDir)
@@ -327,8 +333,11 @@ func trainDiT(flags *flag.FlagSet, args []string) error {
 		return err
 	}
 	defer trainer.Close()
+	// The plan declares the objective the trainer steps, so a session whose
+	// recipe declares another, as a registered objective may, is refused
+	// before any step.
 	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
-		Objective: session.authority.Objective, Updates: *steps, MaximumSequence: geometry.Seq,
+		Objective: trainingprogram.ObjectiveFlowMatching, Updates: *steps, MaximumSequence: geometry.Seq,
 		MaxProjectedWall: *maxWall, Parameters: trainer.ParameterCount(), Optimizer: session.authority.Optimizer,
 	})
 	if err != nil {

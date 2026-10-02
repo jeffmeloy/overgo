@@ -19,7 +19,7 @@ const routeFlag = "-route"
 // registers itself from that platform's file.
 var trainRoutes = map[string]func(ctx context.Context, flags *flag.FlagSet, args []string) error{
 	"diffusionimage":  trainDiffusionImage,
-	"dit":             trainDiTRoute,
+	"dit":             trainDiT,
 	"flow-organ":      trainFlowOrgan,
 	"graft":           trainGraft,
 	"mixture":         trainMixture,
@@ -30,14 +30,6 @@ var trainRoutes = map[string]func(ctx context.Context, flags *flag.FlagSet, args
 	"speech":          trainSpeech,
 	"tabular":         trainTabular,
 	"thoughtbank":     trainThoughtBank,
-}
-
-// trainDiTRoute is the DiT trainer as a route. Its source is in the reviewed
-// media lifecycle chain, so it changes only with a reviewed delta: until
-// then it trains under its own background context and the token recipe it
-// opens.
-func trainDiTRoute(_ context.Context, flags *flag.FlagSet, args []string) error {
-	return trainDiT(flags, args)
 }
 
 // runRoute dispatches args (the route name, then its flags) to the named

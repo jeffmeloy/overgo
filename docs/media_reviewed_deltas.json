@@ -1126,6 +1126,27 @@
         ]
       },
       "scope": "the receipt re-runs, on the device, the resident dense training parity tests (tied, Qwen2 bias, untied trained head and embedding, frozen lexical initial loss, bitwise resume), the device Muon matrix step against the host step, and the resident training glue against the host"
+    },
+    {
+      "changes": {
+        "cmd/train/route_dit.go": {
+          "after_sha256": "1bf39ecfa9f2e5306cb6d342991b64a769de749c8c6632d619bc235c198e3a82",
+          "before_sha256": "7e99661bf086da33162a738814259e3594003bc10706f10a3417d64c2e63f63f",
+          "reason": "the dit route opens its session under flow matching from text to video, the objective its trainer steps, and its plan declares flow matching, so the shared run refuses a session declaring another; it takes the route's context, so the text encoder, clip decode and bounded run stop once it ends, and it settles a session whose setup fails after admission; training arithmetic, conditioning, schedule and policy are unchanged"
+        }
+      },
+      "evidence": "evidence:sha256:f7b6fd96cb191e3fa542b4268a227d07cedbf3e7d02ebb023311087fb88edba2",
+      "id": "dit-route-authority",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/cmd/train": [
+          "TestDiTRouteRecordsItsProgram",
+          "TestEveryTrainRoutePublishesACheckpoint",
+          "TestRoutePublicationRecordsActualAuthority",
+          "TestTrainRoutesFoldedProbes"
+        ]
+      },
+      "scope": "the receipt re-runs, with the device enabled, the cmd/train tests that drive the dit route: its recorded flow-matching program and cancellation, every route's checkpoint publication, publication recording the actual authority, and the folded route probes"
     }
   ],
   "paths": [

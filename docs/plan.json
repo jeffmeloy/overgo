@@ -121,25 +121,6 @@
       ]
     },
     {
-      "id": "landing-hermetic-tests",
-      "title": "Move live-evidence acceptance tests off the landing path",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2,
-        "reason": "the cycle's models lane lists internal/evaluation and internal/dataset"
-      },
-      "steps": [
-        {
-          "id": "registered-gguf",
-          "title": "Fail a test when a registered GGUF cannot be read",
-          "status": "open",
-          "verify": "go test ./internal/modeltest -run '^TestRegisteredGGUFSelection$' -count=1",
-          "rationale": "SQA-056 (P2), built 2026-10-01 in scratchpad hermetic.patch (internal/modeltest/gguf.go, apply with --include='internal/modeltest/*'): modeltest.GGUF chooses through smallestGGUF; an absent registered file is skipped, a present file whose header cannot be read fails, and a failed read is no longer cached as no architecture. +95 nodes; it reaches the device, cuda and webui lanes, so it waits for an idle GPU (device measurement tests need exclusivity). Also from that build: 60 tests in 16 packages skip without the data root but run against it (oscillatorimage 11, speechsynth 13, diffusionimage 6, seq2seq 6, seriesforecast 6, rae 3, densecausal 3, others); their verdicts depend on this machine's data and belong to the cycle next."
-        }
-      ]
-    },
-    {
       "id": "vae-latent-campaign",
       "title": "Carry the VAE lane's latent campaign surface until the lane closes it",
       "owner": "master-lead",

@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "projection-facts",
-          "title": "Republishing a model's facts never conflicts with its own earlier facts",
-          "status": "open",
-          "verify": "go run ./cmd/validate -run -only projection-proof",
-          "rationale": "Step 3; see do's rationale. The verify is set after diagnosis."
-        },
-        {
           "id": "models-lane",
           "title": "The cycle's models lane passes on this machine",
           "status": "open",

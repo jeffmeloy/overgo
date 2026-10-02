@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -159,6 +161,82 @@ func TestPrepareCapabilityReusesPublishedFacts(t *testing.T) {
 		t.Fatalf("conflicting facts = %v", err)
 	}
 	unchanged()
+}
+
+// TestModelFactsFollowTheModel: a model's facts change while its identity
+// stands. Its bytes move to another directory, or the code derives another
+// fact from them. Both facts a projection verify publishes, the capability's
+// and the inference candidate's, publish each change, where a key naming only
+// the model or its definition refused the moved model as a conflict, and the
+// store then answers for the new location, the new fact and the component
+// group by identity.
+func TestModelFactsFollowTheModel(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	original := testutil.HermeticLlamaGGUF(t, 32)
+	data, err := os.ReadFile(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	moved := filepath.Join(t.TempDir(), filepath.Base(original))
+	if err := os.WriteFile(moved, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, step := range []struct{ path, derived string }{
+		{original, "first derivation"}, {moved, "first derivation"}, {moved, "second derivation"},
+	} {
+		file, err := gguf.Open(step.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
+		if err := errors.Join(err, file.Close()); err != nil {
+			t.Fatal(err)
+		}
+		fact, err := artifact.JSONContent(artifact.JSONContract(artifact.KindProfile, "overgo/fixture-derived-fact/v1"), struct{ Derived string }{step.derived})
+		if err != nil {
+			t.Fatal(err)
+		}
+		group, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
+			Role: artifact.ComponentWeights, Name: "group/weights", Artifact: inventory.Components[0].ID,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		capability := mediacapability.Capability{Resolve: func(string) (mediacapability.Source, error) {
+			return mediacapability.Source{Inventory: inventory, Manifests: []artifact.Manifest{group},
+				Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
+					definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, modelID)
+					return definition, []artifact.Content{fact}, err
+				}}, nil
+		}}
+		if _, _, err := prepareCapability(ctx, store, step.path, recipe.TaskSeq2Seq, capability); err != nil {
+			t.Fatalf("%s at %s: capability facts: %v", step.derived, step.path, err)
+		}
+		if _, err := prepareExactCandidate(ctx, store, step.path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative); err != nil {
+			t.Fatalf("%s at %s: candidate facts: %v", step.derived, step.path, err)
+		}
+		for _, location := range inventory.Locations {
+			held, err := store.Locations(ctx, location.Artifact)
+			if err != nil || !slices.Contains(held, location) {
+				t.Fatalf("%s at %s: store holds %v for %s, want %v: %v", step.derived, step.path, held, location.Artifact, location, err)
+			}
+		}
+		if held, err := store.HasContent(ctx, fact.Descriptor.ID); err != nil || !held {
+			t.Fatalf("%s: derived fact %s absent: %v", step.derived, fact.Descriptor.ID, err)
+		}
+		if _, held, err := store.Manifest(ctx, group.ID); err != nil || !held {
+			t.Fatalf("component group %s absent: %v", group.ID, err)
+		}
+	}
 }
 
 func TestCommandsRegisterExecutableCapabilities(t *testing.T) {

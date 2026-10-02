@@ -3,10 +3,7 @@ package modelintake
 import (
 	"cmp"
 	"context"
-	"crypto/sha256"
-	"encoding/json"
 	"errors"
-	"fmt"
 
 	"overgo/internal/artifact"
 	"overgo/internal/gguf"
@@ -106,15 +103,8 @@ func RegisterProjectionCandidate(ctx context.Context, store artifact.Repository,
 		batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(candidate.Config.ID, candidate.Config.Model)...)
 		batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(candidate.Processor.ID, candidate.Config.ID)...)
 	}
-	// One model can acquire another projector/configuration or move on disk.
-	// Idempotency must name all published facts, including their locations.
-	data, err := json.Marshal(batch)
-	if err != nil {
+	if err := PublishFacts(ctx, store, batch); err != nil {
 		return err
-	}
-	batch.Key = fmt.Sprintf("recipe/projection-facts/%x", sha256.Sum256(data))
-	if _, err := artifact.Publish(ctx, store, batch); err != nil {
-		return fmt.Errorf("publish projection facts: %w", err)
 	}
 	_, published, err := modelrecipe.Status(ctx, store, candidate.Definition.ID)
 	if err != nil {

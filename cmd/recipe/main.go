@@ -336,17 +336,9 @@ func prepareCapability(
 		batch.Locations = append(batch.Locations, relatedBatch.Locations...)
 	}
 	batch.Contents = append(batch.Contents, facts...)
-	if _, err := artifact.Publish(ctx, store, batch); err != nil {
-		return artifact.ID{}, recipe.Definition{}, fmt.Errorf("publish model facts: %w", err)
-	}
-	// Component-group manifests commit under their own content-derived
-	// keys: the facts batch key is content-bound and predates them.
-	for _, manifest := range source.Manifests {
-		if _, err := artifact.Publish(ctx, store, artifact.Batch{
-			Key: "recipe/component/" + manifest.ID.String(), Manifests: []artifact.Manifest{manifest},
-		}); err != nil {
-			return artifact.ID{}, recipe.Definition{}, fmt.Errorf("publish component manifest: %w", err)
-		}
+	batch.Manifests = append(batch.Manifests, source.Manifests...)
+	if err := modelintake.PublishFacts(ctx, store, batch); err != nil {
+		return artifact.ID{}, recipe.Definition{}, err
 	}
 	return modelID, definition, nil
 }
@@ -591,10 +583,8 @@ func activate(
 		return err
 	}
 	modelID := candidate.Inventory.Manifest.ID
-	if _, err := modelrecipe.PublishResolvedModelDefinition(
-		ctx, store, candidate.Inventory, candidate.Resolved,
-	); err != nil {
-		return fmt.Errorf("publish model facts: %w", err)
+	if err := modelintake.RegisterCandidate(ctx, store, candidate); err != nil {
+		return err
 	}
 	if err := modelrecipe.ActivateCapability(
 		ctx, store, candidate.Definition, verification, recipe.EvidenceVerified, reason,

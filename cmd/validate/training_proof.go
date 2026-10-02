@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/trainingprogram"
 )
@@ -18,12 +19,17 @@ import (
 // committed data, and the dense workflow trains the recipe it is given over
 // that recipe's own data, so the recipe whose objective reads the data is the
 // one a run of the route reaches and re-verifies at the commit it executed.
-// Each run keeps the bounds the training lane recorded for its route.
+// An objective registered over store data bootstraps its recipe from the
+// objective alone, so a proof run of train -objective under the alias that
+// registers it re-verifies that recipe, publishing no held-out verdict to
+// supersede the one the recipe's quality reads. Each run keeps the bounds the
+// training lane recorded for its route.
 const (
 	trainingProof = "training-proof"
 	routeSteps    = "3"
 	// The dense workflow takes one short update, lexically frozen so it
-	// stays device-resident.
+	// stays device-resident; an objective's proof run trains the same dense
+	// model the same way.
 	denseSteps    = "1"
 	denseSequence = "128"
 	// ditWeights is the file the dit route trains from a video stack
@@ -61,10 +67,16 @@ var trainingRoutes = []trainingRoute{
 	}},
 }
 
+// objectiveProof bounds the proof run train -objective takes as the dense
+// workflow's run is bounded.
+var objectiveProof = []string{"-proof", "-steps", denseSteps, "-seq", denseSequence, "-max-wall", "10m", "-freeze-lexical"}
+
 // groundTraining gives each training cell, in place, the committed data its
-// recipe's objective reads when a route grounds its recipe on it, and a raw
-// DiT checkpoint the one video stack directory the dit route trains from.
-func groundTraining(ctx context.Context, root string, store artifact.Reader, cells []ModelValidation) error {
+// recipe's objective reads when a route grounds its recipe on it, else the
+// alias, the first by name, that registers its token-prediction objective,
+// and a raw DiT checkpoint the one video stack directory the dit route
+// trains from.
+func groundTraining(ctx context.Context, root string, store *overgodb.Store, cells []ModelValidation) error {
 	grounded := map[artifact.ID]string{}
 	for _, route := range trainingRoutes {
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(route.grounding)))
@@ -78,6 +90,7 @@ func groundTraining(ctx context.Context, root string, store artifact.Reader, cel
 		grounded[id] = route.grounding
 	}
 	var stacks []string
+	var registered map[artifact.ID]string
 	for index, cell := range cells {
 		if cell.Validation != trainingProof || !cell.Recipe.Valid() {
 			continue
@@ -92,6 +105,16 @@ func groundTraining(ctx context.Context, root string, store artifact.Reader, cel
 				return err
 			}
 			cells[index].Grounding = grounded[objective.Dataset]
+			// train -objective trains text; a table or forecast objective
+			// trains through its route.
+			if cells[index].Grounding == "" && objective.Kind == trainingprogram.ObjectiveTokenPrediction {
+				if registered == nil {
+					if registered, err = aliasNames(ctx, store); err != nil {
+						return err
+					}
+				}
+				cells[index].Objective = registered[id]
+			}
 		}
 		if cells[index].Grounding == ditGrounding && filepath.Base(cell.Location) == ditWeights {
 			stacks = append(stacks, filepath.Dir(cell.Location))
@@ -109,19 +132,38 @@ func groundTraining(ctx context.Context, root string, store artifact.Reader, cel
 	return nil
 }
 
+// aliasNames names each target an alias binds by the first alias, in name
+// order, that binds it.
+func aliasNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]string, error) {
+	names := map[artifact.ID]string{}
+	err := store.VisitAliases(ctx, "", func(alias overgodb.AliasView) error {
+		if _, named := names[alias.Target]; !named {
+			names[alias.Target] = alias.Name
+		}
+		return nil
+	})
+	return names, err
+}
+
 // trainingRun is the bounded run into store that re-verifies a training cell,
 // the environment it runs under, and the scratch directory its checkpoint
 // publishes beneath, which -run empties before and after the run: the proof
 // is the verification the run records, not the checkpoint. A route trains a
 // directory's weights, a GGUF or a raw DiT checkpoint as its own flags name
-// them, and the dense workflow the recipe the cell names. It says why when no
-// route grounds the cell's recipe or the route lacks an input.
+// them, the dense workflow the recipe the cell names, and an objective's
+// proof run the model directory under the objective's alias. It says why
+// when no route grounds the cell's recipe and no alias registers its
+// objective, or the route lacks an input.
 func trainingRun(cell ModelValidation, store string) (args, environment []string, scratch string, err error) {
 	at := slices.IndexFunc(trainingRoutes, func(route trainingRoute) bool { return route.grounding == cell.Grounding })
+	route := trainingRoute{arguments: append([]string{"-objective", cell.Objective}, objectiveProof...)}
+	if at >= 0 {
+		route = trainingRoutes[at]
+	}
 	inputs := []string{"-model", filepath.Dir(cell.Location)}
 	switch {
-	case at < 0:
-		return nil, nil, "", errors.New("no cmd/train route grounds its recipe's objective")
+	case at < 0 && cell.Objective == "":
+		return nil, nil, "", errors.New("no cmd/train route grounds its recipe's objective, and no alias registers it for train -objective")
 	case cell.Location == "":
 		return nil, nil, "", errors.New("a training run needs the model's weights")
 	case cell.Grounding == hybridGrounding:
@@ -136,7 +178,7 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 		inputs = []string{"-model-dir", cell.Conditioning, "-checkpoint", cell.Location}
 	}
 	scratch = filepath.Join(os.TempDir(), "overgo-validate-proof", cell.Recipe.DigestHex())
-	args = append([]string{"run", "./cmd/train"}, trainingRoutes[at].arguments...)
+	args = append([]string{"run", "./cmd/train"}, route.arguments...)
 	args = append(append(args, "-store", store, "-out", filepath.Join(scratch, "checkpoint")), inputs...)
-	return args, trainingRoutes[at].environment, scratch, nil
+	return args, route.environment, scratch, nil
 }

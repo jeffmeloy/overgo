@@ -11,8 +11,12 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/evaluation"
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
@@ -250,6 +254,62 @@ func TestFrozenLexicalTextRunRecordsItsFrozenPlan(t *testing.T) {
 	}
 	if frozen.Program == unfrozen.Program || frozen.RunPlan == unfrozen.RunPlan || frozen.ID() == unfrozen.ID() {
 		t.Fatalf("frozen and unfrozen runs recorded one identity: program %s, run plan %s, checkpoint %s", frozen.Program, frozen.RunPlan, frozen.ID())
+	}
+}
+
+// TestTextObjectiveProofReverifiesWithoutAVerdict: a proof run under a text
+// objective re-verifies the recipe a full run activated by training alone.
+// It records its session and publishes its checkpoint at its output, and the
+// recipe's verification depends on exactly those; it scores neither model,
+// so no held-out verdict publishes and the full run's stays the newest, the
+// one the recipe's held-out quality reads. A verification binds a named code
+// revision, which this test sets as a package variable, so it runs alone.
+func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
+	stubExecutableCodeCommit(t, strings.Repeat("e7", 20))
+	var documents []string
+	for index := range 8 {
+		documents = append(documents, strings.Repeat("abcd", 3)[:4+index])
+	}
+	text := registerTextObjective(t, documents, trainingprogram.MetricTokenAccuracy)
+	ctx := t.Context()
+	run := func(output string, proof bool) HeldoutResult {
+		t.Helper()
+		result, err := RunTextHeldout(ctx, text.store, TextHeldoutRequest{
+			Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, output),
+			Steps: 2, MaximumSequence: 8, Host: true, Proof: proof,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result
+	}
+	full, proof := run("full", false), run("proof", true)
+	if !full.Verdict.Valid() || !proof.Observation.Valid() || proof.Verdict.Valid() || proof.View.Valid() || proof.Plan.Valid() ||
+		proof.Baseline.Valid() || proof.Candidate.Valid() {
+		t.Fatalf("full run = %+v, proof run = %+v: want a session and checkpoint from each and only the full run judged", full, proof)
+	}
+	if checkpoint, err := trainingprogram.LoadCheckpoint(filepath.Join(text.root, "proof")); err != nil || checkpoint.ID() != proof.Trained {
+		t.Fatalf("proof output holds checkpoint (%s, %v), want %s", checkpoint.ID(), err, proof.Trained)
+	}
+	var judged []artifact.ID
+	if err := evaluation.VisitHeldoutVerdicts(ctx, text.store, func(observation artifact.ID, _, _ evaluation.EvalSummary) error {
+		judged = append(judged, observation)
+		return nil
+	}); err != nil || !slices.Equal(judged, []artifact.ID{full.Observation}) {
+		t.Fatalf("held-out verdicts judged sessions (%v, %v), want the full run's %s alone", judged, err, full.Observation)
+	}
+	modelID, err := identifyModel(text.model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	activation, found, err := modelrecipe.ActiveRecord(ctx, text.store, modelID, recipe.TaskTraining)
+	if err != nil || !found {
+		t.Fatalf("training activation = (found %t, %v), want the recipe active", found, err)
+	}
+	verified, err := runrecord.VerifyEvidence(ctx, text.store, activation.Definition.ID, activation.Event.Evidence)
+	if inputs := verified.Run.Inputs; err != nil || len(inputs) != 2 || !slices.Contains(inputs, proof.Observation) || !slices.Contains(inputs, proof.Trained) {
+		t.Fatalf("active verification = (%+v, %v), want it to depend on the proof's session %s and checkpoint %s alone",
+			verified.Run, err, proof.Observation, proof.Trained)
 	}
 }
 

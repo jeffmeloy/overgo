@@ -41,9 +41,12 @@ type ModelValidation struct {
 	// Grounding is the committed data a training recipe's objective reads,
 	// which names the route whose run verifies it again, or the committed
 	// exact suite or oracle a projection recipe's verification ran;
+	// Objective is the alias that registers a training recipe's objective
+	// no committed data grounds, which train -objective trains under;
 	// Conditioning is the video stack directory a raw DiT checkpoint trains
 	// against, and Projector the projector an exact projection suite runs on.
 	Grounding    string `json:"grounding,omitzero"`
+	Objective    string `json:"objective,omitzero"`
 	Conditioning string `json:"conditioning,omitzero"`
 	Projector    string `json:"projector,omitzero"`
 }

@@ -31,8 +31,11 @@ const fixtureCommit = "0123456789abcdef0123456789abcdef01234567"
 // declares an objective over the data its route grounds on, and the record
 // reader names the route from that objective alone: the dit route trains a
 // video stack from its directory and a raw checkpoint against that stack, and
-// the dense workflow trains the recipe it is named. A recipe over data no
-// route grounds binds nothing. Each projection recipe passed a verification
+// the dense workflow trains the recipe it is named. A recipe whose objective
+// no committed data grounds but an alias registers is re-verified by a proof
+// run of train -objective under that alias, bounded as the dense workflow's
+// run; one over data nothing grounds or registers binds nothing. Each
+// projection recipe passed a verification
 // the reader names from its gate alone: an exact verification whose plan ran
 // the committed suite re-runs it through recipe verify -reverify against the
 // projector its activation binds, one the E4B serving producer published
@@ -57,7 +60,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		}
 		return content.Descriptor.ID
 	}
-	training := func(name, weights, grounding string) ModelValidation {
+	training := func(name, weights, grounding, alias string) ModelValidation {
 		data := []byte("data no route grounds")
 		if grounding != "" {
 			if data, err = os.ReadFile(filepath.Join(root, filepath.FromSlash(grounding))); err != nil {
@@ -75,9 +78,14 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		model := testutil.ArtifactID(t, artifact.KindModel, name)
+		model, objectiveID := testutil.ArtifactID(t, artifact.KindModel, name), publish(objective.Content())
+		if alias != "" {
+			if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/objective/" + name, Aliases: []artifact.AliasBinding{{Name: alias, Target: objectiveID}}}); err != nil {
+				t.Fatal(err)
+			}
+		}
 		definition, err := recipe.NewDefinitionWithDependencies(recipe.TaskTraining,
-			[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: model}, {Role: recipe.DependencyObjective, Artifact: publish(objective.Content())}},
+			[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: model}, {Role: recipe.DependencyObjective, Artifact: objectiveID}},
 			[]recipe.Node{{ID: "optimize", Module: "training.optimize", Placement: recipe.PlacementHost}}, nil, nil,
 			[]recipe.Output{{Name: "checkpoint", Data: recipe.DataCheckpoint, Source: recipe.Endpoint{Node: "optimize", Port: "checkpoint"}}})
 		if err != nil {
@@ -88,10 +96,12 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 			Kind: recipe.TaskTraining, Validation: trainingProof, Surface: "training", Recipe: publish(definition.ArtifactContent()),
 		}
 	}
-	stack, edit := training("Wan", ditWeights, ditGrounding), training("LiveEdit", "edit.pt", ditGrounding)
-	mot := training("RxBrain", "model-00001-of-00003.safetensors", "docs/verification/rxbrain-mot-training-stimulus.txt")
-	hybrid := training("Qwen35", "qwen35.gguf", "fixtures/qwen35_4b_serving_golden.json")
-	dense, ungrounded := training("Qwen25", "model.safetensors", denseGrounding), training("Unrouted", "model.safetensors", "")
+	stack, edit := training("Wan", ditWeights, ditGrounding, ""), training("LiveEdit", "edit.pt", ditGrounding, "")
+	mot := training("RxBrain", "model-00001-of-00003.safetensors", "docs/verification/rxbrain-mot-training-stimulus.txt", "")
+	hybrid := training("Qwen35", "qwen35.gguf", "fixtures/qwen35_4b_serving_golden.json", "")
+	dense, ungrounded := training("Qwen25", "model.safetensors", denseGrounding, ""), training("Unrouted", "model.safetensors", "", "")
+	const registered = "objective.registered.text-text"
+	objective := training("Qwen05", "model.safetensors", "", registered)
 
 	projectorPaths := map[string]string{}
 	projection := func(name, evidence string) ModelValidation {
@@ -196,7 +206,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	suite.Cases[0].Text += " but another answer"
 	otherSuite := projection("OtherSuite", exactRan(suite))
 
-	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded, exact, protocol, otherSuite}
+	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded, objective, exact, protocol, otherSuite}
 	affected := map[SurfaceID]AffectRecord{"training": {Affected: true, Reason: "fixture"}, "evaluation": {Affected: true, Reason: "fixture"}}
 	for _, task := range []recipe.Task{
 		recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskTranscription,
@@ -262,6 +272,10 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		mot.ModelName:    {"-route": "mot", "-model": filepath.Dir(mot.Location)},
 		hybrid.ModelName: {"-route": "hybrid-stack", "-model": hybrid.Location},
 		dense.ModelName:  {"-route": "", "-recipe": dense.Recipe.String(), "-model": filepath.Dir(dense.Location), "-dataset": denseGrounding},
+		objective.ModelName: {
+			"-route": "", "-recipe": "", "-dataset": "", "-objective": registered, "-model": filepath.Dir(objective.Location),
+			"-steps": denseSteps, "-seq": denseSequence,
+		},
 	} {
 		for name, value := range want {
 			if got := flag(model, name); got != value {
@@ -271,6 +285,11 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		if out := flag(model, "-out"); !strings.HasPrefix(out, os.TempDir()) {
 			t.Errorf("%s publishes its checkpoint at %q, outside the scratch -run empties", model, out)
 		}
+	}
+	// The objective's proof run re-verifies its recipe without publishing the
+	// held-out verdict its quality reads, frozen as the dense workflow's run.
+	if proof := commands[objective.ModelName]; !slices.Contains(proof, "-proof") || !slices.Contains(proof, "-freeze-lexical") {
+		t.Errorf("%s runs %v, want a lexically frozen -objective proof run", objective.ModelName, proof)
 	}
 	verify := commands[exact.ModelName]
 	for name, value := range map[string]string{

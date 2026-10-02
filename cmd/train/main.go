@@ -53,7 +53,11 @@ func run() error {
 	previewDataset := flag.String("preview-dataset", "", "validate one speech training example from a source/split/policy JSON manifest without loading a model or updating parameters")
 	audioManifest := flag.String("audio-manifest", "", "CPU CTC adapter source-processing manifest; the active training recipe owns the registered dataset and split")
 	objective := flag.String("objective", "", "registered text objective alias: train on its training split, publish the trained model at -out and the held-out verdict that binds it (table and forecast objectives train through -route tabular and -route seriesforecast)")
+	proof := flag.Bool("proof", false, "with -objective: re-verify the objective's recipe by the training run alone, scoring no model and publishing no held-out verdict")
 	flag.Parse()
+	if *proof && *objective == "" {
+		return fmt.Errorf("train: -proof re-verifies an -objective recipe; it needs -objective")
+	}
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
@@ -64,7 +68,7 @@ func run() error {
 		flag.Visit(func(given *flag.Flag) { set[given.Name] = true })
 		return runObjectiveMode(ctx, store, objectiveRun{
 			Alias: *objective, Model: *model, Out: *output, Steps: *steps, Sequence: *maximumSequence, Host: *host,
-			FreezeLexical: *freezeLexical, MaxWall: *maxWall,
+			FreezeLexical: *freezeLexical, Proof: *proof, MaxWall: *maxWall,
 		}, set, os.Stdout)
 	}
 	if *previewDataset != "" {

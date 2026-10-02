@@ -48,6 +48,10 @@ type HeldoutRun struct {
 	Predict   func(HeldoutExample) (HeldoutPrediction, error)
 	// Host records the training session as host execution.
 	Host bool
+	// Proof re-verifies the recipe by the training run alone: neither model
+	// is scored and no verdict publishes, so the newest verdict, which the
+	// recipe's held-out quality reads, stays a full run's.
+	Proof bool
 }
 
 // HeldoutResult names what a held-out run published: the session
@@ -86,7 +90,9 @@ func LoadObjectiveAlias(ctx context.Context, reader artifact.Reader, alias strin
 // model on its held-out membership, and publishes the view, plan, both
 // reports and the verdict, which binds the checkpoint training published
 // and the held-out inputs both models read. Every held-out record must have
-// an example: a view that skipped some would judge a chosen subset.
+// an example: a view that skipped some would judge a chosen subset. A proof
+// run stops once training records its session, and verifies the recipe on
+// the session and the checkpoint alone, as the dense workflow does.
 func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (HeldoutResult, error) {
 	objective, err := LoadObjectiveAlias(ctx, store, run.Alias)
 	if err != nil {
@@ -116,9 +122,11 @@ func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (Hel
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	baseline, err := predictHeldout(plan, cases, run)
-	if err != nil {
-		return HeldoutResult{}, err
+	var baseline evaluation.HeldoutReport
+	if !run.Proof {
+		if baseline, err = predictHeldout(plan, cases, run); err != nil {
+			return HeldoutResult{}, err
+		}
 	}
 	recipeID, err := BootstrapObjectiveRecipe(ctx, store, run.ModelPath, run.Alias)
 	if err != nil {
@@ -140,6 +148,9 @@ func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (Hel
 	observation, err := observer.Finish(context.WithoutCancel(ctx), modelID, recipeID, trainErr, uint64(len(trainingExamples)))
 	if err := errors.Join(trainErr, err); err != nil {
 		return HeldoutResult{}, err
+	}
+	if run.Proof {
+		return HeldoutResult{Observation: observation, Trained: trained.ID()}, observer.Verify(ctx, recipeID, observation, trained.ID())
 	}
 	candidate, err := predictHeldout(plan, cases, run)
 	if err != nil {

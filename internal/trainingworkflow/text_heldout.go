@@ -45,6 +45,9 @@ type TextHeldoutRequest struct {
 	// Progress, when set, receives the lane the run trains on and a line
 	// per update, as the dense workflow reports them.
 	Progress io.Writer
+	// Proof re-verifies the recipe by the training run alone, judging and
+	// publishing no verdict (HeldoutRun.Proof).
+	Proof bool
 }
 
 // promptAnswers is one record of a generation objective: a prompt and the
@@ -139,7 +142,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	}
 	config := plan.Optimizer()
 	return RunHeldout(ctx, store, HeldoutRun{
-		Alias: request.Alias, ModelPath: weights, Data: data, Host: request.Host,
+		Alias: request.Alias, ModelPath: weights, Data: data, Host: request.Host, Proof: request.Proof,
 		Train: func(ctx context.Context, recipeID artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error) {
 			documents := make([][]int, len(shown))
 			for index, example := range shown {

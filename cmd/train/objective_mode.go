@@ -13,13 +13,14 @@ import (
 
 // objectiveRun is cmd/train's -objective mode: train a text model on the
 // registered objective's training split, publish the trained model at Out,
-// and publish the held-out verdict that binds it. Table and forecast
+// and publish the held-out verdict that binds it. A proof run re-verifies
+// the recipe by training alone and publishes no verdict. Table and forecast
 // objectives train through their routes.
 type objectiveRun struct {
-	Alias, Model, Out   string
-	Steps, Sequence     int
-	Host, FreezeLexical bool
-	MaxWall             time.Duration
+	Alias, Model, Out          string
+	Steps, Sequence            int
+	Host, FreezeLexical, Proof bool
+	MaxWall                    time.Duration
 }
 
 // objectiveConflictingFlags are the flags an -objective run cannot honour,
@@ -52,8 +53,13 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
 		Alias: run.Alias, ModelDirectory: run.Model, OutputDirectory: run.Out, Steps: run.Steps, MaximumSequence: run.Sequence,
 		Host: run.Host, Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
+		Proof: run.Proof,
 	})
 	if err != nil {
+		return err
+	}
+	if run.Proof {
+		_, err = fmt.Fprintf(output, "training proof observation=%s trained=%s; no held-out verdict published\n", result.Observation, result.Trained)
 		return err
 	}
 	return reportVerdict(output, result)

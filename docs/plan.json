@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "promotion-correctness",
-      "title": "Promote only on complete, typed evidence of every compared contract",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 898,
-        "reason": "SQA-071 +261; SQA-044 typed outcomes +637 (run.go +659, media_receipt.go -92, improve.go +65, driver.go +5)"
-      },
-      "steps": [
-        {
-          "id": "cycle-lane-tests",
-          "title": "Re-pin the hybrid training trajectory at the trained-model rate and drop the wall-time criterion",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/adaptiveparity -run '^(TestQwen35RealTraining|TestSimpleDiffusionProcessLeadership)$' -count=1",
-          "rationale": "Cycle 2's models lane failed: TestQwen35RealTraining pins the two-step trajectory at the built-in policy's rate, which 0585169f5 changed deliberately (step 1 now 12.912 against the old 11.506, still decreasing); TestSimpleDiffusionProcessLeadership asserted process wall time (581 ms median against adaptive's 559, runs 512-664 against 540-767), and timing is never a pass criterion. Batch: models cycle lane only."
-        }
-      ]
-    },
-    {
       "id": "training-publishes-servable-model",
       "title": "Training publishes a servable model plus a binary resume sidecar",
       "owner": "master-lead",

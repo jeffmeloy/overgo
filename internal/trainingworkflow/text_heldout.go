@@ -294,7 +294,7 @@ func publishTrainedText(
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	checkpoint, err := publishCheckpoint(request.ModelDirectory, request.OutputDirectory, model, authority, state)
+	checkpoint, err := publishCheckpoint(ctx, store, request.ModelDirectory, request.OutputDirectory, model, authority, state)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}

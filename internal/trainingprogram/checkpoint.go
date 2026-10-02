@@ -23,9 +23,15 @@ const (
 	CheckpointFilename = "checkpoint.json"
 	CheckpointWeights  = "model.safetensors"
 	// CheckpointModel is the trained model a run over a GGUF base publishes
-	// in that base's layout, the model the server opens. A checkpoint that
-	// holds it binds it as its weights in place of CheckpointWeights.
-	CheckpointModel = "model.gguf"
+	// in that base's layout, the model the server opens: the first of two
+	// shards, holding the base's metadata and every tensor training held.
+	// A checkpoint that holds it binds it as its weights in place of
+	// CheckpointWeights.
+	CheckpointModel = "model-00001-of-00002.gguf"
+	// CheckpointFrozenShard is the trained model's second shard: the base's
+	// tensors training never held, the same bytes for every run over that
+	// base, which the runs share.
+	CheckpointFrozenShard = "model-00002-of-00002.gguf"
 	// resumeFilename holds the resume sidecar's document: the optimizer
 	// progress, dataset stream position and RNG only a continued run reads.
 	resumeFilename = "resume.json"

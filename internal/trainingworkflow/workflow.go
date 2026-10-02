@@ -264,7 +264,7 @@ func (session denseSession) run() (Result, error) {
 	result.Optimizer = plan.Optimizer()
 	result.Plan = plan
 	result.Checkpoint, err = publishCheckpoint(
-		session.inputDirectory, session.request.OutputDirectory, session.model, authority, state,
+		session.ctx, session.request.Repository, session.inputDirectory, session.request.OutputDirectory, session.model, authority, state,
 	)
 	result.authority = authority
 	// The checkpoint records where the run's evidence goes, and a trained
@@ -436,16 +436,16 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 
 // publishCheckpoint publishes the trained model in its source's layout
 // with the checkpoint that resumes it: a GGUF source's trained GGUF, which
-// the server opens, or a safetensors directory with its config and
-// tokenizer.
-func publishCheckpoint(source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState) (trainingprogram.Checkpoint, error) {
+// the server opens and whose untrained tensors store may already hold, or
+// a safetensors directory with its config and tokenizer.
+func publishCheckpoint(ctx context.Context, store artifact.Reader, source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState) (trainingprogram.Checkpoint, error) {
 	spec, err := authority.checkpointSpec(state)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
 	checkpoint, err := trainingprogram.PublishCheckpoint(target, spec, func(stage string) error {
 		if isGGUFModelInput(source) {
-			return WriteTrainedModel(source, filepath.Join(stage, trainingprogram.CheckpointModel), len(model.Weights), func(name string) ([]float32, bool) {
+			return WriteTrainedModel(ctx, store, source, stage, len(model.Weights), func(name string) ([]float32, bool) {
 				trained, named := tensorcatalog.HFDenseTensorName(name)
 				values, found := model.Weights[trained]
 				return values, named && found

@@ -4,21 +4,47 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "training-publishes-servable-model",
-      "title": "Training publishes a servable model plus a binary resume sidecar",
+      "id": "load-time-surface-batch",
+      "title": "Parse a GGUF header through one buffer, and publish model facts through one content-keyed owner",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 1611,
-        "reason": "the binary resume sidecar with its identity chain (+751) and the trained-model GGUF writer and registration (+860), net of the deleted JSON momentum path and the synthesized HF staging"
-      },
       "steps": [
         {
-          "id": "e4b-publishes",
-          "title": "The real E4B route publishes a model that serves",
+          "id": "do",
+          "title": "Parse a GGUF header through one buffer, and publish model facts through one content-keyed owner",
           "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/train -run '^TestE4BRoutePublishesAServableModel$' -count=1",
-          "rationale": "The proof end to end: train -route e4b on the real Gemma-4 E4B publishes its trained model and resume sidecar, and the server opens the model and answers a held-out prompt. The trainer landed in 096df8d2f but could not publish at this size. The hybrid 9B route should follow the same path (about 270 GB of JSON today). Batch: the cuda and e4b lanes.\n\nresume-sidecar landed with servable-model in one batch (2026-09-30), since both reach all 8 lanes. What e4b-publishes needs, from that build: (1) frozen tensors shared by content address: write a split GGUF, one shard trained and one frozen (per_layer_token_embd 5.64 GB, token_embd 1.34 GB, rope_freqs), identify the frozen shard by digest first and hard-link it when the store already records a location; today about 7 GB would be copied per run. (2) Value parity: confirm LoadHostLayer returns untransformed GGUF values; a zero-step publish must rewrite zero tensors. (3) The gemma4 architecture profile registered in the route's store. (4) Cost: the f32 sidecar is 15.9 GB written once from the live buffer, and model.gguf about 23 GB, hashed twice (checkpoint identity and FromGGUF). (5) F32 serving uses more VRAM than bf16; quantizing for serving is a separate derived artifact. The test: one CUDA step, activate the registered candidate, open with OpenRunner, answer a held-out prompt. Other routes still to publish servable models: hybrid stack (qwen35, needs a tensor-name mapping to the GGUF), dense causal from an HF base (needs hfconvert as a derived artifact), -objective (publishes nothing; heldout-binds-result binds to the registered model), the E4B per-layer adapter route (needs a GGUF LoRA adapter artifact), and the media routes (each needs a writer in its family's layout)."
+          "verify": "go test ./internal/gguf -run '^TestParseDirectoryReadsDoNotScaleWithEntries$' -count=1 \u0026\u0026 go test ./internal/modelrecipe -run '^TestGGUFModelDefinitionOvergoDBResolution$' -count=1",
+          "rationale": "\n\nMeasured 2026-10-02 (CPU profile of Carbon's cold resolve, 1.74 s against adaptive's 10 ms): gguf.Open read the header with one ReadAt per field, ~1.24 s for Carbon's 155,776 tokens; a 1 MiB buffered cursor gives 1.226 s -\u003e 13.9 ms (Carbon), 2.868 s -\u003e 34.9 ms (gemma-4-E4B), 1.954 s -\u003e 23.2 ms (Qwen3.5-4B). Every model start and switch pays it (cmd/swap starts a fresh server child per model), and the scorecard's load-time includes it. Batched with it: modelrecipe.PublishFacts as the one content-keyed facts owner (PublishResolvedModelDefinition left from ce983b068). Both move the inference surface (gguf/reader.go, modelrecipe/model_definition.go), so they land together before an evaluation run; claims bounded-gguf-parsing and validated-split-gguf rebound by their own verifies. Declined: trusting a recorded size and mtime instead of re-hashing the GGUF at load (the remaining ~0.53 s), an integrity trade. Patch: scratchpad surface-batch.patch, +22 nodes. Serves: inference (load-time, first-output). Batch: every lane; surface move; no media reconciliation."
+        }
+      ]
+    },
+    {
+      "id": "training-rate-per-layer",
+      "title": "Measure whether a per-step relative Muon rate transfers across models",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure whether a per-step relative Muon rate transfers across models",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram -run '^TestDerivedRateFineTunesMeasuredModels$' -count=1",
+          "rationale": "\n\nOwner proposal 2026-10-02: derive Muon's rate per layer from the layer, a per-step relative size rho*||W||/||U||, with a held-out brake (paired against the base's per-window loss) and no first-step line search (the 200-window sweep showed the short horizon favours the rate that later drifted). Measured: relative movement over 540 steps scales linearly with the rate; the good run moved matrices 0.8-1.4% (about 2.4e-5 per step), the old rate 6-10%; equal total movement is not equal outcome; 1-D norms and biases move 50-100x less relatively (tmp/relative_movement.go). On Qwen2.5-0.5B matrix weight scales differ at most 1.5x, so the per-layer rule cannot be told from the exponent there. Step: calibrate rho on 0.5B in the scratch sweep harness, then measure a second model; add its measured band as a row of TestDerivedRateFineTunesMeasuredModels; adopt the per-layer rule only if it transfers where the exponent does not; measure the 1-D tensors separately. Serves: train."
+        }
+      ]
+    },
+    {
+      "id": "cycle-fill-worktree",
+      "title": "Run the cycle's background fill in its own worktree at the measured commit",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the cycle's background fill in its own worktree at the measured commit",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestFillRunsAtTheMeasuredCommit$' -count=1",
+          "rationale": "\n\nCycle 2 (2026-10-02) reached its background fill after deciding; the fill needs a clean main checkout and binds claims to the measured commit, so nothing could land for hours and the fill was stopped. Run the fill from a detached worktree at the measured commit so landings proceed. Serves: measure. Batch: cmd/loop."
         }
       ]
     },
@@ -588,7 +614,10 @@
             "projection-proof-producer/do",
             "ocr-mmlu-coverage/do",
             "first-cycle-defects/do",
-            "promotion-correctness/do"
+            "promotion-correctness/do",
+            "load-time-surface-batch/do",
+            "training-rate-per-layer/do",
+            "cycle-fill-worktree/do"
           ]
         }
       ]

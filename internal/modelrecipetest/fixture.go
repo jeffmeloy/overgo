@@ -174,6 +174,13 @@ func PublishActivation(ctx context.Context, store artifact.Repository, key strin
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, key+"/candidate", definition); err != nil {
 		return err
 	}
+	return ActivateCandidate(ctx, store, key, definition)
+}
+
+// ActivateCandidate takes a published candidate, such as one intake
+// registered, through the real validation, evidence and activation
+// lifecycle, without model loading.
+func ActivateCandidate(ctx context.Context, store artifact.Repository, key string, definition recipe.Definition) error {
 	if _, _, err := modelrecipe.Transition(ctx, store, key+"/validated", definition, recipe.StatusValidated, nil, nil); err != nil {
 		return err
 	}

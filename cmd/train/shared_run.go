@@ -280,14 +280,15 @@ type servable interface {
 // publishWeights publishes, as a checkpoint at target, what trainer trained
 // under program; stream is where the training stopped in the recipe
 // objective's dataset. A servable trainer over a GGUF base publishes the
-// trained model there, which the checkpoint's record registers as the
-// candidate the server opens.
+// trained model there, sharing the tensors it never trained with every
+// other run over that base the session's store records, and the
+// checkpoint's record registers it as the candidate the server opens.
 func (session routeSession) publishWeights(ctx context.Context, target string, program trainingprogram.TrainingProgram, trainer weightWriter, stream trainingdata.StreamState) (trainingprogram.Checkpoint, error) {
 	model, served := trainer.(servable)
 	served = served && strings.EqualFold(filepath.Ext(session.weights), ".gguf")
 	return session.publish(ctx, target, program, trainer.Snapshot(), stream, func(stage string) error {
 		if served {
-			return trainingworkflow.WriteTrainedModel(session.weights, filepath.Join(stage, trainingprogram.CheckpointModel), model.OptimizerPlan().GroupCount(), model.TrainedTensor)
+			return trainingworkflow.WriteTrainedModel(ctx, session.store, session.weights, stage, model.OptimizerPlan().GroupCount(), model.TrainedTensor)
 		}
 		return trainer.SaveWeights(filepath.Join(stage, trainingprogram.CheckpointWeights))
 	})

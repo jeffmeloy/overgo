@@ -153,6 +153,69 @@ func TestBootstrapVerifiesWithARealRun(t *testing.T) {
 	}
 }
 
+// TestBootstrapGroundsAStoredObjectivesReferences holds a bootstrap to every
+// identity the recipe's run plan resolves. A store rebuilt from one that
+// never declared an objective's dataset and split holds the objective and its
+// published recipe without them, as the live store did for the dit, mot and
+// hybrid routes; the rerun of the bootstrap that opens a route's session
+// declares them, so the run resolves its objective when its checkpoint
+// publishes rather than failing there after it trained.
+func TestBootstrapGroundsAStoredObjectivesReferences(t *testing.T) {
+	t.Parallel()
+	root, ctx := t.TempDir(), t.Context()
+	modelPath, data := filepath.Join(root, "model.gguf"), []byte("training data")
+	if err := os.WriteFile(modelPath, []byte("weights"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	source, err := overgodb.Open(filepath.Join(root, "source"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	recipeID, err := BootstrapRecipe(ctx, source, modelPath, data, TokenContract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dataset, split, _, err := TextAuthority(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rebuilt, err := overgodb.Open(filepath.Join(root, "rebuilt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rebuilt.Close()
+	_, head := source.Head()
+	for sequence := uint64(1); sequence <= head; sequence++ {
+		delta, _, err := source.CommitDeltaAt(ctx, sequence)
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch := delta.Delta
+		batch.Key = fmt.Sprintf("rebuild/%06d", sequence)
+		batch.Artifacts = slices.DeleteFunc(batch.Artifacts, func(descriptor artifact.Descriptor) bool {
+			return descriptor.ID == dataset || descriptor.ID == split
+		})
+		if _, err := rebuilt.Commit(ctx, batch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	definition, err := recipe.RequireDefinition(ctx, rebuilt, recipeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	objective, _ := definition.PrimaryDependency(recipe.DependencyObjective)
+	if _, err := trainingprogram.CompileObjectiveMatrix(ctx, rebuilt, []artifact.ID{objective}); err == nil {
+		t.Fatal("the rebuilt store resolves an objective whose dataset and split it never declared")
+	}
+	if again, err := BootstrapRecipe(ctx, rebuilt, modelPath, data, TokenContract); err != nil || again != recipeID {
+		t.Fatalf("rerun bootstrap = (%s, %v), want the published recipe %s", again, err, recipeID)
+	}
+	if _, err := trainingprogram.CompileObjectiveMatrix(ctx, rebuilt, []artifact.ID{objective}); err != nil {
+		t.Fatalf("after the rerun bootstrap its recipe's objective still does not resolve: %v", err)
+	}
+}
+
 func TestBootstrapTokenRecipeBindsStoredOptimizerPolicy(t *testing.T) {
 	root := t.TempDir()
 	modelPath := filepath.Join(root, "model.gguf")

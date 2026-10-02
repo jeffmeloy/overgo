@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1,
-        "reason": "the fill runs before the proposals; measured by the gate"
+        "nodes": 16,
+        "reason": "fill order 1; the bootstrap declares absent references on every run 15; measured by the gate"
       },
       "steps": [
-        {
-          "id": "proof-references",
-          "title": "Training proofs publish only objectives whose references the store holds",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go run ./cmd/validate -run -only training-proof",
-          "rationale": "Step 2 of the first cycle's defects; see do's rationale. The verify is set after diagnosis."
-        },
         {
           "id": "projection-facts",
           "title": "Republishing a model's facts never conflicts with its own earlier facts",

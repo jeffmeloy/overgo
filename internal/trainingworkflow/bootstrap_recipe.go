@@ -249,6 +249,37 @@ func bootstrapRecipeForObjective(
 	if err != nil {
 		return artifact.ID{}, err
 	}
+	// Every bootstrap grounds the objective and the identities it and the
+	// recipe name, even when the objective or the recipe is already stored:
+	// a store rebuilt from one that never declared an objective's dataset
+	// and split holds both without them, and a run under the recipe would
+	// train to the end and fail only when its checkpoint resolves the
+	// objective. Identities already grounded keep their stored facts; only
+	// absent ones are declared, so a rerun over a grounded authority writes
+	// nothing.
+	authority := artifact.Batch{Key: "training/bootstrap/authority/" + objective.ID.String()}
+	if _, ok, err := store.Artifact(ctx, objective.ID); err != nil {
+		return artifact.ID{}, err
+	} else if !ok {
+		authority.Contents = []artifact.Content{content}
+	}
+	candidates := []artifact.ID{modelID, evidenceID, objective.Dataset, objective.Split, objective.Loss, objective.Evaluation}
+	candidates = append(candidates, objective.Processors...)
+	for _, id := range profiles {
+		candidates = append(candidates, id)
+	}
+	for _, id := range candidates {
+		if _, ok, err := store.Artifact(ctx, id); err != nil {
+			return artifact.ID{}, err
+		} else if !ok {
+			authority.Artifacts = append(authority.Artifacts, artifact.Descriptor{ID: id})
+		}
+	}
+	if len(authority.Artifacts) > 0 || len(authority.Contents) > 0 {
+		if _, err := store.Commit(ctx, authority); err != nil {
+			return artifact.ID{}, err
+		}
+	}
 	// Reruns with the same model and dataset re-derive the SAME authority: an
 	// already-published definition returns as-is, and each write below is guarded
 	// so the append-only store never sees a same-key batch whose content
@@ -260,30 +291,6 @@ func bootstrapRecipeForObjective(
 	if published {
 		fmt.Printf("training recipe already published: %s (model %s, %s)\n", definition.ID, modelID, state)
 		return definition.ID, nil
-	}
-	if _, ok, err := store.Artifact(ctx, objective.ID); err != nil {
-		return artifact.ID{}, err
-	} else if !ok {
-		// Identities already grounded by prior claims keep their stored facts;
-		// only absent identities are declared.
-		candidates := []artifact.ID{modelID, evidenceID, objective.Dataset, objective.Split, objective.Loss, objective.Evaluation}
-		candidates = append(candidates, objective.Processors...)
-		for _, id := range profiles {
-			candidates = append(candidates, id)
-		}
-		var descriptors []artifact.Descriptor
-		for _, id := range candidates {
-			if _, ok, err := store.Artifact(ctx, id); err != nil {
-				return artifact.ID{}, err
-			} else if !ok {
-				descriptors = append(descriptors, artifact.Descriptor{ID: id})
-			}
-		}
-		if _, err := store.Commit(ctx, artifact.Batch{
-			Key: "training/bootstrap/authority/" + objective.ID.String(), Artifacts: descriptors, Contents: []artifact.Content{content},
-		}); err != nil {
-			return artifact.ID{}, err
-		}
 	}
 	if ok, err := store.HasContent(ctx, optimizerPolicy.ID); err != nil {
 		return artifact.ID{}, err

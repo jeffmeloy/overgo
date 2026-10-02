@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "first-cycle-defects",
-      "title": "Fix what kept the first improvement cycle from deciding",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 16,
-        "reason": "fill order 1; the bootstrap declares absent references on every run 15; measured by the gate"
-      },
-      "steps": [
-        {
-          "id": "models-lane",
-          "title": "The cycle's models lane passes on this machine",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest,integration ./internal/inference ./internal/adaptiveparity -run '^(TestCarbonColdLifecyclePhases|TestNeedleProcessPeakLeadership)$' -count=1",
-          "rationale": "Step 4; see do's rationale."
-        }
-      ]
-    },
-    {
       "id": "first-trained-improvement",
       "title": "Train Qwen2.5-0.5B on WikiText-2 until it beats its base on held-out records",
       "owner": "master-lead",

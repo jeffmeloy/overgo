@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/modeltest"
 	"overgo/internal/testutil"
 )
 
@@ -29,6 +30,9 @@ func TestNeedleProcessPeakLeadership(t *testing.T) {
 	referenceBinary := filepath.Join(temporary, "adaptive-needle.test.exe")
 	buildTestBinary(t, root, candidateBinary, "modeltest", "./internal/seq2seq")
 	buildTestBinary(t, adaptiveGo, referenceBinary, "research", "./extmodel")
+	// The parent reads the store's registration; the measured child only loads
+	// and generates, as adaptive's child does from the directory it is given.
+	t.Setenv("OVERGO_NEEDLE_MODEL", modeltest.Directory(t, "needle"))
 
 	candidate := measureModelProcesses(t, needleProcessRuns, root, candidateBinary, "TestSingleTokenProcessProbe", "NEEDLE_PROCESS_PROBE")
 	reference := measureModelProcesses(t, needleProcessRuns, filepath.Join(adaptiveGo, "extmodel"), referenceBinary, "TestNeedleServingGeneratesFromResolvedArtifact", "PASS")

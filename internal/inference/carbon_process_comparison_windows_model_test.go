@@ -5,6 +5,7 @@ package inference
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -24,6 +25,14 @@ import (
 
 const carbonProcessRuns = 5
 const carbonWarmParityDivisor = 10
+
+// The reference is adaptive_new's Go module at the commit the recorded Carbon
+// comparison measured, with the reference probe this package owns added: the
+// commit holds no process probe of its own.
+const (
+	carbonReferenceCommit = "214950b3b0316bcdcab38a3b95127a927c0ab5be"
+	carbonReferenceProbe  = "testdata/adaptive_carbon_process_probe_test.go"
+)
 
 var carbonProcessMarker = regexp.MustCompile(`CARBON_PROCESS_PROBE wall_ns=([0-9]+).*warm_ns=([0-9]+).*device_peak=([0-9]+)`)
 var carbonCandidatePhaseMarker = regexp.MustCompile(`resolve_ns=([0-9]+) open_ns=([0-9]+) generate_ns=([0-9]+)`)
@@ -51,10 +60,32 @@ func TestCarbonColdLifecyclePhases(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("OVERGO_CARBON_REPODB", storePath)
-	adaptiveGo := filepath.Join(root, "build", "adaptive-carbon-214950b", "go")
-	if _, err := os.Stat(filepath.Join(adaptiveGo, "go.mod")); err != nil {
-		t.Fatalf("UNAVAILABLE: retained adaptive Carbon source absent at %s", adaptiveGo)
+	probe, err := os.ReadFile(carbonReferenceProbe)
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: adaptive Carbon reference probe absent: adaptive commit %s holds no TestCarbonServingProcessProbe: %v",
+			carbonReferenceCommit, err)
 	}
+	adaptiveGo := testprocess.PinnedTree(t, filepath.Dir(roots.Models), carbonReferenceCommit, "go")
+	if err := os.WriteFile(filepath.Join(adaptiveGo, "cmd", "adaptive-gpt-server", filepath.Base(carbonReferenceProbe)), probe, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Adaptive serves Carbon from the checkpoint the GGUF is converted from,
+	// through the active recipe its catalog holds: its own seeder writes that
+	// catalog for the models directory into a fresh store, and the reference
+	// child reads it through adaptive's store redirect, as adaptive's commit
+	// gate serves a candidate catalog.
+	adaptiveModel := filepath.Join(roots.Models, "Carbon-500M")
+	adaptiveStore := filepath.Join(t.TempDir(), "repodb")
+	seed := exec.Command("go", "run", "./cmd/repodb", "seed-model-profiles",
+		"-store", adaptiveStore, "-root", filepath.Dir(adaptiveModel), "-base", ".")
+	seed.Dir = adaptiveGo
+	if output, err := seed.CombinedOutput(); err != nil {
+		t.Fatalf("seed adaptive Carbon catalog: %v: %s", err, output)
+	}
+	t.Setenv("ADAPTIVE_MODEL_STORE_REDIRECT_FROM", filepath.Join(filepath.Dir(adaptiveModel), "docs", "repodb"))
+	t.Setenv("ADAPTIVE_MODEL_STORE_REDIRECT_TO", adaptiveStore)
+	t.Setenv("OVERGO_CARBON_ADAPTIVE_MODEL", adaptiveModel)
+	t.Setenv("OVERGO_CARBON_GOLDEN", testutil.FixturePath(t, "carbon_serving_golden.json"))
 	temporary := t.TempDir()
 	candidateBinary := filepath.Join(temporary, "overgo-carbon.test.exe")
 	referenceBinary := filepath.Join(temporary, "adaptive-carbon.test.exe")

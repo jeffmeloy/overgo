@@ -4,15 +4,61 @@
 package testprocess
 
 import (
+	"archive/tar"
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"overgo/internal/gitauthority"
 	"overgo/internal/processmeasure"
 )
+
+// PinnedTree writes directory as commit holds it in repository into a fresh
+// test directory and returns its path there: a reference source the test
+// owns, never a retained copy a scrub removes or a working tree whose
+// uncommitted edits the commit does not hold.
+func PinnedTree(t testing.TB, repository, commit, directory string) string {
+	t.Helper()
+	archive, err := gitauthority.Query(t.Context(), repository, "archive", "--format=tar", commit, directory)
+	if err != nil {
+		t.Fatalf("UNAVAILABLE: %s at %s in %s: %v", directory, commit, repository, err)
+	}
+	destination := t.TempDir()
+	entries := tar.NewReader(bytes.NewReader(archive))
+	for {
+		header, err := entries.Next()
+		if errors.Is(err, io.EOF) {
+			return filepath.Join(destination, filepath.FromSlash(directory))
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A directory is made for the files it holds; git's leading header
+		// only names the commit.
+		if header.Typeflag != tar.TypeReg {
+			continue
+		}
+		target := filepath.Join(destination, filepath.FromSlash(header.Name))
+		data, err := io.ReadAll(entries)
+		if err == nil {
+			err = os.MkdirAll(filepath.Dir(target), os.ModePerm)
+		}
+		if err == nil {
+			err = os.WriteFile(target, data, header.FileInfo().Mode())
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
 
 // BuildTestBinary compiles one isolated test executable.
 func BuildTestBinary(t testing.TB, directory, output, tags, pkg string) {

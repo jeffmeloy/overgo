@@ -47,15 +47,15 @@ func tinyMuonModelWith(t *testing.T, untied bool) *densecausal.Model {
 	return m
 }
 
-// derivedTestLearningRate is the builtin policy's rate for the model's
-// parameter count.
+// derivedTestLearningRate is the builtin policy's rate for the fixture's
+// parameter count; the fixtures train from their random initialization.
 func derivedTestLearningRate(t *testing.T, model *densecausal.Model) float64 {
 	t.Helper()
 	plan, err := model.TrainingPlan()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(plan.ParameterCount())
+	return trainingprogram.BuiltinOptimizerPolicy().InitializationLearningRate(plan.ParameterCount())
 }
 
 // qwen2Golden is the part of fixtures/qwen2_train_golden.json the resident

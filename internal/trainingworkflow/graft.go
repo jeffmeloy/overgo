@@ -195,7 +195,7 @@ func runGraftViability(config GraftConfig, targetID, donorID artifact.ID) (resul
 	}
 	if config.BaseLR <= 0 && config.LRScale > 0 {
 		bridgeWeights := graftBridgeMatrices * target.Dims.Hidden * donor.hidden
-		config.BaseLR = config.LRScale * trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(bridgeWeights)
+		config.BaseLR = config.LRScale * trainingprogram.BuiltinOptimizerPolicy().InitializationLearningRate(bridgeWeights)
 	}
 	baseline, _, err := target.Loss(config.HeldOut)
 	if err != nil {

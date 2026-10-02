@@ -12,5 +12,6 @@ func derivedTestLearningRate(t *testing.T, model *Model) float64 {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(plan.ParameterCount())
+	// The fixtures train from their random initialization.
+	return trainingprogram.BuiltinOptimizerPolicy().InitializationLearningRate(plan.ParameterCount())
 }

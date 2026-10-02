@@ -163,7 +163,7 @@ func TestScratchConstructionAuthority(t *testing.T) {
 		config.Embedding != wantConfig.Embedding || config.HeadDim != wantConfig.HeadDim ||
 		config.HeadCount != wantConfig.Heads || config.LayerCount != wantConfig.Layers ||
 		config.MLPWidth != wantConfig.MLPWidth || config.AttentionWindow != wantConfig.AttentionWindow ||
-		trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(config.EstimatedParams) != wantConfig.BaseLearningRate ||
+		trainingprogram.BuiltinOptimizerPolicy().InitializationLearningRate(config.EstimatedParams) != wantConfig.BaseLearningRate ||
 		config.InitStd != wantConfig.Initialization ||
 		config.Epsilon != wantConfig.Epsilon || config.BOS != wantConfig.BOS ||
 		config.EstimatedParams != wantConfig.EstimatedParams ||

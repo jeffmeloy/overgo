@@ -373,10 +373,11 @@ func deriveLayerCount(steps, blockSize, embedding, tokenCount, minimumLayers int
 	return min(max(minimumLayers, minimumLayers*scale), max(minimumLayers, embedding/2))
 }
 
-// OptimizerConfig is the policy's Muon configuration for this model's size
-// over totalSteps under the linear decay schedule.
+// OptimizerConfig is the policy's Muon configuration for training this
+// model's size from its initialization over totalSteps under the linear
+// decay schedule.
 func (c Construction) OptimizerConfig(policy trainingprogram.OptimizerPolicy, totalSteps int) (optimizer.Config, error) {
-	config, err := policy.Config(c.config.EstimatedParams)
+	config, err := policy.InitializationConfig(c.config.EstimatedParams)
 	if err != nil {
 		return optimizer.Config{}, err
 	}

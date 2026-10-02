@@ -219,7 +219,7 @@ func (m *Model) TrainBridge(gr *Graft, batches [][]int, baseLR, mu float64, step
 	}
 	bridgeGradients := Grads{BridgeDownName: gr.pack.Gradients(0), BridgeUpName: gr.pack.Gradients(1)}
 	if baseLR <= 0 {
-		baseLR = trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(gr.pack.ParameterCount())
+		baseLR = trainingprogram.BuiltinOptimizerPolicy().InitializationLearningRate(gr.pack.ParameterCount())
 	}
 	opt, err := gr.pack.NewOptimizer(constantMuon(baseLR, mu))
 	if err != nil {

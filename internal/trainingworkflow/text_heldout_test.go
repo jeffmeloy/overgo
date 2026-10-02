@@ -11,9 +11,11 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
 
@@ -145,6 +147,109 @@ func TestTextObjectivePacksTrainingRecordsIntoWindows(t *testing.T) {
 		if !slices.Equal(published.Weights[name], values) {
 			t.Fatalf("published %s differs from the base trained on the packed windows", name)
 		}
+	}
+}
+
+// TestTextObjectiveReportsEachStep: a held-out text run reports its
+// progress as the dense workflow does, the lane it trains on and then, as
+// each update completes, the step, its loss, wall and lane.
+func TestTextObjectiveReportsEachStep(t *testing.T) {
+	t.Parallel()
+	const steps = 5
+	var documents []string
+	for index := range 8 {
+		documents = append(documents, strings.Repeat("abcd", 3)[:4+index])
+	}
+	text := registerTextObjective(t, documents, trainingprogram.MetricTokenAccuracy)
+	var progress strings.Builder
+	if _, err := RunTextHeldout(t.Context(), text.store, TextHeldoutRequest{
+		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, "trained"),
+		Steps: steps, MaximumSequence: 8, Host: true, Progress: &progress,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSuffix(progress.String(), "\n"), "\n")
+	if want := fmt.Sprintf("lane host-reference: %d steps, %d batches, frozen_lexical=false", steps, steps); len(lines) != steps+1 || lines[0] != want {
+		t.Fatalf("progress = %q, want %q and a line per step", progress.String(), want)
+	}
+	for index, line := range lines[1:] {
+		var step, of int
+		var loss float64
+		var wall, backend string
+		if _, err := fmt.Sscanf(line, "step %d/%d loss %g wall %s backend %s", &step, &of, &loss, &wall, &backend); err != nil ||
+			step != index+1 || of != steps || !(loss > 0) || backend != "host-reference" {
+			t.Fatalf("progress line %d = %q (%v), want step %d/%d with its loss, wall and lane", index, line, err, index+1, steps)
+		}
+	}
+}
+
+// TestFrozenLexicalTextRunRecordsItsFrozenPlan: a held-out text run that
+// froze the lexical table records the Muon plan it stepped, the model's
+// plan with exactly the embedding and head frozen, so its program, run plan
+// and checkpoint, which the verdict binds, differ from an unfrozen run's
+// under the same recipe. One host-trained state publishes both ways, so no
+// device runs.
+func TestFrozenLexicalTextRunRecordsItsFrozenPlan(t *testing.T) {
+	t.Parallel()
+	var documents []string
+	for index := range 8 {
+		documents = append(documents, strings.Repeat("abcd", 3)[:4+index])
+	}
+	text := registerTextObjective(t, documents, trainingprogram.MetricTokenAccuracy)
+	ctx := t.Context()
+	weights, err := IdentifyModelWeights(text.model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipeID, err := BootstrapObjectiveRecipe(ctx, text.store, weights, text.alias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, err := loadTrainableModel(text.model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokenizer, err := loadTrainableTokenizer(text.model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _, err := textObjectiveData(ctx, text.store, text.objective, tokenizer, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := model.TrainingPlan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, state, err := model.Train([][]int{{1, 2, 3, 4}, {4, 3, 2, 1}}, 0.01, 0.9, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publish := func(frozen bool) trainingprogram.Checkpoint {
+		request := TextHeldoutRequest{ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, fmt.Sprintf("trained-%t", frozen)), FreezeLexical: frozen}
+		stream := trainingdata.StreamState{Identity: data.Training, Position: 1}
+		checkpoint, err := publishTrainedText(ctx, text.store, request, model, plan, recipeID, text.objective, stream, state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return checkpoint
+	}
+	unfrozen, frozen := publish(false), publish(true)
+	embedding, _, head := model.LexicalTensorNames()
+	specs := make([]hostoptimizer.GroupSpec, plan.GroupCount())
+	for index, group := range plan.Groups() {
+		specs[index] = group.GroupSpec
+		specs[index].Frozen = group.Name == embedding || group.Name == head
+	}
+	stepped, err := hostoptimizer.CompilePlan(plan.ParameterCount(), specs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frozen.Optimizer.PlanIdentity != stepped.Identity() || unfrozen.Optimizer.PlanIdentity != plan.Identity() {
+		t.Fatalf("recorded plans = (frozen %s, unfrozen %s), want (%s, %s)", frozen.Optimizer.PlanIdentity, unfrozen.Optimizer.PlanIdentity, stepped.Identity(), plan.Identity())
+	}
+	if frozen.Program == unfrozen.Program || frozen.RunPlan == unfrozen.RunPlan || frozen.ID() == unfrozen.ID() {
+		t.Fatalf("frozen and unfrozen runs recorded one identity: program %s, run plan %s, checkpoint %s", frozen.Program, frozen.RunPlan, frozen.ID())
 	}
 }
 

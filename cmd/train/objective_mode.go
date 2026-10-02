@@ -16,17 +16,17 @@ import (
 // and publish the held-out verdict that binds it. Table and forecast
 // objectives train through their routes.
 type objectiveRun struct {
-	Alias, Model, Out string
-	Steps, Sequence   int
-	Host              bool
-	MaxWall           time.Duration
+	Alias, Model, Out   string
+	Steps, Sequence     int
+	Host, FreezeLexical bool
+	MaxWall             time.Duration
 }
 
 // objectiveConflictingFlags are the flags an -objective run cannot honour,
 // sorted: the objective's registered dataset and split replace the raw
 // dataset, and its recipe every recipe-session input.
 var objectiveConflictingFlags = []string{
-	"audio-manifest", "bootstrap-recipe", "dataset", "freeze-lexical", "objective-scale",
+	"audio-manifest", "bootstrap-recipe", "dataset", "objective-scale",
 	"preference-margin", "preference-mode", "preview-dataset", "recipe", "reference", "resume",
 }
 
@@ -51,7 +51,7 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 	}
 	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
 		Alias: run.Alias, ModelDirectory: run.Model, OutputDirectory: run.Out, Steps: run.Steps, MaximumSequence: run.Sequence,
-		Host: run.Host, Device: denseDevice, MaxProjectedWall: run.MaxWall,
+		Host: run.Host, Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
 	})
 	if err != nil {
 		return err

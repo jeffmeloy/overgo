@@ -40,13 +40,6 @@
           "rationale": "The training row's held-out cell shows only the trained value (0.3634), so nobody reading the scorecard can tell that training made the model worse; the verdict's base value (0.4936) is in the store. Serves: judge. Disappears: nothing. Evidence: held-out verdicts (evaluation.VisitHeldoutVerdicts), read by the scorecard and the cycle's gap proposals. Batch: internal/scorecard; no surface move; no media reconciliation."
         },
         {
-          "id": "objective-run",
-          "title": "Objective runs print their per-step loss and accept -freeze-lexical",
-          "status": "open",
-          "verify": "go test ./cmd/train -run '^TestObjectiveMode' -count=1",
-          "rationale": "Measure first: the first judged run recorded no loss trajectory, and -objective refused -freeze-lexical, so neither hypothesis (Muon on the lexical tables, the learning rate) could be tested. Serves: train. Disappears: nothing. Evidence: the run's output; frozen lexical tables enter the training identity. Batch: cmd/train and internal/trainingworkflow lanes."
-        },
-        {
           "id": "do",
           "title": "Train Qwen2.5-0.5B on WikiText-2 until it beats its base on held-out records",
           "status": "open",

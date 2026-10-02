@@ -63,7 +63,8 @@ func run() error {
 		set := map[string]bool{}
 		flag.Visit(func(given *flag.Flag) { set[given.Name] = true })
 		return runObjectiveMode(ctx, store, objectiveRun{
-			Alias: *objective, Model: *model, Out: *output, Steps: *steps, Sequence: *maximumSequence, Host: *host, MaxWall: *maxWall,
+			Alias: *objective, Model: *model, Out: *output, Steps: *steps, Sequence: *maximumSequence, Host: *host,
+			FreezeLexical: *freezeLexical, MaxWall: *maxWall,
 		}, set, os.Stdout)
 	}
 	if *previewDataset != "" {

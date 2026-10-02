@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 	"time"
@@ -35,8 +36,15 @@ type TextHeldoutRequest struct {
 	MaximumSequence int
 	Host            bool
 	// Device trains the model when Host is false.
-	Device           DeviceTrainer
+	Device DeviceTrainer
+	// FreezeLexical leaves the token embedding and output head untrained,
+	// as only the device trainer does, and the run records the plan with
+	// them frozen.
+	FreezeLexical    bool
 	MaxProjectedWall time.Duration
+	// Progress, when set, receives the lane the run trains on and a line
+	// per update, as the dense workflow reports them.
+	Progress io.Writer
 }
 
 // promptAnswers is one record of a generation objective: a prompt and the
@@ -82,6 +90,9 @@ type textRecord struct {
 func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeldoutRequest) (HeldoutResult, error) {
 	if request.OutputDirectory == "" {
 		return HeldoutResult{}, errors.New("training workflow: a held-out text run publishes its trained model, so it needs an output directory")
+	}
+	if request.Host && request.FreezeLexical {
+		return HeldoutResult{}, errors.New("training workflow: host and frozen lexical execution are incompatible")
 	}
 	objective, err := LoadObjectiveAlias(ctx, store, request.Alias)
 	if err != nil {
@@ -138,9 +149,24 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			if err != nil {
 				return trainingprogram.Checkpoint{}, err
 			}
-			// The run stops between updates once its context ends.
-			cancelled := func(int, float64, time.Duration) error { return ctx.Err() }
-			_, _, state, err := runTrainingState(model, batches, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, false, nil, cancelled, nil)
+			lane := "cuda-resident"
+			if request.Host {
+				lane = "host-reference"
+			}
+			if request.Progress != nil {
+				fmt.Fprintf(request.Progress, "lane %s: %d steps, %d batches, frozen_lexical=%t\n",
+					lane, plan.Updates(), len(batches), request.FreezeLexical)
+			}
+			// The run reports each update and stops between updates once
+			// its context ends.
+			observe := func(step int, loss float64, stepWall time.Duration) error {
+				if request.Progress != nil {
+					fmt.Fprintf(request.Progress, "step %d/%d loss %.6f wall %s backend %s\n",
+						step+1, plan.Updates(), loss, stepWall.Round(time.Millisecond), lane)
+				}
+				return ctx.Err()
+			}
+			_, _, state, err := runTrainingState(model, batches, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, request.FreezeLexical, nil, observe, nil)
 			if err != nil {
 				return trainingprogram.Checkpoint{}, err
 			}
@@ -231,9 +257,9 @@ func textObjectiveData(ctx context.Context, reader artifact.Reader, objective tr
 // publishTrainedText publishes the model a held-out text run trained under
 // recipeID as a checkpoint at the request's output directory and records
 // it: the program and run plan the recipe's objective compiles over the
-// model's optimizer plan, its dataset, training membership and declared
-// processor, and stream, the position the run reached in the training
-// membership.
+// model's optimizer plan, its embedding and head frozen when the request
+// froze them, its dataset, training membership and declared processor, and
+// stream, the position the run reached in the training membership.
 func publishTrainedText(
 	ctx context.Context,
 	store *overgodb.Store,
@@ -247,6 +273,12 @@ func publishTrainedText(
 ) (trainingprogram.Checkpoint, error) {
 	if len(objective.Processors) != 1 {
 		return trainingprogram.Checkpoint{}, fmt.Errorf("training workflow: objective %q declares %d processors; a text checkpoint records one", objective.Name, len(objective.Processors))
+	}
+	if request.FreezeLexical {
+		var err error
+		if muonPlan, state, err = freezeLexical(model, muonPlan, state); err != nil {
+			return trainingprogram.Checkpoint{}, err
+		}
 	}
 	modelID, err := identifyModel(request.ModelDirectory)
 	if err != nil {
@@ -268,6 +300,29 @@ func publishTrainedText(
 	}
 	_, err = RecordCheckpoint(ctx, store, request.OutputDirectory, checkpoint)
 	return checkpoint, err
+}
+
+// freezeLexical restates a frozen-lexical run's trained state under the
+// plan the run stepped: the model's Muon plan with the token embedding and
+// output head frozen, as the device trainer leaves them, so the program,
+// run plan and checkpoint the run records name them untrainable and differ
+// from an unfrozen run's.
+func freezeLexical(model *densecausal.Model, plan hostoptimizer.Plan, state densecausal.TrainState) (hostoptimizer.Plan, densecausal.TrainState, error) {
+	if err := hostoptimizer.ValidateState(state, plan.Identity(), plan.ParameterCount()); err != nil {
+		return hostoptimizer.Plan{}, densecausal.TrainState{}, err
+	}
+	embedding, _, head := model.LexicalTensorNames()
+	specs := make([]hostoptimizer.GroupSpec, plan.GroupCount())
+	for index, group := range plan.Groups() {
+		specs[index] = group.GroupSpec
+		specs[index].Frozen = group.Name == embedding || group.Name == head
+	}
+	frozen, err := hostoptimizer.CompilePlan(plan.ParameterCount(), specs)
+	if err != nil {
+		return hostoptimizer.Plan{}, densecausal.TrainState{}, err
+	}
+	state.PlanIdentity = frozen.Identity()
+	return frozen, state, nil
 }
 
 // readPromptAnswers reads one generation record and what a held-out

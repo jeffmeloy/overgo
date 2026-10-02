@@ -33,6 +33,23 @@ func TestTrainObjectiveModeRefusesRawDatasetInputs(t *testing.T) {
 	}
 }
 
+// TestTrainObjectiveModeFreezesLexicalOnTheDevice: -freeze-lexical is an
+// -objective run's input, not a conflicting flag, and with -host the run is
+// refused before it reads the store, since only the resident device
+// trainer freezes the embedding and head.
+func TestTrainObjectiveModeFreezesLexicalOnTheDevice(t *testing.T) {
+	t.Parallel()
+	set := map[string]bool{"objective": true, "model": true, "out": true, "steps": true, "freeze-lexical": true}
+	if got := objectiveModeConflicts(set); len(got) != 0 {
+		t.Fatalf("conflicts = %v, want -freeze-lexical accepted", got)
+	}
+	set["host"] = true
+	run := objectiveRun{Alias: "objective.registered.texts", Model: "m", Out: "o", Steps: 1, Host: true, FreezeLexical: true}
+	if err := runObjectiveMode(t.Context(), nil, run, set, nil); err == nil || !strings.Contains(err.Error(), "host and frozen lexical") {
+		t.Fatalf("a -host -freeze-lexical run = %v, want it refused", err)
+	}
+}
+
 // TestPreferenceRunsSayWhenUnjudged: a run of another objective publishes
 // no preference verdict, and a resumed DPO run, which names no base policy,
 // says it is not judged rather than passing silently.

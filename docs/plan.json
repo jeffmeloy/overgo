@@ -90,21 +90,6 @@
       ]
     },
     {
-      "id": "tests-pin-behaviour",
-      "title": "Delete tests that pin internal structure or bookkeeping, package by package",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete tests that pin internal structure or bookkeeping, package by package",
-          "status": "open",
-          "verify": "go test ./internal/audioparity -count=1",
-          "rationale": "Owner 2026-09-26: delete tests that only check bookkeeping; keep parity, golden, journey and API-contract tests. internal/server holds 33,963 lines of tests against 22,354 of code. No analyzer is built to sort tests: the target is net-deleted test lines per package, largest first, reviewed by what each deleted test pinned (a helper's shape, a file name, a private table, a removed mechanism's bookkeeping, as lane_executable_test.go did). Each package lands as its own slice; this row starts with internal/server, and its check is that the package's remaining tests pass. Test-only, so no production class. Order 2026-09-27 (owner review): internal/server first (34k lines of tests against 22k of code), then internal/model (22k against 18k).\n\nServes: landing speed. Disappears: tests that pin structure or bookkeeping, largest packages first. Batch: host, package by package.\n\nLanes (expected; the gate reads them from the diff): the lanes of each package it trims. From goldens-own-parity 2026-09-30: internal/audioparity runs TestVADArtifactRefusals, TestVADStreamRecovery, TestCPUASRReference (about 16.5 s) and TestCanonicalAudioModelRegistration twice, once top-level and once as a subtest of an acceptance. The one-line fix used for the VAD comparisons (a helper run once, inside the claim-bearing acceptance) applies. The CPU-ASR pair sits in the byte-frozen second_asr_test.go, so it needs that file's pin moved first.\n\nSQA 2026-09-30, SQA-065 (P2): start the recurring test-cost audit at the 19-package cuda expansion (a45132880, a1c6b6673; first affected landing 68afbc6ea), with adaptiveparity's recorded 10 min 58 s first. For each expensive selected test, name its independent requirement, the overlapping owner and the input that invalidates it, then retain, consolidate, narrow or reuse. A test needing a lane is not a reason to run it on every landing that selects the lane.\n\nSlice 1, internal/server (2026-10-01, landed with recovery-failures-seen): 1,492 net test lines deleted (33,597 to 32,105; 209 to 194 files). Source scans, retired-mechanism bans, private-table pins and duplicate setups were removed or merged, each listed in the landing message. Kept: the 11 claim-bound files, lint ratchets and security bans, lane isolation tests, device evidence producers. TestFrontPageLibraryProjector (33 s, the only check of libraryintake.ModelFiles) dominates the package's test time. Next slice: internal/model (22k lines of tests against 18k of code).\n\nSlice 2, internal/model (2026-10-01): 1,155 net test lines deleted (22,284 to 21,129). Removed: the metadata-op string table for 56 architectures and the 173-slot binding list from deleted mechanisms, per-family GraphInputs field sets (one reflection loop since 80a6d73ea), catalog self-comparisons, private binder and plan pins; merged identical-body and one-line-wrapper tests into tables; added ReadSpec tests for hunyuan-moe and nemotron_h, the two architectures that had none. Next slice: internal/audioparity (8,488 test lines against 1,491 of code), which runs in the cycle's audio lane."
-        }
-      ]
-    },
-    {
       "id": "surface-without-capability-tables",
       "title": "Narrow the inference surface one responsibility at a time",
       "owner": "master-lead",

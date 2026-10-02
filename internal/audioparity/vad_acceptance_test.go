@@ -103,7 +103,7 @@ func (l *vadLifecycle) audio(t *testing.T, samples []float32, rate int) artifact
 
 func TestVADOfflineAcceptance(t *testing.T) {
 	t.Parallel()
-	t.Run("artifact-refusals", TestVADArtifactRefusals)
+	t.Run("artifact-refusals", verifyVADArtifactRefusals)
 	t.Run("numerical-reference", verifyVADNumericalReference)
 	t.Run("boundary-reference", verifyVADOfflineBoundaries)
 	reference, store, audio := loadVADReference(t)
@@ -149,7 +149,7 @@ func residentAudioAdmission(director *capabilityruntime.ModelSessionDirector[str
 
 func TestVADStreamingAcceptance(t *testing.T) {
 	t.Parallel()
-	t.Run("recovery-and-discontinuity", TestVADStreamRecovery)
+	t.Run("recovery-and-discontinuity", verifyVADStreamRecovery)
 	t.Run("waveform-and-cache-reference", verifyVADWaveformStream)
 	t.Run("boundary-reference", verifyVADStreamBoundaries)
 	reference, store, audio := loadVADReference(t)

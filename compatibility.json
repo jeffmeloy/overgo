@@ -268,7 +268,7 @@
      "path": "internal/audioparity/vad_acceptance_test.go",
      "contains": "func TestVADOfflineAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:cd28ec4dfa7e3430ee39b615b4a95ade3ea1c39906a80f86ef9336c7f5464eeb"
+     "identity": "evidence:sha256:c32002ceac3f2ac23027c261d55a24f39d233c76de8a91f813b8095811a3e440"
     },
     {
      "path": "internal/audioparity/testdata/vad_reference.json",
@@ -297,7 +297,7 @@
      "path": "internal/audioparity/vad_acceptance_test.go",
      "contains": "func TestVADStreamingAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:cd28ec4dfa7e3430ee39b615b4a95ade3ea1c39906a80f86ef9336c7f5464eeb"
+     "identity": "evidence:sha256:c32002ceac3f2ac23027c261d55a24f39d233c76de8a91f813b8095811a3e440"
     },
     {
      "path": "internal/audioparity/testdata/vad_boundaries.json",

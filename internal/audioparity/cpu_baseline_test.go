@@ -26,25 +26,14 @@ import (
 )
 
 // TestASRCPUBaselineAcceptance runs the production evaluator in a separate
-// process on the pinned real checkpoint. It does not inject oracle transcripts.
-// The optional store is restricted to this worktree's catalog; normal test runs
-// use temporary storage. This same acceptance can retain a measured baseline.
+// process on the pinned real checkpoint, in temporary storage. It does not
+// inject oracle transcripts.
 func TestASRCPUBaselineAcceptance(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
 	referenceRoot := resolveReferenceRoots(t).store
 	dataRoot := filepath.Dir(referenceRoot)
 	storeRoot, fixtureRoot := t.TempDir(), t.TempDir()
-	if retained := os.Getenv("OVERGO_AUDIO_BASELINE_STORE"); retained != "" {
-		absolute, err := filepath.Abs(retained)
-		if err != nil || !strings.EqualFold(filepath.Clean(absolute), filepath.Join(root, "overgodb-store")) {
-			t.Fatal("retained baseline must use this worktree's catalog")
-		}
-		storeRoot, fixtureRoot = absolute, filepath.Join(root, "tmp", "asr-cpu-baseline")
-		if err := os.MkdirAll(fixtureRoot, 0700); err != nil {
-			t.Fatal(err)
-		}
-	}
 	declarationPath := filepath.Join(root, "internal", "audioparity", "testdata", "registered_models.json")
 	baselineCommand(t, root, "go", "run", "./cmd/recipe", "register", "-repo", storeRoot,
 		"-root", filepath.Join(dataRoot, "models"), "-spec", declarationPath)

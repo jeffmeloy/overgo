@@ -23,12 +23,14 @@ type improvingWorld struct {
 	measureErr          error
 	promoted            []string
 	proposed            []scorecard.Gap
-	// filled holds what was promoted and proposed when each fill ran.
+	proposals           int
+	// filled holds the commit each fill ran at and what was promoted and
+	// proposed when it ran.
 	filled []string
 }
 
-func (w *improvingWorld) Fill() {
-	w.filled = append(w.filled, fmt.Sprintf("promoted %v, proposed %d", w.promoted, len(w.proposed)))
+func (w *improvingWorld) Fill(commit string) {
+	w.filled = append(w.filled, fmt.Sprintf("%s after promoted %v, proposals %d", commit, w.promoted, w.proposals))
 }
 
 func (w *improvingWorld) Measure() (*scorecard.Record, *scorecard.Record, error) {
@@ -42,6 +44,7 @@ func (w *improvingWorld) Promote(commit string) error {
 
 func (w *improvingWorld) Propose(_ scorecard.Record, gaps []scorecard.Gap) (int, error) {
 	w.proposed = gaps
+	w.proposals++
 	return 0, nil
 }
 
@@ -56,9 +59,9 @@ func (w *improvingWorld) Propose(_ scorecard.Record, gaps []scorecard.Gap) (int,
 // a failed validation by its own refusal, naming what it did not acquire.
 // Every run proposes its gaps: a refusal for a fall proposes the fall, and a
 // refusal for an unknown quality proposes measuring it again. Every run that
-// published fills the validations promotion does not compare once, after its
-// decision and before its proposals write the plan, since the fill records
-// claims against the clean measured tree.
+// published fills the validations promotion does not compare once, at the
+// commit its scorecard measured, after its decision and its proposals: the
+// fill records its claims apart from the checkout the proposals write.
 func TestLoopPromotesOnlyOnHeldOutFitness(t *testing.T) {
 	t.Parallel()
 	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-fitness")
@@ -114,8 +117,8 @@ func TestLoopPromotesOnlyOnHeldOutFitness(t *testing.T) {
 		if promoted := slices.Equal(world.promoted, []string{"b"}); promoted != promotes || (outcome.Promoted == "b") != promoted {
 			t.Fatalf("%s: promoted %v (outcome %q), want promotion %v", scenario.name, world.promoted, outcome.Promoted, promotes)
 		}
-		if decided := fmt.Sprintf("promoted %v, proposed 0", world.promoted); !slices.Equal(world.filled, []string{decided}) {
-			t.Fatalf("%s: filled %q, want one fill after the decision and before the proposals (%s)", scenario.name, world.filled, decided)
+		if decided := fmt.Sprintf("b after promoted %v, proposals 1", world.promoted); !slices.Equal(world.filled, []string{decided}) {
+			t.Fatalf("%s: filled %q, want one fill at the measured commit after the decision and the proposals (%s)", scenario.name, world.filled, decided)
 		}
 		if promotes != (outcome.Withheld == "") || !strings.Contains(outcome.Withheld, scenario.withheld) {
 			t.Fatalf("%s: withheld %q, want %q", scenario.name, outcome.Withheld, scenario.withheld)

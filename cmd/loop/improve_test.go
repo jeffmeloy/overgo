@@ -2,6 +2,9 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -144,13 +147,81 @@ func TestNoScorecardOfMainPromotesNothing(t *testing.T) {
 	if err := publish(0.5); err != nil {
 		t.Fatal(err)
 	}
-	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func() error { return publish(0.6) }, fill: func() error { return nil }}
+	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func() error { return publish(0.6) }, fill: func(string) error { return nil }}
 	var outcome loop.Outcome
 	if _, err := loop.Improve(improver, &outcome); err != nil {
 		t.Fatal(err)
 	}
 	if outcome.Promoted != "" || !strings.Contains(outcome.Withheld, "no earlier scorecard measured the commit") || gitFixture(t, repository, "rev-parse", "main") != held {
 		t.Fatalf("promoted %q, withheld %q, main %s; want main unmoved at %s and the missing baseline stated", outcome.Promoted, outcome.Withheld, gitFixture(t, repository, "rev-parse", "main"), held)
+	}
+}
+
+// TestFillRunsAtTheMeasuredCommit runs improvement cycles whose background
+// fill outlives the main checkout's HEAD: a landing moves it on once the
+// scorecard is measured, and another writes the plan and lands while the
+// fill runs. The fill runs in a checkout of its own at the commit the
+// published scorecard measured, clean and at that commit throughout, and
+// that checkout and its registration are gone afterward, whether the fill
+// passed or failed.
+func TestFillRunsAtTheMeasuredCommit(t *testing.T) {
+	t.Parallel()
+	repository := t.TempDir()
+	git := func(directory string, arguments ...string) string { return gitFixture(t, directory, arguments...) }
+	git(repository, "init", "-q", "-b", "master")
+	planPath := filepath.Join(repository, "plan.json")
+	if err := plan.Save(planPath, plan.Plan{Campaign: "improvement", Doctrine: "the scorecard's gaps are the work", Lane: "master-lead"}); err != nil {
+		t.Fatal(err)
+	}
+	git(repository, "add", "plan.json")
+	git(repository, "commit", "-q", "-m", "measured")
+	measured := git(repository, "rev-parse", "HEAD")
+	mainCheckout := git(repository, "rev-parse", "--show-toplevel")
+
+	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-fill-worktree")
+	records := filepath.Join(t.TempDir(), "scorecards")
+	published := time.Date(2026, time.October, 2, 12, 0, 0, 0, time.UTC)
+	for round, failure := range []error{nil, errors.New("a background suite failed")} {
+		var checkouts []string
+		improver := improvement{root: repository, plan: planPath, records: records}
+		improver.measure = func() error {
+			published = published.Add(time.Hour)
+			_, err := scorecard.Publish(records, published, scorecard.Record{Commit: measured, Rows: []scorecard.Row{
+				scoredRow(t, source, "alpha", recipe.TaskInference, 0.5, 0, scorecard.Cell{Value: 1, Source: source})}})
+			git(repository, "commit", "-q", "--allow-empty", "-m", "landed after the measurement")
+			return err
+		}
+		improver.fill = func(checkout string) error {
+			checkouts = append(checkouts, checkout)
+			landed := fmt.Sprintf("landed-during-fill-%d", round)
+			if added, err := improver.Propose(scorecard.Record{Name: "another session"}, []scorecard.Gap{{Key: landed, Title: "a row another session lands", Detail: "written while the fill runs"}}); err != nil || added != 1 {
+				t.Errorf("the main checkout's plan took %d row(s) during the fill, %v; want one", added, err)
+			}
+			git(repository, "commit", "-q", "-am", "landed during the fill")
+			if top := git(checkout, "rev-parse", "--show-toplevel"); top == mainCheckout {
+				t.Errorf("the fill ran in the main checkout %s", top)
+			}
+			if head, status := git(checkout, "rev-parse", "HEAD"), git(checkout, "status", "--porcelain"); head != measured || status != "" {
+				t.Errorf("the fill ran at %s with status %q while the main checkout landed; want the measured commit %s, clean", head, status, measured)
+			}
+			return failure
+		}
+		var outcome loop.Outcome
+		if _, err := loop.Improve(improver, &outcome); err != nil {
+			t.Fatalf("fill failure %v: %v", failure, err)
+		}
+		if len(checkouts) != 1 {
+			t.Fatalf("fill failure %v: the fill ran in %q; want once", failure, checkouts)
+		}
+		if _, err := os.Stat(checkouts[0]); !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("fill failure %v: the fill's checkout %s remains: %v", failure, checkouts[0], err)
+		}
+		if registered := strings.Count(git(repository, "worktree", "list", "--porcelain"), "worktree "); registered != 1 {
+			t.Fatalf("fill failure %v: %d worktrees registered after the fill; want the main checkout alone", failure, registered)
+		}
+		if head := git(repository, "rev-parse", "HEAD"); head == measured {
+			t.Fatalf("fill failure %v: the main checkout never moved from %s", failure, measured)
+		}
 	}
 }
 
@@ -238,7 +309,7 @@ func TestPromotionWaitsForAHoldingScorecard(t *testing.T) {
 		t.Fatal(err)
 	}
 	fills := 0
-	fill := func() error {
+	fill := func(string) error {
 		fills++
 		return errors.New("a background suite failed")
 	}

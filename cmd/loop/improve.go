@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
 	"overgo/internal/plan"
 	"overgo/internal/scorecard"
@@ -25,8 +26,10 @@ import (
 type improvement struct {
 	root, plan, records string
 	// measure runs the stale validations promotion waits on and publishes
-	// the scorecard; fill runs the stale ones it does not compare.
-	measure, fill func() error
+	// the scorecard; fill runs the stale ones it does not compare in the
+	// checkout it is given.
+	measure func() error
+	fill    func(checkout string) error
 }
 
 // improvementFor is the loop's improvement world over a store: this
@@ -36,11 +39,7 @@ func improvementFor(store string) improvement {
 	return improvement{
 		root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store),
 		measure: func() error { return measureScorecard(store) },
-		fill: func() error {
-			out, err := runTool("go", "run", "./cmd/validate", "-run", "-background", "-repo", store)
-			fmt.Print(out)
-			return err
-		},
+		fill:    func(checkout string) error { return fillBackground(checkout, store) },
 	}
 }
 
@@ -83,12 +82,19 @@ func (w improvement) Promote(commit string) error {
 			return fmt.Errorf("%s holds %.12s, which %.12s does not contain; promotion only fast-forwards: %w", scorecard.PromotedBranch, promoted, commit, err)
 		}
 	}
-	var output bytes.Buffer
-	update := gitauthority.WriterArguments("update-ref", "-m", "loop: the scorecard holds", scorecard.PromotedBranch, commit, promoted)
-	if err := runToolEnv(gitauthority.RepositoryEnvironment(), nil, &output, &output, append([]string{"git", "-C", w.root}, update...)...); err != nil {
-		return fmt.Errorf("%w: %s", err, strings.TrimSpace(output.String()))
+	if err := w.git("update-ref", "-m", "loop: the scorecard holds", scorecard.PromotedBranch, commit, promoted); err != nil {
+		return err
 	}
 	fmt.Printf("loop: promoted %s to %s\n", scorecard.PromotedBranch, commit)
+	return nil
+}
+
+// git runs one git command that writes the repository at root.
+func (w improvement) git(arguments ...string) error {
+	var output bytes.Buffer
+	if err := runToolEnv(gitauthority.RepositoryEnvironment(), nil, &output, &output, append([]string{"git", "-C", w.root}, gitauthority.WriterArguments(arguments...)...)...); err != nil {
+		return fmt.Errorf("git %s: %w: %s", arguments[0], err, strings.TrimSpace(output.String()))
+	}
 	return nil
 }
 
@@ -129,11 +135,53 @@ const proposalStep = "do"
 // Fill runs the background validations, the suites the baseline scorecard
 // does not compare, after the cycle's decision: their evidence flows
 // without delaying or withholding a promotion, and a failure is reported
-// here and changes nothing the cycle decided.
-func (w improvement) Fill() {
-	if err := w.fill(); err != nil {
+// here and changes nothing the cycle decided. They run in a detached
+// checkout of the measured commit, so the claims they record bind the
+// commit the scorecard measured and rows land in the main checkout while
+// they run.
+func (w improvement) Fill(commit string) {
+	if err := w.fillAt(commit); err != nil {
 		fmt.Printf("loop: the background validations failed: %v\n", err)
 	}
+}
+
+// fillAt runs the fill in a worktree of commit made for it, then deletes
+// the worktree's directory and, once that is gone, its registration:
+// os.RemoveAll removes a junction a run left behind without entering it,
+// where git worktree remove would recurse into the junction's target.
+func (w improvement) fillAt(commit string) (err error) {
+	checkout, err := os.MkdirTemp("", "overgo-loop-fill-*")
+	if err != nil {
+		return err
+	}
+	if err := w.git("worktree", "add", "--quiet", "--detach", checkout, commit); err != nil {
+		return errors.Join(err, os.RemoveAll(checkout))
+	}
+	defer func() {
+		removed := os.RemoveAll(checkout)
+		if removed == nil {
+			removed = w.git("worktree", "remove", checkout)
+		}
+		err = errors.Join(err, removed)
+	}()
+	fmt.Printf("loop: filling the background validations at %.12s in %s\n", commit, checkout)
+	return w.fill(checkout)
+}
+
+// fillBackground runs the background validations from checkout into store.
+// The checkout holds none of the main checkout's ignored files, so the data
+// roots the main checkout resolves are bound for it explicitly.
+func fillBackground(checkout, store string) error {
+	store, err := filepath.Abs(store)
+	if err != nil {
+		return err
+	}
+	_, bound, err := dataroot.ResolveEnvironment(loopWorktree)
+	if err != nil {
+		return err
+	}
+	return runToolEnv(append(loopEnvironment(), bound...), nil, os.Stdout, os.Stdout,
+		"go", "-C", checkout, "run", "./cmd/validate", "-run", "-background", "-repo", store)
 }
 
 // measureScorecard measures again the stale validations promotion waits on,

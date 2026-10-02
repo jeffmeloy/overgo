@@ -97,10 +97,11 @@ type ImprovementWorld interface {
 	// Propose writes the gaps the plan does not hold as rows and reports how
 	// many it added.
 	Propose(published scorecard.Record, gaps []scorecard.Gap) (added int, err error)
-	// Fill runs the validations promotion does not compare, after the
-	// cycle's decision, so their evidence flows without delaying or
-	// withholding a promotion. It reports its own failure.
-	Fill()
+	// Fill runs the validations promotion does not compare at the commit
+	// the scorecard measured, after the cycle's decision, so their evidence
+	// flows without delaying or withholding a promotion. It reports its own
+	// failure.
+	Fill(commit string)
 }
 
 // Outcome reports why Run returned.
@@ -262,12 +263,15 @@ func improve(world World, outcome *Outcome) (int, error) {
 // Improve runs one improvement cycle: it measures the scorecard, promotes
 // the measured commit only when the record is not withheld (a baseline
 // measured on the promoted branch, every held-out quality measured, none
-// fallen), fills the validations promotion does not compare, then proposes
-// the gaps as rows. The fill records claims against the clean measured tree,
-// so it runs before the proposals write the plan. A failed validation leaves stale cells, so it promotes
-// nothing; its record still names the gaps. The outcome says why a commit
-// was withheld, a failed validation by the failure Measure returned. The
-// driver runs it when the plan empties, and cmd/loop -improve on demand.
+// fallen), proposes the gaps as rows, then fills the validations promotion
+// does not compare at the measured commit. The fill records its claims in a
+// checkout of that commit apart from the main one, so the proposals do not
+// wait on it: the rows reach the plan before the fill's hours start, and a
+// fill that is stopped loses none of them. A failed validation leaves stale
+// cells, so it promotes nothing; its record still names the gaps. The
+// outcome says why a commit was withheld, a failed validation by the failure
+// Measure returned. The driver runs it when the plan empties, and cmd/loop
+// -improve on demand.
 func Improve(improver ImprovementWorld, outcome *Outcome) (int, error) {
 	published, baseline, err := improver.Measure()
 	if published == nil {
@@ -283,8 +287,8 @@ func Improve(improver ImprovementWorld, outcome *Outcome) (int, error) {
 		}
 		outcome.Promoted = published.Commit
 	}
-	improver.Fill()
 	added, proposeErr := improver.Propose(*published, published.Gaps(baseline))
+	improver.Fill(published.Commit)
 	return added, errors.Join(err, proposeErr)
 }
 

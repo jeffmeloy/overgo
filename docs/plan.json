@@ -4,6 +4,39 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "first-cycle-defects",
+      "title": "Fix what kept the first improvement cycle from deciding",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1,
+        "reason": "the fill runs before the proposals; measured by the gate"
+      },
+      "steps": [
+        {
+          "id": "proof-references",
+          "title": "Training proofs publish only objectives whose references the store holds",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go run ./cmd/validate -run -only training-proof",
+          "rationale": "Step 2 of the first cycle's defects; see do's rationale. The verify is set after diagnosis."
+        },
+        {
+          "id": "projection-facts",
+          "title": "Republishing a model's facts never conflicts with its own earlier facts",
+          "status": "open",
+          "verify": "go run ./cmd/validate -run -only projection-proof",
+          "rationale": "Step 3; see do's rationale. The verify is set after diagnosis."
+        },
+        {
+          "id": "models-lane",
+          "title": "The cycle's models lane passes on this machine",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test -tags modeltest,integration ./internal/inference ./internal/adaptiveparity -run '^(TestCarbonColdLifecyclePhases|TestNeedleProcessPeakLeadership)$' -count=1",
+          "rationale": "Step 4; see do's rationale."
+        }
+      ]
+    },
+    {
       "id": "first-trained-improvement",
       "title": "Train a text model on WikiText-2 and judge it against its base on held-out records",
       "owner": "master-lead",
@@ -639,8 +672,189 @@
             "cycle-compared-families/do",
             "cycle-proof-commands/do",
             "projection-proof-producer/do",
-            "ocr-mmlu-coverage/do"
+            "ocr-mmlu-coverage/do",
+            "first-cycle-defects/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "scorecard-failing-training",
+      "title": "Fix the training attempts that failed",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fix the training attempts that failed",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-failing-training",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 failure-rate: 1 of 4 attempts failed, 0 cancelled\n- LiveEdit failure-rate: 1 of 4 attempts failed, 0 cancelled\n- Qwen3.5-4B failure-rate: 1 of 4 attempts failed, 0 cancelled\n- Qwen3.5-9B failure-rate: 1 of 4 attempts failed, 0 cancelled\n- Wan2.1-T2V-1.3B failure-rate: 1 of 4 attempts failed, 0 cancelled\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-forecast",
+      "title": "Define the held-out evaluation that measures forecast quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures forecast quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-forecast",
+          "rationale": "- timesfm-2.5-200m-transformers held-out-quality: no held-out evaluation for forecast yet; proposed: a forecast objective over ETTh1 (github.com/zhouhaoyi/ETDataset, 2.6 MB), its held-out windows judged by train -route seriesforecast\n- timesfm-3.0-pytorch held-out-quality: no held-out evaluation for forecast yet; proposed: a forecast objective over ETTh1 (github.com/zhouhaoyi/ETDataset, 2.6 MB), its held-out windows judged by train -route seriesforecast\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-generation",
+      "title": "Define the held-out evaluation that measures generation quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures generation quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-generation",
+          "rationale": "- Fractale-350M-base held-out-quality: no held-out evaluation for generation yet; proposed: WikiText-2 test (Salesforce/wikitext wikitext-2-raw-v1, 0.7 MB) perplexity, as a sequence-scoring suite\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-image-embedding",
+      "title": "Define the held-out evaluation that measures image-embedding quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures image-embedding quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-embedding",
+          "rationale": "- webssl-dino300m-full2b-224 held-out-quality: no held-out evaluation for image-embedding yet; proposed: Imagenette 160 px (fast.ai imagenette2-160, 100 MB) k-nearest-neighbour accuracy from the model's own embeddings\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-image-gen",
+      "title": "Define the held-out evaluation that measures image-gen quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures image-gen quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-gen",
+          "rationale": "- Krea-2-Turbo held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- SenseNova-U1-8B-MoT-Infographic-V3 held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- SimpleDiffusion-TensorProductAttentionRope held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- Un-0 held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-projection",
+      "title": "Define the held-out evaluation that measures projection quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures projection quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-projection",
+          "rationale": "- Qwen3.8-27B held-out-quality: no held-out evaluation for projection yet; proposed: the image, video, multi-image and mixed caption-matching sets the store already scores a projection on\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-seq2seq",
+      "title": "Define the held-out evaluation that measures seq2seq quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures seq2seq quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-seq2seq",
+          "rationale": "- needle held-out-quality: no held-out evaluation for seq2seq yet; proposed: BFCL v3 simple (gorilla-llm/Berkeley-Function-Calling-Leaderboard, 0.3 MB) exact match of the parsed call\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-speech",
+      "title": "Define the held-out evaluation that measures speech quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures speech quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-speech",
+          "rationale": "- pocket-tts held-out-quality: no held-out evaluation for speech yet; proposed: LibriSpeech test-clean texts (on disk), synthesized then transcribed by a local speech recognizer: round-trip word error rate\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-tabular",
+      "title": "Define the held-out evaluation that measures tabular quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures tabular quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-tabular",
+          "rationale": "- tabfm-1.0.0-pytorch held-out-quality: no held-out evaluation for tabular yet; proposed: a table-prediction objective over BeyondArena credit-g (TabArena/BeyondArena, 0.2 MB), its held-out rows judged by train -route tabular\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-training",
+      "title": "Define the held-out evaluation that measures training quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures training quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-training",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- LiveEdit held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen2.5-0.5B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen3.5-4B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen3.5-9B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Wan2.1-T2V-1.3B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-video-gen",
+      "title": "Define the held-out evaluation that measures video-gen quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures video-gen quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-video-gen",
+          "rationale": "- LiveEdit held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n- Un-0 held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n- Wan2.1-T2V-1.3B held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-vqa",
+      "title": "Define the held-out evaluation that measures vqa quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures vqa quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-vqa",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 held-out-quality: no held-out evaluation for vqa yet; proposed: the image caption-matching set the store already scores a projection on, then A-OKVQA validation (HuggingFaceM4/A-OKVQA, 60 MB) multiple-choice accuracy\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     }

@@ -262,8 +262,9 @@ func improve(world World, outcome *Outcome) (int, error) {
 // Improve runs one improvement cycle: it measures the scorecard, promotes
 // the measured commit only when the record is not withheld (a baseline
 // measured on the promoted branch, every held-out quality measured, none
-// fallen), proposes the gaps as rows, then fills the validations promotion
-// does not compare. A failed validation leaves stale cells, so it promotes
+// fallen), fills the validations promotion does not compare, then proposes
+// the gaps as rows. The fill records claims against the clean measured tree,
+// so it runs before the proposals write the plan. A failed validation leaves stale cells, so it promotes
 // nothing; its record still names the gaps. The outcome says why a commit
 // was withheld. The driver runs it when the plan empties, and cmd/loop
 // -improve on demand.
@@ -282,8 +283,8 @@ func Improve(improver ImprovementWorld, outcome *Outcome) (int, error) {
 		}
 		outcome.Promoted = published.Commit
 	}
-	added, proposeErr := improver.Propose(*published, published.Gaps(baseline))
 	improver.Fill()
+	added, proposeErr := improver.Propose(*published, published.Gaps(baseline))
 	return added, errors.Join(err, proposeErr)
 }
 

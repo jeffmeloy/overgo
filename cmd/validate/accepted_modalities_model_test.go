@@ -117,7 +117,7 @@ func TestAcceptedTextVisionEvidence(t *testing.T) {
 	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	var coverage acceptedCoverage
-	requireAcceptedDocument(t, root, "docs/verification/text-vision-coverage.json", "ec07d869988aa9cdbe9ea0e3d8a41d6408188aa80acce418d9b3f7f6ae27c381", &coverage)
+	requireAcceptedDocument(t, root, "docs/verification/text-vision-coverage.json", "74f7058848e565a7c213378da85c1bcbebf37e7c02dc760080d6c2a10efca263", &coverage)
 	requireAcceptedCoverage(t, root, coverage, recipe.TaskInference, recipe.TaskProjection, recipe.TaskVQA, recipe.TaskEmbedding, recipe.TaskRerank)
 }
 
@@ -126,7 +126,7 @@ func TestAcceptedSpecializedTaskEvidence(t *testing.T) {
 	testskip.Short(t)
 	root := testutil.RepoRoot(t)
 	var coverage acceptedCoverage
-	requireAcceptedDocument(t, root, "docs/verification/specialized-coverage.json", "ab909fe4786cc3698b1c94dc0ae2efdea2a672c205b471725fc9fcfad510944d", &coverage)
+	requireAcceptedDocument(t, root, "docs/verification/specialized-coverage.json", "7620d0f147ba87de541b66cf71c816559bb92d36f00b5e37983e2233aba2fe2c", &coverage)
 	requireAcceptedCoverage(t, root, coverage, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskTranscription, recipe.TaskGeneration, recipe.TaskAlignment, recipe.TaskDiarization, recipe.TaskActivityDetection, recipe.TaskAudioConversion, recipe.TaskAudioGeneration)
 }
 

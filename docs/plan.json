@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "media-proofs-reacquirable",
-      "title": "Make every media and specialized proof re-acquirable by the cycle",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 307,
-        "reason": "ExecutionDirectory (discovery +165), LiveEdit own directory and retained clip request (mediacapability +108), validate directory (+36), server -2; measured by the agent"
-      },
-      "steps": [
-        {
-          "id": "coverage-docs",
-          "title": "Bind the coverage documents to the superseding needle and RxBrain recipes",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./cmd/validate -run '^(TestAcceptedTextVisionEvidence|TestAcceptedSpecializedTaskEvidence)$' -count=1",
-          "rationale": "Superseding needle's and RxBrain's recipes changes the accepted activations docs/verification/specialized-coverage.json:25 and text-vision-coverage.json:134 bind ('accepted activation changed'); their Recipe fields move to the new recipes, with the verification each activation cites."
-        }
-      ]
-    },
-    {
       "id": "training-rate-per-layer",
       "title": "Measure whether a per-step relative Muon rate transfers across models",
       "owner": "master-lead",

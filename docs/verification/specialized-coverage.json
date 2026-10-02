@@ -22,7 +22,7 @@
       "Cells": [
         {
           "Task": "seq2seq",
-          "Recipe": "recipe:sha256:97d4e5f577aceab7a0b616688d3d6c0708b8012e04155ef2c045641f97fa71c8",
+          "Recipe": "recipe:sha256:39a6dd0e08e92af95336a3676aebde026946b88dcd98a6fb763de704834e5d2a",
           "Proofs": [
             "modality-verification/specialized-native-generation#acceptance-seq2seq"
           ],

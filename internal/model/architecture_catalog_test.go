@@ -82,21 +82,6 @@ func TestArchitectureCatalogRejectsInvalidPolicy(t *testing.T) {
 	}
 }
 
-func TestEmbeddedArchitectureCatalog(t *testing.T) {
-	registry, err := parseArchitectureRegistry(architectureProfileCatalog)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(registry) != len(architectureRegistry) {
-		t.Fatalf("catalog profiles = %d, registry profiles = %d", len(registry), len(architectureRegistry))
-	}
-	for name, profile := range registry {
-		if !architectureRegistry[name].equal(profile) {
-			t.Fatalf("profile %q drifted during bootstrap", name)
-		}
-	}
-}
-
 func TestArchitectureRotarySectionBinding(t *testing.T) {
 	for name, want := range map[string]bool{
 		"qwen35": true, "qwen35moe": true, "qwen3vl": true, "qwen3vlmoe": true,

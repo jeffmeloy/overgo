@@ -517,6 +517,42 @@ func TestReadNemotronHMoESpec(t *testing.T) {
 	}
 }
 
+func TestReadNemotronHDenseSpecReadsGroupedSSM(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "nemotron_h"),
+		metadata("nemotron_h.block_count", gguf.ValueTypeUint32, uint32(3)),
+		metadata("nemotron_h.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("nemotron_h.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		{Key: "nemotron_h.feed_forward_length", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{0, 0, 6},
+		}},
+		{Key: "nemotron_h.attention.head_count", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{2, 0, 2},
+		}},
+		{Key: "nemotron_h.attention.head_count_kv", Value: gguf.Value{
+			Type: gguf.ValueTypeArray, ArrayType: gguf.ValueTypeUint32, Data: []uint32{1, 0, 1},
+		}},
+		metadata("nemotron_h.attention.key_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("nemotron_h.attention.value_length", gguf.ValueTypeUint32, uint32(4)),
+		metadata("nemotron_h.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
+		metadata("nemotron_h.ssm.conv_kernel", gguf.ValueTypeUint32, uint32(3)),
+		metadata("nemotron_h.ssm.inner_size", gguf.ValueTypeUint32, uint32(16)),
+		metadata("nemotron_h.ssm.state_size", gguf.ValueTypeUint32, uint32(2)),
+		metadata("nemotron_h.ssm.time_step_rank", gguf.ValueTypeUint32, uint32(4)),
+		metadata("nemotron_h.ssm.group_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("nemotron_h.vocab_size", gguf.ValueTypeUint32, uint32(32)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.Architecture != "nemotron_h" || spec.IsRecurrentLayer(0) || !spec.IsRecurrentLayer(1) ||
+		spec.LayerFeedForwardLength(2) != 6 || spec.SSMInnerSize != 16 || spec.SSMGroupCount != 2 ||
+		spec.ExpertCount != 0 {
+		t.Fatalf("unexpected Nemotron-H spec: %+v", spec)
+	}
+}
+
 func TestReadTalkieSpecUsesUnweightedRMSNormAndDirectLogitScale(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "talkie"),

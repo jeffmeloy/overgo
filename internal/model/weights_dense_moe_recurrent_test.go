@@ -137,19 +137,21 @@ func TestReadWeightsMaincoder(t *testing.T) {
 	}
 }
 
-func TestReadWeightsDenseMistral3(t *testing.T) {
-	spec, file := denseBiasedWeightFixture("mistral3")
-	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	layer := weights.Layers[0]
-	if weights.Output != nil ||
-		layer.AttentionOutputBias == nil ||
-		layer.FeedForwardGateBias == nil ||
-		layer.FeedForwardUpBias == nil ||
-		layer.FeedForwardDownBias == nil {
-		t.Fatalf("unexpected dense Mistral 3 weights: %+v", weights)
+func TestReadWeightsTiedOutputBiasedDense(t *testing.T) {
+	for _, architecture := range []string{"mistral3", "minicpm"} {
+		spec, file := denseBiasedWeightFixture(architecture)
+		weights, err := readFixtureWeights(file, spec)
+		if err != nil {
+			t.Fatalf("%s: %v", architecture, err)
+		}
+		layer := weights.Layers[0]
+		if weights.Output != nil ||
+			layer.AttentionOutputBias == nil ||
+			layer.FeedForwardGateBias == nil ||
+			layer.FeedForwardUpBias == nil ||
+			layer.FeedForwardDownBias == nil {
+			t.Fatalf("unexpected tied-output %s weights: %+v", architecture, weights)
+		}
 	}
 }
 

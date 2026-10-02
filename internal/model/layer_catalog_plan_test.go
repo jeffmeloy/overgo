@@ -38,13 +38,3 @@ func TestLayerCatalogPlanCompilesRotaryLookupAndSelection(t *testing.T) {
 		t.Fatalf("selected factors = %+v", layer.RopeFactors)
 	}
 }
-
-func TestLayerCatalogPlanCompilesSharedFactorFallback(t *testing.T) {
-	plan := (Spec{AttentionSpec: AttentionSpec{KeyLength: 32}}).rotaryCatalogPlan(
-		ArchitectureProfile{LayerTopology: layerTopologySharedKVAdapter},
-		LayerPlan{Layer: 3},
-	)
-	if plan.factor != "blk.3.rope_freqs.weight" || plan.factorFallback != "rope_freqs.weight" {
-		t.Fatalf("factor lookup = %+v", plan)
-	}
-}

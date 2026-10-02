@@ -620,14 +620,6 @@ func TestReadWeightsMiniCPM3(t *testing.T) {
 	}
 }
 
-func TestReadWeightsDeepSeek2AbsorbedMLA(t *testing.T) {
-	testReadWeightsDeepSeek2FamilyAbsorbedMLA(t, "deepseek2")
-}
-
-func TestReadWeightsMistral4AbsorbedMLA(t *testing.T) {
-	testReadWeightsDeepSeek2FamilyAbsorbedMLA(t, "mistral4")
-}
-
 func TestReadWeightsGLMDSAIndexer(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "glm-dsa", BlockCount: 2, EmbeddingLength: 8,
 		FeedForwardLength: 12, NextNPredictLayers: 1,
@@ -1008,6 +1000,12 @@ func TestReadWeightsPLaMo2(t *testing.T) {
 		attention.Recurrent || attention.AttentionQKV == nil || attention.AttentionQNorm == nil ||
 		attention.AttentionKNorm == nil || attention.FeedForwardUp.Shape[1] != 12 {
 		t.Fatalf("unexpected PLaMo2 catalog: %+v", weights.Layers)
+	}
+}
+
+func TestReadWeightsDeepSeek2FamilyAbsorbedMLA(t *testing.T) {
+	for _, architecture := range []string{"deepseek2", "mistral4"} {
+		t.Run(architecture, func(t *testing.T) { testReadWeightsDeepSeek2FamilyAbsorbedMLA(t, architecture) })
 	}
 }
 
@@ -1439,22 +1437,6 @@ func TestReadWeightsSmolLM3(t *testing.T) {
 	}
 	if weights.Output != nil || len(weights.Layers) != 1 {
 		t.Fatalf("unexpected tied-output SmolLM3 weights: %+v", weights)
-	}
-}
-
-func TestReadWeightsMiniCPM(t *testing.T) {
-	spec, file := denseBiasedWeightFixture("minicpm")
-	weights, err := readFixtureWeights(file, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	layer := weights.Layers[0]
-	if weights.Output != nil ||
-		layer.AttentionOutputBias == nil ||
-		layer.FeedForwardGateBias == nil ||
-		layer.FeedForwardUpBias == nil ||
-		layer.FeedForwardDownBias == nil {
-		t.Fatalf("unexpected tied-output MiniCPM weights: %+v", weights)
 	}
 }
 

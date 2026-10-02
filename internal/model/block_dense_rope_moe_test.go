@@ -1156,18 +1156,6 @@ func TestBuildErnie45MoEBlockUsesBiasedUngatedExpertsAndSharedBranch(t *testing.
 	}
 }
 
-func TestBuildPaddleOCRBlockUsesMRoPEAndOutputBias(t *testing.T) {
-	testBuildMRoPETextDecoderBlock(t, "paddleocr")
-}
-
-func TestBuildQwen2VLBlockUsesMRoPEAndOutputBias(t *testing.T) {
-	testBuildMRoPETextDecoderBlock(t, "qwen2vl")
-}
-
-func TestBuildQwen3VLBlockUsesQKNormAndMRoPE(t *testing.T) {
-	testBuildMRoPETextDecoderBlock(t, "qwen3vl")
-}
-
 func TestBuildQwen3VLBlockUsesDistinctMRoPEPositions(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "qwen3vl", EmbeddingLength: 8, FeedForwardLength: 12,
@@ -1256,6 +1244,12 @@ func TestBuildQwen3VLMoEBlockUsesQKNormMRoPEAndNormalizedExperts(t *testing.T) {
 	if !attrs.Gated || attrs.Routing != tensor.MoERoutingSoftmax || !attrs.NormalizeTopKProb ||
 		attrs.TopK != 2 || attrs.Scale != 1.25 || multiRoPE != 2 || rmsNorm != 4 {
 		t.Fatalf("unexpected Qwen3-VL-MoE graph: MoE=%+v MRoPE=%d RMS=%d", attrs, multiRoPE, rmsNorm)
+	}
+}
+
+func TestBuildMRoPETextDecoderBlocks(t *testing.T) {
+	for _, architecture := range []string{"paddleocr", "qwen2vl", "qwen3vl"} {
+		t.Run(architecture, func(t *testing.T) { testBuildMRoPETextDecoderBlock(t, architecture) })
 	}
 }
 

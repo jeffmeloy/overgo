@@ -82,13 +82,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "model-slice",
-          "title": "Trim internal/model's structural tests",
-          "status": "open",
-          "verify": "go test ./internal/model -count=1",
-          "rationale": "The second slice of tests-pin-behaviour; its record is on the do step's rationale."
-        },
-        {
           "id": "do",
           "title": "Delete tests that pin internal structure or bookkeeping, package by package",
           "status": "open",

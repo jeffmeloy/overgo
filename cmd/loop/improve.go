@@ -5,10 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
 	"overgo/internal/authoritylock"
+	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
 	"overgo/internal/plan"
 	"overgo/internal/scorecard"
@@ -136,14 +139,19 @@ func (w improvement) Fill() {
 // measureScorecard measures again the stale validations promotion waits on,
 // then publishes the scorecard of store with what moved since the previous
 // one. A failed validation does not withhold the others' numbers: the
-// scorecard publishes regardless and the failure is returned beside it.
+// scorecard publishes regardless and the failure is returned beside it with
+// the final error the command wrote to its error file, so the withheld
+// promotion names each cell or lane validate -run acquired nothing for, and
+// why.
 func measureScorecard(store string) error {
+	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-measure-%d.error", os.Getpid()))
+	defer os.Remove(errorFile)
 	var failed []error
 	for _, command := range [][]string{{"go", "run", "./cmd/validate", "-run", "-repo", store}, {"go", "run", "./cmd/validate", "-scorecard", "-publish", "-repo", store}} {
-		out, err := runTool(command...)
-		fmt.Print(out)
-		if err != nil {
-			failed = append(failed, fmt.Errorf("loop: the plan is empty, but %s failed: %w", strings.Join(command[1:], " "), err))
+		_ = os.Remove(errorFile)
+		if err := runToolEnv(append(loopEnvironment(), clioptions.ErrorFileEnvironment+"="+errorFile), nil, os.Stdout, os.Stdout, command...); err != nil {
+			final, _ := os.ReadFile(errorFile)
+			failed = append(failed, fmt.Errorf("loop: the plan is empty, but %s failed: %w: %s", strings.Join(command[1:], " "), err, bytes.TrimSpace(final)))
 		}
 	}
 	return errors.Join(failed...)

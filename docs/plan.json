@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 261,
-        "reason": "SQA-071 one compared-contract list: +261 measured by the agent"
+        "nodes": 898,
+        "reason": "SQA-071 +261; SQA-044 typed outcomes +637 (run.go +659, media_receipt.go -92, improve.go +65, driver.go +5)"
       },
       "steps": [
-        {
-          "id": "typed-outcomes",
-          "title": "Acquire a cycle cell only from its typed go test outcomes",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestValidateRunCycleLanes$' -count=1 \u0026\u0026 go test ./internal/loop -run '^TestLoopPromotesOnlyOnHeldOutFitness$' -count=1",
-          "rationale": "SQA-044: executeRun counted a zero exit as acquisition, so a lane whose required tests skipped or matched nothing passed. Fix: every go test cell runs once with -json and testevidence judges it; failed, unfinished, absent or undeclared-skip outcomes withhold, declared inapplicability is reported apart; media_receipt's name-only decoder goes; the withheld reason carries validate's error. A survey found none of the 64 undeclared skips in the models and audio lanes fires on this host. Batch: models cycle lane only."
-        },
         {
           "id": "cycle-lane-tests",
           "title": "Re-pin the hybrid training trajectory at the trained-model rate and drop the wall-time criterion",

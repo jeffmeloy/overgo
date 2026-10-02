@@ -11,8 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
 	"overgo/internal/processcontrol"
+	"overgo/internal/runrecord"
+	"overgo/internal/testevidence"
 )
 
 // Guard re-acquisition policy: the fixed corpus and budgets a text guard cell
@@ -93,16 +96,20 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 // executeRun runs the cells promotion waits on smallest-first through the
 // process owner, each into the selected store, then the selected cycle
 // lanes; with background it runs the background cells alone, which the loop
-// asks for after promotion's decision. A cell or lane that fails is
-// reported, not accepted, and the rest still run: one model's broken
-// measurement withholds no other's, and a blocking failure withholds
-// promotion. Cells without a bound command are reported as incomplete
-// coverage. A training run runs under its route's environment and publishes
-// its checkpoint beneath a scratch directory emptied before and after it,
-// since its proof is the verification it records; a projection proof's
-// producer runs under the environment it publishes by. An empty run set is
-// the clean "nothing to re-acquire" result the dry run predicts when every
-// judged cell's evidence and every cycle lane's pass is current.
+// asks for after promotion's decision. A cell or lane is acquired only as
+// acquire judges its run, so a go test passes by the outcomes it requires,
+// never by its exit. One that fails is reported, not accepted, and the rest
+// still run: one model's broken measurement withholds no other's, and a
+// blocking failure withholds promotion. One whose required tests only
+// declared themselves inapplicable here acquired nothing and withholds too,
+// reported apart from the failures, as cells without a bound command are
+// reported as incomplete coverage. A training run runs under its route's
+// environment and publishes its checkpoint beneath a scratch directory
+// emptied before and after it, since its proof is the verification it
+// records; a projection proof's producer runs under the environment it
+// publishes by. An empty run set is the clean "nothing to re-acquire" result
+// the dry run predicts when every judged cell's evidence and every cycle
+// lane's pass is current.
 func executeRun(ctx context.Context, output io.Writer, root, store string, plan Plan, background bool) error {
 	cells, suites := plan.Run, plan.Suites
 	if background {
@@ -113,8 +120,18 @@ func executeRun(ctx context.Context, output io.Writer, root, store string, plan 
 			len(plan.Reuse), len(plan.Unknown), len(plan.OperatorOwned), len(plan.RegisteredInactive))
 		return nil
 	}
-	var unbound, failed []string
+	var unbound, failed, inapplicable []string
 	acquired := 0
+	record := func(subject string, err error) {
+		switch {
+		case err == nil:
+			acquired++
+		case errors.Is(err, errInapplicable):
+			inapplicable = append(inapplicable, fmt.Sprintf("%s: %v", subject, err))
+		default:
+			failed = append(failed, fmt.Sprintf("%s: %v", subject, err))
+		}
+	}
 	for index, sel := range cells {
 		name, args, err := reacquireCommand(sel.ModelValidation, store)
 		if err != nil {
@@ -132,28 +149,24 @@ func executeRun(ctx context.Context, output io.Writer, root, store string, plan 
 		}
 		err = os.RemoveAll(scratch)
 		if err == nil {
-			err = runCell(ctx, output, root, name, args, environment...)
+			err = acquire(ctx, output, root, name, args, environment...)
 		}
-		if err := errors.Join(err, os.RemoveAll(scratch)); err != nil {
-			failed = append(failed, fmt.Sprintf("%s %s: %v", displayName(sel.ModelValidation), sel.Validation, err))
-			continue
-		}
-		acquired++
+		record(fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation), errors.Join(err, os.RemoveAll(scratch)))
 	}
 	for _, suite := range suites {
 		if !suite.Run {
 			continue
 		}
 		fmt.Fprintf(output, "validate -run cycle lane %s (%s)\n", suite.Lane, suite.Reason)
-		if err := runCell(ctx, output, root, "go", suite.Arguments, suite.Environment...); err != nil {
-			failed = append(failed, fmt.Sprintf("cycle lane %s: %v", suite.Lane, err))
-			continue
-		}
-		acquired++
+		record("cycle lane "+suite.Lane, acquire(ctx, output, root, "go", suite.Arguments, suite.Environment...))
 	}
 	var problems []string
 	if len(failed) > 0 {
 		problems = append(problems, fmt.Sprintf("%d failed:\n  %s", len(failed), strings.Join(failed, "\n  ")))
+	}
+	if len(inapplicable) > 0 {
+		problems = append(problems, fmt.Sprintf("%d acquired nothing, their required tests %s:\n  %s",
+			len(inapplicable), errInapplicable, strings.Join(inapplicable, "\n  ")))
 	}
 	if len(unbound) > 0 {
 		problems = append(problems, fmt.Sprintf("%d have no bound command yet:\n  %s", len(unbound), strings.Join(unbound, "\n  ")))
@@ -162,6 +175,108 @@ func executeRun(ctx context.Context, output io.Writer, root, store string, plan 
 		return fmt.Errorf("validate -run: re-acquired %d cell(s); %s", acquired, strings.Join(problems, "; "))
 	}
 	fmt.Fprintf(output, "validate -run: re-acquired %d cell(s); re-run the dry run to confirm coverage\n", acquired)
+	return nil
+}
+
+// errInapplicable marks a required outcome that only declared exclusions
+// answered: the tests it selects stated, through testskip.NotApplicable, why
+// they cannot apply where they ran. It is neither a failure nor a pass.
+var errInapplicable = errors.New("declared inapplicable here")
+
+// acquire runs one cell's or lane's command and says why it acquired
+// nothing. A go test command is acquired by the outcomes it requires, never
+// by its exit: it runs once with -json, and testevidence's report of that
+// run's events must show each package the command names completing with a
+// passing test its -run selector matches, as requiredPass judges. Its
+// packages' progress and any failure's retained output go to output. Any
+// other command is a producer whose exit is its own verdict: it publishes
+// records the next dry run judges, or, like the journeys lane's
+// cmd/webui-lane, judges its own typed test report.
+func acquire(ctx context.Context, output io.Writer, root, name string, args []string, environment ...string) error {
+	if name != "go" || len(args) == 0 || args[0] != "test" {
+		return runCell(ctx, output, root, name, args, environment...)
+	}
+	// The command is read as every verifier is, so its packages and selector
+	// mean what they mean to testevidence.
+	words := []string{name}
+	for _, arg := range args {
+		words = append(words, "'"+strings.ReplaceAll(arg, "'", `'\''`)+"'")
+	}
+	parsed, err := runrecord.ParseVerify(strings.Join(words, " "))
+	if err != nil {
+		return err
+	}
+	invocation, selected := parsed.GoTests()[0], func(string) bool { return true }
+	if invocation.Target != nil {
+		selected = invocation.Target.MatchString
+	}
+	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
+		Path: name, Args: slices.Insert(slices.Clone(args), 1, "-json"), Dir: root, Env: append(os.Environ(), environment...),
+	}, testevidence.GoTestOptions{DiagnosticBytes: clioptions.DiagnosticTailBytes, Progress: func(done testevidence.PackageProgress) {
+		fmt.Fprintf(output, "%s\t%s\t%s\n", done.Action, done.Package, done.Elapsed)
+	}})
+	required := requiredPass(report, invocation.Packages, selected)
+	if err == nil {
+		return required
+	}
+	for _, diagnostic := range report.Diagnostics {
+		fmt.Fprintf(output, "validate -run: diagnostic: %s\n", diagnostic)
+	}
+	if required != nil {
+		err = fmt.Errorf("%w; %s", err, required)
+	}
+	return err
+}
+
+// requiredPass says why one go test run's report does not prove what the run
+// requires of the packages its command names as ./directory: nil when the
+// run is complete, every test passing or declaring itself inapplicable, and
+// in each package a test selected matches passed. RequireComplete names the
+// first test that failed, did not finish or skipped without declaring
+// itself inapplicable; PackagePassed is each package's authority, and the
+// observed tests say which passed. A package the run never reported, or one
+// in which no selected test passed, is absent, and a same-named test of
+// another package lends it nothing. When declared exclusions are all that
+// answered, the refusal wraps errInapplicable.
+func requiredPass(report testevidence.GoTestReport, packages []string, selected func(string) bool) error {
+	if err := testevidence.RequireComplete(report); err != nil {
+		return err
+	}
+	var refused, declared []string
+	for _, pkg := range packages {
+		relative := strings.TrimPrefix(pkg, "./")
+		at := slices.IndexFunc(report.Executions, func(execution testevidence.PackageExecution) bool {
+			return execution.Package == pkg || strings.HasSuffix(execution.Package, "/"+relative)
+		})
+		if at < 0 {
+			refused = append(refused, pkg+" is absent: the run reported no such package")
+			continue
+		}
+		name := report.Executions[at].Package
+		passed := slices.ContainsFunc(report.TestCosts(), func(test testevidence.TestExecution) bool {
+			return test.Package == name && test.Action == "pass" && selected(test.Name)
+		})
+		excluded := slices.DeleteFunc(slices.Clone(report.ClassifiedSkipped), func(skipped string) bool {
+			test, found := strings.CutPrefix(skipped, name+": ")
+			return !found || !selected(test)
+		})
+		switch {
+		case passed && !report.PackagePassed(name):
+			refused = append(refused, name+" did not complete a passing run")
+		case !passed && len(excluded) > 0:
+			declared = append(declared, strings.Join(excluded, ", "))
+		case !passed:
+			refused = append(refused, name+" is absent: no test the run selected passed there")
+		}
+	}
+	switch {
+	case len(refused) > 0:
+		return errors.New(strings.Join(refused, "; "))
+	case len(declared) > 0:
+		return fmt.Errorf("%w: %s", errInapplicable, strings.Join(declared, "; "))
+	case len(packages) == 0:
+		return errors.New("the run names no package it requires")
+	}
 	return nil
 }
 

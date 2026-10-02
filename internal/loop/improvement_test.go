@@ -52,7 +52,8 @@ func (w *improvingWorld) Propose(_ scorecard.Record, gaps []scorecard.Gap) (int,
 // slower throughput, a failed attempt or a newly measured metric promote.
 // A quality nothing compares -- another suite, or a baseline row the record
 // lost -- is unknown and refuses it too. No baseline, a row without held-out
-// quality and a failed validation promote nothing, and the outcome says why.
+// quality and a failed validation promote nothing, and the outcome says why:
+// a failed validation by its own refusal, naming what it did not acquire.
 // Every run proposes its gaps: a refusal for a fall proposes the fall, and a
 // refusal for an unknown quality proposes measuring it again. Every run that
 // published fills the validations promotion does not compare once, after its
@@ -100,7 +101,9 @@ func TestLoopPromotesOnlyOnHeldOutFitness(t *testing.T) {
 		{name: "a new optional metric", baseline: unmeasured(record("a", accuracy(0.5, "mmlu"), 40, 0), metric.Load), published: record("b", accuracy(0.5, "mmlu"), 40, 0)},
 		{name: "no scorecard of main", published: record("b", accuracy(0.9, "mmlu"), 40, 0), withheld: "no earlier scorecard measured the commit refs/heads/main holds"},
 		{name: "held-out quality missing", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", scorecard.Cell{Reason: "no held-out suite ran"}, 40, 0), withheld: "has no inference held-out quality: no held-out suite ran"},
-		{name: "failed validation", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.6, "mmlu"), 40, 0), measureErr: errors.New("validate -run failed"), withheld: "a validation failed"},
+		{name: "failed validation", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.6, "mmlu"), 40, 0),
+			measureErr: errors.New("validate -run: cycle lane models: overgo/internal/x: TestY skipped without declaring itself inapplicable"),
+			withheld:   "a validation failed, so the scorecard's cells are stale: validate -run: cycle lane models: overgo/internal/x: TestY skipped"},
 	} {
 		world := &improvingWorld{published: scenario.published, baseline: scenario.baseline, measureErr: scenario.measureErr}
 		outcome, err := Run(world, Config{MaxAttemptsPerStep: 1, MaxInvocations: 1})

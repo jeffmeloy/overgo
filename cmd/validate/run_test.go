@@ -109,18 +109,53 @@ func TestValidateRunEmpty(t *testing.T) {
 // TestValidateRunCycleLanes runs each selected cycle lane's go command with
 // its environment and only those: a lane that passes is counted, one that
 // fails fails the run by name, so the loop withholds promotion, and a reused
-// lane never starts.
+// lane never starts. A command other than go test answers by its exit; a go
+// test lane is acquired only by the outcomes it requires, read from its own
+// run's events: each package it names completes with a passing test its
+// selector matches, a declared exclusion beside them visible but uncredited.
+// A failed package, a zero-exit skip that a same-named test passing in
+// another package does not excuse, and a selector matching nothing each
+// withhold by name; a lane whose selected tests only declared themselves
+// inapplicable acquires nothing and is reported apart from the failures.
 func TestValidateRunCycleLanes(t *testing.T) {
 	t.Parallel()
+	const fixtures = "./internal/testevidence/testdata/"
 	var out bytes.Buffer
 	plan := Plan{Suites: []SelectedSuite{
 		{Lane: "passes", Run: true, Arguments: []string{"env", "GOFLAGS"}, Environment: []string{"GOFLAGS=-tags=lane-environment"}},
 		{Lane: "fails", Run: true, Arguments: []string{"vet", "./no-such-package"}},
 		{Lane: "reused", Arguments: []string{"env", "GOFLAGS"}},
+		{Lane: "tested", Run: true, Arguments: []string{"test", "-tags", "", fixtures + "probefixture"}},
+		{Lane: "failed", Run: true, Arguments: []string{"test", "./no-such-package"}},
+		{Lane: "skipped", Run: true, Arguments: []string{"test", fixtures + "probefixture", fixtures + "skipfixture", "-run", "^TestUnavailableCapability$"}},
+		{Lane: "absent", Run: true, Arguments: []string{"test", fixtures + "probefixture", "-run", "^TestAbsent$"}},
+		{Lane: "inapplicable", Run: true, Arguments: []string{"test", fixtures + "probefixture", "-run", "^TestElsewhere$"}},
 	}}
-	err := executeRun(t.Context(), &out, ".", "C:/stores/selected", plan, false)
-	if err == nil || !strings.Contains(err.Error(), "cycle lane fails") || strings.Contains(err.Error(), "cycle lane passes") {
-		t.Fatalf("cycle lanes run = %v, want only the failing lane named", err)
+	err := executeRun(t.Context(), &out, testutil.RepoRoot(t), "C:/stores/selected", plan, false)
+	if err == nil {
+		t.Fatalf("cycle lanes run passed; output:\n%s", out.String())
+	}
+	failed, inapplicable, _ := strings.Cut(err.Error(), "declared inapplicable here")
+	for lane, want := range map[string]string{
+		"fails":   "exit=",
+		"failed":  "./no-such-package failed",
+		"skipped": "testdata/skipfixture: TestUnavailableCapability skipped",
+		"absent":  "testdata/probefixture is absent",
+	} {
+		if !strings.Contains(failed, "cycle lane "+lane+": ") || !strings.Contains(failed, want) {
+			t.Errorf("cycle lane %s is not withheld as a failure saying %q: %v", lane, want, err)
+		}
+	}
+	if !strings.Contains(inapplicable, "cycle lane inapplicable: ") || !strings.Contains(inapplicable, "TestElsewhere") || strings.Contains(failed, "cycle lane inapplicable") {
+		t.Errorf("a lane whose required test declared itself inapplicable is not reported apart from the failures: %v", err)
+	}
+	for _, lane := range []string{"passes", "tested", "reused"} {
+		if strings.Contains(err.Error(), "cycle lane "+lane+":") {
+			t.Errorf("cycle lane %s was withheld: %v", lane, err)
+		}
+	}
+	if !strings.Contains(err.Error(), "re-acquired 2 cell(s)") {
+		t.Errorf("cycle lanes run = %v, want the passing and the tested lanes acquired", err)
 	}
 	if !strings.Contains(out.String(), "lane-environment") || strings.Contains(out.String(), "cycle lane reused") {
 		t.Fatalf("cycle lane output = %q, want the passing lane run with its environment and the reused one not started", out.String())

@@ -266,8 +266,8 @@ func improve(world World, outcome *Outcome) (int, error) {
 // the gaps as rows. The fill records claims against the clean measured tree,
 // so it runs before the proposals write the plan. A failed validation leaves stale cells, so it promotes
 // nothing; its record still names the gaps. The outcome says why a commit
-// was withheld. The driver runs it when the plan empties, and cmd/loop
-// -improve on demand.
+// was withheld, a failed validation by the failure Measure returned. The
+// driver runs it when the plan empties, and cmd/loop -improve on demand.
 func Improve(improver ImprovementWorld, outcome *Outcome) (int, error) {
 	published, baseline, err := improver.Measure()
 	if published == nil {
@@ -275,7 +275,7 @@ func Improve(improver ImprovementWorld, outcome *Outcome) (int, error) {
 	}
 	outcome.Withheld = published.Withheld(baseline)
 	if err != nil {
-		outcome.Withheld = "a validation failed, so the scorecard's cells are stale"
+		outcome.Withheld = "a validation failed, so the scorecard's cells are stale: " + err.Error()
 	}
 	if outcome.Withheld == "" {
 		if err := improver.Promote(published.Commit); err != nil {

@@ -3,24 +3,24 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"regexp"
 	"slices"
 	"strings"
 
 	"overgo/internal/landing"
 	"overgo/internal/processcontrol"
+	"overgo/internal/testevidence"
 )
 
 // Media and specialized evidence is keyed to the media runtime identity, and
 // whether it holds at a tree is decided by the acceptance tests of one package:
 // the chain of reviewed layers they walk is the only owner of that judgement.
-// The planner runs those acceptances with go test at this tree and reads the
-// named verdicts; go test's cache, keyed to the exact inputs, replays a run
-// whose inputs did not change, so asking again costs nothing.
+// The planner runs those acceptances with go test at this tree and reads
+// testevidence's package-qualified report of the run; go test's cache, keyed
+// to the exact inputs, replays a run whose inputs did not change, so asking
+// again costs nothing.
 
 // mediaAcceptancePackage is the package whose complete receipt judges media
 // and specialized evidence.
@@ -55,10 +55,10 @@ var surfaceAcceptances = map[SurfaceID]*regexp.Regexp{
 }
 
 // testReport is one go test run of an acceptance package's acceptances:
-// whether it passed, and each test's final action.
+// whether go test exited zero, and testevidence's report of its events.
 type testReport struct {
 	Passed bool
-	Tests  map[string]string
+	Report testevidence.GoTestReport
 }
 
 // packageTests runs the acceptances the judged surfaces name in one package
@@ -80,52 +80,32 @@ func packageTests(ctx context.Context, root, packagePath string) (testReport, er
 	if err != nil {
 		return testReport{}, fmt.Errorf("validate: test %s: %w", packagePath, err)
 	}
-	report := testReport{Passed: receipt.ExitCode == 0, Tests: map[string]string{}}
-	decoder := json.NewDecoder(&stdout)
-	for {
-		var event struct{ Action, Test string }
-		if err := decoder.Decode(&event); errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return testReport{}, fmt.Errorf("validate: test %s: %w: %s", packagePath, err, strings.TrimSpace(stderr.String()))
-		}
-		if event.Test != "" && (event.Action == "pass" || event.Action == "fail" || event.Action == "skip") {
-			report.Tests[event.Test] = event.Action
-		}
+	report, err := testevidence.GoTestJSONReport(stdout.String())
+	if err != nil {
+		return testReport{}, fmt.Errorf("validate: test %s: %w: %s", packagePath, err, strings.TrimSpace(stderr.String()))
 	}
-	return report, nil
+	return testReport{Passed: receipt.ExitCode == 0, Report: report}, nil
 }
 
 // mediaCurrent says why a surface's evidence is not current at this tree: the
-// acceptance run failed, or the surface's acceptances are not among the
-// verdicts that passed. Nil means the
-// named acceptances passed against exactly this tree's inputs.
-func mediaCurrent(report testReport, surface SurfaceID) error {
+// acceptance run failed, or its package's run proves none of the surface's
+// acceptances passed, as requiredPass judges a run. A declared exclusion, a
+// test that stated why it cannot apply at this tree, neither judges the
+// surface nor refuses it; a skip that declared nothing refuses it, and a
+// same-named test of another package lends it nothing. Nil means a named
+// acceptance passed against exactly this tree's inputs.
+func mediaCurrent(receipt testReport, surface SurfaceID) error {
 	pattern, judged := surfaceAcceptances[surface]
 	pkg := surfacePackages[surface]
 	if !judged || pkg == "" {
 		return errCellNotJudged
 	}
 	rerun := "run: go test ./" + pkg
-	if !report.Passed {
+	if !receipt.Passed {
 		return fmt.Errorf("the complete run of %s failed at this tree's inputs; repair it, then %s", pkg, rerun)
 	}
-	// A receipt carries a skip only for a declared exclusion, a test that
-	// stated why it cannot apply at this tree; it neither judges the surface
-	// nor refuses it. What judges is that at least one named acceptance
-	// passed and none recorded anything else.
-	matched := 0
-	for name, action := range report.Tests {
-		if !pattern.MatchString(name) || action == "skip" {
-			continue
-		}
-		if action != "pass" {
-			return fmt.Errorf("%s acceptance %s recorded %q, not a pass, at this tree's inputs", surface, name, action)
-		}
-		matched++
-	}
-	if matched == 0 {
-		return fmt.Errorf("the receipt for %s names no passing %s acceptance among its verdicts", pkg, surface)
+	if err := requiredPass(receipt.Report, []string{"./" + pkg}, pattern.MatchString); err != nil {
+		return fmt.Errorf("the receipt for %s proves no passing %s acceptance at this tree's inputs: %w", pkg, surface, err)
 	}
 	return nil
 }

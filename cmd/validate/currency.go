@@ -139,7 +139,7 @@ func (read acceptedRecords) current(cell ModelValidation) error {
 		}
 		return errUnmeasured
 	case slices.Contains(boundSurfaces, cell.Surface):
-		if verdict, found := read.bound[boundKey{cell.Recipe, cell.Validation}]; found {
+		if verdict, found := read.bound[boundKey{cell.Recipe, cell.Validation, cell.Protocol}]; found {
 			return verdict
 		}
 		return errors.New("no record was read for this cell")

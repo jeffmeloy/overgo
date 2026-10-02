@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -31,9 +32,13 @@ import (
 // baseline compares though its newest record ran raw. Its bbh, never run,
 // and its ifeval, stale but compared by no baseline, run in the background,
 // each saying why, and a benchmark another model's declaration excludes is
-// skipped though its surface moved. Without a baseline every benchmark is
-// background. A blocking run leaves the background cells alone, and -run
-// -background runs them alone.
+// skipped though its surface moved. A baseline that retains another held-out
+// contract beside its headline, raw completion on mmlu-pro or the chat
+// template on ifeval, blocks promotion on that contract too, whichever of
+// them is the headline, while a benchmark no contract names stays in the
+// background. Without a baseline every benchmark is background. A blocking
+// run leaves the background cells alone, and -run -background runs them
+// alone.
 func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 	t.Parallel()
 	root, _, promoted, _ := surfaceHistory(t)
@@ -71,54 +76,104 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 		cell(model, recipe.TaskInference, "ifeval", "evaluation", chat), cell(model, recipe.TaskTraining, "training-proof", "training", ""),
 		excluded,
 	}
-	registered = compareContracts(registered, baseline)
-	if protocols := []string{registered[2].Protocol, registered[3].Protocol, registered[4].Protocol}; !slices.Equal(protocols, []string{chat, raw, chat}) {
-		t.Fatalf("mmlu-pro, bbh and ifeval take protocols %v; want only the compared mmlu-pro to take the baseline's %s", protocols, chat)
+	if compared := compareContracts(slices.Clone(registered), baseline); !slices.Equal([]string{compared[2].Protocol, compared[3].Protocol, compared[4].Protocol}, []string{chat, raw, chat}) {
+		t.Fatalf("mmlu-pro, bbh and ifeval take protocols %+v; want only the compared mmlu-pro to take the baseline's %s", compared[2:5], chat)
 	}
 	read := acceptedRecords{bound: map[boundKey]error{
-		{registered[3].Recipe, "bbh"}:          errors.New("no bbh record for this recipe yet"),
-		{excluded.Recipe, excluded.Validation}: fmt.Errorf("%w: it declares dna", errCellInapplicable),
+		{registered[3].Recipe, "bbh", raw}:                        errors.New("no bbh record for this recipe yet"),
+		{excluded.Recipe, excluded.Validation, excluded.Protocol}: fmt.Errorf("%w: it declares dna", errCellInapplicable),
 	}}
 	moved := AffectRecord{Affected: true, Reason: "authority path internal/cuda/driver.go moves every surface"}
 	selected := func(baseline *scorecard.Record) Plan {
 		return SelectValidation(Inputs{
 			AffectedSurfaces: map[SurfaceID]AffectRecord{"inference": moved, "evaluation": moved, "training": moved},
-			Registered:       registered, Current: read.current, Scorecard: baseline,
+			Registered:       compareContracts(slices.Clone(registered), baseline), Current: read.current, Scorecard: baseline,
 		})
 	}
+	// scheduled names each cell of a bucket by its validation and, for a
+	// benchmark, the protocol it runs under.
 	scheduled := func(bucket []Selected, scope string) []string {
 		var validations []string
 		for _, sel := range bucket {
 			if !strings.HasPrefix(sel.Promotion, scope+": ") {
 				t.Errorf("%s is scheduled %s but says %q", sel.Validation, scope, sel.Promotion)
 			}
-			validations = append(validations, sel.Validation)
+			validations = append(validations, strings.TrimSpace(sel.Validation+" "+sel.Protocol))
 		}
 		slices.Sort(validations)
 		return validations
 	}
 
-	plan := selected(baseline)
-	if got, want := scheduled(plan.Run, "blocking"), []string{guardValidation, "mmlu-pro", servingValidation, "training-proof"}; !slices.Equal(got, want) {
-		t.Fatalf("promotion waits on %v, want %v: run=%+v background=%+v", got, want, plan.Run, plan.Background)
+	// The baseline holds the model to every held-out contract it measured,
+	// the headline and each retained beside it, whichever is the headline:
+	// each compared family runs and blocks under each compared protocol, and
+	// a benchmark no baseline contract names runs in the background.
+	retaining := func(headline scorecard.Contract, others ...scorecard.Contract) *scorecard.Record {
+		retained := *baseline
+		retained.Rows = slices.Clone(baseline.Rows)
+		retained.Rows[0].Cells = maps.Clone(retained.Rows[0].Cells)
+		quality := func(contract scorecard.Contract) scorecard.Cell {
+			cell := retained.Rows[0].Cells[metric.Quality]
+			cell.Contract = contract
+			return cell
+		}
+		retained.Rows[0].Cells[metric.Quality] = quality(headline)
+		for _, other := range others {
+			retained.Rows[0].Heldout = append(retained.Rows[0].Heldout, quality(other))
+		}
+		return &retained
 	}
-	if got, want := scheduled(plan.Background, "background"), []string{"bbh", "ifeval"}; !slices.Equal(got, want) {
-		t.Fatalf("background cells %v, want %v: run=%+v background=%+v", got, want, plan.Run, plan.Background)
+	contract := func(suite, protocol string) scorecard.Contract {
+		return scorecard.Contract{Metric: "accuracy", Origin: "evaluation", Suite: suite, Protocol: protocol}
 	}
-	for _, sel := range plan.Background {
-		if !strings.Contains(sel.Promotion, "compares accuracy on store/mmlu-pro (chat-template), not "+sel.Validation) {
-			t.Fatalf("background %s does not say what the baseline compares instead: %q", sel.Validation, sel.Promotion)
+	for _, scenario := range []struct {
+		name                 string
+		baseline             *scorecard.Record
+		blocking, background []string
+	}{
+		{name: "the headline compared", baseline: baseline,
+			blocking: []string{guardValidation, "mmlu-pro " + chat, servingValidation, "training-proof"}, background: []string{"bbh " + raw, "ifeval " + chat}},
+		{name: "a retained protocol compared beside the headline", baseline: retaining(contract("store/mmlu-pro", chat), contract("store/mmlu-pro", raw)),
+			blocking: []string{guardValidation, "mmlu-pro " + chat, "mmlu-pro " + raw, servingValidation, "training-proof"}, background: []string{"bbh " + raw, "ifeval " + chat}},
+		{name: "the headline and a retained protocol reordered", baseline: retaining(contract("store/mmlu-pro", raw), contract("store/mmlu-pro", chat)),
+			blocking: []string{guardValidation, "mmlu-pro " + chat, "mmlu-pro " + raw, servingValidation, "training-proof"}, background: []string{"bbh " + raw, "ifeval " + chat}},
+		{name: "a retained family compared beside the headline", baseline: retaining(contract("store/mmlu-pro", chat), contract("store/ifeval", chat)),
+			blocking: []string{guardValidation, "ifeval " + chat, "mmlu-pro " + chat, servingValidation, "training-proof"}, background: []string{"bbh " + raw}},
+		{name: "no baseline", baseline: nil,
+			blocking: []string{guardValidation, servingValidation, "training-proof"}, background: []string{"bbh " + raw, "ifeval " + chat, "mmlu-pro " + raw}},
+	} {
+		plan := selected(scenario.baseline)
+		blocking, background := scheduled(plan.Run, "blocking"), scheduled(plan.Background, "background")
+		if !slices.Equal(blocking, scenario.blocking) || !slices.Equal(background, scenario.background) {
+			t.Errorf("%s: promotion waits on %v and not on %v, want %v and not %v", scenario.name, blocking, background, scenario.blocking, scenario.background)
+			continue
+		}
+		for _, sel := range slices.Concat(plan.Run, plan.Background) {
+			if !benchmark(sel.ModelValidation) {
+				continue
+			}
+			if measured := "store/" + sel.Validation + " (" + sel.Protocol + ")"; scenario.baseline != nil &&
+				!strings.HasPrefix(sel.Promotion, "blocking: the baseline scorecard compares accuracy on "+measured) &&
+				!(strings.HasPrefix(sel.Promotion, "background: the baseline scorecard compares accuracy on ") && strings.HasSuffix(sel.Promotion, ", not "+sel.Validation+" ("+sel.Protocol+")")) {
+				t.Errorf("%s: %s does not say which contract the baseline compares: %q", scenario.name, sel.Validation, sel.Promotion)
+			}
 		}
 	}
+
+	plan := selected(baseline)
 	if plan.Scorecard != baseline.Name || len(plan.SkipInappropriate) != 1 || plan.SkipInappropriate[0].Model != excluded.Model {
 		t.Fatalf("scorecard %q (want %q), skipped %+v: the excluded benchmark was not skipped", plan.Scorecard, baseline.Name, plan.SkipInappropriate)
 	}
-	if unscoped := selected(nil); !slices.Equal(scheduled(unscoped.Background, "background"), []string{"bbh", "ifeval", "mmlu-pro"}) {
-		t.Fatalf("without a baseline a benchmark blocked promotion: run=%+v background=%+v", unscoped.Run, unscoped.Background)
+	names := func(bucket []Selected) []string {
+		var validations []string
+		for _, sel := range bucket {
+			validations = append(validations, sel.Validation)
+		}
+		return validations
 	}
 
 	var out bytes.Buffer
-	for background, want := range map[bool][]string{false: scheduled(plan.Run, "blocking"), true: scheduled(plan.Background, "background")} {
+	for background, want := range map[bool][]string{false: names(plan.Run), true: names(plan.Background)} {
 		// No cell has a location, so each is reported unbound and none starts.
 		err := executeRun(t.Context(), &out, root, store, plan, background)
 		for _, validation := range []string{guardValidation, servingValidation, "mmlu-pro", "training-proof", "bbh", "ifeval"} {

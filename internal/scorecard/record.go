@@ -187,27 +187,47 @@ func (record Record) Pairs(baseline Record) []Pair {
 	return pairs
 }
 
-// Compare reports how the record's row holds the baseline row's cell in
-// column, and why when it does not hold. A cell the baseline did not
-// measure holds, since the baseline asks nothing of it: a newly measured
-// metric or row never blocks. A held-out quality is compared on the
-// baseline's contract, read from the row's other held-out qualities when a
-// larger suite has become the headline since. A measured cell has regressed
-// when the record measured it on the same contract and direction and it fell
-// in that direction by more than float32 arithmetic resolves; it is Unknown
-// when the record lost the row or the cell, measured it only on another
-// contract, or the baseline cell has no contract.
-func (pair Pair) Compare(column metric.Name) (Verdict, string) {
-	if pair.Before == nil || !pair.Before.Cells[column].Measured() {
-		return holding, ""
+// Comparison is a cell the baseline measured that the record does not hold:
+// its verdict, regressed or Unknown, and why.
+type Comparison struct {
+	Verdict Verdict
+	Why     string
+}
+
+// Compare reports each cell of column the baseline row measured that the
+// record's row does not hold; none when every one holds. A cell the baseline
+// did not measure holds, since the baseline asks nothing of it: a newly
+// measured metric, suite or row never blocks. Each of the baseline row's
+// held-out qualities, the headline and every other, is compared on its own
+// contract, read from whichever of the record's row's held-out qualities
+// measured it, so neither a new headline nor a new order drops one.
+func (pair Pair) Compare(column metric.Name) []Comparison {
+	if pair.Before == nil {
+		return nil
 	}
-	if pair.After == nil {
-		return Unknown, "the record has no row for this model and task"
+	required := pair.Before.Measured(column)
+	if pair.After == nil && len(required) != 0 {
+		return []Comparison{{Unknown, "the record has no row for this model and task"}}
 	}
-	then, now := pair.Before.Cells[column], pair.After.Cells[column]
-	if at := slices.IndexFunc(pair.After.Heldout, func(other Cell) bool { return other.Contract == then.Contract }); column == metric.Quality && now.Contract != then.Contract && at >= 0 {
-		now = pair.After.Heldout[at]
+	var comparisons []Comparison
+	for _, then := range required {
+		now, measured := pair.After.Cells[column], pair.After.Measured(column)
+		if at := slices.IndexFunc(measured, func(other Cell) bool { return other.Contract == then.Contract }); at >= 0 {
+			now = measured[at]
+		}
+		if verdict, why := holds(then, now); verdict != holding {
+			comparisons = append(comparisons, Comparison{verdict, why})
+		}
 	}
+	return comparisons
+}
+
+// holds reports how now holds the baseline's measured cell then, and why
+// when it does not. It has regressed when now measured it on the same
+// contract and direction and it fell in that direction by more than float32
+// arithmetic resolves; it is Unknown when now is not measured, measured only
+// another contract, or then has no contract.
+func holds(then, now Cell) (Verdict, string) {
 	switch {
 	case !now.Measured():
 		return Unknown, "no longer measured: " + now.Reason
@@ -284,19 +304,22 @@ func (record Record) Gaps(baseline *Record) []Gap {
 		grouped[key].Detail += "- " + row.Name + " " + string(column) + ": " + line + "\n"
 	}
 	for _, pair := range record.Pairs(before) {
-		verdict, why := pair.Compare(metric.Quality)
-		if pair.After == nil {
-			if verdict != holding {
-				add(string(verdict), pair.Before, metric.Quality, why)
+		compared := pair.Compare(metric.Quality)
+		propose := func(row *Row) {
+			for _, comparison := range compared {
+				add(string(comparison.Verdict), row, metric.Quality, comparison.Why)
 			}
+		}
+		if pair.After == nil {
+			propose(pair.Before)
 			continue
 		}
 		for _, column := range metric.Columns {
 			switch cell := pair.After.Cells[column]; {
 			case !cell.Measured() && !cell.NotApplicable:
 				add(gapUnmeasured, pair.After, column, cell.Reason)
-			case column == metric.Quality && verdict != holding:
-				add(string(verdict), pair.After, column, why)
+			case column == metric.Quality && len(compared) != 0:
+				propose(pair.After)
 			case column == metric.Quality && cell.NotApplicable:
 				add(gapUnscored, pair.After, column, cell.Reason)
 			case column == metric.Failures && cell.Value > 0:

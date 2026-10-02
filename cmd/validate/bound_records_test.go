@@ -50,7 +50,7 @@ func TestBenchmarkCurrencyFollowsItsSurface(t *testing.T) {
 	cells := []ModelValidation{older, current, unmeasured, excluded}
 	read := acceptedRecords{bound: map[boundKey]error{}}
 	for _, cell := range cells {
-		read.bound[boundKey{cell.Recipe, cell.Validation}] = recordCurrent(t.Context(), root, directories, cell, records[cell.ModelName])
+		read.bound[boundKey{cell.Recipe, cell.Validation, cell.Protocol}] = recordCurrent(t.Context(), root, directories, cell, records[cell.ModelName])
 	}
 	plan := SelectValidation(Inputs{AffectedSurfaces: map[SurfaceID]AffectRecord{"evaluation": {}}, Registered: cells, Current: read.current})
 

@@ -4,17 +4,28 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "compatibility-into-validate",
-      "title": "Fold cmd/compatibility into validate, re-verifying claims whose source moves",
+      "id": "promotion-correctness",
+      "title": "Promote only on complete, typed evidence of every compared contract",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 261,
+        "reason": "SQA-071 one compared-contract list: +261 measured by the agent"
+      },
       "steps": [
         {
-          "id": "evidence",
-          "title": "Refresh the accepted evidence the audits read, by re-running it",
+          "id": "typed-outcomes",
+          "title": "Acquire a cycle cell only from its typed go test outcomes",
           "status": "open",
-          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/validate ./cmd/longform -run '^(TestAcceptedCapabilityCensus|TestAcceptedFP8Guard|TestRetiredGuardRecords|TestAcceptedGuardCatalog)$' -count=1 -v",
-          "rationale": "S6: after the guard re-acquisition of 2026-09-30 (10 of 10 published at surface 50f89def), the audits still fail. The accepted baselines they compare against lack realized residency ('comparison lacks matching realized residency'), and the census needs the owner's review of 11 identities (snapshot 209, live 220). Re-acquire the accepted baselines with realized residency, or retire those comparisons against a replacement that covers their contract; never hand-edit. The guard audits move beside validate's guard_records.go.\n\nSQA 2026-09-30: SQA-044 (P2): required acceptances are credited by the typed interpreter, never by exit status. SQA-053 is handled in promotion-correctness/current-evidence.\n\nFold landed 2026-10-01 without re-pointing the 12 coverage-proof Verify strings that name ./cmd/compatibility (11 text-vision, 1 image-video). Each proof's stored gate step binds the sha256 of its exact Verify string (internal/runrecord/completion_evidence.go:38-41, checked via media_coverage.go:400-406). Re-pointing them fails six acceptance tests ('completion acceptance evidence does not match the plan authority'), and nothing in the tree produces these gate records: formatCompletionAcceptanceEvidence has no non-test caller. The re-pointing is built in the scratchpad's compatfold-repoint.patch (new digests: text-vision 62ebc6e5..., image-video 6bf91882...). It applies together with re-acquired records once a producer exists, or the proofs retire against a replacement that covers their contract. Until then the strings name a command that no longer exists, as recorded history."
+          "verify": "go test ./cmd/validate -run '^TestValidateRunCycleLanes$' -count=1 \u0026\u0026 go test ./internal/loop -run '^TestLoopPromotesOnlyOnHeldOutFitness$' -count=1",
+          "rationale": "SQA-044: executeRun counted a zero exit as acquisition, so a lane whose required tests skipped or matched nothing passed. Fix: every go test cell runs once with -json and testevidence judges it; failed, unfinished, absent or undeclared-skip outcomes withhold, declared inapplicability is reported apart; media_receipt's name-only decoder goes; the withheld reason carries validate's error. A survey found none of the 64 undeclared skips in the models and audio lanes fires on this host. Batch: models cycle lane only."
+        },
+        {
+          "id": "cycle-lane-tests",
+          "title": "Re-pin the hybrid training trajectory at the trained-model rate and drop the wall-time criterion",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo_data go test -tags modeltest ./internal/adaptiveparity -run '^(TestQwen35RealTraining|TestSimpleDiffusionProcessLeadership)$' -count=1",
+          "rationale": "Cycle 2's models lane failed: TestQwen35RealTraining pins the two-step trajectory at the built-in policy's rate, which 0585169f5 changed deliberately (step 1 now 12.912 against the old 11.506, still decreasing); TestSimpleDiffusionProcessLeadership asserted process wall time (581 ms median against adaptive's 559, runs 512-664 against 540-767), and timing is never a pass criterion. Batch: models cycle lane only."
         }
       ]
     },
@@ -317,6 +328,21 @@
       ]
     },
     {
+      "id": "compatibility-into-validate",
+      "title": "Fold cmd/compatibility into validate, re-verifying claims whose source moves",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "evidence",
+          "title": "Refresh the accepted evidence the audits read, by re-running it",
+          "status": "open",
+          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/validate ./cmd/longform -run '^(TestAcceptedCapabilityCensus|TestAcceptedFP8Guard|TestRetiredGuardRecords|TestAcceptedGuardCatalog)$' -count=1 -v",
+          "rationale": "S6: after the guard re-acquisition of 2026-09-30 (10 of 10 published at surface 50f89def), the audits still fail. The accepted baselines they compare against lack realized residency ('comparison lacks matching realized residency'), and the census needs the owner's review of 11 identities (snapshot 209, live 220). Re-acquire the accepted baselines with realized residency, or retire those comparisons against a replacement that covers their contract; never hand-edit. The guard audits move beside validate's guard_records.go.\n\nSQA 2026-09-30: SQA-044 (P2): required acceptances are credited by the typed interpreter, never by exit status. SQA-053 is handled in promotion-correctness/current-evidence.\n\nFold landed 2026-10-01 without re-pointing the 12 coverage-proof Verify strings that name ./cmd/compatibility (11 text-vision, 1 image-video). Each proof's stored gate step binds the sha256 of its exact Verify string (internal/runrecord/completion_evidence.go:38-41, checked via media_coverage.go:400-406). Re-pointing them fails six acceptance tests ('completion acceptance evidence does not match the plan authority'), and nothing in the tree produces these gate records: formatCompletionAcceptanceEvidence has no non-test caller. The re-pointing is built in the scratchpad's compatfold-repoint.patch (new digests: text-vision 62ebc6e5..., image-video 6bf91882...). It applies together with re-acquired records once a producer exists, or the proofs retire against a replacement that covers their contract. Until then the strings name a command that no longer exists, as recorded history.\n\nDeferred 2026-10-02 below the rows that can progress: the census needs the owner's review of the 11 identities the live catalog adds (snapshot 209, live 220), and re-acquiring the accepted baselines with realized residency needs the GPU. Raised with the owner in the session."
+        }
+      ]
+    },
+    {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
       "owner": "master-lead",
@@ -587,7 +613,8 @@
             "cycle-proof-commands/do",
             "projection-proof-producer/do",
             "ocr-mmlu-coverage/do",
-            "first-cycle-defects/do"
+            "first-cycle-defects/do",
+            "promotion-correctness/do"
           ]
         }
       ]

@@ -45,10 +45,13 @@ var boundSurfaces = []SurfaceID{"evaluation", "training"}
 // errCellInapplicable marks a cell its model's own declaration excludes.
 var errCellInapplicable = errors.New("the model's declared evaluation domains admit no suite of this benchmark")
 
-// boundKey names one commit-bound cell: a recipe's validation.
+// boundKey names one commit-bound cell: a recipe's validation, under the
+// protocol a benchmark runs, since the baseline scorecard may compare one
+// family under two.
 type boundKey struct {
 	recipe     artifact.ID
 	validation string
+	protocol   string
 }
 
 // boundRecord is what a commit-bound cell is judged by: its record's run, and
@@ -188,6 +191,6 @@ func (read *acceptedRecords) judgeBound(ctx context.Context, root string, store 
 		return cell, err
 	}
 	cell.Protocol, cell.Cost = record.protocol, record.cost
-	read.bound[boundKey{cell.Recipe, cell.Validation}] = recordCurrent(ctx, root, read.directories[cell.Surface], cell, record)
+	read.bound[boundKey{cell.Recipe, cell.Validation, cell.Protocol}] = recordCurrent(ctx, root, read.directories[cell.Surface], cell, record)
 	return cell, nil
 }

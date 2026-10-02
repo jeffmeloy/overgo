@@ -183,20 +183,28 @@ func SelectValidation(in Inputs) Plan {
 // schedule files a cell that runs by what promotion compares, saying which
 // and why: in Run when promotion waits on its pass, else in Background.
 // Promotion waits on every guard, serving cell and proof, and on a benchmark
-// that re-measures the held-out contract, suite and protocol, the baseline
+// that re-measures a held-out contract, suite and protocol, the baseline
 // scorecard compares for its model and task. Any other benchmark, one never
 // run for the model among them, runs in the background and never blocks
 // promotion.
 func (plan *Plan) schedule(sel Selected, baseline *scorecard.Record) {
 	blocking, why := true, "promotion waits on every "+sel.Validation+" cell"
 	if benchmark(sel.ModelValidation) {
-		contract, none := comparedContract(baseline, sel.ModelValidation)
-		why = fmt.Sprintf("the baseline scorecard compares %s on %s (%s)", contract.Metric, contract.Suite, contract.Protocol)
-		switch blocking = none == "" && ofFamily(contract.Suite, sel.Validation) && contract.Protocol == sel.Protocol; {
+		contracts, none := comparedContracts(baseline, sel.ModelValidation)
+		compared := make([]string, len(contracts))
+		for index, contract := range contracts {
+			compared[index] = fmt.Sprintf("%s on %s (%s)", contract.Metric, contract.Suite, contract.Protocol)
+		}
+		at := slices.IndexFunc(contracts, func(contract scorecard.Contract) bool {
+			return ofFamily(contract.Suite, sel.Validation) && contract.Protocol == sel.Protocol
+		})
+		switch blocking = at >= 0; {
 		case none != "":
 			why = none
-		case !blocking:
-			why += ", not " + sel.Validation + " (" + sel.Protocol + ")"
+		case blocking:
+			why = "the baseline scorecard compares " + compared[at]
+		default:
+			why = "the baseline scorecard compares " + strings.Join(compared, ", ") + ", not " + sel.Validation + " (" + sel.Protocol + ")"
 		}
 	}
 	if blocking {
@@ -208,37 +216,65 @@ func (plan *Plan) schedule(sel Selected, baseline *scorecard.Record) {
 	plan.Background = append(plan.Background, sel)
 }
 
-// comparedContract is the held-out contract the baseline scorecard compares
-// for a cell's model and task: the baseline row's headline quality, the one
-// cell scorecard's Pair.Compare holds a record to. It says why there is none
-// when no baseline measured one.
-func comparedContract(baseline *scorecard.Record, cell ModelValidation) (scorecard.Contract, string) {
+// comparedContracts are the held-out contracts the baseline scorecard
+// compares for a cell's model and task: those of every held-out quality the
+// baseline row measured, the headline and each other, the cells scorecard's
+// Pair.Compare holds a record to. It says why there are none when no
+// baseline measured one.
+func comparedContracts(baseline *scorecard.Record, cell ModelValidation) ([]scorecard.Contract, string) {
 	if baseline == nil {
-		return scorecard.Contract{}, "no baseline scorecard measured the commit " + scorecard.PromotedBranch + " holds, so promotion compares no held-out contract"
+		return nil, "no baseline scorecard measured the commit " + scorecard.PromotedBranch + " holds, so promotion compares no held-out contract"
 	}
-	at := slices.IndexFunc(baseline.Rows, func(row scorecard.Row) bool { return row.Model == cell.Model && row.Task == cell.Kind })
-	if at < 0 || !baseline.Rows[at].Cells[metric.Quality].Measured() {
-		return scorecard.Contract{}, "the baseline scorecard measured no held-out quality for this model and task"
+	var contracts []scorecard.Contract
+	if at := slices.IndexFunc(baseline.Rows, func(row scorecard.Row) bool { return row.Model == cell.Model && row.Task == cell.Kind }); at >= 0 {
+		for _, quality := range baseline.Rows[at].Measured(metric.Quality) {
+			contracts = append(contracts, quality.Contract)
+		}
 	}
-	return baseline.Rows[at].Cells[metric.Quality].Contract, ""
+	if len(contracts) == 0 {
+		return nil, "the baseline scorecard measured no held-out quality for this model and task"
+	}
+	return contracts, ""
 }
 
-// compareContracts gives each inference activation a benchmark cell on the
+// compareContracts gives each inference activation a benchmark cell on each
 // held-out contract the baseline scorecard compares for it, under the
-// protocol it compares, so the contract is judged and re-acquired as
-// compared rather than under whichever protocol ran last. A compared family
-// the activation has no cell of joins as one; a set outside the derived
-// catalog, named by its dataset alone, is of no family.
+// protocol it compares, so every compared contract is judged and re-acquired
+// as compared rather than under whichever protocol ran last. A compared
+// contract takes the activation's cell of its family that no other compared
+// contract took, else joins as a cell of its own, so a family compared under
+// two protocols is two cells; a set outside the derived catalog, named by its
+// dataset alone, is of no family.
 func compareContracts(cells []ModelValidation, baseline *scorecard.Record) []ModelValidation {
+	taken := map[int]bool{}
 	for _, cell := range cells {
-		contract, _ := comparedContract(baseline, cell)
-		if _, family, derived := strings.Cut(contract.Suite, "/"); derived && benchmark(cell) {
-			at := slices.IndexFunc(cells, func(other ModelValidation) bool { return other.Recipe == cell.Recipe && other.Validation == family })
-			if at < 0 {
-				cell.Validation = family
-				at, cells = len(cells), append(cells, cell)
+		if !benchmark(cell) {
+			continue
+		}
+		contracts, _ := comparedContracts(baseline, cell)
+		for _, contract := range contracts {
+			_, family, derived := strings.Cut(contract.Suite, "/")
+			if !derived {
+				continue
 			}
-			cells[at].Protocol = contract.Protocol
+			at := -1
+			for index, other := range cells {
+				if other.Recipe != cell.Recipe || other.Validation != family {
+					continue
+				}
+				if taken[index] && other.Protocol == contract.Protocol {
+					at = index
+					break
+				}
+				if !taken[index] && at < 0 {
+					at = index
+				}
+			}
+			if at < 0 {
+				at, cells = len(cells), append(cells, cell)
+				cells[at].Validation = family
+			}
+			cells[at].Protocol, taken[at] = contract.Protocol, true
 		}
 	}
 	return cells

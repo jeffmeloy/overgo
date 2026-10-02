@@ -95,8 +95,8 @@ func (c Cell) Measured() bool { return c.Reason == "" }
 // recipe's profile dependency declares; a recipe that resolves no
 // architecture profile, a media or specialized one, leaves it empty.
 // Heldout holds the recipe's current held-out qualities besides the
-// headline one, each on its own contract, so a baseline measured on a suite
-// that is no longer the headline is still compared on that suite.
+// headline one, each on its own contract: the headline is what a user reads,
+// and a baseline compares every one, whichever is the headline since.
 type Row struct {
 	Model        artifact.ID          `json:"model,omitzero"`
 	Name         string               `json:"name"`
@@ -105,6 +105,18 @@ type Row struct {
 	Architecture string               `json:"architecture,omitzero"`
 	Cells        map[metric.Name]Cell `json:"cells"`
 	Heldout      []Cell               `json:"heldout,omitempty"`
+}
+
+// Measured lists the row's measured cells of a column: of held-out quality,
+// the headline and each other held-out quality, on its own contract; of any
+// other metric, its one cell. A baseline row's are what it holds a later
+// record to, and a later row's are where each is found again.
+func (row Row) Measured(column metric.Name) []Cell {
+	cells := []Cell{row.Cells[column]}
+	if column == metric.Quality {
+		cells = append(cells, row.Heldout...)
+	}
+	return slices.DeleteFunc(cells, func(cell Cell) bool { return !cell.Measured() })
 }
 
 // Build reads the scorecard from the store: one row for every activation

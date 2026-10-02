@@ -1,6 +1,7 @@
 package scorecard
 
 import (
+	"cmp"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,12 +20,15 @@ import (
 // contracts. Rows pair by model and task, never by display name: a renamed
 // model keeps its baseline, and two models sharing a name never trade
 // theirs. A held-out quality compares only on the baseline's metric, suite,
-// protocol, origin and direction, where it holds or regresses. A vanished
+// protocol, origin and direction, where it holds or regresses. Every
+// held-out quality the baseline measured is held, the headline and each
+// retained beside it, in whatever order the record lists them: one that
+// falls or vanishes while the headline holds withholds promotion. A vanished
 // row (every row, too), a lost cell, a changed contract and a baseline cell
 // published before contracts are unknown: they withhold promotion and are
-// proposed as a gap. A metric or a row the baseline did not measure holds
-// and blocks nothing. Serving aggregates of other recipes' attempts, and a
-// benchmark beside a serving median in the same unit, do not compare.
+// proposed as a gap. A metric, a suite or a row the baseline did not measure
+// holds and blocks nothing. Serving aggregates of other recipes' attempts,
+// and a benchmark beside a serving median in the same unit, do not compare.
 func TestComparisonIsTyped(t *testing.T) {
 	t.Parallel()
 	source := testutil.ArtifactID(t, artifact.KindEvaluation, "typed-comparison")
@@ -59,10 +63,23 @@ func TestComparisonIsTyped(t *testing.T) {
 		moved.Heldout = []Cell{row(first, "shared", baselineSuite, mmlu).Cells[metric.Quality]}
 		return moved
 	}
+	// A baseline that measured the first model under the chat template, its
+	// headline, and retained raw completion beside it holds a record to both.
+	raw := with(func(c *Contract) { c.Protocol = "raw-completion" })
+	quality := func(value float64, contract Contract) Cell {
+		return row(first, "shared", value, contract).Cells[metric.Quality]
+	}
+	measured := func(headline Cell, others ...Cell) Row {
+		measured := row(first, "shared", 0, mmlu)
+		measured.Cells[metric.Quality], measured.Heldout = headline, others
+		return measured
+	}
+	retained := &Record{Commit: "a", Rows: []Row{measured(quality(0.8, mmlu), quality(0.75, raw)), row(second, "shared", 0.7, mmlu)}}
 	for _, scenario := range []struct {
-		name    string
-		record  Record
-		verdict Verdict
+		name     string
+		record   Record
+		verdict  Verdict
+		baseline *Record
 	}{
 		{name: "renamed and reordered", record: record(row(second, "renamed", 0.7, mmlu), row(first, "shared", 0.5, mmlu)), verdict: holding},
 		{name: "gain", record: record(row(first, "shared", 0.6, mmlu), row(second, "shared", 0.7, mmlu)), verdict: holding},
@@ -79,36 +96,44 @@ func TestComparisonIsTyped(t *testing.T) {
 		{name: "a vanished row", record: record(row(second, "shared", 0.7, mmlu)), verdict: Unknown},
 		{name: "every row vanished", record: record(), verdict: Unknown},
 		{name: "a new row and a newly measured metric", record: record(newlyMeasured, row(second, "shared", 0.7, mmlu), row(added, "added", 0.1, mmlu)), verdict: holding},
+		{name: "a retained contract holding beside the headline", baseline: retained, record: record(measured(quality(0.8, mmlu), quality(0.75, raw)), row(second, "shared", 0.7, mmlu)), verdict: holding},
+		{name: "the headline and a retained contract reordered", baseline: retained, record: record(measured(quality(0.75, raw), quality(0.8, mmlu)), row(second, "shared", 0.7, mmlu)), verdict: holding},
+		{name: "a new optional suite beside the baseline's", baseline: retained, record: record(measured(quality(0.1, larger), quality(0.8, mmlu), quality(0.75, raw)), row(second, "shared", 0.7, mmlu)), verdict: holding},
+		{name: "a retained contract fallen while the headline holds", baseline: retained, record: record(measured(quality(0.8, mmlu), quality(0.6, raw)), row(second, "shared", 0.7, mmlu)), verdict: regressed},
+		{name: "a retained contract fallen as the new headline", baseline: retained, record: record(measured(quality(0.6, raw), quality(0.8, mmlu)), row(second, "shared", 0.7, mmlu)), verdict: regressed},
+		{name: "a retained contract vanished while the headline holds", baseline: retained, record: record(measured(quality(0.8, mmlu)), row(second, "shared", 0.7, mmlu)), verdict: Unknown},
 	} {
+		against := cmp.Or(scenario.baseline, &baseline)
 		verdict := holding
-		for _, pair := range scenario.record.Pairs(baseline) {
+		for _, pair := range scenario.record.Pairs(*against) {
 			for _, column := range metric.Columns {
-				if got, why := pair.Compare(column); got != holding {
-					if why == "" {
-						t.Fatalf("%s: %s %s is %s without a reason", scenario.name, pair.Before.Name, column, got)
+				for _, compared := range pair.Compare(column) {
+					if compared.Why == "" {
+						t.Fatalf("%s: %s %s is %s without a reason", scenario.name, pair.Before.Name, column, compared.Verdict)
 					}
-					verdict = got
+					verdict = compared.Verdict
 				}
 			}
 		}
 		if verdict != scenario.verdict {
-			t.Fatalf("%s: verdict %s, want %s", scenario.name, verdict, scenario.verdict)
+			t.Errorf("%s: verdict %s, want %s", scenario.name, verdict, scenario.verdict)
+			continue
 		}
-		withheld := scenario.record.Withheld(&baseline)
+		withheld := scenario.record.Withheld(against)
 		if (withheld == "") != (verdict == holding) {
 			t.Fatalf("%s: withheld %q for a %s comparison", scenario.name, withheld, verdict)
 		}
 		proposed := false
-		for _, gap := range scenario.record.Gaps(&baseline) {
+		for _, gap := range scenario.record.Gaps(against) {
 			proposed = proposed || gap.kind == string(verdict)
 		}
 		if verdict != holding && !proposed {
-			t.Fatalf("%s: gaps %+v; a %s comparison is not proposed", scenario.name, scenario.record.Gaps(&baseline), verdict)
+			t.Fatalf("%s: gaps %+v; a %s comparison is not proposed", scenario.name, scenario.record.Gaps(against), verdict)
 		}
 	}
 	legacy := row(first, "shared", 0.5, Contract{})
-	if verdict, why := (Pair{Before: &legacy, After: &baseline.Rows[0]}).Compare(metric.Quality); verdict != Unknown || !strings.Contains(why, "without a contract") {
-		t.Fatalf("a baseline cell published before contracts compares as %s (%q), want unknown", verdict, why)
+	if compared := (Pair{Before: &legacy, After: &baseline.Rows[0]}).Compare(metric.Quality); len(compared) != 1 || compared[0].Verdict != Unknown || !strings.Contains(compared[0].Why, "without a contract") {
+		t.Fatalf("a baseline cell published before contracts compares as %+v, want unknown", compared)
 	}
 	served := func(scope artifact.ID, contract func(*servingSummary) Cell) Row {
 		return Row{Model: first, Task: recipe.TaskInference, Cells: map[metric.Name]Cell{metric.FirstOutput: contract(&servingSummary{latest: source, recipe: scope})}}
@@ -120,8 +145,8 @@ func TestComparisonIsTyped(t *testing.T) {
 	old, current := testutil.ArtifactID(t, artifact.KindRecipe, "old"), testutil.ArtifactID(t, artifact.KindRecipe, "current")
 	for name, before := range map[string]Row{"another recipe's attempts": served(old, prefill), "a benchmark in the same unit": served(current, benchmarked)} {
 		after := served(current, prefill)
-		if verdict, _ := (Pair{Before: &before, After: &after}).Compare(metric.FirstOutput); verdict != Unknown {
-			t.Fatalf("a serving median beside %s compares as %s, want unknown", name, verdict)
+		if compared := (Pair{Before: &before, After: &after}).Compare(metric.FirstOutput); len(compared) != 1 || compared[0].Verdict != Unknown {
+			t.Fatalf("a serving median beside %s compares as %+v, want unknown", name, compared)
 		}
 	}
 }

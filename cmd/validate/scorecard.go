@@ -129,9 +129,14 @@ func scorecardMoves(previous, current scorecard.Record) []string {
 		for _, column := range metric.Columns {
 			now, then := pair.After.Cells[column], pair.Before.Cells[column]
 			heading := pair.After.Name + " " + string(pair.After.Task) + ", " + scorecardHeadings[column]
-			switch verdict, why := pair.Compare(column); {
-			case verdict == scorecard.Unknown:
-				moved = append(moved, "- "+heading+": "+why)
+			unknown := false
+			for _, compared := range pair.Compare(column) {
+				if compared.Verdict == scorecard.Unknown {
+					moved, unknown = append(moved, "- "+heading+": "+compared.Why), true
+				}
+			}
+			switch {
+			case unknown:
 			case now.Measured() && !then.Measured():
 				moved = append(moved, fmt.Sprintf("- %s: now measured, %.4g %s", heading, now.Value, now.Unit))
 			case now.Value != then.Value:

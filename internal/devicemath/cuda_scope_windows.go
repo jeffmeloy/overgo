@@ -39,7 +39,7 @@ type cudaBLAS struct {
 	bf16Left, bf16Right                 driver.DevicePtr
 	bf16LeftCapacity, bf16RightCapacity int
 	bf16Operands                        bool
-	frozenTail                          *frozenCausalTailBuffers
+	causalTail                          *causalTailBuffers
 }
 
 func withCUDA(worker *device.Worker, run func(*cudaScope) error) error {

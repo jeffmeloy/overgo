@@ -1083,6 +1083,49 @@
         ]
       },
       "scope": "A CUDA context waits on an exclusive device holder instead of failing. The receipt runs the shared-admission ownership proof, recovery inside an exclusive measurement, and contexts on the uncontended path through device, driver, kernel and cuBLAS."
+    },
+    {
+      "changes": {
+        "internal/devicemath/causal_tail_resident_cuda_windows.go": {
+          "after_sha256": "a18951f4edd16989248bc8b68908c709fb2416072fec654058fb4ca71e29c2f6",
+          "before_sha256": "f260912c1faf3f7866fa81a6ad34e9e75c81c259d4544734e7d129e3dff68115",
+          "reason": "the frozen causal training session becomes the causal training session: a trained lexical table adds one head-gradient GEMM over F32 operands and scatters the embedding-input gradient with the existing indexed row-scatter kernel; a frozen table keeps the BF16-operand protocol its leadership test matched, and an untied model gathers token embeddings from its embedding table rather than its head"
+        },
+        "internal/devicemath/cuda_scope_windows.go": {
+          "after_sha256": "417e1ea2d1f5c0ba193f5fa3c03cf643a9c6e04a9253d030265b264ee5e532d3",
+          "before_sha256": "6e57f67f7ed6e21666c8cdaf882af3c6ebafce5216adb088e1aa15f93f95f7e2",
+          "reason": "the scope field naming the frozen session is renamed for the causal training session it now holds"
+        },
+        "internal/devicemath/stack_resident_across_cuda_windows.go": {
+          "after_sha256": "62083d0f7ecfdca1d4ef417c999b8b98e7cd1ae9283b96257e48670d91464066",
+          "before_sha256": "55c03a1712392b79b121034a9a2dcdc746fe57b95b01a745ffb149cddc2a9177",
+          "reason": "the host-tail stack entry StackForwardBackwardResidentWeights is deleted, its only consumer (the host lexical tail) having moved onto the device"
+        },
+        "internal/devicemath/stack_resident_cuda_windows.go": {
+          "after_sha256": "4bcfeee16c50a1818d25d25970d5e5ef73b5be7e64f709071d100b6c0a2e8f9c",
+          "before_sha256": "1cc3619c3605dc4c5a5c01b86886fbcf0043e174759950ade5c2870dbac5d74b",
+          "reason": "runStack, the host round trip of the deleted stack entry, is deleted; its bias-length check moves into residentLayerPointers"
+        }
+      },
+      "evidence": "evidence:sha256:cdbd9e4cde545ce00272d49beac23e82f09f2caf6e63bd6ea65cd23eef9c4e32",
+      "id": "trained-lexical-on-device",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/densecausaltrain": [
+          "TestTrainDeviceResidentMatchesHost",
+          "TestTrainDeviceResidentQwen2BiasMatchesHost",
+          "TestTrainDeviceResidentUntiedHeadMatchesHost",
+          "TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss",
+          "TestTrainDeviceResidentResumeExact"
+        ],
+        "overgo/internal/devicemath": [
+          "TestResidentTrainingGlueMatchesHost"
+        ],
+        "overgo/internal/optimizer": [
+          "TestDeviceMuonMatrixStepMatchesHost"
+        ]
+      },
+      "scope": "the receipt re-runs, on the device, the resident dense training parity tests (tied, Qwen2 bias, untied trained head and embedding, frozen lexical initial loss, bitwise resume), the device Muon matrix step against the host step, and the resident training glue against the host"
     }
   ],
   "paths": [

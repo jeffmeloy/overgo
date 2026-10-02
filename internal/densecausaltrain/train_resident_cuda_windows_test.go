@@ -90,6 +90,68 @@ func TestTrainDeviceResidentQwen2BiasMatchesHost(t *testing.T) {
 	}
 }
 
+// TestTrainDeviceResidentUntiedHeadMatchesHost holds a trained untied head
+// and embedding, whose gradients the device writes apart, to the host
+// trainer over a window that repeats a token. One step holds every weight
+// tightly. A second step holds the trajectory, the momentum and the lexical
+// tensors, whose update the second forward reads; it does not hold the layer
+// matrices, where Muon's orthogonalization of a rank-limited momentum
+// amplifies f32 rounding into differences of several 1e-3, tied or untied.
+func TestTrainDeviceResidentUntiedHeadMatchesHost(t *testing.T) {
+	cudatest.Require(t)
+	worker, err := device.New(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer worker.Close()
+	const (
+		momentum        = 0.9
+		trajectoryLimit = 1e-5
+		stepLimit       = 1e-4
+	)
+	tokens := []int{1, 5, 9, 3, 7, 2, 11, 5}
+	for _, steps := range []int{1, 2} {
+		host, resident := untiedMuonModel(t), untiedMuonModel(t)
+		embeddingName, normName, headName := resident.LexicalTensorNames()
+		if embeddingName == headName {
+			t.Fatal("fixture head is tied")
+		}
+		before := map[string][]float32{embeddingName: slices.Clone(resident.Weights[embeddingName]), headName: slices.Clone(resident.Weights[headName])}
+		batches := slices.Repeat([][]int{tokens}, steps)
+		wantTrajectory, wantState, err := host.Train(batches, derivedTestLearningRate(t, host), momentum, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deviceResult, err := TrainDeviceResident(resident, worker, batches, derivedTestLearningRate(t, resident), momentum, Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if delta := testutil.MaxAbsDiff(wantTrajectory, deviceResult.Losses); delta > trajectoryLimit {
+			t.Fatalf("%d step(s): untied trajectory delta %.3e", steps, delta)
+		}
+		if delta := testutil.MaxAbsDiff(wantState.Momentum, deviceResult.State.Momentum); delta > stepLimit {
+			t.Fatalf("%d step(s): untied momentum delta %.3e", steps, delta)
+		}
+		held := []string{embeddingName, normName, headName}
+		if steps == 1 {
+			held = held[:0]
+			for name := range host.Weights {
+				held = append(held, name)
+			}
+		}
+		for _, name := range held {
+			if delta := testutil.MaxAbsDiff(host.Weights[name], resident.Weights[name]); delta > stepLimit {
+				t.Fatalf("%d step(s): untied updated weight %q delta %.3e", steps, name, delta)
+			}
+		}
+		for name, initial := range before {
+			if slices.Equal(initial, resident.Weights[name]) {
+				t.Fatalf("%d step(s): device left trained lexical tensor %q unchanged", steps, name)
+			}
+		}
+	}
+}
+
 func TestTrainDeviceResidentFrozenLexicalMatchesInitialLoss(t *testing.T) {
 	cudatest.Require(t)
 	worker, err := device.New(0)

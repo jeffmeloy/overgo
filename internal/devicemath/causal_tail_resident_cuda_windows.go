@@ -12,34 +12,63 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
-// FrozenCausalTrainingSession retains compiled modules and training buffers.
-type FrozenCausalTrainingSession struct {
-	worker                            *device.Worker
-	cuda                              *cudaBLAS
-	ops                               *layerOps
-	dW, dG                            driver.DevicePtr
-	dHead, dFinalNorm, dFinalNormGrad driver.DevicePtr
-	idPtr, embeds                     driver.DevicePtr
-	offsets                           []LayerTensorOffsets
-	seq, vocab, hidden                int
-	rmsEps                            float64
-	closed                            bool
+// CausalLexical names the resident lexical tensors of a causal training
+// session: the token embedding the stack reads, the output head and final
+// norm the tail reads, and the gradients the step writes. A tied head is the
+// embedding's own buffer. A frozen table leaves EmbeddingGrad and HeadGrad
+// zero; a trained table names both, and they are one buffer exactly when the
+// head is tied.
+type CausalLexical struct {
+	Embedding, Head, FinalNorm             driver.DevicePtr
+	EmbeddingGrad, HeadGrad, FinalNormGrad driver.DevicePtr
 }
 
-func NewFrozenCausalTrainingSession(
+func (l CausalLexical) frozen() bool { return l.HeadGrad == 0 }
+
+func (l CausalLexical) valid() bool {
+	if l.Embedding == 0 || l.Head == 0 || l.FinalNorm == 0 || l.FinalNormGrad == 0 {
+		return false
+	}
+	if l.frozen() {
+		return l.EmbeddingGrad == 0
+	}
+	return l.EmbeddingGrad != 0 && (l.Embedding == l.Head) == (l.EmbeddingGrad == l.HeadGrad)
+}
+
+// CausalTrainingSession retains the compiled modules and buffers of a dense
+// causal training step that runs wholly on the device: the token lookup, the
+// layer stack forward and backward, and the lexical tail.
+type CausalTrainingSession struct {
+	worker             *device.Worker
+	cuda               *cudaBLAS
+	ops                *layerOps
+	dW, dG             driver.DevicePtr
+	lexical            CausalLexical
+	idPtr, embeds      driver.DevicePtr
+	offsets            []LayerTensorOffsets
+	seq, vocab, hidden int
+	rmsEps             float64
+	closed             bool
+}
+
+// NewCausalTrainingSession opens a session over the resident layer buffers
+// dW and dG and the lexical tensors. A frozen table runs with BF16 GEMM
+// operands, the protocol its adaptive leadership was matched under; a
+// trained table keeps the F32 operands its host-parity bounds hold.
+func NewCausalTrainingSession(
 	worker *device.Worker,
 	dW, dG driver.DevicePtr,
 	offsets []LayerTensorOffsets,
 	invFreq []float32,
-	dHead, dFinalNorm, dFinalNormGrad driver.DevicePtr,
+	lexical CausalLexical,
 	seq, vocab, hidden, heads, kvHeads, headDim, intermediate int,
 	rmsEps float64,
-) (*FrozenCausalTrainingSession, error) {
-	if worker == nil || seq < 2 || vocab <= 0 || len(offsets) == 0 || heads%kvHeads != 0 || len(invFreq) != headDim/2 {
+) (*CausalTrainingSession, error) {
+	if worker == nil || seq < 2 || vocab <= 0 || len(offsets) == 0 || heads%kvHeads != 0 || len(invFreq) != headDim/2 || !lexical.valid() {
 		return nil, fmt.Errorf("resident causal session: invalid authority or geometry")
 	}
-	result := &FrozenCausalTrainingSession{
-		worker: worker, dW: dW, dG: dG, dHead: dHead, dFinalNorm: dFinalNorm, dFinalNormGrad: dFinalNormGrad,
+	result := &CausalTrainingSession{
+		worker: worker, dW: dW, dG: dG, lexical: lexical,
 		offsets: append([]LayerTensorOffsets(nil), offsets...), seq: seq, vocab: vocab, hidden: hidden, rmsEps: rmsEps,
 	}
 	err := worker.Do(context.Background(), func(state *device.State) error {
@@ -48,7 +77,7 @@ func NewFrozenCausalTrainingSession(
 		if err != nil {
 			return err
 		}
-		session.bf16Operands = true
+		session.bf16Operands = lexical.frozen()
 		result.cuda = session
 		dims := newLayerDims(seq, hidden, heads, kvHeads, headDim, intermediate, rmsEps)
 		if result.ops, err = newLayerOps(session, stackFnNames, dims, invFreq); err != nil {
@@ -71,7 +100,10 @@ func NewFrozenCausalTrainingSession(
 	return result, nil
 }
 
-func (s *FrozenCausalTrainingSession) Run(tokens []int, vectorWeights []LayerTrainVectors) (float64, []LayerTrainVectors, error) {
+// Run takes one step's forward and backward over tokens. It returns the
+// mean next-token loss and the layer vector gradients; the matrix, final
+// norm and (for a trained table) lexical gradients stay resident.
+func (s *CausalTrainingSession) Run(tokens []int, vectorWeights []LayerTrainVectors) (float64, []LayerTrainVectors, error) {
 	if s == nil || s.closed || len(tokens) != s.seq || len(vectorWeights) != len(s.offsets) {
 		return 0, nil, fmt.Errorf("resident causal session: invalid run input")
 	}
@@ -107,22 +139,27 @@ func (s *FrozenCausalTrainingSession) Run(tokens []int, vectorWeights []LayerTra
 		}
 		rowsU, widthU := uint32(s.seq), uint32(s.hidden)
 		if err := s.cuda.launch1D(gather, rowsU*widthU,
-			unsafe.Pointer(&s.dHead), unsafe.Pointer(&s.idPtr), unsafe.Pointer(&s.embeds),
+			unsafe.Pointer(&s.lexical.Embedding), unsafe.Pointer(&s.idPtr), unsafe.Pointer(&s.embeds),
 			unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU)); err != nil {
 			return err
 		}
 		lossPtr := driver.DevicePtr(0)
-		_, err = s.ops.runStackDevice(s.embeds, weights, gradients, func(final driver.DevicePtr) (driver.DevicePtr, error) {
+		embeddingInput, err := s.ops.runStackDevice(s.embeds, weights, gradients, func(final driver.DevicePtr) (driver.DevicePtr, error) {
 			var dNormed driver.DevicePtr
 			var tailErr error
-			lossPtr, dNormed, tailErr = frozenCausalTail(s.cuda, final, s.idPtr, s.dHead, s.dFinalNorm, s.dFinalNormGrad, s.seq, s.vocab, s.hidden, s.rmsEps)
+			lossPtr, dNormed, tailErr = causalTail(s.cuda, final, s.idPtr, s.lexical, s.seq, s.vocab, s.hidden, s.rmsEps)
 			if tailErr != nil {
 				return 0, tailErr
 			}
-			return residentCausalHiddenGradient(s.cuda, dNormed, final, s.dFinalNorm, s.dFinalNormGrad, s.seq, s.hidden, s.rmsEps)
+			return residentCausalHiddenGradient(s.cuda, dNormed, final, s.lexical.FinalNorm, s.lexical.FinalNormGrad, s.seq, s.hidden, s.rmsEps)
 		})
 		if err != nil {
 			return err
+		}
+		if !s.lexical.frozen() {
+			if err := s.scatterEmbeddingGradient(embeddingInput); err != nil {
+				return err
+			}
 		}
 		downloads := make([]cudaDownload, 0, len(s.offsets)*2+1)
 		for index := range s.offsets {
@@ -149,7 +186,29 @@ func (s *FrozenCausalTrainingSession) Run(tokens []int, vectorWeights []LayerTra
 	return loss, vectorGrads, nil
 }
 
-func (s *FrozenCausalTrainingSession) Close() error {
+// scatterEmbeddingGradient adds each position's embedding-input gradient
+// row onto its token's row of the embedding gradient. The tied head's
+// gradient already holds the tail's contribution; an untied embedding's
+// gradient starts from zero. Repeated tokens accumulate by atomic adds, as
+// the norm-weight gradients of the stack do.
+func (s *CausalTrainingSession) scatterEmbeddingGradient(embeddingInput driver.DevicePtr) error {
+	if s.lexical.EmbeddingGrad != s.lexical.HeadGrad {
+		if err := s.cuda.state.Driver.MemsetD32Async(s.lexical.EmbeddingGrad, 0, uint64(s.vocab*s.hidden), s.cuda.state.Stream); err != nil {
+			return err
+		}
+	}
+	scatter, err := s.cuda.function("indexed_row_scatter_add_f32")
+	if err != nil {
+		return err
+	}
+	rowsU, widthU := uint32(s.seq), uint32(s.hidden)
+	return s.cuda.launch1D(scatter, rowsU*widthU,
+		unsafe.Pointer(&embeddingInput), unsafe.Pointer(&s.idPtr), unsafe.Pointer(&s.lexical.EmbeddingGrad),
+		unsafe.Pointer(&rowsU), unsafe.Pointer(&widthU))
+}
+
+// Close releases the session's modules and buffers.
+func (s *CausalTrainingSession) Close() error {
 	if s == nil || s.closed {
 		return nil
 	}
@@ -161,8 +220,9 @@ func residentLayerPointers(session *cudaBLAS, dW, dG driver.DevicePtr, offsets [
 	weights := make([]layerWeightPtrs, len(offsets))
 	gradients := make([]layerGradPtrs, len(offsets))
 	for index, offset := range offsets {
-		if len(vectors[index].InLN) != dims.hidden || len(vectors[index].PostLN) != dims.hidden {
-			return nil, nil, fmt.Errorf("resident layer %d norm width mismatch", index)
+		biasOK := !offset.AttnBias || len(vectors[index].QBias) == dims.width && len(vectors[index].KBias) == dims.kvWidth && len(vectors[index].VBias) == dims.kvWidth
+		if len(vectors[index].InLN) != dims.hidden || len(vectors[index].PostLN) != dims.hidden || !biasOK {
+			return nil, nil, fmt.Errorf("resident layer %d vector width mismatch", index)
 		}
 		if err := session.state.Driver.MemcpyHtoD(ptrAt(dW, offset.InLN), driver.Bytes(vectors[index].InLN)); err != nil {
 			return nil, nil, err
@@ -199,20 +259,20 @@ func residentLayerPointers(session *cudaBLAS, dW, dG driver.DevicePtr, offsets [
 	return weights, gradients, nil
 }
 
-type frozenCausalTailBuffers struct {
+type causalTailBuffers struct {
 	seq, vocab, hidden                       int
 	normed, logits, losses, dNormed, dHidden driver.DevicePtr
 }
 
-func (s *cudaBLAS) frozenTailBuffers(seq, vocab, hidden int) (*frozenCausalTailBuffers, error) {
-	if s.frozenTail != nil {
-		b := s.frozenTail
+func (s *cudaBLAS) causalTailBuffers(seq, vocab, hidden int) (*causalTailBuffers, error) {
+	if s.causalTail != nil {
+		b := s.causalTail
 		if b.seq != seq || b.vocab != vocab || b.hidden != hidden {
 			return nil, fmt.Errorf("resident causal tail: retained geometry changed")
 		}
 		return b, nil
 	}
-	b := &frozenCausalTailBuffers{seq: seq, vocab: vocab, hidden: hidden}
+	b := &causalTailBuffers{seq: seq, vocab: vocab, hidden: hidden}
 	var err error
 	for _, spec := range []struct {
 		pointer *driver.DevicePtr
@@ -222,15 +282,20 @@ func (s *cudaBLAS) frozenTailBuffers(seq, vocab, hidden int) (*frozenCausalTailB
 			return nil, err
 		}
 	}
-	s.frozenTail = b
+	s.causalTail = b
 	return b, nil
 }
 
-func frozenCausalTail(session *cudaBLAS, final, ids, head, finalNorm, finalNormGrad driver.DevicePtr, seq, vocab, hidden int, eps float64) (driver.DevicePtr, driver.DevicePtr, error) {
-	buffers, err := session.frozenTailBuffers(seq, vocab, hidden)
+// causalTail runs the final norm, the output head and the next-token
+// cross-entropy on the final hidden states, and their backward to the
+// normed states. A trained table's head gradient is written here; the
+// final-norm gradient is cleared for the hidden-state backward to fill.
+func causalTail(session *cudaBLAS, final, ids driver.DevicePtr, lexical CausalLexical, seq, vocab, hidden int, eps float64) (driver.DevicePtr, driver.DevicePtr, error) {
+	buffers, err := session.causalTailBuffers(seq, vocab, hidden)
 	if err != nil {
 		return 0, 0, err
 	}
+	head, finalNorm, finalNormGrad := lexical.Head, lexical.FinalNorm, lexical.FinalNormGrad
 	normed := buffers.normed
 	normKernel, err := session.function("weighted_rms_norm_f32")
 	if err != nil {
@@ -266,6 +331,11 @@ func frozenCausalTail(session *cudaBLAS, final, ids, head, finalNorm, finalNormG
 	if err := session.gemm(false, false, predictions, vocab, hidden, logits, head, dNormed); err != nil {
 		return 0, 0, err
 	}
+	if !lexical.frozen() {
+		if err := session.gemm(true, false, vocab, predictions, hidden, logits, normed, lexical.HeadGrad); err != nil {
+			return 0, 0, err
+		}
+	}
 	if err := session.state.Driver.MemsetD32Async(finalNormGrad, 0, uint64(hidden), session.state.Stream); err != nil {
 		return 0, 0, err
 	}
@@ -276,10 +346,10 @@ func residentCausalHiddenGradient(session *cudaBLAS, dNormed, final, finalNorm, 
 	if uint64(seq) > math.MaxUint32 || uint64(hidden) > math.MaxUint32 {
 		return 0, fmt.Errorf("resident causal tail: dimensions exceed ABI")
 	}
-	if session.frozenTail == nil || session.frozenTail.seq != seq || session.frozenTail.hidden != hidden {
+	if session.causalTail == nil || session.causalTail.seq != seq || session.causalTail.hidden != hidden {
 		return 0, fmt.Errorf("resident causal tail: hidden buffer unavailable")
 	}
-	dHidden := session.frozenTail.dHidden
+	dHidden := session.causalTail.dHidden
 	backward, err := session.function("rms_norm_backward_f32")
 	if err != nil {
 		return 0, err

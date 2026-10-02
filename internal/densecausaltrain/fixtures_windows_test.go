@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/dataroot"
@@ -16,11 +17,29 @@ import (
 // is held to.
 func tinyMuonModel(t *testing.T) *densecausal.Model {
 	t.Helper()
+	return tinyMuonModelWith(t, false)
+}
+
+// untiedMuonModel is tinyMuonModel with an untied output head: the
+// embedding's values in reverse order, so head and embedding differ.
+func untiedMuonModel(t *testing.T) *densecausal.Model {
+	t.Helper()
+	return tinyMuonModelWith(t, true)
+}
+
+func tinyMuonModelWith(t *testing.T, untied bool) *densecausal.Model {
+	t.Helper()
 	spec := testutil.DenseCausalSpec{
 		Vocab: 32, Hidden: 16, Heads: 2, HeadDim: 8,
 		KVHeads: 2, Intermediate: 32, Layers: 2, Seed: 1,
 	}
 	weights, shapes := testutil.DenseCausalWeights(t, spec)
+	if untied {
+		const embeddingName, headName = "model.embed_tokens.weight", "lm_head.weight"
+		head := slices.Clone(weights[embeddingName])
+		slices.Reverse(head)
+		weights[headName], shapes[headName] = head, slices.Clone(shapes[embeddingName])
+	}
 	m, err := densecausal.NewModel(weights, shapes, spec.Heads, spec.HeadDim, 10000, 1e-6)
 	if err != nil {
 		t.Fatal(err)

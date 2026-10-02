@@ -3,7 +3,6 @@
 package devicemath
 
 import (
-	"fmt"
 	"slices"
 
 	"overgo/internal/cuda/driver"
@@ -23,42 +22,17 @@ var stackFnNames = func() []string {
 	return out
 }()
 
-// runStack executes the whole pre-norm stack inside the current session: forward
-// over all layers (activation caches resident), a host round-trip through tail on
-// the streamed-out final pre-norm, then backward over all layers writing weight
-// grads into gp. The weight pointers wp and grad pointers gp are supplied by the
-// caller, persistent across steps (StackForwardBackwardResidentWeights). Returns
-// the device pointer for dX after layer 0 (the embedding-input gradient); the
-// caller downloads what it needs. The layer math is forwardDevice/backwardDevice
-// (single owner).
-func (o *layerOps) runStack(embeds []float32, wp []layerWeightPtrs, gp []layerGradPtrs, tail func(final []float32) ([]float32, error)) (driver.DevicePtr, error) {
-	input, err := o.s.upload(embeds)
-	if err != nil {
-		return 0, err
-	}
-	return o.runStackDevice(input, wp, gp, func(final driver.DevicePtr) (driver.DevicePtr, error) {
-		host := make([]float32, o.d.seq*o.d.hidden)
-		if err := o.s.finish(cudaDownload{host, final}); err != nil {
-			return 0, err
-		}
-		gradient, err := tail(host)
-		if err != nil {
-			return 0, err
-		}
-		if len(gradient) != len(host) {
-			return 0, fmt.Errorf("runStack: tail dOut len %d != %d", len(gradient), len(host))
-		}
-		return o.s.upload(gradient)
-	})
-}
-
 type residentStackBuffers struct {
 	xIn []driver.DevicePtr
 	cp  []layerCachePtrs
 	dX  []driver.DevicePtr
 }
 
-// runStackDevice retains the compiled stack buffers for its session.
+// runStackDevice executes the whole pre-norm stack inside the current
+// session: forward over all layers (activation caches resident), tail on the
+// final pre-norm hidden states, then backward over all layers writing weight
+// gradients into gp. It returns the device pointer of the embedding-input
+// gradient and retains the compiled stack buffers for its session.
 func (o *layerOps) runStackDevice(input driver.DevicePtr, wp []layerWeightPtrs, gp []layerGradPtrs, tail func(driver.DevicePtr) (driver.DevicePtr, error)) (driver.DevicePtr, error) {
 	d, nL := o.d, len(wp)
 	seqHidden := d.seq * d.hidden

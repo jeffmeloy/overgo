@@ -236,7 +236,7 @@ func cellText(column metric.Name, cell scorecard.Cell) string {
 	case cell.Unit == "ms" && cell.Value >= millisecondsPerSecond:
 		return fmt.Sprintf("%.3g s", cell.Value/millisecondsPerSecond)
 	case column == metric.Quality:
-		return fmt.Sprintf("%.4g (%s)", cell.Value, cell.Label)
+		return cell.QualityText()
 	case cell.Unit == "":
 		return fmt.Sprintf("%.4g", cell.Value)
 	default:

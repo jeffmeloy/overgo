@@ -1,8 +1,12 @@
 package scorecard
 
 import (
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
@@ -119,5 +123,98 @@ func TestComparisonIsTyped(t *testing.T) {
 		if verdict, _ := (Pair{Before: &before, After: &after}).Compare(metric.FirstOutput); verdict != Unknown {
 			t.Fatalf("a serving median beside %s compares as %s, want unknown", name, verdict)
 		}
+	}
+}
+
+// TestTrainedBelowBaseIsAGap holds a trained model's held-out quality to its
+// base model's from the verdict that judged them: a training row that falls
+// below its base in the metric's direction, by more than float32 arithmetic
+// resolves, is a gap whose line shows both values, and one that ties or
+// beats its base is none. Neither withholds promotion. The base travels in
+// the published record, and a record published before it still reads.
+func TestTrainedBelowBaseIsAGap(t *testing.T) {
+	t.Parallel()
+	source := testutil.ArtifactID(t, artifact.KindEvaluation, "below-base")
+	model := testutil.ArtifactID(t, artifact.KindModel, "trained")
+	heldout := Contract{Metric: "token-accuracy", Origin: originEvaluation, Suite: "view", Protocol: "plan"}
+	trained := func(value float64, base *float64, direction runrecord.Direction) Row {
+		cells := map[metric.Name]Cell{}
+		for _, column := range metric.Columns {
+			cells[column] = inapplicable("not measured in this fixture")
+		}
+		cells[metric.Quality] = Cell{Value: value, Base: base, Label: "token-accuracy, view (plan)", Source: source, Direction: direction, Contract: heldout}
+		return Row{Model: model, Name: "trained", Task: recipe.TaskTraining, Cells: cells}
+	}
+	of := func(value float64) *float64 { return &value }
+	below := trained(0.3634, of(0.4936), runrecord.DirectionMaximize)
+	const key, line = "scorecard-below-base-training", "- trained held-out-quality: 0.3634 vs base 0.4936 (token-accuracy, view (plan))\n"
+	if text := below.Cells[metric.Quality].QualityText(); text != "0.3634 vs base 0.4936 (token-accuracy, view (plan))" {
+		t.Fatalf("a trained model's held-out quality reads %q, want its value against its base's", text)
+	}
+	if text := trained(0.3634, nil, runrecord.DirectionMaximize).Cells[metric.Quality].QualityText(); text != "0.3634 (token-accuracy, view (plan))" {
+		t.Fatalf("a held-out quality without a base reads %q", text)
+	}
+	for name, scenario := range map[string]struct {
+		row  Row
+		open bool
+	}{
+		"below its base":                    {row: below, open: true},
+		"a higher perplexity than its base": {row: trained(12, of(10), runrecord.DirectionMinimize), open: true},
+		"tied with its base":                {row: trained(0.4936, of(0.4936), runrecord.DirectionMaximize)},
+		"a summation-order difference":      {row: trained(0.4936*(1-1e-8), of(0.4936), runrecord.DirectionMaximize)},
+		"above its base":                    {row: trained(0.6, of(0.4936), runrecord.DirectionMaximize)},
+		"a lower perplexity than its base":  {row: trained(8, of(10), runrecord.DirectionMinimize)},
+		"no base":                           {row: trained(0.3634, nil, runrecord.DirectionMaximize)},
+	} {
+		record := Record{Commit: "b", Rows: []Row{scenario.row}}
+		gaps := record.Gaps(nil)
+		at := slices.IndexFunc(gaps, func(gap Gap) bool { return gap.Key == key })
+		if (at >= 0) != scenario.open {
+			t.Fatalf("%s: gaps %+v, want %s open: %t", name, gaps, key, scenario.open)
+		}
+		if at >= 0 && (gaps[at].Title != "Make training beat its base model on held-out quality" || !strings.Contains(gaps[at].Detail, "vs base")) {
+			t.Fatalf("%s: gap %+v does not name the work or show both values", name, gaps[at])
+		}
+		baseline := Record{Commit: "a", Rows: []Row{scenario.row}}
+		if withheld := record.Withheld(&baseline); withheld != "" {
+			t.Fatalf("%s: withheld %q; a trained model below its base is a gap, not a reason to withhold the commit", name, withheld)
+		}
+	}
+	if gaps := (Record{Rows: []Row{below}}).Gaps(nil); len(gaps) != 1 || gaps[0].Detail != line {
+		t.Fatalf("a trained model below its base proposes %+v, want one gap with the line %q", gaps, line)
+	}
+
+	directory := t.TempDir()
+	older := trained(0.3634, nil, runrecord.DirectionMaximize)
+	zero := trained(0.25, of(0), runrecord.DirectionMaximize)
+	zero.Model = testutil.ArtifactID(t, artifact.KindModel, "zero-base")
+	published := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+	path, err := Publish(directory, published, Record{Commit: "a", Rows: []Row{older}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), `"base"`) {
+		t.Fatalf("a held-out quality without a base publishes %s (%v), want no base field", data, err)
+	}
+	if _, err := Publish(directory, published.Add(time.Hour), Record{Commit: "b", Rows: []Row{below, zero}}); err != nil {
+		t.Fatal(err)
+	}
+	records, err := Records(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 2 || filepath.Base(path) != records[0].Name {
+		t.Fatalf("read %d records, want the older one first", len(records))
+	}
+	if cell := records[0].Rows[0].Cells[metric.Quality]; cell.Base != nil || cell.Value != 0.3634 {
+		t.Fatalf("a record published before bases reads %+v", cell)
+	}
+	for index, want := range []float64{0.4936, 0} {
+		if cell := records[1].Rows[index].Cells[metric.Quality]; cell.Base == nil || *cell.Base != want {
+			t.Fatalf("row %d reads %+v, want its base %g back", index, cell, want)
+		}
+	}
+	if gaps := records[1].Gaps(&records[0]); !slices.ContainsFunc(gaps, func(gap Gap) bool { return gap.Key == key && gap.Detail == line }) {
+		t.Fatalf("the published record proposes %+v, want %s", gaps, key)
 	}
 }

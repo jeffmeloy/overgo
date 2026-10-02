@@ -32,9 +32,12 @@ const catalogLimit = 4096
 // metric the task's output cannot have, or a held-out quality whose
 // evaluation is only proposed: its reason says why, and no measurement is
 // missing. Direction says which way a held-out quality improves; Contract
-// says what the value is, typed, for comparison.
+// says what the value is, typed, for comparison. Base is a trained model's
+// base model value on the same contract, from the held-out verdict that
+// judged the two; nil where no verdict judged the value against a base.
 type Cell struct {
 	Value         float64             `json:"value,omitzero"`
+	Base          *float64            `json:"base,omitempty"`
 	Unit          string              `json:"unit,omitzero"`
 	Label         string              `json:"label,omitzero"`
 	Source        artifact.ID         `json:"source,omitzero"`
@@ -42,6 +45,16 @@ type Cell struct {
 	NotApplicable bool                `json:"not_applicable,omitzero"`
 	Direction     runrecord.Direction `json:"direction,omitzero"`
 	Contract      Contract            `json:"contract,omitzero"`
+}
+
+// QualityText renders a held-out quality as a user reads it: its value, its
+// base model's beside it when a verdict judged it against one, and what it
+// measures.
+func (c Cell) QualityText() string {
+	if c.Base != nil {
+		return fmt.Sprintf("%.4g vs base %.4g (%s)", c.Value, *c.Base, c.Label)
+	}
+	return fmt.Sprintf("%.4g (%s)", c.Value, c.Label)
 }
 
 // Contract is what a measured value is, so two cells compare only when both
@@ -146,7 +159,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 				if circuit := row.Cells[metric.Quality]; circuit.Measured() {
 					row.Heldout = append(row.Heldout, circuit)
 				}
-				row.Cells[metric.Quality], _ = qualityCell(capability.Task, []evaluation.EvalSummary{record}, nil)
+				row.Cells[metric.Quality] = record.cell(capability.Task)
 			}
 			row.Cells[metric.Failures] = failureCell(observed)
 			row.Cells[metric.Load] = loadCell(benchmark, measured, observed)
@@ -382,21 +395,40 @@ func nameEvaluatedSets(ctx context.Context, store *overgodb.Store, suites map[ar
 // derived suites instead.
 var verdictTasks = []recipe.Task{recipe.TaskTabular, recipe.TaskForecast}
 
+// heldoutRecord is the held-out record that scores a recipe's own output
+// and, for a trained model's, the same verdict's value of the same metric
+// for its base model: one contract, so the two compare.
+type heldoutRecord struct {
+	summary evaluation.EvalSummary
+	base    *float64
+}
+
+// cell is the record's held-out quality, beside its base model's value.
+func (record heldoutRecord) cell(task recipe.Task) Cell {
+	cell, _ := qualityCell(task, []evaluation.EvalSummary{record.summary}, nil)
+	cell.Base = record.base
+	return cell
+}
+
 // heldoutRecords reads, by recipe, the held-out records that score a
 // recipe's own output: the newest transcription report of each recipe, and
-// each held-out verdict, newest first, as the trained model's value for the
-// training recipe its session ran and the base model's value for each
-// tabular or forecast recipe whose model holds the weights the session
-// trained. A model holds them when its manifest names a weights component
-// of the same bytes: the session names a head's weights file, the row the
-// model directory around it. Where one exists it is the recipe's held-out
-// quality, and each set the evaluation circuit scored the recipe on stays
-// among its other held-out qualities, so a baseline measured on one still
-// compares.
-func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discovery.CatalogEntry) (map[artifact.ID]evaluation.EvalSummary, error) {
-	records, err := evaluation.TranscriptionQualities(ctx, store)
+// each held-out verdict, newest first, as the trained model's value, beside
+// its base model's, for the training recipe its session ran and the base
+// model's value for each tabular or forecast recipe whose model holds the
+// weights the session trained. A model holds them when its manifest names a
+// weights component of the same bytes: the session names a head's weights
+// file, the row the model directory around it. Where one exists it is the
+// recipe's held-out quality, and each set the evaluation circuit scored the
+// recipe on stays among its other held-out qualities, so a baseline measured
+// on one still compares.
+func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discovery.CatalogEntry) (map[artifact.ID]heldoutRecord, error) {
+	reports, err := evaluation.TranscriptionQualities(ctx, store)
 	if err != nil {
 		return nil, err
+	}
+	records := make(map[artifact.ID]heldoutRecord, len(reports))
+	for recipeID, report := range reports {
+		records[recipeID] = heldoutRecord{summary: report}
 	}
 	served := map[string][]artifact.ID{}
 	for _, entry := range entries {
@@ -420,14 +452,15 @@ func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discov
 		if err != nil {
 			return err
 		}
-		read := func(recipeID artifact.ID, summary evaluation.EvalSummary) {
+		read := func(recipeID artifact.ID, record heldoutRecord) {
 			if _, found := records[recipeID]; !found {
-				records[recipeID] = summary
+				records[recipeID] = record
 			}
 		}
-		read(session.Recipe, trained)
+		_, value, _ := evaluation.HeadlineMetric(base.Metrics)
+		read(session.Recipe, heldoutRecord{summary: trained, base: &value})
 		for _, recipeID := range served[session.Model.DigestHex()] {
-			read(recipeID, base)
+			read(recipeID, heldoutRecord{summary: base})
 		}
 		return nil
 	})

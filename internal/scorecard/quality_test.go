@@ -248,7 +248,7 @@ func TestQualityReadsTranscriptionReports(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cell, _ := qualityCell(recipe.TaskTranscription, []evaluation.EvalSummary{records[transcriber]}, nil)
+	cell := records[transcriber].cell(recipe.TaskTranscription)
 	protocol := []string{evaluation.PromptingRawCompletion.Label()}
 	for _, operation := range normalization {
 		protocol = append(protocol, string(operation))
@@ -264,8 +264,9 @@ func TestQualityReadsTranscriptionReports(t *testing.T) {
 
 // TestQualityReadsHeldoutVerdicts holds the rows a training session's
 // held-out verdict measures to it: the session's training recipe reads the
-// trained model's value, and a tabular recipe whose model directory holds
-// the weights file the session trained reads the base model's, each in the
+// trained model's value beside the base model's, and a tabular recipe whose
+// model directory holds the weights file the session trained reads the base
+// model's alone, each in the
 // verdict's metric and direction under a contract naming the objective's
 // held-out view and the verdict's target plan. An inference recipe of the
 // same model reads no verdict.
@@ -407,10 +408,14 @@ func TestQualityReadsHeldoutVerdicts(t *testing.T) {
 		task   recipe.Task
 		recipe artifact.ID
 		value  float64
-	}{{recipe.TaskTraining, training, 1}, {recipe.TaskTabular, tabular, 0}} {
-		cell, _ := qualityCell(read.task, []evaluation.EvalSummary{records[read.recipe]}, nil)
+		based  bool
+	}{{recipe.TaskTraining, training, 1, true}, {recipe.TaskTabular, tabular, 0, false}} {
+		cell := records[read.recipe].cell(read.task)
 		if !cell.Measured() || cell.Value != read.value || cell.Source != verdict.ID || cell.Direction != runrecord.DirectionMaximize || cell.Contract != want {
 			t.Fatalf("%s quality = %+v, want %g from the verdict under %+v", read.task, cell, read.value, want)
+		}
+		if (cell.Base != nil) != read.based || read.based && *cell.Base != 0 {
+			t.Fatalf("%s quality carries base %v, want the base model's 0 beside it: %t", read.task, cell.Base, read.based)
 		}
 	}
 	if record, read := records[inference]; read {

@@ -33,13 +33,6 @@
       },
       "steps": [
         {
-          "id": "judge-vs-base",
-          "title": "The scorecard shows a trained model's held-out quality against its base, and a trained model below its base is a gap",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -run '^TestTrainedBelowBaseIsAGap$' -count=1",
-          "rationale": "The training row's held-out cell shows only the trained value (0.3634), so nobody reading the scorecard can tell that training made the model worse; the verdict's base value (0.4936) is in the store. Serves: judge. Disappears: nothing. Evidence: held-out verdicts (evaluation.VisitHeldoutVerdicts), read by the scorecard and the cycle's gap proposals. Batch: internal/scorecard; no surface move; no media reconciliation."
-        },
-        {
           "id": "do",
           "title": "Train Qwen2.5-0.5B on WikiText-2 until it beats its base on held-out records",
           "status": "open",

@@ -15,6 +15,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
 )
 
@@ -217,10 +218,17 @@ func (pair Pair) Compare(column metric.Name) (Verdict, string) {
 	case now.Direction != then.Direction:
 		return Unknown, fmt.Sprintf("improves in direction %q, the baseline in %q", now.Direction, then.Direction)
 	}
-	if advantage, directed := now.Direction.Advantage(now.Value, then.Value); directed && -advantage > float32Precision*max(math.Abs(now.Value), math.Abs(then.Value)) {
+	if fell(now.Direction, now.Value, then.Value) {
 		return regressed, fmt.Sprintf("%.9g to %.9g (%s)", then.Value, now.Value, now.Label)
 	}
 	return holding, ""
+}
+
+// fell reports whether value is worse than reference in direction by more
+// than float32 arithmetic resolves; a value with no direction never falls.
+func fell(direction runrecord.Direction, value, reference float64) bool {
+	advantage, directed := direction.Advantage(value, reference)
+	return directed && -advantage > float32Precision*max(math.Abs(value), math.Abs(reference))
 }
 
 // float32Precision is the relative precision of the float32 logits every
@@ -232,10 +240,14 @@ func (pair Pair) Compare(column metric.Name) (Verdict, string) {
 const float32Precision = 0x1p-23
 
 // The kinds of gap besides the regressed and Unknown verdicts. Their names
-// order the rows: failures a user met, then held-out qualities that fell or
-// that nothing compares, which refuse promotion, then measurements to take,
-// then held-out evaluations to define.
+// order the rows: trained models that fall below their base, then failures
+// a user met, then held-out qualities that fell or that nothing compares,
+// which refuse promotion, then measurements to take, then held-out
+// evaluations to define. A trained model below its base refuses no
+// promotion: it judges a training against its base model, not the commit
+// against the baseline scorecard.
 const (
+	gapBelowBase  = "below-base"
 	gapFailing    = "failing"
 	gapUnmeasured = "unmeasured"
 	gapUnscored   = "unscored"
@@ -252,9 +264,10 @@ type Gap struct {
 
 // Gaps lists the record's gaps against the baseline, which may be nil: each
 // cell no record measures, each failure-rate above zero, each held-out
-// quality the baseline measured that Compare finds regressed or Unknown, and
+// quality the baseline measured that Compare finds regressed or Unknown,
 // each held-out quality that is not applicable because its task's held-out
-// evaluation is only proposed.
+// evaluation is only proposed, and each trained model's held-out quality
+// that fell below its base model's on the verdict that judged them.
 func (record Record) Gaps(baseline *Record) []Gap {
 	var before Record
 	if baseline != nil {
@@ -290,6 +303,9 @@ func (record Record) Gaps(baseline *Record) []Gap {
 				add(gapFailing, pair.After, column, cell.Label)
 			}
 		}
+		if cell := pair.After.Cells[metric.Quality]; cell.Measured() && cell.Base != nil && fell(cell.Direction, cell.Value, *cell.Base) {
+			add(gapBelowBase, pair.After, metric.Quality, cell.QualityText())
+		}
 	}
 	gaps := make([]Gap, 0, len(grouped))
 	for _, gap := range grouped {
@@ -302,6 +318,8 @@ func (record Record) Gaps(baseline *Record) []Gap {
 // gapTitle names the work a gap asks for.
 func gapTitle(kind string, task recipe.Task) string {
 	switch kind {
+	case gapBelowBase:
+		return fmt.Sprintf("Make %s beat its base model on held-out quality", task)
 	case string(regressed):
 		return fmt.Sprintf("Recover %s held-out quality, which fell below the baseline scorecard", task)
 	case string(Unknown):

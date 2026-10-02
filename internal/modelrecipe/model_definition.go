@@ -2,6 +2,7 @@ package modelrecipe
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -104,19 +105,39 @@ func (r ResolvedModelDefinition) Batch(
 	return batch, nil
 }
 
-// PublishResolvedModelDefinition commits an atomic bound definition.
+// PublishResolvedModelDefinition publishes a bound definition with the
+// model's inventories and profile as one batch of facts.
 func PublishResolvedModelDefinition(
 	ctx context.Context,
 	store artifact.Repository,
 	inventory modelartifact.Inventory,
 	resolved ResolvedModelDefinition,
-) (artifact.CommitID, error) {
-	key := "recipe/facts/" + resolved.Document.ID.String()
-	batch, err := resolved.Batch(key, inventory)
+) error {
+	batch, err := resolved.Batch("recipe/facts/"+resolved.Document.ID.String(), inventory)
 	if err != nil {
-		return artifact.CommitID{}, err
+		return err
 	}
-	return artifact.CommitBatch(ctx, store, batch)
+	return PublishFacts(ctx, store, batch)
+}
+
+// PublishFacts publishes a model's facts: its inventories, where their bytes
+// lie, and the documents derived from them. The facts change while the
+// model's identity stands -- it moves on disk, gains another projector or
+// configuration, or changed code derives another profile -- so the batch
+// commits under its key followed by the digest of every fact it names, its
+// locations included; a key naming only the model would refuse each change
+// as a conflict. A repeat, or facts the store already holds, change nothing.
+// Readers find each fact by its identity, never by this key.
+func PublishFacts(ctx context.Context, store artifact.Repository, batch artifact.Batch) error {
+	data, err := json.Marshal(batch)
+	if err != nil {
+		return err
+	}
+	batch.Key = fmt.Sprintf("%s/%x", batch.Key, sha256.Sum256(data))
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
+		return fmt.Errorf("publish model facts: %w", err)
+	}
+	return nil
 }
 
 func NewModelDefinitionDocument(

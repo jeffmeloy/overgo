@@ -337,7 +337,7 @@ func prepareCapability(
 	}
 	batch.Contents = append(batch.Contents, facts...)
 	batch.Manifests = append(batch.Manifests, source.Manifests...)
-	if err := modelintake.PublishFacts(ctx, store, batch); err != nil {
+	if err := modelrecipe.PublishFacts(ctx, store, batch); err != nil {
 		return artifact.ID{}, recipe.Definition{}, err
 	}
 	return modelID, definition, nil

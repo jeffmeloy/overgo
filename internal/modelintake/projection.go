@@ -103,7 +103,7 @@ func RegisterProjectionCandidate(ctx context.Context, store artifact.Repository,
 		batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(candidate.Config.ID, candidate.Config.Model)...)
 		batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(candidate.Processor.ID, candidate.Config.ID)...)
 	}
-	if err := PublishFacts(ctx, store, batch); err != nil {
+	if err := modelrecipe.PublishFacts(ctx, store, batch); err != nil {
 		return err
 	}
 	_, published, err := modelrecipe.Status(ctx, store, candidate.Definition.ID)

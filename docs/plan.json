@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "load-time-surface-batch",
-      "title": "Parse a GGUF header through one buffer, and publish model facts through one content-keyed owner",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Parse a GGUF header through one buffer, and publish model facts through one content-keyed owner",
-          "status": "open",
-          "verify": "go test ./internal/gguf -run '^TestParseDirectoryReadsDoNotScaleWithEntries$' -count=1 \u0026\u0026 go test ./internal/modelrecipe -run '^TestGGUFModelDefinitionOvergoDBResolution$' -count=1",
-          "rationale": "\n\nMeasured 2026-10-02 (CPU profile of Carbon's cold resolve, 1.74 s against adaptive's 10 ms): gguf.Open read the header with one ReadAt per field, ~1.24 s for Carbon's 155,776 tokens; a 1 MiB buffered cursor gives 1.226 s -\u003e 13.9 ms (Carbon), 2.868 s -\u003e 34.9 ms (gemma-4-E4B), 1.954 s -\u003e 23.2 ms (Qwen3.5-4B). Every model start and switch pays it (cmd/swap starts a fresh server child per model), and the scorecard's load-time includes it. Batched with it: modelrecipe.PublishFacts as the one content-keyed facts owner (PublishResolvedModelDefinition left from ce983b068). Both move the inference surface (gguf/reader.go, modelrecipe/model_definition.go), so they land together before an evaluation run; claims bounded-gguf-parsing and validated-split-gguf rebound by their own verifies. Declined: trusting a recorded size and mtime instead of re-hashing the GGUF at load (the remaining ~0.53 s), an integrity trade. Patch: scratchpad surface-batch.patch, +22 nodes. Serves: inference (load-time, first-output). Batch: every lane; surface move; no media reconciliation."
-        }
-      ]
-    },
-    {
       "id": "training-rate-per-layer",
       "title": "Measure whether a per-step relative Muon rate transfers across models",
       "owner": "master-lead",

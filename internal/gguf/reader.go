@@ -1,6 +1,7 @@
 package gguf
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +13,9 @@ import (
 	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 )
+
+// directoryReadBufferBytes bounds one directory read from the source.
+const directoryReadBufferBytes = 1 << 20
 
 // Options: bounds allocations made from file-controlled counts
 type Options struct {
@@ -190,7 +194,7 @@ func Parse(source io.ReaderAt, size uint64, options Options) (*File, error) {
 		return nil, errors.New("GGUF source is nil")
 	}
 	options = normalizeOptions(options)
-	cursor := &cursor{source: source, size: size, options: options, schema: binaryschema.LittleEndian}
+	cursor := newCursor(source, size, options)
 
 	magic, err := cursor.bytes(4)
 	if err != nil {
@@ -532,12 +536,21 @@ func formatSplitPath(prefix string, index, count uint16) string {
 	return fmt.Sprintf("%s-%05d-of-%05d.gguf", prefix, int(index)+1, count)
 }
 
+// cursor reads the directory sequentially through one buffer: a tokenizer's
+// directory holds hundreds of thousands of fields, and a source read per
+// field cost a system call each.
 type cursor struct {
-	source  io.ReaderAt
+	source  *bufio.Reader
 	size    uint64
 	offset  uint64
 	options Options
 	schema  binaryschema.Fixed
+}
+
+func newCursor(source io.ReaderAt, size uint64, options Options) *cursor {
+	section := io.NewSectionReader(source, 0, int64(min(size, math.MaxInt64)))
+	buffered := bufio.NewReaderSize(section, int(min(size, directoryReadBufferBytes)))
+	return &cursor{source: buffered, size: size, options: options, schema: binaryschema.LittleEndian}
 }
 
 func (c *cursor) bytes(count uint64) ([]byte, error) {
@@ -548,13 +561,13 @@ func (c *cursor) bytes(count uint64) ([]byte, error) {
 		return nil, errors.New("requested read exceeds addressable memory")
 	}
 	buffer := make([]byte, int(count))
-	n, err := c.source.ReadAt(buffer, int64(c.offset))
+	n, err := io.ReadFull(c.source, buffer)
 	c.offset += uint64(n)
-	if err != nil && !errors.Is(err, io.EOF) {
-		return nil, err
-	}
-	if n != len(buffer) {
+	if errors.Is(err, io.EOF) {
 		return nil, io.ErrUnexpectedEOF
+	}
+	if err != nil {
+		return nil, err
 	}
 	return buffer, nil
 }

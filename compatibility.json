@@ -441,13 +441,13 @@
      "contains": "func OpenWithOptions(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:59e45778066e2b7004348990c89610bca0840cb08afbffd294d61314aaf49760"
+     "identity": "file:sha256:dc8e944a91389b73d8e153efb2d657ff7336bf84b2504af7fa478430bbdc905e"
     },
     {
      "contains": "func TestParseEnforcesLimits(",
      "path": "internal/gguf/reader_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d42396631d2509bba9627000a8a673df2e99a3a659719d2721ca6e5c8d1c6b84"
+     "identity": "evidence:sha256:d5960756272d8a23ad02c8cc1bbb6739293b1fff7c4659d5eb5e12a31590b415"
     }
    ],
    "id": "bounded-gguf-parsing",
@@ -728,7 +728,7 @@
      "contains": "func splitPathPrefix(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:59e45778066e2b7004348990c89610bca0840cb08afbffd294d61314aaf49760"
+     "identity": "file:sha256:dc8e944a91389b73d8e153efb2d657ff7336bf84b2504af7fa478430bbdc905e"
     },
     {
      "contains": "func TestOpenLoadsAndReadsSplitGGUF(",

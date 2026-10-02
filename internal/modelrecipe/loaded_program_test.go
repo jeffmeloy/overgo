@@ -178,9 +178,7 @@ func publishProgramFacts(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := PublishResolvedModelDefinition(
-		t.Context(), store, inventory, resolved,
-	); err != nil {
+	if err := PublishResolvedModelDefinition(t.Context(), store, inventory, resolved); err != nil {
 		t.Fatal(err)
 	}
 	return inventory, resolved

@@ -12,8 +12,6 @@ package modelintake
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -111,37 +109,13 @@ func PrepareInferenceCandidate(
 	return Candidate{Inventory: inventory, Resolved: resolved, Definition: definition}, nil
 }
 
-// PublishFacts publishes a model's facts: its inventories, where their bytes
-// lie, and the documents derived from them. The facts change while the
-// model's identity stands -- it moves on disk, gains another projector or
-// configuration, or changed code derives another profile -- so the batch
-// commits under its key followed by the digest of every fact it names, its
-// locations included; a key naming only the model would refuse each change
-// as a conflict. A repeat, or facts the store already holds, change nothing.
-// Readers find each fact by its identity, never by this key.
-func PublishFacts(ctx context.Context, store artifact.Repository, batch artifact.Batch) error {
-	data, err := json.Marshal(batch)
-	if err != nil {
-		return err
-	}
-	batch.Key = fmt.Sprintf("%s/%x", batch.Key, sha256.Sum256(data))
-	if _, err := artifact.Publish(ctx, store, batch); err != nil {
-		return fmt.Errorf("publish model facts: %w", err)
-	}
-	return nil
-}
-
 // RegisterCandidate publishes the model's resolved facts and, when the
 // candidate recipe is not yet published, the candidate itself: the model
 // is then known to the store as a candidate, not yet servable.
 func RegisterCandidate(ctx context.Context, store artifact.Repository, candidate Candidate) error {
 	// Facts already published are no change, and a registration repeated
 	// for a model the store knows is a registration, not a fault.
-	batch, err := candidate.Resolved.Batch("recipe/facts/"+candidate.Resolved.Document.ID.String(), candidate.Inventory)
-	if err != nil {
-		return err
-	}
-	if err := PublishFacts(ctx, store, batch); err != nil {
+	if err := modelrecipe.PublishResolvedModelDefinition(ctx, store, candidate.Inventory, candidate.Resolved); err != nil {
 		return err
 	}
 	_, published, err := modelrecipe.Status(ctx, store, candidate.Definition.ID)

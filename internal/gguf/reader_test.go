@@ -3,6 +3,8 @@ package gguf
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"io"
 	"math"
 	"strings"
 	"testing"
@@ -129,6 +131,49 @@ func FuzzParseNeverPanics(f *testing.F) {
 		options.MaxTensors = 1 << 12
 		_, _ = Parse(bytes.NewReader(data), uint64(len(data)), options)
 	})
+}
+
+// countingReaderAt counts the reads a parse issues against its source.
+type countingReaderAt struct {
+	source io.ReaderAt
+	reads  int
+}
+
+func (r *countingReaderAt) ReadAt(buffer []byte, offset int64) (int, error) {
+	r.reads++
+	return r.source.ReadAt(buffer, offset)
+}
+
+// A tokenizer directory holds hundreds of thousands of strings: one source
+// read per field made opening a 150k-token GGUF a second of system calls.
+// The directory's reads depend on its bytes, never on its entry count.
+func TestParseDirectoryReadsDoNotScaleWithEntries(t *testing.T) {
+	t.Parallel()
+	reads := func(tokens int) int {
+		values := make([]string, tokens)
+		for index := range values {
+			values[index] = fmt.Sprintf("token-%d", index)
+		}
+		metadata := []Metadata{{Key: "tokenizer.ggml.tokens", Value: Value{
+			Type: ValueTypeArray, ArrayType: ValueTypeString, Data: values,
+		}}}
+		var encoded bytes.Buffer
+		if err := Write(&encoded, metadata, nil, WriteOptions{}); err != nil {
+			t.Fatal(err)
+		}
+		source := &countingReaderAt{source: bytes.NewReader(encoded.Bytes())}
+		file, err := Parse(source, uint64(encoded.Len()), DefaultOptions())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if parsed, ok := file.MetadataValue("tokenizer.ggml.tokens"); !ok || parsed.Count() != tokens {
+			t.Fatalf("tokens = %d, want %d", parsed.Count(), tokens)
+		}
+		return source.reads
+	}
+	if few, many := reads(16), reads(16384); many != few {
+		t.Fatalf("directory reads grew from %d to %d with its entries", few, many)
+	}
 }
 
 type testingT interface {

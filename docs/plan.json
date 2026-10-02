@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "do",
-          "title": "Make every media and specialized proof re-acquirable by the cycle",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestRunBindsMediaMeasurement$' -count=1 \u0026\u0026 go test ./internal/discovery -run '^TestExecutionDirectoryPrefersTheMostSpecificLiveDirectory$' -count=1",
-          "rationale": "\n\nCycle 3 (from bdd9ad695, 2026-10-02): the gguf change moved every media and specialized surface, so 16 media proofs became blocking for the first time and all failed at the command: cmd/validate passed the first component's file where recipe measure needs the model directory. Step do (scratchpad media-proof2.patch, +307 nodes): ModelValidation.Directory from discovery.ExecutionDirectory (most specific live recorded directory); LiveEdit records its own directory beside the shared parent (identity unchanged), which also fixes the GUI running LiveEdit from the parent; the clip-form request is recorded as a retained run input. Then, from a clean checkout of that commit (recipe verify refuses uncommitted code), the operations in scratchpad media-reacquire-plan.md: 10 activations re-verified on retained inputs and re-activated active-\u003eactive with unchanged recipe ids (Un-0 x2, SimpleDiffusion, timesfm-2.5, pocket-tts, tabfm, Wan, LiveEdit, SenseNova, Krea); needle verifies and activates the code-derived recipe 39a6dd0e (supersedes 97d4e5f5, which declares no session); RxBrain activates the already-verified 24f6d5c8 (gate 31d9c126, run 83fb75d8), its tier moving from parity to verified (taken as the default). About 16 min of recipe work. Serves: measure and promote; any shared-package change made these proofs block every promotion. Batch: webui gate lane, models cycle lane; image surface only."
-        },
-        {
           "id": "coverage-docs",
           "title": "Bind the coverage documents to the superseding needle and RxBrain recipes",
           "status": "open",

@@ -69,11 +69,17 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 		// A media, specialized or inference model is measured the way its
 		// users meet it: its active recipe runs the request its verification
 		// ran, and the run is recorded as the serving attempt the scorecard
-		// reads.
-		if cell.Location == "" {
-			return "", nil, errors.New("a capability measurement needs the model's location")
+		// reads. An inference runner opens the weights file it serves; every
+		// other capability resolves the directory the model was registered
+		// from, its configuration beside its weights.
+		path := cell.Directory
+		if cell.Validation == servingValidation {
+			path = cell.Location
 		}
-		return "go", []string{"run", "./cmd/recipe", "measure", "-repo", store, "-task", string(cell.Kind), cell.Location}, nil
+		if path == "" {
+			return "", nil, errors.New("a capability measurement needs the model's registered directory, or a served model's weights file")
+		}
+		return "go", []string{"run", "./cmd/recipe", "measure", "-repo", store, "-task", string(cell.Kind), path}, nil
 	}
 	if !benchmark(cell) {
 		return "", nil, fmt.Errorf("no re-acquisition command bound for %s/%s", cell.Kind, cell.Validation)

@@ -26,8 +26,9 @@ type SurfaceID string
 type ModelValidation struct {
 	Model          artifact.ID `json:"model"`
 	ModelName      string      `json:"model_name,omitzero"`
-	Location       string      `json:"location,omitzero"`
-	Kind           recipe.Task `json:"kind,omitzero"` // empty: registered without activation
+	Location       string      `json:"location,omitzero"`  // the weights file the catalog finds the model by
+	Directory      string      `json:"directory,omitzero"` // the root its inventory was registered from, which its capabilities resolve
+	Kind           recipe.Task `json:"kind,omitzero"`      // empty: registered without activation
 	Modality       string      `json:"modality,omitzero"`
 	Validation     string      `json:"validation,omitzero"` // empty: no validation applicable to the kind
 	Surface        SurfaceID   `json:"surface,omitzero"`

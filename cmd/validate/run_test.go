@@ -2,13 +2,22 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/hfrepo"
+	"overgo/internal/modelartifact"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
 )
 
@@ -34,7 +43,7 @@ func TestReacquireCommand(t *testing.T) {
 		t.Fatal("guard without a location bound a command")
 	}
 	if _, _, err := reacquireCommand(ModelValidation{Kind: recipe.TaskImageGen, Validation: "image-proof"}, "C:/stores/selected"); err == nil {
-		t.Fatal("an image proof without a location bound a command")
+		t.Fatal("an image proof without a registered directory bound a command")
 	}
 }
 
@@ -73,22 +82,175 @@ func TestDNAGuardBindsTheSmokeLane(t *testing.T) {
 // TestRunBindsMediaMeasurement holds each media and specialized validation
 // to one measurement of the model through its active capability, into the
 // selected store, so the loop's empty-plan run fills those models' scorecard
-// rows in the store it read.
+// rows in the store it read. Each cell is built as the cycle builds it, from
+// a store holding the model as its registration recorded it, where the
+// catalog locates the model by one weights file: a shard, the root weights,
+// or a head's weights beneath the directory. The capability resolves the
+// directory its registration inventoried, or, for a composite inventoried
+// at a parent it shares, its own directory recorded inside that parent, so
+// the command's path must re-inventory to the registered model the
+// activation names and, for a generation model, select its registered
+// source profile from the configuration beside its weights. An inference
+// model's serving cell measures the weights file it serves.
 func TestRunBindsMediaMeasurement(t *testing.T) {
 	t.Parallel()
-	for _, cell := range []ModelValidation{
-		{Kind: recipe.TaskImageGen, Validation: "image-proof", Location: "C:/models/image"},
-		{Kind: recipe.TaskSpeech, Validation: "speech-proof", Location: "C:/models/speech"},
-		{Kind: recipe.TaskTabular, Validation: "specialized-proof", Location: "C:/models/tabular"},
+	ctx, models := t.Context(), t.TempDir()
+	const selected = "C:/stores/selected"
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	write := func(path, text string) {
+		t.Helper()
+		err := os.MkdirAll(filepath.Dir(path), 0o755)
+		switch {
+		case err != nil:
+		case strings.HasSuffix(path, ".safetensors"):
+			err = safetensors.Save(path, map[string][]float32{text: {1}}, map[string][]int{text: {1}}, nil)
+		default:
+			err = os.WriteFile(path, []byte(text), 0o600)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The inventories the capabilities resolve: a Hugging Face repository,
+	// a root configuration beside one weights file, one subdirectory per
+	// tabular head, and an edit composite rooted at the parent it shares
+	// with the base model beside it, which records its own directory there.
+	composite := func(path string) (modelartifact.Inventory, error) {
+		base := filepath.Join(filepath.Dir(path), "Wan2.1-T2V-1.3B")
+		inventory, err := modelartifact.FromFiles(filepath.Dir(path), []modelartifact.FileSpec{
+			{Path: filepath.Join(path, "model.safetensors"), Name: "liveedit/weights", Role: artifact.ComponentWeights},
+			{Path: filepath.Join(base, "config.json"), Name: "wan/config", Role: artifact.ComponentConfig},
+			{Path: filepath.Join(base, "model.safetensors"), Name: "wan/weights", Role: artifact.ComponentWeights},
+		})
+		if err != nil {
+			return inventory, err
+		}
+		own, err := artifact.CanonicalLocalLocation(inventory.Manifest.ID, artifact.LocationDirectory, path)
+		inventory.Locations = append(inventory.Locations, own)
+		return inventory, err
+	}
+	rootWeights := func(root string) (modelartifact.Inventory, error) {
+		return modelartifact.FromFiles(root, []modelartifact.FileSpec{
+			{Path: filepath.Join(root, "config.json"), Name: "config", Role: artifact.ComponentConfig},
+			{Path: filepath.Join(root, "model.safetensors"), Name: "weights", Role: artifact.ComponentWeights},
+		})
+	}
+	heads := func(root string) (modelartifact.Inventory, error) {
+		var specs []modelartifact.FileSpec
+		for _, head := range []string{"classification", "regression"} {
+			specs = append(specs,
+				modelartifact.FileSpec{Path: filepath.Join(root, head, "config.json"), Name: head + "/config", Role: artifact.ComponentConfig},
+				modelartifact.FileSpec{Path: filepath.Join(root, head, "model.safetensors"), Name: head + "/weights", Role: artifact.ComponentWeights})
+		}
+		return modelartifact.FromFiles(root, specs)
+	}
+	register := func(name string, inventory func(string) (modelartifact.Inventory, error), files map[string]string) artifact.ID {
+		t.Helper()
+		root := filepath.Join(models, name)
+		for path, text := range files {
+			write(filepath.Join(root, filepath.FromSlash(path)), text)
+		}
+		resolved, err := inventory(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch, err := resolved.Batch("fixture/model/" + name)
+		if err == nil {
+			err = modelrecipe.PublishFacts(ctx, store, batch)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resolved.Manifest.ID
+	}
+	activate := func(definition recipe.Definition, err error) {
+		t.Helper()
+		if err == nil {
+			err = modelrecipetest.PublishActivation(ctx, store, "fixture/activation/"+definition.ID.String(), definition)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	sharded := register("SenseNova", modelartifact.FromHFPath, map[string]string{
+		"config.json":                      `{"model_type":"neo_chat","architectures":["NEOChatModel"]}`,
+		"model-00001-of-00002.safetensors": "first",
+		"model-00002-of-00002.safetensors": "second",
+		"model.safetensors.index.json":     `{"metadata":{},"weight_map":{"first":"model-00001-of-00002.safetensors","second":"model-00002-of-00002.safetensors"}}`,
+	})
+	single := register("Un-0", rootWeights, map[string]string{"config.json": `{"model_type":"un0"}`, "model.safetensors": "weights"})
+	headed := register("tabfm", heads, map[string]string{
+		"config.json": `{}`, "classification/config.json": `{}`, "classification/model.safetensors": "classification",
+		"regression/config.json": `{}`, "regression/model.safetensors": "regression",
+	})
+	repository := register("needle", modelartifact.FromHFPath, map[string]string{"config.json": `{"model_type":"t5"}`, "model.safetensors": "needle"})
+	edit := register("LiveEdit", composite, map[string]string{
+		"model.safetensors": "edit", "../Wan2.1-T2V-1.3B/config.json": `{}`, "../Wan2.1-T2V-1.3B/model.safetensors": "base",
+	})
+	flow := testutil.ArtifactID(t, artifact.KindProfile, "flow profile")
+	testutil.PublishArtifact(t, store, flow)
+	activate(modelrecipe.ReferenceVideoEditDefinition(edit, flow))
+	activate(modelrecipe.GenerationDefinition(modelrecipe.ModuleRoutedImagePrepare, sharded, flow))
+	activate(modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, single, artifact.ID{}))
+	activate(modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorVideoPrepare, single, artifact.ID{}))
+	activate(modelrecipe.CapabilityDefinition(recipe.TaskTabular, headed))
+	activate(modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, repository))
+
+	cells, err := registeredCells(ctx, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []struct {
+		model      artifact.ID
+		task       recipe.Task
+		validation string
+		inventory  func(string) (modelartifact.Inventory, error)
+		prepare    recipe.ModuleID
+	}{
+		{sharded, recipe.TaskImageGen, "image-proof", modelartifact.FromHFPath, modelrecipe.ModuleRoutedImagePrepare},
+		{single, recipe.TaskImageGen, "image-proof", rootWeights, modelrecipe.ModuleOscillatorImagePrepare},
+		{single, recipe.TaskVideoGen, "video-proof", rootWeights, modelrecipe.ModuleOscillatorVideoPrepare},
+		{headed, recipe.TaskTabular, "specialized-proof", heads, ""},
+		{repository, recipe.TaskSeq2Seq, "specialized-proof", modelartifact.FromHFPath, ""},
+		{edit, recipe.TaskVideoGen, "video-proof", composite, ""},
 	} {
-		name, args, err := reacquireCommand(cell, "C:/stores/selected")
-		if err != nil || name != "go" {
-			t.Fatalf("%s command = (%q, %v)", cell.Validation, name, err)
+		at := slices.IndexFunc(cells, func(cell ModelValidation) bool { return cell.Model == want.model && cell.Kind == want.task })
+		if at < 0 || cells[at].Validation != want.validation {
+			t.Fatalf("no %s cell for the %s activation of %s: %+v", want.validation, want.task, want.model, cells)
 		}
-		want := []string{"run", "./cmd/recipe", "measure", "-repo", "C:/stores/selected", "-task", string(cell.Kind), cell.Location}
-		if !slices.Equal(args, want) {
-			t.Fatalf("%s args = %v, want %v", cell.Validation, args, want)
+		cell := cells[at]
+		if info, err := os.Stat(cell.Location); err != nil || info.IsDir() {
+			t.Fatalf("the catalog locates %s at %q, not by one of its weights files (%v)", want.model, cell.Location, err)
 		}
+		name, args, err := reacquireCommand(cell, selected)
+		prefix := []string{"run", "./cmd/recipe", "measure", "-repo", selected, "-task", string(want.task)}
+		if err != nil || name != "go" || len(args) != len(prefix)+1 || !slices.Equal(args[:len(prefix)], prefix) {
+			t.Fatalf("%s %s bound (%q, %v, %v), want go %v <model>", want.task, want.validation, name, args, err, prefix)
+		}
+		path := args[len(args)-1]
+		if resolved, err := want.inventory(path); err != nil || resolved.Manifest.ID != want.model {
+			t.Errorf("%s %s measures %s, which re-inventories to %s (%v), not the registered model %s located at %s",
+				want.task, want.validation, path, resolved.Manifest.ID, err, want.model, cell.Location)
+		}
+		if want.prepare == "" {
+			continue
+		}
+		identity, err := hfrepo.InspectIdentity(path)
+		profile, profileErr := modelrecipe.ResolveGenerationSource(want.task, identity)
+		if err != nil || profileErr != nil || profile.Prepare != want.prepare {
+			t.Errorf("%s %s measures %s, which selects source profile %q (%v), want %q",
+				want.task, want.validation, path, profile.Prepare, errors.Join(err, profileErr), want.prepare)
+		}
+	}
+
+	serving := ModelValidation{Kind: recipe.TaskInference, Validation: servingValidation, Location: "C:/models/qwen.gguf"}
+	name, args, err := reacquireCommand(serving, selected)
+	if want := []string{"run", "./cmd/recipe", "measure", "-repo", selected, "-task", string(recipe.TaskInference), serving.Location}; err != nil || name != "go" || !slices.Equal(args, want) {
+		t.Fatalf("serving measurement bound (%q, %v, %v), want go %v", name, args, err, want)
 	}
 }
 

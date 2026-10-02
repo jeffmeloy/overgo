@@ -281,6 +281,10 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 			continue
 		}
 		modality := declaredModality(ctx, store, entry.Model)
+		// A capability resolves the live directory recorded for the model,
+		// never the weights file, shard or head file the catalog found it by;
+		// none recorded leaves its measurement unbound.
+		directory, _ := discovery.ExecutionDirectory(ctx, store, entry.Model)
 		for _, capability := range entry.Capabilities {
 			validations := kindValidation(capability.Task)
 			if len(validations) == 0 {
@@ -291,7 +295,7 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 				// The activation's recipe finds the accepted record; whether that
 				// record holds at this tree is the current-evidence decision's.
 				cells = append(cells, ModelValidation{
-					Model: entry.Model, ModelName: name, Location: entry.Location,
+					Model: entry.Model, ModelName: name, Location: entry.Location, Directory: directory,
 					Kind: capability.Task, Modality: modality, Recipe: capability.Recipe,
 					Validation: validation.Validation, Surface: validation.Surface, Stale: capability.Stale,
 				})

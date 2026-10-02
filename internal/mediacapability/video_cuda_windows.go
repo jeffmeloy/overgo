@@ -50,7 +50,7 @@ func videoCapability() Capability {
 			}, nil
 		},
 	)
-	edit := resolveEditForm(sessionExecutor(editDirector, editErr))
+	edit := resolveEditForm(latentvideo.ResolveClipRequest, sessionExecutor(editDirector, editErr))
 	oscillator := capabilityruntime.JSONScalar[oscillatorimage.VideoRequest, *oscillatorimage.Model, oscillatorimage.EncodedVideo](
 		"video-gen", oscillatorimage.ValidateVideoRequest,
 		func(_ context.Context, _ artifact.Repository, path string, _ recipe.Program, _ oscillatorimage.VideoRequest) (*oscillatorimage.Model, error) {
@@ -73,13 +73,20 @@ func resolveVideoSource(path string) (Source, error) {
 		wan := filepath.Join(filepath.Dir(path), "Wan2.1-T2V-1.3B")
 		// The edit composite genuinely spans two sibling repositories --
 		// the LiveEdit weights and the Wan denoiser they condition on --
-		// so the inventory roots at their common parent.
+		// so the inventory roots at their common parent. The capability
+		// resolves only from the LiveEdit directory, so that is recorded
+		// beside the root; the identity is the components' alone.
 		inventory, err := modelartifact.FromFiles(filepath.Dir(path), []modelartifact.FileSpec{
 			{Path: filepath.Join(path, "ar-forcing_002000.pt"), Name: "liveedit/weights", Role: artifact.ComponentWeights},
 			{Path: filepath.Join(wan, "config.json"), Name: "wan/config", Role: artifact.ComponentConfig},
 			{Path: filepath.Join(wan, "diffusion_pytorch_model.safetensors"), Name: "wan/weights", Role: artifact.ComponentWeights},
 			{Path: filepath.Join(wan, "Wan2.1_VAE.pth"), Name: "wan/vae", Role: artifact.ComponentWeights},
 		})
+		if err == nil {
+			var own artifact.Location
+			own, err = artifact.CanonicalLocalLocation(inventory.Manifest.ID, artifact.LocationDirectory, path)
+			inventory.Locations = append(inventory.Locations, own)
+		}
 		return Source{Inventory: inventory, Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
 			profile, err := latentvideo.ResolveProfile(wan)
 			if err != nil {

@@ -205,7 +205,8 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		for _, validation := range kindValidation(task) {
 			affected[validation.Surface] = AffectRecord{Affected: true, Reason: "fixture"}
 			cells = append(cells, ModelValidation{
-				Model: testutil.ArtifactID(t, artifact.KindModel, string(task)), ModelName: string(task), Location: "C:/models/" + string(task),
+				Model: testutil.ArtifactID(t, artifact.KindModel, string(task)), ModelName: string(task),
+				Location: "C:/models/" + string(task) + "/model.safetensors", Directory: "C:/models/" + string(task),
 				Kind: task, Validation: validation.Validation, Surface: validation.Surface, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, string(task)),
 			})
 		}

@@ -56,6 +56,9 @@ type EvalSummary struct {
 	// Directions says which way each metric improves: the scorecard judges
 	// a held-out regression by it.
 	Directions map[string]runrecord.Direction `json:"-"`
+	// ExecutionKnown says the succeeded run, plan and typed environment agree.
+	// It does not establish source currency or full measurement comparability.
+	ExecutionKnown bool `json:"execution_known"`
 	// Reproducible: the run's environment is one the store can reproduce;
 	// false for a hosted model scored through the relay.
 	Reproducible bool `json:"reproducible"`
@@ -64,40 +67,42 @@ type EvalSummary struct {
 	Carried artifact.ID `json:"carried,omitzero"`
 }
 
-// recordExecution reads the prompting protocol an evaluation record ran
-// under (its run's plan input binds the execution policy), whether its
-// environment is reproducible, and its run's replay receipt, if any. A
-// record whose plan cannot be read reports the raw anchor, the only protocol
-// earlier records could have run; a run whose environment cannot be read
-// reports it reproducible, as every earlier environment was.
-func recordExecution(ctx context.Context, store *overgodb.Store, record runrecord.Evaluation) (prompting, bool, artifact.ID) {
+// unknownPrompting renders an absent or inconsistent execution authority. It
+// is never an execution policy accepted by a plan.
+const unknownPrompting = "unknown"
+
+// recordExecution reads execution facts through their existing typed owners.
+// Unknown authority retains the measurement and any identified replay receipt,
+// without inventing a protocol or a reproducible environment.
+func recordExecution(ctx context.Context, store *overgodb.Store, record runrecord.Evaluation) EvalSummary {
+	summary := EvalSummary{Record: record.ID, Prompting: unknownPrompting}
 	bound, err := runrecord.RequireRun(ctx, store, record.Run)
-	if err != nil || len(bound.Inputs) == 0 {
-		return PromptingRawCompletion, true, artifact.ID{}
+	if err != nil {
+		return summary
 	}
-	reproducible := true
-	if environment, err := runrecord.RequireEnvironment(ctx, store, bound.Environment); err == nil {
-		reproducible = environment.Reproducible()
-	}
-	var carried artifact.ID
 	if len(bound.Outputs) == 1 {
 		if descriptor, found, _ := store.Artifact(ctx, bound.Outputs[0]); found && descriptor.Schema == replayReceiptContract.Schema {
-			carried = descriptor.ID
+			summary.Carried = descriptor.ID
 		}
 	}
-	content, found, err := artifact.ReadContent(ctx, store, bound.Inputs[0])
-	if err != nil || !found {
-		return PromptingRawCompletion, reproducible, carried
+	if bound.Outcome != runrecord.OutcomeSucceeded || bound.Recipe != record.Recipe || len(bound.Inputs) != 1 {
+		return summary
 	}
-	plan, err := ParsePlan(content.Data)
-	if err != nil {
-		return PromptingRawCompletion, reproducible, carried
+	plan, err := loadEvidencePlan(ctx, store, bound.Inputs[0])
+	if err != nil || plan.body.RuntimeRecipe != record.Recipe || plan.body.Dataset != record.Dataset ||
+		plan.body.CodeCommit != bound.CodeCommit || plan.body.Environment != bound.Environment {
+		return summary
 	}
 	policy, err := ReadExecutionPolicy(ctx, store, plan.Execution())
 	if err != nil {
-		return PromptingRawCompletion, reproducible, carried
+		return summary
 	}
-	return policy.Prompting, reproducible, carried
+	environment, err := runrecord.RequireEnvironment(ctx, store, bound.Environment)
+	if err != nil {
+		return summary
+	}
+	summary.Prompting, summary.Reproducible, summary.ExecutionKnown = policy.Prompting.Label(), environment.Reproducible(), true
+	return summary
 }
 
 // EvidenceIndex joins the store's committed evidence back onto models:
@@ -193,12 +198,11 @@ func LatestEvidence(
 		if !named {
 			return nil
 		}
-		protocol, reproducible, carried := recordExecution(ctx, store, record)
-		prompting := protocol.Label()
+		summary := recordExecution(ctx, store, record)
 		if seenSuite[record.Recipe] == nil {
 			seenSuite[record.Recipe] = map[string]bool{}
 		}
-		key := suite + "\x00" + prompting
+		key := suite + "\x00" + summary.Prompting
 		if seenSuite[record.Recipe][key] {
 			return nil
 		}
@@ -208,10 +212,8 @@ func LatestEvidence(
 		for _, metric := range record.Metrics {
 			metrics[metric.Name], directions[metric.Name] = metric.Value, metric.Direction
 		}
-		index.EvaluationsByRecipe[record.Recipe] = append(index.EvaluationsByRecipe[record.Recipe], EvalSummary{
-			Suite: suite, Prompting: prompting, Record: record.ID, Metrics: metrics, Directions: directions, Reproducible: reproducible,
-			Carried: carried,
-		})
+		summary.Suite, summary.Metrics, summary.Directions = suite, metrics, directions
+		index.EvaluationsByRecipe[record.Recipe] = append(index.EvaluationsByRecipe[record.Recipe], summary)
 		return nil
 	})
 	return index

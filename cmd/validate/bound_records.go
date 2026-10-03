@@ -104,7 +104,7 @@ func (benchmarks benchmarkEvidence) record(ctx context.Context, store *overgodb.
 		return boundRecord{refusal: fmt.Errorf("%w: it declares %s", errCellInapplicable, cell.Modality)}, nil
 	}
 	for _, summary := range benchmarks.evidence.EvaluationsByRecipe[cell.Recipe] {
-		if !ofFamily(summary.Suite, cell.Validation) || cell.Protocol != "" && summary.Prompting != cell.Protocol {
+		if !summary.ExecutionKnown || !ofFamily(summary.Suite, cell.Validation) || cell.Protocol != "" && summary.Prompting != cell.Protocol {
 			continue
 		}
 		evaluated, err := runrecord.RequireEvaluation(ctx, store, summary.Record)

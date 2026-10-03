@@ -28,7 +28,8 @@ import (
 // evidence each task has. A projection recipe the evaluation circuit scored
 // on sets outside the derived catalog reads one of them under a full
 // contract: its metric and direction, the evaluation origin, the set's
-// identity as suite and the protocol it ran under, and the same set
+// identity as suite and its unknown protocol when execution documents are
+// absent, and the same set
 // whichever ran last. A recipe's wall-time record carries no evaluation
 // evidence and is not held-out quality. A task whose held-out evaluation is
 // only proposed reads not applicable with the proposal, is proposed as work,
@@ -73,8 +74,9 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 		}
 		return evaluated
 	}
-	// scored records an evaluation the circuit ran, with the evidence that
-	// binds it to a plan over the set.
+	// scored records metric evidence naming a plan over the set. This fixture
+	// publishes only plan and run descriptors, so it cannot establish a prompt
+	// protocol; the original metric, direction and source still remain visible.
 	scored := func(recipeID, set artifact.ID, value float64) runrecord.Evaluation {
 		t.Helper()
 		evaluated := record(recipeID, set, accuracy(value))
@@ -119,7 +121,7 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 	}
 	index := evaluation.LatestEvidence(ctx, store, suites, 0)
 	cell, others := qualityCell(recipe.TaskProjection, index.EvaluationsByRecipe[projection], nil)
-	want := Contract{Metric: "accuracy", Origin: originEvaluation, Suite: first.String(), Protocol: evaluation.PromptingRawCompletion.Label()}
+	want := Contract{Metric: "accuracy", Origin: originEvaluation, Suite: first.String(), Protocol: "unknown"}
 	if !cell.Measured() || cell.Value != 0.5 || cell.Source != read.ID || cell.Direction != runrecord.DirectionMaximize || cell.Contract != want {
 		t.Fatalf("projection quality = %+v, want the set named first, %+v, from its evaluation", cell, want)
 	}

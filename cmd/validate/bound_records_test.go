@@ -12,6 +12,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
@@ -63,6 +65,91 @@ func surfaceHistory(t *testing.T) (root, beforeSurface, beforeDocs, head string)
 	write("docs/notes.md", "fixture, revised\n")
 	head = commit("revise the notes")
 	return root, beforeSurface, beforeDocs, head
+}
+
+// TestBenchmarkDoesNotReuseUnknownExecution makes missing execution authority
+// select a fresh measurement, while a complete real campaign remains reusable.
+func TestBenchmarkDoesNotReuseUnknownExecution(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	authorities := evaluation.ListingAuthorities()
+	data, _ := replayFixtureSuite(t, 1)
+	suite, err := evaluation.CompileSuite(data, authorities)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := testutil.ArtifactID(t, artifact.KindModel, "unknown execution model")
+	output := testutil.ArtifactID(t, artifact.KindEvaluation, "legacy report")
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "benchmark/authorities", Artifacts: []artifact.Descriptor{
+		{ID: model}, {ID: authorities.ModelDefinition}, {ID: authorities.RuntimeRecipe}, {ID: suite.Descriptor().Dataset}, {ID: output},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := runrecord.NewRun(authorities.RuntimeRecipe, runrecord.OutcomeSucceeded, nil, []artifact.ID{output}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := legacy.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := artifact.NewDocumentBatch("benchmark/legacy-run", []artifact.Content{content}, legacy.Lineage(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(t.Context(), batch); err != nil {
+		t.Fatal(err)
+	}
+	record, err := runrecord.NewEvaluation(authorities.RuntimeRecipe, legacy.ID, suite.Descriptor().Dataset, []runrecord.Metric{{Name: "accuracy", Value: 0.5, Direction: runrecord.DirectionMaximize}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err = record.Batch("benchmark/legacy-evaluation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(t.Context(), batch); err != nil {
+		t.Fatal(err)
+	}
+	cell := ModelValidation{Model: model, Recipe: authorities.RuntimeRecipe, Kind: recipe.TaskInference, Validation: "mmlu", Surface: "evaluation"}
+	read := func() boundRecord {
+		t.Helper()
+		benchmarks := benchmarkEvidence{suites: []evaluation.CompiledSuite{suite}, evidence: evaluation.LatestEvidence(t.Context(), store, map[artifact.ID]string{suite.Descriptor().Dataset: "store/mmlu"}, 0)}
+		value, err := benchmarks.record(t.Context(), store, cell)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	if value := read(); value.found || value.replay.Valid() || value.protocol != evaluation.PromptingRawCompletion.Label() {
+		t.Errorf("unknown execution was reused: %+v, want a fresh raw measurement without replay", value)
+	}
+	platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "fixture", Arch: "fixture", Device: "fixture", Backend: "host", Driver: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scored := 0
+	campaign, err := evaluation.NewIsolatedCampaign(store, replayFixtureRuntime{scored: &scored}, modelrecipe.ProgramIdentity{
+		Model: model, Definition: authorities.ModelDefinition, Recipe: authorities.RuntimeRecipe,
+	}, platform, strings.Repeat("a", 40))
+	if err != nil {
+		t.Fatal(err)
+	}
+	suite, err = evaluation.CompileSuite(data, campaign.Authorities())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := campaign.Evaluate(t.Context(), suite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if value := read(); !value.found || value.run.ID != fresh.Run || value.replay != fresh.Evaluation || value.protocol != evaluation.PromptingRawCompletion.Label() || scored != 1 {
+		t.Fatalf("known real execution was not retained: %+v, scored=%d", value, scored)
+	}
 }
 
 // TestBenchmarkCurrencyFollowsItsSurface holds a benchmark cell to the commit

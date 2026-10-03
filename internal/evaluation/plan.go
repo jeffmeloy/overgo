@@ -60,6 +60,12 @@ type ExecutionPolicy struct {
 	Prompting prompting `json:"prompting,omitzero"`
 }
 
+// valid accepts only the lifecycle and prompting contracts the runtime owns.
+func (policy ExecutionPolicy) valid() bool {
+	return (policy.Lifecycle == LifecycleIsolated || policy.Lifecycle == LifecycleResident) &&
+		(policy.Prompting == PromptingRawCompletion || policy.Prompting == PromptingChatTemplate || policy.Prompting == PromptingHostedChat)
+}
+
 // prompting is the prompt-shaping protocol an execution policy binds.
 type prompting string
 
@@ -236,9 +242,7 @@ func bindPlan[C, S any](
 		authorities.Environment.Kind() != artifact.KindEvidence || !validCommit(authorities.CodeCommit) {
 		return Plan{}, errors.New("evaluation: invalid plan authorities")
 	}
-	if authorities.Execution.Lifecycle != LifecycleIsolated && authorities.Execution.Lifecycle != LifecycleResident ||
-		authorities.Execution.Prompting != PromptingRawCompletion && authorities.Execution.Prompting != PromptingChatTemplate &&
-			authorities.Execution.Prompting != PromptingHostedChat {
+	if !authorities.Execution.valid() {
 		return Plan{}, errors.New("evaluation: invalid execution policy")
 	}
 	body := planBody{
@@ -274,9 +278,15 @@ func ReadExecutionPolicy(ctx context.Context, reader artifact.Reader, id artifac
 	if !found {
 		return ExecutionPolicy{}, errors.New("evaluation: execution policy is absent")
 	}
-	var policy ExecutionPolicy
-	if err := json.Unmarshal(content.Data, &policy); err != nil {
+	if err := executionContract.ValidateContent(content, id); err != nil {
 		return ExecutionPolicy{}, err
+	}
+	var policy ExecutionPolicy
+	if err := strictjson.DecodeBytes(content.Data, &policy); err != nil {
+		return ExecutionPolicy{}, err
+	}
+	if !policy.valid() {
+		return ExecutionPolicy{}, errors.New("evaluation: invalid execution policy")
 	}
 	return policy, nil
 }

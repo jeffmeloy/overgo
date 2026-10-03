@@ -232,9 +232,11 @@ func verifiedNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]
 }
 
 // servingSummary aggregates the serving attempts recorded under one recipe:
-// what users actually hit.
+// what users actually hit. Its attempts, failures and cancellations count
+// back to the recipe's newest success, which succeeded says it has.
 type servingSummary struct {
 	attempts, failures, cancelled        int
+	succeeded                            bool
 	firstOutputNS, wholeOutputNS, loadNS []uint64
 	decodeTokens, decodeNS               uint64
 	peakDeviceBytes                      uint64
@@ -249,7 +251,11 @@ func (summary *servingSummary) cell(value float64, unit, metric, label string) C
 
 // servingByRecipe reads every serving observation, newest first, into one
 // summary per recipe, so a row counts its own activation's attempts and a
-// fix shipped as a new recipe starts clean. A cancelled attempt counts as
+// fix shipped as a new recipe starts clean. A failure counts until a later
+// attempt of its recipe succeeds: the failure rate is the failed share of
+// the attempts back to the newest success, so a fix shipped in code closes
+// it with the first attempt that succeeds, and a recipe failing now reads
+// as failing whatever it did before. A cancelled attempt counts as
 // neither success nor failure and contributes no samples: the server
 // records both a user's cancel and its own deadline that way. An
 // observation a gate result depends on is a validation run's measurement,
@@ -272,15 +278,22 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 			summary = &servingSummary{latest: observation.ID, recipe: observation.Recipe}
 			summaries[observation.Recipe] = summary
 		}
+		counted := !summary.succeeded
 		switch observation.Outcome {
 		case runrecord.OutcomeSucceeded:
-			summary.attempts++
+			summary.succeeded = true
 		case runrecord.OutcomeFailed:
-			summary.attempts++
-			summary.failures++
+			if counted {
+				summary.failures++
+			}
 		default:
-			summary.cancelled++
+			if counted {
+				summary.cancelled++
+			}
 			return nil
+		}
+		if counted {
+			summary.attempts++
 		}
 		prefilled := false
 		for _, sample := range observation.Hardware {
@@ -554,8 +567,12 @@ func failureCell(observed *servingSummary) Cell {
 	if observed == nil || observed.attempts == 0 {
 		return gap("no completed serving attempts recorded")
 	}
+	since := "since the last success"
+	if !observed.succeeded {
+		since = "and none succeeded"
+	}
 	return observed.cell(float64(observed.failures)/float64(observed.attempts), "", "failed share of attempts",
-		fmt.Sprintf("%d of %d attempts failed, %d cancelled", observed.failures, observed.attempts, observed.cancelled))
+		fmt.Sprintf("%d failed and %d cancelled %s", observed.failures, observed.cancelled, since))
 }
 
 func loadCell(benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {

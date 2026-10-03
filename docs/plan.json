@@ -34,6 +34,21 @@
       ]
     },
     {
+      "id": "inference-decode-gaps",
+      "title": "Close the measured decode and load gaps: Unlimited-OCR decode first",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Close the measured decode and load gaps: Unlimited-OCR decode first",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Owner analysis 2026-10-02, checked against scorecard-20261002 values (RTX 4090 D, ~1 TB/s; bounds weights-only, rough): Unlimited-OCR (deepseek2-ocr MoE, ~6 GB) 3.93 tok/s, under 1% of bound, peak 10 GiB for a ~6 GB file; Bonsai-27B Q1_0 33.2 tok/s (~13%; prefill batched, decode per-vector); gemma-4-E4B 49.3 (~40%); gemma-4-12B fp8-native 41.5 (~50%); gemma-4-12B-it-fp8 (non-native) 31.1 tok/s, load 31.1 s, peak 22.5 GiB against native 41.5 / 22.6 s / 14.7 GiB at equal held-out quality (0.4919 vs 0.4926) - ask first whether it still serves anything; Qwen3.8-27B 26.6 (~60%); Qwen3.5-4B/9B 76-81 (65-72%); Qwen2.5-0.5B 333 (~33%, launch-bound). Load 21.7-31.1 s for the large models (before the gguf header fix). Steps, measure first: (1) profile Unlimited-OCR decode (expert dispatch on host or per-expert syncs?); (2) per-phase load breakdown (header, hash, read, upload, other) for gemma-12B, Qwen3.8-27B, E4B - the ~12 s re-hash on gemma-12B is an extrapolation, not a measurement; (3) fixes as one inference-surface batch: OCR decode, hash-while-uploading single-pass load (keeps integrity: refuse to serve on mismatch), Bonsai 1-bit dequantize-in-register decode; (4) E4B and gemma-12B kernel breakdowns. Sequencing: after media proofs are re-acquirable and a first promotion, since every fix moves the inference surface (re-evaluation ~4-5 h). Serves: inference (throughput, load-time, first-output). Update 2026-10-03: both sequencing conditions hold (media proofs re-acquire; main promoted 10-02), and evaluation replay carries a perf-only surface move in minutes when outputs stay byte-identical, so a decode fix no longer costs hours of re-evaluation. Unlimited-OCR also sets the cycle's cost: its guard alone is 11m43 of the 28-minute guard and serving block, and its ifeval has never finished. The verify is set once the decode profile names the cause. Parked finding 870a92db holds the same analysis."
+        }
+      ]
+    },
+    {
       "id": "validate-currency",
       "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
       "owner": "master-lead",
@@ -44,7 +59,7 @@
           "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Stage 2 of evaluation-replay/delete-selection (scratchpad delete-selection.md, measured 2026-10-02). What goes: surfaces.go except kindValidation (about -130), the Reuse/Unknown buckets and refusal cases of SelectValidation (-30), acceptedRecords.current and readAcceptedRecords down to grounding and benchmark record binding (-80), recordCurrent/judgeBound/boundKey (-60, a 12-line bindBenchmark keeps protocol, cost and -replay), guard_records.go (-79) with cmd/longform's latest-records verb (-60), media_receipt.go (-111; it runs a real-model go test inside every dry run, about 1-1.5 min per validate call, while the models lane runs the same acceptances every cycle), and the inventory's validated standing (-35): about -550 production lines in cmd/validate and -400 test lines. What it costs: every activated applicable cell runs every cycle, about 2h10 of blocking cells in steady state against today's mean of about 1h, plus less device time for the background fill. Cuts that bring it toward the bar: Unlimited-OCR decodes at 3.9 tok/s, under 1% of its bandwidth bound, and its guard alone takes 11m43 (finding 870a92db); one evaluate process per model for its blocking families saves about 8 min of fixed overhead (measure before adding code); the 9B hybrid training proof (22m05, same cmd/train route and code as the blocking 4B proof) could run in the background, which is decision nine-b-proof-background. Even with all three about 1h40 remains, since guards, serving and media have no cheaper form. Re-measure the steady-state every-cell cost from the first cycle after delete-selection lands and land this when it is within an hour of today's cycles, or on the owner's word."
+          "rationale": "Stage 2 of evaluation-replay/delete-selection (scratchpad delete-selection.md, measured 2026-10-02). What goes: surfaces.go except kindValidation (about -130), the Reuse/Unknown buckets and refusal cases of SelectValidation (-30), acceptedRecords.current and readAcceptedRecords down to grounding and benchmark record binding (-80), recordCurrent/judgeBound/boundKey (-60, a 12-line bindBenchmark keeps protocol, cost and -replay), guard_records.go (-79) with cmd/longform's latest-records verb (-60), media_receipt.go (-111; it runs a real-model go test inside every dry run, about 1-1.5 min per validate call, while the models lane runs the same acceptances every cycle), and the inventory's validated standing (-35): about -550 production lines in cmd/validate and -400 test lines. What it costs: every activated applicable cell runs every cycle, about 2h10 of blocking cells in steady state against today's mean of about 1h, plus less device time for the background fill. Cuts that bring it toward the bar: Unlimited-OCR decodes at 3.9 tok/s, under 1% of its bandwidth bound, and its guard alone takes 11m43 (finding 870a92db); one evaluate process per model for its blocking families saves about 8 min of fixed overhead (measure before adding code); the 9B hybrid training proof (22m05, same cmd/train route and code as the blocking 4B proof) could run in the background, which is decision nine-b-proof-background. Even with all three about 1h40 remains, since guards, serving and media have no cheaper form. Re-measure the steady-state every-cell cost from the first cycle after delete-selection lands and land this when it is within an hour of today's cycles, or on the owner's word. Hazard this row must close (cycle 6, 2026-10-03): a published scorecard labels every cell with the publishing commit, whatever commit its record ran at. A held-out cell that enters a baseline while its record is stale there (a retained contract first listed by new code, or a background fill's record made at the previous measured commit) is later re-measured and compared across a range wider than main..candidate, so drift main already holds withholds the candidate: gemma-4-12B-it-fp8-native's raw mmlu-pro baseline 0.285488697 was a record 115 runtime commits older than main. Re-acquiring every compared cell at the published commit (replay making that cheap) removes the case; until then a baseline cell's value is only as fresh as its record."
         }
       ]
     },
@@ -125,21 +140,6 @@
           "status": "open",
           "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
           "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-failing-inference",
-      "title": "Fix the inference attempts that failed",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fix the inference attempts that failed",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-failing-inference",
-          "rationale": "- Qwen3.8-27B failure-rate: 3 of 35 attempts failed, 0 cancelled\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline. Triage 2026-09-30 (master-lead): the three failures are Qwen3.8-27B serving attempts on 2026-08-30 under recipe 6595ed03 (the first ran 3m39s, the next two failed in about 22 ms), recorded only as failure=execution_failed. internal/server/serving_observation.go executionOutcome drops the error, which the operation status keeps (internal/operation/runtime.go Failure), so the scorecard cannot say what failed. Two causes to fix before the row can close: (1) the serving observation should carry the failure's cause, so a failing gap names it; (2) failure-rate counts every attempt under a recipe, so a fix shipped in code (not as a new recipe) never closes the gap. Judge failures against attempts after the change that claims the fix, not all time. Reproduce first: serve Qwen3.8-27B now through the same path.\n\nSQA 2026-09-30, SQA-041 (P2): serving aggregates mix measurement origins. Its fix, in promotion-correctness/typed-comparison, also gives this gap an honest scope."
         }
       ]
     },
@@ -622,23 +622,9 @@
             "objective-training-proof/do",
             "evaluation-replay/do",
             "cycle-measure-worktree/do",
-            "validate-currency/do"
+            "validate-currency/do",
+            "inference-decode-gaps/do"
           ]
-        }
-      ]
-    },
-    {
-      "id": "scorecard-failing-training",
-      "title": "Fix the training attempts that failed",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fix the training attempts that failed",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-failing-training",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 failure-rate: 1 of 4 attempts failed, 0 cancelled\n- LiveEdit failure-rate: 1 of 4 attempts failed, 0 cancelled\n- Qwen3.5-4B failure-rate: 1 of 4 attempts failed, 0 cancelled\n- Qwen3.5-9B failure-rate: 1 of 4 attempts failed, 0 cancelled\n- Wan2.1-T2V-1.3B failure-rate: 1 of 4 attempts failed, 0 cancelled\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     },
@@ -923,6 +909,17 @@
         "validate-currency"
       ],
       "asked": "2026-10-02"
+    },
+    {
+      "id": "serving-cells-current",
+      "question": "The scorecard's serving cells (first-output, throughput, load-time, peak-device-memory) aggregate every attempt a recipe ever made: medians over all time, total tokens over total decode time, the highest peak ever. A landed improvement shows only as old samples are outnumbered and a peak never falls. Since delete-selection each cycle measures every serving cell once at the measured commit. Should those cells read the newest successful measured attempt instead, accepting one sample's timing noise in each cycle's moved list?",
+      "options": [
+        "newest measured attempt",
+        "all-time aggregates",
+        "median of the newest few attempts"
+      ],
+      "recommendation": "newest measured attempt",
+      "asked": "2026-10-03"
     }
   ]
 }

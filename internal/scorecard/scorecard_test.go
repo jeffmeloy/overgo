@@ -12,9 +12,11 @@ import (
 )
 
 // TestServingCountsWhatUsersHit holds the serving summary to the attempts
-// users made: a failed attempt counts against its recipe, and one a gate
-// result depends on -- a validation run's deliberate interrupt -- does not.
-// The cells read the summary as a user met it: one failure in two attempts,
+// users made: a failed attempt counts against its recipe until a later one
+// succeeds, and one a gate result depends on -- a validation run's
+// deliberate interrupt -- never does. The cells read the summary as a user
+// meets the recipe now: the failure since its newest success in the two
+// attempts back to it, the failure that success followed counted no longer,
 // a whole-output capability's time to its output, and the device memory
 // the success peaked at. Each keeps its origin and scope, the serving
 // attempts of its recipe, so it compares only with the same population.
@@ -49,10 +51,11 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 		return observation
 	}
 	const peak, wholeOutputNS = 3 << 20, 2_000_000
-	observe("user", runrecord.ServingObservation{Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 1, MeasuredNS: 1})
+	observe("fixed", runrecord.ServingObservation{Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 1, MeasuredNS: 1})
 	observe("success", runrecord.ServingObservation{Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 2, MeasuredNS: wholeOutputNS,
 		Resources: runrecord.ServingResources{PeakDeviceBytes: peak}})
 	interrupt := observe("interrupt", runrecord.ServingObservation{Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 3, MeasuredNS: 1})
+	observe("user", runrecord.ServingObservation{Outcome: runrecord.OutcomeFailed, Failure: "execution_failed", StartedUnixNS: 4, MeasuredNS: 1})
 	gate, err := runrecord.NewGateRecord(recipeID, environment, "0123456789abcdef0123456789abcdef01234567", runrecord.OutcomeSucceeded, "", 1,
 		[]runrecord.GateStep{{Name: "interrupts", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: 1}})
 	if err != nil {
@@ -72,11 +75,14 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	}
 	summary := summaries[recipeID]
 	if summary == nil || summary.attempts != 2 || summary.failures != 1 {
-		t.Fatalf("serving summary = %+v, want the user's two attempts and not the validation run's", summary)
+		t.Fatalf("serving summary = %+v, want the user's two attempts back to the newest success, not the validation run's nor the failure that success followed", summary)
 	}
 	var none evaluation.BenchmarkSummary
-	if cell := failureCell(summary); cell.Value != 0.5 || cell.Contract.Origin != originServing || cell.Contract.Scope != recipeID {
+	if cell := failureCell(summary); cell.Value != 0.5 || cell.Label != "1 failed and 0 cancelled since the last success" || cell.Contract.Origin != originServing || cell.Contract.Scope != recipeID {
 		t.Fatalf("failure cell = %+v, want one failure in two attempts, scoped to the recipe's serving attempts", cell)
+	}
+	if cell := failureCell(&servingSummary{attempts: 2, failures: 2}); cell.Value != 1 || cell.Label != "2 failed and 0 cancelled and none succeeded" {
+		t.Fatalf("failure cell of a recipe that never succeeded = %+v, want every attempt failed", cell)
 	}
 	if cell := firstOutputCell(recipe.TaskImageGen, none, false, summary); cell.Value != milliseconds(wholeOutputNS) || cell.Unit != "ms" {
 		t.Fatalf("first-output cell = %+v, want the whole output's time", cell)

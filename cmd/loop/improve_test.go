@@ -1,9 +1,9 @@
 package main
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +15,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/loop"
 	"overgo/internal/plan"
+	"overgo/internal/processlock"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard"
@@ -147,7 +148,7 @@ func TestNoScorecardOfMainPromotesNothing(t *testing.T) {
 	if err := publish(0.5); err != nil {
 		t.Fatal(err)
 	}
-	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func() error { return publish(0.6) }, fill: func(string) error { return nil }}
+	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func(string) error { return publish(0.6) }, fill: func(string) error { return nil }}
 	var outcome loop.Outcome
 	if _, err := loop.Improve(improver, &outcome); err != nil {
 		t.Fatal(err)
@@ -157,14 +158,16 @@ func TestNoScorecardOfMainPromotesNothing(t *testing.T) {
 	}
 }
 
-// TestFillRunsAtTheMeasuredCommit runs improvement cycles whose background
-// fill outlives the main checkout's HEAD: a landing moves it on once the
-// scorecard is measured, and another writes the plan and lands while the
-// fill runs. The fill runs in a checkout of its own at the commit the
-// published scorecard measured, clean and at that commit throughout, and
-// that checkout and its registration are gone afterward, whether the fill
-// passed or failed.
-func TestFillRunsAtTheMeasuredCommit(t *testing.T) {
+// TestCycleRunsInItsOwnCheckout runs improvement cycles while rows land in
+// the main checkout, one during the measurement and one during the fill.
+// The scorecard is measured and the background filled in one cycle
+// checkout kept in the main checkout's process state, at the commit the
+// main checkout's HEAD held when the cycle began, clean throughout, whether
+// the fill passed or failed. The next cycle reuses that directory, moved to
+// the main checkout's new HEAD, and the main checkout stays clean beside
+// it. A cycle checkout another cycle holds refuses the next measurement,
+// and so does one a run left a change in, which stays.
+func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 	t.Parallel()
 	repository := t.TempDir()
 	git := func(directory string, arguments ...string) string { return gitFixture(t, directory, arguments...) }
@@ -175,53 +178,84 @@ func TestFillRunsAtTheMeasuredCommit(t *testing.T) {
 	}
 	git(repository, "add", "plan.json")
 	git(repository, "commit", "-q", "-m", "measured")
-	measured := git(repository, "rev-parse", "HEAD")
 	mainCheckout := git(repository, "rev-parse", "--show-toplevel")
 
-	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-fill-worktree")
+	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-cycle-worktree")
 	records := filepath.Join(t.TempDir(), "scorecards")
 	published := time.Date(2026, time.October, 2, 12, 0, 0, 0, time.UTC)
+	improver := improvement{root: repository, plan: planPath, records: records}
+	var cycle string
 	for round, failure := range []error{nil, errors.New("a background suite failed")} {
-		var checkouts []string
-		improver := improvement{root: repository, plan: planPath, records: records}
-		improver.measure = func() error {
+		measured := git(repository, "rev-parse", "HEAD")
+		var ran []string
+		// inCycle checks the stage runs where and at what it should, then
+		// lands a row in the main checkout while it runs.
+		inCycle := func(stage, checkout string) {
+			ran = append(ran, stage)
+			cycle = cmp.Or(cycle, checkout)
+			if relative, err := filepath.Rel(repository, checkout); checkout != cycle || err != nil || strings.HasPrefix(relative, "..") {
+				t.Errorf("round %d: the %s ran in %s; want the cycle checkout %s inside the main checkout every time", round, stage, checkout, cycle)
+			}
+			if top := git(checkout, "rev-parse", "--show-toplevel"); top == mainCheckout {
+				t.Errorf("round %d: the %s ran in the main checkout %s", round, stage, top)
+			}
+			if head, status := git(checkout, "rev-parse", "HEAD"), git(checkout, "status", "--porcelain"); head != measured || status != "" {
+				t.Errorf("round %d: the %s ran at %s with status %q while the main checkout landed; want the measured commit %s, clean", round, stage, head, status, measured)
+			}
+			landed := fmt.Sprintf("landed-during-%s-%d", stage, round)
+			if added, err := improver.Propose(scorecard.Record{Name: "another session"}, []scorecard.Gap{{Key: landed, Title: "a row another session lands", Detail: "written while the cycle runs"}}); err != nil || added != 1 {
+				t.Errorf("round %d: the main checkout's plan took %d row(s) during the %s, %v; want one", round, added, stage, err)
+			}
+			git(repository, "commit", "-q", "-am", "landed during the "+stage)
+		}
+		improver.measure = func(checkout string) error {
+			inCycle("measure", checkout)
 			published = published.Add(time.Hour)
-			_, err := scorecard.Publish(records, published, scorecard.Record{Commit: measured, Rows: []scorecard.Row{
+			_, err := scorecard.Publish(records, published, scorecard.Record{Commit: git(checkout, "rev-parse", "HEAD"), Rows: []scorecard.Row{
 				scoredRow(t, source, "alpha", recipe.TaskInference, 0.5, 0, scorecard.Cell{Value: 1, Source: source})}})
-			git(repository, "commit", "-q", "--allow-empty", "-m", "landed after the measurement")
 			return err
 		}
 		improver.fill = func(checkout string) error {
-			checkouts = append(checkouts, checkout)
-			landed := fmt.Sprintf("landed-during-fill-%d", round)
-			if added, err := improver.Propose(scorecard.Record{Name: "another session"}, []scorecard.Gap{{Key: landed, Title: "a row another session lands", Detail: "written while the fill runs"}}); err != nil || added != 1 {
-				t.Errorf("the main checkout's plan took %d row(s) during the fill, %v; want one", added, err)
-			}
-			git(repository, "commit", "-q", "-am", "landed during the fill")
-			if top := git(checkout, "rev-parse", "--show-toplevel"); top == mainCheckout {
-				t.Errorf("the fill ran in the main checkout %s", top)
-			}
-			if head, status := git(checkout, "rev-parse", "HEAD"), git(checkout, "status", "--porcelain"); head != measured || status != "" {
-				t.Errorf("the fill ran at %s with status %q while the main checkout landed; want the measured commit %s, clean", head, status, measured)
-			}
+			inCycle("fill", checkout)
 			return failure
 		}
 		var outcome loop.Outcome
 		if _, err := loop.Improve(improver, &outcome); err != nil {
-			t.Fatalf("fill failure %v: %v", failure, err)
+			t.Fatalf("round %d: %v", round, err)
 		}
-		if len(checkouts) != 1 {
-			t.Fatalf("fill failure %v: the fill ran in %q; want once", failure, checkouts)
+		if !slices.Equal(ran, []string{"measure", "fill"}) {
+			t.Fatalf("round %d: ran %q; want the measure, then the fill", round, ran)
 		}
-		if _, err := os.Stat(checkouts[0]); !errors.Is(err, fs.ErrNotExist) {
-			t.Fatalf("fill failure %v: the fill's checkout %s remains: %v", failure, checkouts[0], err)
+		if status := git(repository, "status", "--porcelain"); status != "" {
+			t.Fatalf("round %d: the main checkout shows %q beside its cycle checkout; want it clean", round, status)
 		}
-		if registered := strings.Count(git(repository, "worktree", "list", "--porcelain"), "worktree "); registered != 1 {
-			t.Fatalf("fill failure %v: %d worktrees registered after the fill; want the main checkout alone", failure, registered)
+		if registered := strings.Count(git(repository, "worktree", "list", "--porcelain"), "worktree "); registered != 2 {
+			t.Fatalf("round %d: %d worktrees registered after the cycle; want the main checkout and the cycle checkout", round, registered)
 		}
-		if head := git(repository, "rev-parse", "HEAD"); head == measured {
-			t.Fatalf("fill failure %v: the main checkout never moved from %s", failure, measured)
-		}
+	}
+	improver.measure = func(string) error {
+		t.Error("measured in a cycle checkout another cycle holds or a run left a change in")
+		return nil
+	}
+	held, err := processlock.Acquire(filepath.Join(repository, processlock.StateDirectory, cycleLock), cycleLockMode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loop.Improve(improver, &loop.Outcome{}); !errors.Is(err, processlock.ErrBusy) {
+		t.Fatalf("a cycle checkout another cycle holds gave %v; want a refusal", err)
+	}
+	if err := held.Close(); err != nil {
+		t.Fatal(err)
+	}
+	stray := filepath.Join(cycle, "stray.txt")
+	if err := os.WriteFile(stray, []byte("a run left this"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loop.Improve(improver, &loop.Outcome{}); err == nil || !strings.Contains(err.Error(), "stray.txt") {
+		t.Fatalf("a cycle checkout holding a change gave %v; want a refusal naming the change", err)
+	}
+	if _, err := os.Stat(stray); err != nil {
+		t.Fatalf("the change the cycle checkout held is gone: %v", err)
 	}
 }
 
@@ -313,7 +347,7 @@ func TestPromotionWaitsForAHoldingScorecard(t *testing.T) {
 		fills++
 		return errors.New("a background suite failed")
 	}
-	world := &planWorld{promoted: promoted, improvement: improvement{root: repository, plan: emptyPlan(t), records: records, measure: publish, fill: fill}}
+	world := &planWorld{promoted: promoted, improvement: improvement{root: repository, plan: emptyPlan(t), records: records, measure: func(string) error { return publish() }, fill: fill}}
 	outcome, err := loop.Run(world, loop.Config{MaxAttemptsPerStep: 1, MaxInvocations: 2})
 	if err != nil || outcome.Reason != loop.ReasonPlanComplete || len(world.parked) != 0 || fills != len(scripted)-1 {
 		t.Fatalf("outcome=%+v err=%v parked=%v fills=%d", outcome, err, world.parked, fills)

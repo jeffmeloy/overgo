@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "cycle-measure-worktree",
-      "title": "Measure the improvement cycle in its own worktree at the measured commit, so rows land while it runs",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure the improvement cycle in its own worktree at the measured commit, so rows land while it runs",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Cycle 6 (from 299655aaa) began measuring at 20:52 on 2026-10-02 and at 22:36 was at cell 35 of 49 with about 5-9 h of full runs predicted (the one-time debt of stale records); for all of that the main checkout must stay clean (gate-operating-manual: every cell records claims against a clean tree), so no row lands. Today's measure steps took 39 min to 6h40. The fill already runs in a detached worktree at the measured commit (0f9e046a2, fillBackground binds the main checkout's data roots through dataroot.ResolveEnvironment). Do the same for Measure: run validate -run and validate -scorecard -publish in a worktree of the commit being measured, then delete the clean-checkout rule from the operating notes. Check first, by running each cycle lane from a detached worktree, which of the main checkout's ignored files the lanes and cells read (local-models.json, .overgo-runtime, the GOCACHE they share) and bind exactly those. Predicted effect: no user-scorecard metric moves; rows land during a measure instead of waiting hours, so improvements reach the next cycle sooner. Use one persistent worktree path for the cycle (measure, then fill), checked out detached at each measured commit, not a fresh temporary directory: go's compile action IDs include the package directory when -trimpath is off, so a new path every cycle would rebuild every command and miss go test's cache, and the models lane uncached took 63.6 min against about 22-25 cached. The fill's fresh MkdirTemp worktree pays that today."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-inference",
       "title": "Recover inference held-out quality, which fell below the baseline scorecard",
       "owner": "master-lead",

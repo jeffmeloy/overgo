@@ -86,10 +86,11 @@ type ObligationWorld interface {
 // held-out quality holds against its baseline, and the run's gaps return as
 // plan rows, the next work.
 type ImprovementWorld interface {
-	// Measure runs the scorecard and returns the record it published and the
-	// baseline that record is judged against, nil when there is none. A
-	// failed validation returns its error beside the published record; a run
-	// that published nothing returns no record.
+	// Measure runs the scorecard at the main checkout's HEAD, in a checkout
+	// apart from it so rows land while it runs, and returns the record it
+	// published and the baseline that record is judged against, nil when
+	// there is none. A failed validation returns its error beside the
+	// published record; a run that published nothing returns no record.
 	Measure() (published, baseline *scorecard.Record, err error)
 	// Promote moves the promoted branch forward to the measured commit. It
 	// never pushes.
@@ -264,14 +265,14 @@ func improve(world World, outcome *Outcome) (int, error) {
 // the measured commit only when the record is not withheld (a baseline
 // measured on the promoted branch, every held-out quality measured, none
 // fallen), proposes the gaps as rows, then fills the validations promotion
-// does not compare at the measured commit. The fill records its claims in a
-// checkout of that commit apart from the main one, so the proposals do not
-// wait on it: the rows reach the plan before the fill's hours start, and a
-// fill that is stopped loses none of them. A failed validation leaves stale
-// cells, so it promotes nothing; its record still names the gaps. The
-// outcome says why a commit was withheld, a failed validation by the failure
-// Measure returned. The driver runs it when the plan empties, and cmd/loop
-// -improve on demand.
+// does not compare at the measured commit. The measurement and the fill
+// record their claims in a checkout of that commit apart from the main one,
+// so rows land while they run and the proposals do not wait on the fill:
+// the rows reach the plan before the fill's hours start, and a fill that is
+// stopped loses none of them. A failed validation leaves stale cells, so it
+// promotes nothing; its record still names the gaps. The outcome says why a
+// commit was withheld, a failed validation by the failure Measure returned.
+// The driver runs it when the plan empties, and cmd/loop -improve on demand.
 func Improve(improver ImprovementWorld, outcome *Outcome) (int, error) {
 	published, baseline, err := improver.Measure()
 	if published == nil {

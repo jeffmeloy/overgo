@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,20 +16,22 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
 	"overgo/internal/plan"
+	"overgo/internal/processlock"
 	"overgo/internal/scorecard"
 )
 
 // improvement closes the loop each time the plan empties: the scorecard run
 // is the promotion evidence, the promoted branch moves only on a holding
 // scorecard, and the gaps return as rows of the plan at path plan. root is
-// the checkout whose branch is promoted and whose plan mutation lock is
-// taken; records is the directory the scorecards are published in.
+// the checkout whose HEAD is measured, whose branch is promoted and whose
+// plan mutation lock is taken; records is the directory the scorecards are
+// published in.
 type improvement struct {
 	root, plan, records string
 	// measure runs the stale validations promotion waits on and publishes
-	// the scorecard; fill runs the stale ones it does not compare in the
-	// checkout it is given.
-	measure func() error
+	// the scorecard; fill runs the stale ones it does not compare. Each runs
+	// in the cycle checkout it is given.
+	measure func(checkout string) error
 	fill    func(checkout string) error
 }
 
@@ -38,20 +41,26 @@ type improvement struct {
 func improvementFor(store string) improvement {
 	return improvement{
 		root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store),
-		measure: func() error { return measureScorecard(store) },
-		fill:    func(checkout string) error { return fillBackground(checkout, store) },
+		measure: func(checkout string) error { return measureScorecard(checkout, store) },
+		fill:    func(checkout string) error { return validateIn(checkout, store, nil, "-run", "-background") },
 	}
 }
 
-// Measure runs the scorecard and returns the record it published and that
-// record's baseline. A failed validation returns its error beside the
-// record; a run that published nothing returns none.
+// Measure runs the scorecard at root's HEAD in the cycle checkout and
+// returns the record it published and that record's baseline. Rows land in
+// root while it runs: the claims it records bind the commit the cycle
+// checkout holds. A failed validation returns its error beside the record;
+// a run that published nothing returns none.
 func (w improvement) Measure() (*scorecard.Record, *scorecard.Record, error) {
 	before, err := scorecard.Records(w.records)
 	if err != nil {
 		return nil, nil, err
 	}
-	measured := w.measure()
+	head, err := gitauthority.Query(context.Background(), w.root, "rev-parse", "HEAD")
+	if err != nil {
+		return nil, nil, err
+	}
+	measured := w.inCycle(strings.TrimSpace(string(head)), w.measure)
 	records, err := scorecard.Records(w.records)
 	if err != nil || len(records) == len(before) {
 		return nil, nil, errors.Join(measured, err)
@@ -82,17 +91,17 @@ func (w improvement) Promote(commit string) error {
 			return fmt.Errorf("%s holds %.12s, which %.12s does not contain; promotion only fast-forwards: %w", scorecard.PromotedBranch, promoted, commit, err)
 		}
 	}
-	if err := w.git("update-ref", "-m", "loop: the scorecard holds", scorecard.PromotedBranch, commit, promoted); err != nil {
+	if err := gitWrite(w.root, "update-ref", "-m", "loop: the scorecard holds", scorecard.PromotedBranch, commit, promoted); err != nil {
 		return err
 	}
 	fmt.Printf("loop: promoted %s to %s\n", scorecard.PromotedBranch, commit)
 	return nil
 }
 
-// git runs one git command that writes the repository at root.
-func (w improvement) git(arguments ...string) error {
+// gitWrite runs one git command that writes the checkout at directory.
+func gitWrite(directory string, arguments ...string) error {
 	var output bytes.Buffer
-	if err := runToolEnv(gitauthority.RepositoryEnvironment(), nil, &output, &output, append([]string{"git", "-C", w.root}, gitauthority.WriterArguments(arguments...)...)...); err != nil {
+	if err := runToolEnv(gitauthority.RepositoryEnvironment(), nil, &output, &output, append([]string{"git", "-C", directory}, gitauthority.WriterArguments(arguments...)...)...); err != nil {
 		return fmt.Errorf("git %s: %w: %s", arguments[0], err, strings.TrimSpace(output.String()))
 	}
 	return nil
@@ -135,43 +144,102 @@ const proposalStep = "do"
 // Fill runs the background validations, the suites the baseline scorecard
 // does not compare, after the cycle's decision: their evidence flows
 // without delaying or withholding a promotion, and a failure is reported
-// here and changes nothing the cycle decided. They run in a detached
-// checkout of the measured commit, so the claims they record bind the
-// commit the scorecard measured and rows land in the main checkout while
-// they run.
+// here and changes nothing the cycle decided. They run in the cycle
+// checkout at the measured commit, as the scorecard did, so the claims they
+// record bind that commit and rows land in the main checkout while they
+// run.
 func (w improvement) Fill(commit string) {
-	if err := w.fillAt(commit); err != nil {
+	err := w.inCycle(commit, func(checkout string) error {
+		fmt.Printf("loop: filling the background validations at %.12s in %s\n", commit, checkout)
+		return w.fill(checkout)
+	})
+	if err != nil {
 		fmt.Printf("loop: the background validations failed: %v\n", err)
 	}
 }
 
-// fillAt runs the fill in a worktree of commit made for it, then deletes
-// the worktree's directory and, once that is gone, its registration:
-// os.RemoveAll removes a junction a run left behind without entering it,
-// where git worktree remove would recurse into the junction's target.
-func (w improvement) fillAt(commit string) (err error) {
-	checkout, err := os.MkdirTemp("", "overgo-loop-fill-*")
+// cycleCheckout is the detached worktree the cycle measures and fills in,
+// kept in the process state of the checkout the loop runs in, with its lock
+// beside it. It is the same directory every cycle, so go reuses the builds
+// and test results it keys by package directory. The state directory
+// ignores everything in it and go's ./... skips a directory whose name
+// starts with a dot, so neither a landing nor a walk of cmd and internal
+// ever reaches it.
+const (
+	cycleCheckout = "cycle"
+	cycleLock     = cycleCheckout + ".lock"
+	// cycleLockMode keeps the lock private to the checkout's owner.
+	cycleLockMode = 0o600
+)
+
+// inCycle moves the cycle checkout to commit and runs run in it, holding
+// the checkout's lock throughout: another cycle refuses rather than move
+// the checkout under a run.
+func (w improvement) inCycle(commit string, run func(checkout string) error) (err error) {
+	if err := processlock.EnsureStateDirectory(w.root); err != nil {
+		return err
+	}
+	state := filepath.Join(w.root, processlock.StateDirectory)
+	lock, err := processlock.Acquire(filepath.Join(state, cycleLock), cycleLockMode)
+	if err != nil {
+		return fmt.Errorf("another cycle holds the cycle checkout: %w", err)
+	}
+	defer func() { err = errors.Join(err, lock.Close()) }()
+	checkout, err := filepath.Abs(filepath.Join(state, cycleCheckout))
 	if err != nil {
 		return err
 	}
-	if err := w.git("worktree", "add", "--quiet", "--detach", checkout, commit); err != nil {
-		return errors.Join(err, os.RemoveAll(checkout))
+	if err := w.moveCycle(checkout, commit); err != nil {
+		return err
 	}
-	defer func() {
-		removed := os.RemoveAll(checkout)
-		if removed == nil {
-			removed = w.git("worktree", "remove", checkout)
-		}
-		err = errors.Join(err, removed)
-	}()
-	fmt.Printf("loop: filling the background validations at %.12s in %s\n", commit, checkout)
-	return w.fill(checkout)
+	return run(checkout)
 }
 
-// fillBackground runs the background validations from checkout into store.
-// The checkout holds none of the main checkout's ignored files, so the data
-// roots the main checkout resolves are bound for it explicitly.
-func fillBackground(checkout, store string) error {
+// moveCycle checks the cycle checkout out at commit, adding the worktree on
+// first use. A checkout holding changes refuses, as does one holding an
+// ignored file that commit tracks: a run left them, and nothing here
+// discards them. Nothing removes the checkout either, so what a run leaves
+// among its ignored files stays, as it does in the main checkout.
+func (w improvement) moveCycle(checkout, commit string) error {
+	if _, err := os.Lstat(filepath.Join(checkout, ".git")); errors.Is(err, fs.ErrNotExist) {
+		return gitWrite(w.root, "worktree", "add", "--quiet", "--detach", checkout, commit)
+	}
+	status, err := gitauthority.Query(context.Background(), checkout, "status", "--porcelain")
+	if err != nil {
+		return err
+	}
+	if len(bytes.TrimSpace(status)) > 0 {
+		return fmt.Errorf("the cycle checkout %s holds changes a run left; keep or remove them by hand:\n%s", checkout, bytes.TrimRight(status, "\n"))
+	}
+	return gitWrite(checkout, "checkout", "--quiet", "--detach", "--no-overwrite-ignore", commit)
+}
+
+// measureScorecard measures again, from checkout, the stale validations
+// promotion waits on, then publishes the scorecard of store with what moved
+// since the previous one. A failed validation does not withhold the others'
+// numbers: the scorecard publishes regardless and the failure is returned
+// beside it with the final error the command wrote to its error file, so
+// the withheld promotion names each cell or lane validate -run acquired
+// nothing for, and why.
+func measureScorecard(checkout, store string) error {
+	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-measure-%d.error", os.Getpid()))
+	defer os.Remove(errorFile)
+	var failed []error
+	for _, arguments := range [][]string{{"-run"}, {"-scorecard", "-publish"}} {
+		_ = os.Remove(errorFile)
+		if err := validateIn(checkout, store, []string{clioptions.ErrorFileEnvironment + "=" + errorFile}, arguments...); err != nil {
+			final, _ := os.ReadFile(errorFile)
+			failed = append(failed, fmt.Errorf("loop: the plan is empty, but validate %s failed: %w: %s", strings.Join(arguments, " "), err, bytes.TrimSpace(final)))
+		}
+	}
+	return errors.Join(failed...)
+}
+
+// validateIn runs cmd/validate with arguments from checkout into store,
+// with environment added. The checkout holds none of the main checkout's
+// ignored files, so the data roots the main checkout resolves are bound for
+// it explicitly.
+func validateIn(checkout, store string, environment []string, arguments ...string) error {
 	store, err := filepath.Abs(store)
 	if err != nil {
 		return err
@@ -180,27 +248,6 @@ func fillBackground(checkout, store string) error {
 	if err != nil {
 		return err
 	}
-	return runToolEnv(append(loopEnvironment(), bound...), nil, os.Stdout, os.Stdout,
-		"go", "-C", checkout, "run", "./cmd/validate", "-run", "-background", "-repo", store)
-}
-
-// measureScorecard measures again the stale validations promotion waits on,
-// then publishes the scorecard of store with what moved since the previous
-// one. A failed validation does not withhold the others' numbers: the
-// scorecard publishes regardless and the failure is returned beside it with
-// the final error the command wrote to its error file, so the withheld
-// promotion names each cell or lane validate -run acquired nothing for, and
-// why.
-func measureScorecard(store string) error {
-	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-measure-%d.error", os.Getpid()))
-	defer os.Remove(errorFile)
-	var failed []error
-	for _, command := range [][]string{{"go", "run", "./cmd/validate", "-run", "-repo", store}, {"go", "run", "./cmd/validate", "-scorecard", "-publish", "-repo", store}} {
-		_ = os.Remove(errorFile)
-		if err := runToolEnv(append(loopEnvironment(), clioptions.ErrorFileEnvironment+"="+errorFile), nil, os.Stdout, os.Stdout, command...); err != nil {
-			final, _ := os.ReadFile(errorFile)
-			failed = append(failed, fmt.Errorf("loop: the plan is empty, but %s failed: %w: %s", strings.Join(command[1:], " "), err, bytes.TrimSpace(final)))
-		}
-	}
-	return errors.Join(failed...)
+	command := append([]string{"go", "-C", checkout, "run", "./cmd/validate"}, arguments...)
+	return runToolEnv(slices.Concat(loopEnvironment(), bound, environment), nil, os.Stdout, os.Stdout, append(command, "-repo", store)...)
 }

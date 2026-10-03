@@ -262,12 +262,14 @@ func loadResidentWeights(
 		}
 		f32Required := f32RequiredModelTensors(weights)
 		embeddingTensors := getRowsSourceTensors(weights)
+		expertBanks := nativeExpertBankTensors(weights, adaptedTensors)
 		f32Tensors = make([]gguf.TensorInfo, 0, len(selected))
 		var quantized []gguf.TensorInfo
 		for _, info := range selected {
 			_, adapted := adaptedTensors[info.Name]
 			_, requiresF32 := f32Required[info.Name]
 			_, isEmbedding := embeddingTensors[info.Name]
+			_, isExpertBank := expertBanks[info.Name]
 			// native half-precision residency: 2D F16/BF16 matmul weights stream
 			// into the raw store at 2 bytes (no F32 blowup). F8E4M3 joins the same
 			// raw native route at ~1 byte/element + a per-row F32 scale (the
@@ -275,8 +277,9 @@ func loadResidentWeights(
 			// the fp8 matmul kernel consumes). Decode reads the native dtype
 			// directly; prefill upconverts to F32 for exact SGEMM. BF16 embeddings
 			// use native get_rows; other embeddings and adapted/f32-required
-			// tensors stay F32.
-			if !adapted && !requiresF32 && (!isEmbedding || info.Type == dtype.BF16) && info.Dimensions == 2 &&
+			// tensors stay F32. BF16 routed-expert banks take the raw route too:
+			// their kernels read them as stored, in decode and prefill alike.
+			if isExpertBank || !adapted && !requiresF32 && (!isEmbedding || info.Type == dtype.BF16) && info.Dimensions == 2 &&
 				(info.Type == dtype.F16 || info.Type == dtype.BF16 || info.Type == dtype.F8E4M3) {
 				quantized = append(quantized, info)
 				continue

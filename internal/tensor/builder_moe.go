@@ -109,8 +109,8 @@ func (b *Builder) buildMoE(
 	}
 	expertType := up.Type
 	if up.Type != down.Type || gate != nil && gate.Type != up.Type ||
-		(expertType != dtype.F32 && !expertType.IsQuantized()) {
-		b.setError(errors.New("MoE experts must share F32 or native quantized storage"))
+		(expertType != dtype.F32 && expertType != dtype.BF16 && !expertType.IsQuantized()) {
+		b.setError(errors.New("MoE experts must share F32, BF16 or native quantized storage"))
 		return nil
 	}
 	if input.Shape.Rank != 2 || routerInput.Shape.Rank != 2 || router.Shape.Rank != 2 ||

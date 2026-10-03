@@ -719,12 +719,9 @@ func (b *Builder) binary(op Op, left, right *Tensor) *Tensor {
 }
 
 func broadcastShape(left, right Shape) (Shape, error) {
-	rank := left.Rank
-	if right.Rank > rank {
-		rank = right.Rank
-	}
+	rank := max(right.Rank, left.Rank)
 	dimensions := make([]uint64, rank)
-	for axis := uint8(0); axis < rank; axis++ {
+	for axis := range rank {
 		leftDimension := left.Dims[axis]
 		rightDimension := right.Dims[axis]
 		if leftDimension != rightDimension && leftDimension != 1 && rightDimension != 1 {
@@ -735,11 +732,7 @@ func broadcastShape(left, right Shape) (Shape, error) {
 				axis,
 			)
 		}
-		if leftDimension > rightDimension {
-			dimensions[axis] = leftDimension
-		} else {
-			dimensions[axis] = rightDimension
-		}
+		dimensions[axis] = max(leftDimension, rightDimension)
 	}
 	return NewShape(dimensions...)
 }

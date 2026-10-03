@@ -1147,6 +1147,74 @@
         ]
       },
       "scope": "the receipt re-runs, with the device enabled, the cmd/train tests that drive the dit route: its recorded flow-matching program and cancellation, every route's checkpoint publication, publication recording the actual authority, and the folded route probes"
+    },
+    {
+      "changes": {
+        "internal/cuda/executor/executor.go": {
+          "after_sha256": "cfe12eaed66b28755f86f2b3bc2bf7c9df32c0d693d1a4657992752c43236bba",
+          "before_sha256": "e90e1df9cd402018ba98997d3c03a21457c0a3d0b2c2147ac32fa8857b6dbb51",
+          "reason": "a compiled graph reserves the routed-expert node's per-token scratch in the existing score staging, so an MoE node opens the BLAS state that owns it; no other node's reservation changes"
+        },
+        "internal/cuda/executor/kernel_bindings_generated.go": {
+          "after_sha256": "6e00a2c7796e03855a142773931495ae84be6d11101c9fc29a9e07ee111c7bdf",
+          "before_sha256": "7754841ede7dbd934ad883426a7924cd3e22d0e844e3b2fec4aaf38f68a20ec8",
+          "reason": "generated bindings for the three routed-expert kernels replace those of moe_f32 and moe_grouped_f32"
+        },
+        "internal/cuda/executor/launch_moe.go": {
+          "after_sha256": "0681b0aa5d70ae46b62305971ebff52674b5cb5fcf8faa537434fde16087034b",
+          "before_sha256": "f08a81d67865dc88ba9117c1ae531b0b6904bfd89791e3c403cdfbe74d06cc15",
+          "reason": "the routed-expert node launches route, hidden and down over the scratch, in token groups when a prompt's scratch exceeds its bound, and accepts BF16 expert banks; selection, routing and activation semantics are unchanged"
+        },
+        "internal/cuda/kernel/manifest_generated.go": {
+          "after_sha256": "a34488516d7e34a3e02ec65393db00835cfac8f9a94bf14912bb0424d607756b",
+          "before_sha256": "7965c38d7b7015c41a4922b482f5e8993093421205fb71bdefe98e4002bd16d0",
+          "reason": "generated pins of the rebuilt kernel module and its ABI version"
+        },
+        "internal/tensor/builder_moe.go": {
+          "after_sha256": "89d148f8b751e43604fdd5285b8b874041d002326041a0c9a626020583378e2f",
+          "before_sha256": "f2dfbc96e330ea522459cc76f165b819382162fa46cb2fd24f1242eccff69035",
+          "reason": "the graph builder accepts BF16 expert banks beside F32 and quantized ones; a BF16 value widens to F32 exactly"
+        },
+        "internal/tensor/tensor.go": {
+          "after_sha256": "40e4785dcdb871db23afc048f9366ff21c4e38d3f6b20691f2a3fa6842dd9955",
+          "before_sha256": "dcfac4215b4792a3eca2e8a147e8b1d65312891c13e223548f5534d64d74551a",
+          "reason": "go fix rewrote two comparisons as the max builtin and a counted loop as a range loop; no behaviour changes"
+        },
+        "kernels/cuda/ops_f32.cu": {
+          "after_sha256": "7d21adf88776c5954c99dacb63451ee15f6c9cb81c8bf071b3920127f9730768",
+          "before_sha256": "a1d0cba13ce01b62e432ba3f016e9ca3f513240853dccb8e2faa8feb90b8de32",
+          "reason": "the routed-expert node's single-block kernel moe_grouped_f32 becomes three kernels (route, hidden, down) that keep every dot's sequential order and the down accumulation's slot and 256-wide tile grouping, so outputs are bit-identical; expert values of a BF16 bank are widened per element; moe_f32, bound and never launched, is deleted; no other kernel's source changes"
+        },
+        "kernels/manifest.json": {
+          "after_sha256": "4abb324336d7c099615ed8ee8701633edc4fa191614ddd87fc6111d2e339d396",
+          "before_sha256": "619fcc90e0386badec6b57192be0b71e09ee1a1c0349d333b81a2c2d3e1c2ba3",
+          "reason": "the kernel manifest lists moe_route_f32, moe_hidden_f32 and moe_down_f32 in place of moe_f32 and moe_grouped_f32, with the regenerated module's pins"
+        }
+      },
+      "evidence": "evidence:sha256:803d6db04eec73aba51b6d09ffe6d6c8584015da92eb35e3b4e3eeaa44203ef9",
+      "id": "routed-expert-kernels",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/cuda/executor": [
+          "TestCompileReservesMoEScratch",
+          "TestExecutorDeepSeek2OCRMoEBlockMatchesReference",
+          "TestExecutorDeepSeekMoEBlockMatchesReference",
+          "TestExecutorGroupedMoEMatchesReference",
+          "TestExecutorMoEExpertScaleMatchesReference",
+          "TestExecutorMoEMatchesReference",
+          "TestExecutorMoEOutputBitsArePinned",
+          "TestExecutorNativeQuantizedMoEMatchesReference",
+          "TestExecutorSigmoidMoEWithSelectionBiasMatchesReference",
+          "TestMoELaunchesCoverTokenGroups"
+        ],
+        "overgo/internal/inference": [
+          "TestNativeExpertBankTensors"
+        ],
+        "overgo/internal/tensor": [
+          "TestBuilderMoEExpertBankStorage"
+        ]
+      },
+      "scope": "the receipt re-runs, on the device, the routed-expert node against bits pinned from the single-block kernel at d993c2b10 for eighteen cases with F32 and BF16 banks, against the host reference for the plain, grouped, scaled, sigmoid, quantized and two DeepSeek block shapes, the launch grouping and scratch reservation, and on the host the builder's and the loader's handling of BF16 expert banks"
     }
   ],
   "paths": [

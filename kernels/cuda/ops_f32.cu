@@ -28,6 +28,7 @@ enum GGMLStorageType : unsigned int {
     GGML_IQ2_S = 22,
     GGML_IQ4_XS = 23,
     GGML_IQ1_M = 29,
+    GGML_BF16 = 30,
     GGML_TQ1_0 = 34,
     GGML_TQ2_0 = 35,
     GGML_MXFP4 = 39,
@@ -3519,399 +3520,256 @@ extern "C" __global__ void lora_merge_f32(
 	output[index] = base[index] + scale * delta;
 }
 
-extern "C" __global__ void moe_f32(
-        const float * input,
-		const float * router_input,
+// Routed experts run as three launches over a per-token scratch:
+// moe_route_f32 leaves each token's selected experts, their route weights and
+// the weights' sum; moe_hidden_f32 the selected experts' activations;
+// moe_down_f32 their projection. Every sum keeps one order whatever the launch
+// geometry: a dot is a single sequential chain, and the down projection
+// restarts its partial sum every MOE_DOWN_TILE intermediate rows, slot-major.
+constexpr unsigned int MOE_DOWN_TILE = 256;
+
+extern "C" __global__ void moe_route_f32(
+        const float * router_input,
         const float * router,
-		const void * gate,
-		const void * up,
-		const void * down,
-		const float * selection_bias,
-		const float * expert_scale,
-		const float * router_bias,
-		const float * gate_bias,
-		const float * up_bias,
-		const float * down_bias,
-		const float * selected_experts,
-        float * output,
-        unsigned int hidden,
-		unsigned int router_hidden,
+        const float * selection_bias,
+        const float * router_bias,
+        const float * selected_experts,
+        unsigned int * route_state,
+        unsigned int router_hidden,
         unsigned int tokens,
         unsigned int experts,
         unsigned int top_k,
+        unsigned int routing) {
+    const unsigned int token = blockIdx.x;
+    if (token >= tokens) return;
+    const float * router_x = router_input + (size_t) token * router_hidden;
+    extern __shared__ float shared[];
+    float * logits = shared;
+    for (unsigned int expert = threadIdx.x; expert < experts; expert += blockDim.x) {
+        const float * weight = router + (size_t) expert * router_hidden;
+        float logit = 0.0f;
+        for (unsigned int channel = 0; channel < router_hidden; ++channel) {
+            logit += router_x[channel] * weight[channel];
+        }
+        if (router_bias) logit += router_bias[expert];
+        logits[expert] = logit;
+    }
+    __syncthreads();
+    if (threadIdx.x != 0) return;
+    unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
+    float * routes = reinterpret_cast<float *>(selected + top_k);
+    float * selected_sum = routes + top_k;
+    float maximum = -3.402823466e+38F;
+    for (unsigned int expert = 0; expert < experts; ++expert) {
+        maximum = fmaxf(maximum, logits[expert]);
+    }
+    float denominator = 0.0f;
+    if (routing == 1) {
+        for (unsigned int expert = 0; expert < experts; ++expert) {
+            denominator += expf(logits[expert] - maximum);
+        }
+    }
+    *selected_sum = 0.0f;
+    for (unsigned int slot = 0; slot < top_k; ++slot) {
+        if (selected_experts) {
+            const unsigned int expert = (unsigned int) selected_experts[(size_t) token * top_k + slot];
+            const float logit = logits[expert];
+            const float probability = routing == 4
+                ? sqrtf(fmaxf(logit, 0.0f) + log1pf(expf(-fabsf(logit))))
+                : routing == 2 ? 1.0f / (1.0f + expf(-logit))
+                : routing == 3 ? logit : expf(logit - maximum) / denominator;
+            selected[slot] = expert;
+            routes[slot] = probability;
+            *selected_sum += probability;
+            continue;
+        }
+        int best = -1;
+        float best_score = -3.402823466e+38F;
+        float best_probability = 0.0f;
+        for (unsigned int expert = 0; expert < experts; ++expert) {
+            bool used = false;
+            for (unsigned int prior = 0; prior < slot; ++prior) used = used || selected[prior] == expert;
+            if (used) continue;
+            const float logit = logits[expert];
+            const float probability = routing == 4
+                ? sqrtf(fmaxf(logit, 0.0f) + log1pf(expf(-fabsf(logit))))
+                : routing == 2 ? 1.0f / (1.0f + expf(-logit))
+                : routing == 3 ? logit : expf(logit - maximum) / denominator;
+            const float score = probability + (selection_bias ? selection_bias[expert] : 0.0f);
+            if (best < 0 || score > best_score) {
+                best = (int) expert;
+                best_score = score;
+                best_probability = probability;
+            }
+        }
+        selected[slot] = (unsigned int) best;
+        routes[slot] = best_probability;
+        *selected_sum += best_probability;
+    }
+    if (routing == 3) {
+        float selected_maximum = -3.402823466e+38F;
+        for (unsigned int slot = 0; slot < top_k; ++slot) selected_maximum = fmaxf(selected_maximum, routes[slot]);
+        *selected_sum = 0.0f;
+        for (unsigned int slot = 0; slot < top_k; ++slot) {
+            routes[slot] = expf(routes[slot] - selected_maximum);
+            *selected_sum += routes[slot];
+        }
+        for (unsigned int slot = 0; slot < top_k; ++slot) routes[slot] /= *selected_sum;
+    }
+}
+
+extern "C" __global__ void moe_hidden_f32(
+        const float * input,
+        const unsigned int * route_state,
+        const void * gate,
+        const void * up,
+        const float * gate_bias,
+        const float * up_bias,
+        float * activations,
+        unsigned int hidden,
+        unsigned int top_k,
+        unsigned int intermediate,
+        unsigned int routing,
+        unsigned int expert_storage,
+        unsigned int gated,
+        unsigned int fused_gate_up,
+        unsigned int activation,
+        unsigned int expert_index_divisor,
+        float swiglu_clamp,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) return;
+    const unsigned int inner_index = index % intermediate;
+    const unsigned int slot = index / intermediate % top_k;
+    const unsigned int token = index / intermediate / top_k;
+    const float * x = input + (size_t) token * hidden;
+    const unsigned int expert =
+        route_state[(size_t) token * (2 * top_k + 1) + slot] / expert_index_divisor;
+    const size_t gate_offset =
+        ((size_t) expert * (fused_gate_up ? 2 : 1) * intermediate + inner_index) * hidden;
+    const size_t up_offset = gate_offset + (fused_gate_up ? (size_t) intermediate * hidden : 0);
+    float gate_dot = 0.0f;
+    float up_dot = 0.0f;
+    if (expert_storage == GGML_F32) {
+        const float * gate_row = reinterpret_cast<const float *>(gate) + gate_offset;
+        const float * up_row = reinterpret_cast<const float *>(up) + up_offset;
+        for (unsigned int channel = 0; channel < hidden; ++channel) {
+            if (gated) gate_dot += x[channel] * gate_row[channel];
+            up_dot += x[channel] * up_row[channel];
+        }
+    } else if (expert_storage == GGML_BF16) {
+        // BF16 is the high half of the F32 encoding: the widening is exact.
+        const unsigned short * gate_row = reinterpret_cast<const unsigned short *>(gate) + gate_offset;
+        const unsigned short * up_row = reinterpret_cast<const unsigned short *>(up) + up_offset;
+        for (unsigned int channel = 0; channel < hidden; ++channel) {
+            if (gated) gate_dot += x[channel] * __uint_as_float((unsigned int) gate_row[channel] << 16);
+            up_dot += x[channel] * __uint_as_float((unsigned int) up_row[channel] << 16);
+        }
+    } else {
+        for (unsigned int channel = 0; channel < hidden; ++channel) {
+            if (gated) gate_dot += x[channel] * moe_expert_value(gate, gate_offset + channel, expert_storage);
+            up_dot += x[channel] * moe_expert_value(up, up_offset + channel, expert_storage);
+        }
+    }
+    if (gate_bias) {
+        gate_dot += gate_bias[(size_t) expert * intermediate + inner_index];
+        up_dot += up_bias[(size_t) expert * intermediate + inner_index];
+    }
+    float activated;
+    if (activation == 2) {
+        activated = gated ? fmaxf(gate_dot, 0.0f) * up_dot : fmaxf(up_dot, 0.0f);
+    } else if (activation == 3) {
+        const float source = gated ? gate_dot : up_dot;
+        float gelu;
+        if (source <= -10.0f) {
+            gelu = 0.0f;
+        } else if (source >= 10.0f) {
+            gelu = source;
+        } else {
+            const float rounded = __half2float(__float2half_rn(source));
+            const float argument = 0.7978845608028654f * rounded *
+                (1.0f + 0.044715f * rounded * rounded);
+            gelu = __half2float(__float2half_rn(
+                0.5f * rounded * (1.0f + tanhf(argument))));
+        }
+        activated = gated ? gelu * up_dot : gelu;
+    } else if (activation == 4) {
+        const float gate_value = fminf(gate_dot, 7.0f);
+        const float up_value = fminf(7.0f, fmaxf(-7.0f, up_dot));
+        activated = gate_value / (1.0f + expf(-1.702f * gate_value)) * (up_value + 1.0f);
+    } else if (activation == 5) {
+        activated = fmaxf(up_dot, 0.0f);
+        activated *= activated;
+    } else if (gated) {
+        if (swiglu_clamp > 0.0f) {
+            up_dot = fminf(swiglu_clamp, fmaxf(-swiglu_clamp, up_dot));
+            if (routing == 4) gate_dot = fminf(swiglu_clamp, gate_dot);
+        }
+        float gate_activation = gate_dot / (1.0f + expf(-gate_dot));
+        if (swiglu_clamp > 0.0f && routing != 4) gate_activation = fminf(swiglu_clamp, gate_activation);
+        activated = gate_activation * up_dot;
+    } else {
+        activated = up_dot / (1.0f + expf(-up_dot));
+    }
+    activations[index] = activated;
+}
+
+extern "C" __global__ void moe_down_f32(
+        const unsigned int * route_state,
+        const float * activations,
+        const void * down,
+        const float * expert_scale,
+        const float * down_bias,
+        float * output,
+        unsigned int hidden,
+        unsigned int top_k,
         unsigned int intermediate,
         unsigned int normalize_top_k,
-		unsigned int routing,
         float routed_scale,
-		unsigned int expert_storage,
-		unsigned int gated,
-		unsigned int fused_gate_up,
-		unsigned int activation,
-		unsigned int expert_index_divisor,
-		float swiglu_clamp,
+        unsigned int expert_storage,
+        unsigned int expert_index_divisor,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) return;
     const unsigned int output_channel = index % hidden;
     const unsigned int token = index / hidden;
-    const float * x = input + (size_t) token * hidden;
-	const float * router_x = router_input + (size_t) token * router_hidden;
-
-    float maximum = -3.402823466e+38F;
-    for (unsigned int expert = 0; expert < experts; ++expert) {
-		const float * weight = router + (size_t) expert * router_hidden;
-        float logit = 0.0f;
-		for (unsigned int channel = 0; channel < router_hidden; ++channel) {
-            logit += router_x[channel] * weight[channel];
-        }
-		if (router_bias) logit += router_bias[expert];
-        maximum = fmaxf(maximum, logit);
-    }
-	float denominator = 0.0f;
-	if (routing == 1) for (unsigned int expert = 0; expert < experts; ++expert) {
-		const float * weight = router + (size_t) expert * router_hidden;
-        float logit = 0.0f;
-		for (unsigned int channel = 0; channel < router_hidden; ++channel) {
-            logit += router_x[channel] * weight[channel];
-        }
-		if (router_bias) logit += router_bias[expert];
-        denominator += expf(logit - maximum);
-    }
-
-    unsigned int selected[16];
-    float route_weights[16];
-    float selected_sum = 0.0f;
-    for (unsigned int slot = 0; slot < top_k; ++slot) {
-		if (selected_experts) {
-			const unsigned int expert = (unsigned int) selected_experts[(size_t) token * top_k + slot];
-			const float * weight = router + (size_t) expert * router_hidden;
-			float logit = 0.0f;
-			for (unsigned int channel = 0; channel < router_hidden; ++channel) {
-				logit += router_x[channel] * weight[channel];
-			}
-			if (router_bias) logit += router_bias[expert];
-			const float probability = routing == 4
-				? sqrtf(fmaxf(logit, 0.0f) + log1pf(expf(-fabsf(logit))))
-				: routing == 2 ? 1.0f / (1.0f + expf(-logit))
-				: routing == 3 ? logit : expf(logit - maximum) / denominator;
-			selected[slot] = expert;
-			route_weights[slot] = probability;
-			selected_sum += probability;
-			continue;
-		}
-        int best = -1;
-		float best_score = -3.402823466e+38F;
-		float best_probability = 0.0f;
-        for (unsigned int expert = 0; expert < experts; ++expert) {
-            bool used = false;
-            for (unsigned int prior = 0; prior < slot; ++prior) {
-                used = used || selected[prior] == expert;
-            }
-            if (used) continue;
-			const float * weight = router + (size_t) expert * router_hidden;
-            float logit = 0.0f;
-			for (unsigned int channel = 0; channel < router_hidden; ++channel) {
-                logit += router_x[channel] * weight[channel];
-            }
-			if (router_bias) logit += router_bias[expert];
-			const float probability = routing == 4
-				? sqrtf(fmaxf(logit, 0.0f) + log1pf(expf(-fabsf(logit))))
-				: routing == 2 ? 1.0f / (1.0f + expf(-logit))
-				: routing == 3 ? logit : expf(logit - maximum) / denominator;
-			const float score = probability + (selection_bias ? selection_bias[expert] : 0.0f);
-			if (best < 0 || score > best_score) {
-                best = (int) expert;
-				best_score = score;
-				best_probability = probability;
-            }
-        }
-        selected[slot] = (unsigned int) best;
-		route_weights[slot] = best_probability;
-        selected_sum += route_weights[slot];
-    }
-	if (routing == 3) {
-		float selected_maximum = -3.402823466e+38F;
-		for (unsigned int slot = 0; slot < top_k; ++slot) selected_maximum = fmaxf(selected_maximum, route_weights[slot]);
-		selected_sum = 0.0f;
-		for (unsigned int slot = 0; slot < top_k; ++slot) {
-			route_weights[slot] = expf(route_weights[slot] - selected_maximum);
-			selected_sum += route_weights[slot];
-		}
-		for (unsigned int slot = 0; slot < top_k; ++slot) route_weights[slot] /= selected_sum;
-	}
-
+    const unsigned int * selected = route_state + (size_t) token * (2 * top_k + 1);
+    const float * routes = reinterpret_cast<const float *>(selected + top_k);
+    const float * selected_sum = routes + top_k;
     float result = 0.0f;
-	for (unsigned int slot = 0; slot < top_k; ++slot) {
-		const unsigned int routed_expert = selected[slot];
-		const unsigned int expert = routed_expert / expert_index_divisor;
-		float route = route_weights[slot] * routed_scale;
-		if (normalize_top_k) route /= fmaxf(selected_sum, 6.103515625e-5f);
-		float expert_output = 0.0f;
-		for (unsigned int inner = 0; inner < intermediate; ++inner) {
-			const size_t gate_offset = ((size_t) expert * (fused_gate_up ? 2 : 1) * intermediate + inner) * hidden;
-			const size_t up_offset = gate_offset + (fused_gate_up ? (size_t) intermediate * hidden : 0);
-			float gate_dot = 0.0f;
-			float up_dot = 0.0f;
-			for (unsigned int channel = 0; channel < hidden; ++channel) {
-				if (gated) gate_dot += x[channel] * moe_expert_value(
-					gate, gate_offset + channel, expert_storage);
-				up_dot += x[channel] * moe_expert_value(
-					up, up_offset + channel, expert_storage);
-            }
-			if (gate_bias) {
-				gate_dot += gate_bias[(size_t) expert * intermediate + inner];
-				up_dot += up_bias[(size_t) expert * intermediate + inner];
-			}
-			float activated;
-			if (activation == 2) {
-				activated = gated ? fmaxf(gate_dot, 0.0f) * up_dot : fmaxf(up_dot, 0.0f);
-			} else if (activation == 3) {
-				const float value = gated ? gate_dot : up_dot;
-				float gelu;
-				if (value <= -10.0f) {
-					gelu = 0.0f;
-				} else if (value >= 10.0f) {
-					gelu = value;
-				} else {
-					const float rounded = __half2float(__float2half_rn(value));
-					const float inner = 0.7978845608028654f * rounded *
-							(1.0f + 0.044715f * rounded * rounded);
-					gelu = __half2float(__float2half_rn(
-							0.5f * rounded * (1.0f + tanhf(inner))));
-				}
-				activated = gated ? gelu * up_dot : gelu;
-			} else if (activation == 4) {
-				const float gate_value = fminf(gate_dot, 7.0f);
-				const float up_value = fminf(7.0f, fmaxf(-7.0f, up_dot));
-				activated = gate_value / (1.0f + expf(-1.702f * gate_value)) * (up_value + 1.0f);
-			} else if (activation == 5) {
-				activated = fmaxf(up_dot, 0.0f);
-				activated *= activated;
-			} else {
-				if (gated) {
-					if (swiglu_clamp > 0.0f) {
-						up_dot = fminf(swiglu_clamp, fmaxf(-swiglu_clamp, up_dot));
-						if (routing == 4) gate_dot = fminf(swiglu_clamp, gate_dot);
-					}
-					float gate_activation = gate_dot / (1.0f + expf(-gate_dot));
-					if (swiglu_clamp > 0.0f && routing != 4) gate_activation = fminf(swiglu_clamp, gate_activation);
-					activated = gate_activation * up_dot;
-				} else {
-					activated = up_dot / (1.0f + expf(-up_dot));
-				}
-			}
-            const size_t down_offset = ((size_t) expert * hidden + output_channel) * intermediate + inner;
-			expert_output += activated * moe_expert_value(
-				down, down_offset, expert_storage);
-        }
-		if (down_bias) expert_output += down_bias[(size_t) expert * hidden + output_channel];
-		if (expert_scale) expert_output *= expert_scale[expert];
-        result += route * expert_output;
-    }
-    output[index] = result;
-}
-
-extern "C" __global__ void moe_grouped_f32(
-        const float * input,
-		const float * router_input,
-        const float * router,
-		const void * gate,
-		const void * up,
-		const void * down,
-		const float * selection_bias,
-		const float * expert_scale,
-		const float * router_bias,
-		const float * gate_bias,
-		const float * up_bias,
-		const float * down_bias,
-		const float * selected_experts,
-        float * output,
-        unsigned int hidden,
-		unsigned int router_hidden,
-        unsigned int tokens,
-        unsigned int experts,
-        unsigned int top_k,
-        unsigned int intermediate,
-        unsigned int normalize_top_k,
-		unsigned int routing,
-        float routed_scale,
-		unsigned int expert_storage,
-		unsigned int gated,
-		unsigned int fused_gate_up,
-		unsigned int activation,
-		unsigned int expert_index_divisor,
-		float swiglu_clamp) {
-    const unsigned int token = blockIdx.x;
-    if (token >= tokens) return;
-    const float * x = input + (size_t) token * hidden;
-    const float * router_x = router_input + (size_t) token * router_hidden;
-    extern __shared__ unsigned char shared_storage[];
-    unsigned int * selected = reinterpret_cast<unsigned int *>(shared_storage);
-    float * routes = reinterpret_cast<float *>(selected + top_k);
-    float * activations = routes + top_k;
-    float * selected_sum = activations + blockDim.x;
-
-    if (threadIdx.x == 0) {
-        float maximum = -3.402823466e+38F;
-        for (unsigned int expert = 0; expert < experts; ++expert) {
-            const float * weight = router + (size_t) expert * router_hidden;
-            float logit = 0.0f;
-            for (unsigned int channel = 0; channel < router_hidden; ++channel) {
-                logit += router_x[channel] * weight[channel];
-            }
-            if (router_bias) logit += router_bias[expert];
-            maximum = fmaxf(maximum, logit);
-        }
-        float denominator = 0.0f;
-        if (routing == 1) {
-            for (unsigned int expert = 0; expert < experts; ++expert) {
-                const float * weight = router + (size_t) expert * router_hidden;
-                float logit = 0.0f;
-                for (unsigned int channel = 0; channel < router_hidden; ++channel) {
-                    logit += router_x[channel] * weight[channel];
-                }
-                if (router_bias) logit += router_bias[expert];
-                denominator += expf(logit - maximum);
-            }
-        }
-        *selected_sum = 0.0f;
-        for (unsigned int slot = 0; slot < top_k; ++slot) {
-            if (selected_experts) {
-                const unsigned int expert = (unsigned int) selected_experts[(size_t) token * top_k + slot];
-                const float * weight = router + (size_t) expert * router_hidden;
-                float logit = 0.0f;
-                for (unsigned int channel = 0; channel < router_hidden; ++channel) {
-                    logit += router_x[channel] * weight[channel];
-                }
-                if (router_bias) logit += router_bias[expert];
-                const float probability = routing == 4
-                    ? sqrtf(fmaxf(logit, 0.0f) + log1pf(expf(-fabsf(logit))))
-                    : routing == 2 ? 1.0f / (1.0f + expf(-logit))
-                    : routing == 3 ? logit : expf(logit - maximum) / denominator;
-                selected[slot] = expert;
-                routes[slot] = probability;
-                *selected_sum += probability;
-                continue;
-            }
-            int best = -1;
-            float best_score = -3.402823466e+38F;
-            float best_probability = 0.0f;
-            for (unsigned int expert = 0; expert < experts; ++expert) {
-                bool used = false;
-                for (unsigned int prior = 0; prior < slot; ++prior) used = used || selected[prior] == expert;
-                if (used) continue;
-                const float * weight = router + (size_t) expert * router_hidden;
-                float logit = 0.0f;
-                for (unsigned int channel = 0; channel < router_hidden; ++channel) {
-                    logit += router_x[channel] * weight[channel];
-                }
-                if (router_bias) logit += router_bias[expert];
-                const float probability = routing == 4
-                    ? sqrtf(fmaxf(logit, 0.0f) + log1pf(expf(-fabsf(logit))))
-                    : routing == 2 ? 1.0f / (1.0f + expf(-logit))
-                    : routing == 3 ? logit : expf(logit - maximum) / denominator;
-                const float score = probability + (selection_bias ? selection_bias[expert] : 0.0f);
-                if (best < 0 || score > best_score) {
-                    best = (int) expert;
-                    best_score = score;
-                    best_probability = probability;
-                }
-            }
-            selected[slot] = (unsigned int) best;
-            routes[slot] = best_probability;
-            *selected_sum += best_probability;
-        }
-        if (routing == 3) {
-            float selected_maximum = -3.402823466e+38F;
-            for (unsigned int slot = 0; slot < top_k; ++slot) selected_maximum = fmaxf(selected_maximum, routes[slot]);
-            *selected_sum = 0.0f;
-            for (unsigned int slot = 0; slot < top_k; ++slot) {
-                routes[slot] = expf(routes[slot] - selected_maximum);
-                *selected_sum += routes[slot];
-            }
-            for (unsigned int slot = 0; slot < top_k; ++slot) routes[slot] /= *selected_sum;
-        }
-    }
-    for (unsigned int output_channel = threadIdx.x; output_channel < hidden; output_channel += blockDim.x) {
-        output[(size_t) token * hidden + output_channel] = 0.0f;
-    }
-    __syncthreads();
-
     for (unsigned int slot = 0; slot < top_k; ++slot) {
         const unsigned int expert = selected[slot] / expert_index_divisor;
         float route = routes[slot] * routed_scale;
         if (normalize_top_k) route /= fmaxf(*selected_sum, 6.103515625e-5f);
         const float expert_multiplier = expert_scale ? expert_scale[expert] : 1.0f;
-        for (unsigned int tile = 0; tile < intermediate; tile += blockDim.x) {
-            const unsigned int inner_index = tile + threadIdx.x;
-            if (inner_index < intermediate) {
-                const size_t gate_offset =
-                    ((size_t) expert * (fused_gate_up ? 2 : 1) * intermediate + inner_index) * hidden;
-                const size_t up_offset = gate_offset + (fused_gate_up ? (size_t) intermediate * hidden : 0);
-                float gate_dot = 0.0f;
-                float up_dot = 0.0f;
-                for (unsigned int channel = 0; channel < hidden; ++channel) {
-                    if (gated) gate_dot += x[channel] * moe_expert_value(gate, gate_offset + channel, expert_storage);
-                    up_dot += x[channel] * moe_expert_value(up, up_offset + channel, expert_storage);
-                }
-                if (gate_bias) {
-                    gate_dot += gate_bias[(size_t) expert * intermediate + inner_index];
-                    up_dot += up_bias[(size_t) expert * intermediate + inner_index];
-                }
-                float activated;
-                if (activation == 2) {
-                    activated = gated ? fmaxf(gate_dot, 0.0f) * up_dot : fmaxf(up_dot, 0.0f);
-                } else if (activation == 3) {
-                    const float source = gated ? gate_dot : up_dot;
-                    float gelu;
-                    if (source <= -10.0f) {
-                        gelu = 0.0f;
-                    } else if (source >= 10.0f) {
-                        gelu = source;
-                    } else {
-                        const float rounded = __half2float(__float2half_rn(source));
-                        const float argument = 0.7978845608028654f * rounded *
-                            (1.0f + 0.044715f * rounded * rounded);
-                        gelu = __half2float(__float2half_rn(
-                            0.5f * rounded * (1.0f + tanhf(argument))));
-                    }
-                    activated = gated ? gelu * up_dot : gelu;
-                } else if (activation == 4) {
-                    const float gate_value = fminf(gate_dot, 7.0f);
-                    const float up_value = fminf(7.0f, fmaxf(-7.0f, up_dot));
-                    activated = gate_value / (1.0f + expf(-1.702f * gate_value)) * (up_value + 1.0f);
-                } else if (activation == 5) {
-                    activated = fmaxf(up_dot, 0.0f);
-                    activated *= activated;
-                } else if (gated) {
-                    if (swiglu_clamp > 0.0f) {
-                        up_dot = fminf(swiglu_clamp, fmaxf(-swiglu_clamp, up_dot));
-                        if (routing == 4) gate_dot = fminf(swiglu_clamp, gate_dot);
-                    }
-                    float gate_activation = gate_dot / (1.0f + expf(-gate_dot));
-                    if (swiglu_clamp > 0.0f && routing != 4) gate_activation = fminf(swiglu_clamp, gate_activation);
-                    activated = gate_activation * up_dot;
-                } else {
-                    activated = up_dot / (1.0f + expf(-up_dot));
-                }
-                activations[threadIdx.x] = activated;
-            }
-            __syncthreads();
-            const unsigned int tile_count = intermediate - tile < blockDim.x ? intermediate - tile : blockDim.x;
-            for (unsigned int output_channel = threadIdx.x; output_channel < hidden; output_channel += blockDim.x) {
-                float partial = 0.0f;
-                const size_t down_offset = ((size_t) expert * hidden + output_channel) * intermediate + tile;
+        const float * slot_activations = activations + ((size_t) token * top_k + slot) * intermediate;
+        for (unsigned int tile = 0; tile < intermediate; tile += MOE_DOWN_TILE) {
+            const unsigned int tile_count = intermediate - tile < MOE_DOWN_TILE ? intermediate - tile : MOE_DOWN_TILE;
+            const size_t down_offset = ((size_t) expert * hidden + output_channel) * intermediate + tile;
+            const float * tile_activations = slot_activations + tile;
+            float partial = 0.0f;
+            if (expert_storage == GGML_F32) {
+                const float * down_row = reinterpret_cast<const float *>(down) + down_offset;
                 for (unsigned int inner = 0; inner < tile_count; ++inner) {
-                    partial += activations[inner] * moe_expert_value(down, down_offset + inner, expert_storage);
+                    partial += tile_activations[inner] * down_row[inner];
                 }
-                if (tile + tile_count == intermediate && down_bias) {
-                    partial += down_bias[(size_t) expert * hidden + output_channel];
+            } else if (expert_storage == GGML_BF16) {
+                const unsigned short * down_row = reinterpret_cast<const unsigned short *>(down) + down_offset;
+                for (unsigned int inner = 0; inner < tile_count; ++inner) {
+                    partial += tile_activations[inner] * __uint_as_float((unsigned int) down_row[inner] << 16);
                 }
-                output[(size_t) token * hidden + output_channel] += route * expert_multiplier * partial;
+            } else {
+                for (unsigned int inner = 0; inner < tile_count; ++inner) {
+                    partial += tile_activations[inner] * moe_expert_value(down, down_offset + inner, expert_storage);
+                }
             }
-            __syncthreads();
+            if (tile + tile_count == intermediate && down_bias) {
+                partial += down_bias[(size_t) expert * hidden + output_channel];
+            }
+            result += route * expert_multiplier * partial;
         }
     }
+    output[index] = result;
 }
 
 extern "C" __global__ void repeat_heads_f32(

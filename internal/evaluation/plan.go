@@ -269,6 +269,22 @@ func (p Plan) Dataset() artifact.ID { return p.body.Dataset }
 // Execution names the plan's bound execution-policy authority.
 func (p Plan) Execution() artifact.ID { return p.body.Execution }
 
+// comparisonIdentity binds acceptance and environment for comparisons across
+// producer/model changes. It does not authorize reuse, which checks the entire
+// plan including the model, recipe and source through EvaluateOrCarry.
+func (p Plan) comparisonIdentity() (artifact.ID, error) {
+	return artifact.JSONID(artifact.KindProfile, struct {
+		Version     uint16                      `json:"version"`
+		Dataset     artifact.ID                 `json:"dataset"`
+		Split       artifact.ID                 `json:"split"`
+		CaseProfile artifact.ID                 `json:"case_profile"`
+		Scorer      artifact.ID                 `json:"scorer"`
+		Execution   artifact.ID                 `json:"execution"`
+		Environment artifact.ID                 `json:"environment"`
+		Agent       *agentTrajectoryAuthorities `json:"agent,omitempty"`
+	}{p.body.Version, p.body.Dataset, p.body.Split, p.body.CaseProfile, p.body.Scorer, p.body.Execution, p.body.Environment, p.body.Agent})
+}
+
 // ReadExecutionPolicy decodes a bound execution-policy authority.
 func ReadExecutionPolicy(ctx context.Context, reader artifact.Reader, id artifact.ID) (ExecutionPolicy, error) {
 	content, found, err := artifact.ReadContent(ctx, reader, id)

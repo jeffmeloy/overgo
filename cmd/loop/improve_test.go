@@ -32,7 +32,7 @@ func scoredRow(t *testing.T, source artifact.ID, name string, task recipe.Task, 
 		cells[column] = scorecard.Cell{Value: 1, Source: source}
 	}
 	cells[metric.Quality] = scorecard.Cell{Value: accuracy, Label: "accuracy, store/mmlu (raw-completion)", Source: source, Direction: runrecord.DirectionMaximize,
-		Contract: scorecard.Contract{Metric: "accuracy", Origin: "evaluation", Suite: "store/mmlu", Protocol: "raw-completion"}}
+		Contract: scorecard.Contract{Metric: "accuracy", Origin: "evaluation", Suite: "store/mmlu", Protocol: "raw-completion", Comparison: testutil.ArtifactID(t, artifact.KindProfile, "mmlu-raw-environment")}}
 	cells[metric.Failures] = scorecard.Cell{Value: failures, Label: "attempts", Source: source}
 	cells[metric.Load] = load
 	return scorecard.Row{Model: testutil.ArtifactID(t, artifact.KindModel, name), Name: name, Task: task, Cells: cells}

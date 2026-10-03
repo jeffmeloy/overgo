@@ -107,11 +107,25 @@ func TranscriptionQualities(ctx context.Context, store *overgodb.Store) (map[art
 		for _, operation := range report.Normalization {
 			protocol = append(protocol, string(operation))
 		}
-		qualities[plan.body.RuntimeRecipe] = EvalSummary{
+		summary := EvalSummary{
 			Suite: report.Dataset.String() + "/" + largest.Name, Prompting: strings.Join(protocol, ", "), Record: report.ID,
 			Metrics:    map[string]float64{wordErrorRateMetric: largest.WordErrorRate},
 			Directions: map[string]runrecord.Direction{wordErrorRateMetric: runrecord.DirectionMinimize},
 		}
+		// Re-scoring already checked every prediction against the plan. Missing
+		// environment content retains quality but cannot earn comparison credit.
+		if environment, err := runrecord.RequireEnvironment(ctx, store, plan.body.Environment); err == nil {
+			comparison, err := plan.comparisonIdentity()
+			if err != nil {
+				return err
+			}
+			summary.Comparison, summary.Environment, summary.CodeCommit = comparison, environment.ID, plan.body.CodeCommit
+			summary.ExecutionKnown, summary.Reproducible = true, environment.Reproducible()
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		qualities[plan.body.RuntimeRecipe] = summary
 		return nil
 	})
 	return qualities, err

@@ -24,6 +24,60 @@ import (
 	"overgo/internal/trainingprogram"
 )
 
+// TestQualityKeepsExecutionAlternatives keeps the evidence index's distinct
+// contracts visible, with their actual producer rather than a publishing HEAD.
+func TestQualityKeepsExecutionAlternatives(t *testing.T) {
+	t.Parallel()
+	environment := testutil.ArtifactID(t, artifact.KindEvidence, "quality-environment")
+	var summaries []evaluation.EvalSummary
+	for _, name := range []string{"resident", "isolated", "other-environment"} {
+		data, err := json.Marshal(struct {
+			evaluation.EvalSummary
+			Comparison  artifact.ID `json:"comparison"`
+			Environment artifact.ID `json:"environment"`
+			CodeCommit  string      `json:"code_commit"`
+		}{evaluation.EvalSummary{Suite: "fixture", Prompting: "raw-completion", Record: testutil.ArtifactID(t, artifact.KindEvaluation, name),
+			Metrics: map[string]float64{"accuracy": 0.5}, ExecutionKnown: true}, testutil.ArtifactID(t, artifact.KindProfile, name), environment, "0123456789abcdef0123456789abcdef01234567"})
+		var summary evaluation.EvalSummary
+		if err == nil {
+			err = json.Unmarshal(data, &summary)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		summary.Directions = map[string]runrecord.Direction{"accuracy": runrecord.DirectionMaximize}
+		summaries = append(summaries, summary)
+	}
+	cell, others := qualityCell(recipe.TaskInference, summaries, nil)
+	if len(others) != len(summaries)-1 {
+		t.Fatalf("headline = %+v, alternatives = %+v, want all contracts", cell, others)
+	}
+	seen := map[artifact.ID]bool{}
+	for _, measured := range append(others, cell) {
+		data, err := json.Marshal(measured)
+		var provenance struct {
+			CodeCommit  string      `json:"code_commit"`
+			Environment artifact.ID `json:"environment"`
+			Contract    struct {
+				Comparison artifact.ID `json:"comparison"`
+			} `json:"contract"`
+		}
+		if err == nil {
+			err = json.Unmarshal(data, &provenance)
+		}
+		if err != nil || provenance.CodeCommit != "0123456789abcdef0123456789abcdef01234567" || provenance.Environment != environment ||
+			!provenance.Contract.Comparison.Valid() || seen[measured.Source] || measured.Value != 0.5 || measured.Direction != runrecord.DirectionMaximize {
+			t.Fatalf("cell = %+v, provenance = %+v: %v", measured, provenance, err)
+		}
+		seen[measured.Source] = true
+	}
+	slices.Reverse(summaries)
+	reordered, alternatives := qualityCell(recipe.TaskInference, summaries, nil)
+	if reordered.Source != cell.Source || !slices.EqualFunc(alternatives, others, func(left, right Cell) bool { return left.Source == right.Source }) {
+		t.Fatal("input order changed the displayed headline or alternatives")
+	}
+}
+
 // TestQualityReadsEachTasksHeldoutEvidence holds held-out quality to the
 // evidence each task has. A projection recipe the evaluation circuit scored
 // on sets outside the derived catalog reads one of them under a full
@@ -173,7 +227,11 @@ func TestQualityReadsTranscriptionReports(t *testing.T) {
 	defer store.Close()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	set, split, transcriber := id(artifact.KindDataset, "librispeech"), id(artifact.KindDatasetShard, "test-clean"), id(artifact.KindRecipe, "transcriber")
-	definition, environment, commit := id(artifact.KindModelDefinition, "transcriber"), id(artifact.KindEvidence, "environment"), strings.Repeat("ab", 20)
+	platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, environment, commit := id(artifact.KindModelDefinition, "transcriber"), platform.ID, strings.Repeat("ab", 20)
 	// The clean group holds two utterances, the other one.
 	cases := []evaluation.TranscriptionCase{
 		{Name: "a", Group: "clean", Reference: "the cat sat"},
@@ -251,11 +309,29 @@ func TestQualityReadsTranscriptionReports(t *testing.T) {
 		t.Fatal(err)
 	}
 	cell := records[transcriber].cell(recipe.TaskTranscription)
+	if verdict, _ := holds(cell, cell); verdict != Unknown || cell.Contract.Comparison.Valid() {
+		t.Fatal("an absent environment document earned a transcription comparison")
+	}
+	batch, err := platform.Batch("quality/transcription/environment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	records, err = heldoutRecords(ctx, store, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cell = records[transcriber].cell(recipe.TaskTranscription)
+	if verdict, why := holds(cell, cell); verdict != holding || !cell.Contract.Comparison.Valid() || cell.CodeCommit != commit || cell.Environment != environment {
+		t.Fatalf("fully checked transcription cannot compare: %+v (%s)", cell, why)
+	}
 	protocol := []string{evaluation.PromptingRawCompletion.Label()}
 	for _, operation := range normalization {
 		protocol = append(protocol, string(operation))
 	}
-	want := Contract{Metric: "wer", Origin: originEvaluation, Suite: set.String() + "/clean", Protocol: strings.Join(protocol, ", ")}
+	want := Contract{Metric: "wer", Origin: originEvaluation, Suite: set.String() + "/clean", Protocol: strings.Join(protocol, ", "), Comparison: cell.Contract.Comparison}
 	if !cell.Measured() || cell.Value != 1.0/6 || cell.Source != newest.ID || cell.Direction != runrecord.DirectionMinimize || cell.Contract != want {
 		t.Fatalf("transcription quality = %+v, want the newest report's clean-group word error rate 1/6 under %+v", cell, want)
 	}
@@ -458,6 +534,7 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 		t.Fatal(err)
 	}
 	want := Contract{Metric: string(trainingprogram.MetricTableAccuracy), Origin: originEvaluation, Suite: view.ID.String(), Protocol: plan.ID().String()}
+	var comparison artifact.ID
 	for _, read := range []struct {
 		task   recipe.Task
 		recipe artifact.ID
@@ -465,6 +542,10 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 		based  bool
 	}{{recipe.TaskTraining, training, trainedValue, true}, {recipe.TaskTabular, tabular, baseValue, false}} {
 		cell := records[read.recipe].cell(read.task)
+		if verdict, why := holds(cell, cell); verdict != holding || !cell.Contract.Comparison.Valid() || comparison.Valid() && cell.Contract.Comparison != comparison || cell.CodeCommit != "" {
+			t.Fatalf("fully re-scored held-out contract cannot compare or invented a producer: %+v (%s)", cell, why)
+		}
+		comparison, want.Comparison = cell.Contract.Comparison, cell.Contract.Comparison
 		if !cell.Measured() || cell.Value != read.value || cell.Source != verdict.ID || cell.Direction != runrecord.DirectionMaximize || cell.Contract != want {
 			t.Fatalf("%s quality = %+v, want %g from the verdict under %+v", read.task, cell, read.value, want)
 		}

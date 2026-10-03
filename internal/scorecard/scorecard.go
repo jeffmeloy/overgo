@@ -41,6 +41,8 @@ type Cell struct {
 	Unit          string              `json:"unit,omitzero"`
 	Label         string              `json:"label,omitzero"`
 	Source        artifact.ID         `json:"source,omitzero"`
+	CodeCommit    string              `json:"code_commit,omitzero"`
+	Environment   artifact.ID         `json:"environment,omitzero"`
 	Reason        string              `json:"reason,omitzero"`
 	NotApplicable bool                `json:"not_applicable,omitzero"`
 	Direction     runrecord.Direction `json:"direction,omitzero"`
@@ -61,15 +63,17 @@ func (c Cell) QualityText() string {
 // measure the same thing: the metric, the kind of record it comes from, and
 // for a held-out quality the suite and the protocol it was scored under: the
 // prompting, with a transcription report's normalization, or a held-out
-// verdict's target plan.
+// verdict's target plan. Comparison binds evaluation acceptance and environment;
+// a display label alone cannot establish those authorities.
 // A serving aggregate's scope is the recipe whose attempts it counts. A cell
 // published before contracts has none, and compares with nothing.
 type Contract struct {
-	Metric   string      `json:"metric"`
-	Origin   string      `json:"origin"`
-	Suite    string      `json:"suite,omitzero"`
-	Protocol string      `json:"protocol,omitzero"`
-	Scope    artifact.ID `json:"scope,omitzero"`
+	Metric     string      `json:"metric"`
+	Origin     string      `json:"origin"`
+	Suite      string      `json:"suite,omitzero"`
+	Protocol   string      `json:"protocol,omitzero"`
+	Comparison artifact.ID `json:"comparison,omitzero"`
+	Scope      artifact.ID `json:"scope,omitzero"`
 }
 
 // The kinds of record a cell's value comes from.
@@ -534,7 +538,7 @@ var heldoutProposals = map[recipe.Task]string{
 
 // qualityCell is the headline metric of the recipe's newest evaluation of
 // its largest held-out suite: the most cases say the most about held-out
-// answers, and the newest run is the current one. A set outside the derived
+// answers, and the index selects the newest run per bound contract. A set outside the derived
 // catalog counts no cases, so of two equal suites the one named first, then
 // the protocol named first, is read, the same in every record. It also
 // returns the recipe's other current held-out qualities, one per suite and
@@ -545,20 +549,15 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 		cases uint64
 		cell  Cell
 	}
-	type suite struct{ name, protocol string }
 	var measured []heldout
-	seen := map[suite]bool{}
 	for _, summary := range summaries {
-		// Summaries arrive newest first, so the first of each suite and
-		// protocol is its current evaluation.
-		if seen[suite{summary.Suite, summary.Prompting}] {
-			continue
-		}
-		seen[suite{summary.Suite, summary.Prompting}] = true
+		// LatestEvidence owns deduplication by the bound contract; display
+		// labels cannot discard independently sufficient alternatives here.
 		if name, value, ok := evaluation.HeadlineMetric(summary.Metrics); ok {
 			measured = append(measured, heldout{cases: descriptors[summary.Suite].Cases, cell: Cell{
 				Value: value, Label: fmt.Sprintf("%s, %s (%s)", name, summary.Suite, summary.Prompting), Source: summary.Record, Direction: summary.Directions[name],
-				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting},
+				CodeCommit: summary.CodeCommit, Environment: summary.Environment,
+				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})
 		}
 	}
@@ -573,7 +572,8 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 	}
 	slices.SortFunc(measured, func(left, right heldout) int {
 		return cmp.Or(cmp.Compare(right.cases, left.cases), strings.Compare(left.cell.Contract.Suite, right.cell.Contract.Suite),
-			strings.Compare(left.cell.Contract.Protocol, right.cell.Contract.Protocol))
+			strings.Compare(left.cell.Contract.Protocol, right.cell.Contract.Protocol), artifact.CompareID(left.cell.Contract.Comparison, right.cell.Contract.Comparison),
+			artifact.CompareID(left.cell.Source, right.cell.Source))
 	})
 	others := make([]Cell, 0, len(measured)-1)
 	for _, other := range measured[1:] {

@@ -35,7 +35,8 @@ const (
 	recordMode          fs.FileMode = 0o644
 )
 
-// Record is one published scorecard: the commit it measured and every row.
+// Record is one published scorecard: the publishing commit and every row.
+// A cell's producing CodeCommit is separate; publication does not prove currency.
 // Name is the file it was read from.
 type Record struct {
 	Commit string `json:"commit"`
@@ -233,6 +234,8 @@ func holds(then, now Cell) (Verdict, string) {
 		return Unknown, "no longer measured: " + now.Reason
 	case then.Contract == (Contract{}):
 		return Unknown, "the baseline cell was published without a contract"
+	case then.Contract.Origin == originEvaluation && (!then.Contract.Comparison.Valid() || !now.Contract.Comparison.Valid()):
+		return Unknown, "evaluation comparison authority is unknown"
 	case now.Contract != then.Contract:
 		return Unknown, fmt.Sprintf("measured %+v, the baseline %+v", now.Contract, then.Contract)
 	case now.Direction != then.Direction:

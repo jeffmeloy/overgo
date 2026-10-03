@@ -377,11 +377,22 @@ func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func
 		if err := reconstructHeldoutVerdict(ctx, store, verdict, objective); err != nil {
 			return err
 		}
+		// A reconstructed target report compares exact retained targets and
+		// inputs, independently of unknown execution metadata. It does not
+		// qualify as known execution or benchmark reuse evidence.
+		comparison, err := artifact.JSONID(artifact.KindProfile, struct {
+			Plan   artifact.ID `json:"plan"`
+			Inputs artifact.ID `json:"inputs"`
+		}{verdict.Plan, verdict.Inputs})
+		if err != nil {
+			return err
+		}
 		metric := string(verdict.Metric)
 		summary := func(value float64) EvalSummary {
 			return EvalSummary{
 				Suite: verdict.View.String(), Prompting: verdict.Plan.String(), Record: verdict.ID,
-				Metrics: map[string]float64{metric: value}, Directions: map[string]runrecord.Direction{metric: verdict.Direction},
+				Comparison: comparison,
+				Metrics:    map[string]float64{metric: value}, Directions: map[string]runrecord.Direction{metric: verdict.Direction},
 			}
 		}
 		return visit(verdict.Observation, summary(verdict.BaselineValue), summary(verdict.CandidateValue))

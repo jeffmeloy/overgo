@@ -16,6 +16,17 @@ import (
 	"overgo/internal/testutil"
 )
 
+// TestComparisonRequiresEvaluationAuthorities prevents two unknown evaluations
+// from earning a holding verdict merely because their display labels match.
+func TestComparisonRequiresEvaluationAuthorities(t *testing.T) {
+	t.Parallel()
+	unknown := Cell{Value: 0.5, Direction: runrecord.DirectionMaximize,
+		Contract: Contract{Metric: "accuracy", Origin: originEvaluation, Suite: "fixture", Protocol: "unknown"}}
+	if verdict, why := holds(unknown, unknown); verdict != Unknown || why == "" {
+		t.Fatalf("unknown evaluations compare as %q (%s)", verdict, why)
+	}
+}
+
 // TestComparisonIsTyped holds the one comparison to identity and typed
 // contracts. Rows pair by model and task, never by display name: a renamed
 // model keeps its baseline, and two models sharing a name never trade
@@ -33,7 +44,7 @@ func TestComparisonIsTyped(t *testing.T) {
 	t.Parallel()
 	source := testutil.ArtifactID(t, artifact.KindEvaluation, "typed-comparison")
 	first, second, added := testutil.ArtifactID(t, artifact.KindModel, "first"), testutil.ArtifactID(t, artifact.KindModel, "second"), testutil.ArtifactID(t, artifact.KindModel, "added")
-	mmlu := Contract{Metric: "accuracy", Origin: originEvaluation, Suite: "store/mmlu", Protocol: "chat-template"}
+	mmlu := Contract{Metric: "accuracy", Origin: originEvaluation, Suite: "store/mmlu", Protocol: "chat-template", Comparison: testutil.ArtifactID(t, artifact.KindProfile, "mmlu-chat-environment")}
 	row := func(model artifact.ID, name string, accuracy float64, contract Contract) Row {
 		cells := map[metric.Name]Cell{}
 		for _, column := range metric.Columns {
@@ -90,6 +101,10 @@ func TestComparisonIsTyped(t *testing.T) {
 		{name: "a larger headline suite, the baseline's suite fallen", record: record(headlineMoved(0.4), row(second, "shared", 0.7, mmlu)), verdict: regressed},
 		{name: "another suite", record: record(row(first, "shared", 0.6, with(func(c *Contract) { c.Suite = "store/mmlu-pro" })), row(second, "shared", 0.7, mmlu)), verdict: Unknown},
 		{name: "another protocol", record: record(row(first, "shared", 0.6, with(func(c *Contract) { c.Protocol = "raw-completion" })), row(second, "shared", 0.7, mmlu)), verdict: Unknown},
+		{name: "another bound contract or environment with the same label", record: record(row(first, "shared", 0.6, with(func(c *Contract) {
+			c.Comparison = testutil.ArtifactID(t, artifact.KindProfile, "other-bound-environment")
+		})), row(second, "shared", 0.7, mmlu)), verdict: Unknown},
+		{name: "missing bound contract", record: record(row(first, "shared", 0.6, with(func(c *Contract) { c.Comparison = artifact.ID{} })), row(second, "shared", 0.7, mmlu)), verdict: Unknown},
 		{name: "another origin", record: record(row(first, "shared", 0.6, with(func(c *Contract) { c.Origin = originBenchmark })), row(second, "shared", 0.7, mmlu)), verdict: Unknown},
 		{name: "another direction", record: record(minimized, row(second, "shared", 0.7, mmlu)), verdict: Unknown},
 		{name: "a lost cell", record: record(lost, row(second, "shared", 0.7, mmlu)), verdict: Unknown},
@@ -161,7 +176,7 @@ func TestTrainedBelowBaseIsAGap(t *testing.T) {
 	t.Parallel()
 	source := testutil.ArtifactID(t, artifact.KindEvaluation, "below-base")
 	model := testutil.ArtifactID(t, artifact.KindModel, "trained")
-	heldout := Contract{Metric: "token-accuracy", Origin: originEvaluation, Suite: "view", Protocol: "plan"}
+	heldout := Contract{Metric: "token-accuracy", Origin: originEvaluation, Suite: "view", Protocol: "plan", Comparison: testutil.ArtifactID(t, artifact.KindProfile, "heldout-plan-environment")}
 	trained := func(value float64, base *float64, direction runrecord.Direction) Row {
 		cells := map[metric.Name]Cell{}
 		for _, column := range metric.Columns {

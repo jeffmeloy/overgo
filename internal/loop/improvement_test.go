@@ -68,11 +68,11 @@ func TestLoopPromotesOnlyOnHeldOutFitness(t *testing.T) {
 	model := testutil.ArtifactID(t, artifact.KindModel, "loop-fitness")
 	accuracy := func(value float64, suite string) scorecard.Cell {
 		return scorecard.Cell{Value: value, Label: "accuracy, " + suite, Source: source, Direction: runrecord.DirectionMaximize,
-			Contract: scorecard.Contract{Metric: "accuracy", Origin: "evaluation", Suite: suite, Protocol: "chat-template"}}
+			Contract: scorecard.Contract{Metric: "accuracy", Origin: "evaluation", Suite: suite, Protocol: "chat-template", Comparison: testutil.ArtifactID(t, artifact.KindProfile, "chat-acceptance/"+suite)}}
 	}
 	perplexity := func(value float64) scorecard.Cell {
 		return scorecard.Cell{Value: value, Label: "perplexity, store/dna", Source: source, Direction: runrecord.DirectionMinimize,
-			Contract: scorecard.Contract{Metric: "perplexity", Origin: "evaluation", Suite: "store/dna", Protocol: "raw-completion"}}
+			Contract: scorecard.Contract{Metric: "perplexity", Origin: "evaluation", Suite: "store/dna", Protocol: "raw-completion", Comparison: testutil.ArtifactID(t, artifact.KindProfile, "dna-raw-acceptance")}}
 	}
 	record := func(commit string, quality scorecard.Cell, throughput, failures float64) *scorecard.Record {
 		cells := map[metric.Name]scorecard.Cell{}

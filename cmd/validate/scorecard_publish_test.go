@@ -2,6 +2,7 @@ package main
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -61,14 +62,18 @@ func TestScheduledScorecardPublishesDeltas(t *testing.T) {
 		t.Fatalf("records = %+v, %v; want the two publishes, oldest first", records, err)
 	}
 	want := []string{
-		"- alpha-renamed inference, First output: measured {Metric:time to prefill Origin:serving Suite: Protocol: Scope:}, the baseline {Metric:time to first token, median Origin:benchmark Suite: Protocol: Scope:}",
 		"- alpha-renamed inference, Throughput: 40 to 45 tok/s (+5)",
 		"- alpha-renamed inference, Held-out quality: now measured, 0.7 accuracy",
 		"- alpha-renamed inference, Peak memory: no longer measured: no benchmark record",
 		"- beta inference: new",
 		"- beta inference: gone",
 	}
-	if moved := scorecardMoves(records[0], records[1]); !slices.Equal(moved, want) {
+	moved := scorecardMoves(records[0], records[1])
+	// The user needs both incompatible metrics and origins; Go's rendered
+	// struct layout and empty fields are not part of that reporting contract.
+	if len(moved) != len(want)+1 || !strings.HasPrefix(moved[0], "- alpha-renamed inference, First output: measured ") ||
+		!strings.Contains(moved[0], "Metric:time to prefill Origin:serving") || !strings.Contains(moved[0], "the baseline {Metric:time to first token, median Origin:benchmark") ||
+		!slices.Equal(moved[1:], want) {
 		t.Fatalf("moved =\n%q\nwant\n%q", moved, want)
 	}
 }

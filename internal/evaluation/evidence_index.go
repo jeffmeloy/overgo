@@ -46,13 +46,18 @@ func HeadlineMetric(metrics map[string]float64) (name string, value float64, ok 
 }
 
 // EvalSummary is one suite's latest committed evaluation for a recipe
-// under one prompting protocol; the raw-completion anchor and the
-// chat-template pass of the same suite are two summaries.
+// under one acceptance/environment contract. Prompting is only a display label;
+// Comparison binds full acceptance: executable plans include environment;
+// reconstructed target reports bind exact targets/inputs without asserting
+// known execution. Neither identity certifies current source.
 type EvalSummary struct {
-	Suite     string             `json:"suite"`
-	Prompting string             `json:"prompting"`
-	Record    artifact.ID        `json:"record,omitzero"`
-	Metrics   map[string]float64 `json:"metrics"`
+	Suite       string             `json:"suite"`
+	Prompting   string             `json:"prompting"`
+	Record      artifact.ID        `json:"record,omitzero"`
+	Metrics     map[string]float64 `json:"metrics"`
+	Comparison  artifact.ID        `json:"comparison,omitzero"`
+	Environment artifact.ID        `json:"environment,omitzero"`
+	CodeCommit  string             `json:"code_commit,omitzero"`
 	// Directions says which way each metric improves: the scorecard judges
 	// a held-out regression by it.
 	Directions map[string]runrecord.Direction `json:"-"`
@@ -101,6 +106,11 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	if err != nil {
 		return summary
 	}
+	comparison, err := plan.comparisonIdentity()
+	if err != nil {
+		return summary
+	}
+	summary.Comparison, summary.Environment, summary.CodeCommit = comparison, bound.Environment, bound.CodeCommit
 	summary.Prompting, summary.Reproducible, summary.ExecutionKnown = policy.Prompting.Label(), environment.Reproducible(), true
 	return summary
 }
@@ -187,7 +197,7 @@ func LatestEvidence(
 		}
 		return nil
 	})
-	seenSuite := map[artifact.ID]map[string]bool{}
+	seenSuite := map[artifact.ID]map[artifact.ID]bool{}
 	_, _ = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvaluation, MediaType: runrecord.EvaluationMediaType, Schema: runrecord.EvaluationSchema,
@@ -200,9 +210,13 @@ func LatestEvidence(
 		}
 		summary := recordExecution(ctx, store, record)
 		if seenSuite[record.Recipe] == nil {
-			seenSuite[record.Recipe] = map[string]bool{}
+			seenSuite[record.Recipe] = map[artifact.ID]bool{}
 		}
-		key := suite + "\x00" + summary.Prompting
+		key := summary.Comparison
+		if !summary.ExecutionKnown || !key.Valid() {
+			// Unknowns cannot prove equivalence to another record.
+			key = record.ID
+		}
 		if seenSuite[record.Recipe][key] {
 			return nil
 		}

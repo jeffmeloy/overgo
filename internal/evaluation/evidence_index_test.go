@@ -163,3 +163,148 @@ func TestEvaluationExecutionDoesNotInventMissingAuthorities(t *testing.T) {
 		})
 	}
 }
+
+// TestEvaluationAlternativesKeepFullContract retains distinct policies and
+// environments despite identical labels, while a later producer replaces only
+// its own comparable result. Case and scorer changes also retain alternatives.
+func TestEvaluationAlternativesKeepFullContract(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	exact, err := CompileExact(exactFixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	authorities := ListingAuthorities()
+	authorities.CodeCommit = planTestCommit
+	want := map[artifact.ID]float64{}
+	suites := map[artifact.ID]string{}
+	for index, mode := range []string{"resident", "isolated", "environment", "cases", "scorer", "new-source"} {
+		platform, err := runrecord.NewEnvironment(runrecord.Environment{
+			Host: "fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture",
+		})
+		if mode == "environment" {
+			platform, err = runrecord.NewEnvironment(runrecord.Environment{
+				Host: "other-fixture", OS: "windows", Arch: "amd64", Device: "cpu", Backend: "host", Driver: "fixture",
+			})
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch, err := platform.Batch("comparison/environment/" + mode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mode == "resident" || mode == "environment" {
+			if _, err := store.Commit(t.Context(), batch); err != nil {
+				t.Fatal(err)
+			}
+		}
+		bound := authorities
+		bound.Environment = platform.ID
+		if mode == "isolated" {
+			bound.Execution.Lifecycle = LifecycleIsolated
+		}
+		if mode == "new-source" {
+			bound.CodeCommit = strings.Repeat("b", len(planTestCommit))
+		}
+		compiled := exact
+		if mode == "cases" {
+			changed := exactFixture()
+			changed.Cases[0].Prompt = "a distinct case"
+			compiled, err = CompileExact(changed)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		plan, err := BindExact(compiled, bound)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mode == "scorer" {
+			scorer, err := authorityContent(scorerProfileContract, struct {
+				Version uint16 `json:"version"`
+				Kind    string `json:"kind"`
+			}{artifact.InitialDocumentVersion, "distinct-fixture-scorer"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			plan.authorities = append(plan.authorities, scorer)
+			plan.body.Scorer = scorer.Descriptor.ID
+			plan.identity, err = artifact.JSONID(artifact.KindProfile, plan.body)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if mode == "resident" {
+			publishPlanFixtureAuthorities(t, store, plan)
+		}
+		if err := publishAuthorities(t.Context(), store, compiled, plan); err != nil {
+			t.Fatal(err)
+		}
+		output := planID(t, artifact.KindEvaluation, "comparison-output/"+mode)
+		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "comparison/output/" + mode, Artifacts: []artifact.Descriptor{{ID: output}}}); err != nil {
+			t.Fatal(err)
+		}
+		run, err := runrecord.NewBoundRun(bound.RuntimeRecipe, runrecord.OutcomeSucceeded, []artifact.ID{plan.Identity()}, []artifact.ID{output}, "", bound.CodeCommit, platform.ID, 1, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		content, err := run.Content()
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch, err = artifact.NewDocumentBatch("comparison/run/"+mode, []artifact.Content{content}, run.Lineage(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Commit(t.Context(), batch); err != nil {
+			t.Fatal(err)
+		}
+		value := float64(index+1) / 10
+		record, err := runrecord.NewEvaluation(bound.RuntimeRecipe, run.ID, compiled.dataset, []runrecord.Metric{{Name: "accuracy", Value: value, Direction: runrecord.DirectionMaximize}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch, err = record.Batch("comparison/evaluation/" + mode)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Commit(t.Context(), batch); err != nil {
+			t.Fatal(err)
+		}
+		// The first and last share acceptance and environment, so only the
+		// last remains; all the intermediate contracts remain independently.
+		if mode != "resident" {
+			want[record.ID] = value
+		}
+		suites[compiled.dataset] = "same-label"
+	}
+	summaries := LatestEvidence(t.Context(), store, suites, 0).EvaluationsByRecipe[authorities.RuntimeRecipe]
+	if len(summaries) != len(want) {
+		t.Fatalf("summaries = %+v, want %d distinct contracts", summaries, len(want))
+	}
+	seen := map[artifact.ID]bool{}
+	for _, summary := range summaries {
+		data, err := json.Marshal(summary)
+		var provenance struct {
+			Comparison  artifact.ID `json:"comparison"`
+			Environment artifact.ID `json:"environment"`
+			CodeCommit  string      `json:"code_commit"`
+		}
+		if err == nil {
+			err = json.Unmarshal(data, &provenance)
+		}
+		if value, found := want[summary.Record]; err != nil || !found || summary.Metrics["accuracy"] != value || summary.Prompting != "raw-completion" ||
+			!summary.ExecutionKnown || !provenance.Comparison.Valid() || !provenance.Environment.Valid() || provenance.CodeCommit == "" || seen[provenance.Comparison] {
+			t.Fatalf("summary = %+v, provenance = %+v: %v", summary, provenance, err)
+		}
+		if summary.Metrics["accuracy"] == 0.6 && provenance.CodeCommit != strings.Repeat("b", len(planTestCommit)) {
+			t.Fatalf("new source attributed to %q", provenance.CodeCommit)
+		}
+		seen[provenance.Comparison] = true
+	}
+}

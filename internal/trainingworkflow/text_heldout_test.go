@@ -76,9 +76,47 @@ func TestTextObjectivePacksTrainingRecordsIntoWindows(t *testing.T) {
 	}
 	text := registerTextObjective(t, documents, trainingprogram.MetricTokenAccuracy)
 	ctx := t.Context()
+	weights, err := IdentifyModelWeights(text.model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaultRecipe, err := BootstrapObjectiveRecipe(ctx, text.store, weights, text.alias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition, err := recipe.RequireDefinition(ctx, text.store, defaultRecipe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A declared alternate policy must change the updates themselves, not just the recorded recipe label.
+	policy := trainingprogram.BuiltinOptimizerPolicy()
+	policy.ParameterExponent, policy.MomentumEffectiveSamples = -0.5, 7
+	policy.ID, err = artifact.JSONID(artifact.KindProfile, policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := policy.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := text.store.Commit(ctx, artifact.Batch{Key: "selected-policy", Contents: []artifact.Content{content}}); err != nil {
+		t.Fatal(err)
+	}
+	for index := range definition.Dependencies {
+		if definition.Dependencies[index].Role == recipe.DependencyOptimizer {
+			definition.Dependencies[index].Artifact = policy.ID
+		}
+	}
+	selected, err := recipe.NewDefinitionWithDependencies(definition.Task, definition.Dependencies, definition.Nodes, definition.Edges, definition.Inputs, definition.Outputs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.PublishCandidate(ctx, text.store, "selected-recipe", selected); err != nil {
+		t.Fatal(err)
+	}
 	output := filepath.Join(text.root, "trained")
 	result, err := RunTextHeldout(ctx, text.store, TextHeldoutRequest{
-		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: output, Steps: steps, MaximumSequence: window, Host: true,
+		Alias: text.alias, Recipe: selected.ID, ModelDirectory: text.model, OutputDirectory: output, Steps: steps, MaximumSequence: window, Host: true,
 	})
 	if err != nil || !result.Verdict.Valid() || !result.Baseline.Valid() || !result.Candidate.Valid() {
 		t.Fatalf("text held-out run = (%+v, %v), want a published verdict", result, err)
@@ -135,7 +173,7 @@ func TestTextObjectivePacksTrainingRecordsIntoWindows(t *testing.T) {
 	}
 	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
 		Objective: trainingprogram.ObjectiveTokenPrediction, Updates: steps, MaximumSequence: window,
-		Parameters: muonPlan.ParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
+		Parameters: muonPlan.ParameterCount(), Optimizer: policy,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -310,6 +348,17 @@ func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
 	if inputs := verified.Run.Inputs; err != nil || len(inputs) != 2 || !slices.Contains(inputs, proof.Observation) || !slices.Contains(inputs, proof.Trained) {
 		t.Fatalf("active verification = (%+v, %v), want it to depend on the proof's session %s and checkpoint %s alone",
 			verified.Run, err, proof.Observation, proof.Trained)
+	}
+	// Promotion retargets the objective alias. A previously selected recipe must not silently train under the replacement.
+	if _, err := PromoteObjectiveAdaptive(ctx, text.store, text.alias, []artifact.ID{full.Observation}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = RunTextHeldout(ctx, text.store, TextHeldoutRequest{
+		Alias: text.alias, Recipe: activation.Definition.ID, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, "retargeted"),
+		Steps: 2, MaximumSequence: 8, Host: true, Proof: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "objective differs") {
+		t.Fatalf("selected recipe after objective retarget = %v, want objective mismatch refused", err)
 	}
 }
 

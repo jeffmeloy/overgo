@@ -9,16 +9,16 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": -27,
-        "reason": "This consumer step retains ActiveRecord's already reconstructed typed verification and removes three VerifyEvidence calls from proofRecord, verifiedRequest and verifiedCase. Necessary selected-recipe refusal grows its reader by 12 production nodes and retained result by 8; deleting repeated reconstruction/imports removes 47, net -27 measured AST nodes. The real supersession fixture adds 50 test lines with three meaningful selections and no duplicate same-ID row. No measured speedup; original producer/source/environment and replay work remain explicitly open."
+        "nodes": 323,
+        "reason": "Necessary selected-objective producer repair grows323 measured production AST nodes and53 fixture lines. SessionAuthority now supplies the actual selected optimizer, and one resolved model/objective/recipe reaches the held-out run; two alias resolutions and one repeated identifyAndRecordWeights disappear. Command selection passes -recipe and preserves raw-input refusals. Net growth is correctness/capability plumbing, not simplification or a measured speedup. Fresh producer credit/private scratch, source/environment/protocol and replay remain open."
       },
       "steps": [
         {
-          "id": "proof-producer",
-          "title": "Execute and credit only the selected recipe's fresh proof",
+          "id": "proof-acquisition",
+          "title": "Credit the fresh selected proof from an isolated producer attempt",
           "status": "open",
           "verify": "go test ./cmd/validate ./cmd/train ./internal/trainingworkflow",
-          "rationale": "Retained original SQA-053 producer obligation, not a new framework. Serves: exact promotion authority. Disappears: objective alias/default recipe substitution and exit-only proof credit. Evidence: carry selected immutable recipe/objective/optimizer through the existing training workflow; refresh the parent store after actual child completion and compare returned fresh selected verification before acquisition credit. Matching proof remains proof-only; no held-out verdict is invented. Reconsider SQA-072 private attempt scratch at this producer boundary and preserve cancellation/resource release. The broad host verifier is provisional until an actual failing selected-policy/alias-retarget and zero-exit-without-proof table is defined. Batch: true trainer/workflow closure and guard invalidation; no blanket device concurrency or new ledger."
+          "rationale": "Retained original SQA-053 producer-credit and SQA-072 scratch scope. Serves: exact fresh proof result and attempt isolation. Disappears: exit-only acquisition credit, stale parent store view, deterministic cross-store/worktree recipe scratch and repeated command classification. Use current typed run/checkpoint/result and process owners for a producer handoff bound to the selected recipe/objective/policy; refresh the parent store after actual child completion and require that exact new proof before credit. Allocate private invocation scratch, retain until actual child completion, clean only owned paths. A concurrent same-recipe proof or an old active result cannot substitute for this producer result. No new result ledger/scheduler, no observation parsed from prose, no weakened proof/full-verdict or cancellation/resource contract. Provisional host verifier is replaced by actual exit-zero-without-proof/wrong-or-stale-result and interleaved private-scratch failing cases before implementation. Batch: producer/workflow closure and guard invalidation; no blanket device concurrency or model acquisition."
         },
         {
           "id": "source-environment",

@@ -132,6 +132,11 @@ func BootstrapObjectiveRecipe(ctx context.Context, store *overgodb.Store, modelP
 	if err != nil {
 		return artifact.ID{}, err
 	}
+	return bootstrapRegisteredObjective(ctx, store, modelID, objective)
+}
+
+// bootstrapRegisteredObjective uses the model and objective already resolved by the run.
+func bootstrapRegisteredObjective(ctx context.Context, store *overgodb.Store, modelID artifact.ID, objective trainingprogram.ObjectiveDocument) (artifact.ID, error) {
 	profile := func(name string) (artifact.ID, error) {
 		return artifact.IdentifyBytes(artifact.KindProfile, []byte("overgo/training-bootstrap/"+name))
 	}

@@ -11,16 +11,16 @@ import (
 
 // TestTrainObjectiveModeRefusesRawDatasetInputs holds the -objective mode to
 // the objective's registered split: every set flag that names a raw dataset,
-// a recipe or recipe-session input or a preview is named back, sorted; an
+// a raw session input or a preview is named back, sorted; an
 // unset one and the flags the mode uses, the trained model's output among
-// them, are not.
+// them and the selected recipe, are not.
 func TestTrainObjectiveModeRefusesRawDatasetInputs(t *testing.T) {
 	t.Parallel()
 	set := map[string]bool{
 		"dataset": true, "recipe": true, "resume": false, "reference": true, "audio-manifest": false,
 		"bootstrap-recipe": true, "out": true, "objective-scale": true, "model": true, "steps": true,
 	}
-	want := []string{"-bootstrap-recipe", "-dataset", "-objective-scale", "-recipe", "-reference"}
+	want := []string{"-bootstrap-recipe", "-dataset", "-objective-scale", "-reference"}
 	if got := objectiveModeConflicts(set); !slices.Equal(got, want) {
 		t.Fatalf("conflicts = %v, want %v", got, want)
 	}

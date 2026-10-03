@@ -23,7 +23,9 @@ import (
 // TextHeldoutRequest trains a text model under a registered token-prediction
 // objective and judges it on the objective's held-out split.
 type TextHeldoutRequest struct {
-	Alias          string
+	Alias string
+	// Recipe selects an exact published training recipe; zero bootstraps the objective's default.
+	Recipe         artifact.ID
 	ModelDirectory string
 	// OutputDirectory receives the trained model as a checkpoint, the
 	// trained result the verdict binds: a GGUF base's trained GGUF, else
@@ -97,7 +99,11 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.Host && request.FreezeLexical {
 		return HeldoutResult{}, errors.New("training workflow: host and frozen lexical execution are incompatible")
 	}
-	objective, err := LoadObjectiveAlias(ctx, store, request.Alias)
+	weights, err := IdentifyModelWeights(request.ModelDirectory)
+	if err != nil {
+		return HeldoutResult{}, err
+	}
+	modelID, objective, session, err := resolveHeldoutAuthority(ctx, store, weights, request.Alias, request.Recipe)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -116,10 +122,6 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if !tokenizer.ended {
 		return HeldoutResult{}, errors.New("training workflow: the model declares no end-of-sequence token to separate the training records packed into one window")
 	}
-	weights, err := IdentifyModelWeights(request.ModelDirectory)
-	if err != nil {
-		return HeldoutResult{}, err
-	}
 	sequence := model.Dims.ContextLength
 	if request.MaximumSequence > 0 {
 		sequence = min(sequence, request.MaximumSequence)
@@ -135,14 +137,14 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	plan, err := trainingprogram.CompileProbeSessionPlan(trainingprogram.ProbeSpec{
 		Objective: trainingprogram.ObjectiveTokenPrediction, Updates: request.Steps, MaximumSequence: sequence,
 		MaxProjectedWall: request.MaxProjectedWall,
-		Parameters:       muonPlan.ParameterCount(), Optimizer: trainingprogram.BuiltinOptimizerPolicy(),
+		Parameters:       muonPlan.ParameterCount(), Optimizer: session.Optimizer,
 	})
 	if err != nil {
 		return HeldoutResult{}, err
 	}
 	config := plan.Optimizer()
-	return RunHeldout(ctx, store, HeldoutRun{
-		Alias: request.Alias, ModelPath: weights, Data: data, Host: request.Host, Proof: request.Proof,
+	return runHeldout(ctx, store, HeldoutRun{
+		Data: data, Host: request.Host, Proof: request.Proof,
 		Train: func(ctx context.Context, recipeID artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error) {
 			documents := make([][]int, len(shown))
 			for index, example := range shown {
@@ -182,7 +184,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			}
 			return nextTokens(model, example)
 		},
-	})
+	}, modelID, objective, session.Program.Definition().ID)
 }
 
 // packWindows joins the documents, in order, each followed by the token

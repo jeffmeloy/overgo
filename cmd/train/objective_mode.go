@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/trainingworkflow"
 )
@@ -18,6 +19,7 @@ import (
 // objectives train through their routes.
 type objectiveRun struct {
 	Alias, Model, Out          string
+	Recipe                     string
 	Steps, Sequence            int
 	Host, FreezeLexical, Proof bool
 	MaxWall                    time.Duration
@@ -25,10 +27,10 @@ type objectiveRun struct {
 
 // objectiveConflictingFlags are the flags an -objective run cannot honour,
 // sorted: the objective's registered dataset and split replace the raw
-// dataset, and its recipe every recipe-session input.
+// dataset and raw session inputs. A selected recipe must bind that objective.
 var objectiveConflictingFlags = []string{
 	"audio-manifest", "bootstrap-recipe", "dataset", "objective-scale",
-	"preference-margin", "preference-mode", "preview-dataset", "recipe", "reference", "resume",
+	"preference-margin", "preference-mode", "preview-dataset", "reference", "resume",
 }
 
 // objectiveModeConflicts names, sorted, the flags in set that an -objective
@@ -50,8 +52,15 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 	if run.Model == "" || run.Out == "" || run.Steps <= 0 {
 		return fmt.Errorf("train: -objective requires -model, -out and positive -steps")
 	}
+	var recipeID artifact.ID
+	if run.Recipe != "" {
+		var err error
+		if recipeID, err = artifact.ParseID(run.Recipe); err != nil {
+			return fmt.Errorf("training recipe: %w", err)
+		}
+	}
 	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
-		Alias: run.Alias, ModelDirectory: run.Model, OutputDirectory: run.Out, Steps: run.Steps, MaximumSequence: run.Sequence,
+		Alias: run.Alias, Recipe: recipeID, ModelDirectory: run.Model, OutputDirectory: run.Out, Steps: run.Steps, MaximumSequence: run.Sequence,
 		Host: run.Host, Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
 		Proof: run.Proof,
 	})

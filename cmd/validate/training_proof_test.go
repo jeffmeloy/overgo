@@ -272,7 +272,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		hybrid.ModelName: {"-route": "hybrid-stack", "-model": hybrid.Location},
 		dense.ModelName:  {"-route": "", "-recipe": dense.Recipe.String(), "-model": filepath.Dir(dense.Location), "-dataset": denseGrounding},
 		objective.ModelName: {
-			"-route": "", "-recipe": "", "-dataset": "", "-objective": registered, "-model": filepath.Dir(objective.Location),
+			"-route": "", "-recipe": objective.Recipe.String(), "-dataset": "", "-objective": registered, "-model": filepath.Dir(objective.Location),
 			"-steps": denseSteps, "-seq": denseSequence,
 		},
 	} {

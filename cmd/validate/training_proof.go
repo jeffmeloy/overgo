@@ -19,9 +19,9 @@ import (
 // committed data, and the dense workflow trains the recipe it is given over
 // that recipe's own data, so the recipe whose objective reads the data is the
 // one a run of the route reaches and re-verifies at the commit it executed.
-// An objective registered over store data bootstraps its recipe from the
-// objective alone, so a proof run of train -objective under the alias that
-// registers it re-verifies that recipe, publishing no held-out verdict to
+// An objective registered over store data is proved under the selected
+// recipe, whose objective must equal the alias's immutable target. A proof
+// run of train -objective re-verifies that recipe, publishing no held-out verdict to
 // supersede the one the recipe's quality reads. Each run keeps the bounds the
 // training lane recorded for its route.
 const (
@@ -166,6 +166,8 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 		return nil, nil, "", errors.New("no cmd/train route grounds its recipe's objective, and no alias registers it for train -objective")
 	case cell.Location == "":
 		return nil, nil, "", errors.New("a training run needs the model's weights")
+	case at < 0:
+		inputs = append(inputs, "-recipe", cell.Recipe.String())
 	case cell.Grounding == hybridGrounding:
 		inputs = []string{"-model", cell.Location}
 	case cell.Grounding == denseGrounding:

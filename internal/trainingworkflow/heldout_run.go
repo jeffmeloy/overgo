@@ -9,6 +9,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -43,9 +44,11 @@ type HeldoutPrediction struct {
 type HeldoutRun struct {
 	Alias     string
 	ModelPath string
-	Data      ObjectiveData
-	Train     func(ctx context.Context, recipe artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error)
-	Predict   func(HeldoutExample) (HeldoutPrediction, error)
+	// Recipe selects exact authority; zero uses the objective's bootstrapped recipe.
+	Recipe  artifact.ID
+	Data    ObjectiveData
+	Train   func(ctx context.Context, recipe artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error)
+	Predict func(HeldoutExample) (HeldoutPrediction, error)
 	// Host records the training session as host execution.
 	Host bool
 	// Proof re-verifies the recipe by the training run alone: neither model
@@ -94,10 +97,40 @@ func LoadObjectiveAlias(ctx context.Context, reader artifact.Reader, alias strin
 // run stops once training records its session, and verifies the recipe on
 // the session and the checkpoint alone, as the dense workflow does.
 func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (HeldoutResult, error) {
-	objective, err := LoadObjectiveAlias(ctx, store, run.Alias)
+	modelID, objective, session, err := resolveHeldoutAuthority(ctx, store, run.ModelPath, run.Alias, run.Recipe)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
+	return runHeldout(ctx, store, run, modelID, objective, session.Program.Definition().ID)
+}
+
+// resolveHeldoutAuthority resolves one model, objective alias and exact recipe before execution.
+func resolveHeldoutAuthority(ctx context.Context, store *overgodb.Store, modelPath, alias string, recipeID artifact.ID) (artifact.ID, trainingprogram.ObjectiveDocument, SessionAuthority, error) {
+	objective, err := LoadObjectiveAlias(ctx, store, alias)
+	if err != nil {
+		return artifact.ID{}, objective, SessionAuthority{}, err
+	}
+	modelID, err := identifyAndRecordWeights(ctx, store, modelPath)
+	if err != nil {
+		return modelID, objective, SessionAuthority{}, err
+	}
+	if !recipeID.Valid() {
+		if recipeID, err = bootstrapRegisteredObjective(ctx, store, modelID, objective); err != nil {
+			return modelID, objective, SessionAuthority{}, err
+		}
+	}
+	session, err := ResolveSessionAuthority(ctx, store, modelID, recipeID)
+	if err != nil {
+		return modelID, objective, session, err
+	}
+	if bound, found := session.Program.Definition().PrimaryDependency(recipe.DependencyObjective); !found || bound != objective.ID {
+		return modelID, objective, session, errors.New("training workflow: selected recipe objective differs from the registered objective")
+	}
+	return modelID, objective, session, nil
+}
+
+// runHeldout uses authority fixed before model execution, without re-resolving a mutable alias.
+func runHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun, modelID artifact.ID, objective trainingprogram.ObjectiveDocument, recipeID artifact.ID) (HeldoutResult, error) {
 	training, heldout, err := objectiveMemberships(ctx, store, objective)
 	if err != nil {
 		return HeldoutResult{}, err
@@ -127,14 +160,6 @@ func RunHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun) (Hel
 		if baseline, err = predictHeldout(plan, cases, run); err != nil {
 			return HeldoutResult{}, err
 		}
-	}
-	recipeID, err := BootstrapObjectiveRecipe(ctx, store, run.ModelPath, run.Alias)
-	if err != nil {
-		return HeldoutResult{}, err
-	}
-	modelID, err := identifyAndRecordWeights(ctx, store, run.ModelPath)
-	if err != nil {
-		return HeldoutResult{}, err
 	}
 	observer, err := NewObserver(store, run.Host)
 	if err != nil {

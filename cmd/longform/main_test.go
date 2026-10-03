@@ -10,23 +10,16 @@ import (
 	"overgo/internal/longform"
 )
 
-// The tool takes either the whole servable text catalog or named
-// models, never both and never neither, a check does not publish, and
-// its report reads the short shape, every rung, the judged verdict, the
-// prompt tail, and the head of the output.
+// The tool takes named models, never none, and its report reads the
+// short shape, every rung, the judged verdict, the prompt tail, and the
+// head of the output.
 func TestOptionsAndReport(t *testing.T) {
 	t.Setenv(dataroot.Env, "")
 	if _, err := parseOptions(nil); err == nil {
 		t.Fatal("no target accepted")
 	}
-	if _, err := parseOptions([]string{"-all", "model.gguf"}); err == nil {
-		t.Fatal("-all with a named model accepted")
-	}
-	if _, err := parseOptions([]string{"-all", "-check", "-publish"}); err == nil {
-		t.Fatal("-check with -publish accepted")
-	}
 	options, err := parseOptions([]string{"-publish", "-budget", "1m", "-show", "12", "a.gguf", "b.gguf"})
-	if err != nil || !options.Publish || options.All || options.Check || options.OutputPrefix != 12 || len(options.Models) != 2 ||
+	if err != nil || !options.Publish || options.OutputPrefix != 12 || len(options.Models) != 2 ||
 		options.Repository != "overgodb-store" {
 		t.Fatalf("options = %+v, %v", options, err)
 	}

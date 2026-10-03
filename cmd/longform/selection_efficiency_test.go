@@ -1,10 +1,8 @@
 package main
 
 import (
-	"io"
 	"math"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -57,47 +55,12 @@ func TestSelectedGuardAdmissionScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	corpus := filepath.Join(t.TempDir(), "corpus.txt")
-	if err := os.WriteFile(corpus, []byte("fixed corpus"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	opts := options{Repository: repository, Models: []string{r.ModelPath}, ValidateBaselines: true, Corpus: corpus, Baselines: []string{accepted.String()}}
-	head, sequence := store.Head()
+	opts := options{Repository: repository, Models: []string{r.ModelPath}}
 	historyReads := 0
 	readHistory := func() map[string]evaluation.BenchmarkSummary {
 		historyReads++
 		return map[string]evaluation.BenchmarkSummary{r.ModelPath: {Record: accepted, PromptTokensPerSecond: 999, DecodeTokensPerSecond: 999}}
 	}
-	targets, err := readTargets(t.Context(), store, opts, readHistory)
-	if err != nil || len(targets) != 1 {
-		t.Fatalf("selected targets = %+v, %v", targets, err)
-	}
-	if historyReads != 0 || targets[0].short != (longform.ShortRates{}) {
-		t.Errorf("read-only admission read benchmark history %d times: %+v", historyReads, targets[0].short)
-	}
-	coverageOptions := opts
-	coverageOptions.ValidateBaselines, coverageOptions.GuardCoverage = false, true
-	if inventory, err := readTargets(t.Context(), store, coverageOptions, readHistory); err != nil || len(inventory) != 1 || historyReads != 0 {
-		t.Fatalf("coverage inventory read benchmark history: models=%d reads=%d error=%v", len(inventory), historyReads, err)
-	}
-	if err := bindBaselines(t.Context(), opts, targets); err != nil {
-		t.Fatal(err)
-	}
-	if err := validateSelectedBaselines(io.Discard, targets, r.Surface); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := listTargets(t.Context(), opts); err != nil {
-		t.Fatalf("read-only command store opening failed: %v", err)
-	}
-	if after, current := store.Head(); after != head || current != sequence {
-		t.Fatal("selected admission published state")
-	}
-	all := opts
-	all.All, all.Models = true, nil
-	if full, err := readTargets(t.Context(), store, all, readHistory); err != nil || len(full) != 1 || historyReads != 0 {
-		t.Fatalf("full read-only catalog = %+v, history reads=%d, error=%v", full, historyReads, err)
-	}
-	opts.ValidateBaselines = false
 	if targets, err := readTargets(t.Context(), store, opts, readHistory); err != nil || historyReads != 1 || len(targets) != 1 || targets[0].shortBenchmark != accepted {
 		t.Fatalf("measurement lost benchmark input: reads=%d error=%v", historyReads, err)
 	}
@@ -113,11 +76,10 @@ func TestSelectedGuardAdmissionScope(t *testing.T) {
 			t.Fatalf("invalid calibration reached measurement targets: %+v, %v", targets, err)
 		}
 	}
-	opts.ValidateBaselines = true
 	if err := os.WriteFile(r.ModelPath, []byte("changed selected bytes"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := listTargets(t.Context(), opts); err == nil {
+	if _, err := readTargets(t.Context(), store, opts, readHistory); err == nil {
 		t.Fatal("changed selected bytes accepted")
 	}
 	if err := os.WriteFile(r.ModelPath, []byte("guard"), 0o600); err != nil {
@@ -134,7 +96,7 @@ func TestSelectedGuardAdmissionScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := listTargets(t.Context(), opts); err == nil {
+	if _, err := readTargets(t.Context(), store, opts, readHistory); err == nil {
 		t.Fatal("changed selected active policy accepted")
 	}
 }

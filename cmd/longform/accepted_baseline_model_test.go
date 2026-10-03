@@ -69,11 +69,6 @@ func TestAcceptedBaselineEvidence(t *testing.T) {
 			if err := validateGuard(refused.Result); err == nil {
 				t.Fatal("original failed or incomplete measurement accepted")
 			}
-			if !before.Result.Verdict.Passed {
-				if _, err := longform.ReadBaseline(t.Context(), store, before.Record); err == nil {
-					t.Fatal("failed pre-fix measurement accepted as a healthy baseline")
-				}
-			}
 			var first longform.Result
 			for index, text := range fixture.after {
 				id, err := artifact.ParseID(text)
@@ -90,9 +85,6 @@ func TestAcceptedBaselineEvidence(t *testing.T) {
 				}
 				if fresh.RealizedResidency != "" {
 					t.Fatal("historical record unexpectedly declares an observed residency")
-				}
-				if _, err := longform.ReadBaseline(t.Context(), store, id); err == nil || !strings.Contains(err.Error(), "realized residency") {
-					t.Fatalf("legacy record was promoted or refused for another reason: %v", err)
 				}
 				if verdict := longform.Compare(before.Result, fresh, longform.DeclaredFloors(), fresh.Floors.CheckRungCeiling); verdict.Passed || !strings.Contains(strings.Join(verdict.Reasons, " "), "realized residency") {
 					t.Fatalf("legacy pre-fix comparison was promoted: %s", verdict)

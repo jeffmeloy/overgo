@@ -3,12 +3,8 @@
 package main
 
 import (
-	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"reflect"
@@ -17,7 +13,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/longform"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
 )
 
 func readCorpus(options options, limit int) (string, error) {
@@ -35,70 +30,6 @@ func readCorpus(options options, limit int) (string, error) {
 		return "", errors.New("longform: fixed corpus is empty")
 	}
 	return string(data), nil
-}
-
-func bindBaselines(ctx context.Context, options options, targets []target) error {
-	selected, err := readBaselines(ctx, options)
-	if err != nil {
-		return err
-	}
-	return bindSelectedBaselines(options, targets, selected)
-}
-
-func readBaselines(ctx context.Context, options options) (map[artifact.ID]longform.Summary, error) {
-	corpus, err := readCorpus(options, 0)
-	if err != nil {
-		return nil, err
-	}
-	digest := sha256.Sum256([]byte(corpus))
-	store, err := overgodb.OpenReadOnly(options.Repository)
-	if err != nil {
-		return nil, err
-	}
-	defer store.Close()
-	selected := make(map[artifact.ID]longform.Summary)
-	for _, text := range options.Baselines {
-		id, err := artifact.ParseID(text)
-		if err != nil {
-			return nil, err
-		}
-		baseline, err := longform.ReadBaseline(ctx, store, id)
-		if err != nil {
-			return nil, err
-		}
-		if baseline.Result.Inputs.CorpusDigest != hex.EncodeToString(digest[:]) || baseline.Result.Floors != longform.DeclaredFloors() {
-			return nil, errors.New("longform: baseline corpus or floors differ from this experiment")
-		}
-		model := baseline.Result.Inputs.Model
-		if _, duplicate := selected[model]; duplicate {
-			return nil, fmt.Errorf("longform: multiple baselines for %s", model)
-		}
-		selected[model] = baseline
-	}
-	return selected, nil
-}
-
-func bindSelectedBaselines(options options, targets []target, selected map[artifact.ID]longform.Summary) error {
-	for index := range targets {
-		baseline, found := selected[targets[index].weights]
-		if !found {
-			return fmt.Errorf("longform: no explicit baseline for %s", targets[index].entry.Location)
-		}
-		if options.Guard || options.ValidateBaselines {
-			if err := validateGuard(baseline.Result); err != nil {
-				return fmt.Errorf("longform: baseline %s: %w", baseline.Record, err)
-			}
-			if baseline.Result.Program.Recipe != targets[index].entry.Recipe || baseline.Result.Program.Model != targets[index].entry.Model {
-				return errors.New("longform: baseline recipe or serving model differs from the selected active binding")
-			}
-		}
-		targets[index].record = baseline
-		delete(selected, targets[index].weights)
-	}
-	if len(selected) != 0 {
-		return errors.New("longform: baseline supplied for an unselected model")
-	}
-	return nil
 }
 
 // validateGuard checks the measured denominator, not merely a stored PASS bit.
@@ -192,24 +123,4 @@ func validShortRates(short longform.ShortRates) bool {
 		}
 	}
 	return true
-}
-
-func validateSelectedBaselines(output io.Writer, targets []target, surface string) error {
-	if len(targets) == 0 || surface == "" {
-		return errors.New("longform: guard acceptance needs selected records and a source surface")
-	}
-	rungs := 0
-	for _, target := range targets {
-		baseline := target.record
-		if !baseline.Record.Valid() || baseline.Result.Surface != surface {
-			return fmt.Errorf("longform: guard record %s does not cover the current source surface", baseline.Record)
-		}
-		if err := validateGuard(baseline.Result); err != nil {
-			return err
-		}
-		rungs += len(baseline.Result.Rungs)
-		fmt.Fprintf(output, "validated guard: model=%s recipe=%s record=%s short=1 rungs=%d\n", baseline.Result.Inputs.Model, baseline.Result.Program.Recipe, baseline.Record, len(baseline.Result.Rungs))
-	}
-	fmt.Fprintf(output, "guard audit: selected_models=%d explicit_records=%d short_shapes=%d rungs=%d; quality/rate floors and owned peak/retained allocation evidence checked; read-only, no models loaded or measured, no GPU tests or benchmark suites run\n", len(targets), len(targets), len(targets), rungs)
-	return nil
 }

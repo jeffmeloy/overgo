@@ -59,8 +59,9 @@ func TestPublicationStoreLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
+	latest := longform.LatestByLocation(t.Context(), store, 0)
 	for _, result := range []longform.Result{record, otherRecord} {
-		if _, found := longform.Latest(t.Context(), store, result.ModelPath); !found {
+		if _, found := latest[longform.Key(result.ModelPath)]; !found {
 			t.Fatalf("completed result disappeared: %s", result.ModelPath)
 		}
 	}

@@ -38,7 +38,7 @@ func Corpus(root string, limit int) (string, error) {
 	if err := appendFile(filepath.Join(root, corpusPrefix[0])); err != nil {
 		return "", err
 	}
-	docs, err := sortedFiles(filepath.Join(root, corpusPrefix[1]), ".md", false)
+	docs, err := sortedFiles(filepath.Join(root, corpusPrefix[1]), ".md")
 	if err != nil {
 		return "", err
 	}
@@ -80,7 +80,7 @@ func Corpus(root string, limit int) (string, error) {
 
 // sortedFiles lists the files with the suffix directly under directory
 // in name order.
-func sortedFiles(directory, suffix string, recursive bool) ([]string, error) {
+func sortedFiles(directory, suffix string) ([]string, error) {
 	entries, err := os.ReadDir(directory)
 	if err != nil {
 		return nil, err

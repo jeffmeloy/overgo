@@ -19,8 +19,7 @@ import (
 )
 
 // Guard re-acquisition policy: the fixed corpus and budgets a text guard cell
-// re-acquires under, matching the accepted guard-catalog protocol so a re-run
-// binds evidence at the current surface.
+// re-acquires under, so a re-run binds evidence at the current surface.
 const (
 	guardCorpus      = "cmd/longform/testdata/guard-corpus.txt"
 	guardBudget      = "90m"

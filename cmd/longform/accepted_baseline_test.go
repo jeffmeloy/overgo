@@ -16,7 +16,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/cuda/driver"
-	"overgo/internal/discovery"
 	"overgo/internal/longform"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -24,8 +23,8 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// Failed records are diagnostic counterexamples only. ReadBaseline remains the
-// authority for every accepted reference; this reader cannot promote a failure.
+// Failed records are diagnostic counterexamples only; this reader cannot
+// promote a failure.
 func measuredGuardRecord(t *testing.T, store *overgodb.Store, text string) longform.Summary {
 	t.Helper()
 	id, err := artifact.ParseID(text)
@@ -174,64 +173,7 @@ func TestGuardEvidenceContract(t *testing.T) {
 			t.Fatal(v)
 		}
 	})
-	t.Run("durable explicit selection and read only acceptance", func(t *testing.T) {
-		r := guardResult(t)
-		repository := t.TempDir()
-		store, err := overgodb.Open(repository)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer store.Close()
-		accepted, err := longform.Publish(t.Context(), store, r.Inputs.Model, r)
-		if err != nil {
-			t.Fatal(err)
-		}
-		read, err := longform.ReadBaseline(t.Context(), store, accepted)
-		if err != nil || !reflect.DeepEqual(r, read.Result) {
-			t.Fatalf("round trip changed evidence: %v", err)
-		}
-		failed := r
-		failed.Verdict = longform.Verdict{Reasons: []string{"later regression"}}
-		bad, err := longform.Publish(t.Context(), store, r.Inputs.Model, failed)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
-		opts := options{Repository: repository, corpusText: "fixed corpus", ValidateBaselines: true, Baselines: []string{accepted.String()}}
-		targets := []target{{weights: r.Inputs.Model, entry: discovery.Entry{Model: r.Program.Model, Recipe: r.Program.Recipe}}}
-		if err := bindBaselines(t.Context(), opts, targets); err != nil {
-			t.Fatal(err)
-		}
-		var output strings.Builder
-		if err := validateSelectedBaselines(&output, targets, r.Surface); err != nil {
-			t.Fatal(err)
-		}
-		if targets[0].record.Record != accepted || !strings.Contains(output.String(), "selected_models=1 explicit_records=1 short_shapes=1 rungs=4") || !strings.Contains(output.String(), "no models loaded") {
-			t.Fatal(output.String())
-		}
-		if err := validateSelectedBaselines(io.Discard, targets, "stale"); err == nil {
-			t.Fatal("stale accepted")
-		}
-		for name, mutate := range map[string]func(*options, *[]target){
-			"failed latest":  func(o *options, _ *[]target) { o.Baselines = []string{bad.String()} },
-			"duplicate":      func(o *options, _ *[]target) { o.Baselines = []string{accepted.String(), accepted.String()} },
-			"missing":        func(o *options, _ *[]target) { o.Baselines = nil },
-			"unselected":     func(_ *options, ts *[]target) { *ts = nil },
-			"changed recipe": func(_ *options, ts *[]target) { (*ts)[0].entry.Recipe = artifact.ID{} },
-			"changed corpus": func(o *options, _ *[]target) { o.corpusText = "different corpus" },
-		} {
-			t.Run(name, func(t *testing.T) {
-				o, ts := opts, append([]target(nil), targets...)
-				mutate(&o, &ts)
-				if err := bindBaselines(t.Context(), o, ts); err == nil {
-					t.Fatal("invalid selection accepted")
-				}
-			})
-		}
-	})
-	t.Run("bounded guard publishes failure and refuses matching failure", func(t *testing.T) {
+	t.Run("bounded guard publishes failure", func(t *testing.T) {
 		r := guardResult(t)
 		measure := func(_ context.Context, _ io.Writer, _ options, _ target, _, _ string, f longform.Floors, ceiling int) (longform.Result, error) {
 			if ceiling != f.CheckRungCeiling {
@@ -249,27 +191,13 @@ func TestGuardEvidenceContract(t *testing.T) {
 			}
 			return artifact.ID{}, nil
 		}
-		targets := []target{{record: longform.Summary{Result: r}}}
-		if err := runTargets(t.Context(), io.Discard, options{Guard: true, Publish: true, Budget: time.Minute}, targets, r.Commit, r.Surface, measure, publish); err == nil || !published {
+		if err := runTargets(t.Context(), io.Discard, options{Guard: true, Publish: true, Budget: time.Minute}, []target{{}}, r.Commit, r.Surface, measure, publish); err == nil || !published {
 			t.Fatal("failed evidence lost or accepted")
 		}
-		if err := runTargets(t.Context(), io.Discard, options{Guard: true, Check: true, Budget: time.Minute}, targets, r.Commit, r.Surface, measure, nil); err == nil {
-			t.Fatal("matching failed guard passed")
-		}
 	})
-	t.Run("explicit modes", func(t *testing.T) {
-		for _, args := range [][]string{
-			{"-all", "-budget", "1m", "-guard"},
-			{"-all", "-budget", "1m", "-validate-baselines", "-corpus", "fixed"},
-			{"-all", "-budget", "1m", "-validate-baselines", "-baseline", "selected"},
-			{"-all", "-budget", "1m", "-validate-baselines", "-publish", "-corpus", "fixed", "-baseline", "selected"},
-		} {
-			if _, err := parseOptions(args); err == nil {
-				t.Fatalf("accepted %v", args)
-			}
-		}
-		if _, err := parseOptions([]string{"-all", "-budget", "1m", "-validate-baselines", "-corpus", "fixed", "-baseline", "selected"}); err != nil {
-			t.Fatal(err)
+	t.Run("guard requires a fixed corpus", func(t *testing.T) {
+		if _, err := parseOptions([]string{"-budget", "1m", "-guard", "model.gguf"}); err == nil {
+			t.Fatal("guard accepted the repository corpus")
 		}
 	})
 }

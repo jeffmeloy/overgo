@@ -88,29 +88,6 @@
       ]
     },
     {
-      "id": "longform-guard-selection",
-      "title": "Delete longform's guard selection modes, which nothing calls",
-      "class": "consolidation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete longform's guard selection modes, which nothing calls",
-          "status": "open",
-          "verify": "go test ./cmd/longform ./internal/longform -count=1",
-          "rationale": "Finding ed0e05a6 (2026-10-02): cmd/longform -guard-select (with -paths-file) and -guard-coverage derived required guard checks from changed paths and reported guard coverage; cmd/validate's selection replaced them and no command, script, gate stage, lane or document invokes them (git grep over every tracked file, 2026-10-03; cmd/validate calls only longform latest-records and -guard -publish). Patch built (scratchpad guard-selection-delete.patch): guard_coverage.go, guard_selection.go, internal/longform/impact.go and their tests go, 296 production and 346 test lines; inferencesurface.Moves is then caller-less in production and stays for the surface measurements that use it. internal/longform is a cuda lane package, so this lands when no cycle holds the device. Found beside it: TestAcceptedGuardCatalog and TestAcceptedCompletedGuardCohorts need OVERGO_STORE_ACCEPTANCE, which no lane sets for cmd/longform, and both fail against the live store at HEAD (every cohort: baseline lacks realized residency) with or without this patch; that is the second step, run-or-go. Serves: loop speed and review (validation code shrinks)."
-        },
-        {
-          "id": "acceptances",
-          "title": "Run or delete longform's two store acceptances no lane runs",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "TestAcceptedGuardCatalog and TestAcceptedCompletedGuardCohorts (cmd/longform/guard_acquisition_test.go) are gated on OVERGO_STORE_ACCEPTANCE, which the models lane does not set, so they declare themselves inapplicable in every cycle; run by hand on 2026-10-03 at 5455dc909 they fail for all nine cohorts (prior record lost its admitted producer: baseline lacks realized residency). By the env-gated-tests-run-or-go rule: either the catalog they pin (historical guard references, -check and -validate-baselines admission) still guards something, and then the lane sets the variable and the records are repaired, or the acceptances and the production code only they exercise go. Measure first: list what production code in cmd/longform and internal/longform only these two tests and -check/-validate-baselines reach, and whether cmd/validate's guard digest currency already covers what they assert. The verify is set by that measurement."
-        }
-      ]
-    },
-    {
       "id": "validate-currency",
       "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
       "owner": "master-lead",
@@ -399,8 +376,8 @@
           "id": "evidence",
           "title": "Refresh the accepted evidence the audits read, by re-running it",
           "status": "open",
-          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/validate ./cmd/longform -run '^(TestAcceptedCapabilityCensus|TestAcceptedFP8Guard|TestRetiredGuardRecords|TestAcceptedGuardCatalog)$' -count=1 -v",
-          "rationale": "S6: after the guard re-acquisition of 2026-09-30 (10 of 10 published at surface 50f89def), the audits still fail. The accepted baselines they compare against lack realized residency ('comparison lacks matching realized residency'), and the census needs the owner's review of 11 identities (snapshot 209, live 220). Re-acquire the accepted baselines with realized residency, or retire those comparisons against a replacement that covers their contract; never hand-edit. The guard audits move beside validate's guard_records.go.\n\nSQA 2026-09-30: SQA-044 (P2): required acceptances are credited by the typed interpreter, never by exit status. SQA-053 is handled in promotion-correctness/current-evidence.\n\nFold landed 2026-10-01 without re-pointing the 12 coverage-proof Verify strings that name ./cmd/compatibility (11 text-vision, 1 image-video). Each proof's stored gate step binds the sha256 of its exact Verify string (internal/runrecord/completion_evidence.go:38-41, checked via media_coverage.go:400-406). Re-pointing them fails six acceptance tests ('completion acceptance evidence does not match the plan authority'), and nothing in the tree produces these gate records: formatCompletionAcceptanceEvidence has no non-test caller. The re-pointing is built in the scratchpad's compatfold-repoint.patch (new digests: text-vision 62ebc6e5..., image-video 6bf91882...). It applies together with re-acquired records once a producer exists, or the proofs retire against a replacement that covers their contract. Until then the strings name a command that no longer exists, as recorded history.\n\nDeferred 2026-10-02 below the rows that can progress: the census needs the owner's review of the 11 identities the live catalog adds (snapshot 209, live 220), and re-acquiring the accepted baselines with realized residency needs the GPU. Raised with the owner in the session."
+          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/validate -run '^TestAcceptedCapabilityCensus$' -count=1 -v",
+          "rationale": "S6: after the guard re-acquisition of 2026-09-30 (10 of 10 published at surface 50f89def), the audits still fail. The accepted baselines they compare against lack realized residency ('comparison lacks matching realized residency'), and the census needs the owner's review of 11 identities (snapshot 209, live 220). Re-acquire the accepted baselines with realized residency, or retire those comparisons against a replacement that covers their contract; never hand-edit. The guard audits move beside validate's guard_records.go.\n\nSQA 2026-09-30: SQA-044 (P2): required acceptances are credited by the typed interpreter, never by exit status. SQA-053 is handled in promotion-correctness/current-evidence.\n\nFold landed 2026-10-01 without re-pointing the 12 coverage-proof Verify strings that name ./cmd/compatibility (11 text-vision, 1 image-video). Each proof's stored gate step binds the sha256 of its exact Verify string (internal/runrecord/completion_evidence.go:38-41, checked via media_coverage.go:400-406). Re-pointing them fails six acceptance tests ('completion acceptance evidence does not match the plan authority'), and nothing in the tree produces these gate records: formatCompletionAcceptanceEvidence has no non-test caller. The re-pointing is built in the scratchpad's compatfold-repoint.patch (new digests: text-vision 62ebc6e5..., image-video 6bf91882...). It applies together with re-acquired records once a producer exists, or the proofs retire against a replacement that covers their contract. Until then the strings name a command that no longer exists, as recorded history.\n\nDeferred 2026-10-02 below the rows that can progress: the census needs the owner's review of the 11 identities the live catalog adds (snapshot 209, live 220), and re-acquiring the accepted baselines with realized residency needs the GPU. Raised with the owner in the session. 2026-10-03: the three longform guard acceptances this verify named (TestAcceptedFP8Guard, TestRetiredGuardRecords, TestAcceptedGuardCatalog) were deleted with the guard catalog by longform-guard-selection; they ran in no lane and could not pass. The capability census acceptance remains this step's verify, and it too is gated on a variable no lane sets."
         }
       ]
     },

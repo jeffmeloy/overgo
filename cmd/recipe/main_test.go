@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
+	"overgo/internal/workflowruntime"
 )
 
 func TestExactVerificationCandidateBinding(t *testing.T) {
@@ -323,7 +325,7 @@ func TestMeasurementNeedsExecutableInput(t *testing.T) {
 			directory := t.TempDir()
 			// Another run of the recipe retained a whole request; it is not
 			// the accepted verification's.
-			head, sequence := activateMeasured(t, directory, inventory, unrelated, test.accepted)
+			head, sequence := activateMeasured(t, directory, recipe.TaskSeq2Seq, inventory, unrelated, test.accepted)
 			var ran []string
 			capability := mediacapability.Capability{
 				Resolve: func(string) (mediacapability.Source, error) {
@@ -396,7 +398,7 @@ func TestCapabilityMeasurementRecordsLoadAndDevicePeak(t *testing.T) {
 				outcome = runrecord.OutcomeFailed
 			}
 			directory := t.TempDir()
-			activateMeasured(t, directory, inventory, verified)
+			activateMeasured(t, directory, recipe.TaskSeq2Seq, inventory, verified)
 			var load time.Duration
 			capability := mediacapability.Capability{
 				Resolve: func(string) (mediacapability.Source, error) {
@@ -439,6 +441,58 @@ func TestCapabilityMeasurementRecordsLoadAndDevicePeak(t *testing.T) {
 	}
 }
 
+// TestCapabilityMeasurementRunsTheModel holds a measurement to running the
+// model. The store keeps the stage a request ran, and serving the identical
+// request again recovers it: two runs of the request run the model's one
+// node once. A measurement of that request recovers nothing, so the attempt
+// it records times the model and not the store's replay: each of two
+// measurements runs the node. Serving the request afterwards still recovers.
+func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
+	const request = `[1,2,3]`
+	inventory := measuredModel(t)
+	directory := t.TempDir()
+	activateMeasured(t, directory, recipe.TaskForecast, inventory, measuredContent(t, "overgo.forecast-input.v1", request))
+	var runs atomic.Int32
+	capability := mediacapability.Capability{
+		Resolve: func(string) (mediacapability.Source, error) {
+			return mediacapability.Source{Inventory: inventory}, nil
+		},
+		Execute: capabilityruntime.JSONScalar[[]float32, int, []float32](
+			"forecast", func([]float32) error { return nil },
+			func(context.Context, artifact.Repository, string, recipe.Program, []float32) (int, error) {
+				return 1, nil
+			},
+			func(runtime *workflowruntime.Runtime, modelID artifact.ID, _ int) error {
+				return workflowruntime.RegisterJSONStage[[]float32, []float32](
+					runtime, modelrecipe.ModuleForecastSeries, modelID, artifact.JSONContract(artifact.KindOutput, "overgo.fixture-forecast.v1"),
+					func(series []float32) ([]float32, error) {
+						runs.Add(1)
+						return series, nil
+					},
+				)
+			},
+		),
+	}
+	for index, step := range []struct {
+		measure bool
+		runs    int32
+	}{{runs: 1}, {runs: 1}, {measure: true, runs: 2}, {measure: true, runs: 3}, {runs: 3}} {
+		var err error
+		if step.measure {
+			err = measureCapability(directory, "fixture-path", recipe.TaskForecast, capability)
+		} else {
+			err = executeCapability(directory, "fixture-path", "", "", modelrecipe.SessionWarm, recipe.TaskForecast, capability, request)
+		}
+		if err != nil || runs.Load() != step.runs {
+			t.Fatalf("execution %d (measurement: %t) left the model's node run %d times (%v); want %d: a served request recovers its stored stage, a measurement runs the model",
+				index, step.measure, runs.Load(), err, step.runs)
+		}
+	}
+	if attempts := servingAttempts(t, directory); len(attempts) != 5 {
+		t.Fatalf("serving attempts = %d; want each of the five executions recorded", len(attempts))
+	}
+}
+
 // measuredContent is a document of schema holding body: a run's retained
 // request when the schema is a request's.
 func measuredContent(t *testing.T, schema, body string) artifact.Content {
@@ -469,11 +523,11 @@ func measuredModel(t *testing.T) modelartifact.Inventory {
 	return inventory
 }
 
-// activateMeasured gives the model an active seq2seq recipe in a new store
+// activateMeasured gives the model an active recipe of task in a new store
 // at directory: each of runs is a verification of the recipe that recorded
 // that request, in order, and its activation accepts the last. It returns
 // the head of the store it closed.
-func activateMeasured(t *testing.T, directory string, inventory modelartifact.Inventory, runs ...artifact.Content) (artifact.CommitID, uint64) {
+func activateMeasured(t *testing.T, directory string, task recipe.Task, inventory modelartifact.Inventory, runs ...artifact.Content) (artifact.CommitID, uint64) {
 	t.Helper()
 	ctx := t.Context()
 	store, err := overgodb.Open(directory)
@@ -487,7 +541,7 @@ func activateMeasured(t *testing.T, directory string, inventory modelartifact.In
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
-	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, inventory.Manifest.ID)
+	definition, err := modelrecipe.CapabilityDefinition(task, inventory.Manifest.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

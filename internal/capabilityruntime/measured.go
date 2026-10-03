@@ -2,12 +2,23 @@ package capabilityruntime
 
 import (
 	"context"
+	"crypto/rand"
 	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
 	"overgo/internal/workflowruntime"
 )
+
+type freshRunContextKey struct{}
+
+// FreshRun gives an intentional measurement its own operation scope.
+// Reusing this context for the same request recovers that operation's
+// stages; another FreshRun executes independently. Ordinary request
+// identity, activation evidence and workflow recovery are unchanged.
+func FreshRun(ctx context.Context) context.Context {
+	return context.WithValue(ctx, freshRunContextKey{}, rand.Text())
+}
 
 // Measured wraps a capability output with the run's measured
 // decomposition: the per-node phase walls the workflow runtime
@@ -79,6 +90,11 @@ func ExecuteMeasured[Output any](
 	}
 	if err := bind(runtime); err != nil {
 		return zero, nil, err
+	}
+	if ctx != nil {
+		if scope, ok := ctx.Value(freshRunContextKey{}).(string); ok {
+			key += "/measurement/" + scope
+		}
 	}
 	operation, err := workflowruntime.ExecutionID(definition.ID, key)
 	if err != nil {

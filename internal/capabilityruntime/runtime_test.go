@@ -13,6 +13,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -241,6 +242,84 @@ func TestMeasurementCarriesTheLoadWall(t *testing.T) {
 			}
 			if loads[0] <= 0 || shape.resident != (loads[1] == 0) || loads[1] < 0 {
 				t.Fatalf("loads = %v; want the first execution's wall, and the second's only when it loaded again (resident session: %t)", loads, shape.resident)
+			}
+		})
+	}
+}
+
+// TestFreshRunExecutesWhatAnIdenticalRequestStored executes and recovers
+// one request on both executor shapes. Each new fresh operation runs the
+// node and reports its wall; retrying that context recovers its receipt.
+// The ordinary request's original receipt remains unchanged and recovers.
+func TestFreshRunExecutesWhatAnIdenticalRequestStored(t *testing.T) {
+	validate := func(scalarRequest) error { return nil }
+	load := func(context.Context, artifact.Repository, string, recipe.Program, scalarRequest) (int, error) {
+		return 1, nil
+	}
+	for _, name := range []string{"scalar", "session"} {
+		t.Run(name, func(t *testing.T) {
+			var runs atomic.Int32
+			bind := func(runtime *workflowruntime.Runtime, bound artifact.ID, model int) error {
+				return workflowruntime.RegisterJSONStage[scalarRequest, int](
+					runtime, scalarModule, bound, artifact.JSONContract(artifact.KindOutput, "test.fresh-output.v1"),
+					func(request scalarRequest) (int, error) {
+						runs.Add(1)
+						return request.Value + model, nil
+					},
+				)
+			}
+			execute := JSONScalar[scalarRequest, int, int]("scalar", validate, load, bind)
+			if name == "session" {
+				director, err := NewModelSessionDirector[scalarRequest, int, int](
+					"scalar", "host", 1, validate, load, func(context.Context, int, scalarRequest) error { return nil }, bind,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer director.Close(t.Context())
+				execute = director.Executor()
+			}
+			store, _, program := capabilityFixture(t, "fresh-"+name)
+			execution := modelrecipetest.CandidateExecution(t, store, program)
+			var own artifact.ID
+			var fresh context.Context
+			for index, step := range []struct {
+				fresh bool
+				retry bool
+				runs  int32
+			}{{runs: 1}, {runs: 1}, {fresh: true, runs: 2}, {retry: true, runs: 2}, {fresh: true, runs: 3}, {runs: 3}} {
+				ctx := t.Context()
+				if step.fresh {
+					fresh = FreshRun(ctx)
+					ctx = fresh
+				} else if step.retry {
+					ctx = fresh
+				}
+				got, err := execute(ctx, store, "model", execution, `{"value":4}`)
+				if err != nil {
+					t.Fatal(err)
+				}
+				measured := got.(Measured)
+				ran := index == 0 || step.fresh
+				if measured.Output != 5 || runs.Load() != step.runs || ran != (len(measured.Phases) == 1) {
+					t.Fatalf("execution %d (fresh run: %t) = %v with node walls %v after %d runs of the node; want 5 after %d runs, its wall only when it ran",
+						index, step.fresh, measured.Output, measured.Phases, runs.Load(), step.runs)
+				}
+				definition := program.Definition()
+				operation, err := workflowruntime.ExecutionID(definition.ID, RunKey(definition, measured.Input))
+				if err != nil {
+					t.Fatal(err)
+				}
+				receipt, found, err := runrecord.ResolveStageReceipt(t.Context(), store, operation, "scalar")
+				if err != nil || !found || receipt.Attempt != 1 || receipt.State != runrecord.StageCompleted {
+					t.Fatalf("the request's own run after execution %d = %+v (found %t, %v); want its first attempt, completed", index, receipt, found, err)
+				}
+				if index == 0 {
+					own = receipt.ID
+				}
+				if receipt.ID != own {
+					t.Fatalf("execution %d (fresh run: %t) moved the request's own run from receipt %s to %s", index, step.fresh, own, receipt.ID)
+				}
 			}
 		})
 	}

@@ -528,7 +528,8 @@ func devicePeak(process uint64, measured capabilityruntime.Measured, cause error
 
 // measureCapability runs the active capability once on the request its
 // verification ran, so the scorecard measures the model the way its users
-// meet it, and prints the output.
+// meet it, and prints the output. Its fresh operation runs the model even
+// when verification already retained the identical request's output.
 func measureCapability(repository, path string, task recipe.Task, capability mediacapability.Capability) error {
 	ctx := context.Background()
 	store, err := overgodb.Open(repository)
@@ -549,7 +550,7 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 	if err != nil {
 		return err
 	}
-	output, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request)
+	output, err := attemptCapability(capabilityruntime.FreshRun(ctx), store, path, modelID, task, selected, capability, request)
 	if err != nil {
 		return err
 	}

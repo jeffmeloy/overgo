@@ -4,6 +4,84 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "capability-measurements",
+      "title": "Record the load phase of every capability the cycle measures",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 406,
+        "reason": "the capability runtime times its two load sites and carries the wall in its measurement, the driver keeps a process-wide current and peak, recipe measure records both, and the scorecard reads a sampled zero as measured; the fresh-operation context and hasher Reader-only boundary add bounded correctness plumbing; no speedup or simplification claim for fresh measurements"
+      },
+      "steps": [
+        {
+          "id": "attempts",
+          "title": "Give the rows with no serving attempt a producer the cycle runs",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Six rows have no completed serving attempt. Fractale generation: cmd/validate/surfaces.go kindValidation has no generation case, so no cell. granite and nemotron transcription and webssl image-embedding: the command is bound and their verifications retain runnable requests, but the cell is current by its acceptance receipt, so nothing schedules recipe measure (one manual run fills them; validate-currency's every-cell cycle keeps them filled). Qwen3.8-27B and gemma-4-E4B projection: a projection capability has no executor, so recipe measure refuses it; its proof re-verifies and publishes no attempt, and E4B's producer publishes observations a gate depends on, which the scorecard excludes. Qwen2.5-0.5B training: trainingworkflow/heldout_run.go records no load phase where its sibling routes do. The verify is set per producer as each is built. 2026-10-03: the generation cell and the text held-out run's load phase land with step run-the-model. Left here: a measured producer for the two projection rows (design: about 60-80 lines in cmd/recipe reusing observeInference, verifiedCase and projectedExactRuntime; whether E4B qualifies is unverified), transcription throughput, training throughput and peak, and vqa's load.\nLead scope correction 2026-10-03: the fresh-operation/hash landing delivers none of the prepared token/decode reporting, generation producer or held-out load additions. Carry those exact obligations here with transcription/training throughput, projection producers and VQA load. Fresh performance must cite executed phase scope, not a recovered result or prompt-inclusive wall labeled as pure decode."
+        }
+      ]
+    },
+    {
+      "id": "recovery-correctness",
+      "title": "Preserve committed store writes and complete checkpoint recovery identity",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "Necessary recovery and compatibility repairs through existing owners may add code; establish the smallest red fixture and declare exact growth before implementation."
+      },
+      "steps": [
+        {
+          "id": "cutover",
+          "title": "Prove source-head exclusion through store replacement",
+          "status": "open",
+          "verify": "go test ./cmd/overgodb ./internal/overgodb -run '^(TestFailedReplacementKeepsTheLivePath|TestFailedCheckNeverSwaps)$' -count=1",
+          "rationale": "SQA-073. Serves: data preservation during rebuild/precheck publication. Disappears: stale snapshot cutover authority; reuse the existing mutation and directory replacement owners. Evidence: extend the existing tiny replacement fixture with a committed write between snapshot and publication and writer exclusion spanning the check/rename; prove on the actual platform, retain rollback and the original path. A head check alone is insufficient. The verifier names retained coverage; add the failing concurrency case there before implementing. Batch: store/control consumers by actual build closure, no model acquisition or live store swap."
+        },
+        {
+          "id": "checkpoint",
+          "title": "Bind all split weights and preserve legacy model.gguf resume",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram ./internal/trainingworkflow -run '^(TestProductionCheckpointResumeExact|TestResumeSidecarRoundTripsBitExact|TestTrainingIdentifiesRecordedInputs|TestTrainingWorkflowExactResumeMatrix)$' -count=1",
+          "rationale": "SQA-077. Serves: exact training recovery. Disappears: first-shard-only checkpoint authority and loss of legacy lookup. Extend the existing inventory/checkpoint owners, version new complete split identity and preserve old single-file documents. Evidence: existing tiny resume fixtures with unchanged first shard but modified/missing second shard plus legacy model.gguf, preserving exact next-update/stream state. Add those failing cases before changing the identity. Further publication read removal (SQA-070) waits for this authority. Batch: training consumers by actual closure; no large model run for identity semantics."
+        }
+      ]
+    },
+    {
+      "id": "evidence-authority",
+      "title": "Use checked evidence and explicit source and replay scope in reports",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "Consolidate reporting with existing checked result and receipt owners; correctness and provenance fields may require bounded growth, to be counted before implementation."
+      },
+      "steps": [
+        {
+          "id": "verdict",
+          "title": "Read scorecard held-out values through the reconstructed verdict owner",
+          "status": "open",
+          "verify": "go test ./internal/scorecard ./internal/trainingworkflow ./internal/evaluation -run '^(TestQualityReadsHeldoutVerdicts|TestHeldoutApprovalReconstructsTheTrainedResult)$' -count=1",
+          "rationale": "SQA-014. Serves: trustworthy quality comparison. Disappears: unchecked stored aggregate reading; share the existing reconstruction result with scorecard while retaining valid losing verdicts. Evidence: extend the existing stored-verdict table with missing checkpoint, altered case/aggregate facts and valid loss; no training or model acquisition. Batch: reporting/evaluation closure only."
+        },
+        {
+          "id": "source",
+          "title": "Bind selected recipe and producing source/environment before crediting proof",
+          "status": "open",
+          "verify": "go test ./cmd/validate ./internal/scorecard",
+          "rationale": "SQA-053. Serves: exact promotion authority. Disappears: credit for another recipe and publishing-HEAD substitution for producing source. Extend existing Cell/result/receipt owners with wrong-recipe, source and environment cases; retain exact Source and valid replay provenance. Do not disable cache for pure checks. The broad retained package verifier is provisional; replace it with the actual failing table cases before implementing. Batch: actual proof/report consumer closure; mutable external inputs require fresh evidence, not another validity ledger."
+        },
+        {
+          "id": "replay-cost",
+          "title": "Keep carried quality and replay/fallback cost in their recorded scope",
+          "status": "open",
+          "verify": "go test ./cmd/validate ./cmd/benchmark-report ./internal/evaluation",
+          "rationale": "SQA-078/079/040. Serves: honest quality and cost comparison. Disappears: sampled wall divided by full-suite count and invented protocol/provenance. Expose prior full quality separately from fresh sampled scope through existing replay receipt/report owners, retain both replay and fallback work. Adopt no claim that 32 unchanged samples prove every current output unchanged; preserve full fallback and fresh performance/artifact obligations. Reuse existing fake runtime and small stores; extend actual denominator/protocol/unknown cases before implementation. A change to promotion acceptance needs explicit recorded owner policy; no recurring full suite or new ledger. Batch: evaluation/report closure."
+        }
+      ]
+    },
+    {
       "id": "training-rate-per-layer",
       "title": "Measure whether a per-step relative Muon rate transfers across models",
       "owner": "master-lead",
@@ -29,13 +107,6 @@
       },
       "steps": [
         {
-          "id": "hash-buffer",
-          "title": "Hash a model file through the buffer the hash asks for",
-          "status": "open",
-          "verify": "go test ./internal/artifact -run '^TestIdentifyReadsItsOwnBuffer$' -count=1",
-          "rationale": "Load study 2026-10-03 (scratchpad load-study.md, host measurements on gemma-4-12B-it-fp8-native, 15.34 GB): the load is store open (1.6-1.7 s), header (0.03 s), a whole-file SHA-256 of each shard whose digest is the recipe lookup key (7.6-8.0 s warm at 2.0 GB/s; the owner's about 12 s is the 23.8 GB bf16 sibling), then a pageable read-and-upload pass (reads 1.42 s; host conversion 0.002 s). artifact.Identify passes a 1 MiB buffer to io.CopyBuffer, which ignores it for a file because the file can write itself out, and reads 32 KiB at a time: 0.86-0.96 GB/s from a cold disk against about 2.0 GB/s at 1 MiB, so a cold hash takes 16-18 s (extrapolated) against about 7.8 s. This step hides the source's WriteTo (one line, built: scratchpad hash-buffer.patch, the test fails without it). internal/artifact is in the inference surface, so it lands in a surface window. The scorecard's 22.6 s for this model is a benchmark record from 09-04, before the store-open and header fixes. Serves: inference (load-time)."
-        },
-        {
           "id": "load",
           "title": "Load a model in one pass: hash while uploading",
           "status": "open",
@@ -44,10 +115,10 @@
         },
         {
           "id": "bonsai",
-          "title": "Decode Bonsai's 1-bit weights in register",
+          "title": "Profile and reduce repeated scale/sign loads in the existing Q1 decode kernel",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Bonsai-27B Q1_0 decodes at 33.2 tok/s, about 13 percent of its bound: prefill is batched, decode is per-vector. Measure the decode step's kernel breakdown first, then a dequantize-in-register decode kernel that keeps each dot's order so outputs stay bit-identical and replay carries its evaluations. Serves: inference (throughput)."
+          "rationale": "Bonsai-27B Q1_0 decodes at 33.2 tok/s, about 13 percent of its bound: prefill is batched, decode is per-vector. Measure the decode step's kernel breakdown first, then a dequantize-in-register decode kernel that keeps each dot's order so outputs stay bit-identical and replay carries its evaluations. Serves: inference (throughput). Code study 2026-10-03 (scratchpad bonsai-decode.md; nothing run on the device): Bonsai-27B is qwen35, 64 blocks, hidden 5120; every matrix is Q1_0 (18 bytes per 128 elements, 3.78 GB), so a decode step reads 3.61 GB and the bandwidth bound is 276.7 tok/s: 33.17 tok/s is 12 percent. The step multiplies 25.6e9 elements, so instruction issue binds, not weight bandwidth. The decode path is the standard one (KV cache, replayed graph, one synchronization); Q1_0 has no q8-input entry (internal/cuda/executor/launch_linear_layout.go:1518-1523), so one column goes through mul_mat_q1_0_f32 (kernels/cuda/ops_f32.cu:5963-6016), one warp per row like bf16, but its loop handles one element per lane and reloads the block's scale and the sign byte each time: 23 instructions and 3 loads per element against 9.5 and 1.5 for bf16 (compiled host-side). Estimated 18-21 ms of the 30 ms step; the rest is a launch floor of 1,748 launches a step, 1,251 of them not matmuls (hypotheses until measured). Fix A is built as a kernel patch (scratchpad bonsai-fixA-kernel.patch, +66 -3 lines of ops_f32.cu, no Go change): the scale is read once per block with stepped addresses, the lane-to-column map and the fma order unchanged, so outputs are bit-identical by construction; 6.3 instructions and 2.25 loads per element; expected 39-68 tok/s. Golden capture (12 cases) and a profile test are written. Its evaluations are slow from the prefill's f16 expansion (ops_f32.cu:5672-5690), a separate lever, as is the launch floor. The verify is the pinned-bits test once the goldens are captured.\nLead correction 2026-10-03: Q1 GEMV already dequantizes in registers. Instruction counts and launch totals are screening hypotheses, not a device bottleneck measurement or proven speedup. Retain the prepared patch and old-output capture, but require current kernel timing before adoption; preserve existing GEMV/prefill references and exact continuation IDs. Decide single-pass loading only after the cheaper buffer repair is measured; defer the 430-line prototype if its total saving does not pay for identity/failure tests and maintenance."
         },
         {
           "id": "breakdowns",
@@ -55,39 +126,6 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "gemma-4-E4B decodes at about 40 percent of its bound and gemma-4-12B fp8-native at about 50; kernel breakdowns name the next fix or close the gap as bandwidth-bound. gemma-4-12B-it-fp8 (non-native) is slower, heavier and slower to load than the native file at equal held-out quality (31.1 tok/s, 31.1 s, 22.5 GiB against 41.5, 22.6 s, 14.7 GiB; 0.4919 against 0.4926): ask the owner whether it still serves anything before spending device time on it. After the routed-expert fix Unlimited-OCR's routed layer is still 6.4 times the dense feed-forward of the same weight volume (0.94 ms against 0.15 ms); the warp-per-row shape would close that but reorders sums, so it changes MoE outputs and needs its evaluations re-run. Serves: inference (throughput)."
-        }
-      ]
-    },
-    {
-      "id": "capability-measurements",
-      "title": "Record the load phase of every capability the cycle measures",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 406,
-        "reason": "the capability runtime times its two load sites and carries the wall in its measurement, the driver keeps a process-wide current and peak, recipe measure records both, and the scorecard reads a sampled zero as measured"
-      },
-      "steps": [
-        {
-          "id": "run-the-model",
-          "title": "Make recipe measure run the model instead of recovering a stored stage",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime ./cmd/recipe -count=1 -run '^(TestCapabilityMeasurementRunsTheModel|TestFreshRunExecutesWhatAnIdenticalRequestStored)$'",
-          "rationale": "Measured 2026-10-03 (hermetic check, two identical single-stage executions: loads=2, runs=1): a run is keyed on recipe and request (capabilityruntime/run_key.go:13-15) and a stage whose receipt is complete is recovered from the store (workflowruntime/runtime.go:481,529-587); recipe measure runs the verification's own request under the same recipe, so for forecast, tabular, image-embedding, generation and transcription the measured attempt loads the model and returns the stored output, and for vqa it returns the stored answer without loading (RxBrain vqa first-output 135 ms against a 6.6 s training load). First-output on those rows is load plus replay, not what a user waits for. Decide the smallest honest form: a measure run that never recovers a stage. Parked finding 'recipe measure replays outputs' is this. The verify is a test that a measured attempt of a single-stage capability runs its node. Built 2026-10-03 (scratchpad measure-run.patch): capabilityruntime.FreshRun marks a context, ExecuteMeasured then derives the operation from the run key plus a nonce so no stage recovers, and only recipe measure passes it; verification evidence is chosen by explicit gate and run ids and is untouched. A measure then stores about 6-8 KB more per capability (0.11 MB a pass over 17 rows). The same patch gives the text held-out run its load phase and gives generation a specialized-proof cell (current by receipt, so reused until validate-currency). capabilityruntime moves the evaluation and training surfaces: land in the next surface window with hash-buffer."
-        },
-        {
-          "id": "attempts",
-          "title": "Give the rows with no serving attempt a producer the cycle runs",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Six rows have no completed serving attempt. Fractale generation: cmd/validate/surfaces.go kindValidation has no generation case, so no cell. granite and nemotron transcription and webssl image-embedding: the command is bound and their verifications retain runnable requests, but the cell is current by its acceptance receipt, so nothing schedules recipe measure (one manual run fills them; validate-currency's every-cell cycle keeps them filled). Qwen3.8-27B and gemma-4-E4B projection: a projection capability has no executor, so recipe measure refuses it; its proof re-verifies and publishes no attempt, and E4B's producer publishes observations a gate depends on, which the scorecard excludes. Qwen2.5-0.5B training: trainingworkflow/heldout_run.go records no load phase where its sibling routes do. The verify is set per producer as each is built."
-        },
-        {
-          "id": "throughput",
-          "title": "Record output tokens and decode time for the capabilities that produce tokens",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "After the load and peak landing and one measure run each (2026-10-03), load-time gaps fell from 20 to 4, peak-device-memory from 18 to 3, and six scorecard-unmeasured rows closed (forecast, image-embedding, image-gen, speech, tabular, video-gen). What keeps generation, seq2seq, transcription, vqa and training open is throughput: no served decode phase with output tokens. Fractale, needle, granite, nemotron and RxBrain produce tokens, and their measured attempt records neither a decode phase nor an output token count, though the capability runtime already returns its nodes' walls. Record, at the measure level and for every such task, the decode wall and the tokens produced, from what the capability already reports; a training session's throughput (tokens or steps a second) needs its own definition, and its peak needs the process ledger read by the training session. The verify is a test that a measured text-producing attempt carries a decode phase with output tokens."
         }
       ]
     },
@@ -102,7 +140,7 @@
           "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Stage 2 of evaluation-replay/delete-selection (scratchpad delete-selection.md, measured 2026-10-02). What goes: surfaces.go except kindValidation (about -130), the Reuse/Unknown buckets and refusal cases of SelectValidation (-30), acceptedRecords.current and readAcceptedRecords down to grounding and benchmark record binding (-80), recordCurrent/judgeBound/boundKey (-60, a 12-line bindBenchmark keeps protocol, cost and -replay), guard_records.go (-79) with cmd/longform's latest-records verb (-60), media_receipt.go (-111; it runs a real-model go test inside every dry run, about 1-1.5 min per validate call, while the models lane runs the same acceptances every cycle), and the inventory's validated standing (-35): about -550 production lines in cmd/validate and -400 test lines. What it costs: every activated applicable cell runs every cycle, about 2h10 of blocking cells in steady state against today's mean of about 1h, plus less device time for the background fill. Cuts that bring it toward the bar: Unlimited-OCR decodes at 3.9 tok/s, under 1% of its bandwidth bound, and its guard alone takes 11m43 (finding 870a92db); one evaluate process per model for its blocking families saves about 8 min of fixed overhead (measure before adding code); the 9B hybrid training proof (22m05, same cmd/train route and code as the blocking 4B proof) could run in the background, which is decision nine-b-proof-background. Even with all three about 1h40 remains, since guards, serving and media have no cheaper form. Re-measure the steady-state every-cell cost from the first cycle after delete-selection lands and land this when it is within an hour of today's cycles, or on the owner's word. Hazard this row must close (cycle 6, 2026-10-03): a published scorecard labels every cell with the publishing commit, whatever commit its record ran at. A held-out cell that enters a baseline while its record is stale there (a retained contract first listed by new code, or a background fill's record made at the previous measured commit) is later re-measured and compared across a range wider than main..candidate, so drift main already holds withholds the candidate: gemma-4-12B-it-fp8-native's raw mmlu-pro baseline 0.285488697 was a record 115 runtime commits older than main. Re-acquiring every compared cell at the published commit (replay making that cheap) removes the case; until then a baseline cell's value is only as fresh as its record."
+          "rationale": "Stage 2 of evaluation-replay/delete-selection (scratchpad delete-selection.md, measured 2026-10-02). What goes: surfaces.go except kindValidation (about -130), the Reuse/Unknown buckets and refusal cases of SelectValidation (-30), acceptedRecords.current and readAcceptedRecords down to grounding and benchmark record binding (-80), recordCurrent/judgeBound/boundKey (-60, a 12-line bindBenchmark keeps protocol, cost and -replay), guard_records.go (-79) with cmd/longform's latest-records verb (-60), media_receipt.go (-111; it runs a real-model go test inside every dry run, about 1-1.5 min per validate call, while the models lane runs the same acceptances every cycle), and the inventory's validated standing (-35): about -550 production lines in cmd/validate and -400 test lines. What it costs: every activated applicable cell runs every cycle, about 2h10 of blocking cells in steady state against today's mean of about 1h, plus less device time for the background fill. Cuts that bring it toward the bar: Unlimited-OCR decodes at 3.9 tok/s, under 1% of its bandwidth bound, and its guard alone takes 11m43 (finding 870a92db); one evaluate process per model for its blocking families saves about 8 min of fixed overhead (measure before adding code); the 9B hybrid training proof (22m05, same cmd/train route and code as the blocking 4B proof) could run in the background, which is decision nine-b-proof-background. Even with all three about 1h40 remains, since guards, serving and media have no cheaper form. Re-measure the steady-state every-cell cost from the first cycle after delete-selection lands and land this when it is within an hour of today's cycles, or on the owner's word. Hazard this row must close (cycle 6, 2026-10-03): a published scorecard labels every cell with the publishing commit, whatever commit its record ran at. A held-out cell that enters a baseline while its record is stale there (a retained contract first listed by new code, or a background fill's record made at the previous measured commit) is later re-measured and compared across a range wider than main..candidate, so drift main already holds withholds the candidate: gemma-4-12B-it-fp8-native's raw mmlu-pro baseline 0.285488697 was a record 115 runtime commits older than main. Re-acquiring every compared cell at the published commit (replay making that cheap) removes the case; until then a baseline cell's value is only as fresh as its record. Measured 2026-10-03, cycle 8 (from 53aef9219, after a kernel change moved every surface): 68 blocking cells re-acquired in about 75 minutes (05:13 to 06:28): 11 guards, 11 serving cells and the DNA smoke, 38 benchmark replays that all carried, 6 training proofs and 2 projection proofs; the 16 media cells were reused and measure in about 5 minutes by hand. So an every-cell cycle is about 80 minutes of cells, not the estimated 2h10: Unlimited-OCR's decode fix took its guard from 11m43 to about a minute, and replays carried in seconds. A cycle where nothing moved is 12 cells in about 6 minutes, so always-run still adds about 75 minutes, most of it the training proofs (the 9B proof alone about 22 minutes). Since d993c2b10 a cycle no longer holds the main checkout, so that time costs device time only, not landings."
         }
       ]
     },

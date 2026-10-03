@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/modelartifact"
@@ -158,13 +159,14 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 // compiled from the store instead of files. The budget bounds the
 // worker's own pass: a worker launched by hand is the same bounded
 // pass the parent runs, not an unbounded one (the 12B BBH chat pass
-// ran 2h18m past a 2h ceiling the worker accepted and ignored).
-func runAllWorker(ctx context.Context, repository string, device int, family, modelPath string, chatProtocol bool, budget time.Duration) error {
+// ran 2h18m past a 2h ceiling the worker accepted and ignored). A valid
+// replay record is carried forward where a replay reproduces it.
+func runAllWorker(ctx context.Context, repository string, device int, family, modelPath string, chatProtocol bool, budget time.Duration, replay artifact.ID) error {
 	if strings.TrimSpace(modelPath) == "" {
 		return errors.New("evaluate: worker model path is required")
 	}
 	return runBudgetedPass(ctx, budget, modelPath, func(ctx context.Context) error {
-		return runAllWorkerPass(ctx, repository, device, family, modelPath, chatProtocol)
+		return runAllWorkerPass(ctx, repository, device, family, modelPath, chatProtocol, replay)
 	})
 }
 
@@ -189,7 +191,7 @@ func runBudgetedPass(ctx context.Context, budget time.Duration, model string, pa
 
 // runAllWorkerPass opens the session and campaigns the derived suites
 // under the already-bounded context.
-func runAllWorkerPass(ctx context.Context, repository string, device int, family, modelPath string, chatProtocol bool) error {
+func runAllWorkerPass(ctx context.Context, repository string, device int, family, modelPath string, chatProtocol bool, replay artifact.ID) error {
 	commit, err := runrecord.VerifyingCommit(".")
 	if err != nil {
 		return err
@@ -203,7 +205,7 @@ func runAllWorkerPass(ctx context.Context, repository string, device int, family
 	if !ok {
 		return errors.Join(errors.New("evaluate: derived evaluation needs a session over the store's suites"), session.Close())
 	}
-	if err := derived.EvaluateDerived(ctx, family); err != nil {
+	if err := derived.EvaluateDerived(ctx, family, replay); err != nil {
 		return errors.Join(err, session.Close())
 	}
 	return session.Close()
@@ -211,7 +213,7 @@ func runAllWorkerPass(ctx context.Context, repository string, device int, family
 
 // derivedEvaluator: a session that campaigns the store's derived suites.
 type derivedEvaluator interface {
-	EvaluateDerived(context.Context, string) error
+	EvaluateDerived(context.Context, string, artifact.ID) error
 }
 
 // declareEvalDomain binds a model's evaluation domains in the store,
@@ -250,7 +252,7 @@ func declareEvalDomain(ctx context.Context, repository, modelPath, domainsCSV st
 // EvaluateDerived compiles the store's suites under this session's
 // authorities and campaigns each one, optionally restricted to a
 // single family source suffix for bounded smoke runs.
-func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) error {
+func (s *nativeSession) EvaluateDerived(ctx context.Context, family string, replay artifact.ID) error {
 	// The model's input-shaping declaration lands in the store: the
 	// runner derives it from the model's own metadata, and the store
 	// records it as the authority every consumer reads.
@@ -284,7 +286,7 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 	}
 	// Quality runs retain their own budget and acceptance. Performance
 	// qualification remains the long-form owner's separate obligation.
-	selected, err := campaignDerivedSuites(ctx, s.campaign, suites, skipped, family, nil)
+	selected, err := campaignDerivedSuites(ctx, s.campaign, suites, skipped, family, nil, replay)
 	if err != nil {
 		return err
 	}
@@ -293,8 +295,9 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 
 // campaignDerivedSuites campaigns the derived suites of one family (every
 // family when blank); admit names why a suite is not taken (nil admits
-// all) and the count of campaigned suites is returned.
-func campaignDerivedSuites(ctx context.Context, campaign *evaluation.Campaign, suites []evaluation.CompiledSuite, skipped map[string]int, family string, admit func(evaluation.SuiteDescriptor) string) (int, error) {
+// all) and the count of campaigned suites is returned; each suite may carry
+// the replay record forward (EvaluateOrCarry).
+func campaignDerivedSuites(ctx context.Context, campaign *evaluation.Campaign, suites []evaluation.CompiledSuite, skipped map[string]int, family string, admit func(evaluation.SuiteDescriptor) string, replay artifact.ID) (int, error) {
 	for name, dropped := range skipped {
 		fmt.Printf("suite %s: %d case(s) outside the exact vocabulary skipped\n", name, dropped)
 	}
@@ -312,9 +315,12 @@ func campaignDerivedSuites(ctx context.Context, campaign *evaluation.Campaign, s
 		}
 		selected++
 		fmt.Printf("suite %s (%s, %d cases)\n", descriptor.Source, descriptor.Kind, descriptor.Cases)
-		result, err := campaign.Evaluate(evaluation.WithProgress(ctx, printProgress), suite)
+		result, err := campaign.EvaluateOrCarry(evaluation.WithProgress(ctx, printProgress), suite, replay)
 		if err != nil {
 			return selected, fmt.Errorf("evaluate: %s: %w", descriptor.Source, err)
+		}
+		if result.Carried.Valid() {
+			fmt.Printf("  carried %s forward: replay receipt %s\n", result.Carried, result.Report)
 		}
 		for _, metric := range result.Metrics {
 			fmt.Printf("  %s = %v %s\n", metric.Name, metric.Value, metric.Unit)

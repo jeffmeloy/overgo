@@ -88,13 +88,17 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 		return "", nil, errors.New("a benchmark needs the model's location")
 	}
 	// A benchmark is one evaluate worker over the model and the family's
-	// suite, under the protocol of the record it replaces.
+	// suite, under the protocol of the record it replaces, which it replays
+	// first when a moved surface is all that makes it run.
 	args := []string{
 		"run", "./cmd/evaluate", "-all", "-worker", "-repo", store, "-model-path", cell.Location,
 		"-family", cell.Validation, "-budget", benchmarkBudget.String(),
 	}
 	if cell.Protocol == evaluation.PromptingChatTemplate.Label() {
 		args = append(args, "-chat-protocol")
+	}
+	if cell.Replay.Valid() {
+		args = append(args, "-replay", cell.Replay.String())
 	}
 	return "go", args, nil
 }

@@ -8,13 +8,17 @@
       "title": "Carry an evaluation forward when a replay of its cases reproduces their outputs",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1342,
+        "reason": "replay before re-running a surface-stale evaluation, carry on identical outputs: internal/evaluation/replay.go about +1,030, the rest small; cut from +2,421; measured by the gate; the row's delete-selection step is to pay it back"
+      },
       "steps": [
         {
-          "id": "do",
-          "title": "Carry an evaluation forward when a replay of its cases reproduces their outputs",
+          "id": "delete-selection",
+          "title": "Re-acquire every cycle cell cheaply, and delete the per-cell staleness selection replay makes unnecessary",
           "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestEvaluationReplayCarriesIdenticalOutputs$' -count=1",
-          "rationale": "\n\nOwner idea 2026-10-02: evidence is keyed to source bytes, not behaviour. Measured (scratchpad eval-identity.md): cycle 3's 9 re-evaluations after the perf-only gguf header change were bit-identical per case to cycles 1 and 2 (84,452 cases, 0 differences), costing 3h24m per cycle; store-wide 24.8% of evaluation hours (11h20m of 45h44m) reproduced the previous run. Against the 20 real output changes in history, 16 cases spread across the prompt-length distribution caught all; 8 spread or the first 16 in suite order each missed one. Chat-template reports keep only text (a change moving every raw log-probability altered 23-31% of chat answers); raw and dna keep a float per case. Design: replay about 16-32 length-spread cases of a stale evaluation, compare floats where kept and text otherwise, carry the result forward with a receipt naming the replay on identity, run the full suite on any difference; record a per-case float in chat-template reports. Serves: measure (cycle wall time); no metric moves. Per-proof surfaces (narrower closures) were weighed and left: safetensors executors link internal/gguf through modelartifact, so go list cannot exclude it without package splits."
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Owner review 2026-10-02: validation, landing and scorecard code grew about +11k production lines in a week (cmd/validate 1,234 -\u003e 11,357 production lines including the compatibility fold; internal/landing 0 -\u003e 1,849; internal/scorecard 0 -\u003e 1,038) while plan and loop shrank (13,013 -\u003e 4,523). Proof re-acquisition, cycle selection and cell bookkeeping are where the old gate's pattern could return. Replay must make validate smaller, not bigger: after it lands, measure one cycle that re-acquires every cell (bounded proofs, guards, replayed evaluations); if it is cheap (about an hour), delete the per-cell surface staleness selection (surfaces, bound-record currency, selection reasons) for cycle cells, keeping the landing gate's inference-surface check. Review target: cmd/validate production lines below 11,357. The verify is set once the measurement names what goes."
         }
       ]
     },

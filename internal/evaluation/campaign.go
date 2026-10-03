@@ -39,6 +39,7 @@ type CampaignResult struct {
 	Evidence   artifact.ID               `json:"evidence"`
 	Metrics    []runrecord.Metric        `json:"metrics"`
 	Resources  runrecord.ResourceFitness `json:"resources"`
+	Carried    artifact.ID               `json:"carried,omitzero"` // the record a replay carried forward; Report is its receipt
 }
 
 func NewCampaign(

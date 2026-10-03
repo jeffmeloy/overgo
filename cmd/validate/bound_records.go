@@ -45,6 +45,9 @@ var boundSurfaces = []SurfaceID{"evaluation", "training"}
 // errCellInapplicable marks a cell its model's own declaration excludes.
 var errCellInapplicable = errors.New("the model's declared evaluation domains admit no suite of this benchmark")
 
+// errSurfaceMoved marks a record stale only because its surface moved.
+var errSurfaceMoved = errors.New("surface moved since")
+
 // boundKey names one commit-bound cell: a recipe's validation, under the
 // protocol a benchmark runs, since the baseline scorecard may compare one
 // family under two.
@@ -63,6 +66,7 @@ type boundRecord struct {
 	protocol string
 	cost     int64
 	refusal  error
+	replay   artifact.ID // a benchmark's evaluation record
 }
 
 // benchmarkEvidence is the active catalog compiled without binding a model,
@@ -110,7 +114,7 @@ func (benchmarks benchmarkEvidence) record(ctx context.Context, store *overgodb.
 			return boundRecord{}, err
 		}
 		run, err := runrecord.RequireRun(ctx, store, evaluated.Run)
-		return boundRecord{run: run, found: true, protocol: summary.Prompting, cost: int64(run.MeasuredNS)}, err
+		return boundRecord{run: run, found: true, protocol: summary.Prompting, cost: int64(run.MeasuredNS), replay: summary.Record}, err
 	}
 	protocol := evaluation.PromptingRawCompletion.Label()
 	if slices.Contains(templateFamilies, cell.Validation) {
@@ -160,7 +164,7 @@ func recordCurrent(ctx context.Context, root string, directories []string, cell 
 		return fmt.Errorf("its %s record is bound to commit %.*s, which this tree cannot be compared with: %w", cell.Validation, surfaceShown, run.CodeCommit, err)
 	}
 	if moved := surfaceMoves(directories, changed); moved.Affected {
-		return fmt.Errorf("its %s record ran at commit %.*s and the %s surface moved since: %s", cell.Validation, surfaceShown, run.CodeCommit, cell.Surface, moved.Reason)
+		return fmt.Errorf("its %s record ran at commit %.*s and the %s %w: %s", cell.Validation, surfaceShown, run.CodeCommit, cell.Surface, errSurfaceMoved, moved.Reason)
 	}
 	return nil
 }
@@ -190,7 +194,7 @@ func (read *acceptedRecords) judgeBound(ctx context.Context, root string, store 
 	if err != nil {
 		return cell, err
 	}
-	cell.Protocol, cell.Cost = record.protocol, record.cost
+	cell.Protocol, cell.Cost, cell.Replay = record.protocol, record.cost, record.replay
 	read.bound[boundKey{cell.Recipe, cell.Validation, cell.Protocol}] = recordCurrent(ctx, root, read.directories[cell.Surface], cell, record)
 	return cell, nil
 }

@@ -49,6 +49,8 @@ type ModelValidation struct {
 	Objective    string `json:"objective,omitzero"`
 	Conditioning string `json:"conditioning,omitzero"`
 	Projector    string `json:"projector,omitzero"`
+	// Replay is the record a benchmark run only for a moved surface replays.
+	Replay artifact.ID `json:"replay,omitzero"`
 }
 
 // Selected pairs an obligation with the reason it landed in its plan bucket
@@ -154,7 +156,14 @@ func SelectValidation(in Inputs) Plan {
 			sel.Reason = "no validation applicable to " + string(mv.Kind)
 			plan.SkipInappropriate = append(plan.SkipInappropriate, sel)
 		default:
-			switch refusal, rec := in.Current(mv), in.AffectedSurfaces[mv.Surface]; {
+			refusal, rec := in.Current(mv), in.AffectedSurfaces[mv.Surface]
+			// A benchmark replays its record first, and carries it forward
+			// when the replay reproduces it, only when a moved surface is all
+			// that makes it run.
+			if moved := errors.Is(refusal, errSurfaceMoved) || refusal == nil && rec.Affected; mv.Stale != "" || !moved {
+				sel.Replay = artifact.ID{}
+			}
+			switch {
 			case errors.Is(refusal, errCellInapplicable):
 				sel.Reason = "skip: " + refusal.Error()
 				plan.SkipInappropriate = append(plan.SkipInappropriate, sel)

@@ -59,36 +59,45 @@ type EvalSummary struct {
 	// Reproducible: the run's environment is one the store can reproduce;
 	// false for a hosted model scored through the relay.
 	Reproducible bool `json:"reproducible"`
+	// Carried names the ReplayReceipt of a record that carried an earlier
+	// result forward; zero when its run scored every case.
+	Carried artifact.ID `json:"carried,omitzero"`
 }
 
 // recordExecution reads the prompting protocol an evaluation record ran
-// under (its run's plan input binds the execution policy) and whether its
-// environment is reproducible. A record whose plan cannot be read reports
-// the raw anchor, the only protocol earlier records could have run; a run
-// whose environment cannot be read reports it reproducible, as every
-// earlier environment was.
-func recordExecution(ctx context.Context, store *overgodb.Store, record runrecord.Evaluation) (prompting, bool) {
+// under (its run's plan input binds the execution policy), whether its
+// environment is reproducible, and its run's replay receipt, if any. A
+// record whose plan cannot be read reports the raw anchor, the only protocol
+// earlier records could have run; a run whose environment cannot be read
+// reports it reproducible, as every earlier environment was.
+func recordExecution(ctx context.Context, store *overgodb.Store, record runrecord.Evaluation) (prompting, bool, artifact.ID) {
 	bound, err := runrecord.RequireRun(ctx, store, record.Run)
 	if err != nil || len(bound.Inputs) == 0 {
-		return PromptingRawCompletion, true
+		return PromptingRawCompletion, true, artifact.ID{}
 	}
 	reproducible := true
 	if environment, err := runrecord.RequireEnvironment(ctx, store, bound.Environment); err == nil {
 		reproducible = environment.Reproducible()
 	}
+	var carried artifact.ID
+	if len(bound.Outputs) == 1 {
+		if descriptor, found, _ := store.Artifact(ctx, bound.Outputs[0]); found && descriptor.Schema == replayReceiptContract.Schema {
+			carried = descriptor.ID
+		}
+	}
 	content, found, err := artifact.ReadContent(ctx, store, bound.Inputs[0])
 	if err != nil || !found {
-		return PromptingRawCompletion, reproducible
+		return PromptingRawCompletion, reproducible, carried
 	}
 	plan, err := ParsePlan(content.Data)
 	if err != nil {
-		return PromptingRawCompletion, reproducible
+		return PromptingRawCompletion, reproducible, carried
 	}
 	policy, err := ReadExecutionPolicy(ctx, store, plan.Execution())
 	if err != nil {
-		return PromptingRawCompletion, reproducible
+		return PromptingRawCompletion, reproducible, carried
 	}
-	return policy.Prompting, reproducible
+	return policy.Prompting, reproducible, carried
 }
 
 // EvidenceIndex joins the store's committed evidence back onto models:
@@ -184,7 +193,7 @@ func LatestEvidence(
 		if !named {
 			return nil
 		}
-		protocol, reproducible := recordExecution(ctx, store, record)
+		protocol, reproducible, carried := recordExecution(ctx, store, record)
 		prompting := protocol.Label()
 		if seenSuite[record.Recipe] == nil {
 			seenSuite[record.Recipe] = map[string]bool{}
@@ -201,6 +210,7 @@ func LatestEvidence(
 		}
 		index.EvaluationsByRecipe[record.Recipe] = append(index.EvaluationsByRecipe[record.Recipe], EvalSummary{
 			Suite: suite, Prompting: prompting, Record: record.ID, Metrics: metrics, Directions: directions, Reproducible: reproducible,
+			Carried: carried,
 		})
 		return nil
 	})

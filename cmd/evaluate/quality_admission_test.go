@@ -48,7 +48,7 @@ func TestDerivedQualityRunsWithoutPerformanceQualification(t *testing.T) {
 	if err != nil || len(suites) != 1 || len(dropped) != 0 {
 		t.Fatalf("quality inputs: suites=%d dropped=%v err=%v", len(suites), dropped, err)
 	}
-	if err := native.EvaluateDerived(t.Context(), "mmlu"); err != nil {
+	if err := native.EvaluateDerived(t.Context(), "mmlu", artifact.ID{}); err != nil {
 		t.Fatal(err)
 	}
 	planID := suites[0].Plan().Identity()
@@ -70,7 +70,7 @@ func TestDerivedQualityRunsWithoutPerformanceQualification(t *testing.T) {
 	if err := longform.Admit(t.Context(), hosted.store, "", "unmeasured"); !errors.Is(err, longform.ErrRefused) {
 		t.Fatalf("quality run granted performance credit: %v", err)
 	}
-	if err := native.EvaluateDerived(t.Context(), "absent-family"); err == nil {
+	if err := native.EvaluateDerived(t.Context(), "absent-family", artifact.ID{}); err == nil {
 		t.Fatal("missing quality suite was accepted")
 	}
 }

@@ -91,7 +91,9 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	}
 	if len(bound.Outputs) == 1 {
 		if descriptor, found, _ := store.Artifact(ctx, bound.Outputs[0]); found && descriptor.Schema == replayReceiptContract.Schema {
-			summary.Carried = descriptor.ID
+			if receipt, err := RequireReplayReceipt(ctx, store, descriptor.ID); err == nil && receipt.Carried.Valid() {
+				summary.Carried = descriptor.ID
+			}
 		}
 	}
 	if bound.Outcome != runrecord.OutcomeSucceeded || bound.Recipe != record.Recipe || len(bound.Inputs) != 1 {

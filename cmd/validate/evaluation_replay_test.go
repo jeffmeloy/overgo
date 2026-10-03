@@ -11,12 +11,14 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
@@ -28,8 +30,11 @@ import (
 // counts the cases it scores; drift moves one prompt's scores by one unit in
 // the last place, a change only an exact float comparison sees.
 type replayFixtureRuntime struct {
-	scored *int
-	drift  string
+	scored      *int
+	drift       string
+	first, last *time.Duration
+	cancel      context.CancelFunc
+	failFirst   bool
 }
 
 func (replayFixtureRuntime) Generate(context.Context, string, inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
@@ -38,6 +43,23 @@ func (replayFixtureRuntime) Generate(context.Context, string, inference.Generate
 
 func (runtime replayFixtureRuntime) ScoreContinuations(_ context.Context, prompt string, candidates []string) ([]sequencescore.Score, error) {
 	*runtime.scored++
+	if runtime.first != nil {
+		now, err := processmeasure.Counter()
+		if err != nil {
+			return nil, err
+		}
+		if *runtime.scored == 1 {
+			*runtime.first = now
+		}
+		*runtime.last = now
+	}
+	if runtime.cancel != nil {
+		runtime.cancel()
+		return nil, context.Canceled
+	}
+	if runtime.failFirst && *runtime.scored == 1 {
+		return nil, errors.New("one replay execution failed")
+	}
 	scores := make([]sequencescore.Score, len(candidates))
 	for index := range candidates {
 		value := -float64(len(prompt)%(index+3)+1) / 3
@@ -113,6 +135,7 @@ func TestEvaluationReplayCarriesIdenticalOutputs(t *testing.T) {
 		t.Fatal(err)
 	}
 	scored := 0
+	var first, last time.Duration
 	var samples []string
 	progress := evaluation.WithProgress(ctx, func(step evaluation.Progress) {
 		if step.Sample != "" {
@@ -124,7 +147,7 @@ func TestEvaluationReplayCarriesIdenticalOutputs(t *testing.T) {
 	evaluate := func(commit string, platform runrecord.Environment, drift string, suiteData []byte, previous artifact.ID) (evaluation.CampaignResult, evaluation.CompiledSuite, int) {
 		t.Helper()
 		scored, samples = 0, nil
-		campaign, err := evaluation.NewIsolatedCampaign(store, replayFixtureRuntime{scored: &scored, drift: drift},
+		campaign, err := evaluation.NewIsolatedCampaign(store, replayFixtureRuntime{scored: &scored, drift: drift, first: &first, last: &last},
 			modelrecipe.ProgramIdentity{Model: model, Definition: definition, Recipe: recipeID}, platform, strings.Repeat(commit, 40))
 		if err != nil {
 			t.Fatal(err)
@@ -189,6 +212,17 @@ func TestEvaluationReplayCarriesIdenticalOutputs(t *testing.T) {
 		named.Replay == full.Report || len(named.Cases) != 32 {
 		t.Fatalf("the receipt does not name the plan, the record carried, its report, the replay and 32 cases: %+v", named)
 	}
+	legacyID, err := artifact.JSONID(artifact.KindEvaluation, struct {
+		Version uint16      `json:"version"`
+		Plan    artifact.ID `json:"plan"`
+		Carried artifact.ID `json:"carried"`
+		Report  artifact.ID `json:"report"`
+		Replay  artifact.ID `json:"replay"`
+		Cases   []int       `json:"cases"`
+	}{named.Version, named.Plan, named.Carried, named.Report, named.Replay, named.Cases})
+	if err != nil || legacyID != carried.Report {
+		t.Fatalf("existing carried receipt content identity changed: %s versus%s: %v", legacyID, carried.Report, err)
+	}
 
 	// The replay spans the suite's prompt lengths and includes its longest.
 	var replayed []string
@@ -225,6 +259,61 @@ func TestEvaluationReplayCarriesIdenticalOutputs(t *testing.T) {
 		!slices.ContainsFunc(samples, func(sample string) bool { return strings.Contains(sample, fmt.Sprintf("case %d replayed as", longest)) }) {
 		t.Fatalf("a replay that moved one case scored %d cases (want 32+100) and carried %s; samples %q", cases, drifted.Carried, samples)
 	}
+	driftRun, err := runrecord.RequireRun(ctx, store, drifted.Run)
+	if err != nil || driftRun.MeasuredNS < uint64(last-first) {
+		t.Errorf("fallback wall %d loses executed replay/fallback span %d: %v", driftRun.MeasuredNS, last-first, err)
+	}
+	if wall, known := drifted.Resources.Measure(runrecord.ResourceWallNS); !known || wall != driftRun.MeasuredNS {
+		t.Errorf("fallback resources lose attempt wall: %+v", drifted.Resources)
+	}
+	fallback := receipt(drifted.Report)
+	if fallback.Carried.Valid() || !fallback.Report.Valid() || !fallback.Replay.Valid() || len(fallback.Cases) != 32 {
+		t.Errorf("fallback loses its fresh full report and32 replay cases: %+v", fallback)
+	}
+	t.Run("cancelled replay retains spent work", func(t *testing.T) {
+		cancelledCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		calls := 0
+		campaign, err := evaluation.NewIsolatedCampaign(store, replayFixtureRuntime{scored: &calls, cancel: cancel},
+			modelrecipe.ProgramIdentity{Model: model, Definition: definition, Recipe: recipeID}, device, strings.Repeat("0", 40))
+		if err != nil {
+			t.Fatal(err)
+		}
+		compiled, err := evaluation.CompileSuite(data, campaign.Authorities())
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, evaluateErr := campaign.EvaluateOrCarry(cancelledCtx, compiled, again.Evaluation)
+		terminal, err := runrecord.RequireRun(ctx, store, result.Run)
+		wall, known := result.Resources.Measure(runrecord.ResourceWallNS)
+		if !errors.Is(evaluateErr, context.Canceled) || err != nil || terminal.Outcome != runrecord.OutcomeCancelled ||
+			calls != 1 || !known || wall == 0 || wall != terminal.MeasuredNS || result.Resources.Scope.Attempt != result.Run {
+			t.Fatalf("cancelled replay: calls%d, run%+v, resources%+v, error%v/read%v", calls, terminal, result.Resources, evaluateErr, err)
+		}
+	})
+	t.Run("partial replay remains an unknown denominator", func(t *testing.T) {
+		calls := 0
+		campaign, err := evaluation.NewIsolatedCampaign(store, replayFixtureRuntime{scored: &calls, failFirst: true},
+			modelrecipe.ProgramIdentity{Model: model, Definition: definition, Recipe: recipeID}, device, strings.Repeat("9", 40))
+		if err != nil {
+			t.Fatal(err)
+		}
+		compiled, err := evaluation.CompileSuite(data, campaign.Authorities())
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := campaign.EvaluateOrCarry(ctx, compiled, again.Evaluation)
+		if err != nil || result.Carried.Valid() || calls != 101 {
+			t.Fatalf("partial replay result=%+v, calls%d, error%v", result, calls, err)
+		}
+		scope, err := evaluation.RequireReplayReceipt(ctx, store, result.Report)
+		if err != nil || !scope.Fallback || scope.Carried.Valid() || !scope.Report.Valid() || scope.Replay.Valid() || len(scope.Cases) != 0 {
+			t.Fatalf("partial replay scope=%+v: %v", scope, err)
+		}
+		if _, err := evaluation.RequireEvaluationEvidence(ctx, store, result.Evidence); err != nil {
+			t.Fatalf("fallback evidence no longer verifies: %v", err)
+		}
+	})
 
 	// A plan that differs beyond the commit, or a hosted environment, runs
 	// in full without a replay.

@@ -231,24 +231,26 @@ func verifiedNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]
 	return names, err
 }
 
-// servingSummary aggregates the serving attempts recorded under one recipe:
-// what users actually hit. Its attempts, failures and cancellations count
-// back to the recipe's newest success, which succeeded says it has.
-// deviceSampled says an attempt sampled its device memory at its finish, so
-// a peak of zero is what it measured.
+// servingSummary reads the serving attempts recorded under one recipe as a
+// user meets the recipe now. Its attempts, failures and cancellations count
+// back to the recipe's newest success, which succeeded says it has. Its
+// samples are those of one attempt, measured: the newest success that timed
+// its model's load, which loaded says it found, else the newest success.
+// deviceSampled says that attempt sampled its device memory at its finish,
+// so a peak of zero is what it measured.
 type servingSummary struct {
 	attempts, failures, cancelled        int
-	succeeded, deviceSampled             bool
-	firstOutputNS, wholeOutputNS, loadNS []uint64
+	succeeded, loaded, deviceSampled     bool
+	firstOutputNS, wholeOutputNS, loadNS uint64
 	decodeTokens, decodeNS               uint64
 	peakDeviceBytes                      uint64
-	latest, recipe                       artifact.ID
+	latest, measured, recipe             artifact.ID
 }
 
-// cell is a value aggregated from the summary: the metric over the serving
-// attempts of its recipe, read as label says.
-func (summary *servingSummary) cell(value float64, unit, metric, label string) Cell {
-	return Cell{Value: value, Unit: unit, Label: label, Source: summary.latest, Contract: Contract{Metric: metric, Origin: originServing, Scope: summary.recipe}}
+// cell is a value read from source, the summary's measured attempt or its
+// latest, as label says.
+func (summary *servingSummary) cell(source artifact.ID, value float64, unit, metric, label string) Cell {
+	return Cell{Value: value, Unit: unit, Label: label, Source: source, Contract: Contract{Metric: metric, Origin: originServing, Scope: summary.recipe}}
 }
 
 // servingByRecipe reads every serving observation, newest first, into one
@@ -257,9 +259,13 @@ func (summary *servingSummary) cell(value float64, unit, metric, label string) C
 // attempt of its recipe succeeds: the failure rate is the failed share of
 // the attempts back to the newest success, so a fix shipped in code closes
 // it with the first attempt that succeeds, and a recipe failing now reads
-// as failing whatever it did before. A cancelled attempt counts as
-// neither success nor failure and contributes no samples: the server
-// records both a user's cancel and its own deadline that way. An
+// as failing whatever it did before. The timing and memory cells read one
+// attempt, the newest success that timed its load: the cycle measures each
+// recipe that way, from a fresh load on the request its verification ran,
+// so a landed improvement shows in the next scorecard and a request served
+// from a resident session does not stand in for it. A cancelled attempt
+// counts as neither success nor failure and contributes no samples: the
+// server records both a user's cancel and its own deadline that way. An
 // observation a gate result depends on is a validation run's measurement,
 // deliberate interrupts included, not an attempt a user made, and is left
 // out: E4B's media resource proof published 324 deliberate failures under
@@ -297,31 +303,40 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if counted {
 			summary.attempts++
 		}
-		prefilled := false
+		if observation.Outcome != runrecord.OutcomeSucceeded || summary.loaded {
+			return nil
+		}
+		measured := servingSummary{measured: observation.ID}
 		for _, sample := range observation.Hardware {
 			if sample.Stage == runrecord.ServingHardwarePrefill {
-				summary.firstOutputNS = append(summary.firstOutputNS, sample.ElapsedNS)
-				prefilled = true
+				measured.firstOutputNS = sample.ElapsedNS
 			}
-			summary.peakDeviceBytes = max(summary.peakDeviceBytes, sample.DevicePeakBytes)
-			summary.deviceSampled = summary.deviceSampled || sample.Stage == runrecord.ServingHardwareFinish
+			measured.peakDeviceBytes = max(measured.peakDeviceBytes, sample.DevicePeakBytes)
+			measured.deviceSampled = measured.deviceSampled || sample.Stage == runrecord.ServingHardwareFinish
 		}
 		// A capability that returns its output whole, an image or a
 		// clip, first outputs when it finishes.
-		if !prefilled && observation.Outcome == runrecord.OutcomeSucceeded && observation.MeasuredNS != 0 {
-			summary.wholeOutputNS = append(summary.wholeOutputNS, observation.MeasuredNS)
+		if measured.firstOutputNS == 0 {
+			measured.wholeOutputNS = observation.MeasuredNS
 		}
-		summary.peakDeviceBytes = max(summary.peakDeviceBytes, observation.Resources.PeakDeviceBytes)
+		measured.peakDeviceBytes = max(measured.peakDeviceBytes, observation.Resources.PeakDeviceBytes)
 		for _, phase := range observation.Phases {
 			switch {
 			case phase.Phase == runrecord.PhaseLoad && phase.DurationNS != 0:
-				summary.loadNS = append(summary.loadNS, phase.DurationNS)
-			case phase.Phase == runrecord.PhaseDecode && phase.DurationNS != 0 && observation.Outcome == runrecord.OutcomeSucceeded:
+				measured.loadNS, measured.loaded = phase.DurationNS, true
+			case phase.Phase == runrecord.PhaseDecode && phase.DurationNS != 0:
 				// The decode phase alone, as the benchmark's decode rate is.
-				summary.decodeTokens += observation.Usage.OutputTokens
-				summary.decodeNS += phase.DurationNS
+				measured.decodeTokens, measured.decodeNS = observation.Usage.OutputTokens, phase.DurationNS
 			}
 		}
+		// The newest success stands until an older one that timed its load
+		// is found: that one is the measurement.
+		if summary.measured.Valid() && !measured.loaded {
+			return nil
+		}
+		measured.attempts, measured.failures, measured.cancelled = summary.attempts, summary.failures, summary.cancelled
+		measured.succeeded, measured.latest, measured.recipe = true, summary.latest, summary.recipe
+		*summary = measured
 		return nil
 	})
 	return summaries, err
@@ -367,27 +382,25 @@ func firstOutputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, be
 		// answer a user waits for.
 		return inapplicable("a training session has no first output")
 	}
+	if observed != nil && observed.firstOutputNS != 0 {
+		return observed.cell(observed.measured, milliseconds(observed.firstOutputNS), "ms", "time to prefill", "serving time to prefill, the newest measured attempt")
+	}
 	if benchmarked && benchmark.FirstTokenMS != 0 {
 		return benchmarkCell(benchmark.FirstTokenMS, "ms", "time to first token, median", benchmark.Record)
 	}
-	if observed != nil && len(observed.firstOutputNS) != 0 {
-		return observed.cell(milliseconds(runrecord.MedianUint(observed.firstOutputNS)), "ms", "time to prefill",
-			fmt.Sprintf("serving time to prefill, median of %d", len(observed.firstOutputNS)))
-	}
-	if observed != nil && len(observed.wholeOutputNS) != 0 {
-		return observed.cell(milliseconds(runrecord.MedianUint(observed.wholeOutputNS)), "ms", "time to the whole output",
-			fmt.Sprintf("serving time to the whole output, median of %d", len(observed.wholeOutputNS)))
+	if observed != nil && observed.wholeOutputNS != 0 {
+		return observed.cell(observed.measured, milliseconds(observed.wholeOutputNS), "ms", "time to the whole output", "serving time to the whole output, the newest measured attempt")
 	}
 	return gap("no benchmark time to first token and no serving prefill sample")
 }
 
 func throughputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
-	if benchmarked && benchmark.DecodeTokensPerSecond != 0 {
-		return benchmarkCell(benchmark.DecodeTokensPerSecond, "tok/s", "decode rate, median", benchmark.Record)
-	}
 	if observed != nil && observed.decodeTokens != 0 && observed.decodeNS != 0 {
 		rate := float64(observed.decodeTokens) / time.Duration(observed.decodeNS).Seconds()
-		return observed.cell(rate, "tok/s", "output tokens over decode time", "serving output tokens over decode time")
+		return observed.cell(observed.measured, rate, "tok/s", "output tokens over decode time", "serving output tokens over decode time, the newest measured attempt")
+	}
+	if benchmarked && benchmark.DecodeTokensPerSecond != 0 {
+		return benchmarkCell(benchmark.DecodeTokensPerSecond, "tok/s", "decode rate, median", benchmark.Record)
 	}
 	if slices.Contains(wholeOutputTasks, task) {
 		return inapplicable(fmt.Sprintf("%s returns its output whole, so its rate is its first-output time", task))
@@ -574,37 +587,36 @@ func failureCell(observed *servingSummary) Cell {
 	if !observed.succeeded {
 		since = "and none succeeded"
 	}
-	return observed.cell(float64(observed.failures)/float64(observed.attempts), "", "failed share of attempts",
+	return observed.cell(observed.latest, float64(observed.failures)/float64(observed.attempts), "", "failed share of attempts",
 		fmt.Sprintf("%d failed and %d cancelled %s", observed.failures, observed.cancelled, since))
 }
 
 func loadCell(benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
+	if observed != nil && observed.loadNS != 0 {
+		return observed.cell(observed.measured, milliseconds(observed.loadNS), "ms", "load phase", "load phase, the newest measured attempt")
+	}
 	if benchmarked && benchmark.LoadMS != 0 {
 		return benchmarkCell(benchmark.LoadMS, "ms", "load", benchmark.Record)
-	}
-	if observed != nil && len(observed.loadNS) != 0 {
-		return observed.cell(milliseconds(runrecord.MedianUint(observed.loadNS)), "ms", "load phase",
-			fmt.Sprintf("load phase, median of %d", len(observed.loadNS)))
 	}
 	return gap("no benchmark load time and no recorded load phase")
 }
 
 func peakMemoryCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
-	if benchmarked && benchmark.PeakDeviceBytes != 0 {
-		return benchmarkCell(float64(benchmark.PeakDeviceBytes), "bytes", "peak device memory", benchmark.Record)
-	}
 	if task == recipe.TaskTraining {
 		// A training session samples device-wide use, other processes
 		// included, not its own peak.
 		return gap("training sessions record device-wide memory use, not their own peak")
 	}
 	if observed != nil && observed.peakDeviceBytes != 0 {
-		return observed.cell(float64(observed.peakDeviceBytes), "bytes", "peak device memory", "serving peak device memory")
+		return observed.cell(observed.measured, float64(observed.peakDeviceBytes), "bytes", "peak device memory", "serving peak device memory, the newest measured attempt")
 	}
 	if observed != nil && observed.deviceSampled {
 		// Sampled at an attempt's finish and never above zero: the model
 		// holds no device memory, which is a measurement and no gap.
-		return observed.cell(0, "bytes", "peak device memory", "0 bytes: runs on the host")
+		return observed.cell(observed.measured, 0, "bytes", "peak device memory", "0 bytes: runs on the host")
+	}
+	if benchmarked && benchmark.PeakDeviceBytes != 0 {
+		return benchmarkCell(float64(benchmark.PeakDeviceBytes), "bytes", "peak device memory", benchmark.Record)
 	}
 	return gap("no benchmark or serving peak device memory")
 }

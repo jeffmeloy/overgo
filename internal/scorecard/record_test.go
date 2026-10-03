@@ -139,7 +139,7 @@ func TestComparisonIsTyped(t *testing.T) {
 		return Row{Model: first, Task: recipe.TaskInference, Cells: map[metric.Name]Cell{metric.FirstOutput: contract(&servingSummary{latest: source, recipe: scope})}}
 	}
 	prefill := func(summary *servingSummary) Cell {
-		return summary.cell(120, "ms", "time to prefill", "serving time to prefill")
+		return summary.cell(summary.latest, 120, "ms", "time to prefill", "serving time to prefill")
 	}
 	benchmarked := func(*servingSummary) Cell { return benchmarkCell(120, "ms", "time to first token, median", source) }
 	old, current := testutil.ArtifactID(t, artifact.KindRecipe, "old"), testutil.ArtifactID(t, artifact.KindRecipe, "current")

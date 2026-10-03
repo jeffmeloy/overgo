@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
@@ -65,7 +66,7 @@ func TestComparisonIsTyped(t *testing.T) {
 	lost := row(first, "shared", 0, mmlu)
 	lost.Cells[metric.Quality] = inapplicable("the task no longer answers questions")
 	newlyMeasured := row(first, "shared", 0.5, mmlu)
-	newlyMeasured.Cells[metric.Load] = benchmarkCell(1, "ms", "load", source)
+	newlyMeasured.Cells[metric.Load] = benchmarkCell(1, "ms", "load", evaluation.BenchmarkSummary{Record: source})
 	// A larger suite became the headline; the baseline's suite is still
 	// measured beside it, holding or fallen.
 	larger := with(func(c *Contract) { c.Suite = "store/mmlu-larger" })
@@ -156,7 +157,9 @@ func TestComparisonIsTyped(t *testing.T) {
 	prefill := func(summary *servingSummary) Cell {
 		return summary.cell(summary.latest, 120, "ms", "time to prefill", "serving time to prefill")
 	}
-	benchmarked := func(*servingSummary) Cell { return benchmarkCell(120, "ms", "time to first token, median", source) }
+	benchmarked := func(*servingSummary) Cell {
+		return benchmarkCell(120, "ms", "time to first token, median", evaluation.BenchmarkSummary{Record: source})
+	}
 	old, current := testutil.ArtifactID(t, artifact.KindRecipe, "old"), testutil.ArtifactID(t, artifact.KindRecipe, "current")
 	for name, before := range map[string]Row{"another recipe's attempts": served(old, prefill), "a benchmark in the same unit": served(current, benchmarked)} {
 		after := served(current, prefill)

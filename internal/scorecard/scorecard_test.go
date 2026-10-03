@@ -1,6 +1,7 @@
 package scorecard
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -153,6 +154,13 @@ func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	stale := evaluation.BenchmarkSummary{FirstTokenMS: 250, DecodeTokensPerSecond: 4, LoadMS: 12000, PeakDeviceBytes: 2 * peak}
+	staleData, err := json.Marshal(map[string]any{"record": latest, "code_commit": "0123456789abcdef0123456789abcdef01234567", "environment": environment})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(staleData, &stale); err != nil {
+		t.Fatal(err)
+	}
 	summary := summaries[measuredRecipe]
 	for name, cell := range map[string]Cell{
 		"first output": firstOutputCell(recipe.TaskInference, stale, true, summary), "throughput": throughputCell(recipe.TaskInference, stale, true, summary),
@@ -171,6 +179,14 @@ func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
 	}
 	if cell := loadCell(stale, true, summaries[served]); cell.Value != stale.LoadMS || cell.Contract.Origin != originBenchmark {
 		t.Errorf("load of a recipe no attempt loaded = %+v, want the benchmark's", cell)
+	}
+	for name, cell := range map[string]Cell{
+		"first output": firstOutputCell(recipe.TaskInference, stale, true, nil), "throughput": throughputCell(recipe.TaskInference, stale, true, nil),
+		"load": loadCell(stale, true, nil), "peak": peakMemoryCell(recipe.TaskInference, stale, true, nil),
+	} {
+		if cell.Source != latest || cell.CodeCommit != "0123456789abcdef0123456789abcdef01234567" || cell.Environment != environment {
+			t.Errorf("benchmark %s lost its producing authorities: %+v", name, cell)
+		}
 	}
 }
 

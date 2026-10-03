@@ -370,8 +370,9 @@ func validationMeasured(ctx context.Context, store *overgodb.Store, id artifact.
 func gap(reason string) Cell { return Cell{Reason: reason} }
 
 // benchmarkCell is a value the benchmark record measured.
-func benchmarkCell(value float64, unit, metric string, record artifact.ID) Cell {
-	return Cell{Value: value, Unit: unit, Label: originBenchmark + " " + metric, Source: record, Contract: Contract{Metric: metric, Origin: originBenchmark}}
+func benchmarkCell(value float64, unit, metric string, summary evaluation.BenchmarkSummary) Cell {
+	return Cell{Value: value, Unit: unit, Label: originBenchmark + " " + metric, Source: summary.Record,
+		CodeCommit: summary.CodeCommit, Environment: summary.Environment, Contract: Contract{Metric: metric, Origin: originBenchmark}}
 }
 
 func inapplicable(reason string) Cell { return Cell{Reason: reason, NotApplicable: true} }
@@ -390,7 +391,7 @@ func firstOutputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, be
 		return observed.cell(observed.measured, milliseconds(observed.firstOutputNS), "ms", "time to prefill", "serving time to prefill, the newest measured attempt")
 	}
 	if benchmarked && benchmark.FirstTokenMS != 0 {
-		return benchmarkCell(benchmark.FirstTokenMS, "ms", "time to first token, median", benchmark.Record)
+		return benchmarkCell(benchmark.FirstTokenMS, "ms", "time to first token, median", benchmark)
 	}
 	if observed != nil && observed.wholeOutputNS != 0 {
 		return observed.cell(observed.measured, milliseconds(observed.wholeOutputNS), "ms", "time to the whole output", "serving time to the whole output, the newest measured attempt")
@@ -404,7 +405,7 @@ func throughputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, ben
 		return observed.cell(observed.measured, rate, "tok/s", "output tokens over decode time", "serving output tokens over decode time, the newest measured attempt")
 	}
 	if benchmarked && benchmark.DecodeTokensPerSecond != 0 {
-		return benchmarkCell(benchmark.DecodeTokensPerSecond, "tok/s", "decode rate, median", benchmark.Record)
+		return benchmarkCell(benchmark.DecodeTokensPerSecond, "tok/s", "decode rate, median", benchmark)
 	}
 	if slices.Contains(wholeOutputTasks, task) {
 		return inapplicable(fmt.Sprintf("%s returns its output whole, so its rate is its first-output time", task))
@@ -599,7 +600,7 @@ func loadCell(benchmark evaluation.BenchmarkSummary, benchmarked bool, observed 
 		return observed.cell(observed.measured, milliseconds(observed.loadNS), "ms", "load phase", "load phase, the newest measured attempt")
 	}
 	if benchmarked && benchmark.LoadMS != 0 {
-		return benchmarkCell(benchmark.LoadMS, "ms", "load", benchmark.Record)
+		return benchmarkCell(benchmark.LoadMS, "ms", "load", benchmark)
 	}
 	return gap("no benchmark load time and no recorded load phase")
 }
@@ -619,7 +620,7 @@ func peakMemoryCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, ben
 		return observed.cell(observed.measured, 0, "bytes", "peak device memory", "0 bytes: runs on the host")
 	}
 	if benchmarked && benchmark.PeakDeviceBytes != 0 {
-		return benchmarkCell(float64(benchmark.PeakDeviceBytes), "bytes", "peak device memory", benchmark.Record)
+		return benchmarkCell(float64(benchmark.PeakDeviceBytes), "bytes", "peak device memory", benchmark)
 	}
 	return gap("no benchmark or serving peak device memory")
 }

@@ -18,6 +18,7 @@ import (
 // model's identity, and the committed record parses back with the
 // claim intact.
 func TestBenchmarkClaimCommits(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	result := benchmarkResult{
 		ModelName: "fixture-model", DevicePeakBytes: 512,
@@ -42,6 +43,9 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 		claim.WallNS != 220_000_000 || claim.PeakDeviceBytes != 512 ||
 		len(claim.Evidence) != 1 || claim.Evidence[0] != evidence {
 		t.Fatalf("claim = %+v", claim)
+	}
+	if _, _, _, err := benchmarkClaim(result, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err == nil {
+		t.Fatal("a different publishing commit relabeled the measured producer")
 	}
 
 	weightsPath := filepath.Join(t.TempDir(), "weights.gguf")

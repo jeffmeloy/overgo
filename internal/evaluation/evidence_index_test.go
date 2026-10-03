@@ -2,6 +2,8 @@ package evaluation
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -10,6 +12,86 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
+
+// TestBenchmarkProducerFactsFollowEvidence keeps producer facts separate from
+// publication: disagreement cannot invent a source, and a platform identifies
+// only its own exact bytes. Legacy measured values stay visible as unknowns.
+func TestBenchmarkProducerFactsFollowEvidence(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"known", "legacy", "foreign-code", "foreign-environment"} {
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
+			store, err := overgodb.Open(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			weights := []byte("benchmark producer weights")
+			model, err := artifact.IdentifyBytes(artifact.KindModel, weights)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(t.TempDir(), "model.gguf")
+			if err := os.WriteFile(path, weights, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			platform, err := runrecord.NewEnvironment(runrecord.Environment{Host: "fixture", OS: "windows", Arch: "amd64", Device: "fixture-gpu", Backend: "cuda", Driver: "fixture"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			body := map[string]any{"code_commit": planTestCommit, "environment_id": platform.ID, "environment": platform,
+				"load_ms": 100, "summary": map[string]float64{"decode_tokens_per_second_p50": 12, "prompt_tokens_per_second_p50": 24, "ttft_ms_p50": 5}}
+			switch mode {
+			case "legacy":
+				delete(body, "code_commit")
+				delete(body, "environment_id")
+				delete(body, "environment")
+			case "foreign-code":
+				body["code_commit"] = strings.Repeat("a", len(planTestCommit))
+			case "foreign-environment":
+				platform.Driver = "different"
+				body["environment"] = platform
+			}
+			data, err := json.Marshal(body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			evidence, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record, err := runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{Capability: "benchmark", Tier: runrecord.TierCapabilityMeasured, Commit: planTestCommit, WallNS: 200, PeakDeviceBytes: 300, Evidence: []artifact.ID{evidence}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := runrecord.CommitVerificationClaim(t.Context(), store, record, data, evidence, path); err != nil {
+				t.Fatal(err)
+			}
+			summary := LatestEvidence(t.Context(), store, nil, 0).BenchmarksByLocation[path]
+			encoded, err := json.Marshal(summary)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var facts struct {
+				CodeCommit  string      `json:"code_commit"`
+				Environment artifact.ID `json:"environment"`
+			}
+			if err := json.Unmarshal(encoded, &facts); err != nil {
+				t.Fatal(err)
+			}
+			wantCode, wantEnvironment := planTestCommit, platform.ID
+			if mode == "legacy" || mode == "foreign-code" {
+				wantCode = ""
+			}
+			if mode == "legacy" || mode == "foreign-environment" {
+				wantEnvironment = artifact.ID{}
+			}
+			if summary.Record != record.ID || summary.DecodeTokensPerSecond != 12 || summary.PromptTokensPerSecond != 24 || summary.FirstTokenMS != 5 || summary.LoadMS != 100 || summary.WallNS != 200 || summary.PeakDeviceBytes != 300 || facts.CodeCommit != wantCode || facts.Environment != wantEnvironment {
+				t.Fatalf("summary = %+v, facts = %+v; want source %q and environment %s without changing measured values", summary, facts, wantCode, wantEnvironment)
+			}
+		})
+	}
+}
 
 // TestEvaluationExecutionDoesNotInventMissingAuthorities keeps unknown execution
 // facts distinct from a known raw or hosted protocol. The measured value and its

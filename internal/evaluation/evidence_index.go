@@ -13,7 +13,9 @@ import (
 
 // BenchmarkSummary is the latest committed benchmark claim for one
 // weights file: tier, wall, peak, and the headline rates, time to first
-// token and load time lifted from the claim's evidence document.
+// token and load time lifted from the claim's evidence document. Producer
+// facts are independent: absent or inconsistent facts stay unknown, and
+// neither the claim's publication nor these facts prove source currency.
 type BenchmarkSummary struct {
 	Tier                  string      `json:"tier"`
 	PromptTokensPerSecond float64     `json:"prompt_tokens_per_second_p50,omitzero"`
@@ -23,6 +25,8 @@ type BenchmarkSummary struct {
 	WallNS                uint64      `json:"wall_ns,omitzero"`
 	PeakDeviceBytes       uint64      `json:"peak_device_bytes,omitzero"`
 	Record                artifact.ID `json:"record,omitzero"`
+	CodeCommit            string      `json:"code_commit,omitzero"`
+	Environment           artifact.ID `json:"environment,omitzero"`
 }
 
 // headlineMetrics orders the metric that stands for an evaluation: an
@@ -131,8 +135,11 @@ type EvidenceIndex struct {
 // JSON); an absent or differently shaped document leaves the claim's
 // own fields standing.
 type benchmarkEvidenceHeadline struct {
-	LoadMS  float64 `json:"load_ms"`
-	Summary struct {
+	CodeCommit    string                `json:"code_commit"`
+	EnvironmentID artifact.ID           `json:"environment_id"`
+	Environment   runrecord.Environment `json:"environment"`
+	LoadMS        float64               `json:"load_ms"`
+	Summary       struct {
 		PromptTokensPerSecondP50 float64 `json:"prompt_tokens_per_second_p50"`
 		DecodeTokensPerSecondP50 float64 `json:"decode_tokens_per_second_p50"`
 		FirstTokenMSP50          float64 `json:"ttft_ms_p50"`
@@ -182,6 +189,13 @@ func LatestEvidence(
 						summary.DecodeTokensPerSecond = headline.Summary.DecodeTokensPerSecondP50
 						summary.FirstTokenMS = headline.Summary.FirstTokenMSP50
 						summary.LoadMS = headline.LoadMS
+						if headline.CodeCommit == claim.Commit {
+							summary.CodeCommit = headline.CodeCommit
+						}
+						headline.Environment.ID = headline.EnvironmentID
+						if headline.Environment.ValidateIdentity() == nil {
+							summary.Environment = headline.EnvironmentID
+						}
 					}
 				}
 			}

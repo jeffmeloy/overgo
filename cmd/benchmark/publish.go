@@ -62,6 +62,9 @@ func benchmarkClaim(result benchmarkResult, commit string) (runrecord.Capability
 	if err := validateBenchmarkResult(result); err != nil {
 		return runrecord.CapabilityClaim{}, nil, artifact.ID{}, err
 	}
+	if result.CodeCommit != commit {
+		return runrecord.CapabilityClaim{}, nil, artifact.ID{}, errors.New("benchmark: publishing commit differs from the measured producer")
+	}
 	evidenceData, err := json.Marshal(result)
 	if err != nil {
 		return runrecord.CapabilityClaim{}, nil, artifact.ID{}, err

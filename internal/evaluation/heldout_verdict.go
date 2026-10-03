@@ -310,38 +310,8 @@ func CommittedHeldoutVerdictPassed(
 	if !trainingprogram.SameContract(objective, current) {
 		return false, fmt.Errorf("evaluation: verdict %s judged a different objective contract", id)
 	}
-	view, err := sftEvaluationViewCodec.Require(ctx, reader, verdict.View)
-	if err != nil {
+	if err := reconstructHeldoutVerdict(ctx, reader, verdict, objective); err != nil {
 		return false, err
-	}
-	training, heldout, err := viewMemberships(ctx, reader, view)
-	if err != nil {
-		return false, err
-	}
-	if partner, err := dataset.SplitPartner(ctx, reader, training.ID); err != nil || partner.ID != heldout.ID {
-		return false, errors.Join(fmt.Errorf("evaluation: verdict %s judges on a membership its split does not pair with the training one", id), err)
-	}
-	recompiled, err := CompileSFTEvaluationView(objective, training, heldout)
-	if err != nil {
-		return false, err
-	}
-	if recompiled.ID != view.ID {
-		return false, fmt.Errorf("evaluation: verdict %s view does not recompile from its memberships", id)
-	}
-	plan, reports, err := requireHeldout(ctx, reader, verdict.Plan, verdict.Baseline, verdict.Candidate)
-	if err != nil {
-		return false, err
-	}
-	trained, err := requireTraining(ctx, reader, verdict)
-	if err != nil {
-		return false, err
-	}
-	judged, err := JudgeHeldout(objective, view, plan, reports[0], reports[1], trained)
-	if err != nil {
-		return false, err
-	}
-	if judged.ID != verdict.ID {
-		return false, fmt.Errorf("evaluation: verdict %s differs from its recomputation", id)
 	}
 	if !slices.Contains(current.Evidence, verdict.Observation) {
 		return false, fmt.Errorf("evaluation: verdict %s training observation is not evidence of this objective", id)
@@ -349,15 +319,64 @@ func CommittedHeldoutVerdictPassed(
 	return verdict.Passed, nil
 }
 
+// reconstructHeldoutVerdict is the shared evidence check for approval and
+// reporting. It verifies retained inputs and reports, including valid losses;
+// the caller owns whether a current objective may adopt that evidence.
+func reconstructHeldoutVerdict(ctx context.Context, reader artifact.Reader, verdict heldoutVerdict, objective trainingprogram.ObjectiveDocument) error {
+	view, err := sftEvaluationViewCodec.Require(ctx, reader, verdict.View)
+	if err != nil {
+		return err
+	}
+	training, heldout, err := viewMemberships(ctx, reader, view)
+	if err != nil {
+		return err
+	}
+	if partner, err := dataset.SplitPartner(ctx, reader, training.ID); err != nil || partner.ID != heldout.ID {
+		return errors.Join(fmt.Errorf("evaluation: verdict %s judges on a membership its split does not pair with the training one", verdict.ID), err)
+	}
+	recompiled, err := CompileSFTEvaluationView(objective, training, heldout)
+	if err != nil {
+		return err
+	}
+	if recompiled.ID != view.ID {
+		return fmt.Errorf("evaluation: verdict %s view does not recompile from its memberships", verdict.ID)
+	}
+	plan, reports, err := requireHeldout(ctx, reader, verdict.Plan, verdict.Baseline, verdict.Candidate)
+	if err != nil {
+		return err
+	}
+	trained, err := requireTraining(ctx, reader, verdict)
+	if err != nil {
+		return err
+	}
+	judged, err := JudgeHeldout(objective, view, plan, reports[0], reports[1], trained)
+	if err != nil {
+		return err
+	}
+	if judged.ID != verdict.ID {
+		return fmt.Errorf("evaluation: verdict %s differs from its recomputation", verdict.ID)
+	}
+	return nil
+}
+
 // VisitHeldoutVerdicts visits every committed held-out verdict, newest
 // first, with the training observation it judged and its declared metric's
-// value for the base and for the trained model. Each value is summarized as
+// value for the base and for the trained model, after reconstructing the
+// checkpoint, memberships and reports. Valid losses remain visible. Each
+// value is summarized as
 // an evaluation of the objective's held-out view under the verdict's target
 // plan, in the verdict's direction.
 func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func(observation artifact.ID, base, trained EvalSummary) error) error {
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{heldoutVerdictCodec.Contract}, Order: overgodb.DocumentNewestFirst,
 	}, heldoutVerdictCodec.Parse, func(_ overgodb.DocumentView, verdict heldoutVerdict) error {
+		objective, err := trainingprogram.LoadObjective(ctx, store, verdict.Objective)
+		if err != nil {
+			return err
+		}
+		if err := reconstructHeldoutVerdict(ctx, store, verdict, objective); err != nil {
+			return err
+		}
 		metric := string(verdict.Metric)
 		summary := func(value float64) EvalSummary {
 			return EvalSummary{

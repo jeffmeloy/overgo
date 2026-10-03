@@ -53,6 +53,7 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 	defer browser.Close()
 	settle := func(expression string) {
 		t.Helper()
+		t.Logf("waiting for %s", expression)
 		if err := browser.Eventually(ctx, expression); err != nil {
 			t.Fatalf("%s: %v", expression, err)
 		}

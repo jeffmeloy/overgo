@@ -276,18 +276,34 @@ func TestCommittedVerdictRescoresItsReports(t *testing.T) {
 	commit("test-view", forecast.view.Batch, forecast.objective.Processors...)
 	commit("test-plan", forecast.plan.Batch)
 	commit("test-base", base.Batch)
-	judge := func(key string, candidate HeldoutReport) (bool, error) {
+	judge := func(key string, candidate HeldoutReport, wantPassed bool) (bool, error) {
 		t.Helper()
 		commit(key+"-report", candidate.Batch)
 		verdict, err := JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, candidate, session)
-		if err != nil || !verdict.Passed {
-			t.Fatalf("%s verdict = (passed=%t, %v), want a passed judgment", key, verdict.Passed, err)
+		if err != nil || verdict.Passed != wantPassed {
+			t.Fatalf("%s verdict = (passed=%t, %v), want passed=%t", key, verdict.Passed, err, wantPassed)
 		}
 		commit(key, verdict.Batch)
-		return CommittedHeldoutVerdictPassed(ctx, store, verdict.ID, current)
+		passed, approvalErr := CommittedHeldoutVerdictPassed(ctx, store, verdict.ID, current)
+		var visited []EvalSummary
+		visitErr := VisitHeldoutVerdicts(ctx, store, func(_ artifact.ID, _, trained EvalSummary) error {
+			visited = append(visited, trained)
+			return nil
+		})
+		if approvalErr != nil {
+			if visitErr == nil || len(visited) != 0 {
+				t.Fatalf("%s invalid verdict reached reporting: %+v, %v", key, visited, visitErr)
+			}
+		} else if visitErr != nil || len(visited) == 0 || visited[0].Record != verdict.ID || visited[0].Metrics[string(verdict.Metric)] != verdict.CandidateValue {
+			t.Fatalf("%s reporting = (%+v, %v), want the reconstructed value including a valid loss", key, visited, visitErr)
+		}
+		return passed, approvalErr
 	}
-	if passed, err := judge("test-honest", better); err != nil || !passed {
+	if passed, err := judge("test-honest", better, true); err != nil || !passed {
 		t.Fatalf("the honest committed verdict = (%t, %v), want passed", passed, err)
+	}
+	if passed, err := judge("test-loss", forecast.score(t, 3, "falling"), false); err != nil || passed {
+		t.Fatalf("the valid losing verdict = (%t, %v), want measured but not passed", passed, err)
 	}
 	retained, err := numericTargetReportCodec.Require(ctx, store, better.ID())
 	if err != nil {
@@ -306,7 +322,7 @@ func TestCommittedVerdictRescoresItsReports(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if passed, err := judge("test-"+name, tampered.heldout()); err == nil || passed || !strings.Contains(err.Error(), "does not rescore") {
+		if passed, err := judge("test-"+name, tampered.heldout(), true); err == nil || passed || !strings.Contains(err.Error(), "does not rescore") {
 			t.Fatalf("a committed verdict on the %s report = (%t, %v), want it refused", name, passed, err)
 		}
 	}

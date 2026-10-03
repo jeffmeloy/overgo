@@ -271,11 +271,23 @@ func TestQualityReadsTranscriptionReports(t *testing.T) {
 // held-out view and the verdict's target plan. An inference recipe of the
 // same model reads no verdict.
 func TestQualityReadsHeldoutVerdicts(t *testing.T) {
-	t.Run("legacy-weight-file", func(t *testing.T) { testQualityReadsHeldoutVerdict(t, false) })
-	t.Run("complete-model", func(t *testing.T) { testQualityReadsHeldoutVerdict(t, true) })
+	for _, test := range []struct {
+		name                                            string
+		complete, losing, missingCheckpoint, wrongModel bool
+	}{
+		{name: "legacy-weight-file"},
+		{name: "complete-model", complete: true},
+		{name: "valid-loss", complete: true, losing: true},
+		{name: "missing-checkpoint", complete: true, missingCheckpoint: true},
+		{name: "wrong-observed-model", complete: true, wrongModel: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			testQualityReadsHeldoutVerdict(t, test.complete, test.losing, test.missingCheckpoint, test.wrongModel)
+		})
+	}
 }
 
-func testQualityReadsHeldoutVerdict(t *testing.T, complete bool) {
+func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheckpoint, wrongModel bool) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
@@ -315,8 +327,15 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete bool) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	observedModel := trainedWeights
+	if wrongModel {
+		observedModel = id(artifact.KindModel, "another observed model")
+		if _, err := store.Commit(ctx, artifact.Batch{Key: "quality/verdict/other-model", Artifacts: []artifact.Descriptor{{ID: observedModel}}}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	session, err := runrecord.NewServingObservation(runrecord.ServingObservation{
-		Model: trainedWeights, Recipe: training, Environment: environment, Task: recipe.TaskTraining,
+		Model: observedModel, Recipe: training, Environment: environment, Task: recipe.TaskTraining,
 		Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1, MeasuredNS: 1,
 	})
 	if err != nil {
@@ -382,6 +401,11 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete bool) {
 		return report
 	}
 	base, trained := answer("bad"), answer("good")
+	baseValue, trainedValue := float64(0), float64(1)
+	if losing {
+		base, trained = trained, base
+		baseValue, trainedValue = trainedValue, baseValue
+	}
 	registration, err := split.PublicationBatch("quality/verdict/registration", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -397,8 +421,11 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete bool) {
 	if _, err := artifact.CommitBatch(ctx, store, registration); err != nil {
 		t.Fatal(err)
 	}
-	checkpoint := trainedCheckpoint(t, trainedWeights, source, view.TrainingMembership)
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "quality/verdict/checkpoint", Artifacts: []artifact.Descriptor{{ID: checkpoint.ID()}}}); err != nil {
+	checkpoint, checkpointBatch := trainedCheckpoint(t, trainedWeights, source, view.TrainingMembership)
+	if missingCheckpoint {
+		checkpointBatch = artifact.Batch{Key: checkpointBatch.Key, Artifacts: []artifact.Descriptor{{ID: checkpoint.ID()}}}
+	}
+	if _, err := artifact.Publish(ctx, store, checkpointBatch); err != nil {
 		t.Fatal(err)
 	}
 	verdict, err := evaluation.JudgeHeldout(objective, view, plan, base, trained, evaluation.HeldoutTraining{
@@ -419,6 +446,12 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete bool) {
 		{Model: trainedWeights, Capabilities: []discovery.Capability{{Task: recipe.TaskTraining, Recipe: training}}},
 		{Model: directory.ID, Capabilities: []discovery.Capability{{Task: recipe.TaskTabular, Recipe: tabular}, {Task: recipe.TaskInference, Recipe: inference}}},
 	})
+	if missingCheckpoint || wrongModel {
+		if err == nil {
+			t.Fatalf("invalid held-out evidence was reported as quality: %+v", records)
+		}
+		return
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,13 +461,13 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete bool) {
 		recipe artifact.ID
 		value  float64
 		based  bool
-	}{{recipe.TaskTraining, training, 1, true}, {recipe.TaskTabular, tabular, 0, false}} {
+	}{{recipe.TaskTraining, training, trainedValue, true}, {recipe.TaskTabular, tabular, baseValue, false}} {
 		cell := records[read.recipe].cell(read.task)
 		if !cell.Measured() || cell.Value != read.value || cell.Source != verdict.ID || cell.Direction != runrecord.DirectionMaximize || cell.Contract != want {
 			t.Fatalf("%s quality = %+v, want %g from the verdict under %+v", read.task, cell, read.value, want)
 		}
-		if (cell.Base != nil) != read.based || read.based && *cell.Base != 0 {
-			t.Fatalf("%s quality carries base %v, want the base model's 0 beside it: %t", read.task, cell.Base, read.based)
+		if (cell.Base != nil) != read.based || read.based && *cell.Base != baseValue {
+			t.Fatalf("%s quality carries base %v, want the base model's %g beside it: %t", read.task, cell.Base, baseValue, read.based)
 		}
 	}
 	if record, read := records[inference]; read {
@@ -445,7 +478,7 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete bool) {
 // trainedCheckpoint publishes, into a scratch directory, a one-step
 // checkpoint that trained model on split of source: the trained output a
 // held-out verdict names.
-func trainedCheckpoint(t *testing.T, model, source, split artifact.ID) trainingprogram.Checkpoint {
+func trainedCheckpoint(t *testing.T, model, source, split artifact.ID) (trainingprogram.Checkpoint, artifact.Batch) {
 	t.Helper()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	const parameters = 4
@@ -465,7 +498,8 @@ func trainedCheckpoint(t *testing.T, model, source, split artifact.ID) trainingp
 	muon.Step()
 	state := muon.Snapshot()
 	rng := id(artifact.KindProfile, "rng")
-	checkpoint, err := trainingprogram.PublishCheckpoint(filepath.Join(t.TempDir(), "checkpoint"), trainingprogram.CheckpointSpec{
+	directory := filepath.Join(t.TempDir(), "checkpoint")
+	checkpoint, err := trainingprogram.PublishCheckpoint(directory, trainingprogram.CheckpointSpec{
 		RunPlan: id(artifact.KindRecipe, "run plan"), Program: id(artifact.KindRecipe, "program"), Model: model,
 		Dataset: source, Split: split, Stream: trainingprogram.DatasetState{Identity: id(artifact.KindProfile, "stream"), Position: 1},
 		Optimizer: state, ParameterCount: state.Parameters(),
@@ -478,5 +512,9 @@ func trainedCheckpoint(t *testing.T, model, source, split artifact.ID) trainingp
 	if err != nil {
 		t.Fatal(err)
 	}
-	return checkpoint
+	batch, err := checkpoint.Batch("quality/verdict/checkpoint", directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return checkpoint, batch
 }

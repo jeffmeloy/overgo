@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "Consolidate reporting with existing checked result and receipt owners; correctness and provenance fields may require bounded growth, to be counted before implementation."
+        "nodes": 81,
+        "reason": "Checked held-out reporting reuses the approval reconstruction body instead of trusting stored aggregates. 81 measured production AST nodes for existing-owner extraction and the reporting call; no new framework. Added checkpoint/report refusal fixtures and necessary retained-case/content reads are real verification/runtime costs, not a speedup. Source/protocol steps will receive separately counted growth. The unrelated browser fixture gains one wait-expression log after a non-reproduced timeout; no replacement suite or relaxed predicate."
       },
       "steps": [
-        {
-          "id": "verdict",
-          "title": "Read scorecard held-out values through the reconstructed verdict owner",
-          "status": "open",
-          "verify": "go test ./internal/scorecard ./internal/trainingworkflow ./internal/evaluation -run '^(TestQualityReadsHeldoutVerdicts|TestHeldoutApprovalReconstructsTheTrainedResult)$' -count=1",
-          "rationale": "SQA-014. Serves: trustworthy quality comparison. Disappears: unchecked stored aggregate reading; share the existing reconstruction result with scorecard while retaining valid losing verdicts. Evidence: extend the existing stored-verdict table with missing checkpoint, altered case/aggregate facts and valid loss; no training or model acquisition. Batch: reporting/evaluation closure only."
-        },
         {
           "id": "source",
           "title": "Bind selected recipe and producing source/environment before crediting proof",

@@ -33,7 +33,7 @@ func publishBenchmarkEvidence(ctx context.Context, options options, result bench
 	if err != nil || closeErr != nil {
 		return errors.Join(err, closeErr)
 	}
-	claim, evidenceData, evidence, err := benchmarkClaim(result, commit)
+	claim, evidenceData, evidence, err := benchmarkClaim(result, commit, model)
 	if err != nil {
 		return err
 	}
@@ -58,12 +58,15 @@ func publishBenchmarkEvidence(ctx context.Context, options options, result bench
 // own committed bytes: measured wall is the sum of run totals, span
 // tokens count generated output, and the peak device footprint rides
 // along so the claim answers capacity questions without the document.
-func benchmarkClaim(result benchmarkResult, commit string) (runrecord.CapabilityClaim, []byte, artifact.ID, error) {
+func benchmarkClaim(result benchmarkResult, commit string, model artifact.ID) (runrecord.CapabilityClaim, []byte, artifact.ID, error) {
 	if err := validateBenchmarkResult(result); err != nil {
 		return runrecord.CapabilityClaim{}, nil, artifact.ID{}, err
 	}
 	if result.CodeCommit != commit {
 		return runrecord.CapabilityClaim{}, nil, artifact.ID{}, errors.New("benchmark: publishing commit differs from the measured producer")
+	}
+	if result.ModelID != model {
+		return runrecord.CapabilityClaim{}, nil, artifact.ID{}, errors.New("benchmark: publishing weights differ from the measured model")
 	}
 	evidenceData, err := json.Marshal(result)
 	if err != nil {

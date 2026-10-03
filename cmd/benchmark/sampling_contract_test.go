@@ -106,7 +106,7 @@ func TestBenchmarkSamplingContract(t *testing.T) {
 				changed := valid
 				changed.Runs = slices.Clone(valid.Runs)
 				mutate(&changed)
-				if _, _, _, err := benchmarkClaim(changed, "0123456789abcdef0123456789abcdef01234567"); err == nil {
+				if _, _, _, err := benchmarkClaim(changed, "0123456789abcdef0123456789abcdef01234567", valid.ModelID); err == nil {
 					t.Fatal("invalid claim accepted")
 				}
 			})

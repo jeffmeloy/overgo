@@ -34,20 +34,6 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 	}
 	commit := "0123456789abcdef0123456789abcdef01234567"
 	bindFixtureBenchmarkIdentity(t, &result, commit)
-	claim, evidenceData, evidence, err := benchmarkClaim(result, commit)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if claim.Capability != "benchmark" || claim.Tier != runrecord.TierCapabilityMeasured ||
-		claim.Commit != commit || claim.SpanTokens != 0 || claim.ContextTokens != 14 ||
-		claim.WallNS != 220_000_000 || claim.PeakDeviceBytes != 512 ||
-		len(claim.Evidence) != 1 || claim.Evidence[0] != evidence {
-		t.Fatalf("claim = %+v", claim)
-	}
-	if _, _, _, err := benchmarkClaim(result, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err == nil {
-		t.Fatal("a different publishing commit relabeled the measured producer")
-	}
-
 	weightsPath := filepath.Join(t.TempDir(), "weights.gguf")
 	if err := os.WriteFile(weightsPath, []byte("weights fixture bytes"), 0o644); err != nil {
 		t.Fatal(err)
@@ -60,6 +46,26 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 	weights.Close()
 	if err != nil {
 		t.Fatal(err)
+	}
+	claim, evidenceData, evidence, err := benchmarkClaim(result, commit, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claim.Capability != "benchmark" || claim.Tier != runrecord.TierCapabilityMeasured ||
+		claim.Commit != commit || claim.SpanTokens != 0 || claim.ContextTokens != 14 ||
+		claim.WallNS != 220_000_000 || claim.PeakDeviceBytes != 512 ||
+		len(claim.Evidence) != 1 || claim.Evidence[0] != evidence {
+		t.Fatalf("claim = %+v", claim)
+	}
+	if _, _, _, err := benchmarkClaim(result, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", model); err == nil {
+		t.Fatal("a different publishing commit relabeled the measured producer")
+	}
+	changed, err := artifact.IdentifyBytes(artifact.KindModel, []byte("different weights after measurement"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := benchmarkClaim(result, commit, changed); err == nil {
+		t.Fatal("publication attached measured evidence to different weights")
 	}
 	record, err := runrecord.NewModelVerification(model, result.ModelName, []runrecord.CapabilityClaim{claim})
 	if err != nil {
@@ -96,7 +102,7 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 	if err := validateBenchmarkResult(measured); err != nil {
 		t.Fatal(err)
 	}
-	if measured.SamplingProtocol != greedyBudgetProtocol || measured.Runs[0].DeviceSelectedTokens != result.TokensPerSequence {
+	if measured.ModelID != parsed.Model || measured.SamplingProtocol != greedyBudgetProtocol || measured.Runs[0].DeviceSelectedTokens != result.TokensPerSequence {
 		t.Fatalf("publication lost sampling or observed selection path: %+v", measured)
 	}
 	locations, err := store.Locations(ctx, model)

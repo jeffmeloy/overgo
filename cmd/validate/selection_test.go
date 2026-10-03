@@ -171,7 +171,7 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 	var out bytes.Buffer
 	for background, want := range map[bool][]string{false: names(plan.Run), true: names(plan.Background)} {
 		// No cell has a location, so each is reported unbound and none starts.
-		err := executeRun(t.Context(), &out, root, store, plan, background)
+		err := executeRun(t.Context(), &out, root, store, nil, plan, background)
 		for _, validation := range []string{guardValidation, servingValidation, "mmlu-pro", "training-proof", "bbh", "ifeval"} {
 			if named := err != nil && strings.Contains(err.Error(), "compared "+validation+":"); named != slices.Contains(want, validation) {
 				t.Fatalf("-background=%v took %s: %v, want only %v", background, validation, err, want)

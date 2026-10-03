@@ -234,7 +234,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	refusals := map[string]string{ungrounded.ModelName: "no cmd/train route grounds", otherSuite.ModelName: "no committed exact suite or oracle grounds"}
 	commands, environments := map[string][]string{}, map[string][]string{}
 	for _, sel := range plan.Run {
-		_, environments[sel.ModelName], _, _ = trainingRun(sel.ModelValidation, selected)
+		_, environments[sel.ModelName], _ = trainingRun(sel.ModelValidation, selected)
 		if sel.Validation == projectionProof {
 			_, environments[sel.ModelName], _ = projectionRun(sel.ModelValidation, selected)
 		}
@@ -281,8 +281,8 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 				t.Errorf("%s runs %s %q, want %q: %v", model, name, got, value, commands[model])
 			}
 		}
-		if out := flag(model, "-out"); !strings.HasPrefix(out, os.TempDir()) {
-			t.Errorf("%s publishes its checkpoint at %q, outside the scratch -run empties", model, out)
+		if out := flag(model, "-out"); out != "checkpoint" {
+			t.Errorf("%s preview publishes its checkpoint at %q, want a caller-chosen output", model, out)
 		}
 	}
 	// The objective's proof run re-verifies its recipe without publishing the

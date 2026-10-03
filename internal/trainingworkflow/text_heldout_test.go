@@ -13,6 +13,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -304,6 +305,8 @@ func TestFrozenLexicalTextRunRecordsItsFrozenPlan(t *testing.T) {
 // revision, which this test sets as a package variable, so it runs alone.
 func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
 	stubExecutableCodeCommit(t, strings.Repeat("e7", 20))
+	resultPath := filepath.Join(t.TempDir(), "verification.json")
+	t.Setenv("OVERGO_TRAIN_VERIFICATION", resultPath)
 	var documents []string
 	for index := range 8 {
 		documents = append(documents, strings.Repeat("abcd", 3)[:4+index])
@@ -321,7 +324,11 @@ func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
 		}
 		return result
 	}
-	full, proof := run("full", false), run("proof", true)
+	full := run("full", false)
+	if err := os.Remove(resultPath); err != nil {
+		t.Errorf("full run handoff: %v", err)
+	}
+	proof := run("proof", true)
 	if !full.Verdict.Valid() || !proof.Observation.Valid() || proof.Verdict.Valid() || proof.View.Valid() || proof.Plan.Valid() ||
 		proof.Baseline.Valid() || proof.Candidate.Valid() {
 		t.Fatalf("full run = %+v, proof run = %+v: want a session and checkpoint from each and only the full run judged", full, proof)
@@ -348,6 +355,10 @@ func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
 	if inputs := verified.Run.Inputs; err != nil || len(inputs) != 2 || !slices.Contains(inputs, proof.Observation) || !slices.Contains(inputs, proof.Trained) {
 		t.Fatalf("active verification = (%+v, %v), want it to depend on the proof's session %s and checkpoint %s alone",
 			verified.Run, err, proof.Observation, proof.Trained)
+	}
+	var handoff modelrecipe.Verification
+	if err := jsonfile.DecodeStrict(resultPath, &handoff); err != nil || handoff.Gate != verified.Gate.ID || handoff.Run != verified.Run.ID {
+		t.Errorf("producer handoff = (%+v, %v), want exact completed proof", handoff, err)
 	}
 	// Promotion retargets the objective alias. A previously selected recipe must not silently train under the replacement.
 	if _, err := PromoteObjectiveAdaptive(ctx, text.store, text.alias, []artifact.ID{full.Observation}); err != nil {

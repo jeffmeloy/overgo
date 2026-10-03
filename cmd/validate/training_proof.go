@@ -154,7 +154,7 @@ func aliasNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]str
 // proof run the model directory under the objective's alias. It says why
 // when no route grounds the cell's recipe and no alias registers its
 // objective, or the route lacks an input.
-func trainingRun(cell ModelValidation, store string) (args, environment []string, scratch string, err error) {
+func trainingRun(cell ModelValidation, store string) (args, environment []string, err error) {
 	at := slices.IndexFunc(trainingRoutes, func(route trainingRoute) bool { return route.grounding == cell.Grounding })
 	route := trainingRoute{arguments: append([]string{"-objective", cell.Objective}, objectiveProof...)}
 	if at >= 0 {
@@ -163,9 +163,9 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 	inputs := []string{"-model", filepath.Dir(cell.Location)}
 	switch {
 	case at < 0 && cell.Objective == "":
-		return nil, nil, "", errors.New("no cmd/train route grounds its recipe's objective, and no alias registers it for train -objective")
+		return nil, nil, errors.New("no cmd/train route grounds its recipe's objective, and no alias registers it for train -objective")
 	case cell.Location == "":
-		return nil, nil, "", errors.New("a training run needs the model's weights")
+		return nil, nil, errors.New("a training run needs the model's weights")
 	case at < 0:
 		inputs = append(inputs, "-recipe", cell.Recipe.String())
 	case cell.Grounding == hybridGrounding:
@@ -175,12 +175,13 @@ func trainingRun(cell ModelValidation, store string) (args, environment []string
 	case cell.Grounding == ditGrounding && filepath.Base(cell.Location) == ditWeights:
 		inputs = []string{"-model-dir", filepath.Dir(cell.Location)}
 	case cell.Grounding == ditGrounding && cell.Conditioning == "":
-		return nil, nil, "", errors.New("a raw DiT checkpoint trains against a video stack directory no other training activation names")
+		return nil, nil, errors.New("a raw DiT checkpoint trains against a video stack directory no other training activation names")
 	case cell.Grounding == ditGrounding:
 		inputs = []string{"-model-dir", cell.Conditioning, "-checkpoint", cell.Location}
 	}
-	scratch = filepath.Join(os.TempDir(), "overgo-validate-proof", cell.Recipe.DigestHex())
 	args = append([]string{"run", "./cmd/train"}, route.arguments...)
-	args = append(append(args, "-store", store, "-out", filepath.Join(scratch, "checkpoint")), inputs...)
-	return args, route.environment, scratch, nil
+	// The preview names a caller-chosen output; acquisition replaces it with
+	// its own private directory before starting the producer.
+	args = append(append(args, "-store", store, "-out", "checkpoint"), inputs...)
+	return args, route.environment, nil
 }

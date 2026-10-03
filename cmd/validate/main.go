@@ -229,7 +229,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	plan := SelectValidation(Inputs{Registered: registered, Current: read.current, Scorecard: compared})
 	plan.Suites = cycleSuites()
 	if *execute {
-		return executeRun(ctx, output, *root, storeRoot, plan, *background)
+		return executeRun(ctx, output, *root, storeRoot, store, plan, *background)
 	}
 	return clioptions.WritePrettyJSON(output, plan)
 }

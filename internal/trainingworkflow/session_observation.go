@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/clioptions"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
@@ -273,6 +275,11 @@ func (o *Observer) finish(
 // verification records.
 const trainingVerificationReason = "a training run under the recipe succeeded and published what it trained"
 
+// VerificationOutputEnvironment names an invocation-owned file for the exact
+// completed gate/run pair. Normal training leaves it unset; acquisition reads
+// it only after the producer has completed, never from rendered messages.
+const VerificationOutputEnvironment = "OVERGO_TRAIN_VERIFICATION"
+
 // Verify records the finished session's success under recipeID as the
 // recipe's verification and activates the recipe on it, or reverifies the
 // active recipe: a gate bound to the code revision the run executed, the
@@ -314,6 +321,15 @@ func (o *Observer) Verify(ctx context.Context, recipeID artifact.ID, evidence ..
 	verification := modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}
 	if err := modelrecipe.ActivateCapability(ctx, o.store, definition, verification, recipe.EvidenceVerified, trainingVerificationReason); err != nil {
 		return err
+	}
+	if path := os.Getenv(VerificationOutputEnvironment); path != "" {
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, clioptions.PrivateFileMode)
+		if err != nil {
+			return fmt.Errorf("training verification handoff: %w", err)
+		}
+		if err := errors.Join(clioptions.WriteJSON(file, verification), file.Close()); err != nil {
+			return fmt.Errorf("training verification handoff: %w", err)
+		}
 	}
 	fmt.Printf("training recipe verified and active: %s (run %s at %.12s)\n", recipeID, record.Run.ID, revision)
 	return nil

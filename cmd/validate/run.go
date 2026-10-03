@@ -7,15 +7,21 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
+	"overgo/internal/jsonfile"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
+	"overgo/internal/trainingworkflow"
 )
 
 // Guard re-acquisition policy: the fixed corpus and budgets a text guard cell
@@ -41,7 +47,7 @@ const benchmarkBudget = 6 * time.Hour
 func reacquireCommand(cell ModelValidation, store string) (string, []string, error) {
 	switch cell.Validation {
 	case trainingProof:
-		args, _, _, err := trainingRun(cell, store)
+		args, _, err := trainingRun(cell, store)
 		if err != nil {
 			return "", nil, err
 		}
@@ -113,11 +119,11 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 // declared themselves inapplicable here acquired nothing and withholds too,
 // reported apart from the failures, as cells without a bound command are
 // reported as incomplete coverage. A training run runs under its route's
-// environment and publishes its checkpoint beneath a scratch directory
-// emptied before and after it, since its proof is the verification it
-// records; a projection proof's producer runs under the environment it
+// environment and publishes its checkpoint beneath private invocation scratch.
+// Its exact fresh gate/run handoff is checked after actual process completion
+// and store refresh; a projection proof's producer runs under the environment it
 // publishes by. An empty run set is the clean "nothing to re-acquire" result.
-func executeRun(ctx context.Context, output io.Writer, root, store string, plan Plan, background bool) error {
+func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, store *overgodb.Store, plan Plan, background bool) error {
 	cells, suites := plan.Run, plan.Suites
 	if background {
 		cells, suites = plan.Background, nil
@@ -140,25 +146,30 @@ func executeRun(ctx context.Context, output io.Writer, root, store string, plan 
 		}
 	}
 	for index, sel := range cells {
-		name, args, err := reacquireCommand(sel.ModelValidation, store)
+		var name string
+		var args, environment []string
+		var err error
+		switch sel.Validation {
+		case trainingProof:
+			name = "go"
+			args, environment, err = trainingRun(sel.ModelValidation, storeRoot)
+		case projectionProof:
+			name = "go"
+			args, environment, err = projectionRun(sel.ModelValidation, storeRoot)
+		default:
+			name, args, err = reacquireCommand(sel.ModelValidation, storeRoot)
+		}
 		if err != nil {
 			unbound = append(unbound, fmt.Sprintf("%s %s: %v", displayName(sel.ModelValidation), sel.Validation, err))
 			continue
 		}
 		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s; %s)\n", index+1, len(cells), sel.Validation, displayName(sel.ModelValidation), sel.Reason, sel.Promotion)
-		var environment []string
-		scratch := ""
-		switch sel.Validation {
-		case trainingProof:
-			_, environment, scratch, _ = trainingRun(sel.ModelValidation, store)
-		case projectionProof:
-			_, environment, _ = projectionRun(sel.ModelValidation, store)
-		}
-		err = os.RemoveAll(scratch)
-		if err == nil {
+		if sel.Validation == trainingProof {
+			err = acquireTraining(ctx, output, root, store, sel.ModelValidation, name, args, environment...)
+		} else {
 			err = acquire(ctx, output, root, name, args, environment...)
 		}
-		record(fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation), errors.Join(err, os.RemoveAll(scratch)))
+		record(fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation), err)
 	}
 	for _, suite := range suites {
 		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
@@ -298,6 +309,54 @@ func runCell(ctx context.Context, output io.Writer, root, name string, args []st
 	if receipt.ExitCode != 0 {
 		return fmt.Errorf("exit=%d: %s", receipt.ExitCode, strings.TrimSpace(stderr.String()))
 	}
+	return nil
+}
+
+// acquireTraining owns this invocation's scratch until actual child completion,
+// then credits only the exact fresh proof the child handed off. Active aliases
+// and another concurrent same-recipe run cannot substitute for that result.
+func acquireTraining(ctx context.Context, output io.Writer, root string, store *overgodb.Store, cell ModelValidation, name string, args []string, environment ...string) (err error) {
+	if store == nil {
+		return errors.New("training proof acquisition requires the selected store")
+	}
+	at := slices.Index(args, "-out")
+	if at < 0 || at+1 >= len(args) {
+		return errors.New("training proof command names no checkpoint output")
+	}
+	scratch, err := os.MkdirTemp("", "overgo-validate-proof-")
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, os.RemoveAll(scratch)) }()
+	if err := store.Refresh(ctx); err != nil {
+		return err
+	}
+	_, before := store.Head()
+	args = slices.Clone(args)
+	args[at+1] = filepath.Join(scratch, "checkpoint")
+	path := filepath.Join(scratch, "verification.json")
+	environment = append(slices.Clone(environment), trainingworkflow.VerificationOutputEnvironment+"="+path)
+	err = runCell(ctx, output, root, name, args, environment...)
+	if err = errors.Join(err, store.Refresh(context.WithoutCancel(ctx))); err != nil {
+		return err
+	}
+	var handoff modelrecipe.Verification
+	if err := jsonfile.DecodeStrict(path, &handoff); err != nil {
+		return fmt.Errorf("training proof handoff: %w", err)
+	}
+	if _, err := runrecord.VerifyGateRun(ctx, store, cell.Recipe, handoff.Gate, handoff.Run); err != nil {
+		return fmt.Errorf("training proof handoff: %w", err)
+	}
+	for _, id := range []artifact.ID{handoff.Gate, handoff.Run} {
+		introduced, found, err := store.ArtifactIntroduction(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !found || introduced.Sequence <= before {
+			return errors.New("training proof handoff predates this producer attempt")
+		}
+	}
+	fmt.Fprintf(output, "validate -run: acquired training proof %s/%s\n", handoff.Gate, handoff.Run)
 	return nil
 }
 

@@ -394,7 +394,7 @@ func testGRPOResume(t *testing.T) {
 	})
 }
 
-func verifyWorkflowResume(t *testing.T, root string, request Request) {
+func verifyWorkflowResume(t *testing.T, root string, request Request, prepareResume ...func(*testing.T, string, trainingprogram.Checkpoint) trainingprogram.Checkpoint) {
 	t.Helper()
 	request.Steps = 2
 	request.OutputDirectory = filepath.Join(root, "uninterrupted")
@@ -407,6 +407,9 @@ func verifyWorkflowResume(t *testing.T, root string, request Request) {
 	first, err := Execute(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, prepare := range prepareResume {
+		first.Checkpoint = prepare(t, request.OutputDirectory, first.Checkpoint)
 	}
 	request.ModelDirectory = ""
 	request.ResumeDirectory = request.OutputDirectory

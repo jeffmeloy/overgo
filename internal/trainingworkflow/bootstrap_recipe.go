@@ -149,25 +149,22 @@ func BootstrapObjectiveRecipe(ctx context.Context, store *overgodb.Store, modelP
 	return bootstrapRecipeForObjective(ctx, store, modelID, objective, profiles, objective.Evidence[0])
 }
 
-// identifyAndRecordWeights hashes the weights file a bootstrap names and
-// commits its on-disk location for the identified model. Bootstrap is the
+// identifyAndRecordWeights binds the consumed weights through their inventory
+// and commits their locations for the identified model. Bootstrap is the
 // one moment the identity and the path are both in hand, so every
 // bootstrapped activation stays discoverable by the training lanes; a
 // location the store already holds for this path is left as the recorded
 // fact.
 func identifyAndRecordWeights(ctx context.Context, store *overgodb.Store, modelPath string) (artifact.ID, error) {
-	modelFile, err := os.Open(modelPath)
+	modelID, batch, err := identifyWeights(modelPath)
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	modelID, size, err := artifact.Identify(artifact.KindModel, modelFile)
-	modelFile.Close()
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	location, err := artifact.CanonicalLocalLocation(modelID, artifact.LocationFile, modelPath)
-	if err != nil {
-		return artifact.ID{}, err
+	location := batch.Locations[len(batch.Locations)-1].Location
+	batch.Key = "training/bootstrap/location/" + modelID.String() + "/" + location.Value
+	if len(batch.Manifests) != 0 {
+		_, err := artifact.CommitBatch(ctx, store, batch)
+		return modelID, err
 	}
 	existing, err := store.Locations(ctx, modelID)
 	if err != nil {
@@ -178,14 +175,10 @@ func identifyAndRecordWeights(ctx context.Context, store *overgodb.Store, modelP
 			return modelID, nil
 		}
 	}
-	batch := artifact.Batch{
-		Key:       "training/bootstrap/location/" + modelID.String() + "/" + location.Value,
-		Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}},
-	}
 	if _, found, err := store.Artifact(ctx, modelID); err != nil {
 		return artifact.ID{}, err
-	} else if !found {
-		batch.Artifacts = []artifact.Descriptor{{ID: modelID, Size: size}}
+	} else if found {
+		batch.Artifacts = nil
 	}
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		return artifact.ID{}, err

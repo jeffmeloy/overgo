@@ -95,7 +95,7 @@ const routeFixtureDataset = "training data"
 func routeFixture(t *testing.T) (root string, store *overgodb.Store, modelPath, datasetPath string) {
 	t.Helper()
 	root = t.TempDir()
-	modelPath, datasetPath = filepath.Join(root, "model.gguf"), filepath.Join(root, "dataset.txt")
+	modelPath, datasetPath = filepath.Join(root, "model.safetensors"), filepath.Join(root, "dataset.txt")
 	for path, data := range map[string]string{modelPath: "weights", datasetPath: routeFixtureDataset} {
 		if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
 			t.Fatal(err)

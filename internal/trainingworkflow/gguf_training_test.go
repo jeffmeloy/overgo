@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/gguf"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingprogram"
 )
 
 const (
@@ -135,4 +137,67 @@ func TestTrainingLoadsGGUFWeights(t *testing.T) {
 		Repository: store, Recipe: recipeID, Observations: store,
 		ModelDirectory: modelPath, DatasetPath: datasetPath, MaximumSequence: 16, Host: true,
 	})
+	verifyWorkflowResume(t, filepath.Join(root, "legacy-resume"), Request{
+		Repository: store, Recipe: recipeID,
+		ModelDirectory: modelPath, DatasetPath: datasetPath, MaximumSequence: 16, Host: true,
+	}, legacySingleGGUFCheckpoint)
+}
+
+// legacySingleGGUFCheckpoint reproduces the previously published single-file
+// v2 layout. The shared resume comparison then checks its actual next update,
+// optimizer, stream and RNG against uninterrupted training.
+func legacySingleGGUFCheckpoint(t *testing.T, directory string, checkpoint trainingprogram.Checkpoint) trainingprogram.Checkpoint {
+	t.Helper()
+	model, err := gguf.Open(filepath.Join(directory, trainingprogram.CheckpointModel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var weights bytes.Buffer
+	if err := model.WriteTo(&weights, gguf.WriteOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := model.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "model.gguf"), weights.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	id, err := artifact.IdentifyBytes(artifact.KindTensorSet, weights.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	resumePath := filepath.Join(directory, "resume.json")
+	resume, err := os.ReadFile(resumePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resume = bytes.ReplaceAll(resume, []byte(checkpoint.Weights.String()), []byte(id.String()))
+	resumeID, err := artifact.IdentifyBytes(artifact.KindCheckpoint, resume)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(resumePath, resume, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	documentPath := filepath.Join(directory, trainingprogram.CheckpointFilename)
+	document, err := os.ReadFile(documentPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document = bytes.Replace(document, []byte(`"version":3`), []byte(`"version":2`), 1)
+	document = bytes.ReplaceAll(document, []byte(checkpoint.Weights.String()), []byte(id.String()))
+	document = bytes.ReplaceAll(document, []byte(checkpoint.Resume.String()), []byte(resumeID.String()))
+	if err := os.WriteFile(documentPath, document, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{trainingprogram.CheckpointModel, trainingprogram.CheckpointFrozenShard} {
+		if err := os.Remove(filepath.Join(directory, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	legacy, err := trainingprogram.LoadCheckpoint(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return legacy
 }

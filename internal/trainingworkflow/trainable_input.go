@@ -27,17 +27,26 @@ func isGGUFModelInput(input string) bool {
 
 // trainedInput resolves a model input that names a run's output directory
 // to the trained model the run published there over a GGUF base.
-func trainedInput(input string) string {
-	if trained := filepath.Join(input, trainingprogram.CheckpointModel); isGGUFModelInput(trained) {
-		return trained
+func trainedInput(input string) (string, error) {
+	if info, err := os.Stat(input); err != nil || !info.IsDir() {
+		return input, err
 	}
-	return input
+	if trained, err := trainingprogram.CheckpointWeightsPath(input); err == nil && isGGUFModelInput(trained) {
+		return trained, nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	return input, nil
 }
 
 // loadTrainableModel materializes the trainable F32 inventory from either
 // model representation through its own loader.
 func loadTrainableModel(input string) (*densecausal.Model, error) {
-	if input = trainedInput(input); isGGUFModelInput(input) {
+	input, err := trainedInput(input)
+	if err != nil {
+		return nil, err
+	}
+	if isGGUFModelInput(input) {
 		return densecausal.LoadGGUF(input)
 	}
 	return densecausal.Load(input)
@@ -64,6 +73,10 @@ func loadTrainableEncoder(input string) (func(string) ([]int, error), error) {
 // tokenizer files in a safetensors directory, with the end-of-sequence
 // token its configs declare, or the tokenizer GGUF metadata embeds.
 func loadTrainableTokenizer(input string) (trainableTokenizer, error) {
+	input, err := trainedInput(input)
+	if err != nil {
+		return trainableTokenizer{}, err
+	}
 	if !isGGUFModelInput(input) {
 		loaded, err := hfbpe.Load(input)
 		if err != nil {

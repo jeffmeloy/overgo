@@ -162,7 +162,8 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 		t.Fatal(err)
 	}
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	if closeErr := file.Close(); err != nil || closeErr != nil || inventory.Components[0].ID != checkpoint.Weights {
+	weights, manifestErr := artifact.NewManifest(artifact.KindTensorSet, inventory.Manifest.Components)
+	if closeErr := file.Close(); err != nil || closeErr != nil || manifestErr != nil || weights.ID != checkpoint.Weights {
 		t.Fatalf("published model = (%+v, %v, %v), want the checkpoint's weights %s", inventory.Components, err, closeErr, checkpoint.Weights)
 	}
 	published := inventory.Manifest.ID

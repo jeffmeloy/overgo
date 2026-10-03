@@ -25,7 +25,7 @@ import (
 // its bytes without a separate intake; the rerun keeps the recorded fact.
 func TestBootstrapRecordsModelLocation(t *testing.T) {
 	root := t.TempDir()
-	modelPath := filepath.Join(root, "model.gguf")
+	modelPath := filepath.Join(root, "model.safetensors")
 	datasetPath := filepath.Join(root, "dataset.txt")
 	if err := os.WriteFile(modelPath, []byte("weights"), 0o600); err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func TestBootstrapVerifiesWithARealRun(t *testing.T) {
 func TestBootstrapGroundsAStoredObjectivesReferences(t *testing.T) {
 	t.Parallel()
 	root, ctx := t.TempDir(), t.Context()
-	modelPath, data := filepath.Join(root, "model.gguf"), []byte("training data")
+	modelPath, data := filepath.Join(root, "model.safetensors"), []byte("training data")
 	if err := os.WriteFile(modelPath, []byte("weights"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +218,7 @@ func TestBootstrapGroundsAStoredObjectivesReferences(t *testing.T) {
 
 func TestBootstrapTokenRecipeBindsStoredOptimizerPolicy(t *testing.T) {
 	root := t.TempDir()
-	modelPath := filepath.Join(root, "model.gguf")
+	modelPath := filepath.Join(root, "model.safetensors")
 	datasetPath := filepath.Join(root, "dataset.txt")
 	if err := os.WriteFile(modelPath, []byte("model"), 0o600); err != nil {
 		t.Fatal(err)

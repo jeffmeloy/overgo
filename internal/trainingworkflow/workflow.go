@@ -16,6 +16,7 @@ import (
 	"overgo/internal/densecausal"
 	artifactexport "overgo/internal/export"
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelintake"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
@@ -110,7 +111,10 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 			return Result{}, fmt.Errorf("training workflow: load checkpoint: %w", err)
 		}
 		// A run over a GGUF resumes from the trained model it published.
-		inputDirectory = trainedInput(request.ResumeDirectory)
+		inputDirectory, err = trainedInput(request.ResumeDirectory)
+		if err != nil {
+			return Result{}, err
+		}
 		resumeStream = &trainingdata.StreamState{Identity: resumed.Stream.Identity, Position: resumed.Stream.Position}
 	}
 	modelID := resumed.Model
@@ -468,36 +472,22 @@ func identifyModel(directory string) (artifact.ID, error) {
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	file, err := os.Open(path)
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	id, _, identifyErr := artifact.Identify(artifact.KindModel, file)
-	return id, errors.Join(identifyErr, file.Close())
+	id, _, err := identifyWeights(path)
+	return id, err
 }
 
-// IdentifyModelWeights resolves the one weights file whose hash is the
-// model identity — the same file a recorded model location names. A GGUF
-// input is its own identity; a directory identifies by model.safetensors,
-// by its single safetensors file under any recorded name, or — for a
-// sharded checkpoint — by the first shard in order, the file intake
-// recorded as the model location. Two unordered safetensors files are
-// ambiguous and refuse.
+// IdentifyModelWeights resolves the model input for bootstrap and held-out
+// execution. A GGUF input names its first shard; a multi-file Safetensors
+// input remains a directory. Neither entry point stands for the whole
+// model's identity: identifyWeights binds the consumed components.
 func IdentifyModelWeights(directory string) (string, error) {
 	if isGGUFModelInput(directory) {
 		return directory, nil
 	}
-	path := filepath.Join(directory, trainingprogram.CheckpointWeights)
-	if _, err := os.Stat(path); err == nil {
+	if path, err := trainingprogram.CheckpointWeightsPath(directory); err == nil && isGGUFModelInput(path) {
 		return path, nil
-	}
-	shards, err := filepath.Glob(filepath.Join(directory, "model-*-of-*.safetensors"))
-	if err != nil {
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
-	}
-	if len(shards) > 0 {
-		slices.Sort(shards)
-		return shards[0], nil
 	}
 	candidates, err := filepath.Glob(filepath.Join(directory, "*.safetensors"))
 	if err != nil {
@@ -509,8 +499,55 @@ func IdentifyModelWeights(directory string) (string, error) {
 	case 1:
 		return candidates[0], nil
 	}
-	return "", fmt.Errorf(
-		"training workflow: %d unordered safetensors files in %s; identity is ambiguous", len(candidates), directory)
+	return directory, nil
+}
+
+// identifyWeights retains the raw identity of legacy single Safetensors
+// inputs and binds every component of GGUF and multi-file Safetensors inputs
+// through their existing inventory owners.
+func identifyWeights(input string) (artifact.ID, artifact.Batch, error) {
+	var inventory modelartifact.Inventory
+	var err error
+	if isGGUFModelInput(input) {
+		inventory, err = modelartifact.FromGGUFPath(input)
+	} else {
+		directory := input
+		info, statErr := os.Stat(input)
+		if statErr != nil {
+			return artifact.ID{}, artifact.Batch{}, statErr
+		}
+		if !info.IsDir() {
+			directory = filepath.Dir(input)
+		}
+		candidates, globErr := filepath.Glob(filepath.Join(directory, "*.safetensors"))
+		if globErr != nil {
+			return artifact.ID{}, artifact.Batch{}, globErr
+		}
+		indexes, globErr := filepath.Glob(filepath.Join(directory, "*.safetensors.index.json"))
+		if globErr != nil {
+			return artifact.ID{}, artifact.Batch{}, globErr
+		}
+		if info.IsDir() || len(candidates) > 1 || len(indexes) > 0 {
+			inventory, err = modelartifact.FromSafetensorsPath(directory)
+		}
+	}
+	if err != nil {
+		return artifact.ID{}, artifact.Batch{}, err
+	}
+	if inventory.Manifest.ID.Valid() {
+		batch, err := inventory.Batch("training/weights/" + inventory.Manifest.ID.String())
+		return inventory.Manifest.ID, batch, err
+	}
+	file, err := os.Open(input)
+	if err != nil {
+		return artifact.ID{}, artifact.Batch{}, err
+	}
+	id, size, identifyErr := artifact.Identify(artifact.KindModel, file)
+	if err := errors.Join(identifyErr, file.Close()); err != nil {
+		return artifact.ID{}, artifact.Batch{}, err
+	}
+	location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, input)
+	return id, artifact.Batch{Artifacts: []artifact.Descriptor{{ID: id, Size: size}}, Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}}}, err
 }
 
 type compiledAuthority struct {

@@ -477,6 +477,9 @@ func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discov
 			if !slices.Contains(verdictTasks, capability.Task) {
 				continue
 			}
+			// Current training binds the complete model manifest. Legacy
+			// sessions bound one raw weights file, matched below by its bytes.
+			served[entry.Model.DigestHex()] = append(served[entry.Model.DigestHex()], capability.Recipe)
 			manifest, _, err := store.Manifest(ctx, entry.Model)
 			if err != nil {
 				return nil, err

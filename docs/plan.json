@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "recovery-correctness",
-      "title": "Preserve committed store writes and complete checkpoint recovery identity",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 355,
-        "reason": "Cutover correctness repair: one store-owned conditional replacement retires the command-local rename, while the existing writer lock moves beside the root and startup/backup/transactions share it. Canonical authority and displaced-handle refusal necessarily add production code; measured ceiling is 355 syntax nodes before removing one duplicate stat. No net-code or throughput saving is claimed. The lock location requires all active writers to use the updated binary; no live store swap is part of this work. Checkpoint growth will be counted separately before that step."
-      },
-      "steps": [
-        {
-          "id": "checkpoint",
-          "title": "Bind all split weights and preserve legacy model.gguf resume",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram ./internal/trainingworkflow -run '^(TestProductionCheckpointResumeExact|TestResumeSidecarRoundTripsBitExact|TestTrainingIdentifiesRecordedInputs|TestTrainingWorkflowExactResumeMatrix)$' -count=1",
-          "rationale": "SQA-077. Serves: exact training recovery. Disappears: first-shard-only checkpoint authority and loss of legacy lookup. Extend the existing inventory/checkpoint owners, version new complete split identity and preserve old single-file documents. Evidence: existing tiny resume fixtures with unchanged first shard but modified/missing second shard plus legacy model.gguf, preserving exact next-update/stream state. Add those failing cases before changing the identity. Further publication read removal (SQA-070) waits for this authority. Batch: training consumers by actual closure; no large model run for identity semantics."
-        }
-      ]
-    },
-    {
       "id": "evidence-authority",
       "title": "Use checked evidence and explicit source and replay scope in reports",
       "owner": "master-lead",

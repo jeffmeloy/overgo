@@ -16,6 +16,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/binaryschema"
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/modelartifact"
 	"overgo/internal/strictjson"
 )
 
@@ -25,8 +26,8 @@ const (
 	// CheckpointModel is the trained model a run over a GGUF base publishes
 	// in that base's layout, the model the server opens: the first of two
 	// shards, holding the base's metadata and every tensor training held.
-	// A checkpoint that holds it binds it as its weights in place of
-	// CheckpointWeights.
+	// A checkpoint binds the complete weights manifest, including the frozen
+	// shard, as its weights in place of CheckpointWeights.
 	CheckpointModel = "model-00001-of-00002.gguf"
 	// CheckpointFrozenShard is the trained model's second shard: the base's
 	// tensors training never held, the same bytes for every run over that
@@ -95,6 +96,7 @@ type CheckpointSpec struct {
 }
 
 type Checkpoint struct {
+	version uint16
 	id      artifact.ID
 	RunPlan artifact.ID `json:"run_plan"`
 	Program artifact.ID `json:"program"`
@@ -145,6 +147,8 @@ func (c Checkpoint) ID() artifact.ID { return c.id }
 var (
 	// checkpointContract is the canonical checkpoint document's contract.
 	checkpointContract = artifact.JSONContract(artifact.KindCheckpoint, "overgo/training-checkpoint/v2")
+	// Version 3 binds a complete TensorSet manifest, rather than one raw file.
+	completeCheckpointContract = artifact.JSONContract(artifact.KindCheckpoint, "overgo/training-checkpoint/v3")
 	// resumeContract is the resume sidecar document's contract.
 	resumeContract = artifact.JSONContract(artifact.KindCheckpoint, "overgo/training-resume/v1")
 )
@@ -155,10 +159,22 @@ func (c Checkpoint) Content() (artifact.Content, error) {
 	if err := c.ValidateIdentity(); err != nil {
 		return artifact.Content{}, err
 	}
-	return artifact.JSONContent(checkpointContract, c.document())
+	return artifact.JSONContent(c.contract(), c.document())
+}
+
+const completeCheckpointVersion = 3
+
+func (c Checkpoint) contract() artifact.DocumentContract {
+	if c.version == completeCheckpointVersion {
+		return completeCheckpointContract
+	}
+	return checkpointContract
 }
 
 func (c Checkpoint) document() checkpointDocument {
+	if c.version == completeCheckpointVersion {
+		return checkpointDocument{Version: completeCheckpointVersion, Checkpoint: c}
+	}
 	return checkpointDocument{Version: artifact.SecondDocumentVersion, Checkpoint: c}
 }
 
@@ -183,7 +199,7 @@ func (c Checkpoint) Batch(key, directory string) (artifact.Batch, error) {
 		name     string
 		contract artifact.DocumentContract
 		id       artifact.ID
-	}{{CheckpointFilename, checkpointContract, c.id}, {resumeFilename, resumeContract, c.Resume}} {
+	}{{CheckpointFilename, c.contract(), c.id}, {resumeFilename, resumeContract, c.Resume}} {
 		data, err := os.ReadFile(filepath.Join(directory, document.name))
 		if err != nil {
 			return artifact.Batch{}, err
@@ -203,11 +219,44 @@ func (c Checkpoint) Batch(key, directory string) (artifact.Batch, error) {
 		return artifact.Batch{}, err
 	}
 	batch.Locations = []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}}
-	weights, weightsType := weightsFile(directory)
-	for _, file := range []struct {
+	inventory, err := c.weights(directory)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	weights, err := CheckpointWeightsPath(directory)
+	if err != nil {
+		return artifact.Batch{}, err
+	}
+	files := []struct {
 		path, mediaType string
 		id              artifact.ID
-	}{{weights, weightsType, c.Weights}, {filepath.Join(directory, momentumFilename), "application/octet-stream", c.momentum}} {
+	}{{filepath.Join(directory, momentumFilename), "application/octet-stream", c.momentum}}
+	if inventory.Manifest.ID.Valid() {
+		model, err := inventory.Batch(key)
+		if err != nil {
+			return artifact.Batch{}, err
+		}
+		batch.Artifacts = model.Artifacts
+		batch.Contents = append(batch.Contents, model.Contents...)
+		batch.Manifests = model.Manifests
+		weightsManifest, err := artifact.NewManifest(artifact.KindTensorSet, inventory.Manifest.Components)
+		if err != nil {
+			return artifact.Batch{}, err
+		}
+		batch.Manifests = append(batch.Manifests, weightsManifest)
+		batch.Locations = append(batch.Locations, model.Locations...)
+		batch.Lineage = append(batch.Lineage, model.Lineage...)
+	} else {
+		mediaType := "application/vnd.safetensors"
+		if strings.EqualFold(filepath.Ext(weights), ".gguf") {
+			mediaType = "application/vnd.gguf"
+		}
+		files = append(files, struct {
+			path, mediaType string
+			id              artifact.ID
+		}{weights, mediaType, c.Weights})
+	}
+	for _, file := range files {
 		info, err := os.Stat(file.path)
 		if err != nil {
 			return artifact.Batch{}, err
@@ -294,13 +343,15 @@ func identify(checkpoint *Checkpoint) error {
 // ParseCheckpoint reads a checkpoint document without its resume sidecar.
 func ParseCheckpoint(data []byte) (Checkpoint, error) {
 	var document checkpointDocument
-	if err := json.Unmarshal(data, &document); err != nil || document.Version != artifact.SecondDocumentVersion {
-		return Checkpoint{}, errors.Join(fmt.Errorf("training checkpoint: not a version %d document, which keeps its momentum, stream and RNG in the resume sidecar; an earlier version inlined them and is republished from its run", artifact.SecondDocumentVersion), err)
+	if err := json.Unmarshal(data, &document); err != nil ||
+		document.Version != artifact.SecondDocumentVersion && document.Version != completeCheckpointVersion {
+		return Checkpoint{}, errors.Join(fmt.Errorf("training checkpoint: expected version %d or %d with momentum, stream and RNG in the resume sidecar; an earlier version inlined them and is republished from its run", artifact.SecondDocumentVersion, completeCheckpointVersion), err)
 	}
 	if err := strictjson.DecodeBytes(data, &document); err != nil {
 		return Checkpoint{}, fmt.Errorf("training checkpoint: decode: %w", err)
 	}
 	checkpoint := document.Checkpoint
+	checkpoint.version = document.Version
 	if err := identify(&checkpoint); err != nil {
 		return Checkpoint{}, err
 	}
@@ -342,14 +393,8 @@ func PublishCheckpoint(target string, spec CheckpointSpec, writeWeights func(str
 	if err := writeWeights(stage); err != nil {
 		return Checkpoint{}, err
 	}
-	weights, _ := weightsFile(stage)
-	file, err := os.Open(weights)
+	weightsID, inventory, err := identifyCheckpointWeights(stage, false)
 	if err != nil {
-		return Checkpoint{}, fmt.Errorf("training checkpoint: open weights: %w", err)
-	}
-	weightsID, _, identifyErr := artifact.Identify(artifact.KindTensorSet, file)
-	closeErr := file.Close()
-	if err := errors.Join(identifyErr, closeErr); err != nil {
 		return Checkpoint{}, err
 	}
 	// The momentum is hashed and streamed to disk from the trainer's own
@@ -367,6 +412,9 @@ func PublishCheckpoint(target string, spec CheckpointSpec, writeWeights func(str
 		Projectors: slices.Clone(spec.Projectors), Codecs: slices.Clone(spec.Codecs),
 		Lineage: slices.Clone(spec.Lineage), RouterControllers: cloneRouterControllerStates(spec.RouterControllers),
 		Accumulation: spec.Accumulation, momentum: momentum,
+	}
+	if inventory.Manifest.ID.Valid() {
+		checkpoint.version = completeCheckpointVersion
 	}
 	if err := identify(&checkpoint); err != nil {
 		return Checkpoint{}, err
@@ -401,18 +449,8 @@ func LoadCheckpoint(directory string) (Checkpoint, error) {
 	if err != nil {
 		return Checkpoint{}, err
 	}
-	weightsPath, _ := weightsFile(directory)
-	file, err := os.Open(weightsPath)
-	if err != nil {
+	if _, err := checkpoint.weights(directory); err != nil {
 		return Checkpoint{}, err
-	}
-	weights, _, identifyErr := artifact.Identify(artifact.KindTensorSet, file)
-	closeErr := file.Close()
-	if err := errors.Join(identifyErr, closeErr); err != nil {
-		return Checkpoint{}, err
-	}
-	if weights != checkpoint.Weights {
-		return Checkpoint{}, errors.New("training checkpoint: weights identity differs")
 	}
 	data, err = os.ReadFile(filepath.Join(directory, resumeFilename))
 	if err != nil {
@@ -446,15 +484,53 @@ func momentumBytes(state hostoptimizer.State) ([]byte, string) {
 	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(state.Momentum))), len(state.Momentum)*binaryschema.Uint64Bytes), momentumF64
 }
 
-// weightsFile is the weights file a checkpoint directory holds and its
-// media type: the trained model when the run published one, else the
-// trained tensors.
-func weightsFile(directory string) (string, string) {
-	model := filepath.Join(directory, CheckpointModel)
-	if _, err := os.Stat(model); err == nil {
-		return model, "application/vnd.gguf"
+// CheckpointWeightsPath resolves current and legacy checkpoint layouts.
+// A selected GGUF's declared shards are verified by the inventory owner.
+func CheckpointWeightsPath(directory string) (string, error) {
+	for _, name := range []string{CheckpointModel, "model.gguf", CheckpointWeights} {
+		path := filepath.Join(directory, name)
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
 	}
-	return filepath.Join(directory, CheckpointWeights), "application/vnd.safetensors"
+	return "", fmt.Errorf("training checkpoint: weights absent in %s: %w", directory, os.ErrNotExist)
+}
+
+func identifyCheckpointWeights(directory string, legacy bool) (artifact.ID, modelartifact.Inventory, error) {
+	path, err := CheckpointWeightsPath(directory)
+	if err != nil {
+		return artifact.ID{}, modelartifact.Inventory{}, err
+	}
+	if strings.EqualFold(filepath.Ext(path), ".gguf") {
+		inventory, err := modelartifact.FromGGUFPath(path)
+		if err != nil {
+			return artifact.ID{}, modelartifact.Inventory{}, err
+		}
+		if legacy {
+			if len(inventory.Components) != 1 {
+				return artifact.ID{}, modelartifact.Inventory{}, errors.New("training checkpoint: v2 split weights lack complete identity; recover from the original run")
+			}
+			return inventory.Components[0].ID, modelartifact.Inventory{}, nil
+		}
+		manifest, err := artifact.NewManifest(artifact.KindTensorSet, inventory.Manifest.Components)
+		return manifest.ID, inventory, err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return artifact.ID{}, modelartifact.Inventory{}, err
+	}
+	id, _, identifyErr := artifact.Identify(artifact.KindTensorSet, file)
+	return id, modelartifact.Inventory{}, errors.Join(identifyErr, file.Close())
+}
+
+func (c Checkpoint) weights(directory string) (modelartifact.Inventory, error) {
+	id, inventory, err := identifyCheckpointWeights(directory, c.version != completeCheckpointVersion)
+	if err != nil || id != c.Weights || c.version == completeCheckpointVersion && !inventory.Manifest.ID.Valid() {
+		return modelartifact.Inventory{}, errors.Join(errors.New("training checkpoint: weights identity differs"), err)
+	}
+	return inventory, nil
 }
 
 // readMomentum reads the momentum file at path, in place, into the

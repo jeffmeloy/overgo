@@ -123,8 +123,12 @@ func TestTrainedModelLoadsForServing(t *testing.T) {
 		!slices.Contains(parents, artifact.Lineage{Child: definition.Model, Parent: result.Checkpoint.ID(), Relation: artifact.RelationProducedBy}) {
 		t.Fatalf("trained model lineage = (%v, %v), want it trained from %s and produced by %s", parents, err, result.Checkpoint.Model, result.Checkpoint.ID())
 	}
-	if loaded, err := trainingprogram.LoadCheckpoint(out); err != nil || loaded.Weights != inventory.Components[0].ID {
-		t.Fatalf("checkpoint = (%s, %v), want it bound to the trained model %s", loaded.Weights, err, inventory.Components[0].ID)
+	weights, err := artifact.NewManifest(artifact.KindTensorSet, inventory.Manifest.Components)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded, err := trainingprogram.LoadCheckpoint(out); err != nil || loaded.Weights != weights.ID {
+		t.Fatalf("checkpoint = (%s, %v), want it bound to the complete trained weights %s", loaded.Weights, err, weights.ID)
 	}
 	// The server opens what an activated recipe names; activate the trained
 	// model on the host and open it the way the server does.

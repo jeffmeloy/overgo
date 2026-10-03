@@ -183,7 +183,8 @@ func RecordCheckpoint(ctx context.Context, store artifact.Repository, directory 
 	}
 	for _, edge := range batch.Lineage {
 		if slices.ContainsFunc(batch.Artifacts, func(declared artifact.Descriptor) bool { return declared.ID == edge.Parent }) ||
-			slices.ContainsFunc(batch.Contents, func(content artifact.Content) bool { return content.Descriptor.ID == edge.Parent }) {
+			slices.ContainsFunc(batch.Contents, func(content artifact.Content) bool { return content.Descriptor.ID == edge.Parent }) ||
+			slices.ContainsFunc(batch.Manifests, func(manifest artifact.Manifest) bool { return manifest.ID == edge.Parent }) {
 			continue
 		}
 		if _, held, err := store.Artifact(ctx, edge.Parent); err != nil {
@@ -195,18 +196,23 @@ func RecordCheckpoint(ctx context.Context, store artifact.Repository, directory 
 	if err := PublishTrainingEvidence(ctx, store, TrainingEvidencePublication{Batch: batch}); err != nil {
 		return modelintake.Candidate{}, err
 	}
-	if _, err := os.Stat(filepath.Join(directory, trainingprogram.CheckpointModel)); errors.Is(err, os.ErrNotExist) {
+	weights, err := trainingprogram.CheckpointWeightsPath(directory)
+	if err != nil {
+		return modelintake.Candidate{}, err
+	}
+	if !isGGUFModelInput(weights) {
 		return modelintake.Candidate{}, nil
 	}
-	return publishTrainedModel(ctx, store, directory, checkpoint)
+	return publishTrainedModel(ctx, store, weights, checkpoint)
 }
 
 // publishTrainedModel registers the trained model a recorded checkpoint
 // holds at directory as an inactive inference candidate and records its
 // lineage: the base model it trained from, the dataset, program and run
 // plan the checkpoint names, and the checkpoint itself.
-func publishTrainedModel(ctx context.Context, store artifact.Repository, directory string, checkpoint trainingprogram.Checkpoint) (modelintake.Candidate, error) {
-	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, filepath.Join(directory, trainingprogram.CheckpointModel), modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
+func publishTrainedModel(ctx context.Context, store artifact.Repository, weights string, checkpoint trainingprogram.Checkpoint) (modelintake.Candidate, error) {
+	directory := filepath.Dir(weights)
+	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, weights, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
 	if err != nil {
 		return modelintake.Candidate{}, err
 	}

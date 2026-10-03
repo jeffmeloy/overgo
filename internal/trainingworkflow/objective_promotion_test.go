@@ -287,7 +287,7 @@ func observedTraining(t *testing.T, ctx context.Context, store *overgodb.Store, 
 // writes a model file to train; it returns the model's path and identity.
 func registerObjective(t *testing.T, ctx context.Context, store *overgodb.Store, root string, objective trainingprogram.ObjectiveDocument, alias string) (string, artifact.ID) {
 	t.Helper()
-	modelPath := filepath.Join(root, "model.gguf")
+	modelPath := filepath.Join(root, "model.safetensors")
 	if err := os.WriteFile(modelPath, []byte("model"), 0o600); err != nil {
 		t.Fatal(err)
 	}

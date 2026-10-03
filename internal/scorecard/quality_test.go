@@ -271,6 +271,11 @@ func TestQualityReadsTranscriptionReports(t *testing.T) {
 // held-out view and the verdict's target plan. An inference recipe of the
 // same model reads no verdict.
 func TestQualityReadsHeldoutVerdicts(t *testing.T) {
+	t.Run("legacy-weight-file", func(t *testing.T) { testQualityReadsHeldoutVerdict(t, false) })
+	t.Run("complete-model", func(t *testing.T) { testQualityReadsHeldoutVerdict(t, true) })
+}
+
+func testQualityReadsHeldoutVerdict(t *testing.T, complete bool) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
@@ -283,15 +288,29 @@ func TestQualityReadsHeldoutVerdicts(t *testing.T) {
 	// directory names as a weights component of the same bytes.
 	weights := []byte("classification head weights")
 	trainedWeights, component := testutil.ArtifactBytesID(t, artifact.KindModel, weights), testutil.ArtifactBytesID(t, artifact.KindTensorSet, weights)
-	directory, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{Role: artifact.ComponentWeights, Name: "classification/weights", Artifact: component}})
+	components := []artifact.Component{{Role: artifact.ComponentWeights, Name: "classification/weights", Artifact: component}}
+	if complete {
+		components[0].Role = artifact.ComponentWeightsShard
+		components = append(components, artifact.Component{Role: artifact.ComponentWeightsShard, Ordinal: 1, Name: "classification/frozen", Artifact: id(artifact.KindTensorSet, "frozen")})
+	}
+	directory, err := artifact.NewManifest(artifact.KindModel, components)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if complete {
+		trainedWeights = directory.ID
+	}
 	training, tabular, inference := id(artifact.KindRecipe, "training"), id(artifact.KindRecipe, "tabular"), id(artifact.KindRecipe, "inference")
 	environment := id(artifact.KindEvidence, "environment")
+	authorities := []artifact.Descriptor{{ID: component}, {ID: training}, {ID: environment}}
+	if complete {
+		authorities = append(authorities, artifact.Descriptor{ID: components[1].Artifact})
+	} else {
+		authorities = append(authorities, artifact.Descriptor{ID: trainedWeights})
+	}
 	if _, err := store.Commit(ctx, artifact.Batch{
 		Key:       "quality/verdict/authorities",
-		Artifacts: []artifact.Descriptor{{ID: trainedWeights}, {ID: component}, {ID: training}, {ID: environment}},
+		Artifacts: authorities,
 		Manifests: []artifact.Manifest{directory},
 	}); err != nil {
 		t.Fatal(err)

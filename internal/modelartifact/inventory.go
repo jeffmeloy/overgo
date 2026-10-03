@@ -57,6 +57,16 @@ func (i Inventory) Batch(key string) (artifact.Batch, error) {
 	}, nil
 }
 
+// FromGGUFPath inventories all physical shards declared by a GGUF input.
+func FromGGUFPath(path string) (Inventory, error) {
+	file, err := gguf.Open(path)
+	if err != nil {
+		return Inventory{}, err
+	}
+	inventory, inventoryErr := FromGGUF(file, artifact.KindModel)
+	return inventory, errors.Join(inventoryErr, file.Close())
+}
+
 // FromGGUF: typed inventory from an already-validated logical GGUF.
 func FromGGUF(file *gguf.File, kind artifact.Kind) (Inventory, error) {
 	if file == nil {

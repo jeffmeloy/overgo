@@ -2,6 +2,7 @@ package trainingprogram
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"math"
 	"os"
@@ -11,7 +12,10 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/gguf"
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/modelartifact"
+	"overgo/internal/testutil"
 )
 
 // publishTestCheckpoint publishes spec with stand-in weights bytes into a
@@ -65,6 +69,132 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 	}
 	muon.Step()
 	spec := checkpointTestSpec(t, muon.Snapshot())
+	t.Run("complete-gguf", func(t *testing.T) {
+		write := func(stage string) error {
+			for index, name := range []string{CheckpointModel, CheckpointFrozenShard} {
+				metadata := []gguf.Metadata{
+					testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "fixture"),
+					testutil.GGUFScalar("split.no", gguf.ValueTypeUint16, uint16(index)),
+					testutil.GGUFScalar("split.count", gguf.ValueTypeUint16, uint16(2)),
+					testutil.GGUFScalar("split.tensors.count", gguf.ValueTypeInt32, int32(2)),
+				}
+				if err := gguf.WriteFileExclusive(filepath.Join(stage, name), metadata,
+					[]gguf.TensorData{testutil.GGUFTensorF32(name, []uint64{2}, index+1)}, gguf.WriteOptions{}); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		publish := func(t *testing.T) (Checkpoint, string) {
+			t.Helper()
+			directory := filepath.Join(t.TempDir(), "split")
+			checkpoint, err := PublishCheckpoint(directory, spec, write)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return checkpoint, directory
+		}
+		written, directory := publish(t)
+		loaded, err := LoadCheckpoint(directory)
+		if err != nil || loaded.ID() != written.ID() || loaded.Stream != spec.Stream || loaded.Optimizer.Step != spec.Optimizer.Step {
+			t.Fatalf("split round trip = (%+v, %v)", loaded, err)
+		}
+		file, err := gguf.Open(filepath.Join(directory, CheckpointModel))
+		if err != nil {
+			t.Fatal(err)
+		}
+		inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
+		if closeErr := file.Close(); err != nil || closeErr != nil {
+			t.Fatal(err, closeErr)
+		}
+		batch, err := written.Batch("split", directory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, component := range inventory.Components {
+			if !slices.ContainsFunc(batch.Artifacts, func(descriptor artifact.Descriptor) bool { return descriptor.ID == component.ID }) {
+				t.Errorf("checkpoint evidence omits %s", component.ID)
+			}
+		}
+		original, err := os.ReadFile(filepath.Join(directory, CheckpointFrozenShard))
+		if err != nil {
+			t.Fatal(err)
+		}
+		changed := slices.Clone(original)
+		changed[len(changed)-1] ^= 1 // Same directory and shape, only frozen tensor bytes change.
+		if err := os.WriteFile(filepath.Join(directory, CheckpointFrozenShard), changed, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadCheckpoint(directory); err == nil {
+			t.Error("changed frozen shard resumed")
+		}
+		if _, err := written.Batch("changed", directory); err == nil {
+			t.Error("changed frozen shard recorded as unchanged evidence")
+		}
+		if err := os.Remove(filepath.Join(directory, CheckpointFrozenShard)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadCheckpoint(directory); err == nil {
+			t.Error("missing frozen shard resumed")
+		}
+		// A v2 split document bound only its first shard. It cannot acquire
+		// a complete identity merely by loading with newer code.
+		incomplete, directory := publish(t)
+		incomplete.version = artifact.SecondDocumentVersion
+		incomplete.Weights = inventory.Components[0].ID
+		if err := identify(&incomplete); err != nil {
+			t.Fatal(err)
+		}
+		for name, document := range map[string]any{CheckpointFilename: incomplete.document(), resumeFilename: incomplete.resume()} {
+			data, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(directory, name), data, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := LoadCheckpoint(directory); err == nil {
+			t.Error("incomplete v2 split identity was accepted")
+		}
+	})
+	t.Run("legacy-model.gguf", func(t *testing.T) {
+		directory := filepath.Join(t.TempDir(), "legacy")
+		checkpoint, err := PublishCheckpoint(directory, spec, func(stage string) error {
+			return gguf.WriteFileExclusive(filepath.Join(stage, "model.gguf"), nil,
+				[]gguf.TensorData{testutil.GGUFTensorF32("weights", []uint64{2}, 1)}, gguf.WriteOptions{})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Reproduce the old v2 raw-file binding and sidecar, without changing
+		// their contract to the newly published split document.
+		weights, err := os.ReadFile(filepath.Join(directory, "model.gguf"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		checkpoint.Weights, err = artifact.IdentifyBytes(artifact.KindTensorSet, weights)
+		checkpoint.version = artifact.SecondDocumentVersion
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := identify(&checkpoint); err != nil {
+			t.Fatal(err)
+		}
+		for name, document := range map[string]any{CheckpointFilename: checkpoint.document(), resumeFilename: checkpoint.resume()} {
+			data, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(directory, name), data, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		loaded, err := LoadCheckpoint(directory)
+		if err != nil || loaded.ID() != checkpoint.ID() || loaded.Resume != checkpoint.Resume || loaded.Stream != spec.Stream || !slices.Equal(loaded.Optimizer.Momentum, spec.Optimizer.Momentum) {
+			t.Fatalf("legacy round trip = (%+v, %v)", loaded, err)
+		}
+	})
 	written, target := publishTestCheckpoint(t, spec)
 	loaded, err := LoadCheckpoint(target)
 	if err != nil || loaded.ID() != written.ID() || loaded.Stream != spec.Stream || loaded.Optimizer.Step != 1 || len(loaded.ArtifactLineage()) != 1 {

@@ -20,14 +20,18 @@ import (
 
 // WholeOutput is one execution of a capability that returns its
 // output whole: the model and recipe it ran, the run it recorded if any,
-// when it started, how long its output took, the device memory it peaked
-// at and the error it ended with.
+// when it started, how long its output took, how long of that its model
+// took to load when the execution loaded one, the device memory it peaked
+// at and the error it ended with. PeakMeasured says the peak was measured,
+// so that a zero is an execution that held no device memory, on the host,
+// rather than one nothing measured.
 type WholeOutput struct {
 	Model, Recipe, Run artifact.ID
 	Task               recipe.Task
 	Started            time.Time
-	Wall               time.Duration
+	Wall, Load         time.Duration
 	PeakDeviceBytes    uint64
+	PeakMeasured       bool
 	Cause              error
 }
 
@@ -55,6 +59,14 @@ func RecordWholeOutput(ctx context.Context, store artifact.Repository, attempt W
 		Version: artifact.InitialDocumentVersion, Model: attempt.Model, Recipe: attempt.Recipe, Environment: environment.ID,
 		Run: attempt.Run, Task: attempt.Task, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: attempt.Started.UnixNano(),
 		MeasuredNS: uint64(max(attempt.Wall, 0)), Resources: runrecord.ServingResources{PeakDeviceBytes: attempt.PeakDeviceBytes},
+	}
+	if attempt.Load > 0 {
+		observation.Phases = []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: uint64(attempt.Load)}}
+	}
+	if attempt.PeakMeasured && attempt.PeakDeviceBytes == 0 {
+		// The resources' peak cannot tell a measured zero from an absent
+		// one; a sample of the device at the finish, holding nothing, can.
+		observation.Hardware = []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwareFinish, ElapsedNS: observation.MeasuredNS}}
 	}
 	switch {
 	case errors.Is(attempt.Cause, context.Canceled) || errors.Is(attempt.Cause, context.DeadlineExceeded):

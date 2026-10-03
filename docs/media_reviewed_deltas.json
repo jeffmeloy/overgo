@@ -1215,6 +1215,33 @@
         ]
       },
       "scope": "the receipt re-runs, on the device, the routed-expert node against bits pinned from the single-block kernel at d993c2b10 for eighteen cases with F32 and BF16 banks, against the host reference for the plain, grouped, scaled, sigmoid, quantized and two DeepSeek block shapes, the launch grouping and scratch reservation, and on the host the builder's and the loader's handling of BF16 expert banks"
+    },
+    {
+      "changes": {
+        "internal/cuda/driver/driver_unsupported.go": {
+          "after_sha256": "6a7339d7d1fb72dc01c341854db89a65be9b0d47603085bec4f4b1765c479420",
+          "before_sha256": "9f1c1b2bae672b5273c0dc95177ab388b88383b65a641f62fc0c03c25c69ccb5",
+          "reason": "ProcessPeakBytes is zero where no library allocates device memory"
+        },
+        "internal/cuda/driver/driver_windows.go": {
+          "after_sha256": "a393bd2f42255fa464224ca612a0f8fd3d084a8c6df73b0c3ef197f54f9ba99f",
+          "before_sha256": "3b3875586b1e80ce5a8fc1a7e64fa03536011cf3728145600e0c4c1471e54d43",
+          "reason": "the driver keeps the device memory every Library of the process holds together and its high-water mark, moved where each Library's own accounting already moves and emptied of what a destroyed context still held, with ProcessPeakBytes to read it; no allocation, free or kernel path changes"
+        }
+      },
+      "evidence": "evidence:sha256:53f2cdaf8ebac7a32162a385daa7e292c3f795601740c83853556f7f85878c0d",
+      "id": "process-device-peak",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/cuda/device": [
+          "TestProcessLedgerFollowsDeviceWorkers"
+        ],
+        "overgo/internal/cuda/driver": [
+          "TestProcessLedgerHoldsUnderConcurrentLibraries",
+          "TestProcessLedgerSumsLibraries"
+        ]
+      },
+      "scope": "the receipt re-runs, on the device, real workers allocating and freeing through their libraries while the process ledger follows and returns to its prior total, and on the host the ledger's sums across libraries and its peak under concurrent libraries"
     }
   ],
   "paths": [

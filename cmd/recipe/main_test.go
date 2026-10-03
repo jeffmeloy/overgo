@@ -307,80 +307,23 @@ func TestCapabilityVerificationActivatesCandidate(t *testing.T) {
 // gap reported before the executor runs or any serving attempt is recorded,
 // and a request another run of the recipe retained never stands in for it.
 func TestMeasurementNeedsExecutableInput(t *testing.T) {
-	request := func(schema, body string) artifact.Content {
-		t.Helper()
-		content, err := artifact.JSONContract(artifact.KindFile, schema).ContentBytes([]byte(body))
-		if err != nil {
-			t.Fatal(err)
-		}
-		return content
-	}
-	whole := request("overgo.fixture-input.v1", `{"prompt":"verified"}`)
-	unrelated := request("overgo.fixture-input.v1", `{"prompt":"another run's"}`)
-	path := testutil.TempGGUF(t, "measured.gguf", nil, []gguf.TensorData{{
-		Name: "weight", Shape: []uint64{1}, Type: gguf.DTypeF32,
-		Data: bytes.NewReader(make([]byte, binary.Size(float32(0)))),
-	}})
-	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	file.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	modelID := inventory.Manifest.ID
+	whole := measuredContent(t, "overgo.fixture-input.v1", `{"prompt":"verified"}`)
+	unrelated := measuredContent(t, "overgo.fixture-input.v1", `{"prompt":"another run's"}`)
+	inventory := measuredModel(t)
 	for name, test := range map[string]struct {
 		accepted artifact.Content
 		want     string
 	}{
 		"whole request":  {accepted: whole, want: string(whole.Data)},
-		"digest only":    {accepted: request("overgo.fixture-input-digest.v1", `{"request_sha256":"x","request_bytes":2000000}`)},
-		"not a request":  {accepted: request("overgo.fixture-output.v1", `{"prompt":"output"}`)},
+		"digest only":    {accepted: measuredContent(t, "overgo.fixture-input-digest.v1", `{"request_sha256":"x","request_bytes":2000000}`)},
+		"not a request":  {accepted: measuredContent(t, "overgo.fixture-output.v1", `{"prompt":"output"}`)},
 		"nothing at all": {},
 	} {
 		t.Run(name, func(t *testing.T) {
-			ctx, directory := t.Context(), t.TempDir()
-			store, err := overgodb.Open(directory)
-			if err != nil {
-				t.Fatal(err)
-			}
-			batch, err := inventory.Batch("fixture/measured/model")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := store.Commit(ctx, batch); err != nil {
-				t.Fatal(err)
-			}
-			definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, modelID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/measured/candidate", definition); err != nil {
-				t.Fatal(err)
-			}
-			verify := func(input artifact.Content) modelrecipe.Verification {
-				t.Helper()
-				verification, err := modelintake.PublishMeasuredVerification(ctx, store, definition,
-					"0123456789abcdef0123456789abcdef01234567", time.Millisecond, "host", "go", "fixture output validated",
-					capabilityruntime.Measured{Input: input})
-				if err != nil {
-					t.Fatal(err)
-				}
-				return verification
-			}
+			directory := t.TempDir()
 			// Another run of the recipe retained a whole request; it is not
 			// the accepted verification's.
-			verify(unrelated)
-			if err := modelrecipe.ActivateCapability(ctx, store, definition, verify(test.accepted),
-				recipe.EvidenceVerified, "fixture candidate execution"); err != nil {
-				t.Fatal(err)
-			}
-			head, sequence := store.Head()
-			if err := store.Close(); err != nil {
-				t.Fatal(err)
-			}
+			head, sequence := activateMeasured(t, directory, inventory, unrelated, test.accepted)
 			var ran []string
 			capability := mediacapability.Capability{
 				Resolve: func(string) (mediacapability.Source, error) {
@@ -391,7 +334,7 @@ func TestMeasurementNeedsExecutableInput(t *testing.T) {
 					return "measured", nil
 				},
 			}
-			err = measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability)
+			err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability)
 			reopened, openErr := overgodb.Open(directory)
 			if openErr != nil {
 				t.Fatal(openErr)
@@ -409,4 +352,163 @@ func TestMeasurementNeedsExecutableInput(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCapabilityMeasurementRecordsLoadAndDevicePeak holds the attempt a
+// measured capability records to what its scorecard row's load and peak
+// memory cells read: the load its executor's measurement carries, as the
+// attempt's load phase within its whole wall, and the device memory the
+// attempt peaked at. An execution that loaded no model, as a resident
+// session's, records no load phase. What the process peaked at is the
+// attempt's peak, over the figure its executor gives of its own model, which
+// stands only where the process allocated nothing. Where neither holds any,
+// an attempt that succeeded having loaded its model measured zero, and
+// records it as a sample of the device at its finish; one that failed, or
+// served a recorded answer and loaded nothing, records no peak at all.
+func TestCapabilityMeasurementRecordsLoadAndDevicePeak(t *testing.T) {
+	const executorPeak, processPeak = 3 << 30, 5 << 30
+	failed := errors.New("fixture execution failed")
+	inventory := measuredModel(t)
+	verified := measuredContent(t, "overgo.fixture-input.v1", `{"prompt":"verified"}`)
+	for name, test := range map[string]struct {
+		loads             bool
+		process, executor uint64
+		cause             error
+		peak              uint64
+		zero              bool
+	}{
+		"a model loaded":                    {loads: true, executor: executorPeak, peak: executorPeak},
+		"a resident session":                {executor: executorPeak, peak: executorPeak},
+		"sessions resident together":        {loads: true, process: processPeak, executor: executorPeak, peak: processPeak},
+		"a failure that allocated":          {loads: true, process: processPeak, cause: failed, peak: processPeak},
+		"a model on the host":               {loads: true, zero: true},
+		"a recorded answer, nothing loaded": {},
+		"a failure on the host":             {loads: true, cause: failed},
+	} {
+		t.Run(name, func(t *testing.T) {
+			// Tests share one process, whose own ledger a device test
+			// before this one leaves raised.
+			previous := processDevicePeak
+			processDevicePeak = func() uint64 { return test.process }
+			t.Cleanup(func() { processDevicePeak = previous })
+			outcome := runrecord.OutcomeSucceeded
+			if test.cause != nil {
+				outcome = runrecord.OutcomeFailed
+			}
+			directory := t.TempDir()
+			activateMeasured(t, directory, inventory, verified)
+			var load time.Duration
+			capability := mediacapability.Capability{
+				Resolve: func(string) (mediacapability.Source, error) {
+					return mediacapability.Source{Inventory: inventory}, nil
+				},
+				Execute: func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {
+					// The load and the run each take a span the clock can time.
+					started := tick(t, 0)
+					ready := tick(t, started)
+					if test.loads {
+						load = ready - started
+					}
+					tick(t, ready)
+					return capabilityruntime.Measured{Output: "measured", Load: load, PeakDeviceBytes: test.executor}, test.cause
+				},
+			}
+			if err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability); !errors.Is(err, test.cause) {
+				t.Fatalf("measurement = %v, want %v", err, test.cause)
+			}
+			observed := servingAttempts(t, directory)
+			if len(observed) != 1 || observed[0].Task != recipe.TaskSeq2Seq || observed[0].Outcome != outcome {
+				t.Fatalf("serving attempts = %+v; want one %s attempt of the capability", observed, outcome)
+			}
+			attempt := observed[0]
+			var phases []runrecord.PhaseMetric
+			if test.loads {
+				phases = []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: uint64(load)}}
+			}
+			var samples []runrecord.ServingHardwareSample
+			if test.zero {
+				samples = []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwareFinish, ElapsedNS: attempt.MeasuredNS}}
+			}
+			if !slices.Equal(attempt.Phases, phases) || uint64(load) >= attempt.MeasuredNS {
+				t.Fatalf("attempt phases %+v within %d ns; want phases %+v", attempt.Phases, attempt.MeasuredNS, phases)
+			}
+			if attempt.Resources.PeakDeviceBytes != test.peak || !slices.Equal(attempt.Hardware, samples) {
+				t.Fatalf("attempt peak %d bytes, device samples %+v; want %d bytes and samples %+v", attempt.Resources.PeakDeviceBytes, attempt.Hardware, test.peak, samples)
+			}
+		})
+	}
+}
+
+// measuredContent is a document of schema holding body: a run's retained
+// request when the schema is a request's.
+func measuredContent(t *testing.T, schema, body string) artifact.Content {
+	t.Helper()
+	content, err := artifact.JSONContract(artifact.KindFile, schema).ContentBytes([]byte(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return content
+}
+
+// measuredModel inventories a model of one tensor.
+func measuredModel(t *testing.T) modelartifact.Inventory {
+	t.Helper()
+	path := testutil.TempGGUF(t, "measured.gguf", nil, []gguf.TensorData{{
+		Name: "weight", Shape: []uint64{1}, Type: gguf.DTypeF32,
+		Data: bytes.NewReader(make([]byte, binary.Size(float32(0)))),
+	}})
+	file, err := gguf.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return inventory
+}
+
+// activateMeasured gives the model an active seq2seq recipe in a new store
+// at directory: each of runs is a verification of the recipe that recorded
+// that request, in order, and its activation accepts the last. It returns
+// the head of the store it closed.
+func activateMeasured(t *testing.T, directory string, inventory modelartifact.Inventory, runs ...artifact.Content) (artifact.CommitID, uint64) {
+	t.Helper()
+	ctx := t.Context()
+	store, err := overgodb.Open(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch, err := inventory.Batch("fixture/measured/model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(ctx, batch); err != nil {
+		t.Fatal(err)
+	}
+	definition, err := modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, inventory.Manifest.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/measured/candidate", definition); err != nil {
+		t.Fatal(err)
+	}
+	var accepted modelrecipe.Verification
+	for _, input := range runs {
+		accepted, err = modelintake.PublishMeasuredVerification(ctx, store, definition,
+			"0123456789abcdef0123456789abcdef01234567", time.Millisecond, "host", "go", "fixture output validated",
+			capabilityruntime.Measured{Input: input})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := modelrecipe.ActivateCapability(ctx, store, definition, accepted, recipe.EvidenceVerified, "fixture candidate execution"); err != nil {
+		t.Fatal(err)
+	}
+	head, sequence := store.Head()
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return head, sequence
 }

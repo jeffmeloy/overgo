@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/jsonabbrev"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
@@ -463,7 +465,8 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 		device: c.device, policy: policy,
 	}
 
-	entry, fresh, err := c.lease(ctx, store, path, key, execution, input)
+	// A session leased resident loaded nothing for this run: its load is zero.
+	entry, fresh, loaded, err := c.lease(ctx, store, path, key, execution, input)
 	if err != nil {
 		return zero, err
 	}
@@ -482,7 +485,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 		)
 		var measured Measured
 		if executeErr == nil {
-			measured = measure(output, entry.model, walls)
+			measured = measure(output, entry.model, walls, loaded)
 			measured.Input = content
 		}
 		if executeErr != nil {
@@ -508,15 +511,21 @@ func (c *ModelSessionDirector[Input, Model, Output]) lease(
 	key sessionKey,
 	execution modelrecipe.CapabilityEvidenceSelection,
 	input Input,
-) (*sessionEntry[Model], bool, error) {
-	return c.leaseEntry(ctx, key, execution.Scope,
+) (*sessionEntry[Model], bool, time.Duration, error) {
+	var loaded uint64
+	entry, fresh, err := c.leaseEntry(ctx, key, execution.Scope,
 		func(ctx context.Context) error {
 			_, err := c.refreshExecution(ctx, store, execution)
 			return err
 		},
 		func(ctx context.Context) (Model, error) {
-			return c.load(ctx, store, path, execution.Program, input)
+			clock := processmeasure.NewStopwatch()
+			model, err := c.load(ctx, store, path, execution.Program, input)
+			// A wall the clock could not read stays zero: absent, not guessed.
+			loaded, _ = clock.Elapsed()
+			return model, err
 		})
+	return entry, fresh, time.Duration(loaded), err
 }
 
 func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(

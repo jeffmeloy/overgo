@@ -28,6 +28,16 @@ var (
 	rtlMoveMemory = kernel32.NewProc("RtlMoveMemory")
 )
 
+// processCurrentBytes and processPeakBytes are the device memory every
+// Library of the process holds together and its high-water mark. Libraries
+// that are resident together add up here, which no one Library's ledger
+// sees: each is owned by its own worker.
+var processCurrentBytes, processPeakBytes atomic.Uint64
+
+// ProcessPeakBytes reports the most device memory the process has held at
+// once across every Library, by the allocations it made through them.
+func ProcessPeakBytes() uint64 { return processPeakBytes.Load() }
+
 // Library: dynamically loaded CUDA Driver API library
 type Library struct {
 	dll           *syscall.DLL
@@ -428,7 +438,20 @@ func (l *Library) ContextDestroy(context Context) error {
 	}
 	delete(l.contextClaims, context)
 	l.contextMu.Unlock()
+	l.forgetAllocations()
 	return release()
+}
+
+// forgetAllocations empties the ledger of what the library still held when
+// its context was destroyed, which freed it on the device: the live totals,
+// the library's and the process's, fall by it, and the high-water marks stay.
+func (l *Library) forgetAllocations() {
+	l.allocationMu.Lock()
+	processCurrentBytes.Add(-l.currentBytes)
+	l.currentBytes = 0
+	clear(l.allocations)
+	clear(l.liveSizes)
+	l.allocationMu.Unlock()
 }
 
 // ContextSetCurrent makes context current on calling OS thread
@@ -569,6 +592,7 @@ func (l *Library) accountFree(pointer DevicePtr) {
 	if bytes, ok := l.allocations[pointer]; ok {
 		delete(l.allocations, pointer)
 		l.currentBytes -= bytes
+		processCurrentBytes.Add(-bytes)
 		if l.liveSizes[bytes] <= 1 {
 			delete(l.liveSizes, bytes)
 		} else {
@@ -597,6 +621,14 @@ func (l *Library) accountAllocation(pointer DevicePtr, bytes uint64) {
 		l.peakAllocationBytes = bytes
 		l.peakSizes = make(map[uint64]uint64, len(l.liveSizes))
 		maps.Copy(l.peakSizes, l.liveSizes)
+	}
+	// The process's total moves with the library's own, under its lock, so
+	// it is always the sum of what the libraries hold; libraries share no
+	// lock, so the peak is raised by compare-and-swap, and one another
+	// library raised meanwhile is kept unless this total passes it.
+	current := processCurrentBytes.Add(bytes)
+	for peak := processPeakBytes.Load(); current > peak && !processPeakBytes.CompareAndSwap(peak, current); {
+		peak = processPeakBytes.Load()
 	}
 	l.allocationMu.Unlock()
 }

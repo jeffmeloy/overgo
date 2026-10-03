@@ -79,6 +79,28 @@ func (*servedFixture) DeviceMemoryStats(context.Context) (driver.MemoryStats, er
 // Close releases nothing.
 func (*servedFixture) Close() error { return nil }
 
+// servingAttempts reads every serving attempt the store at directory holds,
+// newest first.
+func servingAttempts(t *testing.T, directory string) []runrecord.ServingObservation {
+	t.Helper()
+	reader, err := overgodb.OpenReadOnly(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	var observed []runrecord.ServingObservation
+	if _, err := overgodb.VisitDecodedDocuments(t.Context(), reader, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema}},
+		Order:     overgodb.DocumentNewestFirst,
+	}, runrecord.ParseServingObservation, func(_ overgodb.DocumentView, observation runrecord.ServingObservation) error {
+		observed = append(observed, observation)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return observed
+}
+
 // TestInferenceMeasurementFillsTheServingCells holds one measurement of an
 // active inference recipe to the observation the scorecard's serving cells
 // read. The recipe is activated the way the library activates one, by an exact
@@ -153,21 +175,7 @@ func TestInferenceMeasurementFillsTheServingCells(t *testing.T) {
 	if err != nil || result.Text != servedOutput || model.prompts[len(model.prompts)-1] != cases[0].Prompt {
 		t.Fatalf("measurement = %+v, %v after prompts %q; want the first verified case answered", result, err, model.prompts)
 	}
-	reader, err := overgodb.OpenReadOnly(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer reader.Close()
-	var observed []runrecord.ServingObservation
-	if _, err := overgodb.VisitDecodedDocuments(ctx, reader, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema}},
-		Order:     overgodb.DocumentNewestFirst,
-	}, runrecord.ParseServingObservation, func(_ overgodb.DocumentView, observation runrecord.ServingObservation) error {
-		observed = append(observed, observation)
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+	observed := servingAttempts(t, directory)
 	if len(observed) != 1 || observed[0].Recipe != candidate.Definition.ID || observed[0].Outcome != runrecord.OutcomeSucceeded || observed[0].Usage.OutputTokens == 0 {
 		t.Fatalf("serving attempts = %+v; want one succeeded attempt of the recipe with output tokens", observed)
 	}

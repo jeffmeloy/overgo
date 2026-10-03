@@ -16,6 +16,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/clioptions"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
 	"overgo/internal/mediacapability"
@@ -478,7 +479,8 @@ func executeCapability(
 
 // attemptCapability executes the capability and records the execution as
 // the serving attempt the scorecard counts, the way the server records a
-// page's generation.
+// page's generation, with the load its executor measured as the attempt's
+// load phase and the device memory the process peaked at as the attempt's.
 func attemptCapability(
 	ctx context.Context,
 	store *overgodb.Store,
@@ -494,11 +496,34 @@ func attemptCapability(
 	output, err := capability.Execute(ctx, store, path, selected, input)
 	end, _ := processmeasure.Counter()
 	measured, _ := output.(capabilityruntime.Measured)
+	peak, peakMeasured := devicePeak(processDevicePeak(), measured, err)
 	recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
 		Model: modelID, Recipe: selected.Activation.Definition.ID, Task: task, Started: started, Wall: end - begin,
-		PeakDeviceBytes: measured.PeakDeviceBytes, Cause: err,
+		Load: measured.Load, PeakDeviceBytes: peak, PeakMeasured: peakMeasured, Cause: err,
 	})
 	return output, errors.Join(err, recordErr)
+}
+
+// processDevicePeak reads the device memory the process has peaked at; a
+// test stands in for the device.
+var processDevicePeak = driver.ProcessPeakBytes
+
+// devicePeak is the device memory a capability attempt peaked at, and
+// whether that is a measurement even when it is zero. The command runs one
+// attempt in one process, so what the process peaked at across every device
+// worker is the attempt's own peak, and it is preferred to the peak the
+// executor reports of its model: a video runtime's is the larger of its two
+// sessions' peaks, though they are resident together, and the process's
+// counts them together. A process that allocated nothing leaves the
+// executor's figure. That zero is a measurement only of an attempt that
+// succeeded having loaded its model here: the model was placed, and on no
+// device. A failed attempt, or one that served a recorded answer without
+// loading, as vqa's does, placed nothing a peak could be read from.
+func devicePeak(process uint64, measured capabilityruntime.Measured, cause error) (uint64, bool) {
+	if process != 0 {
+		return process, true
+	}
+	return measured.PeakDeviceBytes, cause == nil && measured.Load > 0
 }
 
 // measureCapability runs the active capability once on the request its

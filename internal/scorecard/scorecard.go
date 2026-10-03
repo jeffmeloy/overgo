@@ -234,9 +234,11 @@ func verifiedNames(ctx context.Context, store *overgodb.Store) (map[artifact.ID]
 // servingSummary aggregates the serving attempts recorded under one recipe:
 // what users actually hit. Its attempts, failures and cancellations count
 // back to the recipe's newest success, which succeeded says it has.
+// deviceSampled says an attempt sampled its device memory at its finish, so
+// a peak of zero is what it measured.
 type servingSummary struct {
 	attempts, failures, cancelled        int
-	succeeded                            bool
+	succeeded, deviceSampled             bool
 	firstOutputNS, wholeOutputNS, loadNS []uint64
 	decodeTokens, decodeNS               uint64
 	peakDeviceBytes                      uint64
@@ -302,6 +304,7 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 				prefilled = true
 			}
 			summary.peakDeviceBytes = max(summary.peakDeviceBytes, sample.DevicePeakBytes)
+			summary.deviceSampled = summary.deviceSampled || sample.Stage == runrecord.ServingHardwareFinish
 		}
 		// A capability that returns its output whole, an image or a
 		// clip, first outputs when it finishes.
@@ -597,6 +600,11 @@ func peakMemoryCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, ben
 	}
 	if observed != nil && observed.peakDeviceBytes != 0 {
 		return observed.cell(float64(observed.peakDeviceBytes), "bytes", "peak device memory", "serving peak device memory")
+	}
+	if observed != nil && observed.deviceSampled {
+		// Sampled at an attempt's finish and never above zero: the model
+		// holds no device memory, which is a measurement and no gap.
+		return observed.cell(0, "bytes", "peak device memory", "0 bytes: runs on the host")
 	}
 	return gap("no benchmark or serving peak device memory")
 }

@@ -7,9 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
@@ -59,16 +61,19 @@ func JSONScalar[Input, Model, Output any](
 		if err != nil {
 			return nil, err
 		}
+		clock := processmeasure.NewStopwatch()
 		model, err := load(ctx, store, path, program, input)
 		if err != nil {
 			return nil, err
 		}
+		// A wall the clock could not read stays zero: absent, not guessed.
+		loaded, _ := clock.Elapsed()
 		output, walls, executeErr := executeScalar[Input, Model, Output](
 			ctx, store, modelID, program, content, input, model, bind,
 		)
 		var measured Measured
 		if executeErr == nil {
-			measured = measure(output, model, walls)
+			measured = measure(output, model, walls, time.Duration(loaded))
 			measured.Input = content
 		}
 		executeErr = errors.Join(executeErr, closeModel(context.WithoutCancel(ctx), model))

@@ -5,11 +5,13 @@ import (
 	"errors"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
@@ -189,6 +191,58 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 	}
 	if program.Definition().Task != recipe.TaskImageGen {
 		t.Fatalf("task = %s", program.Definition().Task)
+	}
+}
+
+// TestMeasurementCarriesTheLoadWall runs one recipe on both executor shapes,
+// a request-scoped scalar and a session director, whose fixture load takes a
+// span the clock can time. The measurement of an execution that loaded its
+// model carries the load's wall: every scalar execution's, and the
+// director's first. A request the director's resident session serves loaded
+// nothing, and its measurement carries no load.
+func TestMeasurementCarriesTheLoadWall(t *testing.T) {
+	validate := func(scalarRequest) error { return nil }
+	load := func(context.Context, artifact.Repository, string, recipe.Program, scalarRequest) (int, error) {
+		started, err := processmeasure.Counter()
+		for now := started; err == nil && now <= started; now, err = processmeasure.Counter() {
+		}
+		return 1, err
+	}
+	bind := func(runtime *workflowruntime.Runtime, bound artifact.ID, model int) error {
+		return workflowruntime.RegisterJSONStage[scalarRequest, int](
+			runtime, scalarModule, bound, artifact.JSONContract(artifact.KindOutput, "test.loaded-output.v1"),
+			func(request scalarRequest) (int, error) { return request.Value + model, nil },
+		)
+	}
+	director, err := NewModelSessionDirector[scalarRequest, int, int](
+		"scalar", "host", 1, validate, load, func(context.Context, int, scalarRequest) error { return nil }, bind,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer director.Close(t.Context())
+	for name, shape := range map[string]struct {
+		execute  Executor
+		resident bool
+	}{
+		"scalar":  {execute: JSONScalar[scalarRequest, int, int]("scalar", validate, load, bind)},
+		"session": {execute: director.Executor(), resident: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			store, _, program := capabilityFixture(t, "loaded-"+name)
+			execution := modelrecipetest.CandidateExecution(t, store, program)
+			var loads []time.Duration
+			for _, raw := range []string{`{"value":1}`, `{"value":2}`} {
+				got, err := shape.execute(t.Context(), store, "model", execution, raw)
+				if err != nil {
+					t.Fatal(err)
+				}
+				loads = append(loads, got.(Measured).Load)
+			}
+			if loads[0] <= 0 || shape.resident != (loads[1] == 0) || loads[1] < 0 {
+				t.Fatalf("loads = %v; want the first execution's wall, and the second's only when it loaded again (resident session: %t)", loads, shape.resident)
+			}
+		})
 	}
 }
 

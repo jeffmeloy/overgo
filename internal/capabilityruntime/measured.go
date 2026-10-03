@@ -2,6 +2,7 @@ package capabilityruntime
 
 import (
 	"context"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
@@ -10,14 +11,16 @@ import (
 
 // Measured wraps a capability output with the run's measured
 // decomposition: the per-node phase walls the workflow runtime
-// observed and the peak device bytes the loaded model session
-// reports. Absent measurements stay zero; nothing is invented.
+// observed, how long the run's own model load took, and the peak device
+// bytes the loaded model session reports. Absent measurements stay zero;
+// nothing is invented: a run a resident session served loaded nothing.
 // Input is the request document the runtime recorded for the run (the
 // decoded request under its capability's input schema), so a consumer
 // publishing its own run record cites the one document the store holds.
 type Measured struct {
 	Output          any                        `json:"output"`
 	Phases          []workflowruntime.NodeWall `json:"phases,omitempty"`
+	Load            time.Duration              `json:"load_ns,omitzero"`
 	PeakDeviceBytes uint64                     `json:"peak_device_bytes,omitzero"`
 	Input           artifact.Content           `json:"-"`
 }
@@ -38,11 +41,11 @@ type deviceMeter interface {
 	PeakDeviceBytes() (uint64, error)
 }
 
-// measure assembles the envelope around an executed output. A meter
-// error yields an absent peak rather than failing a run that already
-// produced its output.
-func measure[Model any](output any, model Model, phases []workflowruntime.NodeWall) Measured {
-	measured := Measured{Output: output, Phases: phases}
+// measure assembles the envelope around an executed output, with the wall
+// of the load the run made for it. A meter error yields an absent peak
+// rather than failing a run that already produced its output.
+func measure[Model any](output any, model Model, phases []workflowruntime.NodeWall, load time.Duration) Measured {
+	measured := Measured{Output: output, Phases: phases, Load: load}
 	if meter, ok := any(model).(deviceMeter); ok {
 		if peak, err := meter.PeakDeviceBytes(); err == nil {
 			measured.PeakDeviceBytes = peak

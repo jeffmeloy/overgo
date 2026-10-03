@@ -154,7 +154,8 @@ func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	stale := evaluation.BenchmarkSummary{FirstTokenMS: 250, DecodeTokensPerSecond: 4, LoadMS: 12000, PeakDeviceBytes: 2 * peak}
-	staleData, err := json.Marshal(map[string]any{"record": latest, "code_commit": "0123456789abcdef0123456789abcdef01234567", "environment": environment})
+	comparison := testutil.ArtifactID(t, artifact.KindProfile, "benchmark-execution")
+	staleData, err := json.Marshal(map[string]any{"record": latest, "code_commit": "0123456789abcdef0123456789abcdef01234567", "environment": environment, "comparison": comparison})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +185,7 @@ func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
 		"first output": firstOutputCell(recipe.TaskInference, stale, true, nil), "throughput": throughputCell(recipe.TaskInference, stale, true, nil),
 		"load": loadCell(stale, true, nil), "peak": peakMemoryCell(recipe.TaskInference, stale, true, nil),
 	} {
-		if cell.Source != latest || cell.CodeCommit != "0123456789abcdef0123456789abcdef01234567" || cell.Environment != environment {
+		if cell.Source != latest || cell.CodeCommit != "0123456789abcdef0123456789abcdef01234567" || cell.Environment != environment || cell.Contract.Comparison != comparison {
 			t.Errorf("benchmark %s lost its producing authorities: %+v", name, cell)
 		}
 	}

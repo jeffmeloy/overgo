@@ -24,7 +24,8 @@ func TestScheduledScorecardPublishesDeltas(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()
 	source := testutil.ArtifactID(t, artifact.KindEvidence, "scorecard-deltas")
-	decode := scorecard.Contract{Metric: "decode rate, median", Origin: "benchmark"}
+	comparison := testutil.ArtifactID(t, artifact.KindProfile, "benchmark-execution")
+	decode := scorecard.Contract{Metric: "decode rate, median", Origin: "benchmark", Comparison: comparison}
 	row := func(model, name string, cells map[metric.Name]scorecard.Cell) scorecard.Row {
 		for _, column := range metric.Columns {
 			if _, set := cells[column]; !set {
@@ -37,8 +38,8 @@ func TestScheduledScorecardPublishesDeltas(t *testing.T) {
 		row("alpha", "alpha", map[metric.Name]scorecard.Cell{
 			metric.Throughput:  {Value: 40, Unit: "tok/s", Source: source, Contract: decode},
 			metric.Quality:     {Reason: "no held-out record"},
-			metric.PeakMemory:  {Value: 8, Unit: "bytes", Source: source, Contract: scorecard.Contract{Metric: "peak device memory", Origin: "benchmark"}},
-			metric.FirstOutput: {Value: 120, Unit: "ms", Source: source, Contract: scorecard.Contract{Metric: "time to first token, median", Origin: "benchmark"}},
+			metric.PeakMemory:  {Value: 8, Unit: "bytes", Source: source, Contract: scorecard.Contract{Metric: "peak device memory", Origin: "benchmark", Comparison: comparison}},
+			metric.FirstOutput: {Value: 120, Unit: "ms", Source: source, Contract: scorecard.Contract{Metric: "time to first token, median", Origin: "benchmark", Comparison: comparison}},
 		}),
 		row("retired", "beta", map[metric.Name]scorecard.Cell{metric.Throughput: {Value: 9, Unit: "tok/s", Source: source, Contract: decode}}),
 	}}
@@ -75,5 +76,11 @@ func TestScheduledScorecardPublishesDeltas(t *testing.T) {
 		!strings.Contains(moved[0], "Metric:time to prefill Origin:serving") || !strings.Contains(moved[0], "the baseline {Metric:time to first token, median Origin:benchmark") ||
 		!slices.Equal(moved[1:], want) {
 		t.Fatalf("moved =\n%q\nwant\n%q", moved, want)
+	}
+	legacy := records[0].Rows[0].Cells[metric.Throughput]
+	legacy.Contract.Comparison = artifact.ID{}
+	records[0].Rows[0].Cells[metric.Throughput] = legacy
+	if moved := scorecardMoves(records[0], records[1]); !slices.Contains(moved, "- alpha-renamed inference, Throughput: benchmark comparison authority is unknown") {
+		t.Fatalf("legacy benchmark reports %q, want an unknown comparison instead of a numerical delta", moved)
 	}
 }

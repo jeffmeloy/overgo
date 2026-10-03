@@ -63,7 +63,8 @@ func (c Cell) QualityText() string {
 // measure the same thing: the metric, the kind of record it comes from, and
 // for a held-out quality the suite and the protocol it was scored under: the
 // prompting, with a transcription report's normalization, or a held-out
-// verdict's target plan. Comparison binds evaluation acceptance and environment;
+// verdict's target plan. Comparison binds evaluation acceptance and environment
+// or a benchmark's measured execution contract;
 // a display label alone cannot establish those authorities.
 // A serving aggregate's scope is the recipe whose attempts it counts. A cell
 // published before contracts has none, and compares with nothing.
@@ -372,7 +373,7 @@ func gap(reason string) Cell { return Cell{Reason: reason} }
 // benchmarkCell is a value the benchmark record measured.
 func benchmarkCell(value float64, unit, metric string, summary evaluation.BenchmarkSummary) Cell {
 	return Cell{Value: value, Unit: unit, Label: originBenchmark + " " + metric, Source: summary.Record,
-		CodeCommit: summary.CodeCommit, Environment: summary.Environment, Contract: Contract{Metric: metric, Origin: originBenchmark}}
+		CodeCommit: summary.CodeCommit, Environment: summary.Environment, Contract: Contract{Metric: metric, Origin: originBenchmark, Comparison: summary.Comparison}}
 }
 
 func inapplicable(reason string) Cell { return Cell{Reason: reason, NotApplicable: true} }

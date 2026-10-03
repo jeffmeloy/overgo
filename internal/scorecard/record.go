@@ -234,8 +234,8 @@ func holds(then, now Cell) (Verdict, string) {
 		return Unknown, "no longer measured: " + now.Reason
 	case then.Contract == (Contract{}):
 		return Unknown, "the baseline cell was published without a contract"
-	case then.Contract.Origin == originEvaluation && (!then.Contract.Comparison.Valid() || !now.Contract.Comparison.Valid()):
-		return Unknown, "evaluation comparison authority is unknown"
+	case (then.Contract.Origin == originEvaluation || then.Contract.Origin == originBenchmark) && !then.Contract.Comparison.Valid():
+		return Unknown, then.Contract.Origin + " comparison authority is unknown"
 	case now.Contract != then.Contract:
 		return Unknown, fmt.Sprintf("measured %+v, the baseline %+v", now.Contract, then.Contract)
 	case now.Direction != then.Direction:

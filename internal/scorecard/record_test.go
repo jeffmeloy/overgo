@@ -17,14 +17,46 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestComparisonRequiresEvaluationAuthorities prevents two unknown evaluations
+// TestComparisonRequiresEvaluationAuthorities prevents unknown measurements
 // from earning a holding verdict merely because their display labels match.
+// Known benchmark contracts compare through the ordinary row owner, while
+// missing or changed authorities keep the measured values without a verdict.
 func TestComparisonRequiresEvaluationAuthorities(t *testing.T) {
 	t.Parallel()
-	unknown := Cell{Value: 0.5, Direction: runrecord.DirectionMaximize,
-		Contract: Contract{Metric: "accuracy", Origin: originEvaluation, Suite: "fixture", Protocol: "unknown"}}
-	if verdict, why := holds(unknown, unknown); verdict != Unknown || why == "" {
-		t.Fatalf("unknown evaluations compare as %q (%s)", verdict, why)
+	for _, origin := range []string{originEvaluation, originBenchmark} {
+		unknown := Cell{Value: 0.5, Direction: runrecord.DirectionMaximize,
+			Contract: Contract{Metric: "fixture", Origin: origin}}
+		if verdict, why := holds(unknown, unknown); verdict != Unknown || why == "" {
+			t.Fatalf("unknown %s compares as %q (%s)", origin, verdict, why)
+		}
+	}
+	source := testutil.ArtifactID(t, artifact.KindEvidence, "benchmark-before")
+	comparison := testutil.ArtifactID(t, artifact.KindProfile, "benchmark-execution")
+	baseline := benchmarkCell(40, "tok/s", "decode rate, median", evaluation.BenchmarkSummary{Record: source, Comparison: comparison})
+	for _, scenario := range []struct {
+		name       string
+		comparison artifact.ID
+		verdict    Verdict
+	}{
+		{"same execution", comparison, holding},
+		{"unknown execution", artifact.ID{}, Unknown},
+		{"another execution", testutil.ArtifactID(t, artifact.KindProfile, "other-execution"), Unknown},
+	} {
+		currentSource := testutil.ArtifactID(t, artifact.KindEvidence, scenario.name)
+		current := benchmarkCell(45, "tok/s", "decode rate, median", evaluation.BenchmarkSummary{Record: currentSource, Comparison: scenario.comparison})
+		before := Row{Cells: map[metric.Name]Cell{metric.Throughput: baseline}}
+		after := Row{Cells: map[metric.Name]Cell{metric.Throughput: current}}
+		compared := (Pair{Before: &before, After: &after}).Compare(metric.Throughput)
+		if scenario.verdict == holding {
+			if len(compared) != 0 {
+				t.Fatalf("%s: matching measured values do not compare: %+v", scenario.name, compared)
+			}
+		} else if len(compared) != 1 || compared[0].Verdict != scenario.verdict || compared[0].Why == "" {
+			t.Fatalf("%s: compares as %+v", scenario.name, compared)
+		}
+		if current.Value != 45 || current.Source != currentSource || !current.Measured() {
+			t.Fatalf("%s: comparison qualification lost the measured value: %+v", scenario.name, current)
+		}
 	}
 }
 

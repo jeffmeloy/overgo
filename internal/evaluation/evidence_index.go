@@ -7,8 +7,11 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/benchmarkrecord"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/sampling"
 )
 
 // BenchmarkSummary is the latest committed benchmark claim for one
@@ -27,6 +30,9 @@ type BenchmarkSummary struct {
 	Record                artifact.ID `json:"record,omitzero"`
 	CodeCommit            string      `json:"code_commit,omitzero"`
 	Environment           artifact.ID `json:"environment,omitzero"`
+	// Comparison binds a known full same-producer benchmark contract; it does
+	// not establish source currency or cross-revision performance equivalence.
+	Comparison artifact.ID `json:"comparison,omitzero"`
 }
 
 // headlineMetrics orders the metric that stands for an evaluation: an
@@ -148,6 +154,87 @@ type benchmarkEvidenceHeadline struct {
 	} `json:"summary"`
 }
 
+// benchmarkEvidenceContract decodes execution facts independently of the
+// headline. Unknown or malformed optional facts cannot erase measured values.
+type benchmarkEvidenceContract struct {
+	CachePrompt          bool                     `json:"cache_prompt"`
+	BatchSequences       int                      `json:"batch_sequences"`
+	Speculative          bool                     `json:"speculative"`
+	ContextShift         bool                     `json:"context_shift"`
+	Temperature          float64                  `json:"temperature"`
+	TopK                 int                      `json:"top_k"`
+	DeviceTopK           bool                     `json:"device_top_k"`
+	ModelID              artifact.ID              `json:"model_id"`
+	RecipeID             artifact.ID              `json:"recipe_id"`
+	TokenizerContainer   artifact.ID              `json:"tokenizer_container"`
+	ModuleDigest         string                   `json:"module_digest"`
+	OptionsDigest        string                   `json:"options_digest"`
+	AdapterIDs           []artifact.ID            `json:"adapter_ids"`
+	TokensPerSequence    int                      `json:"tokens_per_sequence"`
+	RequestedRuns        int                      `json:"requested_runs"`
+	RequestedWarmup      int                      `json:"requested_warmup"`
+	PromptSuite          []string                 `json:"prompt_suite"`
+	WorkloadDigest       string                   `json:"workload_digest"`
+	Residency            recipe.ResidencyPolicy   `json:"residency"`
+	RealizedResidency    recipe.RealizedResidency `json:"realized_residency"`
+	SamplingProtocol     string                   `json:"sampling_protocol"`
+	SamplerOrder         json.RawMessage          `json:"sampler_order"`
+	EndOfSequenceIgnored *bool                    `json:"end_of_sequence_ignored"`
+}
+
+func benchmarkComparison(data []byte, model artifact.ID, summary BenchmarkSummary) artifact.ID {
+	var headline benchmarkEvidenceContract
+	if json.Unmarshal(data, &headline) != nil {
+		return artifact.ID{}
+	}
+	if headline.ModelID != model || summary.CodeCommit == "" || !summary.Environment.Valid() ||
+		!headline.Residency.Valid() || headline.SamplingProtocol == "" || headline.EndOfSequenceIgnored == nil || len(headline.SamplerOrder) == 0 {
+		return artifact.ID{}
+	}
+	var order []sampling.SamplerStage
+	if json.Unmarshal(headline.SamplerOrder, &order) != nil {
+		return artifact.ID{}
+	}
+	if len(order) == 0 {
+		order = nil
+	}
+	configuration := benchmarkrecord.BenchmarkConfiguration{Tokens: headline.TokensPerSequence, Runs: headline.RequestedRuns,
+		Warmup: headline.RequestedWarmup, CachePrompt: headline.CachePrompt, BatchSequences: headline.BatchSequences,
+		Speculative: headline.Speculative, ContextShift: headline.ContextShift, Temperature: headline.Temperature,
+		TopK: headline.TopK, DeviceTopK: headline.DeviceTopK, Adapters: headline.AdapterIDs}
+	options, err := configuration.Digest()
+	if err != nil || options != headline.OptionsDigest {
+		return artifact.ID{}
+	}
+	workload, err := artifact.JSONID(artifact.KindEvidence, headline.PromptSuite)
+	if err != nil || workload.DigestHex() != headline.WorkloadDigest {
+		return artifact.ID{}
+	}
+	prompts := make([]string, len(headline.PromptSuite))
+	for index, prompt := range headline.PromptSuite {
+		if prompt == "" {
+			return artifact.ID{}
+		}
+		id, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte(prompt))
+		prompts[index] = id.DigestHex()
+	}
+	protocol, err := artifact.JSONID(artifact.KindProfile, struct {
+		Residency        recipe.ResidencyPolicy  `json:"residency"`
+		Sampling         string                  `json:"sampling"`
+		Order            []sampling.SamplerStage `json:"order"`
+		ContinueAfterEOG bool                    `json:"continue_after_eog"`
+	}{headline.Residency, headline.SamplingProtocol, order, *headline.EndOfSequenceIgnored})
+	if err != nil {
+		return artifact.ID{}
+	}
+	identity := benchmarkrecord.BenchmarkIdentity{Model: model, Recipe: headline.RecipeID,
+		TokenizerContainer: headline.TokenizerContainer, Environment: summary.Environment,
+		CodeCommit: summary.CodeCommit, ModuleDigest: headline.ModuleDigest, WorkloadDigest: headline.WorkloadDigest,
+		PromptDigests: prompts, RealizedResidency: headline.RealizedResidency}
+	comparison, _ := identity.Comparison(configuration, protocol)
+	return comparison
+}
+
 // LatestEvidence scans newest-first and keeps the first summary per
 // key, so each entry reports its latest committed evidence. suiteNames
 // maps evaluation dataset identities to display names; evaluations
@@ -198,6 +285,7 @@ func LatestEvidence(
 						if headline.Environment.ValidateIdentity() == nil {
 							summary.Environment = headline.EnvironmentID
 						}
+						summary.Comparison = benchmarkComparison(content.Data, record.Model, summary)
 					}
 				}
 			}

@@ -103,7 +103,7 @@ const bracketEvidenceScanLimit = 4096
 
 // bracketDeltas derives the machine-checked improvements: one delta
 // per suite metric present on both sides, plus the decode rate when
-// both benchmarks stand.
+// both benchmarks bind the same known measurement contract and pair records.
 func bracketDeltas(pre, post BracketSlice) []MetricDelta {
 	preMetrics := map[artifact.ID]evaluation.EvalSummary{}
 	for _, entry := range pre.Evals {
@@ -129,12 +129,15 @@ func bracketDeltas(pre, post BracketSlice) []MetricDelta {
 		}
 	}
 	if pre.Benchmark != nil && post.Benchmark != nil &&
+		pre.Benchmark.Comparison.Kind() == artifact.KindProfile && pre.Benchmark.Comparison == post.Benchmark.Comparison &&
+		pre.Benchmark.Record.Kind() == artifact.KindEvidence && post.Benchmark.Record.Kind() == artifact.KindEvidence &&
 		pre.Benchmark.DecodeTokensPerSecond > 0 && post.Benchmark.DecodeTokensPerSecond > 0 {
 		deltas = append(deltas, MetricDelta{
 			Suite: "benchmark", Metric: "decode_tokens_per_second_p50",
-			Pre:   pre.Benchmark.DecodeTokensPerSecond,
-			Post:  post.Benchmark.DecodeTokensPerSecond,
-			Delta: post.Benchmark.DecodeTokensPerSecond - pre.Benchmark.DecodeTokensPerSecond,
+			Pre:       pre.Benchmark.DecodeTokensPerSecond,
+			Post:      post.Benchmark.DecodeTokensPerSecond,
+			Delta:     post.Benchmark.DecodeTokensPerSecond - pre.Benchmark.DecodeTokensPerSecond,
+			PreRecord: pre.Benchmark.Record, PostRecord: post.Benchmark.Record,
 		})
 	}
 	slices.SortFunc(deltas, func(left, right MetricDelta) int {

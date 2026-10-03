@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -104,6 +105,9 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 	}
 	if measured.ModelID != parsed.Model || measured.SamplingProtocol != greedyBudgetProtocol || measured.Runs[0].DeviceSelectedTokens != result.TokensPerSequence {
 		t.Fatalf("publication lost sampling or observed selection path: %+v", measured)
+	}
+	if summary := evaluation.LatestEvidence(ctx, store, nil, 0).BenchmarksByLocation[weightsPath]; !summary.Comparison.Valid() || summary.Record != record.ID {
+		t.Fatalf("published execution contract was lost by evidence reader: %+v", summary)
 	}
 	locations, err := store.Locations(ctx, model)
 	if err != nil || len(locations) == 0 {

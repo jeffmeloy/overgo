@@ -44,6 +44,57 @@ func TestBenchmarkComparisonRecord(t *testing.T) {
 			{Index: 2, First: "baseline", Baseline: observation(120), Candidate: observation(110)},
 		},
 	}
+	protocol, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("greedy/continue-after-eog/device-native"))
+	contract, err := input.Identity.Comparison(baseline, protocol)
+	if err != nil || !contract.Valid() {
+		t.Fatalf("measurement contract = %s, %v", contract, err)
+	}
+	for name, change := range map[string]func(*BenchmarkIdentity, *BenchmarkConfiguration, *artifact.ID){
+		"model": func(identity *BenchmarkIdentity, _ *BenchmarkConfiguration, _ *artifact.ID) {
+			identity.Model, _ = artifact.IdentifyBytes(artifact.KindModel, []byte("other model"))
+			identity.TokenizerContainer = identity.Model
+		},
+		"recipe": func(identity *BenchmarkIdentity, _ *BenchmarkConfiguration, _ *artifact.ID) {
+			identity.Recipe, _ = artifact.IdentifyBytes(artifact.KindRecipe, []byte("other recipe"))
+		},
+		"environment": func(identity *BenchmarkIdentity, _ *BenchmarkConfiguration, _ *artifact.ID) {
+			identity.Environment, _ = artifact.IdentifyBytes(artifact.KindEvidence, []byte("other environment"))
+		},
+		"producer": func(identity *BenchmarkIdentity, _ *BenchmarkConfiguration, _ *artifact.ID) {
+			identity.CodeCommit = strings.Repeat("f", 40)
+		},
+		"binary": func(identity *BenchmarkIdentity, _ *BenchmarkConfiguration, _ *artifact.ID) {
+			identity.ModuleDigest = strings.Repeat("f", 64)
+		},
+		"workload": func(identity *BenchmarkIdentity, _ *BenchmarkConfiguration, _ *artifact.ID) {
+			identity.WorkloadDigest = strings.Repeat("f", 64)
+		},
+		"residency": func(identity *BenchmarkIdentity, _ *BenchmarkConfiguration, _ *artifact.ID) {
+			identity.RealizedResidency = recipe.RealizedHostCache
+		},
+		"options": func(_ *BenchmarkIdentity, configuration *BenchmarkConfiguration, _ *artifact.ID) {
+			configuration.CachePrompt = true
+		},
+		"protocol": func(_ *BenchmarkIdentity, _ *BenchmarkConfiguration, protocol *artifact.ID) {
+			*protocol, _ = artifact.IdentifyBytes(artifact.KindProfile, []byte("other protocol"))
+		},
+		"unknown": func(_ *BenchmarkIdentity, _ *BenchmarkConfiguration, protocol *artifact.ID) {
+			*protocol = artifact.ID{}
+		},
+	} {
+		t.Run("contract/"+name, func(t *testing.T) {
+			identity, configuration, changedProtocol := input.Identity, baseline, protocol
+			change(&identity, &configuration, &changedProtocol)
+			changed, err := identity.Comparison(configuration, changedProtocol)
+			if name == "unknown" {
+				if err == nil {
+					t.Fatal("unknown contract accepted")
+				}
+			} else if err != nil || changed == contract {
+				t.Fatalf("changed %s compared on the same contract: %s, %v", name, changed, err)
+			}
+		})
+	}
 	record, err := NewBenchmarkComparisonRecord(input)
 	if err != nil {
 		t.Fatal(err)

@@ -9,8 +9,11 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/benchmarkrecord"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 )
 
 // TestBenchmarkProducerFactsFollowEvidence keeps producer facts separate from
@@ -18,7 +21,7 @@ import (
 // only its own exact bytes. Legacy measured values stay visible as unknowns.
 func TestBenchmarkProducerFactsFollowEvidence(t *testing.T) {
 	t.Parallel()
-	for _, mode := range []string{"known", "legacy", "foreign-code", "foreign-environment"} {
+	for _, mode := range []string{"known", "legacy", "foreign-code", "foreign-environment", "foreign-model", "missing-workload", "foreign-workload", "foreign-options", "malformed-options", "missing-protocol", "missing-order", "missing-eog"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Parallel()
 			store, err := overgodb.Open(t.TempDir())
@@ -41,6 +44,25 @@ func TestBenchmarkProducerFactsFollowEvidence(t *testing.T) {
 			}
 			body := map[string]any{"code_commit": planTestCommit, "environment_id": platform.ID, "environment": platform,
 				"load_ms": 100, "summary": map[string]float64{"decode_tokens_per_second_p50": 12, "prompt_tokens_per_second_p50": 24, "ttft_ms_p50": 5}}
+			configuration := benchmarkrecord.BenchmarkConfiguration{Tokens: 32, Runs: 2, TopK: 40}
+			optionsDigest, err := configuration.Digest()
+			if err != nil {
+				t.Fatal(err)
+			}
+			prompts := []string{"benchmark fixture prompt"}
+			workload, err := artifact.JSONID(artifact.KindEvidence, prompts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body["model_id"], body["tokenizer_container"] = model, model
+			body["recipe_id"] = testutil.ArtifactID(t, artifact.KindRecipe, "benchmark-recipe")
+			body["module_digest"], body["options_digest"] = strings.Repeat("b", 64), optionsDigest
+			body["prompt_suite"], body["workload_digest"] = prompts, workload.DigestHex()
+			body["tokens_per_sequence"], body["requested_runs"] = configuration.Tokens, configuration.Runs
+			body["requested_warmup"], body["top_k"] = configuration.Warmup, configuration.TopK
+			body["residency"], body["realized_residency"] = recipe.ResidencyDeviceNative, recipe.RealizedDeviceNative
+			body["sampling_protocol"], body["end_of_sequence_ignored"] = "greedy/continue-after-eog/v1", true
+			body["sampler_order"] = nil
 			switch mode {
 			case "legacy":
 				delete(body, "code_commit")
@@ -51,6 +73,22 @@ func TestBenchmarkProducerFactsFollowEvidence(t *testing.T) {
 			case "foreign-environment":
 				platform.Driver = "different"
 				body["environment"] = platform
+			case "foreign-model":
+				body["model_id"] = testutil.ArtifactID(t, artifact.KindModel, "different-model")
+			case "missing-workload":
+				delete(body, "prompt_suite")
+			case "foreign-workload":
+				body["workload_digest"] = strings.Repeat("c", 64)
+			case "foreign-options":
+				body["top_k"] = configuration.TopK + 1
+			case "malformed-options":
+				body["top_k"] = "unknown"
+			case "missing-protocol":
+				delete(body, "sampling_protocol")
+			case "missing-order":
+				delete(body, "sampler_order")
+			case "missing-eog":
+				delete(body, "end_of_sequence_ignored")
 			}
 			data, err := json.Marshal(body)
 			if err != nil {
@@ -75,6 +113,7 @@ func TestBenchmarkProducerFactsFollowEvidence(t *testing.T) {
 			var facts struct {
 				CodeCommit  string      `json:"code_commit"`
 				Environment artifact.ID `json:"environment"`
+				Comparison  artifact.ID `json:"comparison"`
 			}
 			if err := json.Unmarshal(encoded, &facts); err != nil {
 				t.Fatal(err)
@@ -88,6 +127,9 @@ func TestBenchmarkProducerFactsFollowEvidence(t *testing.T) {
 			}
 			if summary.Record != record.ID || summary.DecodeTokensPerSecond != 12 || summary.PromptTokensPerSecond != 24 || summary.FirstTokenMS != 5 || summary.LoadMS != 100 || summary.WallNS != 200 || summary.PeakDeviceBytes != 300 || facts.CodeCommit != wantCode || facts.Environment != wantEnvironment {
 				t.Fatalf("summary = %+v, facts = %+v; want source %q and environment %s without changing measured values", summary, facts, wantCode, wantEnvironment)
+			}
+			if facts.Comparison.Valid() != (mode == "known") {
+				t.Fatalf("benchmark comparison = %s for %s", facts.Comparison, mode)
 			}
 		})
 	}

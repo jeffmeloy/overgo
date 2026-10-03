@@ -3,7 +3,6 @@ package overgodb
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/processlock"
@@ -25,7 +24,7 @@ func TestOpenContextWriterAdmission(t *testing.T) {
 			if err := owner.Close(); err != nil {
 				t.Fatal(err)
 			}
-			lockPath := filepath.Join(root, lockFilename)
+			lockPath := writerLockPath(root)
 			lock, err := processlock.Acquire(lockPath, storeFileMode)
 			if err != nil {
 				t.Fatal(err)

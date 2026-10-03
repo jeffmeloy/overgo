@@ -66,7 +66,9 @@ func rebuild(flags *flag.FlagSet, args []string) error {
 	result := receipt{OperationProof: overgodb.OperationProof{HeadBefore: head.String(), SequenceBefore: sequence}, Candidate: *destination}
 	err = proveRebuilt(ctx, &result, *checkout)
 	if err == nil {
-		err = conclude(&result, true, func() (string, error) { return swapStores(*repository, *destination, result.HeadBefore) })
+		err = conclude(&result, true, func() (string, error) {
+			return overgodb.ReplaceStore(ctx, *repository, *destination, result.HeadBefore)
+		})
 	}
 	return errors.Join(err, json.NewEncoder(os.Stdout).Encode(result))
 }

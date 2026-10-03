@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -95,7 +94,7 @@ func TestWorkbenchEvidenceProcess(t *testing.T) {
 			t.Fatal(err)
 		}
 		if message.Action == "hold" {
-			held, err = processlock.AcquireContext(t.Context(), filepath.Join(root, "overgodb.lock"), 0o644)
+			held, err = processlock.AcquireContext(t.Context(), root+".lock", 0o644)
 			if err != nil {
 				t.Fatal(err)
 			}

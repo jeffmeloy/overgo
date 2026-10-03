@@ -4,41 +4,15 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "capability-measurements",
-      "title": "Record the load phase of every capability the cycle measures",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 406,
-        "reason": "the capability runtime times its two load sites and carries the wall in its measurement, the driver keeps a process-wide current and peak, recipe measure records both, and the scorecard reads a sampled zero as measured; the fresh-operation context and hasher Reader-only boundary add bounded correctness plumbing; no speedup or simplification claim for fresh measurements"
-      },
-      "steps": [
-        {
-          "id": "attempts",
-          "title": "Give the rows with no serving attempt a producer the cycle runs",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Six rows have no completed serving attempt. Fractale generation: cmd/validate/surfaces.go kindValidation has no generation case, so no cell. granite and nemotron transcription and webssl image-embedding: the command is bound and their verifications retain runnable requests, but the cell is current by its acceptance receipt, so nothing schedules recipe measure (one manual run fills them; validate-currency's every-cell cycle keeps them filled). Qwen3.8-27B and gemma-4-E4B projection: a projection capability has no executor, so recipe measure refuses it; its proof re-verifies and publishes no attempt, and E4B's producer publishes observations a gate depends on, which the scorecard excludes. Qwen2.5-0.5B training: trainingworkflow/heldout_run.go records no load phase where its sibling routes do. The verify is set per producer as each is built. 2026-10-03: the generation cell and the text held-out run's load phase land with step run-the-model. Left here: a measured producer for the two projection rows (design: about 60-80 lines in cmd/recipe reusing observeInference, verifiedCase and projectedExactRuntime; whether E4B qualifies is unverified), transcription throughput, training throughput and peak, and vqa's load.\nLead scope correction 2026-10-03: the fresh-operation/hash landing delivers none of the prepared token/decode reporting, generation producer or held-out load additions. Carry those exact obligations here with transcription/training throughput, projection producers and VQA load. Fresh performance must cite executed phase scope, not a recovered result or prompt-inclusive wall labeled as pure decode."
-        }
-      ]
-    },
-    {
       "id": "recovery-correctness",
       "title": "Preserve committed store writes and complete checkpoint recovery identity",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "Necessary recovery and compatibility repairs through existing owners may add code; establish the smallest red fixture and declare exact growth before implementation."
+        "nodes": 355,
+        "reason": "Cutover correctness repair: one store-owned conditional replacement retires the command-local rename, while the existing writer lock moves beside the root and startup/backup/transactions share it. Canonical authority and displaced-handle refusal necessarily add production code; measured ceiling is 355 syntax nodes before removing one duplicate stat. No net-code or throughput saving is claimed. The lock location requires all active writers to use the updated binary; no live store swap is part of this work. Checkpoint growth will be counted separately before that step."
       },
       "steps": [
-        {
-          "id": "cutover",
-          "title": "Prove source-head exclusion through store replacement",
-          "status": "open",
-          "verify": "go test ./cmd/overgodb ./internal/overgodb -run '^(TestFailedReplacementKeepsTheLivePath|TestFailedCheckNeverSwaps)$' -count=1",
-          "rationale": "SQA-073. Serves: data preservation during rebuild/precheck publication. Disappears: stale snapshot cutover authority; reuse the existing mutation and directory replacement owners. Evidence: extend the existing tiny replacement fixture with a committed write between snapshot and publication and writer exclusion spanning the check/rename; prove on the actual platform, retain rollback and the original path. A head check alone is insufficient. The verifier names retained coverage; add the failing concurrency case there before implementing. Batch: store/control consumers by actual build closure, no model acquisition or live store swap."
-        },
         {
           "id": "checkpoint",
           "title": "Bind all split weights and preserve legacy model.gguf resume",
@@ -78,6 +52,25 @@
           "status": "open",
           "verify": "go test ./cmd/validate ./cmd/benchmark-report ./internal/evaluation",
           "rationale": "SQA-078/079/040. Serves: honest quality and cost comparison. Disappears: sampled wall divided by full-suite count and invented protocol/provenance. Expose prior full quality separately from fresh sampled scope through existing replay receipt/report owners, retain both replay and fallback work. Adopt no claim that 32 unchanged samples prove every current output unchanged; preserve full fallback and fresh performance/artifact obligations. Reuse existing fake runtime and small stores; extend actual denominator/protocol/unknown cases before implementation. A change to promotion acceptance needs explicit recorded owner policy; no recurring full suite or new ledger. Batch: evaluation/report closure."
+        }
+      ]
+    },
+    {
+      "id": "capability-measurements",
+      "title": "Record the load phase of every capability the cycle measures",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 406,
+        "reason": "the capability runtime times its two load sites and carries the wall in its measurement, the driver keeps a process-wide current and peak, recipe measure records both, and the scorecard reads a sampled zero as measured; the fresh-operation context and hasher Reader-only boundary add bounded correctness plumbing; no speedup or simplification claim for fresh measurements"
+      },
+      "steps": [
+        {
+          "id": "attempts",
+          "title": "Give the rows with no serving attempt a producer the cycle runs",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Six rows have no completed serving attempt. Fractale generation: cmd/validate/surfaces.go kindValidation has no generation case, so no cell. granite and nemotron transcription and webssl image-embedding: the command is bound and their verifications retain runnable requests, but the cell is current by its acceptance receipt, so nothing schedules recipe measure (one manual run fills them; validate-currency's every-cell cycle keeps them filled). Qwen3.8-27B and gemma-4-E4B projection: a projection capability has no executor, so recipe measure refuses it; its proof re-verifies and publishes no attempt, and E4B's producer publishes observations a gate depends on, which the scorecard excludes. Qwen2.5-0.5B training: trainingworkflow/heldout_run.go records no load phase where its sibling routes do. The verify is set per producer as each is built. 2026-10-03: the generation cell and the text held-out run's load phase land with step run-the-model. Left here: a measured producer for the two projection rows (design: about 60-80 lines in cmd/recipe reusing observeInference, verifiedCase and projectedExactRuntime; whether E4B qualifies is unverified), transcription throughput, training throughput and peak, and vqa's load.\nLead scope correction 2026-10-03: the fresh-operation/hash landing delivers none of the prepared token/decode reporting, generation producer or held-out load additions. Carry those exact obligations here with transcription/training throughput, projection producers and VQA load. Fresh performance must cite executed phase scope, not a recovered result or prompt-inclusive wall labeled as pure decode."
         }
       ]
     },

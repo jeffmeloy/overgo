@@ -20,18 +20,19 @@ func TestPublicationStoreLifetime(t *testing.T) {
 	err := withPublisher(options{Publish: true, Repository: repository}, func(publish publishModel) error {
 		retained = publish
 		// An admitted idle publisher must leave the database available.
-		lock, err := processlock.Acquire(filepath.Join(repository, "overgodb.lock"), 0o600)
+		lock, err := processlock.Acquire(repository+".lock", 0o600)
 		if err != nil {
 			return err
 		}
 		defer lock.Close()
-		// A publication whose caller has left waits for no writer and carries
-		// the caller's cause; the lock beside it proves the contention.
+		// A publication whose caller has already left carries the cause before
+		// attempting a transaction; writer-wait behavior belongs to the store
+		// transaction fixture. The acquired lock above proves idle availability.
 		left := errors.New("the publication's caller left")
 		ctx, leave := context.WithCancelCause(t.Context())
 		leave(left)
 		if _, err := publish(ctx, record.Inputs.Model, record); !errors.Is(err, left) {
-			t.Fatalf("publication must wait cancellably, not reopen and fail immediately: %v", err)
+			t.Fatalf("cancelled publication lost its caller cause: %v", err)
 		}
 		if err := lock.Close(); err != nil {
 			return err

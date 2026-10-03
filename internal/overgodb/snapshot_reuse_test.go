@@ -147,7 +147,7 @@ func TestSnapshotReuseAcceptance(t *testing.T) {
 		}
 	})
 	t.Run("contention and cancellation", func(t *testing.T) {
-		lock, err := processlock.Acquire(filepath.Join(store.root, lockFilename), storeFileMode)
+		lock, err := processlock.Acquire(writerLockPath(store.root), storeFileMode)
 		if err != nil {
 			t.Fatal(err)
 		}

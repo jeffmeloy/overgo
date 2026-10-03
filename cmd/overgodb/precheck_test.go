@@ -91,7 +91,7 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 		t.Fatal(err)
 	}
 	// serves opens the store at root and requires head and every content.
-	serves := func(root string, head artifact.CommitID) {
+	serves := func(root string, head artifact.CommitID, extra ...artifact.Content) {
 		t.Helper()
 		store, err := overgodb.OpenReadOnly(root)
 		if err != nil {
@@ -101,7 +101,7 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 		if got, _ := store.Head(); got != head {
 			t.Fatalf("%s is at head %s, want %s", root, got, head)
 		}
-		for _, content := range contents {
+		for _, content := range append(contents, extra...) {
 			got, found, err := artifact.ReadContent(t.Context(), store, content.Descriptor.ID)
 			if err != nil || !found || !bytes.Equal(got.Data, content.Data) {
 				t.Fatalf("%s does not serve %s: found=%t %v", root, content.Descriptor.ID, found, err)
@@ -126,11 +126,33 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 		t.Fatalf("a rebuild into an existing store = %v", err)
 	}
 	serves(candidate, head)
-	if _, err := swapStores(live, filepath.Join(base, "absent"), original.String()); err == nil {
+	t.Run("completed writer invalidates the candidate", func(t *testing.T) {
+		changing, stale := filepath.Join(base, "changing"), filepath.Join(base, "stale")
+		for _, destination := range []string{changing, stale} {
+			if _, err := overgodb.CloneStore(live, destination); err != nil {
+				t.Fatal(err)
+			}
+		}
+		writer, err := overgodb.Open(changing)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tail := textContent(t, "acknowledged after the candidate snapshot")
+		newer, err := writer.Commit(t.Context(), artifact.Batch{Key: "cutover/newer", Contents: []artifact.Content{tail}})
+		if err := errors.Join(err, writer.Close()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := overgodb.ReplaceStore(t.Context(), changing, stale, original.String()); err == nil {
+			t.Fatal("a candidate built before an acknowledged write replaced the live store")
+		}
+		serves(changing, newer, tail)
+		serves(stale, original)
+	})
+	if _, err := overgodb.ReplaceStore(t.Context(), live, filepath.Join(base, "absent"), original.String()); err == nil {
 		t.Fatal("a swap without a candidate succeeded")
 	}
 	serves(live, original)
-	superseded, err := swapStores(live, candidate, original.String())
+	superseded, err := overgodb.ReplaceStore(t.Context(), live, candidate, original.String())
 	if err != nil || filepath.Base(superseded) != "store.superseded-"+original.String()[:12] {
 		t.Fatalf("swap = (%q, %v)", superseded, err)
 	}
@@ -139,7 +161,7 @@ func TestFailedReplacementKeepsTheLivePath(t *testing.T) {
 	if err := os.Mkdir(candidate, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := swapStores(live, candidate, original.String()); err == nil || !strings.Contains(err.Error(), "already exists") {
+	if _, err := overgodb.ReplaceStore(t.Context(), live, candidate, original.String()); err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("swap over an occupied superseded path = %v", err)
 	}
 	serves(live, head)

@@ -78,7 +78,7 @@ func (s *Store) Backup(ctx context.Context, destinationRoot string) (*BackupRepo
 		return report, err
 	}
 	// Pin mutable journal and checkpoint paths through capture.
-	lock, err := processlock.AcquireContext(ctx, filepath.Join(s.root, lockFilename), storeFileMode)
+	lock, err := processlock.AcquireContext(ctx, writerLockPath(s.root), storeFileMode)
 	if err != nil {
 		return report, err
 	}

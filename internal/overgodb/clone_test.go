@@ -18,6 +18,11 @@ func TestCloneStoreSharesBlobsAndKeepsTheChain(t *testing.T) {
 	if _, err := fixture.store.Snapshot(ctx); err != nil {
 		t.Fatal(err)
 	}
+	// Old backups may still carry the former in-store writer lock.
+	// Make its exclusion a real clone input rather than a missing-file check.
+	if err := os.WriteFile(filepath.Join(fixture.root, lockFilename), nil, storeFileMode); err != nil {
+		t.Fatal(err)
+	}
 	head, sequence := fixture.store.Head()
 	destination := filepath.Join(t.TempDir(), "candidate")
 	report, err := CloneStore(fixture.root, destination)

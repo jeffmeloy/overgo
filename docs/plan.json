@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-regressed-inference",
-      "title": "Recover inference held-out quality, which fell below the baseline scorecard",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Recover inference held-out quality, which fell below the baseline scorecard",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-inference",
-          "rationale": "- gemma-4-12B-it-fp8-native held-out-quality: 0.285488697 to 0.283078457 (accuracy, store/mmlu-pro (raw-completion))\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261003T052610Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline. Review 2026-10-03 (cycle 6, from 299655aaa, withheld on this alone): the baseline value 0.285488697 is the newest record cycle 5's scorecard read, made at a commit 31 days and about 115 runtime commits before 299655aaa; cycle 6 re-measured this retained contract (blocking since SQA-071) for the first time, its replay missed on a float and the full run scored 0.283078457, about 29 of 12,032 cases. 1cdb20685..299655aaa changed only evaluation replay code, so the hypothesis is that main's own code scores 0.283078457 too and the drop predates main. Measure first: run the same evaluate worker (-family mmlu-pro, raw completion) on gemma-4-12B-it-fp8-native from a worktree at 1cdb20685 and compare its per-case observations byte for byte with cycle 6's report. Identical: the regression is the baseline's stale value, not this candidate; then fix how a baseline cell measured at a commit other than the baseline's is judged (the scorecard labels newest records with the publishing commit), and file the month's drift for review (git bisect run over the changed cases, which costs minutes, not a full run per step). Different: bisect 1cdb20685..299655aaa."
-        }
-      ]
-    },
-    {
       "id": "training-rate-per-layer",
       "title": "Measure whether a per-step relative Muon rate transfers across models",
       "owner": "master-lead",
@@ -44,7 +29,66 @@
           "title": "Close the measured decode and load gaps: Unlimited-OCR decode first",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner analysis 2026-10-02, checked against scorecard-20261002 values (RTX 4090 D, ~1 TB/s; bounds weights-only, rough): Unlimited-OCR (deepseek2-ocr MoE, ~6 GB) 3.93 tok/s, under 1% of bound, peak 10 GiB for a ~6 GB file; Bonsai-27B Q1_0 33.2 tok/s (~13%; prefill batched, decode per-vector); gemma-4-E4B 49.3 (~40%); gemma-4-12B fp8-native 41.5 (~50%); gemma-4-12B-it-fp8 (non-native) 31.1 tok/s, load 31.1 s, peak 22.5 GiB against native 41.5 / 22.6 s / 14.7 GiB at equal held-out quality (0.4919 vs 0.4926) - ask first whether it still serves anything; Qwen3.8-27B 26.6 (~60%); Qwen3.5-4B/9B 76-81 (65-72%); Qwen2.5-0.5B 333 (~33%, launch-bound). Load 21.7-31.1 s for the large models (before the gguf header fix). Steps, measure first: (1) profile Unlimited-OCR decode (expert dispatch on host or per-expert syncs?); (2) per-phase load breakdown (header, hash, read, upload, other) for gemma-12B, Qwen3.8-27B, E4B - the ~12 s re-hash on gemma-12B is an extrapolation, not a measurement; (3) fixes as one inference-surface batch: OCR decode, hash-while-uploading single-pass load (keeps integrity: refuse to serve on mismatch), Bonsai 1-bit dequantize-in-register decode; (4) E4B and gemma-12B kernel breakdowns. Sequencing: after media proofs are re-acquirable and a first promotion, since every fix moves the inference surface (re-evaluation ~4-5 h). Serves: inference (throughput, load-time, first-output). Update 2026-10-03: both sequencing conditions hold (media proofs re-acquire; main promoted 10-02), and evaluation replay carries a perf-only surface move in minutes when outputs stay byte-identical, so a decode fix no longer costs hours of re-evaluation. Unlimited-OCR also sets the cycle's cost: its guard alone is 11m43 of the 28-minute guard and serving block, and its ifeval has never finished. The verify is set once the decode profile names the cause. Parked finding 870a92db holds the same analysis."
+          "rationale": "Owner analysis 2026-10-02, checked against scorecard-20261002 values (RTX 4090 D, ~1 TB/s; bounds weights-only, rough): Unlimited-OCR (deepseek2-ocr MoE, ~6 GB) 3.93 tok/s, under 1% of bound, peak 10 GiB for a ~6 GB file; Bonsai-27B Q1_0 33.2 tok/s (~13%; prefill batched, decode per-vector); gemma-4-E4B 49.3 (~40%); gemma-4-12B fp8-native 41.5 (~50%); gemma-4-12B-it-fp8 (non-native) 31.1 tok/s, load 31.1 s, peak 22.5 GiB against native 41.5 / 22.6 s / 14.7 GiB at equal held-out quality (0.4919 vs 0.4926) - ask first whether it still serves anything; Qwen3.8-27B 26.6 (~60%); Qwen3.5-4B/9B 76-81 (65-72%); Qwen2.5-0.5B 333 (~33%, launch-bound). Load 21.7-31.1 s for the large models (before the gguf header fix). Steps, measure first: (1) profile Unlimited-OCR decode (expert dispatch on host or per-expert syncs?); (2) per-phase load breakdown (header, hash, read, upload, other) for gemma-12B, Qwen3.8-27B, E4B - the ~12 s re-hash on gemma-12B is an extrapolation, not a measurement; (3) fixes as one inference-surface batch: OCR decode, hash-while-uploading single-pass load (keeps integrity: refuse to serve on mismatch), Bonsai 1-bit dequantize-in-register decode; (4) E4B and gemma-12B kernel breakdowns. Sequencing: after media proofs are re-acquirable and a first promotion, since every fix moves the inference surface (re-evaluation ~4-5 h). Serves: inference (throughput, load-time, first-output). Update 2026-10-03: both sequencing conditions hold (media proofs re-acquire; main promoted 10-02), and evaluation replay carries a perf-only surface move in minutes when outputs stay byte-identical, so a decode fix no longer costs hours of re-evaluation. Unlimited-OCR also sets the cycle's cost: its guard alone is 11m43 of the 28-minute guard and serving block, and its ifeval has never finished. The verify is set once the decode profile names the cause. Parked finding 870a92db holds the same analysis. Code study 2026-10-03 (scratchpad ocr-decode.md; nothing run on the device yet): Unlimited-OCR decodes through the same path as the fast models (device KV cache, one replayed graph, one synchronization and a 4-byte download per token: internal/inference/device_cache.go:630-700, internal/cuda/executor/executor.go:2094-2133). The one node that differs is OpMoE: launchMoE starts moe_grouped_f32 as one 256-thread block per token (internal/cuda/executor/launch_moe.go:146-165), so a decode step runs each of the 11 routed layers on one of the device's ~114 multiprocessors, and inside the block the router runs on thread 0 alone, 497 dot products of 1280 (kernels/cuda/ops_f32.cu:3754-3834), before 8 warps compute the experts one row per thread (:3840-3914). 11 layers at about 23 ms is the measured 254 ms step, and the same arithmetic reproduces the 366 tok/s long prefill and 0.51 s per mmlu-pro case. The 10 GiB peak is the rank-3 bf16 expert banks widened to F32 at load (internal/inference/runner_lifecycle.go:279-288; internal/tensor/builder_moe.go:110-115): 9.69 GB + 1.02 GB. Refuted by code: host expert dispatch, per-expert synchronizations, a missing KV cache, a host fallback, per-step conversion. Measure first when the device is free: OVERGO_CUDA_TEST=1 OVERGO_OCR_DECODE_PROFILE=1 go test ./internal/cuda/executor -run '^TestZZOCRDecodeProfile$' -count=1 -v (scratch test in ocr-wt) gives the per-launch time and the router/expert split. Fixes, one surface move: (A) router logits across the block's threads, same chains in the same order; (B) the expert phase as launches spanning the device, keeping each dot's order and the down accumulation's slot and tile grouping; (C) keep the expert banks bf16 (exact widening in the kernel), 9.98 to 5.47 GiB. Each is bit-identical by construction and proven by a golden of the current kernel's output bits plus the evaluation replay. moe_f32 is bound and never launched: delete it in the same change. A and B touch kernels/ and internal/cuda/kernel, pinned media runtime paths, so the landing carries a reviewed delta."
+        }
+      ]
+    },
+    {
+      "id": "capability-measurements",
+      "title": "Record the load phase of every capability the cycle measures",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record the load phase of every capability the cycle measures",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime ./cmd/recipe -count=1 -run '^(TestMeasurementCarriesTheLoadWall|TestCapabilityMeasurementRecordsLoadAndDevicePeak)$'",
+          "rationale": "Scorecard at 5455dc909: load-time is unmeasured on 20 rows and peak-device-memory on 18, nearly every non-inference capability, and six rows have no serving attempt; the twelve scorecard-unmeasured-* rows the loop proposed are these cells by task, and they close as their gaps close. Root causes (scratchpad measure-cells.md, 2026-10-03): recipe measure records a WholeOutput attempt that carries no phases (cmd/recipe/main.go:482-502; internal/servingattempt/servingattempt.go:25-32), and the load boundary sits inside each executor. This step, built (measure-cells.patch, reworked after review to half its first size): capabilityruntime times its own two load call sites (runtime.go, session_director.go) and carries the wall in the Measured value it already returns, cmd/recipe passes it into the attempt, and servingattempt writes it as the load phase; every catalog executor but vqa records one, and a request a resident session serves records zero. No pinned or inference-root path is touched, but capabilityruntime is in the evaluation and training closures, so benchmark and training-proof records read as moved and the next cycle re-acquires them (replays and six proofs): land it in the same window as the decode surface batch. After landing, run the sixteen recipe measure commands in the notes once (the cells are current by receipt, so no cycle re-runs them): 16 load cells fill and four rows get their first attempt. Serves: measure and find the gap (load-time)."
+        },
+        {
+          "id": "peak",
+          "title": "Record a measured capability's peak device memory from one process-wide ledger",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "No honest per-attempt peak exists outside two video runtimes: capabilityruntime asks the loaded model for PeakDeviceBytes (measured.go:44-52), only Wan and LiveEdit implement it, and Wan still records 0 because its sessions read their statistics through the stage's cancelled context (latentvideo/runtime.go:135-136). Allocation accounting is per driver.Library (internal/cuda/driver/driver_windows.go:584-601), one per worker. One mechanism for every task: a process-wide current and peak beside accountAllocation and accountFree with an accessor, read by recipe measure for its one process and one attempt; it also corrects LiveEdit, whose 3.04 GiB is the larger of two sessions resident together (hypothesis, measure). internal/cuda is a pinned media runtime path and moves every surface, so this lands with a reviewed delta in a surface batch (the decode batch of inference-decode-gaps is the natural one). Nine of the eighteen rows run on the host and allocate no device memory: their honest peak is a measured zero, which the scorecard must tell from unmeasured. The verify is set when the ledger is built."
+        },
+        {
+          "id": "run-the-model",
+          "title": "Make recipe measure run the model instead of recovering a stored stage",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Measured 2026-10-03 (hermetic check, two identical single-stage executions: loads=2, runs=1): a run is keyed on recipe and request (capabilityruntime/run_key.go:13-15) and a stage whose receipt is complete is recovered from the store (workflowruntime/runtime.go:481,529-587); recipe measure runs the verification's own request under the same recipe, so for forecast, tabular, image-embedding, generation and transcription the measured attempt loads the model and returns the stored output, and for vqa it returns the stored answer without loading (RxBrain vqa first-output 135 ms against a 6.6 s training load). First-output on those rows is load plus replay, not what a user waits for. Decide the smallest honest form: a measure run that never recovers a stage. Parked finding 'recipe measure replays outputs' is this. The verify is a test that a measured attempt of a single-stage capability runs its node."
+        },
+        {
+          "id": "attempts",
+          "title": "Give the rows with no serving attempt a producer the cycle runs",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Six rows have no completed serving attempt. Fractale generation: cmd/validate/surfaces.go kindValidation has no generation case, so no cell. granite and nemotron transcription and webssl image-embedding: the command is bound and their verifications retain runnable requests, but the cell is current by its acceptance receipt, so nothing schedules recipe measure (one manual run fills them; validate-currency's every-cell cycle keeps them filled). Qwen3.8-27B and gemma-4-E4B projection: a projection capability has no executor, so recipe measure refuses it; its proof re-verifies and publishes no attempt, and E4B's producer publishes observations a gate depends on, which the scorecard excludes. Qwen2.5-0.5B training: trainingworkflow/heldout_run.go records no load phase where its sibling routes do. The verify is set per producer as each is built."
+        }
+      ]
+    },
+    {
+      "id": "longform-guard-selection",
+      "title": "Delete longform's guard selection modes, which nothing calls",
+      "class": "consolidation",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete longform's guard selection modes, which nothing calls",
+          "status": "open",
+          "verify": "go test ./cmd/longform ./internal/longform -count=1",
+          "rationale": "Finding ed0e05a6 (2026-10-02): cmd/longform -guard-select (with -paths-file) and -guard-coverage derived required guard checks from changed paths and reported guard coverage; cmd/validate's selection replaced them and no command, script, gate stage, lane or document invokes them (git grep over every tracked file, 2026-10-03; cmd/validate calls only longform latest-records and -guard -publish). Patch built (scratchpad guard-selection-delete.patch): guard_coverage.go, guard_selection.go, internal/longform/impact.go and their tests go, 296 production and 346 test lines; inferencesurface.Moves is then caller-less in production and stays for the surface measurements that use it. internal/longform is a cuda lane package, so this lands when no cycle holds the device. Found beside it: TestAcceptedGuardCatalog and TestAcceptedCompletedGuardCohorts need OVERGO_STORE_ACCEPTANCE, which no lane sets for cmd/longform, and both fail against the live store at HEAD (every cohort: baseline lacks realized residency) with or without this patch; that is the second step, run-or-go. Serves: loop speed and review (validation code shrinks)."
+        },
+        {
+          "id": "acceptances",
+          "title": "Run or delete longform's two store acceptances no lane runs",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "TestAcceptedGuardCatalog and TestAcceptedCompletedGuardCohorts (cmd/longform/guard_acquisition_test.go) are gated on OVERGO_STORE_ACCEPTANCE, which the models lane does not set, so they declare themselves inapplicable in every cycle; run by hand on 2026-10-03 at 5455dc909 they fail for all nine cohorts (prior record lost its admitted producer: baseline lacks realized residency). By the env-gated-tests-run-or-go rule: either the catalog they pin (historical guard references, -check and -validate-baselines admission) still guards something, and then the lane sets the variable and the records are repaired, or the acceptances and the production code only they exercise go. Measure first: list what production code in cmd/longform and internal/longform only these two tests and -check/-validate-baselines reach, and whether cmd/validate's guard digest currency already covers what they assert. The verify is set by that measurement."
         }
       ]
     },
@@ -623,7 +667,9 @@
             "evaluation-replay/do",
             "cycle-measure-worktree/do",
             "validate-currency/do",
-            "inference-decode-gaps/do"
+            "inference-decode-gaps/do",
+            "longform-guard-selection/do",
+            "capability-measurements/do"
           ]
         }
       ]

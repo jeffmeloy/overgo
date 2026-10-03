@@ -97,34 +97,17 @@ func testOrDocPath(path string) bool {
 	return strings.HasPrefix(slash, "docs/")
 }
 
-// surfaceAffected derives, from a commit's changed paths, which modality
-// surfaces the change can move. A module/kernel/driver change moves every
-// surface; a change under a surface's package closure moves that surface; test
-// and documentation changes move nothing. This is the commit-change-driven core
-// of "no unnecessary testing".
-func surfaceAffected(ctx context.Context, root string, changed []string) (map[SurfaceID]AffectRecord, error) {
-	out := make(map[SurfaceID]AffectRecord, len(modalitySurfaces))
-	for id, surface := range modalitySurfaces {
-		// An authority path moves the surface whatever its packages are, so
-		// they are listed only when none changed.
-		moved := surfaceMoves(nil, changed)
-		if !moved.Affected {
-			dirs, err := surfaceDirectories(ctx, root, surface.roots)
-			if err != nil {
-				return nil, err
-			}
-			moved = surfaceMoves(dirs, changed)
-		}
-		out[id] = moved
-	}
-	return out, nil
+// AffectRecord records whether changes moved one surface and why.
+type AffectRecord struct {
+	Affected bool
+	Reason   string
 }
 
 // surfaceMoves says whether changed paths move the surface whose package
 // directories are dirs, and why: an authority path moves it, as it moves
 // every surface, and so does a change under one of its directories; test and
-// documentation changes move nothing. The commit range and the
-// current-evidence decision both judge movement by it.
+// documentation changes move nothing. The current-evidence decision judges a
+// commit-bound record's movement by it.
 func surfaceMoves(dirs, changed []string) AffectRecord {
 	for _, path := range changed {
 		if !testOrDocPath(path) && globalAuthorityPath(path) {

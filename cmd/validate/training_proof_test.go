@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -207,13 +208,11 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	otherSuite := projection("OtherSuite", exactRan(suite))
 
 	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded, objective, exact, protocol, otherSuite}
-	affected := map[SurfaceID]AffectRecord{"training": {Affected: true, Reason: "fixture"}, "evaluation": {Affected: true, Reason: "fixture"}}
 	for _, task := range []recipe.Task{
 		recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskTranscription,
 		recipe.TaskVQA, recipe.TaskSeq2Seq, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskImageEmbedding,
 	} {
 		for _, validation := range kindValidation(task) {
-			affected[validation.Surface] = AffectRecord{Affected: true, Reason: "fixture"}
 			cells = append(cells, ModelValidation{
 				Model: testutil.ArtifactID(t, artifact.KindModel, string(task)), ModelName: string(task),
 				Location: "C:/models/" + string(task) + "/model.safetensors", Directory: "C:/models/" + string(task),
@@ -227,7 +226,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	if err := groundProjection(ctx, root, store, cells); err != nil {
 		t.Fatal(err)
 	}
-	plan := SelectValidation(Inputs{AffectedSurfaces: affected, Registered: cells, Current: func(ModelValidation) error { return nil }})
+	plan := SelectValidation(Inputs{Registered: cells, Current: func(ModelValidation) error { return errors.New("no record holds at this tree") }})
 	if len(plan.Run) != len(cells) {
 		t.Fatalf("promotion waits on %d of %d proofs: background=%+v", len(plan.Run), len(cells), plan.Background)
 	}

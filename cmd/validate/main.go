@@ -1,11 +1,9 @@
 // validate selects and runs the minimal sufficient end-to-end validation of the
 // whole system for one commit: it accounts for every registered model, derives
 // the appropriate validation for each declared function, and runs the
-// validations whose surface the commit's changes moved or whose accepted
-// record is not bound to the identity the code is at now, reusing only
-// current evidence, and runs the improvement cycle's lanes, the real-model
-// suites no landing runs, that changes since the promoted commit reach. The
-// default dry run computes and prints the plan without loading a model or a
+// validations whose accepted record is not bound to the identity the code is
+// at now, reusing only current evidence, and runs the improvement cycle's
+// lanes, the real-model suites no landing runs. The default dry run computes and prints the plan without loading a model or a
 // device; -run executes the selected cells and lanes. -claims holds the
 // claims compatibility.json and the training specifications make to the
 // sources they bind and checks the matrices published from them; a claim whose
@@ -55,9 +53,8 @@ func run() error {
 
 func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("validate", flag.ContinueOnError)
-	root := flags.String("root", ".", "repository root: the commit range and surfaces are read from it")
+	root := flags.String("root", ".", "repository root: the surfaces and lanes are read from it")
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data-root contract")
-	baseline := flags.String("baseline", "HEAD~1", "commit to diff against; the change set is baseline..HEAD")
 	execute := flags.Bool("run", false, "execute the selected validations promotion waits on and the cycle lanes (default: dry run prints the plan only)")
 	background := flags.Bool("background", false, "with -run: execute the background validations instead, the suites the baseline scorecard does not compare, which never block promotion")
 	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as validated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
@@ -86,11 +83,11 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		Audience: "the master-lead session and its unattended driver validating the whole system per commit",
 		Constraints: []string{
 			"the default dry run itself loads no model and opens no device: it reads the guard records, smoke runs and acceptance receipts (go test's cache replays unchanged ones) and prints the plan as JSON",
-			"a cell runs when the commit's changes move its surface or its accepted record is not bound to the identity the code is at now; it is reused only when that record is current",
+			"a cell runs when its accepted record is not bound to the identity the code is at now, and a serving cell or a DNA model's smoke run is re-acquired every cycle; it is reused only when that record is current, and a benchmark that runs replays its newest record first",
 			"promotion waits on every guard, serving cell, proof and cycle lane, and on a benchmark that re-measures the held-out contract the baseline scorecard beside the store compares; any other benchmark that runs is background, and -run -background runs those",
 			"every registered model is accounted for; each available model is dispatched by its declared functions",
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
-			"-scorecard reads the store and the serving source: it loads no model, opens no device and needs no commit range",
+			"-scorecard reads the store and the serving source: it loads no model and opens no device",
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
 			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
 			"-models, -media and -check-census read the store; -export-samples writes only under docs/media_samples; -publish-census and -record-verification write the store",
@@ -190,23 +187,6 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		return errors.Join(err, store.Close())
 	}
 
-	head, err := revParse(ctx, *root, "HEAD")
-	if err != nil {
-		return err
-	}
-	base, err := revParse(ctx, *root, *baseline)
-	if err != nil {
-		return err
-	}
-	changed, err := changedPaths(ctx, *root, base, head)
-	if err != nil {
-		return err
-	}
-	affected, err := surfaceAffected(ctx, *root, changed)
-	if err != nil {
-		return err
-	}
-
 	// One store, resolved once and absolute: the store this command reads is
 	// the one every producer it launches at the repository root writes.
 	storeRoot, err := dataroot.StoreRoot(*repository)
@@ -246,10 +226,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, read.current, storeRoot))
 	}
 
-	plan := SelectValidation(Inputs{Baseline: base, Head: head, ChangedPaths: changed, AffectedSurfaces: affected, Registered: registered, Current: read.current, Scorecard: compared})
-	if plan.Suites, err = cycleSuites(ctx, *root, head, changed); err != nil {
-		return err
-	}
+	plan := SelectValidation(Inputs{Registered: registered, Current: read.current, Scorecard: compared})
+	plan.Suites = cycleSuites()
 	if *execute {
 		return executeRun(ctx, output, *root, storeRoot, plan, *background)
 	}
@@ -322,19 +300,4 @@ func revParse(ctx context.Context, root, revision string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
-}
-
-// changedPaths lists the repository-relative paths that differ across base..head.
-func changedPaths(ctx context.Context, root, base, head string) ([]string, error) {
-	out, err := gitauthority.Query(ctx, root, "diff", "--name-only", base+".."+head)
-	if err != nil {
-		return nil, err
-	}
-	var paths []string
-	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			paths = append(paths, trimmed)
-		}
-	}
-	return paths, nil
 }

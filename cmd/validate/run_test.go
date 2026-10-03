@@ -16,7 +16,6 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
 )
@@ -47,14 +46,11 @@ func TestReacquireCommand(t *testing.T) {
 	}
 }
 
-// TestDNAGuardBindsTheSmokeLane holds a DNA model's stale guard cell to its
-// owner. Its smoke run predates an inference surface move, so the
-// current-evidence decision refuses it and the cell runs; -run then binds
-// validate -smoke on that model into the selected store, the very command the
-// refusal names, never the text guard and never no command at all.
+// TestDNAGuardBindsTheSmokeLane holds a DNA model's guard cell to its owner:
+// the cell runs every cycle, and -run binds validate -smoke on that model
+// into the selected store, never the text guard and never no command at all.
 func TestDNAGuardBindsTheSmokeLane(t *testing.T) {
 	t.Parallel()
-	root, beforeSurface, _, _ := surfaceHistory(t)
 	const store = "C:/stores/selected"
 	carbon := testutil.ArtifactID(t, artifact.KindModel, "carbon")
 	cell := ModelValidation{
@@ -62,20 +58,14 @@ func TestDNAGuardBindsTheSmokeLane(t *testing.T) {
 		Kind: recipe.TaskInference, Modality: dnaModality, Validation: guardValidation, Surface: "inference",
 		Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "carbon-inference"),
 	}
-	stale := runrecord.Run{Outcome: runrecord.OutcomeSucceeded, CodeCommit: beforeSurface}
-	read := acceptedRecords{smoke: map[artifact.ID]error{carbon: smokeCurrent(t.Context(), root, store, carbon, stale, true)}}
-	plan := SelectValidation(Inputs{AffectedSurfaces: map[SurfaceID]AffectRecord{"inference": {}}, Registered: []ModelValidation{cell}, Current: read.current})
-	if len(plan.Run) != 1 || plan.Run[0].Model != carbon || !strings.Contains(plan.Run[0].Reason, "inference surface moved") {
-		t.Fatalf("a stale DNA smoke run was not selected to run: run=%+v reuse=%+v", plan.Run, plan.Reuse)
+	plan := SelectValidation(Inputs{Registered: []ModelValidation{cell}, Current: acceptedRecords{}.current})
+	if len(plan.Run) != 1 || plan.Run[0].Model != carbon || plan.Run[0].Reason != "run: "+errEveryCycle.Error() {
+		t.Fatalf("a DNA guard did not run every cycle: run=%+v reuse=%+v", plan.Run, plan.Reuse)
 	}
-
 	name, args, err := reacquireCommand(plan.Run[0].ModelValidation, store)
 	want := []string{"run", "./cmd/validate", "-smoke", "-budget", "15m", "-model", carbon.String(), "-repo", store}
 	if err != nil || name != "go" || !slices.Equal(args, want) {
-		t.Fatalf("a stale DNA cell bound (%q, %v, %v), want go %v", name, args, err, want)
-	}
-	if bound := "run: go " + strings.Join(want, " "); !strings.HasSuffix(plan.Run[0].Reason, bound) {
-		t.Fatalf("the refusal %q does not name the bound command %q", plan.Run[0].Reason, bound)
+		t.Fatalf("a DNA cell bound (%q, %v, %v), want go %v", name, args, err, want)
 	}
 }
 
@@ -268,10 +258,10 @@ func TestValidateRunEmpty(t *testing.T) {
 	}
 }
 
-// TestValidateRunCycleLanes runs each selected cycle lane's go command with
-// its environment and only those: a lane that passes is counted, one that
-// fails fails the run by name, so the loop withholds promotion, and a reused
-// lane never starts. A command other than go test answers by its exit; a go
+// TestValidateRunCycleLanes runs each cycle lane's go command with its
+// environment: a lane that passes is counted, and one that fails fails the
+// run by name, so the loop withholds promotion. A command other than go test
+// answers by its exit; a go
 // test lane is acquired only by the outcomes it requires, read from its own
 // run's events: each package it names completes with a passing test its
 // selector matches, a declared exclusion beside them visible but uncredited.
@@ -284,14 +274,13 @@ func TestValidateRunCycleLanes(t *testing.T) {
 	const fixtures = "./internal/testevidence/testdata/"
 	var out bytes.Buffer
 	plan := Plan{Suites: []SelectedSuite{
-		{Lane: "passes", Run: true, Arguments: []string{"env", "GOFLAGS"}, Environment: []string{"GOFLAGS=-tags=lane-environment"}},
-		{Lane: "fails", Run: true, Arguments: []string{"vet", "./no-such-package"}},
-		{Lane: "reused", Arguments: []string{"env", "GOFLAGS"}},
-		{Lane: "tested", Run: true, Arguments: []string{"test", "-tags", "", fixtures + "probefixture"}},
-		{Lane: "failed", Run: true, Arguments: []string{"test", "./no-such-package"}},
-		{Lane: "skipped", Run: true, Arguments: []string{"test", fixtures + "probefixture", fixtures + "skipfixture", "-run", "^TestUnavailableCapability$"}},
-		{Lane: "absent", Run: true, Arguments: []string{"test", fixtures + "probefixture", "-run", "^TestAbsent$"}},
-		{Lane: "inapplicable", Run: true, Arguments: []string{"test", fixtures + "probefixture", "-run", "^TestElsewhere$"}},
+		{Lane: "passes", Arguments: []string{"env", "GOFLAGS"}, Environment: []string{"GOFLAGS=-tags=lane-environment"}},
+		{Lane: "fails", Arguments: []string{"vet", "./no-such-package"}},
+		{Lane: "tested", Arguments: []string{"test", "-tags", "", fixtures + "probefixture"}},
+		{Lane: "failed", Arguments: []string{"test", "./no-such-package"}},
+		{Lane: "skipped", Arguments: []string{"test", fixtures + "probefixture", fixtures + "skipfixture", "-run", "^TestUnavailableCapability$"}},
+		{Lane: "absent", Arguments: []string{"test", fixtures + "probefixture", "-run", "^TestAbsent$"}},
+		{Lane: "inapplicable", Arguments: []string{"test", fixtures + "probefixture", "-run", "^TestElsewhere$"}},
 	}}
 	err := executeRun(t.Context(), &out, testutil.RepoRoot(t), "C:/stores/selected", plan, false)
 	if err == nil {
@@ -311,7 +300,7 @@ func TestValidateRunCycleLanes(t *testing.T) {
 	if !strings.Contains(inapplicable, "cycle lane inapplicable: ") || !strings.Contains(inapplicable, "TestElsewhere") || strings.Contains(failed, "cycle lane inapplicable") {
 		t.Errorf("a lane whose required test declared itself inapplicable is not reported apart from the failures: %v", err)
 	}
-	for _, lane := range []string{"passes", "tested", "reused"} {
+	for _, lane := range []string{"passes", "tested"} {
 		if strings.Contains(err.Error(), "cycle lane "+lane+":") {
 			t.Errorf("cycle lane %s was withheld: %v", lane, err)
 		}
@@ -319,8 +308,8 @@ func TestValidateRunCycleLanes(t *testing.T) {
 	if !strings.Contains(err.Error(), "re-acquired 2 cell(s)") {
 		t.Errorf("cycle lanes run = %v, want the passing and the tested lanes acquired", err)
 	}
-	if !strings.Contains(out.String(), "lane-environment") || strings.Contains(out.String(), "cycle lane reused") {
-		t.Fatalf("cycle lane output = %q, want the passing lane run with its environment and the reused one not started", out.String())
+	if !strings.Contains(out.String(), "lane-environment") {
+		t.Fatalf("cycle lane output = %q, want the passing lane run with its environment", out.String())
 	}
 }
 

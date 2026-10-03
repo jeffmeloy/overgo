@@ -89,7 +89,7 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 	}
 	// A benchmark is one evaluate worker over the model and the family's
 	// suite, under the protocol of the record it replaces, which it replays
-	// first when a moved surface is all that makes it run.
+	// first.
 	args := []string{
 		"run", "./cmd/evaluate", "-all", "-worker", "-repo", store, "-model-path", cell.Location,
 		"-family", cell.Validation, "-budget", benchmarkBudget.String(),
@@ -104,8 +104,8 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 }
 
 // executeRun runs the cells promotion waits on smallest-first through the
-// process owner, each into the selected store, then the selected cycle
-// lanes; with background it runs the background cells alone, which the loop
+// process owner, each into the selected store, then the cycle lanes; with
+// background it runs the background cells alone, which the loop
 // asks for after promotion's decision. A cell or lane is acquired only as
 // acquire judges its run, so a go test passes by the outcomes it requires,
 // never by its exit. One that fails is reported, not accepted, and the rest
@@ -117,15 +117,13 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 // environment and publishes its checkpoint beneath a scratch directory
 // emptied before and after it, since its proof is the verification it
 // records; a projection proof's producer runs under the environment it
-// publishes by. An empty run set is the clean "nothing to re-acquire" result
-// the dry run predicts when every judged cell's evidence and every cycle
-// lane's pass is current.
+// publishes by. An empty run set is the clean "nothing to re-acquire" result.
 func executeRun(ctx context.Context, output io.Writer, root, store string, plan Plan, background bool) error {
 	cells, suites := plan.Run, plan.Suites
 	if background {
 		cells, suites = plan.Background, nil
 	}
-	if len(cells) == 0 && !slices.ContainsFunc(suites, func(suite SelectedSuite) bool { return suite.Run }) {
+	if len(cells)+len(suites) == 0 {
 		fmt.Fprintf(output, "validate -run: nothing to re-acquire; %d reused, %d unknown, %d operator-owned, %d registered-inactive\n",
 			len(plan.Reuse), len(plan.Unknown), len(plan.OperatorOwned), len(plan.RegisteredInactive))
 		return nil
@@ -164,10 +162,7 @@ func executeRun(ctx context.Context, output io.Writer, root, store string, plan 
 		record(fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation), errors.Join(err, os.RemoveAll(scratch)))
 	}
 	for _, suite := range suites {
-		if !suite.Run {
-			continue
-		}
-		fmt.Fprintf(output, "validate -run cycle lane %s (%s)\n", suite.Lane, suite.Reason)
+		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)
 		record("cycle lane "+suite.Lane, acquire(ctx, output, root, "go", suite.Arguments, suite.Environment...))
 	}
 	var problems []string

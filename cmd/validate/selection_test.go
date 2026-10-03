@@ -22,8 +22,8 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestCycleRunsWhatPromotionCompares scopes the re-runs a move of every
-// surface forces to what promotion compares. In a fixture repository the
+// TestCycleRunsWhatPromotionCompares scopes the cells that run, none of them
+// current at this tree, to what promotion compares. In a fixture repository the
 // promoted branch holds the commit that the baseline scorecard, published
 // beside the store, measured; its one row holds the model's held-out
 // accuracy on store/mmlu-pro under the chat template. The model's guard,
@@ -32,7 +32,7 @@ import (
 // baseline compares though its newest record ran raw. Its bbh, never run,
 // and its ifeval, stale but compared by no baseline, run in the background,
 // each saying why, and a benchmark another model's declaration excludes is
-// skipped though its surface moved. A baseline that retains another held-out
+// skipped. A baseline that retains another held-out
 // contract beside its headline, raw completion on mmlu-pro or the chat
 // template on ifeval, blocks promotion on that contract too, whichever of
 // them is the headline, while a benchmark no contract names stays in the
@@ -83,12 +83,8 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 		{registered[3].Recipe, "bbh", raw}:                        errors.New("no bbh record for this recipe yet"),
 		{excluded.Recipe, excluded.Validation, excluded.Protocol}: fmt.Errorf("%w: it declares dna", errCellInapplicable),
 	}}
-	moved := AffectRecord{Affected: true, Reason: "authority path internal/cuda/driver.go moves every surface"}
 	selected := func(baseline *scorecard.Record) Plan {
-		return SelectValidation(Inputs{
-			AffectedSurfaces: map[SurfaceID]AffectRecord{"inference": moved, "evaluation": moved, "training": moved},
-			Registered:       compareContracts(slices.Clone(registered), baseline), Current: read.current, Scorecard: baseline,
-		})
+		return SelectValidation(Inputs{Registered: compareContracts(slices.Clone(registered), baseline), Current: read.current, Scorecard: baseline})
 	}
 	// scheduled names each cell of a bucket by its validation and, for a
 	// benchmark, the protocol it runs under.
@@ -189,8 +185,8 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 // its suite is. The baseline compares a text model on store/mmlu under the
 // chat template, a family no inference activation is benchmarked on by
 // default; a DNA model on store/dna; another text model on store/mmlu-pro;
-// and a projection on a set outside the derived catalog. After a move of
-// every surface, each compared contract is one blocking cell under the
+// and a projection on a set outside the derived catalog. With no record
+// current, each compared contract is one blocking cell under the
 // protocol compared, re-run by one evaluate worker on its family; the DNA
 // model's declaration skips its text suites but never dna; the other
 // benchmarks run in the background; and the projection gains no benchmark.
@@ -252,11 +248,7 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 		}
 		registered[index] = judged
 	}
-	moved := AffectRecord{Affected: true, Reason: "authority path internal/cuda/driver.go moves every surface"}
-	plan := SelectValidation(Inputs{
-		AffectedSurfaces: map[SurfaceID]AffectRecord{"inference": moved, "evaluation": moved},
-		Registered:       registered, Current: read.current, Scorecard: baseline,
-	})
+	plan := SelectValidation(Inputs{Registered: registered, Current: read.current, Scorecard: baseline})
 
 	benchmarks := func(bucket []Selected) []string {
 		var cells []string
@@ -308,128 +300,67 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 	}
 }
 
-// TestCycleLanesRunUntilThePromotedCommitHoldsThem selects the improvement
-// cycle's lanes the way it selects cells. In a fixture repository a source
-// change under internal/inference, a package of the models lane, is followed
-// by a notes-only commit, so that commit's range reaches no lane. Without a
-// promoted branch every lane runs. While the promoted branch sits before the
-// source change, the models lane runs, since its pass there no longer holds,
-// and the lanes nothing reached are reused. Once the branch holds the source
-// change every lane is reused, and a range that reaches a lane runs it
-// whatever the branch holds.
-func TestCycleLanesRunUntilThePromotedCommitHoldsThem(t *testing.T) {
-	t.Parallel()
-	root, beforeSurface, beforeDocs, head := surfaceHistory(t)
-	selected := func(changed []string) map[string]SelectedSuite {
-		t.Helper()
-		suites, err := cycleSuites(t.Context(), root, head, changed)
-		if err != nil {
-			t.Fatal(err)
-		}
-		lanes := map[string]SelectedSuite{}
-		for _, suite := range suites {
-			lanes[suite.Lane] = suite
-		}
-		return lanes
-	}
-	promote := func(commit string) {
-		t.Helper()
-		if output, err := exec.Command("git", "-C", root, "update-ref", scorecard.PromotedBranch, commit).CombinedOutput(); err != nil {
-			t.Fatalf("promote %s: %v: %s", commit, err, output)
-		}
-	}
-	notes, source := []string{"docs/notes.md"}, []string{"internal/inference/inference.go"}
-	if exec.Command("git", "-C", root, "rev-parse", "--verify", "--quiet", scorecard.PromotedBranch).Run() != nil {
-		for name, lane := range selected(notes) {
-			if !lane.Run || !strings.Contains(lane.Reason, "holds its pass yet") {
-				t.Errorf("with no promoted commit, lane %s = %+v, want it run", name, lane)
-			}
-		}
-	}
-	promote(beforeSurface)
-	lanes := selected(notes)
-	if models := lanes["models"]; !models.Run || !strings.Contains(models.Reason, "changes since the promoted commit") {
-		t.Errorf("a source change since the promoted commit left the models lane %+v", models)
-	}
-	if audio := lanes["audio"]; audio.Run {
-		t.Errorf("no change reaches the audio lane, yet it runs: %+v", audio)
-	}
-	promote(beforeDocs)
-	for name, lane := range selected(notes) {
-		if lane.Run {
-			t.Errorf("the promoted commit holds every change, yet lane %s runs: %+v", name, lane)
-		}
-	}
-	if models := selected(source)["models"]; !models.Run || !strings.Contains(models.Reason, "commit range's changes reach it") {
-		t.Errorf("a range reaching the models lane left it %+v", models)
-	}
-}
-
-// TestSelectValidation covers every decision branch of the pure selection: a
-// commit's changes run the cells whose surface moved or whose accepted record
-// is not current, reuse only current records, and account for operator-owned,
-// registered-inactive and inapplicable cells, with the run bucket ordered
-// cheapest first.
+// TestSelectValidation covers every decision branch of the pure selection,
+// with no commit range among its inputs: a cell runs when its accepted
+// record is not current at this tree or its activation is stale, and a
+// serving cell and a DNA model's smoke run run every cycle; only a current
+// record is reused; a benchmark that runs replays its newest record first,
+// whatever made it run; operator-owned, registered-inactive and inapplicable
+// cells are accounted for; and every bucket is ordered cheapest first.
 func TestSelectValidation(t *testing.T) {
 	t.Parallel()
-	activation := func(seed string) artifact.ID { return testutil.ArtifactID(t, artifact.KindRecipe, seed) }
-	model := func(seed string) artifact.ID { return testutil.ArtifactID(t, artifact.KindModel, seed) }
-	read := acceptedRecords{surface: "surface-now", records: map[string]guardRecord{
-		locationKey("C:/models/qwen05.gguf"): {Surface: "surface-now", Passed: true},
+	previous := testutil.ArtifactID(t, artifact.KindEvaluation, "previous")
+	cell := func(name, validation string, surface SurfaceID, cost int64) ModelValidation {
+		return ModelValidation{
+			Model: testutil.ArtifactID(t, artifact.KindModel, name), ModelName: name, Location: "C:/models/" + name + ".gguf",
+			Kind: recipe.TaskInference, Modality: "text", Validation: validation, Surface: surface,
+			Recipe: testutil.ArtifactID(t, artifact.KindRecipe, name), Cost: cost,
+		}
+	}
+	current, unmeasured, served := cell("current", guardValidation, "inference", 10), cell("unmeasured", guardValidation, "inference", 5), cell("served", servingValidation, "inference", 20)
+	dna := cell("dna", guardValidation, "inference", 3)
+	dna.Modality = dnaModality
+	moved, stale, held := cell("moved", "mmlu-pro", "evaluation", 1200), cell("stale", "mmlu-pro", "evaluation", 30), cell("held", "mmlu-pro", "evaluation", 40)
+	moved.Replay, stale.Replay, held.Replay, stale.Stale = previous, previous, previous, "its recipe was replaced"
+	operated := cell("operated", "mmlu-pro-full", "evaluation", 0)
+	operated.OperatorOnly, operated.OperatorReason = true, "full 27B MMLU-Pro is operator-launched"
+	read := acceptedRecords{surface: "surface-now", records: map[string]guardRecord{locationKey(current.Location): {Surface: "surface-now", Passed: true}}, bound: map[boundKey]error{
+		{moved.Recipe, moved.Validation, moved.Protocol}: errors.New("its mmlu-pro record ran at commit c0ffee and the evaluation surface moved since"),
+		{stale.Recipe, stale.Validation, stale.Protocol}: nil,
+		{held.Recipe, held.Validation, held.Protocol}:    nil,
 	}}
+	plan := SelectValidation(Inputs{Current: read.current, Registered: []ModelValidation{
+		moved, current, unmeasured, served, dna, stale, held, operated,
+		{Model: testutil.ArtifactID(t, artifact.KindModel, "carbon"), ModelName: "Carbon-500M"},
+		{Model: testutil.ArtifactID(t, artifact.KindModel, "livetrain"), ModelName: "livetrain", Kind: recipe.TaskTraining},
+	}})
 
-	in := Inputs{
-		Baseline: "base", Head: "head",
-		ChangedPaths: []string{"kernels/cuda/ops_f32.cu"},
-		AffectedSurfaces: map[SurfaceID]AffectRecord{
-			"image":     {Affected: true, Reason: "kernels/cuda/ops_f32.cu changed"},
-			"inference": {Affected: false, Reason: ""},
-		},
-		Registered: []ModelValidation{
-			// Affected image cell with a big cost -> Run, but ordered after the cheap one.
-			{Model: model("sensenova"), Kind: recipe.Task("image-gen"), Modality: "image", Validation: "media-proof", Surface: "image", Recipe: activation("sn"), Cost: 1200},
-			// Affected image cell, cheaper -> Run first.
-			{Model: model("un0"), Kind: recipe.Task("image-gen"), Modality: "image", Validation: "media-proof", Surface: "image", Recipe: activation("un0"), Cost: 30},
-			// Unaffected inference cell with a current record -> Reuse.
-			{Model: model("qwen05"), Location: "C:/models/qwen05.gguf", Kind: recipe.Task("inference"), Modality: "text", Validation: "guard", Surface: "inference", Recipe: activation("q05"), Cost: 10},
-			// Unaffected inference cell without a record -> Run (first acquisition).
-			{Model: model("newtext"), Location: "C:/models/newtext.gguf", Kind: recipe.Task("inference"), Modality: "text", Validation: "guard", Surface: "inference", Recipe: activation("new"), Cost: 5},
-			// Operator-only cell -> OperatorOwned even though its surface is affected.
-			{Model: model("qwen27"), Kind: recipe.Task("inference"), Modality: "text", Validation: "mmlu-pro-full", Surface: "inference", OperatorOnly: true, OperatorReason: "full 27B MMLU-Pro is operator-launched"},
-			// Registered without activation -> RegisteredInactive.
-			{Model: model("carbon"), ModelName: "Carbon-500M"},
-			// Activation with no applicable validation -> SkipInappropriate.
-			{Model: model("livetrain"), Kind: recipe.Task("training"), Modality: "text"},
-		},
-		Current: read.current,
+	names := func(bucket []Selected) string {
+		var listed []string
+		for _, sel := range bucket {
+			listed = append(listed, sel.ModelName)
+		}
+		return strings.Join(listed, " ")
 	}
-
-	plan := SelectValidation(in)
-
-	if got := len(plan.Run); got != 3 {
-		t.Fatalf("run=%d want 3: %+v", got, plan.Run)
+	for _, bucket := range []struct{ name, got, want string }{
+		{"run", names(plan.Run), "dna unmeasured served"},
+		{"background", names(plan.Background), "stale moved"},
+		{"reuse", names(plan.Reuse), "current held"},
+		{"operator-owned", names(plan.OperatorOwned), "operated"},
+		{"registered-inactive", names(plan.RegisteredInactive), "Carbon-500M"},
+		{"skip-inappropriate", names(plan.SkipInappropriate), "livetrain"},
+	} {
+		if bucket.got != bucket.want {
+			t.Errorf("%s holds %q, want %q", bucket.name, bucket.got, bucket.want)
+		}
 	}
-	// Cheapest first: newtext (5, no evidence) < un0 (30) < sensenova (1200).
-	if plan.Run[0].ModelName == "" && plan.Run[0].Model != in.Registered[3].Model {
-		t.Fatalf("run not ordered cheapest first: %s", plan.Run[0].Model)
+	if every := "run: " + errEveryCycle.Error(); len(plan.Run) != 3 || plan.Run[0].Reason != every || plan.Run[2].Reason != every {
+		t.Fatalf("the DNA guard and the serving cell do not run every cycle: %+v", plan.Run)
 	}
-	if plan.Run[0].Cost > plan.Run[1].Cost || plan.Run[1].Cost > plan.Run[2].Cost {
-		t.Fatalf("run costs not ascending: %d %d %d", plan.Run[0].Cost, plan.Run[1].Cost, plan.Run[2].Cost)
-	}
-	if len(plan.Reuse) != 1 || plan.Reuse[0].Validation != "guard" {
-		t.Fatalf("reuse=%+v", plan.Reuse)
-	}
-	if len(plan.OperatorOwned) != 1 || !plan.OperatorOwned[0].OperatorOnly {
-		t.Fatalf("operator-owned=%+v", plan.OperatorOwned)
-	}
-	if len(plan.RegisteredInactive) != 1 || plan.RegisteredInactive[0].ModelName != "Carbon-500M" {
-		t.Fatalf("registered-inactive=%+v", plan.RegisteredInactive)
-	}
-	if len(plan.SkipInappropriate) != 1 {
-		t.Fatalf("skip-inappropriate=%+v", plan.SkipInappropriate)
-	}
-	if len(plan.AffectedSurfaces) != 1 || plan.AffectedSurfaces[0] != "image" {
-		t.Fatalf("affected surfaces=%v", plan.AffectedSurfaces)
+	for _, sel := range plan.Background {
+		if sel.Replay != previous {
+			t.Errorf("benchmark %s runs (%s) without replaying its newest record", sel.ModelName, sel.Reason)
+		}
 	}
 }
 
@@ -437,20 +368,18 @@ func TestSelectValidation(t *testing.T) {
 // non-nil buckets (a clean commit with nothing to run reads as covered).
 func TestSelectValidationStableEmpty(t *testing.T) {
 	t.Parallel()
-	plan := SelectValidation(Inputs{Baseline: "b", Head: "h"})
+	plan := SelectValidation(Inputs{})
 	if plan.Run == nil || plan.Reuse == nil || len(plan.Run) != 0 {
 		t.Fatalf("empty plan not clean: %+v", plan)
 	}
 }
 
 // TestReuseNeedsCurrentEvidence holds reuse to evidence that is current at
-// this tree, not to a commit range that left a surface alone. A source change
-// moved the inference surface and a plan-only commit followed it, so the
-// default baseline..HEAD moves no surface. A guard cell whose newest record
-// measured the surface before the source change still runs; one whose record
-// measured the surface the code is at now is reused. Both carry an active
-// recipe, which credits neither. The inventory takes the same decision: the
-// first model is activated and names its guard, the second is validated.
+// this tree. A guard cell whose newest record measured the inference surface
+// before a source change runs; one whose record measured the surface the
+// code is at now is reused. Both carry an active recipe, which credits
+// neither. The inventory takes the same decision: the first model is
+// activated and names its guard, the second is validated.
 func TestReuseNeedsCurrentEvidence(t *testing.T) {
 	t.Parallel()
 	active := testutil.ArtifactID(t, artifact.KindRecipe, "active-inference")
@@ -464,14 +393,7 @@ func TestReuseNeedsCurrentEvidence(t *testing.T) {
 		locationKey(cells[0].Location): {Location: locationKey(cells[0].Location), Surface: beforeSource, Commit: "source-change", Passed: true},
 		locationKey(cells[1].Location): {Location: locationKey(cells[1].Location), Surface: afterSource, Commit: "plan-only", Passed: true},
 	}}
-	plan := SelectValidation(Inputs{
-		Baseline: "source-change", Head: "plan-only", ChangedPaths: []string{"docs/plan.json"},
-		AffectedSurfaces: map[SurfaceID]AffectRecord{"inference": {}},
-		Registered:       cells, Current: read.current,
-	})
-	if len(plan.AffectedSurfaces) != 0 {
-		t.Fatalf("a plan-only commit moved %v", plan.AffectedSurfaces)
-	}
+	plan := SelectValidation(Inputs{Registered: cells, Current: read.current})
 	if len(plan.Run) != 1 || plan.Run[0].Model != older || !strings.Contains(plan.Run[0].Reason, "measured inference surface "+beforeSource[:surfaceShown]) {
 		t.Fatalf("a record bound to an older surface was not selected to run: run=%+v reuse=%+v", plan.Run, plan.Reuse)
 	}
@@ -479,8 +401,12 @@ func TestReuseNeedsCurrentEvidence(t *testing.T) {
 		t.Fatalf("a record bound to the current surface was not reused: reuse=%+v run=%+v", plan.Reuse, plan.Run)
 	}
 
+	// The current model's serving cell, re-acquired every cycle whatever it
+	// recorded, neither validates nor demotes it.
+	serving := cells[1]
+	serving.Validation = servingValidation
 	directories := []modelDirectory{{Path: "C:/models/Older", Weights: true}, {Path: "C:/models/Current", Weights: true}}
-	inventory := buildInventory(directories, cells, nil, read.current, "C:/stores/selected")
+	inventory := buildInventory(directories, append(cells, serving), nil, read.current, "C:/stores/selected")
 	// Sorted by directory: Current, then Older.
 	if inventory[0].Standing != standingValidated || inventory[1].Standing != standingActivated || len(inventory[1].Commands) != 1 {
 		t.Fatalf("the inventory disagrees with the plan: %+v", inventory)

@@ -14,8 +14,7 @@ import (
 )
 
 // SurfaceID names one code surface whose change can invalidate a class of
-// evidence. Every validation cell is pinned to exactly one surface; a commit
-// that moves a cell's surface runs the cell whatever its evidence says.
+// evidence. Every validation cell is pinned to exactly one surface.
 type SurfaceID string
 
 // ModelValidation is one (model, declared function, validation) obligation:
@@ -49,7 +48,9 @@ type ModelValidation struct {
 	Objective    string `json:"objective,omitzero"`
 	Conditioning string `json:"conditioning,omitzero"`
 	Projector    string `json:"projector,omitzero"`
-	// Replay is the record a benchmark run only for a moved surface replays.
+	// Replay is the record a benchmark's run replays first: its newest
+	// evaluation, which evaluate carries forward only when the replay
+	// reproduces it.
 	Replay artifact.ID `json:"replay,omitzero"`
 }
 
@@ -61,58 +62,40 @@ type Selected struct {
 	Promotion string `json:"promotion,omitzero"`
 }
 
-// AffectRecord records whether a commit's changes moved one surface and why.
-type AffectRecord struct {
-	Affected bool   `json:"affected"`
-	Reason   string `json:"reason"`
-}
-
-// Inputs are the resolved facts the selection reduces: the commit range, the
-// per-surface affectedness derived from the range's changed paths, every
-// registered model's validation obligations, the one current-evidence
-// decision (acceptedRecords.current) the inventory takes too, and the
-// baseline scorecard the cycle's next record is judged against, nil when
-// none measured the promoted commit.
+// Inputs are the resolved facts the selection reduces: every registered
+// model's validation obligations, the one current-evidence decision
+// (acceptedRecords.current) the inventory takes too, and the baseline
+// scorecard the cycle's next record is judged against, nil when none
+// measured the promoted commit.
 type Inputs struct {
-	Baseline         string                      `json:"baseline"`
-	Head             string                      `json:"head"`
-	ChangedPaths     []string                    `json:"changed_paths"`
-	AffectedSurfaces map[SurfaceID]AffectRecord  `json:"affected_surfaces"`
-	Registered       []ModelValidation           `json:"-"`
-	Current          func(ModelValidation) error `json:"-"`
-	Scorecard        *scorecard.Record           `json:"-"`
+	Registered []ModelValidation
+	Current    func(ModelValidation) error
+	Scorecard  *scorecard.Record
 }
 
-// Plan is the validation decision for one commit: run what the commit's
-// changes affect and what holds no current evidence, promotion waiting on
-// what it compares while the rest runs in the background, reuse only what
-// is current, name the cells no owner judges, and account for every
-// registered model and every lane of the improvement cycle. Scorecard names
-// the baseline scorecard that scoped the run.
+// Plan is the validation decision for one tree: run what holds no current
+// evidence, promotion waiting on what it compares while the rest runs in the
+// background, reuse only what is current, name the cells no owner judges,
+// and account for every registered model and every lane of the improvement
+// cycle. Scorecard names the baseline scorecard that scoped the run.
 type Plan struct {
-	Baseline           string      `json:"baseline"`
-	Head               string      `json:"head"`
-	Scorecard          string      `json:"scorecard"`
-	ChangedPaths       []string    `json:"changed_paths"`
-	AffectedSurfaces   []SurfaceID `json:"affected_surfaces"`
-	Run                []Selected  `json:"run"`
-	Background         []Selected  `json:"background"`
-	Reuse              []Selected  `json:"reuse"`
-	Unknown            []Selected  `json:"unknown"`
-	OperatorOwned      []Selected  `json:"operator_owned"`
-	RegisteredInactive []Selected  `json:"registered_inactive"`
-	SkipInappropriate  []Selected  `json:"skip_inappropriate"`
+	Scorecard          string     `json:"scorecard"`
+	Run                []Selected `json:"run"`
+	Background         []Selected `json:"background"`
+	Reuse              []Selected `json:"reuse"`
+	Unknown            []Selected `json:"unknown"`
+	OperatorOwned      []Selected `json:"operator_owned"`
+	RegisteredInactive []Selected `json:"registered_inactive"`
+	SkipInappropriate  []Selected `json:"skip_inappropriate"`
 
 	Suites []SelectedSuite `json:"suites"`
 }
 
 // SelectedSuite is one lane of the improvement cycle, the real-model suites
-// no landing runs, in the plan: whether it runs, why, and the go command's
-// arguments and added environment that run it.
+// no landing runs, in the plan: the go command's arguments and added
+// environment that run it.
 type SelectedSuite struct {
 	Lane        string   `json:"lane"`
-	Run         bool     `json:"run"`
-	Reason      string   `json:"reason"`
 	Arguments   []string `json:"arguments"`
 	Environment []string `json:"environment,omitzero"`
 }
@@ -120,29 +103,21 @@ type SelectedSuite struct {
 // SelectValidation reduces the resolved inputs to a validation plan. It is
 // pure: no store, git, filesystem or device access, so the whole decision is
 // unit-tested. A cell is inapplicable when its model's own declaration
-// excludes it, whatever moved. Otherwise it runs when this commit's changes
-// move its surface, its activation is stale, or the current-evidence decision
-// refuses its accepted record; it is reused only when that decision finds the
-// record current, and it is unknown when no owner judges it. A short commit
-// range is a reason to run, never proof that older evidence holds. Everything
-// else is operator-owned, registered-inactive, or inapplicable. A cell that
-// runs is scheduled by what promotion compares. Every bucket is ordered
-// cheapest first so a broken run surfaces on a small model in seconds.
+// excludes it. Otherwise it runs when its activation is stale or the
+// current-evidence decision refuses its accepted record; it is reused only
+// when that decision finds the record current, and it is unknown when no
+// owner judges it. Everything else is operator-owned, registered-inactive,
+// or inapplicable. A cell that runs is scheduled by what promotion compares.
+// Every bucket is ordered cheapest first so a broken run surfaces on a small
+// model in seconds.
 func SelectValidation(in Inputs) Plan {
 	plan := Plan{
-		Baseline: in.Baseline, Head: in.Head, ChangedPaths: in.ChangedPaths,
 		Run: []Selected{}, Background: []Selected{}, Reuse: []Selected{}, Unknown: []Selected{}, OperatorOwned: []Selected{},
 		RegisteredInactive: []Selected{}, SkipInappropriate: []Selected{},
 	}
 	if in.Scorecard != nil {
 		plan.Scorecard = in.Scorecard.Name
 	}
-	for id, rec := range in.AffectedSurfaces {
-		if rec.Affected {
-			plan.AffectedSurfaces = append(plan.AffectedSurfaces, id)
-		}
-	}
-	slices.Sort(plan.AffectedSurfaces)
 	for _, mv := range in.Registered {
 		sel := Selected{ModelValidation: mv}
 		switch {
@@ -156,20 +131,10 @@ func SelectValidation(in Inputs) Plan {
 			sel.Reason = "no validation applicable to " + string(mv.Kind)
 			plan.SkipInappropriate = append(plan.SkipInappropriate, sel)
 		default:
-			refusal, rec := in.Current(mv), in.AffectedSurfaces[mv.Surface]
-			// A benchmark replays its record first, and carries it forward
-			// when the replay reproduces it, only when a moved surface is all
-			// that makes it run.
-			if moved := errors.Is(refusal, errSurfaceMoved) || refusal == nil && rec.Affected; mv.Stale != "" || !moved {
-				sel.Replay = artifact.ID{}
-			}
-			switch {
+			switch refusal := in.Current(mv); {
 			case errors.Is(refusal, errCellInapplicable):
 				sel.Reason = "skip: " + refusal.Error()
 				plan.SkipInappropriate = append(plan.SkipInappropriate, sel)
-			case rec.Affected:
-				sel.Reason = "run: " + string(mv.Surface) + " surface affected: " + rec.Reason
-				plan.schedule(sel, in.Scorecard)
 			case mv.Stale != "":
 				sel.Reason = "run: the activation is stale: " + mv.Stale
 				plan.schedule(sel, in.Scorecard)

@@ -4,21 +4,32 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "evaluation-replay",
-      "title": "Carry an evaluation forward when a replay of its cases reproduces their outputs",
+      "id": "cycle-measure-worktree",
+      "title": "Measure the improvement cycle in its own worktree at the measured commit, so rows land while it runs",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 1342,
-        "reason": "replay before re-running a surface-stale evaluation, carry on identical outputs: internal/evaluation/replay.go about +1,030, the rest small; cut from +2,421; measured by the gate; the row's delete-selection step is to pay it back"
-      },
       "steps": [
         {
-          "id": "delete-selection",
-          "title": "Re-acquire every cycle cell cheaply, and delete the per-cell staleness selection replay makes unnecessary",
+          "id": "do",
+          "title": "Measure the improvement cycle in its own worktree at the measured commit, so rows land while it runs",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner review 2026-10-02: validation, landing and scorecard code grew about +11k production lines in a week (cmd/validate 1,234 -\u003e 11,357 production lines including the compatibility fold; internal/landing 0 -\u003e 1,849; internal/scorecard 0 -\u003e 1,038) while plan and loop shrank (13,013 -\u003e 4,523). Proof re-acquisition, cycle selection and cell bookkeeping are where the old gate's pattern could return. Replay must make validate smaller, not bigger: after it lands, measure one cycle that re-acquires every cell (bounded proofs, guards, replayed evaluations); if it is cheap (about an hour), delete the per-cell surface staleness selection (surfaces, bound-record currency, selection reasons) for cycle cells, keeping the landing gate's inference-surface check. Review target: cmd/validate production lines below 11,357. The verify is set once the measurement names what goes."
+          "rationale": "Cycle 6 (from 299655aaa) began measuring at 20:52 on 2026-10-02 and at 22:36 was at cell 35 of 49 with about 5-9 h of full runs predicted (the one-time debt of stale records); for all of that the main checkout must stay clean (gate-operating-manual: every cell records claims against a clean tree), so no row lands. Today's measure steps took 39 min to 6h40. The fill already runs in a detached worktree at the measured commit (0f9e046a2, fillBackground binds the main checkout's data roots through dataroot.ResolveEnvironment). Do the same for Measure: run validate -run and validate -scorecard -publish in a worktree of the commit being measured, then delete the clean-checkout rule from the operating notes. Check first, by running each cycle lane from a detached worktree, which of the main checkout's ignored files the lanes and cells read (local-models.json, .overgo-runtime, the GOCACHE they share) and bind exactly those. Predicted effect: no user-scorecard metric moves; rows land during a measure instead of waiting hours, so improvements reach the next cycle sooner. Use one persistent worktree path for the cycle (measure, then fill), checked out detached at each measured commit, not a fresh temporary directory: go's compile action IDs include the package directory when -trimpath is off, so a new path every cycle would rebuild every command and miss go test's cache, and the models lane uncached took 63.6 min against about 22-25 cached. The fill's fresh MkdirTemp worktree pays that today."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-inference",
+      "title": "Recover inference held-out quality, which fell below the baseline scorecard",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Recover inference held-out quality, which fell below the baseline scorecard",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-inference",
+          "rationale": "- gemma-4-12B-it-fp8-native held-out-quality: 0.285488697 to 0.283078457 (accuracy, store/mmlu-pro (raw-completion))\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261003T052610Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline. Review 2026-10-03 (cycle 6, from 299655aaa, withheld on this alone): the baseline value 0.285488697 is the newest record cycle 5's scorecard read, made at a commit 31 days and about 115 runtime commits before 299655aaa; cycle 6 re-measured this retained contract (blocking since SQA-071) for the first time, its replay missed on a float and the full run scored 0.283078457, about 29 of 12,032 cases. 1cdb20685..299655aaa changed only evaluation replay code, so the hypothesis is that main's own code scores 0.283078457 too and the drop predates main. Measure first: run the same evaluate worker (-family mmlu-pro, raw completion) on gemma-4-12B-it-fp8-native from a worktree at 1cdb20685 and compare its per-case observations byte for byte with cycle 6's report. Identical: the regression is the baseline's stale value, not this candidate; then fix how a baseline cell measured at a commit other than the baseline's is judged (the scorecard labels newest records with the publishing commit), and file the month's drift for review (git bisect run over the changed cases, which costs minutes, not a full run per step). Different: bisect 1cdb20685..299655aaa."
         }
       ]
     },
@@ -34,6 +45,21 @@
           "status": "open",
           "verify": "go test ./internal/trainingprogram -run '^TestDerivedRateFineTunesMeasuredModels$' -count=1",
           "rationale": "\n\nOwner proposal 2026-10-02: derive Muon's rate per layer from the layer, a per-step relative size rho*||W||/||U||, with a held-out brake (paired against the base's per-window loss) and no first-step line search (the 200-window sweep showed the short horizon favours the rate that later drifted). Measured: relative movement over 540 steps scales linearly with the rate; the good run moved matrices 0.8-1.4% (about 2.4e-5 per step), the old rate 6-10%; equal total movement is not equal outcome; 1-D norms and biases move 50-100x less relatively (tmp/relative_movement.go). On Qwen2.5-0.5B matrix weight scales differ at most 1.5x, so the per-layer rule cannot be told from the exponent there. Step: calibrate rho on 0.5B in the scratch sweep harness, then measure a second model; add its measured band as a row of TestDerivedRateFineTunesMeasuredModels; adopt the per-layer rule only if it transfers where the exponent does not; measure the 1-D tensors separately. Serves: train.\n\nPost-hoc evaluation 2026-10-02 (no training; the good run's change, held-out 56 records, host log loss; scratch train3-wt zz_projection_eval_test.go): base 2.5508 (accuracy 0.4936); full change 2.3038 (0.5143, 56/56 records improve); inside W's row and column spaces 2.3913 (65% of the gain); singular-value part 2.5496 (none); rotation part 2.3913; outside W's spaces only 2.2933 (0.5171, beats the full change); full change except q and o 2.2964; q and o only 2.4966. Paired, removing the q/o change: Hodges-Lehmann -0.0074 nats, block-bootstrap 95% [-0.0086, -0.0066], 55/56 records improve. Conclusions: the learning lives mostly in the rectangular layers and outside their current spaces, so the subspace-restricting spectral rules are dropped, and so is the singular-value-only rule; the square attention matrices' update, where weak directions moved 100-240x more than strong ones, slightly hurts in combination. Per layer kind the drifting run's excess was uniform (6.9-7.5x against a 7.35x rate), but within kinds q/k/v relative movement spreads up to 6x across layers. Next arms on the device, paired held-out log loss, replicated on a second model: plain Muon at parameters^-0.6; q and o at a damped relative step; spectral scaling on q and o only if damping helps."
+        }
+      ]
+    },
+    {
+      "id": "validate-currency",
+      "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Stage 2 of evaluation-replay/delete-selection (scratchpad delete-selection.md, measured 2026-10-02). What goes: surfaces.go except kindValidation (about -130), the Reuse/Unknown buckets and refusal cases of SelectValidation (-30), acceptedRecords.current and readAcceptedRecords down to grounding and benchmark record binding (-80), recordCurrent/judgeBound/boundKey (-60, a 12-line bindBenchmark keeps protocol, cost and -replay), guard_records.go (-79) with cmd/longform's latest-records verb (-60), media_receipt.go (-111; it runs a real-model go test inside every dry run, about 1-1.5 min per validate call, while the models lane runs the same acceptances every cycle), and the inventory's validated standing (-35): about -550 production lines in cmd/validate and -400 test lines. What it costs: every activated applicable cell runs every cycle, about 2h10 of blocking cells in steady state against today's mean of about 1h, plus less device time for the background fill. Cuts that bring it toward the bar: Unlimited-OCR decodes at 3.9 tok/s, under 1% of its bandwidth bound, and its guard alone takes 11m43 (finding 870a92db); one evaluate process per model for its blocking families saves about 8 min of fixed overhead (measure before adding code); the 9B hybrid training proof (22m05, same cmd/train route and code as the blocking 4B proof) could run in the background, which is decision nine-b-proof-background. Even with all three about 1h40 remains, since guards, serving and media have no cheaper form. Re-measure the steady-state every-cell cost from the first cycle after delete-selection lands and land this when it is within an hour of today's cycles, or on the owner's word."
         }
       ]
     },
@@ -609,7 +635,9 @@
             "cycle-fill-worktree/do",
             "media-proofs-reacquirable/do",
             "objective-training-proof/do",
-            "evaluation-replay/do"
+            "evaluation-replay/do",
+            "cycle-measure-worktree/do",
+            "validate-currency/do"
           ]
         }
       ]
@@ -897,6 +925,19 @@
       ],
       "asked": "2026-09-28",
       "answer": "The command line only"
+    },
+    {
+      "id": "nine-b-proof-background",
+      "question": "When validate-currency is otherwise ready, should the Qwen3.5-9B hybrid training proof (22m05 a cycle, the same cmd/train route and code as the blocking 4B proof) move to the background, so promotion stops waiting on every training proof? Background saves about 22 min a cycle; the 4B proof still guards the route.",
+      "options": [
+        "background",
+        "blocking"
+      ],
+      "recommendation": "background",
+      "blocks": [
+        "validate-currency"
+      ],
+      "asked": "2026-10-02"
     }
   ]
 }

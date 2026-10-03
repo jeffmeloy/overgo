@@ -68,8 +68,9 @@ const CycleTags = "modeltest,integration"
 
 // cycleLanes are what the improvement cycle runs in the gate's place: real
 // models, the live store and the served-model journeys, which guard what
-// main is promoted to. validate -run runs one that the changes since the
-// promoted commit reach, and promotion waits on its pass.
+// main is promoted to. validate -run runs each of them every cycle, go test's
+// cache replaying the packages nothing changed, and promotion waits on its
+// pass.
 var cycleLanes = []lane{
 	{
 		// A served-model journey or the server command.
@@ -171,29 +172,20 @@ var modelPackages = []string{
 }
 
 // CycleLane is one lane of the improvement cycle: the go command's arguments
-// that run it, the environment it adds, and whether changed paths reach it.
+// that run it and the environment it adds.
 type CycleLane struct {
 	Name        string
 	Arguments   []string
 	Environment []string
-	Reaches     func(paths []string) bool
 }
 
-// CycleLanes lists the improvement cycle's lanes in repo, each reached as
-// discover reaches the gate's.
-func CycleLanes(repo string) ([]CycleLane, error) {
-	reaches, err := discover(repo, cycleLanes...)
-	if err != nil {
-		return nil, err
-	}
+// CycleLanes lists the improvement cycle's lanes, which run every cycle.
+func CycleLanes() []CycleLane {
 	var listed []CycleLane
 	for _, candidate := range cycleLanes {
-		listed = append(listed, CycleLane{
-			Name: candidate.name, Arguments: candidate.arguments(""), Environment: candidate.environment,
-			Reaches: func(paths []string) bool { return reaches(candidate, paths) },
-		})
+		listed = append(listed, CycleLane{Name: candidate.name, Arguments: candidate.arguments(""), Environment: candidate.environment})
 	}
-	return listed, nil
+	return listed
 }
 
 // arguments run the lane, its build tags after the command's verb.

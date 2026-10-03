@@ -35,6 +35,12 @@ var standingOrder = []string{standingRegistered, standingActivated, standingVali
 // code surface.
 const guardValidation = "guard"
 
+// servingValidation is the validation whose record is a measured serving
+// attempt: recipe measure's run of the active recipe on the request its
+// verification ran, which times the load beside the prefill and decode, as
+// the scorecard's serving cells read it.
+const servingValidation = "serving"
+
 // uncheckedEvidence is what a model none of whose cells has an owner of its
 // evidence currency is told.
 const uncheckedEvidence = "no owner judges whether its accepted evidence is current at this tree yet"
@@ -229,16 +235,17 @@ func directoryStanding(directory modelDirectory, models []InventoryModel, curren
 		}
 		// Whether evidence is current is asked only of a model whose every
 		// cell is activated: a missing activation outranks the question.
-		// A cell no owner can judge yet, or one the model's own declaration
-		// excludes, is passed over; a model with no judged cell is not called
-		// validated on an unchecked claim.
+		// A cell no owner can judge yet, one re-acquired every cycle whatever
+		// it recorded, or one the model's own declaration excludes, is passed
+		// over; a model with no judged cell is not called validated on an
+		// unchecked claim.
 		judged := false
 		for _, cell := range tied.Cells {
 			if standing != standingValidated {
 				break
 			}
 			switch refusal := currency(cell); {
-			case errors.Is(refusal, errCellNotJudged), errors.Is(refusal, errCellInapplicable):
+			case errors.Is(refusal, errCellNotJudged), errors.Is(refusal, errEveryCycle), errors.Is(refusal, errCellInapplicable):
 			case refusal != nil:
 				standing, models[index].Currency = standingActivated, refusal.Error()
 				advance(cell, tied.Model)

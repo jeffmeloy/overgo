@@ -6,52 +6,22 @@ import (
 	"overgo/internal/recipe"
 )
 
-// TestSurfaceAffected proves the commit-change-driven core: a kernel/module
-// change moves every surface, a documentation or test change moves none, a
-// hostmath change moves the training surface (this row's own premise), and an
-// inference-source change moves the inference and evaluation surfaces.
-func TestSurfaceAffected(t *testing.T) {
+// TestSurfaceMoves holds the rule a commit-bound record expires by: a kernel
+// or module change moves a surface whatever its packages, a change in one of
+// its package directories moves it, and a documentation or test change, or
+// one outside its directories, moves nothing.
+func TestSurfaceMoves(t *testing.T) {
 	t.Parallel()
-	root := "../.."
-	ctx := t.Context()
-
-	all, err := surfaceAffected(ctx, root, []string{"kernels/cuda/ops_f32.cu"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(all) != len(modalitySurfaces) {
-		t.Fatalf("surfaces reported=%d want=%d", len(all), len(modalitySurfaces))
-	}
-	for id, rec := range all {
-		if !rec.Affected {
-			t.Fatalf("kernel change left %s unaffected", id)
+	training := []string{"internal/hostmath", "internal/trainingworkflow"}
+	for _, changed := range [][]string{{"kernels/cuda/ops_f32.cu"}, {"go.mod"}, {"docs/notes.md", "internal/hostmath/hostmath.go"}} {
+		if moved := surfaceMoves(training, changed); !moved.Affected || moved.Reason == "" {
+			t.Errorf("%v left the surface unmoved: %+v", changed, moved)
 		}
 	}
-
-	none, err := surfaceAffected(ctx, root, []string{"docs/MEDIA_REPORT.md", "internal/inference/runner_test.go"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for id, rec := range none {
-		if rec.Affected {
-			t.Fatalf("documentation/test change moved %s: %s", id, rec.Reason)
+	for _, changed := range [][]string{{"docs/MEDIA_REPORT.md", "internal/hostmath/hostmath_test.go"}, {"internal/hostmathx/a.go", "internal/inference/runner.go"}} {
+		if moved := surfaceMoves(training, changed); moved.Affected {
+			t.Errorf("%v moved the surface: %s", changed, moved.Reason)
 		}
-	}
-
-	host, err := surfaceAffected(ctx, root, []string{"internal/hostmath/hostmath.go"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !host["training"].Affected {
-		t.Fatal("hostmath change left the training surface unaffected")
-	}
-
-	inference, err := surfaceAffected(ctx, root, []string{"internal/inference/runner.go"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !inference["inference"].Affected || !inference["evaluation"].Affected {
-		t.Fatalf("inference change: inference=%+v evaluation=%+v", inference["inference"], inference["evaluation"])
 	}
 }
 

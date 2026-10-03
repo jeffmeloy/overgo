@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
+	"overgo/internal/gitauthority"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -23,7 +24,7 @@ import (
 // now: a suite imported again since is another dataset, which no older record
 // measured. A proof cell's record is the verified run its activation accepted.
 // The record is current when its run succeeded and no change since its commit
-// moves the cell's surface, by the rule a commit range moves one: the
+// moves the cell's surface, by surfaceMoves' rule: the
 // evaluation surface holds the inference and scoring code a benchmark ran
 // through, the training surface the trainers a proof ran.
 
@@ -44,9 +45,6 @@ var boundSurfaces = []SurfaceID{"evaluation", "training"}
 
 // errCellInapplicable marks a cell its model's own declaration excludes.
 var errCellInapplicable = errors.New("the model's declared evaluation domains admit no suite of this benchmark")
-
-// errSurfaceMoved marks a record stale only because its surface moved.
-var errSurfaceMoved = errors.New("surface moved since")
 
 // boundKey names one commit-bound cell: a recipe's validation, under the
 // protocol a benchmark runs, since the baseline scorecard may compare one
@@ -164,9 +162,25 @@ func recordCurrent(ctx context.Context, root string, directories []string, cell 
 		return fmt.Errorf("its %s record is bound to commit %.*s, which this tree cannot be compared with: %w", cell.Validation, surfaceShown, run.CodeCommit, err)
 	}
 	if moved := surfaceMoves(directories, changed); moved.Affected {
-		return fmt.Errorf("its %s record ran at commit %.*s and the %s %w: %s", cell.Validation, surfaceShown, run.CodeCommit, cell.Surface, errSurfaceMoved, moved.Reason)
+		return fmt.Errorf("its %s record ran at commit %.*s and the %s surface moved since: %s", cell.Validation, surfaceShown, run.CodeCommit, cell.Surface, moved.Reason)
 	}
 	return nil
+}
+
+// changedSince lists the repository-relative paths the working tree differs
+// in from a commit, so a run is judged against the tree as it is now.
+func changedSince(ctx context.Context, root, commit string) ([]string, error) {
+	out, err := gitauthority.Query(ctx, root, "diff", "--name-only", commit)
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			paths = append(paths, trimmed)
+		}
+	}
+	return paths, nil
 }
 
 // judgeBound judges one commit-bound cell and returns it with the protocol and

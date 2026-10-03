@@ -71,11 +71,11 @@ func replayFixtureSuite(t *testing.T, cases int) ([]byte, map[string]int) {
 	return data, lengths
 }
 
-// TestEvaluationReplayCarriesIdenticalOutputs holds a re-evaluation that only
-// a moved surface asks for to a replay. In validate, a benchmark whose record
-// is stale only because its surface moved replays that record first, and one
-// that runs for any other reason (no record, a failed run, a stale
-// activation) runs in full. In the evaluation, a replay of 32 length-spread
+// TestEvaluationReplayCarriesIdenticalOutputs holds a re-evaluation to a
+// replay first. In validate, every benchmark that runs replays its newest
+// record, whatever made it run (a moved surface, a failed run, a stale
+// activation), and one no record measures runs in full; evaluate decides
+// whether the replay carries. In the evaluation, a replay of 32 length-spread
 // cases that reproduces every output carries the record forward as a run at
 // the new commit, which the evidence index reads as it reads a fresh one and
 // marks carried, naming the replay; a carry of a carry still stands on the
@@ -244,8 +244,7 @@ func TestEvaluationReplayCarriesIdenticalOutputs(t *testing.T) {
 		t.Fatalf("a hosted environment scored %d cases (want 100, no replay) and carried %s", cases, hostedAgain.Carried)
 	}
 
-	// Validate replays a record only when a moved surface is all that makes
-	// its benchmark run.
+	// Validate replays the newest record of every benchmark it runs.
 	root, beforeSurface, beforeDocs, _ := surfaceHistory(t)
 	directories, err := surfaceDirectories(ctx, root, modalitySurfaces["evaluation"].roots)
 	if err != nil {
@@ -277,26 +276,20 @@ func TestEvaluationReplayCarriesIdenticalOutputs(t *testing.T) {
 		read.bound[boundKey{cell.Recipe, cell.Validation, cell.Protocol}] = recordCurrent(ctx, root, directories, cell, record)
 		cells = append(cells, cell)
 	}
-	for _, affected := range []bool{false, true} {
-		plan := SelectValidation(Inputs{AffectedSurfaces: map[SurfaceID]AffectRecord{"evaluation": {Affected: affected, Reason: "the range moved it"}}, Registered: cells, Current: read.current})
-		replays := map[string]bool{}
-		for _, selected := range append(plan.Run, plan.Background...) {
-			_, args, err := reacquireCommand(selected.ModelValidation, "C:/stores/selected")
-			at := slices.Index(args, "-replay")
-			if err != nil || at >= 0 && (at+1 == len(args) || args[at+1] != full.Evaluation.String()) {
-				t.Fatalf("%s bound %v, %v", selected.ModelName, args, err)
-			}
-			replays[selected.ModelName] = at >= 0
+	plan := SelectValidation(Inputs{Registered: cells, Current: read.current})
+	replays := map[string]bool{}
+	for _, selected := range append(plan.Run, plan.Background...) {
+		_, args, err := reacquireCommand(selected.ModelValidation, "C:/stores/selected")
+		at := slices.Index(args, "-replay")
+		if err != nil || at >= 0 && (at+1 == len(args) || args[at+1] != full.Evaluation.String()) {
+			t.Fatalf("%s bound %v, %v", selected.ModelName, args, err)
 		}
-		want := map[string]bool{moved.ModelName: true, failed.ModelName: false, unmeasured.ModelName: false, stale.ModelName: false}
-		if affected {
-			want[current.ModelName] = true
-		}
-		if fmt.Sprint(replays) != fmt.Sprint(want) {
-			t.Fatalf("with the range moving the surface %t, the benchmarks that run replay %v, want %v", affected, replays, want)
-		}
-		if slices.ContainsFunc(plan.Reuse, func(selected Selected) bool { return selected.Replay.Valid() }) {
-			t.Fatalf("a reused benchmark names a replay: %+v", plan.Reuse)
-		}
+		replays[selected.ModelName] = at >= 0
+	}
+	if want := map[string]bool{moved.ModelName: true, failed.ModelName: true, unmeasured.ModelName: false, stale.ModelName: true}; fmt.Sprint(replays) != fmt.Sprint(want) {
+		t.Fatalf("the benchmarks that run replay %v, want %v", replays, want)
+	}
+	if len(plan.Reuse) != 1 || plan.Reuse[0].ModelName != current.ModelName {
+		t.Fatalf("the benchmark current at this tree was not reused: %+v", plan.Reuse)
 	}
 }

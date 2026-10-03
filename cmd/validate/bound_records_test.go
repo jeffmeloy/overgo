@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"maps"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -13,6 +16,54 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
+
+// surfaceHistory writes a fixture repository whose history moves the
+// inference surface, and so the evaluation surface that holds it, and then
+// only documentation, and returns its root with the commit before the surface
+// move, the one before the documentation change, and HEAD.
+func surfaceHistory(t *testing.T) (root, beforeSurface, beforeDocs, head string) {
+	t.Helper()
+	root = t.TempDir()
+	write := func(name, content string) {
+		t.Helper()
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	commit := func(message string) string {
+		t.Helper()
+		for _, arguments := range [][]string{{"add", "-A"}, {"commit", "-q", "-m", message}, {"rev-parse", "HEAD"}} {
+			command := exec.Command("git", append([]string{"-c", "user.name=fixture", "-c", "user.email=fixture@example.com"}, arguments...)...)
+			command.Dir = root
+			output, err := command.CombinedOutput()
+			if err != nil {
+				t.Fatalf("git %v: %v: %s", arguments, err, output)
+			}
+			if arguments[0] == "rev-parse" {
+				return strings.TrimSpace(string(output))
+			}
+		}
+		return ""
+	}
+	write("go.mod", "module fixture\n\ngo 1.26\n")
+	for _, surface := range []string{"internal/inference", "internal/cuda/executor", "internal/modelrecipe", "internal/evaluation"} {
+		write(surface+"/"+filepath.Base(surface)+".go", "package "+filepath.Base(surface)+"\n")
+	}
+	write("docs/notes.md", "fixture\n")
+	if output, err := exec.Command("git", "init", "-q", root).CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v: %s", err, output)
+	}
+	beforeSurface = commit("fixture")
+	write("internal/inference/inference.go", "package inference\n\n// Rate moves the surface.\nconst Rate = 1\n")
+	beforeDocs = commit("move the surface")
+	write("docs/notes.md", "fixture, revised\n")
+	head = commit("revise the notes")
+	return root, beforeSurface, beforeDocs, head
+}
 
 // TestBenchmarkCurrencyFollowsItsSurface holds a benchmark cell to the commit
 // its record ran at, in a fixture repository whose history moves the
@@ -52,7 +103,7 @@ func TestBenchmarkCurrencyFollowsItsSurface(t *testing.T) {
 	for _, cell := range cells {
 		read.bound[boundKey{cell.Recipe, cell.Validation, cell.Protocol}] = recordCurrent(t.Context(), root, directories, cell, records[cell.ModelName])
 	}
-	plan := SelectValidation(Inputs{AffectedSurfaces: map[SurfaceID]AffectRecord{"evaluation": {}}, Registered: cells, Current: read.current})
+	plan := SelectValidation(Inputs{Registered: cells, Current: read.current})
 
 	// No baseline scorecard compares any of them, so those that run are
 	// background.

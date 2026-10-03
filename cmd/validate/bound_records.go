@@ -138,8 +138,11 @@ func proofRecord(ctx context.Context, store *overgodb.Store, cell ModelValidatio
 	if err != nil || !found {
 		return boundRecord{}, err
 	}
-	verified, err := runrecord.VerifyEvidence(ctx, store, activation.Definition.ID, activation.Event.Evidence)
-	return boundRecord{run: verified.Run, found: err == nil, cost: int64(verified.Run.MeasuredNS)}, err
+	if activation.Definition.ID != cell.Recipe {
+		return boundRecord{refusal: fmt.Errorf("active recipe %s cannot supply proof for selected recipe %s", activation.Definition.ID, cell.Recipe)}, nil
+	}
+	run := activation.Verified.Run
+	return boundRecord{run: run, found: true, cost: int64(run.MeasuredNS)}, nil
 }
 
 // recordCurrent says why a commit-bound cell's record is not current at this

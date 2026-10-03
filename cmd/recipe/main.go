@@ -26,7 +26,6 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
-	"overgo/internal/runrecord"
 	"overgo/internal/servingattempt"
 )
 
@@ -562,10 +561,7 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 // not at all, is a measurement gap reported before anything executes, so no
 // serving attempt fails on input that was never runnable.
 func verifiedRequest(ctx context.Context, store artifact.Reader, activation modelrecipe.Activation) (string, error) {
-	verification, err := runrecord.VerifyEvidence(ctx, store, activation.Definition.ID, activation.Event.Evidence)
-	if err != nil {
-		return "", err
-	}
+	verification := activation.Verified
 	for _, input := range verification.Run.Inputs {
 		content, found, err := artifact.ReadContent(ctx, store, input)
 		if err != nil {

@@ -304,4 +304,54 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	if !slices.Contains(environments[hybrid.ModelName], "GOMEMLIMIT=68GiB") {
 		t.Errorf("the hybrid stack runs without the memory limit its route was recorded under: %v", environments[hybrid.ModelName])
 	}
+	// A selected cell keeps its recipe even if another invocation replaces
+	// the active alias before its proof is read.
+	definition, err := recipe.RequireDefinition(ctx, store, objective.Recipe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testutil.PublishArtifact(t, store, objective.Model)
+	for _, placement := range []recipe.Placement{recipe.PlacementHost, recipe.PlacementDevice} {
+		nodes := slices.Clone(definition.Nodes)
+		nodes[0].Placement = placement
+		active, err := recipe.NewDefinitionWithDependencies(definition.Task, definition.Dependencies,
+			nodes, definition.Edges, definition.Inputs, definition.Outputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := modelrecipe.PublishCandidate(ctx, store, "fixture/proof/"+string(placement)+"/candidate", active); err != nil {
+			t.Fatal(err)
+		}
+		verification, err := modelrecipetest.PublishVerification(ctx, store, "fixture/proof/"+string(placement), active.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := modelrecipe.ActivateCapability(ctx, store, active, verification, recipe.EvidenceVerified, "proof selection fixture"); err != nil {
+			t.Fatal(err)
+		}
+		current := objective
+		current.Recipe = active.ID
+		selections := []ModelValidation{objective}
+		if current.Recipe != objective.Recipe {
+			selections = append(selections, current)
+		}
+		for _, cell := range selections {
+			t.Run(string(placement)+"/"+cell.Recipe.String(), func(t *testing.T) {
+				record, err := proofRecord(ctx, store, cell)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if cell.Recipe != active.ID {
+					if record.refusal == nil || record.found || record.run.ID.Valid() || record.cost != 0 {
+						t.Fatalf("another recipe supplied selected proof: %+v", record)
+					}
+					return
+				}
+				run, err := runrecord.RequireRun(ctx, store, verification.Run)
+				if err != nil || !record.found || record.refusal != nil || record.run.ID != run.ID || record.run.Recipe != cell.Recipe || record.cost != int64(run.MeasuredNS) {
+					t.Fatalf("selected proof = (%+v, %v), want run %s and cost %d", record, err, run.ID, run.MeasuredNS)
+				}
+			})
+		}
+	}
 }

@@ -90,10 +90,7 @@ func verifiedCase(ctx context.Context, store *overgodb.Store, model artifact.ID)
 	if err != nil || !found {
 		return active, request, cmp.Or(err, fmt.Errorf("recipe: %s has no active inference recipe", model))
 	}
-	verified, err := runrecord.VerifyEvidence(ctx, store, activation.Definition.ID, activation.Event.Evidence)
-	if err != nil {
-		return active, request, err
-	}
+	verified := activation.Verified
 	// A gate records at least one step, its candidate execution first.
 	planID, _ := exactEvidence(verified.Gate.Steps[0].Evidence)
 	content, err := artifact.RequireTypedContent(ctx, store, planID)

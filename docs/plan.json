@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "verdict",
-          "title": "A conversation verdict scores the assistant's tokens, and groups records that share a prefix",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Review item 5 and 6 (2026-10-04): the conversation fine-tune's held-out verdict scores next-token accuracy over every token of the rendered conversation, template and user turns included, so learning the chat template raises it; it is capped at 16 records (conversation_sft.go), a policy justified by one machine's timing; its split groups every record alone, so multi-turn prefixes and near-duplicates can sit on both sides, with exact-text dedup only; and it globs a mutable directory instead of reading through the dataset inventory, so files added after registration train and are judged under the registered identity. Score assistant positions only, group by shared prefix, derive the cap from the run's budget, and read through the inventory."
-        },
-        {
           "id": "do",
           "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
           "status": "open",
@@ -33,6 +26,20 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "Owner findings (2026-10-04), the larger step. A factor-space forward and backward that never materializes W plus B*A, or a frozen-base path on the device-resident trainer. This is real new code: do it only if the profile step shows LoRA training time matters to a user of the Train tab. Also worth caching only if it gets slow: the scorecard history view re-decodes every published record per request. MEASURED (2026-10-04): the host LoRA step is bound by a serial backward kernel (host-linear-backward), not by the algebra, so this step waits for that row's after-measure: only if a pooled host step is still too slow for the Train tab is a factor-space or device-resident path worth writing."
+        },
+        {
+          "id": "loss-mask",
+          "title": "Give the conversation fine-tune a loss mask, so it learns and is judged on the assistant's tokens",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the verdict step (2026-10-04, read again): the conversation fine-tune is honest about it (RunConversationSFT's doc, conversationEvidence and the preview mark every token trained because the trainer has no loss mask), but a verdict of next-token accuracy over every token of the rendered conversation can pass by learning the chat template or the user's turns. A real fix is a feature: (1) the renderer reports the assistant's spans (render turn by turn, or the template's own offsets), (2) the dense trainer takes a per-position loss weight (densecausal's training loss, hostmath.SoftmaxCrossEntropy and the retained-logits path today average over every position), (3) HeldoutExample carries the scored positions and the evaluator counts only them, (4) the objective's metric names what it scores so evidence of the two kinds never compares, and the preview marks only the assistant's tokens trained. Also the held-out cap of 16 records is a machine-specific policy (one host's 13 minutes a pass): derive it from the run's own budget."
+        },
+        {
+          "id": "split-groups",
+          "title": "Keep conversations that share a prefix on one side of the held-out split",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the verdict step (2026-10-04): conversationSplit gives every record its own group, so the variants of one chat (a prefix and its continuation, or near-duplicates the exact-text dedup keeps) can sit on both sides and the verdict reads memorization. Group by the conversation's opening turns (a digest of its first user message, or of the rendered text's first window) and assign groups, not records, to the held-out side by the digest order, through dataset.SplitOf with the records' groups. The source conversations are read by globbing a mutable directory (conversationFiles); the rendered dataset the run trains and judges on is content-addressed, so what was trained is identified truly, but its lineage to the source dataset is not recorded: record it (the rendered dataset derived from the source) when the split changes."
         }
       ]
     },

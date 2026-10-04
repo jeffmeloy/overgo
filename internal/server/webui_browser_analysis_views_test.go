@@ -5,12 +5,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"sync/atomic"
 	"testing"
 
 	"overgo/internal/inference"
-	"overgo/internal/testskip"
 	"overgo/internal/tokenizer"
 	"overgo/internal/webuilane"
 )
@@ -41,9 +39,7 @@ const (
 // again when the page becomes visible.
 func TestWebUIBrowserAnalysisViews(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the analysis views leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the analysis views leg uses Chromium through cmd/webui-lane")
 	handler := newTestHandler(t, analysisViewsGenerator{&fakeGenerator{}})
 	var modelReads, healthReads, statesCaptures atomic.Int64
 	// held: the first capture's request, released when the leg ends;
@@ -79,23 +75,8 @@ func TestWebUIBrowserAnalysisViews(t *testing.T) {
 	defer server.Close()
 	// Released before the server closes, which waits for every request.
 	defer close(held)
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(() => {
   window.analysisButton = (label) => [...document.querySelectorAll('#panel-inspect button')].find(button => button.textContent === label && !button.hidden);

@@ -8,7 +8,6 @@ import (
 
 	"overgo/internal/export"
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -18,9 +17,7 @@ import (
 // writes the merged GGUF under the output and completes with its run.
 func TestWebUIBrowserModelMerge(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the model merge leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the model merge leg uses Chromium through cmd/webui-lane")
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

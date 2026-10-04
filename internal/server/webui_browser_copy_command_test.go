@@ -2,13 +2,11 @@ package server
 
 import (
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -19,9 +17,7 @@ import (
 // it; changing an entry clears them, and a missing required entry shows none.
 func TestWebUIBrowserCopyCommand(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the copy command leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the copy command leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -44,23 +40,8 @@ func TestWebUIBrowserCopyCommand(t *testing.T) {
 	handler := newTestHandlerForRepository(t, store, generator, func(config *Config) { config.Workflows = generator })
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	check(`(() => { location.hash = 'generation'; return true; })()`)
 	settle(`!!document.querySelector('#panel-generation.active select[aria-label="capability"] option') && !!document.querySelector('#panel-generation .control-grid input, #panel-generation .control-grid textarea')`)
 	check(`(() => {

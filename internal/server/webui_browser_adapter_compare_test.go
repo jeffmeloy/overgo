@@ -3,13 +3,11 @@ package server
 import (
 	"context"
 	"net/http/httptest"
-	"os"
 	"slices"
 	"testing"
 
 	"overgo/internal/inference"
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/tokenizer"
 	"overgo/internal/webuilane"
 )
@@ -47,9 +45,7 @@ func (adapterGenerator) Generate(_ context.Context, _ string, options inference.
 // outputs side by side under the turn.
 func TestWebUIBrowserAdapterCompare(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the adapter compare leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the adapter compare leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -58,23 +54,8 @@ func TestWebUIBrowserAdapterCompare(t *testing.T) {
 	handler := newTestHandlerForRepository(t, store, adapterGenerator{responseRecipeGenerator(t, &fakeGenerator{})})
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(() => {
   window.compareButton = () => [...document.querySelectorAll('.chat-log .msg.assistant button')].find(button => button.textContent === 'Compare adapter');

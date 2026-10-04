@@ -8,7 +8,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -21,9 +20,7 @@ import (
 // used and made, the commit last.
 func TestWebUIBrowserPlainSummaries(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the plain summaries leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the plain summaries leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -48,23 +45,8 @@ func TestWebUIBrowserPlainSummaries(t *testing.T) {
 	}
 	server := httptest.NewServer(newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{})))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/#recipe")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL+"/#recipe")
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 
 	// Recipe: a sentence first, plain labels, identifiers folded away.
 	settle(`!!document.querySelector('#panel-recipe .recipe-summary')`)

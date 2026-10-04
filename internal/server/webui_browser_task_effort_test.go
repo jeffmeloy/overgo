@@ -4,11 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -69,22 +67,12 @@ const navigationCeiling = 23
 // effort rows are judged by lowering these counts.
 func TestWebUIBrowserTaskEffort(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "the task effort leg runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the task effort leg runs through cmd/webui-lane")
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	publishBrowserLaneOperations(t, handler)
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#chat")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, _ := openBrowserLeg(t, server.URL+"/app.html#chat")
 	defer browser.Close()
 	settle := func(expression string) {
 		t.Helper()

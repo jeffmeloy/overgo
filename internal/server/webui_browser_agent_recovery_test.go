@@ -2,11 +2,9 @@ package server
 
 import (
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -16,9 +14,7 @@ import (
 // appears in its card piece by piece before the step completes.
 func TestWebUIBrowserAgentRecovery(t *testing.T) {
 	// Serial: the fixture sets PATH.
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the agent recovery leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the agent recovery leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -27,23 +23,8 @@ func TestWebUIBrowserAgentRecovery(t *testing.T) {
 	fixture, release := streamingAgentFixture(t, store)
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	const helpers = `(() => {
   window.recoverySurface = () => document.querySelector('.agent-session');
   window.recoveryButton = (label) => [...recoverySurface().querySelectorAll('button')].find(button => button.textContent === label);

@@ -3,31 +3,17 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
-
-	"overgo/internal/testskip"
-	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserAgentCapabilityRefresh(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "capability refresh runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "capability refresh runs through cmd/webui-lane")
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#chat")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, _ := openBrowserLeg(t, server.URL+"/app.html#chat")
 	defer browser.Close()
 	if err := browser.Eventually(ctx, `!!document.querySelector('#panel-chat .composer')`); err != nil {
 		t.Fatal(err)

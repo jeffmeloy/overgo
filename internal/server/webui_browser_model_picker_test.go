@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -20,9 +18,7 @@ import (
 // the server did not confirm the model with a way to retry.
 func TestWebUIBrowserModelPicker(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the model picker leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the model picker leg uses Chromium through cmd/webui-lane")
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	var health struct {
 		Model string `json:"model"`
@@ -71,23 +67,8 @@ func TestWebUIBrowserModelPicker(t *testing.T) {
 		handler.ServeHTTP(w, r)
 	}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea')`)
 	// The header states the served model's measured evidence.
 	settle(`document.getElementById('model-evidence').textContent === '120 prompt tok/s · 32 decode tok/s · arithmetic 0.90'`)

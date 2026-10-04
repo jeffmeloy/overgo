@@ -2,10 +2,8 @@ package server
 
 import (
 	"net/http/httptest"
-	"os"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -15,27 +13,11 @@ import (
 // stream.
 func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "workspace refusal runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "workspace refusal runs through cmd/webui-lane")
 	server := httptest.NewServer(newTestHandlerWithRepository(t, &fakeGenerator{}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#chat")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, settle := openBrowserLeg(t, server.URL+"/app.html#chat")
 	defer browser.Close()
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('#panel-chat.active') && window.overgo.errors.length === 0`)
 	// 1. Inspect lists its refused Attention view, and choosing it shows the reason and the enabling action
 	// instead of the module.

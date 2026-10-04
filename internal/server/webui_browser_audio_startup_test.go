@@ -8,7 +8,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 	"testing"
@@ -72,21 +71,11 @@ func TestAudioStartupCapabilities(t *testing.T) {
 
 func TestWebUIBrowserAudioStartup(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "cold audio browser probe")
-	}
+	requireWebUILane(t, "cold audio browser probe")
 	shell, generator := coldStartSpeechFixture(t)
 	server := httptest.NewServer(shell)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
 	settle := func(predicate string) {
 		t.Helper()

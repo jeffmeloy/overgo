@@ -15,16 +15,13 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserColdActivity(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": cold activity uses Chromium")
-	}
+	requireWebUILane(t, "cold activity uses Chromium")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -41,15 +38,7 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 		idle.ServeHTTP(w, r)
 	}))
 	defer front.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, front.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, _ := openBrowserLeg(t, front.URL)
 	defer browser.Close()
 	if err := browser.Eventually(ctx, `!!document.querySelector('#cold-start')`); err != nil {
 		t.Fatal(err)
@@ -80,9 +69,7 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 
 func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": background work runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "background work runs through cmd/webui-lane")
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {
@@ -106,23 +93,8 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(() => {
   window.backgroundProbe={};window.backgroundFetch=fetch;window.backgroundAuth=[];

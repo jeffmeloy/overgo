@@ -10,7 +10,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -30,9 +29,7 @@ var onboardingTask = effortTask{"add a model from the hub", []effortStep{
 // task costs at its effort ceiling.
 func TestWebUIBrowserModelOnboarding(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "the onboarding leg runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the onboarding leg runs through cmd/webui-lane")
 	weights := filepath.Join(t.TempDir(), "lane.gguf")
 	if err := os.WriteFile(weights, []byte("GGUF onboarding fixture"), 0o644); err != nil {
 		t.Fatal(err)
@@ -70,15 +67,7 @@ func TestWebUIBrowserModelOnboarding(t *testing.T) {
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#library")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, _ := openBrowserLeg(t, server.URL+"/app.html#library")
 	defer browser.Close()
 	settle := func(expression string) {
 		t.Helper()

@@ -7,36 +7,18 @@ import (
 	"strconv"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserAudioOutput(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "authenticated media runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "authenticated media runs through cmd/webui-lane")
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	fixture.handler.config.APIKey = testAPIKey
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('#settings-toggle') && !!document.querySelector('.composer textarea')`)
 	check(`(() => {const thread=overgo.thread;overgo.thread=(...args)=>(window.authMediaThread=thread(...args));window.authMediaOld=document.querySelector('.composer');document.querySelector('#settings-toggle').click();const key=document.querySelector('#api-key');key.value=` + strconv.Quote(testAPIKey) + `;key.dispatchEvent(new Event('change'));document.querySelector('#settings-dialog').close();return true;})()`)
 	settle(`!!window.authMediaThread && document.querySelector('.composer')!==authMediaOld`)

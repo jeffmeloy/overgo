@@ -7,9 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/trainingworkflow"
-	"overgo/internal/webuilane"
 )
 
 // TestWebUIBrowserSFTControls drives a conversation fine-tune on the Train
@@ -20,30 +18,13 @@ import (
 // model; after a reload the choice is still the one made.
 func TestWebUIBrowserSFTControls(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the conversation fine-tuning leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the conversation fine-tuning leg uses Chromium through cmd/webui-lane")
 	fixture := newSFTFixture(t)
 	handler := newTestHandlerForRepository(t, fixture.store, &fakeGenerator{}, func(config *Config) { config.Workflows = fixture.workspace })
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	const helpers = `(() => {
   window.trainingPanel = () => document.querySelector('#panel-training-jobs');
   window.control = (label) => [...trainingPanel().querySelectorAll('label.control')].find((item) => item.querySelector('span').textContent === label);
@@ -106,30 +87,13 @@ func TestWebUIBrowserSFTControls(t *testing.T) {
 // preview; a finished run shows the held-out verdict as a whole-model run does.
 func TestWebUIBrowserLoRAControls(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the LoRA fine-tuning leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the LoRA fine-tuning leg uses Chromium through cmd/webui-lane")
 	fixture := newSFTFixture(t)
 	handler := newTestHandlerForRepository(t, fixture.store, &fakeGenerator{}, func(config *Config) { config.Workflows = fixture.workspace })
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	const helpers = `(() => {
   window.trainingPanel = () => document.querySelector('#panel-training-jobs');
   window.control = (label) => [...trainingPanel().querySelectorAll('label.control')].find((item) => item.querySelector('span').textContent === label);

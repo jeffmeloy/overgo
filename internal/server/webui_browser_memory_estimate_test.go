@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -18,9 +16,7 @@ import (
 // and the training tab says its runs execute on the host.
 func TestWebUIBrowserMemoryEstimate(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the memory estimate leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the memory estimate leg uses Chromium through cmd/webui-lane")
 	fixture := newDPOTrainingFixture(t)
 	handler, err := New(Config{Repository: fixture.store, Workflows: fixture.workspace}, &fakeGenerator{})
 	if err != nil {
@@ -51,23 +47,8 @@ func TestWebUIBrowserMemoryEstimate(t *testing.T) {
 		handler.ServeHTTP(w, r)
 	}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.getElementById('model-pill') && !document.getElementById('model-pill').hidden`)
 
 	// A picker row states its measured memory before serving; the curve is in its details.

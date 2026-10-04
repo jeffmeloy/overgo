@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -19,9 +18,7 @@ import (
 // the model's share of the device in words.
 func TestWebUIBrowserEmptyStates(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the empty states leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the empty states leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -31,23 +28,8 @@ func TestWebUIBrowserEmptyStates(t *testing.T) {
 	defer server.Close()
 	measured := httptest.NewServer(newTestHandler(t, &memoryOwnersGenerator{fakeGenerator: &fakeGenerator{}, memory: testDeviceMemory()}))
 	defer measured.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/#agent")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL+"/#agent")
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	const visible = `(node) => !!node && node.getClientRects().length > 0`
 
 	// Agent with no agents: a statement and a way to create one; chat waits for an agent.

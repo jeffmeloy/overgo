@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -50,9 +49,7 @@ const hardenedStatesFilter = `(() => {
 // answers whose names are one long word (the layout audit must hold).
 func TestWebUIBrowserHardenedStates(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "hardened states run through cmd/webui-lane")
-	}
+	requireWebUILane(t, "hardened states run through cmd/webui-lane")
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
 		t.Fatal(err)

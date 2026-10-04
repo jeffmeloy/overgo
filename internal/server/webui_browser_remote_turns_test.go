@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -18,9 +16,7 @@ import (
 // provider's own usage.
 func TestWebUIBrowserRemoteTurns(t *testing.T) {
 	// Serial: the relay fixture sets the process environment.
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the remote turns leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the remote turns leg uses Chromium through cmd/webui-lane")
 	handler, _ := newRelayHandler(t, []string{"Remote ", "answer"})
 	var health struct {
 		Model string `json:"model"`
@@ -46,23 +42,8 @@ func TestWebUIBrowserRemoteTurns(t *testing.T) {
 		handler.ServeHTTP(w, r)
 	}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea') && !document.querySelector('.send-button').disabled`)
 
 	// The picker tags the hosted entry remote and the local one not.

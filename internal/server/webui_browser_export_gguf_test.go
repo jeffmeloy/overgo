@@ -11,7 +11,6 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -22,9 +21,7 @@ import (
 // run.
 func TestWebUIBrowserExportGGUF(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the export gguf leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the export gguf leg uses Chromium through cmd/webui-lane")
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

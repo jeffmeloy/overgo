@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -13,7 +12,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -28,9 +26,7 @@ import (
 // when shown again.
 func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "the stream lifecycle runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the stream lifecycle runs through cmd/webui-lane")
 	// The served model makes the shell's runtime stream carry operations.
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	var mu sync.Mutex
@@ -60,22 +56,8 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 		handler.ServeHTTP(response, request)
 	}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#chat")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, settle := openBrowserLeg(t, server.URL+"/app.html#chat")
 	defer browser.Close()
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('#panel-chat.active')`)
 	// The page counts the stream requests it makes and the operations it sees.
 	assertBrowserPredicate(t, ctx, browser, `(() => {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -12,16 +11,13 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserServingStream(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "serving stream uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "serving stream uses Chromium through cmd/webui-lane")
 	handler, store := servingStreamFixture(t, 2)
 	handler.config.APIKey = testAPIKey
 	if response := serveTestRequest(handler, http.MethodGet, "/runtime/activity/stream", ""); response.Code != http.StatusUnauthorized {
@@ -38,23 +34,8 @@ func TestWebUIBrowserServingStream(t *testing.T) {
 		handler.ServeHTTP(w, r)
 	}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(() => {
   window.servingPage = document;

@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -15,28 +14,11 @@ import (
 // it on in plain words, as a status with its own heading.
 func TestWebUIBrowserNavAvailability(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the nav availability leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the nav availability leg uses Chromium through cmd/webui-lane")
 	server := httptest.NewServer(newTestHandlerWithRepository(t, &fakeGenerator{}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`document.querySelectorAll('button.tab').length > 10 && [...document.querySelectorAll('button.tab')].some(button => button.getAttribute('aria-disabled') === 'true')`)
 
 	// Refused workspaces are marked off; open ones are not.

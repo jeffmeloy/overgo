@@ -7,15 +7,12 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserAttachmentWorkflow(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "attachment workflow runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "attachment workflow runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -25,23 +22,8 @@ func TestWebUIBrowserAttachmentWorkflow(t *testing.T) {
 	handler.config.APIKey = testAPIKey
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatal(err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(() => {window.attachmentOldComposer=document.querySelector('.composer');document.querySelector('#settings-toggle').click();const key=document.querySelector('#api-key');key.value=` + strconv.Quote(testAPIKey) + `;key.dispatchEvent(new Event('change'));document.querySelector('#settings-dialog').close();return true;})()`)
 	settle(`!!document.querySelector('.composer') && document.querySelector('.composer')!==attachmentOldComposer`)

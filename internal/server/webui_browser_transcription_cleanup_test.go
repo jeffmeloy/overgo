@@ -8,37 +8,19 @@ import (
 	"strconv"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserTranscriptionCleanup(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "transcription cleanup runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "transcription cleanup runs through cmd/webui-lane")
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	fixture.handler.config.AudioProjector = &fakeAudioProjector{}
 	fixture.handler.config.APIKey = ""
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea')`)
 	// Hold only the transcription reply to deliver it after invalidation. The
 	// selection journey separately exercises the actual native multipart route.

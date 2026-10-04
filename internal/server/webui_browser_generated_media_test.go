@@ -2,12 +2,10 @@ package server
 
 import (
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -20,9 +18,7 @@ import (
 // embeddings and a rerank turn answer in the thread.
 func TestWebUIBrowserGeneratedMedia(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the generated media leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the generated media leg uses Chromium through cmd/webui-lane")
 	handler, workspace, _, _ := nativeMediaProtocolFixture(t)
 	// The speech capability reads its text from the composer, as a synthesizer declares it.
 	workspace.capabilities[1].Controls = []workflowControl{{Name: "text", Type: workflowControlText, Required: true}}
@@ -38,23 +34,8 @@ func TestWebUIBrowserGeneratedMedia(t *testing.T) {
 	})
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea') && !!document.querySelector('.composer select[aria-label="mode"]')`)
 	check(`(() => {
   window.mediaMode = (mode) => { const select = document.querySelector('.composer select[aria-label="mode"]'); select.value = mode; select.dispatchEvent(new Event('change', { bubbles: true })); };

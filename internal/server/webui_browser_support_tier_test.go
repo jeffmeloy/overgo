@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -18,9 +16,7 @@ import (
 // inspector grades the model that ran it.
 func TestWebUIBrowserSupportTier(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the support tier leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the support tier leg uses Chromium through cmd/webui-lane")
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{pieces: []string{"Tier answer"}}))
 	var health struct {
 		Model string `json:"model"`
@@ -71,23 +67,8 @@ func TestWebUIBrowserSupportTier(t *testing.T) {
 		handler.ServeHTTP(w, r)
 	}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea')`)
 
 	// The served model's tier stands beside its pill, every rung in the title; the details list them.

@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"overgo/internal/inference"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -17,31 +16,14 @@ import (
 // total shows no bar.
 func TestWebUIBrowserMemoryTiers(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the memory tiers leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the memory tiers leg uses Chromium through cmd/webui-lane")
 	generator := &memoryOwnersGenerator{fakeGenerator: &fakeGenerator{}, memory: testDeviceMemory()}
 	owned := httptest.NewServer(newTestHandler(t, generator))
 	defer owned.Close()
 	plain := httptest.NewServer(newTestHandler(t, &fakeGenerator{}))
 	defer plain.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, owned.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, owned.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	const parts = `[...document.querySelectorAll('#memory-bar .memory-part')].map(part => part.dataset.owner + ' ' + Math.round(part.getBoundingClientRect().width / document.getElementById('memory-bar').clientWidth * 24)).join()`
 
 	// The owners, largest first, then the other process, each its share of 24 GiB.

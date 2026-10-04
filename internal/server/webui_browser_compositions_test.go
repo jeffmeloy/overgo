@@ -2,11 +2,9 @@ package server
 
 import (
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"overgo/internal/composition/compositiontest"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -17,30 +15,13 @@ import (
 // compiled plan shows its runtime memory and latency evidence.
 func TestWebUIBrowserCompositions(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the compositions leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the compositions leg uses Chromium through cmd/webui-lane")
 	store, authority := compositiontest.Authority(t)
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(() => { location.hash = 'compositions'; return true; })()`)
 	settle(`document.querySelectorAll('#panel-compositions .composition-card').length === 1`)

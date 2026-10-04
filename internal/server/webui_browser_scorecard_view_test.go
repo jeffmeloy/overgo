@@ -8,7 +8,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -25,9 +24,7 @@ import (
 // scorecard reader says the view is not available there.
 func TestWebUIBrowserScorecardView(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the scorecard leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the scorecard leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -47,23 +44,8 @@ func TestWebUIBrowserScorecardView(t *testing.T) {
 	defer scored.Close()
 	plain := httptest.NewServer(newTestHandlerWithRepository(t, &fakeGenerator{}))
 	defer plain.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, scored.URL+"/#library")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, scored.URL+"/#library")
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	// A view opens once the page has: a hash names it after the Library has mounted.
 	openScorecard := func() {
 		t.Helper()

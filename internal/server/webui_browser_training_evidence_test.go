@@ -9,7 +9,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -39,9 +38,7 @@ type trainingEvidenceObservation struct {
 // compares its last step with another run's in the checkpoint comparison.
 func TestWebUIBrowserTrainingEvidence(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the training evidence leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the training evidence leg uses Chromium through cmd/webui-lane")
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

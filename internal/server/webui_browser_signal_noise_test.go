@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -18,9 +17,7 @@ import (
 // producers only when it has them; each connection light is named beside it.
 func TestWebUIBrowserSignalNoise(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the signal and noise leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the signal and noise leg uses Chromium through cmd/webui-lane")
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	const registry = "dataset:sha256:62551eb59d91e08a531405a4d22be27cd55dd7b89fd0c7d1a95fc4b9901f76f4"
 	const manifest = "model:sha256:000df141c3aa0a2c4d3b5d6a5f8cf3a4a61c84d4d68b0f5e8c1c3c1f2a7b9d00"
@@ -43,23 +40,8 @@ func TestWebUIBrowserSignalNoise(t *testing.T) {
 		handler.ServeHTTP(w, r)
 	}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/#datasets")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL+"/#datasets")
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 
 	// Datasets: the registry by its short identity, each status a tag.
 	settle(`!!document.querySelector('#panel-datasets.active table.grid td')`)

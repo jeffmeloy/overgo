@@ -2,11 +2,9 @@ package server
 
 import (
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -14,9 +12,7 @@ import (
 // sends a turn, and reads the resolved chain the turn's inspector shows.
 func TestWebUIBrowserSamplingSettings(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "sampling settings run through cmd/webui-lane")
-	}
+	requireWebUILane(t, "sampling settings run through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -26,22 +22,8 @@ func TestWebUIBrowserSamplingSettings(t *testing.T) {
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#chat")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, settle := openBrowserLeg(t, server.URL+"/app.html#chat")
 	defer browser.Close()
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('#panel-chat.active .composer textarea') && !document.querySelector('.send-button').disabled`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   const field = document.querySelector('[aria-label="temperature"]');

@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "cancel",
-          "title": "Cancel an export or merge: the writers take the context and check it per tensor",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Review item 2: export.GGUF and MergeGGUF take no context, so cancelling an operation does nothing, Manager.Close waits for the write, and the output is then removed when the commit fails on the cancelled context. Pass ctx through GGUFWriters and check it per tensor in the rewrite."
-        },
-        {
           "id": "merge-by-id",
           "title": "A merge's fine-tuned model is chosen by model id, and only a model of the base's tensors merges",
           "status": "open",

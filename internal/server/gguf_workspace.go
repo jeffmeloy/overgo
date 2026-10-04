@@ -28,8 +28,8 @@ import (
 // new directory named by the output under root and returns the written file.
 type GGUFWriters struct {
 	Types  []string
-	Export func(source, root, output, typeName string) (string, error)
-	Merge  func(base string, tuned []string, scales []float32, root, output string) (string, error)
+	Export func(ctx context.Context, source, root, output, typeName string) (string, error)
+	Merge  func(ctx context.Context, base string, tuned []string, scales []float32, root, output string) (string, error)
 }
 
 // GGUFWorkspace offers every catalogued GGUF model to the launcher's GGUF
@@ -196,7 +196,7 @@ func (workspace *GGUFWorkspace) ExecuteWorkflow(ctx context.Context, kind Workfl
 	stopwatch := processmeasure.NewStopwatch()
 	if capability.Task == recipe.TaskExport {
 		runtime = exportRecipeRuntime
-		file, err = workspace.writers.Export(capability.Location, workspace.root, input.Output, input.Type)
+		file, err = workspace.writers.Export(ctx, capability.Location, workspace.root, input.Output, input.Type)
 	} else {
 		var tuned discovery.CatalogEntry
 		if tuned, err = workspace.fineTuned(ctx, input.FineTuned); err == nil && !checked.Finite32(input.Scale) {
@@ -204,7 +204,7 @@ func (workspace *GGUFWorkspace) ExecuteWorkflow(ctx context.Context, kind Workfl
 		}
 		if err == nil {
 			inputs = append(inputs, tuned.Model)
-			file, err = workspace.writers.Merge(capability.Location, []string{tuned.Location}, []float32{input.Scale}, workspace.root, input.Output)
+			file, err = workspace.writers.Merge(ctx, capability.Location, []string{tuned.Location}, []float32{input.Scale}, workspace.root, input.Output)
 		}
 	}
 	if err != nil {

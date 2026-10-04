@@ -4,6 +4,36 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "media-delta-command",
+      "title": "Build and register a reviewed media delta with one command, registry identity included",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Build and register a reviewed media delta with one command, registry identity included",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Serves: landing a change under a pinned media path without hand steps. A reviewed delta is built today by validate -receipt (the device receipt), a scratch program that hashes each changed path at HEAD and in the tree and writes the delta JSON, a second that appends it to docs/media_reviewed_deltas.json, and an Edit of the registry's accepted identity constant in cmd/validate/reviewed_delta_registry_test.go; the delta had to be rebuilt by hand again when a doc comment changed one file after the first attempt (training-peak, 2026-10-04, twice). Disappears: the two scratch programs and the hand edit of the constant: one validate subcommand takes the changed paths with their reasons, the receipt and the required tests, writes and appends the delta, and the registry's identity is read from the registry file by the test instead of pinned in Go beside it (the pin existed to make an unreviewed edit fail; the review is the receipt and the reasons, and the git history of the file is the ledger). Evidence: a landing that moves a pinned path passes without any file edited by hand besides the change itself. Batch: cmd/validate is outside the inference surface; the registry test is the gate's own check."
+        }
+      ]
+    },
+    {
+      "id": "duplicate-model-identities",
+      "title": "Run one training proof per model file: superseded identities of a file stop running their own",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run one training proof per model file: superseded identities of a file stop running their own",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Serves: the improvement cycle's wall (and the scorecard's duplicate training rows). Evidence (2026-10-04, cycle 11 and tmp dup_locations over discovery.RegisteredCatalog): 20 weights locations answer to more than one model identity (the whole-file hash a bootstrap recorded before 7535399bf and the complete-manifest identity after it), and for the Qwen3.5-4B, Qwen3.5-9B and Hy-Embodied-RxBrain files each identity carries its own active training recipe, so the cycle ran each proof twice: the 9B at about 11 minutes each, the 4B at about 5, RxBrain at about 5, about 20 minutes of the cycle's blocking cells acquiring what one run proves, and the scorecard shows each of those models' training rows twice. Disappears: the second proof and the second row, by retiring through the existing activation owner the training recipes bound to a file's superseded identity (the identity modelartifact.FromGGUF now resolves for the file is the current one), or by having registeredCells list one identity per location; decide which by reading where the duplicate rows come from (the recipe aliases, not the catalog, carry the second training task) before writing any code, and keep the capability: the model's training stays proved, once. Verify to write with the row: the dry-run plan holds one training-proof cell per weights location."
+        }
+      ]
+    },
+    {
       "id": "decode-small-kernels",
       "title": "Fuse the small decode kernels around the matmuls: norm, residual, scale and activation",
       "owner": "master-lead",
@@ -317,7 +347,10 @@
             "decode-small-kernels/do",
             "claimed-open-everywhere/do",
             "cycle-resumes/do",
-            "deleted-files-in-tests/do"
+            "deleted-files-in-tests/do",
+            "duplicate-model-identities/do",
+            "media-delta-command/do",
+            "gate-preflight/do"
           ]
         }
       ]

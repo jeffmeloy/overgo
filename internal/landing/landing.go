@@ -46,6 +46,10 @@ type Options struct {
 	Ref     string
 	Message []byte
 	Log     io.Writer
+	// Preflight runs only the stages that are cheap, over the same candidate
+	// and with the same refusals, and commits nothing: what the long stages
+	// would refuse for a reason the cheap ones know is found in seconds.
+	Preflight bool
 }
 
 type landing struct {
@@ -106,6 +110,9 @@ func Run(ctx context.Context, options Options) (string, error) {
 		return "", err
 	}
 	checks := l.checks()
+	if options.Preflight {
+		checks = slices.DeleteFunc(checks, func(check check) bool { return !check.cheap })
+	}
 	// A change to the plan alone is data the row read above has validated;
 	// nothing compiles it, so only the row's verify can speak to it, and
 	// the tests that read the plan run with the next code landing.
@@ -125,20 +132,31 @@ func Run(ctx context.Context, options Options) (string, error) {
 		l.measured = append(l.measured, entry)
 		fmt.Fprintf(options.Log, "land: %s ok %s\n", check.name, wall)
 	}
+	if options.Preflight {
+		return "", nil
+	}
 	return l.commit(ctx)
 }
 
-// check is one stage of the gate.
+// check is one stage of the gate; cheap says the preflight runs it.
 type check struct {
-	name string
-	run  func(context.Context) error
+	name  string
+	run   func(context.Context) error
+	cheap bool
 }
 
 // checks are the gate's stages in the order they run; a refusal names the
-// stage that refused, and Classify reads the name back.
+// stage that refused, and Classify reads the name back. The cheap ones are
+// the stages that take seconds and refuse what the change itself got wrong:
+// the files' form, the style and growth rules, and the invariant tests the
+// repository holds itself to, which also run first in a full landing so the
+// refusal comes before the tests of every package.
 func (l *landing) checks() []check {
-	return []check{{"format", l.format}, {"fix", l.fix}, {"vet", l.vet}, {"rules", l.rules},
-		{"test", l.test}, {"lanes", l.lanes}, {"verify", l.verify}, {"scorecard", l.scorecard}}
+	return []check{
+		{"format", l.format, true}, {"fix", l.fix, true}, {"vet", l.vet, true}, {"rules", l.rules, true},
+		{"invariants", l.invariants, true}, {"test", l.test, false}, {"lanes", l.lanes, false},
+		{"verify", l.verify, true}, {"scorecard", l.scorecard, false},
+	}
 }
 
 // stagePrefix opens the refusal of a stage, before the stage's name.
@@ -342,14 +360,39 @@ func (l *landing) vet(ctx context.Context) error {
 // did not change. No timeout is imposed: a test that must bound its own
 // wait does so.
 func (l *landing) test(ctx context.Context) error {
-	output, err := l.run(ctx, nil, "go", "test", "-json", "-timeout=0", "./...")
+	return l.goTest(ctx, "test", "./...")
+}
+
+// invariantPackages are the packages whose tests hold the repository to its
+// own rules: what may be written where, which commands and documents refer to
+// what, and how a landing and the plan are shaped. A change that breaks one is
+// refused here, ahead of every other package's tests, and by the preflight.
+var invariantPackages = []string{"./internal/repoanalysis", "./internal/commanddoc", "./internal/landing", "./internal/plan"}
+
+// invariants runs the invariant packages' tests alone, those the repository
+// has: a tree without them, a fixture's, has no invariant to hold.
+func (l *landing) invariants(ctx context.Context) error {
+	held := slices.DeleteFunc(slices.Clone(invariantPackages), func(pattern string) bool {
+		_, err := os.Stat(filepath.Join(l.Repo, filepath.FromSlash(pattern)))
+		return err != nil
+	})
+	if len(held) == 0 {
+		return nil
+	}
+	return l.goTest(ctx, "invariants", held...)
+}
+
+// goTest runs the tests of packages and says which of them ran rather than
+// replayed, under the stage's name.
+func (l *landing) goTest(ctx context.Context, stage string, packages ...string) error {
+	output, err := l.run(ctx, nil, "go", append([]string{"test", "-json", "-timeout=0"}, packages...)...)
 	if err != nil {
 		if summary := testevidence.FailureSummary(output); summary != "" {
 			return fmt.Errorf("failed tests/packages: %s", summary)
 		}
 		return err
 	}
-	l.details["test"] = ranPackages(output)
+	l.details[stage] = ranPackages(output)
 	return nil
 }
 

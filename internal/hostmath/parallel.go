@@ -22,10 +22,7 @@ var (
 
 func ensurePool() {
 	poolOnce.Do(func() {
-		workers := poolWorkerLimit() - 1
-		if workers < 1 {
-			workers = 1
-		}
+		workers := max(poolWorkerLimit()-1, 1)
 		poolTasks = make(chan poolTask, workers)
 		for range workers {
 			go func() {

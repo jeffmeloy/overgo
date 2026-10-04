@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "host-linear-backward",
-      "title": "Run the host backward's linear kernel on the worker pool: its serial loop is 91 percent of a host LoRA step",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run the host backward's linear kernel on the worker pool: its serial loop is 91 percent of a host LoRA step",
-          "status": "open",
-          "verify": "go test ./internal/hostmath -count=1 -run '^TestLinearBackwardRunsOnThePool$'",
-          "rationale": "Serves: throughput of host training (LoRA from the Train tab and cmd/train, every dense host run) and the time to an adapter. Evidence (2026-10-04, the profile step of gui-lane-review-residue; tmp/profile_lora.go, Qwen2.5-0.5B from adaptive_new/models, 512 tokens, rank 8, three steps, host only, quiet machine): a step takes 3m54s, 2m57s and 3m47s, allocates about 8 GB and holds 4 to 9 GB of heap. The CPU profile has 1213 s of samples in 638 s, an average of 1.9 cores of 32. Of the 609 s the main goroutine spent in Trainer.Step, 603 s are densecausal.LossAndGrads and 550 s of those are hostmath.LinearBackward's own body (backward.go, about line 198): a scalar triple loop over rows, outputs and inputs that runs on one thread, where the forward linears fan out over the pool (hostmath.linearCols, 594 s across the workers, the other half of the samples). The LoRA code itself is 0.5 percent: project 3.2 s, apply and Delta under 2 s. Change: LinearBackward splits its work over the pool as the forward Linear does, by disjoint output rows of dW (each o row of dW owned by one worker, accumulating over the batch rows) and by disjoint batch rows of dx, so no two workers write one element and the sums keep their order within an element, and its inner loops use the same multiply-add the forward kernel does. Predicted effect: the host backward moves from about 1.9 cores toward the pool's workers, so a host LoRA step of 200 s falls toward the forward's own time (the forward linears took about 85 s per 3 steps of CPU), a 5 to 10 times faster step, and every dense host training run shortens by the same share. Evidence to land: TestLinearBackwardRunsOnThePool holds the parallel result to the serial reference over shapes that split unevenly (rows, in and out not multiples of the worker count), with addDX both ways and with dW and dB nil, and a before and after wall on one LoRA step is recorded here."
-        }
-      ]
-    },
-    {
       "id": "gui-lane-review-residue",
       "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
       "owner": "master-lead",

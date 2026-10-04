@@ -194,39 +194,18 @@ func SoftmaxCrossEntropy(dLogits, logits []float32, targets []int, rows, classes
 
 // LinearBackward: forward was dst = x·w^T with w row-major [out,in]. Writes
 // dx (set, or += when addDX), and accumulates dW += dy^T⊗x and dB += dy
-// when non-nil.
+// when non-nil. Each part runs on the worker pool over rows it owns alone, and
+// every element sums its terms in the order the serial loop over rows and
+// outputs did, so the result is that loop's.
 func LinearBackward(dx, dW, dB, x, w, dy []float32, rows, inDim, outDim int, addDX bool) {
-	for r := range rows {
-		xRow := x[r*inDim : (r+1)*inDim]
-		dyRow := dy[r*outDim : (r+1)*outDim]
-		var dxRow []float32
-		if dx != nil {
-			dxRow = dx[r*inDim : (r+1)*inDim]
-			if !addDX {
-				clear(dxRow)
-			}
-		}
-		for o := range outDim {
-			g := dyRow[o]
-			if dB != nil {
-				dB[o] += g
-			}
-			if g == 0 {
-				continue
-			}
-			if dW != nil {
-				dWRow := dW[o*inDim : (o+1)*inDim]
-				for c := range inDim {
-					dWRow[c] += g * xRow[c]
-				}
-			}
-			if dxRow != nil {
-				wRow := w[o*inDim : (o+1)*inDim]
-				for c := range inDim {
-					dxRow[c] += g * wRow[c]
-				}
-			}
-		}
+	if dW != nil {
+		LinearWeightGradient(dW, x, dy, rows, inDim, outDim)
+	}
+	if dB != nil {
+		AddBiasGradientF32(dB, dy, rows, outDim)
+	}
+	if dx != nil {
+		linearInputGradient(dx, dy, w, rows, inDim, outDim, addDX)
 	}
 }
 
@@ -424,10 +403,17 @@ func LinearWeightGradient(dW, x, dy []float32, rows, inDim, outDim int) {
 // VJP of Linear without materializing the transpose), parallel over rows —
 // each worker owns disjoint dx rows.
 func LinearBackwardInput(dx, dy, w []float32, rows, inDim, outDim int) {
+	linearInputGradient(dx, dy, w, rows, inDim, outDim, false)
+}
+
+// linearInputGradient is LinearBackwardInput that adds into dx when accumulate.
+func linearInputGradient(dx, dy, w []float32, rows, inDim, outDim int, accumulate bool) {
 	ParallelRangeF64(rows, inDim*outDim, func(rLo, rHi int) {
 		for r := rLo; r < rHi; r++ {
 			dxRow := dx[r*inDim : (r+1)*inDim]
-			clear(dxRow)
+			if !accumulate {
+				clear(dxRow)
+			}
 			dyRow := dy[r*outDim : (r+1)*outDim]
 			for o, g := range dyRow {
 				if g == 0 {

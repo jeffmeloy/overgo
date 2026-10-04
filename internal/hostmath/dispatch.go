@@ -103,10 +103,9 @@ func poolWorkerLimit() int { return runtime.GOMAXPROCS(0) }
 func calibrationNop(int, int) {}
 
 func measureDispatch() (dispatchCalibration, error) {
-	workers := poolWorkerLimit()
-	if workers < 2 {
-		workers = 2 // fanOut needs a task; a single-core host never dispatches anyway
-	}
+	workers := max(poolWorkerLimit(),
+		// fanOut needs a task; a single-core host never dispatches anyway
+		2)
 	var cal dispatchCalibration
 	perTask, err := timePerOpNs(func() {
 		fanOut(workers, workers, calibrationNop)

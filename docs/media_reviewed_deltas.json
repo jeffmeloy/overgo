@@ -1339,6 +1339,35 @@
         ]
       },
       "scope": "the receipt re-runs, on the device, real workers allocating and freeing through their libraries while the process ledger follows and returns to its prior total, and on the host the ledger's sums across libraries and its peak under concurrent libraries; ProcessCurrentBytes reads the same atomic those tests already hold"
+    },
+    {
+      "changes": {
+        "internal/hostmath/backward.go": {
+          "after_sha256": "92e27a64714e1feeb57e7a4847859b142fb8224607a5d71d9239e4ae0ff4f617",
+          "before_sha256": "98815aa281662a64bebe5fda6c89ce930bfb19c44e6b764b57bad464995a855a",
+          "reason": "LinearBackward runs its weight, bias and input gradients through the kernels the package already fans out over the worker pool, each over rows it owns alone and each element summing in the serial loop's order, so its result is that loop's bit for bit; the serial loop is deleted and LinearBackwardInput shares its body with the accumulating variant"
+        },
+        "internal/hostmath/dispatch.go": {
+          "after_sha256": "c85204476df4e2b7d57fc15fe5b87b4d700422978bb875e3d1088b5d49f47cca",
+          "before_sha256": "7cb42dbb622322c9a38344613c4c52ae236f323729b757fcee7fa837bd2b9f3f",
+          "reason": "the gate's fix stage writes the worker floor of the calibration as max, the same value"
+        },
+        "internal/hostmath/parallel.go": {
+          "after_sha256": "24fa8e89ca7451cd1144440d418785a4fd57aa831633a17fce623971bd9d2388",
+          "before_sha256": "a238bbf5d61a8ebefaf855990532b0d1e531c2a646dc31021f5934ba0aa709a5",
+          "reason": "the gate's fix stage writes the pool's worker floor as max, the same value"
+        }
+      },
+      "evidence": "evidence:sha256:367c32a0b1db0fda493bf887e16f66e19d6355e5432c25d65100dc50f62a5132",
+      "id": "host-linear-backward",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/hostmath": [
+          "TestDispatchSchedulingPreservesResults",
+          "TestLinearBackwardRunsOnThePool"
+        ]
+      },
+      "scope": "the receipt re-runs the pooled LinearBackward against a copy of the serial loop it replaced, bit for bit over shapes that split unevenly across workers and one that fans out, with dx set and accumulated and with each of dx, dW and dB absent, and the dispatch test that holds pool scheduling to the serial results; media paths that call LinearBackward keep their arithmetic and its order"
     }
   ],
   "paths": [

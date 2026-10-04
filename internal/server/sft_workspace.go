@@ -39,8 +39,8 @@ const (
 	// offers: one JSON file per conversation.
 	sftDatasetFormat = "json"
 	// sftNote and sftLoRANote tell the page how a run learns from its dataset.
-	sftNote     = "Learns the replies of each conversation as the model's chat template renders them, and only reads the user's turns and the template's own markers; train on prompts: true learns every token."
-	sftLoRANote = "Trains a low-rank adapter over the frozen model rather than the model, and saves it as a Hugging Face PEFT adapter in the output's adapter directory. Like full fine-tuning it learns the replies of each conversation and only reads the rest; train on prompts: true learns every token."
+	sftNote     = "Learns the replies of each conversation as the model's chat template renders them, and only reads the user's turns and the template's own markers; train on prompts: true learns every token, and average weights: true publishes a moving average of the weights."
+	sftLoRANote = "Trains a low-rank adapter over the frozen model rather than the model, and saves it as a Hugging Face PEFT adapter in the output's adapter directory. Like full fine-tuning it learns the replies of each conversation and only reads the rest; train on prompts: true learns every token, and average weights: true publishes a moving average of the adapter's factors."
 )
 
 // sftMethod is one way the workspace fine-tunes the served model on
@@ -97,6 +97,7 @@ func (workspace *SFTWorkspace) WorkflowCapabilities(_ context.Context, kind Work
 		}
 		controls = append(controls,
 			workflowControl{Name: "train_on_prompts", Type: workflowControlBoolean},
+			workflowControl{Name: "average_weights", Type: workflowControlBoolean},
 			workflowControl{Name: "output", Type: workflowControlOutput, Required: true})
 		capabilities = append(capabilities, WorkflowCapability{
 			Task: recipe.TaskTraining, Recipe: program.ID, Model: workspace.trainer.Model,
@@ -132,6 +133,8 @@ type sftInput struct {
 	Output  string      `json:"output"`
 	// TrainOnPrompts learns every token of each conversation rather than its replies.
 	TrainOnPrompts bool `json:"train_on_prompts"`
+	// AverageWeights publishes a moving average of the weights as the trained model.
+	AverageWeights bool `json:"average_weights"`
 }
 
 // ExecuteWorkflow fine-tunes the served model on the dataset, whole or as an
@@ -172,7 +175,7 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	result, err := trainingworkflow.RunConversationSFT(ctx, workspace.store, trainingworkflow.ConversationSFT{
 		Dataset: input.Dataset, Render: workspace.trainer.Render, ModelDirectory: workspace.trainer.File,
 		OutputDirectory: output, WorkDirectory: filepath.Join(workspace.roots.Datasets, "sft"),
-		Steps: input.Steps, LoRA: lora, Prompts: input.TrainOnPrompts,
+		Steps: input.Steps, LoRA: lora, Prompts: input.TrainOnPrompts, Average: input.AverageWeights,
 		Step: func(step, _ int, loss float64) {
 			reporter.Progress(uint64(step), &total)
 			reporter.Metric(operation.Metric{Name: "loss", Value: loss})

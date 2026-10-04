@@ -5,20 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "train-ema-checkpoints",
-      "title": "Keep an exponential moving average of the trained weights or adapter factors and publish it beside the raw checkpoint (ai-toolkit toolkit/ema.py, decay 0.99 by default), and keep only the last K intermediate checkpoints with resume intact; the verdict judges the average against the raw weights; acceptance: the average of a known update sequence equals its closed form, retention deletes only older checkpoints, and a resume from a kept one continues the average",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep an exponential moving average of the trained weights or adapter factors and publish it beside the raw checkpoint (ai-toolkit toolkit/ema.py, decay 0.99 by default), and keep only the last K intermediate checkpoints with resume intact; the verdict judges the average against the raw weights; acceptance: the average of a known update sequence equals its closed form, retention deletes only older checkpoints, and a resume from a kept one continues the average",
-          "status": "open",
-          "verify": "test -f internal/trainingworkflow/ema_test.go \u0026\u0026 go test ./internal/trainingworkflow -run '^Test(WeightEMA|CheckpointRetention)$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "train-sample-strip",
       "title": "Show fixed-prompt, fixed-seed samples every N steps as a strip in the Train tab so a run's convergence is visible beside its loss (ai-toolkit sample_every, toolkit/sampler.py): the held-out generation we already serve for text and the image sampler for images, the same prompts and seeds each time, on the live-training view; acceptance: a browser leg runs a short fine-tune and reads its samples, in step order, from the run",
       "owner": "overgo_gui_cleanup",
@@ -29,6 +15,20 @@
           "title": "Show fixed-prompt, fixed-seed samples every N steps as a strip in the Train tab so a run's convergence is visible beside its loss (ai-toolkit sample_every, toolkit/sampler.py): the held-out generation we already serve for text and the image sampler for images, the same prompts and seeds each time, on the live-training view; acceptance: a browser leg runs a short fine-tune and reads its samples, in step order, from the run",
           "status": "open",
           "verify": "test -f internal/server/webui_browser_training_samples_test.go \u0026\u0026 go run ./cmd/webui-lane -run TrainingSamples"
+        }
+      ]
+    },
+    {
+      "id": "train-checkpoint-retention",
+      "title": "Save intermediate checkpoints during a long host run and keep only the last K, with resume continuing the optimizer and the weight average from a kept one (ai-toolkit save_every and max_step_saves_to_keep): a Train tab run of hours survives a stop; acceptance: retention deletes only older checkpoints, a run resumed from a kept one reaches the weights an uninterrupted run reaches, and the average continues rather than restarting",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Save intermediate checkpoints during a long host run and keep only the last K, with resume continuing the optimizer and the weight average from a kept one (ai-toolkit save_every and max_step_saves_to_keep): a Train tab run of hours survives a stop; acceptance: retention deletes only older checkpoints, a run resumed from a kept one reaches the weights an uninterrupted run reaches, and the average continues rather than restarting",
+          "status": "open",
+          "verify": "test -f internal/trainingworkflow/retention_test.go \u0026\u0026 go test ./internal/trainingworkflow -run '^TestCheckpointRetention$' -count=1 -v"
         }
       ]
     },

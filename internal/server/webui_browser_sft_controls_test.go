@@ -81,6 +81,8 @@ func TestWebUIBrowserSFTControls(t *testing.T) {
   const trained = sequence.querySelectorAll('.token-run .trained').length, masked = sequence.querySelectorAll('.token-run .masked').length;
   return trained > 0 && masked > 0 && sequence.querySelector('.note').textContent === 'conversation · ' + trained + ' trained of ' + (trained + masked) + ' tokens';
 })()`)
+	// Averaging the weights is a yes or no beside it, unset until chosen.
+	check(`!!control('average weights') && control('average weights').querySelector('select').value === '' && [...control('average weights').querySelectorAll('option')].some((option) => option.value === 'true')`)
 	// Trained on the prompts too, every token is learned; the choice is then put back.
 	check(`(() => { const select = control('train on prompts').querySelector('select'); select.value = 'true'; select.dispatchEvent(new Event('input', { bubbles: true })); return select.value === 'true'; })()`)
 	check(`(() => { press('Preview as trained'); return true; })()`)

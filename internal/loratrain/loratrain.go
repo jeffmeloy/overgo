@@ -94,6 +94,8 @@ type Trainer struct {
 	optimizer *optimizer.Optimizer
 	config    optimizer.Config
 	gradients map[string][]float32
+	// average, once Average starts it, follows the factors after each update.
+	average *optimizer.Average
 }
 
 // New starts an adapter on the model: every target projection of every dense
@@ -237,7 +239,39 @@ func (trainer *Trainer) Step(tokens []int, trained []bool, learningRate, momentu
 	}
 	trainer.optimizer.Step()
 	trainer.pack.Scatter()
+	if trainer.average != nil {
+		factors, _ := trainer.pack.Slabs()
+		if err := trainer.average.Update(factors); err != nil {
+			return 0, err
+		}
+	}
 	return loss, trainer.apply()
+}
+
+// Average starts a moving average of the factors under the decay (see
+// optimizer.Average), taken after each update from here on, from the factors as
+// they stand. UseAverage then makes the adapter the average.
+func (trainer *Trainer) Average(decay float64) error {
+	factors, _ := trainer.pack.Slabs()
+	average, err := optimizer.NewAverage(factors, decay)
+	if err != nil {
+		return err
+	}
+	trainer.average = average
+	return nil
+}
+
+// UseAverage makes the adapter, and the model it is applied to, the moving
+// average of the factors Average started, leaving the optimizer's state as the
+// updates took it.
+func (trainer *Trainer) UseAverage() error {
+	if trainer.average == nil {
+		return errors.New("loratrain: no average was started")
+	}
+	factors, _ := trainer.pack.Slabs()
+	copy(factors, trainer.average.Values())
+	trainer.pack.Scatter()
+	return trainer.apply()
 }
 
 // Train takes one update per batch and returns each update's loss. trained

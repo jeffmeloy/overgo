@@ -60,6 +60,12 @@ type TextHeldoutRequest struct {
 	// counts the learned tokens alone and the held-out accuracy judges the
 	// model on predicting them, a run on the host processor as only it masks.
 	Conversations bool
+	// Average, when positive, is the decay of a moving average of the trained
+	// weights, or of an adapter's factors, taken after each update (see
+	// optimizer.Average): the trained model the run publishes and the verdict
+	// judges is the average, as ai-toolkit saves its EMA. Only the host trainer
+	// takes it, and a run's weights alone are averaged, not its optimizer state.
+	Average float64
 	// Proof re-verifies the recipe by the training run alone, judging and
 	// publishing no verdict (HeldoutRun.Proof).
 	Proof bool
@@ -123,6 +129,9 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	}
 	if request.LoRA != nil && (!request.Host || request.FreezeLexical || request.Device != nil) {
 		return HeldoutResult{}, errors.New("training workflow: a LoRA run trains on the host and leaves the lexical table to the frozen base")
+	}
+	if request.Average != 0 && (!request.Host || !(request.Average > 0 && request.Average < 1)) {
+		return HeldoutResult{}, errors.New("training workflow: a moving average of the weights is taken by the host trainer, at a decay in (0, 1)")
 	}
 	if request.Conversations && !request.Host {
 		return HeldoutResult{}, errors.New("training workflow: a conversation run learns only some tokens, which only the host trainer does")
@@ -227,12 +236,21 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			var state densecausal.TrainState
 			var companion func(stage string) error
 			if adapter != nil {
-				if _, err = adapter.Train(batches, trained, config.BaseLearningRate, config.Momentum, observe); err == nil {
+				if request.Average > 0 {
+					err = adapter.Average(request.Average)
+				}
+				if err == nil {
+					_, err = adapter.Train(batches, trained, config.BaseLearningRate, config.Momentum, observe)
+				}
+				if err == nil && request.Average > 0 {
+					err = adapter.UseAverage()
+				}
+				if err == nil {
 					state, err = adapter.OptimizerState()
 				}
 				companion = adapterCompanion(adapter.Adapter())
 			} else {
-				_, _, state, err = runTrainingState(model, batches, trained, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, request.FreezeLexical, nil, observe, nil)
+				_, _, state, err = runTrainingState(model, batches, densecausal.TrainOptions{Trained: trained, Average: request.Average}, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, request.FreezeLexical, nil, observe)
 			}
 			if err != nil {
 				return trainingprogram.Checkpoint{}, err

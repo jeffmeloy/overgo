@@ -35,6 +35,10 @@ const (
 	// conversationNameDigits is how many hex digits of a digest name the
 	// directory a run renders into and the alias its objective publishes under.
 	conversationNameDigits = 12
+	// conversationAverageDecay is the decay of the moving average a run keeps
+	// when asked to, the one ai-toolkit's EMA recommends; the warm-up of
+	// optimizer.Average keeps a short run from being mostly its start.
+	conversationAverageDecay = 0.99
 )
 
 // Names of the partitions a conversation split holds, and of the identities
@@ -70,6 +74,10 @@ type ConversationSFT struct {
 	// turns and the template's markers as well as the assistant's replies. A
 	// run learns the replies alone otherwise.
 	Prompts bool
+	// Average, when set, trains to a moving average of the weights, or of an
+	// adapter's factors, at the decay conversationAverageDecay: the trained
+	// model the run publishes and the verdict judges is the average.
+	Average bool
 	// Steps counts updates, each on one packed window of rendered text.
 	Steps int
 	// LoRA, when set, trains a low-rank adapter over the frozen model instead
@@ -105,10 +113,14 @@ func RunConversationSFT(ctx context.Context, store *overgodb.Store, request Conv
 	if err != nil {
 		return HeldoutResult{}, err
 	}
+	var decay float64
+	if request.Average {
+		decay = conversationAverageDecay
+	}
 	return RunTextHeldout(ctx, store, TextHeldoutRequest{
 		Alias: alias, ModelDirectory: request.ModelDirectory, OutputDirectory: request.OutputDirectory,
 		Steps: request.Steps, MaximumSequence: conversationWindow, Host: true,
-		Chat: true, Conversations: true, Step: request.Step, Progress: request.Progress, LoRA: request.LoRA,
+		Chat: true, Conversations: true, Step: request.Step, Progress: request.Progress, LoRA: request.LoRA, Average: decay,
 	})
 }
 

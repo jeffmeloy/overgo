@@ -389,3 +389,93 @@ func TestMaskedBatchesLearnOnlyTheirTrainedTokens(t *testing.T) {
 		t.Error("flags for two of three batches were accepted")
 	}
 }
+
+// TestAveragedTrainingEqualsTheAverageOfItsSteps trains one adapter six updates
+// with a moving average of its factors and another identical one the same six,
+// taking each update's factors: the first ends holding the average the recurrence
+// gives them, written out here, and the model it is applied to holds the base plus
+// that averaged adapter's update.
+func TestAveragedTrainingEqualsTheAverageOfItsSteps(t *testing.T) {
+	const (
+		decay = 0.99
+		steps = 6
+	)
+	batches := make([][]int, steps)
+	for index := range batches {
+		batches[index] = periodic
+	}
+	config := Config{Rank: 2, Alpha: 4, Seed: 1}
+
+	model, _, _ := tinyModel(t)
+	stepped, err := New(model, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := map[string][2][]float64{}
+	for name, module := range stepped.Adapter().Modules {
+		expected[name] = [2][]float64{widen(module.Down), widen(module.Up)}
+	}
+	for update := 1; update <= steps; update++ {
+		if _, err := stepped.Step(periodic, nil, 0.02, 0.9); err != nil {
+			t.Fatal(err)
+		}
+		keep := min(decay, float64(1+update)/float64(10+update))
+		for name, module := range stepped.Adapter().Modules {
+			for factor, values := range [2][]float32{module.Down, module.Up} {
+				for index, value := range values {
+					expected[name][factor][index] = keep*expected[name][factor][index] + (1-keep)*float64(value)
+				}
+			}
+		}
+	}
+
+	averagedModel, _, original := tinyModel(t)
+	averaged, err := New(averagedModel, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := averaged.Average(decay); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := averaged.Train(batches, nil, 0.02, 0.9, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := averaged.UseAverage(); err != nil {
+		t.Fatal(err)
+	}
+	for name, module := range averaged.Adapter().Modules {
+		for factor, values := range [2][]float32{module.Down, module.Up} {
+			for index, value := range values {
+				if got, want := float64(value), expected[name][factor][index]; math.Abs(got-want) > 1e-5 {
+					t.Fatalf("%s factor %d [%d] = %v, the average of the steps is %v", name, factor, index, got, want)
+				}
+			}
+		}
+	}
+	for name, module := range averaged.Adapter().Modules {
+		delta, err := averaged.Adapter().Delta(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		weight := averagedModel.Weights[name+weightSuffix]
+		for index, value := range weight {
+			if want := original[name+weightSuffix][index] + delta[index]; math.Abs(float64(value-want)) > 1e-5 {
+				t.Fatalf("%s[%d] = %v, the base plus the averaged adapter is %v (module of rank %d)", name, index, value, want, module.Rank)
+			}
+		}
+	}
+	if err := stepped.UseAverage(); err == nil {
+		t.Error("an average that was never started was used")
+	}
+	if err := stepped.Average(1); err == nil {
+		t.Error("a decay of one was accepted")
+	}
+}
+
+func widen(values []float32) []float64 {
+	wide := make([]float64, len(values))
+	for index, value := range values {
+		wide[index] = float64(value)
+	}
+	return wide
+}

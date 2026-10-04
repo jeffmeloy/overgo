@@ -27,6 +27,9 @@ type objectiveRun struct {
 	// LoRA, when set, trains an adapter over the frozen model instead of the
 	// model, on the host.
 	LoRA *trainingworkflow.LoRA
+	// Average, when positive, is the decay of a moving average of the weights
+	// the run publishes as the trained model, on the host.
+	Average float64
 }
 
 // loraRequest is the LoRA run the -lora flags ask for: none when they ask for
@@ -89,8 +92,8 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 	}
 	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
 		Alias: run.Alias, Recipe: recipeID, ModelDirectory: run.Model, OutputDirectory: run.Out, Steps: run.Steps, MaximumSequence: run.Sequence,
-		Host: run.Host || run.LoRA != nil, Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
-		Proof: run.Proof, LoRA: run.LoRA,
+		Host: run.Host || run.LoRA != nil || run.Average > 0, Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
+		Proof: run.Proof, LoRA: run.LoRA, Average: run.Average,
 	})
 	if err != nil {
 		return err

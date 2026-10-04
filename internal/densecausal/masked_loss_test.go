@@ -151,10 +151,10 @@ func TestMaskedLossRefusesWhatItCannotLearn(t *testing.T) {
 	}
 }
 
-// TestTrainMaskedStepsOnTheTrainedTokens checks a masked training run, with
+// TestTrainWithMaskStepsOnTheTrainedTokens checks a masked training run, with
 // every token flagged, takes the steps Train takes, and with the prompt
 // masked takes others.
-func TestTrainMaskedStepsOnTheTrainedTokens(t *testing.T) {
+func TestTrainWithMaskStepsOnTheTrainedTokens(t *testing.T) {
 	const rate, momentum = 0.01, 0.9
 	batches := [][]int{maskedTokens, maskedTokens}
 	all := make([]bool, len(maskedTokens))
@@ -165,21 +165,21 @@ func TestTrainMaskedStepsOnTheTrainedTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	flagged, _, err := tinyMuonModel(t).TrainMasked(batches, [][]bool{all, all}, rate, momentum, nil, nil)
+	flagged, _, err := tinyMuonModel(t).TrainWith(batches, rate, momentum, nil, nil, TrainOptions{Trained: [][]bool{all, all}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(baseline, flagged) {
 		t.Fatalf("every token flagged: losses %v, Train's %v", flagged, baseline)
 	}
-	masked, _, err := tinyMuonModel(t).TrainMasked(batches, [][]bool{maskedTrained, maskedTrained}, rate, momentum, nil, nil)
+	masked, _, err := tinyMuonModel(t).TrainWith(batches, rate, momentum, nil, nil, TrainOptions{Trained: [][]bool{maskedTrained, maskedTrained}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if slices.Equal(masked, baseline) {
 		t.Fatalf("a masked run took Train's steps: losses %v", masked)
 	}
-	if _, _, err := tinyMuonModel(t).TrainMasked(batches, [][]bool{all}, rate, momentum, nil, nil); err == nil {
+	if _, _, err := tinyMuonModel(t).TrainWith(batches, rate, momentum, nil, nil, TrainOptions{Trained: [][]bool{all}}); err == nil {
 		t.Fatal("flags for one of two batches were accepted")
 	}
 }

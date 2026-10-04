@@ -122,6 +122,11 @@ func (fixture sftFixture) inputWithRank(output string, rank int) json.RawMessage
 	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":%d,"rank":%d,"output":%q}`, fixture.conversations.String(), adapterSteps, rank, output))
 }
 
+// inputAveraged is the input of a run that publishes an average of the weights.
+func (fixture sftFixture) inputAveraged(output string) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":4,"average_weights":true,"output":%q}`, fixture.conversations.String(), output))
+}
+
 // inputOnPrompts is the input of a run that also trains on the prompts.
 func (fixture sftFixture) inputOnPrompts(output string) json.RawMessage {
 	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":4,"train_on_prompts":true,"output":%q}`, fixture.conversations.String(), output))
@@ -152,7 +157,7 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	for _, control := range adapterCapability.Controls {
 		adapterControls = append(adapterControls, control.Name)
 	}
-	if adapterCapability.Name != "served, LoRA adapter on conversations" || strings.Join(adapterControls, ",") != "dataset,steps,rank,train_on_prompts,output" || adapterCapability.Recipe == capability.Recipe ||
+	if adapterCapability.Name != "served, LoRA adapter on conversations" || strings.Join(adapterControls, ",") != "dataset,steps,rank,train_on_prompts,average_weights,output" || adapterCapability.Recipe == capability.Recipe ||
 		adapterCapability.Controls[2].Bounds == nil || adapterCapability.Controls[2].Bounds.Default != sftLoRADefaultRank || !strings.Contains(adapterCapability.Note, "PEFT adapter") {
 		t.Fatalf("LoRA capability = %+v with controls %v, want its own recipe, a rank of default %d and a note naming the PEFT adapter", adapterCapability, adapterControls, sftLoRADefaultRank)
 	}
@@ -160,11 +165,13 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	for _, control := range capability.Controls {
 		controls = append(controls, control.Name)
 	}
-	if capability.Task != recipe.TaskTraining || !capability.Host || capability.Name != "served, on conversations" || strings.Join(controls, ",") != "dataset,steps,train_on_prompts,output" {
+	if capability.Task != recipe.TaskTraining || !capability.Host || capability.Name != "served, on conversations" || strings.Join(controls, ",") != "dataset,steps,train_on_prompts,average_weights,output" {
 		t.Fatalf("capability = %+v with controls %v", capability, controls)
 	}
-	if prompts := capability.Controls[2]; prompts.Type != workflowControlBoolean || prompts.Required {
-		t.Fatalf("train on prompts is %+v, want an optional yes or no, left off to learn the replies", prompts)
+	for _, option := range capability.Controls[2:4] {
+		if option.Type != workflowControlBoolean || option.Required {
+			t.Fatalf("%s is %+v, want an optional yes or no, left off to learn the replies and publish the raw weights", option.Name, option)
+		}
 	}
 	if capability.Note != sftNote || capability.Controls[0].Format != sftDatasetFormat || capability.Controls[0].Label == "" {
 		t.Fatalf("the dataset control declares %+v and the note %q, want the conversation format, a label and how a run learns", capability.Controls[0], capability.Note)
@@ -226,10 +233,14 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 		t.Fatalf("the trained model was not written under the checkpoints root: %v", err)
 	}
 
-	// A run may train on the prompts as well; it records the same way.
+	// A run may train on the prompts as well, or publish an average of the weights; each records the same way.
 	every, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputOnPrompts("tuned-every-token"), stepCounter{steps: &atomic.Int64{}})
 	if err != nil || len(every.Outputs) != 2 || every.Outputs[1] == completion.Outputs[1] {
 		t.Fatalf("a run on the prompts = (%+v, %v), want a verdict of its own", every, err)
+	}
+	averaged, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputAveraged("tuned-average"), stepCounter{steps: &atomic.Int64{}})
+	if err != nil || len(averaged.Outputs) != 2 || averaged.Outputs[0] == completion.Outputs[0] {
+		t.Fatalf("an averaged run = (%+v, %v), want a trained model of its own", averaged, err)
 	}
 
 	// The LoRA capability previews the same conversations and trains an adapter of the rank given, left

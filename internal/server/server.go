@@ -221,8 +221,44 @@ type loRAControlAPI interface {
 	SetLoRAScales(context.Context, []inference.LoRAScale) error
 }
 
+// speculativeDraftAPI declares the tokens a speculative verify span drafts
+// from the served model's draft head, or zero without one.
+type speculativeDraftAPI interface {
+	SpeculativeDraftTokens() int
+}
+
+// admitSpeculation holds a speculative request to the served model's draft
+// head and to the greedy sampling the drafts are verified under.
+func (h *Handler) admitSpeculation(speculative bool, sampler *sampling.Sampler) error {
+	switch {
+	case !speculative:
+		return nil
+	case h.speculativeDraftTokens() == 0:
+		return errors.New("speculative decoding needs a served model that declares a draft head")
+	case !sampler.IsRawGreedy():
+		return errors.New("speculative decoding verifies greedy drafts: set temperature 0 and no other sampler")
+	}
+	return nil
+}
+
+// speculativeDraftTokens is the served model's declared draft span; context
+// shifting rules speculation out, since its spans only append.
+func (h *Handler) speculativeDraftTokens() int {
+	declared, ok := h.generator.(speculativeDraftAPI)
+	if !ok || h.config.ContextShift {
+		return 0
+	}
+	return declared.SpeculativeDraftTokens()
+}
+
 type deviceMemoryAPI interface {
 	DeviceMemoryStats(context.Context) (driver.MemoryStats, error)
+}
+
+// deviceMemoryOwnersAPI reports the device's total and free memory and the
+// runner's live bytes by owner, for the header's memory bar.
+type deviceMemoryOwnersAPI interface {
+	DeviceMemory(context.Context) (inference.DeviceMemory, error)
 }
 
 type deviceExecutionAPI interface {
@@ -291,6 +327,17 @@ type Config struct {
 	// LibraryIntake is the model intake the library routes drive, assembled
 	// by the launcher; absent, those routes answer that they need it.
 	LibraryIntake LibraryIntake
+	// Loop reads and stops the unattended loop of the checkout the server
+	// runs from, assembled by the launcher; absent, the loop routes answer
+	// that no loop is here.
+	Loop LoopControl
+	// Scorecard reads the user scorecard from the store, assembled by the
+	// launcher; absent, the scorecard route answers that it needs it.
+	Scorecard ScorecardReader
+	// ScorecardHistory reads what moved between the two newest published
+	// scorecards, assembled by the launcher; absent, the scorecard carries
+	// no history.
+	ScorecardHistory ScorecardHistoryReader
 	// ProviderKeys places a hosted provider's key in this process for the
 	// model a reference names and returns the variable that holds it;
 	// assembled by the launcher, absent the key route answers that it
@@ -305,6 +352,8 @@ type slotRuntimeStats struct {
 	startedNanos    atomic.Int64
 	promptNanos     atomic.Int64
 	totalNanos      atomic.Int64
+	draftedTokens   atomic.Uint64
+	acceptedDrafts  atomic.Uint64
 
 	textMu    sync.RWMutex
 	prompt    string
@@ -319,6 +368,8 @@ func (stats *slotRuntimeStats) reset(started time.Time) {
 	stats.startedNanos.Store(started.UnixNano())
 	stats.promptNanos.Store(0)
 	stats.totalNanos.Store(0)
+	stats.draftedTokens.Store(0)
+	stats.acceptedDrafts.Store(0)
 	stats.textMu.Lock()
 	stats.prompt = ""
 	stats.generated.Reset()
@@ -469,6 +520,8 @@ type Handler struct {
 	observationErrors  atomic.Uint64
 	servingEvents      servingEvents
 	events             *eventHub
+	// templateReasoning: the chat template's reasoning control, found once by rendering.
+	templateReasoning func() *workspaceReasoning
 	servingWorkspace
 	operatorWorkspace
 	agentWorkspace
@@ -642,6 +695,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 			browseRepository: browseRepository,
 		},
 	}
+	handler.templateReasoning = sync.OnceValue(handler.probeTemplateReasoning)
 	handler.tensorLifetime, handler.stopTensorLifetime = context.WithCancelCause(context.Background())
 	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
 		handler.modelArtifact = identity.ModelID()

@@ -20,16 +20,21 @@ import (
 // facts are independent: absent or inconsistent facts stay unknown, and
 // neither the claim's publication nor these facts prove source currency.
 type BenchmarkSummary struct {
-	Tier                  string      `json:"tier"`
-	PromptTokensPerSecond float64     `json:"prompt_tokens_per_second_p50,omitzero"`
-	DecodeTokensPerSecond float64     `json:"decode_tokens_per_second_p50,omitzero"`
-	FirstTokenMS          float64     `json:"ttft_ms_p50,omitzero"`
-	LoadMS                float64     `json:"load_ms,omitzero"`
-	WallNS                uint64      `json:"wall_ns,omitzero"`
-	PeakDeviceBytes       uint64      `json:"peak_device_bytes,omitzero"`
-	Record                artifact.ID `json:"record,omitzero"`
-	CodeCommit            string      `json:"code_commit,omitzero"`
-	Environment           artifact.ID `json:"environment,omitzero"`
+	Tier                  string  `json:"tier"`
+	PromptTokensPerSecond float64 `json:"prompt_tokens_per_second_p50,omitzero"`
+	DecodeTokensPerSecond float64 `json:"decode_tokens_per_second_p50,omitzero"`
+	FirstTokenMS          float64 `json:"ttft_ms_p50,omitzero"`
+	LoadMS                float64 `json:"load_ms,omitzero"`
+	WallNS                uint64  `json:"wall_ns,omitzero"`
+	PeakDeviceBytes       uint64  `json:"peak_device_bytes,omitzero"`
+	// DeviceAfterLoadBytes, DeviceTotalBytes and RealizedResidency are the
+	// device the benchmark loaded onto, as its evidence document records.
+	DeviceAfterLoadBytes uint64      `json:"device_after_load_bytes,omitzero"`
+	DeviceTotalBytes     uint64      `json:"device_total_bytes,omitzero"`
+	RealizedResidency    string      `json:"realized_residency,omitzero"`
+	Record               artifact.ID `json:"record,omitzero"`
+	CodeCommit           string      `json:"code_commit,omitzero"`
+	Environment          artifact.ID `json:"environment,omitzero"`
 	// Comparison binds a known full same-producer benchmark contract; it does
 	// not establish source currency or cross-revision performance equivalence.
 	Comparison artifact.ID `json:"comparison,omitzero"`
@@ -128,14 +133,52 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 }
 
 // EvidenceIndex joins the store's committed evidence back onto models:
-// benchmark claims keyed by the registered weights location (the claim
-// identifies the weights digest, catalogs identify manifests, and the
-// on-disk file is the identity both register), evaluations keyed by
-// recipe. Every consumer -- the workbench catalog, the training
+// benchmark and long-form claims keyed by the registered weights location
+// (the claim identifies the weights digest, catalogs identify manifests,
+// and the on-disk file is the identity both register), evaluations keyed
+// by recipe. Every consumer -- the workbench catalog, the training
 // bracket -- reads the same committed records.
 type EvidenceIndex struct {
 	BenchmarksByLocation map[string]BenchmarkSummary
+	GuardsByLocation     map[string]GuardSummary
 	EvaluationsByRecipe  map[artifact.ID][]EvalSummary
+}
+
+// GuardSummary is a model's latest long-form record, lifted tolerantly from
+// its result document: whether it passed its floors, and the commit and
+// inference surface it measured, which a later code change can expire.
+type GuardSummary struct {
+	Record  artifact.ID `json:"-"`
+	Commit  string      `json:"commit"`
+	Surface string      `json:"surface"`
+	Verdict struct {
+		Passed bool `json:"passed"`
+	} `json:"verdict"`
+	// Rungs are the prompt lengths the run climbed, each with the device
+	// peak since the model opened, on the device total it ran on.
+	Rungs []struct {
+		Measure struct {
+			PromptTokens int `json:"prompt_tokens"`
+			Memory       struct {
+				PeakBytes uint64 `json:"peakBytes"`
+			} `json:"memory"`
+		} `json:"measure"`
+	} `json:"rungs"`
+	Device deviceMemory `json:"device"`
+}
+
+// claimEvidence reads a claim's first evidence document; an absent one is
+// empty, so decoding it into a tolerant headline fails and leaves the
+// headline as it was.
+func claimEvidence(ctx context.Context, store *overgodb.Store, claim runrecord.CapabilityClaim) []byte {
+	if len(claim.Evidence) == 0 {
+		return nil
+	}
+	content, found, err := artifact.ReadContent(ctx, store, claim.Evidence[0])
+	if err != nil || !found {
+		return nil
+	}
+	return content.Data
 }
 
 // benchmarkEvidenceHeadline tolerantly lifts the headline metric out of
@@ -152,6 +195,14 @@ type benchmarkEvidenceHeadline struct {
 		DecodeTokensPerSecondP50 float64 `json:"decode_tokens_per_second_p50"`
 		FirstTokenMSP50          float64 `json:"ttft_ms_p50"`
 	} `json:"summary"`
+	DeviceAfterLoadBytes uint64       `json:"device_after_load_bytes"`
+	RealizedResidency    string       `json:"realized_residency"`
+	Device               deviceMemory `json:"device"`
+}
+
+// deviceMemory is the device total a run measured on.
+type deviceMemory struct {
+	TotalMemoryBytes uint64 `json:"totalMemoryBytes"`
 }
 
 // benchmarkEvidenceContract decodes execution facts independently of the
@@ -247,6 +298,7 @@ func LatestEvidence(
 ) EvidenceIndex {
 	index := EvidenceIndex{
 		BenchmarksByLocation: map[string]BenchmarkSummary{},
+		GuardsByLocation:     map[string]GuardSummary{},
 		EvaluationsByRecipe:  map[artifact.ID][]EvalSummary{},
 	}
 	if store == nil {
@@ -262,42 +314,56 @@ func LatestEvidence(
 		if err != nil || len(locations) == 0 {
 			return nil
 		}
-		for _, claim := range record.Claims {
-			if claim.Capability != "benchmark" {
-				continue
-			}
-			summary := BenchmarkSummary{
-				Tier: string(claim.Tier), WallNS: claim.WallNS, PeakDeviceBytes: claim.PeakDeviceBytes,
-				Record: record.ID,
-			}
-			if len(claim.Evidence) > 0 {
-				if content, found, err := artifact.ReadContent(ctx, store, claim.Evidence[0]); err == nil && found {
-					var headline benchmarkEvidenceHeadline
-					if json.Unmarshal(content.Data, &headline) == nil {
-						summary.PromptTokensPerSecond = headline.Summary.PromptTokensPerSecondP50
-						summary.DecodeTokensPerSecond = headline.Summary.DecodeTokensPerSecondP50
-						summary.FirstTokenMS = headline.Summary.FirstTokenMSP50
-						summary.LoadMS = headline.LoadMS
-						if headline.CodeCommit == claim.Commit {
-							summary.CodeCommit = headline.CodeCommit
-						}
-						headline.Environment.ID = headline.EnvironmentID
-						if headline.Environment.ValidateIdentity() == nil {
-							summary.Environment = headline.EnvironmentID
-						}
-						summary.Comparison = benchmarkComparison(content.Data, record.Model, summary)
-					}
-				}
-			}
+		// keep indexes a record's first claim of a kind under each weights
+		// file the model registers, unless a newer record holds the file.
+		keep := func(add func(string)) {
 			for _, location := range locations {
-				if location.Kind != artifact.LocationFile {
-					continue
-				}
-				if _, seen := index.BenchmarksByLocation[location.Value]; !seen {
-					index.BenchmarksByLocation[location.Value] = summary
+				if location.Kind == artifact.LocationFile {
+					add(location.Value)
 				}
 			}
-			break
+		}
+		benchmarked, guarded := false, false
+		for _, claim := range record.Claims {
+			switch {
+			case claim.Capability == "benchmark" && !benchmarked:
+				benchmarked = true
+				summary := BenchmarkSummary{
+					Tier: string(claim.Tier), WallNS: claim.WallNS, PeakDeviceBytes: claim.PeakDeviceBytes,
+					Record: record.ID,
+				}
+				document := claimEvidence(ctx, store, claim)
+				var headline benchmarkEvidenceHeadline
+				if json.Unmarshal(document, &headline) == nil {
+					summary.PromptTokensPerSecond = headline.Summary.PromptTokensPerSecondP50
+					summary.DecodeTokensPerSecond = headline.Summary.DecodeTokensPerSecondP50
+					summary.DeviceAfterLoadBytes, summary.DeviceTotalBytes = headline.DeviceAfterLoadBytes, headline.Device.TotalMemoryBytes
+					summary.RealizedResidency = headline.RealizedResidency
+					summary.FirstTokenMS, summary.LoadMS = headline.Summary.FirstTokenMSP50, headline.LoadMS
+					if headline.CodeCommit == claim.Commit {
+						summary.CodeCommit = headline.CodeCommit
+					}
+					headline.Environment.ID = headline.EnvironmentID
+					if headline.Environment.ValidateIdentity() == nil {
+						summary.Environment = headline.EnvironmentID
+					}
+					summary.Comparison = benchmarkComparison(document, record.Model, summary)
+				}
+				keep(func(location string) {
+					if _, seen := index.BenchmarksByLocation[location]; !seen {
+						index.BenchmarksByLocation[location] = summary
+					}
+				})
+			case claim.Capability == "long-form" && !guarded:
+				guarded = true
+				summary := GuardSummary{Record: record.ID}
+				_ = json.Unmarshal(claimEvidence(ctx, store, claim), &summary)
+				keep(func(location string) {
+					if _, seen := index.GuardsByLocation[location]; !seen {
+						index.GuardsByLocation[location] = summary
+					}
+				})
+			}
 		}
 		return nil
 	})

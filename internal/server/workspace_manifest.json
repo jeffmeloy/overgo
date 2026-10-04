@@ -15,6 +15,7 @@
     {"id": "model-builder", "label": "Model Builder", "section": "create", "capability": "workflow.model-builder", "module": "model_builder"},
     {"id": "export-jobs", "label": "Export", "section": "create", "capability": "workflow.export", "module": "jobs"},
     {"id": "library", "label": "Library", "section": "models", "capability": "repository", "module": "discovery"},
+    {"id": "scorecard", "label": "Scorecard", "section": "models", "capability": "scorecard", "view_of": "library"},
     {"id": "datasets", "label": "Datasets", "section": "models", "capability": "repository"},
     {"id": "recipe", "label": "Recipe", "section": "models", "capability": "repository"},
     {"id": "compositions", "label": "Compositions", "section": "models", "capability": "repository"},

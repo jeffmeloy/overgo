@@ -441,13 +441,14 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 // publishCheckpoint publishes the trained model in its source's layout
 // with the checkpoint that resumes it: a GGUF source's trained GGUF, which
 // the server opens and whose untrained tensors store may already hold, or
-// a safetensors directory with its config and tokenizer.
-func publishCheckpoint(ctx context.Context, store artifact.Reader, source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState) (trainingprogram.Checkpoint, error) {
+// a safetensors directory with its config and tokenizer. Each companion, when
+// not nil, writes more files into the staged directory before it publishes.
+func publishCheckpoint(ctx context.Context, store artifact.Reader, source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState, companions ...func(stage string) error) (trainingprogram.Checkpoint, error) {
 	spec, err := authority.checkpointSpec(state)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	checkpoint, err := trainingprogram.PublishCheckpoint(target, spec, func(stage string) error {
+	writeModel := func(stage string) error {
 		if isGGUFModelInput(source) {
 			return WriteTrainedModel(ctx, store, source, stage, len(model.Weights), func(name string) ([]float32, bool) {
 				trained, named := tensorcatalog.HFDenseTensorName(name)
@@ -460,6 +461,20 @@ func publishCheckpoint(ctx context.Context, store artifact.Reader, source, targe
 			return err
 		}
 		return artifactexport.CopyFiles(source, stage, []string{"config.json", "tokenizer.json"})
+	}
+	checkpoint, err := trainingprogram.PublishCheckpoint(target, spec, func(stage string) error {
+		if err := writeModel(stage); err != nil {
+			return err
+		}
+		for _, companion := range companions {
+			if companion == nil {
+				continue
+			}
+			if err := companion(stage); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return trainingprogram.Checkpoint{}, fmt.Errorf("training workflow: publish checkpoint: %w", err)

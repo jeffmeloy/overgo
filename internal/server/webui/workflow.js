@@ -82,6 +82,32 @@
   function restart() { if (streamController) streamController.abort(); streamController = null; if (subscribers.size) connect(); }
 
   window.overgo.runtimeEvents = { subscribe, restart };
+  // A dataset control that declares a catalog format is a picker of the catalogued datasets holding it;
+  // one that declares none (a preference file the catalog does not hold) takes an identity typed in.
+  const picksDataset = (control) => control.type === "dataset" && !!control.format;
+
+  // offerDataset lists a dataset's option under its identity: a name that arrives later relabels the
+  // option a remembered choice already put there.
+  function offerDataset(select, id, text) {
+    const found = [...select.options].find((option) => option.value === id);
+    if (found) found.text = text;
+    else select.appendChild(window.overgo.el("option", { value: id, text }));
+  }
+
+  // datasetPicker: the registered datasets holding the control's format, by name; the value is the dataset's
+  // identity. (The format is the control's own declaration: media names an artifact slot's file kind.)
+  function datasetPicker(control) {
+    const { api, el, fmt, friendlyError } = window.overgo;
+    const placeholder = el("option", { value: "", text: "select", disabled: control.required, selected: true });
+    const select = el("select", { class: "text", "aria-label": control.label || control.name.replace(/_/g, " ") }, placeholder);
+    api.get("/datasets").then((catalog) => {
+      const offered = (catalog.datasets || []).filter((entry) => entry.available && (entry.formats || []).includes(control.format));
+      for (const entry of offered) offerDataset(select, entry.dataset, entry.name + " · " + fmt.grouped(entry.files) + " files");
+      if (!offered.length && select.options.length === 1) placeholder.text = "none registered: import one in the Library";
+    }).catch((err) => { placeholder.text = err.status === 404 ? "none registered: import one in the Library" : friendlyError(err); });
+    return select;
+  }
+
   // controlInputs renders a capability's declared controls into host: one
   // input per control, typed by the declaration; the returned map binds each
   // control name to its declaration and input. The generation tabs and the
@@ -95,7 +121,9 @@
       // A field the model's artifact exports values for (a voice) is a
       // choice, never a free input; a boolean is one too.
       const choices = (control.choices || []).length ? control.choices : (control.type === "boolean" ? ["true", "false"] : null);
-      if (choices) {
+      if (picksDataset(control)) {
+        input = datasetPicker(control);
+      } else if (choices) {
         input = el("select", { class: "text", "aria-label": control.label || control.name.replace(/_/g, " ") },
           el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
           ...choices.map((choice) => el("option", { value: choice, text: choice })));
@@ -181,6 +209,8 @@
       for (const [name, field] of fields) {
         if (!Object.hasOwn(values, name)) continue;
         const value = String(values[name]);
+        // A dataset's name may not have arrived yet: its identity stands in until it does.
+        if (picksDataset(field.control) && value) offerDataset(field.input, value, window.overgo.fmt.shortID(value));
         field.input.value = field.control.choices?.length && !field.control.choices.includes(value) ? "" : value;
       }
     },
@@ -271,7 +301,9 @@
         clear(panel);
         const capabilitySelect = el("select", { class: "text", "aria-label": "capability" });
         const controls = el("div", { class: "control-grid" });
-        const status = el("div", { class: "note" });
+        // placement: where the selected capability runs, as it declares.
+        const placement = el("p", { class: "note workflow-placement" });
+        const status = el("div", { class: "note", role: "status", "aria-label": "run status" });
         const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, hidden: true });
         const remaining = el("span", { class: "note", role: "status", "aria-label": "time remaining" });
         const trends = el("div");
@@ -281,11 +313,14 @@
         const previewHost = el("div");
         const run = el("button", { class: "btn", text: "Run" });
         const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
+        // command: the commands that reproduce this submission outside the page; a changed entry clears them.
+        const command = el("button", { class: "btn alt", text: "Show command" });
+        const commands = el("div", { class: "workflow-commands", role: "group", "aria-label": "Reproducing commands" });
         // The task first, then its inputs, then the action that runs them.
         panel.append(
           el("div", { class: "section-title", text: overgo.title }),
-          el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), controls, previewHost,
-          el("div", { class: "row" }, run, cancel), status,
+          el("div", { class: "workflow-task" }, el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), placement), controls, previewHost,
+          el("div", { class: "row" }, run, cancel, command), commands, status,
           el("div", { class: "row" }, progress, remaining), trends, metrics, evidence);
 
         let capabilities;
@@ -305,6 +340,8 @@
         function renderControls() {
           const capability = selected();
           fields = overgo.controlInputs(controls, capability ? capability.controls : []);
+          placement.textContent = [capability?.host && "Runs on the host processor: it needs no device memory.", capability?.note].filter(Boolean).join(" ");
+          placement.hidden = !placement.textContent;
           if (!capability) return;
           overgo.rememberedControls.apply(fields, overgo.rememberedControls.last(capability.recipe));
           if (fields.size) controls.appendChild(overgo.presetControls(capability.recipe, fields));
@@ -350,11 +387,29 @@
             if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
           } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
         }
-        run.addEventListener("click", async () => {
+        // submission: the selected capability and its entries, or null after focusing the first missing one.
+        function submission() {
           const capability = selected();
-          if (!capability) return;
+          if (!capability) return null;
           const { input, missing } = overgo.controlValues(fields);
-          if (missing.size) { const [name] = missing; fields.get(name).input.focus(); status.textContent = name + " is required"; return; }
+          if (missing.size) { const [name] = missing; fields.get(name).input.focus(); status.textContent = name + " is required"; return null; }
+          return { capability, input };
+        }
+        controls.addEventListener("input", () => commands.replaceChildren());
+        capabilitySelect.addEventListener("change", () => commands.replaceChildren());
+        command.addEventListener("click", async () => {
+          const submitted = submission();
+          if (!submitted) return;
+          try {
+            const answer = await api.post("/" + definition.scope + "/command", { task: submitted.capability.task, recipe: submitted.capability.recipe, input: submitted.input });
+            commands.replaceChildren(...answer.commands.map((item) => el("div", { class: "workflow-command" },
+              el("span", { class: "tag", text: item.kind === "cli" ? "command line" : "HTTP" }), el("pre", { class: "mono", text: item.text }), overgo.copyButton(item.text))));
+          } catch (err) { commands.replaceChildren(overgo.failure(err)); }
+        });
+        run.addEventListener("click", async () => {
+          const submitted = submission();
+          if (!submitted) return;
+          const { capability, input } = submitted;
           run.disabled = true;
           evidence.replaceChildren();
           let accepted;

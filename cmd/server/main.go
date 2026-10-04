@@ -21,6 +21,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
+	"overgo/internal/export"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
@@ -304,6 +305,19 @@ func run() error {
 		}
 		workflowWorkspaces = append(workflowWorkspaces, workspace)
 	}
+	// Fine-tuning on conversations rides the store alone, as exports do: it trains
+	// the served model, so it needs only that model and the roots it writes under.
+	if workspaceStore != nil && rootsErr == nil {
+		workspace, err := llamaserver.NewSFTWorkspace(workspaceStore, roots, llamaserver.SFTTrainer{
+			Model: runner.ModelID(), File: roots.ResolveModelPath(modelReference),
+			Render: conversationRenderer(runner),
+		})
+		if err != nil {
+			log.Printf("conversation fine-tuning unavailable: %v", err)
+		} else {
+			workflowWorkspaces = append(workflowWorkspaces, workspace)
+		}
+	}
 	if *modelBuilderEnabled {
 		workspace, err := llamaserver.NewModelBuilderWorkspace(shutdownContext, workspaceStore)
 		if err != nil {
@@ -316,6 +330,16 @@ func run() error {
 	if workspaceStore != nil {
 		workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewStoreGenerationWorkspace(workspaceStore,
 			llamaserver.BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), generationCatalogLimit))
+		// GGUF exports and merges ride the store too, written under the models root.
+		// Their runs bind the executable's source when it names a clean commit.
+		if rootsErr == nil {
+			sourceCommit, commitErr := runrecord.ExecutableCodeCommit(".")
+			if commitErr != nil {
+				sourceCommit = ""
+			}
+			workflowWorkspaces = append(workflowWorkspaces, llamaserver.NewGGUFWorkspace(workspaceStore, roots.Models, generationCatalogLimit,
+				llamaserver.GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, sourceCommit))
+		}
 	}
 	var workflows llamaserver.WorkflowWorkspaceAPI
 	if len(workflowWorkspaces) > 0 {
@@ -436,6 +460,9 @@ func run() error {
 		AgentEmbedder:      agentRetrieval,
 		AgentReranker:      agentRetrieval,
 		LibraryIntake:      serverLibraryIntake(),
+		Loop:               serverLoop(shutdownContext),
+		Scorecard:          serverScorecard,
+		ScorecardHistory:   scorecardHistory(repoPath),
 		ProviderKeys:       providerIntake.Keys,
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,

@@ -229,7 +229,7 @@
             return;
           }
           const failed = !!(result && result.error);
-          status.className = failed ? "tag tag-danger" : "tag";
+          status.className = failed ? "tag caution" : "tag";
           status.textContent = (failed ? "error" : "done") + elapsed;
           bodyNode.append(el("div", { class: "note", text: failed ? "error" : "result" }),
             el("pre", { class: "mono", text: typeof result === "string" ? result : JSON.stringify(result == null ? null : result, null, 2) }));
@@ -337,6 +337,12 @@
               if (event.status === "incomplete") {
                 if (!assistant) assistant = add("assistant", "");
                 assistant.incompleteReason = event.reason;
+                // A reply cut at its output limit continues as a stopped one does.
+                if (event.reason === "max_output_tokens" && options && options.stopped) {
+                  const note = el("div", { class: "note", role: "status", text: "Output limit reached." });
+                  log.appendChild(note);
+                  options.stopped(note);
+                }
               }
               announcement.textContent = event.status === "incomplete" ? "Output limit reached. Partial answer saved." : "Response ready.";
               break;
@@ -823,12 +829,12 @@
     function renderDecision(preview) {
       previewed = preview;
       const rows = [
-        el("div", {}, el("span", { class: preview.effect === "mutation" ? "tag tag-danger" : "tag", text: preview.effect }), " ", preview.tool, " / manual ", overgo.artifactLink(preview.manual)),
+        el("div", {}, el("span", { class: preview.effect === "mutation" ? "tag caution" : "tag", text: preview.effect }), " ", preview.tool, " / manual ", overgo.artifactLink(preview.manual)),
         el("div", { class: "mono", text: "grant binds: " + preview.arguments.join(" ") + " / operation " + preview.operation }),
       ];
       if (!preview.decision) rows.push(el("div", { class: "note", text: preview.effect === "mutation" ? "No committed decision yet: approving records a durable grant for exactly these bytes." : "Inspections are effect-free and need no decision." }));
       else if (preview.binds) rows.push(el("div", {}, el("span", { class: "tag", text: preview.decision.answer }), " committed decision ", overgo.artifactLink(preview.decision.id), " binds these exact facts"));
-      else rows.push(el("div", {}, el("span", { class: "tag tag-danger", text: "does not bind" }), " committed decision ", overgo.artifactLink(preview.decision.id), " (" + preview.decision.answer + ")"),
+      else rows.push(el("div", {}, el("span", { class: "tag caution", text: "does not bind" }), " committed decision ", overgo.artifactLink(preview.decision.id), " (" + preview.decision.answer + ")"),
         el("div", { class: "mono", text: "approved: " + preview.decision.arguments.join(" ") }), el("div", { class: "mono", text: "proposed: " + preview.arguments.join(" ") }));
       decisionHost.replaceChildren(el("div", { class: "card approval" }, ...rows));
       approve.disabled = preview.effect !== "mutation";

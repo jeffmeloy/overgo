@@ -4,6 +4,21 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "gui-lane-review-fixes",
+      "title": "Fix what the GUI lane's review found: data-losing exports, a stale merge partial, a misstated baseline, NaN deltas",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fix what the GUI lane's review found: data-losing exports, a stale merge partial, a misstated baseline, NaN deltas",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestRepeatExportKeepsItsOutput$'",
+          "rationale": "Serves: failure-rate and setup-steps in the workbench. Evidence: the read-only review of overgo_gui_cleanup (2026-10-04, three readers; the first two items traced in the code by the lead). Fix before anything else: (1) internal/server/gguf_workspace.go record (about 291): the run is keyed by its content hash and the output's location is in the same batch, so exporting the same model and type under a second output name conflicts on the batch key and the cleanup (about 217) removes the finished export; key the location apart or publish it in its own batch, and never delete the file because its record failed; the output is also identified by raw bytes where the rest of the repository uses the modelartifact manifest identity. (2) internal/export/gguf.go (72-86) and internal/dataset/common_format.go (208-216) write straight to the final path after a Stat: two same-name requests make the loser delete the winner's output, and a kill leaves a truncated file that blocks every retry; stage in a temp sibling and rename, as trainingprogram.PublishCheckpoint does. (3) internal/peft/merge.go (53, 63): a stale .partial whose plan hash ignores the adapter resumes and mixes two adapters; bind the adapter's digest into the plan. (4) internal/trainingworkflow/text_heldout.go (159) and heldout_run.go (167, 193): with LoRA.From set the verdict's baseline is the base plus the prior adapter but is bound to the base model; refuse From in a verdict run or bind the adapter. (5) gguf_workspace.go (124-130) with workspace_manifest.go (266): the always-listed refused fold capability enables the Model Builder tab on every store-backed server; count only capabilities without a refusal. (6) webui: scorecard_view.go ScorecardMove Before and After carry omitzero, so a zero is dropped and scorecard.js prints NaN (a failure-rate baseline of 0, host peak memory 0); boot.js (1143, 1175) compares a disambiguated row name with the bare served basename so the Serving marker is lost for dir/model.safetensors names; style.css (485) puts a parity-checked model's support tag over the Serve button. Then: the conversation verdict scores template tokens and caps held-out at 16 records; the exporters take no ctx; /loop/status runs git on every runtime.sessions event; the copy command quotes for a POSIX shell; conversation SFT reads a mutable directory instead of the inventory; text_heldout.go (153-165) overwrites a TrainingPlan error; loratrain keeps logits every step. Surface: one startWebUILane helper removes about 700 lines of the 24 browser tests' repeated harness and the static-layout tests fold into one table (about 400 more); the 24 files use t.Skip where testskip.NotApplicable records the kind; loratrain re-derives densecausal.DenseLayerTensorNames; the conversation split repeats dataset.BuildGroupSplit; three one-path-component checks; quantizeGGUF repeats cmd/gguf/quantize.go."
+        }
+      ]
+    },
+    {
       "id": "smoke-declaration-recipe",
       "title": "A smoke declaration names no recipe: the live activation binds, so a replaced recipe needs no hand edit",
       "owner": "master-lead",
@@ -362,7 +377,9 @@
             "gate-rebinds-claims/do",
             "cycle-credit-key/do",
             "host-session-memory/do",
-            "smoke-declaration-recipe/do"
+            "smoke-declaration-recipe/do",
+            "merge-gui-cleanup/do",
+            "gui-lane-review-fixes/do"
           ]
         }
       ]

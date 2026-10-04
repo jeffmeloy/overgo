@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -271,19 +272,43 @@ func (h *Handler) conversationLabel(response http.ResponseWriter, request *http.
 // This registry owns cancellation and wakes followers; the interaction trace
 // owns durable terminal state once an entry is evicted or the server restarts.
 type inflightTurn struct {
-	mu     sync.Mutex
-	text   strings.Builder
-	done   bool
-	failed string
-	final  responsesResponse
-	cancel context.CancelFunc
-	notify chan struct{}
+	mu       sync.Mutex
+	sequence uint64
+	text     strings.Builder
+	done     bool
+	failed   string
+	final    responsesResponse
+	cancel   context.CancelFunc
+	notify   chan struct{}
 }
 
 type inflightRegistry struct {
-	mu     sync.Mutex
-	turns  map[string]*inflightTurn
-	closed bool
+	mu       sync.Mutex
+	turns    map[string]*inflightTurn
+	sequence uint64
+	closed   bool
+}
+
+// turnProfile is one finished turn's decode rate and tokens per forward.
+type turnProfile struct {
+	Response           string  `json:"response"`
+	PredictedPerSecond float64 `json:"predicted_per_second"`
+	TokensPerForward   float64 `json:"tokens_per_forward"`
+}
+
+// recent profiles the finished turns the registry holds that generated,
+// oldest first.
+func (r *inflightRegistry) recent() []turnProfile {
+	r.mu.Lock()
+	turns := slices.SortedFunc(maps.Values(r.turns), func(a, b *inflightTurn) int { return cmp.Compare(a.sequence, b.sequence) })
+	r.mu.Unlock()
+	profiles := []turnProfile{}
+	for _, turn := range turns {
+		if _, done, final, _, _ := turn.snapshot(); done && final.Timings != nil && final.Timings.PredictedN > 0 {
+			profiles = append(profiles, turnProfile{Response: final.ID, PredictedPerSecond: final.Timings.PredictedPerSecond, TokensPerForward: final.Timings.TokensPerForward})
+		}
+	}
+	return profiles
 }
 
 func (r *inflightRegistry) begin(responseID string, bound int, cancel context.CancelFunc) *inflightTurn {
@@ -295,20 +320,24 @@ func (r *inflightRegistry) begin(responseID string, bound int, cancel context.Ca
 	if r.turns == nil {
 		r.turns = map[string]*inflightTurn{}
 	}
-	for id, turn := range r.turns {
-		if len(r.turns) < bound {
-			break
-		}
-		_, done, _, _, _ := turn.snapshot()
-		if done {
-			delete(r.turns, id)
+	// At the bound, the oldest finished turns leave first.
+	if len(r.turns) >= bound {
+		ids := slices.SortedFunc(maps.Keys(r.turns), func(a, b string) int { return cmp.Compare(r.turns[a].sequence, r.turns[b].sequence) })
+		for _, id := range ids {
+			if len(r.turns) < bound {
+				break
+			}
+			if _, done, _, _, _ := r.turns[id].snapshot(); done {
+				delete(r.turns, id)
+			}
 		}
 	}
 	if len(r.turns) >= bound {
 		return nil
 	}
+	r.sequence++
 	turn := &inflightTurn{
-		notify: make(chan struct{}), cancel: cancel,
+		sequence: r.sequence, notify: make(chan struct{}), cancel: cancel,
 		final: responsesResponse{ID: responseID, Object: "response", Status: "in_progress"},
 	}
 	r.turns[responseID] = turn

@@ -12,7 +12,7 @@ import (
 // TestWebUIBrowserAgentTab drives the agent tab as a person would: the page
 // leads with the agents and the chat and folds every operator panel, a new
 // agent is created from a name, instructions and a tool and becomes active,
-// a message to it gets a reply in the thread, a manual inspection step runs
+// it offers Pause while active and Resume while paused, never both, a message to it gets a reply in the thread, a manual inspection step runs
 // in the session and shows in the durable observables and the session list,
 // and a retrieval search without a projection is refused where it was asked.
 func TestWebUIBrowserAgentTab(t *testing.T) {
@@ -67,6 +67,13 @@ func TestWebUIBrowserAgentTab(t *testing.T) {
 })()`)
 	settle(`agentStatus() === 'created and activated / lane-agent'`)
 	settle(`[...agentFold('Your agents').querySelectorAll('tr')].some(row => row.textContent.includes('lane-agent') && row.textContent.includes('active'))`)
+
+	// The selected agent offers the one transition its state allows: active pauses, paused resumes.
+	check(`!!agentButton('Pause') && !agentButton('Resume')`)
+	check(`(() => { agentButton('Pause').click(); return true; })()`)
+	settle(`[...agentFold('Your agents').querySelectorAll('tr')].some(row => row.textContent.includes('lane-agent') && row.textContent.includes('paused')) && !!agentButton('Resume') && !agentButton('Pause')`)
+	check(`(() => { agentButton('Resume').click(); return true; })()`)
+	settle(`[...agentFold('Your agents').querySelectorAll('tr')].some(row => row.textContent.includes('lane-agent') && row.textContent.includes('active')) && !!agentButton('Pause')`)
 
 	// A message gets a reply in the thread.
 	check(`(() => {

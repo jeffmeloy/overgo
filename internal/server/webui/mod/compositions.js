@@ -14,7 +14,7 @@
       ["production-active", state.production_active],
     ];
     return overgo.el("div", { class: "row" }, ...labels.map(([label, passed]) =>
-      overgo.el("span", { class: "tag " + (passed ? "user_defined" : ""), text: label + (passed ? " passed" : " pending") })));
+      overgo.el("span", { class: "tag " + (passed ? "ok" : ""), text: label + (passed ? " passed" : " pending") })));
   }
 
   function graph(overgo, value) {
@@ -35,7 +35,7 @@
       panel.append(
         el("div", { class: "section-title", text: "Composition authority" }),
         el("div", { class: "note", text: "Inventory, compatibility refusals, training controls, evaluation evidence, promotion history, active selection, and runtime evidence come from OvergoDB." }),
-        el("div", { class: "row my-12" }, refresh, status), host);
+        el("div", { class: "row my-s3" }, refresh, status), host);
 
       async function activate(recipe) {
         status.textContent = "activating " + fmt.shortID(recipe);
@@ -60,8 +60,8 @@
         const generated = el("div", { class: "note" });
         card.append(
           el("div", { class: "row" },
-            el("span", { class: "tag " + (item.compatible ? "user_defined" : "control"), text: item.compatible ? "compatible" : "refused" }),
-            item.active ? el("span", { class: "tag user_defined", text: "active" }) : null,
+            el("span", { class: "tag " + (item.compatible ? "ok" : "caution"), text: item.compatible ? "compatible" : "refused" }),
+            item.active ? el("span", { class: "tag ok", text: "active" }) : null,
             id(overgo, item.recipe),
             !item.active && item.compatible ? el("button", { class: "btn", text: "Activate", onclick: () => activate(item.recipe) }) : null,
             item.active && item.generation ? el("button", { class: "btn", text: "Open promoted generation", onclick: () => generate(item, generated) }) : null),

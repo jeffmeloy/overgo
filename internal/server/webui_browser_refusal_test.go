@@ -49,7 +49,7 @@ func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
 })()`)
 	settle(`(() => {
   const line = document.querySelector('#panel-inspect.active .workspace-refusal');
-  return !!line && line.getAttribute('role') === 'status' && line.textContent.includes('unavailable') && line.textContent.includes('Serve a local model');
+  return !!line && line.getAttribute('role') === 'status' && line.textContent.includes("isn't available on this server") && line.textContent.includes('Serve a local model');
 })()`)
 	// A view's fragment reaches the same refusal, never the module.
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'chat'; return true; })()`)

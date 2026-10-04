@@ -52,12 +52,22 @@ func (runner *stoppingRunner) Generate(ctx context.Context, prompt string, optio
 	return runner.Runner.Generate(ctx, prompt, options)
 }
 
+// joinedMessagesTemplate is a chat template that joins the messages' text.
+const joinedMessagesTemplate = "{% for m in messages %}{{ m.content }}{% endfor %}"
+
 // openSessionRunner serves the hermetic model on the host path with a chat
 // template that joins the messages' text, with any adapters loaded.
 func openSessionRunner(t *testing.T, contextLength uint32, adapters ...inference.LoRAConfig) *inference.Runner {
 	t.Helper()
+	return openTemplateRunner(t, contextLength, joinedMessagesTemplate, adapters...)
+}
+
+// openTemplateRunner serves the hermetic model on the host path with the
+// chat template and any adapters loaded.
+func openTemplateRunner(t *testing.T, contextLength uint32, template string, adapters ...inference.LoRAConfig) *inference.Runner {
+	t.Helper()
 	path := testutil.HermeticLlamaGGUFWith(t, contextLength,
-		testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, "{% for m in messages %}{{ m.content }}{% endfor %}"))
+		testutil.GGUFScalar("tokenizer.chat_template", gguf.ValueTypeString, template))
 	loaded, err := servingtest.ResolveActiveGGUFWithPolicy(path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference)
 	if err != nil {
 		t.Fatal(err)

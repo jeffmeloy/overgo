@@ -42,7 +42,7 @@
         const select = selectable ? el("input", { type: "checkbox", checked: true, "data-operation": item.operation, "data-action": item.actions[0].code,
           "aria-label": "Select " + item.task + " " + fmt.shortID(item.operation) }) : null;
         return el("div", { class: "card" },
-          el("div", {}, ...(select ? [select, " "] : []), el("span", { class: "tag tag-danger", text: "waiting" }),
+          el("div", {}, ...(select ? [select, " "] : []), el("span", { class: "tag caution", text: "waiting" }),
             " operation ", artifactLink(item.operation), " / " + item.task),
           el("div", { text: item.reason }),
           ...(prior ? [prior] : []),

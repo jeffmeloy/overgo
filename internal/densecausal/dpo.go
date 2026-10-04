@@ -251,6 +251,6 @@ func (m *Model) sequenceLogProbGrads(trace preferenceTrace, coefficient float64)
 			return nil, err
 		}
 	}
-	ScatterEmbeddingGradient(hostmath.GradientSlot(g, m.tensors.embedding.name, len(m.tensors.embedding.values)), dx, sequence.Tokens, d.Hidden)
+	scatterEmbeddingGradient(hostmath.GradientSlot(g, m.tensors.embedding.name, len(m.tensors.embedding.values)), dx, sequence.Tokens, d.Hidden)
 	return g, nil
 }

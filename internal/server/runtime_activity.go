@@ -19,6 +19,8 @@ type runtimeSessionsResponse struct {
 	Session   capabilityruntime.SessionSnapshot `json:"session"`
 	Authority *runtimeAuthority                 `json:"authority,omitempty"`
 	Slots     []slotStatusItem                  `json:"slots"`
+	// Recent profiles the finished turns the server holds, oldest first.
+	Recent []turnProfile `json:"recent"`
 }
 
 type runtimeAuthority struct {
@@ -75,7 +77,7 @@ func (h *Handler) runtimeSessionsSnapshot() runtimeSessionsResponse {
 		}
 	}
 	return runtimeSessionsResponse{
-		Session: h.sessions.Snapshot(), Authority: authority, Slots: h.sessionStatus(false),
+		Session: h.sessions.Snapshot(), Authority: authority, Slots: h.sessionStatus(false), Recent: h.inflight.recent(),
 	}
 }
 

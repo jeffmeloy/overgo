@@ -127,14 +127,14 @@ func (m *Model) lossAndGradsFromStates(
 	embed := m.tensors.embedding.values
 	gradEmbed := hostmath.GradientSlot(g, m.tensors.embedding.name, len(embed))
 	if gradEmbed != nil {
-		ScatterEmbeddingGradient(gradEmbed, dx, tokens, d.Hidden)
+		scatterEmbeddingGradient(gradEmbed, dx, tokens, d.Hidden)
 	}
 	return loss, logits, g, nil
 }
 
-// ScatterEmbeddingGradient adds each token's input gradient row onto its
+// scatterEmbeddingGradient adds each token's input gradient row onto its
 // embedding row's gradient.
-func ScatterEmbeddingGradient(embedding, gradient []float32, tokens []int, hidden int) {
+func scatterEmbeddingGradient(embedding, gradient []float32, tokens []int, hidden int) {
 	for token, id := range tokens {
 		row := embedding[id*hidden : (id+1)*hidden]
 		addInPlace(row, gradient[token*hidden:(token+1)*hidden])

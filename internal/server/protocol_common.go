@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 
 	"overgo/internal/inference"
@@ -63,11 +64,23 @@ type protocolGenerationPlan struct {
 	// lora: the request's adapter scales, when it named them.
 	lora           []inference.LoRAScale
 	loraConfigured bool
+	// speculative: the request drafts from the served model's draft head.
+	speculative bool
 }
 
 type protocolGenerationResult struct {
 	ids  []tokenizer.TokenID
 	pump *generationPump
+	// ended: the model's last token ended its turn, though it may also have
+	// been the last one the limit allowed.
+	ended bool
+}
+
+// endedTurn reports whether the generated ids end on a token that ends the
+// model's turn.
+func (h *Handler) endedTurn(ids []tokenizer.TokenID) bool {
+	vocabulary, ok := h.generator.(samplingVocabulary)
+	return ok && len(ids) != 0 && slices.Contains(vocabulary.SamplingEOGTokens(), ids[len(ids)-1])
 }
 
 // turnEnd is how a generated turn ended, classified once for every
@@ -93,6 +106,8 @@ func (result protocolGenerationResult) end(maxTokens int, message inference.Chat
 		return turnCalledTools
 	case result.pump.stopped():
 		return turnStopped
+	case result.ended:
+		return turnEnded
 	case result.pump.completion >= maxTokens:
 		return turnLimited
 	}
@@ -160,6 +175,10 @@ func (h *Handler) prepareProtocolGenerationPlan(
 		writeInvalidRequest(response, err)
 		return nil, false
 	}
+	if err := h.admitSpeculation(parameters.Speculative, sampler); err != nil {
+		writeInvalidRequest(response, err)
+		return nil, false
+	}
 	lease, acquired := h.acquireRequestSession(request.Context(), response, -1)
 	if !acquired {
 		return nil, false
@@ -167,7 +186,7 @@ func (h *Handler) prepareProtocolGenerationPlan(
 	plan := &protocolGenerationPlan{
 		handler: h, request: request, session: lease,
 		sampler: sampler, maxTokens: maxTokens, stops: stops,
-		lora: lora, loraConfigured: loraConfigured,
+		lora: lora, loraConfigured: loraConfigured, speculative: parameters.Speculative,
 	}
 	if err := plan.admit(prompt); err != nil {
 		plan.release()
@@ -183,7 +202,7 @@ func (plan *protocolGenerationPlan) turn(prompt nativePrompt) (*protocolGenerati
 	next := &protocolGenerationPlan{
 		handler: plan.handler, request: plan.request, session: plan.session,
 		sampler: plan.sampler, maxTokens: plan.maxTokens, stops: plan.stops,
-		lora: plan.lora, loraConfigured: plan.loraConfigured,
+		lora: plan.lora, loraConfigured: plan.loraConfigured, speculative: plan.speculative,
 	}
 	return next, next.admit(prompt)
 }
@@ -271,13 +290,17 @@ func (plan *protocolGenerationPlan) runWithSampler(
 	if provider, ok := plan.session.Model().(promptCacheProvider); ok {
 		options.CachePrompt = provider.SupportsPromptCache()
 	}
+	// A speculative turn decodes greedily on the device from an uncached prompt.
+	if plan.speculative {
+		options.SpeculativeDecode, options.DeviceGreedy, options.CachePrompt = true, true, false
+	}
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
 		plan.evaluation = evaluation
 	}
 	pump := newGenerationPump(plan.stops, emit)
 	pump.filter.prime(plan.held)
 	ids, err := plan.handler.pumpGeneration(plan.context(), plan.session, plan.prompt.Text, options, pump)
-	return protocolGenerationResult{ids: ids, pump: pump}, err
+	return protocolGenerationResult{ids: ids, pump: pump, ended: plan.handler.endedTurn(ids)}, err
 }
 
 // countTurn is every protocol's input-token count: the protocol's turn

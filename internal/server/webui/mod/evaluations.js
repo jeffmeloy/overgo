@@ -22,10 +22,11 @@
       const matrix = el("div");
       const history = el("div");
       const detail = el("div");
+      // A campaign reads in the order it is made: the model, the plans to run on it, then Run and its progress.
       panel.append(
-        el("div", { class: "section-title", text: "Evaluation campaigns" }),
-        el("div", { class: "row" }, model, run, cancel), suiteHost, status, progress, liveMetrics,
-        el("div", { class: "section-title", text: "Available plans" }), matrix,
+        el("div", { class: "section-title", text: "Evaluation campaigns" }), model,
+        el("div", { class: "section-title", text: "Available plans" }), matrix, suiteHost,
+        el("div", { class: "row" }, run, cancel), status, progress, liveMetrics,
         el("div", { class: "section-title", text: "Previous runs" }), history, detail);
 
       let capabilities = [];
@@ -36,11 +37,13 @@
       function renderCapabilities() {
         fields.clear();
         suiteHost.replaceChildren();
-        const table = el("table", { class: "grid" }, overgo.headerRow(["select", "kind", "source", "cases", "plan"]));
+        const table = el("table", { class: "grid" }, overgo.headerRow(["run", "kind", "source", "cases", "plan"]));
         for (const capability of selectedCapabilities()) {
           const input = el("input", { type: "checkbox", value: capability.suite.plan });
           fields.set(capability.suite.plan, input);
-          table.appendChild(overgo.tableRow([input, el("span", { text: capability.suite.kind }), el("span", { text: capability.suite.source }),
+          // Each box is named for its suite and takes a finger-sized target through its label.
+          const choose = el("label", {}, input, el("span", { class: "sr-only", text: "Run the " + capability.suite.kind + " suite from " + capability.suite.source }));
+          table.appendChild(overgo.tableRow([choose, el("span", { text: capability.suite.kind }), el("span", { text: capability.suite.source }),
             String(capability.suite.cases), overgo.artifactLink(capability.suite.plan, null, true)]));
         }
         matrix.replaceChildren(table);
@@ -125,10 +128,13 @@
         } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.hidden = true; }
       });
       model.addEventListener("change", () => { renderCapabilities(); loadHistory(); });
+      // A model reads by its catalogued name; one the catalog no longer lists keeps its short identity.
+      const catalog = await api.get("/catalog/models", { signal: overgo.signal }).catch(() => ({ models: [] }));
+      const names = overgo.modelNames(catalog.models || []);
       const loadCapabilities = overgo.read(status, (signal) => api.get("/evaluations/capabilities", { signal }), (value) => {
         capabilities = value;
         status.replaceChildren();
-        for (const id of new Set(capabilities.map((item) => item.model))) model.appendChild(el("option", { value: id, text: fmt.shortID(id) }));
+        for (const id of new Set(capabilities.map((item) => item.model))) model.appendChild(el("option", { value: id, title: id, text: names.get(id) || fmt.shortID(id) }));
         run.disabled = false;
         renderCapabilities();
       }, { loading: "Loading evaluation plans…" });

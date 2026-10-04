@@ -99,7 +99,7 @@ func TestWebUIBrowserTrainingLive(t *testing.T) {
 	}
 	const helpers = `(() => {
   window.trainingPanel = () => document.querySelector('#panel-training-jobs');
-  window.trainingStatus = () => trainingPanel().querySelector(':scope > .note').textContent;
+  window.trainingStatus = () => trainingPanel().querySelector('[aria-label="run status"]').textContent;
   window.trainingRemaining = () => trainingPanel().querySelector('[aria-label="time remaining"]').textContent;
   window.trainingProgress = () => trainingPanel().querySelector('progress.workflow-progress');
   window.trainingTrend = () => trainingPanel().querySelector('[data-trend="dpo_loss"]');

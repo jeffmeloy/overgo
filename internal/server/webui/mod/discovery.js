@@ -16,25 +16,28 @@
         overgo.clear(catalogBody);
         const models = catalog.models || [];
         const { profiles = {}, datasets = {} } = catalog.coverage || {};
-        const parts = [models.length && models.length + (models.length === 1 ? " activated model" : " activated models"), profiles.registered && "profiles " + profiles.published + "/" + profiles.registered,
-          datasets.registered && "datasets " + datasets.available + "/" + datasets.registered + " on disk", catalog.truncated && "listing truncated — not every activation is shown"].filter(Boolean);
+        const parts = [models.length && models.length + (models.length === 1 ? " model is ready to serve" : " models are ready to serve"),
+          profiles.registered && profiles.published + " of " + profiles.registered + " architecture profiles published",
+          datasets.registered && datasets.available + " of " + datasets.registered + " datasets on disk", catalog.truncated && "the listing is truncated, so not every model is shown"].filter(Boolean);
         catalogNote.textContent = parts.length ? parts.join(" · ") :
-          "No activated models yet — download one below, then activate it with cmd/reverify.";
+          "No model is ready to serve yet. Search Hugging Face or add a model from disk below, then validate it.";
         // Verified is the norm the listing states once; a tag names only a state that differs from it.
         const standing = (capability) => {
           if (capability.stale) return " · stale";
           return capability.tier && capability.tier !== "verified" ? " · " + capability.tier : "";
         };
+        const names = overgo.modelNames(models);
         for (const entry of models) {
-          const capabilities = el("td", {}, ...(entry.capabilities || []).map((capability) => el("span", {
-            class: "tag mr-4", title: capability.stale || capability.recipe, text: capability.task + standing(capability) })));
+          const capabilities = el("span", {}, ...(entry.capabilities || []).map((capability) => el("span", {
+            class: "tag mr-s1", title: capability.stale || capability.recipe, text: capability.task + standing(capability) })));
           // A hosted model retires from its row with the section's reason; the catalog relists without it.
           const retire = (entry.location || "").startsWith("remote://") ? el("button", { class: "btn alt", text: "Retire", onclick: async () => {
             try { await overgo.api.post("/library/providers/retire", { location: entry.location, reason: providerReason.value.trim() || "retired from the Library tab" }); refreshCatalog(); } catch (err) { catalogNote.replaceChildren(overgo.failure(err)); }
           } }) : "";
-          // A model reads by its file; its identity stands beside it for reference.
-          const line = overgo.tableRow([el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), fmt.shortID(entry.model), capabilities, entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]);
-          ["Model", "Identity", "Capabilities", ""].forEach((label, index) => { line.children[index].dataset.label = label; });
+          // A model reads by its file and what it does; its identity follows for reference.
+          const line = overgo.tableRow([el("span", { title: entry.location || "", text: names.get(entry.model) }), capabilities,
+            el("span", { class: "note mono nowrap", title: entry.model, text: fmt.shortID(entry.model) }), entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]);
+          ["Model", "Capabilities", "Identity", "Status"].forEach((label, index) => { line.children[index].dataset.label = label; });
           catalogBody.appendChild(line);
         }
       }, { loading: "Loading the catalog…" });
@@ -60,7 +63,7 @@
           searchNote.textContent = results.length ? counted : "No results";
           for (const listing of results) {
             const download = el("button", { class: "btn alt", onclick: () => startDownload(listing.id) }, "Add");
-            resultsBody.appendChild(overgo.tableRow([listing.id, fmt.compact(listing.downloads || 0), fmt.compact(listing.likes || 0), listing.gated ? el("span", { class: "tag control", text: "gated" }) : download]));
+            resultsBody.appendChild(overgo.tableRow([listing.id, fmt.compact(listing.downloads || 0), fmt.compact(listing.likes || 0), listing.gated ? el("span", { class: "tag caution", text: "gated" }) : download]));
           }
         });
       }
@@ -93,19 +96,23 @@
         catch (err) { stage.host.replaceChildren(overgo.failure(err)); return false; }
         finally { stage.pending = false; redraw(job); }
       }
+      // registration: a model by its file, a dataset file importing a common chat format, or a downloaded directory.
+      function registration(job, name) {
+        if (job.kind !== "datasets") return { kind: "model", path: job.destination, projector: job.projector || "" };
+        return job.source ? { kind: "dataset", name, path: job.source } : { kind: "dataset", name, directory: job.destination };
+      }
       const register = (job) => step(job, async (stage, name) => {
         if (stage.registered) return;
-        stage.registered = await overgo.api.post("/library/register", job.kind === "datasets"
-          ? { kind: "dataset", name, directory: job.destination }
-          : { kind: "model", path: job.destination, projector: job.projector || "" });
+        stage.registered = await overgo.api.post("/library/register", registration(job, name));
+        const imported = stage.imported = (stage.registered.formats || []).length ? " · " + stage.registered.files + " conversations from " + stage.registered.formats.join(", ") : "";
         stage.host.replaceChildren(el("span", { class: "note" }, "registered ", overgo.artifactLink(stage.registered.recipe || stage.registered.dataset),
-          stage.registered.projector ? " with projector " + (stage.registered.media || []).join("/") : ""));
+          stage.registered.projector ? " with projector " + (stage.registered.media || []).join("/") : "", imported));
         refreshCatalog();
       });
       const validate = (job) => step(job, async (stage, name) => {
         if (job.kind === "datasets") {
           const preview = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 });
-          stage.host.replaceChildren(el("span", { class: "note", text: "validated: " + preview.examples.length + " example previewed" }));
+          stage.host.replaceChildren(el("span", { class: "note", text: "validated: " + preview.examples.length + " example previewed" + (stage.imported || "") }));
           return;
         }
         const admitted = await overgo.api.post("/library/validate", { path: stage.registered.path, projector: stage.registered.projector || "" });
@@ -134,22 +141,24 @@
         if (event !== "hub.downloads") return;
         jobsBody.replaceChildren(...(data || []).map((job) => {
           const progress = job.total > 0 ? Math.floor(job.received * 100 / job.total) + "%" : "";
-          const state = job.state === "failed" ? el("span", { class: "tag control", text: "failed" }) : job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) : el("span", { class: "tag byte", text: progress || "running" });
+          const state = job.state === "failed" ? el("span", { class: "tag caution", text: "failed" }) : job.state === "succeeded" ? el("span", { class: "tag ok", text: "done" }) : el("span", { class: "tag", text: progress || "running" });
           return overgo.tableRow([job.repository, state, job.file || (job.state === "failed" ? job.error : ""), job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : ""), lifecycle(job)]);
         }));
         for (const job of data || []) if (job.state === "succeeded" && chained.delete(job.repository)) add(job);
       }, { whileShown: true });
 
+
+      const downloadsTitle = el("div", { class: "section-title", text: "Downloads" });
       panel.append(
         el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: refreshCatalog })),
         catalogNote,
-        el("table", { class: "grid stack" }, el("thead", null, overgo.headerRow(["Model", "Identity", "Capabilities", ""])), catalogBody),
+        el("table", { class: "grid stack hide-empty" }, el("thead", null, overgo.headerRow(["Model", "Capabilities", "Identity", "Status"])), catalogBody),
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),
-        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),
-        el("div", { class: "section-title", text: "Downloads" }),
+        el("table", { class: "grid hide-empty" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),
+        downloadsTitle,
         jobsNote,
-        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress", "register · validate"])), localBody, jobsBody));
+        el("table", { class: "grid hide-empty" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress", "register · validate"])), localBody, jobsBody));
 
       // ---- a local model: a GGUF (or its directory) already on disk, with its projector, rides the same lifecycle ----
       const localModel = el("input", { "aria-label": "Model GGUF or directory on disk", class: "text", placeholder: "model GGUF or directory on disk" });
@@ -157,10 +166,24 @@
       const localButton = el("button", { class: "btn alt", text: "Add a local model", onclick: () => {
         const path = localModel.value.trim(); if (!path) return;
         const job = { id: "local:" + path, kind: "models", state: "succeeded", repository: path, destination: path, projector: localProjector.value.trim() };
-        localBody.replaceChildren(overgo.tableRow([path, el("span", { class: "tag user_defined", text: "local" }), job.projector, "", lifecycle(job)]));
+        localBody.replaceChildren(overgo.tableRow([path, el("span", { class: "tag ok", text: "local" }), job.projector, "", lifecycle(job)]));
         add(job);
       } });
-      jobsNote.after(el("div", { class: "row" }, localModel, localProjector, localButton));
+      const fromDisk = [el("div", { class: "section-title", text: "Add a model from disk" }), el("div", { class: "row" }, localModel, localProjector, localButton)];
+
+      // ---- a dataset file in alpaca, ShareGPT or OpenAI messages form imports as conversations, one per record ----
+      const datasetSource = el("input", { "aria-label": "Chat dataset file on disk", class: "text", placeholder: "alpaca, ShareGPT or OpenAI messages file (.json or .jsonl)" });
+      const datasetName = el("input", { "aria-label": "Dataset name", class: "text", placeholder: "dataset name" });
+      const datasetButton = el("button", { class: "btn alt", text: "Import a dataset file", onclick: () => {
+        const path = datasetSource.value.trim(), name = datasetName.value.trim(); if (!path || !name) return;
+        const job = { id: "import:" + path, kind: "datasets", state: "succeeded", repository: name, source: path };
+        localBody.replaceChildren(overgo.tableRow([name, el("span", { class: "tag ok", text: "import" }), path, "", lifecycle(job)]));
+        add(job);
+      } });
+      // Each way a model or dataset comes in is its own section; Downloads then follows what they started.
+      downloadsTitle.before(...fromDisk, el("div", { class: "section-title", text: "Import a chat dataset" }),
+        el("div", { class: "row" }, datasetSource, datasetName, datasetButton),
+        el("p", { class: "note", text: "Imported conversations preview under Datasets; the workbench trains preference and rollout datasets." }));
 
       // ---- a hosted provider: the declaration the CLI file carries, committed through the library route; the catalog relists ----
       const providerFields = ["name", "endpoint", "key variable", "model ids (comma-separated)", "context length (optional)"].map((placeholder) => el("input", { class: "text", placeholder, "aria-label": "provider " + placeholder }));
@@ -187,6 +210,30 @@
         } catch (err) { providerNote.textContent = overgo.friendlyError(err); }
       } });
       panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, listButton, providerButton), providerListing, providerNote, el("div", { class: "row" }, providerReason));
+
+      // The Library shows its models or, as a view the way Inspect's analyses are, the scorecard: one at a time, the
+      // scorecard one choice away and with no navigation entry of its own.
+      const views = overgo.viewsOf("library");
+      const models = [...panel.children];
+      const viewHost = el("div", { class: "view-host" });
+      const chooser = el("div", { class: "row view-chooser", role: "tablist", "aria-label": "Library views" },
+        ...[{ id: "library", label: "Models" }, ...views].map((view) => el("button", { class: "chip", role: "tab", "data-view": view.id, text: view.label, onclick: () => show(view.id) })));
+      panel.prepend(chooser);
+      panel.append(viewHost);
+      function show(id) {
+        const view = views.find((item) => item.id === id);
+        for (const node of models) node.hidden = !!view;
+        for (const button of chooser.children) button.setAttribute("aria-selected", String(button.dataset.view === (view ? view.id : "library")));
+        history.replaceState(null, "", "#" + (view ? view.id : "library"));
+        if (view) overgo.embed(view.id, viewHost);
+        else {
+          if (viewHost.workspace) viewHost.workspace.release();
+          viewHost.workspace = null;
+          viewHost.replaceChildren();
+        }
+      }
+      overgo.listen(window, "overgo-view", (event) => { if (event.detail.owner === "library") show(event.detail.view); });
+      show(overgo.requestedView("library"));
 
       // Each showing reads the catalog again.
       overgo.whileActive(refreshCatalog);

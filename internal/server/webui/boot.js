@@ -252,6 +252,14 @@
     if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
     return String(n);
   }
+  // elapsed: a measured span in the unit that reads it: milliseconds under a second, seconds under ten
+  // minutes (two decimals under a minute, whole after), then duration's minutes and hours.
+  function elapsed(ms) {
+    ms = Number(ms);
+    if (ms < 1000) return ms.toFixed(1) + " ms";
+    if (ms < 60000) return (ms / 1000).toFixed(2) + " s";
+    return ms < 600000 ? Math.round(ms / 1000) + " s" : duration(ms);
+  }
   // duration: milliseconds as whole seconds, minutes or hours and minutes.
   function duration(ms) {
     const seconds = Math.max(1, Math.round(Number(ms) / 1000));
@@ -294,6 +302,18 @@
 
   function stat(label, value, unit) {
     return el("div", { class: "stat" }, el("div", { class: "k", text: label }), el("div", { class: "v" }, String(value), unit ? el("small", { text: " " + unit }) : null));
+  }
+
+  // turnTrend: the recent finished turns' decode rate and tokens per forward, oldest first, each line with its
+  // latest value; tokens per forward reads against one, a forward per token. A trend needs two turns.
+  function turnTrend(recent) {
+    if (!recent || recent.length < 2) return null;
+    const line = (label, values, unit, reference) => el("div", { class: "turn-trend-line" },
+      el("div", { class: "note", text: label + ": " + values[values.length - 1].toFixed(2) + unit + " latest over " + values.length + " turns" }),
+      window.overgo.viz.sparkline(values, { height: 36, label, reference }));
+    return el("div", { class: "turn-trend", role: "group", "aria-label": "recent turns" },
+      line("Decode", recent.map((turn) => turn.predicted_per_second), " tok/s"),
+      line("Tokens per forward", recent.map((turn) => turn.tokens_per_forward), "", 1));
   }
 
   // fold: a collapsible section, closed unless open is passed.
@@ -477,6 +497,18 @@
     }));
   }
 
+  // modelNames: each catalogued model's name as a person tells it apart: its file, with as many folders
+  // above it as it takes when another model shares that name or the file is one shard of several.
+  function modelNames(entries) {
+    const path = (item) => (item.location || item.model || "").split(/[\\/]/).filter(Boolean);
+    const tail = (item, depth) => path(item).slice(-depth).join("/");
+    return new Map(entries.map((item) => {
+      let depth = /-\d+-of-\d+\./.test(tail(item, 1)) ? 2 : 1;
+      while (depth < path(item).length && entries.some((other) => other !== item && tail(other, depth) === tail(item, depth))) depth++;
+      return [item.model, tail(item, depth)];
+    }));
+  }
+
   // evidenceLine: a catalog entry's committed evidence, shown by the header and the picker alike.
   function evidenceLine(item) {
     const facts = [];
@@ -485,6 +517,30 @@
     if (benchmark.decode_tokens_per_second_p50) facts.push(Math.round(benchmark.decode_tokens_per_second_p50) + " decode tok/s");
     for (const entry of item.evals || []) if (entry.metrics && typeof entry.metrics.accuracy === "number") facts.push((entry.suite || "").replace(/^store\//, "") + " " + entry.metrics.accuracy.toFixed(2) + (entry.reproducible === false ? " (hosted)" : ""));
     return facts.join(" · ");
+  }
+  // memoryLines: a catalogued model's measured device memory -- its benchmark's load and peak, then the peak at
+  // each prompt length its long-form run climbed -- each against the device total it ran on.
+  function memoryLines(memory) {
+    const of = (total) => total ? " of " + bytes(total) : "";
+    const lines = [];
+    if (memory.peak_bytes) lines.push("measured peak " + bytes(memory.peak_bytes) + of(memory.device_bytes) + (memory.load_bytes ? " · " + bytes(memory.load_bytes) + " after load" : "") + (memory.residency ? " · " + memory.residency : ""));
+    if ((memory.context || []).length) lines.push("peak by prompt length: " + memory.context.map((point) => grouped(point.prompt_tokens) + " tokens " + bytes(point.peak_bytes)).join(" · ") + of(memory.context_device_bytes));
+    return lines;
+  }
+  // supportTag: a catalogued model's support tier on a tag, guarded and trainable beside it, every rung and its
+  // evidence in the title.
+  function supportTag(support, node = el("span")) {
+    const beside = support.rungs.filter((rung) => rung.held && (rung.name === "guarded" || rung.name === "trainable")).map((rung) => rung.name);
+    // Registered alone reads as a caution, parity-checked as trusted; self-consistent is plain.
+    node.className = "tag support-tier" + (support.tier === "registered" ? " caution" : support.tier === "parity-checked" ? " ok" : "");
+    node.textContent = [support.tier, ...beside].join(" · ");
+    node.title = support.rungs.map((rung) => (rung.held ? "✓ " : "✗ ") + rung.name + ": " + rung.detail).join("\n");
+    return node;
+  }
+  // supportRungs: every rung of a model's support ladder, held or not, with the evidence behind it.
+  function supportRungs(support) {
+    return el("ul", { class: "support-rungs", "aria-label": "Model support" }, ...support.rungs.map((rung) =>
+      el("li", { class: rung.held ? "held" : "" }, el("strong", { text: (rung.held ? "✓ " : "✗ ") + rung.name }), " " + rung.detail)));
   }
 
   // The front page: the workbench folds to a rail; the Workbench control or any other tab unfolds it.
@@ -561,6 +617,12 @@
     pill.title = servedName + ' — choose a model';
     document.getElementById('model-details').textContent = name;
     document.getElementById('model-evidence').textContent = evidence;
+    // The served model's support tier stands beside its pill; the details list every rung.
+    const support = !active && servedEntry && servedEntry.support;
+    const tier = document.getElementById('model-tier');
+    tier.hidden = !support;
+    if (support) supportTag(support, tier);
+    document.getElementById('model-support').replaceChildren(support ? supportRungs(support) : []);
   }
   function bindTaskModel(picker, capability) {
     const binding = { picker, capability };
@@ -723,11 +785,11 @@
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, modelSwitching, bindTaskModel,
+    api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, supportTag, supportRungs, modelNames, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors,
     getKey, setKey, modelInfo,
-    displayToken, stat, fold, workspace, viewsOf, requestedView,
-    fmt: { grouped, bytes, compact, duration, shortID },
+    displayToken, stat, turnTrend, fold, openLibrary, workspace, viewsOf, requestedView,
+    fmt: { grouped, bytes, compact, duration, elapsed, shortID },
   };
 
   // ---- shell wiring: the server manifest owns navigation order, labels and refusal; modules register only ----
@@ -833,7 +895,7 @@
     const run = el("button", { class: "btn", onclick: () => surface.execute() }, options.runLabel);
     const cancel = el("button", { class: "btn alt", hidden: true }, "cancel");
     const out = el("div");
-    panel.append(prompt, el("div", { class: "row my-10" }, ...options.fields.map(([label, input]) => el("label", { class: "inline-field" }, el("span", { class: "note", text: label }), input)), run, cancel),
+    panel.append(prompt, el("div", { class: "row my-s3" }, ...options.fields.map(([label, input]) => el("label", { class: "inline-field" }, el("span", { class: "note", text: label }), input)), run, cancel),
       ...(options.note ? [el("div", { class: "note", text: options.note })] : []), out);
     const runAction = runner(run, cancel, {
       // The surface also stands in the inspector, outside any tab; running again recovers either.
@@ -872,14 +934,43 @@
     const sentence = !reason || reason.endsWith(".") ? reason : reason + ".";
     return sentence + (tab.action ? " " + tab.action : "");
   }
-  // renderRefusal: a refused workspace answers a click or a fragment with its reason and the action that enables it.
-  function renderRefusal(tab, host) { (host || tab.panel).replaceChildren(el("p", { class: "note workspace-refusal", role: "status", text: refusalLine(tab) })); }
+  // renderRefusal: a refused workspace answers a click or a fragment with what is missing and how to turn it on.
+  function renderRefusal(tab, host) {
+    (host || tab.panel).replaceChildren(el("section", { class: "workspace-refusal", role: "status" },
+      el("h2", { text: tab.label + " isn't available on this server" }),
+      tab.refusal ? el("p", { text: tab.refusal }) : null,
+      tab.action ? el("p", { class: "note", text: tab.action }) : null));
+  }
 
   // dot: one header status dot (server, swap proxy, device) with its state and its fact as the title.
   function dot(id, state, title) {
     const node = document.getElementById(id);
     // The dot speaks its state; its colour and tooltip show it.
     if (node) { node.className = "dot " + state; node.title = title; node.setAttribute("aria-label", title); }
+  }
+  // memoryBar: the device's memory beside the pill, as a share of its total: the served model's bytes by
+  // owner, largest first, then other processes; the track is free. A device that reports no total hides it.
+  function memoryBar(device) {
+    const bar = document.getElementById("memory-bar"), label = document.getElementById("memory-label");
+    const total = device && device.total_bytes;
+    bar.hidden = label.hidden = !total;
+    if (!total) return;
+    const owners = device.owners || [];
+    const model = owners.reduce((sum, owner) => sum + owner.bytes, 0);
+    const others = Math.max(0, total - device.free_bytes - model);
+    // The label reads the model's share at a glance, where a small model is a sliver of the bar.
+    label.textContent = window.overgo.fmt.bytes(model) + " of " + window.overgo.fmt.bytes(total);
+    const parts = owners.map((owner, index) => ({ name: owner.name, bytes: owner.bytes, tone: "owner-" + Math.min(index, 3) }))
+      .concat([{ name: "other processes", bytes: others, tone: "other" }]).filter((part) => part.bytes > 0);
+    bar.replaceChildren(...parts.map((part) => {
+      const node = el("span", { class: "memory-part " + part.tone, "data-owner": part.name });
+      node.style.width = (100 * part.bytes / total).toFixed(2) + "%";
+      return node;
+    }));
+    const fmt = window.overgo.fmt.bytes;
+    const facts = parts.map((part) => part.name + " " + fmt(part.bytes)).concat(["free " + fmt(device.free_bytes) + " of " + fmt(total)]).join(" · ");
+    bar.title = facts;
+    bar.setAttribute("aria-label", "device memory: " + facts);
   }
   let statusAttempt = 0;
   async function refreshStatus() {
@@ -898,6 +989,7 @@
       statusPill.className = "pill ok";
       dot("server-dot", "ok", "server online");
       dot("device-dot", health.device ? "ok" : "off", health.device ? "device peak " + window.overgo.fmt.bytes(health.device.peak_bytes) + " · current " + window.overgo.fmt.bytes(health.device.current_bytes) : "no device");
+      memoryBar(health.device);
       // The pill names the served file, which the swap proxy reports; a model served directly reports its
       // API identifier ("overgo"), which names no model, so there the manifest's name stands in for it.
       const apiIdentifier = !proxied && capabilityDocument && health.model === capabilityDocument.id;
@@ -926,10 +1018,20 @@
   // the swap proxy choosing one swaps the serving child live while every page keeps working.
   // libraryStarters: the two ways a model enters an empty store, each a control that opens the Library tab
   // on its form (the local registration row, the hosted provider form) once the tab has mounted.
+  // openLibrary: the Library tab, with focus on the field of the form a starter names once the tab has mounted.
+  function openLibrary(selector) {
+    location.hash = "#library";
+    // The field takes focus only once its panel shows; until then the starter waits for it.
+    const focus = () => {
+      const field = document.querySelector(selector);
+      if (field && field.getClientRects().length) field.focus();
+      if (!field || document.activeElement !== field) setTimeout(focus, focusRetryMS);
+    };
+    focus();
+  }
   function libraryStarters() {
-    const open = (selector) => { location.hash = "#library"; const focus = () => { const field = document.querySelector(selector); if (field) field.focus(); else setTimeout(focus, focusRetryMS); }; focus(); };
-    return [el("button", { class: "btn alt", text: "Add a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
-      el("button", { class: "btn alt", text: "Declare a hosted provider", onclick: () => open("input[aria-label='provider name']") })];
+    return [el("button", { class: "btn alt", text: "Add a local model", onclick: () => openLibrary("input[placeholder='model GGUF or directory on disk']") }),
+      el("button", { class: "btn alt", text: "Declare a hosted provider", onclick: () => openLibrary("input[aria-label='provider name']") })];
   }
   function wireModelPicker() {
     const modelPill = document.getElementById("model-pill");
@@ -1026,6 +1128,7 @@
         // Every activated entry with bytes on disk is listed: a servable one with its evidence, declared
         // task capabilities and a serve control; a stale activation with the loader's reason and no control.
         const entries = (catalog.models || []).filter((item) => item.present && item.recipe);
+        const names = modelNames(entries);
         // An empty store names the two ways in; each opens the Library tab's form.
         if (!entries.length) {
           const starters = libraryStarters();
@@ -1037,22 +1140,28 @@
         try { remembered = localStorage.getItem(MODEL_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
         panel.replaceChildren(el("div", { class: "note", text: "Switch the served model; loading one can take a minute" + (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
           ...entries.map((item) => {
-            const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
+            const name = names.get(item.model);
             // Keyboard path: a focused row serves on Enter; the arrows move between rows.
             const row = el("div", { class: "row", tabindex: "0", onkeydown: (event) => {
               if (event.key === "Enter" && event.target === row) { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "Serve"); if (serve) serve.click(); }
               else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...currentPanel.querySelectorAll(".row[tabindex]")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
-            } }, el("span", { class: "mono", text: name }));
+            } }, el("span", { class: "mono", text: name }), item.support ? supportTag(item.support) : null);
+            // What the model does and what was measured of it read on the row; its identities wait in the details.
+            const does = (item.capabilities || []).map((capability) => capability.task === "inference" ? "text" : capability.task).join(", ");
+            const summary = [does, evidenceLine(item)].filter(Boolean).join(" · ");
+            if (summary) row.appendChild(el("span", { class: "note picker-summary", text: summary }));
+            // The measured memory shows before serving: its first line on the row, the rest in the details.
+            const memory = item.memory ? memoryLines(item.memory) : [];
+            if (memory.length) row.appendChild(el("span", { class: "note model-memory", text: memory[0] }));
             const facts = el("details", { class: "picker-facts" }, el("summary", { text: "Details" })); row.appendChild(facts);
+            for (const line of memory.slice(1)) facts.appendChild(el("span", { class: "note model-memory", text: line }));
             facts.appendChild(el("span", { class: "mono", text: item.model }));
             if (item.location) facts.appendChild(el("span", { class: "mono", text: item.location }));
             if ((item.location || "").startsWith("remote://")) facts.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
-            const evidence = evidenceLine(item);
-            if (evidence) facts.appendChild(el("span", { class: "note", text: evidence }));
             for (const capability of item.capabilities || []) facts.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier && capability.tier !== "verified" ? " · " + capability.tier : "") }));
             if (item.stale) {
               facts.open = true;
-              facts.appendChild(el("span", { class: "tag tag-danger", title: item.stale, text: "unservable: " + item.stale }));
+              facts.appendChild(el("span", { class: "tag caution", title: item.stale, text: "unservable: " + item.stale }));
               // A keyless hosted model takes its key here; the proxy and the served child hold it in memory only, and the picker relists.
               if (item.key_environment) {
                 const key = el("input", { class: "keyfield", type: "password", placeholder: item.key_environment, "aria-label": "provider key" });
@@ -1063,7 +1172,7 @@
               return row;
             }
             // The model already serving says so in place of an offer to serve it again.
-            if (name === modelPill.textContent) { row.appendChild(el("span", { class: "tag user_defined", text: "Serving" })); return row; }
+            if (name === modelPill.textContent) { row.appendChild(el("span", { class: "tag ok", text: "Serving" })); return row; }
             row.appendChild(el("button", { class: "btn alt", text: "Serve", "data-serve": "", disabled: modelSwitchPending, onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
           }));
         const first = panel.querySelector(".row"); if (first) first.focus();
@@ -1138,7 +1247,7 @@
     const text = el("span", { text: message });
     const retry = el("button", { class: "btn alt", text: "probe again" });
     const card = el("div", { class: "card" }, el("div", { class: "probe" }, dot, text),
-      el("p", { class: "note mt-18", text: "Start the server (overgo_gui.bat, or cmd/server with a model) and this page enters on its own." }),
+      el("p", { class: "note mt-s4", text: "Start the server (overgo_gui.bat, or cmd/server with a model) and this page enters on its own." }),
       el("div", { class: "actions" }, retry));
     panels.appendChild(el("div", { class: "center tall" }, card));
     async function probe() {

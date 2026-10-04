@@ -1046,7 +1046,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:151e1f9c1fa46d3ee99e74585d997e601c38f22a3faac5646530eadb58673f08"
+     "identity": "file:sha256:3311800e88d051efed2a15dbdf8af0aa9e18d8b05894fa61466e72864a43b2fe"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -1073,7 +1073,7 @@
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:64b60258d70535e7cee6f89a7bc0bf1502b3b4be08f37f10b6b38edcb12a7423"
+     "identity": "file:sha256:a922e083200f7e369f57f57ae06f1410327bd24762b957496d9c63f5e32458a4"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -1199,7 +1199,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:151e1f9c1fa46d3ee99e74585d997e601c38f22a3faac5646530eadb58673f08"
+     "identity": "file:sha256:3311800e88d051efed2a15dbdf8af0aa9e18d8b05894fa61466e72864a43b2fe"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
@@ -1386,13 +1386,13 @@
      "contains": "func (h *Handler) browseDatasets(",
      "path": "internal/server/browse_datasets.go",
      "role": "source",
-     "identity": "file:sha256:82a07cdfec009285d6ac9f2b9c969ec3e9f636f86137318c883fe8bd4fe3b0f5"
+     "identity": "file:sha256:70ca2c735e4b338f3584fe24db13a8479b23fe94b10ed4820c95d1a0b2c29718"
     },
     {
      "contains": "func TestBrowseDatasetsUsesCatalog(",
      "path": "internal/server/browse_datasets_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d9b1d4cc38d0f85d8b0fa50fee4c516bab4ca448c9e0b1888ab8e8294a02f532"
+     "identity": "evidence:sha256:c3384d59cec85ddfb6576649e19d349af51605201061a3707de29c58c752da03"
     }
    ],
    "id": "bounded-dataset-browser",

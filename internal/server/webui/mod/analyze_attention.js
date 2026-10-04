@@ -45,7 +45,7 @@
 
         const head = el("select", { class: "keyfield w-110", "aria-label": "head", onchange: draw });
         for (let h = 0; h < data.heads; h++) head.appendChild(el("option", { value: String(h) }, "head " + h));
-        out.appendChild(el("div", { class: "row my-8" },
+        out.appendChild(el("div", { class: "row my-s2" },
           el("span", { class: "note", text: "head" }), head));
 
         const map = el("div");
@@ -54,7 +54,7 @@
         out.appendChild(el("div", { class: "section-title", text: "Token index → piece" }));
         out.appendChild(el("div", { class: "note mono-lines",
           text: labels.map((t, i) => i + ":" + t).join("  ") }));
-        out.appendChild(el("div", { class: "note mt-8",
+        out.appendChild(el("div", { class: "note mt-s2",
           text: "Rows = query token (i), columns = key token (j). Cell (i,j) is the attention weight from i to j; the upper triangle is zero by causality. Hover a cell for the exact value." }));
 
         function draw() {

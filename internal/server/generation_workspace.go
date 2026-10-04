@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -48,6 +49,10 @@ type workflowControl struct {
 	// lists matching intakes beside it and routes an attachment to it.
 	Label string `json:"label,omitzero"`
 	Media string `json:"media,omitzero"`
+	// Format is the catalog format a dataset control takes: a page offers the
+	// catalogued datasets that hold it by name. A dataset control with none
+	// takes an identity typed in, as a dataset the catalog does not hold needs.
+	Format string `json:"format,omitzero"`
 	// Bounds are a numeric control's declared default, step and rate, from
 	// which a page derives its presets (aspect ratios, durations).
 	Bounds *workflowControlBounds               `json:"bounds,omitempty"`
@@ -94,6 +99,11 @@ type WorkflowCapability struct {
 	Name     string      `json:"name,omitzero"`
 	Location string      `json:"location,omitzero"`
 	Refusal  string      `json:"refusal,omitzero"`
+	// Host: the run executes on the host processor and needs no device memory.
+	Host bool `json:"host,omitzero"`
+	// Note states what the page cannot derive from the controls, such as how
+	// a run learns from its dataset.
+	Note string `json:"note,omitzero"`
 	// model is projected from the compiled recipe by native workspace owners.
 	// It must not be inferred from an unrelated co-hosted text runner.
 	model artifact.ID
@@ -287,27 +297,38 @@ func (h *Handler) workflowCapabilities(response http.ResponseWriter, request *ht
 	writeJSON(response, http.StatusOK, capabilities)
 }
 
-func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
+// admitWorkflow decodes a submission and holds it to the checks a run
+// makes: an active capability, its controls, stored sources; a refusal
+// is written.
+func (h *Handler) admitWorkflow(response http.ResponseWriter, request *http.Request, kind WorkflowKind) (workflowRequest, WorkflowCapability, bool) {
 	var body workflowRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
-		return
+		return body, WorkflowCapability{}, false
 	}
 	capabilities, err := h.config.Workflows.WorkflowCapabilities(request.Context(), kind)
 	if err != nil {
 		writeGenerationError(response, err)
-		return
+		return body, WorkflowCapability{}, false
 	}
 	capability, err := selectWorkflowCapability(capabilities, body.Task, body.Recipe)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return body, WorkflowCapability{}, false
 	}
 	if err := validateWorkflowInput(capability.Controls, body.Input); err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return body, WorkflowCapability{}, false
 	}
 	if err := validateWorkflowSources(request.Context(), h.repository, body.Sources); err != nil {
 		writeInvalidRequest(response, err)
+		return body, WorkflowCapability{}, false
+	}
+	return body, capability, true
+}
+
+func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
+	body, capability, admitted := h.admitWorkflow(response, request, kind)
+	if !admitted {
 		return
 	}
 	id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), kind, capability, body.Input, body.Sources)
@@ -316,6 +337,49 @@ func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Reques
 		return
 	}
 	writeJSON(response, http.StatusAccepted, workflowResponse{Operation: id})
+}
+
+// workflowCommand is one way to reproduce a submission outside the page:
+// "cli" runs the recipe from a command, "http" posts the submission again.
+type workflowCommand struct {
+	Kind string `json:"kind"`
+	Text string `json:"text"`
+}
+
+// workflowCommands answers the commands that reproduce an admitted
+// submission without running it: a generation recipe also runs from
+// cmd/recipe on the same executor catalog and store, and every submission
+// runs again by posting it to this server.
+func (h *Handler) workflowCommands(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
+	body, capability, admitted := h.admitWorkflow(response, request, kind)
+	if !admitted {
+		return
+	}
+	submission, err := json.Marshal(body)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	commands := []workflowCommand{}
+	if kind == workflowGeneration && capability.Location != "" {
+		commands = append(commands, workflowCommand{Kind: "cli", Text: "go run ./cmd/recipe run -task " + shellQuote(string(body.Task)) +
+			" -input " + shellQuote(string(body.Input)) + " " + shellQuote(capability.Location)})
+	}
+	scheme, authorization := "http", ""
+	if request.TLS != nil {
+		scheme = "https"
+	}
+	if h.config.APIKey != "" {
+		authorization = ` -H "Authorization: Bearer $OVERGO_API_KEY"`
+	}
+	commands = append(commands, workflowCommand{Kind: "http", Text: "curl -X POST " + shellQuote(scheme+"://"+request.Host+"/"+string(kind)+"/run") +
+		" -H 'Content-Type: application/json'" + authorization + " -d " + shellQuote(string(submission))})
+	writeJSON(response, http.StatusOK, map[string]any{"commands": commands})
+}
+
+// shellQuote quotes a word for a POSIX shell.
+func shellQuote(word string) string {
+	return "'" + strings.ReplaceAll(word, "'", `'\''`) + "'"
 }
 
 type workflowPreviewRequest struct {
@@ -399,6 +463,7 @@ func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 		fields := make(map[string]bool, len(capability.Controls))
 		for _, control := range capability.Controls {
 			if control.Name == "" || !control.Type.valid() || fields[control.Name] || !slotMedia[control.Media] ||
+				control.Format != "" && control.Type != workflowControlDataset ||
 				control.Bounds != nil && (control.Bounds.Step < 0 || control.Bounds.Rate < 0) {
 				return fmt.Errorf("workflow workspace: invalid control %q", control.Name)
 			}

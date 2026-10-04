@@ -14,22 +14,35 @@
           if (err.status === 501) throw new Error("Dataset browsing is not configured on this server.");
           throw err;
         }
-      }, render, {
-        loading: "Loading datasets…",
-        empty: (data) => !data && "This store has no dataset catalog yet. Register a directory with: go run ./cmd/dataset-catalog -register <name> -root <dir>",
-      });
+      }, render, { loading: "Loading datasets…" });
 
       function render(data) {
-        const search = el("input", { "aria-label": "Filter datasets", class: "text mw-440 my-8", type: "search", placeholder: "filter by name / source / modality / format…", });
+        // No catalog yet: say so, and open the Library's import, where a chat dataset file comes in.
+        if (!data) {
+          panel.replaceChildren(el("div", { class: "section-title", text: "Datasets" }),
+            el("p", { class: "note", text: "No datasets are catalogued yet. Import a chat dataset file (alpaca, ShareGPT or OpenAI messages) and its conversations list here." }),
+            el("button", { class: "btn alt", text: "Import a chat dataset", onclick: () => overgo.openLibrary("input[aria-label='Chat dataset file on disk']") }));
+          return;
+        }
+        const search = el("input", { "aria-label": "Filter datasets", class: "text mw-440 my-s2", type: "search", placeholder: "filter by name / source / modality / format…", });
         const host = el("div");
         const preview = el("div");
         panel.replaceChildren(
           el("div", { class: "section-title", text: "Dataset registry" }),
           el("div", { class: "lens-summary" },
             el("span", { class: "note", text: data.count + " datasets" }),
-            el("span", { class: "note mono", text: data.catalog })),
+            el("span", { class: "note mono", title: data.catalog, text: overgo.fmt.shortID(data.catalog) })),
           search, host, preview);
 
+        // previewText: a record in the OpenAI messages form reads as its conversation, any other text as written.
+        function previewText(text) {
+          let record = null;
+          try { record = JSON.parse(text); } catch (_) { /* not JSON: shown as written */ }
+          const messages = record && Array.isArray(record.messages) ? record.messages : null;
+          if (!messages) return el("pre", { class: "preview-text", text });
+          return el("div", { class: "dataset-conversation" }, ...messages.map((message) =>
+            el("div", { class: "dataset-turn" }, el("strong", { text: message.role }), el("span", { class: "preview-text", text: message.content }))));
+        }
         // The newest chosen dataset owns the preview: choosing another aborts the earlier read.
         let chosen = "";
         const showPreview = overgo.read(preview, (signal) => overgo.api.post("/datasets/preview", { name: chosen, position: 0, limit: 1 }, { signal }), (result) => {
@@ -39,7 +52,7 @@
               el("div", { class: "mono", text: example.id }),
               ...example.values.map((value) => el("div", {},
                 el("span", { class: "tag", text: value.role + " / " + value.modality }),
-                value.text ? el("pre", { class: "preview-text", text: value.text }) :
+                value.text ? previewText(value.text) :
                   el("span", { class: "note", text: value.encoding + " / " + value.bytes + " bytes" }))))));
         }, { loading: null });
 
@@ -51,7 +64,7 @@
           for (const d of rows) {
             table.appendChild(overgo.tableRow([el("button", { class: "link-button mono", text: d.name, onclick: () => { chosen = d.name; showPreview(); } }),
               el("span", { class: "tag", text: d.source || "—" }), el("span", { text: d.modality || "—" }), el("span", { text: (d.formats || []).join(", ") || "—" }),
-              String(d.files || 0), el("span", { class: d.available ? "" : "dim", text: d.available ? "available" : "missing" })]));
+              String(d.files || 0), el("span", { class: "tag " + (d.available ? "ok" : "caution"), text: d.available ? "available" : "missing" })]));
           }
           host.replaceChildren(el("div", { class: "note", text: rows.length + " shown" }), table);
         }

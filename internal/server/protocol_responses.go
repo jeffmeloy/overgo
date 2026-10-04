@@ -13,6 +13,7 @@ import (
 
 	"strconv"
 
+	"slices"
 	"strings"
 
 	"time"
@@ -777,6 +778,8 @@ func (h *Handler) streamResponses(
 			return
 		}
 		turnBuffer.finish(final, "")
+		// The finished turn joins the recent turns the runtime snapshot profiles.
+		h.events.sessionsMoved()
 	}
 	finished = true
 	_ = writeEvent("response."+final.Status, responsesStreamEvent{
@@ -835,6 +838,10 @@ func (h *Handler) responsesChatTurn(response http.ResponseWriter, request *http.
 	chat := chatCompletionRequest{Messages: messages}
 	if len(tools.prompt) != 0 || body.Reasoning != nil {
 		chat.TemplateKwargs = map[string]any{templateThinkingKwarg: thinking}
+	}
+	// A level the template admits reaches it as reasoning_effort.
+	if body.Reasoning != nil && slices.Contains(reasoningEfforts, body.Reasoning.Effort) {
+		chat.TemplateKwargs["reasoning_effort"] = body.Reasoning.Effort
 	}
 	if chatMediaCount(messages) != 0 {
 		chat.Tools = tools.active

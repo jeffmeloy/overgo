@@ -104,7 +104,7 @@
   // lengthBins: the token-length distribution's bar count, fewer when lengths span less.
   const lengthBins = 8;
   function lengthDistribution(overgo, lengths) {
-    if (!lengths.length) return null;
+    if (!lengths?.length) return null; // a preview that reads only its page lists no lengths
     const low = Math.min(...lengths), high = Math.max(...lengths);
     const width = Math.max(1, Math.ceil((high - low + 1) / lengthBins));
     const counts = new Map();
@@ -124,8 +124,8 @@
     const { el, fmt } = overgo;
     const status = el("span", { class: "note", role: "status" });
     const body = el("div");
-    const prev = el("button", { class: "btn alt", text: "prev", disabled: true });
-    const next = el("button", { class: "btn alt", text: "next", disabled: true });
+    const prev = el("button", { class: "btn alt", text: "Previous", disabled: true });
+    const next = el("button", { class: "btn alt", text: "Next", disabled: true });
     let position = 0;
     const show = overgo.read(body, (signal) => overgo.api.post("/training/preview", { ...request(), position, limit: 1 }, { signal }), (preview) => {
       status.textContent = preview.records ? "record " + (position + 1) + " of " + fmt.grouped(preview.records) : "no records";
@@ -146,11 +146,38 @@
     host.replaceChildren(el("div", { class: "row" }, open, prev, next, status), body);
   }
 
+  // renderVerdict: a held-out verdict as the scorecard reads a trained model's quality: the base model's
+  // score, the trained model's, and whether it beats the base, beside the trained model and the run.
+  function renderVerdict(overgo, host, verdict, id, trained, run) {
+    const { el, fmt } = overgo;
+    const sign = { maximize: 1, minimize: -1 }[verdict.direction] || 0;
+    // Below, level with, or beating the base, by the sign of the improvement in the metric's own direction.
+    const outcome = ["below base", "level with base", "beats base"][Math.sign(sign * (verdict.candidate_value - verdict.baseline_value)) + 1];
+    const metric = String(verdict.metric).replace(/[_-]/g, " ");
+    // The label names the role; the short identity after it drops the kind the label already says.
+    const link = (target, label) => overgo.artifactLink(target, label + " " + fmt.shortID(target).replace(/^[a-z]+:/, ""), true);
+    host.replaceChildren(el("section", { class: "evidence-block", "aria-label": "Held-out verdict" },
+      el("div", { class: "section-title", text: "Held-out " + metric }),
+      el("div", { class: "statgrid" },
+        overgo.stat("Base model", verdict.baseline_value.toFixed(3)),
+        overgo.stat("Trained model", verdict.candidate_value.toFixed(3)),
+        overgo.stat("Verdict", outcome)),
+      el("div", { class: "row artifact-links" },
+        link(run, "run"), trained ? link(trained, "trained model") : null, link(id, "verdict"))));
+  }
+
   window.overgo.trainingPreview = trainingPreview;
   window.overgo.trainingEvidence = {
     async renderOperation(host, operation, overgo) {
-      const traceID = (operation.outputs || []).find((id) => String(id).startsWith("evidence:"));
-      const checkpoint = (operation.outputs || []).find((id) => String(id).startsWith("checkpoint:"));
+      const outputs = operation.outputs || [];
+      const checkpoint = outputs.find((id) => String(id).startsWith("checkpoint:"));
+      const verdictID = outputs.find((id) => String(id).startsWith("evaluation:"));
+      if (verdictID) {
+        const verdict = await overgo.api.get(overgo.contentURL(verdictID));
+        if (verdict && typeof verdict.baseline_value === "number" && typeof verdict.candidate_value === "number") renderVerdict(overgo, host, verdict, verdictID, checkpoint, operation.run);
+        return;
+      }
+      const traceID = outputs.find((id) => String(id).startsWith("evidence:"));
       if (!traceID) return;
       const trace = await readTrace(overgo, traceID);
       if (trace) renderTrace(overgo, host, { id: traceID, trace, checkpoint, run: operation.run });
@@ -172,13 +199,13 @@
       const prev = el("button", { class: "btn alt", onclick: () => {
         const page = prior.pop() || { cursor: "", start: 0 };
         cursor = page.cursor; start = page.start; load();
-      }}, "prev");
+      }}, "Previous");
       const next = el("button", { class: "btn alt", onclick: () => {
         prior.push({ cursor, start }); cursor = nextCursor; start += limit; load();
-      }}, "next");
+      }}, "Next");
       panel.append(
         el("div", { class: "section-title", text: "Training runs" }),
-        el("div", { class: "row mb-10" }, prev, next, status));
+        el("div", { class: "row mb-s3" }, prev, next, status));
       const host = el("div");
       const detail = el("div");
       panel.append(host, detail);
@@ -203,7 +230,7 @@
         if (record) renderTrace(overgo, evidence, record, baseline && baseline.run !== record.run ? baseline : null);
       }, { loading: "Loading the run…" });
 
-      function outcomeClass(outcome) { return outcome === "succeeded" ? "user_defined" : (outcome === "failed" ? "control" : ""); }
+      function outcomeClass(outcome) { return outcome === "succeeded" ? "ok" : (outcome === "failed" ? "caution" : ""); }
       const load = overgo.read(host, (signal) => {
         const query = new URLSearchParams({ limit: String(limit) });
         if (cursor) query.set("cursor", cursor);
@@ -218,15 +245,24 @@
         status.textContent = first + "-" + last + " of " + fmt.grouped(data.count) + " runs";
         prev.disabled = prior.length === 0;
         next.disabled = !nextCursor;
+        // One page needs no paging: the count says it all; no runs at all says so instead of empty headers.
+        prev.hidden = next.hidden = prev.disabled && next.disabled;
+        if (!data.count) {
+          status.textContent = "No training runs yet. A run appears here once a training job finishes.";
+          host.replaceChildren();
+          return;
+        }
 
-        const table = el("table", { class: "grid" }, overgo.headerRow(["outcome", "recipe", "commit", "wall", "heaviest phases", "in/out"]));
+        // A run reads as how it ended, how long it took and what it used and made; its commit is reference.
+        const took = (ms) => ms < 1000 ? ms.toFixed(0) + " ms" : fmt.duration(ms);
+        const table = el("table", { class: "grid" }, overgo.headerRow(["outcome", "recipe", "took", "slowest phases", "inputs and outputs", "commit"]));
         for (const run of data.runs) {
           const phases = [...(run.phases || [])].sort((a, b) => b.ms - a.ms).slice(0, 3)
-            .map((phase) => phase.phase + " " + phase.ms.toFixed(0) + "ms").join(", ");
+            .map((phase) => phase.phase + " " + took(phase.ms)).join(", ");
           table.appendChild(overgo.tableRow([el("span", { class: "tag " + outcomeClass(run.outcome), text: run.outcome }),
             el("button", { class: "link-button mono", title: run.recipe, text: fmt.shortID(run.recipe), onclick: () => { chosen = run.id; showDetail(); } }),
-            (run.code_commit || "").slice(0, 10) || "-", run.measured_ms ? run.measured_ms.toFixed(0) + " ms" : "-",
-            el("span", { class: "dim", text: phases || "-" }), run.inputs + "/" + run.outputs]));
+            run.measured_ms ? took(run.measured_ms) : "-", el("span", { class: "dim", text: phases || "-" }),
+            run.inputs + " in · " + run.outputs + " out", el("span", { class: "note mono", text: (run.code_commit || "").slice(0, 10) || "-" })]));
         }
         host.replaceChildren(table);
       }, { loading: "Loading runs…" });

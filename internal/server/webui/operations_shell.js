@@ -175,7 +175,7 @@
     const usage = summary.usage || {};
     const resources = summary.resources || {};
     const head = el("div", { class: "operation-detail-head" },
-      el("span", { class: "tag " + (status.state === "completed" ? "user_defined" : "control"), text: status.state || "durable" }),
+      el("span", { class: "tag " + (status.state === "completed" ? "ok" : "caution"), text: status.state || "durable" }),
       el("strong", { text: status.task || 'Operation' }),
       el("span", { class: "grow" }),
       el("button", { class: "link-button", 'data-action': 'back', text: "Back to activity", onclick: () => selectOperation(host, '', false) }));

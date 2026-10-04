@@ -34,6 +34,10 @@ func TestBrowseDatasetsUsesCatalog(t *testing.T) {
 		result.Datasets[0].Source != "test" || !result.Datasets[0].Available || result.Catalog == "" {
 		t.Fatalf("result = %+v", result)
 	}
+	// A workflow's dataset control takes the dataset's identity, which the listing names beside it.
+	if id, err := artifact.ParseID(result.Datasets[0].Dataset); err != nil || id.Kind() != artifact.KindDataset {
+		t.Fatalf("listed dataset id %q (%v), want a dataset identity", result.Datasets[0].Dataset, err)
+	}
 }
 
 func TestBrowseDatasetsUnconfigured(t *testing.T) {

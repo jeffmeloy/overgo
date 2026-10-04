@@ -38,6 +38,16 @@ func (r *Runner) deviceSpeculationReady(options GenerateOptions) bool {
 	return ok && !catalog.MTPOnly
 }
 
+// SpeculativeDraftTokens declares the tokens each speculative verify span
+// drafts under raw-greedy device decoding, or zero when the model has no
+// draft head this runner drafts from or its weights are not device-resident.
+func (r *Runner) SpeculativeDraftTokens() int {
+	if !r.deviceSpeculationReady(GenerateOptions{SpeculativeDecode: true}) {
+		return 0
+	}
+	return deviceSpeculationDraftTokens
+}
+
 func greedyTokenID(logits []float32) tokenizer.TokenID {
 	best := 0
 	for index, value := range logits {
@@ -173,6 +183,9 @@ func (r *Runner) generateDeviceSpeculativeGreedy(
 		accepted := 0
 		for accepted < len(drafts) && drafts[accepted] == selections[base+accepted] {
 			accepted++
+		}
+		if options.OnDraftSpan != nil && len(drafts) > 0 {
+			options.OnDraftSpan(len(drafts), accepted)
 		}
 		for index := 0; index < accepted && !stopped; index++ {
 			if err := emit(drafts[index]); err != nil {

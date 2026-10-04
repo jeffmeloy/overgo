@@ -1,6 +1,7 @@
 // Command gguf holds the model-file tools as subcommands, each with its own
 // flags: gguf <subcommand> [flags] [arguments]. They convert Hugging Face
 // checkpoints to GGUF, hash, inspect, merge, split or quantize GGUF files,
+// convert a LoRA adapter to GGUF or merge it into a safetensors checkpoint,
 // and admit the audio files speech datasets are built from.
 package main
 
@@ -20,9 +21,11 @@ var subcommands = map[string]func(flags *flag.FlagSet, args []string) error{
 	"audio":          audioCommand,
 	"convert":        convertCommand,
 	"convert-gemma4": convertGemma4Command,
+	"convert-lora":   convertLoRACommand,
 	"hash":           hashCommand,
 	"inspect":        inspectCommand,
 	"merge":          mergeCommand,
+	"merge-lora":     mergeLoRACommand,
 	"quantize":       quantizeCommand,
 	"safetensors":    safetensorsCommand,
 	"split":          splitCommand,

@@ -1,8 +1,10 @@
 package inference
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"slices"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -26,6 +28,62 @@ func (r *Runner) ExecutionMetrics(ctx context.Context) (executor.ExecutionMetric
 		return executor.ExecutionMetrics{}, errRunnerNil
 	}
 	return r.cuda.Metrics(ctx)
+}
+
+// DeviceMemory is the served device's memory: the driver's total and free
+// bytes and the runner's live bytes by owner, largest share first.
+type DeviceMemory struct {
+	TotalBytes uint64              `json:"total_bytes"`
+	FreeBytes  uint64              `json:"free_bytes"`
+	Owners     []DeviceMemoryOwner `json:"owners"`
+}
+
+// DeviceMemoryOwner is one owner of the runner's live device bytes.
+type DeviceMemoryOwner struct {
+	Name  string `json:"name"`
+	Bytes uint64 `json:"bytes"`
+}
+
+// DeviceMemory reports the device's memory with the runner's live bytes
+// attributed to their owners; weights are the live bytes no executor owner
+// holds.
+func (r *Runner) DeviceMemory(ctx context.Context) (DeviceMemory, error) {
+	if r == nil || r.worker == nil || r.cuda == nil {
+		return DeviceMemory{}, errRunnerNil
+	}
+	metrics, err := r.cuda.Metrics(ctx)
+	if err != nil {
+		return DeviceMemory{}, err
+	}
+	var memory DeviceMemory
+	var live uint64
+	if err := r.worker.Do(ctx, func(state *device.State) error {
+		live = state.Driver.MemoryStats().CurrentBytes
+		free, total, infoErr := state.Driver.MemInfo()
+		memory.FreeBytes, memory.TotalBytes = free, total
+		return infoErr
+	}); err != nil {
+		return DeviceMemory{}, err
+	}
+	owners := []DeviceMemoryOwner{
+		{"KV cache and buffers", metrics.PoolTotalBytes},
+		{"activations", metrics.ArenaCommittedBytes},
+		{"matmul staging", metrics.BLASStagingBytes},
+		{"attention scores", metrics.BLASScoreBytes},
+		{"quantized input staging", metrics.Q8StagingBytes},
+	}
+	attributed := uint64(0)
+	for _, owner := range owners {
+		attributed += owner.Bytes
+	}
+	memory.Owners = append(memory.Owners, DeviceMemoryOwner{"weights", live - min(live, attributed)})
+	for _, owner := range owners {
+		if owner.Bytes > 0 {
+			memory.Owners = append(memory.Owners, owner)
+		}
+	}
+	slices.SortStableFunc(memory.Owners, func(a, b DeviceMemoryOwner) int { return cmp.Compare(b.Bytes, a.Bytes) })
+	return memory, nil
 }
 
 // ResetDeviceMemoryPeak starts an allocation high-water window at the current

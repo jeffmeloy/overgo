@@ -16,7 +16,7 @@
       const status = el("span", { class: "note" });
       const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "Previous");
       const next = el("button", { class: "btn alt", onclick: () => { offset += limit; load(); } }, "Next");
-      const controls = el("div", { class: "row mb-12" }, search, prev, next, status);
+      const controls = el("div", { class: "row mb-s3" }, search, prev, next, status);
       const host = el("div");
       panel.append(controls, host);
 
@@ -41,7 +41,7 @@
         next.disabled = last >= data.matched;
 
         const table = overgo.table(["id", "token", "type", "score"], data.tokens.map((token) => [String(token.id),
-          token.text === "" ? "∅" : token.text, el("span", { class: "tag " + token.type, text: token.type }), token.score ? token.score.toFixed(4) : "0"]));
+          token.text === "" ? "∅" : token.text, el("span", { class: "tag token-" + token.type, text: token.type }), token.score ? token.score.toFixed(4) : "0"]));
         host.replaceChildren(table);
       }, { loading: "Loading tokens…" });
       overgo.onRelease(() => clearTimeout(timer));

@@ -252,6 +252,23 @@ type slotStatusTimings struct {
 	PredictedMS         float64 `json:"predicted_ms"`
 	PredictedPerTokenMS float64 `json:"predicted_per_token_ms"`
 	PredictedPerSecond  float64 `json:"predicted_per_second"`
+	// DraftN and DraftNAccepted count a speculative turn's drafted tokens
+	// and those the model accepted.
+	DraftN         uint64 `json:"draft_n,omitzero"`
+	DraftNAccepted uint64 `json:"draft_n_accepted,omitzero"`
+	// TokensPerForward is the generated tokens per model forward: one each,
+	// and each accepted draft saves a forward.
+	TokensPerForward float64 `json:"tokens_per_forward,omitzero"`
+}
+
+// tokensPerForward is generated tokens over the forwards that produced them:
+// each accepted draft rides on its verifying forward.
+func tokensPerForward(generated, accepted uint64) float64 {
+	forwards := generated - min(accepted, generated)
+	if forwards == 0 {
+		return 0
+	}
+	return float64(generated) / float64(forwards)
 }
 
 func perTokenAndRate(tokens uint64, durationMS float64) (float64, float64) {
@@ -290,6 +307,7 @@ func (stats *slotRuntimeStats) metrics(processing bool) slotRuntimeMetrics {
 	predictedMS := float64(predictedNanos) / float64(time.Millisecond)
 	promptPerTokenMS, promptPerSecond := perTokenAndRate(processedTokens, promptMS)
 	predictedPerTokenMS, predictedPerSecond := perTokenAndRate(generatedTokens, predictedMS)
+	accepted := stats.acceptedDrafts.Load()
 	return slotRuntimeMetrics{
 		PromptTokens:    promptTokens,
 		ProcessedTokens: processedTokens,
@@ -305,6 +323,9 @@ func (stats *slotRuntimeStats) metrics(processing bool) slotRuntimeMetrics {
 			PredictedMS:         predictedMS,
 			PredictedPerTokenMS: predictedPerTokenMS,
 			PredictedPerSecond:  predictedPerSecond,
+			DraftN:              stats.draftedTokens.Load(),
+			DraftNAccepted:      accepted,
+			TokensPerForward:    tokensPerForward(generatedTokens, accepted),
 		},
 	}
 }
@@ -759,6 +780,17 @@ func (h *Handler) generate(
 			onPromptEvaluated(evaluation)
 		}
 	}
+	if onDraftSpan := options.OnDraftSpan; options.SpeculativeDecode {
+		options.OnDraftSpan = func(drafted, accepted int) {
+			if stats != nil {
+				stats.draftedTokens.Add(uint64(drafted))
+				stats.acceptedDrafts.Add(uint64(accepted))
+			}
+			if onDraftSpan != nil {
+				onDraftSpan(drafted, accepted)
+			}
+		}
+	}
 	onToken := options.OnToken
 	options.OnToken = func(event inference.TokenEvent) error {
 		outputTokens.Add(1)
@@ -858,12 +890,18 @@ func (h *Handler) models(response http.ResponseWriter, request *http.Request) {
 
 // health answers the public liveness probe with the served model and, when
 // the generator runs on a device, its current and peak memory for the
-// shell's device status dot.
+// shell's device status dot, and the device's memory by owner for its bar.
 func (h *Handler) health(response http.ResponseWriter, request *http.Request) {
 	payload := map[string]any{"status": "ok", "model": h.config.ModelID}
 	if api, ok := h.generator.(deviceMemoryAPI); ok {
 		if stats, err := api.DeviceMemoryStats(request.Context()); err == nil {
-			payload["device"] = map[string]uint64{"current_bytes": stats.CurrentBytes, "peak_bytes": stats.PeakBytes}
+			device := map[string]any{"current_bytes": stats.CurrentBytes, "peak_bytes": stats.PeakBytes}
+			if owners, ok := h.generator.(deviceMemoryOwnersAPI); ok {
+				if memory, err := owners.DeviceMemory(request.Context()); err == nil {
+					device["total_bytes"], device["free_bytes"], device["owners"] = memory.TotalBytes, memory.FreeBytes, memory.Owners
+				}
+			}
+			payload["device"] = device
 		}
 	}
 	writeJSON(response, http.StatusOK, payload)

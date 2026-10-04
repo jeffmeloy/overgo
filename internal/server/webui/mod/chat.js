@@ -34,7 +34,7 @@
     const { el } = overgo;
     const body = el("div");
     aside.hidden = false;
-    const close = el("button", { class: "btn alt", text: "×", "aria-label": "close the inspector", onclick: closeInspector });
+    const close = el("button", { class: "btn alt", text: "Close", "aria-label": "close the inspector", onclick: closeInspector });
     aside.replaceChildren(el("div", { class: "row" }, el("strong", { text: "Inspect turn" }), el("span", { class: "grow" }), close), body);
     close.focus();
     let record;
@@ -44,13 +44,24 @@
     if (record.incomplete_details?.reason === "max_output_tokens") cards.push(overgo.stat("Output limit reached", "Partial answer saved"));
     if (record.failure) cards.push(overgo.stat("Failure", record.failure));
     if (record.timings) cards.push(overgo.stat("Prefill", Number(record.timings.prompt_per_second).toFixed(2), "tok/s"), overgo.stat("Decode", Number(record.timings.predicted_per_second).toFixed(2), "tok/s"));
+    if (record.timings && record.timings.tokens_per_forward) cards.push(overgo.stat("Per forward", Number(record.timings.tokens_per_forward).toFixed(2), "tokens"));
+    if (record.timings && record.timings.draft_n) cards.push(overgo.stat("Drafts accepted", (record.timings.draft_n_accepted || 0) + " / " + record.timings.draft_n,
+      Math.round(100 * (record.timings.draft_n_accepted || 0) / record.timings.draft_n) + "% speculative"));
     if (record.sampling) cards.push(overgo.stat("Sampling", "T " + record.sampling.temperature, record.sampling.samplers.join(" › ") || "no stage"));
     const links = ["model", "recipe", "trace", "receipt", "operation", "run"].filter((name) => record[name]).map((name) => el("span", {}, name + " ", overgo.artifactLink(record[name])));
     const host = el("div");
     const seed = { prompt: (record.prompt || "") + (record.completion ? "\n" + record.completion : "") };
     const inspectors = [["lens", "Logits", seed], ["states", "States", seed], ["attention", "Attention", seed], ["model", "Model"], ["vocab", "Vocabulary"], ["tensors", "Tensors"]];
-    body.append(el("div", { class: "statgrid" }, ...cards), el("div", { class: "row artifact-links" }, ...links),
+    const support = el("div", { class: "turn-support" });
+    body.append(el("div", { class: "statgrid" }, ...cards), ...[overgo.turnTrend(record.recent)].filter(Boolean), el("div", { class: "row artifact-links" }, ...links), support,
       el("div", { class: "row" }, ...inspectors.map(([id, label, given]) => el("button", { class: "btn alt", text: label, onclick: () => overgo.embed(id, host, given) }))), host);
+    // The model that ran the turn, graded now by the catalog's evidence.
+    if (!record.model) return;
+    try {
+      const catalog = await overgo.api.get("/catalog/models", { signal: overgo.signal });
+      const entry = (catalog.models || []).find((item) => item.model === record.model);
+      support.replaceChildren(el("strong", { text: "Model support now" }), entry ? overgo.supportRungs(entry.support) : el("p", { class: "note", text: "the catalog no longer lists this model" }));
+    } catch (err) { if (!overgo.signal.aborted) support.replaceChildren(overgo.failure(err)); }
   };
 
   window.overgo.registerTab({
@@ -90,6 +101,9 @@
       const params = capabilities.generation;
       const contextLength = capabilities.context_length;
       const tokenLimit = capabilities.max_output_tokens;
+      // A chat reply may run to the output the server accepts, within the context; the API's default
+      // budget is for a request that names none, and would cut a reply off mid-sentence.
+      const chatTokens = Math.min(tokenLimit || params.max_tokens, contextLength || Infinity);
       // Unassigned drafts have their own scope and never replace a recipe's draft.
       const draftScope = capabilities.recipe || 'unassigned';
       const draftKey = () => DRAFT_STORAGE + JSON.stringify([draftScope, conversationRoot]);
@@ -140,17 +154,32 @@
       const system = el("textarea", { "aria-label": "System prompt", class: "text system-prompt", placeholder: "system prompt (optional)" });
       const facts = el("div", { class: "statgrid", role: "group", "aria-label": "Context meter" });
       const temperature = el("input", { class: "keyfield w-80", type: "number", min: 0, step: "any", value: params.temperature, "aria-label": "temperature", "data-draft-setting": "temperature" });
-      const maxTokens = el("input", { class: "keyfield w-90", type: "number", min: 1, step: 1, value: Math.min(params.max_tokens, tokenLimit), max: tokenLimit, "aria-label": "max tokens", "data-draft-setting": "tokens" });
+      const maxTokens = el("input", { class: "keyfield w-90", type: "number", min: 1, step: 1, value: chatTokens, max: tokenLimit, "aria-label": "max tokens", "data-draft-setting": "tokens" });
       system.dataset.draftSetting = "system";
       system.value = typeof draft.system === "string" ? draft.system : "";
       if (draft.temperature !== "" && Number.isFinite(Math.fround(Number(draft.temperature))) && Number(draft.temperature) >= 0) temperature.value = draft.temperature;
       if (draft.tokens !== "" && Number.isFinite(Number(draft.tokens)) && Number(draft.tokens) >= 1) maxTokens.value = Math.min(Math.floor(Number(draft.tokens)), tokenLimit);
+      // Speculation is offered only when the served model declares a draft head; its drafts verify greedily.
+      const speculative = capabilities.speculative ? el("input", { type: "checkbox", "aria-label": "speculative decoding", "data-draft-setting": "speculative" }) : null;
+      if (speculative) speculative.checked = draft.speculative === true;
+      // A reasoning level is offered only when the chat template reads one, with the settings that change its prompt.
+      function reasoningChoices(declared) {
+        if (!declared) return [];
+        const choices = [["", "model default"]];
+        if (declared.off) choices.push(["off", "off"]);
+        return choices.concat((declared.levels || []).map((level) => [level, level]));
+      }
+      const reasoningOptions = reasoningChoices(capabilities.reasoning);
+      const reasoning = reasoningOptions.length ? el("select", { class: "keyfield", "aria-label": "reasoning level", "data-draft-setting": "reasoning" }, ...reasoningOptions.map(([value, label]) => el("option", { value, text: label }))) : null;
+      if (reasoning && reasoningOptions.some(([value]) => value === draft.reasoning)) reasoning.value = draft.reasoning;
 
       const settings = document.getElementById("conversation-settings");
       const focusedSetting = settings.contains(document.activeElement) && document.activeElement.dataset.draftSetting;
       settings.replaceChildren(el("section", { class: "settings-section" }, el("h3", { text: "Conversation" }),
         el("label", { class: "setting-field" }, "System prompt", system),
         el("div", { class: "settings-fields" }, el("label", { class: "setting-field" }, "Temperature", temperature), el("label", { class: "setting-field" }, "Maximum output tokens", maxTokens)),
+        reasoning ? el("label", { class: "setting-field" }, "Reasoning level", reasoning) : null,
+        speculative ? el("label", { class: "setting-check" }, speculative, "Speculative decoding: draft " + capabilities.speculative.draft_tokens + " tokens a step from the model's draft head, decoding greedily (temperature 0)") : null,
         el("details", {}, el("summary", { text: "Last response usage" }), facts)));
       const exportStatus = el('div', { class: 'note', role: 'status', hidden: true });
       settings.firstChild.append(el('details', {}, el('summary', { text: 'Copy or export conversation' }),
@@ -503,17 +532,17 @@
         drafts.set(key, value);
         try { sessionStorage.setItem(key, JSON.stringify(value)); storageUnavailable = false; }
         catch (_) { storageUnavailable = true; }
-        draftNotice.hidden = !storageUnavailable || !(value.text || value.system || value.attachments.length || value.temperature !== String(params.temperature) || value.tokens !== String(Math.min(params.max_tokens, tokenLimit)));
+        draftNotice.hidden = !storageUnavailable || !(value.text || value.system || value.attachments.length || value.temperature !== String(params.temperature) || value.tokens !== String(chatTokens));
         draftNotice.textContent = "Couldn't save draft. Copy it before reloading.";
       }
       saveDraft = () => {
         if (overgo.signal.aborted) return;
-        persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, mode: composer.mode(),
+        persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, speculative: speculative ? speculative.checked : undefined, reasoning: reasoning ? reasoning.value : undefined, mode: composer.mode(),
           uncertainPrevious: uncertainPrevious === null ? undefined : uncertainPrevious, uncertainText: uncertainPrevious === null ? undefined : uncertainText, uncertainKind: uncertainPrevious === null ? undefined : uncertainKind,
           attachments: composer.attachments.map(item => ({ name: item.name, mime: item.mime, size: item.size, sourceArtifact: item.sourceArtifact, sourceRun: item.sourceRun, document: item.document === true, textApplied: item.textApplied === true })) });
       };
       saveChat = saveDraft;
-      for (const field of [system, temperature, maxTokens]) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
+      for (const field of [system, temperature, maxTokens, speculative, reasoning].filter(Boolean)) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
       updateSwitch = () => { modelNotice.hidden = !overgo.modelSwitching(); updateBusy(); };
       overgo.listen(document, "overgo-model-switch", updateSwitch);
       updateSwitch();
@@ -729,6 +758,7 @@
           cards.push(overgo.stat("Cached", fmt.grouped(timings.cache_n), "tokens"));
           if (timings.prompt_n && timings.prompt_ms > 0) cards.push(overgo.stat("Prefill", Number(timings.prompt_per_second).toFixed(2), "tok/s"));
           if (timings.predicted_n && timings.predicted_ms > 0) cards.push(overgo.stat("Decode", Number(timings.predicted_per_second).toFixed(2), "tok/s"));
+          if (timings.tokens_per_forward) cards.push(overgo.stat("Per forward", Number(timings.tokens_per_forward).toFixed(2), "tokens"));
           if (Number(timings.prompt_ms) + Number(timings.predicted_ms) > 0) cards.push(overgo.stat("Elapsed", (Number(timings.prompt_ms) + Number(timings.predicted_ms)).toFixed(2), "ms"));
         }
         facts.replaceChildren(...cards);
@@ -752,6 +782,8 @@
         if (system.value.trim()) request.instructions = system.value.trim();
         if (temperature.value !== "") request.temperature = Number(temperature.value);
         if (maxTokens.value !== "") request.max_output_tokens = Number(maxTokens.value);
+        if (reasoning && reasoning.value) request.reasoning = { effort: reasoning.value === "off" ? "none" : reasoning.value };
+        if (speculative && speculative.checked) Object.assign(request, { speculative: true, temperature: 0 });
         return request;
       }
 
@@ -998,10 +1030,13 @@
           lastResponseID = chain.status === "failed" ? (chain.previous || "") : chain.response;
           if (uncertainPrevious !== null && uncertainKind !== 'operation' && chain.response !== uncertainPrevious) { uncertainPrevious = null; uncertainText = ''; saveDraft(); showUncertainty(); }
           if (chain.status === "failed" && !lastResponseID) { moveDraft(""); overgo.rememberConversation(null); }
-          if (!inflight && chain.status === 'cancelled') {
-            const note = el('div', { class: 'note', role: 'status', text: 'Stopped' });
+          // A stopped turn, or one cut at its output limit, reopens with Continue.
+          const last = thread.messages.findLast(message => message.role === 'assistant' && message.response === chain.response);
+          const limited = chain.status === 'incomplete' && last && last.incompleteReason === 'max_output_tokens';
+          if (!inflight && (chain.status === 'cancelled' || limited)) {
+            const note = el('div', { class: 'note', role: 'status', text: limited ? 'Output limit reached.' : 'Stopped' });
             thread.node.appendChild(note);
-            offerContinue(note, chain.response, thread.messages.findLast(message => message.role === 'assistant' && message.response === chain.response));
+            offerContinue(note, chain.response, last);
           } else if (!inflight && chain.failure) thread.errorRow(chain.failure);
         } catch (err) {
           if (overgo.signal.aborted) return;

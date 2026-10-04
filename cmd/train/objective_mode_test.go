@@ -50,6 +50,27 @@ func TestTrainObjectiveModeFreezesLexicalOnTheDevice(t *testing.T) {
 	}
 }
 
+// TestLoRAFlagsMakeTheRunTheyAskFor: no -lora flag asks for no adapter; a rank
+// asks for a new one whose alpha defaults to twice the rank and whose targets
+// split from a comma list, blanks dropped; an adapter to continue brings its
+// own rank, alpha and targets, so the others are not carried beside it.
+func TestLoRAFlagsMakeTheRunTheyAskFor(t *testing.T) {
+	t.Parallel()
+	if lora := loraRequest(0, 0, "", 0, ""); lora != nil {
+		t.Fatalf("no flags asked for %+v", lora)
+	}
+	lora := loraRequest(8, 0, "q_proj, v_proj,,", 7, "")
+	if lora == nil || lora.Rank != 8 || lora.Alpha != 16 || !slices.Equal(lora.Targets, []string{"q_proj", "v_proj"}) || lora.Seed != 7 || lora.From != "" {
+		t.Fatalf("rank 8 asked for %+v, want alpha 16 and the two targets", lora)
+	}
+	if lora := loraRequest(8, 32, "", 0, ""); lora == nil || lora.Alpha != 32 || len(lora.Targets) != 0 {
+		t.Fatalf("an explicit alpha asked for %+v", lora)
+	}
+	if lora := loraRequest(8, 32, "q_proj", 7, "adapter"); lora == nil || lora.From != "adapter" || lora.Rank != 0 || lora.Alpha != 0 || len(lora.Targets) != 0 || lora.Seed != 0 {
+		t.Fatalf("continuing an adapter asked for %+v, want only its directory", lora)
+	}
+}
+
 // TestPreferenceRunsSayWhenUnjudged: a run of another objective publishes
 // no preference verdict, and a resumed DPO run, which names no base policy,
 // says it is not judged rather than passing silently.

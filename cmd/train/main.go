@@ -54,9 +54,21 @@ func run() error {
 	audioManifest := flag.String("audio-manifest", "", "CPU CTC adapter source-processing manifest; the active training recipe owns the registered dataset and split")
 	objective := flag.String("objective", "", "registered text objective alias: train on its training split, publish the trained model at -out and the held-out verdict that binds it (table and forecast objectives train through -route tabular and -route seriesforecast)")
 	proof := flag.Bool("proof", false, "with -objective: re-verify the objective's recipe by the training run alone, scoring no model and publishing no held-out verdict")
+	loraRank := flag.Int("lora-rank", 0, "with -objective: train a LoRA adapter of this rank over the frozen model instead of the model, on the host; the adapter is written under -out/adapter as a Hugging Face PEFT directory")
+	loraAlpha := flag.Float64("lora-alpha", 0, "with -lora-rank: the adapter's alpha, its scale being alpha over rank; omitted takes twice the rank")
+	loraTargets := flag.String("lora-targets", "", "with -lora-rank: comma-separated projections to adapt (q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj); omitted adapts all of them")
+	loraSeed := flag.Uint64("lora-seed", 0, "with -lora-rank: seed of the adapter's initialization")
+	loraFrom := flag.String("lora-from", "", "with -objective: continue training the PEFT adapter in this directory, which brings its own rank, alpha and targets")
 	flag.Parse()
 	if *proof && *objective == "" {
 		return fmt.Errorf("train: -proof re-verifies an -objective recipe; it needs -objective")
+	}
+	lora := loraRequest(*loraRank, *loraAlpha, *loraTargets, *loraSeed, *loraFrom)
+	if lora == nil && (*loraAlpha != 0 || *loraTargets != "" || *loraSeed != 0) {
+		return fmt.Errorf("train: -lora-alpha, -lora-targets and -lora-seed shape an adapter; they need -lora-rank or -lora-from")
+	}
+	if lora != nil && *objective == "" {
+		return fmt.Errorf("train: a LoRA adapter trains under an -objective; -lora-rank and -lora-from need -objective")
 	}
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
@@ -68,7 +80,7 @@ func run() error {
 		flag.Visit(func(given *flag.Flag) { set[given.Name] = true })
 		return runObjectiveMode(ctx, store, objectiveRun{
 			Alias: *objective, Recipe: *recipeID, Model: *model, Out: *output, Steps: *steps, Sequence: *maximumSequence, Host: *host,
-			FreezeLexical: *freezeLexical, Proof: *proof, MaxWall: *maxWall,
+			FreezeLexical: *freezeLexical, Proof: *proof, MaxWall: *maxWall, LoRA: lora,
 		}, set, os.Stdout)
 	}
 	if *previewDataset != "" {

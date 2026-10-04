@@ -316,7 +316,8 @@
             "e4b-decode-graph/do",
             "decode-small-kernels/do",
             "claimed-open-everywhere/do",
-            "cycle-resumes/do"
+            "cycle-resumes/do",
+            "deleted-files-in-tests/do"
           ]
         }
       ]

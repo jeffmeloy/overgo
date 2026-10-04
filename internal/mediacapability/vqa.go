@@ -60,8 +60,5 @@ func executeVQA(ctx context.Context, store artifact.Repository, path string, sel
 			_, text, err := vqaserve.Answer(ctx, path, prepared, form.Budget(), nil)
 			return text, err
 		})
-	if err != nil {
-		return nil, err
-	}
-	return capabilityruntime.Measured{Output: answer, Run: result.Run.ID, Phases: result.NodeWalls, Input: request}, nil
+	return capabilityruntime.Measured{Output: answer, Run: result.Run.ID, Phases: result.NodeWalls, Input: request}, err
 }

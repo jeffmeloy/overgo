@@ -1242,6 +1242,37 @@
         ]
       },
       "scope": "the receipt re-runs, on the device, real workers allocating and freeing through their libraries while the process ledger follows and returns to its prior total, and on the host the ledger's sums across libraries and its peak under concurrent libraries"
+    },
+    {
+      "changes": {
+        "internal/workflowruntime/runtime.go": {
+          "after_sha256": "a6355f9354af900020dbb96953e448b3dbec117e3129ceb71a6b2658ec649358",
+          "before_sha256": "afea8e1f2a4ed8dcabe6ee8af233e111074d82b871c2d9bc84bad95054728434",
+          "reason": "Delay assigning the existing constructed run until its publication is accepted or unchanged; no execution, model/kernel arithmetic, output bytes, persisted run identity or stage recovery changes. Refused or uncertain publication remains an error and cannot claim a durable run."
+        }
+      },
+      "evidence": "evidence:sha256:76a42b8b0cb4bbaceb42117b4588838a8106cafb38ee2bc496b2b0852d233895",
+      "id": "published-terminal-run",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/cmd/recipe": [
+          "TestCapabilityMeasurementRunsTheModel"
+        ],
+        "overgo/internal/capabilityruntime": [
+          "TestTerminalMeasurementRetainsPublishedRun"
+        ],
+        "overgo/internal/mediacapability": [
+          "TestVQAExecutorRefusesBeforeTheDevice"
+        ],
+        "overgo/internal/workflowruntime": [
+          "TestRuntimeExecutesWorkflowAndPublishesRun",
+          "TestRuntimePublishesFailedRun",
+          "TestRuntimePublishesCancelledRun",
+          "TestRuntimeResultDoesNotClaimRefusedRunPublication",
+          "TestWorkflowRestartSkipsCompletedStages"
+        ]
+      },
+      "scope": "Only the terminal workflow Result claims a Run after accepted or unchanged publication. Stage execution, output contents, run construction, stage receipts, input identities, cancellation cleanup and durable recovery are unchanged. The host receipt checks persisted success/failure/cancellation, unchanged retry identity, durable-stage recovery after refused publication despite a nonzero coordinate, scalar/session close errors and actual command/VQA error handoff. It introduces no model or kernel change and grants no current numerical, elapsed, throughput or device-resource performance claim to historical media evidence."
     }
   ],
   "paths": [

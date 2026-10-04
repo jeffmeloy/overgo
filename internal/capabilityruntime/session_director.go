@@ -483,18 +483,15 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 			RunKey(program.Definition(), content), inputs,
 			func(runtime *workflowruntime.Runtime) error { return c.bind(runtime, modelID, entry.model) },
 		)
-		var measured Measured
+		measured := Measured{Run: result.Run.ID}
 		if executeErr == nil {
 			measured = measure(output, entry.model, result, loaded)
-			measured.Input = content
 		}
+		measured.Input = content
 		if executeErr != nil {
 			err = c.retire(ctx, key, entry, executeErr)
 		} else if resources.RequestScoped() {
 			err = c.retire(ctx, key, entry, nil)
-		}
-		if executeErr != nil {
-			return zero, err
 		}
 		return measured, err
 	}

@@ -453,6 +453,7 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 	directory := t.TempDir()
 	activateMeasured(t, directory, recipe.TaskForecast, inventory, measuredContent(t, "overgo.forecast-input.v1", request))
 	var runs atomic.Int32
+	var terminal error
 	capability := mediacapability.Capability{
 		Resolve: func(string) (mediacapability.Source, error) {
 			return mediacapability.Source{Inventory: inventory}, nil
@@ -467,7 +468,7 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 					runtime, modelrecipe.ModuleForecastSeries, modelID, artifact.JSONContract(artifact.KindOutput, "overgo.fixture-forecast.v1"),
 					func(series []float32) ([]float32, error) {
 						runs.Add(1)
-						return series, nil
+						return series, terminal
 					},
 				)
 			},
@@ -506,6 +507,35 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 		run, err := runrecord.RequireExactRun(t.Context(), store, attempt.Run)
 		if err != nil || run.Recipe != attempt.Recipe || run.Outcome != runrecord.OutcomeSucceeded || !slices.Contains(run.Inputs, input.Descriptor.ID) || !slices.Equal(run.Outputs, []artifact.ID{output.Descriptor.ID}) {
 			t.Fatalf("serving attempt %s cites run %s = %+v (%v); want its persisted recipe, request and output", attempt.ID, attempt.Run, run, err)
+		}
+	}
+	// Each deliberate measurement has its own operation. Failed/cancelled
+	// executions must record the actual failed run, with no successful output.
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, cause := range []error{errors.New("fixture forecast failed"), context.Canceled} {
+		terminal = cause
+		if err := measureCapability(directory, "fixture-path", recipe.TaskForecast, capability); !errors.Is(err, cause) {
+			t.Fatalf("terminal measurement = %v; want %v", err, cause)
+		}
+	}
+	attempts = servingAttempts(t, directory)
+	if len(attempts) != 7 || runs.Load() != 5 {
+		t.Fatalf("terminal attempts=%d, executed nodes=%d; want seven attempts and five executions", len(attempts), runs.Load())
+	}
+	store, err = overgodb.Open(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	for _, attempt := range attempts {
+		if attempt.Outcome == runrecord.OutcomeSucceeded {
+			continue
+		}
+		run, err := runrecord.RequireExactRun(t.Context(), store, attempt.Run)
+		if err != nil || run.Recipe != attempt.Recipe || run.Outcome != attempt.Outcome || !slices.Contains(run.Inputs, input.Descriptor.ID) || len(run.Outputs) != 0 {
+			t.Fatalf("terminal attempt %s cites %+v (%v); want its actual recipe/request/outcome without output", attempt.ID, run, err)
 		}
 	}
 }

@@ -1,14 +1,18 @@
 package mediacapability
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
+	"overgo/internal/vqaserve"
 )
 
 // TestVQAControlsDeclareImageQuestionAndBudget pins the page form of the
@@ -58,6 +62,30 @@ func TestVQAExecutorRefusesBeforeTheDevice(t *testing.T) {
 	absent := testutil.ArtifactID(t, artifact.KindFile, "absent-image")
 	if _, err := capability.Execute(t.Context(), store, t.TempDir(), execution, `{"image":"`+absent.String()+`","question":"what?"}`); err == nil || !strings.Contains(err.Error(), "absent") {
 		t.Fatalf("a request naming an absent image ran: %v", err)
+	}
+	// A stored image reaches the real prepare stage, whose missing model
+	// configuration fails on the host. Its published run must survive the
+	// capability's error handoff, with the original image and question.
+	testutil.PublishArtifact(t, store, modelID)
+	image, err := vqaserve.ImageContract.ContentBytes([]byte("fixture image"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "vqa/terminal-image", Contents: []artifact.Content{image}}); err != nil {
+		t.Fatal(err)
+	}
+	value, err := capability.Execute(t.Context(), store, t.TempDir(), execution, `{"image":"`+image.Descriptor.ID.String()+`","question":"what?"}`)
+	measured, ok := value.(capabilityruntime.Measured)
+	if err == nil || !ok {
+		t.Fatalf("prepare failure lost its measurement: %T, %v", value, err)
+	}
+	run, err := runrecord.RequireExactRun(t.Context(), store, measured.Run)
+	question, questionErr := artifact.JSONContent(vqaserve.QuestionContract, "what?")
+	if err != nil || questionErr != nil || run.Recipe != definition.ID || run.Outcome != runrecord.OutcomeFailed || len(run.Inputs) != 2 || len(run.Outputs) != 0 {
+		t.Fatalf("prepare failure run %+v (%v, %v)", run, err, questionErr)
+	}
+	if !slices.Contains(run.Inputs, image.Descriptor.ID) || !slices.Contains(run.Inputs, question.Descriptor.ID) {
+		t.Fatalf("prepare failure run lost its image or question: %+v", run)
 	}
 }
 

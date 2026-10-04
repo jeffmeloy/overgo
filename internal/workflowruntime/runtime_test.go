@@ -139,6 +139,58 @@ func TestRuntimePublishesFailedRun(t *testing.T) {
 	}
 }
 
+type runPublicationRepository struct {
+	artifact.Repository
+	refusal error
+	refused artifact.ID
+}
+
+func (store *runPublicationRepository) Commit(ctx context.Context, batch artifact.Batch) (artifact.CommitID, error) {
+	for _, content := range batch.Contents {
+		if content.Descriptor.ID.Kind() == artifact.KindRun && store.refusal != nil {
+			store.refused = content.Descriptor.ID
+			// Even a nonzero transaction coordinate cannot prove a rejected
+			// or uncertain publication durable.
+			head, _ := store.Head()
+			return head, store.refusal
+		}
+	}
+	return store.Repository.Commit(ctx, batch)
+}
+
+func TestRuntimeResultDoesNotClaimRefusedRunPublication(t *testing.T) {
+	store, program := runtimeFixture(t)
+	t.Cleanup(func() { _ = store.Close() })
+	refusal := errors.New("fixture run publication refused")
+	repository := &runPublicationRepository{Repository: store, refusal: refusal}
+	runtime, err := NewForProgram(repository, program)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerGenerationAdapters(t, runtime, false)
+	const key = "runtime/publication-refusal"
+	operation := runtimeExecutionID(t, program, key)
+	inputs := map[recipe.PortName]Value{"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "hello"}}}}
+	result, err := runtime.ExecuteProgram(t.Context(), key, operation, nil, program, inputs)
+	_, present, readErr := artifact.ReadContent(t.Context(), store, repository.refused)
+	if !errors.Is(err, refusal) || !repository.refused.Valid() || present || readErr != nil || result.Run.ID.Valid() {
+		t.Fatalf("refused publication: result %+v, error %v, stored %t (%v); want no durable run claim", result, err, present, readErr)
+	}
+	// The fixture's first two stages have volatile outputs; only detokenize
+	// has a durable output to recover. Publication retry must keep that stage.
+	repository.refusal = nil
+	result, err = runtime.ExecuteProgram(t.Context(), key, operation, nil, program, inputs)
+	run, readErr := runrecord.RequireExactRun(t.Context(), store, result.Run.ID)
+	if err != nil || readErr != nil || run.ID != repository.refused || run.Outcome != runrecord.OutcomeSucceeded {
+		t.Fatalf("publication retry: %+v, walls %+v (%v, %v)", run, result.NodeWalls, err, readErr)
+	}
+	for _, wall := range result.NodeWalls {
+		if wall.Node == "detokenize" {
+			t.Fatal("publication retry executed the stage whose output was already durable")
+		}
+	}
+}
+
 func TestRuntimePublishesCancelledRun(t *testing.T) {
 	store, program := runtimeFixture(t)
 	defer store.Close()

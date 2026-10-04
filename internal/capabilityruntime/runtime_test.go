@@ -111,7 +111,7 @@ func TestModelSessionDirectorConcurrentKeys(t *testing.T) {
 
 const scalarModule recipe.ModuleID = "test.scalar"
 
-func capabilityFixture(t *testing.T, name string) (*overgodb.Store, artifact.ID, recipe.Program) {
+func capabilityFixture(t *testing.T, name string, sessions ...recipe.SessionPolicy) (*overgodb.Store, artifact.ID, recipe.Program) {
 	t.Helper()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -134,6 +134,9 @@ func capabilityFixture(t *testing.T, name string) (*overgodb.Store, artifact.ID,
 	}
 	modelID := manifest.ID
 	node := recipe.Node{ID: "scalar", Module: scalarModule, Placement: recipe.PlacementHost, Session: recipe.SessionCapacity}
+	if len(sessions) != 0 {
+		node.Session = sessions[0]
+	}
 	definition, err := recipe.NewDefinitionWithDependencies(
 		recipe.TaskImageGen,
 		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}},
@@ -192,6 +195,82 @@ func TestJSONScalarExecutesIdentityBoundProgram(t *testing.T) {
 	}
 	if program.Definition().Task != recipe.TaskImageGen {
 		t.Fatalf("task = %s", program.Definition().Task)
+	}
+}
+
+type terminalScalarModel struct {
+	closeErr error
+	closed   bool
+}
+
+func (model *terminalScalarModel) Close(ctx context.Context) error {
+	model.closed = true
+	return errors.Join(model.closeErr, ctx.Err())
+}
+
+// TestTerminalMeasurementRetainsPublishedRun keeps execution failure and
+// cancellation, and a close failure after success, linked to the actual run.
+// A failed attempt is not a successful output or a measured zero device peak.
+func TestTerminalMeasurementRetainsPublishedRun(t *testing.T) {
+	failure := errors.New("fixture execution failed")
+	closeFailure := errors.New("fixture close failed")
+	for _, shape := range []string{"scalar", "session"} {
+		for _, test := range []struct {
+			name                 string
+			executeErr, closeErr error
+			outcome              runrecord.Outcome
+		}{
+			{"failed", failure, closeFailure, runrecord.OutcomeFailed},
+			{"cancelled", context.Canceled, nil, runrecord.OutcomeCancelled},
+			{"close failed", nil, closeFailure, runrecord.OutcomeSucceeded},
+		} {
+			t.Run(shape+"/"+test.name, func(t *testing.T) {
+				store, _, program := capabilityFixture(t, shape+test.name, recipe.SessionRequest)
+				execution := modelrecipetest.CandidateExecution(t, store, program)
+				model := &terminalScalarModel{closeErr: test.closeErr}
+				validate := func(scalarRequest) error { return nil }
+				load := func(context.Context, artifact.Repository, string, recipe.Program, scalarRequest) (*terminalScalarModel, error) {
+					return model, nil
+				}
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				bind := func(runtime *workflowruntime.Runtime, bound artifact.ID, _ *terminalScalarModel) error {
+					return workflowruntime.RegisterJSONStage[scalarRequest, int](runtime, scalarModule, bound,
+						artifact.JSONContract(artifact.KindOutput, "test.terminal-output.v1"),
+						func(input scalarRequest) (int, error) {
+							if errors.Is(test.executeErr, context.Canceled) {
+								cancel()
+							}
+							return input.Value, test.executeErr
+						})
+				}
+				execute := JSONScalar[scalarRequest, *terminalScalarModel, int]("scalar", validate, load, bind)
+				if shape == "session" {
+					director, err := NewModelSessionDirector[scalarRequest, *terminalScalarModel, int]("scalar", "host", 1,
+						validate, load, func(context.Context, *terminalScalarModel, scalarRequest) error { return nil }, bind)
+					if err != nil {
+						t.Fatal(err)
+					}
+					execute = director.Executor()
+					t.Cleanup(func() { _ = director.Close(t.Context()) })
+				}
+				value, err := execute(ctx, store, "model", execution, `{"value":4}`)
+				if test.executeErr != nil && !errors.Is(err, test.executeErr) || test.closeErr != nil && !errors.Is(err, test.closeErr) || !model.closed {
+					t.Fatalf("terminal execution: error %v, closed %t; want %v and %v after close", err, model.closed, test.executeErr, test.closeErr)
+				}
+				measured, ok := value.(Measured)
+				if !ok {
+					t.Fatalf("terminal execution discarded its measurement: %T", value)
+				}
+				run, err := runrecord.RequireExactRun(t.Context(), store, measured.Run)
+				if err != nil || run.Recipe != program.Definition().ID || run.Outcome != test.outcome || len(run.Inputs) != 1 || run.Inputs[0] != measured.Input.Descriptor.ID {
+					t.Fatalf("terminal run %+v (%v); want the persisted recipe, request and %s outcome", run, err, test.outcome)
+				}
+				if test.executeErr != nil && (len(run.Outputs) != 0 || measured.Output != nil || measured.PeakDeviceBytes != 0) {
+					t.Fatalf("failed measurement has successful output or peak: %+v; run %+v", measured, run)
+				}
+			})
+		}
 	}
 }
 

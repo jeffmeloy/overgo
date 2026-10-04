@@ -73,6 +73,24 @@ func TestTrainingIdentifiesRecordedInputs(t *testing.T) {
 	if _, err := identifyModel(t.TempDir()); err == nil {
 		t.Fatal("empty directory identified")
 	}
+	t.Run("registered-gguf", func(t *testing.T) {
+		store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer store.Close()
+		registration, err := inventory.Batch("registered/" + expected.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := artifact.CommitBatch(t.Context(), store, registration); err != nil {
+			t.Fatal(err)
+		}
+		recorded, err := identifyAndRecordWeights(t.Context(), store, ggufPath)
+		if err != nil || recorded != expected {
+			t.Fatalf("bootstrap of a GGUF the store already holds = (%s, %v), want %s: it has nothing to record and still trains", recorded, err, expected)
+		}
+	})
 	t.Run("indexed-safetensors", func(t *testing.T) {
 		directory := t.TempDir()
 		for index, name := range []string{"first", "second", "third"} {

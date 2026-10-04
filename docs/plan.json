@@ -317,7 +317,8 @@
             "training-rate-per-layer/do",
             "validate-currency/do",
             "plan-review-2026-10-03/do",
-            "training-peak/do"
+            "training-peak/do",
+            "bootstrap-gguf-rerun/do"
           ]
         }
       ]

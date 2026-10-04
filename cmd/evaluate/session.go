@@ -13,8 +13,9 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
-	"overgo/internal/modelrecipe"
+	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/runrecord"
 	"overgo/internal/sequencescore"
@@ -67,20 +68,16 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		}
 		return session, nil
 	}
-	loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, request.Path)
+	runner, err := modelcli.OpenRunner(ctx, value.Repository, request.Path, inference.OpenOptions{DeviceOrdinal: value.Device})
 	if err != nil {
 		return fail(err)
 	}
-	identity, err := loaded.Identity()
+	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
 	if err != nil {
-		_ = loaded.Close()
+		_ = runner.Close()
 		return fail(err)
 	}
-	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{DeviceOrdinal: value.Device})
-	if err != nil {
-		_ = loaded.Close()
-		return fail(err)
-	}
+	identity := description.Identity
 	environment, err := runrecord.CurrentEnvironment(fmt.Sprintf("cuda:%d", value.Device), "cuda")
 	if err != nil {
 		_ = runner.Close()

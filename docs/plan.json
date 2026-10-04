@@ -314,7 +314,8 @@
             "bootstrap-gguf-rerun/do",
             "benchmark-adapters-digest/do",
             "e4b-decode-graph/do",
-            "decode-small-kernels/do"
+            "decode-small-kernels/do",
+            "claimed-open-everywhere/do"
           ]
         }
       ]

@@ -9,9 +9,15 @@ import (
 	"overgo/internal/peft"
 )
 
-// LoRAAdapterDirectory names, within a LoRA run's checkpoint, the directory
-// that holds the trained adapter as a Hugging Face PEFT adapter.
-const LoRAAdapterDirectory = "adapter"
+const (
+	// LoRAAdapterDirectory names, within a LoRA run's checkpoint, the directory
+	// that holds the trained adapter as a Hugging Face PEFT adapter.
+	LoRAAdapterDirectory = "adapter"
+	// LoRAAlphaPerRank is how many times its rank a LoRA adapter's alpha is
+	// unless a run names another, so its scale is this many: the default
+	// LlamaFactory uses.
+	LoRAAlphaPerRank = 2
+)
 
 // LoRA configures a held-out text run that trains a low-rank adapter over the
 // frozen model: every module's scale is Alpha over Rank, and Targets name the

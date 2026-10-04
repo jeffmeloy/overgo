@@ -66,6 +66,9 @@ type ConversationSFT struct {
 	WorkDirectory string
 	// Steps counts updates, each on one packed window of rendered text.
 	Steps int
+	// LoRA, when set, trains a low-rank adapter over the frozen model instead
+	// of the model.
+	LoRA *LoRA
 	// Step, when set, reports each update as it finishes.
 	Step     func(step, total int, loss float64)
 	Progress io.Writer
@@ -98,7 +101,7 @@ func RunConversationSFT(ctx context.Context, store *overgodb.Store, request Conv
 	return RunTextHeldout(ctx, store, TextHeldoutRequest{
 		Alias: alias, ModelDirectory: request.ModelDirectory, OutputDirectory: request.OutputDirectory,
 		Steps: request.Steps, MaximumSequence: conversationWindow, Host: true,
-		Chat: true, Step: request.Step, Progress: request.Progress,
+		Chat: true, Step: request.Step, Progress: request.Progress, LoRA: request.LoRA,
 	})
 }
 

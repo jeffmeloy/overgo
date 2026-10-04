@@ -29,20 +29,16 @@ type objectiveRun struct {
 	LoRA *trainingworkflow.LoRA
 }
 
-// loraAlphaPerRank is how many times its rank a LoRA adapter's alpha defaults
-// to, so its scale defaults to this many: the default LlamaFactory uses.
-const loraAlphaPerRank = 2
-
 // loraRequest is the LoRA run the -lora flags ask for: none when they ask for
 // none, an adapter of the given rank otherwise, or the one in the PEFT
-// directory from. Alpha defaults to loraAlphaPerRank times the rank; targets
+// directory from. Alpha defaults to trainingworkflow.LoRAAlphaPerRank times the rank; targets
 // are comma-separated projection names, all linear projections when empty.
 func loraRequest(rank int, alpha float64, targets string, seed uint64, from string) *trainingworkflow.LoRA {
 	if rank <= 0 && from == "" {
 		return nil
 	}
 	if alpha == 0 {
-		alpha = float64(rank * loraAlphaPerRank)
+		alpha = float64(rank * trainingworkflow.LoRAAlphaPerRank)
 	}
 	var names []string
 	for name := range strings.SplitSeq(targets, ",") {

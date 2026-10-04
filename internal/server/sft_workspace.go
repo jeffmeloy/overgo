@@ -27,21 +27,40 @@ type SFTTrainer struct {
 	Render trainingworkflow.ConversationRenderer
 }
 
-// sftRecipeRuntime is the program a conversation run's recipe identity
-// derives from.
-const sftRecipeRuntime = "conversation-sft/v1"
+const (
+	// sftRecipeRuntime and sftLoRARuntime are the programs a conversation run's
+	// recipe identity derives from, one for each way of fine-tuning.
+	sftRecipeRuntime = "conversation-sft/v1"
+	sftLoRARuntime   = "conversation-lora/v1"
+	// sftLoRADefaultRank is the rank the page offers a LoRA adapter, the one
+	// PEFT's and LlamaFactory's examples use.
+	sftLoRADefaultRank = 8
+	// sftDatasetFormat is the catalog format of a conversation dataset the page
+	// offers: one JSON file per conversation.
+	sftDatasetFormat = "json"
+	// sftNote and sftLoRANote tell the page how a run learns from its dataset.
+	sftNote     = "Learns every token of each conversation as the model's chat template renders it, the user's turns and the template's own markers as well as the replies: the trainer has no loss mask yet."
+	sftLoRANote = "Trains a low-rank adapter over the frozen model rather than the model, and saves it as a Hugging Face PEFT adapter in the output's adapter directory. Like full fine-tuning it learns every token of each conversation, the user's turns and the template's own markers as well as the replies."
+)
 
-// sftDatasetFormat is the catalog format of a conversation dataset the page
-// offers: one JSON file per conversation.
-const sftDatasetFormat = "json"
+// sftMethod is one way the workspace fine-tunes the served model on
+// conversations: its program, how the page names and describes it, and whether
+// it trains a LoRA adapter, which takes a rank.
+type sftMethod struct {
+	runtime, name, note string
+	lora                bool
+}
 
-// sftNote tells the page how a run learns from its dataset.
-const sftNote = "Learns every token of each conversation as the model's chat template renders it, the user's turns and the template's own markers as well as the replies: the trainer has no loss mask yet."
+var sftMethods = []sftMethod{
+	{runtime: sftRecipeRuntime, name: ", on conversations", note: sftNote},
+	{runtime: sftLoRARuntime, name: ", LoRA adapter on conversations", note: sftLoRANote, lora: true},
+}
 
 // SFTWorkspace offers the Train tab a fine-tuning of the served model on a
-// conversation dataset: each conversation is rendered through the model's
-// chat template, a few are held out, the model trains on the rest, and the
-// trained model and its held-out verdict are recorded as one run.
+// conversation dataset, whole or as a LoRA adapter: each conversation is
+// rendered through the model's chat template, a few are held out, the model or
+// its adapter trains on the rest, and the trained model and its held-out
+// verdict are recorded as one run.
 type SFTWorkspace struct {
 	store   *overgodb.Store
 	roots   dataroot.Roots
@@ -57,50 +76,71 @@ func NewSFTWorkspace(store *overgodb.Store, roots dataroot.Roots, trainer SFTTra
 	return &SFTWorkspace{store: store, roots: roots, trainer: trainer}, nil
 }
 
-// WorkflowCapabilities lists the one fine-tuning the Train tab offers: the
-// served model on a conversation dataset.
+// WorkflowCapabilities lists the fine-tunings the Train tab offers: the served
+// model on a conversation dataset, and a LoRA adapter over it.
 func (workspace *SFTWorkspace) WorkflowCapabilities(_ context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
 	if workspace == nil || kind != WorkflowTraining {
 		return nil, nil
 	}
-	program, err := ggufProgram(sftRecipeRuntime, workspace.trainer.Model)
-	if err != nil {
-		return nil, err
-	}
-	return []WorkflowCapability{{
-		Task: recipe.TaskTraining, Recipe: program.ID, Model: workspace.trainer.Model,
-		Name: filepath.Base(workspace.trainer.File) + ", on conversations", Location: workspace.trainer.File,
-		Host:    trainsOnHost,
-		Note:    sftNote,
-		Stages:  []recipe.Stage{{Node: recipe.Node{ID: "train", Module: sftRecipeRuntime}}},
-		Outputs: []recipe.Output{{Name: "model", Data: recipe.DataArtifact, Source: recipe.Endpoint{Node: "train", Port: "model"}}},
-		Controls: []workflowControl{
+	var capabilities []WorkflowCapability
+	for _, method := range sftMethods {
+		program, err := ggufProgram(method.runtime, workspace.trainer.Model)
+		if err != nil {
+			return nil, err
+		}
+		controls := []workflowControl{
 			{Name: "dataset", Type: workflowControlDataset, Required: true, Label: "conversations", Format: sftDatasetFormat},
 			{Name: "steps", Type: workflowControlInteger, Required: true},
-			{Name: "output", Type: workflowControlOutput, Required: true},
-		},
-	}}, nil
+		}
+		if method.lora {
+			controls = append(controls, workflowControl{Name: "rank", Type: workflowControlInteger, Required: true, Bounds: &workflowControlBounds{Default: sftLoRADefaultRank, Step: 1}})
+		}
+		controls = append(controls, workflowControl{Name: "output", Type: workflowControlOutput, Required: true})
+		capabilities = append(capabilities, WorkflowCapability{
+			Task: recipe.TaskTraining, Recipe: program.ID, Model: workspace.trainer.Model,
+			Name: filepath.Base(workspace.trainer.File) + method.name, Location: workspace.trainer.File,
+			Host:     trainsOnHost,
+			Note:     method.note,
+			Stages:   []recipe.Stage{{Node: recipe.Node{ID: "train", Module: recipe.ModuleID(method.runtime)}}},
+			Outputs:  []recipe.Output{{Name: "model", Data: recipe.DataArtifact, Source: recipe.Endpoint{Node: "train", Port: "model"}}},
+			Controls: controls,
+		})
+	}
+	return capabilities, nil
+}
+
+// method is the fine-tuning the recipe names for the served model, with its program.
+func (workspace *SFTWorkspace) method(recipeID artifact.ID) (sftMethod, artifact.Descriptor, error) {
+	for _, method := range sftMethods {
+		program, err := ggufProgram(method.runtime, workspace.trainer.Model)
+		if err != nil {
+			return sftMethod{}, artifact.Descriptor{}, err
+		}
+		if program.ID == recipeID {
+			return method, program, nil
+		}
+	}
+	return sftMethod{}, artifact.Descriptor{}, errors.New("sft workspace: workflow is not admitted")
 }
 
 type sftInput struct {
 	Dataset artifact.ID `json:"dataset"`
 	Steps   int         `json:"steps"`
+	Rank    int         `json:"rank"`
 	Output  string      `json:"output"`
 }
 
-// ExecuteWorkflow fine-tunes the served model on the dataset and records the
-// run: the model and the conversations in, the trained model and the verdict
-// that judged it out. A run that fails or is cancelled records its outcome.
+// ExecuteWorkflow fine-tunes the served model on the dataset, whole or as an
+// adapter of the rank given, and records the run: the model and the
+// conversations in, the trained model and the verdict that judged it out. A run
+// that fails or is cancelled records its outcome.
 func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, capability WorkflowCapability, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
 	if workspace == nil || ctx == nil || reporter == nil || kind != WorkflowTraining || capability.Task != recipe.TaskTraining {
 		return operation.Completion{}, errors.New("sft workspace: workflow is not admitted")
 	}
-	program, err := ggufProgram(sftRecipeRuntime, workspace.trainer.Model)
+	method, program, err := workspace.method(capability.Recipe)
 	if err != nil {
 		return operation.Completion{}, err
-	}
-	if capability.Recipe != program.ID {
-		return operation.Completion{}, errors.New("sft workspace: workflow is not admitted")
 	}
 	var input sftInput
 	if err := strictjson.DecodeBytes(raw, &input); err != nil {
@@ -109,6 +149,15 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	inputs := []artifact.ID{workspace.trainer.Model, input.Dataset}
 	if input.Dataset.Kind() != artifact.KindDataset || input.Steps <= 0 {
 		return operation.Completion{}, errors.New("sft workspace: a conversation dataset and a positive number of steps are required")
+	}
+	var lora *trainingworkflow.LoRA
+	switch {
+	case method.lora && input.Rank <= 0:
+		return operation.Completion{}, errors.New("sft workspace: a LoRA adapter needs a positive rank")
+	case !method.lora && input.Rank != 0:
+		return operation.Completion{}, errors.New("sft workspace: a rank belongs to the LoRA adapter, not to fine-tuning the whole model")
+	case method.lora:
+		lora = &trainingworkflow.LoRA{Rank: input.Rank, Alpha: float64(input.Rank * trainingworkflow.LoRAAlphaPerRank)}
 	}
 	output, err := outputDirectory(workspace.roots.Checkpoints, input.Output)
 	if err != nil {
@@ -119,7 +168,7 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	result, err := trainingworkflow.RunConversationSFT(ctx, workspace.store, trainingworkflow.ConversationSFT{
 		Dataset: input.Dataset, Render: workspace.trainer.Render, ModelDirectory: workspace.trainer.File,
 		OutputDirectory: output, WorkDirectory: filepath.Join(workspace.roots.Datasets, "sft"),
-		Steps: input.Steps,
+		Steps: input.Steps, LoRA: lora,
 		Step: func(step, _ int, loss float64) {
 			reporter.Progress(uint64(step), &total)
 			reporter.Metric(operation.Metric{Name: "loss", Value: loss})
@@ -147,17 +196,13 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 
 // PreviewWorkflow pages the input's conversations as a run reads them: each
 // rendered through the model's chat template and split into tokens, before any
-// run.
+// run. Both ways of fine-tuning read the conversations alike.
 func (workspace *SFTWorkspace) PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
 	if workspace == nil || kind != WorkflowTraining || task != recipe.TaskTraining {
 		return nil, errors.New("sft workspace: workflow is not admitted")
 	}
-	program, err := ggufProgram(sftRecipeRuntime, workspace.trainer.Model)
-	if err != nil {
+	if _, _, err := workspace.method(recipeID); err != nil {
 		return nil, err
-	}
-	if recipeID != program.ID {
-		return nil, errors.New("sft workspace: workflow is not admitted")
 	}
 	var input struct {
 		Dataset artifact.ID `json:"dataset"`

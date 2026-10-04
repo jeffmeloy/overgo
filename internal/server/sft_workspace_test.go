@@ -14,6 +14,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/peft"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
@@ -107,8 +108,14 @@ func (fixture sftFixture) input(output string) json.RawMessage {
 	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":4,"output":%q}`, fixture.conversations.String(), output))
 }
 
+// inputWithRank is the input of a LoRA run of the given rank.
+func (fixture sftFixture) inputWithRank(output string, rank int) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":4,"rank":%d,"output":%q}`, fixture.conversations.String(), rank, output))
+}
+
 // TestSFTWorkspaceFineTunesTheServedModel: the Train tab offers the served
-// model on conversations with three controls and says how a run learns;
+// model on conversations, whole or as a LoRA adapter of a rank the page asks
+// for, and says how a run learns;
 // previewing pages the conversations as rendered; running it renders a
 // registered conversation dataset, trains the model on the host and records
 // one run with the model and conversations in and the trained model and the
@@ -123,10 +130,18 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 		t.Fatalf("an export listing held %v (%v), want none", other, err)
 	}
 	capabilities, err := workspace.WorkflowCapabilities(ctx, WorkflowTraining)
-	if err != nil || len(capabilities) != 1 {
-		t.Fatalf("training capabilities = %+v, %v", capabilities, err)
+	if err != nil || len(capabilities) != 2 {
+		t.Fatalf("training capabilities = %+v, %v, want fine-tuning the whole model and a LoRA adapter", capabilities, err)
 	}
-	capability := capabilities[0]
+	capability, adapterCapability := capabilities[0], capabilities[1]
+	var adapterControls []string
+	for _, control := range adapterCapability.Controls {
+		adapterControls = append(adapterControls, control.Name)
+	}
+	if adapterCapability.Name != "served, LoRA adapter on conversations" || strings.Join(adapterControls, ",") != "dataset,steps,rank,output" || adapterCapability.Recipe == capability.Recipe ||
+		adapterCapability.Controls[2].Bounds == nil || adapterCapability.Controls[2].Bounds.Default != sftLoRADefaultRank || !strings.Contains(adapterCapability.Note, "PEFT adapter") {
+		t.Fatalf("LoRA capability = %+v with controls %v, want its own recipe, a rank of default %d and a note naming the PEFT adapter", adapterCapability, adapterControls, sftLoRADefaultRank)
+	}
 	var controls []string
 	for _, control := range capability.Controls {
 		controls = append(controls, control.Name)
@@ -170,6 +185,35 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(fixture.roots.Checkpoints, "tuned")); err != nil {
 		t.Fatalf("the trained model was not written under the checkpoints root: %v", err)
+	}
+
+	// The LoRA capability previews the same conversations and trains an adapter of the rank given, left
+	// beside the trained model as a PEFT directory the whole-model run does not write.
+	if page, err := workspace.PreviewWorkflow(ctx, WorkflowTraining, adapterCapability.Task, adapterCapability.Recipe, fixture.input("adapted"), 0, 1); err != nil || page.(trainingworkflow.Preview).Records != 12 {
+		t.Fatalf("LoRA preview = (%+v, %v), want the same twelve conversations", page, err)
+	}
+	if _, err := os.Stat(filepath.Join(fixture.roots.Checkpoints, "tuned", trainingworkflow.LoRAAdapterDirectory)); err == nil {
+		t.Fatal("fine-tuning the whole model left an adapter directory")
+	}
+	adapted, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, adapterCapability, fixture.inputWithRank("adapted", 2), stepCounter{steps: &atomic.Int64{}})
+	if err != nil || len(adapted.Outputs) != 2 {
+		t.Fatalf("LoRA run = (%+v, %v), want the trained model and its verdict", adapted, err)
+	}
+	adapter, err := peft.Load(filepath.Join(fixture.roots.Checkpoints, "adapted", trainingworkflow.LoRAAdapterDirectory))
+	if err != nil || len(adapter.Modules) != 7 || adapter.Config.Rank != 2 || adapter.Config.Alpha != 4 {
+		t.Fatalf("adapter = (%+v with %d modules, %v), want the seven projections at rank 2 and alpha 4", adapter.Config, len(adapter.Modules), err)
+	}
+	for name, scenario := range map[string]struct {
+		capability WorkflowCapability
+		input      json.RawMessage
+		want       string
+	}{
+		"adapter without a rank":  {adapterCapability, fixture.input("no-rank"), "positive rank"},
+		"rank on the whole model": {capability, fixture.inputWithRank("rank-on-model", 2), "belongs to the LoRA adapter"},
+	} {
+		if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, scenario.capability, scenario.input, testReporter{}); err == nil || !strings.Contains(err.Error(), scenario.want) {
+			t.Errorf("%s: err = %v, want it to say %q", name, err, scenario.want)
+		}
 	}
 
 	refused, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.input("../escape"), testReporter{})

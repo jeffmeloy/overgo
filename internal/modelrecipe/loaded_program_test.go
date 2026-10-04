@@ -93,14 +93,68 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 		identity.Runtime != RuntimeInference {
 		t.Fatalf("program identity = %+v", identity)
 	}
-	file, _, _, _, _, _, err := loaded.Take()
+	file, _, _, _, _, _, claims, err := loaded.Take()
+	if err != nil || len(claims) != 0 {
+		t.Fatal(claims, err)
+	}
+	defer file.Close()
+	if _, _, _, _, _, _, _, err := loaded.Take(); err == nil {
+		t.Fatal("loaded program consumed twice")
+	}
+}
+
+// TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim resolves a program from a
+// remembered identity without hashing: the program carries the claim, Take
+// hands it over with the claim, and a claim for other bytes finds no recipe.
+func TestResolveClaimedGGUFLooksTheRecipeUpByTheClaim(t *testing.T) {
+	path := t.TempDir() + "/model.gguf"
+	writeServingDefinitionGGUF(t, path, false)
+	store := openProgramStore(t)
+	defer store.Close()
+	inventory, resolved := publishProgramFacts(t, store, path)
+	activateProgram(t, store, definitionRecipe(t, inventory, resolved))
+	claimTrue := func(string) (artifact.ID, uint64, bool) {
+		return inventory.Components[0].ID, inventory.Components[0].Size, true
+	}
+
+	loaded, err := ResolveClaimedGGUF(t.Context(), store, path, claimTrue)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
-	if _, _, _, _, _, _, err := loaded.Take(); err == nil {
-		t.Fatal("loaded program consumed twice")
+	defer loaded.Close()
+	if loaded.state.Program.Identity.Model != inventory.Manifest.ID ||
+		len(loaded.state.Claims) != 1 || loaded.state.Claims[0] != inventory.Components[0].ID {
+		t.Fatalf("claimed program = %+v, claims %v", loaded.state.Program.Identity, loaded.state.Claims)
 	}
+	file, _, _, _, _, _, claims, err := loaded.Take()
+	if err != nil || len(claims) != 1 || claims[0] != inventory.Components[0].ID {
+		t.Fatalf("Take = claims %v, %v", claims, err)
+	}
+	defer file.Close()
+
+	other, err := artifact.IdentifyBytes(artifact.KindTensorSet, []byte("other bytes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = ResolveClaimedGGUF(t.Context(), store, path, func(string) (artifact.ID, uint64, bool) {
+		return other, inventory.Components[0].Size, true
+	})
+	assertProgramError(t, err, "active inference recipe is absent")
+
+	hashed, err := ResolveClaimedGGUF(t.Context(), store, path, func(string) (artifact.ID, uint64, bool) {
+		return artifact.ID{}, 0, false
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hashed.state.Claims) != 0 {
+		t.Fatalf("an unclaimed program carries claims %v", hashed.state.Claims)
+	}
+	kept, _, _, _, _, _, _, err := hashed.Take()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer kept.Close()
 }
 
 func TestResolveCandidateGGUFRequiresExactDefinition(t *testing.T) {

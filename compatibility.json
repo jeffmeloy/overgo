@@ -441,7 +441,7 @@
      "contains": "func OpenWithOptions(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:dc8e944a91389b73d8e153efb2d657ff7336bf84b2504af7fa478430bbdc905e"
+     "identity": "file:sha256:cd553b0435f7cda7383a2f3af994399b5925d74de6b3c9f40e93a58c31cdd6bc"
     },
     {
      "contains": "func TestParseEnforcesLimits(",
@@ -728,13 +728,13 @@
      "contains": "func splitPathPrefix(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:dc8e944a91389b73d8e153efb2d657ff7336bf84b2504af7fa478430bbdc905e"
+     "identity": "file:sha256:cd553b0435f7cda7383a2f3af994399b5925d74de6b3c9f40e93a58c31cdd6bc"
     },
     {
      "contains": "func TestOpenLoadsAndReadsSplitGGUF(",
      "path": "internal/gguf/split_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:0506567d0c91c9e6d7b32340d8f89b26fef5547f4c3dbeb7ad2e10172c88fb60"
+     "identity": "evidence:sha256:6c3a8c9f918168e4852f13b10e83179a4a46f2801012b615935c1fa2afe33a66"
     }
    ],
    "id": "validated-split-gguf",

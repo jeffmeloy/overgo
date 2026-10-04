@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
@@ -11,6 +12,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
+	"overgo/internal/runrecord"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
@@ -49,6 +51,11 @@ type HeldoutRun struct {
 	Data    ObjectiveData
 	Train   func(ctx context.Context, recipe artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error)
 	Predict func(HeldoutExample) (HeldoutPrediction, error)
+	// Load is how long the caller took to load what the run trains. It
+	// loads before the run, whose untrained model answers the held-out
+	// records first, so the session records the wall as its load phase
+	// though its own wall begins at training.
+	Load time.Duration
 	// Host records the training session as host execution.
 	Host bool
 	// Proof re-verifies the recipe by the training run alone: neither model
@@ -168,6 +175,7 @@ func runHeldout(ctx context.Context, store *overgodb.Store, run HeldoutRun, mode
 	if err := observer.Admit(ctx, modelID, recipeID); err != nil {
 		return HeldoutResult{}, err
 	}
+	observer.Phase(runrecord.PhaseLoad, run.Load)
 	trained, trainErr := run.Train(ctx, recipeID, trainingExamples)
 	// A cancelled run's outcome records too.
 	observation, err := observer.Finish(context.WithoutCancel(ctx), modelID, recipeID, trainErr, uint64(len(trainingExamples)))

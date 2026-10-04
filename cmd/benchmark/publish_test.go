@@ -143,6 +143,11 @@ func bindFixtureBenchmarkIdentity(t *testing.T, result *benchmarkResult, commit 
 	result.EnvironmentID = result.Environment.ID
 	result.CodeCommit = commit
 	result.ModuleDigest = benchmarkPromptDigest("fixture module")
+	// The adapters a run with no LoRA files holds, as the command builds them.
+	result.AdapterIDs, err = benchmarkAdapterIDs(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	result.OptionsDigest, err = benchmarkOptionsDigest(options{Tokens: result.TokensPerSequence,
 		Runs: result.RequestedRuns, Warmup: result.RequestedWarmup, CachePrompt: result.CachePrompt,
 		BatchSequences: result.BatchSequences, ContextShift: result.ContextShift, Speculative: result.Speculative,

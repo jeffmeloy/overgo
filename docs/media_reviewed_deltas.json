@@ -1273,6 +1273,72 @@
         ]
       },
       "scope": "Only the terminal workflow Result claims a Run after accepted or unchanged publication. Stage execution, output contents, run construction, stage receipts, input identities, cancellation cleanup and durable recovery are unchanged. The host receipt checks persisted success/failure/cancellation, unchanged retry identity, durable-stage recovery after refused publication despite a nonzero coordinate, scalar/session close errors and actual command/VQA error handoff. It introduces no model or kernel change and grants no current numerical, elapsed, throughput or device-resource performance claim to historical media evidence."
+    },
+    {
+      "changes": {
+        "internal/cuda/kernel/manifest_generated.go": {
+          "after_sha256": "c64ce8d8ccceb7537d87bd43041144b8238a4bb4b123aa77228f603826ec793d",
+          "before_sha256": "a34488516d7e34a3e02ec65393db00835cfac8f9a94bf14912bb0424d607756b",
+          "reason": "generated pin of the rebuilt kernel module"
+        },
+        "kernels/cuda/ops_f32.cu": {
+          "after_sha256": "4f5e2da0708b87660a45dc7c658ebd9fbc09fd7c49adddf14e5d448ba4d99a62",
+          "before_sha256": "7d21adf88776c5954c99dacb63451ee15f6c9cb81c8bf071b3920127f9730768",
+          "reason": "mul_mat_q1_0_f32 reads each 128-element block's scale once and steps its sign-byte and activation addresses instead of recomputing them for every element: the lane-to-column map and the sequence of fused multiply-adds each lane makes are unchanged, so every output is bit-identical (sixteen shapes pinned from the old kernel); no other kernel's source changes"
+        },
+        "kernels/manifest.json": {
+          "after_sha256": "c7077f757164c3523e892365f793611c6c859350a3495e138dde2ab4caec29d9",
+          "before_sha256": "4abb324336d7c099615ed8ee8701633edc4fa191614ddd87fc6111d2e339d396",
+          "reason": "the kernel manifest pins the regenerated module"
+        }
+      },
+      "evidence": "evidence:sha256:d10b398ae946d99729e08635f23516ffa8dc98b11205ca9650ab0d412aef0093",
+      "id": "q1-block-scale",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/cuda/executor": [
+          "TestExecutorClassicQuantDeviceEmbeddingAndMulMat",
+          "TestExecutorMoEOutputBitsArePinned",
+          "TestExecutorNativeQuantizedMoEMatchesReference",
+          "TestExecutorQ1MulMatOutputBitsArePinned",
+          "TestExecutorQuantizedGroupedMulMatMatchesReference",
+          "TestExecutorQuantizedTensorCoreMulMatMatchesReference",
+          "TestExecutorSmallQuantDeviceEmbeddingAndMulMat",
+          "TestExecutorTQ1_0DeviceEmbeddingAndMulMat",
+          "TestQ1MulMatLaunchesOneWarpPerOutputOverWholeBlocks"
+        ],
+        "overgo/internal/inference": [
+          "TestNativeQ1BonsaiMatchesPinnedOracle"
+        ]
+      },
+      "scope": "the receipt re-runs, on the device, sixteen Q1_0 matrix-multiply shapes of Bonsai-27B against bits pinned from the per-element kernel at 0972c0df8, the launch geometry, the other quantized matrix-multiply and embedding paths and the routed-expert pins, and the real Bonsai-27B against its pinned oracle"
+    },
+    {
+      "changes": {
+        "internal/cuda/driver/driver_unsupported.go": {
+          "after_sha256": "9c8c7e307de29aa0754a44064de74d0d5afb66c477f2a6427c3f8d421b56f57c",
+          "before_sha256": "6a7339d7d1fb72dc01c341854db89a65be9b0d47603085bec4f4b1765c479420",
+          "reason": "ProcessCurrentBytes is zero where no library allocates device memory"
+        },
+        "internal/cuda/driver/driver_windows.go": {
+          "after_sha256": "f5bb15cd135eb9dbd48d2b84223066abfcb7ac580d9c78f169e28c3e67a9223c",
+          "before_sha256": "a393bd2f42255fa464224ca612a0f8fd3d084a8c6df73b0c3ef197f54f9ba99f",
+          "reason": "ProcessCurrentBytes reads the process ledger's running total beside ProcessPeakBytes, from the same atomic every Library's accounting already moves; no allocation, free or kernel path changes"
+        }
+      },
+      "evidence": "evidence:sha256:876a823db331bf8adab13fe51662d0aa296d561ed533a78be1f7687a986e1e12",
+      "id": "process-current-bytes",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/cuda/device": [
+          "TestProcessLedgerFollowsDeviceWorkers"
+        ],
+        "overgo/internal/cuda/driver": [
+          "TestProcessLedgerHoldsUnderConcurrentLibraries",
+          "TestProcessLedgerSumsLibraries"
+        ]
+      },
+      "scope": "the receipt re-runs, on the device, real workers allocating and freeing through their libraries while the process ledger follows and returns to its prior total, and on the host the ledger's sums across libraries and its peak under concurrent libraries; ProcessCurrentBytes reads the same atomic those tests already hold"
     }
   ],
   "paths": [

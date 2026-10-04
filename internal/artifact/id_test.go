@@ -158,3 +158,40 @@ func TestRelationJSONRoundTrip(t *testing.T) {
 		t.Fatalf("relation = %v, want %v", decoded, RelationQuantizedFrom)
 	}
 }
+
+// TestHasherMatchesIdentifyForAnyChunking holds an incremental identity to the
+// one Identify gives the same bytes, however they are cut into writes.
+func TestHasherMatchesIdentifyForAnyChunking(t *testing.T) {
+	payload := bytes.Repeat([]byte(fixtureModelPayload), 997)
+	want, wantSize, err := Identify(KindTensorSet, bytes.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cut := range []int{1, 3, 64, 65, 4096, len(payload), len(payload) + 1} {
+		hasher, err := NewHasher(KindTensorSet)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for rest := payload; len(rest) > 0; {
+			size := min(cut, len(rest))
+			if _, err := hasher.Write(rest[:size]); err != nil {
+				t.Fatal(err)
+			}
+			rest = rest[size:]
+		}
+		if got, size := hasher.ID(); got != want || size != wantSize {
+			t.Fatalf("cut %d: identity (%s, %d), want (%s, %d)", cut, got, size, want, wantSize)
+		}
+	}
+	empty, err := NewHasher(KindTensorSet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEmpty, _ := IdentifyBytes(KindTensorSet, nil)
+	if got, size := empty.ID(); got != wantEmpty || size != 0 {
+		t.Fatalf("empty identity = (%s, %d), want (%s, 0)", got, size, wantEmpty)
+	}
+	if _, err := NewHasher(KindInvalid); err == nil {
+		t.Fatal("a hasher accepted the invalid kind")
+	}
+}

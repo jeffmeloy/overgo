@@ -115,7 +115,7 @@ func TestOneCommandOnboardsADeclaredModel(t *testing.T) {
 		t.Fatalf("a directory with no model was onboarded: %v, ran %q, validated %q", err, fixture.ran, fixture.validated)
 	}
 
-	if commands := buildInventory([]modelDirectory{{Path: directory, Weights: true}}, nil, nil, nil, "STORE")[0].Commands; !slices.Equal(commands, []string{onboardCommand + filepath.ToSlash(directory)}) {
+	if commands := buildInventory([]modelDirectory{{Path: directory, Weights: true}}, nil, nil, "STORE")[0].Commands; !slices.Equal(commands, []string{onboardCommand + filepath.ToSlash(directory)}) {
 		t.Fatalf("an unregistered directory names %q", commands)
 	}
 }

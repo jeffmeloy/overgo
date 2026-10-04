@@ -55,12 +55,12 @@ func TestDNAGuardBindsTheSmokeLane(t *testing.T) {
 	carbon := testutil.ArtifactID(t, artifact.KindModel, "carbon")
 	cell := ModelValidation{
 		Model: carbon, ModelName: "Carbon", Location: "C:/models/carbon.gguf",
-		Kind: recipe.TaskInference, Modality: dnaModality, Validation: guardValidation, Surface: "inference",
+		Kind: recipe.TaskInference, Modality: dnaModality, Validation: guardValidation,
 		Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "carbon-inference"),
 	}
-	plan := SelectValidation(Inputs{Registered: []ModelValidation{cell}, Current: acceptedRecords{}.current})
-	if len(plan.Run) != 1 || plan.Run[0].Model != carbon || plan.Run[0].Reason != "run: "+errEveryCycle.Error() {
-		t.Fatalf("a DNA guard did not run every cycle: run=%+v reuse=%+v", plan.Run, plan.Reuse)
+	plan := SelectValidation(Inputs{Registered: []ModelValidation{cell}})
+	if len(plan.Run) != 1 || plan.Run[0].Model != carbon {
+		t.Fatalf("a DNA guard did not run every cycle: run=%+v", plan.Run)
 	}
 	name, args, err := reacquireCommand(plan.Run[0].ModelValidation, store)
 	want := []string{"run", "./cmd/validate", "-smoke", "-budget", "15m", "-model", carbon.String(), "-repo", store}
@@ -178,6 +178,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 		"regression/config.json": `{}`, "regression/model.safetensors": "regression",
 	})
 	repository := register("needle", modelartifact.FromHFPath, map[string]string{"config.json": `{"model_type":"t5"}`, "model.safetensors": "needle"})
+	thoughts := register("Fractale", rootWeights, map[string]string{"config.json": `{"model_type":"thought-bank"}`, "model.safetensors": "bank"})
 	edit := register("LiveEdit", composite, map[string]string{
 		"model.safetensors": "edit", "../Wan2.1-T2V-1.3B/config.json": `{}`, "../Wan2.1-T2V-1.3B/model.safetensors": "base",
 	})
@@ -189,6 +190,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 	activate(modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorVideoPrepare, single, artifact.ID{}))
 	activate(modelrecipe.CapabilityDefinition(recipe.TaskTabular, headed))
 	activate(modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, repository))
+	activate(modelrecipe.CapabilityDefinition(recipe.TaskGeneration, thoughts))
 
 	cells, err := registeredCells(ctx, store)
 	if err != nil {
@@ -206,6 +208,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 		{single, recipe.TaskVideoGen, "video-proof", rootWeights, modelrecipe.ModuleOscillatorVideoPrepare},
 		{headed, recipe.TaskTabular, "specialized-proof", heads, ""},
 		{repository, recipe.TaskSeq2Seq, "specialized-proof", modelartifact.FromHFPath, ""},
+		{thoughts, recipe.TaskGeneration, "specialized-proof", rootWeights, ""},
 		{edit, recipe.TaskVideoGen, "video-proof", composite, ""},
 	} {
 		at := slices.IndexFunc(cells, func(cell ModelValidation) bool { return cell.Model == want.model && cell.Kind == want.task })
@@ -244,13 +247,13 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 	}
 }
 
-// TestValidateRunEmpty proves an empty run set is the clean no-op the dry run
-// predicts for a commit that moves no surface: no command executes.
+// TestValidateRunEmpty proves an empty run set, such as -run -background with
+// no background cell, is a clean no-op: no command executes.
 func TestValidateRunEmpty(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
-	plan := Plan{Reuse: []Selected{{}, {}}}
-	if err := executeRun(t.Context(), &out, ".", "C:/stores/selected", nil, plan, false); err != nil {
+	plan := Plan{OperatorOwned: []Selected{{}, {}}}
+	if err := executeRun(t.Context(), &out, ".", "C:/stores/selected", nil, plan, scopeCycle); err != nil {
 		t.Fatalf("empty run set errored: %v", err)
 	}
 	if !strings.Contains(out.String(), "nothing to re-acquire") {
@@ -282,7 +285,7 @@ func TestValidateRunCycleLanes(t *testing.T) {
 		{Lane: "absent", Arguments: []string{"test", fixtures + "probefixture", "-run", "^TestAbsent$"}},
 		{Lane: "inapplicable", Arguments: []string{"test", fixtures + "probefixture", "-run", "^TestElsewhere$"}},
 	}}
-	err := executeRun(t.Context(), &out, testutil.RepoRoot(t), "C:/stores/selected", nil, plan, false)
+	err := executeRun(t.Context(), &out, testutil.RepoRoot(t), "C:/stores/selected", nil, plan, scopeCycle)
 	if err == nil {
 		t.Fatalf("cycle lanes run passed; output:\n%s", out.String())
 	}
@@ -320,7 +323,7 @@ func TestValidateRunUnbound(t *testing.T) {
 	var out bytes.Buffer
 	model := testutil.ArtifactID(t, artifact.KindModel, "wan")
 	plan := Plan{Run: []Selected{{ModelValidation: ModelValidation{Model: model, ModelName: "Wan", Kind: recipe.TaskVideoGen, Validation: "video-proof"}}}}
-	err := executeRun(t.Context(), &out, ".", "C:/stores/selected", nil, plan, false)
+	err := executeRun(t.Context(), &out, ".", "C:/stores/selected", nil, plan, scopeCycle)
 	if err == nil || !strings.Contains(err.Error(), "no bound command") {
 		t.Fatalf("unbound run = %v", err)
 	}

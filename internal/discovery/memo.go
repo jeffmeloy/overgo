@@ -4,6 +4,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"overgo/internal/artifact"
 )
 
 // Memo remembers file digests across Servable calls for interactive surfaces.
@@ -45,6 +47,19 @@ func (m *Memo) lookup(key string, info os.FileInfo) (fileIdentity, bool) {
 		return fileIdentity{}, false
 	}
 	return entry.identity, true
+}
+
+// Claim is the identity remembered for the weights file at path, and the size
+// it had, while the file's size and modification time still match what was
+// hashed. It never reads the file: whoever reads the bytes next must prove the
+// claim, and a claim they do not carry must fail that read.
+func (m *Memo) Claim(path string) (artifact.ID, uint64, bool) {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return artifact.ID{}, 0, false
+	}
+	identity, found := m.lookup(path+"\x00"+artifact.KindTensorSet.String(), info)
+	return identity.id, identity.size, found && identity.present
 }
 
 // record remembers one hashed identity under the stat that held while hashing.

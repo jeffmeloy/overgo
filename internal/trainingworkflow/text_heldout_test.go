@@ -226,6 +226,31 @@ func TestTextObjectiveReportsEachStep(t *testing.T) {
 	}
 }
 
+// TestTextObjectiveSessionRecordsItsLoad: a held-out text run loads its
+// model, tokenizer and records before its session opens, and the session
+// records how long that took as its one phase, the load, as the dense
+// workflow's session records its own; the recipe's load time reads it.
+func TestTextObjectiveSessionRecordsItsLoad(t *testing.T) {
+	t.Parallel()
+	var documents []string
+	for index := range 8 {
+		documents = append(documents, strings.Repeat("abcd", 3)[:4+index])
+	}
+	text := registerTextObjective(t, documents, trainingprogram.MetricTokenAccuracy)
+	ctx := t.Context()
+	result, err := RunTextHeldout(ctx, text.store, TextHeldoutRequest{
+		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, "trained"),
+		Steps: 2, MaximumSequence: 8, Host: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err := runrecord.RequireServingObservation(ctx, text.store, result.Observation)
+	if err != nil || len(session.Phases) != 1 || session.Phases[0].Phase != runrecord.PhaseLoad || session.Phases[0].DurationNS == 0 {
+		t.Fatalf("session phases = (%+v, %v), want the run's load alone", session.Phases, err)
+	}
+}
+
 // TestFrozenLexicalTextRunRecordsItsFrozenPlan: a held-out text run that
 // froze the lexical table records the Muon plan it stepped, the model's
 // plan with exactly the embedding and head frozen, so its program, run plan

@@ -1,7 +1,11 @@
 package commanddoc
 
 import (
+	"context"
+	"errors"
+	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,21 +22,9 @@ import (
 func TestEveryCommandHasACaller(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
-	listed, err := gitauthority.Query(t.Context(), root, "ls-files")
+	texts, err := trackedTexts(t.Context(), root)
 	if err != nil {
 		t.Fatal(err)
-	}
-	texts := map[string]string{}
-	for path := range strings.FieldsSeq(string(listed)) {
-		if path == "docs/api_manifest.json" || path == "docs/plan.json" || !strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, ".md") &&
-			!strings.HasSuffix(path, ".json") && !strings.HasSuffix(path, ".sh") {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		texts[path] = string(data)
 	}
 	commands, err := os.ReadDir(filepath.Join(root, "cmd"))
 	if err != nil {
@@ -55,6 +47,65 @@ func TestEveryCommandHasACaller(t *testing.T) {
 		if descriptor.Command.Name != name || descriptor.Command.Audience == "" {
 			t.Errorf("declared command %s is incomplete: %+v", name, descriptor.Command)
 		}
+	}
+}
+
+// trackedTexts reads the tracked code, document and script files of the
+// checkout at root, except the generated manifest and the plan. A tracked file
+// the working tree no longer holds, a deletion not staged yet, is absent: the
+// tree shows no caller there, and a landing that deletes a file is not refused
+// for it.
+func trackedTexts(ctx context.Context, root string) (map[string]string, error) {
+	listed, err := gitauthority.Query(ctx, root, "ls-files")
+	if err != nil {
+		return nil, err
+	}
+	texts := map[string]string{}
+	for path := range strings.FieldsSeq(string(listed)) {
+		if path == "docs/api_manifest.json" || path == "docs/plan.json" || !strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, ".md") &&
+			!strings.HasSuffix(path, ".json") && !strings.HasSuffix(path, ".sh") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		texts[path] = string(data)
+	}
+	return texts, nil
+}
+
+// TestTrackedTextsSkipAFileDeletedBeforeItIsStaged holds a deletion in the
+// working tree, which git still lists until it is staged, to being absent
+// from the texts rather than an error.
+func TestTrackedTextsSkipAFileDeletedBeforeItIsStaged(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	git := func(arguments ...string) {
+		t.Helper()
+		command := exec.Command("git", append([]string{"-c", "user.name=fixture", "-c", "user.email=fixture@example.com", "-c", "commit.gpgsign=false"}, arguments...)...)
+		command.Dir = root
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", arguments, err, output)
+		}
+	}
+	for _, name := range []string{"kept.md", "deleted.md"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("see cmd/tool"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("init", "-q")
+	git("add", "-A")
+	git("commit", "-q", "-m", "tracked")
+	if err := os.Remove(filepath.Join(root, "deleted.md")); err != nil {
+		t.Fatal(err)
+	}
+	texts, err := trackedTexts(t.Context(), root)
+	if err != nil || len(texts) != 1 || texts["kept.md"] == "" {
+		t.Fatalf("texts of a tree with one file deleted before it is staged = %v, %v, want kept.md alone", texts, err)
 	}
 }
 

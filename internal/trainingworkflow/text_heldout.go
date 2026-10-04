@@ -128,6 +128,9 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if objective.Kind != trainingprogram.ObjectiveTokenPrediction || objective.Metric != trainingprogram.MetricTokenAccuracy && !generation {
 		return HeldoutResult{}, fmt.Errorf("training workflow: objective %q is %q judged by %q, not token prediction by token accuracy or generated answer", request.Alias, objective.Kind, objective.Metric)
 	}
+	// The load is the model, its tokenizer, the objective's records and the
+	// plan they train under, as the dense workflow's is.
+	loadStarted := time.Now()
 	model, err := loadTrainableModel(request.ModelDirectory)
 	if err != nil {
 		return HeldoutResult{}, err
@@ -170,7 +173,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	}
 	config := plan.Optimizer()
 	return runHeldout(ctx, store, HeldoutRun{
-		Data: data, Host: request.Host, Proof: request.Proof,
+		Data: data, Load: time.Since(loadStarted), Host: request.Host, Proof: request.Proof,
 		Train: func(ctx context.Context, recipeID artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error) {
 			documents := make([][]int, len(shown))
 			for index, example := range shown {

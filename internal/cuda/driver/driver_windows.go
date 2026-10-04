@@ -38,6 +38,10 @@ var processCurrentBytes, processPeakBytes atomic.Uint64
 // once across every Library, by the allocations it made through them.
 func ProcessPeakBytes() uint64 { return processPeakBytes.Load() }
 
+// ProcessCurrentBytes reports the device memory the process holds now across
+// every Library.
+func ProcessCurrentBytes() uint64 { return processCurrentBytes.Load() }
+
 // Library: dynamically loaded CUDA Driver API library
 type Library struct {
 	dll           *syscall.DLL

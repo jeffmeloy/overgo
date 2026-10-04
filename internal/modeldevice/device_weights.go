@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
@@ -12,14 +11,6 @@ import (
 	"overgo/internal/model"
 	"overgo/internal/tensor"
 )
-
-const weightUploadBufferCount = 2
-
-type weightUploadChunk struct {
-	offset uint64
-	data   []byte
-	err    error
-}
 
 // DeviceTensor is valid only while used on the DeviceWeights worker thread.
 type DeviceTensor struct {
@@ -42,130 +33,6 @@ func NewDeviceWeights(worker *device.Worker) (*DeviceWeights, error) {
 	return &DeviceWeights{
 		deviceTensorStore: newDeviceTensorStore(worker, "device"),
 	}, nil
-}
-
-// Load streams tensors from GGUF into persistent CUDA allocations.
-func (w *DeviceWeights) Load(
-	ctx context.Context,
-	file *gguf.File,
-	tensors []gguf.TensorInfo,
-) (returnErr error) {
-	if file == nil {
-		return errors.New("device weights: GGUF file is nil")
-	}
-	var uploadBuffers [weightUploadBufferCount][]byte
-	return w.load(ctx, tensors, func(info gguf.TensorInfo) (DeviceTensor, error) {
-		if info.Size == tensor.FirstOffset {
-			return DeviceTensor{}, fmt.Errorf("device tensor %q has zero size", info.Name)
-		}
-		var pointer driver.DevicePtr
-		if err := w.worker.Do(ctx, func(state *device.State) error {
-			var allocErr error
-			pointer, allocErr = state.Driver.MemAlloc(info.Size)
-			return allocErr
-		}); err != nil {
-			return DeviceTensor{}, fmt.Errorf("allocate tensor %q: %w", info.Name, err)
-		}
-		if err := w.streamTensor(ctx, file, info, pointer, &uploadBuffers); err != nil {
-			_ = w.worker.Do(context.Background(), func(state *device.State) error {
-				return state.Driver.MemFree(pointer)
-			})
-			return DeviceTensor{}, err
-		}
-		return DeviceTensor{Info: info, Pointer: pointer}, nil
-	})
-}
-
-func (w *DeviceWeights) streamTensor(
-	ctx context.Context,
-	file *gguf.File,
-	info gguf.TensorInfo,
-	pointer driver.DevicePtr,
-	uploadBuffers *[weightUploadBufferCount][]byte,
-) error {
-	if info.Size <= model.WeightChunkSize {
-		if cap((*uploadBuffers)[tensor.FirstOffset]) < int(info.Size) {
-			(*uploadBuffers)[tensor.FirstOffset] = make([]byte, int(info.Size))
-		}
-		data := (*uploadBuffers)[tensor.FirstOffset][:int(info.Size)]
-		if err := file.ReadTensorRange(info, tensor.FirstOffset, data); err != nil {
-			return fmt.Errorf("read tensor %q at 0: %w", info.Name, err)
-		}
-		if err := w.worker.Do(ctx, func(state *device.State) error {
-			return state.Driver.MemcpyHtoD(pointer, data)
-		}); err != nil {
-			return fmt.Errorf("upload tensor %q at 0: %w", info.Name, err)
-		}
-		return nil
-	}
-	chunkSize := uint64(model.WeightChunkSize)
-	pipelineCtx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
-	free := make(chan []byte, weightUploadBufferCount)
-	ready := make(chan weightUploadChunk, weightUploadBufferCount)
-	done := make(chan struct{})
-	for index := range weightUploadBufferCount {
-		if cap((*uploadBuffers)[index]) < int(chunkSize) {
-			(*uploadBuffers)[index] = make([]byte, int(chunkSize))
-		}
-		free <- (*uploadBuffers)[index][:int(chunkSize)]
-	}
-	go func() {
-		defer close(done)
-		defer close(ready)
-		for offset := uint64(tensor.FirstOffset); offset < info.Size; {
-			var buffer []byte
-			select {
-			case buffer = <-free:
-			case <-pipelineCtx.Done():
-				return
-			}
-			length := min(chunkSize, info.Size-offset)
-			data := buffer[:int(length)]
-			if err := file.ReadTensorRange(info, offset, data); err != nil {
-				select {
-				case ready <- weightUploadChunk{offset: offset, err: err}:
-				case <-pipelineCtx.Done():
-				}
-				return
-			}
-			select {
-			case ready <- weightUploadChunk{offset: offset, data: data}:
-				offset += length
-			case <-pipelineCtx.Done():
-				return
-			}
-		}
-	}()
-	for chunk := range ready {
-		if chunk.err != nil {
-			err := fmt.Errorf("read tensor %q at %d: %w", info.Name, chunk.offset, chunk.err)
-			cancel(err)
-			<-done
-			return err
-		}
-		if uint64(pointer) > math.MaxUint64-chunk.offset {
-			err := fmt.Errorf("device pointer for tensor %q overflows", info.Name)
-			cancel(err)
-			<-done
-			return err
-		}
-		destination := pointer + driver.DevicePtr(chunk.offset)
-		if err := w.worker.Do(ctx, func(state *device.State) error {
-			return state.Driver.MemcpyHtoD(destination, chunk.data)
-		}); err != nil {
-			err = fmt.Errorf("upload tensor %q at %d: %w", info.Name, chunk.offset, err)
-			cancel(err)
-			<-done
-			return err
-		}
-		select {
-		case free <- chunk.data[:int(chunkSize)]:
-		case <-pipelineCtx.Done():
-		}
-	}
-	<-done
-	return ctx.Err()
 }
 
 // Do exposes loaded device pointers only inside the owning worker callback.

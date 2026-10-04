@@ -108,10 +108,37 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 	return "go", args, nil
 }
 
+// runScope is what -run executes: the whole cycle, the background cells alone
+// (which the loop asks for after promotion's decision), or one half of the
+// cycle so its scorecard can publish between them.
+type runScope int
+
+const (
+	scopeCycle runScope = iota
+	scopeBackground
+	scopeCells
+	scopeLanes
+)
+
+// runScopeOf names the scope the flags select; the three narrowing flags
+// exclude one another.
+func runScopeOf(background, cellsOnly, lanesOnly bool) (runScope, error) {
+	switch {
+	case background && (cellsOnly || lanesOnly) || cellsOnly && lanesOnly:
+		return scopeCycle, errors.New("validate: -background, -cells and -lanes select different runs; give at most one")
+	case background:
+		return scopeBackground, nil
+	case cellsOnly:
+		return scopeCells, nil
+	case lanesOnly:
+		return scopeLanes, nil
+	}
+	return scopeCycle, nil
+}
+
 // executeRun runs the cells promotion waits on smallest-first through the
-// process owner, each into the selected store, then the cycle lanes; with
-// background it runs the background cells alone, which the loop
-// asks for after promotion's decision. A cell or lane is acquired only as
+// process owner, each into the selected store, then the cycle lanes; the scope
+// narrows that to the background cells, the blocking cells or the lanes. A cell or lane is acquired only as
 // acquire judges its run, so a go test passes by the outcomes it requires,
 // never by its exit. One that fails is reported, not accepted, and the rest
 // still run: one model's broken measurement withholds no other's, and a
@@ -123,14 +150,19 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 // Its exact fresh gate/run handoff is checked after actual process completion
 // and store refresh; a projection proof's producer runs under the environment it
 // publishes by. An empty run set is the clean "nothing to re-acquire" result.
-func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, store *overgodb.Store, plan Plan, background bool) error {
+func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, store *overgodb.Store, plan Plan, scope runScope) error {
 	cells, suites := plan.Run, plan.Suites
-	if background {
+	switch scope {
+	case scopeBackground:
 		cells, suites = plan.Background, nil
+	case scopeCells:
+		suites = nil
+	case scopeLanes:
+		cells = nil
 	}
 	if len(cells)+len(suites) == 0 {
-		fmt.Fprintf(output, "validate -run: nothing to re-acquire; %d reused, %d unknown, %d operator-owned, %d registered-inactive\n",
-			len(plan.Reuse), len(plan.Unknown), len(plan.OperatorOwned), len(plan.RegisteredInactive))
+		fmt.Fprintf(output, "validate -run: nothing to re-acquire; %d operator-owned, %d registered-inactive\n",
+			len(plan.OperatorOwned), len(plan.RegisteredInactive))
 		return nil
 	}
 	var unbound, failed, inapplicable []string
@@ -189,7 +221,7 @@ func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, s
 	if len(problems) > 0 {
 		return fmt.Errorf("validate -run: re-acquired %d cell(s); %s", acquired, strings.Join(problems, "; "))
 	}
-	fmt.Fprintf(output, "validate -run: re-acquired %d cell(s); re-run the dry run to confirm coverage\n", acquired)
+	fmt.Fprintf(output, "validate -run: re-acquired %d cell(s)\n", acquired)
 	return nil
 }
 
@@ -205,8 +237,8 @@ var errInapplicable = errors.New("declared inapplicable here")
 // passing test its -run selector matches, as requiredPass judges. Its
 // packages' progress and any failure's retained output go to output. Any
 // other command is a producer whose exit is its own verdict: it publishes
-// records the next dry run judges, or, like the journeys lane's
-// cmd/webui-lane, judges its own typed test report.
+// records, or, like the journeys lane's cmd/webui-lane, judges its own typed
+// test report.
 func acquire(ctx context.Context, output io.Writer, root, name string, args []string, environment ...string) error {
 	if name != "go" || len(args) == 0 || args[0] != "test" {
 		return runCell(ctx, output, root, name, args, environment...)

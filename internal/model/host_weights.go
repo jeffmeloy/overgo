@@ -21,14 +21,6 @@ func LoadHostTensor(ctx context.Context, file *gguf.File, info gguf.TensorInfo) 
 	if err := ctx.Err(); err != nil {
 		return reference.Value{}, err
 	}
-	shape, err := tensor.NewShape(info.Extents()...)
-	if err != nil {
-		return reference.Value{}, fmt.Errorf("host tensor %q shape: %w", info.Name, err)
-	}
-	elements, err := shape.Elements()
-	if err != nil {
-		return reference.Value{}, fmt.Errorf("host tensor %q elements: %w", info.Name, err)
-	}
 	if info.Size > uint64(math.MaxInt) {
 		return reference.Value{}, fmt.Errorf("host tensor %q storage exceeds addressable memory", info.Name)
 	}
@@ -38,6 +30,19 @@ func LoadHostTensor(ctx context.Context, file *gguf.File, info gguf.TensorInfo) 
 	}
 	if err := ctx.Err(); err != nil {
 		return reference.Value{}, err
+	}
+	return DecodeHostTensor(info, storage)
+}
+
+// DecodeHostTensor dequantizes one tensor's storage bytes, as read from the file.
+func DecodeHostTensor(info gguf.TensorInfo, storage []byte) (reference.Value, error) {
+	shape, err := tensor.NewShape(info.Extents()...)
+	if err != nil {
+		return reference.Value{}, fmt.Errorf("host tensor %q shape: %w", info.Name, err)
+	}
+	elements, err := shape.Elements()
+	if err != nil {
+		return reference.Value{}, fmt.Errorf("host tensor %q elements: %w", info.Name, err)
 	}
 	data, err := quant.Dequantize(info.Type, storage, elements)
 	if err != nil {

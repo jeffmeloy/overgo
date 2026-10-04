@@ -2,7 +2,6 @@
 package modeldevice
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
-	"overgo/internal/gguf"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 )
@@ -47,14 +45,6 @@ func NewDeviceConvertedWeights(worker *device.Worker, storage dtype.Type) (*Devi
 		deviceTensorStore: newDeviceTensorStore(worker, storage.String()+" device"),
 		storage:           storage, bytesPerValue: bytesPerValue, encode: encode,
 	}, nil
-}
-
-// Load converts and uploads the listed tensors.
-func (w *DeviceConvertedWeights) Load(ctx context.Context, file *gguf.File, infos []gguf.TensorInfo) error {
-	if file == nil {
-		return errors.New("converted device weights: GGUF file is nil")
-	}
-	return w.loadConverted(ctx, file, infos, w.bytesPerValue, w.encode)
 }
 
 // Input adds a graph input for a loaded tensor and returns its device pointer.

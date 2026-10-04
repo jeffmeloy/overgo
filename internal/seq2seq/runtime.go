@@ -18,7 +18,14 @@ var generatedTextContract = artifact.JSONContract(artifact.KindFile, "overgo.seq
 type Generator struct {
 	model     *Model
 	tokenizer *tokenizer.Unigram
+	selected  uint64
 }
+
+// OutputTokens is the number of tokens the generator's last selection
+// decoded. The select stage is the incremental decode over the encoded
+// source and the tokens' reading back as text, apart from the encode and
+// prepare stages, so its wall is the decode's.
+func (g *Generator) OutputTokens() uint64 { return g.selected }
 
 func LoadGenerator(directory string) (*Generator, error) {
 	model, err := Load(directory)
@@ -58,7 +65,7 @@ func (g *Generator) prepareGeneration(encoded encodedRequest) (textSelector, err
 	if err != nil {
 		return nil, err
 	}
-	return textGeneration{tokens: selector, tokenizer: g.tokenizer}, nil
+	return textGeneration{tokens: selector, generator: g}, nil
 }
 
 // RegisterRuntime binds one loaded generator to its text stages.

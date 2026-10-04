@@ -1,219 +1,183 @@
 # Overgo
 
-Overgo runs, trains, evaluates, and composes AI models in Go and CUDA.
-Its browser workbench, command-line tools, and HTTP APIs share execution
-components and an artifact store. Recipes bind models, tasks, and execution
-policy; OvergoDB retains inputs, results, and lineage.
+Overgo runs, trains, evaluates, and composes AI models in Go and CUDA. Its
+browser workbench, command-line tools, and HTTP APIs share execution components
+and an artifact store. Recipes bind models, tasks, and execution policy;
+OvergoDB retains inputs, results, and lineage.
 
-The goal is recursive self-improvement: use measured outcomes to improve model
-capability and the process that develops it. Operators set goals, budgets, and
-stop conditions. Agents propose changes; executable policy checks admission,
+The goal is recursive self-improvement: measured outcomes improve model
+capability and the process that develops it. An improvement is one a user sees
+on the [scorecard](#measured-improvement). Operators set goals, budgets, and
+stop conditions; agents propose changes; executable policy checks admission,
 verification, and activation.
 
 [Quick start](#quick-start) · [Capabilities](#capabilities) ·
+[Measured improvement](#measured-improvement) · [Training](#training) ·
 [Development](#development-and-verification) · [References](#references)
 
 ## Quick start
 
-The current runtime target is Windows amd64 with Go 1.26. GPU execution requires
-an NVIDIA CUDA driver; bundled kernels target compute capability 8.9 or newer.
-See the [kernel documentation](kernels/README.md) for build requirements.
-
-From the repository directory:
+The runtime target is Windows amd64 with Go 1.26. GPU execution requires an
+NVIDIA CUDA driver; bundled kernels target compute capability 8.9 or newer (see
+[kernels](kernels/README.md)).
 
 ```powershell
-.\overgo_gui.bat
-```
-
-The launcher builds the server and model-swap proxy and opens
-[the workbench](http://localhost:8080/). Select a registered model in the model
-picker, or use Library to register local models or configure a hosted provider.
-
-To start with a supported GGUF model:
-
-```powershell
-.\overgo_gui.bat "D:\models\model.gguf"
-```
-
-To enable training and model construction without a default model:
-
-```powershell
+.\overgo_gui.bat                          # build, start, open the workbench
+.\overgo_gui.bat "D:\models\model.gguf"   # start on a supported GGUF model
 .\overgo_gui.bat "" -training -model-builder
 ```
 
-These flags reach each served child, so the workspaces remain enabled after
-model switches. Training and construction require their registered inputs and
+The launcher builds the server and the model-swap proxy and opens
+[the workbench](http://localhost:8080/). The model picker switches the served
+model live; Library registers local models or configures a hosted provider.
+Flags after the model reach every served child, so enabled workspaces survive
+model switches. Training and construction need their registered inputs and
 recipes.
 
-To run one model directly:
+To serve one model directly:
 
 ```powershell
 go run ./cmd/server -listen 127.0.0.1:8080 D:/models/model.gguf
 ```
 
-Open [the workbench](http://127.0.0.1:8080/). The server binds to loopback by
-default. See [SECURITY.md](SECURITY.md) for authentication and network settings.
+The server binds to loopback by default; see [SECURITY.md](SECURITY.md) for
+authentication and network settings.
 
 ## Capabilities
 
-The table summarizes implementation areas. Available operations depend on the
-active model, recipe, backend, and workspace. The [compatibility matrix](docs/COMPATIBILITY.md)
-and the model catalog (`go run ./cmd/validate -models -repo <store>`)
-record verification scope; the [training report](docs/TRAINING_COMPATIBILITY.md)
-distinguishes bounded smoke runs from broader training claims.
+Available operations depend on the active model, recipe, backend, and
+workspace. The [compatibility matrix](docs/COMPATIBILITY.md), the model catalog
+(`go run ./cmd/validate -models -repo <store>`), and the
+[training report](docs/TRAINING_COMPATIBILITY.md) record verification scope and
+separate bounded smoke runs from broader claims.
 
 | Area | Operations |
 | --- | --- |
-| Serving | Chat, text generation, embeddings, reranking, sequence scoring, streaming, constrained output, prompt caching, and model switching |
-| Media and structured data | Image and video generation, video editing, speech synthesis, transcription, vision QA, time-series, and tabular execution |
-| Model lifecycle | GGUF and safetensors intake, Hugging Face integration, conversion, quantization, inspection, construction, adapters, and composition |
-| Training | Token prediction, DPO, GRPO, host and CUDA execution, Muon optimization, and checkpoint/resume |
-| Evaluation | Benchmarks, reference comparisons, long-context and retrieval checks, ablations, and quality, throughput, and memory measurements |
-| Agents and workflows | Registered tools, typed workflows, authorization, receipts, schedules, peers, and recovery |
+| Serving | Chat, generation, embeddings, reranking, sequence scoring, streaming, constrained output, prompt caching, live model switching |
+| Media and structured data | Image and video generation, video editing, speech synthesis, transcription, vision QA, time series, tabular execution |
+| Model lifecycle | GGUF and safetensors intake, Hugging Face integration, conversion, quantization, inspection, construction, adapters, composition |
+| Training | Token prediction, DPO, GRPO, host and CUDA execution, Muon, checkpoint and resume |
+| Evaluation | Benchmarks, reference comparisons, long-context and retrieval checks, ablations, quality, throughput, and memory measurements |
+| Agents and workflows | Registered tools, typed workflows, authorization, receipts, schedules, peers, recovery |
 
-The server embeds the workbench; no separate client build is required. Its
-workspaces expose chat and generation, model and dataset registration, training,
-evaluation, agents, operations, recipes, and artifacts. Controls reflect the
-selected model and enabled capabilities. Conversations and operation records
-persist across page reloads, and outputs link to their runs.
-
-Native, OpenAI-compatible, and Anthropic-compatible APIs use the same server.
-The generated [API manifest](docs/api_manifest.json) inventories commands,
-routes, authentication requirements, and document contracts.
+The server embeds the workbench; no client build is needed. Native,
+OpenAI-compatible, and Anthropic-compatible APIs share one server; the
+[API manifest](docs/api_manifest.json) inventories commands, routes,
+authentication, and document contracts.
 
 ## Architecture and state
 
-Recipes declare architecture, tensors, components, and execution policy.
-Shared inference and training components execute those declarations. Architecture
-profiles cover dense, mixture-of-experts, recurrent, hybrid, encoder, diffusion,
-and multimodal programs. Pinned reference implementations include
-[llama.cpp](https://github.com/ggml-org/llama.cpp), audio.cpp, and
-[Transformers](https://github.com/huggingface/transformers); provenance and license
-records accompany ported capabilities.
+Recipes declare architecture, tensors, components, and execution policy; shared
+inference and training components execute them. Profiles cover dense,
+mixture-of-experts, recurrent, hybrid, encoder, diffusion, and multimodal
+programs. Pinned references are [llama.cpp](https://github.com/ggml-org/llama.cpp),
+audio.cpp, and [Transformers](https://github.com/huggingface/transformers);
+provenance and license records accompany ported capabilities.
 
-OvergoDB retains artifacts, recipes, runs, measurements, decisions, checkpoints,
-and active versions. Content identities and lineage bind results to their inputs
-for reuse, comparison, resume, and rollback. Evaluation retains responses and
-protocols so compatible acquisitions can survive scoring repairs.
+OvergoDB retains artifacts, recipes, runs, measurements, decisions,
+checkpoints, and active versions. Content identities bind results to their
+inputs for reuse, comparison, resume, and rollback. Evaluation retains
+responses and protocols, so a compatible run carries forward instead of
+repeating.
 
 ![Overgo architecture and improvement loop](docs/assets/overgo-platform-technical-architecture.png)
 
 [Editable SVG](docs/assets/overgo-platform-technical-architecture.svg) ·
 [Figure definition](docs/assets/overgo_graphic.json)
 
+## Measured improvement
+
+`go run ./cmd/validate -scorecard` prints the user scorecard for every
+activated model and task: time to first output, throughput, held-out quality,
+failures, load time, peak device memory, and setup steps. Each value is read
+from the store, or listed as a gap with its reason.
+
+One improvement cycle (`go run ./cmd/loop -improve`) runs the validations
+promotion waits on (long-form guards, serving, media, training and projection
+proofs, held-out benchmarks that replay their newest record), publishes the
+scorecard, and fast-forwards `main` only when held-out quality holds against
+the scorecard `main` already has. Open gaps become plan rows. Progress is
+counted in promotions, not landings.
+
 ## Training
 
-A shared Muon optimizer handles matrices, vectors, scalars, embeddings,
-normalization parameters, and adapters. The recipe binds the optimizer policy;
-parameter dimensions determine its resolved settings.
+One Muon optimizer handles matrices, vectors, scalars, embeddings,
+normalization parameters, and adapters. The recipe binds the
+[optimizer policy](internal/trainingprogram/optimizer_policy.json); parameter
+count $P$ determines its settings:
 
-The [built-in policy](internal/trainingprogram/optimizer_policy.json) specifies:
+- **Learning rate:** $\eta=P^{-0.6}$ for a model that already learned,
+  $P^{-0.5}$ for weights trained from initialization; constant schedule.
+- **Momentum:** $\mu=(N-1)/(N+1)=29/31$ with $N=30$ effective samples, from the
+  rule of thumb of Cochran's confidence-interval criterion.
+- **Update scale:** $\eta\sqrt{\max(m,n)}\sqrt{1-\mu^2}$ per $m\times n$ group.
 
-- **Learning rate:** $\eta=P^{-1/2}$, where $P$ is the parameter count supplied
-  to the policy; the schedule is constant.
-- **Momentum:** $\mu=(N-1)/(N+1)=29/31\approx0.9355$, with configured $N=30$,
-  the effective sample count from the rule of thumb of Cochran's
-  confidence-interval criterion.
-- **Update scale:** $\eta\sqrt{\max(m,n)}\sqrt{1-\mu^2}$ for each $m\times n$
-  parameter group.
+Muon combines gradients with momentum, normalizes the Nesterov direction, and
+orthogonalizes by Newton–Schulz iteration; on CUDA its math stays on the
+device and only scalars cross to the host. Optimizer state keeps the resolved
+settings, update count, and momentum. Suitability is assessed per task through
+training evidence.
 
-These are shared policy settings; their suitability is assessed through the
-training evidence for each task. Muon combines gradients with momentum,
-normalizes the Nesterov direction, and applies Newton–Schulz orthogonalization.
-Optimizer state preserves resolved settings, update count, and momentum.
-
-`cmd/train` is the one training entry point. A registered recipe trains a
-checkpoint; `-objective <alias>` trains a text model on a registered
-objective's training split, publishes the trained model at `-out`, and
-publishes the held-out verdict that binds it; `-route <trainer>`, ahead of
-other flags, runs a bounded family trainer by name (the tabular and
-seriesforecast routes train under a registered objective and publish its
-verdict and the trained checkpoint). A training recipe activates on the
-verification its first successful run records:
+`cmd/train` is the one entry point. A registered recipe trains a checkpoint;
+`-objective <alias>` trains a text model on a registered objective's training
+split and publishes the model and the held-out verdict that binds it; `-route
+<trainer>` runs a bounded family trainer by name. A training recipe activates on
+the verification its first successful run records.
 
 ```powershell
 go run ./cmd/train -route oscillatorimage -model Un-0 -steps 2
 ```
 
-Hybrid training retains matrix gradients in GPU buffers and reuses forward
-caches. Its continuation API preserves optimizer progress; callers manage model,
-dataset, and random-state persistence. See the
-[optimizer](internal/hostoptimizer/optimizer.go) and
+See the [optimizer](internal/hostoptimizer/optimizer.go) and
 [training compatibility](docs/TRAINING_COMPATIBILITY.md) for implementation and
 recorded runs.
 
 ## Agent tools
 
 A [tool manual](internal/agenttool/manual.go) declares a tool's arguments,
-effect class, and transport. Bindings cover Go functions, HTTP endpoints,
-fixed programs without a shell, MCP tools, and sequenced JSON streams.
-[cmd/agent-tool](cmd/agent-tool/main.go) publishes manuals to the store;
-orchestration resolves registered tools through those identities.
-
-The [agent loop](internal/agentloop/coordinator.go) checks registration and
-execution bounds. Mutations require a completed inspection and exact approval,
-and record a durable receipt before execution. Interactions retain their causal
-chain. The workbench exposes tools, sessions, approvals, and provenance through
-the same authority.
-
-The serving executor rejects loopback, private, and link-local destinations and
-redirects at dial time. The operator executor admits private destinations.
+effect class, and transport: Go functions, HTTP endpoints, fixed programs
+without a shell, MCP tools, sequenced JSON streams.
+[cmd/agent-tool](cmd/agent-tool/main.go) publishes manuals to the store. The
+[agent loop](internal/agentloop/coordinator.go) checks registration and
+execution bounds; mutations need a completed inspection and exact approval and
+record a durable receipt first. The serving executor refuses loopback, private,
+and link-local destinations; the operator executor admits private ones.
 
 ## Development and verification
 
-[skill.md](skill.md) defines development practices; [docs/plan.json](docs/plan.json)
-records priorities, dependencies, owners, and acceptance. The working cycle is:
+[skill.md](skill.md) holds the development principles; [docs/plan.json](docs/plan.json)
+holds priorities, dependencies, owners, and acceptance.
 
-1. Take the next eligible row (`go run ./cmd/plan -next`) and implement a
-   bounded change.
-2. Land it with `go run ./cmd/loop -land <item>/<step> -message-file -`, which
-   runs the [small gate](internal/landing/landing.go) -- its package doc lists
-   the stages -- and commits with the step removed from the plan.
-3. Retain results and cost in the store.
-4. Use outcomes and remaining obligations to select the next row.
+1. Take the next row: `go run ./cmd/plan -next`.
+2. Land it: `go run ./cmd/loop -land <item>/<step> -message-file -`. The
+   [small gate](internal/landing/landing.go) (its package doc lists the stages)
+   checks the tree and commits with the step removed from the plan.
+3. The improvement cycle judges models on held-out data and promotes `main`.
+4. Scorecard gaps become the next rows.
 
-The [loop driver](cmd/loop/main.go) supervises workers under configured limits
-and operator stops. Each landed row's commit records what the gate measured
-and names the row it landed. Generating the next useful row from
-observations remains part of the [development plan](docs/plan.json).
+The gate judges a commit from the tree alone: unit, golden, hermetic, and
+small-device checks. Real-model and live-store suites belong to the cycle.
+Priorities are fewer components, facts classified once through existing owners,
+and less repeated work; rules that matter are enforced by the gate. The
+[loop driver](cmd/loop/main.go) supervises workers under configured limits and
+operator stops.
 
-The broader improvement cycle is **propose → admit → execute → evaluate →
-decide → observe**. Compare candidates with matched baselines and fixed task
-criteria. Retain rejected and failed attempts as evidence for later decisions.
-
-Development priorities are fewer components, facts classified once through
-existing owners, and less repeated work. Rules that matter are enforced by the
-gate rather than by convention. AST/type information, parsed commands,
-declared capabilities, and typed results drive admission, verification, reuse,
-recovery, and reporting. Scheduling must preserve dependencies, resource
-limits, cancellation, and operator stops while allowing independent work to proceed.
-
-For local feedback, run the hermetic lane on the affected packages, for example:
+Local feedback on affected packages:
 
 ```powershell
 go run ./cmd/validate -tests ./internal/recipe
 ```
 
-Device and browser checks use `cmd/device-lane` and `cmd/webui-lane`;
-installed models are checked with `go run ./cmd/validate -smoke`, and races
-with `go test -race`. The gate selects required
-checks from the change and its acceptance contract and reuses evidence whose
-relevant inputs still match. Ordinary documentation edits receive document
-checks; embedded documents and runtime inputs retain their dependent checks.
-Plan changes retain their acceptance requirements.
+Device and browser checks use `cmd/device-lane` and `cmd/webui-lane`; installed
+models are checked with `go run ./cmd/validate -smoke`.
 
 ## References
 
-- [API manifest](docs/api_manifest.json) — commands, routes, and typed contracts
+- [API manifest](docs/api_manifest.json) — commands, routes, typed contracts
 - [Benchmark report](docs/BENCHMARK.md) — evaluation and performance results
-- Model catalog — model-specific records, rendered on demand by
-  `go run ./cmd/validate -models -repo <store>`
-- Media report — media recipes, runs, and outputs, rendered on demand by
-  `go run ./cmd/validate -media markdown -repo <store>`
-  (`-media json` for its typed projection)
+- Model catalog — `go run ./cmd/validate -models -repo <store>`
+- Media report — `go run ./cmd/validate -media markdown -repo <store>` (`-media json` for the typed projection)
 - [Training compatibility](docs/TRAINING_COMPATIBILITY.md) — training evidence and scope
 - [Compatibility matrix](docs/COMPATIBILITY.md) — features and verification references
 - [Development plan](docs/plan.json) — current work and completion checks
 - [License](LICENSE) and [software bill of materials](SBOM.cdx.json)
-
-Current release: **v0.1.1**.

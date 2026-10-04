@@ -10,8 +10,11 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/discovery"
 	"overgo/internal/inference"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/tensor"
@@ -101,6 +104,9 @@ func (flags *ModelFlags) repositoryPath(roots dataroot.Roots) (string, error) {
 }
 
 // OpenRunner resolves storage inputs and opens the compiled inference program.
+// A weights file the store's identity memo remembers is not hashed before the
+// open: its remembered identity finds the recipe, and the open proves that
+// identity against the bytes it uploads, in the same pass.
 func OpenRunner(
 	ctx context.Context,
 	repository, path string,
@@ -109,6 +115,23 @@ func OpenRunner(
 	if strings.TrimSpace(repository) == "" {
 		return nil, errors.New("model recipe repository is required")
 	}
+	runner, err := openRunner(ctx, repository, path, options, true)
+	if errors.Is(err, artifact.ErrContentMismatch) {
+		// The memo was stale: the file changed without a new size or modification
+		// time, and nothing was served. Resolve it again by hashing, under the
+		// identity its bytes have now.
+		fmt.Fprintf(os.Stderr, "model %s: its remembered identity does not match its bytes; hashing the file\n", path)
+		return openRunner(ctx, repository, path, options, false)
+	}
+	return runner, err
+}
+
+func openRunner(
+	ctx context.Context,
+	repository, path string,
+	options inference.OpenOptions,
+	remembered bool,
+) (*inference.Runner, error) {
 	// Serving only READS the store (recipe resolution); a writer open here
 	// starved concurrent serves and self-deadlocked the smoke lane against
 	// its own child process.
@@ -116,7 +139,11 @@ func OpenRunner(
 	if err != nil {
 		return nil, fmt.Errorf("open model recipe repository: %w", err)
 	}
-	loaded, resolveErr := modelrecipe.ResolveActiveGGUF(ctx, store, path)
+	var claimer modelartifact.Claimer
+	if remembered {
+		claimer = discovery.LoadMemo(ctx, store).Claim
+	}
+	loaded, resolveErr := modelrecipe.ResolveClaimedGGUF(ctx, store, path, claimer)
 	closeErr := store.Close()
 	if resolveErr != nil || closeErr != nil {
 		_ = loaded.Close()

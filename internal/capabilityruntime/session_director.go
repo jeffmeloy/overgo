@@ -485,7 +485,7 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 		)
 		measured := Measured{Run: result.Run.ID}
 		if executeErr == nil {
-			measured = measure(output, entry.model, result, loaded)
+			measured = measure(output, entry.model, result, loaded, program)
 		}
 		measured.Input = content
 		if executeErr != nil {

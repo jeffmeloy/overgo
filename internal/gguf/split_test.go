@@ -3,6 +3,7 @@ package gguf
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -199,5 +200,56 @@ func writeSplitFixture(
 	}
 	if err := os.WriteFile(path, buffer.Bytes(), 0o600); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestShardsCoverEveryPhysicalByte lists one shard per physical file, with the
+// sizes and data offsets that locate every tensor, and reads header and
+// padding bytes through them: the bytes a content identity covers.
+func TestShardsCoverEveryPhysicalByte(t *testing.T) {
+	directory := t.TempDir()
+	prefix := filepath.Join(directory, "fixture")
+	paths := []string{formatSplitPath(prefix, 0, 2), formatSplitPath(prefix, 1, 2)}
+	writeSplitFixture(t, paths[0], 0, 2, 3, []splitFixtureTensor{{name: "first", fill: 0x11}, {name: "second", fill: 0x22}})
+	writeSplitFixture(t, paths[1], 1, 2, 3, []splitFixtureTensor{{name: "third", fill: 0x33}})
+	file, err := Open(paths[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	shards := file.Shards()
+	if len(shards) != len(paths) {
+		t.Fatalf("shards = %d, want %d", len(shards), len(paths))
+	}
+	for index, path := range paths {
+		onDisk, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if shards[index].Size != uint64(len(onDisk)) {
+			t.Fatalf("shard %d size = %d, want %d", index, shards[index].Size, len(onDisk))
+		}
+		whole := make([]byte, len(onDisk))
+		if _, err := io.ReadFull(io.NewSectionReader(shards[index].Source, 0, int64(len(whole))), whole); err != nil || !bytes.Equal(whole, onDisk) {
+			t.Fatalf("shard %d read = %v, equal %t", index, err, bytes.Equal(whole, onDisk))
+		}
+		if shards[index].DataOffset%32 != 0 || shards[index].DataOffset >= shards[index].Size {
+			t.Fatalf("shard %d data offset = %d of %d", index, shards[index].DataOffset, shards[index].Size)
+		}
+	}
+	for _, tensor := range file.Tensors {
+		shard := shards[tensor.Shard]
+		viaTensor := make([]byte, tensor.Size)
+		if err := file.ReadTensorData(tensor, viaTensor); err != nil {
+			t.Fatal(err)
+		}
+		viaShard := make([]byte, tensor.Size)
+		at := int64(shard.DataOffset + tensor.Offset)
+		if _, err := io.ReadFull(io.NewSectionReader(shard.Source, at, int64(len(viaShard))), viaShard); err != nil || !bytes.Equal(viaShard, viaTensor) {
+			t.Fatalf("tensor %q through its shard = %v, equal %t", tensor.Name, err, bytes.Equal(viaShard, viaTensor))
+		}
+	}
+	if got := len((*File)(nil).Shards()); got != 0 {
+		t.Fatalf("nil file lists %d shards", got)
 	}
 }

@@ -168,8 +168,12 @@ func identifyAndRecordWeights(ctx context.Context, store *overgodb.Store, modelP
 	location := batch.Locations[len(batch.Locations)-1].Location
 	batch.Key = "training/bootstrap/location/" + modelID.String() + "/" + location.Value
 	if len(batch.Manifests) != 0 {
-		_, err := artifact.CommitBatch(ctx, store, batch)
-		return modelID, err
+		// Registration already recorded these manifests and locations when it
+		// holds the model: nothing to add, and the run goes on.
+		if _, err := artifact.Publish(ctx, store, batch); err != nil {
+			return artifact.ID{}, err
+		}
+		return modelID, nil
 	}
 	existing, err := store.Locations(ctx, modelID)
 	if err != nil {

@@ -1,11 +1,9 @@
 package main
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -17,9 +15,9 @@ import (
 // a name. A model is tied by its location beneath the directory, or by a
 // config file the conversion recorded whose content is the directory's own, so
 // a converted file that lives elsewhere still counts and one that merely
-// shares the directory's name does not. A model is validated when every cell
-// is activated, none is stale and its evidence is current; a directory takes
-// its best model's standing, and a superseded artifact beside a validated one
+// shares the directory's name does not. A model is activated when every cell
+// is activated and none is stale; a directory takes
+// its best model's standing, and a superseded artifact beside an activated one
 // keeps its own command, into the selected store, without lowering the
 // directory. A directory with weights and no tied model is unregistered and
 // names the command that registers it; one with neither is not a model.
@@ -35,11 +33,11 @@ func TestModelInventory(t *testing.T) {
 	activation := identify(artifact.KindRecipe, "accepted")
 	located, converted, superseded, named := identify(artifact.KindModel, "located"), identify(artifact.KindModel, "converted"), identify(artifact.KindModel, "superseded"), identify(artifact.KindModel, "named")
 	cells := []ModelValidation{
-		{Model: located, Location: `C:\models\Located\weights.safetensors`, Validation: "guard", Surface: "inference", Recipe: activation, Stale: "surface moved"},
-		{Model: located, Location: `C:\models\Located\weights.safetensors`, Validation: "bbh", Surface: "evaluation", Recipe: activation},
-		{Model: converted, Location: `C:\checkpoints\elsewhere.gguf`, Validation: "guard", Surface: "inference", Recipe: activation},
+		{Model: located, Location: `C:\models\Located\weights.safetensors`, Validation: "guard", Recipe: activation, Stale: "its recipe was replaced"},
+		{Model: located, Location: `C:\models\Located\weights.safetensors`, Validation: "bbh", Recipe: activation},
+		{Model: converted, Location: `C:\checkpoints\elsewhere.gguf`, Validation: "guard", Recipe: activation},
 		{Model: superseded, Location: `C:\checkpoints\elsewhere-old.gguf`},
-		{Model: named, Location: `C:\checkpoints\Unregistered-f16.gguf`, Validation: "guard", Surface: "inference", Recipe: activation},
+		{Model: named, Location: `C:\checkpoints\Unregistered-f16.gguf`, Validation: "guard", Recipe: activation},
 	}
 	directories := []modelDirectory{
 		{Path: "C:/models/Unregistered", Weights: true, ModelType: "llama", ConfigDigests: []string{"own-digest"}},
@@ -49,7 +47,7 @@ func TestModelInventory(t *testing.T) {
 	}
 	recorded := map[artifact.ID][]string{converted: {"shared-digest"}, superseded: {"shared-digest"}, named: {"a-different-directory"}}
 	var standings []string
-	for _, entry := range buildInventory(directories, cells, recorded, func(ModelValidation) error { return nil }, "C:/stores/selected") {
+	for _, entry := range buildInventory(directories, cells, recorded, "C:/stores/selected") {
 		var line strings.Builder
 		line.WriteString(filepath.Base(entry.Directory) + " " + entry.Standing)
 		for _, tied := range entry.Models {
@@ -58,7 +56,7 @@ func TestModelInventory(t *testing.T) {
 		standings = append(standings, line.String()+" commands="+strings.Join(entry.Commands, ";"))
 	}
 	want := []string{
-		"Converted validated converted-from:validated converted-from:registered commands=go run ./cmd/recipe verify -task TASK -input SUITE.json " + superseded.String(),
+		"Converted activated converted-from:activated converted-from:registered commands=go run ./cmd/recipe verify -task TASK -input SUITE.json " + superseded.String(),
 		"Located registered location:registered commands=go run ./cmd/longform -guard -publish -repo C:/stores/selected -corpus " + guardCorpus + " -budget " + guardBudget + " -model-budget " + guardModelBudget + ` C:\models\Located\weights.safetensors`,
 		"Unregistered unregistered commands=go run ./cmd/validate -onboard C:/models/Unregistered",
 		"docs not-a-model commands=",
@@ -91,81 +89,5 @@ func TestModelInventory(t *testing.T) {
 	}
 	if filepath.Base(read[1].Path) != "notes" || read[1].Weights || read[1].ModelType != "" {
 		t.Fatalf("directory without weights = %+v", read[1])
-	}
-}
-
-// TestInventoryValidatedMeansCurrentAtTheSurface holds the inventory to calling
-// a model validated only when its guard evidence is current. An accepted
-// recipe says a model was validated once; the guard record is keyed to the
-// inference code surface, and any change to the closure of that surface
-// expires it, so a model whose cells are all activated but whose guard ran on
-// another surface is activated, keeps the reason with the run that lifts it,
-// and keeps the guard's command. A cell without an activation outranks the
-// guard question: that model is registered and its guard is not asked about.
-// A model that earns no guard is activated too, and says
-// that its evidence is unchecked here: nothing is called validated on a claim
-// this command cannot check. A directory takes its best model's standing.
-func TestInventoryValidatedMeansCurrentAtTheSurface(t *testing.T) {
-	t.Parallel()
-	identify := func(kind artifact.Kind, text string) artifact.ID {
-		id, err := artifact.IdentifyBytes(kind, []byte(text))
-		if err != nil {
-			t.Fatal(err)
-		}
-		return id
-	}
-	activation := identify(artifact.KindRecipe, "accepted")
-	current, expired, unverified, image := identify(artifact.KindModel, "current"), identify(artifact.KindModel, "expired"), identify(artifact.KindModel, "unverified"), identify(artifact.KindModel, "image")
-	cells := []ModelValidation{
-		{Model: current, Location: "C:/models/Current/m.gguf", Validation: guardValidation, Surface: "inference", Recipe: activation},
-		{Model: expired, Location: "C:/models/Expired/m.gguf", Validation: guardValidation, Surface: "inference", Recipe: activation},
-		{Model: expired, Location: "C:/models/Expired/m.gguf", Validation: "bbh", Surface: "evaluation", Recipe: activation},
-		{Model: unverified, Location: "C:/models/Unverified/m.gguf", Validation: guardValidation, Surface: "inference", Recipe: activation},
-		{Model: unverified, Location: "C:/models/Unverified/m.gguf", Validation: "bbh", Surface: "evaluation"},
-		{Model: image, Location: "C:/models/Image/m.safetensors", Validation: "image-proof", Surface: "image", Recipe: activation},
-		{Model: expired, Location: "C:/models/Both/old.gguf", Validation: guardValidation, Surface: "inference", Recipe: activation},
-		{Model: current, Location: "C:/models/Both/new.gguf", Validation: guardValidation, Surface: "inference", Recipe: activation},
-	}
-	var asked []string
-	currency := func(cell ModelValidation) error {
-		asked = append(asked, cell.Location)
-		switch {
-		case cell.Validation == "bbh":
-			return errCellNotJudged
-		case cell.Validation == "image-proof":
-			return errors.New("no complete receipt for the acceptance package at this tree's inputs")
-		case strings.Contains(cell.Location, "Expired") || strings.Contains(cell.Location, "old.gguf") || strings.Contains(cell.Location, "Unverified"):
-			return errors.New("the long-form record measured another inference surface; run the guard")
-		}
-		return nil
-	}
-	directories := []modelDirectory{
-		{Path: "C:/models/Current", Weights: true}, {Path: "C:/models/Expired", Weights: true},
-		{Path: "C:/models/Unverified", Weights: true}, {Path: "C:/models/Image", Weights: true}, {Path: "C:/models/Both", Weights: true},
-	}
-	var standings []string
-	for _, entry := range buildInventory(directories, cells, nil, currency, "C:/stores/selected") {
-		var line strings.Builder
-		line.WriteString(filepath.Base(entry.Directory) + " " + entry.Standing)
-		for _, tied := range entry.Models {
-			line.WriteString(" " + tied.Standing)
-			if tied.Currency != "" {
-				line.WriteString("(guard refused)")
-			}
-		}
-		standings = append(standings, line.String()+" commands="+strconv.Itoa(len(entry.Commands)))
-	}
-	want := []string{
-		"Both validated activated(guard refused) validated commands=1",
-		"Current validated validated commands=0",
-		"Expired activated activated(guard refused) commands=1",
-		"Image activated activated(guard refused) commands=1",
-		"Unverified registered registered commands=1",
-	}
-	if !slices.Equal(standings, want) {
-		t.Fatalf("inventory:\n%s\nwant:\n%s", strings.Join(standings, "\n"), strings.Join(want, "\n"))
-	}
-	if slices.ContainsFunc(asked, func(location string) bool { return strings.Contains(location, "Unverified") }) {
-		t.Errorf("the guard was asked about a model with a cell not activated: %v", asked)
 	}
 }

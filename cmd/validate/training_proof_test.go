@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -94,7 +93,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		}
 		return ModelValidation{
 			Model: model, ModelName: name, Location: filepath.Join(models, name, weights),
-			Kind: recipe.TaskTraining, Validation: trainingProof, Surface: "training", Recipe: publish(definition.ArtifactContent()),
+			Kind: recipe.TaskTraining, Validation: trainingProof, Recipe: publish(definition.ArtifactContent()),
 		}
 	}
 	stack, edit := training("Wan", ditWeights, ditGrounding, ""), training("LiveEdit", "edit.pt", ditGrounding, "")
@@ -175,7 +174,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		projectorPaths[name] = projectorPath
 		return ModelValidation{
 			Model: model.ID, ModelName: name, Location: modelPath,
-			Kind: recipe.TaskProjection, Validation: projectionProof, Surface: "evaluation", Recipe: definition.ID,
+			Kind: recipe.TaskProjection, Validation: projectionProof, Recipe: definition.ID,
 		}
 	}
 	exactRan := func(suite evaluation.ExactSuite) string {
@@ -216,7 +215,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 			cells = append(cells, ModelValidation{
 				Model: testutil.ArtifactID(t, artifact.KindModel, string(task)), ModelName: string(task),
 				Location: "C:/models/" + string(task) + "/model.safetensors", Directory: "C:/models/" + string(task),
-				Kind: task, Validation: validation.Validation, Surface: validation.Surface, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, string(task)),
+				Kind: task, Validation: validation, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, string(task)),
 			})
 		}
 	}
@@ -226,7 +225,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	if err := groundProjection(ctx, root, store, cells); err != nil {
 		t.Fatal(err)
 	}
-	plan := SelectValidation(Inputs{Registered: cells, Current: func(ModelValidation) error { return errors.New("no record holds at this tree") }})
+	plan := SelectValidation(Inputs{Registered: cells})
 	if len(plan.Run) != len(cells) {
 		t.Fatalf("promotion waits on %d of %d proofs: background=%+v", len(plan.Run), len(cells), plan.Background)
 	}
@@ -337,19 +336,19 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 		}
 		for _, cell := range selections {
 			t.Run(string(placement)+"/"+cell.Recipe.String(), func(t *testing.T) {
-				record, err := proofRecord(ctx, store, cell)
+				cost, err := proofCost(ctx, store, cell)
 				if err != nil {
 					t.Fatal(err)
 				}
 				if cell.Recipe != active.ID {
-					if record.refusal == nil || record.found || record.run.ID.Valid() || record.cost != 0 {
-						t.Fatalf("another recipe supplied selected proof: %+v", record)
+					if cost != 0 {
+						t.Fatalf("another recipe supplied selected proof: cost %d", cost)
 					}
 					return
 				}
 				run, err := runrecord.RequireRun(ctx, store, verification.Run)
-				if err != nil || !record.found || record.refusal != nil || record.run.ID != run.ID || record.run.Recipe != cell.Recipe || record.cost != int64(run.MeasuredNS) {
-					t.Fatalf("selected proof = (%+v, %v), want run %s and cost %d", record, err, run.ID, run.MeasuredNS)
+				if err != nil || cost != int64(run.MeasuredNS) {
+					t.Fatalf("selected proof cost = (%d, %v), want run %s's %d", cost, err, run.ID, run.MeasuredNS)
 				}
 			})
 		}

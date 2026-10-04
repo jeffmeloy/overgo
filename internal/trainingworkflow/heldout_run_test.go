@@ -6,12 +6,14 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/runrecord"
 	"overgo/internal/trainingprogram"
 )
 
@@ -84,6 +86,7 @@ func TestHeldoutRunTrainsOnlyOnTrainingRecords(t *testing.T) {
 	// Train must see exactly the training membership's examples.
 	shownCount := 0
 	counting := run
+	counting.Load = 3 * time.Millisecond
 	counting.Train = func(ctx context.Context, recipe artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error) {
 		shownCount = len(shown)
 		return run.Train(ctx, recipe, shown)
@@ -94,6 +97,11 @@ func TestHeldoutRunTrainsOnlyOnTrainingRecords(t *testing.T) {
 	}
 	if shownCount != len(training.Records) || !result.Passed {
 		t.Fatalf("training saw %d of %d training records, verdict passed %t", shownCount, len(training.Records), result.Passed)
+	}
+	// The session records the load its caller made for it.
+	session, err := runrecord.RequireServingObservation(ctx, store, result.Observation)
+	if want := []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: uint64(counting.Load)}}; err != nil || !slices.Equal(session.Phases, want) {
+		t.Fatalf("session phases = (%+v, %v), want the run's load %+v", session.Phases, err, want)
 	}
 	if _, err := PromoteObjectiveAdaptive(ctx, store, alias, []artifact.ID{result.Observation}); err != nil {
 		t.Fatal(err)

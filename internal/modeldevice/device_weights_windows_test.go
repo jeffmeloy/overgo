@@ -32,7 +32,9 @@ func TestDeviceWeightsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := weights.Load(t.Context(), file, file.Tensors); err != nil {
+	loader := NewLoader(file)
+	loader.Raw(weights, file.Tensors)
+	if err := loader.Load(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, loaded := weights.Lookup("weight"); !loaded {

@@ -3,30 +3,22 @@ package main
 import (
 	"cmp"
 	"context"
-	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
-	"overgo/internal/gitauthority"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
-// A benchmark or proof cell's accepted record is a run bound to the commit it
-// ran at. Its producer refuses to record from a dirty tree, so that commit is
-// exactly the code it measured. A benchmark cell's record is its recipe's
-// newest evaluation of its family's suite as the active catalog compiles it
-// now: a suite imported again since is another dataset, which no older record
-// measured. A proof cell's record is the verified run its activation accepted.
-// The record is current when its run succeeded and no change since its commit
-// moves the cell's surface, by surfaceMoves' rule: the
-// evaluation surface holds the inference and scoring code a benchmark ran
-// through, the training surface the trainers a proof ran.
+// A benchmark cell is re-acquired every cycle under the protocol of its
+// recipe's newest evaluation of its family's suite as the active catalog
+// compiles it now (a suite imported again since is another dataset, which no
+// older record measured), and replays that record first: evaluate decides
+// whether the replay reproduces it and carries it forward, else runs in full.
 
 // benchmarkFamilies are the derived-suite families every inference activation
 // owes an accuracy benchmark on, besides the family the baseline scorecard
@@ -39,34 +31,6 @@ var benchmarkFamilies = []string{"mmlu-pro", "bbh", "ifeval"}
 // raw-completion anchor, the only protocol the catalog names BBH under.
 var templateFamilies = []string{"ifeval"}
 
-// boundSurfaces are the surfaces whose cells' records are runs bound to the
-// commit they ran at.
-var boundSurfaces = []SurfaceID{"evaluation", "training"}
-
-// errCellInapplicable marks a cell its model's own declaration excludes.
-var errCellInapplicable = errors.New("the model's declared evaluation domains admit no suite of this benchmark")
-
-// boundKey names one commit-bound cell: a recipe's validation, under the
-// protocol a benchmark runs, since the baseline scorecard may compare one
-// family under two.
-type boundKey struct {
-	recipe     artifact.ID
-	validation string
-	protocol   string
-}
-
-// boundRecord is what a commit-bound cell is judged by: its record's run, and
-// the protocol and cost its re-acquisition takes. refusal says why no record
-// can stand for the cell where one would be looked for.
-type boundRecord struct {
-	run      runrecord.Run
-	found    bool
-	protocol string
-	cost     int64
-	refusal  error
-	replay   artifact.ID // a benchmark's evaluation record
-}
-
 // benchmarkEvidence is the active catalog compiled without binding a model,
 // as the scorecard compiles it, and the store's newest evaluation of each
 // recipe and suite under each protocol.
@@ -77,7 +41,7 @@ type benchmarkEvidence struct {
 
 // readBenchmarkEvidence compiles the active catalog and indexes the
 // evaluations of its suites. A catalog that compiles no suite indexes none,
-// and each benchmark cell says so; its command meets the same refusal.
+// and each benchmark cell's command meets that refusal.
 func readBenchmarkEvidence(ctx context.Context, store *overgodb.Store) benchmarkEvidence {
 	suites, _, _ := evaluation.DeriveStoreSuites(ctx, store, evaluation.ListingAuthorities())
 	names := map[artifact.ID]string{}
@@ -89,19 +53,19 @@ func readBenchmarkEvidence(ctx context.Context, store *overgodb.Store) benchmark
 	return benchmarkEvidence{suites: suites, evidence: evaluation.LatestEvidence(ctx, store, names, 0)}
 }
 
-// record finds a benchmark cell's record: its recipe's newest evaluation of
-// the family's suite, under the protocol the cell names when the baseline
-// scorecard compares it, else under whichever protocol ran last. A family no
-// record measures yet takes the named protocol or its first. The cell is
-// inapplicable when its model declares evaluation domains that admit no
-// suite of the family, as evaluate's own routing finds.
-func (benchmarks benchmarkEvidence) record(ctx context.Context, store *overgodb.Store, cell ModelValidation) (boundRecord, error) {
+// bind gives a benchmark cell the protocol, cost and replay record of its
+// recipe's newest evaluation of the family's suite, under the protocol the
+// cell names when the baseline scorecard compares it, else under whichever
+// protocol ran last. A family no record measures yet takes the named protocol
+// or its first, and runs in full. The cell is inapplicable when its model
+// declares evaluation domains that admit no suite of the family, as
+// evaluate's own routing finds.
+func (benchmarks benchmarkEvidence) bind(ctx context.Context, store *overgodb.Store, cell ModelValidation) (ModelValidation, error) {
 	compiles := func(suite evaluation.CompiledSuite) bool { return ofFamily(suite.Descriptor().Source, cell.Validation) }
-	switch domains := strings.Split(cell.Modality, ","); {
-	case !slices.ContainsFunc(benchmarks.suites, compiles):
-		return boundRecord{refusal: fmt.Errorf("the active catalog compiles no %s suite", cell.Validation)}, nil
-	case !slices.ContainsFunc(evaluation.FilterSuitesForDomains(benchmarks.suites, domains, cell.Modality != ""), compiles):
-		return boundRecord{refusal: fmt.Errorf("%w: it declares %s", errCellInapplicable, cell.Modality)}, nil
+	domains := strings.Split(cell.Modality, ",")
+	if slices.ContainsFunc(benchmarks.suites, compiles) && !slices.ContainsFunc(evaluation.FilterSuitesForDomains(benchmarks.suites, domains, cell.Modality != ""), compiles) {
+		cell.Inapplicable = "the model's declared evaluation domains admit no suite of this benchmark: it declares " + cell.Modality
+		return cell, nil
 	}
 	for _, summary := range benchmarks.evidence.EvaluationsByRecipe[cell.Recipe] {
 		if !summary.ExecutionKnown || !ofFamily(summary.Suite, cell.Validation) || cell.Protocol != "" && summary.Prompting != cell.Protocol {
@@ -109,16 +73,18 @@ func (benchmarks benchmarkEvidence) record(ctx context.Context, store *overgodb.
 		}
 		evaluated, err := runrecord.RequireEvaluation(ctx, store, summary.Record)
 		if err != nil {
-			return boundRecord{}, err
+			return cell, err
 		}
 		run, err := runrecord.RequireRun(ctx, store, evaluated.Run)
-		return boundRecord{run: run, found: true, protocol: summary.Prompting, cost: int64(run.MeasuredNS), replay: summary.Record}, err
+		cell.Protocol, cell.Cost, cell.Replay = summary.Prompting, int64(run.MeasuredNS), summary.Record
+		return cell, err
 	}
 	protocol := evaluation.PromptingRawCompletion.Label()
 	if slices.Contains(templateFamilies, cell.Validation) {
 		protocol = evaluation.PromptingChatTemplate.Label()
 	}
-	return boundRecord{protocol: cmp.Or(cell.Protocol, protocol), cost: int64(benchmarkBudget)}, nil
+	cell.Protocol, cell.Cost = cmp.Or(cell.Protocol, protocol), int64(benchmarkBudget)
+	return cell, nil
 }
 
 // ofFamily reports whether a suite, named by its source, is of a benchmark
@@ -126,92 +92,48 @@ func (benchmarks benchmarkEvidence) record(ctx context.Context, store *overgodb.
 func ofFamily(source, family string) bool { return strings.HasSuffix(source, "/"+family) }
 
 // benchmark reports whether a cell is an accuracy benchmark: of an inference
-// activation's cells, only its benchmarks are on the evaluation surface.
+// activation's cells, every one but its guard and serving cell.
 func benchmark(cell ModelValidation) bool {
-	return cell.Kind == recipe.TaskInference && cell.Surface == "evaluation"
+	return cell.Kind == recipe.TaskInference && cell.Validation != guardValidation && cell.Validation != servingValidation
 }
 
-// proofRecord finds a proof cell's record: the verified run its activation
-// accepted.
-func proofRecord(ctx context.Context, store *overgodb.Store, cell ModelValidation) (boundRecord, error) {
+// proofCost is the wall of the verified run a proof cell's activation
+// accepted, which orders the proofs smallest-first; zero when the active
+// recipe is not the selected one or none is accepted.
+func proofCost(ctx context.Context, store *overgodb.Store, cell ModelValidation) (int64, error) {
 	activation, found, err := modelrecipe.ActiveRecord(ctx, store, cell.Model, cell.Kind)
-	if err != nil || !found {
-		return boundRecord{}, err
+	if err != nil || !found || activation.Definition.ID != cell.Recipe {
+		return 0, err
 	}
-	if activation.Definition.ID != cell.Recipe {
-		return boundRecord{refusal: fmt.Errorf("active recipe %s cannot supply proof for selected recipe %s", activation.Definition.ID, cell.Recipe)}, nil
-	}
-	run := activation.Verified.Run
-	return boundRecord{run: run, found: true, cost: int64(run.MeasuredNS)}, nil
+	return int64(activation.Verified.Run.MeasuredNS), nil
 }
 
-// recordCurrent says why a commit-bound cell's record is not current at this
-// tree: none can stand for the cell, there is none, its run did not succeed,
-// its commit cannot be compared with the tree, or a change since its commit
-// moves the cell's surface, whose package directories are directories. Nil
-// means the record stands for the code as it is now.
-func recordCurrent(ctx context.Context, root string, directories []string, cell ModelValidation, record boundRecord) error {
-	run := record.run
-	switch {
-	case record.refusal != nil:
-		return record.refusal
-	case !record.found:
-		return fmt.Errorf("no %s record for this recipe yet", cell.Validation)
-	case run.Outcome != runrecord.OutcomeSucceeded:
-		return fmt.Errorf("its %s run at commit %.*s did not succeed (%s)", cell.Validation, surfaceShown, run.CodeCommit, run.Failure)
-	}
-	changed, err := changedSince(ctx, root, run.CodeCommit)
-	if err != nil {
-		return fmt.Errorf("its %s record is bound to commit %.*s, which this tree cannot be compared with: %w", cell.Validation, surfaceShown, run.CodeCommit, err)
-	}
-	if moved := surfaceMoves(directories, changed); moved.Affected {
-		return fmt.Errorf("its %s record ran at commit %.*s and the %s surface moved since: %s", cell.Validation, surfaceShown, run.CodeCommit, cell.Surface, moved.Reason)
-	}
-	return nil
-}
-
-// changedSince lists the repository-relative paths the working tree differs
-// in from a commit, so a run is judged against the tree as it is now.
-func changedSince(ctx context.Context, root, commit string) ([]string, error) {
-	out, err := gitauthority.Query(ctx, root, "diff", "--name-only", commit)
-	if err != nil {
-		return nil, err
-	}
-	var paths []string
-	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			paths = append(paths, trimmed)
+// bindCells gives each cell, in place, what its re-acquisition takes: a
+// benchmark the protocol, cost and replay record of its newest evaluation, or
+// its exclusion by its model's declared domains; a training or projection
+// proof the wall of the run its activation accepted, then the grounding the
+// training and projection routes take. A read that fails fails the command:
+// an unread record is no reason to spend a device re-acquiring blind.
+func bindCells(ctx context.Context, root string, store *overgodb.Store, cells []ModelValidation) error {
+	var benchmarks *benchmarkEvidence
+	for index, cell := range cells {
+		var err error
+		switch {
+		case benchmark(cell):
+			if benchmarks == nil {
+				read := readBenchmarkEvidence(ctx, store)
+				benchmarks = &read
+			}
+			cells[index], err = benchmarks.bind(ctx, store, cell)
+		case cell.Validation == trainingProof || cell.Validation == projectionProof:
+			cells[index].Cost, err = proofCost(ctx, store, cell)
 		}
-	}
-	return paths, nil
-}
-
-// judgeBound judges one commit-bound cell and returns it with the protocol and
-// cost its re-acquisition takes. It lists the cell's surface packages and
-// reads the catalog's evaluations the first time a cell needs them.
-func (read *acceptedRecords) judgeBound(ctx context.Context, root string, store *overgodb.Store, cell ModelValidation) (ModelValidation, error) {
-	if _, listed := read.directories[cell.Surface]; !listed {
-		directories, err := surfaceDirectories(ctx, root, modalitySurfaces[cell.Surface].roots)
 		if err != nil {
-			return cell, err
+			return err
 		}
-		read.directories[cell.Surface] = directories
 	}
-	var record boundRecord
-	var err error
-	if benchmark(cell) {
-		if read.benchmarks == nil {
-			benchmarks := readBenchmarkEvidence(ctx, store)
-			read.benchmarks = &benchmarks
-		}
-		record, err = read.benchmarks.record(ctx, store, cell)
-	} else {
-		record, err = proofRecord(ctx, store, cell)
+	if err := groundTraining(ctx, root, store, cells); err != nil {
+		return err
 	}
-	if err != nil {
-		return cell, err
-	}
-	cell.Protocol, cell.Cost, cell.Replay = record.protocol, record.cost, record.replay
-	read.bound[boundKey{cell.Recipe, cell.Validation, cell.Protocol}] = recordCurrent(ctx, root, read.directories[cell.Surface], cell, record)
-	return cell, nil
+	return groundProjection(ctx, root, store, cells)
 }

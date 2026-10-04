@@ -73,7 +73,7 @@ func JSONScalar[Input, Model, Output any](
 		)
 		measured := Measured{Run: result.Run.ID}
 		if executeErr == nil {
-			measured = measure(output, model, result, time.Duration(loaded))
+			measured = measure(output, model, result, time.Duration(loaded), program)
 		}
 		measured.Input = content
 		executeErr = errors.Join(executeErr, closeModel(context.WithoutCancel(ctx), model))

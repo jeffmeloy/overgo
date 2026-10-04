@@ -316,7 +316,8 @@
             "merge-e1ee1326fe2b/do",
             "training-rate-per-layer/do",
             "validate-currency/do",
-            "plan-review-2026-10-03/do"
+            "plan-review-2026-10-03/do",
+            "training-peak/do"
           ]
         }
       ]
@@ -542,7 +543,8 @@
       "blocks": [
         "validate-currency"
       ],
-      "asked": "2026-10-02"
+      "asked": "2026-10-02",
+      "answer": "background"
     },
     {
       "id": "serving-cells-current",
@@ -553,7 +555,8 @@
         "median of the newest few attempts"
       ],
       "recommendation": "newest measured attempt",
-      "asked": "2026-10-03"
+      "asked": "2026-10-03",
+      "answer": "newest measured attempt"
     },
     {
       "id": "heldout-datasets",
@@ -585,7 +588,8 @@
       "blocks": [
         "models-out-of-adaptive-new"
       ],
-      "asked": "2026-10-03"
+      "asked": "2026-10-03",
+      "answer": "Copy one at a time, verified, originals kept"
     }
   ]
 }

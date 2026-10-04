@@ -89,7 +89,7 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 	if cell := firstOutputCell(recipe.TaskImageGen, none, false, summary); cell.Value != milliseconds(wholeOutputNS) || cell.Unit != "ms" {
 		t.Fatalf("first-output cell = %+v, want the whole output's time", cell)
 	}
-	if cell := peakMemoryCell(recipe.TaskImageGen, none, false, summary); cell.Value != peak {
+	if cell := peakMemoryCell(none, false, summary); cell.Value != peak {
 		t.Fatalf("peak-memory cell = %+v, want %d bytes", cell, peak)
 	}
 }
@@ -165,7 +165,7 @@ func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
 	summary := summaries[measuredRecipe]
 	for name, cell := range map[string]Cell{
 		"first output": firstOutputCell(recipe.TaskInference, stale, true, summary), "throughput": throughputCell(recipe.TaskInference, stale, true, summary),
-		"load": loadCell(stale, true, summary), "peak": peakMemoryCell(recipe.TaskInference, stale, true, summary),
+		"load": loadCell(stale, true, summary), "peak": peakMemoryCell(stale, true, summary),
 	} {
 		want := map[string]float64{"first output": 100, "throughput": 80, "load": 4000, "peak": peak}[name]
 		if cell.Value != want || cell.Source != fast || cell.Contract.Origin != originServing {
@@ -183,7 +183,7 @@ func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
 	}
 	for name, cell := range map[string]Cell{
 		"first output": firstOutputCell(recipe.TaskInference, stale, true, nil), "throughput": throughputCell(recipe.TaskInference, stale, true, nil),
-		"load": loadCell(stale, true, nil), "peak": peakMemoryCell(recipe.TaskInference, stale, true, nil),
+		"load": loadCell(stale, true, nil), "peak": peakMemoryCell(stale, true, nil),
 	} {
 		if cell.Source != latest || cell.CodeCommit != "0123456789abcdef0123456789abcdef01234567" || cell.Environment != environment || cell.Contract.Comparison != comparison {
 			t.Errorf("benchmark %s lost its producing authorities: %+v", name, cell)
@@ -197,8 +197,8 @@ func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
 // the cell says so on the serving contract of its recipe. An attempt that
 // sampled nothing, or whose only sample is the prefill that times its first
 // output, measured no peak and stays a gap. Samples that held memory read
-// as their peak, a training session's samples stay the gap they were, and a
-// benchmark's peak fills in only where no attempt measured one.
+// as their peak, whatever the task, and a benchmark's peak fills in only
+// where no attempt measured one.
 func TestPeakMemoryReadsASampledZero(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -253,30 +253,27 @@ func TestPeakMemoryReadsASampledZero(t *testing.T) {
 	host := summaries[recipes["host"]]
 	want := Cell{Unit: "bytes", Label: "0 bytes: runs on the host", Source: observed["host"],
 		Contract: Contract{Metric: "peak device memory", Origin: originServing, Scope: recipes["host"]}}
-	if cell := peakMemoryCell(recipe.TaskForecast, none, false, host); !cell.Measured() || cell != want {
+	if cell := peakMemoryCell(none, false, host); !cell.Measured() || cell != want {
 		t.Fatalf("peak-memory cell of an attempt that sampled a device holding nothing = %+v, want the measured zero %+v", cell, want)
 	}
 	if cell := firstOutputCell(recipe.TaskForecast, none, false, host); cell.Value != milliseconds(wall) {
 		t.Fatalf("first-output cell = %+v, want the whole output's time: the finish sample is no prefill", cell)
 	}
 	for _, name := range []string{"unsampled", "prefill"} {
-		if cell := peakMemoryCell(recipe.TaskForecast, none, false, summaries[recipes[name]]); cell.Measured() || cell.Reason != "no benchmark or serving peak device memory" {
+		if cell := peakMemoryCell(none, false, summaries[recipes[name]]); cell.Measured() || cell.Reason != "no benchmark or serving peak device memory" {
 			t.Fatalf("peak-memory cell of the %s attempt = %+v, want the gap: nothing sampled its device at the finish", name, cell)
 		}
 	}
 	benchmarked := evaluation.BenchmarkSummary{PeakDeviceBytes: 2 * peak}
 	for _, withBenchmark := range []bool{false, true} {
-		if cell := peakMemoryCell(recipe.TaskInference, benchmarked, withBenchmark, summaries[recipes["device"]]); cell.Value != peak || cell.Contract.Origin != originServing {
+		if cell := peakMemoryCell(benchmarked, withBenchmark, summaries[recipes["device"]]); cell.Value != peak || cell.Contract.Origin != originServing {
 			t.Fatalf("peak-memory cell of samples that held memory = %+v, want the attempt's %d-byte peak, a benchmark beside it or not", cell, peak)
 		}
 	}
-	if cell := peakMemoryCell(recipe.TaskTraining, none, false, host); cell.Measured() || cell.Reason != "training sessions record device-wide memory use, not their own peak" {
-		t.Fatalf("peak-memory cell of a training session = %+v, want its gap whatever it sampled", cell)
-	}
-	if cell := peakMemoryCell(recipe.TaskInference, benchmarked, true, host); cell != want {
+	if cell := peakMemoryCell(benchmarked, true, host); cell != want {
 		t.Fatalf("peak-memory cell of a measured zero beside a benchmark = %+v, want the attempt's zero", cell)
 	}
-	if cell := peakMemoryCell(recipe.TaskInference, benchmarked, true, summaries[recipes["unsampled"]]); cell.Value != 2*peak || cell.Contract.Origin != originBenchmark {
+	if cell := peakMemoryCell(benchmarked, true, summaries[recipes["unsampled"]]); cell.Value != 2*peak || cell.Contract.Origin != originBenchmark {
 		t.Fatalf("peak-memory cell no attempt measured = %+v, want the benchmark's %d bytes", cell, 2*peak)
 	}
 }

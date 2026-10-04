@@ -180,7 +180,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			}
 			row.Cells[metric.Failures] = failureCell(observed)
 			row.Cells[metric.Load] = loadCell(benchmark, measured, observed)
-			row.Cells[metric.PeakMemory] = peakMemoryCell(capability.Task, benchmark, measured, observed)
+			row.Cells[metric.PeakMemory] = peakMemoryCell(benchmark, measured, observed)
 			row.Cells[metric.SetupSteps] = setupCell(ctx, store, entry.Model, capability.Task)
 			rows = append(rows, row)
 		}
@@ -606,12 +606,7 @@ func loadCell(benchmark evaluation.BenchmarkSummary, benchmarked bool, observed 
 	return gap("no benchmark load time and no recorded load phase")
 }
 
-func peakMemoryCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
-	if task == recipe.TaskTraining {
-		// A training session samples device-wide use, other processes
-		// included, not its own peak.
-		return gap("training sessions record device-wide memory use, not their own peak")
-	}
+func peakMemoryCell(benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
 	if observed != nil && observed.peakDeviceBytes != 0 {
 		return observed.cell(observed.measured, float64(observed.peakDeviceBytes), "bytes", "peak device memory", "serving peak device memory, the newest measured attempt")
 	}

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/clioptions"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
@@ -42,7 +43,6 @@ type Observer struct {
 	environment runrecord.Environment
 	director    *capabilityruntime.ModelSessionDirector[struct{}, struct{}, struct{}]
 	lease       *capabilityruntime.SessionLease[struct{}]
-	sampler     *sessionSampler
 	started     time.Time
 	clock       processmeasure.Stopwatch
 	walls       processmeasure.Walls
@@ -71,15 +71,10 @@ func NewObserver(store artifact.Repository, host bool) (*Observer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("training observation: environment: %w", err)
 	}
-	observer := &Observer{store: store, environment: environment, started: time.Now(), clock: processmeasure.NewStopwatch()}
-	if !host {
-		observer.sampler = newSessionSampler()
-	}
-	return observer, nil
+	return &Observer{store: store, environment: environment, started: time.Now(), clock: processmeasure.NewStopwatch()}, nil
 }
 
-// Admit acquires directed training ownership; a refused admission releases
-// the session's sampler, since no Finish follows it.
+// Admit acquires directed training ownership.
 func (o *Observer) Admit(ctx context.Context, model, recipeID artifact.ID) error {
 	if o == nil {
 		return nil
@@ -88,7 +83,6 @@ func (o *Observer) Admit(ctx context.Context, model, recipeID artifact.ID) error
 		"training", o.environment.Device, recipe.SessionRequestCapacity,
 	)
 	if err != nil {
-		o.sampler.close()
 		return fmt.Errorf("training observation: director: %w", err)
 	}
 	lease, err := director.LeaseComponent(ctx, modelrecipe.ComponentSession{
@@ -97,7 +91,6 @@ func (o *Observer) Admit(ctx context.Context, model, recipeID artifact.ID) error
 	}, func(context.Context) (struct{}, error) { return struct{}{}, nil })
 	if err != nil {
 		_ = director.Close(ctx)
-		o.sampler.close()
 		return fmt.Errorf("training observation: admission refused: %w", err)
 	}
 	o.director, o.lease = director, lease
@@ -118,27 +111,28 @@ func (o *Observer) Phase(phase runrecord.Phase, wall time.Duration) {
 	o.phases = append(o.phases, runrecord.PhaseMetric{Phase: phase, DurationNS: uint64(wall)})
 }
 
+// sampleHardware records the device memory this process holds and the most
+// it has held, from the driver's process-wide ledger: the session's own
+// residency, which a training process alone owns, never the device's use
+// beside other processes. A session that allocates nothing, a host run,
+// samples zero, which is a measurement.
 func (o *Observer) sampleHardware(stage runrecord.ServingHardwareStage) {
 	if o == nil {
 		return
 	}
-	used, ok := o.sampler.sample()
-	if !ok {
-		return
-	}
 	o.hardware = append(o.hardware, runrecord.ServingHardwareSample{
 		Stage: stage, ElapsedNS: o.walls.Elapsed(o.clock),
-		DeviceCurrentBytes: used, DevicePeakBytes: used,
+		DeviceCurrentBytes: driver.ProcessCurrentBytes(), DevicePeakBytes: driver.ProcessPeakBytes(),
 	})
 }
 
-// SampleStep retains peak sampled residency.
+// SampleStep retains the step at which the process held the most.
 func (o *Observer) SampleStep() {
 	if o == nil {
 		return
 	}
-	used, ok := o.sampler.sample()
-	if !ok || o.stepSampled && used <= o.stepUsed {
+	used := driver.ProcessCurrentBytes()
+	if o.stepSampled && used <= o.stepUsed {
 		return
 	}
 	o.stepUsed, o.stepElapsed, o.stepSampled = used, o.walls.Elapsed(o.clock), true
@@ -180,7 +174,6 @@ func (o *Observer) finish(
 		})
 	}
 	o.sampleHardware(runrecord.ServingHardwareFinish)
-	o.sampler.close()
 	if o.lease != nil {
 		if err := o.lease.Release(); err != nil {
 			return artifact.ID{}, nil, artifact.ID{}, fmt.Errorf("training observation: release: %w", err)

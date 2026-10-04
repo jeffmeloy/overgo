@@ -22,9 +22,12 @@ func FreshRun(ctx context.Context) context.Context {
 
 // Measured wraps a capability output with the run's measured
 // decomposition: the persisted workflow run, the per-node phase walls the
-// runtime observed, how long the run's own model load took, and the peak device
-// bytes the loaded model session reports. Absent measurements stay zero;
-// nothing is invented: a run a resident session served loaded nothing.
+// runtime observed, how long the run's own model load took, the peak device
+// bytes the loaded model session reports, and, of a run whose model decoded
+// its output token by token, how long that decode took and how many tokens
+// it gave. Absent measurements stay zero; nothing is invented: a run a
+// resident session served loaded nothing, and a run that recovered its
+// output from the store, or whose output is whole, decoded nothing.
 // Input is the request document the runtime recorded for the run (the
 // decoded request under its capability's input schema), so a consumer
 // publishing its own run record cites the one document the store holds.
@@ -34,6 +37,8 @@ type Measured struct {
 	Phases          []workflowruntime.NodeWall `json:"phases,omitempty"`
 	Load            time.Duration              `json:"load_ns,omitzero"`
 	PeakDeviceBytes uint64                     `json:"peak_device_bytes,omitzero"`
+	OutputTokens    uint64                     `json:"output_tokens,omitzero"`
+	Decode          time.Duration              `json:"decode_ns,omitzero"`
 	Input           artifact.Content           `json:"-"`
 }
 
@@ -53,14 +58,34 @@ type deviceMeter interface {
 	PeakDeviceBytes() (uint64, error)
 }
 
+// tokenMeter is implemented by model runtimes that decode their output
+// token by token: the number of tokens the model's last run decoded. A
+// runtime whose output is whole, an image or a prediction, does not
+// implement it.
+type tokenMeter interface {
+	OutputTokens() uint64
+}
+
 // measure assembles the envelope around an executed output, with the wall
 // of the load the run made for it. A meter error yields an absent peak
-// rather than failing a run that already produced its output.
-func measure[Model any](output any, model Model, result workflowruntime.Result, load time.Duration) Measured {
+// rather than failing a run that already produced its output. A token
+// runtime's decode is the wall of the node the program's output comes from,
+// the stage that selected the tokens, and is read with the count only when
+// this run executed that node: a run that recovered its output decoded
+// nothing, and the count a resident model holds is then an earlier run's.
+func measure[Model any](output any, model Model, result workflowruntime.Result, load time.Duration, program recipe.Program) Measured {
 	measured := Measured{Output: output, Run: result.Run.ID, Phases: result.NodeWalls, Load: load}
 	if meter, ok := any(model).(deviceMeter); ok {
 		if peak, err := meter.PeakDeviceBytes(); err == nil {
 			measured.PeakDeviceBytes = peak
+		}
+	}
+	if meter, ok := any(model).(tokenMeter); ok {
+		decoder := program.Definition().Outputs[0].Source.Node
+		for _, phase := range result.NodeWalls {
+			if phase.Node == decoder {
+				measured.OutputTokens, measured.Decode = meter.OutputTokens(), time.Duration(phase.WallNS)
+			}
 		}
 	}
 	return measured

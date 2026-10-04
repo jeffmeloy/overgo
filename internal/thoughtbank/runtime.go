@@ -23,7 +23,15 @@ type Generator struct {
 	weights   *FastWeightBankLMWeights
 	config    ArchConfig
 	tokenizer *hfbpe.Tokenizer
+	generated uint64
 }
+
+// OutputTokens is the number of tokens the generator's last generation
+// decoded. The generation is one stage with no separate prefill
+// measurement: it tokenizes and evaluates the prompt, then decodes every
+// token, so a rate taken over that stage's wall counts the prompt's share
+// as decode and understates the decode alone.
+func (g *Generator) OutputTokens() uint64 { return g.generated }
 
 func LoadGenerator(directory string) (*Generator, error) {
 	weights, config, err := LoadCheckpoint(filepath.Join(directory, "model.pt"))
@@ -79,6 +87,7 @@ func (g *Generator) Generate(request textgeneration.Request) (Generation, error)
 			}
 		}
 	}
+	g.generated = uint64(len(tokens))
 	return Generation{Text: g.tokenizer.Decode(tokens), Tokens: tokens}, nil
 }
 

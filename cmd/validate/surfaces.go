@@ -67,7 +67,7 @@ func kindValidation(task recipe.Task) []struct {
 		return []cell{{"speech-proof", "speech"}}
 	case "vqa":
 		return []cell{{"vqa-proof", "vqa"}}
-	case "seq2seq", "forecast", "tabular", "image-embedding":
+	case "seq2seq", "forecast", "tabular", "image-embedding", "generation":
 		return []cell{{"specialized-proof", "specialized"}}
 	case "training":
 		return []cell{{"training-proof", "training"}}

@@ -33,7 +33,11 @@ func vqaCapability() Capability {
 // executeVQA decodes the page request, reads the image from the store and
 // runs the two-stage program: prepare over the processor, generate over
 // the device pipeline under the request's decode budget. The answer text
-// is the output; the producer run and node walls travel in the measured envelope.
+// is the output; the producer run and node walls travel in the measured
+// envelope, with the wall of the pipeline's decode loop, which the pipeline
+// times apart from its vision tower and prefill, and the tokens that loop
+// gave: the answer's but its first, which is the prefill's. A generate stage
+// the store recovered ran no pipeline and reports neither.
 func executeVQA(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 	var form vqaserve.Request
 	if err := strictjson.DecodeBytes([]byte(raw), &form); err != nil {
@@ -52,13 +56,18 @@ func executeVQA(ctx context.Context, store artifact.Repository, path string, sel
 	}
 	program := selection.Program
 	definition := program.Definition()
+	var decoded vqaserve.Result
 	answer, result, err := vqaserve.RunProgram(ctx, store, definition.Model, program, capabilityruntime.RunKey(definition, request), image, form.Question,
 		func(image []byte, question string) (vqaserve.Prepared, error) {
 			return vqaserve.Prepare(path, image, question)
 		},
-		func(ctx context.Context, prepared vqaserve.Prepared) (string, error) {
-			_, text, err := vqaserve.Answer(ctx, path, prepared, form.Budget(), nil)
+		func(ctx context.Context, prepared vqaserve.Prepared) (text string, err error) {
+			decoded, text, err = vqaserve.Answer(ctx, path, prepared, form.Budget(), nil)
 			return text, err
 		})
-	return capabilityruntime.Measured{Output: answer, Run: result.Run.ID, Phases: result.NodeWalls, Input: request}, err
+	measured := capabilityruntime.Measured{Output: answer, Run: result.Run.ID, Phases: result.NodeWalls, Input: request}
+	if err == nil {
+		measured.OutputTokens, measured.Decode = uint64(decoded.Steps), decoded.DecodeWall
+	}
+	return measured, err
 }

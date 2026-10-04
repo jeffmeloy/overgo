@@ -25,6 +25,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
+	"overgo/internal/textgeneration"
 	"overgo/internal/workflowruntime"
 )
 
@@ -447,6 +448,7 @@ func TestCapabilityMeasurementRecordsLoadAndDevicePeak(t *testing.T) {
 // node once. A measurement of that request recovers nothing, so the attempt
 // it records times the model and not the store's replay: each of two
 // measurements runs the node. Serving the request afterwards still recovers.
+// The forecast is an output returned whole: no attempt records a decode.
 func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 	const request = `[1,2,3]`
 	inventory := measuredModel(t)
@@ -537,6 +539,98 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 		if err != nil || run.Recipe != attempt.Recipe || run.Outcome != attempt.Outcome || !slices.Contains(run.Inputs, input.Descriptor.ID) || len(run.Outputs) != 0 {
 			t.Fatalf("terminal attempt %s cites %+v (%v); want its actual recipe/request/outcome without output", attempt.ID, run, err)
 		}
+	}
+	// A forecast is returned whole by a model that decodes no tokens: no
+	// attempt of it, replayed or run, has a decode phase or output tokens.
+	for _, attempt := range attempts {
+		if attempt.Usage.OutputTokens != 0 || decodePhase(attempt) != 0 {
+			t.Fatalf("attempt of a whole output has a %d ns decode phase and %d output tokens; want neither", decodePhase(attempt), attempt.Usage.OutputTokens)
+		}
+	}
+}
+
+// decodePhase is the wall of an attempt's decode phase, zero without one.
+func decodePhase(attempt runrecord.ServingObservation) uint64 {
+	for _, phase := range attempt.Phases {
+		if phase.Phase == runrecord.PhaseDecode {
+			return phase.DurationNS
+		}
+	}
+	return 0
+}
+
+// decodingModel is a fixture seq2seq model that reports the tokens its last
+// selection decoded, as a token-decoding model runtime does.
+type decodingModel struct{ selected uint64 }
+
+func (model *decodingModel) OutputTokens() uint64 { return model.selected }
+
+// TestCapabilityMeasurementRecordsDecodeAndOutputTokens holds the attempt a
+// measured capability records to what its scorecard row's throughput cell
+// reads: output tokens over a decode phase. A seq2seq model runs the three
+// stages of its recipe, encode, prepare and select, each over a span the
+// clock can time, and reports the tokens its selection decoded: the attempt
+// carries that count, and as its decode phase the wall of the select stage
+// alone, within the attempt's whole wall.
+func TestCapabilityMeasurementRecordsDecodeAndOutputTokens(t *testing.T) {
+	const tokens = 4
+	inventory := measuredModel(t)
+	directory := t.TempDir()
+	activateMeasured(t, directory, recipe.TaskSeq2Seq, inventory, measuredContent(t, "overgo.seq2seq-input.v1", `{"text":"source","max_tokens":4}`))
+	timed := func() { tick(t, tick(t, 0)) }
+	execute := capabilityruntime.JSONScalar[textgeneration.Request, *decodingModel, string](
+		"seq2seq", textgeneration.Validate,
+		func(context.Context, artifact.Repository, string, recipe.Program, textgeneration.Request) (*decodingModel, error) {
+			return &decodingModel{}, nil
+		},
+		func(runtime *workflowruntime.Runtime, modelID artifact.ID, model *decodingModel) error {
+			return workflowruntime.RegisterJSONPipeline(
+				runtime, modelID, artifact.JSONContract(artifact.KindFile, "overgo.fixture-seq2seq-text.v1"),
+				modelrecipe.ModuleSeq2SeqEncode, func(request textgeneration.Request) (int, error) {
+					timed()
+					return request.MaxTokens, nil
+				},
+				modelrecipe.ModuleSeq2SeqPrepare, func(limit int) (int, error) {
+					timed()
+					return limit, nil
+				},
+				modelrecipe.ModuleSeq2SeqSelect, func(limit int) (string, error) {
+					timed()
+					model.selected = uint64(limit)
+					return "selected", nil
+				},
+			)
+		},
+	)
+	// The walls the executor measured, by the node that took them.
+	walls := map[recipe.NodeID]uint64{}
+	capability := mediacapability.Capability{
+		Resolve: func(string) (mediacapability.Source, error) {
+			return mediacapability.Source{Inventory: inventory}, nil
+		},
+		Execute: func(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, input string) (any, error) {
+			output, err := execute(ctx, store, path, selection, input)
+			measured, _ := output.(capabilityruntime.Measured)
+			for _, wall := range measured.Phases {
+				walls[wall.Node] = wall.WallNS
+			}
+			return output, err
+		},
+	}
+	if err := measureCapability(directory, "fixture-path", recipe.TaskSeq2Seq, capability); err != nil {
+		t.Fatal(err)
+	}
+	observed := servingAttempts(t, directory)
+	if len(observed) != 1 || observed[0].Task != recipe.TaskSeq2Seq || observed[0].Outcome != runrecord.OutcomeSucceeded {
+		t.Fatalf("serving attempts = %+v; want one succeeded attempt of the capability", observed)
+	}
+	if len(walls) != 3 || walls["encode"] == 0 || walls["prepare"] == 0 || walls["select"] == 0 {
+		t.Fatalf("executor node walls = %v; want the three stages timed", walls)
+	}
+	attempt, decode := observed[0], decodePhase(observed[0])
+	if attempt.Usage.OutputTokens != tokens || decode != walls["select"] || decode >= attempt.MeasuredNS {
+		t.Fatalf("attempt has %d output tokens over a %d ns decode phase within %d ns; want %d tokens over the select stage's %d ns alone (node walls %v)",
+			attempt.Usage.OutputTokens, decode, attempt.MeasuredNS, tokens, walls["select"], walls)
 	}
 }
 

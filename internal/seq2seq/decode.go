@@ -111,7 +111,7 @@ type textSelector interface {
 
 type textGeneration struct {
 	tokens    tokenSelector
-	tokenizer interface{ Decode([]int) string }
+	generator *Generator
 }
 
 func (s textGeneration) selectText() (string, error) {
@@ -119,7 +119,8 @@ func (s textGeneration) selectText() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return s.tokenizer.Decode(tokens), nil
+	s.generator.selected = uint64(len(tokens))
+	return s.generator.tokenizer.Decode(tokens), nil
 }
 
 func (m *Model) encodeTokens(source []int, maxTokens int) (encodedRequest, error) {

@@ -479,7 +479,9 @@ func executeCapability(
 // attemptCapability executes the capability and records the execution as
 // the serving attempt the scorecard counts, the way the server records a
 // page's generation, with the load its executor measured as the attempt's
-// load phase and the device memory the process peaked at as the attempt's.
+// load phase, the device memory the process peaked at as the attempt's, and
+// the tokens a token-decoding model gave with the wall of their decode, the
+// attempt's decode phase.
 func attemptCapability(
 	ctx context.Context,
 	store *overgodb.Store,
@@ -498,7 +500,8 @@ func attemptCapability(
 	peak, peakMeasured := devicePeak(processDevicePeak(), measured, err)
 	recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
 		Model: modelID, Recipe: selected.Activation.Definition.ID, Run: measured.Run, Task: task, Started: started, Wall: end - begin,
-		Load: measured.Load, PeakDeviceBytes: peak, PeakMeasured: peakMeasured, Cause: err,
+		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,
+		PeakDeviceBytes: peak, PeakMeasured: peakMeasured, Cause: err,
 	})
 	return output, errors.Join(err, recordErr)
 }

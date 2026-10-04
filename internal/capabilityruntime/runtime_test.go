@@ -412,6 +412,94 @@ func TestFreshRunExecutesWhatAnIdenticalRequestStored(t *testing.T) {
 	}
 }
 
+// decodingModel is a fixture runtime that decodes tokens: its stage gives
+// as many as the request's value and keeps the count of its last run.
+type decodingModel struct{ decoded uint64 }
+
+func (model *decodingModel) OutputTokens() uint64 { return model.decoded }
+
+// TestMeasurementCarriesTheDecodeOfATokenRuntime runs one recipe on both
+// executor shapes over a runtime that reports the tokens its last run
+// decoded. The measurement of an execution that ran the output's node
+// carries that count, with the node's wall as its decode. An identical
+// request recovers the stored stage and decodes nothing: its measurement
+// carries neither, though the director's resident model still holds the
+// earlier run's count. A runtime that reports no tokens, one whose output is
+// whole, carries neither even when its node ran.
+func TestMeasurementCarriesTheDecodeOfATokenRuntime(t *testing.T) {
+	validate := func(scalarRequest) error { return nil }
+	stage := func(runtime *workflowruntime.Runtime, bound artifact.ID, decoded *uint64) error {
+		return workflowruntime.RegisterJSONStage[scalarRequest, int](
+			runtime, scalarModule, bound, artifact.JSONContract(artifact.KindOutput, "test.decoded-output.v1"),
+			func(request scalarRequest) (int, error) {
+				// The node takes a span the clock can time.
+				started, err := processmeasure.Counter()
+				for now := started; err == nil && now <= started; now, err = processmeasure.Counter() {
+				}
+				*decoded = uint64(request.Value)
+				return request.Value, err
+			},
+		)
+	}
+	load := func(context.Context, artifact.Repository, string, recipe.Program, scalarRequest) (*decodingModel, error) {
+		return &decodingModel{}, nil
+	}
+	bind := func(runtime *workflowruntime.Runtime, bound artifact.ID, model *decodingModel) error {
+		return stage(runtime, bound, &model.decoded)
+	}
+	director, err := NewModelSessionDirector[scalarRequest, *decodingModel, int](
+		"scalar", "host", 1, validate, load, func(context.Context, *decodingModel, scalarRequest) error { return nil }, bind,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer director.Close(t.Context())
+	var unreported uint64
+	whole := JSONScalar[scalarRequest, int, int]("scalar", validate,
+		func(context.Context, artifact.Repository, string, recipe.Program, scalarRequest) (int, error) {
+			return 1, nil
+		},
+		func(runtime *workflowruntime.Runtime, bound artifact.ID, _ int) error {
+			return stage(runtime, bound, &unreported)
+		})
+	for name, shape := range map[string]struct {
+		execute Executor
+		tokens  bool
+	}{
+		"scalar":  {execute: JSONScalar[scalarRequest, *decodingModel, int]("scalar", validate, load, bind), tokens: true},
+		"session": {execute: director.Executor(), tokens: true},
+		"whole":   {execute: whole},
+	} {
+		t.Run(name, func(t *testing.T) {
+			store, _, program := capabilityFixture(t, "decoded-"+name)
+			execution := modelrecipetest.CandidateExecution(t, store, program)
+			for index, step := range []struct {
+				raw    string
+				tokens uint64
+			}{{raw: `{"value":3}`, tokens: 3}, {raw: `{"value":3}`}, {raw: `{"value":5}`, tokens: 5}} {
+				got, err := shape.execute(t.Context(), store, "model", execution, step.raw)
+				if err != nil {
+					t.Fatal(err)
+				}
+				measured := got.(Measured)
+				ran := step.tokens != 0
+				if ran != (len(measured.Phases) == 1) || ran && measured.Phases[0].WallNS == 0 {
+					t.Fatalf("execution %d node walls = %v; want the node's timed wall exactly when it ran (%t)", index, measured.Phases, ran)
+				}
+				var tokens uint64
+				var decode time.Duration
+				if ran && shape.tokens {
+					tokens, decode = step.tokens, time.Duration(measured.Phases[0].WallNS)
+				}
+				if measured.OutputTokens != tokens || measured.Decode != decode {
+					t.Fatalf("execution %d measured %d output tokens over a %s decode; want %d over %s: the count and the output node's wall of a token runtime's executed run, else neither",
+						index, measured.OutputTokens, measured.Decode, tokens, decode)
+				}
+			}
+		})
+	}
+}
+
 func TestExecutorCatalogUsesCompiledEntryModule(t *testing.T) {
 	store, modelID, program := capabilityFixture(t, "executor-catalog")
 	execution := modelrecipetest.CandidateExecution(t, store, program)

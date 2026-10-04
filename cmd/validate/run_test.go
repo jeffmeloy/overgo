@@ -178,6 +178,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 		"regression/config.json": `{}`, "regression/model.safetensors": "regression",
 	})
 	repository := register("needle", modelartifact.FromHFPath, map[string]string{"config.json": `{"model_type":"t5"}`, "model.safetensors": "needle"})
+	thoughts := register("Fractale", rootWeights, map[string]string{"config.json": `{"model_type":"thought-bank"}`, "model.safetensors": "bank"})
 	edit := register("LiveEdit", composite, map[string]string{
 		"model.safetensors": "edit", "../Wan2.1-T2V-1.3B/config.json": `{}`, "../Wan2.1-T2V-1.3B/model.safetensors": "base",
 	})
@@ -189,6 +190,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 	activate(modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorVideoPrepare, single, artifact.ID{}))
 	activate(modelrecipe.CapabilityDefinition(recipe.TaskTabular, headed))
 	activate(modelrecipe.CapabilityDefinition(recipe.TaskSeq2Seq, repository))
+	activate(modelrecipe.CapabilityDefinition(recipe.TaskGeneration, thoughts))
 
 	cells, err := registeredCells(ctx, store)
 	if err != nil {
@@ -206,6 +208,7 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 		{single, recipe.TaskVideoGen, "video-proof", rootWeights, modelrecipe.ModuleOscillatorVideoPrepare},
 		{headed, recipe.TaskTabular, "specialized-proof", heads, ""},
 		{repository, recipe.TaskSeq2Seq, "specialized-proof", modelartifact.FromHFPath, ""},
+		{thoughts, recipe.TaskGeneration, "specialized-proof", rootWeights, ""},
 		{edit, recipe.TaskVideoGen, "video-proof", composite, ""},
 	} {
 		at := slices.IndexFunc(cells, func(cell ModelValidation) bool { return cell.Model == want.model && cell.Kind == want.task })

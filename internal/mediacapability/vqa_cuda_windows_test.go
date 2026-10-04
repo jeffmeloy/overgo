@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
@@ -82,5 +83,19 @@ func TestVQAActivation(t *testing.T) {
 	if err != nil || content.Descriptor.MediaType != modelrecipe.TextAnswerMediaType {
 		t.Fatalf("published answer = %+v, %v", content.Descriptor, err)
 	}
-	t.Logf("VQA activation answer=%q phases=%d", answer, len(output.(capabilityruntime.Measured).Phases))
+	// The envelope carries what the throughput cell reads: the tokens the
+	// pipeline's decode loop gave and that loop's wall, a part of the
+	// generate stage's, which also holds the vision tower and the prefill.
+	measured := output.(capabilityruntime.Measured)
+	var generate time.Duration
+	for _, wall := range measured.Phases {
+		if wall.Node == "generate" {
+			generate = time.Duration(wall.WallNS)
+		}
+	}
+	if measured.OutputTokens == 0 || measured.Decode <= 0 || measured.Decode >= generate {
+		t.Fatalf("VQA measured %d output tokens over a %s decode within a %s generate stage; want the decode loop's tokens and its wall",
+			measured.OutputTokens, measured.Decode, generate)
+	}
+	t.Logf("VQA activation answer=%q phases=%d tokens=%d decode=%s", answer, len(measured.Phases), measured.OutputTokens, measured.Decode)
 }

@@ -27,8 +27,9 @@ func TestSurfaceMoves(t *testing.T) {
 
 // TestKindValidation proves validation dispatch is by declared task, generic
 // across models: inference earns a guard, a measured serving attempt and the
-// accuracy benchmarks, an image-gen task its generation proof, and an unknown
-// task nothing.
+// accuracy benchmarks, an image-gen task its generation proof, a thought
+// bank's generation the specialized proof its acceptance covers, and an
+// unknown task nothing.
 func TestKindValidation(t *testing.T) {
 	t.Parallel()
 	if got := len(kindValidation(recipe.TaskInference)); got != 5 {
@@ -36,6 +37,9 @@ func TestKindValidation(t *testing.T) {
 	}
 	if got := len(kindValidation(recipe.TaskImageGen)); got != 1 {
 		t.Fatalf("image-gen cells=%d want 1", got)
+	}
+	if got := kindValidation(recipe.TaskGeneration); len(got) != 1 || got[0].Validation != "specialized-proof" || got[0].Surface != "specialized" {
+		t.Fatalf("generation cells=%+v want one specialized proof", got)
 	}
 	if got := len(kindValidation(recipe.TaskTraining)); got != 1 {
 		t.Fatalf("training cells=%d want 1", got)

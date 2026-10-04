@@ -438,7 +438,9 @@ func buildSharedKVQKNormMixCached(
 		if !validKey || !validValue || pastTokens != valueTokens || pastTokens < tokenCount {
 			return DenseBlockResult{}, errors.New("shared-KV attention source shape is invalid")
 		}
-		queryStart = pastTokens - tokenCount
+		// Under a bounded-append plan the source page is capacity wide and the
+		// query sits where the source's own append began, never at the page end.
+		queryStart = builder.CacheTokenOffset(pastTokens - tokenCount)
 	}
 	attention := layerPlan.AttentionGraph.Build(
 		builder, query, cacheKey, cacheValue, nil, weights.AttentionBlockIDs,

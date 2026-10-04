@@ -141,13 +141,17 @@ func compileDecodeSessionPlan(
 			slot := decodeDynamicSlot{node: node, branch: branch}
 			switch node.Op {
 			case tensor.OpGetRows:
-				if node != graph.tokenInput && !positionRow(graph, node) {
+				// The per-layer embedding gather follows the step's tokens as
+				// the token embedding does; left fixed, a replay would look up
+				// the first step's rows.
+				tokenRows := node == graph.tokenInput || node == graph.perLayerRows
+				if !tokenRows && !positionRow(graph, node) {
 					continue
 				}
 				value := node.Attrs.(tensor.GetRowsAttributes)
 				value.Rows = append([]uint32(nil), value.Rows...)
 				slot.value, slot.positions[0] = &value, value.Rows
-				if node == graph.tokenInput {
+				if tokenRows {
 					slot.kind = decodeDynamicTokenRows
 				} else {
 					slot.kind = decodeDynamicPositions

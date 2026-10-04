@@ -312,29 +312,12 @@ func conversationSplit(source artifact.ID, count int) (dataset.SplitPlan, datase
 		return bytes.Compare(leftDigest[:], rightDigest[:])
 	})
 	held := min(max(count/conversationHeldoutShare, 1), conversationHeldoutRecords)
-	var plan dataset.SplitPlan
-	var training dataset.Membership
-	var partitions []dataset.Partition
 	// Partitions list by name, the order a split canonicalizes them in.
-	for _, part := range []struct {
-		name    string
-		records []dataset.Record
-	}{{conversationHeldout, ordered[:held]}, {conversationTrain, ordered[held:]}} {
-		membership, err := dataset.NewMembership(source, 0, part.name, part.records)
-		if err != nil {
-			return dataset.SplitPlan{}, dataset.Membership{}, err
-		}
-		view, err := dataset.NewView(source, &membership.ID, nil)
-		if err != nil {
-			return dataset.SplitPlan{}, dataset.Membership{}, err
-		}
-		plan.Memberships, plan.Views = append(plan.Memberships, membership), append(plan.Views, view)
-		partitions = append(partitions, dataset.Partition{Name: part.name, View: view.ID})
-		if part.name == conversationTrain {
-			training = membership
-		}
+	plan, err := dataset.SplitOf(source, 0, []dataset.PartitionRecords{
+		{Name: conversationHeldout, Records: ordered[:held]}, {Name: conversationTrain, Records: ordered[held:]},
+	})
+	if err != nil {
+		return dataset.SplitPlan{}, dataset.Membership{}, err
 	}
-	var err error
-	plan.Split, err = dataset.NewSplit(source, partitions)
-	return plan, training, err
+	return plan, plan.Memberships[1], nil // the training partition, the second by name
 }

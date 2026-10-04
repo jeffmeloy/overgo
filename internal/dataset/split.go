@@ -90,13 +90,30 @@ func BuildGroupSplit(
 		}
 		partitionRecords[index] = append(partitionRecords[index], record)
 	}
-	plan := SplitPlan{
-		Memberships: make([]Membership, len(canonicalPartitions)),
-		Views:       make([]Document, len(canonicalPartitions)),
-	}
-	partitionViews := make([]Partition, len(canonicalPartitions))
+	parts := make([]PartitionRecords, len(canonicalPartitions))
 	for index, partition := range canonicalPartitions {
-		membership, err := NewMembership(source, seed, partition.Name, partitionRecords[index])
+		parts[index] = PartitionRecords{Name: partition.Name, Records: partitionRecords[index]}
+	}
+	return SplitOf(source, seed, parts)
+}
+
+// PartitionRecords is the records one named partition of a split holds.
+type PartitionRecords struct {
+	Name    string
+	Records []Record
+}
+
+// SplitOf builds the memberships, views and split document of records already
+// divided into partitions, which list by name, the order a split canonicalizes
+// them in; the plan's memberships and views follow that order.
+func SplitOf(source artifact.ID, seed uint64, parts []PartitionRecords) (SplitPlan, error) {
+	plan := SplitPlan{
+		Memberships: make([]Membership, len(parts)),
+		Views:       make([]Document, len(parts)),
+	}
+	partitionViews := make([]Partition, len(parts))
+	for index, part := range parts {
+		membership, err := NewMembership(source, seed, part.Name, part.Records)
 		if err != nil {
 			return SplitPlan{}, err
 		}
@@ -106,7 +123,7 @@ func BuildGroupSplit(
 		}
 		plan.Memberships[index] = membership
 		plan.Views[index] = view
-		partitionViews[index] = Partition{Name: partition.Name, View: view.ID}
+		partitionViews[index] = Partition{Name: part.Name, View: view.ID}
 	}
 	var err error
 	plan.Split, err = NewSplit(source, partitionViews)

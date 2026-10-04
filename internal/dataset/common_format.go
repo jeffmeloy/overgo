@@ -194,8 +194,8 @@ func messageText(content json.RawMessage) (string, error) {
 // An existing directory is refused, never overwritten.
 func ImportCommonFormat(ctx context.Context, repository artifact.Repository, name, source, root string) (RegisteredDataset, []string, error) {
 	name = strings.TrimSpace(name)
-	if name == "" || name != filepath.Base(name) || name == "." || name == ".." {
-		return RegisteredDataset{}, nil, fmt.Errorf("dataset: import name %q must be one path element", name)
+	if err := fsatomic.PathComponent(name); err != nil {
+		return RegisteredDataset{}, nil, fmt.Errorf("dataset: import name %w", err)
 	}
 	file, err := os.Open(source)
 	if err != nil {

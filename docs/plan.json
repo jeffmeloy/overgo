@@ -14,6 +14,13 @@
       },
       "steps": [
         {
+          "id": "verdict",
+          "title": "A conversation verdict scores the assistant's tokens, and groups records that share a prefix",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Review item 5 and 6 (2026-10-04): the conversation fine-tune's held-out verdict scores next-token accuracy over every token of the rendered conversation, template and user turns included, so learning the chat template raises it; it is capped at 16 records (conversation_sft.go), a policy justified by one machine's timing; its split groups every record alone, so multi-turn prefixes and near-duplicates can sit on both sides, with exact-text dedup only; and it globs a mutable directory instead of reading through the dataset inventory, so files added after registration train and are judged under the registered identity. Score assistant positions only, group by shared prefix, derive the cap from the run's budget, and read through the inventory."
+        },
+        {
           "id": "do",
           "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
           "status": "open",

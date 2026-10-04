@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/fsatomic"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -217,7 +218,7 @@ func (workspace *SFTWorkspace) PreviewWorkflow(ctx context.Context, kind Workflo
 // name is one safe path component.
 func outputDirectory(root, name string) (string, error) {
 	name = strings.TrimSpace(name)
-	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, "\x00\r\n") {
+	if fsatomic.PathComponent(name) != nil {
 		return "", errors.New("training workspace: output must be one safe path component")
 	}
 	return filepath.Join(root, name), nil

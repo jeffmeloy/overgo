@@ -40,3 +40,23 @@ func TestPublishDirectoryLeavesOnlyWhatCompleted(t *testing.T) {
 		t.Fatalf("the parent holds %v, want only the published directory: %v", entries, err)
 	}
 }
+
+// TestPathComponentRefusesWhatIsNotOneName holds a user's name to one safe path
+// component, which PublishDirectory and the training workspace share: no empty
+// name, dot names, separators, or characters that split or hide a path.
+func TestPathComponentRefusesWhatIsNotOneName(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"", ".", "..", "a/b", "../escape", "a\x00b", "a\nb", "a\rb"} {
+		if PathComponent(name) == nil {
+			t.Errorf("%q was taken for one path component", name)
+		}
+	}
+	for _, name := range []string{"run-1", "model.f16", "a b"} {
+		if err := PathComponent(name); err != nil {
+			t.Errorf("%q was refused: %v", name, err)
+		}
+	}
+	if _, err := PublishDirectory(t.TempDir(), "../escape", 0o755, func(string) error { return nil }); err == nil {
+		t.Error("a published name escaped its parent")
+	}
+}

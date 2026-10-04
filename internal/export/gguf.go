@@ -80,9 +80,6 @@ func writeInto(ctx context.Context, root, name, source, suffix string, write fun
 		return "", err
 	}
 	name = strings.TrimSpace(name)
-	if name == "" || name == "." || name == ".." || filepath.Base(name) != name {
-		return "", errors.New("export: the output must be one path element")
-	}
 	base := strings.TrimSuffix(filepath.Base(source), filepath.Ext(source)) + "." + suffix + ".gguf"
 	directory, err := fsatomic.PublishDirectory(root, name, clioptions.OutputDirectoryMode, func(stage string) error {
 		return write(filepath.Join(stage, base))

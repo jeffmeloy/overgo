@@ -13,11 +13,9 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
-	"overgo/internal/binaryschema"
 	"overgo/internal/densecausal"
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
@@ -38,46 +36,31 @@ const (
 	// uniformSpan is the width of [-1, 1): a draw on [0, 1) times it, less one,
 	// lands there.
 	uniformSpan = 2
-	// layerPrefix, projectionSuffix and the two block names make up a dense
-	// decoder layer's linear projection weight: model.layers.N.<block>.<name>_proj.weight.
-	layerPrefix      = "model.layers."
-	projectionSuffix = "_proj"
-	attentionBlock   = "self_attn"
-	mlpBlock         = "mlp"
 )
 
-// projection splits a dense decoder layer's linear projection weight name into
-// the module path PEFT names it by and the projection's own name, as
-// "model.layers.0.self_attn.q_proj.weight" into "model.layers.0.self_attn.q_proj"
-// and "q_proj". Anything else, such as a mixture expert's weight, which sits one
-// path segment deeper, is not one.
-func projection(weight string) (module, name string, ok bool) {
-	rest, prefixed := strings.CutPrefix(weight, layerPrefix)
-	module, found := strings.CutSuffix(weight, weightSuffix)
-	if !prefixed || !found {
-		return "", "", false
-	}
-	layer, rest, prefixed := strings.Cut(strings.TrimSuffix(rest, weightSuffix), ".")
-	if _, err := strconv.ParseUint(layer, binaryschema.DecimalRadix, binaryschema.Width32Bits); err != nil || !prefixed {
-		return "", "", false
-	}
-	block, name, nested := strings.Cut(rest, ".")
-	if !nested || (block != attentionBlock && block != mlpBlock) || !strings.HasSuffix(name, projectionSuffix) || strings.Contains(name, ".") {
-		return "", "", false
-	}
-	return module, name, true
+// projections are the seven linear projections of a dense decoder layer, the
+// layers a LoRA adapter on every linear layer adapts, each by the name a target
+// goes by and the weight the model names it under (a layer without one, as a
+// mixture layer has no dense gate, up or down, is skipped).
+var projections = []struct {
+	target string
+	weight func(densecausal.LayerTensorNames) string
+}{
+	{"q_proj", func(names densecausal.LayerTensorNames) string { return names.Q }},
+	{"k_proj", func(names densecausal.LayerTensorNames) string { return names.K }},
+	{"v_proj", func(names densecausal.LayerTensorNames) string { return names.V }},
+	{"o_proj", func(names densecausal.LayerTensorNames) string { return names.O }},
+	{"gate_proj", func(names densecausal.LayerTensorNames) string { return names.Gate }},
+	{"up_proj", func(names densecausal.LayerTensorNames) string { return names.Up }},
+	{"down_proj", func(names densecausal.LayerTensorNames) string { return names.Down }},
 }
-
-// defaultTargets are the seven linear projections of a dense decoder layer,
-// the layers a LoRA adapter on every linear layer adapts.
-var defaultTargets = []string{"q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"}
 
 // Config names the adapter a fresh training starts.
 type Config struct {
 	// Rank and Alpha are every module's: its scale is Alpha over Rank.
 	Rank  int
 	Alpha float64
-	// Targets are the projection names to adapt; empty adapts defaultTargets.
+	// Targets are the projection names to adapt; empty adapts all seven.
 	Targets []string
 	// Seed makes the factors' initialization repeat.
 	Seed uint64
@@ -107,16 +90,25 @@ func New(model *densecausal.Model, config Config) (*Trainer, error) {
 	}
 	targets := config.Targets
 	if len(targets) == 0 {
-		targets = defaultTargets
+		for _, projected := range projections {
+			targets = append(targets, projected.target)
+		}
 	}
 	random := rand.New(rand.NewPCG(config.Seed, config.Seed))
 	modules := map[string]peft.Module{}
-	for _, name := range slices.Sorted(maps.Keys(model.Weights)) {
-		module, projected, isProjection := projection(name)
+	targetOf := map[string]string{}
+	for layer := range model.Dims.Layers {
+		names := densecausal.DenseLayerTensorNames(layer)
+		for _, projected := range projections {
+			targetOf[projected.weight(names)] = projected.target
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(targetOf)) {
 		shape := model.Shapes[name]
-		if !isProjection || !slices.Contains(targets, projected) || len(shape) != matrixRank {
+		if !slices.Contains(targets, targetOf[name]) || len(shape) != matrixRank {
 			continue
 		}
+		module := strings.TrimSuffix(name, weightSuffix)
 		out, in := shape[0], shape[1]
 		if config.Rank > min(in, out) {
 			return nil, fmt.Errorf("loratrain: rank %d exceeds the %d by %d projection %s", config.Rank, out, in, module)

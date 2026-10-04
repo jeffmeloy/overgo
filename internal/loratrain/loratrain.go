@@ -82,6 +82,16 @@ type Config struct {
 	Seed uint64
 	// BaseModel names the model the adapter is trained on, as PEFT records it.
 	BaseModel string
+	// RSLoRA scales every module by Alpha over the root of its rank rather than
+	// over its rank (rank-stabilized LoRA), as PEFT records with use_rslora.
+	RSLoRA bool
+	// UpRate is LoRA+: the up factor learns this many times faster than the down
+	// factor; zero or one is plain LoRA. The optimizer steps every factor by a
+	// size that does not depend on its scale, so the up factor is stored over the
+	// rate and its module's alpha is the rate times Alpha: the product, and so the
+	// adapted model, is the one a faster up factor would reach, and a saved
+	// adapter's alpha is that of the module as trained.
+	UpRate float64
 }
 
 // Trainer trains one adapter over a model. It owns the model's adapted weights
@@ -106,6 +116,14 @@ func New(model *densecausal.Model, config Config) (*Trainer, error) {
 	if model == nil || config.Rank <= 0 || math.IsNaN(config.Alpha) || math.IsInf(config.Alpha, 0) || config.Alpha <= 0 {
 		return nil, errors.New("loratrain: a model and a positive rank and alpha are required")
 	}
+	if config.UpRate == 0 {
+		config.UpRate = 1
+	}
+	if math.IsNaN(config.UpRate) || math.IsInf(config.UpRate, 0) || config.UpRate < 1 {
+		return nil, fmt.Errorf("loratrain: an up-factor rate of %v is below one, where the up factor would learn slower than the down factor", config.UpRate)
+	}
+	// The scale each module trains under: LoRA+ folds its rate into alpha (see Config.UpRate).
+	config.Alpha *= config.UpRate
 	targets := config.Targets
 	if len(targets) == 0 {
 		targets = defaultTargets
@@ -133,7 +151,7 @@ func New(model *densecausal.Model, config Config) (*Trainer, error) {
 		return nil, fmt.Errorf("loratrain: no dense layer of the model has a target projection among %v", targets)
 	}
 	adapter := peft.Adapter{
-		Config:  peft.Config{BaseModel: config.BaseModel, Rank: config.Rank, Alpha: config.Alpha, TargetModules: slices.Compact(slices.Sorted(slices.Values(targets)))},
+		Config:  peft.Config{BaseModel: config.BaseModel, Rank: config.Rank, Alpha: config.Alpha, RSLoRA: config.RSLoRA, TargetModules: slices.Compact(slices.Sorted(slices.Values(targets)))},
 		Modules: modules,
 	}
 	return bind(model, adapter)

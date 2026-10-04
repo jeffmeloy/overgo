@@ -75,20 +75,6 @@
       ]
     },
     {
-      "id": "lora-plus-rslora",
-      "title": "Offer rsLoRA scaling (alpha over the square root of the rank, which PEFT already records) and LoRA+ (a larger learning rate on factor B, LlamaFactory finetuning_args loraplus_lr_ratio) in internal/loratrain as declared Config fields that cmd/train and the Train tab pass through; adopted as a default only if a held-out run at equal steps beats the current one, else filed as a finding with the measurement",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Offer rsLoRA scaling (alpha over the square root of the rank, which PEFT already records) and LoRA+ (a larger learning rate on factor B, LlamaFactory finetuning_args loraplus_lr_ratio) in internal/loratrain as declared Config fields that cmd/train and the Train tab pass through; adopted as a default only if a held-out run at equal steps beats the current one, else filed as a finding with the measurement",
-          "status": "open",
-          "verify": "test -f internal/loratrain/variants_test.go \u0026\u0026 go test ./internal/loratrain -run '^TestRSLoRAAndLoRAPlus$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "quantized-base-lora",
       "title": "Train a LoRA adapter on a quantized base, QLoRA style (LlamaFactory model/adapter.py): the frozen base stays in its GGUF quantization and is dequantized where used, the factors and optimizer state stay f32, and the adapter saves as the same PEFT directory; judged by peak-device-memory and host memory against the dense run at equal held-out quality. Owner fork: taken after the image rows unless the owner wants it first for text models too large for the host trainer",
       "owner": "overgo_gui_cleanup",

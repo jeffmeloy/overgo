@@ -59,14 +59,16 @@ func run() error {
 	loraTargets := flag.String("lora-targets", "", "with -lora-rank: comma-separated projections to adapt (q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj); omitted adapts all of them")
 	loraSeed := flag.Uint64("lora-seed", 0, "with -lora-rank: seed of the adapter's initialization")
 	average := flag.Float64("average", 0, "with -objective: keep a moving average of the trained weights, or of an adapter's factors, at this decay in (0, 1) (0.99 is usual), warmed up so a short run is not mostly its start, and publish the average as the trained model; runs on the host")
+	loraRSLoRA := flag.Bool("lora-rslora", false, "with -lora-rank: rank-stabilized LoRA, each module scaled by alpha over the root of its rank rather than over its rank")
+	loraPlus := flag.Float64("lora-plus", 0, "with -lora-rank: LoRA+, the up factor learning this many times faster than the down factor (1 or more); omitted is plain LoRA")
 	loraFrom := flag.String("lora-from", "", "with -objective: continue training the PEFT adapter in this directory, which brings its own rank, alpha and targets")
 	flag.Parse()
 	if *proof && *objective == "" {
 		return fmt.Errorf("train: -proof re-verifies an -objective recipe; it needs -objective")
 	}
-	lora := loraRequest(*loraRank, *loraAlpha, *loraTargets, *loraSeed, *loraFrom)
-	if lora == nil && (*loraAlpha != 0 || *loraTargets != "" || *loraSeed != 0) {
-		return fmt.Errorf("train: -lora-alpha, -lora-targets and -lora-seed shape an adapter; they need -lora-rank or -lora-from")
+	lora := loraRequest(loraFlags{Rank: *loraRank, Alpha: *loraAlpha, Targets: *loraTargets, Seed: *loraSeed, From: *loraFrom, RSLoRA: *loraRSLoRA, Plus: *loraPlus})
+	if lora == nil && (*loraAlpha != 0 || *loraTargets != "" || *loraSeed != 0 || *loraRSLoRA || *loraPlus != 0) {
+		return fmt.Errorf("train: -lora-alpha, -lora-targets, -lora-seed, -lora-rslora and -lora-plus shape an adapter; they need -lora-rank or -lora-from")
 	}
 	if *average != 0 && *objective == "" {
 		return fmt.Errorf("train: a moving average of the weights is kept under an -objective; -average needs -objective")

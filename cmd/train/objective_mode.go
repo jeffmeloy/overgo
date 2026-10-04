@@ -32,28 +32,39 @@ type objectiveRun struct {
 	Average float64
 }
 
+// loraFlags are the -lora flags as parsed.
+type loraFlags struct {
+	Rank    int
+	Alpha   float64
+	Targets string
+	Seed    uint64
+	From    string
+	RSLoRA  bool
+	Plus    float64
+}
+
 // loraRequest is the LoRA run the -lora flags ask for: none when they ask for
 // none, an adapter of the given rank otherwise, or the one in the PEFT
 // directory from. Alpha defaults to trainingworkflow.LoRAAlphaPerRank times the rank; targets
 // are comma-separated projection names, all linear projections when empty.
-func loraRequest(rank int, alpha float64, targets string, seed uint64, from string) *trainingworkflow.LoRA {
-	if rank <= 0 && from == "" {
+func loraRequest(flags loraFlags) *trainingworkflow.LoRA {
+	if flags.Rank <= 0 && flags.From == "" {
 		return nil
 	}
-	if alpha == 0 {
-		alpha = float64(rank * trainingworkflow.LoRAAlphaPerRank)
+	if flags.Alpha == 0 {
+		flags.Alpha = float64(flags.Rank * trainingworkflow.LoRAAlphaPerRank)
 	}
 	var names []string
-	for name := range strings.SplitSeq(targets, ",") {
+	for name := range strings.SplitSeq(flags.Targets, ",") {
 		if name = strings.TrimSpace(name); name != "" {
 			names = append(names, name)
 		}
 	}
-	if from != "" {
-		// A continued adapter brings its own rank, alpha and targets.
-		return &trainingworkflow.LoRA{From: from}
+	if flags.From != "" {
+		// A continued adapter brings its own rank, alpha, targets and scaling.
+		return &trainingworkflow.LoRA{From: flags.From}
 	}
-	return &trainingworkflow.LoRA{Rank: rank, Alpha: alpha, Targets: names, Seed: seed}
+	return &trainingworkflow.LoRA{Rank: flags.Rank, Alpha: flags.Alpha, Targets: names, Seed: flags.Seed, RSLoRA: flags.RSLoRA, UpRate: flags.Plus}
 }
 
 // objectiveConflictingFlags are the flags an -objective run cannot honour,

@@ -77,8 +77,14 @@ func loss(t *testing.T, model *densecausal.Model, tokens []int) float64 {
 // central differences of the loss, with the up factors made nonzero so both
 // factors' gradients are nonzero.
 func TestFactorGradientsMatchFiniteDifferences(t *testing.T) {
+	checkFactorGradients(t, Config{Rank: 2, Alpha: 6, Seed: 1}, 1e-2)
+}
+
+// checkFactorGradients is that check for the adapter the config starts, with central differences taken the given step apart: a larger scale bends the loss more, so needs a smaller one.
+func checkFactorGradients(t *testing.T, config Config, step float64) {
+	t.Helper()
 	model, _, _ := tinyModel(t)
-	trainer, err := New(model, Config{Rank: 2, Alpha: 6, Seed: 1})
+	trainer, err := New(model, config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,19 +104,18 @@ func TestFactorGradientsMatchFiniteDifferences(t *testing.T) {
 	if err := trainer.project(grads); err != nil {
 		t.Fatal(err)
 	}
-	const step = 1e-2
 	checked := 0
 	for _, name := range []string{"model.layers.0.self_attn.q_proj", "model.layers.1.self_attn.k_proj", "model.layers.0.mlp.down_proj"} {
 		module := trainer.adapter.Modules[name]
 		for factorName, factor := range map[string][]float32{name + downFactor: module.Down, name + upFactor: module.Up} {
 			for _, index := range []int{0, 3, len(factor) - 1} {
 				original := factor[index]
-				factor[index] = original + step
+				factor[index] = original + float32(step)
 				if err := trainer.apply(); err != nil {
 					t.Fatal(err)
 				}
 				up := loss(t, model, periodic)
-				factor[index] = original - step
+				factor[index] = original - float32(step)
 				if err := trainer.apply(); err != nil {
 					t.Fatal(err)
 				}

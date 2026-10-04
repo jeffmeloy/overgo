@@ -21,9 +21,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -36,6 +38,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/testevidence"
+	"overgo/internal/trainingworkflow"
 )
 
 // catalogLimit bounds the registered-model listing; a truncated denominator is
@@ -254,6 +257,7 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 	if truncated {
 		return nil, fmt.Errorf("validate: registered catalog exceeds listing bound %d; raise the bound", catalogLimit)
 	}
+	entries = currentIdentities(entries, trainingworkflow.WeightsIdentity)
 	var cells []ModelValidation
 	for _, entry := range entries {
 		name := ""
@@ -286,6 +290,59 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 		}
 	}
 	return cells, nil
+}
+
+// currentIdentities drops, at a weights location that more than one model
+// identity answers to, the capabilities of the identities the weights no
+// longer resolve to when the identity they do resolve to carries the same
+// task. A file registered under the whole-file hash an older bootstrap
+// recorded and under the complete-manifest identity a training run binds now
+// has an activation under each, and the superseded one's proof can never hand
+// off: its run is recorded under the current identity's recipe, so it would
+// run, fail and withhold promotion every cycle. A location that no two
+// activations share a task at, or whose identity cannot be resolved, is left
+// as the catalog lists it.
+func currentIdentities(entries []discovery.CatalogEntry, resolve func(location string) (artifact.ID, error)) []discovery.CatalogEntry {
+	byLocation := map[string][]int{}
+	for index, entry := range entries {
+		if entry.Location != "" && len(entry.Capabilities) != 0 {
+			byLocation[entry.Location] = append(byLocation[entry.Location], index)
+		}
+	}
+	taskOf := func(index int) map[recipe.Task]bool {
+		tasks := map[recipe.Task]bool{}
+		for _, capability := range entries[index].Capabilities {
+			tasks[capability.Task] = true
+		}
+		return tasks
+	}
+	entries = slices.Clone(entries)
+	for location, group := range byLocation {
+		shared := map[recipe.Task]int{}
+		for _, index := range group {
+			for task := range taskOf(index) {
+				shared[task]++
+			}
+		}
+		if len(group) <= 1 || !slices.ContainsFunc(slices.Collect(maps.Values(shared)), func(held int) bool { return held > 1 }) {
+			continue
+		}
+		current, err := resolve(location)
+		if err != nil {
+			continue
+		}
+		at := slices.IndexFunc(group, func(index int) bool { return entries[index].Model == current })
+		if at < 0 {
+			continue
+		}
+		held := taskOf(group[at])
+		for _, index := range group {
+			if index != group[at] {
+				entries[index].Capabilities = slices.DeleteFunc(slices.Clone(entries[index].Capabilities), func(capability discovery.Capability) bool { return held[capability.Task] })
+			}
+		}
+	}
+	return entries
 }
 
 // kindValidation lists the appropriate validations for one declared task.

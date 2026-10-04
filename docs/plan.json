@@ -19,17 +19,17 @@
       ]
     },
     {
-      "id": "duplicate-model-identities",
-      "title": "Run one training proof per model file: superseded identities of a file stop running their own",
+      "id": "e4b-decode-graph",
+      "title": "Replay E4B's decode as a CUDA graph, as gemma-12B's already is",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Run one training proof per model file: superseded identities of a file stop running their own",
+          "title": "Replay E4B's decode as a CUDA graph, as gemma-12B's already is",
           "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Serves: the improvement cycle's wall (and the scorecard's duplicate training rows). Evidence (2026-10-04, cycle 11 and tmp dup_locations over discovery.RegisteredCatalog): 20 weights locations answer to more than one model identity (the whole-file hash a bootstrap recorded before 7535399bf and the complete-manifest identity after it), and for the Qwen3.5-4B, Qwen3.5-9B and Hy-Embodied-RxBrain files each identity carries its own active training recipe, so the cycle ran each proof twice: the 9B at about 11 minutes each, the 4B at about 5, RxBrain at about 5, about 20 minutes of the cycle's blocking cells acquiring what one run proves, and the scorecard shows each of those models' training rows twice. Disappears: the second proof and the second row, by retiring through the existing activation owner the training recipes bound to a file's superseded identity (the identity modelartifact.FromGGUF now resolves for the file is the current one), or by having registeredCells list one identity per location; decide which by reading where the duplicate rows come from (the recipe aliases, not the catalog, carry the second training task) before writing any code, and keep the capability: the model's training stays proved, once. Verify to write with the row: the dry-run plan holds one training-proof cell per weights location."
+          "verify": "go test ./internal/model ./internal/inference -count=1 -run '^(TestSupportsCapacityCacheAdmitsSharedKV|TestBuildGemma4SharedKVReadsSourceAtAppendOffset|TestSharedKVAppendMatchesConcatBitForBit|TestSharedKVFixtureResolvesCapacitySession|TestParameterizedDecodeRefreshesPerLayerRows)$'",
+          "rationale": "Serves: inference (throughput) for gemma-4-E4B-it. Evidence (2026-10-04, Nsight Systems 2025.1.3 on the RTX 4090 D, cmd/benchmark -tokens 64 at 72bc4248d, three decodes of 64 tokens): E4B-bf16 decodes at 57.9 tok/s, 17.3 ms a token, with 0 graph launches, about 1,040 kernels launched one by one a token, and GPU kernel time of 12.9 ms a token, so about 4.4 ms (a quarter of the step) is launch and host gaps. The matmul and lm-head kernels read about 9.3 GB of weights in 10 ms, which is the device's bandwidth (about 0.93 TB/s of 1.0), so they cannot be sped up; the rest of the gap to the weight-read bound (9.2 ms, 108 tok/s) is non-matmul kernels at 2.9 ms (weighted_rms_norm 1.1, attention_decode 0.9). gemma-4-12B fp8-native, which replays a graph (63 launches in 64 tokens), loses only 1.1 ms of 22.1 to gaps. Disappears: nothing; this adds E4B to the graph path 12B uses, through the same capture owner. Evidence for the verify: graph_launches in the benchmark's own record is 0 for E4B and nonzero after. Batch: internal/inference and the kernels path are on the inference surface, so land with the next surface move. First find why E4B decode is not captured (per-layer embedding or altup ops with host-visible state?) before adding any mechanism. Root cause read 2026-10-04 (no device used): E4B's recipe declares decode session request, not capacity, so its decode is never replayed as a graph. internal/modelintake/intake.go:93 chooses the session by ModelPlan.SupportsCapacityCache (internal/model/layer_plan.go:408), which is false when any token-aligned layer has SharedKV (gemma-4 E4B shares the KV of its last layers with earlier ones) or does not append by concat-or-append; parameterizedDecodeCapacity (internal/inference/device_cache.go:590) then returns false for any session but capacity and retainable (device_cache.go:851) is false, so every token launches about 1,040 kernels one by one. gemma-12B has no shared-KV layers and replays. So the row is capacity-cache support for a shared-KV layer: a layer that reads another layer's page at the page's capacity, with no append of its own, in the plan, the device cache targets and the attention decode launch shape, then a recipe with the capacity session for E4B (a new activation, so its evaluations re-run once; outputs must stay bit-identical, which the golden-capture pattern proves). Size: an engine change across internal/model, internal/inference and the executor, not a flag; build it in a scratch worktree with a golden capture of E4B's greedy tokens from the unmodified tree first. Worth: about 4.4 ms of E4B's 17.3 ms a token (25 percent). Built 2026-10-04 (scratchpad e4b-graph.patch, study e4b-graph-study.md): root cause confirmed with two defects behind it that admitting shared layers alone would have shipped: a shared layer's attention was built with QueryStart = capacity-1 under an append plan (internal/model/block.go:441), which the decode kernel's gate refuses on the capture run and bakes into every replay, and E4B's per-layer-embedding GetRows was never refreshed on replay, so every token after the first read the first token's embedding. The patch: SupportsCapacityCache admits shared layers whose source is bounded-append on the persistent device cache (layer_plan.go), the query offset follows the cache offset (block.go), and the per-layer rows register as token rows (device_cache.go, device_decode_session.go): +27/-8 production lines, +82 nodes, no pinned file. Device checks before landing: TestSharedKVCapacitySessionDecodesLikeRequestSession, the non-shared capacity regressions, then E4B's new capacity recipe (cmd/recipe verify and activate) and cmd/benchmark graph_launches nonzero with output digests unchanged."
         }
       ]
     },
@@ -44,22 +44,7 @@
           "title": "Fuse the small decode kernels around the matmuls: norm, residual, scale and activation",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Serves: inference (throughput) for E4B and gemma-12B. Evidence (2026-10-04, Nsight Systems, a decode token): gemma-4-12B fp8-native 22.1 ms wall and 21.0 ms of GPU kernels, of which matmuls (mul_mat_fp8 10.4, mul_mat_bf16 5.2) and the lm-head (2.05) read weights at the device bandwidth, and 3.2 ms is everything else: weighted_rms_norm 1.4 ms (289 launches a token at about 5 us), attention_decode 1.3 ms (47 launches at 28 us, latency-bound at short context), add, rope, multiply, gelu, copy at about 0.5 ms; E4B has the same classes at 2.9 ms. Weight bytes cannot shrink without changing outputs, so this 3 ms (about 14 percent of the step) is the remaining kernel-side gap. Disappears: launches, not code, if the fused kernels replace the separate ones and their tests; fusing sums in the same order keeps outputs identical, which a golden capture over the unmodified kernels proves (the Bonsai row's pattern). Batch: kernels and internal/cuda are pinned media runtime paths (a reviewed delta with a device receipt) and move the inference surface; batch with e4b-decode-graph."
-        }
-      ]
-    },
-    {
-      "id": "e4b-decode-graph",
-      "title": "Replay E4B's decode as a CUDA graph, as gemma-12B's already is",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Replay E4B's decode as a CUDA graph, as gemma-12B's already is",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Serves: inference (throughput) for gemma-4-E4B-it. Evidence (2026-10-04, Nsight Systems 2025.1.3 on the RTX 4090 D, cmd/benchmark -tokens 64 at 72bc4248d, three decodes of 64 tokens): E4B-bf16 decodes at 57.9 tok/s, 17.3 ms a token, with 0 graph launches, about 1,040 kernels launched one by one a token, and GPU kernel time of 12.9 ms a token, so about 4.4 ms (a quarter of the step) is launch and host gaps. The matmul and lm-head kernels read about 9.3 GB of weights in 10 ms, which is the device's bandwidth (about 0.93 TB/s of 1.0), so they cannot be sped up; the rest of the gap to the weight-read bound (9.2 ms, 108 tok/s) is non-matmul kernels at 2.9 ms (weighted_rms_norm 1.1, attention_decode 0.9). gemma-4-12B fp8-native, which replays a graph (63 launches in 64 tokens), loses only 1.1 ms of 22.1 to gaps. Disappears: nothing; this adds E4B to the graph path 12B uses, through the same capture owner. Evidence for the verify: graph_launches in the benchmark's own record is 0 for E4B and nonzero after. Batch: internal/inference and the kernels path are on the inference surface, so land with the next surface move. First find why E4B decode is not captured (per-layer embedding or altup ops with host-visible state?) before adding any mechanism."
+          "rationale": "Serves: inference (throughput) for E4B and gemma-12B. Evidence (2026-10-04, Nsight Systems, a decode token): gemma-4-12B fp8-native 22.1 ms wall and 21.0 ms of GPU kernels, of which matmuls (mul_mat_fp8 10.4, mul_mat_bf16 5.2) and the lm-head (2.05) read weights at the device bandwidth, and 3.2 ms is everything else: weighted_rms_norm 1.4 ms (289 launches a token at about 5 us), attention_decode 1.3 ms (47 launches at 28 us, latency-bound at short context), add, rope, multiply, gelu, copy at about 0.5 ms; E4B has the same classes at 2.9 ms. Weight bytes cannot shrink without changing outputs, so this 3 ms (about 14 percent of the step) is the remaining kernel-side gap. Disappears: launches, not code, if the fused kernels replace the separate ones and their tests; fusing sums in the same order keeps outputs identical, which a golden capture over the unmodified kernels proves (the Bonsai row's pattern). Batch: kernels and internal/cuda are pinned media runtime paths (a reviewed delta with a device receipt) and move the inference surface; batch with e4b-decode-graph. Study and patch 2026-10-04 (scratchpad fuse.patch, fuse-study.md; built host-only, never run on the device): the GELU gate pair Multiply(GELU(gate), up) fuses into the existing activated-gate family as one launch, and the gate/up matvec pair plus activation fuses into one launch (bf16 for E4B through the existing kernel with GELU accepted, fp8 for 12B through a new mul_mat_fp8_gate_f32), removing 144 launches a token on 12B (1104 to 960) and 168 on E4B (1110 to 942): an estimated 0.3 ms on 12B (1.4 percent) and about 1 ms on E4B while it is not graph-replayed, less after e4b-decode-graph. Hand-written Go +55/-22 lines, CUDA +78/-33, nine pinned files touched (kernels, internal/cuda executor and kernel), so it needs a reviewed delta (decision media-delta-gate) and a golden capture on the device from the unmodified tree (commands in fuse-study.md section 4). The larger fusion, the residual-stream chain norm + add + scale + norm (about 240 launches a token on 12B and 252 on E4B), is designed but not built. Decision: the gain is small beside e4b-decode-graph (a quarter of E4B's step), so this row waits for it and for the owner's answer on the delta gate; then build the residual chain with the GELU fusion as one kernel family, since two rows would each pay the pinned-path cost."
         }
       ]
     },
@@ -644,6 +629,19 @@
         "Delete the file"
       ],
       "recommendation": "Keep it registered and measured, spend no optimization time on it",
+      "asked": "2026-10-04"
+    },
+    {
+      "id": "media-delta-gate",
+      "question": "Editing a pinned media runtime path (go.mod, kernels, internal/cuda, tensor, devicemath and the rest of docs/image_video_merged.json's runtime paths) needs a reviewed delta: a device receipt, a delta entry, and the registry's identity pinned in a test, built by hand twice on 2026-10-04 and again for every kernel row ahead (e4b-decode-graph, decode-small-kernels). It exists so media evidence acquired at the pinned runtime stays valid across an output-neutral edit. Since the cycle re-acquires every media cell at the commit it promotes, and its models lane runs the media acceptance tests against the frozen references, the evidence that gate protects is re-proved every cycle: it is the same per-cell currency check validate-currency deleted. Retire the registry, its pin and the gate-time check (about 600 lines of test code, the registry JSON and the landing's pinned-path rule), or keep it and build a one-command tool for it (row media-delta-command)?",
+      "options": [
+        "Retire the pin, the registry and the gate-time check; the cycle's media acceptance holds the contract",
+        "Keep the pin and build the one-command delta tool (media-delta-command)"
+      ],
+      "recommendation": "Retire the pin, the registry and the gate-time check; the cycle's media acceptance holds the contract",
+      "blocks": [
+        "media-delta-command"
+      ],
       "asked": "2026-10-04"
     }
   ]

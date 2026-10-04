@@ -3,9 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"maps"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -22,15 +21,35 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestCycleRunsWhatPromotionCompares scopes the cells that run, none of them
-// current at this tree, to what promotion compares. In a fixture repository the
+// fixtureRepository writes a repository of one commit, which a test promotes,
+// and returns its root with that commit.
+func fixtureRepository(t *testing.T) (root, head string) {
+	t.Helper()
+	root = t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "notes.md"), []byte("fixture\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, arguments := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-q", "-m", "fixture"}, {"rev-parse", "HEAD"}} {
+		command := exec.Command("git", append([]string{"-c", "user.name=fixture", "-c", "user.email=fixture@example.com"}, arguments...)...)
+		command.Dir = root
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v: %s", arguments, err, output)
+		}
+		head = strings.TrimSpace(string(output))
+	}
+	return root, head
+}
+
+// TestCycleRunsWhatPromotionCompares scopes the cells that run, every
+// activated cell, to what promotion compares. In a fixture repository the
 // promoted branch holds the commit that the baseline scorecard, published
 // beside the store, measured; its one row holds the model's held-out
 // accuracy on store/mmlu-pro under the chat template. The model's guard,
 // serving cell and training proof run and block promotion, and so does its
-// mmlu-pro, the stale compared contract, which takes the chat template the
-// baseline compares though its newest record ran raw. Its bbh, never run,
-// and its ifeval, stale but compared by no baseline, run in the background,
+// mmlu-pro, the compared contract, which takes the chat template the
+// baseline compares though its newest record ran raw. Its bbh and its
+// ifeval, compared by no baseline, run in the background,
 // each saying why, and a benchmark another model's declaration excludes is
 // skipped. A baseline that retains another held-out
 // contract beside its headline, raw completion on mmlu-pro or the chat
@@ -41,7 +60,7 @@ import (
 // alone.
 func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 	t.Parallel()
-	root, _, promoted, _ := surfaceHistory(t)
+	root, promoted := fixtureRepository(t)
 	store := filepath.Join(t.TempDir(), "overgodb-store")
 	model, source := testutil.ArtifactID(t, artifact.KindModel, "compared"), testutil.ArtifactID(t, artifact.KindEvidence, "compared")
 	chat, raw := evaluation.PromptingChatTemplate.Label(), evaluation.PromptingRawCompletion.Label()
@@ -63,28 +82,25 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 		t.Fatalf("the baseline scorecard beside the store was not read: %+v, %v", baseline, err)
 	}
 
-	cell := func(id artifact.ID, task recipe.Task, validation string, surface SurfaceID, protocol string) ModelValidation {
+	cell := func(id artifact.ID, task recipe.Task, validation, protocol string) ModelValidation {
 		return ModelValidation{
-			Model: id, ModelName: "compared", Kind: task, Validation: validation, Surface: surface,
+			Model: id, ModelName: "compared", Kind: task, Validation: validation,
 			Recipe: testutil.ArtifactID(t, artifact.KindRecipe, id.String()+string(task)), Protocol: protocol,
 		}
 	}
-	excluded := cell(testutil.ArtifactID(t, artifact.KindModel, "excluded"), recipe.TaskInference, "mmlu-pro", "evaluation", raw)
+	excluded := cell(testutil.ArtifactID(t, artifact.KindModel, "excluded"), recipe.TaskInference, "mmlu-pro", raw)
+	excluded.Inapplicable = "it declares dna"
 	registered := []ModelValidation{
-		cell(model, recipe.TaskInference, guardValidation, "inference", ""), cell(model, recipe.TaskInference, servingValidation, "inference", ""),
-		cell(model, recipe.TaskInference, "mmlu-pro", "evaluation", raw), cell(model, recipe.TaskInference, "bbh", "evaluation", raw),
-		cell(model, recipe.TaskInference, "ifeval", "evaluation", chat), cell(model, recipe.TaskTraining, "training-proof", "training", ""),
+		cell(model, recipe.TaskInference, guardValidation, ""), cell(model, recipe.TaskInference, servingValidation, ""),
+		cell(model, recipe.TaskInference, "mmlu-pro", raw), cell(model, recipe.TaskInference, "bbh", raw),
+		cell(model, recipe.TaskInference, "ifeval", chat), cell(model, recipe.TaskTraining, "training-proof", ""),
 		excluded,
 	}
 	if compared := compareContracts(slices.Clone(registered), baseline); !slices.Equal([]string{compared[2].Protocol, compared[3].Protocol, compared[4].Protocol}, []string{chat, raw, chat}) {
 		t.Fatalf("mmlu-pro, bbh and ifeval take protocols %+v; want only the compared mmlu-pro to take the baseline's %s", compared[2:5], chat)
 	}
-	read := acceptedRecords{bound: map[boundKey]error{
-		{registered[3].Recipe, "bbh", raw}:                        errors.New("no bbh record for this recipe yet"),
-		{excluded.Recipe, excluded.Validation, excluded.Protocol}: fmt.Errorf("%w: it declares dna", errCellInapplicable),
-	}}
 	selected := func(baseline *scorecard.Record) Plan {
-		return SelectValidation(Inputs{Registered: compareContracts(slices.Clone(registered), baseline), Current: read.current, Scorecard: baseline})
+		return SelectValidation(Inputs{Registered: compareContracts(slices.Clone(registered), baseline), Scorecard: baseline})
 	}
 	// scheduled names each cell of a bucket by its validation and, for a
 	// benchmark, the protocol it runs under.
@@ -185,14 +201,13 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 // its suite is. The baseline compares a text model on store/mmlu under the
 // chat template, a family no inference activation is benchmarked on by
 // default; a DNA model on store/dna; another text model on store/mmlu-pro;
-// and a projection on a set outside the derived catalog. With no record
-// current, each compared contract is one blocking cell under the
+// and a projection on a set outside the derived catalog. Each compared
+// contract is one blocking cell under the
 // protocol compared, re-run by one evaluate worker on its family; the DNA
 // model's declaration skips its text suites but never dna; the other
 // benchmarks run in the background; and the projection gains no benchmark.
 func TestEveryComparedContractHasACell(t *testing.T) {
 	t.Parallel()
-	root, _, _, _ := surfaceHistory(t)
 	const store = "C:/stores/selected"
 	chat, raw := evaluation.PromptingChatTemplate.Label(), evaluation.PromptingRawCompletion.Label()
 	var suites []evaluation.CompiledSuite
@@ -229,31 +244,31 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 		for _, validation := range kindValidation(row.task) {
 			registered = append(registered, ModelValidation{
 				Model: model, ModelName: row.name, Location: "C:/models/" + row.name + ".gguf", Kind: row.task, Modality: row.modality,
-				Recipe: activation, Validation: validation.Validation, Surface: validation.Surface,
+				Recipe: activation, Validation: validation,
 			})
 		}
 	}
 	registered = compareContracts(registered, baseline)
 
-	// Each benchmark is judged by its family's suite in the catalog and the
+	// Each benchmark is bound by its family's suite in the catalog and the
 	// model's declared domains; no record measures any of them yet.
-	read := acceptedRecords{bound: map[boundKey]error{}, directories: map[SurfaceID][]string{}, benchmarks: &benchmarkEvidence{suites: suites}}
+	catalog := benchmarkEvidence{suites: suites}
 	for index, cell := range registered {
-		if cell.Kind != recipe.TaskInference || cell.Surface != "evaluation" {
+		if !benchmark(cell) {
 			continue
 		}
-		judged, err := read.judgeBound(t.Context(), root, nil, cell)
+		bound, err := catalog.bind(t.Context(), nil, cell)
 		if err != nil {
 			t.Fatal(err)
 		}
-		registered[index] = judged
+		registered[index] = bound
 	}
-	plan := SelectValidation(Inputs{Registered: registered, Current: read.current, Scorecard: baseline})
+	plan := SelectValidation(Inputs{Registered: registered, Scorecard: baseline})
 
 	benchmarks := func(bucket []Selected) []string {
 		var cells []string
 		for _, sel := range bucket {
-			if sel.Kind == recipe.TaskInference && sel.Surface == "evaluation" {
+			if benchmark(sel.ModelValidation) {
 				cells = append(cells, sel.ModelName+" "+sel.Validation)
 			}
 		}
@@ -277,7 +292,7 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 	for _, row := range baseline.Rows[:3] {
 		contract := row.Cells[metric.Quality].Contract
 		at := slices.IndexFunc(plan.Run, func(sel Selected) bool {
-			return sel.Model == row.Model && sel.Surface == "evaluation" && "store/"+sel.Validation == contract.Suite
+			return sel.Model == row.Model && benchmark(sel.ModelValidation) && "store/"+sel.Validation == contract.Suite
 		})
 		if at < 0 {
 			t.Fatalf("%s's compared %s has no blocking cell: run=%+v", row.Name, contract.Suite, plan.Run)
@@ -300,37 +315,36 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 	}
 }
 
-// TestSelectValidation covers every decision branch of the pure selection,
-// with no commit range among its inputs: a cell runs when its accepted
-// record is not current at this tree or its activation is stale, and a
-// serving cell and a DNA model's smoke run run every cycle; only a current
-// record is reused; a benchmark that runs replays its newest record first,
-// whatever made it run; operator-owned, registered-inactive and inapplicable
-// cells are accounted for; and every bucket is ordered cheapest first.
+// TestSelectValidation covers every decision branch of the pure selection:
+// every activated cell its model's declaration does not exclude runs, every
+// cycle, whatever it last recorded. A guard whose record measured today's
+// digest, a serving cell with a measured attempt, a DNA model's smoke run and
+// a benchmark whose record succeeded run as one that recorded nothing does,
+// and a benchmark that has a record names -replay of it, whatever made it
+// run; operator-owned, registered-inactive and inapplicable cells are
+// accounted for; and every bucket is ordered cheapest first.
 func TestSelectValidation(t *testing.T) {
 	t.Parallel()
+	const store = "C:/stores/selected"
 	previous := testutil.ArtifactID(t, artifact.KindEvaluation, "previous")
-	cell := func(name, validation string, surface SurfaceID, cost int64) ModelValidation {
+	cell := func(name, validation string, cost int64) ModelValidation {
 		return ModelValidation{
 			Model: testutil.ArtifactID(t, artifact.KindModel, name), ModelName: name, Location: "C:/models/" + name + ".gguf",
-			Kind: recipe.TaskInference, Modality: "text", Validation: validation, Surface: surface,
+			Kind: recipe.TaskInference, Modality: "text", Validation: validation,
 			Recipe: testutil.ArtifactID(t, artifact.KindRecipe, name), Cost: cost,
 		}
 	}
-	current, unmeasured, served := cell("current", guardValidation, "inference", 10), cell("unmeasured", guardValidation, "inference", 5), cell("served", servingValidation, "inference", 20)
-	dna := cell("dna", guardValidation, "inference", 3)
+	digest, unmeasured, served := cell("digest", guardValidation, 10), cell("unmeasured", guardValidation, 5), cell("served", servingValidation, 20)
+	dna := cell("dna", guardValidation, 3)
 	dna.Modality = dnaModality
-	moved, stale, held := cell("moved", "mmlu-pro", "evaluation", 1200), cell("stale", "mmlu-pro", "evaluation", 30), cell("held", "mmlu-pro", "evaluation", 40)
-	moved.Replay, stale.Replay, held.Replay, stale.Stale = previous, previous, previous, "its recipe was replaced"
-	operated := cell("operated", "mmlu-pro-full", "evaluation", 0)
+	succeeded, stale, unrecorded := cell("succeeded", "mmlu-pro", 1200), cell("stale", "mmlu-pro", 30), cell("unrecorded", "mmlu-pro", 40)
+	succeeded.Replay, stale.Replay, stale.Stale = previous, previous, "its recipe was replaced"
+	excluded := cell("excluded", "mmlu-pro", 1)
+	excluded.Inapplicable = "it declares dna"
+	operated := cell("operated", "mmlu-pro-full", 0)
 	operated.OperatorOnly, operated.OperatorReason = true, "full 27B MMLU-Pro is operator-launched"
-	read := acceptedRecords{surface: "surface-now", records: map[string]guardRecord{locationKey(current.Location): {Surface: "surface-now", Passed: true}}, bound: map[boundKey]error{
-		{moved.Recipe, moved.Validation, moved.Protocol}: errors.New("its mmlu-pro record ran at commit c0ffee and the evaluation surface moved since"),
-		{stale.Recipe, stale.Validation, stale.Protocol}: nil,
-		{held.Recipe, held.Validation, held.Protocol}:    nil,
-	}}
-	plan := SelectValidation(Inputs{Current: read.current, Registered: []ModelValidation{
-		moved, current, unmeasured, served, dna, stale, held, operated,
+	plan := SelectValidation(Inputs{Registered: []ModelValidation{
+		succeeded, digest, unmeasured, served, dna, stale, unrecorded, operated, excluded,
 		{Model: testutil.ArtifactID(t, artifact.KindModel, "carbon"), ModelName: "Carbon-500M"},
 		{Model: testutil.ArtifactID(t, artifact.KindModel, "livetrain"), ModelName: "livetrain", Kind: recipe.TaskTraining},
 	}})
@@ -343,23 +357,29 @@ func TestSelectValidation(t *testing.T) {
 		return strings.Join(listed, " ")
 	}
 	for _, bucket := range []struct{ name, got, want string }{
-		{"run", names(plan.Run), "dna unmeasured served"},
-		{"background", names(plan.Background), "stale moved"},
-		{"reuse", names(plan.Reuse), "current held"},
+		{"run", names(plan.Run), "dna unmeasured digest served"},
+		{"background", names(plan.Background), "stale unrecorded succeeded"},
 		{"operator-owned", names(plan.OperatorOwned), "operated"},
 		{"registered-inactive", names(plan.RegisteredInactive), "Carbon-500M"},
-		{"skip-inappropriate", names(plan.SkipInappropriate), "livetrain"},
+		{"skip-inappropriate", names(plan.SkipInappropriate), "livetrain excluded"},
 	} {
 		if bucket.got != bucket.want {
 			t.Errorf("%s holds %q, want %q", bucket.name, bucket.got, bucket.want)
 		}
 	}
-	if every := "run: " + errEveryCycle.Error(); len(plan.Run) != 3 || plan.Run[0].Reason != every || plan.Run[2].Reason != every {
-		t.Fatalf("the DNA guard and the serving cell do not run every cycle: %+v", plan.Run)
+	for _, sel := range plan.Run {
+		if sel.Reason != "run: re-acquired every cycle" {
+			t.Errorf("%s runs for %q, want every cycle", sel.ModelName, sel.Reason)
+		}
 	}
-	for _, sel := range plan.Background {
-		if sel.Replay != previous {
-			t.Errorf("benchmark %s runs (%s) without replaying its newest record", sel.ModelName, sel.Reason)
+	if !strings.Contains(plan.Background[0].Reason, "the activation is stale") {
+		t.Errorf("the stale benchmark runs for %q, want its stale activation said", plan.Background[0].Reason)
+	}
+	for _, sel := range slices.Concat(plan.Run, plan.Background) {
+		_, args, err := reacquireCommand(sel.ModelValidation, store)
+		at := slices.Index(args, "-replay")
+		if err != nil || (at >= 0) != sel.Replay.Valid() || at >= 0 && args[at+1] != previous.String() {
+			t.Errorf("%s re-runs as %v, %v, want -replay %s exactly when it has a record", sel.ModelName, args, err, previous)
 		}
 	}
 }
@@ -369,46 +389,7 @@ func TestSelectValidation(t *testing.T) {
 func TestSelectValidationStableEmpty(t *testing.T) {
 	t.Parallel()
 	plan := SelectValidation(Inputs{})
-	if plan.Run == nil || plan.Reuse == nil || len(plan.Run) != 0 {
+	if plan.Run == nil || plan.Background == nil || plan.SkipInappropriate == nil || len(plan.Run) != 0 {
 		t.Fatalf("empty plan not clean: %+v", plan)
-	}
-}
-
-// TestReuseNeedsCurrentEvidence holds reuse to evidence that is current at
-// this tree. A guard cell whose newest record measured the inference surface
-// before a source change runs; one whose record measured the surface the
-// code is at now is reused. Both carry an active recipe, which credits
-// neither. The inventory takes the same decision: the first model is
-// activated and names its guard, the second is validated.
-func TestReuseNeedsCurrentEvidence(t *testing.T) {
-	t.Parallel()
-	active := testutil.ArtifactID(t, artifact.KindRecipe, "active-inference")
-	older, current := testutil.ArtifactID(t, artifact.KindModel, "older-record"), testutil.ArtifactID(t, artifact.KindModel, "current-record")
-	cells := []ModelValidation{
-		{Model: older, Location: "C:/models/Older/m.gguf", Kind: recipe.TaskInference, Validation: guardValidation, Surface: "inference", Recipe: active},
-		{Model: current, Location: "C:/models/Current/m.gguf", Kind: recipe.TaskInference, Validation: guardValidation, Surface: "inference", Recipe: active},
-	}
-	const beforeSource, afterSource = "a0a0a0a0a0a0a0a0-before-the-source-change", "b1b1b1b1b1b1b1b1-after-the-source-change"
-	read := acceptedRecords{surface: afterSource, records: map[string]guardRecord{
-		locationKey(cells[0].Location): {Location: locationKey(cells[0].Location), Surface: beforeSource, Commit: "source-change", Passed: true},
-		locationKey(cells[1].Location): {Location: locationKey(cells[1].Location), Surface: afterSource, Commit: "plan-only", Passed: true},
-	}}
-	plan := SelectValidation(Inputs{Registered: cells, Current: read.current})
-	if len(plan.Run) != 1 || plan.Run[0].Model != older || !strings.Contains(plan.Run[0].Reason, "measured inference surface "+beforeSource[:surfaceShown]) {
-		t.Fatalf("a record bound to an older surface was not selected to run: run=%+v reuse=%+v", plan.Run, plan.Reuse)
-	}
-	if len(plan.Reuse) != 1 || plan.Reuse[0].Model != current {
-		t.Fatalf("a record bound to the current surface was not reused: reuse=%+v run=%+v", plan.Reuse, plan.Run)
-	}
-
-	// The current model's serving cell, re-acquired every cycle whatever it
-	// recorded, neither validates nor demotes it.
-	serving := cells[1]
-	serving.Validation = servingValidation
-	directories := []modelDirectory{{Path: "C:/models/Older", Weights: true}, {Path: "C:/models/Current", Weights: true}}
-	inventory := buildInventory(directories, append(cells, serving), nil, read.current, "C:/stores/selected")
-	// Sorted by directory: Current, then Older.
-	if inventory[0].Standing != standingValidated || inventory[1].Standing != standingActivated || len(inventory[1].Commands) != 1 {
-		t.Fatalf("the inventory disagrees with the plan: %+v", inventory)
 	}
 }

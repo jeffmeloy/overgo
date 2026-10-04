@@ -2,26 +2,20 @@ package main
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/landing"
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
 )
 
-// SurfaceID names one code surface whose change can invalidate a class of
-// evidence. Every validation cell is pinned to exactly one surface.
-type SurfaceID string
-
 // ModelValidation is one (model, declared function, validation) obligation:
-// the appropriate validation for one declared modality/function of one model,
-// with the surface that pins its accepted evidence. Recipe is the
-// activation's recipe: it finds the accepted record and is never itself
-// evidence that the record holds.
+// the appropriate validation for one declared modality/function of one model.
+// Recipe is the activation's recipe: it finds a benchmark's newest record.
 type ModelValidation struct {
 	Model          artifact.ID `json:"model"`
 	ModelName      string      `json:"model_name,omitzero"`
@@ -30,11 +24,11 @@ type ModelValidation struct {
 	Kind           recipe.Task `json:"kind,omitzero"`      // empty: registered without activation
 	Modality       string      `json:"modality,omitzero"`
 	Validation     string      `json:"validation,omitzero"` // empty: no validation applicable to the kind
-	Surface        SurfaceID   `json:"surface,omitzero"`
 	Recipe         artifact.ID `json:"recipe,omitzero"`
-	Protocol       string      `json:"protocol,omitzero"` // a benchmark's prompting protocol, which its re-acquisition repeats
-	Cost           int64       `json:"cost_ns,omitzero"`  // measured wall or declared timeout, for smallest-first
-	Stale          string      `json:"stale,omitzero"`    // activation defect, if any
+	Protocol       string      `json:"protocol,omitzero"`     // a benchmark's prompting protocol, which its re-acquisition repeats
+	Cost           int64       `json:"cost_ns,omitzero"`      // measured wall or declared timeout, for smallest-first
+	Stale          string      `json:"stale,omitzero"`        // activation defect, if any
+	Inapplicable   string      `json:"inapplicable,omitzero"` // why the model's declared evaluation domains exclude the cell
 	OperatorOnly   bool        `json:"operator_only,omitzero"`
 	OperatorReason string      `json:"operator_reason,omitzero"`
 	// Grounding is the committed data a training recipe's objective reads,
@@ -63,27 +57,22 @@ type Selected struct {
 }
 
 // Inputs are the resolved facts the selection reduces: every registered
-// model's validation obligations, the one current-evidence decision
-// (acceptedRecords.current) the inventory takes too, and the baseline
-// scorecard the cycle's next record is judged against, nil when none
-// measured the promoted commit.
+// model's validation obligations, and the baseline scorecard the cycle's next
+// record is judged against, nil when none measured the promoted commit.
 type Inputs struct {
 	Registered []ModelValidation
-	Current    func(ModelValidation) error
 	Scorecard  *scorecard.Record
 }
 
-// Plan is the validation decision for one tree: run what holds no current
-// evidence, promotion waiting on what it compares while the rest runs in the
-// background, reuse only what is current, name the cells no owner judges,
-// and account for every registered model and every lane of the improvement
-// cycle. Scorecard names the baseline scorecard that scoped the run.
+// Plan is the validation decision for one tree: run every activated
+// applicable cell, promotion waiting on what it compares while the rest runs
+// in the background, and account for every registered model and every lane of
+// the improvement cycle. Scorecard names the baseline scorecard that scoped
+// the run.
 type Plan struct {
 	Scorecard          string     `json:"scorecard"`
 	Run                []Selected `json:"run"`
 	Background         []Selected `json:"background"`
-	Reuse              []Selected `json:"reuse"`
-	Unknown            []Selected `json:"unknown"`
 	OperatorOwned      []Selected `json:"operator_owned"`
 	RegisteredInactive []Selected `json:"registered_inactive"`
 	SkipInappropriate  []Selected `json:"skip_inappropriate"`
@@ -100,19 +89,29 @@ type SelectedSuite struct {
 	Environment []string `json:"environment,omitzero"`
 }
 
+// cycleSuites lists the improvement cycle's lanes, which run every cycle:
+// go test's cache replays the packages no change reached since their pass.
+func cycleSuites() []SelectedSuite {
+	suites := []SelectedSuite{}
+	for _, lane := range landing.CycleLanes() {
+		suites = append(suites, SelectedSuite{Lane: lane.Name, Arguments: lane.Arguments, Environment: lane.Environment})
+	}
+	return suites
+}
+
 // SelectValidation reduces the resolved inputs to a validation plan. It is
 // pure: no store, git, filesystem or device access, so the whole decision is
 // unit-tested. A cell is inapplicable when its model's own declaration
-// excludes it. Otherwise it runs when its activation is stale or the
-// current-evidence decision refuses its accepted record; it is reused only
-// when that decision finds the record current, and it is unknown when no
-// owner judges it. Everything else is operator-owned, registered-inactive,
-// or inapplicable. A cell that runs is scheduled by what promotion compares.
-// Every bucket is ordered cheapest first so a broken run surfaces on a small
-// model in seconds.
+// excludes it. Every other activated cell runs, every cycle: nothing here
+// asks whether its evidence still holds, and a benchmark that runs replays its
+// newest record first, which evaluate carries forward only when the replay
+// reproduces it. Everything else is operator-owned, registered-inactive, or
+// inappropriate to its kind. A cell that runs is scheduled by what promotion
+// compares. Every bucket is ordered cheapest first so a broken run surfaces
+// on a small model in seconds.
 func SelectValidation(in Inputs) Plan {
 	plan := Plan{
-		Run: []Selected{}, Background: []Selected{}, Reuse: []Selected{}, Unknown: []Selected{}, OperatorOwned: []Selected{},
+		Run: []Selected{}, Background: []Selected{}, OperatorOwned: []Selected{},
 		RegisteredInactive: []Selected{}, SkipInappropriate: []Selected{},
 	}
 	if in.Scorecard != nil {
@@ -130,27 +129,18 @@ func SelectValidation(in Inputs) Plan {
 		case mv.Validation == "":
 			sel.Reason = "no validation applicable to " + string(mv.Kind)
 			plan.SkipInappropriate = append(plan.SkipInappropriate, sel)
+		case mv.Inapplicable != "":
+			sel.Reason = "skip: " + mv.Inapplicable
+			plan.SkipInappropriate = append(plan.SkipInappropriate, sel)
+		case mv.Stale != "":
+			sel.Reason = "run: the activation is stale: " + mv.Stale
+			plan.schedule(sel, in.Scorecard)
 		default:
-			switch refusal := in.Current(mv); {
-			case errors.Is(refusal, errCellInapplicable):
-				sel.Reason = "skip: " + refusal.Error()
-				plan.SkipInappropriate = append(plan.SkipInappropriate, sel)
-			case mv.Stale != "":
-				sel.Reason = "run: the activation is stale: " + mv.Stale
-				plan.schedule(sel, in.Scorecard)
-			case refusal == nil:
-				sel.Reason = "reuse: its accepted record is bound to the " + string(mv.Surface) + " identity the code is at now"
-				plan.Reuse = append(plan.Reuse, sel)
-			case errors.Is(refusal, errCellNotJudged):
-				sel.Reason = "unknown: " + uncheckedEvidence
-				plan.Unknown = append(plan.Unknown, sel)
-			default:
-				sel.Reason = "run: " + refusal.Error()
-				plan.schedule(sel, in.Scorecard)
-			}
+			sel.Reason = "run: re-acquired every cycle"
+			plan.schedule(sel, in.Scorecard)
 		}
 	}
-	for _, bucket := range [][]Selected{plan.Run, plan.Background, plan.Reuse, plan.Unknown, plan.OperatorOwned, plan.RegisteredInactive, plan.SkipInappropriate} {
+	for _, bucket := range [][]Selected{plan.Run, plan.Background, plan.OperatorOwned, plan.RegisteredInactive, plan.SkipInappropriate} {
 		slices.SortStableFunc(bucket, func(a, b Selected) int {
 			return cmp.Or(cmp.Compare(a.Cost, b.Cost), cmp.Compare(a.Model.String(), b.Model.String()), cmp.Compare(a.Validation, b.Validation))
 		})

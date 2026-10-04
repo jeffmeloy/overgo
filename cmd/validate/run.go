@@ -129,8 +129,8 @@ func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, s
 		cells, suites = plan.Background, nil
 	}
 	if len(cells)+len(suites) == 0 {
-		fmt.Fprintf(output, "validate -run: nothing to re-acquire; %d reused, %d unknown, %d operator-owned, %d registered-inactive\n",
-			len(plan.Reuse), len(plan.Unknown), len(plan.OperatorOwned), len(plan.RegisteredInactive))
+		fmt.Fprintf(output, "validate -run: nothing to re-acquire; %d operator-owned, %d registered-inactive\n",
+			len(plan.OperatorOwned), len(plan.RegisteredInactive))
 		return nil
 	}
 	var unbound, failed, inapplicable []string
@@ -189,7 +189,7 @@ func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, s
 	if len(problems) > 0 {
 		return fmt.Errorf("validate -run: re-acquired %d cell(s); %s", acquired, strings.Join(problems, "; "))
 	}
-	fmt.Fprintf(output, "validate -run: re-acquired %d cell(s); re-run the dry run to confirm coverage\n", acquired)
+	fmt.Fprintf(output, "validate -run: re-acquired %d cell(s)\n", acquired)
 	return nil
 }
 
@@ -205,8 +205,8 @@ var errInapplicable = errors.New("declared inapplicable here")
 // passing test its -run selector matches, as requiredPass judges. Its
 // packages' progress and any failure's retained output go to output. Any
 // other command is a producer whose exit is its own verdict: it publishes
-// records the next dry run judges, or, like the journeys lane's
-// cmd/webui-lane, judges its own typed test report.
+// records, or, like the journeys lane's cmd/webui-lane, judges its own typed
+// test report.
 func acquire(ctx context.Context, output io.Writer, root, name string, args []string, environment ...string) error {
 	if name != "go" || len(args) == 0 || args[0] != "test" {
 		return runCell(ctx, output, root, name, args, environment...)

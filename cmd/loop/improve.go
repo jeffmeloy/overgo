@@ -214,7 +214,7 @@ func (w improvement) moveCycle(checkout, commit string) error {
 	return gitWrite(checkout, "checkout", "--quiet", "--detach", "--no-overwrite-ignore", commit)
 }
 
-// measureScorecard measures again, from checkout, the stale validations
+// measureScorecard measures again, from checkout, the validations
 // promotion waits on, then publishes the scorecard of store with what moved
 // since the previous one. A failed validation does not withhold the others'
 // numbers: the scorecard publishes regardless and the failure is returned

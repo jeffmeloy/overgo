@@ -41,21 +41,6 @@
       ]
     },
     {
-      "id": "validate-currency",
-      "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Stage 2 of evaluation-replay/delete-selection (scratchpad delete-selection.md, measured 2026-10-02). What goes: surfaces.go except kindValidation (about -130), the Reuse/Unknown buckets and refusal cases of SelectValidation (-30), acceptedRecords.current and readAcceptedRecords down to grounding and benchmark record binding (-80), recordCurrent/judgeBound/boundKey (-60, a 12-line bindBenchmark keeps protocol, cost and -replay), guard_records.go (-79) with cmd/longform's latest-records verb (-60), media_receipt.go (-111; it runs a real-model go test inside every dry run, about 1-1.5 min per validate call, while the models lane runs the same acceptances every cycle), and the inventory's validated standing (-35): about -550 production lines in cmd/validate and -400 test lines. What it costs: every activated applicable cell runs every cycle, about 2h10 of blocking cells in steady state against today's mean of about 1h, plus less device time for the background fill. Cuts that bring it toward the bar: Unlimited-OCR decodes at 3.9 tok/s, under 1% of its bandwidth bound, and its guard alone takes 11m43 (finding 870a92db); one evaluate process per model for its blocking families saves about 8 min of fixed overhead (measure before adding code); the 9B hybrid training proof (22m05, same cmd/train route and code as the blocking 4B proof) could run in the background, which is decision nine-b-proof-background. Even with all three about 1h40 remains, since guards, serving and media have no cheaper form. Re-measure the steady-state every-cell cost from the first cycle after delete-selection lands and land this when it is within an hour of today's cycles, or on the owner's word. Hazard this row must close (cycle 6, 2026-10-03): a published scorecard labels every cell with the publishing commit, whatever commit its record ran at. A held-out cell that enters a baseline while its record is stale there (a retained contract first listed by new code, or a background fill's record made at the previous measured commit) is later re-measured and compared across a range wider than main..candidate, so drift main already holds withholds the candidate: gemma-4-12B-it-fp8-native's raw mmlu-pro baseline 0.285488697 was a record 115 runtime commits older than main. Re-acquiring every compared cell at the published commit (replay making that cheap) removes the case; until then a baseline cell's value is only as fresh as its record. Measured 2026-10-03, cycle 8 (from 53aef9219, after a kernel change moved every surface): 68 blocking cells re-acquired in about 75 minutes (05:13 to 06:28): 11 guards, 11 serving cells and the DNA smoke, 38 benchmark replays that all carried, 6 training proofs and 2 projection proofs; the 16 media cells were reused and measure in about 5 minutes by hand. So an every-cell cycle is about 80 minutes of cells, not the estimated 2h10: Unlimited-OCR's decode fix took its guard from 11m43 to about a minute, and replays carried in seconds. A cycle where nothing moved is 12 cells in about 6 minutes, so always-run still adds about 75 minutes, most of it the training proofs (the 9B proof alone about 22 minutes). Since d993c2b10 a cycle no longer holds the main checkout, so that time costs device time only, not landings."
-        }
-      ]
-    },
-    {
       "id": "evidence-authority",
       "title": "Use checked evidence and explicit source and replay scope in reports",
       "owner": "master-lead",

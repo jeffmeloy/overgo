@@ -94,10 +94,10 @@ func replayFixtureSuite(t *testing.T, cases int) ([]byte, map[string]int) {
 }
 
 // TestEvaluationReplayCarriesIdenticalOutputs holds a re-evaluation to a
-// replay first. In validate, every benchmark that runs replays its newest
-// record, whatever made it run (a moved surface, a failed run, a stale
-// activation), and one no record measures runs in full; evaluate decides
-// whether the replay carries. In the evaluation, a replay of 32 length-spread
+// replay first. In validate, every benchmark runs every cycle and replays its
+// newest record, whatever else is true of it (a stale activation, a failed
+// run), and one no record measures runs in full; evaluate decides whether the
+// replay carries. In the evaluation, a replay of 32 length-spread
 // cases that reproduces every output carries the record forward as a run at
 // the new commit, which the evidence index reads as it reads a fresh one and
 // marks carried, naming the replay; a carry of a carry still stands on the
@@ -270,6 +270,43 @@ func TestEvaluationReplayCarriesIdenticalOutputs(t *testing.T) {
 	if fallback.Carried.Valid() || !fallback.Report.Valid() || !fallback.Replay.Valid() || len(fallback.Cases) != 32 {
 		t.Errorf("fallback loses its fresh full report and32 replay cases: %+v", fallback)
 	}
+
+	// Validate re-acquires every benchmark and replays the newest record of
+	// each recipe that has one, whatever else is true of it: its run at the
+	// newest commit and a stale activation alike. One no record measures runs
+	// in full.
+	catalog := benchmarkEvidence{suites: []evaluation.CompiledSuite{suite}, evidence: evaluation.LatestEvidence(ctx, store, map[artifact.ID]string{suite.Descriptor().Dataset: "store/mmlu"}, 0)}
+	mmlu := func(name string, recipeID artifact.ID) ModelValidation {
+		return ModelValidation{
+			Model: model, ModelName: name, Location: "C:/models/" + name + "/m.gguf",
+			Kind: recipe.TaskInference, Validation: "mmlu", Recipe: recipeID,
+		}
+	}
+	measured, unmeasured, stale := mmlu("Measured", recipeID), mmlu("Unmeasured", id(artifact.KindRecipe, "unmeasured")), mmlu("Stale", recipeID)
+	stale.Stale = "its recipe was replaced"
+	var cells []ModelValidation
+	for _, cell := range []ModelValidation{measured, unmeasured, stale} {
+		bound, err := catalog.bind(ctx, store, cell)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cells = append(cells, bound)
+	}
+	plan := SelectValidation(Inputs{Registered: cells})
+	replays := map[string]string{}
+	for _, selected := range slices.Concat(plan.Run, plan.Background) {
+		_, args, err := reacquireCommand(selected.ModelValidation, "C:/stores/selected")
+		if err != nil {
+			t.Fatalf("%s bound %v, %v", selected.ModelName, args, err)
+		}
+		if at := slices.Index(args, "-replay"); at >= 0 {
+			replays[selected.ModelName] = args[at+1]
+		}
+	}
+	if want := (map[string]string{measured.ModelName: drifted.Evaluation.String(), stale.ModelName: drifted.Evaluation.String()}); !maps.Equal(replays, want) {
+		t.Fatalf("the benchmarks that run replay %v, want %v", replays, want)
+	}
+
 	t.Run("cancelled replay retains spent work", func(t *testing.T) {
 		cancelledCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -331,54 +368,5 @@ func TestEvaluationReplayCarriesIdenticalOutputs(t *testing.T) {
 	hosted, _, _ := evaluate("1", remote, "", data, artifact.ID{})
 	if hostedAgain, _, cases := evaluate("2", remote, "", data, hosted.Evaluation); cases != 100 || hostedAgain.Carried.Valid() {
 		t.Fatalf("a hosted environment scored %d cases (want 100, no replay) and carried %s", cases, hostedAgain.Carried)
-	}
-
-	// Validate replays the newest record of every benchmark it runs.
-	root, beforeSurface, beforeDocs, _ := surfaceHistory(t)
-	directories, err := surfaceDirectories(ctx, root, modalitySurfaces["evaluation"].roots)
-	if err != nil {
-		t.Fatal(err)
-	}
-	benchmark := func(name string) ModelValidation {
-		return ModelValidation{
-			Model: id(artifact.KindModel, name), ModelName: name, Location: "C:/models/" + name + "/m.gguf",
-			Kind: recipe.TaskInference, Validation: "mmlu-pro", Surface: "evaluation", Recipe: id(artifact.KindRecipe, name),
-			Protocol: evaluation.PromptingRawCompletion.Label(),
-		}
-	}
-	ran := func(commit string, outcome runrecord.Outcome) boundRecord {
-		return boundRecord{run: runrecord.Run{Outcome: outcome, CodeCommit: commit}, found: true, replay: full.Evaluation}
-	}
-	moved, current, failed, unmeasured, stale := benchmark("Moved"), benchmark("Current"), benchmark("Failed"), benchmark("Unmeasured"), benchmark("Stale")
-	stale.Stale = "its recipe was replaced"
-	records := map[string]boundRecord{
-		moved.ModelName: ran(beforeSurface, runrecord.OutcomeSucceeded), current.ModelName: ran(beforeDocs, runrecord.OutcomeSucceeded),
-		failed.ModelName: ran(beforeDocs, runrecord.OutcomeFailed), unmeasured.ModelName: {}, stale.ModelName: ran(beforeSurface, runrecord.OutcomeSucceeded),
-	}
-	// The cells are judged as judgeBound judges them, from records read here
-	// rather than from a store.
-	read := acceptedRecords{bound: map[boundKey]error{}}
-	var cells []ModelValidation
-	for _, cell := range []ModelValidation{moved, current, failed, unmeasured, stale} {
-		record := records[cell.ModelName]
-		cell.Protocol, cell.Cost, cell.Replay = record.protocol, record.cost, record.replay
-		read.bound[boundKey{cell.Recipe, cell.Validation, cell.Protocol}] = recordCurrent(ctx, root, directories, cell, record)
-		cells = append(cells, cell)
-	}
-	plan := SelectValidation(Inputs{Registered: cells, Current: read.current})
-	replays := map[string]bool{}
-	for _, selected := range append(plan.Run, plan.Background...) {
-		_, args, err := reacquireCommand(selected.ModelValidation, "C:/stores/selected")
-		at := slices.Index(args, "-replay")
-		if err != nil || at >= 0 && (at+1 == len(args) || args[at+1] != full.Evaluation.String()) {
-			t.Fatalf("%s bound %v, %v", selected.ModelName, args, err)
-		}
-		replays[selected.ModelName] = at >= 0
-	}
-	if want := map[string]bool{moved.ModelName: true, failed.ModelName: true, unmeasured.ModelName: false, stale.ModelName: true}; fmt.Sprint(replays) != fmt.Sprint(want) {
-		t.Fatalf("the benchmarks that run replay %v, want %v", replays, want)
-	}
-	if len(plan.Reuse) != 1 || plan.Reuse[0].ModelName != current.ModelName {
-		t.Fatalf("the benchmark current at this tree was not reused: %+v", plan.Reuse)
 	}
 }

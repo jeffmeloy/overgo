@@ -1,9 +1,9 @@
-// validate selects and runs the minimal sufficient end-to-end validation of the
-// whole system for one commit: it accounts for every registered model, derives
-// the appropriate validation for each declared function, and runs the
-// validations whose accepted record is not bound to the identity the code is
-// at now, reusing only current evidence, and runs the improvement cycle's
-// lanes, the real-model suites no landing runs. The default dry run computes and prints the plan without loading a model or a
+// validate runs the end-to-end validation of the whole system for one commit:
+// it accounts for every registered model, derives the appropriate validation
+// for each declared function, and re-acquires every activated applicable cell,
+// a benchmark replaying its newest record first, then runs the improvement
+// cycle's lanes, the real-model suites no landing runs. The default dry run
+// computes and prints the plan without loading a model or a
 // device; -run executes the selected cells and lanes. -claims holds the
 // claims compatibility.json and the training specifications make to the
 // sources they bind and checks the matrices published from them; a claim whose
@@ -33,6 +33,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/testevidence"
 )
@@ -53,11 +54,11 @@ func run() error {
 
 func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("validate", flag.ContinueOnError)
-	root := flags.String("root", ".", "repository root: the surfaces and lanes are read from it")
+	root := flags.String("root", ".", "repository root: the promoted branch and the grounding files are read from it, and the commands run in it")
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data-root contract")
 	execute := flags.Bool("run", false, "execute the selected validations promotion waits on and the cycle lanes (default: dry run prints the plan only)")
 	background := flags.Bool("background", false, "with -run: execute the background validations instead, the suites the baseline scorecard does not compare, which never block promotion")
-	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as validated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
+	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as activated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
 	scorecardView := flags.Bool("scorecard", false, "print the user scorecard: for every activated model and task, time to first output, throughput, held-out quality, failures, load time, peak device memory and setup steps, each read from the store or listed as a gap with its reason, and the share of served models supported by declaration alone; runs nothing")
 	publish := flags.Bool("publish", false, "with -scorecard: write it as the newest record in the scorecards directory beside the store and list what moved since the previous record")
@@ -82,9 +83,9 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		Purpose:  "select the minimal sufficient end-to-end validation for a commit and, with -run, execute it",
 		Audience: "the master-lead session and its unattended driver validating the whole system per commit",
 		Constraints: []string{
-			"the default dry run itself loads no model and opens no device: it reads the guard records, smoke runs and acceptance receipts (go test's cache replays unchanged ones) and prints the plan as JSON",
-			"a cell runs when its accepted record is not bound to the identity the code is at now, and a serving cell or a DNA model's smoke run is re-acquired every cycle; it is reused only when that record is current, and a benchmark that runs replays its newest record first",
-			"promotion waits on every guard, serving cell, proof and cycle lane, and on a benchmark that re-measures the held-out contract the baseline scorecard beside the store compares; any other benchmark that runs is background, and -run -background runs those",
+			"the default dry run itself loads no model and opens no device: it reads the registered models and the newest benchmark evaluations and prints the plan as JSON",
+			"every activated cell the model's declaration does not exclude runs every cycle, whatever it recorded before; a benchmark names -replay of its newest record under its protocol, which evaluate carries forward only when the replay reproduces it",
+			"promotion waits on every guard, serving cell, proof and cycle lane, and on a benchmark that re-measures the held-out contract the baseline scorecard beside the store compares; any other benchmark is background, and -run -background runs those",
 			"every registered model is accounted for; each available model is dispatched by its declared functions",
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
 			"-scorecard reads the store and the serving source: it loads no model and opens no device",
@@ -210,8 +211,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		return err
 	}
 	registered = compareContracts(registered, compared)
-	read, err := readAcceptedRecords(ctx, *root, storeRoot, store, registered)
-	if err != nil {
+	if err := bindCells(ctx, *root, store, registered); err != nil {
 		return err
 	}
 	if *inventory != "" {
@@ -223,10 +223,10 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, read.current, storeRoot))
+		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, storeRoot))
 	}
 
-	plan := SelectValidation(Inputs{Registered: registered, Current: read.current, Scorecard: compared})
+	plan := SelectValidation(Inputs{Registered: registered, Scorecard: compared})
 	plan.Suites = cycleSuites()
 	if *execute {
 		return executeRun(ctx, output, *root, storeRoot, store, plan, *background)
@@ -237,8 +237,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 // registeredCells enumerates every registered model and derives its validation
 // obligations from its declared functions, generically: a model with no
 // activation, or absent bytes, is one registered-inactive cell; each activated
-// function maps to the appropriate validation for its kind, keyed to the surface
-// that pins its evidence. No per-model knowledge participates.
+// function maps to the appropriate validation for its kind. No per-model
+// knowledge participates.
 func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidation, error) {
 	memo := discovery.LoadMemo(ctx, store)
 	entries, truncated, err := discovery.RegisteredCatalog(ctx, store, catalogLimit, memo)
@@ -270,17 +270,43 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 				continue
 			}
 			for _, validation := range validations {
-				// The activation's recipe finds the accepted record; whether that
-				// record holds at this tree is the current-evidence decision's.
+				// The activation's recipe finds a benchmark's newest record.
 				cells = append(cells, ModelValidation{
 					Model: entry.Model, ModelName: name, Location: entry.Location, Directory: directory,
 					Kind: capability.Task, Modality: modality, Recipe: capability.Recipe,
-					Validation: validation.Validation, Surface: validation.Surface, Stale: capability.Stale,
+					Validation: validation, Stale: capability.Stale,
 				})
 			}
 		}
 	}
 	return cells, nil
+}
+
+// kindValidation lists the appropriate validations for one declared task.
+// Dispatch is by task, never by model name: an inference model earns a guard, a
+// measured serving attempt and the accuracy benchmarks, an image-gen model its
+// generation proof, and so on.
+func kindValidation(task recipe.Task) []string {
+	switch string(task) {
+	case "inference":
+		return append([]string{guardValidation, servingValidation}, benchmarkFamilies...)
+	case "projection":
+		return []string{projectionProof}
+	case "image-gen":
+		return []string{"image-proof"}
+	case "video-gen":
+		return []string{"video-proof"}
+	case "speech", "transcription":
+		return []string{"speech-proof"}
+	case "vqa":
+		return []string{"vqa-proof"}
+	case "seq2seq", "forecast", "tabular", "image-embedding", "generation":
+		return []string{"specialized-proof"}
+	case "training":
+		return []string{trainingProof}
+	default:
+		return nil
+	}
 }
 
 // declaredModality joins a model's declared evaluation domains for display; an

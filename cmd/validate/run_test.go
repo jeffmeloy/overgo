@@ -55,12 +55,12 @@ func TestDNAGuardBindsTheSmokeLane(t *testing.T) {
 	carbon := testutil.ArtifactID(t, artifact.KindModel, "carbon")
 	cell := ModelValidation{
 		Model: carbon, ModelName: "Carbon", Location: "C:/models/carbon.gguf",
-		Kind: recipe.TaskInference, Modality: dnaModality, Validation: guardValidation, Surface: "inference",
+		Kind: recipe.TaskInference, Modality: dnaModality, Validation: guardValidation,
 		Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "carbon-inference"),
 	}
-	plan := SelectValidation(Inputs{Registered: []ModelValidation{cell}, Current: acceptedRecords{}.current})
-	if len(plan.Run) != 1 || plan.Run[0].Model != carbon || plan.Run[0].Reason != "run: "+errEveryCycle.Error() {
-		t.Fatalf("a DNA guard did not run every cycle: run=%+v reuse=%+v", plan.Run, plan.Reuse)
+	plan := SelectValidation(Inputs{Registered: []ModelValidation{cell}})
+	if len(plan.Run) != 1 || plan.Run[0].Model != carbon {
+		t.Fatalf("a DNA guard did not run every cycle: run=%+v", plan.Run)
 	}
 	name, args, err := reacquireCommand(plan.Run[0].ModelValidation, store)
 	want := []string{"run", "./cmd/validate", "-smoke", "-budget", "15m", "-model", carbon.String(), "-repo", store}
@@ -247,12 +247,12 @@ func TestRunBindsMediaMeasurement(t *testing.T) {
 	}
 }
 
-// TestValidateRunEmpty proves an empty run set is the clean no-op the dry run
-// predicts for a commit that moves no surface: no command executes.
+// TestValidateRunEmpty proves an empty run set, such as -run -background with
+// no background cell, is a clean no-op: no command executes.
 func TestValidateRunEmpty(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
-	plan := Plan{Reuse: []Selected{{}, {}}}
+	plan := Plan{OperatorOwned: []Selected{{}, {}}}
 	if err := executeRun(t.Context(), &out, ".", "C:/stores/selected", nil, plan, false); err != nil {
 		t.Fatalf("empty run set errored: %v", err)
 	}

@@ -73,8 +73,7 @@ func newOnboarding(root, repository string, output io.Writer) (onboarding, error
 			if err != nil {
 				return nil, err
 			}
-			unjudged := func(ModelValidation) error { return errCellNotJudged }
-			return buildInventory([]modelDirectory{read}, cells, converted, unjudged, store)[0].Models, nil
+			return buildInventory([]modelDirectory{read}, cells, converted, store)[0].Models, nil
 		},
 		run: func(ctx context.Context, name string, args []string) error {
 			return runCell(ctx, output, root, name, args)

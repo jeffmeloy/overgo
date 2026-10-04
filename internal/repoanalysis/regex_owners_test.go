@@ -19,7 +19,6 @@ var regexOwners = map[string]string{
 	"cmd/gen-iq-tables/main.go":                       "generator reading C table source",
 	"cmd/kernel-manifest/main.go":                     "reads PTX assembly entries, a text grammar with no Go decoder",
 	"cmd/release/main.go":                             "validates a semantic-version grammar",
-	"cmd/validate/media_receipt.go":                   "names acceptance test families as go test -run selectors",
 	"cmd/webui-lane/main.go":                          "compiles a go test -run selector, which is a regular expression",
 	"internal/agenttool/manual.go":                    "validates a manual-name grammar",
 	"internal/cuda/testutil/require.go":               "quotes a test name into a go test -run selector",

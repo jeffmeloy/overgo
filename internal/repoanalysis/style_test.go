@@ -9,21 +9,6 @@ import (
 	"overgo/internal/gosyntax"
 )
 
-func TestRepositoryGoStyleNamesAndComments(t *testing.T) {
-	t.Parallel()
-	requireNoRepositoryStyleFindings(t, map[goStyleKind]bool{
-		goStyleReceiverConsistency: true, goStyleInitialism: true,
-		goStyleGetter: true, goStyleImportAlias: true,
-	})
-}
-
-func TestRepositoryGoStyleFlowAndErrors(t *testing.T) {
-	t.Parallel()
-	requireNoRepositoryStyleFindings(t, map[goStyleKind]bool{
-		goStyleNamedResult: true, goStyleNakedReturn: true,
-	})
-}
-
 func TestRepositoryGoStyleComplete(t *testing.T) {
 	t.Parallel()
 	report := repositoryGoStyleReport(t)
@@ -41,20 +26,6 @@ func TestRepositoryGoStyleComplete(t *testing.T) {
 	}
 	if len(findings) != 0 {
 		t.Fatalf("%d unclassified style findings:\n%s", len(findings), strings.Join(findings, "\n"))
-	}
-}
-
-func requireNoRepositoryStyleFindings(t *testing.T, selected map[goStyleKind]bool) {
-	t.Helper()
-	report := repositoryGoStyleReport(t)
-	var findings []string
-	for _, finding := range report.Findings {
-		if selected[finding.Kind] {
-			findings = append(findings, fmt.Sprintf("%s:%d:%s:%s", finding.File, finding.Line, finding.Kind, finding.Symbol))
-		}
-	}
-	if len(findings) != 0 {
-		t.Fatalf("%d naming/comment findings:\n%s", len(findings), strings.Join(findings, "\n"))
 	}
 }
 

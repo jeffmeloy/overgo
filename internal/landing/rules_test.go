@@ -45,6 +45,8 @@ func TestExportUseCountsConsumers(t *testing.T) {
 			"cmd/x/main.go": "package main\n\nimport \"overgo/internal/p\"\n\nfunc main() { p.Other() }\n", "internal/q/q_test.go": tested}, false},
 		{"a call", map[string]string{"cmd/x/main.go": "package main\n\nimport \"overgo/internal/p\"\n\nfunc main() { p.New() }\n"}, true},
 		{"an aliased import", map[string]string{"internal/q/q.go": "package q\n\nimport made \"overgo/internal/p\"\n\nvar value = made.New()\n"}, true},
+		{"a consumer before a local selector", map[string]string{"internal/q/q.go": imports + "func use(...int) {}\nfunc f(local struct{ New int }) { use(p.New(), local.New) }\n"}, true},
+		{"a consumer after a local selector", map[string]string{"internal/q/q.go": imports + "func use(...int) {}\nfunc f(local struct{ New int }) { use(local.New, p.New()) }\n"}, true},
 		{"another package's test, of a package only tests import", map[string]string{"internal/q/q_test.go": tested}, true},
 		{"another package's test, of a package only test support imports", map[string]string{
 			"internal/b/b.go":      "package b\n\nimport \"overgo/internal/p\"\n\nvar Other = p.Other\n",

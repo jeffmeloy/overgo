@@ -399,7 +399,7 @@ func selects(syntax *ast.File, names []string, name string) bool {
 	ast.Inspect(syntax, func(node ast.Node) bool {
 		if selector, ok := node.(*ast.SelectorExpr); ok && selector.Sel.Name == name {
 			qualifier, ok := selector.X.(*ast.Ident)
-			found = ok && slices.Contains(names, qualifier.Name) && qualifier.Obj == nil
+			found = found || ok && slices.Contains(names, qualifier.Name) && qualifier.Obj == nil
 		}
 		return !found
 	})

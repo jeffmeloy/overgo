@@ -253,7 +253,7 @@ func TestValidateRunEmpty(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
 	plan := Plan{OperatorOwned: []Selected{{}, {}}}
-	if err := executeRun(t.Context(), &out, ".", "C:/stores/selected", nil, plan, false); err != nil {
+	if err := executeRun(t.Context(), &out, ".", "C:/stores/selected", nil, plan, scopeCycle); err != nil {
 		t.Fatalf("empty run set errored: %v", err)
 	}
 	if !strings.Contains(out.String(), "nothing to re-acquire") {
@@ -285,7 +285,7 @@ func TestValidateRunCycleLanes(t *testing.T) {
 		{Lane: "absent", Arguments: []string{"test", fixtures + "probefixture", "-run", "^TestAbsent$"}},
 		{Lane: "inapplicable", Arguments: []string{"test", fixtures + "probefixture", "-run", "^TestElsewhere$"}},
 	}}
-	err := executeRun(t.Context(), &out, testutil.RepoRoot(t), "C:/stores/selected", nil, plan, false)
+	err := executeRun(t.Context(), &out, testutil.RepoRoot(t), "C:/stores/selected", nil, plan, scopeCycle)
 	if err == nil {
 		t.Fatalf("cycle lanes run passed; output:\n%s", out.String())
 	}
@@ -323,7 +323,7 @@ func TestValidateRunUnbound(t *testing.T) {
 	var out bytes.Buffer
 	model := testutil.ArtifactID(t, artifact.KindModel, "wan")
 	plan := Plan{Run: []Selected{{ModelValidation: ModelValidation{Model: model, ModelName: "Wan", Kind: recipe.TaskVideoGen, Validation: "video-proof"}}}}
-	err := executeRun(t.Context(), &out, ".", "C:/stores/selected", nil, plan, false)
+	err := executeRun(t.Context(), &out, ".", "C:/stores/selected", nil, plan, scopeCycle)
 	if err == nil || !strings.Contains(err.Error(), "no bound command") {
 		t.Fatalf("unbound run = %v", err)
 	}

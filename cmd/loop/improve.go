@@ -15,6 +15,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
+	"overgo/internal/jsonfile"
 	"overgo/internal/plan"
 	"overgo/internal/processlock"
 	"overgo/internal/scorecard"
@@ -47,22 +48,21 @@ func improvementFor(store string) improvement {
 }
 
 // Measure runs the scorecard at root's HEAD in the cycle checkout and
-// returns the record it published and that record's baseline. Rows land in
-// root while it runs: the claims it records bind the commit the cycle
+// returns the record published at that commit and that record's baseline. A
+// cycle the run before this one left unfinished continues where it stopped
+// (see cycleState), and the record it published is the one returned. Rows land
+// in root while it runs: the claims it records bind the commit the cycle
 // checkout holds. A failed validation returns its error beside the record;
-// a run that published nothing returns none.
+// a run that published nothing at the commit returns none.
 func (w improvement) Measure() (*scorecard.Record, *scorecard.Record, error) {
-	before, err := scorecard.Records(w.records)
-	if err != nil {
-		return nil, nil, err
-	}
 	head, err := gitauthority.Query(context.Background(), w.root, "rev-parse", "HEAD")
 	if err != nil {
 		return nil, nil, err
 	}
-	measured := w.inCycle(strings.TrimSpace(string(head)), w.measure)
+	commit := strings.TrimSpace(string(head))
+	measured := w.inCycle(commit, w.measure)
 	records, err := scorecard.Records(w.records)
-	if err != nil || len(records) == len(before) {
+	if err != nil || len(records) == 0 || records[len(records)-1].Commit != commit {
 		return nil, nil, errors.Join(measured, err)
 	}
 	baseline, err := scorecard.Baseline(context.Background(), w.root, records)
@@ -149,6 +149,8 @@ const proposalStep = "do"
 // record bind that commit and rows land in the main checkout while they
 // run.
 func (w improvement) Fill(commit string) {
+	// The cycle has reached its decision: the next one measures afresh.
+	defer os.Remove(filepath.Join(w.root, processlock.StateDirectory, cycleStateFile))
 	err := w.inCycle(commit, func(checkout string) error {
 		fmt.Printf("loop: filling the background validations at %.12s in %s\n", commit, checkout)
 		return w.fill(checkout)
@@ -214,23 +216,87 @@ func (w improvement) moveCycle(checkout, commit string) error {
 	return gitWrite(checkout, "checkout", "--quiet", "--detach", "--no-overwrite-ignore", commit)
 }
 
-// measureScorecard measures again, from checkout, the validations
-// promotion waits on, then publishes the scorecard of store with what moved
-// since the previous one. A failed validation does not withhold the others'
-// numbers: the scorecard publishes regardless and the failure is returned
-// beside it with the final error the command wrote to its error file, so
-// the withheld promotion names each cell or lane validate -run acquired
-// nothing for, and why.
+// cycleState is how far the cycle at one commit got, kept beside the cycle
+// checkout: a run that ends before it finishes, the time limit of whoever
+// started it among the causes, is continued by running the cycle again, which
+// starts at the first phase not passed instead of acquiring every cell again.
+// Only a phase that passed is recorded, so a failure runs again.
+type cycleState struct {
+	Commit    string `json:"commit"`
+	Cells     bool   `json:"cells"`
+	Published bool   `json:"published"`
+	Lanes     bool   `json:"lanes"`
+}
+
+const (
+	cycleStateFile = "cycle_state.json"
+	cycleStateMode = 0o600
+)
+
+// readCycleState is the state kept for commit: none, at another commit or
+// when nothing is kept.
+func readCycleState(path, commit string) cycleState {
+	var state cycleState
+	if err := jsonfile.DecodeStrict(path, &state); err != nil || state.Commit != commit {
+		return cycleState{Commit: commit}
+	}
+	return state
+}
+
+// measureScorecard measures again, from checkout, the validations promotion
+// waits on, then publishes the scorecard of store with what moved since the
+// previous one, then runs the cycle lanes, which go test's cache replays for
+// the packages no change reached. The scorecard publishes before the lanes, so
+// the cells' numbers exist when a long lane run is cut short. A failed
+// validation does not withhold the others' numbers: the scorecard publishes
+// regardless and the failure is returned beside it with the final error the
+// command wrote to its error file, so the withheld promotion names each cell
+// or lane validate -run acquired nothing for, and why.
 func measureScorecard(checkout, store string) error {
+	head, err := gitauthority.Query(context.Background(), checkout, "rev-parse", "HEAD")
+	if err != nil {
+		return err
+	}
+	return measurePhases(filepath.Join(filepath.Dir(checkout), cycleStateFile), strings.TrimSpace(string(head)), func(environment []string, arguments ...string) error {
+		return validateIn(checkout, store, environment, arguments...)
+	})
+}
+
+// measurePhases runs the cycle's phases at commit, the cells, the publication
+// and the lanes, in that order, skipping those the state at statePath records
+// as passed. The cells run again whenever they did not pass, and the scorecard
+// publishes again after them, since it then holds fresher numbers.
+func measurePhases(statePath, commit string, validate func(environment []string, arguments ...string) error) error {
 	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-measure-%d.error", os.Getpid()))
 	defer os.Remove(errorFile)
+	state := readCycleState(statePath, commit)
 	var failed []error
-	for _, arguments := range [][]string{{"-run"}, {"-scorecard", "-publish"}} {
+	phase := func(arguments ...string) bool {
 		_ = os.Remove(errorFile)
-		if err := validateIn(checkout, store, []string{clioptions.ErrorFileEnvironment + "=" + errorFile}, arguments...); err != nil {
+		err := validate([]string{clioptions.ErrorFileEnvironment + "=" + errorFile}, arguments...)
+		if err != nil {
 			final, _ := os.ReadFile(errorFile)
 			failed = append(failed, fmt.Errorf("loop: the plan is empty, but validate %s failed: %w: %s", strings.Join(arguments, " "), err, bytes.TrimSpace(final)))
 		}
+		return err == nil
+	}
+	remember := func() {
+		if err := jsonfile.Write(statePath, state, cycleStateMode); err != nil {
+			failed = append(failed, err)
+		}
+	}
+	remeasured := !state.Cells
+	if remeasured {
+		state.Cells = phase("-run", "-cells")
+		remember()
+	}
+	if remeasured || !state.Published {
+		state.Published = phase("-scorecard", "-publish")
+		remember()
+	}
+	if !state.Lanes {
+		state.Lanes = phase("-run", "-lanes")
+		remember()
 	}
 	return errors.Join(failed...)
 }

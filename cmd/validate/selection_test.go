@@ -185,13 +185,18 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	for background, want := range map[bool][]string{false: names(plan.Run), true: names(plan.Background)} {
+	for scope, want := range map[runScope][]string{scopeCycle: names(plan.Run), scopeCells: names(plan.Run), scopeBackground: names(plan.Background), scopeLanes: nil} {
 		// No cell has a location, so each is reported unbound and none starts.
-		err := executeRun(t.Context(), &out, root, store, nil, plan, background)
+		err := executeRun(t.Context(), &out, root, store, nil, plan, scope)
 		for _, validation := range []string{guardValidation, servingValidation, "mmlu-pro", "training-proof", "bbh", "ifeval"} {
 			if named := err != nil && strings.Contains(err.Error(), "compared "+validation+":"); named != slices.Contains(want, validation) {
-				t.Fatalf("-background=%v took %s: %v, want only %v", background, validation, err, want)
+				t.Fatalf("scope %d took %s: %v, want only %v", scope, validation, err, want)
 			}
+		}
+	}
+	for _, flags := range []struct{ background, cells, lanes bool }{{true, true, false}, {true, false, true}, {false, true, true}} {
+		if _, err := runScopeOf(flags.background, flags.cells, flags.lanes); err == nil {
+			t.Errorf("flags %+v select one run, want them refused", flags)
 		}
 	}
 }

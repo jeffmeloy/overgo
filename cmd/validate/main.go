@@ -58,6 +58,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data-root contract")
 	execute := flags.Bool("run", false, "execute the selected validations promotion waits on and the cycle lanes (default: dry run prints the plan only)")
 	background := flags.Bool("background", false, "with -run: execute the background validations instead, the suites the baseline scorecard does not compare, which never block promotion")
+	cellsOnly := flags.Bool("cells", false, "with -run: execute only the cells promotion waits on, leaving the cycle lanes to -run -lanes, so a cycle can publish its scorecard between them")
+	lanesOnly := flags.Bool("lanes", false, "with -run: execute only the cycle lanes, which go test's cache replays for the packages no change reached")
 	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as activated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
 	scorecardView := flags.Bool("scorecard", false, "print the user scorecard: for every activated model and task, time to first output, throughput, held-out quality, failures, load time, peak device memory and setup steps, each read from the store or listed as a gap with its reason, and the share of served models supported by declaration alone; runs nothing")
@@ -229,7 +231,11 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	plan := SelectValidation(Inputs{Registered: registered, Scorecard: compared})
 	plan.Suites = cycleSuites()
 	if *execute {
-		return executeRun(ctx, output, *root, storeRoot, store, plan, *background)
+		scope, err := runScopeOf(*background, *cellsOnly, *lanesOnly)
+		if err != nil {
+			return err
+		}
+		return executeRun(ctx, output, *root, storeRoot, store, plan, scope)
 	}
 	return clioptions.WritePrettyJSON(output, plan)
 }

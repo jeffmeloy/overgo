@@ -252,12 +252,15 @@
     if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
     return String(n);
   }
-  // duration: milliseconds as whole seconds, minutes or hours and minutes.
-  // elapsed: a measured span in the unit that reads it, milliseconds under a second and seconds under a minute.
+  // elapsed: a measured span in the unit that reads it: milliseconds under a second, seconds under ten
+  // minutes (two decimals under a minute, whole after), then duration's minutes and hours.
   function elapsed(ms) {
     ms = Number(ms);
-    return ms < 1000 ? ms.toFixed(1) + " ms" : ms < 60000 ? (ms / 1000).toFixed(2) + " s" : duration(ms);
+    if (ms < 1000) return ms.toFixed(1) + " ms";
+    if (ms < 60000) return (ms / 1000).toFixed(2) + " s";
+    return ms < 600000 ? Math.round(ms / 1000) + " s" : duration(ms);
   }
+  // duration: milliseconds as whole seconds, minutes or hours and minutes.
   function duration(ms) {
     const seconds = Math.max(1, Math.round(Number(ms) / 1000));
     if (seconds < 60) return seconds + "s";

@@ -653,5 +653,6 @@ table.grid th::first-letter { text-transform:uppercase; }
   table.grid.stack tr { padding:var(--s2) 0; border-bottom:1px solid var(--line-soft); }
   table.grid.stack td { display:grid; width:100%; grid-template-columns:minmax(0, 2fr) minmax(0, 3fr); gap:var(--s3); padding:2px 0; border:0; }
   table.grid.stack td > * { justify-self:start; }
+  table.grid.stack td.gap { display:none; }
   table.grid.stack td::before { content:attr(data-label); color:var(--dim); font:var(--t-sm) var(--font); }
 }

@@ -24,11 +24,19 @@ func serverScorecard(ctx context.Context, store *overgodb.Store) ([]llamaserver.
 			if !found {
 				cell.Reason = "the scorecard reads no " + string(name)
 			}
-			cells = append(cells, llamaserver.ScorecardCell{Metric: string(name), Value: cell.Value, Unit: cell.Unit, Label: cell.Label, Source: cell.Source, Reason: cell.Reason})
+			cells = append(cells, shownCell(name, cell))
 		}
 		shown = append(shown, llamaserver.ScorecardRow{Model: row.Model, Name: row.Name, Task: string(row.Task), Recipe: row.Recipe, Cells: cells})
 	}
 	return shown, nil
+}
+
+// shownCell is a cell as the page reads it: its value, unit and source; for a
+// held-out quality the metric it measures and the direction it improves in;
+// and a trained model's base value, which it reads against.
+func shownCell(name metric.Name, cell scorecard.Cell) llamaserver.ScorecardCell {
+	return llamaserver.ScorecardCell{Metric: string(name), Value: cell.Value, Unit: cell.Unit, Label: cell.Label, Source: cell.Source, Reason: cell.Reason,
+		Measure: cell.Contract.Metric, Direction: string(cell.Direction), Base: cell.Base}
 }
 
 // comparedRecords are the published scorecards a history compares: the

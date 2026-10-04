@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
 	"overgo/internal/testutil"
@@ -26,6 +27,23 @@ func TestServerScorecardReadsTheStore(t *testing.T) {
 	rows, err := serverScorecard(t.Context(), store)
 	if err != nil || len(rows) != 0 {
 		t.Fatalf("an empty store scored %+v, %v", rows, err)
+	}
+}
+
+// TestShownCellCarriesWhatTheScorecardKnows: a held-out quality reaches the
+// page with the metric it measures, the direction it improves in and, for a
+// trained model, its base's value; a gap keeps its reason and carries no
+// base.
+func TestShownCellCarriesWhatTheScorecardKnows(t *testing.T) {
+	t.Parallel()
+	base := 10.4
+	quality := shownCell(metric.Quality, scorecard.Cell{Value: 9.1, Label: "perplexity, wikitext (raw)", Direction: runrecord.DirectionMinimize, Base: &base,
+		Contract: scorecard.Contract{Metric: "perplexity", Origin: "evaluation"}})
+	if quality.Metric != "held-out-quality" || quality.Value != 9.1 || quality.Measure != "perplexity" || quality.Direction != "minimize" || quality.Base == nil || *quality.Base != base {
+		t.Fatalf("a trained quality reached the page as %+v", quality)
+	}
+	if gap := shownCell(metric.Load, scorecard.Cell{Reason: "no record measures it"}); gap.Reason != "no record measures it" || gap.Base != nil || gap.Direction != "" {
+		t.Fatalf("a gap reached the page as %+v", gap)
 	}
 }
 

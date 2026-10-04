@@ -20,13 +20,19 @@ type ScorecardRow struct {
 
 // ScorecardCell is one metric's measured value with its unit, what it
 // measures and the record it came from, or the reason no record measures it.
+// A held-out quality also names the metric it measures and the direction it
+// improves in ("maximize" or "minimize"), and a trained model's carries its
+// base model's value on the same contract.
 type ScorecardCell struct {
-	Metric string      `json:"metric"`
-	Value  float64     `json:"value"`
-	Unit   string      `json:"unit,omitzero"`
-	Label  string      `json:"label,omitzero"`
-	Source artifact.ID `json:"source,omitzero"`
-	Reason string      `json:"reason,omitzero"`
+	Metric    string      `json:"metric"`
+	Value     float64     `json:"value"`
+	Unit      string      `json:"unit,omitzero"`
+	Label     string      `json:"label,omitzero"`
+	Source    artifact.ID `json:"source,omitzero"`
+	Reason    string      `json:"reason,omitzero"`
+	Measure   string      `json:"measure,omitzero"`
+	Direction string      `json:"direction,omitzero"`
+	Base      *float64    `json:"base,omitempty"`
 }
 
 // ScorecardReader reads the user scorecard from the store.

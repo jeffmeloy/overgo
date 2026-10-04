@@ -5,32 +5,17 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gui-scorecard-page",
-      "title": "Give the scorecard its own tab that leads with what got better, show a gap quietly, a quality with its unit and a trained model's against its base",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give the scorecard its own tab that leads with what got better, show a gap quietly, a quality with its unit and a trained model's against its base",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run 'ScorecardPage|WhatGotBetter'",
-          "rationale": "Measured at 1280x800 in the live GUI: the Library panel is 4287px tall and What got better starts 1330px down, under a 31-row inventory, with the 34-row scorecard below it (1417-3246px). Most scorecard cells read not measured, wrapped onto two lines; the Quality column mixes 910.321 (perplexity) and 0.291 (accuracy) with no unit or direction; master's Cell.Base (a trained model's base value) and Direction are dropped by cmd/server/scorecard.go, so the first trained improvement (Qwen2.5-0.5B beats its base on held-out WikiText-2) cannot be seen in the GUI. Guide: Operate mode, quiet states, one affordance vocabulary, no modal first."
-        }
-      ]
-    },
-    {
       "id": "gui-signal-noise",
-      "title": "Remove what repeats or says nothing: the Datasets header's full registry hash, Artifacts' payload-unavailable lead, the doubled output-limit signal, unlabeled connection dots, preset controls above Run, plain-text dataset status",
+      "title": "Remove what repeats or says nothing: the Datasets header's full registry hash, plain-text dataset status, Artifacts' payload-unavailable lead and producer-unavailable line, and Settings' unlabeled connection dots",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Remove what repeats or says nothing: the Datasets header's full registry hash, Artifacts' payload-unavailable lead, the doubled output-limit signal, unlabeled connection dots, preset controls above Run, plain-text dataset status",
+          "title": "Remove what repeats or says nothing: the Datasets header's full registry hash, plain-text dataset status, Artifacts' payload-unavailable lead and producer-unavailable line, and Settings' unlabeled connection dots",
           "status": "open",
           "verify": "go run ./cmd/webui-lane -run SignalNoise",
-          "rationale": "Live-GUI review findings that repeat or say nothing: Datasets prints the full 64-hex registry id beside its count; every Artifacts row leads with payload unavailable and producer unavailable; a stopped reply shows Output limit reached on the message and again in a note below the log; Settings shows three unlabeled status dots; Model Builder and Generate put the preset row above the primary Run; Datasets status is plain text where every other status is a tag. Subtraction first: remove, do not add."
+          "rationale": "Live-GUI review findings that repeat or say nothing: Datasets prints the full 64-hex registry id beside its count; its status is plain text where every other status is a tag; every Artifacts row of a manifest-only artifact leads with payload unavailable and ends with producer unavailable; Settings shows three unlabeled status dots (server, swap proxy, device) whose meaning is only in tooltips. Dropped after checking: the doubled output-limit signal is deliberate (a tag marks the cut message, the note offers the action, as for a stopped turn) and presets above Run is the conventional order. Subtraction first: remove, do not add."
         }
       ]
     }

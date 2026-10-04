@@ -147,83 +147,12 @@
         for (const job of data || []) if (job.state === "succeeded" && chained.delete(job.repository)) add(job);
       }, { whileShown: true });
 
-      // ---- the user scorecard: per model and task, what a user feels; an unmeasured cell names why ----
-      const scorecardColumns = [["first-output", "First output"], ["throughput", "Throughput"], ["held-out-quality", "Quality"], ["failure-rate", "Failures"],
-        ["load-time", "Load"], ["peak-device-memory", "Peak memory"], ["setup-steps", "Setup steps"]];
-      const unitFormats = { bytes: (value) => fmt.bytes(value), ms: (value) => value.toFixed(1) + " ms", "tok/s": (value) => value.toFixed(1) + " tok/s" };
-      const metricFormats = { "failure-rate": (value) => (100 * value).toFixed(1) + "%", "setup-steps": (value) => String(value) };
-      const measure = (metric, unit, value) => (unitFormats[unit] || metricFormats[metric] || ((number) => number.toFixed(3)))(Number(value));
-      const scorecardCell = (cell) => cell.reason ? el("span", { class: "scorecard-gap", title: cell.reason, text: "not measured" })
-        : el("span", { title: cell.label || "", text: measure(cell.metric, cell.unit, cell.value) });
-      const scorecardBody = el("tbody"), scorecardNote = el("div", { class: "note" }), historyHost = el("div", { class: "scorecard-history" });
-      const scorecard = el("section", { class: "scorecard", role: "region", "aria-label": "scorecard", hidden: true },
-        el("div", { class: "section-title", text: "What got better" }), historyHost,
-        el("div", { class: "section-title", text: "Scorecard" }), scorecardNote,
-        el("table", { class: "grid stack" }, el("thead", null, overgo.headerRow(["Model", "Task", ...scorecardColumns.map(([, label]) => label)])), scorecardBody));
-      // renderHistory: every change from the previous published scorecard to the newest, grouped by how it moved
-      // and whether a user would call it better, targeted or not.
-      const columnLabels = new Map(scorecardColumns);
-      function renderHistory(history) {
-        if (!history) {
-          historyHost.replaceChildren(el("p", { class: "note", text: "The unattended loop publishes a scorecard each time it empties its plan; what moved shows here once two are published." }));
-          return;
-        }
-        if (history.unavailable) {
-          historyHost.replaceChildren(el("p", { class: "note", text: "What moved between scorecards could not be read: " + history.unavailable }));
-          return;
-        }
-        const moves = history.moves || [];
-        const where = (move) => move.name + " " + move.task + (move.metric ? ", " + (columnLabels.get(move.metric) || move.metric) : "");
-        const value = (move, number) => measure(move.metric, move.unit, number);
-        const change = (move) => where(move) + ": " + value(move, move.before) + " to " + value(move, move.after);
-        // A cell measured another way than the previous scorecard's has no comparison; the technical reason waits in the tooltip.
-        const groups = [
-          ["better", "Better", change],
-          ["worse", "Worse", change],
-          ["changed", "Changed, with no better or worse", change],
-          ["measured", "Newly measured", (move) => where(move) + ": " + value(move, move.after)],
-          ["unmeasured", "No longer measured", (move) => where(move) + ": " + move.reason],
-          ["unknown", "Measured differently, so not compared", where],
-          ["added", "New", where],
-          ["removed", "Gone", where],
-        ].map(([kind, title, line]) => [kind, title, moves.filter((move) => move.kind === kind).map((move) => [line(move), move.kind === "unknown" ? move.reason : ""])]).filter(([, , lines]) => lines.length);
-        const count = (kind) => (groups.find(([name]) => name === kind) || [, , []])[2].length;
-        historyHost.replaceChildren(
-          el("p", { class: "note", text: "Since the scorecard of commit " + history.previous.slice(0, 12) + ", the one of " + history.current.slice(0, 12) + ": " +
-            (moves.length ? count("better") + " better, " + count("worse") + " worse. Every change is listed, whether or not work aimed at it." : "nothing moved.") }),
-          ...groups.map(([kind, title, lines]) => el("div", { class: "scorecard-moves", "data-kind": kind },
-            el("h4", { text: title }), el("ul", {}, ...lines.map(([text, reason]) => el("li", { title: reason, text }))))));
-      }
-      async function refreshScorecard() {
-        let read;
-        try { read = await overgo.api.get("/scorecard", { signal: overgo.signal }); }
-        catch (err) {
-          // A server without the launcher's scorecard reader has no scorecard to show.
-          if (overgo.signal.aborted || err.status === 404) return;
-          scorecard.hidden = false;
-          scorecardNote.replaceChildren(overgo.failure(err));
-          return;
-        }
-        scorecard.hidden = false;
-        renderHistory(read.history);
-        const rows = read.rows || [];
-        scorecardNote.textContent = rows.length ? "What a user feels of each activated model; hover a cell for what measured it." : "No activated model to score yet.";
-        scorecardBody.replaceChildren(...rows.map((row) => {
-          const cells = new Map((row.cells || []).map((cell) => [cell.metric, cell]));
-          const line = overgo.tableRow([el("span", { text: row.name }), el("span", { text: row.task }),
-            ...scorecardColumns.map(([metric]) => cells.has(metric) ? scorecardCell(cells.get(metric)) : el("span", { class: "scorecard-gap", text: "not measured" }))]);
-          ["Model", "Task", ...scorecardColumns.map(([, label]) => label)].forEach((label, index) => { line.children[index].dataset.label = label; });
-          return line;
-        }));
-      }
-      refreshScorecard();
 
       const downloadsTitle = el("div", { class: "section-title", text: "Downloads" });
       panel.append(
-        el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: () => { refreshCatalog(); refreshScorecard(); } })),
+        el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: refreshCatalog })),
         catalogNote,
         el("table", { class: "grid stack hide-empty" }, el("thead", null, overgo.headerRow(["Model", "Capabilities", "Identity", "Status"])), catalogBody),
-        scorecard,
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),
         el("table", { class: "grid hide-empty" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),
@@ -281,6 +210,30 @@
         } catch (err) { providerNote.textContent = overgo.friendlyError(err); }
       } });
       panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, listButton, providerButton), providerListing, providerNote, el("div", { class: "row" }, providerReason));
+
+      // The Library shows its models or, as a view the way Inspect's analyses are, the scorecard: one at a time, the
+      // scorecard one choice away and with no navigation entry of its own.
+      const views = overgo.viewsOf("library");
+      const models = [...panel.children];
+      const viewHost = el("div", { class: "view-host" });
+      const chooser = el("div", { class: "row view-chooser", role: "tablist", "aria-label": "Library views" },
+        ...[{ id: "library", label: "Models" }, ...views].map((view) => el("button", { class: "chip", role: "tab", "data-view": view.id, text: view.label, onclick: () => show(view.id) })));
+      panel.prepend(chooser);
+      panel.append(viewHost);
+      function show(id) {
+        const view = views.find((item) => item.id === id);
+        for (const node of models) node.hidden = !!view;
+        for (const button of chooser.children) button.setAttribute("aria-selected", String(button.dataset.view === (view ? view.id : "library")));
+        history.replaceState(null, "", "#" + (view ? view.id : "library"));
+        if (view) overgo.embed(view.id, viewHost);
+        else {
+          if (viewHost.workspace) viewHost.workspace.release();
+          viewHost.workspace = null;
+          viewHost.replaceChildren();
+        }
+      }
+      overgo.listen(window, "overgo-view", (event) => { if (event.detail.owner === "library") show(event.detail.view); });
+      show(overgo.requestedView("library"));
 
       // Each showing reads the catalog again.
       overgo.whileActive(refreshCatalog);

@@ -86,7 +86,7 @@ func TestWebUIBrowserTablesAlike(t *testing.T) {
 	check(`(() => { const link = document.querySelector('#panel-runs table.grid .link-button.mono'); return !!link && getComputedStyle(link).fontFamily.includes('monospace'); })()`)
 
 	// A measured span reads in the unit that fits it.
-	check(`overgo.fmt.elapsed(189.02) === '189.0 ms' && overgo.fmt.elapsed(11082.79) === '11.08 s' && overgo.fmt.elapsed(600000) === '10m'`)
+	check(`overgo.fmt.elapsed(189.02) === '189.0 ms' && overgo.fmt.elapsed(11082.79) === '11.08 s' && overgo.fmt.elapsed(90876) === '91 s' && overgo.fmt.elapsed(600000) === '10m'`)
 
 	// Every disclosure, folded section or not, opens on the drawn chevron.
 	check(`(() => {

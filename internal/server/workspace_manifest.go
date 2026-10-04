@@ -88,6 +88,8 @@ func workspaceRefusal(capability string) (reason, action string) {
 		return "No agent is defined yet.", "Define an agent in the store and it opens here."
 	case "repository", "operations", "explorer":
 		return "This server runs without a store, so it keeps no conversations, runs or operations.", "Restart the server over a store to keep them."
+	case "scorecard":
+		return "This server has no scorecard to read: it runs without a store or without the launcher's scorecard reader.", "Restart the server over a store to see what each model measures."
 	case "embeddings":
 		return "The served model does not make embeddings.", "Serve a model activated for embedding."
 	case "rerank":
@@ -211,6 +213,8 @@ func (h *Handler) workspaceCapability(ctx context.Context, listing workspaceList
 		supported = h.agentCoordinator != nil
 	case "repository", "operations":
 		supported = h.repository != nil
+	case "scorecard":
+		supported = h.repository != nil && h.config.Scorecard != nil
 	case "embeddings":
 		supported = slices.Contains(h.modelCapabilities(), "embedding")
 	case "rerank":

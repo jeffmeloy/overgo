@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,6 +24,37 @@ type objectiveRun struct {
 	Steps, Sequence            int
 	Host, FreezeLexical, Proof bool
 	MaxWall                    time.Duration
+	// LoRA, when set, trains an adapter over the frozen model instead of the
+	// model, on the host.
+	LoRA *trainingworkflow.LoRA
+}
+
+// loraAlphaPerRank is how many times its rank a LoRA adapter's alpha defaults
+// to, so its scale defaults to this many: the default LlamaFactory uses.
+const loraAlphaPerRank = 2
+
+// loraRequest is the LoRA run the -lora flags ask for: none when they ask for
+// none, an adapter of the given rank otherwise, or the one in the PEFT
+// directory from. Alpha defaults to loraAlphaPerRank times the rank; targets
+// are comma-separated projection names, all linear projections when empty.
+func loraRequest(rank int, alpha float64, targets string, seed uint64, from string) *trainingworkflow.LoRA {
+	if rank <= 0 && from == "" {
+		return nil
+	}
+	if alpha == 0 {
+		alpha = float64(rank * loraAlphaPerRank)
+	}
+	var names []string
+	for name := range strings.SplitSeq(targets, ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			names = append(names, name)
+		}
+	}
+	if from != "" {
+		// A continued adapter brings its own rank, alpha and targets.
+		return &trainingworkflow.LoRA{From: from}
+	}
+	return &trainingworkflow.LoRA{Rank: rank, Alpha: alpha, Targets: names, Seed: seed}
 }
 
 // objectiveConflictingFlags are the flags an -objective run cannot honour,
@@ -61,8 +93,8 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 	}
 	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
 		Alias: run.Alias, Recipe: recipeID, ModelDirectory: run.Model, OutputDirectory: run.Out, Steps: run.Steps, MaximumSequence: run.Sequence,
-		Host: run.Host, Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
-		Proof: run.Proof,
+		Host: run.Host || run.LoRA != nil, Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
+		Proof: run.Proof, LoRA: run.LoRA,
 	})
 	if err != nil {
 		return err
@@ -70,6 +102,11 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 	if run.Proof {
 		_, err = fmt.Fprintf(output, "training proof observation=%s trained=%s; no held-out verdict published\n", result.Observation, result.Trained)
 		return err
+	}
+	if run.LoRA != nil {
+		if _, err := fmt.Fprintf(output, "LoRA adapter written to %s as a PEFT directory\n", filepath.Join(run.Out, trainingworkflow.LoRAAdapterDirectory)); err != nil {
+			return err
+		}
 	}
 	return reportVerdict(output, result)
 }

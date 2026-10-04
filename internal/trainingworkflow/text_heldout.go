@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/densecausal"
 	"overgo/internal/hostoptimizer"
+	"overgo/internal/loratrain"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/strictjson"
@@ -57,6 +58,12 @@ type TextHeldoutRequest struct {
 	// Proof re-verifies the recipe by the training run alone, judging and
 	// publishing no verdict (HeldoutRun.Proof).
 	Proof bool
+	// LoRA, when set, trains a low-rank adapter over the frozen model rather
+	// than the model: the run is a host run, its program's parameters are the
+	// adapter's factors and the rate its recipe derives is for that many
+	// parameters. The checkpoint holds the model with the adapter merged, which
+	// the verdict judges, and the adapter beside it as a PEFT directory.
+	LoRA *LoRA
 }
 
 // promptAnswers is one record of a generation objective: a prompt and the
@@ -106,6 +113,9 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.Host && request.FreezeLexical {
 		return HeldoutResult{}, errors.New("training workflow: host and frozen lexical execution are incompatible")
 	}
+	if request.LoRA != nil && (!request.Host || request.FreezeLexical || request.Device != nil) {
+		return HeldoutResult{}, errors.New("training workflow: a LoRA run trains on the host and leaves the lexical table to the frozen base")
+	}
 	weights, err := IdentifyModelWeights(request.ModelDirectory)
 	if err != nil {
 		return HeldoutResult{}, err
@@ -138,6 +148,15 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 		return HeldoutResult{}, err
 	}
 	muonPlan, err := model.TrainingPlan()
+	var adapter *loratrain.Trainer
+	if request.LoRA != nil {
+		// The trainer leaves the model equal to the base until its first update, so the
+		// base's held-out answers below are the base's. Its plan, over the factors, is
+		// the one the program, the recipe's rate and the checkpoint name.
+		if adapter, err = request.LoRA.trainer(model, request.ModelDirectory); err == nil {
+			muonPlan = adapter.Plan()
+		}
+	}
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -181,12 +200,21 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 				}
 				return ctx.Err()
 			}
-			_, _, state, err := runTrainingState(model, batches, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, request.FreezeLexical, nil, observe, nil)
+			var state densecausal.TrainState
+			var companion func(stage string) error
+			if adapter != nil {
+				if _, err = adapter.Train(batches, config.BaseLearningRate, config.Momentum, observe); err == nil {
+					state, err = adapter.OptimizerState()
+				}
+				companion = adapterCompanion(adapter.Adapter())
+			} else {
+				_, _, state, err = runTrainingState(model, batches, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, request.FreezeLexical, nil, observe, nil)
+			}
 			if err != nil {
 				return trainingprogram.Checkpoint{}, err
 			}
 			stream := trainingdata.StreamState{Identity: data.Training, Position: position}
-			return publishTrainedText(ctx, store, request, model, muonPlan, recipeID, objective, stream, state)
+			return publishTrainedText(ctx, store, request, model, muonPlan, recipeID, objective, stream, state, companion)
 		},
 		Predict: func(example HeldoutExample) (HeldoutPrediction, error) {
 			if generation {
@@ -285,6 +313,7 @@ func publishTrainedText(
 	objective trainingprogram.ObjectiveDocument,
 	stream trainingdata.StreamState,
 	state densecausal.TrainState,
+	companion func(stage string) error,
 ) (trainingprogram.Checkpoint, error) {
 	if len(objective.Processors) != 1 {
 		return trainingprogram.Checkpoint{}, fmt.Errorf("training workflow: objective %q declares %d processors; a text checkpoint records one", objective.Name, len(objective.Processors))
@@ -309,7 +338,7 @@ func publishTrainedText(
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	checkpoint, err := publishCheckpoint(ctx, store, request.ModelDirectory, request.OutputDirectory, model, authority, state)
+	checkpoint, err := publishCheckpoint(ctx, store, request.ModelDirectory, request.OutputDirectory, model, authority, state, companion)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}

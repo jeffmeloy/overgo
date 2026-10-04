@@ -39,3 +39,33 @@ func TestInvariantPackagesExist(t *testing.T) {
 		}
 	}
 }
+
+// TestGeneratorsAreThoseTheRepositoryHas holds the derived-file stage to the
+// commands a repository has: the API manifest and the compatibility claims are
+// regenerated and rebound when their commands exist, and a tree without them,
+// a fixture's, has nothing to derive.
+func TestGeneratorsAreThoseTheRepositoryHas(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		commands []string
+		want     []string
+	}{
+		{nil, nil},
+		{[]string{"api-manifest"}, []string{"./cmd/api-manifest"}},
+		{[]string{"api-manifest", "validate"}, []string{"./cmd/api-manifest", "./cmd/validate"}},
+	} {
+		root := t.TempDir()
+		for _, command := range test.commands {
+			if err := os.MkdirAll(filepath.Join(root, "cmd", command), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var got []string
+		for _, generator := range (&landing{Options: Options{Repo: root}}).generators() {
+			got = append(got, generator.arguments[1])
+		}
+		if !slices.Equal(got, test.want) {
+			t.Errorf("commands %v derive with %v, want %v", test.commands, got, test.want)
+		}
+	}
+}

@@ -320,7 +320,8 @@
             "deleted-files-in-tests/do",
             "duplicate-model-identities/do",
             "media-delta-command/do",
-            "gate-preflight/do"
+            "gate-preflight/do",
+            "gate-rebinds-claims/do"
           ]
         }
       ]

@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "merge-by-id",
-          "title": "A merge's fine-tuned model is chosen by model id, and only a model of the base's tensors merges",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Review item 8: the fine-tuned choice is a file base name, so two catalogued models of one name fail the choice and a merge accepts any model with the same tensor shapes (a different tokenizer gives silent garbage), where modelmerge.TaskArithmetic admits only a task bound to the same base identity. Choose by model id and admit the pairs the base allows."
-        },
-        {
           "id": "do",
           "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
           "status": "open",

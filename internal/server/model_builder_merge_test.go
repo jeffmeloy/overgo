@@ -50,12 +50,11 @@ func ggufTensorValues(t *testing.T, path, name string) []float32 {
 	return values
 }
 
-// mergeFixture catalogues the hermetic model and a fine-tuned model sharing
-// its tensor inventory with every weight one higher.
-func mergeFixture(t *testing.T, store *overgodb.Store) (base, tuned string) {
+// writeTunedGGUF writes a fine-tuned copy of base, named tuned.gguf in a
+// directory of its own, with every weight shift higher.
+func writeTunedGGUF(t *testing.T, base string, shift float32) string {
 	t.Helper()
-	base = testutil.HermeticLlamaGGUF(t, 64)
-	tuned = filepath.Join(t.TempDir(), "tuned.gguf")
+	tuned := filepath.Join(t.TempDir(), "tuned.gguf")
 	source, err := gguf.Open(base)
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +65,7 @@ func mergeFixture(t *testing.T, store *overgodb.Store) (base, tuned string) {
 	}
 	if err := source.RewriteTo(destination, gguf.DTypeF32, func(_ gguf.TensorInfo, values []float32) error {
 		for index := range values {
-			values[index]++
+			values[index] += shift
 		}
 		return nil
 	}); err != nil {
@@ -75,6 +74,15 @@ func mergeFixture(t *testing.T, store *overgodb.Store) (base, tuned string) {
 	if err := errors.Join(source.Close(), destination.Close()); err != nil {
 		t.Fatal(err)
 	}
+	return tuned
+}
+
+// mergeFixture catalogues the hermetic model and a fine-tuned model sharing
+// its tensor inventory with every weight one higher.
+func mergeFixture(t *testing.T, store *overgodb.Store) (base, tuned string) {
+	t.Helper()
+	base = testutil.HermeticLlamaGGUF(t, 64)
+	tuned = writeTunedGGUF(t, base, 1)
 	for _, path := range []string{base, tuned} {
 		if err := servingtest.PublishActiveGGUFWithPolicy(t.Context(), store, path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
 			t.Fatal(err)
@@ -143,5 +151,60 @@ func TestModelBuilderMergeRun(t *testing.T) {
 	}
 	if _, err := execute(fold, `{}`); err == nil || !strings.Contains(err.Error(), "no implementation yet") {
 		t.Fatalf("the adapter fold: %v", err)
+	}
+}
+
+// TestModelBuilderTellsModelsOfOneFileNameApart holds the fine-tuned choice to
+// the names a person tells models apart by: two catalogued files of one name
+// are two choices, each with the folders that tell them apart, and a merge by
+// either choice takes that file, not the other.
+func TestModelBuilderTellsModelsOfOneFileNameApart(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	base := testutil.HermeticLlamaGGUF(t, 64)
+	first, second := writeTunedGGUF(t, base, 1), writeTunedGGUF(t, base, 2)
+	for _, path := range []string{base, first, second} {
+		if err := servingtest.PublishActiveGGUFWithPolicy(ctx, store, path, recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
+			t.Fatal(err)
+		}
+	}
+	workspace := NewGGUFWorkspace(store, t.TempDir(), 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
+	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowModelBuild)
+	if err != nil {
+		t.Fatal(err)
+	}
+	merge := capabilities[slices.IndexFunc(capabilities, func(capability WorkflowCapability) bool { return capability.Name == "hermetic.gguf" })]
+	choices := merge.Controls[0].Choices
+	if len(choices) != 2 || choices[0] == choices[1] || !strings.HasSuffix(choices[0], "/tuned.gguf") || !strings.HasSuffix(choices[1], "/tuned.gguf") {
+		t.Fatalf("two files of one name are offered as %v", choices)
+	}
+	if _, err := workspace.fineTuned(ctx, "tuned.gguf"); err == nil {
+		t.Fatal("the bare file name chose one of two files")
+	}
+	var inputs []artifact.ID
+	for _, choice := range choices {
+		completion, err := workspace.ExecuteWorkflow(ctx, workflowModelBuild, merge,
+			json.RawMessage(`{"fine_tuned":"`+choice+`","scale":0.5,"output":"merged-`+strings.ReplaceAll(choice, "/", "-")+`"}`), &recordingReporter{})
+		if err != nil {
+			t.Fatalf("merge by %s: %v", choice, err)
+		}
+		run, err := runrecord.RequireRun(ctx, store, completion.Run)
+		if err != nil || len(run.Inputs) != 2 {
+			t.Fatalf("run = %+v, %v", run, err)
+		}
+		inputs = append(inputs, run.Inputs[1])
+	}
+	if inputs[0] == inputs[1] {
+		t.Fatalf("both choices merged the same model %s", inputs[0])
+	}
+	// A merge that writes one of its inputs again made nothing new: it says so and leaves no output.
+	_, err = workspace.ExecuteWorkflow(ctx, workflowModelBuild, merge, json.RawMessage(`{"fine_tuned":"`+choices[0]+`","scale":1,"output":"same"}`), &recordingReporter{})
+	if err == nil || !strings.Contains(err.Error(), "one of the models it was made from") {
+		t.Fatalf("a merge at scale 1 = %v", err)
 	}
 }

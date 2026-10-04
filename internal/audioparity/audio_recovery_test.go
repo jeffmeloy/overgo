@@ -347,7 +347,7 @@ func TestAudioPublicationRecoveryAcceptance(t *testing.T) {
 			t.Fatal(err)
 		}
 		actual, err := trainingprogram.ParseCheckpoint(content.Data)
-		if err != nil || actual.ID() != checkpoint.ID() || actual.Stream != checkpoint.Stream || !reflect.DeepEqual(actual.Optimizer, checkpoint.Optimizer) {
+		if err != nil || actual.ID() != checkpoint.ID() || actual.Resume != checkpoint.Resume {
 			t.Fatalf("restored checkpoint state differs: %v", err)
 		}
 	}

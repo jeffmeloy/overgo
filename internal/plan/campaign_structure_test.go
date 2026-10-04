@@ -84,8 +84,8 @@ func TestStructuralCampaignPolicy(t *testing.T) {
 // Campaign closeout therefore cannot depend on it without changing the target plan.
 func preparedMergeBoundary(item Item) bool {
 	return preparedMergeShape(item) &&
-		(item.Steps[0].Verify == "go run ./cmd/compatibility -check" ||
-			strings.HasPrefix(item.Steps[0].Verify, "go run ./cmd/compatibility -check && "))
+		(item.Steps[0].Verify == "go run ./cmd/validate -claims" ||
+			strings.HasPrefix(item.Steps[0].Verify, "go run ./cmd/validate -claims && "))
 }
 
 func preparedMergeShape(item Item) bool {
@@ -102,10 +102,10 @@ func TestPreparedMergeBoundaryVerification(t *testing.T) {
 		verify string
 		want   bool
 	}{
-		{"go run ./cmd/compatibility -check", true},
-		{"go run ./cmd/compatibility -check && go test ./internal/server -run '^TestConversationHistoryPaging$' -count=1", true},
+		{"go run ./cmd/validate -claims", true},
+		{"go run ./cmd/validate -claims && go test ./internal/server -run '^TestConversationHistoryPaging$' -count=1", true},
 		{"go test ./internal/server -run '^TestConversationHistoryPaging$' -count=1", false},
-		{"go run ./cmd/compatibility -check || go test ./internal/server", false},
+		{"go run ./cmd/validate -claims || go test ./internal/server", false},
 	} {
 		item.Steps[0].Verify = test.verify
 		if got := preparedMergeBoundary(item); got != test.want {

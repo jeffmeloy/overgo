@@ -38,11 +38,11 @@ func TestScratchSharedHostRuntimeParity(t *testing.T) {
 	for index, value := range construction.weights {
 		weights[index] = float32(value)
 	}
-	model, err := construction.bindMADTransformer(weights)
+	model, err := construction.BindMADTransformer(weights)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gradient, err := construction.bindMADTransformer(gradients)
+	gradient, err := construction.BindMADTransformer(gradients)
 	if err != nil {
 		t.Fatal(err)
 	}

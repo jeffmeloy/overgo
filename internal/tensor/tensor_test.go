@@ -495,6 +495,46 @@ func TestBuilderUngatedMoE(t *testing.T) {
 	}
 }
 
+// TestBuilderMoEExpertBankStorage: a node's expert banks share one storage
+// the routed-expert kernels read -- F32, BF16 or a quantized type -- and keep
+// it as their input type.
+func TestBuilderMoEExpertBankStorage(t *testing.T) {
+	build := func(gateType, upType, downType dtype.Type) (*Tensor, error) {
+		builder := NewBuilder()
+		input := builder.Input("input", dtype.F32, MustShape(32, 1))
+		router := builder.Input("router", dtype.F32, MustShape(32, 3))
+		gate := builder.Input("gate", gateType, MustShape(32, 32, 3))
+		up := builder.Input("up", upType, MustShape(32, 32, 3))
+		down := builder.Input("down", downType, MustShape(32, 32, 3))
+		output := builder.MoEWithOptions(input, router, up, down, MoEOptions{Gate: gate, TopK: 2, NormalizeTopKProb: true, Scale: 1, Routing: MoERoutingSoftmax, Activation: MoEActivationSiLU, ExpertIndexDivisor: 1})
+		return output, builder.Err()
+	}
+	for _, storage := range []dtype.Type{dtype.F32, dtype.BF16, dtype.Q8_0} {
+		output, err := build(storage, storage, storage)
+		if err != nil {
+			t.Fatalf("%s expert banks: %v", storage, err)
+		}
+		if output.Type != dtype.F32 {
+			t.Fatalf("%s expert banks gave a %s output", storage, output.Type)
+		}
+		for _, bank := range output.Inputs[3:] {
+			if bank.Type != storage {
+				t.Fatalf("%s expert bank %q became %s", storage, bank.Name, bank.Type)
+			}
+		}
+	}
+	for _, banks := range [][3]dtype.Type{
+		{dtype.F32, dtype.BF16, dtype.BF16},
+		{dtype.BF16, dtype.BF16, dtype.F32},
+		{dtype.BF16, dtype.Q8_0, dtype.Q8_0},
+		{dtype.F16, dtype.F16, dtype.F16},
+	} {
+		if _, err := build(banks[0], banks[1], banks[2]); err == nil {
+			t.Fatalf("expert banks %v were accepted", banks)
+		}
+	}
+}
+
 func TestBuilderUngatedMoEWithSelectionBias(t *testing.T) {
 	builder := NewBuilder()
 	input := builder.Input("input", dtype.F32, MustShape(2, 1))

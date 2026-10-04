@@ -38,84 +38,6 @@ func ResidentPtr(base driver.DevicePtr, elems int) driver.DevicePtr {
 	return ptrAt(base, elems)
 }
 
-// StackForwardBackwardResidentWeights runs the whole pre-norm stack forward then
-// backward against PRE-UPLOADED, persistent-across-steps device weight buffers: the
-// matrix weights live in dW and their gradients are written into dG, both owned by
-// the caller and never round-tripped per step. Only the current norm-vector weights
-// (normWeights, host-owned because they take a sign update) are copied into dW at
-// the top of the session, and only the norm-vector gradients plus the embedding-
-// input gradient come back to the host. The layer math and fwd/bwd composition are
-// the shared runStack/forwardDevice/backwardDevice (single owner). Attention bias is
-// not supported. Same math as StackForwardBackwardResident, weights resident.
-func StackForwardBackwardResidentWeights(
-	worker *device.Worker,
-	embeds []float32,
-	dW, dG driver.DevicePtr,
-	offsets []LayerTensorOffsets,
-	vectorWeights []LayerTrainVectors,
-	invFreq []float32,
-	seq, hidden, heads, kvHeads, hd, inter int,
-	rmsEps float64,
-	tail func(final []float32) ([]float32, error),
-) ([]float32, []LayerTrainVectors, error) {
-	d := newLayerDims(seq, hidden, heads, kvHeads, hd, inter, rmsEps)
-	nL := len(offsets)
-	if nL == 0 || heads%kvHeads != 0 || len(embeds) != seq*hidden || len(invFreq) != hd/2 {
-		return nil, nil, fmt.Errorf("StackForwardBackwardResidentWeights: shape mismatch (layers=%d seq=%d hidden=%d heads=%d kv=%d hd=%d)", nL, seq, hidden, heads, kvHeads, hd)
-	}
-	if len(vectorWeights) != nL {
-		return nil, nil, fmt.Errorf("StackForwardBackwardResidentWeights: vectorWeights %d != layers %d", len(vectorWeights), nL)
-	}
-	for i, vectors := range vectorWeights {
-		biasOK := !offsets[i].AttnBias || len(vectors.QBias) == d.width && len(vectors.KBias) == d.kvWidth && len(vectors.VBias) == d.kvWidth
-		if len(vectors.InLN) != hidden || len(vectors.PostLN) != hidden || !biasOK {
-			return nil, nil, fmt.Errorf("StackForwardBackwardResidentWeights: layer %d vector length mismatch", i)
-		}
-	}
-
-	dxEmbed := make([]float32, seq*hidden)
-	vectorGrads := make([]LayerTrainVectors, nL)
-	for i := range vectorGrads {
-		vectorGrads[i] = LayerTrainVectors{InLN: make([]float32, hidden), PostLN: make([]float32, hidden)}
-		if offsets[i].AttnBias {
-			vectorGrads[i].QBias = make([]float32, d.width)
-			vectorGrads[i].KBias = make([]float32, d.kvWidth)
-			vectorGrads[i].VBias = make([]float32, d.kvWidth)
-		}
-	}
-
-	err := withCUDABLAS(worker, func(s *cudaBLAS) error {
-		ops, err := newLayerOps(s, stackFnNames, d, invFreq)
-		if err != nil {
-			return err
-		}
-		wp, gp, err := residentLayerPointers(s, dW, dG, offsets, vectorWeights, d)
-		if err != nil {
-			return err
-		}
-		dOutP, err := ops.runStack(embeds, wp, gp, tail)
-		if err != nil {
-			return err
-		}
-		// Matrix grads stay resident in dG; only norm-vector grads + dxEmbed come back.
-		downloads := make([]cudaDownload, 0, nL*2+1)
-		for i := range nL {
-			downloads = append(downloads,
-				cudaDownload{vectorGrads[i].InLN, gp[i].dInLN}, cudaDownload{vectorGrads[i].PostLN, gp[i].dPostLN})
-			if offsets[i].AttnBias {
-				downloads = append(downloads,
-					cudaDownload{vectorGrads[i].QBias, gp[i].dQBias}, cudaDownload{vectorGrads[i].KBias, gp[i].dKBias}, cudaDownload{vectorGrads[i].VBias, gp[i].dVBias})
-			}
-		}
-		downloads = append(downloads, cudaDownload{dxEmbed, dOutP})
-		return s.finish(downloads...)
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-	return dxEmbed, vectorGrads, nil
-}
-
 // ResidentSlice names a host buffer and the element offset of its device home
 // within a flat resident buffer, for batched partial transfers.
 type ResidentSlice struct {
@@ -178,21 +100,6 @@ func FreeResident(worker *device.Worker, ptrs ...driver.DevicePtr) error {
 			}
 		}
 		return err
-	})
-}
-
-// WriteResident copies host slices into the named element ranges of a flat
-// resident buffer in one session (host-to-device) -- the upload counterpart of
-// ReadResident. The resident training loop uses it to refresh the resident
-// gradient buffer with the host-computed per-step gradients without reallocating.
-func WriteResident(worker *device.Worker, base driver.DevicePtr, slices ...ResidentSlice) error {
-	return worker.Do(context.Background(), func(state *device.State) error {
-		for _, sl := range slices {
-			if err := state.Driver.MemcpyHtoD(ptrAt(base, sl.ElemOffset), driver.Bytes(sl.Data)); err != nil {
-				return err
-			}
-		}
-		return state.Driver.StreamSynchronize(state.Stream)
 	})
 }
 

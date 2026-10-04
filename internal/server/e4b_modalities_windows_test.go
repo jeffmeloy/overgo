@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -30,6 +31,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
@@ -85,9 +87,17 @@ func (r *e4bServingTrace) Generate(ctx context.Context, prompt string, options i
 	return ids, text, err
 }
 
+// e4bProtocolReverification is the decision a re-verification of the active
+// E4B projection recipe on this producer's proof records.
+const e4bProtocolReverification = "the HTTP protocol proof ran again under the active projection recipe and matched the native oracle"
+
 // TestE4BHTTPModalities is a serving producer, not dataset or resource acceptance.
 // Six input modes traverse all three protocols with one resident model. Expected
 // complete outputs come from the independent native SDPA captures, not this server.
+// Publishing, it records its proof in the store OVERGO_E4B_PUBLISH_STORE names,
+// else the data root's, and re-verifies the projection recipe on it when that
+// recipe is the active one, which is how validate -run keeps the activation's
+// proof current; another candidate stays unpromoted.
 func TestE4BHTTPModalities(t *testing.T) {
 	t.Parallel()
 	cudatest.Require(t)
@@ -106,8 +116,9 @@ func TestE4BHTTPModalities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	storeRoot := cmp.Or(os.Getenv("OVERGO_E4B_PUBLISH_STORE"), roots.Store)
 	ctx := t.Context()
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(storeRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +146,7 @@ func TestE4BHTTPModalities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := modelcli.OpenRunner(ctx, roots.Store, paths[0], inference.OpenOptions{})
+	runner, err := modelcli.OpenRunner(ctx, storeRoot, paths[0], inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +255,7 @@ func TestE4BHTTPModalities(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		writer, err := overgodb.Open(roots.Store)
+		writer, err := overgodb.Open(storeRoot)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -257,7 +268,18 @@ func TestE4BHTTPModalities(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("published complete HTTP protocol proof: gate=%s run=%s recipe=%s; projection remains unpromoted", proof.Gate, proof.Run, projectionCandidate.Definition.ID)
+		active, found, err := modelrecipe.ActiveRecord(ctx, writer, projectionCandidate.Definition.Model, recipe.TaskProjection)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !found || active.Definition.ID != projectionCandidate.Definition.ID {
+			t.Logf("published complete HTTP protocol proof: gate=%s run=%s recipe=%s; projection remains unpromoted", proof.Gate, proof.Run, projectionCandidate.Definition.ID)
+			return
+		}
+		if err := modelrecipe.ActivateCapability(ctx, writer, projectionCandidate.Definition, proof, recipe.EvidenceVerified, e4bProtocolReverification); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("re-verified the active projection recipe %s on its complete HTTP protocol proof: gate=%s run=%s", projectionCandidate.Definition.ID, proof.Gate, proof.Run)
 	}
 }
 

@@ -88,7 +88,7 @@ func TestWebUIBrowserRememberedSettings(t *testing.T) {
 	settle(`[...document.querySelectorAll('.artifact.msg.media')].some(card => !!card.querySelector('img'))`)
 
 	// Reloaded, the capability's entries return.
-	if err := browser.Evaluate(ctx, `location.reload()`, nil); err != nil {
+	if err := browser.Reload(ctx); err != nil {
 		t.Fatal(err)
 	}
 	open()

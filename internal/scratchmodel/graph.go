@@ -18,25 +18,30 @@ type ForwardGraph struct {
 	Parameters map[string]*tensor.Tensor
 	Mask       *tensor.Tensor
 	Hidden     *tensor.Tensor
-	positions  int
-	mask       []float32
-	embedding  *tensor.Tensor
-	tokenRows  *tensor.Tensor
-	layers     []forwardLayer
+	Positions  int
+	MaskValues []float32
+	Embedding  *tensor.Tensor
+	TokenRows  *tensor.Tensor
+	Layers     []ForwardLayer
 }
 
-type forwardHead struct {
-	query, scaledQuery, key, value, probability, temperatureScale *tensor.Tensor
+// ForwardHead is one attention head's retained forward tensors.
+type ForwardHead struct {
+	Query, ScaledQuery, Key, Value, Probability, TemperatureScale *tensor.Tensor
 }
 
-type forwardLayer struct {
-	input, qkvNorm, qkv                *tensor.Tensor
-	attention, attentionOutput         *tensor.Tensor
-	mlpNorm, preactivation, activation *tensor.Tensor
-	heads                              []forwardHead
+// ForwardLayer is one layer's retained forward tensors, the activations a
+// backward consumes.
+type ForwardLayer struct {
+	Input, QKVNorm, QKV                *tensor.Tensor
+	Attention, AttentionOutput         *tensor.Tensor
+	MLPNorm, Preactivation, Activation *tensor.Tensor
+	Heads                              []ForwardHead
 }
 
-func (c Construction) validateTokens(tokens []int) (int, error) {
+// ValidateTokens admits a token batch the context and vocabulary hold and
+// returns its prediction positions.
+func (c Construction) ValidateTokens(tokens []int) (int, error) {
 	if len(tokens) < 2 {
 		return 0, errors.New("scratch model: forward tokens absent")
 	}
@@ -54,7 +59,7 @@ func (c Construction) validateTokens(tokens []int) (int, error) {
 
 // CompileForwardGraph emits the corpus-derived model without a family runtime.
 func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
-	positions, err := c.validateTokens(tokens)
+	positions, err := c.ValidateTokens(tokens)
 	if err != nil {
 		return ForwardGraph{}, err
 	}
@@ -99,26 +104,26 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 	}
 	positionBias := builder.Reshape(parameters["pos_bias"], 1, uint64(c.config.BlockSize))
 	lagBias := builder.Reshape(builder.GetRows(positionBias, lagRows), uint64(positions), uint64(positions))
-	layers := make([]forwardLayer, c.config.LayerCount)
+	layers := make([]ForwardLayer, c.config.LayerCount)
 	for layer := range c.config.LayerCount {
 		prefix := fmt.Sprintf("l%d.", layer)
-		cache := forwardLayer{input: hidden, heads: make([]forwardHead, c.config.HeadCount)}
-		cache.qkvNorm = norm(hidden)
-		cache.qkv = builder.MulMat(parameters[prefix+"wqkv"], cache.qkvNorm)
+		cache := ForwardLayer{Input: hidden, Heads: make([]ForwardHead, c.config.HeadCount)}
+		cache.QKVNorm = norm(hidden)
+		cache.QKV = builder.MulMat(parameters[prefix+"wqkv"], cache.QKVNorm)
 		var attention *tensor.Tensor
 		temperature := builder.GetRows(parameters["lt"], []uint32{uint32(layer)})
 		for head := range c.config.HeadCount {
 			offset := uint64(head * c.config.HeadDim)
 			q := builder.Reshape(
-				builder.GroupSlice(cache.qkv, offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
+				builder.GroupSlice(cache.QKV, offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
 				uint64(c.config.HeadDim), uint64(positions),
 			)
 			k := builder.Reshape(
-				builder.GroupSlice(cache.qkv, uint64(c.config.Embedding)+offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
+				builder.GroupSlice(cache.QKV, uint64(c.config.Embedding)+offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
 				uint64(c.config.HeadDim), uint64(positions),
 			)
 			v := builder.Reshape(
-				builder.GroupSlice(cache.qkv, uint64(2*c.config.Embedding)+offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
+				builder.GroupSlice(cache.QKV, uint64(2*c.config.Embedding)+offset, uint64(c.config.HeadDim), 1, uint64(3*c.config.Embedding)),
 				uint64(c.config.HeadDim), uint64(positions),
 			)
 			temperatureScale := builder.Exp(builder.Scale(builder.FlatSlice(temperature, uint64(head), 1, 1), -1))
@@ -126,9 +131,9 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 			scores := builder.Add(builder.Add(builder.MulMat(k, scaledQuery), lagBias), mask)
 			probability := builder.Softmax(scores)
 			context := builder.MulMat(builder.Transpose2D(v), probability)
-			cache.heads[head] = forwardHead{
-				query: q, scaledQuery: scaledQuery, key: k, value: v,
-				probability: probability, temperatureScale: temperatureScale,
+			cache.Heads[head] = ForwardHead{
+				Query: q, ScaledQuery: scaledQuery, Key: k, Value: v,
+				Probability: probability, TemperatureScale: temperatureScale,
 			}
 			if attention == nil {
 				attention = context
@@ -136,12 +141,12 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 				attention = builder.Concat(attention, context, 0)
 			}
 		}
-		cache.attention = attention
-		cache.attentionOutput = builder.Add(hidden, builder.MulMat(parameters[prefix+"wo"], attention))
-		cache.mlpNorm = norm(cache.attentionOutput)
-		cache.preactivation = builder.MulMat(parameters[prefix+"w1"], cache.mlpNorm)
-		cache.activation = activate(cache.preactivation)
-		hidden = builder.Add(cache.attentionOutput, builder.MulMat(parameters[prefix+"w2"], cache.activation))
+		cache.Attention = attention
+		cache.AttentionOutput = builder.Add(hidden, builder.MulMat(parameters[prefix+"wo"], attention))
+		cache.MLPNorm = norm(cache.AttentionOutput)
+		cache.Preactivation = builder.MulMat(parameters[prefix+"w1"], cache.MLPNorm)
+		cache.Activation = activate(cache.Preactivation)
+		hidden = builder.Add(cache.AttentionOutput, builder.MulMat(parameters[prefix+"w2"], cache.Activation))
 		layers[layer] = cache
 	}
 	output := builder.MulMat(parameters["lm_head"], hidden)
@@ -150,16 +155,18 @@ func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
 	}
 	return ForwardGraph{
 		Output: output, Parameters: parameters, Mask: mask, Hidden: hidden,
-		positions: positions, mask: maskValues, embedding: embedding, tokenRows: tokenLookup, layers: layers,
+		Positions: positions, MaskValues: maskValues, Embedding: embedding, TokenRows: tokenLookup, Layers: layers,
 	}, nil
 }
 
-func (g ForwardGraph) cacheOutputs() []*tensor.Tensor {
-	outputs := []*tensor.Tensor{g.Output, g.Hidden, g.embedding}
-	for _, layer := range g.layers {
-		outputs = append(outputs, layer.input, layer.qkvNorm, layer.qkv, layer.attention, layer.attentionOutput, layer.mlpNorm, layer.preactivation, layer.activation)
-		for _, head := range layer.heads {
-			outputs = append(outputs, head.query, head.scaledQuery, head.key, head.value, head.probability, head.temperatureScale)
+// CacheOutputs lists the forward tensors a backward reads: the output, the
+// hidden and embedded streams, and every layer's and head's activations.
+func (g ForwardGraph) CacheOutputs() []*tensor.Tensor {
+	outputs := []*tensor.Tensor{g.Output, g.Hidden, g.Embedding}
+	for _, layer := range g.Layers {
+		outputs = append(outputs, layer.Input, layer.QKVNorm, layer.QKV, layer.Attention, layer.AttentionOutput, layer.MLPNorm, layer.Preactivation, layer.Activation)
+		for _, head := range layer.Heads {
+			outputs = append(outputs, head.Query, head.ScaledQuery, head.Key, head.Value, head.Probability, head.TemperatureScale)
 		}
 	}
 	return outputs
@@ -167,7 +174,7 @@ func (g ForwardGraph) cacheOutputs() []*tensor.Tensor {
 
 // Feeds materializes graph feeds from one flat parameter slab.
 func (g ForwardGraph) Feeds(c Construction, slab []float32) (map[*tensor.Tensor]reference.Value, error) {
-	if g.Output == nil || g.Mask == nil || g.positions <= 0 || len(g.Parameters) != len(c.parameters) || len(slab) != len(c.weights) {
+	if g.Output == nil || g.Mask == nil || g.Positions <= 0 || len(g.Parameters) != len(c.parameters) || len(slab) != len(c.weights) {
 		return nil, errors.New("scratch model: forward graph or slab differs")
 	}
 	feeds := make(map[*tensor.Tensor]reference.Value, len(g.Parameters)+1)
@@ -182,7 +189,7 @@ func (g ForwardGraph) Feeds(c Construction, slab []float32) (map[*tensor.Tensor]
 		}
 		feeds[input] = value
 	}
-	mask, err := reference.NewValue(g.Mask.Shape, g.mask)
+	mask, err := reference.NewValue(g.Mask.Shape, g.MaskValues)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +197,9 @@ func (g ForwardGraph) Feeds(c Construction, slab []float32) (map[*tensor.Tensor]
 	return feeds, nil
 }
 
-func (c Construction) initialF32() []float32 {
+// InitialWeights copies the constructed parameter slab, each parameter at
+// its Offset.
+func (c Construction) InitialWeights() []float32 {
 	return slices.Clone(c.weights)
 }
 

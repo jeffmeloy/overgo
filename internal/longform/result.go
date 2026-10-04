@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -102,56 +100,10 @@ type Result struct {
 }
 
 // Summary is the latest committed long-form record for one weights
-// location, as the report and the suite admission read it.
+// location, as the report reads it.
 type Summary struct {
 	Record artifact.ID
 	Result Result
-}
-
-// ReadBaseline resolves an explicit passing record and verifies its checkpoint binding.
-// Legacy admission records remain readable but cannot establish input-safe regression evidence.
-func ReadBaseline(ctx context.Context, store *overgodb.Store, id artifact.ID) (Summary, error) {
-	content, found, err := artifact.ReadContent(ctx, store, id)
-	if err != nil {
-		return Summary{}, err
-	}
-	if !found {
-		return Summary{}, fmt.Errorf("longform: baseline %s is absent", id)
-	}
-	record, err := runrecord.ParseModelVerification(content.Data)
-	if err != nil {
-		return Summary{}, err
-	}
-	if record.ID != id {
-		return Summary{}, errors.New("longform: baseline record identity differs")
-	}
-	for _, claim := range record.Claims {
-		if claim.Capability != Capability || len(claim.Evidence) != 1 {
-			continue
-		}
-		content, found, err := artifact.ReadContent(ctx, store, claim.Evidence[0])
-		if err != nil {
-			return Summary{}, err
-		}
-		if !found {
-			return Summary{}, errors.New("longform: baseline measurement is absent")
-		}
-		var result Result
-		if err := json.Unmarshal(content.Data, &result); err != nil {
-			return Summary{}, err
-		}
-		if !result.Inputs.valid() || result.Inputs.Model != record.Model || result.Commit != claim.Commit || result.Surface == "" {
-			return Summary{}, errors.New("longform: baseline lacks matching model, input or provenance identity")
-		}
-		if !result.RealizedResidency.Valid() {
-			return Summary{}, errors.New("longform: baseline lacks realized residency")
-		}
-		if !result.Verdict.Passed || len(result.Verdict.Reasons) != 0 || len(result.Rungs) == 0 || len(result.Shape.OutputIDs) == 0 {
-			return Summary{}, errors.New("longform: baseline is failed or incomplete")
-		}
-		return Summary{Record: id, Result: result}, nil
-	}
-	return Summary{}, errors.New("longform: baseline has no long-form measurement")
 }
 
 // Claim shapes the result into one capability-measured claim over its
@@ -256,34 +208,3 @@ func Key(path string) string {
 }
 
 func locationKey(path string) string { return Key(path) }
-
-// Latest reads the newest committed long-form record for one location.
-func Latest(ctx context.Context, store *overgodb.Store, location string) (Summary, bool) {
-	summary, found := LatestByLocation(ctx, store, 0)[Key(location)]
-	return summary, found
-}
-
-// ErrRefused marks a suite admission the long-form evidence refuses.
-var ErrRefused = errors.New("long-form verification refuses the suite pass")
-
-// Admit decides whether a suite pass may run the model on this
-// inference code surface (owner rule 2026-09-04): the latest long-form
-// record must exist, must have run on the same surface, and must have
-// passed its floors. The message names the run that lifts the refusal.
-func Admit(ctx context.Context, store *overgodb.Store, location, surface string) error {
-	rerun := fmt.Sprintf("run: go run ./cmd/longform -publish -budget <measured-duration> %q", location)
-	summary, found := Latest(ctx, store, location)
-	switch {
-	case !found:
-		return fmt.Errorf("%w: no long-form record for %s; %s", ErrRefused, location, rerun)
-	case summary.Result.Surface != surface:
-		return fmt.Errorf("%w: the long-form record for %s measured inference surface %.12s (commit %.12s), the code is surface %.12s; %s",
-			ErrRefused, location, summary.Result.Surface, summary.Result.Commit, surface, rerun)
-	case !summary.Result.Verdict.Passed:
-		return fmt.Errorf("%w: %s failed its floors on this surface (%s); fix the runtime, then %s",
-			ErrRefused, location, strings.Join(summary.Result.Verdict.Reasons, "; "), rerun)
-	case !summary.Result.RealizedResidency.Valid():
-		return fmt.Errorf("%w: the long-form record for %s lacks realized residency; %s", ErrRefused, location, rerun)
-	}
-	return nil
-}

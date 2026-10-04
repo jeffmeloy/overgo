@@ -1,14 +1,11 @@
 package hfconvert
 
 import (
-	"cmp"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/hfgguf"
 	"overgo/internal/hfrepo"
-	"overgo/internal/testskip"
+	"overgo/internal/modeltest"
 )
 
 // TestDeepSeekOCRProjectorReadsBackThroughItsRuntime holds the mmproj the
@@ -19,11 +16,7 @@ import (
 // carries the device; this package does.
 func TestDeepSeekOCRProjectorReadsBackThroughItsRuntime(t *testing.T) {
 	t.Parallel()
-	directory := cmp.Or(os.Getenv("OVERGO_DEEPSEEK_OCR_CHECKPOINT"), filepath.Join("C:/Users/jeffm/adaptive_new/models", "Unlimited-OCR"))
-	if _, err := os.Stat(filepath.Join(directory, "config.json")); err != nil {
-		testskip.NotApplicable(t, "no DeepSeek-OCR checkpoint at "+directory)
-	}
-	repository, err := hfrepo.Open(directory)
+	repository, err := hfrepo.Open(modeltest.Directory(t, "Unlimited-OCR"))
 	if err != nil {
 		t.Fatal(err)
 	}

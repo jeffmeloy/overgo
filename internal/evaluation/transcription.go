@@ -23,6 +23,9 @@ const (
 
 	transcriptionReportMedia  = "application/vnd.overgo.transcription-report+json"
 	transcriptionReportSchema = "overgo/transcription-report/v1"
+
+	// wordErrorRateMetric names a slice's word error rate among its metrics.
+	wordErrorRateMetric = "wer"
 )
 
 var transcriptionReportContract = artifact.DocumentContract{
@@ -554,7 +557,7 @@ func transcriptionSliceMetrics(suffix string, value transcriptionSlice) []runrec
 		{Name: "silent-control-failures" + suffix, Value: float64(value.SilentControlFailures), Unit: "count", Direction: runrecord.DirectionMinimize},
 		{Name: "silent-controls" + suffix, Value: float64(value.SilentControls), Unit: "count", Direction: runrecord.DirectionNeutral},
 		{Name: "utterances" + suffix, Value: float64(value.Utterances), Unit: "count", Direction: runrecord.DirectionNeutral},
-		{Name: "wer" + suffix, Value: value.WordErrorRate, Unit: "ratio", Direction: runrecord.DirectionMinimize},
+		{Name: wordErrorRateMetric + suffix, Value: value.WordErrorRate, Unit: "ratio", Direction: runrecord.DirectionMinimize},
 	}
 }
 

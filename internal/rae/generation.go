@@ -1,6 +1,7 @@
 package rae
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"slices"
@@ -28,24 +29,38 @@ func (m *diffusionTransformer) timeGrid(steps int) []float32 {
 	return grid
 }
 
-// generate samples a class from channel-first noise: the DiT's velocity
-// integrated by Euler over the shifted grid of steps points, the latent it
-// reaches decoded to pixels.
-func generate(model *diffusionTransformer, decoder *vitDecoder, noise []float32, label, steps int) ([]float32, error) {
+// sample integrates the DiT's velocity for a class from channel-first noise
+// by Euler over the shifted grid of steps points and returns the latent it
+// reaches. Above a guidance scale of one, each step's velocity is pushed
+// away from the null class's by that scale, as the reference's
+// forward_with_cfg does; at one the class velocity alone drives the step.
+func (m *diffusionTransformer) sample(ctx context.Context, noise []float32, label, steps int, guidance float32) ([]float32, error) {
 	if steps < minimumSteps {
 		return nil, fmt.Errorf("rae: a sample needs at least %d grid points, got %d", minimumSteps, steps)
 	}
-	grid := model.timeGrid(steps)
+	grid := m.timeGrid(steps)
 	latent := slices.Clone(noise)
 	for index := range steps - 1 {
-		velocity, err := model.velocity(latent, grid[index], label)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		velocity, err := m.velocity(latent, grid[index], label)
 		if err != nil {
 			return nil, err
+		}
+		if guidance > 1 {
+			unconditional, err := m.velocity(latent, grid[index], m.classes)
+			if err != nil {
+				return nil, err
+			}
+			for position, value := range unconditional {
+				velocity[position] = value + guidance*(velocity[position]-value)
+			}
 		}
 		step := grid[index+1] - grid[index]
 		for position, value := range velocity {
 			latent[position] += step * value
 		}
 	}
-	return decoder.decode(latent)
+	return latent, nil
 }

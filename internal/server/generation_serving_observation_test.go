@@ -12,15 +12,16 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/scorecard"
-	"overgo/internal/scorecard/metric"
+	"overgo/internal/runrecord"
 )
 
 // TestGenerationRunPublishesServingObservation runs one image generation
 // that succeeds and one that fails through the store generation workspace,
-// and holds the scorecard's row for the model to what a user met: one
-// failure in two attempts, a time to the whole output, and the device
-// memory the successful run peaked at.
+// and holds the serving observations the scorecard counts to what a user
+// met: two attempts under the activation's recipe, one failed, and a
+// success that carries its time to the whole output and the device memory
+// it peaked at. The scorecard's own tests turn such observations into
+// cells.
 func TestGenerationRunPublishesServingObservation(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -30,6 +31,10 @@ func TestGenerationRunPublishesServingObservation(t *testing.T) {
 	}
 	defer store.Close()
 	modelID := activatedImageModel(t, store)
+	activation, found, err := modelrecipe.ActiveRecord(ctx, store, modelID, recipe.TaskImageGen)
+	if err != nil || !found {
+		t.Fatalf("activation = (%v, %v)", found, err)
+	}
 	const peak = 3 << 20
 	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
 		Execute: func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
@@ -51,24 +56,35 @@ func TestGenerationRunPublishesServingObservation(t *testing.T) {
 	if _, err := workspace.ExecuteWorkflow(ctx, workflowGeneration, capabilities[0], json.RawMessage(`{"class":2}`), reporter); err == nil {
 		t.Fatal("the refused generation succeeded")
 	}
-	rows, err := scorecard.Build(ctx, store)
-	if err != nil {
+	outcomes := map[runrecord.Outcome]int{}
+	for _, observation := range storedServingObservations(t, store) {
+		if observation.Model != modelID || observation.Recipe != activation.Definition.ID || observation.Task != recipe.TaskImageGen {
+			t.Fatalf("observation %+v is not under the activation's model, recipe and task", observation)
+		}
+		outcomes[observation.Outcome]++
+		if observation.Outcome == runrecord.OutcomeSucceeded && (observation.MeasuredNS == 0 || observation.Resources.PeakDeviceBytes != peak) {
+			t.Fatalf("the success records %d ns and %d peak bytes, want the whole output's time and %d bytes",
+				observation.MeasuredNS, observation.Resources.PeakDeviceBytes, peak)
+		}
+	}
+	if outcomes[runrecord.OutcomeSucceeded] != 1 || outcomes[runrecord.OutcomeFailed] != 1 || len(outcomes) != 2 {
+		t.Fatalf("observed outcomes %v, want one success and one failure", outcomes)
+	}
+}
+
+// storedServingObservations is every serving observation the store holds,
+// oldest first.
+func storedServingObservations(t *testing.T, store *overgodb.Store) []runrecord.ServingObservation {
+	t.Helper()
+	var observations []runrecord.ServingObservation
+	if _, err := overgodb.VisitDecodedDocuments(t.Context(), store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema}},
+		Order:     overgodb.DocumentOldestFirst,
+	}, runrecord.ParseServingObservation, func(_ overgodb.DocumentView, observation runrecord.ServingObservation) error {
+		observations = append(observations, observation)
+		return nil
+	}); err != nil {
 		t.Fatal(err)
 	}
-	for _, row := range rows {
-		if row.Model != modelID || row.Task != recipe.TaskImageGen {
-			continue
-		}
-		if cell := row.Cells[metric.Failures]; !cell.Measured() || cell.Value != 0.5 {
-			t.Fatalf("failure cell = %+v, want one failure in two attempts", cell)
-		}
-		if cell := row.Cells[metric.FirstOutput]; !cell.Measured() || cell.Unit != "ms" {
-			t.Fatalf("first-output cell = %+v, want the whole output's time", cell)
-		}
-		if cell := row.Cells[metric.PeakMemory]; !cell.Measured() || cell.Value != peak {
-			t.Fatalf("peak-memory cell = %+v, want %d bytes", cell, peak)
-		}
-		return
-	}
-	t.Fatalf("the scorecard has no image row for %s: %+v", modelID, rows)
+	return observations
 }

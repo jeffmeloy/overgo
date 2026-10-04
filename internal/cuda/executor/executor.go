@@ -716,6 +716,7 @@ type CompiledGraph struct {
 	// matmulStagingBytes: shared exact-weight or tensor-core-input scratch.
 	matmulStagingBytes uint64
 	// attentionScoreBytes: cuBLAS attention score staging ([heads][chunk][keys] F32)
+	// and the routed-expert scratch, each live only inside its own node.
 	attentionScoreBytes uint64
 }
 
@@ -1145,6 +1146,16 @@ func compileGraph(externalOutputs bool, program tensor.Program) (*CompiledGraph,
 				compiled.needBlas = true
 				compiled.matmulStagingBytes = max(compiled.matmulStagingBytes, conv2DStagingBytes)
 			}
+		}
+		if node.Op == tensor.OpMoE {
+			// Routed experts keep one launch group's scratch in the score
+			// staging, which the BLAS state owns.
+			group, tokenBytes, scratchErr := moeScratchGroup(node)
+			if scratchErr != nil {
+				return nil, scratchErr
+			}
+			compiled.needBlas = true
+			compiled.attentionScoreBytes = max(compiled.attentionScoreBytes, uint64(group)*tokenBytes)
 		}
 		// Every column count stages: prefill chunks its columns through
 		// the span kernel, so the workspace holds the whole right operand.

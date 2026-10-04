@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"maps"
@@ -79,11 +80,13 @@ func openTemplateRunner(t *testing.T, contextLength uint32, template string, ada
 	return runner
 }
 
-// TestResponsesContinueSavedSession: a turn stopped after three tokens keeps
-// its token context, and continuing it produces the tokens and text of the
-// uninterrupted greedy turn while recomputing one token; a continuation that
-// asks another sampler, or that another model serves, is refused with why.
-func TestResponsesContinueSavedSession(t *testing.T) {
+// TestContinuationRestoresSamplerState: a seeded stochastic turn under a
+// grammar it is partway through, stopped after three tokens, keeps its token
+// context and sampler state, and continuing it produces the tokens and text
+// of the uninterrupted turn while recomputing one token; a continuation that
+// asks another sampler, that another model serves, or whose turn kept no
+// sampler state, is refused with why.
+func TestContinuationRestoresSamplerState(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -120,9 +123,12 @@ func TestResponsesContinueSavedSession(t *testing.T) {
 		}
 		return tokens, transcript.Messages[len(transcript.Messages)-1].Content
 	}
-	turn := map[string]any{"input": "ab", "temperature": 0, "ignore_eos": true, "max_output_tokens": 8, "store": true}
+	// A fresh grammar would begin again with "ab"; only the turn's own state
+	// lets the continuation keep drawing c and d.
+	turn := map[string]any{"input": "ab", "temperature": 1, "seed": 3, "grammar": `root ::= "a" "b" [cd]+`,
+		"ignore_eos": true, "max_output_tokens": 8, "store": true}
 
-	// The uninterrupted greedy turn reaches its output limit and keeps its context.
+	// The uninterrupted turn reaches its output limit and keeps its context.
 	code, reference := post(handler, maps.Clone(turn))
 	if code != http.StatusOK || reference["status"] != "incomplete" {
 		t.Fatalf("reference status=%d %v", code, reference)
@@ -177,25 +183,59 @@ func TestResponsesContinueSavedSession(t *testing.T) {
 	if !slices.Equal(continuedTokens.Tokens, referenceTokens.Tokens) || continuedText != referenceText {
 		t.Fatalf("continued %v %q, uninterrupted %v %q", continuedTokens.Tokens, continuedText, referenceTokens.Tokens, referenceText)
 	}
+	// Continued as the page does, stored and streamed, a page that follows
+	// the turn while the server still holds it replays the whole reply, the
+	// stopped partial included, as the stored message reads.
+	replayed := func(body string) (id, text string) {
+		for line := range strings.Lines(body) {
+			var event struct {
+				Type, Delta string
+				Response    struct{ ID string }
+			}
+			if data, found := strings.CutPrefix(strings.TrimSpace(line), "data: "); found && json.Unmarshal([]byte(data), &event) == nil {
+				id = cmp.Or(id, event.Response.ID)
+				if event.Type == "response.output_text.delta" {
+					text += event.Delta
+				}
+			}
+		}
+		return id, text
+	}
+	streamedContinuation := serveTestRequest(handler, http.MethodPost, "/v1/responses",
+		`{"model":"`+testModelID+`","previous_response_id":"`+stoppedID+`","continue":true,"max_output_tokens":5,"stream":true,"store":true}`)
+	continuationID, _ := replayed(streamedContinuation.Body.String())
+	followed := serveTestRequest(handler, http.MethodGet, "/interactions/follow?model="+testModelID+"&response="+continuationID, "")
+	if _, text := replayed(followed.Body.String()); followed.Code != http.StatusOK || text != referenceText {
+		t.Fatalf("following the continued turn %s replayed %q (status %d), want the whole reply %q", continuationID, text, followed.Code, referenceText)
+	}
 
-	// Followed mid-turn, a continuation shows the reply it stores: the
-	// stopped words, then its own.
-	runner.reached = make(chan struct{})
-	runner.armed.Store(true)
-	followed := make(chan struct{})
-	go func() {
-		defer close(followed)
-		serveTestRequest(handler, http.MethodPost, "/v1/responses",
-			`{"model":"`+testModelID+`","previous_response_id":"`+stoppedID+`","continue":true,"stream":true,"store":true,"max_output_tokens":5}`)
-	}()
-	<-runner.reached
-	runningID := runningResponse(t, handler)
-	following, _ := handler.inflight.lookup(runningID)
-	text, _, _, _, _ := following.snapshot()
-	serveTestRequest(handler, http.MethodPost, "/interactions/cancel", `{"response":"`+runningID+`","model":"`+testModelID+`"}`)
-	<-followed
-	if _, storedText := stored(runningID); text != storedText {
-		t.Fatalf("a followed continuation showed %q, and stopped there it stored %q", text, storedText)
+	// The same stopped turn kept without its sampler state is refused, not
+	// restarted from its parameters.
+	var parameters continuationParameters
+	if err := json.Unmarshal(stoppedTokens.Sampling, &parameters); err != nil || len(parameters.State) == 0 {
+		t.Fatalf("stopped turn kept sampling %s (%v), want its sampler state", stoppedTokens.Sampling, err)
+	}
+	parameters.State = nil
+	stateless, err := json.Marshal(parameters)
+	if err != nil {
+		t.Fatal(err)
+	}
+	interaction, _, err := runrecord.ResolveInteraction(t.Context(), store, stoppedID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transcript, err := runrecord.RequireInteractionTranscript(t.Context(), store, interaction.Message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept := turnRecord{context: &runrecord.InteractionContext{Tokens: stoppedTokens.Tokens, Sampling: stateless, Held: stoppedTokens.Held}}
+	if err := handler.publishResponseInteraction(t.Context(), "resp_stateless", interaction.Parent,
+		responseMessages(transcript.Messages), runrecord.OutcomeCancelled, "", kept); err != nil {
+		t.Fatal(err)
+	}
+	code, refused = post(handler, map[string]any{"previous_response_id": "resp_stateless", "continue": true, "max_output_tokens": 5})
+	if code != http.StatusConflict || !strings.Contains(refused["error"].(map[string]any)["message"].(string), "cannot resume its sampler") {
+		t.Fatalf("stateless continuation status=%d %v", code, refused)
 	}
 }
 

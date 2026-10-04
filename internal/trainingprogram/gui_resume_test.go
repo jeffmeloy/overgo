@@ -2,6 +2,8 @@ package trainingprogram
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -46,10 +48,10 @@ func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 	algorithmID := id(artifact.KindProfile, "resume-rng")
 	routerPolicy := id(artifact.KindRecipe, "router-policy")
 	routerState := RouterControllerState{Policy: routerPolicy, Stratum: splitID, Layer: 3, NextBias: []float32{-0.25, 0.25}}
-	checkpoint, err := NewCheckpoint(CheckpointSpec{
+	checkpoint, directory := publishTestCheckpoint(t, CheckpointSpec{
 		RunPlan: id(artifact.KindRecipe, "prior-run-plan"), Program: program.ID(), Model: modelID,
 		Dataset: datasetID, Split: splitID, Stream: DatasetState{Identity: streamID},
-		Optimizer: state.Snapshot(), ParameterCount: len(state.Snapshot().Momentum),
+		Optimizer: state.Snapshot(), ParameterCount: state.Snapshot().Parameters(),
 		RNG: []RNGState{
 			{Name: "augmentation", Algorithm: algorithmID},
 			{Name: "data", Algorithm: algorithmID},
@@ -57,11 +59,8 @@ func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 		Processors: []artifact.ID{processorID}, Projectors: []artifact.ID{projectorID}, Codecs: []artifact.ID{codecID},
 		Lineage:           []LineageParent{{Artifact: modelID, Relation: artifact.RelationTrainedFrom}},
 		RouterControllers: []RouterControllerState{routerState},
-	}, id(artifact.KindTensorSet, "resume-weights"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := checkpoint.Marshal()
+	})
+	encoded, err := os.ReadFile(filepath.Join(directory, CheckpointFilename))
 	if err != nil {
 		t.Fatal(err)
 	}

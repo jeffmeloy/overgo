@@ -4,6 +4,7 @@ package webuilane
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha1"
@@ -160,6 +161,11 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 			return nil, errors.Join(err, browser.Close())
 		}
 	}
+	// Every document the target loads gets the binding a wait reports the
+	// page's state through.
+	if err := browser.Call(ctx, "Runtime.addBinding", map[string]any{"name": pageStateBinding}, nil); err != nil {
+		return nil, errors.Join(err, browser.Close())
+	}
 	// Downloads belong to this run and leave with its temporary profile;
 	// the browser reports each download's progress as events.
 	if err := browser.Call(ctx, "Browser.setDownloadBehavior", map[string]any{
@@ -230,44 +236,120 @@ func (browser *Browser) Evaluate(ctx context.Context, expression string, result 
 // Eventually waits for a JavaScript predicate: the page re-checks it on each
 // of its own animation frames and answers once it holds, so the wait follows
 // the page's clock under the caller's context; a check a navigation
-// interrupts is asked again of the new document.
+// interrupts is asked again of the new document. A wait that ends without
+// its predicate carries what the page last reported: its ready state, its
+// panels' text and the last error the workspace recorded.
 func (browser *Browser) Eventually(ctx context.Context, expression string) error {
 	for {
+		var answer json.RawMessage
+		err := browser.Evaluate(ctx, predicateWait(expression), &answer)
 		var ready bool
-		err := browser.Evaluate(ctx, predicateWait(expression), &ready)
-		if err == nil && ready {
+		if err == nil && json.Unmarshal(answer, &ready) == nil && ready {
 			return nil
 		}
-		if cause := context.Cause(ctx); cause != nil {
-			return errors.Join(errors.New("webui lane: browser predicate did not become true"), cause)
+		var shown string
+		if err == nil && json.Unmarshal(answer, &shown) == nil {
+			return fmt.Errorf("webui lane: the page's shell failed to start, so the predicate cannot hold: %s", shown)
 		}
-		if err == nil {
-			return errors.New("webui lane: browser predicate wait answered without holding")
+		switch cause := context.Cause(ctx); {
+		case cause != nil:
+			err = errors.Join(errors.New("webui lane: browser predicate did not become true"), cause)
+		case err == nil:
+			err = errors.New("webui lane: browser predicate wait answered without holding")
+		case navigationInterrupted(err):
+			continue
 		}
-		if !navigationInterrupted(err) {
-			return err
-		}
+		return browser.withPageState(err)
 	}
+}
+
+// withPageState adds to a wait's failure what the page last reported.
+func (browser *Browser) withPageState(err error) error {
+	if browser == nil || browser.socket == nil {
+		return err
+	}
+	browser.socket.mu.Lock()
+	defer browser.socket.mu.Unlock()
+	return fmt.Errorf("%w; the page last reported %s", err, cmp.Or(browser.socket.pageState, "nothing"))
+}
+
+// Reload reloads the page and returns once the new document has loaded, so
+// a check that follows reads the reloaded page, never the one it replaced:
+// the replaced document carries a mark the reloaded one lacks.
+func (browser *Browser) Reload(ctx context.Context) error {
+	if err := browser.Evaluate(ctx, `window.webuiLaneReplaced = true; location.reload()`, nil); err != nil && !navigationInterrupted(err) {
+		return err
+	}
+	return browser.Eventually(ctx, `!window.webuiLaneReplaced && document.readyState === "complete"`)
 }
 
 // predicateWait wraps a predicate in a promise the page resolves once it
 // holds; a predicate that answers a promise (a fetch) holds on what the
 // promise settles to, never on the promise itself; a throwing or rejecting
 // predicate reads as not yet holding, and a hidden page checks on its task
-// queue where animation frames stop.
+// queue where animation frames stop. Every DOM mutation and visibility
+// change also asks again: a page whose frames stall (a headless page the
+// browser stops drawing) still answers once what it shows holds. A shell
+// that failed to start offers only a page reload, after which nothing can
+// hold, so the wait answers with what the page shows instead. The wait
+// reports the page's state through the binding when it starts and whenever
+// what the page shows changes, so a wait that never answers has still told
+// the lane what the page last showed.
 func predicateWait(expression string) string {
 	return `new Promise((resolve) => {
-	const check = () => {
+	let done = false;
+	const holds = () => {
 		let answer = false;
 		try { answer = (` + expression + `); } catch (_) { answer = false; }
-		Promise.resolve(answer).then((ready) => ready, () => false).then((ready) => {
-			if (ready) { resolve(true); return; }
-			if (document.visibilityState === "visible") requestAnimationFrame(check); else setTimeout(check);
+		return Promise.resolve(answer).then((ready) => ready, () => false);
+	};
+	const failed = () => [...document.querySelectorAll("#panels button")].some((button) => button.textContent === "Reload the page");
+	const report = () => {
+		if (typeof window.` + pageStateBinding + ` !== "function") return;
+		const bound = ` + strconv.Itoa(pageStateCharacters) + `;
+		const text = (document.getElementById("panels") || {innerText: ""}).innerText.trim();
+		const errors = (window.overgo && window.overgo.errors) || [];
+		const state = "readyState " + document.readyState + ", panels " + JSON.stringify(text.length > 2 * bound ? text.slice(0, bound) + " ... " + text.slice(-bound) : text) +
+			", last error " + JSON.stringify(errors.at(-1) ?? null);
+		if (state === window.webuiLaneReported) return;
+		window.webuiLaneReported = state;
+		window.` + pageStateBinding + `(state);
+	};
+	const observer = new MutationObserver(() => poke());
+	const finish = (answer) => {
+		if (done) return;
+		done = true;
+		observer.disconnect();
+		document.removeEventListener("visibilitychange", poke);
+		resolve(answer);
+	};
+	const settle = (ready) => {
+		if (ready) finish(true);
+		else if (failed()) finish(document.getElementById("panels").innerText);
+		return done;
+	};
+	const poke = () => { if (!done) { report(); holds().then(settle); } };
+	const loop = () => {
+		if (done) return;
+		holds().then((ready) => {
+			if (settle(ready)) return;
+			if (document.visibilityState === "visible") requestAnimationFrame(loop); else setTimeout(loop);
 		});
 	};
-	check();
+	observer.observe(document, {childList: true, subtree: true, attributes: true, characterData: true});
+	document.addEventListener("visibilitychange", poke);
+	report();
+	loop();
 })`
 }
+
+// pageStateBinding is the page function a wait reports the page's state
+// through; the browser relays each call to the lane as an event.
+const pageStateBinding = "webuiLanePageState"
+
+// pageStateCharacters bounds each end of the panels text a reported state
+// carries: the start names the screen, the end what changed last.
+const pageStateCharacters = 400
 
 // navigationInterrupted recognises the DevTools errors a navigation raises
 // against an evaluation in the document it replaced.
@@ -382,6 +464,8 @@ type webSocket struct {
 	// events retains the download events read while answering calls, so a
 	// download that completes during another call is still observed.
 	events []cdpEvent
+	// pageState is what the page last reported it showed.
+	pageState string
 }
 
 // cdpEvent is one unsolicited DevTools message.
@@ -529,10 +613,15 @@ func (socket *webSocket) cancelReads(ctx context.Context) func() {
 	}
 }
 
-// retainEvent keeps an event the waits observe later.
+// retainEvent keeps an event the waits observe later, and the state the
+// page last reported through its binding.
 func (socket *webSocket) retainEvent(event cdpEvent) {
-	if strings.HasPrefix(event.Method, retainedEventPrefix) {
+	var called struct{ Payload string }
+	switch {
+	case strings.HasPrefix(event.Method, retainedEventPrefix):
 		socket.events = append(socket.events, event)
+	case event.Method == "Runtime.bindingCalled" && json.Unmarshal(event.Params, &called) == nil:
+		socket.pageState = called.Payload
 	}
 }
 

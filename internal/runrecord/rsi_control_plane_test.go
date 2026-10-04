@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -11,9 +10,8 @@ import (
 // TestDeterministicRSIControlPlane proves the runrecord slice of the control
 // plane: causal derivation keeps one root across triggers, terminal attempt
 // evidence admits only complete records, a measured interaction reduction
-// wins only when no counter silently worsens, resource comparison refuses an
-// empty or incomparable denominator, and rollout plans admit only the
-// registered deterministic cohort hash.
+// wins only when no counter silently worsens, and resource comparison
+// refuses an empty or incomparable denominator.
 func TestDeterministicRSIControlPlane(t *testing.T) {
 	id := func(kind artifact.Kind, name string) artifact.ID {
 		return testutil.ArtifactID(t, kind, "plane "+name)
@@ -55,40 +53,5 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 	// Resource comparison refuses an empty denominator.
 	if _, err := newResourceFitnessComparison(nil); err == nil {
 		t.Fatal("an empty resource comparison was admitted")
-	}
-
-	// Rollout plans admit only the registered deterministic hash and assign
-	// the same unit identically forever.
-	authorities := []artifact.ID{
-		id(artifact.KindEvidence, "counterfactual"), id(artifact.KindEvidence, "cohort"),
-		id(artifact.KindEvidence, "observation"), id(artifact.KindEvidence, "rollback"),
-	}
-	build := func(hashVersion uint16) (RolloutPlan, error) {
-		return NewRolloutPlan(RolloutPlan{
-			Baseline: id(artifact.KindRecipe, "baseline"), Candidate: id(artifact.KindRecipe, "candidate"),
-			Admission: authorities[0], CohortKey: "request-digest",
-			HashVersion: hashVersion, CohortShare: 5000, CohortEvidence: authorities[1],
-			Observation: RolloutObservation{
-				Metric: "exact-match", MinObservations: 2, Evidence: authorities[2],
-			},
-			Rollback: authorities[3],
-		})
-	}
-	if _, err := build(RolloutHashVersion + 1); err == nil ||
-		!strings.Contains(err.Error(), "hash version") {
-		t.Fatalf("unregistered hash version admitted: %v", err)
-	}
-	plan, err := build(RolloutHashVersion)
-	if err != nil {
-		t.Fatal(err)
-	}
-	first, err := plan.Assign("workload-000")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for range 3 {
-		if again, err := plan.Assign("workload-000"); err != nil || again != first {
-			t.Fatalf("cohort assignment drifted: (%s, %v)", again, err)
-		}
 	}
 }

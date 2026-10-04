@@ -2,21 +2,30 @@ package evaluation
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
+	"overgo/internal/hostoptimizer"
+	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
+	"overgo/internal/runrecord"
 	"overgo/internal/trainingprogram"
 )
 
-// heldoutFixture is a forecast objective bound to the training half of a
-// real group split, its held-out view, and a numeric plan over the held-out
-// records.
+// heldoutFixture is a forecast or table objective bound to the training half
+// of a real group split, its held-out view, and the held-out plan its metric
+// compiles over the held-out records' cases.
 type heldoutFixture struct {
 	objective trainingprogram.ObjectiveDocument
 	view      SFTEvaluationView
-	plan      NumericTargetPlan
+	plan      HeldoutPlan
+	cases     []HeldoutCase
 	split     dataset.SplitPlan
 }
 
@@ -71,30 +80,107 @@ func newHeldoutFixture(t *testing.T, metric trainingprogram.EvaluationMetric) he
 	if err != nil {
 		t.Fatal(err)
 	}
-	suite := NumericTargetSuite{Scorers: []NumericScorerSpec{{Kind: NumericAbsoluteError}, {Kind: numericLabelAccuracy}}}
+	var cases []HeldoutCase
 	for index, record := range view.Records {
-		suite.Cases = append(suite.Cases, NumericTargetCase{Record: record.ID, Values: []float64{float64(index), 1}, Label: "rising"})
+		cases = append(cases, HeldoutCase{Record: record.ID, Values: []float64{float64(index), 1}, Label: "rising"})
 	}
-	plan, err := CompileNumericTargetPlan(view, suite)
+	plan, err := CompileHeldoutPlan(objective, view, cases)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return heldoutFixture{objective: objective, view: view, plan: plan, split: split}
+	return heldoutFixture{objective: objective, view: view, plan: plan, cases: cases, split: split}
+}
+
+// heldoutTraining publishes a checkpoint that trained a stand-in model on
+// training of source and returns what a verdict binds of it. With a store,
+// it commits the checkpoint's record and a succeeded training session
+// observing that model; without one, the observation is a stand-in.
+func heldoutTraining(t *testing.T, store artifact.Repository, source, training artifact.ID) HeldoutTraining {
+	t.Helper()
+	ctx := t.Context()
+	derived := func(kind artifact.Kind, role string) artifact.ID {
+		id, err := artifact.IdentifyBytes(kind, []byte("overgo/heldout-training-test/"+role))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	const parameters = 4
+	plan, err := hostoptimizer.CompilePlan(parameters, []hostoptimizer.GroupSpec{{Name: "weight", End: parameters, Rows: 2, Cols: 2}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config, err := trainingprogram.BuiltinOptimizerPolicy().Config(parameters)
+	if err != nil {
+		t.Fatal(err)
+	}
+	muon, err := hostoptimizer.New(make([]float32, parameters), slices.Repeat([]float32{1}, parameters), plan, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	muon.Step()
+	state := muon.Snapshot()
+	model, rng := derived(artifact.KindModel, "model"), derived(artifact.KindProfile, "rng")
+	directory := filepath.Join(t.TempDir(), "checkpoint")
+	checkpoint, err := trainingprogram.PublishCheckpoint(directory, trainingprogram.CheckpointSpec{
+		RunPlan: derived(artifact.KindRecipe, "run plan"), Program: derived(artifact.KindRecipe, "program"), Model: model,
+		Dataset: source, Split: training, Stream: trainingprogram.DatasetState{Identity: derived(artifact.KindProfile, "stream"), Position: 1},
+		Optimizer: state, ParameterCount: state.Parameters(),
+		RNG:        []trainingprogram.RNGState{{Name: "augmentation", Algorithm: rng}, {Name: "data", Algorithm: rng}},
+		Processors: []artifact.ID{derived(artifact.KindProfile, "processor")},
+		Lineage:    []trainingprogram.LineageParent{{Artifact: model, Relation: artifact.RelationTrainedFrom}},
+	}, func(stage string) error {
+		return os.WriteFile(filepath.Join(stage, trainingprogram.CheckpointWeights), []byte("trained weights"), 0o600)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := HeldoutTraining{Observation: derived(artifact.KindEvidence, "observation"), Model: model, Trained: checkpoint, Inputs: derived(artifact.KindProfile, "inputs")}
+	if store == nil {
+		return result
+	}
+	record, err := checkpoint.Batch("test-checkpoint/"+checkpoint.ID().String(), directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	environment, err := runrecord.CurrentEnvironment("cpu", "host")
+	if err != nil {
+		t.Fatal(err)
+	}
+	environmentContent, err := environment.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	recipeID := derived(artifact.KindRecipe, "recipe")
+	record.Artifacts = append(record.Artifacts, artifact.Descriptor{ID: model}, artifact.Descriptor{ID: recipeID})
+	record.Contents = append(record.Contents, environmentContent)
+	if _, err := artifact.Publish(ctx, store, record); err != nil {
+		t.Fatal(err)
+	}
+	observation, err := runrecord.PublishServingObservation(ctx, store, runrecord.ServingObservation{
+		Model: model, Recipe: recipeID, Environment: environment.ID,
+		Task: recipe.TaskTraining, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 1, MeasuredNS: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.Observation = observation.ID
+	return result
 }
 
 // score reports each held-out case's values shifted by offset and labeled
 // label, as a model's forecasts would be.
-func (f heldoutFixture) score(t *testing.T, offset float64, label string) NumericTargetReport {
+func (f heldoutFixture) score(t *testing.T, offset float64, label string) HeldoutReport {
 	t.Helper()
-	var observations []NumericTargetObservation
-	for _, target := range f.plan.Cases {
+	var observations []HeldoutObservation
+	for _, target := range f.cases {
 		values := make([]float64, len(target.Values))
 		for index, value := range target.Values {
 			values[index] = value + offset
 		}
-		observations = append(observations, NumericTargetObservation{Record: target.Record, Values: values, Label: label})
+		observations = append(observations, HeldoutObservation{Record: target.Record, Values: values, Label: label})
 	}
-	report, err := ScoreNumericTargets(f.plan, observations)
+	report, err := f.plan.Score(observations)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,12 +191,21 @@ func (f heldoutFixture) score(t *testing.T, offset float64, label string) Numeri
 // the metric the objective declares, in that metric's direction: a trained
 // model passes only by strictly improving it over the base model on the
 // same held-out plan. An equal score, a metric no numeric scorer measures,
-// and reports scored for another objective's view are refused or fail.
+// reports scored for another objective's view, and a checkpoint that
+// trained on another membership or model are refused or fail.
 func TestHeldoutVerdictRequiresStrictGainOnDeclaredMetric(t *testing.T) {
 	t.Parallel()
 	forecast := newHeldoutFixture(t, trainingprogram.MetricForecastMAE)
-	observation := forecast.objective.Evidence[0]
+	observation := heldoutTraining(t, nil, forecast.objective.Dataset, forecast.view.TrainingMembership)
 	base, better, same := forecast.score(t, 2, "falling"), forecast.score(t, 1, "falling"), forecast.score(t, -2, "falling")
+	for name, mismatched := range map[string]HeldoutTraining{
+		"another membership": heldoutTraining(t, nil, forecast.objective.Dataset, forecast.view.HeldoutMembership),
+		"another model":      {Observation: observation.Observation, Model: forecast.objective.Dataset, Trained: observation.Trained, Inputs: observation.Inputs},
+	} {
+		if _, err := JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, better, mismatched); err == nil {
+			t.Fatalf("a checkpoint that trained %s was judged", name)
+		}
+	}
 	verdict, err := JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, better, observation)
 	if err != nil || !verdict.Passed || verdict.BaselineValue != 2 || verdict.CandidateValue != 1 {
 		t.Fatalf("a lower held-out MAE = (%+v, %v), want a passed verdict", verdict, err)
@@ -135,5 +230,100 @@ func TestHeldoutVerdictRequiresStrictGainOnDeclaredMetric(t *testing.T) {
 	psnr.Metric = trainingprogram.MetricImagePSNRUnit
 	if _, err := JudgeHeldout(psnr, forecast.view, forecast.plan, base, better, observation); err == nil {
 		t.Fatal("a metric no held-out numeric scorer measures was judged")
+	}
+}
+
+// TestCommittedVerdictRescoresItsReports approves a committed forecast
+// verdict only when each of its reports is what the cases it retains score
+// to: a trained report that omits a held-out case, or one whose mean error
+// was lowered without its cases, judges as passed but is refused once
+// committed.
+func TestCommittedVerdictRescoresItsReports(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	forecast := newHeldoutFixture(t, trainingprogram.MetricForecastMAE)
+	commit := func(key string, stage func(string) (artifact.Batch, error), declared ...artifact.ID) {
+		t.Helper()
+		batch, err := stage(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range declared {
+			batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: id})
+		}
+		if _, err := artifact.Publish(ctx, store, batch); err != nil {
+			t.Fatal(err)
+		}
+	}
+	commit("test-split", func(key string) (artifact.Batch, error) { return forecast.split.PublicationBatch(key, nil) }, forecast.objective.Dataset)
+	commit("test-objective", func(key string) (artifact.Batch, error) {
+		content, err := forecast.objective.Content()
+		return artifact.Batch{Key: key, Contents: []artifact.Content{content}}, err
+	})
+	session := heldoutTraining(t, store, forecast.objective.Dataset, forecast.view.TrainingMembership)
+	spec := forecast.objective.ObjectiveSpec
+	spec.Evidence = append(slices.Clone(spec.Evidence), session.Observation)
+	current, err := trainingprogram.NewObjective(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, better := forecast.score(t, 2, "falling"), forecast.score(t, 1, "falling")
+	commit("test-view", forecast.view.Batch, forecast.objective.Processors...)
+	commit("test-plan", forecast.plan.Batch)
+	commit("test-base", base.Batch)
+	judge := func(key string, candidate HeldoutReport, wantPassed bool) (bool, error) {
+		t.Helper()
+		commit(key+"-report", candidate.Batch)
+		verdict, err := JudgeHeldout(forecast.objective, forecast.view, forecast.plan, base, candidate, session)
+		if err != nil || verdict.Passed != wantPassed {
+			t.Fatalf("%s verdict = (passed=%t, %v), want passed=%t", key, verdict.Passed, err, wantPassed)
+		}
+		commit(key, verdict.Batch)
+		passed, approvalErr := CommittedHeldoutVerdictPassed(ctx, store, verdict.ID, current)
+		var visited []EvalSummary
+		visitErr := VisitHeldoutVerdicts(ctx, store, func(_ artifact.ID, _, trained EvalSummary) error {
+			visited = append(visited, trained)
+			return nil
+		})
+		if approvalErr != nil {
+			if visitErr == nil || len(visited) != 0 {
+				t.Fatalf("%s invalid verdict reached reporting: %+v, %v", key, visited, visitErr)
+			}
+		} else if visitErr != nil || len(visited) == 0 || visited[0].Record != verdict.ID || visited[0].Metrics[string(verdict.Metric)] != verdict.CandidateValue {
+			t.Fatalf("%s reporting = (%+v, %v), want the reconstructed value including a valid loss", key, visited, visitErr)
+		}
+		return passed, approvalErr
+	}
+	if passed, err := judge("test-honest", better, true); err != nil || !passed {
+		t.Fatalf("the honest committed verdict = (%t, %v), want passed", passed, err)
+	}
+	if passed, err := judge("test-loss", forecast.score(t, 3, "falling"), false); err != nil || passed {
+		t.Fatalf("the valid losing verdict = (%t, %v), want measured but not passed", passed, err)
+	}
+	retained, err := numericTargetReportCodec.Require(ctx, store, better.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	omitted := cloneNumericTargetReport(retained)
+	omitted.Records = omitted.Records[1:]
+	omitted.Metrics[0].Value = 0
+	for _, record := range omitted.Records {
+		omitted.Metrics[0].Value += record.Scores[0].Value / float64(len(omitted.Records))
+	}
+	lowered := cloneNumericTargetReport(retained)
+	lowered.Metrics[0].Value /= 2
+	for name, report := range map[string]numericTargetReport{"omitted": omitted, "lowered": lowered} {
+		tampered, err := numericTargetReportCodec.New(report)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if passed, err := judge("test-"+name, tampered.heldout(), true); err == nil || passed || !strings.Contains(err.Error(), "does not rescore") {
+			t.Fatalf("a committed verdict on the %s report = (%t, %v), want it refused", name, passed, err)
+		}
 	}
 }

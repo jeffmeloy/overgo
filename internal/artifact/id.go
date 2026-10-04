@@ -122,7 +122,9 @@ func Identify(kind Kind, reader io.Reader) (ID, uint64, error) {
 		return ID{}, 0, errors.New("artifact: invalid kind")
 	}
 	hasher := sha256.New()
-	count, err := io.CopyBuffer(hasher, reader, make([]byte, identifyBufferBytes))
+	// Keep reads at the requested size even when the source implements
+	// WriterTo, whose own copy can use a smaller buffer.
+	count, err := io.CopyBuffer(hasher, struct{ io.Reader }{reader}, make([]byte, identifyBufferBytes))
 	if err != nil {
 		return ID{}, 0, fmt.Errorf("artifact: hash content: %w", err)
 	}

@@ -40,8 +40,8 @@ var modalitySurfaces = map[SurfaceID]surfaceRoots{
 
 // kindValidation lists the appropriate validations for one declared task, each
 // bound to the surface that pins its evidence. Dispatch is by task, never by
-// model name: a text inference model earns a guard and the accuracy benchmarks,
-// an image-gen model its generation proof, and so on.
+// model name: an inference model earns a guard, a measured serving attempt and
+// the accuracy benchmarks, an image-gen model its generation proof, and so on.
 func kindValidation(task recipe.Task) []struct {
 	Validation string
 	Surface    SurfaceID
@@ -52,7 +52,11 @@ func kindValidation(task recipe.Task) []struct {
 	}
 	switch string(task) {
 	case "inference":
-		return []cell{{"guard", "inference"}, {"mmlu-pro", "evaluation"}, {"bbh", "evaluation"}, {"ifeval", "evaluation"}}
+		cells := []cell{{guardValidation, "inference"}, {servingValidation, "inference"}}
+		for _, family := range benchmarkFamilies {
+			cells = append(cells, cell{family, "evaluation"})
+		}
+		return cells
 	case "projection":
 		return []cell{{"projection-proof", "evaluation"}}
 	case "image-gen":
@@ -93,45 +97,32 @@ func testOrDocPath(path string) bool {
 	return strings.HasPrefix(slash, "docs/")
 }
 
-// surfaceAffected derives, from a commit's changed paths, which modality
-// surfaces the change can move. A module/kernel/driver change moves every
-// surface; a change under a surface's package closure moves that surface; test
-// and documentation changes move nothing. This is the commit-change-driven core
-// of "no unnecessary testing".
-func surfaceAffected(ctx context.Context, root string, changed []string) (map[SurfaceID]AffectRecord, error) {
-	global := ""
+// AffectRecord records whether changes moved one surface and why.
+type AffectRecord struct {
+	Affected bool
+	Reason   string
+}
+
+// surfaceMoves says whether changed paths move the surface whose package
+// directories are dirs, and why: an authority path moves it, as it moves
+// every surface, and so does a change under one of its directories; test and
+// documentation changes move nothing. The current-evidence decision judges a
+// commit-bound record's movement by it.
+func surfaceMoves(dirs, changed []string) AffectRecord {
+	for _, path := range changed {
+		if !testOrDocPath(path) && globalAuthorityPath(path) {
+			return AffectRecord{Affected: true, Reason: "authority path " + filepath.ToSlash(path) + " moves every surface"}
+		}
+	}
 	for _, path := range changed {
 		if testOrDocPath(path) {
 			continue
 		}
-		if globalAuthorityPath(path) {
-			global = filepath.ToSlash(path)
-			break
+		if dir, ok := containingDirectory(dirs, filepath.ToSlash(path)); ok {
+			return AffectRecord{Affected: true, Reason: "changed " + filepath.ToSlash(path) + " in surface package " + dir}
 		}
 	}
-	out := make(map[SurfaceID]AffectRecord, len(modalitySurfaces))
-	for id, surface := range modalitySurfaces {
-		if global != "" {
-			out[id] = AffectRecord{Affected: true, Reason: "authority path " + global + " moves every surface"}
-			continue
-		}
-		dirs, err := surfaceDirectories(ctx, root, surface.roots)
-		if err != nil {
-			return nil, err
-		}
-		rec := AffectRecord{}
-		for _, path := range changed {
-			if testOrDocPath(path) {
-				continue
-			}
-			if dir, ok := containingDirectory(dirs, filepath.ToSlash(path)); ok {
-				rec = AffectRecord{Affected: true, Reason: "changed " + filepath.ToSlash(path) + " in surface package " + dir}
-				break
-			}
-		}
-		out[id] = rec
-	}
-	return out, nil
+	return AffectRecord{}
 }
 
 // containingDirectory reports the surface package directory that holds a path.

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/composition"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
+	"overgo/internal/trainingworkflow"
 )
 
 // Composition-viability protocol, written before the run (Probe Discipline):
@@ -46,7 +46,7 @@ func TestComponentCompositionViability(t *testing.T) {
 		t.Fatalf("recorded profile stream too short: %d tokens", len(tokens))
 	}
 	started := time.Now()
-	result, err := composition.RunViability(composition.Config{
+	result, err := trainingworkflow.RunGraftViability(trainingworkflow.GraftConfig{
 		TargetDir: targetDir, DonorDir: donorDir,
 		GraftLayer: -1, DonorLayer: -1,
 		Seeds: compositionSeeds, Steps: compositionSteps,

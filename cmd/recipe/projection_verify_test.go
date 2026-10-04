@@ -251,7 +251,7 @@ func testExactTerminalReplay(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			err = verifyExactRuntime(t.Context(), store, definition, revision, suite, exact, modelDefinition, makeRuntime())
+			verified, err := verifyExactRuntime(t.Context(), store, definition, revision, suite, exact, modelDefinition, makeRuntime())
 			wantFailure := outcome == "mismatch" || outcome == "cleanup failure" || outcome == "missing ledger"
 			if (err != nil) != wantFailure {
 				t.Fatalf("initial verification: %v", err)
@@ -281,9 +281,12 @@ func testExactTerminalReplay(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = verifyExactRuntime(t.Context(), store, definition, revision, suite, exact, modelDefinition, makeRuntime())
+			replayed, err := verifyExactRuntime(t.Context(), store, definition, revision, suite, exact, modelDefinition, makeRuntime())
 			if (err != nil) != wantFailure {
 				t.Fatalf("replayed verification: %v", err)
+			}
+			if !wantFailure && (replayed != verified || replayed.Gate != retained.Gate.ID || replayed.Run != retained.Run.ID) {
+				t.Fatalf("replay names verification %+v, want the one it recorded %+v", replayed, verified)
 			}
 			if outcome == "cleanup failure" && !strings.Contains(err.Error(), fixture.closeErr.Error()) {
 				t.Fatal("cleanup failure lost", err)

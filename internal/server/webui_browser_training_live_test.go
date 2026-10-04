@@ -135,7 +135,7 @@ func TestWebUIBrowserTrainingLive(t *testing.T) {
 	settle(`!!trainingTrend() && trainingTrend().textContent.startsWith('dpo_loss · 3 steps') && !!trainingTrend().querySelector('svg')`)
 
 	// Reloaded mid-run, the page follows the same run with the loss so far.
-	if err := browser.Evaluate(ctx, `location.reload()`, nil); err != nil {
+	if err := browser.Reload(ctx); err != nil {
 		t.Fatal(err)
 	}
 	open()

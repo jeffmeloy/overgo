@@ -51,6 +51,7 @@ func TestIsRawGreedyRejectsLogitTransforms(t *testing.T) {
 		"temperature":         {Temperature: 0.5},
 		"dynamic temperature": {Temperature: 0, DynatempRange: 0.5},
 		"no greedy stage":     {Temperature: 0, Samplers: []SamplerStage{SamplerTopK}},
+		"empty chain":         {Temperature: 0, Samplers: []SamplerStage{}},
 		"penalty":             {Temperature: 0, RepeatLastN: -1, RepeatPenalty: 1.1},
 		"bias":                {Temperature: 0, LogitBiases: []LogitBias{{Token: 1, Bias: 1}}},
 		"xtc":                 {Temperature: 0, XTCProbability: 1},
@@ -86,37 +87,43 @@ func TestTopKOneIsGreedy(t *testing.T) {
 	}
 }
 
+// TestBoundedTopKMatchesFullPipeline: the bounded prefix samples as the full
+// pipeline does, for a named order and for the order an omitted one resolves to.
 func TestBoundedTopKMatchesFullPipeline(t *testing.T) {
-	config := Config{
-		Temperature: 0.8, TopK: 3, TopP: 0.9, MinP: 0.05, Seed: 42,
-		Samplers: DefaultSamplerOrder(), RepeatPenalty: 1,
-	}
-	full, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bounded, err := New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if limit, ok := bounded.BoundedTopK(); !ok || limit != config.TopK {
-		t.Fatalf("bounded top-K = %d, %v", limit, ok)
-	}
-	logits := []float32{0.2, 1.4, -0.1, 2.1, 0.7}
-	ids := []int{3, 1, 4}
-	values := []float32{logits[3], logits[1], logits[4]}
-	for index := range 50 {
-		want, sampleErr := full.Sample(logits)
-		if sampleErr != nil {
-			t.Fatal(sampleErr)
-		}
-		got, sampleErr := bounded.SampleTopK(ids, values, len(logits))
-		if sampleErr != nil {
-			t.Fatal(sampleErr)
-		}
-		if got != want {
-			t.Fatalf("sample %d = %d, want %d", index, got, want)
-		}
+	for name, order := range map[string][]SamplerStage{"named": defaultSamplerOrder, "omitted": nil} {
+		t.Run(name, func(t *testing.T) {
+			config := Config{
+				Temperature: 0.8, TopK: 3, TopP: 0.9, MinP: 0.05, Seed: 42,
+				Samplers: order, RepeatPenalty: 1,
+			}
+			full, err := New(config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bounded, err := New(config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if limit, ok := bounded.BoundedTopK(); !ok || limit != config.TopK {
+				t.Fatalf("bounded top-K = %d, %v", limit, ok)
+			}
+			logits := []float32{0.2, 1.4, -0.1, 2.1, 0.7}
+			ids := []int{3, 1, 4}
+			values := []float32{logits[3], logits[1], logits[4]}
+			for index := range 50 {
+				want, sampleErr := full.Sample(logits)
+				if sampleErr != nil {
+					t.Fatal(sampleErr)
+				}
+				got, sampleErr := bounded.SampleTopK(ids, values, len(logits))
+				if sampleErr != nil {
+					t.Fatal(sampleErr)
+				}
+				if got != want {
+					t.Fatalf("sample %d = %d, want %d", index, got, want)
+				}
+			}
+		})
 	}
 }
 
@@ -375,6 +382,31 @@ func TestParseSamplerOrderAndRejectUnknown(t *testing.T) {
 	empty, err := ParseSamplerOrder("none")
 	if err != nil || empty == nil || len(empty) != 0 {
 		t.Fatalf("empty order = %#v, %v", empty, err)
+	}
+	// The parsed empty chain runs no stage: with top-k 1 configured, an
+	// omitted order keeps the argmax while the empty chain draws from the
+	// whole distribution.
+	drew, logits := map[int]bool{}, []float32{1, 1.5, 1.2}
+	for seed := range int64(64) {
+		for _, order := range [][]SamplerStage{nil, empty} {
+			sampler, newErr := New(Config{Temperature: 1, TopK: 1, Seed: seed, Samplers: order})
+			if newErr != nil {
+				t.Fatal(newErr)
+			}
+			id, sampleErr := sampler.Sample(logits)
+			if sampleErr != nil {
+				t.Fatal(sampleErr)
+			}
+			if order == nil && id != 1 {
+				t.Fatalf("omitted order with top-k 1 drew %d at seed %d", id, seed)
+			}
+			if order != nil {
+				drew[id] = true
+			}
+		}
+	}
+	if len(drew) != len(logits) {
+		t.Fatalf("empty chain drew only %v", drew)
 	}
 	if _, err := ParseSamplerOrder("top_k;tfs_z"); err == nil {
 		t.Fatal("unsupported sampler was accepted")

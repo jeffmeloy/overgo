@@ -40,6 +40,7 @@ type CompiledSuite struct {
 	acceptance AcceptancePolicy
 	evaluator  Evaluator
 	execute    func(context.Context, artifact.Repository, Runtime) (suiteResult, error)
+	source     []byte // the suite document, which a replay samples
 }
 
 func (suite CompiledSuite) Descriptor() SuiteDescriptor { return suite.descriptor }
@@ -47,6 +48,15 @@ func (suite CompiledSuite) Descriptor() SuiteDescriptor { return suite.descripto
 func (suite CompiledSuite) Plan() Plan { return suite.plan }
 
 func CompileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, error) {
+	suite, err := compileSuite(data, authorities)
+	if err != nil {
+		return CompiledSuite{}, err
+	}
+	suite.source = data
+	return suite, nil
+}
+
+func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, error) {
 	var envelope struct {
 		Kind string `json:"kind"`
 	}

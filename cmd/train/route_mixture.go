@@ -4,8 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"math"
-	"os"
 	"path/filepath"
 	"slices"
 	"time"
@@ -38,7 +36,7 @@ const shortestNextTokenWindow = 2
 // plan, proves descent by re-evaluating the same window's loss after the
 // observed steps, and publishes the trained model as a checkpoint, all under
 // a supervised session.
-func trainMixture(flags *flag.FlagSet, args []string) error {
+func trainMixture(ctx context.Context, flags *flag.FlagSet, args []string) (err error) {
 	modelDir := flags.String("model", "", "model directory (safetensors + config.json + tokenizer.json)")
 	datasetPath := flags.String("dataset", "", "UTF-8 training dataset")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
@@ -62,7 +60,6 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
@@ -72,6 +69,7 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
+	defer session.settle(ctx, &err)
 	loadStart := time.Now()
 	model, err := densecausal.Load(directory)
 	if err != nil {
@@ -81,11 +79,7 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(*datasetPath)
-	if err != nil {
-		return err
-	}
-	tokens, err := tokenizer.Encode(string(raw))
+	tokens, err := tokenizer.Encode(string(session.data))
 	if err != nil {
 		return err
 	}
@@ -106,10 +100,14 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 	}
 	trainingWindow := tokens[:window]
 
-	plan, err := model.TrainingPlan()
+	// The pack is optimizer storage only: the model's compiled layer bindings
+	// alias its own weight slices, so updates scatter back into those slices
+	// after every step rather than repointing the map.
+	pack, err := model.TrainingPack()
 	if err != nil {
 		return err
 	}
+	plan := pack.Plan()
 	program, err := trainingprogram.CompileObjectiveProgram(session.authority.Objective, nil, plan)
 	if err != nil {
 		return err
@@ -122,18 +120,7 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 		return err
 	}
 	config := runPlan.Optimizer()
-	weights := make([]float32, plan.ParameterCount())
-	gradients := make([]float32, plan.ParameterCount())
-	// The flat buffers are optimizer storage only: the model's compiled layer
-	// bindings alias its own weight slices, so updates scatter back into
-	// those slices after every step rather than repointing the map.
-	groups := make(map[string]optimizer.GroupSpec, plan.GroupCount())
-	for index := 0; index < plan.GroupCount(); index++ {
-		group, _ := plan.Group(index)
-		groups[group.Name] = group.GroupSpec
-		copy(weights[group.Start:group.End], model.Weights[group.Name])
-	}
-	stepper, err := optimizer.NewStepper(weights, gradients, plan, config)
+	stepper, err := pack.NewStepper(config)
 	if err != nil {
 		return err
 	}
@@ -148,28 +135,21 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 			if err != nil {
 				return optimizer.ObservedStepResult{}, err
 			}
-			clear(gradients)
 			var missing []string
-			var gradientSquared float64
-			for group, values := range grads {
-				span, ok := groups[group]
-				if !ok {
+			for group := range grads {
+				if _, ok := model.Weights[group]; !ok {
 					missing = append(missing, group)
-					continue
-				}
-				copy(gradients[span.Start:span.End], values)
-				for _, g := range values {
-					gradientSquared += float64(g) * float64(g)
 				}
 			}
 			if len(missing) > 0 {
 				slices.Sort(missing)
 				return optimizer.ObservedStepResult{}, fmt.Errorf("%s: gradients outside the compiled plan: %v", name, missing)
 			}
-			result, err := optimizer.Advance(stepper, config, &updates, loss, math.Sqrt(gradientSquared))
-			for tensor, span := range groups {
-				copy(model.Weights[tensor], weights[span.Start:span.End])
+			if err := pack.GatherGradients(grads); err != nil {
+				return optimizer.ObservedStepResult{}, err
 			}
+			result, err := optimizer.Advance(stepper, config, &updates, loss, pack.GradientL2())
+			pack.Scatter()
 			return result, err
 		},
 		loss: func() (float64, error) {
@@ -181,19 +161,16 @@ func trainMixture(flags *flag.FlagSet, args []string) error {
 		// is a plan group, so the checkpoint holds the whole trained model,
 		// with its config and tokenizer, as the dense workflow's does.
 		publish: func(ctx context.Context) error {
-			stream, err := trainingworkflow.TextStream(raw, uint64(updates))
+			stream, err := trainingworkflow.TextStream(session.data, uint64(updates))
 			if err != nil {
 				return err
 			}
-			checkpoint, err := session.publish(ctx, *out, program, stepper.Snapshot(), stream, func(stage string) error {
+			_, err = session.publish(ctx, *out, program, stepper.Snapshot(), stream, func(stage string) error {
 				if err := safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights), model.Weights, model.Shapes, nil); err != nil {
 					return err
 				}
 				return export.CopyFiles(directory, stage, []string{"config.json", "tokenizer.json"})
 			})
-			if err == nil {
-				fmt.Printf("checkpoint=%s written to %s\n", checkpoint.ID(), *out)
-			}
 			return err
 		},
 	}.train(ctx)

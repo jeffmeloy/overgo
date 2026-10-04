@@ -43,15 +43,29 @@ func scorecardHistory(storeRoot string) llamaserver.ScorecardHistoryReader {
 		return nil
 	}
 	return func() (*llamaserver.ScorecardHistory, error) {
-		records, err := scorecard.LatestRecords(scorecard.RecordsDirectory(storeRoot), comparedRecords)
+		records, err := scorecard.Records(scorecard.Directory(storeRoot))
 		if err != nil || len(records) < comparedRecords {
 			return nil, err
 		}
-		history := &llamaserver.ScorecardHistory{Previous: records[0].Commit, Current: records[1].Commit, Moves: []llamaserver.ScorecardMove{}}
-		for _, move := range scorecard.Moves(records[0], records[1]) {
-			history.Moves = append(history.Moves, llamaserver.ScorecardMove{Name: move.Name, Task: move.Task, Kind: string(move.Kind), Metric: string(move.Column),
-				Before: move.Before, After: move.After, Unit: move.Unit, Reason: move.Reason, Improved: move.Improved()})
+		previous, current := records[len(records)-comparedRecords], records[len(records)-1]
+		history := &llamaserver.ScorecardHistory{Previous: previous.Commit, Current: current.Commit, Moves: []llamaserver.ScorecardMove{}}
+		for _, move := range scorecard.Moves(previous, current) {
+			history.Moves = append(history.Moves, llamaserver.ScorecardMove{Name: move.Name, Task: move.Task, Kind: moveKind(move), Metric: string(move.Column),
+				Before: move.Before, After: move.After, Unit: move.Unit, Reason: move.Reason})
 		}
 		return history, nil
 	}
+}
+
+// moveKind names a move as the page groups it: a change on one contract is
+// better or worse by its metric's direction, and stays changed where the
+// metric names none.
+func moveKind(move scorecard.Move) string {
+	switch advantage := move.Advantage(); {
+	case advantage > 0:
+		return "better"
+	case advantage < 0:
+		return "worse"
+	}
+	return string(move.Kind)
 }

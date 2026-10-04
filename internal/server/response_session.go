@@ -12,14 +12,16 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/runrecord"
+	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
 
-// continuationParameters: the sampling and stops a turn generated with, kept
-// in its token context so a continuation decodes the same way.
+// continuationParameters: the sampling, stops and sampler state a turn
+// stopped with, kept in its token context so a continuation samples on exactly.
 type continuationParameters struct {
 	Sampling samplingParameters `json:"sampling"`
 	Stop     []string           `json:"stop,omitempty"`
+	State    []byte             `json:"state,omitempty"`
 }
 
 // turnSession: a response turn's continuation facts: the parameters it
@@ -42,14 +44,19 @@ type turnRecord struct {
 }
 
 // record: a turn that stopped or reached its output limit keeps its token
-// context (every id, the last one pending) with the text its stop filter
-// held back; a finished turn keeps none, as nothing continues it.
-func (session turnSession) record(ids []tokenizer.TokenID, held string, continuable bool) (turnRecord, error) {
+// context (every id, the last one pending) with its sampler state and the
+// text its stop filter held back; a finished turn keeps none.
+func (session turnSession) record(sampler *sampling.Sampler, ids []tokenizer.TokenID, held string, continuable bool) (turnRecord, error) {
 	record := turnRecord{continues: session.continues}
 	if !session.keep || !continuable || len(ids) < runrecord.InteractionContextMinimumTokens {
 		return record, nil
 	}
-	sampling, err := json.Marshal(session.parameters)
+	parameters := session.parameters
+	var err error
+	if parameters.State, err = sampler.SaveState(); err != nil {
+		return turnRecord{}, err
+	}
+	encoded, err := json.Marshal(parameters)
 	if err != nil {
 		return turnRecord{}, err
 	}
@@ -57,7 +64,7 @@ func (session turnSession) record(ids []tokenizer.TokenID, held string, continua
 	for index, id := range ids {
 		tokens[index] = uint32(id)
 	}
-	record.context = &runrecord.InteractionContext{Tokens: tokens, Sampling: sampling, Held: held}
+	record.context = &runrecord.InteractionContext{Tokens: tokens, Sampling: encoded, Held: held}
 	return record, nil
 }
 
@@ -70,11 +77,12 @@ func (h *Handler) publishTurn(
 	terminal runrecord.Outcome,
 	reason runrecord.InteractionTerminalReason,
 	session turnSession,
+	sampler *sampling.Sampler,
 	ids []tokenizer.TokenID,
 	held string,
 	continuable bool,
 ) error {
-	record, err := session.record(ids, held, continuable)
+	record, err := session.record(sampler, ids, held, continuable)
 	if err != nil {
 		return err
 	}

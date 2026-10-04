@@ -5,38 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 )
 
-func TestHandlerRetainsBrowseStore(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	store, err := overgodb.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	}
-	handler, err := New(Config{OvergoDBPath: root}, &fakeGenerator{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer handler.Close()
-	first, err := handler.browseStore(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := handler.browseStore(t.Context())
-	if err != nil || first != second || first != handler.browseRepository {
-		t.Fatalf("browse stores = (%p, %p, %v)", first, second, err)
-	}
-}
-
+// TestHandlerClosesBrowseStore: the handler opens its browse store once,
+// answers every read from it, and closes it when the handler closes.
 func TestHandlerClosesBrowseStore(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -52,6 +28,9 @@ func TestHandlerClosesBrowseStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	browse := handler.browseRepository
+	if again, err := handler.browseStore(t.Context()); err != nil || again != browse {
+		t.Fatalf("browse store reopened: (%p, %p, %v)", browse, again, err)
+	}
 	if err := handler.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -150,9 +129,5 @@ func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
 	if content.Code != http.StatusOK || content.Header().Get("Content-Type") != payloadDescriptor.MediaType ||
 		!bytes.Equal(content.Body.Bytes(), payload) {
 		t.Fatalf("content status=%d type=%q body=%q", content.Code, content.Header().Get("Content-Type"), content.Body.Bytes())
-	}
-
-	if module := serveTestRequest(handler, http.MethodGet, "/mod/artifacts.js", "").Body.String(); strings.Contains(module, "base64") {
-		t.Error("artifact module retains encoded payloads")
 	}
 }

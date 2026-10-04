@@ -62,6 +62,17 @@ const (
 	ModuleEmbedImage recipe.ModuleID = "model.embed-image"
 )
 
+// The host stages of an RAE collection's class-conditional generation:
+// seeded noise, the DiT-DH's sampled latent, and the ViT decoder's image.
+const (
+	// ModuleRAEImagePrepare draws a request's seeded noise.
+	ModuleRAEImagePrepare recipe.ModuleID = "model.rae-image-prepare"
+	// ModuleRAEImageIntegrate samples the class's latent from the noise.
+	ModuleRAEImageIntegrate recipe.ModuleID = "model.rae-image-integrate"
+	// ModuleRAEImageDecode decodes the sampled latent to an image.
+	ModuleRAEImageDecode recipe.ModuleID = "model.rae-image-decode"
+)
+
 var catalog = mustCatalog()
 
 type Plan struct {
@@ -381,13 +392,6 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 		{node: "generate", module: ModuleSpeechGenerate, input: "tokens", output: "latents", inputData: recipe.DataTokens, outData: recipe.DataTensor, session: recipe.SessionCapacity},
 		{node: "decode", module: ModuleSpeechDecode, input: "latents", output: "audio", inputData: recipe.DataTensor, outData: recipe.DataAudio},
 	}},
-	// The recognizer is the model-resident component, as the synthesizer is:
-	// the encoder, its head and the tokenizer stay loaded across requests, so
-	// the stage declares a session lifetime and the component session plan is
-	// not empty.
-	recipe.TaskTranscription: {placement: recipe.PlacementHost, stages: []scalarStage{
-		{node: "transcribe", module: ModuleTranscribeAudio, input: "audio", output: "transcription", inputData: recipe.DataAudio, outData: recipe.DataTranscription, session: recipe.SessionCapacity},
-	}},
 	// The detector's classifier stays loaded across requests as the
 	// recognizer does; each request brings its own boundary policy.
 	recipe.TaskActivityDetection: {placement: recipe.PlacementHost, stages: []scalarStage{
@@ -427,6 +431,8 @@ var oscillatorVideoCapability = linearCapability{placement: recipe.PlacementHost
 }}
 
 var routedImageCapability = imageCapability(recipe.PlacementHybrid, recipe.DataPromptConditioning, ModuleRoutedImagePrepare, ModuleRoutedImageIntegrate, ModuleRoutedImageDecode)
+
+var raeImageCapability = imageCapability(recipe.PlacementHost, recipe.DataClassConditioning, ModuleRAEImagePrepare, ModuleRAEImageIntegrate, ModuleRAEImageDecode)
 
 var latentVideoCapability = linearCapability{placement: recipe.PlacementHybrid, stages: []scalarStage{
 	{node: "prepare", module: ModuleLatentVideoPrepare, input: "condition", output: "session", inputData: recipe.DataPromptConditioning, outData: recipe.DataSessionPlan, session: recipe.SessionCapacity},
@@ -747,7 +753,7 @@ func mustCatalog() *recipe.Catalog {
 		modules = append(modules, linearCapabilities[task].modules(task)...)
 	}
 	modules = append(modules, audioTaskModules()...)
-	for _, capability := range []linearCapability{latentImageCapability, oscillatorImageCapability, diffusionImageCapability, routedImageCapability} {
+	for _, capability := range []linearCapability{latentImageCapability, oscillatorImageCapability, diffusionImageCapability, routedImageCapability, raeImageCapability} {
 		modules = append(modules, capability.modules(recipe.TaskImageGen)...)
 	}
 	modules = append(modules, oscillatorVideoCapability.modules(recipe.TaskVideoGen)...)

@@ -2,6 +2,7 @@ package webuilane
 
 import (
 	"bufio"
+	"encoding/binary"
 	"encoding/json"
 	"io"
 	"net"
@@ -10,15 +11,28 @@ import (
 )
 
 // pageSide plays the page end of a DevTools socket: it drains what the lane
-// sends and answers with the frames given, unmasked as a server sends them.
-func pageSide(t *testing.T) (*webSocket, func(string)) {
+// sends and answers with the messages given, in order, as unmasked frames
+// as a server sends them; the channel send returns closes once the lane has
+// read them all.
+func pageSide(t *testing.T) (*webSocket, func(...string) <-chan struct{}) {
 	t.Helper()
 	client, server := net.Pipe()
 	t.Cleanup(func() { _ = client.Close(); _ = server.Close() })
 	go func() { _, _ = io.Copy(io.Discard, server) }()
-	send := func(message string) {
-		frame := []byte{webSocketFinalBit | webSocketText, byte(len(message))}
-		go func() { _, _ = server.Write(append(frame, message...)) }()
+	send := func(messages ...string) <-chan struct{} {
+		read := make(chan struct{})
+		go func() {
+			defer close(read)
+			for _, message := range messages {
+				frame := []byte{webSocketFinalBit | webSocketText, webSocketLength16}
+				frame = binary.BigEndian.AppendUint16(frame, uint16(len(message)))
+				// A pipe's write returns once the other end has read it all.
+				if _, err := server.Write(append(frame, message...)); err != nil {
+					return
+				}
+			}
+		}()
+		return read
 	}
 	return &webSocket{connection: client, reader: bufio.NewReader(client)}, send
 }
@@ -44,8 +58,7 @@ func TestBrowserLegFailsWhenTheBrowserStopsAnswering(t *testing.T) {
 		}
 	}
 	socket, send := pageSide(t)
-	send(`{"method":"Page.frameNavigated","params":{}}`)
-	send(`{"id":1,"result":{}}`)
+	send(`{"method":"Page.frameNavigated","params":{}}`, `{"id":1,"result":{}}`)
 	if err := socket.call(t.Context(), "Runtime.evaluate", nil, nil); err != nil {
 		t.Fatalf("an unrelated event ended the call: %v", err)
 	}

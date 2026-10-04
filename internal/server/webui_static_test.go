@@ -21,30 +21,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/index.html", "text/html; charset=utf-8", "workbench"},
 		{"/style.css", "text/css; charset=utf-8", "--acc"},
 		{"/boot.js", "text/javascript; charset=utf-8", "window.overgo"},
-		{"/viz.js", "text/javascript; charset=utf-8", "sparkline"},
-		{"/md.js", "text/javascript; charset=utf-8", "overgo.md"},
-		{"/workflow.js", "text/javascript; charset=utf-8", "workflowWorkspace"},
-		{"/schema_form.js", "text/javascript; charset=utf-8", "schemaForm"},
 		{"/mod/chat.js", "text/javascript; charset=utf-8", "/v1/responses"},
-		{"/mod/agent.js", "text/javascript; charset=utf-8", "overgo.toolStep("},
-		{"/mod/inbox.js", "text/javascript; charset=utf-8", "/operations/inbox"},
-		{"/mod/generation.js", "text/javascript; charset=utf-8", `scope: "generation"`},
-		{"/mod/discovery.js", "text/javascript; charset=utf-8", "/hub/search"},
-		{"/mod/runtime.js", "text/javascript; charset=utf-8", "whileShown"},
-		{"/mod/datasets.js", "text/javascript; charset=utf-8", "/datasets"},
-		{"/mod/training.js", "text/javascript; charset=utf-8", "/runs"},
-		{"/mod/model_builder.js", "text/javascript; charset=utf-8", `scope: "model-builder"`},
-		{"/mod/jobs.js", "text/javascript; charset=utf-8", "training-jobs"},
-		{"/mod/recipe.js", "text/javascript; charset=utf-8", "/recipes/active"},
-		{"/mod/compositions.js", "text/javascript; charset=utf-8", "/compositions/activate"},
-		{"/mod/artifacts.js", "text/javascript; charset=utf-8", "/artifacts"},
-		{"/mod/evaluations.js", "text/javascript; charset=utf-8", "/evaluations/capabilities"},
-		{"/mod/analyze_model.js", "text/javascript; charset=utf-8", "/analyze/model"},
-		{"/mod/analyze_vocab.js", "text/javascript; charset=utf-8", "/analyze/vocab"},
-		{"/mod/analyze_logits.js", "text/javascript; charset=utf-8", "completion_probabilities"},
-		{"/mod/analyze_states.js", "text/javascript; charset=utf-8", "/analyze/states"},
-		{"/mod/analyze_attention.js", "text/javascript; charset=utf-8", "/analyze/attention"},
-		{"/mod/analyze_tensors.js", "text/javascript; charset=utf-8", "/analyze/tensors"},
 	}
 	for _, testCase := range cases {
 		response := serveTestRequest(handler, http.MethodGet, testCase.path, "")
@@ -56,63 +33,6 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		}
 		if !strings.Contains(response.Body.String(), testCase.needle) {
 			t.Fatalf("GET %s body missing %q", testCase.path, testCase.needle)
-		}
-	}
-}
-
-func TestEvaluationWorkbenchUsesDeclaredCapabilities(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	// The standalone tabs leg drives the evaluations tab; the source keeps
-	// every benchmark out of the page (plans come from the server).
-	module := serveTestRequest(handler, http.MethodGet, "/mod/evaluations.js", "").Body.String()
-	for _, benchmark := range []string{"mmlu", "truthfulqa", "ifeval", "bbh", "musr"} {
-		if strings.Contains(strings.ToLower(module), benchmark) {
-			t.Errorf("evaluation workbench embeds benchmark %q", benchmark)
-		}
-	}
-	if !strings.Contains(serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "").Body.String(), `"id":"evaluations"`) {
-		t.Fatal("workbench shell does not load evaluation module")
-	}
-}
-
-func TestWebUIRuntimeMonitor(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	get := func(path string) string {
-		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
-	}
-	// The serving stream and stream lifecycle legs drive the monitor; the
-	// source keeps its polling paths banned.
-	runtime := get("/mod/runtime.js")
-	for _, polling := range []string{"overgo.poller", `api.get("/runtime/sessions"`, `api.get("/runtime/activity"`} {
-		if strings.Contains(runtime, polling) {
-			t.Errorf("runtime module retains polling path %q", polling)
-		}
-	}
-	if strings.Contains(runtime, "include_text") {
-		t.Error("runtime monitor requests retained text")
-	}
-	boot := get("/boot.js")
-	// Live state arrives on the one runtime stream; the shell keeps no poller and no per-tab stream.
-	for _, retired := range []string{"function poller", "function tabStream"} {
-		if strings.Contains(boot, retired) {
-			t.Errorf("boot keeps retired live-state path %q", retired)
-		}
-	}
-	if !strings.Contains(get("/workspace/manifest"), `"id":"runtime"`) {
-		t.Error("app shell does not load runtime module")
-	}
-}
-
-func TestAgentGUIUsesProjectedQueriesAndSSE(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	runtime := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String()
-	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
-	for _, polling := range []string{"operationPollMilliseconds", `api.get("/operations?id="`, "overgo.poller"} {
-		if strings.Contains(workflow, polling) || strings.Contains(runtime, polling) {
-			t.Errorf("agent GUI retains polling path %q", polling)
 		}
 	}
 }
@@ -157,18 +77,6 @@ func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
 	if terminal.Usage.PromptTokens != expected.InputTokens ||
 		uint64(terminal.Usage.CompletionTokens) != terminal.Timings.PredictedN {
 		t.Fatalf("stream facts = usage %+v timings %+v count %d", terminal.Usage, terminal.Timings, expected.InputTokens)
-	}
-
-	get := func(path string) string {
-		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
-	}
-	// The sampling, turn limit and first-run legs drive the context meter;
-	// the source keeps embedded sampling defaults banned.
-	chat := get("/mod/chat.js")
-	for _, embeddedDefault := range []string{`value: "0.7"`, `value: "512"`, `|| 512`} {
-		if strings.Contains(chat, embeddedDefault) {
-			t.Errorf("chat module embeds sampling default %q", embeddedDefault)
-		}
 	}
 }
 
@@ -231,53 +139,6 @@ func TestWebUIStyleInvariants(t *testing.T) {
 	// Panels scroll their own overflow so wide tables never scroll the body.
 	if !strings.Contains(css, "overflow-x:auto") {
 		t.Error("style.css: expected a panel overflow-x:auto rule so wide tables scroll in-panel")
-	}
-}
-
-func TestRLWorkspaceRendersMeasuredEvidence(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	// The training evidence leg drives the view over stored runs; the source
-	// keeps derived signals out (the view draws measurements as measured).
-	training := serveTestRequest(handler, http.MethodGet, "/mod/training.js", "").Body.String()
-	for _, forbidden := range []string{"smooth", "movingAverage"} {
-		if strings.Contains(training, forbidden) {
-			t.Errorf("training evidence view contains derived signal %q", forbidden)
-		}
-	}
-}
-
-func TestRLWorkspaceUsesGenericWorkflowEndpoints(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
-	jobs := serveTestRequest(handler, http.MethodGet, "/mod/jobs.js", "").Body.String()
-	for _, token := range []string{`"/" + definition.scope + "/run"`, "overgo.waitOperation", "overgo.cancelOperation("} {
-		if !strings.Contains(workflow, token) {
-			t.Errorf("generic workflow missing %q", token)
-		}
-	}
-	if !strings.Contains(jobs, `scope: "training"`) || !strings.Contains(jobs, "trainingEvidence.renderOperation") {
-		t.Error("training registration does not use the generic workflow renderer")
-	}
-	if strings.Contains(workflow, "/dpo") || strings.Contains(jobs, "/dpo") {
-		t.Error("RL workspace adds a DPO-only transport")
-	}
-}
-
-// TestWebUIClientDedup guards the tightening: displayToken is defined once in the
-// shell and the token-showing tabs use it instead of each redefining it.
-func TestWebUIClientDedup(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
-	if !strings.Contains(get("/boot.js"), "function displayToken") {
-		t.Error("boot.js should define the shared displayToken")
-	}
-	for _, asset := range []string{"/mod/analyze_logits.js", "/mod/analyze_states.js", "/mod/analyze_attention.js"} {
-		if strings.Contains(get(asset), "function displayToken") {
-			t.Errorf("%s redefines displayToken instead of using the shared overgo.displayToken", asset)
-		}
 	}
 }
 

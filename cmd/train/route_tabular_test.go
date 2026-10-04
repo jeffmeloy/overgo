@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipecontract"
 	"overgo/internal/tabularicl"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -20,6 +21,12 @@ import (
 // tableObjectiveAlias names the table-prediction objective each test
 // registers in its own store.
 const tableObjectiveAlias = "objective.registered.tables"
+
+// tableSignature is the table pair a table-prediction objective trains.
+var tableSignature = recipecontract.ModalitySignature{
+	Inputs:  []recipecontract.Modality{recipecontract.ModalityTable},
+	Outputs: []recipecontract.Modality{recipecontract.ModalityTable},
+}
 
 // TestTabularObjectiveApprovesOnLabelAccuracyGain walks a registered
 // dataset of TabFM requests through a table-prediction objective: its
@@ -72,67 +79,31 @@ func TestTrainTabularRegressionObjective(t *testing.T) {
 func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric, tables []tabularicl.Request, untrained func(float32) float32, base, trained float64) {
 	t.Helper()
 	ctx := t.Context()
-	corpus := t.TempDir()
-	for table, request := range tables {
-		data, err := json.Marshal(request)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("table-%02d.json", table)), data, 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
 	root := t.TempDir()
 	store, err := overgodb.Open(filepath.Join(root, "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "tables", corpus)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var records []dataset.Record
-	for index := range uint64(len(tables)) {
-		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
-		records = append(records, dataset.Record{ID: id, Group: id})
-	}
-	split, err := dataset.BuildGroupSplit(registered.Dataset, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	splitBatch, err := split.PublicationBatch("test-split", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
-		t.Fatal(err)
-	}
-	var training artifact.ID
-	for _, membership := range split.Memberships {
-		if membership.Partition == "train" {
-			training = membership.ID
-		}
-	}
-	objective, modelPath := registerTableObjective(t, ctx, store, root, registered.Dataset, training, metric)
+	objective, modelPath := registerTableSplit(t, ctx, store, root, tables, nil, metric)
 
 	task := tableObjectiveTasks[metric]
 	if task != tables[0].Task {
 		t.Fatalf("metric %q trains the %q head, want %q", metric, task, tables[0].Task)
 	}
-	requests, examples, stream, err := objectiveRequests(ctx, store, objective, task)
-	if err != nil || !stream.Valid() {
-		t.Fatalf("objective requests = (training stream %s, %v), want the training membership's stream", stream, err)
+	requests, data, err := objectiveRequests(ctx, store, objective, task)
+	if err != nil || !data.Training.Valid() || !data.Heldout.Valid() {
+		t.Fatalf("objective requests = (streams %s and %s, %v), want both memberships' streams", data.Training, data.Heldout, err)
 	}
-	if len(requests) != len(tables) || len(examples) != len(tables) {
-		t.Fatalf("read %d requests and %d examples, want all %d tables", len(requests), len(examples), len(tables))
+	if len(requests) != len(tables) || len(data.Examples) != len(tables) {
+		t.Fatalf("read %d requests and %d examples, want all %d tables", len(requests), len(data.Examples), len(tables))
 	}
 	learned := false
 	result, err := trainingworkflow.RunHeldout(ctx, store, trainingworkflow.HeldoutRun{
-		Alias: tableObjectiveAlias, ModelPath: modelPath, Examples: examples, Host: true,
-		Train: func(ctx context.Context, recipeID artifact.ID, _ []trainingworkflow.HeldoutExample) error {
+		Alias: tableObjectiveAlias, ModelPath: modelPath, Data: data, Host: true,
+		Train: func(ctx context.Context, recipeID artifact.ID, _ []trainingworkflow.HeldoutExample) (trainingprogram.Checkpoint, error) {
 			learned = true
-			return publishUnderObjective(t, ctx, store, recipeID, trainingprogram.ObjectiveTablePrediction, stream)
+			return publishUnderObjective(t, ctx, store, recipeID, trainingprogram.ObjectiveTablePrediction, data.Training)
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
 			request := requests[example.Record]
@@ -158,11 +129,11 @@ func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric
 	if err != nil || !found {
 		t.Fatalf("verdict %s content = (found %t, %v)", result.Verdict, found, err)
 	}
-	data, err := io.ReadAll(content)
+	document, err := io.ReadAll(content)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := json.Unmarshal(data, &verdict); err != nil || verdict.Metric != metric || verdict.BaselineValue != base || verdict.CandidateValue != trained {
+	if err := json.Unmarshal(document, &verdict); err != nil || verdict.Metric != metric || verdict.BaselineValue != base || verdict.CandidateValue != trained {
 		t.Fatalf("verdict = %+v (%v), want %s from %g to %g", verdict, err, metric, base, trained)
 	}
 	if _, err := trainingworkflow.PromoteObjectiveAdaptive(ctx, store, tableObjectiveAlias, []artifact.ID{result.Observation}); err != nil {
@@ -172,6 +143,56 @@ func approveTableObjective(t *testing.T, metric trainingprogram.EvaluationMetric
 	if err != nil || approved.Authority != trainingprogram.ObjectiveApproved {
 		t.Fatalf("approval = (%q, %v), want approved on the held-out verdict", approved.Authority, err)
 	}
+}
+
+// registerTableSplit registers the tables as a dataset, one request file per
+// record, splits it in halves by group, groups[i] being table i's group or,
+// for nil groups, each record its own, and registers a table-prediction
+// objective judged by metric over its training membership.
+func registerTableSplit(t *testing.T, ctx context.Context, store *overgodb.Store, root string, tables []tabularicl.Request, groups []string, metric trainingprogram.EvaluationMetric) (trainingprogram.ObjectiveDocument, string) {
+	t.Helper()
+	corpus := t.TempDir()
+	for table, request := range tables {
+		data, err := json.Marshal(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Names that sort in table order keep record i table i.
+		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("table-%04d.json", table)), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	registered, err := dataset.RegisterDirectoryDataset(ctx, store, "tables", corpus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var records []dataset.Record
+	for index := range uint64(len(tables)) {
+		id := dataset.RecordID(registered.Dataset, dataset.InventoryAssetName, index)
+		group := id
+		if groups != nil {
+			group = groups[index]
+		}
+		records = append(records, dataset.Record{ID: id, Group: group})
+	}
+	split, err := dataset.BuildGroupSplit(registered.Dataset, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	splitBatch, err := split.PublicationBatch("test-split", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
+		t.Fatal(err)
+	}
+	var training artifact.ID
+	for _, membership := range split.Memberships {
+		if membership.Partition == "train" {
+			training = membership.ID
+		}
+	}
+	return registerTableObjective(t, ctx, store, root, registered.Dataset, training, metric)
 }
 
 // registerTableObjective registers a table-prediction objective judged by

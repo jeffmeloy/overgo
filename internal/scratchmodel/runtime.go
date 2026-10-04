@@ -40,15 +40,15 @@ func (c Construction) TrainShared(totalSteps int, policy trainingprogram.Optimiz
 		}
 	}
 	gradients := make([]float32, len(weights))
-	model, err := c.bindMADTransformer(weights)
+	model, err := c.BindMADTransformer(weights)
 	if err != nil {
 		return TrainingResult{}, err
 	}
-	gradient, err := c.bindMADTransformer(gradients)
+	gradient, err := c.BindMADTransformer(gradients)
 	if err != nil {
 		return TrainingResult{}, err
 	}
-	config, err := c.optimizerConfig(policy, totalSteps)
+	config, err := c.OptimizerConfig(policy, totalSteps)
 	if err != nil {
 		return TrainingResult{}, err
 	}
@@ -63,22 +63,22 @@ func (c Construction) TrainShared(totalSteps int, policy trainingprogram.Optimiz
 	defer materialized.Close()
 	state := sharedTrainingState{}
 	execution, err := trainingprogram.Bind(c.Program(), []trainingprogram.Binding[sharedTrainingState]{
-		{Operator: scratchOperatorBatch, Execute: func(state *sharedTrainingState) error {
+		{Operator: ScratchOperatorBatch, Execute: func(state *sharedTrainingState) error {
 			document, err := nextDocument(context.Background(), batcher)
 			if err == nil {
 				state.tokens, err = c.Tokens(document)
 			}
 			return err
 		}},
-		{Operator: scratchOperatorForward, Execute: func(state *sharedTrainingState) (err error) {
+		{Operator: ScratchOperatorForward, Execute: func(state *sharedTrainingState) (err error) {
 			state.loss, state.trace, err = hostmath.MADTransformerForward(model, state.tokens)
 			return err
 		}},
-		{Operator: scratchOperatorLossVJP, Execute: func(state *sharedTrainingState) error {
+		{Operator: ScratchOperatorLossVJP, Execute: func(state *sharedTrainingState) error {
 			return hostmath.MADTransformerBackward(model, gradient, state.tokens, state.trace)
 		}},
-		{Operator: scratchOperatorMuon, Execute: func(*sharedTrainingState) error { muon.Step(); return nil }},
-		{Operator: scratchOperatorEvaluate, Execute: func(state *sharedTrainingState) (err error) {
+		{Operator: ScratchOperatorMuon, Execute: func(*sharedTrainingState) error { muon.Step(); return nil }},
+		{Operator: ScratchOperatorEvaluate, Execute: func(state *sharedTrainingState) (err error) {
 			state.loss, _, err = hostmath.MADTransformerForward(model, state.tokens)
 			return err
 		}},
@@ -120,7 +120,9 @@ func (c Construction) TrainShared(totalSteps int, policy trainingprogram.Optimiz
 	return result, err
 }
 
-func (c Construction) bindMADTransformer(slab []float32) (hostmath.MADTransformer, error) {
+// BindMADTransformer binds the host transformer's tensors as views into a
+// slab laid out like the parameter slab.
+func (c Construction) BindMADTransformer(slab []float32) (hostmath.MADTransformer, error) {
 	view := func(name string) ([]float32, error) {
 		binding, ok := c.bindings[name]
 		if !ok || binding.start < 0 || binding.end > len(slab) || binding.start >= binding.end {

@@ -112,11 +112,11 @@ func buildRelease(root, output string, verify bool) error {
 	if output, err := sbomCheck.CombinedOutput(); err != nil {
 		return fmt.Errorf("release: SBOM verification failed: %w\n%s", err, output)
 	}
-	compatibilityCheck := exec.Command("go", "run", "./cmd/compatibility", "-check")
+	compatibilityCheck := exec.Command("go", "run", "./cmd/validate", "-claims")
 	compatibilityCheck.Dir = root
 	compatibilityCheck.Env = releaseEnvironment()
 	if output, err := compatibilityCheck.CombinedOutput(); err != nil {
-		return fmt.Errorf("release: compatibility verification failed: %w\n%s", err, output)
+		return fmt.Errorf("release: compatibility claims verification failed: %w\n%s", err, output)
 	}
 	first, err := buildArchive(root)
 	if err != nil {

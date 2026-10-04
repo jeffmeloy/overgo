@@ -1,30 +1,37 @@
-// Package servingattempt records one execution of a capability that returns
-// its output whole, an image, a clip, a prediction, as the serving attempt
-// the user scorecard counts. The server's generation workspace and the
-// recipe command's run and measure verbs record through it, so a page's
-// generation and a command line's count alike.
+// Package servingattempt records one serving attempt as the observation the
+// user scorecard counts, and parks a failed one as a finding. The server,
+// its generation workspace and the recipe command's run and measure verbs
+// record through it, so a page's attempt and a command line's count alike.
+// Recording is local: it writes only to the store the server or command was
+// opened on, and a server without a store records nothing.
 package servingattempt
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/finding"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
 // WholeOutput is one execution of a capability that returns its
 // output whole: the model and recipe it ran, the run it recorded if any,
-// when it started, how long its output took, the device memory it peaked
-// at and the error it ended with.
+// when it started, how long its output took, how long of that its model
+// took to load when the execution loaded one, the device memory it peaked
+// at and the error it ended with. PeakMeasured says the peak was measured,
+// so that a zero is an execution that held no device memory, on the host,
+// rather than one nothing measured.
 type WholeOutput struct {
 	Model, Recipe, Run artifact.ID
 	Task               recipe.Task
 	Started            time.Time
-	Wall               time.Duration
+	Wall, Load         time.Duration
 	PeakDeviceBytes    uint64
+	PeakMeasured       bool
 	Cause              error
 }
 
@@ -53,12 +60,42 @@ func RecordWholeOutput(ctx context.Context, store artifact.Repository, attempt W
 		Run: attempt.Run, Task: attempt.Task, Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: attempt.Started.UnixNano(),
 		MeasuredNS: uint64(max(attempt.Wall, 0)), Resources: runrecord.ServingResources{PeakDeviceBytes: attempt.PeakDeviceBytes},
 	}
+	if attempt.Load > 0 {
+		observation.Phases = []runrecord.PhaseMetric{{Phase: runrecord.PhaseLoad, DurationNS: uint64(attempt.Load)}}
+	}
+	if attempt.PeakMeasured && attempt.PeakDeviceBytes == 0 {
+		// The resources' peak cannot tell a measured zero from an absent
+		// one; a sample of the device at the finish, holding nothing, can.
+		observation.Hardware = []runrecord.ServingHardwareSample{{Stage: runrecord.ServingHardwareFinish, ElapsedNS: observation.MeasuredNS}}
+	}
 	switch {
 	case errors.Is(attempt.Cause, context.Canceled) || errors.Is(attempt.Cause, context.DeadlineExceeded):
 		observation.Outcome = runrecord.OutcomeCancelled
 	case attempt.Cause != nil:
 		observation.Outcome, observation.Failure = runrecord.OutcomeFailed, failureCode
 	}
-	_, err = runrecord.PublishServingObservation(ctx, store, observation)
+	_, err = Record(ctx, store, observation)
 	return err
+}
+
+// Record publishes one serving observation, the attempt the scorecard's
+// failure rate counts, and parks a failed one as an open finding that cites
+// it and its recipe: a failure a user met becomes the loop's work beside the
+// scorecard's gaps. It returns the published observation even when the
+// finding could not be parked.
+func Record(ctx context.Context, store artifact.Repository, observation runrecord.ServingObservation) (runrecord.ServingObservation, error) {
+	published, err := runrecord.PublishServingObservation(ctx, store, observation)
+	if err != nil || published.Outcome != runrecord.OutcomeFailed {
+		return published, err
+	}
+	_, batch, err := finding.NewTextBatch(
+		fmt.Sprintf("A %s serving attempt failed: %s", published.Task, published.Failure),
+		finding.SeverityHigh, []string{published.Recipe.String()}, []string{published.ID.String()},
+		"fix what the failed attempt records; the recipe's failure-rate cell and the loop's failing-attempts row close with it",
+		fmt.Sprintf("go run ./cmd/validate -scorecard shows a failed %s attempt under the recipe", published.Task),
+	)
+	if err == nil {
+		_, err = artifact.Publish(ctx, store, batch)
+	}
+	return published, err
 }

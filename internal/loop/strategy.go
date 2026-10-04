@@ -11,7 +11,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/recipe"
-	"overgo/internal/runrecord"
 )
 
 const (
@@ -85,37 +84,12 @@ func RequireStrategy(ctx context.Context, reader artifact.Reader, id artifact.ID
 	return strategyCodec.Require(ctx, reader, id)
 }
 
-// Batch materializes the strategy and its dependency lineage for publication.
-func (v Strategy) Batch(key string) (artifact.Batch, error) {
-	return strategyCodec.Batch(key, v, v.Lineage(), nil)
-}
-
 // ValidateIdentity checks the strategy's canonical form and content-addressed identity.
 func (v Strategy) ValidateIdentity() error { return strategyCodec.ValidateIdentity(v) }
 
 // Lineage links the strategy to its worker, prompt, model recipe, catalog, and policies.
 func (v Strategy) Lineage() []artifact.Lineage {
 	return artifact.DependencyLineage(v.ID, append([]artifact.ID{v.Worker, v.Prompt, v.ModelRecipe, v.Catalog}, v.Policies...)...)
-}
-
-// StampAttempt binds the strategy identity onto an attempt record and
-// re-identifies the record.
-func (v Strategy) StampAttempt(record runrecord.AttemptRecord) (runrecord.AttemptRecord, error) {
-	if err := v.ValidateIdentity(); err != nil {
-		return runrecord.AttemptRecord{}, err
-	}
-	record.StrategyID = v.ID
-	return runrecord.NewAttemptRecord(record)
-}
-
-// StampTrajectory binds the strategy identity onto an interaction trace and
-// re-identifies it as an agent trajectory.
-func (v Strategy) StampTrajectory(trace runrecord.InteractionTrace) (runrecord.InteractionTrace, error) {
-	if err := v.ValidateIdentity(); err != nil {
-		return runrecord.InteractionTrace{}, err
-	}
-	trace.Strategy = v.ID
-	return runrecord.NewAgentTrajectory(trace)
 }
 
 func canonicalizeStrategy(v *Strategy) error {

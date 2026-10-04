@@ -1,10 +1,10 @@
 package trainingworkflow
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"slices"
-	"sort"
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
@@ -27,11 +27,13 @@ type BracketSlice struct {
 // MetricDelta is one machine-checked improvement claim: the same suite
 // metric before and after the session.
 type MetricDelta struct {
-	Suite  string  `json:"suite"`
-	Metric string  `json:"metric"`
-	Pre    float64 `json:"pre"`
-	Post   float64 `json:"post"`
-	Delta  float64 `json:"delta"`
+	Suite      string      `json:"suite"`
+	Metric     string      `json:"metric"`
+	Pre        float64     `json:"pre"`
+	Post       float64     `json:"post"`
+	Delta      float64     `json:"delta"`
+	PreRecord  artifact.ID `json:"pre_record,omitzero"`
+	PostRecord artifact.ID `json:"post_record,omitzero"`
 }
 
 // TrainingBracket binds a training session to the evidence standing
@@ -101,42 +103,45 @@ const bracketEvidenceScanLimit = 4096
 
 // bracketDeltas derives the machine-checked improvements: one delta
 // per suite metric present on both sides, plus the decode rate when
-// both benchmarks stand.
+// both benchmarks bind the same known measurement contract and pair records.
 func bracketDeltas(pre, post BracketSlice) []MetricDelta {
-	preMetrics := map[string]map[string]float64{}
+	preMetrics := map[artifact.ID]evaluation.EvalSummary{}
 	for _, entry := range pre.Evals {
-		preMetrics[entry.Suite] = entry.Metrics
+		if entry.ExecutionKnown && entry.Comparison.Valid() {
+			preMetrics[entry.Comparison] = entry
+		}
 	}
 	var deltas []MetricDelta
 	for _, entry := range post.Evals {
-		before, measured := preMetrics[entry.Suite]
-		if !measured {
+		before, measured := preMetrics[entry.Comparison]
+		if !entry.ExecutionKnown || !measured {
 			continue
 		}
 		for metric, value := range entry.Metrics {
-			previous, present := before[metric]
-			if !present {
+			previous, present := before.Metrics[metric]
+			if !present || entry.Directions[metric] == "" || entry.Directions[metric] != before.Directions[metric] {
 				continue
 			}
 			deltas = append(deltas, MetricDelta{
 				Suite: entry.Suite, Metric: metric, Pre: previous, Post: value, Delta: value - previous,
+				PreRecord: before.Record, PostRecord: entry.Record,
 			})
 		}
 	}
 	if pre.Benchmark != nil && post.Benchmark != nil &&
+		pre.Benchmark.Comparison.Kind() == artifact.KindProfile && pre.Benchmark.Comparison == post.Benchmark.Comparison &&
+		pre.Benchmark.Record.Kind() == artifact.KindEvidence && post.Benchmark.Record.Kind() == artifact.KindEvidence &&
 		pre.Benchmark.DecodeTokensPerSecond > 0 && post.Benchmark.DecodeTokensPerSecond > 0 {
 		deltas = append(deltas, MetricDelta{
 			Suite: "benchmark", Metric: "decode_tokens_per_second_p50",
-			Pre:   pre.Benchmark.DecodeTokensPerSecond,
-			Post:  post.Benchmark.DecodeTokensPerSecond,
-			Delta: post.Benchmark.DecodeTokensPerSecond - pre.Benchmark.DecodeTokensPerSecond,
+			Pre:       pre.Benchmark.DecodeTokensPerSecond,
+			Post:      post.Benchmark.DecodeTokensPerSecond,
+			Delta:     post.Benchmark.DecodeTokensPerSecond - pre.Benchmark.DecodeTokensPerSecond,
+			PreRecord: pre.Benchmark.Record, PostRecord: post.Benchmark.Record,
 		})
 	}
-	sort.Slice(deltas, func(i, j int) bool {
-		if deltas[i].Suite != deltas[j].Suite {
-			return deltas[i].Suite < deltas[j].Suite
-		}
-		return deltas[i].Metric < deltas[j].Metric
+	slices.SortFunc(deltas, func(left, right MetricDelta) int {
+		return cmp.Or(cmp.Compare(left.Suite, right.Suite), cmp.Compare(left.Metric, right.Metric), artifact.CompareID(left.PreRecord, right.PreRecord), artifact.CompareID(left.PostRecord, right.PostRecord))
 	})
 	return deltas
 }

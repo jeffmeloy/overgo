@@ -19,23 +19,25 @@ type layer struct {
 	postLN           []float32
 	gate, up, down   []float32
 	moe              *moeWeights
-	names            layerTensorNames
+	names            LayerTensorNames
 }
 
-type layerTensorNames struct {
-	inLN, q, k, v, o string
-	qb, kb, vb       string
-	postLN           string
-	gate, up, down   string
+// LayerTensorNames names one dense layer's tensors in Model.Weights: the
+// two norms, the attention projections and biases, and the MLP.
+type LayerTensorNames struct {
+	InLN, Q, K, V, O string
+	QB, KB, VB       string
+	PostLN           string
+	Gate, Up, Down   string
 }
 
 func compileLayer(weights map[string][]float32, index int, attentionBias bool, policy MoERouterPolicy, hidden int) (layer, error) {
-	names := denseLayerTensorNames(index)
+	names := DenseLayerTensorNames(index)
 	l := layer{
-		inLN: weights[names.inLN], postLN: weights[names.postLN],
-		q: weights[names.q], k: weights[names.k], v: weights[names.v], o: weights[names.o],
-		qb: weights[names.qb], kb: weights[names.kb], vb: weights[names.vb],
-		gate: weights[names.gate], up: weights[names.up], down: weights[names.down],
+		inLN: weights[names.InLN], postLN: weights[names.PostLN],
+		q: weights[names.Q], k: weights[names.K], v: weights[names.V], o: weights[names.O],
+		qb: weights[names.QB], kb: weights[names.KB], vb: weights[names.VB],
+		gate: weights[names.Gate], up: weights[names.Up], down: weights[names.Down],
 		names: names,
 	}
 	for _, w := range [][]float32{l.inLN, l.q, l.k, l.v, l.o, l.postLN} {
@@ -119,13 +121,15 @@ func compileMoELayer(weights map[string][]float32, index int, policy MoERouterPo
 	return w, nil
 }
 
-func denseLayerTensorNames(index int) layerTensorNames {
+// DenseLayerTensorNames names the tensors of dense layer index, the names
+// the loader binds and the trainers take gradients under.
+func DenseLayerTensorNames(index int) LayerTensorNames {
 	prefix := fmt.Sprintf("model.layers.%d.", index)
-	return layerTensorNames{
-		inLN: prefix + "input_layernorm.weight", postLN: prefix + "post_attention_layernorm.weight",
-		q: prefix + "self_attn.q_proj.weight", k: prefix + "self_attn.k_proj.weight", v: prefix + "self_attn.v_proj.weight", o: prefix + "self_attn.o_proj.weight",
-		qb: prefix + "self_attn.q_proj.bias", kb: prefix + "self_attn.k_proj.bias", vb: prefix + "self_attn.v_proj.bias",
-		gate: prefix + "mlp.gate_proj.weight", up: prefix + "mlp.up_proj.weight", down: prefix + "mlp.down_proj.weight",
+	return LayerTensorNames{
+		InLN: prefix + "input_layernorm.weight", PostLN: prefix + "post_attention_layernorm.weight",
+		Q: prefix + "self_attn.q_proj.weight", K: prefix + "self_attn.k_proj.weight", V: prefix + "self_attn.v_proj.weight", O: prefix + "self_attn.o_proj.weight",
+		QB: prefix + "self_attn.q_proj.bias", KB: prefix + "self_attn.k_proj.bias", VB: prefix + "self_attn.v_proj.bias",
+		Gate: prefix + "mlp.gate_proj.weight", Up: prefix + "mlp.up_proj.weight", Down: prefix + "mlp.down_proj.weight",
 	}
 }
 
@@ -217,19 +221,20 @@ func (m *Model) layerForward(x []float32, l layer, invFreq []float64, seq int) e
 	return nil
 }
 
-// forwardStates runs the stack retaining the residual stream at each layer
-// input (checkpoint posture — backward recomputes everything else).
-// states[l] is layer l's input; states[Layers] is the final pre-norm stream.
-func (m *Model) forwardStates(tokens []int) ([][]float32, error) {
+// forwardStates runs the stack. states[Layers] is the final pre-norm
+// stream. With retain, states[l] is layer l's input (checkpoint posture —
+// backward recomputes everything else); a score-only forward keeps none.
+func (m *Model) forwardStates(tokens []int, retain bool) ([][]float32, error) {
 	d := m.Dims
 	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
-	return m.retainedForwardStates(tokens, func(x []float32, index, seq int) error {
+	return m.retainedForwardStates(tokens, retain, func(x []float32, index, seq int) error {
 		return m.layerForward(x, m.layers[index], invFreq, seq)
 	})
 }
 
 func (m *Model) retainedForwardStates(
 	tokens []int,
+	retain bool,
 	forward func(x []float32, index, sequence int) error,
 ) ([][]float32, error) {
 	d := m.Dims
@@ -247,7 +252,9 @@ func (m *Model) retainedForwardStates(
 	}
 	states := make([][]float32, d.Layers+1)
 	for index := range d.Layers {
-		states[index] = append([]float32(nil), x...)
+		if retain {
+			states[index] = append([]float32(nil), x...)
+		}
 		if err := forward(x, index, seq); err != nil {
 			return nil, err
 		}
@@ -266,18 +273,27 @@ func (m *Model) logits(final []float32, seq int) []float32 {
 	return out
 }
 
+// Logits runs the forward pass over tokens and returns every position's
+// next-token logits, row-major by position.
+func (m *Model) Logits(tokens []int) ([]float32, error) {
+	states, err := m.forwardStates(tokens, false)
+	if err != nil {
+		return nil, err
+	}
+	return m.logits(states[m.Dims.Layers], len(tokens)), nil
+}
+
 // Loss: forward-only causal-LM loss (mean CE, positions 0..n-2 predicting
 // tokens 1..n-1) plus the full logits. The gradient path is LossAndGrads.
 func (m *Model) Loss(tokens []int) (float64, []float32, error) {
 	if len(tokens) < 2 {
 		return 0, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
-	states, err := m.forwardStates(tokens)
+	logits, err := m.Logits(tokens)
 	if err != nil {
 		return 0, nil, err
 	}
 	seq := len(tokens)
-	logits := m.logits(states[m.Dims.Layers], seq)
 	dLogits := make([]float32, (seq-1)*m.Dims.Vocab)
 	loss := hostmath.SoftmaxCrossEntropy(dLogits, logits[:(seq-1)*m.Dims.Vocab], tokens[1:], seq-1, m.Dims.Vocab)
 	return loss, logits, nil

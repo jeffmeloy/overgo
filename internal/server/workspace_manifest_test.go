@@ -1,10 +1,14 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
-	"strings"
 	"testing"
+
+	"overgo/internal/operation"
+	"overgo/internal/recipe"
 )
 
 func TestWorkspaceManifest(t *testing.T) {
@@ -18,8 +22,12 @@ func TestWorkspaceManifest(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &manifest); err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Version != 1 || len(manifest.Sections) == 0 || len(manifest.Tabs) == 0 {
+	// The conversation is the first tab, so the front page opens on it.
+	if manifest.Version != 1 || len(manifest.Sections) == 0 || len(manifest.Tabs) == 0 || manifest.Tabs[0].ID != "chat" {
 		t.Fatalf("workspace manifest = %+v", manifest)
+	}
+	if routesByPath["/catalog/models"].Authentication != routePublic {
+		t.Error("the header's evidence line reads /catalog/models, which must stay public")
 	}
 	sections := make(map[string]bool, len(manifest.Sections))
 	for _, section := range manifest.Sections {
@@ -53,6 +61,75 @@ func TestWorkspaceManifest(t *testing.T) {
 	}
 }
 
+// countingWorkflows lists a generation capability for each task it holds
+// and counts the listings it is asked for, by kind.
+type countingWorkflows struct {
+	tasks  []recipe.Task
+	listed map[WorkflowKind]int
+}
+
+func (workflows *countingWorkflows) WorkflowCapabilities(_ context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
+	workflows.listed[kind]++
+	if kind != workflowGeneration {
+		return nil, nil
+	}
+	capabilities := make([]WorkflowCapability, len(workflows.tasks))
+	for index, task := range workflows.tasks {
+		capabilities[index] = WorkflowCapability{Task: task}
+	}
+	return capabilities, nil
+}
+
+func (*countingWorkflows) ExecuteWorkflow(context.Context, WorkflowKind, WorkflowCapability, json.RawMessage, operation.Reporter) (operation.Completion, error) {
+	return operation.Completion{}, errors.New("the manifest executes nothing")
+}
+
+// TestManifestAcquiresEachCapabilityOnce: one manifest request lists each
+// workflow kind at most once, its tabs and composer modes reading that one
+// listing, and the next request lists afresh and shows what changed.
+func TestManifestAcquiresEachCapabilityOnce(t *testing.T) {
+	t.Parallel()
+	workflows := &countingWorkflows{tasks: []recipe.Task{recipe.TaskImageGen, recipe.TaskSpeech}}
+	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, Analysis: testAnalysisPolicy, Workflows: workflows}, &fakeGenerator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := func() (map[string]bool, map[string]bool) {
+		t.Helper()
+		workflows.listed = map[WorkflowKind]int{}
+		response := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "")
+		var manifest workspaceManifestResponse
+		if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &manifest) != nil || manifest.Model == nil {
+			t.Fatalf("workspace manifest status=%d body=%s", response.Code, response.Body.String())
+		}
+		for kind, count := range workflows.listed {
+			if count != 1 {
+				t.Fatalf("one manifest listed %s %d times", kind, count)
+			}
+		}
+		tabs, modes := map[string]bool{}, map[string]bool{}
+		for _, tab := range manifest.Tabs {
+			tabs[tab.ID] = tab.Enabled
+		}
+		for _, mode := range manifest.Model.Modes {
+			modes[mode.ID] = mode.Enabled
+		}
+		return tabs, modes
+	}
+	tabs, modes := manifest()
+	if workflows.listed[workflowGeneration] != 1 || !tabs["generation"] || !modes["image-gen"] || !modes["speech"] || modes["video-gen"] {
+		t.Fatalf("listed %v; tabs %v, modes %v", workflows.listed, tabs, modes)
+	}
+	workflows.tasks = []recipe.Task{recipe.TaskVideoGen}
+	if tabs, modes = manifest(); !tabs["generation"] || modes["image-gen"] || modes["speech"] || !modes["video-gen"] {
+		t.Fatalf("the next manifest kept the earlier listing: tabs %v, modes %v", tabs, modes)
+	}
+	workflows.tasks = nil
+	if tabs, modes = manifest(); tabs["generation"] || modes["video-gen"] {
+		t.Fatalf("a manifest over no capability: tabs %v, modes %v", tabs, modes)
+	}
+}
+
 func TestWorkspaceManifestCapabilityRefusal(t *testing.T) {
 	t.Parallel()
 	response := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/workspace/manifest", "")
@@ -67,24 +144,5 @@ func TestWorkspaceManifestCapabilityRefusal(t *testing.T) {
 	if !byID["chat"].Enabled || byID["attention"].Enabled || byID["attention"].Refusal == "" ||
 		byID["datasets"].Enabled || byID["datasets"].Refusal == "" {
 		t.Fatalf("workspace capability projection = %+v", byID)
-	}
-}
-
-func TestWebUIWorkspaceRoutes(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	// The workspace refusal and reachability legs drive the manifest; the
-	// source keeps client authority banned.
-	boot := serveTestRequest(handler, http.MethodGet, "/boot.js", "").Body.String()
-	for _, duplicate := range []string{"SECTION_ORDER", "tab.requires", "refreshCapabilities"} {
-		if strings.Contains(boot, duplicate) {
-			t.Errorf("workspace boot retains client authority %q", duplicate)
-		}
-	}
-	for _, path := range []string{"/mod/chat.js", "/mod/analyze_attention.js", "/mod/datasets.js"} {
-		module := serveTestRequest(handler, http.MethodGet, path, "").Body.String()
-		if strings.Contains(module, "section:") || strings.Contains(module, "requires:") || strings.Contains(module, "label:") {
-			t.Errorf("%s retains navigation or capability authority", path)
-		}
 	}
 }

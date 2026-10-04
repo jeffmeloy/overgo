@@ -235,15 +235,22 @@ func open(ctx context.Context, root string, readOnly bool) (*Store, error) {
 		return nil, errors.New("overgodb: empty root")
 	}
 	if !readOnly {
-		if err := os.MkdirAll(root, storeDirectoryMode); err != nil {
+		if err := os.MkdirAll(filepath.Dir(root), storeDirectoryMode); err != nil {
 			return nil, err
 		}
+	}
+	var err error
+	root, err = resolvedRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	if !readOnly {
 		var lock *processlock.Lock
 		var err error
 		if ctx == nil {
-			lock, err = processlock.Acquire(filepath.Join(root, lockFilename), storeFileMode)
+			lock, err = processlock.Acquire(writerLockPath(root), storeFileMode)
 		} else {
-			lock, err = processlock.AcquireContext(ctx, filepath.Join(root, lockFilename), storeFileMode)
+			lock, err = processlock.AcquireContext(ctx, writerLockPath(root), storeFileMode)
 		}
 		if err != nil {
 			return nil, err
@@ -281,6 +288,84 @@ func open(ctx context.Context, root string, readOnly bool) (*Store, error) {
 	return store, nil
 }
 
+// resolvedRoot gives aliases of a store one writer authority, including a
+// missing root between cutover renames. Its parent must already exist.
+func resolvedRoot(root string) (string, error) {
+	absolute, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err == nil || !os.IsNotExist(err) {
+		return resolved, err
+	}
+	parent, err := filepath.EvalSymlinks(filepath.Dir(absolute))
+	return filepath.Join(parent, filepath.Base(absolute)), err
+}
+
+// The lock stays beside a canonical store root, so cutover
+// cannot move its writer authority. Store open resolves root aliases first.
+// Older binaries using the in-store lock must be stopped before upgrading.
+func writerLockPath(root string) string { return filepath.Clean(root) + ".lock" }
+
+// ReplaceStore publishes a checked candidate only while live still has the
+// expected head. It excludes writers and startup across both renames and keeps
+// the original beside live; a failed or cancelled second rename restores it.
+// The caller owns candidate verification and checkout mutation authorization.
+func ReplaceStore(ctx context.Context, live, candidate, expectedHead string) (string, error) {
+	live, err := resolvedRoot(live)
+	if err != nil {
+		return "", err
+	}
+	candidate, err = resolvedRoot(candidate)
+	if err != nil {
+		return "", err
+	}
+	lock, err := processlock.AcquireContext(ctx, writerLockPath(live), storeFileMode)
+	if err != nil {
+		return "", err
+	}
+	defer lock.Close()
+	// A candidate with an active writer is refused; never wait holding live
+	// for a competing replacement in the opposite direction.
+	candidateLock, err := processlock.Acquire(writerLockPath(candidate), storeFileMode)
+	if err != nil {
+		return "", err
+	}
+	defer candidateLock.Close()
+	superseded := fmt.Sprintf("%s.superseded-%.12s", live, expectedHead)
+	if _, err := os.Lstat(superseded); err == nil {
+		return "", fmt.Errorf("overgodb: superseded path %q already exists", superseded)
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	store, err := OpenReadOnly(live)
+	if err != nil {
+		return "", err
+	}
+	head, _ := store.Head()
+	if err := store.Close(); err != nil {
+		return "", err
+	}
+	if !head.Valid() || head.String() != expectedHead {
+		return "", fmt.Errorf("overgodb: store head changed from %s to %s; rebuild the candidate", expectedHead, head)
+	}
+	if err := contextError(ctx); err != nil {
+		return "", err
+	}
+	if err := os.Rename(live, superseded); err != nil {
+		return "", err
+	}
+	err = contextError(ctx)
+	if err == nil {
+		err = os.Rename(candidate, live)
+	}
+	if err != nil {
+		return "", errors.Join(err, os.Rename(superseded, live))
+	}
+	return superseded, nil
+}
+
 // SnapshotReplay reports checkpoint use or fallback.
 func (s *Store) SnapshotReplay() SnapshotReplay {
 	s.mu.RLock()
@@ -312,7 +397,7 @@ func (s *Store) Refresh(ctx context.Context) error {
 // Acquire before the local mutex so queued writers remain cancellable and do
 // not block reads. A nil mutation requests only a refreshed view.
 func (s *Store) writeTransaction(ctx context.Context, mutate func() error) error {
-	lock, err := processlock.AcquireContext(ctx, filepath.Join(s.root, lockFilename), storeFileMode)
+	lock, err := processlock.AcquireContext(ctx, writerLockPath(s.root), storeFileMode)
 	if err != nil {
 		return err
 	}
@@ -335,6 +420,17 @@ func (s *Store) writeTransaction(ctx context.Context, mutate func() error) error
 }
 
 func (s *Store) refreshLocked() error {
+	held, err := s.log.file.Stat()
+	if err != nil {
+		return err
+	}
+	current, err := os.Stat(filepath.Join(s.root, storeFilename))
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(held, current) {
+		return fmt.Errorf("overgodb: store %q was replaced; close this handle and reopen", s.root)
+	}
 	paths, err := sealedSegmentPaths(s.root)
 	if err != nil {
 		return err
@@ -343,7 +439,7 @@ func (s *Store) refreshLocked() error {
 		return s.reopenLocked()
 	}
 
-	if info, statErr := os.Stat(filepath.Join(s.root, storeFilename)); statErr == nil && info.Size() < s.replayEnd {
+	if current.Size() < s.replayEnd {
 		// The writer sealed the active segment this reader was tailing;
 		// rebuild the view from the journal chain at the current head.
 		return s.reopenLocked()

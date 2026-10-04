@@ -92,7 +92,9 @@ func precheckStore(flags *flag.FlagSet, args []string) error {
 	if err != nil {
 		return errors.Join(err, json.NewEncoder(os.Stdout).Encode(result))
 	}
-	err = conclude(&result, *swap, func() (string, error) { return swapStores(*repository, *candidate, result.HeadBefore) })
+	err = conclude(&result, *swap, func() (string, error) {
+		return overgodb.ReplaceStore(context.Background(), *repository, *candidate, result.HeadBefore)
+	})
 	return errors.Join(err, json.NewEncoder(os.Stdout).Encode(result))
 }
 
@@ -163,21 +165,27 @@ func precheck(ctx context.Context, repository, backup, checkout, candidate strin
 	if result.Pack, err = overgodb.PackSmallBlobs(ctx, store); err != nil {
 		return result, err
 	}
+	err = prove(ctx, &result, store, checkout)
+	return result, err
+}
+
+// prove runs every consumer check against the candidate store open as store.
+// A candidate that passed carries its proof into service; one that did not is
+// discarded, so nothing is written to it.
+func prove(ctx context.Context, result *receipt, store *overgodb.Store, checkout string) error {
 	result.Checks = runChecks([]namedCheck{
 		{"blob-identity", func() error { _, err := store.VerifyBlobs(ctx); return err }},
-		{"published-chains", func() error { return checkPublishedChains(ctx, checkout, candidate) }},
+		{"published-chains", func() error { return checkPublishedChains(ctx, checkout, result.Candidate) }},
 	})
-	// A candidate that passed carries its proof into service; one that did
-	// not is discarded, so nothing is written to it.
 	if !result.Verdict() {
-		return result, nil
+		return nil
 	}
 	batch, err := result.Batch(ctx, store)
 	if err != nil {
-		return result, err
+		return err
 	}
 	_, err = store.CommitAs(ctx, producer, batch)
-	return result, err
+	return err
 }
 
 type namedCheck struct {
@@ -209,22 +217,6 @@ func conclude(result *receipt, swap bool, swapStores func() (string, error)) err
 	superseded, err := swapStores()
 	result.Swapped, result.Superseded = err == nil, superseded
 	return err
-}
-
-// swapStores renames the store in service aside and the candidate into its
-// place; a failed second rename restores the first.
-func swapStores(live, candidate, head string) (string, error) {
-	superseded := fmt.Sprintf("%s.superseded-%.12s", filepath.Clean(live), head)
-	if _, err := os.Lstat(superseded); err == nil {
-		return "", fmt.Errorf("overgodb precheck:superseded path %q already exists", superseded)
-	}
-	if err := os.Rename(live, superseded); err != nil {
-		return "", err
-	}
-	if err := os.Rename(candidate, live); err != nil {
-		return "", errors.Join(err, os.Rename(superseded, live))
-	}
-	return superseded, nil
 }
 
 // checkPublishedChains runs overgodb check, which refuses every broken

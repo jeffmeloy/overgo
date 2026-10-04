@@ -14,24 +14,6 @@ import (
 	"overgo/internal/tokenizer"
 )
 
-// Cut takes the long prompt and its true continuation out of one text:
-// the text is tokenized with the model's leading special token, the
-// prompt is its first promptTokens tokens, and the continuation the
-// scoreTokens that follow, so every model reads exactly those lengths
-// and the continuation is the text's own next tokens, not a
-// re-encoding. A text shorter than both cannot stand in for them.
-func Cut(runner *inference.Runner, text string, promptTokens, scoreTokens int) (prompt, continuation []tokenizer.TokenID, err error) {
-	ids, err := runner.TokenizeText(text, true, false)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(ids) < promptTokens+scoreTokens {
-		return nil, nil, fmt.Errorf("longform: the text tokenizes to %d tokens, fewer than the %d prompt and %d continuation tokens the run needs",
-			len(ids), promptTokens, scoreTokens)
-	}
-	return ids[:promptTokens], ids[promptTokens : promptTokens+scoreTokens], nil
-}
-
 // ContextScore is the teacher-forced score of the true continuation
 // under the long context and under the short context cut from its
 // tail: a runtime that reads the long context wrongly raises the long

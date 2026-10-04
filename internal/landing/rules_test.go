@@ -11,23 +11,19 @@ import (
 	"overgo/internal/plan"
 )
 
-// TestNewExportsNeedACodeConsumer holds the export rule to consumers in
-// code: another package that names a new export only in a comment or a
-// string leaves it refused, and one that calls it lets it land.
-func TestNewExportsNeedACodeConsumer(t *testing.T) {
+// TestExportUseCountsConsumers holds the export rule to consumers: another
+// package's production code that selects a new export through an import of
+// its package lets it land under any import name, as does a file that names
+// the package but does not parse; another package's test counts only for a
+// test-support package, one whose production importers are all test
+// support themselves and none a main package. A comment, a string, a local
+// that shadows the import, a same-named package from another path and the
+// package's own tests leave it refused.
+func TestExportUseCountsConsumers(t *testing.T) {
 	t.Parallel()
 	const exported = "package p\n\nfunc New() int { return 1 }\n"
-	repo := t.TempDir()
-	write := func(name, content string) {
-		t.Helper()
-		full := filepath.Join(repo, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
+	const imports = "package q\n\nimport \"overgo/internal/p\"\n\n"
+	const tested = imports + "var value = p.New()\n"
 	snapshot := func(source string) gosyntax.Snapshot {
 		t.Helper()
 		result, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte(source)})
@@ -36,22 +32,91 @@ func TestNewExportsNeedACodeConsumer(t *testing.T) {
 		}
 		return result
 	}
-	write("cmd/x/main.go", "package main\n\nfunc main() {}\n")
-	write("internal/p/p.go", exported)
-	write("internal/q/q.go", "package q\n\n// Built by p.New once the model loads.\nconst note = \"p.New\"\n")
-	l := &landing{Options: Options{Repo: repo}}
-	findings, err := l.newUnconsumedExports(snapshot("package p\n"), snapshot(exported))
-	if err != nil || len(findings) != 1 || !strings.Contains(findings[0], "p.New") {
-		t.Fatalf("an export named only in a comment and a string: findings = %q, %v", findings, err)
-	}
-	write("internal/r/r.go", "package r\n\nimport \"fixture/internal/p\"\n\nvar value = p.New()\n")
-	if findings, err := l.newUnconsumedExports(snapshot("package p\n"), snapshot(exported)); err != nil || len(findings) != 0 {
-		t.Fatalf("an export another package calls: findings = %q, %v", findings, err)
+	for _, test := range []struct {
+		name     string
+		files    map[string]string
+		consumed bool
+	}{
+		{"a comment and a string", map[string]string{"internal/q/q.go": "package q\n\n// Built by p.New once the model loads.\nconst note = \"p.New\"\n"}, false},
+		{"a shadowing local", map[string]string{"internal/q/q.go": imports + "var other = p.Other\n\nfunc f(p struct{ New int }) int { return p.New }\n"}, false},
+		{"a same-named package", map[string]string{"internal/q/q.go": "package q\n\nimport p \"overgo/internal/peer\"\n\nvar value = p.New()\n"}, false},
+		{"its own package's test", map[string]string{"internal/p/p_test.go": "package p_test\n\nimport \"overgo/internal/p\"\n\nvar value = p.New()\n"}, false},
+		{"only another package's test, of a package production imports", map[string]string{
+			"cmd/x/main.go": "package main\n\nimport \"overgo/internal/p\"\n\nfunc main() { p.Other() }\n", "internal/q/q_test.go": tested}, false},
+		{"a call", map[string]string{"cmd/x/main.go": "package main\n\nimport \"overgo/internal/p\"\n\nfunc main() { p.New() }\n"}, true},
+		{"an aliased import", map[string]string{"internal/q/q.go": "package q\n\nimport made \"overgo/internal/p\"\n\nvar value = made.New()\n"}, true},
+		{"a consumer before a local selector", map[string]string{"internal/q/q.go": imports + "func use(...int) {}\nfunc f(local struct{ New int }) { use(p.New(), local.New) }\n"}, true},
+		{"a consumer after a local selector", map[string]string{"internal/q/q.go": imports + "func use(...int) {}\nfunc f(local struct{ New int }) { use(local.New, p.New()) }\n"}, true},
+		{"another package's test, of a package only tests import", map[string]string{"internal/q/q_test.go": tested}, true},
+		{"another package's test, of a package only test support imports", map[string]string{
+			"internal/b/b.go":      "package b\n\nimport \"overgo/internal/p\"\n\nvar Other = p.Other\n",
+			"internal/c/c_test.go": "package c\n\nimport \"overgo/internal/b\"\n\nvar other = b.Other\n", "internal/q/q_test.go": tested}, true},
+		{"an unparsed importer", map[string]string{"internal/q/q.go": imports + "func broken( {\n"}, true},
+	} {
+		repo := t.TempDir()
+		test.files["internal/p/p.go"] = exported
+		for name, content := range test.files {
+			full := filepath.Join(repo, filepath.FromSlash(name))
+			if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		l := &landing{Options: Options{Repo: repo}}
+		findings, err := l.newUnconsumedExports(snapshot("package p\n"), snapshot(exported))
+		if err != nil || (len(findings) == 0) != test.consumed {
+			t.Errorf("%s: findings = %q, %v; consumed = %t", test.name, findings, err, test.consumed)
+		}
 	}
 }
 
-// TestNewLegacyFormsNamesOnlyWhatAChangeAdds refuses the three forms go fix
-// leaves when a change adds them, and passes a file that already held them.
+// TestFallbackLintAcceptsLazyReads passes an if that falls back from an
+// empty value to a read only the fallback may evaluate: rewritten with
+// cmp.Or, the index, dereference, field read, call or receive would run
+// even when the value is set.
+func TestFallbackLintAcceptsLazyReads(t *testing.T) {
+	t.Parallel()
+	const lazy = `package p
+
+type config struct{ name string }
+
+func Name(name string, values []string, count *int, fallback *config, load func() string, ready <-chan string) (string, int) {
+	if name == "" {
+		name = values[0]
+	}
+	limit := 0
+	if limit == 0 {
+		limit = *count
+	}
+	if name == "" {
+		name = fallback.name
+	}
+	if name == "" {
+		name = load()
+	}
+	if name == "" {
+		name = <-ready
+	}
+	return name, limit
+}
+`
+	base, err := (gosyntax.Snapshot{}).Overlay(map[string][]byte{"internal/p/p.go": []byte("package p\n")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := base.Overlay(map[string][]byte{"internal/p/p.go": []byte(lazy)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findings := newLegacyForms(base, candidate); len(findings) != 0 {
+		t.Fatalf("lazy fallbacks were refused: %q", findings)
+	}
+}
+
+// TestNewLegacyFormsNamesOnlyWhatAChangeAdds refuses the forms go fix leaves
+// when a change adds them, and passes a file that already held them.
 func TestNewLegacyFormsNamesOnlyWhatAChangeAdds(t *testing.T) {
 	t.Parallel()
 	const held = `package p
@@ -66,39 +131,9 @@ var once sync.Once
 func Order(values []int) { sort.Slice(values, func(i, j int) bool { return values[i] < values[j] }) }
 `
 	const added = held + `
-func Name(name string) string {
-	if name == "" {
-		name = "default"
-	}
-	return name
-}
-
-func Count(count int) int {
-	if 0 == count {
-		count = 3
-	}
-	return count
-}
-
 func Stable(values []int) { sort.SliceStable(values, func(i, j int) bool { return values[i] < values[j] }) }
 
 var twice sync.Once
-
-func Keep(name, other string) string {
-	if name == "" {
-		other = "x"
-	}
-	return other
-}
-
-func Lazy(name string) string {
-	if name == "" {
-		name = load()
-	}
-	return name
-}
-
-func load() string { return "loaded" }
 `
 	snapshot := func(source string) gosyntax.Snapshot {
 		t.Helper()
@@ -117,7 +152,7 @@ func load() string { return "loaded" }
 		scopes = append(scopes, finding[strings.LastIndex(finding, " ")+1:])
 	}
 	slices.Sort(scopes)
-	if want := []string{"Count", "Name", "Stable", "package"}; !slices.Equal(scopes, want) {
+	if want := []string{"Stable", "package"}; !slices.Equal(scopes, want) {
 		t.Fatalf("findings = %q, want one each in %v", findings, want)
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -14,24 +16,29 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestApprovalDecisionSeparation pins the decision contract: a decision
-// must name the exact approval request the pending view advertises, so
-// one action can never both derive the approval and grant it. A blind
-// grant, a grant naming a different request, and the retired boolean
-// agent grant are all refused; a grant naming the advertised request is
-// recorded with both identities and recovers the operation.
+// TestApprovalDecisionSeparation pins the decision contract and the
+// pending-work projection: a blocked operation appears in the inbox with its
+// reason and advertised actions, and a decision must name the exact approval
+// request the pending view advertises, so one action can never both derive
+// the approval and grant it. A blind grant and a grant naming a different
+// request are refused; a grant naming the advertised request is recorded,
+// recovers the operation, leaves the inbox, shows in the operation's
+// evidence, and cannot be replayed.
 func TestApprovalDecisionSeparation(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
+	empty := serveTestRequest(handler, http.MethodGet, "/operations/inbox", "")
+	if empty.Code != http.StatusOK || !strings.Contains(empty.Body.String(), `"waiting":[]`) {
+		t.Fatalf("empty inbox status=%d body=%s", empty.Code, empty.Body.String())
+	}
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "separation-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "separation-run")
 	action := operatoraction.Action{Code: "resume", Summary: "Resume the blocked work", Argv: []string{"overgo", "resume"}}
-	attempts := 0
+	var attempts atomic.Int32
 	id, err := handler.operations.Submit(t.Context(), operation.Request{
 		Task: recipe.TaskGeneration, Recipe: recipeID,
 	}, func(context.Context, operation.Reporter) (operation.Completion, error) {
-		attempts++
-		if attempts == 1 {
+		if attempts.Add(1) == 1 {
 			return operation.Completion{Run: runID}, operatoraction.Recoverable(errors.New("approval required"), operatoraction.Block{
 				Subject: recipeID, Reason: "operator approval required", Evidence: []artifact.ID{}, Actions: []operatoraction.Action{action},
 			})
@@ -41,8 +48,13 @@ func TestApprovalDecisionSeparation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := handler.operations.Wait(t.Context(), id); err != nil {
-		t.Fatal(err)
+	if blocked, err := handler.operations.Wait(t.Context(), id); err != nil || blocked.State != operation.StateBlocked {
+		t.Fatalf("blocked operation=(%+v, %v)", blocked, err)
+	}
+	waiting := serveTestRequest(handler, http.MethodGet, "/operations/inbox", "")
+	if waiting.Code != http.StatusOK || !strings.Contains(waiting.Body.String(), id.String()) ||
+		!strings.Contains(waiting.Body.String(), "operator approval required") || !strings.Contains(waiting.Body.String(), `"resume"`) {
+		t.Fatalf("waiting inbox status=%d body=%s", waiting.Code, waiting.Body.String())
 	}
 
 	view := serveTestRequest(handler, http.MethodGet, "/operations/decisions", "")
@@ -89,9 +101,10 @@ func TestApprovalDecisionSeparation(t *testing.T) {
 		t.Fatalf("refused grants moved the operation: %+v found=%t", status, found)
 	}
 
-	granted := serveTestRequest(handler, http.MethodPost, "/operations/decision", marshalTestJSON(t, map[string]any{
+	grant := marshalTestJSON(t, map[string]any{
 		"operation": id, "tool": action.Code, "answer": operatoraction.AnswerGrant, "request": advertised,
-	}))
+	})
+	granted := serveTestRequest(handler, http.MethodPost, "/operations/decision", grant)
 	if granted.Code != http.StatusAccepted {
 		t.Fatalf("advertised grant status=%d body=%s", granted.Code, granted.Body.String())
 	}
@@ -99,7 +112,16 @@ func TestApprovalDecisionSeparation(t *testing.T) {
 	if err := json.Unmarshal(granted.Body.Bytes(), &outcome); err != nil || !outcome.Decision.Valid() {
 		t.Fatalf("grant outcome = %+v, %v", outcome, err)
 	}
-	if completed, err := handler.operations.Wait(t.Context(), id); err != nil || completed.State != operation.StateCompleted {
-		t.Fatalf("recovered operation = (%+v, %v)", completed, err)
+	if completed, err := handler.operations.Wait(t.Context(), id); err != nil || completed.State != operation.StateCompleted || attempts.Load() != 2 {
+		t.Fatalf("recovered operation = (%+v, %v), attempts=%d", completed, err, attempts.Load())
+	}
+	if replayed := serveTestRequest(handler, http.MethodPost, "/operations/decision", grant); replayed.Code != http.StatusConflict {
+		t.Fatalf("replay status=%d body=%s", replayed.Code, replayed.Body.String())
+	}
+	if drained := serveTestRequest(handler, http.MethodGet, "/operations/inbox", ""); drained.Code != http.StatusOK || strings.Contains(drained.Body.String(), id.String()) {
+		t.Fatalf("recovered operation still in inbox: %s", drained.Body.String())
+	}
+	if projection := serveTestRequest(handler, http.MethodGet, "/operations/evidence?id="+id.String(), ""); projection.Code != http.StatusOK || !strings.Contains(projection.Body.String(), `"answer":"grant"`) {
+		t.Fatalf("recovery evidence status=%d body=%s", projection.Code, projection.Body.String())
 	}
 }

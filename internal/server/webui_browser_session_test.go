@@ -131,12 +131,10 @@ func TestWebUIBrowserSessionContinuation(t *testing.T) {
 	check(`(() => { const body = sessionRequests.at(-1); return body.continue === true && !!body.previous_response_id && body.input === undefined; })()`)
 
 	// Reopened, the conversation holds the one whole reply.
-	if err := browser.Evaluate(ctx, `location.reload()`, nil); err != nil {
+	if err := browser.Reload(ctx); err != nil {
 		t.Fatal(err)
 	}
-	// A reopened conversation may still be following its last turn, so the leg waits for the whole reply.
-	settle(`!!document.querySelector('.composer textarea') && document.querySelectorAll('.chat-log .msg.assistant').length === 1`)
 	check(helpers)
-	settle(`sessionReplies()[0] === 'The quick brown fox jumps over the dog.' && !sessionStopped() && document.querySelectorAll('.chat-log .msg.user').length === 1`)
+	settle(`document.querySelectorAll('.chat-log .msg.assistant').length === 1 && sessionReplies()[0] === 'The quick brown fox jumps over the dog.' && !sessionStopped() && document.querySelectorAll('.chat-log .msg.user').length === 1`)
 	webuilane.Leg(t, "session continuation leg", "a turn stopped after three words offered Continue, continuing resumed the stopped turn without new input in the same message, and the reopened conversation held the one whole reply")
 }

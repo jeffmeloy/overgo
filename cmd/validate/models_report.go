@@ -1,0 +1,316 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"sort"
+	"strings"
+
+	"overgo/internal/artifact"
+	"overgo/internal/gguf"
+	"overgo/internal/jsonfile"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
+)
+
+// The model report is the structured projection the matrix tables
+// render prose from: prototypes identified, and each specific verified
+// model nested inside the prototype it belongs to with its strongest
+// inference and training verification claims. Prototypes carry no
+// status -- validation is a property of specific models only. It is
+// rendered on demand from its inputs, never committed.
+const (
+	modelsReportSchema = "overgo/model-compatibility/v1"
+	verificationGlob   = "docs/verification/*.json"
+)
+
+type modelsReport struct {
+	Schema     string                     `json:"schema"`
+	Note       string                     `json:"note"`
+	Prototypes map[string]prototypeModels `json:"prototypes"`
+}
+
+type prototypeModels struct {
+	Execution []string               `json:"execution,omitempty"`
+	Features  []string               `json:"features,omitempty"`
+	Models    map[string]modelRecord `json:"models,omitempty"`
+}
+
+type modelRecord struct {
+	Model     string        `json:"model"`
+	Inference []claimRecord `json:"inference,omitempty"`
+	Training  []claimRecord `json:"training,omitempty"`
+}
+
+type claimRecord struct {
+	Capability      string `json:"capability"`
+	Tier            string `json:"tier"`
+	Commit          string `json:"commit"`
+	ContextTokens   uint64 `json:"context_tokens,omitzero"`
+	SpanSteps       uint64 `json:"span_steps,omitzero"`
+	SpanTokens      uint64 `json:"span_tokens,omitzero"`
+	WallNS          uint64 `json:"wall_ns,omitzero"`
+	PeakDeviceBytes uint64 `json:"peak_device_bytes,omitzero"`
+}
+
+// generateModelsReport nests the strongest verified claims of every
+// specific model inside its prototype. The typed specifications under
+// docs/verification carry the claims; the store's active model
+// definition is the prototype authority, with the GGUF header as the
+// fallback for models the store does not hold. A nil store resolves by
+// the headers alone.
+func generateModelsReport(root string, store *overgodb.Store) ([]byte, error) {
+	// compatibility.json declares the prototypes; its claims are validate's.
+	var declared struct {
+		Models map[string]prototypeModels `json:"models"`
+	}
+	if err := jsonfile.Decode(filepath.Join(root, "compatibility.json"), &declared); err != nil {
+		return nil, fmt.Errorf("model report: %w", err)
+	}
+	report := modelsReport{
+		Schema: modelsReportSchema,
+		Note: "Rendered by go run ./cmd/validate -models from the docs/verification " +
+			"typed specifications joined against the OvergoDB store.",
+		Prototypes: map[string]prototypeModels{},
+	}
+	for name, item := range declared.Models {
+		report.Prototypes[name] = prototypeModels{
+			Execution: item.Execution, Features: item.Features, Models: map[string]modelRecord{},
+		}
+	}
+	verifications, err := loadVerificationInventory(root)
+	if err != nil {
+		return nil, err
+	}
+	resolve := prototypeResolver(store, declared.Models)
+	nameCounts := map[string]int{}
+	for _, row := range verifications.Rows {
+		nameCounts[row.Name]++
+	}
+	for _, row := range verifications.Rows {
+		record := modelRecord{Model: row.Model.String()}
+		for _, claim := range row.Capabilities {
+			summary := claimRecord{
+				Capability: claim.Capability, Tier: string(claim.Tier), Commit: claim.Commit,
+				ContextTokens: claim.ContextTokens, SpanSteps: claim.SpanSteps,
+				SpanTokens: claim.SpanTokens, WallNS: claim.WallNS,
+				PeakDeviceBytes: claim.PeakDeviceBytes,
+			}
+			if trainingCapability(claim.Capability) {
+				record.Training = append(record.Training, summary)
+			} else {
+				record.Inference = append(record.Inference, summary)
+			}
+		}
+		sortClaimRecords(record.Inference)
+		sortClaimRecords(record.Training)
+		prototype := resolve(row.Model, verifications.Files[row.Model])
+		entry, declared := report.Prototypes[prototype]
+		if !declared {
+			entry = prototypeModels{Models: map[string]modelRecord{}}
+		}
+		if entry.Models == nil {
+			entry.Models = map[string]modelRecord{}
+		}
+		key := row.Name
+		if nameCounts[key] > 1 {
+			key += " [" + record.Model + "]"
+		}
+		if _, exists := entry.Models[key]; exists {
+			return nil, fmt.Errorf("model report: ambiguous model key %q", key)
+		}
+		entry.Models[key] = record
+		report.Prototypes[prototype] = entry
+	}
+	encoded, err := json.MarshalIndent(report, "", " ")
+	if err != nil {
+		return nil, err
+	}
+	return append(encoded, '\n'), nil
+}
+
+// verificationInventory keeps the matrix and prototype fallback locations
+// under one typed return contract.
+type verificationInventory struct {
+	Rows  []runrecord.MatrixRow
+	Files map[artifact.ID]string
+}
+
+// loadVerificationInventory reduces every typed specification to its strongest claims.
+func loadVerificationInventory(root string) (verificationInventory, error) {
+	paths, err := filepath.Glob(filepath.Join(root, filepath.FromSlash(verificationGlob)))
+	if err != nil {
+		return verificationInventory{}, err
+	}
+	slices.Sort(paths)
+	var records []runrecord.ModelVerification
+	files := map[artifact.ID]string{}
+	for _, path := range paths {
+		// The verification directory also holds external tool result
+		// records; a typed specification is exactly a document whose
+		// model field is an artifact-ID string carrying claims.
+		var document json.RawMessage
+		if err := jsonfile.Decode(path, &document); err != nil {
+			return verificationInventory{}, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
+		}
+		if len(document) == 0 || document[0] != '{' {
+			continue
+		}
+		var probe struct {
+			Model  json.RawMessage `json:"model"`
+			Claims json.RawMessage `json:"claims"`
+		}
+		if err := json.Unmarshal(document, &probe); err != nil {
+			return verificationInventory{}, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
+		}
+		var modelID string
+		if len(probe.Claims) == 0 || json.Unmarshal(probe.Model, &modelID) != nil {
+			continue
+		}
+		var specification verificationSpecification
+		if err := jsonfile.Decode(path, &specification); err != nil {
+			return verificationInventory{}, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
+		}
+		record, err := runrecord.NewModelVerificationCorrection(
+			specification.Model, specification.Name,
+			strongestClaims(specification.Claims), specification.Supersedes,
+		)
+		if err != nil {
+			return verificationInventory{}, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
+		}
+		records = append(records, record)
+		if specification.ModelFile != "" {
+			files[specification.Model] = specification.ModelFile
+		}
+	}
+	return verificationInventory{Rows: runrecord.VerificationMatrix(records), Files: files}, nil
+}
+
+// prototypeResolver answers which prototype a specific model belongs
+// to: the store's active model definition first, the GGUF header of a
+// present model file second, and the explicit unattributed bucket when
+// neither authority is available.
+func prototypeResolver(store *overgodb.Store, declared map[string]prototypeModels) func(model artifact.ID, file string) string {
+	ctx := context.Background()
+	return func(model artifact.ID, file string) string {
+		if store != nil {
+			if name := storePrototype(ctx, store, model); name != "" {
+				return name
+			}
+		}
+		if name := ggufPrototype(file); name != "" {
+			return name
+		}
+		// A safetensors repository declares its architecture in the
+		// sibling config; the name attributes only when it matches a
+		// declared prototype, never through an invented mapping.
+		if name := safetensorsPrototype(file); name != "" {
+			if _, known := declared[name]; known {
+				return name
+			}
+		}
+		return "unattributed"
+	}
+}
+
+func safetensorsPrototype(path string) string {
+	if path == "" || !strings.HasSuffix(path, ".safetensors") {
+		return ""
+	}
+	raw, err := os.ReadFile(filepath.Join(filepath.Dir(path), "config.json"))
+	if err != nil {
+		return ""
+	}
+	var config struct {
+		ModelType string `json:"model_type"`
+	}
+	if json.Unmarshal(raw, &config) != nil {
+		return ""
+	}
+	return config.ModelType
+}
+
+func storePrototype(ctx context.Context, store *overgodb.Store, model artifact.ID) string {
+	activation, active, err := modelrecipe.ActiveRecord(ctx, store, model, recipe.TaskInference)
+	if err != nil || !active {
+		return ""
+	}
+	definition, declared := activation.Definition.PrimaryDependency(recipe.DependencyDefinition)
+	if !declared {
+		return ""
+	}
+	resolved, err := modelrecipe.ResolveModelDefinition(ctx, store, definition)
+	if err != nil {
+		return ""
+	}
+	return resolved.Document.Architecture
+}
+
+func ggufPrototype(path string) string {
+	if path == "" {
+		return ""
+	}
+	if _, err := os.Stat(path); err != nil {
+		return ""
+	}
+	file, err := gguf.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+	for _, item := range file.Metadata {
+		if item.Key == "general.architecture" {
+			if value, ok := item.Value.Data.(string); ok {
+				return value
+			}
+		}
+	}
+	return ""
+}
+
+// strongestClaims reduces one specification to a single claim per
+// capability by evidence precedence, mirroring the matrix reduction: a
+// specification may record a smoke run and its later exact golden, and
+// the report states the strongest.
+func strongestClaims(claims []runrecord.CapabilityClaim) []runrecord.CapabilityClaim {
+	byCapability := map[string]runrecord.CapabilityClaim{}
+	order := make([]string, 0, len(claims))
+	for _, claim := range claims {
+		standing, seen := byCapability[claim.Capability]
+		if !seen {
+			order = append(order, claim.Capability)
+			byCapability[claim.Capability] = claim
+			continue
+		}
+		if claim.Tier.StrongerThan(standing.Tier) {
+			byCapability[claim.Capability] = claim
+		}
+	}
+	reduced := make([]runrecord.CapabilityClaim, 0, len(order))
+	for _, capability := range order {
+		reduced = append(reduced, byCapability[capability])
+	}
+	return reduced
+}
+
+func measured(value uint64) bool {
+	var absent uint64
+	return value != absent
+}
+
+func escapeMarkdown(value string) string { return strings.ReplaceAll(value, "|", "\\|") }
+
+func sortClaimRecords(records []claimRecord) {
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].Capability != records[j].Capability {
+			return records[i].Capability < records[j].Capability
+		}
+		return records[i].Tier < records[j].Tier
+	})
+}

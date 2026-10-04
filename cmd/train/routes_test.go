@@ -8,18 +8,19 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
-	"overgo/internal/jsonfile"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 // TestTrainRoutesFoldedProbes holds each route, one subtest by its name, to
 // the probe command it replaced: the command is gone and the route is
 // reached by name through cmd/train. An unknown name is refused with the
-// routes listed, and the real Un-0 checkpoint trains through the
-// oscillatorimage route, descends and publishes its checkpoint.
+// routes listed, and the real Un-0 checkpoint's bootstrap trains through
+// the oscillatorimage route, descends and publishes its checkpoint.
 func TestTrainRoutesFoldedProbes(t *testing.T) {
 	for name := range trainRoutes {
 		t.Run(name, func(t *testing.T) {
@@ -30,13 +31,13 @@ func TestTrainRoutesFoldedProbes(t *testing.T) {
 			if _, err := os.Stat(filepath.Join("..", former)); !os.IsNotExist(err) {
 				t.Errorf("cmd/%s still exists beside its cmd/train route (%v)", former, err)
 			}
-			if err := runRoute([]string{name}); err == nil || !strings.Contains(err.Error(), routeFlag+" "+name) {
+			if err := runRoute(t.Context(), []string{name}); err == nil || !strings.Contains(err.Error(), routeFlag+" "+name) {
 				t.Errorf("route %s without its flags = %v, want a refusal naming the route", name, err)
 			}
 		})
 	}
 	t.Run("unknown", func(t *testing.T) {
-		if err := runRoute([]string{"absent"}); err == nil || !strings.Contains(err.Error(), strings.Join(slices.Sorted(maps.Keys(trainRoutes)), ", ")) {
+		if err := runRoute(t.Context(), []string{"absent"}); err == nil || !strings.Contains(err.Error(), strings.Join(slices.Sorted(maps.Keys(trainRoutes)), ", ")) {
 			t.Errorf("unknown route = %v, want a refusal listing the routes", err)
 		}
 	})
@@ -53,8 +54,7 @@ var formerProbes = map[string]string{
 }
 
 // TestTrainRoutesEveryProbe holds the fold complete: every training probe
-// command that existed is gone and its trainer is a cmd/train route, and
-// every route the train lane dispatches runs cmd/train, never a probe.
+// command that existed is gone and its trainer is a cmd/train route.
 func TestTrainRoutesEveryProbe(t *testing.T) {
 	t.Parallel()
 	for command, route := range formerProbes {
@@ -65,26 +65,11 @@ func TestTrainRoutesEveryProbe(t *testing.T) {
 			t.Errorf("cmd/%s's trainer is not the %s route of cmd/train", command, route)
 		}
 	}
-	var catalog struct {
-		Routes map[string]struct {
-			Argv []string `json:"argv"`
-		} `json:"routes"`
-	}
-	if err := jsonfile.Decode(filepath.Join("..", "..", "docs", "training_routes.json"), &catalog); err != nil {
-		t.Fatal(err)
-	}
-	for key, route := range catalog.Routes {
-		if !slices.Equal(route.Argv[:min(len(route.Argv), len(trainInvocation))], trainInvocation) {
-			t.Errorf("training route %s runs %v, not cmd/train", key, route.Argv)
-		}
-	}
 }
 
-// trainInvocation is how the training route table starts cmd/train.
-var trainInvocation = []string{"go", "run", "./cmd/train"}
-
-// trainsUn0 trains the real Un-0 checkpoint through the oscillatorimage
-// route and holds it to descending and publishing the trained bootstrap.
+// trainsUn0 trains the real Un-0 checkpoint's scratch bootstrap through the
+// oscillatorimage route and holds it to descending and publishing a
+// checkpoint that trained from the bootstrap, not from Un-0's weights.
 func trainsUn0(t *testing.T) {
 	testskip.Short(t, "trains the real Un-0 checkpoint")
 	repository := testutil.RepoRoot(t)
@@ -97,12 +82,25 @@ func trainsUn0(t *testing.T) {
 		testskip.NotApplicable(t, "the Un-0 checkpoint is absent at "+model)
 	}
 	out := filepath.Join(t.TempDir(), "checkpoint")
-	if err := runRoute([]string{"oscillatorimage", "-model", model, "-steps", "2",
+	if err := runRoute(t.Context(), []string{"oscillatorimage", "-model", model, "-steps", "2",
 		"-stimulus", filepath.Join(repository, "docs", "verification", "un0-training-dataset.txt"),
 		"-store", filepath.Join(t.TempDir(), "store"), "-out", out}); err != nil {
 		t.Fatalf("oscillatorimage route on Un-0: %v", err)
 	}
-	if _, err := trainingprogram.LoadCheckpoint(out); err != nil {
+	checkpoint, err := trainingprogram.LoadCheckpoint(out)
+	if err != nil {
 		t.Fatalf("the trained Un-0 bootstrap's checkpoint: %v", err)
+	}
+	weights, err := trainingworkflow.IdentifyModelWeights(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(weights)
+	if err != nil {
+		t.Fatal(err)
+	}
+	un0, _, err := artifact.Identify(artifact.KindModel, file)
+	if closeErr := file.Close(); err != nil || closeErr != nil || checkpoint.Model == un0 {
+		t.Fatalf("the trained bootstrap names %s as trained from (%v, %v), want its scratch construction, not Un-0's weights %s", checkpoint.Model, err, closeErr, un0)
 	}
 }

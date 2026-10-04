@@ -123,8 +123,10 @@ func (h *Handler) workspaceManifest(response http.ResponseWriter, request *http.
 		Version: declaration.Version, Sections: slices.Clone(declaration.Sections),
 		Tabs: make([]workspaceTab, len(declaration.Tabs)),
 	}
+	// The tabs and composer modes share this request's listing per kind.
+	listing := workspaceListing{}
 	for index, tab := range declaration.Tabs {
-		enabled := h.workspaceCapability(request.Context(), tab.Capability)
+		enabled := h.workspaceCapability(request.Context(), listing, tab.Capability)
 		result.Tabs[index] = workspaceTab{
 			ID: tab.ID, Label: tab.Label, Section: tab.Section, Module: tab.module(), ViewOf: tab.ViewOf, Enabled: enabled,
 		}
@@ -132,7 +134,7 @@ func (h *Handler) workspaceManifest(response http.ResponseWriter, request *http.
 			result.Tabs[index].Refusal, result.Tabs[index].Action = workspaceRefusal(tab.Capability)
 		}
 	}
-	if document, ok := h.workspaceModelCapabilities(request.Context()); ok {
+	if document, ok := h.workspaceModelCapabilities(request.Context(), listing); ok {
 		result.Model = &document
 	}
 	writeJSON(response, http.StatusOK, result)
@@ -183,12 +185,12 @@ func parseWorkspaceManifest() (workspaceManifestDeclaration, error) {
 	return declaration, nil
 }
 
-func (h *Handler) workspaceCapability(ctx context.Context, capability string) bool {
+func (h *Handler) workspaceCapability(ctx context.Context, listing workspaceListing, capability string) bool {
 	analysis := h.analysisCapabilities()
 	supported := false
 	switch capability {
 	case "conversation":
-		supported = analysis.Logits || h.hasWorkspaceCapability(ctx, workflowGeneration, "")
+		supported = analysis.Logits || h.hasWorkspaceCapability(ctx, listing, workflowGeneration, "")
 	case "analysis.logits":
 		supported = analysis.Logits
 	case "analysis.vocabulary":
@@ -220,34 +222,42 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) bo
 		// way cmd/server does; the generator never carries it.
 		supported = h.config.Evaluation != nil
 	case "workflow.generation":
-		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, "")
+		supported = h.hasWorkspaceCapability(ctx, listing, workflowGeneration, "")
 	case "workflow.training":
-		supported = h.hasWorkspaceCapability(ctx, WorkflowTraining, "")
+		supported = h.hasWorkspaceCapability(ctx, listing, WorkflowTraining, "")
 	case "workflow.model-builder":
-		supported = h.hasWorkspaceCapability(ctx, workflowModelBuild, "")
+		supported = h.hasWorkspaceCapability(ctx, listing, workflowModelBuild, "")
 	case "workflow.export":
-		supported = h.hasWorkspaceCapability(ctx, workflowExport, "")
+		supported = h.hasWorkspaceCapability(ctx, listing, workflowExport, "")
 	case "workflow.image":
-		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, recipe.TaskImageGen)
+		supported = h.hasWorkspaceCapability(ctx, listing, workflowGeneration, recipe.TaskImageGen)
 	case "workflow.video":
-		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, recipe.TaskVideoGen)
+		supported = h.hasWorkspaceCapability(ctx, listing, workflowGeneration, recipe.TaskVideoGen)
 	case "workflow.speech":
-		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, recipe.TaskSpeech)
+		supported = h.hasWorkspaceCapability(ctx, listing, workflowGeneration, recipe.TaskSpeech)
 	case "workflow.vqa":
-		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, recipe.TaskVQA)
+		supported = h.hasWorkspaceCapability(ctx, listing, workflowGeneration, recipe.TaskVQA)
 	case "workflow.transcription":
-		supported = h.hasWorkspaceCapability(ctx, workflowGeneration, recipe.TaskTranscription)
+		supported = h.hasWorkspaceCapability(ctx, listing, workflowGeneration, recipe.TaskTranscription)
 	}
 	return supported
 }
 
-func (h *Handler) hasWorkspaceCapability(ctx context.Context, kind WorkflowKind, task recipe.Task) bool {
+// workspaceListing: one request's workflow capabilities by kind, each
+// acquired once; a failed listing lists none.
+type workspaceListing map[WorkflowKind][]WorkflowCapability
+
+func (h *Handler) hasWorkspaceCapability(ctx context.Context, listing workspaceListing, kind WorkflowKind, task recipe.Task) bool {
 	if h.config.Workflows == nil {
 		return false
 	}
-	capabilities, err := h.config.Workflows.WorkflowCapabilities(ctx, kind)
-	if err != nil {
-		return false
+	capabilities, acquired := listing[kind]
+	if !acquired {
+		listed, err := h.config.Workflows.WorkflowCapabilities(ctx, kind)
+		if err == nil {
+			capabilities = listed
+		}
+		listing[kind] = capabilities
 	}
 	if task == "" {
 		return len(capabilities) != 0

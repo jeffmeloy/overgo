@@ -22,12 +22,10 @@ func NormalizeNFC(text string) string {
 		if character == utf8.RuneError && width == 1 {
 			// Negative runes are disjoint from valid Unicode scalar values.
 			values = append(values, -1-rune(text[position]))
-		} else if decomposition, ok := nfdTable[character]; ok {
-			values = append(values, decomposition...)
 		} else if decomposition, ok := nfcDecompositionDelta[character]; ok {
 			values = append(values, decomposition...)
 		} else {
-			values = append(values, character)
+			values = appendNFD(values, character)
 		}
 		position += width
 	}
@@ -78,28 +76,14 @@ func NormalizeNFC(text string) string {
 	return output.String()
 }
 
-// Hangul constants and arithmetic are normative Unicode 16 section 3.12:
-// https://www.unicode.org/versions/Unicode16.0.0/core-spec/chapter-3/
-const (
-	nfcHangulSBase  = 0xAC00
-	nfcHangulLBase  = 0x1100
-	nfcHangulVBase  = 0x1161
-	nfcHangulTBase  = 0x11A7
-	nfcHangulLCount = 19
-	nfcHangulVCount = 21
-	nfcHangulTCount = 28
-	nfcHangulNCount = nfcHangulVCount * nfcHangulTCount
-	nfcHangulSCount = nfcHangulLCount * nfcHangulNCount
-)
-
 func nfcCompose(first, second rune) (rune, bool) {
-	if first >= nfcHangulLBase && first < nfcHangulLBase+nfcHangulLCount &&
-		second >= nfcHangulVBase && second < nfcHangulVBase+nfcHangulVCount {
-		return nfcHangulSBase + ((first-nfcHangulLBase)*nfcHangulVCount+second-nfcHangulVBase)*nfcHangulTCount, true
+	if first >= hangulLBase && first < hangulLBase+hangulLCount &&
+		second >= hangulVBase && second < hangulVBase+hangulVCount {
+		return hangulSBase + ((first-hangulLBase)*hangulVCount+second-hangulVBase)*hangulTCount, true
 	}
-	if first >= nfcHangulSBase && first < nfcHangulSBase+nfcHangulSCount &&
-		(first-nfcHangulSBase)%nfcHangulTCount == 0 && second > nfcHangulTBase && second < nfcHangulTBase+nfcHangulTCount {
-		return first + second - nfcHangulTBase, true
+	if first >= hangulSBase && first < hangulSBase+hangulSCount &&
+		(first-hangulSBase)%hangulTCount == 0 && second > hangulTBase && second < hangulTBase+hangulTCount {
+		return first + second - hangulTBase, true
 	}
 	value, ok := nfcComposition[[2]rune{first, second}]
 	return value, ok

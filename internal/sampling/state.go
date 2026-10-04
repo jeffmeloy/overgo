@@ -16,9 +16,9 @@ const (
 	samplerStateMagic      = "L2GSMP04"
 	samplerStateMagicBytes = uint64(len(samplerStateMagic))
 	maxSamplerStateBytes   = 1 << 20
+	// emptyChainSignature parts an explicitly empty chain from the omitted order.
+	emptyChainSignature = ^uint64(8)
 )
-
-func ValidStateSize(size uint64) bool { return size > 0 && size <= maxSamplerStateBytes }
 
 // SaveState: stores random stream, Mirostat, adaptive-p, and grammar state
 func (s *Sampler) SaveState() ([]byte, error) {
@@ -49,7 +49,7 @@ func (s *Sampler) LoadState(data []byte) error {
 	if s == nil || s.source == nil {
 		return errors.New("sampler is nil")
 	}
-	if !ValidStateSize(uint64(len(data))) {
+	if len(data) == 0 || len(data) > maxSamplerStateBytes {
 		return errors.New("sampler state has invalid size")
 	}
 	decoder := statecodec.NewDecoder(data, maxSamplerStateBytes)
@@ -245,6 +245,9 @@ func configSignature(config Config) uint64 {
 			writeUint64(uint64(len(stage)))
 			_, _ = hash.Write([]byte(stage))
 		}
+	}
+	if config.Samplers != nil && len(config.Samplers) == 0 {
+		writeUint64(emptyChainSignature)
 	}
 	return hash.Sum64()
 }

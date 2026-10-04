@@ -42,16 +42,9 @@ func retainedExactVerification(ctx context.Context, store *overgodb.Store, recip
 		if gate.CodeCommit != revision || gate.Environment != environment || len(gate.Steps) != 1 || gate.Steps[0].Name != "candidate-execution" {
 			continue
 		}
-		fields := strings.Split(gate.Steps[0].Evidence, ";")
-		// Both historical formats put contract, plan and report first; never
-		// interpret failure text as authority, even if it contains semicolons.
-		if len(fields) < 3 || strings.TrimSpace(fields[0]) != "contract=exact" || strings.TrimSpace(fields[1]) != "plan="+planID.String() {
-			continue
-		}
-		reportText, declared := strings.CutPrefix(strings.TrimSpace(fields[2]), "report=")
-		reportID, err := artifact.ParseID(reportText)
-		if !declared || err != nil || reportID.Kind() != artifact.KindEvaluation {
-			continue // Interrupted evaluations have no terminal campaign report.
+		plan, reportID := exactEvidence(gate.Steps[0].Evidence)
+		if plan != planID || reportID.Kind() != artifact.KindEvaluation {
+			continue // Another plan's gate, or an interrupted evaluation's, which names no campaign report.
 		}
 		parents, err := store.Parents(ctx, gate.ID)
 		if err != nil {
@@ -88,4 +81,23 @@ func retainedExactVerification(ctx context.Context, store *overgodb.Store, recip
 		retained, report = candidate, reportID
 	}
 	return retained, report, nil
+}
+
+// exactEvidence reads the plan and the campaign report an exact
+// verification's evidence names, each zero where it names none: an
+// interrupted evaluation has no report. Both historical formats put contract,
+// plan and report first; failure text after them is never read as authority,
+// even if it contains semicolons.
+func exactEvidence(evidence string) (plan, report artifact.ID) {
+	fields := strings.Split(evidence, ";")
+	if len(fields) < 3 || strings.TrimSpace(fields[0]) != "contract=exact" {
+		return plan, report
+	}
+	if text, declared := strings.CutPrefix(strings.TrimSpace(fields[1]), "plan="); declared {
+		plan, _ = artifact.ParseID(text)
+	}
+	if text, declared := strings.CutPrefix(strings.TrimSpace(fields[2]), "report="); declared {
+		report, _ = artifact.ParseID(text)
+	}
+	return plan, report
 }

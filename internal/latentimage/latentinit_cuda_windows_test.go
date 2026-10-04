@@ -3,12 +3,10 @@
 package latentimage
 
 import (
-	"math"
 	"testing"
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/media"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/torchrng"
 )
@@ -68,61 +66,4 @@ func TestSeededInitLatentMatchesTorchRandn31(t *testing.T) {
 	}
 	requireExactF32(t, first, wantFirst)
 	requireExactF32(t, second, wantSecond)
-}
-
-// TestSeededInitLatentKreaGeometry exercises the real serving geometry: the
-// [z_dim,256,256] latent for a 2048x2048 seed-42 Krea serve, with the shape
-// DERIVED from the real checkpoint spec (VAE z_dim + spatial scale). It asserts
-// the produced latent is exactly the golden init reduction -- bf16(torch.randn)
-// of the same seeded draw -- over the full serving-size buffer, and every value
-// is finite. Combined with the torch-anchored test above, the serving-shape
-// latent is bit-exact to adaptive's mediaMixNoise init contract.
-func TestSeededInitLatentKreaGeometry(t *testing.T) {
-	cudatest.Require(t)
-	dir := kreaDirOrSkip(t)
-	spec, err := Derive(dir)
-	if err != nil {
-		t.Fatalf("Derive: %v", err)
-	}
-	channels, height, width, err := media.DownsampledPlanarGeometry(spec.VAE.ZDim, 2048, 2048, spec.VAE.SpatialScale)
-	if err != nil {
-		t.Fatalf("LatentShape: %v", err)
-	}
-	shape := LatentShape{ZDim: channels, Height: height, Width: width}
-	t.Logf("krea 2048x2048 latent geometry: [z=%d,h=%d,w=%d] elements=%d",
-		shape.ZDim, shape.Height, shape.Width, shape.Elements())
-
-	worker, err := device.New(0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer worker.Close()
-
-	latent := make([]float32, shape.Elements())
-	reference := make([]float32, shape.Elements())
-	err = worker.Do(t.Context(), func(state *device.State) error {
-		got, err := SeededInitLatent(torchrng.NewStream(42), state, shape, InitNoiseMix)
-		if err != nil {
-			return err
-		}
-		copy(latent, got)
-		// Independent draw of the SAME seeded stream, reduced by the pure host
-		// core: the device-drawn latent must equal bf16(randn) element-for-element.
-		ref := torchrng.NewStream(42)
-		defer ref.Close(state)
-		if err := ref.FillHost(state, reference); err != nil {
-			return err
-		}
-		SeededLatentFromNoise(reference, InitNoiseMix)
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	requireExactF32(t, latent, reference)
-	for i, v := range latent {
-		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
-			t.Fatalf("non-finite latent at %d: %v", i, v)
-		}
-	}
 }

@@ -399,7 +399,7 @@ func newKnowledgePromotionFixtureWithOverlap(t *testing.T, promotionOverlap bool
 		closeOnError(err)
 	}
 	admission, err := runrecord.AdmitCandidate(
-		t.Context(), store, candidate, binding.ID, modelrecipe.CandidateAdmissionAdapters()...,
+		t.Context(), store, candidate, binding.ID, CandidateAdmissionAdapters()...,
 	)
 	if err != nil {
 		closeOnError(err)

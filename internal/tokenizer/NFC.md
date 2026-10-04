@@ -4,11 +4,11 @@
 encoder selects it only for a declared `{"type":"NFC"}` normalizer. Native GGUF
 profiles and legacy WPM accent stripping retain their existing behavior.
 
-The implementation reuses all 13,233 existing recursive decompositions in
+The implementation reuses the 2,061 recursive decompositions packed in
 `nfd_table.go`; they exactly match the pinned Unicode 16 source. A separate
 20-entry version delta preserves the older WPM table's semantics. The generated
-data adds 934 combining classes and 961 non-Hangul compositions. Hangul uses
-the normative arithmetic in [Unicode 16, section 3.12](https://www.unicode.org/versions/Unicode16.0.0/core-spec/chapter-3/).
+data adds 934 combining classes and 961 non-Hangul compositions. Hangul
+decomposes and composes by the normative arithmetic in [Unicode 16, section 3.12](https://www.unicode.org/versions/Unicode16.0.0/core-spec/chapter-3/).
 Stable ordering handles arbitrarily long combining runs without insertion
 sort's quadratic behavior. Composition exclusions come from the pinned table.
 

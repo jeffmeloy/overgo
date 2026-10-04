@@ -39,7 +39,7 @@ func TestScratchInputExtent(t *testing.T) {
 			if (err == nil) != test.valid {
 				t.Fatalf("input accepted=%v want=%v: %v", err == nil, test.valid, err)
 			}
-			if test.valid && graph.positions != len(test.tokens)-1 {
+			if test.valid && graph.Positions != len(test.tokens)-1 {
 				t.Fatal("accepted a partial input")
 			}
 		})
@@ -69,6 +69,20 @@ func testDerivationProfile(t testing.TB) DerivationProfile {
 		t.Fatal(err)
 	}
 	return profile
+}
+
+// TestDerivationProfileContentRoundTrip parses a profile's published
+// content back to the same identity.
+func TestDerivationProfileContentRoundTrip(t *testing.T) {
+	profile := testDerivationProfile(t)
+	content, err := profile.Content()
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := derivationProfileCodec.Parse(content.Data)
+	if err != nil || parsed.ID != profile.ID {
+		t.Fatalf("profile round trip = (%s, %v)", parsed.ID, err)
+	}
 }
 
 func loadOracle(t *testing.T) adaptiveparity.ScratchOracle {
@@ -149,7 +163,7 @@ func TestScratchConstructionAuthority(t *testing.T) {
 		config.Embedding != wantConfig.Embedding || config.HeadDim != wantConfig.HeadDim ||
 		config.HeadCount != wantConfig.Heads || config.LayerCount != wantConfig.Layers ||
 		config.MLPWidth != wantConfig.MLPWidth || config.AttentionWindow != wantConfig.AttentionWindow ||
-		trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(config.EstimatedParams) != wantConfig.BaseLearningRate ||
+		trainingprogram.BuiltinOptimizerPolicy().InitializationLearningRate(config.EstimatedParams) != wantConfig.BaseLearningRate ||
 		config.InitStd != wantConfig.Initialization ||
 		config.Epsilon != wantConfig.Epsilon || config.BOS != wantConfig.BOS ||
 		config.EstimatedParams != wantConfig.EstimatedParams ||

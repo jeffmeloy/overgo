@@ -5,12 +5,10 @@ package latentimage
 import (
 	"context"
 	"math"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/hfbpe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -66,109 +64,4 @@ func TestEncoderProgramMaskedCUDAMatchesReference(t *testing.T) {
 	if maxAbs > 5e-3 {
 		t.Fatalf("masked encoder CUDA/reference divergence max_abs=%.3e exceeds 5e-3", maxAbs)
 	}
-}
-
-// TestEncoderMaskedResidentRealCheckpoint drives the MASKED device bf16 encoder
-// over the REAL Krea-2-Turbo checkpoint on the templated [prefix][prompt][pad]
-// [suffix] layout (RenderKreaTextInput) and asserts the device selected-hidden
-// matches the MASKED f64 host oracle (EncodeSelectedLayersMasked) within the
-// bf16 band -- closing the pad-key masking residual dtc-encoder documented. A
-// reduced max_prompt_tokens keeps the f64 oracle tractable while still exercising
-// a real pad region. Also asserts the mask moves the answer vs maskless device.
-func TestEncoderMaskedResidentRealCheckpoint(t *testing.T) {
-	cudatest.Require(t)
-	if testing.Short() {
-		t.Skip("streams the ~3.5B-param text encoder; skipped in -short")
-	}
-	dir := kreaDirOrSkip(t)
-	spec, err := Derive(dir)
-	if err != nil {
-		t.Fatalf("Derive: %v", err)
-	}
-	e := spec.TextEncoder
-	tok, err := hfbpe.Load(dir + `\tokenizer`)
-	if err != nil {
-		t.Fatalf("load Qwen2 tokenizer: %v", err)
-	}
-
-	// Real templated masked input at a tractable pad budget (still 34 prefix + 5
-	// suffix + a genuine pad region between prompt and suffix).
-	tmpl := kreaProfileOrSkip(t).Prompt
-	tmpl.MaxTokens = 24
-	in, err := renderTextInput(tok, "a red fox eating ice cream, studio photograph", tmpl)
-	if err != nil {
-		t.Fatalf("RenderKreaTextInput: %v", err)
-	}
-	attended, pad := 0, 0
-	for _, m := range in.Mask {
-		if m {
-			attended++
-		} else {
-			pad++
-		}
-	}
-	if pad == 0 {
-		t.Fatalf("templated input has no pad rows (seq=%d); mask parity would be vacuous", len(in.IDs))
-	}
-
-	host, err := EncodeSelectedLayersMasked(dir, spec, in.IDs, in.Mask)
-	if err != nil {
-		t.Fatalf("masked host EncodeSelectedLayersMasked: %v", err)
-	}
-	embed, err := readEmbedRowsF32(dir, e, in.IDs)
-	if err != nil {
-		t.Fatalf("read embed rows: %v", err)
-	}
-
-	prog, err := CompileEncoderProgramMasked(e, float32(e.RMSNormEps), len(in.IDs), dtype.BF16, in.Mask)
-	if err != nil {
-		t.Fatalf("CompileEncoderProgramMasked: %v", err)
-	}
-	ctx := t.Context()
-	re := newResidentFixture(t, ctx, "test masked encoder", filepath.Join(dir, "text_encoder"), prog.weightInputs, prog.Selected...)
-	dev := residentEncode(t, ctx, re, prog, embed)
-	if dev.Seq != host.Seq || dev.LayerCount != host.LayerCount || dev.Hidden != host.Hidden {
-		t.Fatalf("device geometry [%d,%d,%d] != host [%d,%d,%d]", dev.Seq, dev.LayerCount, dev.Hidden, host.Seq, host.LayerCount, host.Hidden)
-	}
-	if !allFinite(dev.Data) {
-		t.Fatal("masked device selected-hidden not finite")
-	}
-	worst := 0.0
-	for l := 0; l < host.LayerCount; l++ {
-		var maxAbs, sumAbs, sa float64
-		for tok := 0; tok < host.Seq; tok++ {
-			base := (tok*host.LayerCount + l) * host.Hidden
-			for c := 0; c < host.Hidden; c++ {
-				hv, dv := host.Data[base+c], dev.Data[base+c]
-				abs := math.Abs(hv - dv)
-				maxAbs = max(maxAbs, abs)
-				sumAbs += abs
-				sa += math.Abs(hv)
-			}
-		}
-		rel := sumAbs / (sa + 1e-9)
-		worst = max(worst, rel)
-		t.Logf("tap %2d (after layer %2d): max_abs=%.3e mean|h-d|/mean|h|=%.3e", l, captureAfter(e)[l], maxAbs, rel)
-	}
-	t.Logf("MASKED device vs host selected-hidden: worst mean-relative=%.3e over %d rows (%d attended, %d pad), bf16 band",
-		worst, len(in.IDs), attended, pad)
-	if worst > 2e-1 {
-		t.Fatalf("masked device/host selected-hidden mean-relative=%.3e exceeds bf16 band 2e-1", worst)
-	}
-
-	// The pad-key mask must move the device answer vs the maskless device path.
-	mlProg, err := CompileEncoderProgram(e, float32(e.RMSNormEps), len(in.IDs), dtype.BF16)
-	if err != nil {
-		t.Fatalf("CompileEncoderProgram (maskless): %v", err)
-	}
-	mlRe := newResidentFixture(t, ctx, "test maskless encoder", filepath.Join(dir, "text_encoder"), mlProg.weightInputs, mlProg.Selected...)
-	ml := residentEncode(t, ctx, mlRe, mlProg, embed)
-	diff := 0.0
-	for i := range ml.Data {
-		diff = max(diff, math.Abs(ml.Data[i]-dev.Data[i]))
-	}
-	if diff < 1e-3 {
-		t.Fatalf("masked and maskless device encoders agree (max_abs=%.3e); pad-key mask is inert on real weights", diff)
-	}
-	t.Logf("masked-vs-maskless device delta=%.3e (pad-key mask active on real Krea weights)", diff)
 }

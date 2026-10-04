@@ -46,6 +46,18 @@ type RecognizerSpec struct {
 	Transducer *TransducerBinding
 }
 
+// Profile is the execution profile a transcription recipe binds for the
+// checkpoint the spec declares. A recurrent decoder reads the frontend's
+// frames ungrouped and names its blank entry in its own binding, so its
+// profile takes them from there.
+func (spec RecognizerSpec) Profile() (ExecutionProfile, error) {
+	profile := ExecutionProfile{Frontend: spec.Frontend, Grouping: spec.Grouping, Encoder: spec.Declaration, Transducer: spec.Transducer, BlankToken: spec.Blank}
+	if spec.Transducer != nil {
+		profile.Grouping, profile.BlankToken = audiodsp.GroupedFeatureConfig{StackFrames: 1}, spec.Transducer.Blank
+	}
+	return NewExecutionProfile(profile)
+}
+
 // LoadRecognizer assembles a recognizer from a checkpoint directory and the
 // declarations that describe it. The tokenizer is the checkpoint's own.
 func LoadRecognizer(ctx context.Context, directory string, spec RecognizerSpec, memoryBytes uint64) (*Recognizer, error) {

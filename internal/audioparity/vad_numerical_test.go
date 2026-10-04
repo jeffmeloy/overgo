@@ -31,7 +31,9 @@ type vadNumericalCase struct {
 	Caches         [][][]float32          `json:"caches"`
 }
 
-func TestVADWaveformStreamParity(t *testing.T) {
+// verifyVADWaveformStream runs once, as TestVADStreamingAcceptance's
+// waveform-and-cache-reference subtest.
+func verifyVADWaveformStream(t *testing.T) {
 	t.Parallel()
 	reference, store, audio := loadVADReference(t)
 	var config audiodsp.FrontendConfig
@@ -264,7 +266,9 @@ func loadVADArtifacts(t *testing.T, store *overgodb.Store, model vadNumericalMod
 	return modelartifact.Inventory{}, artifact.Content{}, "", speechactivity.Declaration{}
 }
 
-func TestVADNumericalParity(t *testing.T) {
+// verifyVADNumericalReference runs once, as TestVADOfflineAcceptance's
+// numerical-reference subtest.
+func verifyVADNumericalReference(t *testing.T) {
 	t.Parallel()
 	reference, store, audio := loadVADReference(t)
 	var config audiodsp.FrontendConfig

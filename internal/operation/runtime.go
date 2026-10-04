@@ -193,48 +193,35 @@ func (manager *Manager) start(parent context.Context, id artifact.ID, request Re
 			return artifact.ID{}, ErrLifecycleConflict
 		}
 	}
-	manager.entries[id] = &entry{
+	current := &entry{
 		status:  Status{ID: id, Task: request.Task, Recipe: request.Recipe, State: StateAdmitted},
 		request: request,
 		execute: execute,
 		cancel:  cancel,
 		done:    make(chan struct{}),
 	}
+	manager.entries[id] = current
 	if !slices.Contains(manager.order, id) {
 		manager.order = append(manager.order, id)
 	}
-	manager.publishLocked(manager.entries[id].status)
+	manager.publishLocked(current.status)
 	manager.trimLocked()
 	manager.mu.Unlock()
-	manager.wait.Go(func() { manager.run(ctx, id, execute) })
+	manager.wait.Go(func() { manager.run(ctx, current) })
 	return id, nil
 }
 
-func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executor) {
-	defer func() {
-		manager.mu.Lock()
-		if current := manager.entries[id]; current != nil {
-			current.cancel()
-			current.cancel = nil
-			if current.status.State != StateBlocked {
-				current.execute = nil
-			}
-			close(current.done)
-			manager.trimLocked()
-			manager.publishLocked(current.status)
-		}
-		manager.mu.Unlock()
-	}()
-	reporter := operationReporter{manager: manager, id: id}
-	manager.setState(id, StatePreparing)
-	manager.setState(id, StateRunning)
-	completion, err := execute(ctx, reporter)
+// run executes the attempt current holds and settles it in one locked
+// transition: its terminal status, its cancellation, the release of its
+// waiters and the one terminal event become visible together, so recovery or
+// retention never sees a terminal attempt whose cleanup is still to come. It
+// acts only on current, never on whatever entry later holds the identity.
+func (manager *Manager) run(ctx context.Context, current *entry) {
+	manager.setState(current, StatePreparing)
+	manager.setState(current, StateRunning)
+	completion, err := current.execute(ctx, operationReporter{manager: manager, entry: current})
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
-	current := manager.entries[id]
-	if current == nil {
-		return
-	}
 	completionErr := validateCompletion(completion)
 	switch {
 	case completionErr != nil:
@@ -262,7 +249,14 @@ func (manager *Manager) run(ctx context.Context, id artifact.ID, execute Executo
 		current.status.Outputs = slices.Clone(completion.Outputs)
 		current.status.State = StateCompleted
 	}
+	current.cancel()
+	current.cancel = nil
+	if current.status.State != StateBlocked {
+		current.execute = nil
+	}
+	close(current.done)
 	manager.publishLocked(current.status)
+	manager.trimLocked()
 }
 
 // RecoverAfterDecision resumes only the exact action bound by a granted decision.
@@ -350,18 +344,17 @@ func (manager *Manager) Wait(ctx context.Context, id artifact.ID) (Status, error
 	}
 	manager.mu.RLock()
 	current := manager.entries[id]
+	manager.mu.RUnlock()
 	if current == nil {
-		manager.mu.RUnlock()
 		return Status{}, errors.New("operation: unknown operation")
 	}
-	done := current.done
-	manager.mu.RUnlock()
 	select {
 	case <-ctx.Done():
 		return Status{}, ctx.Err()
-	case <-done:
-		status, _ := manager.Status(id)
-		return status, nil
+	case <-current.done:
+		// done closes once the attempt's status is final, so the attempt this
+		// call waited on answers, whatever now holds its identity.
+		return cloneStatus(current.status), nil
 	}
 }
 
@@ -396,9 +389,9 @@ func (manager *Manager) Close() {
 	manager.wait.Wait()
 }
 
-func (manager *Manager) setState(id artifact.ID, state State) {
+func (manager *Manager) setState(current *entry, state State) {
 	manager.mu.Lock()
-	if current := manager.entries[id]; current != nil && !terminal(current.status.State) {
+	if !terminal(current.status.State) {
 		current.status.State = state
 		if state == StateRunning {
 			current.started = processmeasure.NewStopwatch()
@@ -486,12 +479,15 @@ func cloneStatus(status Status) Status {
 	return status
 }
 
+// operationReporter reports for the one attempt it was made for: once that
+// attempt is terminal its reports are ignored, even when a recovery has put a
+// new attempt under the same identity.
 type operationReporter struct {
 	manager *Manager
-	id      artifact.ID
+	entry   *entry
 }
 
-func (reporter operationReporter) OperationID() artifact.ID { return reporter.id }
+func (reporter operationReporter) OperationID() artifact.ID { return reporter.entry.status.ID }
 
 // Attempt records ordered serving evidence.
 func (reporter operationReporter) Attempt(id artifact.ID) {
@@ -499,8 +495,7 @@ func (reporter operationReporter) Attempt(id artifact.ID) {
 		return
 	}
 	reporter.manager.mu.Lock()
-	if current := reporter.manager.entries[reporter.id]; current != nil &&
-		!terminal(current.status.State) && !slices.Contains(current.status.Attempts, id) {
+	if current := reporter.entry; !terminal(current.status.State) && !slices.Contains(current.status.Attempts, id) {
 		current.status.Attempts = append(current.status.Attempts, id)
 		if len(current.status.Attempts) > reporter.manager.limit {
 			current.status.Attempts = slices.Clone(current.status.Attempts[len(current.status.Attempts)-reporter.manager.limit:])
@@ -513,7 +508,7 @@ func (reporter operationReporter) Attempt(id artifact.ID) {
 func (reporter operationReporter) Progress(completed uint64, total *uint64) {
 	reporter.manager.mu.Lock()
 	defer reporter.manager.mu.Unlock()
-	if current := reporter.manager.entries[reporter.id]; current != nil && !terminal(current.status.State) {
+	if current := reporter.entry; !terminal(current.status.State) {
 		current.status.Progress.Completed = completed
 		current.status.Progress.Total = nil
 		if total != nil {
@@ -533,7 +528,7 @@ func (reporter operationReporter) Metric(metric Metric) {
 	}
 	reporter.manager.mu.Lock()
 	defer reporter.manager.mu.Unlock()
-	if current := reporter.manager.entries[reporter.id]; current != nil && !terminal(current.status.State) {
+	if current := reporter.entry; !terminal(current.status.State) {
 		for index := range current.status.Metrics {
 			if current.status.Metrics[index].Name == metric.Name {
 				current.status.Series = trend(current.status.Series, current.status.Metrics[index], metric, reporter.manager.limit)
@@ -551,5 +546,5 @@ func (reporter operationReporter) Metric(metric Metric) {
 }
 
 func (reporter operationReporter) Publishing() {
-	reporter.manager.setState(reporter.id, StatePublishing)
+	reporter.manager.setState(reporter.entry, StatePublishing)
 }

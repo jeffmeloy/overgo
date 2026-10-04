@@ -194,9 +194,12 @@ func (trainer Trainer) trainDataset(ctx context.Context, request Request) (Resul
 		{Child: checkpoint.ID, Parent: bridgeAfter, Relation: artifact.RelationDependsOn},
 		{Child: checkpoint.ID, Parent: request.TrainingPolicy, Relation: artifact.RelationDependsOn},
 	}
+	// The batch declares the bridge it trained from as well: a fresh run's
+	// initial weights are new to the store, and a resumed run's parent is
+	// the prior bridge, which a bare declaration leaves unchanged.
 	batch := artifact.Batch{
 		Key:       "bridge-training/" + checkpoint.ID.String(),
-		Artifacts: []artifact.Descriptor{{ID: bridgeAfter}}, Contents: []artifact.Content{content}, Lineage: lineage,
+		Artifacts: []artifact.Descriptor{{ID: parentBridge}, {ID: bridgeAfter}}, Contents: []artifact.Content{content}, Lineage: lineage,
 	}
 	if err := batch.Validate(); err != nil {
 		return Result{}, err

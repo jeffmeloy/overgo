@@ -44,7 +44,7 @@ func TestTrainingWorkflowRequiresStoredAuthority(t *testing.T) {
 		Repository: store, Recipe: recipeID, ModelDirectory: model, DatasetPath: dataset,
 		OutputDirectory: filepath.Join(root, "output"), Steps: 1,
 	})
-	if err == nil || !strings.Contains(err.Error(), "no active training recipe") {
+	if err == nil || !strings.Contains(err.Error(), "not a published training recipe") {
 		t.Fatalf("absent authority error = %v", err)
 	}
 }
@@ -394,7 +394,7 @@ func testGRPOResume(t *testing.T) {
 	})
 }
 
-func verifyWorkflowResume(t *testing.T, root string, request Request) {
+func verifyWorkflowResume(t *testing.T, root string, request Request, prepareResume ...func(*testing.T, string, trainingprogram.Checkpoint) trainingprogram.Checkpoint) {
 	t.Helper()
 	request.Steps = 2
 	request.OutputDirectory = filepath.Join(root, "uninterrupted")
@@ -407,6 +407,9 @@ func verifyWorkflowResume(t *testing.T, root string, request Request) {
 	first, err := Execute(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, prepare := range prepareResume {
+		first.Checkpoint = prepare(t, request.OutputDirectory, first.Checkpoint)
 	}
 	request.ModelDirectory = ""
 	request.ResumeDirectory = request.OutputDirectory
@@ -422,11 +425,11 @@ func verifyWorkflowResume(t *testing.T, root string, request Request) {
 			}
 		}
 	}
-	wantModel, err := densecausal.Load(filepath.Join(root, "uninterrupted"))
+	wantModel, err := loadTrainableModel(filepath.Join(root, "uninterrupted"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotModel, err := densecausal.Load(filepath.Join(root, "resumed"))
+	gotModel, err := loadTrainableModel(filepath.Join(root, "resumed"))
 	if err != nil {
 		t.Fatal(err)
 	}

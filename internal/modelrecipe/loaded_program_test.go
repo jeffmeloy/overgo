@@ -93,11 +93,6 @@ func TestResolveActiveGGUFProducesIdentityBoundProgram(t *testing.T) {
 		identity.Runtime != RuntimeInference {
 		t.Fatalf("program identity = %+v", identity)
 	}
-	mutated := identity
-	mutated.Profile = artifact.ID{}
-	if loaded.state.Program.Identity.Profile != resolved.Profile.ID {
-		t.Fatal("returned identity mutated sealed program")
-	}
 	file, _, _, _, _, _, err := loaded.Take()
 	if err != nil {
 		t.Fatal(err)
@@ -178,9 +173,7 @@ func publishProgramFacts(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := PublishResolvedModelDefinition(
-		t.Context(), store, inventory, resolved,
-	); err != nil {
+	if err := PublishResolvedModelDefinition(t.Context(), store, inventory, resolved); err != nil {
 		t.Fatal(err)
 	}
 	return inventory, resolved

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -68,10 +67,14 @@ func TestAgentWorkspaceVertical(t *testing.T) {
 	if paused.Code != http.StatusOK || resumed.Code != http.StatusOK {
 		t.Fatalf("agent lifecycle pause=(%d %s) resume=(%d %s)", paused.Code, paused.Body.String(), resumed.Code, resumed.Body.String())
 	}
+	// A tool step and the session list report the session's step bound beside its steps.
 	step := serveTestRequest(fixture.handler, http.MethodPost, "/agents/step",
 		`{"agent":"research-agent","session":"vertical","tool":"store.head"}`)
-	if step.Code != http.StatusOK || !strings.Contains(step.Body.String(), `"steps":1`) {
+	if step.Code != http.StatusOK || !strings.Contains(step.Body.String(), `"steps":1`) || !strings.Contains(step.Body.String(), `"bound":`) {
 		t.Fatalf("agent step status=%d body=%s", step.Code, step.Body.String())
+	}
+	if sessions := serveTestRequest(fixture.handler, http.MethodGet, "/agents/sessions", ""); sessions.Code != http.StatusOK || !strings.Contains(sessions.Body.String(), `"bound":`) {
+		t.Fatalf("session list status=%d body=%s", sessions.Code, sessions.Body.String())
 	}
 	chat := serveTestRequest(fixture.handler, http.MethodPost, "/agents/chat",
 		`{"agent":"research-agent","messages":[{"role":"user","content":"hello"}]}`)
@@ -161,26 +164,6 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 		!strings.Contains(evidence.Body.String(), fixture.manual.String()) || strings.Contains(evidence.Body.String(), `"arguments"`) ||
 		strings.Contains(evidence.Body.String(), `"content"`) {
 		t.Fatalf("agent evidence status=%d body=%s", evidence.Code, evidence.Body.String())
-	}
-}
-
-func TestAgentWorkspaceNoHiddenReasoning(t *testing.T) {
-	t.Parallel()
-	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
-	defer fixture.store.Close()
-	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil))
-	// The agent tab leg drives the page; the source keeps private model
-	// fields out of it.
-	javascript := serveTestRequest(fixture.handler, http.MethodGet, "/mod/agent.js", "").Body.String()
-	if strings.Contains(javascript, "reasoning_content") || strings.Contains(javascript, "ReasoningContent") {
-		t.Fatal("agent GUI projects a private model field")
-	}
-	source, err := os.ReadFile("agent_control.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(source), "InteractionToolCall `json") || strings.Contains(string(source), `json:"content"`) {
-		t.Fatal("agent observable copies interaction payloads instead of artifact references")
 	}
 }
 

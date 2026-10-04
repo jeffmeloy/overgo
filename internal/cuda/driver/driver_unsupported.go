@@ -84,6 +84,9 @@ func (l *Library) MemInfo() (free, total uint64, err error) {
 
 func (l *Library) ResetPeakBytes() {}
 
+// ProcessPeakBytes is zero where no library allocates device memory.
+func ProcessPeakBytes() uint64 { return 0 }
+
 func (l *Library) MemoryStats() MemoryStats {
 	return MemoryStats{}
 }

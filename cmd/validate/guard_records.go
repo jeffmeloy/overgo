@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -60,19 +61,19 @@ func locationKey(path string) string {
 }
 
 // guardCurrent says why a location's guard evidence is not current at the
-// surface the code is at now, with the run that lifts it; nil when its newest
-// record ran on this surface and met its floors.
+// surface the code is at now; nil when its newest record ran on this surface
+// and met its floors. The command that lifts it is reacquireCommand's, the
+// one builder, which carries the selected store.
 func guardCurrent(records map[string]guardRecord, location, surface string) error {
-	rerun := fmt.Sprintf("run: go run ./cmd/longform -guard -publish -corpus %s -budget %s -model-budget %s %q", guardCorpus, guardBudget, guardModelBudget, location)
 	record, found := records[locationKey(location)]
 	switch {
 	case !found:
-		return fmt.Errorf("no long-form record for this location; %s", rerun)
+		return errors.New("no long-form record for this location")
 	case record.Surface != surface:
-		return fmt.Errorf("its long-form record measured inference surface %.*s at commit %.*s, the code is at surface %.*s; %s",
-			surfaceShown, record.Surface, surfaceShown, record.Commit, surfaceShown, surface, rerun)
+		return fmt.Errorf("its long-form record measured inference surface %.*s at commit %.*s, the code is at surface %.*s",
+			surfaceShown, record.Surface, surfaceShown, record.Commit, surfaceShown, surface)
 	case !record.Passed:
-		return fmt.Errorf("its long-form record failed its floors on this surface (%s); fix the runtime, then %s", strings.Join(record.Reasons, "; "), rerun)
+		return fmt.Errorf("its long-form record failed its floors on this surface (%s); fix the runtime first", strings.Join(record.Reasons, "; "))
 	}
 	return nil
 }

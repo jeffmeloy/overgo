@@ -27,6 +27,7 @@ import (
 	"overgo/internal/scratchmodel"
 	"overgo/internal/strictjson"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 // ActionVersion is the action document version. Actions are controller
@@ -387,7 +388,7 @@ func ExecuteOfflineArtifact(
 func compileAction(ctx context.Context, reader artifact.Reader, action Action) ([]artifact.Content, []artifact.Lineage, error) {
 	switch action.Kind {
 	case KindChainRecipes:
-		chainProgram, baseProgram, err := composition.ChainPrograms(action.Chain.Scorer, action.Chain.Drafter)
+		chainProgram, baseProgram, err := trainingworkflow.ChainPrograms(action.Chain.Scorer, action.Chain.Drafter)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -486,8 +487,7 @@ func compileAction(ctx context.Context, reader artifact.Reader, action Action) (
 			return nil, nil, err
 		}
 		admission, err := runrecord.AdmitCandidate(
-			ctx, reader, candidate, action.Admission.Authority,
-			append(modelrecipe.CandidateAdmissionAdapters(), composition.CandidateAdmissionAdapter())...,
+			ctx, reader, candidate, action.Admission.Authority, evaluation.CandidateAdmissionAdapters()...,
 		)
 		if err != nil {
 			return nil, nil, err

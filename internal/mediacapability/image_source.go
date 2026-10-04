@@ -8,15 +8,24 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/capabilityruntime"
 	"overgo/internal/hfrepo"
 	"overgo/internal/latentimage"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/rae"
 	"overgo/internal/recipe"
 	"overgo/internal/routedlm"
 )
 
 func resolveImageSource(path string) (Source, error) {
+	collection, held, err := rae.ResolveCollection(path)
+	if err != nil {
+		return Source{}, err
+	}
+	if held {
+		return raeImageSource(path, collection)
+	}
 	identity, err := hfrepo.InspectIdentity(path)
 	if err != nil {
 		return Source{}, err
@@ -80,6 +89,29 @@ func resolveImageSource(path string) (Source, error) {
 		return definition, contents, err
 	}}, nil
 }
+
+// raeImageSource is an RAE collection as the image-gen capability serves
+// it: the DiT checkpoint, the decoder and the latent statistics its
+// reviewed sampler reads, on the profile-free RAE topology. A collection
+// carries no Hugging Face configuration, so it is recognized by the
+// sampler's checkpoint rather than by a source profile's selector.
+func raeImageSource(path string, collection rae.Collection) (Source, error) {
+	inventory, err := modelartifact.FromFiles(path, []modelartifact.FileSpec{
+		{Path: collection.Checkpoint, Name: "dit", Role: artifact.ComponentWeights},
+		{Path: collection.Decoder, Name: "decoder", Role: artifact.ComponentWeights},
+		{Path: collection.Statistics, Name: "statistics", Role: artifact.ComponentWeights},
+	})
+	return definitionSource(inventory, err, func(modelID artifact.ID) (recipe.Definition, error) {
+		return modelrecipe.GenerationDefinition(modelrecipe.ModuleRAEImagePrepare, modelID, artifact.ID{})
+	})
+}
+
+// raeImage generates an RAE collection's image on the host, the same on
+// every platform: the request's class and seed in, the decoded PNG out.
+var raeImage = capabilityruntime.JSONScalar[rae.Request, *rae.Generator, latentimage.EncodedImage](
+	"image-gen", rae.ValidateRequest,
+	capabilityruntime.IgnoreInput[rae.Request](rae.Load), rae.RegisterRuntime,
+)
 
 // latentImageComponentBindings slots the latent-image stages onto the
 // diffusers-layout component groups: prepare on the text encoder,

@@ -3,6 +3,7 @@
 package driver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -26,6 +27,16 @@ var (
 	lstrlenA      = kernel32.NewProc("lstrlenA")
 	rtlMoveMemory = kernel32.NewProc("RtlMoveMemory")
 )
+
+// processCurrentBytes and processPeakBytes are the device memory every
+// Library of the process holds together and its high-water mark. Libraries
+// that are resident together add up here, which no one Library's ledger
+// sees: each is owned by its own worker.
+var processCurrentBytes, processPeakBytes atomic.Uint64
+
+// ProcessPeakBytes reports the most device memory the process has held at
+// once across every Library, by the allocations it made through them.
+func ProcessPeakBytes() uint64 { return processPeakBytes.Load() }
 
 // Library: dynamically loaded CUDA Driver API library
 type Library struct {
@@ -365,37 +376,51 @@ func (l *Library) DeviceInfo(ordinal int) (DeviceInfo, error) {
 }
 
 // ContextCreate creates CUDA context for device; calling goroutine
-// must remain locked to its OS thread while it uses context
+// must remain locked to its OS thread while it uses context. The context
+// holds the device's shared claim for its life. While another process
+// holds the device exclusively, as a guard run or a lane measurement does,
+// creation waits until that holder releases the device or exits instead
+// of failing. No caller context ends the wait: the device worker that
+// creates every context carries none, and every holder is a process whose
+// claim the system ends when it exits.
 func (l *Library) ContextCreate(device Device, flags uint32) (Context, error) {
-	l.contextMu.Lock()
-	defer l.contextMu.Unlock()
-	if l.dll == nil {
-		return 0, errors.New("CUDA library is closed")
-	}
-	uuid, err := l.deviceUUID(device)
-	if err != nil {
-		return 0, err
-	}
-	release, err := processcontrol.ShareResource(uuid)
-	if err != nil {
-		return 0, err
-	}
-	var context Context
-	var pinned runtime.Pinner
-	pinned.Pin(&context)
-	defer pinned.Unpin()
-	err = processcontrol.ResourceTransaction(uuid, func() error {
-		result, _, _ := l.cuCtxCreate.Call(uintptr(unsafe.Pointer(&context)), uintptr(flags), uintptr(device))
-		return l.result("cuCtxCreate_v2", result)
+	var created Context
+	// Each claim holds contextMu and the wait between claims does not, so
+	// a wait on another process's hold blocks no other call on the library.
+	err := processcontrol.AwaitResource(context.Background(), func() error {
+		l.contextMu.Lock()
+		defer l.contextMu.Unlock()
+		if l.dll == nil {
+			return errors.New("CUDA library is closed")
+		}
+		uuid, err := l.deviceUUID(device)
+		if err != nil {
+			return err
+		}
+		release, err := processcontrol.ShareResource(uuid)
+		if err != nil {
+			return err
+		}
+		var pinned runtime.Pinner
+		pinned.Pin(&created)
+		defer pinned.Unpin()
+		err = processcontrol.ResourceTransaction(uuid, func() error {
+			result, _, _ := l.cuCtxCreate.Call(uintptr(unsafe.Pointer(&created)), uintptr(flags), uintptr(device))
+			return l.result("cuCtxCreate_v2", result)
+		})
+		if err != nil {
+			return errors.Join(err, release())
+		}
+		if l.contextClaims == nil {
+			l.contextClaims = make(map[Context]func() error)
+		}
+		l.contextClaims[created] = release
+		return nil
 	})
 	if err != nil {
-		return 0, errors.Join(err, release())
+		return 0, err
 	}
-	if l.contextClaims == nil {
-		l.contextClaims = make(map[Context]func() error)
-	}
-	l.contextClaims[context] = release
-	return context, nil
+	return created, nil
 }
 
 // ContextDestroy destroys CUDA context
@@ -413,7 +438,20 @@ func (l *Library) ContextDestroy(context Context) error {
 	}
 	delete(l.contextClaims, context)
 	l.contextMu.Unlock()
+	l.forgetAllocations()
 	return release()
+}
+
+// forgetAllocations empties the ledger of what the library still held when
+// its context was destroyed, which freed it on the device: the live totals,
+// the library's and the process's, fall by it, and the high-water marks stay.
+func (l *Library) forgetAllocations() {
+	l.allocationMu.Lock()
+	processCurrentBytes.Add(-l.currentBytes)
+	l.currentBytes = 0
+	clear(l.allocations)
+	clear(l.liveSizes)
+	l.allocationMu.Unlock()
 }
 
 // ContextSetCurrent makes context current on calling OS thread
@@ -554,6 +592,7 @@ func (l *Library) accountFree(pointer DevicePtr) {
 	if bytes, ok := l.allocations[pointer]; ok {
 		delete(l.allocations, pointer)
 		l.currentBytes -= bytes
+		processCurrentBytes.Add(-bytes)
 		if l.liveSizes[bytes] <= 1 {
 			delete(l.liveSizes, bytes)
 		} else {
@@ -582,6 +621,14 @@ func (l *Library) accountAllocation(pointer DevicePtr, bytes uint64) {
 		l.peakAllocationBytes = bytes
 		l.peakSizes = make(map[uint64]uint64, len(l.liveSizes))
 		maps.Copy(l.peakSizes, l.liveSizes)
+	}
+	// The process's total moves with the library's own, under its lock, so
+	// it is always the sum of what the libraries hold; libraries share no
+	// lock, so the peak is raised by compare-and-swap, and one another
+	// library raised meanwhile is kept unless this total passes it.
+	current := processCurrentBytes.Add(bytes)
+	for peak := processPeakBytes.Load(); current > peak && !processPeakBytes.CompareAndSwap(peak, current); {
+		peak = processPeakBytes.Load()
 	}
 	l.allocationMu.Unlock()
 }

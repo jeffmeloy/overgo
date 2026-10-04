@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -39,6 +40,21 @@ func GGUF(t testing.TB, architecture string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	smallest, err := smallestGGUF(locations, architecture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if smallest == "" {
+		testskip.NotApplicable(t, "no GGUF registered here declares the architecture "+architecture)
+	}
+	return smallest
+}
+
+// smallestGGUF returns the smallest registered GGUF location whose header
+// declares the architecture, or "" when none does. An absent file is no
+// candidate; a present one whose header cannot be read is an error, never an
+// architecture it lacks.
+func smallestGGUF(locations []string, architecture string) (string, error) {
 	var smallest string
 	var smallestSize int64
 	for _, location := range locations {
@@ -46,17 +62,21 @@ func GGUF(t testing.TB, architecture string) string {
 			continue
 		}
 		info, err := os.Stat(location)
-		if err != nil || smallest != "" && info.Size() >= smallestSize {
+		if errors.Is(err, fs.ErrNotExist) || err == nil && smallest != "" && info.Size() >= smallestSize {
 			continue
 		}
-		if declaredArchitecture(location) == architecture {
+		if err != nil {
+			return "", err
+		}
+		declared, err := declaredArchitecture(location)
+		if err != nil {
+			return "", fmt.Errorf("registered GGUF %s: %w", location, err)
+		}
+		if declared == architecture {
 			smallest, smallestSize = location, info.Size()
 		}
 	}
-	if smallest == "" {
-		testskip.NotApplicable(t, "no GGUF registered here declares the architecture "+architecture)
-	}
-	return smallest
+	return smallest, nil
 }
 
 var (
@@ -72,24 +92,28 @@ const (
 )
 
 // declaredArchitecture reads a GGUF header's architecture once per process;
-// a file that cannot be read declares none.
-func declaredArchitecture(path string) string {
+// a header that cannot be read is an error, read again by a later call.
+func declaredArchitecture(path string) (string, error) {
 	architecturesMutex.Lock()
 	defer architecturesMutex.Unlock()
 	if architecture, read := architecturesRead[path]; read {
-		return architecture
+		return architecture, nil
 	}
 	architecture, found := leadingArchitecture(path)
 	if !found {
-		if file, err := gguf.Open(path); err == nil {
-			if value, found := file.MetadataValue(architectureKey); found {
-				architecture, _ = value.Data.(string)
-			}
-			_ = file.Close()
+		file, err := gguf.Open(path)
+		if err != nil {
+			return "", err
+		}
+		if value, found := file.MetadataValue(architectureKey); found {
+			architecture, _ = value.Data.(string)
+		}
+		if err := file.Close(); err != nil {
+			return "", err
 		}
 	}
 	architecturesRead[path] = architecture
-	return architecture
+	return architecture, nil
 }
 
 // leadingArchitecture reads the architecture when it is the header's first

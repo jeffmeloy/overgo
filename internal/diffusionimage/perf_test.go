@@ -2,7 +2,7 @@ package diffusionimage
 
 import (
 	"runtime"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 )
@@ -36,7 +36,7 @@ func TestForwardWall(t *testing.T) {
 		}
 		walls = append(walls, time.Since(start))
 	}
-	sort.Slice(walls, func(i, j int) bool { return walls[i] < walls[j] })
+	slices.Sort(walls)
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 	watermark := float64(mem.HeapAlloc) / (1 << 20)

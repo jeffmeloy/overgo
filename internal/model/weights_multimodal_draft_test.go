@@ -436,10 +436,6 @@ func TestReadWeightsErnie45MoEInterleavesDenseAndExpertLayers(t *testing.T) {
 	}
 }
 
-func TestReadWeightsPaddleOCR(t *testing.T) {
-	testReadWeightsMRoPETextDecoder(t, "paddleocr")
-}
-
 func TestReadWeightsGemma4SharedKVMoEAndPerLayerInputs(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "gemma4", BlockCount: 4, EmbeddingLength: 8,
 		FeedForwardLength: 10,
@@ -622,14 +618,6 @@ func TestReadWeightsGemma3nAltUpAndLaurel(t *testing.T) {
 	}
 }
 
-func TestReadWeightsQwen2VL(t *testing.T) {
-	testReadWeightsMRoPETextDecoder(t, "qwen2vl")
-}
-
-func TestReadWeightsQwen3VL(t *testing.T) {
-	testReadWeightsMRoPETextDecoder(t, "qwen3vl")
-}
-
 func TestReadWeightsQwen3VLMoE(t *testing.T) {
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "qwen3vlmoe", BlockCount: 1, EmbeddingLength: 8,
 		FeedForwardLength: 24,
@@ -657,6 +645,12 @@ func TestReadWeightsQwen3VLMoE(t *testing.T) {
 		layer.FeedForwardUpExperts == nil || layer.FeedForwardDownExperts == nil ||
 		layer.FeedForwardGate != nil || layer.FeedForwardUp != nil || layer.FeedForwardDown != nil {
 		t.Fatalf("unexpected Qwen3-VL-MoE catalog: %+v", weights)
+	}
+}
+
+func TestReadWeightsMRoPETextDecoders(t *testing.T) {
+	for _, architecture := range []string{"paddleocr", "qwen2vl", "qwen3vl"} {
+		t.Run(architecture, func(t *testing.T) { testReadWeightsMRoPETextDecoder(t, architecture) })
 	}
 }
 

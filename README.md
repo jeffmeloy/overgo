@@ -58,9 +58,9 @@ default. See [SECURITY.md](SECURITY.md) for authentication and network settings.
 
 The table summarizes implementation areas. Available operations depend on the
 active model, recipe, backend, and workspace. The [compatibility matrix](docs/COMPATIBILITY.md)
-and [model catalog](docs/model_compatibility.json) record verification scope;
-the [training report](docs/TRAINING_COMPATIBILITY.md) distinguishes bounded
-smoke runs from broader training claims.
+and the model catalog (`go run ./cmd/validate -models -repo <store>`)
+record verification scope; the [training report](docs/TRAINING_COMPATIBILITY.md)
+distinguishes bounded smoke runs from broader training claims.
 
 | Area | Operations |
 | --- | --- |
@@ -124,10 +124,12 @@ Optimizer state preserves resolved settings, update count, and momentum.
 
 `cmd/train` is the one training entry point. A registered recipe trains a
 checkpoint; `-objective <alias>` trains a text model on a registered
-objective's training split and publishes its held-out verdict; `-route
-<trainer>`, ahead of other flags, runs a bounded family trainer by name (the
-tabular and seriesforecast routes train under a registered objective and
-publish its verdict and the trained checkpoint):
+objective's training split, publishes the trained model at `-out`, and
+publishes the held-out verdict that binds it; `-route <trainer>`, ahead of
+other flags, runs a bounded family trainer by name (the tabular and
+seriesforecast routes train under a registered objective and publish its
+verdict and the trained checkpoint). A training recipe activates on the
+verification its first successful run records:
 
 ```powershell
 go run ./cmd/train -route oscillatorimage -model Un-0 -steps 2
@@ -189,11 +191,12 @@ limits, cancellation, and operator stops while allowing independent work to proc
 For local feedback, run the hermetic lane on the affected packages, for example:
 
 ```powershell
-go run ./cmd/test-lane ./internal/recipe
+go run ./cmd/validate -tests ./internal/recipe
 ```
 
-Device, installed-model, race, and browser checks use `cmd/device-lane`,
-`cmd/smoke-lane`, `cmd/race-lane`, and `cmd/webui-lane`. The gate selects required
+Device and browser checks use `cmd/device-lane` and `cmd/webui-lane`;
+installed models are checked with `go run ./cmd/validate -smoke`, and races
+with `go test -race`. The gate selects required
 checks from the change and its acceptance contract and reuses evidence whose
 relevant inputs still match. Ordinary documentation edits receive document
 checks; embedded documents and runtime inputs retain their dependent checks.
@@ -203,8 +206,11 @@ Plan changes retain their acceptance requirements.
 
 - [API manifest](docs/api_manifest.json) — commands, routes, and typed contracts
 - [Benchmark report](docs/BENCHMARK.md) — evaluation and performance results
-- [Model catalog](docs/model_compatibility.json) — model-specific records
-- [Media report](docs/MEDIA_REPORT.md) — media recipes, runs, and outputs
+- Model catalog — model-specific records, rendered on demand by
+  `go run ./cmd/validate -models -repo <store>`
+- Media report — media recipes, runs, and outputs, rendered on demand by
+  `go run ./cmd/validate -media markdown -repo <store>`
+  (`-media json` for its typed projection)
 - [Training compatibility](docs/TRAINING_COMPATIBILITY.md) — training evidence and scope
 - [Compatibility matrix](docs/COMPATIBILITY.md) — features and verification references
 - [Development plan](docs/plan.json) — current work and completion checks

@@ -11,10 +11,8 @@ import (
 // campaign, gui-conversations/durable-sessions): a stored response chain
 // is listed as one conversation with a derived title, its messages
 // materialize for resumption, a label renames and archives it as a new
-// record, a completed turn replays through the follow route, and the
-// client keeps no conversation state of its own: chat rides the Responses
-// API with previous_response_id, reattaches through follow, and the rail
-// lists conversations from the server.
+// record, and a completed turn replays through the follow route. The
+// conversation legs drive the page over these routes.
 func TestFrontPageConversations(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
@@ -89,10 +87,5 @@ func TestFrontPageConversations(t *testing.T) {
 	}
 	if unknown := serveTestRequest(handler, http.MethodGet, "/interactions/follow?response=resp_999", ""); unknown.Code != http.StatusNotFound {
 		t.Errorf("follow of an unknown turn status = %d", unknown.Code)
-	}
-
-	// The conversation legs drive the page; the source keeps one ban.
-	if strings.Contains(webuiJavaScript(t)["mod/chat.js"], `"/v1/chat/completions"`) {
-		t.Error("chat.js still streams the stateless chat completion; conversations ride the Responses API")
 	}
 }

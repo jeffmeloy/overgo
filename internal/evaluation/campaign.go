@@ -39,6 +39,7 @@ type CampaignResult struct {
 	Evidence   artifact.ID               `json:"evidence"`
 	Metrics    []runrecord.Metric        `json:"metrics"`
 	Resources  runrecord.ResourceFitness `json:"resources"`
+	Carried    artifact.ID               `json:"carried,omitzero"` // the record a replay carried forward; Report is its receipt
 }
 
 func NewCampaign(
@@ -103,28 +104,44 @@ func (campaign *Campaign) Authorities() ExactAuthorities {
 }
 
 func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (CampaignResult, error) {
+	return campaign.evaluate(ctx, suite, processmeasure.NewStopwatch(), nil)
+}
+
+// evaluate keeps one attempt clock across replay and full fallback. Ordinary
+// evaluation includes its environment publication in the same attempt.
+func (campaign *Campaign) evaluate(ctx context.Context, suite CompiledSuite, stopwatch processmeasure.Stopwatch, replay *ReplayReceipt) (CampaignResult, error) {
 	if campaign == nil || ctx == nil {
 		return CampaignResult{}, errors.New("evaluation: campaign is absent")
+	}
+	if ctx.Err() != nil {
+		measured, err := stopwatch.Elapsed()
+		if err != nil {
+			return CampaignResult{}, errors.Join(ctx.Err(), err)
+		}
+		return campaign.finishEvaluation(ctx, suite, suiteResult{}, ctx.Err(), measured)
 	}
 	if err := campaign.publishEnvironment(ctx); err != nil {
 		return CampaignResult{}, err
 	}
-	// The performance counter resolves a run that reacquires its completed
-	// generation inside one tick of the runtime's clock.
-	started, err := processmeasure.Counter()
-	if err != nil {
-		return CampaignResult{}, err
-	}
 	result, evaluateErr := executeSuite(ctx, campaign.repository, campaign.runtime, suite)
-	finished, err := processmeasure.Counter()
+	if evaluateErr == nil && replay != nil {
+		receipt := *replay
+		receipt.Report = result.Report
+		result.Report, evaluateErr = campaign.publishReplayReceipt(ctx, suite, receipt)
+	}
+	measured, err := stopwatch.Elapsed()
 	if err != nil {
 		return CampaignResult{}, errors.Join(evaluateErr, err)
 	}
-	elapsedNS := (finished - started).Nanoseconds()
-	if elapsedNS <= 0 {
+	return campaign.finishEvaluation(ctx, suite, result, evaluateErr, measured)
+}
+
+// finishEvaluation owns successful and terminal publication, including a
+// cancelled replay whose spent work must not disappear into a new attempt.
+func (campaign *Campaign) finishEvaluation(ctx context.Context, suite CompiledSuite, result suiteResult, evaluateErr error, measured uint64) (CampaignResult, error) {
+	if measured == 0 {
 		return CampaignResult{}, errors.Join(evaluateErr, errors.New("evaluation: wall measurement is not positive"))
 	}
-	measured := uint64(elapsedNS)
 	if evaluateErr != nil {
 		terminalCtx := ctx
 		outcome, failure := runrecord.OutcomeFailed, "evaluation"
@@ -132,10 +149,22 @@ func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (Ca
 			terminalCtx = context.WithoutCancel(ctx)
 			outcome, failure = runrecord.OutcomeCancelled, ""
 		}
+		if err := campaign.publishPlan(terminalCtx, suite); err != nil {
+			return CampaignResult{}, errors.Join(evaluateErr, err)
+		}
 		run, resources, publishErr := campaign.publishTerminal(terminalCtx, suite.plan, outcome, failure, measured)
 		return CampaignResult{Run: run.ID, Resources: resources}, errors.Join(evaluateErr, publishErr)
 	}
 	return campaign.publishSuccess(ctx, suite, result, measured)
+}
+
+// publishPlan retains a plan before a terminal or replay receipt references it.
+// A completed execution already published its authority batch with its dataset.
+func (campaign *Campaign) publishPlan(ctx context.Context, suite CompiledSuite) error {
+	if _, found, err := campaign.repository.Artifact(ctx, suite.plan.Identity()); err != nil || found {
+		return err
+	}
+	return publishPlanAuthorities(ctx, campaign.repository, suite.plan, nil)
 }
 
 func (campaign *Campaign) publishEnvironment(ctx context.Context) error {

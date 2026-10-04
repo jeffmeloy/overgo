@@ -11,13 +11,13 @@ import (
 	"unicode/utf8"
 
 	"overgo/internal/artifact"
-	"overgo/internal/controlleraction"
 	"overgo/internal/controllertrain"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
+	"overgo/internal/scratchmodel"
 	"overgo/internal/scratchmodeltest"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
@@ -90,15 +90,13 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	action := controlleraction.Action{
-		Version: controlleraction.ActionVersion, Kind: controlleraction.KindObjectiveComposition,
-		Objective: &controlleraction.ObjectiveCompositionAction{Spec: composition.ObjectiveCompositionSpec},
-	}
-	batch, err := controlleraction.CompileTransaction(ctx, store, action)
+	compositionContent, err := composition.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, batch); err != nil {
+	if _, err := store.Commit(ctx, artifact.Batch{
+		Key: "objective-composition", Contents: []artifact.Content{compositionContent}, Lineage: composition.Lineage(),
+	}); err != nil {
 		t.Fatal(err)
 	}
 	compileObjectiveRun(t, ctx, store, composition, contract)
@@ -112,7 +110,11 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	meanOver := func(corpus controllertrain.Corpus) (meanFinal, error) {
 		var total meanFinal
 		for _, seed := range seeds {
-			run, err := controllertrain.TrainSeed(corpus, profile, trainingprogram.BuiltinOptimizerPolicy(), seed, trainingSteps)
+			construction, err := scratchmodel.Compile(scratchmodel.CorpusFacts{Documents: corpus.TrainingDocuments(), Seed: seed, Steps: trainingSteps}, profile)
+			if err != nil {
+				return meanFinal{}, err
+			}
+			run, err := controllertrain.TrainSeed(corpus, construction, trainingprogram.BuiltinOptimizerPolicy(), trainingSteps)
 			if err != nil {
 				return meanFinal{}, err
 			}

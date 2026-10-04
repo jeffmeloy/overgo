@@ -1,0 +1,420 @@
+package main
+
+import (
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"errors"
+	"flag"
+	"fmt"
+	"math"
+	"os"
+
+	"overgo/internal/hfbpe"
+	"overgo/internal/jsonfile"
+	"overgo/internal/parity"
+	"overgo/internal/routedlm"
+	"overgo/internal/safetensors"
+	"overgo/internal/tensor/dtype"
+)
+
+// senseNovaParity is validate -parity sensenova: it walks the SenseNova-U1
+// MoT forward path against the device-neutral oracle fixtures
+// (edit_oracle_v3_256.json, generation_oracle_256.json) on the CPU host
+// packages, the way validate -parity vqa walks the RxBrain ladder. It is the
+// CPU analogue of the adaptive_new
+// CUDA-gated harness (sensenova_edit_cuda_windows_test.go,
+// research_cuda_windows_test.go): it reads the SAME fixture JSON and asserts
+// each stage the fixtures + ported host surface + the read-only checkpoint can
+// verify, streaming only the tensors it probes (never materializing
+// the 35GB model).
+//
+// Audit contract (task step 3): stages backed by a real value oracle are
+// asserted (edit schedule knots, z geometry, plan+rope derivation). Stages
+// that reach flow-forward arithmetic the fixtures do NOT cover are computed on
+// the real checkpoint and reported ORACLE-ABSENT (finiteness/shape only, no
+// parity claim). Stages whose oracle exists but whose INPUT is unavailable
+// (sparse 64-sample probes, external source image, unported renderer/denoise)
+// are reported FRONTIER with the exact blocker and the exact next stage — a
+// weak check is never dressed up as parity.
+func senseNovaParity(flags *flag.FlagSet, args []string) error {
+	modelDir := flags.String("model", `C:\Users\jeffm\adaptive_new\models\SenseNova-U1-8B-MoT-Infographic-V3`, "checkpoint dir (READ-ONLY)")
+	fixturesDir := flags.String("fixtures", `C:\Users\jeffm\adaptive_new\fixtures\sensenova`, "fixture dir (READ-ONLY)")
+	logPath := flags.String("log", `build\sensenova_parity_log.txt`, "liveness log path")
+	deviceMode := flags.Bool("device", false, "run the CUDA device denoise-terminal stages after the CPU ladder")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	l := parity.NewCampaign(*logPath)
+	// First line immediately (liveness).
+	l.Log(fmt.Sprintf("LADDER START validate -parity sensenova model=%s fixtures=%s device=%v", *modelDir, *fixturesDir, *deviceMode))
+
+	if err := senseNovaLadder(l, *modelDir, *fixturesDir); err != nil {
+		l.Log("LADDER ERROR " + err.Error())
+		return err
+	}
+	if *deviceMode && !l.Failed() {
+		if err := senseNovaDevice(l, *modelDir, *fixturesDir); err != nil {
+			l.Log("DEVICE ERROR " + err.Error())
+			return err
+		}
+	}
+	summary := fmt.Sprintf("oracle=%d derive=%d wired=%d frontier=%d",
+		l.Count(parity.Oracle), l.Count(parity.Derived), l.Count(parity.Wired), l.Count(parity.Frontier))
+	if l.Failed() {
+		l.Log("LADDER STOPPED at first FAIL (" + summary + ")")
+		return errors.New("validate -parity sensenova: ladder stopped at its first failure")
+	}
+	l.Log("LADDER COMPLETE longest-verifiable-prefix bound (" + summary + ")")
+	return nil
+}
+
+func senseNovaLadder(l *parity.Campaign, modelDir, fixturesDir string) error {
+	var edit editOracle
+	if err := jsonfile.Decode(fixturesDir+string(os.PathSeparator)+"edit_oracle_v3_256.json", &edit); err != nil {
+		return fmt.Errorf("load edit oracle: %w", err)
+	}
+
+	binding := routedlm.SenseNovaBinding()
+	flowBind, err := routedlm.InspectFlowProfile(modelDir)
+	if err != nil {
+		return fmt.Errorf("inspect flow profile: %w", err)
+	}
+	cfg, err := routedlm.LoadConfig(modelDir, binding)
+	if err != nil {
+		return fmt.Errorf("load llm config: %w", err)
+	}
+	flowCfg, err := routedlm.LoadFlowConfig(modelDir)
+	if err != nil {
+		return fmt.Errorf("load flow config: %w", err)
+	}
+	src, err := safetensors.OpenSource(modelDir)
+	if err != nil {
+		return fmt.Errorf("open checkpoint: %w", err)
+	}
+	defer src.Close()
+
+	var flowPlan routedlm.FlowPlan
+
+	// ---- fixture integrity ------------------------------------------------
+	l.Run("edit_fixture_load", func() (parity.Verdict, float64, string, error) {
+		if edit.Schema != "adaptive_gpt.sensenova_edit_oracle/v1" {
+			return "", math.NaN(), "", fmt.Errorf("schema=%q", edit.Schema)
+		}
+		if len(edit.Steps) != edit.Request.Steps || edit.Request.Steps != 1 {
+			return "", math.NaN(), "", fmt.Errorf("steps=%d request=%d", len(edit.Steps), edit.Request.Steps)
+		}
+		if len(edit.SourceContract.GridHW) != 1 || len(edit.SourceContract.GridHW[0]) != 2 {
+			return "", math.NaN(), "", fmt.Errorf("grid_hw=%v", edit.SourceContract.GridHW)
+		}
+		pixelSamples, err := edit.SourceContract.Pixels.finiteProbes()
+		if err != nil {
+			return "", math.NaN(), "", fmt.Errorf("source pixels: %w", err)
+		}
+		embedSamples, err := edit.SourceContract.Embedding.finiteProbes()
+		if err != nil {
+			return "", math.NaN(), "", fmt.Errorf("source embedding: %w", err)
+		}
+		grid := edit.SourceContract.GridHW[0]
+		return parity.Derived, math.NaN(), fmt.Sprintf("grid=%dx%d tokens=%d pixel_samples=%d embed_samples=%d prefix_layers=%v",
+			grid[0], grid[1], edit.SourceContract.TokenCount, pixelSamples, embedSamples, sortedLayerKeys(edit.PrefixLayers)), nil
+	})
+
+	// ---- rope plan derivation (real checkpoint) ---------------------------
+	l.Run("rope_plan_derive", func() (parity.Verdict, float64, string, error) {
+		plan, err := routedlm.CompileRopePlan(src, cfg, binding)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		want := []routedlm.RopeSection{
+			{Width: 64, Theta: 5e6, Axis: routedlm.AxisTime},
+			{Width: 32, Theta: 1e4, Axis: routedlm.AxisHeight},
+			{Width: 32, Theta: 1e4, Axis: routedlm.AxisWidth},
+		}
+		if len(plan.Sections) != len(want) {
+			return "", math.NaN(), "", fmt.Errorf("sections=%+v", plan.Sections)
+		}
+		total := 0
+		for i, s := range plan.Sections {
+			if s != want[i] {
+				return "", math.NaN(), "", fmt.Errorf("section %d=%+v want %+v", i, s, want[i])
+			}
+			total += s.Width
+		}
+		if total != cfg.HeadDim {
+			return "", math.NaN(), "", fmt.Errorf("sections span %d != head_dim %d", total, cfg.HeadDim)
+		}
+		return parity.Derived, 0, fmt.Sprintf("sections=[64/5e6/T, 32/1e4/H, 32/1e4/W] head_dim=%d (widths from k/q_norm tensors, thetas from llm_config)", cfg.HeadDim), nil
+	})
+
+	// ---- flow plan derivation (real checkpoint) ---------------------------
+	l.Run("flow_plan_derive", func() (parity.Verdict, float64, string, error) {
+		flowPlan, err = routedlm.CompileFlowPlan(src, cfg, flowCfg, flowBind)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		wantFlowDim := flowPlan.VisionChannels * flowPlan.VisionPatch * flowPlan.VisionPatch * flowPlan.ImageMerge * flowPlan.ImageMerge
+		if flowPlan.FlowDim != wantFlowDim {
+			return "", math.NaN(), "", fmt.Errorf("flow_dim=%d != channels*patch^2*merge^2=%d", flowPlan.FlowDim, wantFlowDim)
+		}
+		shape, err := flowPlan.ImagePlan(256, 256)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		if shape.Tokens != flowPlan.NoiseScaleBase {
+			return "", math.NaN(), "", fmt.Errorf("256x256 tokens=%d != noise base %d", shape.Tokens, flowPlan.NoiseScaleBase)
+		}
+		if shape.NoiseScale != 1 || flowPlan.NormalizedNoiseScale(shape.NoiseScale) != 0.125 {
+			return "", math.NaN(), "", fmt.Errorf("256x256 sigma=%g normalized=%g", shape.NoiseScale, flowPlan.NormalizedNoiseScale(shape.NoiseScale))
+		}
+		return parity.Derived, 0, fmt.Sprintf("hidden=%d vision_hidden=%d merge=%d flow_dim=%d freq_dim=%d tokens256=%d sigma=%g",
+			flowPlan.Hidden, flowPlan.VisionHidden, flowPlan.ImageMerge, flowPlan.FlowDim, flowPlan.FrequencyDim, shape.Tokens, shape.NoiseScale), nil
+	})
+
+	// ---- schedule knots (real oracle, exact) ------------------------------
+	l.Run("edit_schedule", func() (parity.Verdict, float64, string, error) {
+		sched, err := routedlm.ShiftedFlowTimeSchedule(edit.Request.Steps, edit.Request.TimestepShift)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		worst := 0.0
+		for i, step := range edit.Steps {
+			worst = max(worst, math.Abs(sched[i]-step.Timestep))
+			worst = max(worst, math.Abs(sched[i+1]-step.NextTimestep))
+		}
+		if worst > 1e-9 {
+			return "", worst, "", fmt.Errorf("schedule %v vs oracle knots, worst=%.3e", sched, worst)
+		}
+		return parity.Oracle, worst, fmt.Sprintf("shift=%g steps=%d knots=%v", edit.Request.TimestepShift, edit.Request.Steps, sched), nil
+	})
+
+	// ---- z geometry (real oracle, structural) -----------------------------
+	l.Run("edit_z_geometry", func() (parity.Verdict, float64, string, error) {
+		shape, err := flowPlan.ImagePlan(edit.Request.Width, edit.Request.Height)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		zElems := shape.Tokens * flowPlan.FlowDim // planar-patch flow state
+		bElems := shape.Tokens * flowPlan.Hidden  // generation-branch hidden boundary
+		step := edit.Steps[0]
+		for _, c := range []struct {
+			name string
+			got  int
+			want int
+		}{
+			{"z", step.Z.Elements, zElems},
+			{"guided_velocity", step.GuidedVelocity.Elements, zElems},
+			{"next_z", step.NextZ.Elements, zElems},
+			{"conditional_boundary", step.ConditionalBoundary.Elements, bElems},
+			{"source_only_boundary", step.SourceOnlyBoundary.Elements, bElems},
+		} {
+			if c.got != c.want {
+				return "", math.NaN(), "", fmt.Errorf("%s elements=%d != derived %d", c.name, c.got, c.want)
+			}
+		}
+		return parity.Derived, 0, fmt.Sprintf("z/vel/next_z=%d (tokens*flow_dim) boundaries=%d (tokens*hidden) tokens=%d", zElems, bElems, shape.Tokens), nil
+	})
+
+	// ---- source-contract geometry (real oracle, structural) ---------------
+	l.Run("edit_source_geometry", func() (parity.Verdict, float64, string, error) {
+		grid := edit.SourceContract.GridHW[0]
+		if grid[0] != grid[1] {
+			return "", math.NaN(), "", fmt.Errorf("non-square source grid %v", grid)
+		}
+		wantTokens := (grid[0] / flowPlan.ImageMerge) * (grid[1] / flowPlan.ImageMerge)
+		if wantTokens != edit.SourceContract.TokenCount {
+			return "", math.NaN(), "", fmt.Errorf("token_count=%d != (grid/merge)^2=%d", edit.SourceContract.TokenCount, wantTokens)
+		}
+		// pixels row width = channels*patch^2 (the patch-gather vector length).
+		if len(edit.SourceContract.Pixels.Shape) == 2 {
+			wantRow := flowPlan.VisionChannels * flowPlan.VisionPatch * flowPlan.VisionPatch
+			if edit.SourceContract.Pixels.Shape[1] != wantRow {
+				return "", math.NaN(), "", fmt.Errorf("pixels row=%d != channels*patch^2=%d", edit.SourceContract.Pixels.Shape[1], wantRow)
+			}
+		}
+		sourceImage := grid[0] * flowPlan.VisionPatch
+		return parity.Derived, 0, fmt.Sprintf("grid=%dx%d merge=%d -> tokens=%d (source image %dx%d px)",
+			grid[0], grid[1], flowPlan.ImageMerge, wantTokens, sourceImage, sourceImage), nil
+	})
+
+	// ---- flow terminal wiring (ORACLE-ABSENT: no fixture for these) --------
+	l.Run("flow_terminal_wiring", func() (parity.Verdict, float64, string, error) {
+		weights, err := routedlm.LoadFlowTerminalWeights(src, flowPlan, flowBind)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		shape, err := flowPlan.ImagePlan(256, 256)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		cond, err := routedlm.FlowConditionRow(weights, flowPlan, 0, flowPlan.NormalizedNoiseScale(shape.NoiseScale))
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		if len(cond) != flowPlan.Hidden {
+			return "", math.NaN(), "", fmt.Errorf("condition row len=%d != hidden %d", len(cond), flowPlan.Hidden)
+		}
+		nonzero := 0
+		for _, v := range cond {
+			if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+				return "", math.NaN(), "", fmt.Errorf("condition row has non-finite value")
+			}
+			if v != 0 {
+				nonzero++
+			}
+		}
+		if nonzero == 0 {
+			return "", math.NaN(), "", fmt.Errorf("condition row all zeros")
+		}
+		// flow head on one real-width row (deterministic bf16 input, zero z).
+		hidden := make([]float32, flowPlan.Hidden)
+		for i := range hidden {
+			hidden[i] = dtype.RoundBF16(float32(i%13)/13 - 0.5)
+		}
+		velocity, err := routedlm.FlowHeadVelocity(weights.Head, flowPlan, hidden, make([]float32, flowPlan.FlowDim), 0)
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		if len(velocity) != flowPlan.FlowDim {
+			return "", math.NaN(), "", fmt.Errorf("velocity len=%d != flow_dim %d", len(velocity), flowPlan.FlowDim)
+		}
+		for _, v := range velocity {
+			if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+				return "", math.NaN(), "", fmt.Errorf("velocity has non-finite value")
+			}
+		}
+		return parity.Wired, math.NaN(), fmt.Sprintf("ORACLE-ABSENT: condition row (%d nonzero/%d) + flow head (len=%d) forward finite on real weights; fixtures carry no condition/head-output tensor", nonzero, len(cond), len(velocity)), nil
+	})
+
+	// ---- vision embedder wiring (ORACLE-ABSENT for value; input sampled) ---
+	l.Run("vision_embedder_wiring", func() (parity.Verdict, float64, string, error) {
+		for _, prefix := range []struct {
+			name string
+			p    string
+		}{
+			{"source(understanding)", flowBind.SourceVisionPrefix},
+			{"generation(mot_gen)", flowBind.GenerationVisionPrefix},
+		} {
+			if _, err := routedlm.LoadVisionEmbedderWeights(src, prefix.p, flowPlan); err != nil {
+				return "", math.NaN(), "", fmt.Errorf("%s embedder: %w", prefix.name, err)
+			}
+		}
+		return parity.Wired, math.NaN(), fmt.Sprintf("ORACLE-ABSENT: both conv embedders load+shape-validate on real checkpoint; value parity BLOCKED — source_contract.pixels is a %d/%d-sample probe (need external source image to reconstruct the embedder input)",
+			edit.SourceContract.Pixels.sampleCount(), edit.SourceContract.Pixels.Elements), nil
+	})
+
+	// ---- text_inputs (real sha256 oracle; renderer ported) ----------------
+	l.Run("text_inputs", func() (parity.Verdict, float64, string, error) {
+		tok, err := hfbpe.LoadSplit(modelDir)
+		if err != nil {
+			return "", math.NaN(), "", fmt.Errorf("load tokenizer: %w", err)
+		}
+		tmpl := routedlm.SenseNovaPromptTemplate()
+		grid := edit.SourceContract.GridHW[0]
+		merge := flowPlan.ImageMerge
+		if merge <= 0 || grid[0]%merge != 0 || grid[1]%merge != 0 {
+			return "", math.NaN(), "", fmt.Errorf("bad merge %d for grid %v", merge, grid)
+		}
+		source := routedlm.PromptSource{
+			TokenHeight: grid[0] / merge,
+			TokenWidth:  grid[1] / merge,
+			TokenCount:  edit.SourceContract.TokenCount,
+		}
+		cases := []struct {
+			name   string
+			role   routedlm.PromptRole
+			prompt string
+			oracle editOracleInput
+		}{
+			{"conditional", routedlm.PromptRolePromptSource, edit.Request.Prompt, edit.TextInputs.Conditional},
+			{"source_only", routedlm.PromptRoleSourceOnly, "", edit.TextInputs.SourceOnly},
+		}
+		for _, c := range cases {
+			p, err := routedlm.RenderEditPrompt(tok, c.prompt, c.role, tmpl, source)
+			if err != nil {
+				return "", math.NaN(), "", fmt.Errorf("render %s: %w", c.name, err)
+			}
+			for _, f := range []struct {
+				n    string
+				got  []int
+				want intContract
+			}{
+				{"ids", p.IDs, c.oracle.IDs},
+				{"time", p.Time, c.oracle.Time},
+				{"height", p.Height, c.oracle.Height},
+				{"width", p.Width, c.oracle.Width},
+			} {
+				if err := checkIntContract(c.name+"."+f.n, f.got, f.want); err != nil {
+					return "", math.NaN(), "", err
+				}
+			}
+		}
+		return parity.Oracle, 0, fmt.Sprintf("ids+time+height+width sha256 match: conditional=%d source_only=%d tokens (renderer=routedlm.RenderEditPrompt, tokenizer=hfbpe.LoadSplit vocab+merges, template=SenseNovaPromptTemplate, merge=%d source=%dx%d=%d)",
+			edit.TextInputs.Conditional.IDs.Elements, edit.TextInputs.SourceOnly.IDs.Elements, merge, source.TokenHeight, source.TokenWidth, source.TokenCount), nil
+	})
+
+	// ---- FRONTIER: prefix / KV / generation forward parity ----------------
+	l.Run("prefix_forward_frontier", func() (parity.Verdict, float64, string, error) {
+		pk := edit.PrefixKV["0"].Conditional.Keys
+		pl := edit.PrefixLayers["0"].Conditional
+		detail := fmt.Sprintf("FRONTIER: prefix_layers/prefix_kv/generation_layers parity (probes at layers %v). "+
+			"BLOCKED (three prerequisites): (1) prefix input = text embeds + source vision embeds spliced, but source embedding is a %d/%d-sample probe (full input needs the external source PNG); "+
+			"(2) block-causal + multi-axis + branch-routed prefix layer-forward NOT ported (routedlm.PromptLayerForward is single-axis Time + VisualSegments windows; the pieces CompileRopePlan/BlockPositions/BlockCausalWindows exist but are not yet wired into a layer stack); "+
+			"(3) generation-branch denoise stack (cross-attn to prefix KV + condition inject + flow head) NOT ported. Each probe is sparse (kv=%d/%d, hidden=%d/%d), so a FULL 42-layer/%d-token forward is required to evaluate any single probe.",
+			sortedLayerKeys(edit.PrefixLayers), edit.SourceContract.Embedding.sampleCount(), edit.SourceContract.Embedding.Elements,
+			pk.sampleCount(), pk.Elements, pl.sampleCount(), pl.Elements, edit.TextInputs.Conditional.IDs.Elements)
+		return parity.Frontier, math.NaN(), detail, nil
+	})
+
+	// ---- FRONTIER: guided velocity / next_z (generation oracle) ------------
+	l.Run("velocity_frontier", func() (parity.Verdict, float64, string, error) {
+		detail := "FRONTIER: guided velocity + next_z parity needs the full generation body output (see prefix_forward_frontier). Seeded z is exact through shared torchrng. The generation oracle carries only terminal probes, so the 42-layer body must be verified end-to-end."
+		return parity.Frontier, math.NaN(), detail, nil
+	})
+
+	return nil
+}
+
+// checkIntContract asserts a rendered integer vector matches the oracle by
+// element count and by sha256 of its little-endian int64 encoding (the exact
+// contract the fixture records for ids/time/height/width).
+func checkIntContract(name string, got []int, want intContract) error {
+	if len(got) != want.Elements {
+		return fmt.Errorf("%s elements=%d != oracle %d", name, len(got), want.Elements)
+	}
+	buf := make([]byte, 8*len(got))
+	for i, v := range got {
+		binary.LittleEndian.PutUint64(buf[i*8:], uint64(int64(v)))
+	}
+	sum := sha256.Sum256(buf)
+	if hexsum := hex.EncodeToString(sum[:]); hexsum != want.SHA256LEI64 {
+		return fmt.Errorf("%s sha256=%s != oracle %s", name, hexsum, want.SHA256LEI64)
+	}
+	return nil
+}
+
+func sortedLayerKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	// small maps (3 entries: 0,1,41); simple insertion sort by numeric value.
+	for i := 1; i < len(keys); i++ {
+		for j := i; j > 0 && atoiSafe(keys[j-1]) > atoiSafe(keys[j]); j-- {
+			keys[j-1], keys[j] = keys[j], keys[j-1]
+		}
+	}
+	return keys
+}
+
+func atoiSafe(s string) int {
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 1 << 30
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n
+}

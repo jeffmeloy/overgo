@@ -29,12 +29,8 @@ const (
 	EntryAuthorityModel EntryAuthorityDomain = "model"
 	// EntryAuthorityRouting guards routing-decision construction owned by internal/modelrecipe.
 	EntryAuthorityRouting EntryAuthorityDomain = "routing"
-	// EntryAuthorityRollout guards rollout-plan construction owned by internal/runrecord.
-	EntryAuthorityRollout EntryAuthorityDomain = "rollout"
 	// EntryAuthorityEfficiency guards efficiency-trace construction owned by internal/runrecord.
 	EntryAuthorityEfficiency EntryAuthorityDomain = "efficiency"
-	// EntryAuthoritySafety guards live-safety-window construction owned by internal/evaluation.
-	EntryAuthoritySafety EntryAuthorityDomain = "safety"
 )
 
 // EntryAuthorityRule binds one domain's bypass detection to its single owner.
@@ -177,11 +173,9 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 	return []EntryAuthorityRule{
 		{
 			Domain:     EntryAuthorityStorage,
-			Owner:      "internal/overgodb owns the canonical journal layout; recovery lanes are enumerated",
+			Owner:      "internal/overgodb owns the canonical journal layout; recovery replays through its reader",
 			OwnerPaths: []string{"internal/overgodb"},
 			Exceptions: map[string]string{
-				"cmd/overgodb/rebuild.go":                  "sanctioned offline rebuild lane; reads and swaps the journal it rebuilds",
-				"cmd/overgodb/repair.go":                   "sanctioned torn-tail repair lane; truncates the journal at the last valid frame",
 				"internal/repoanalysis/entry_authority.go": "single policy owner; the rule table names the journal layout it guards",
 			},
 			Detect: func(file *ast.File) int {
@@ -233,16 +227,6 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			Retire: "internal/modelrecipe stops owning routing decisions",
 		},
 		{
-			Domain:     EntryAuthorityRollout,
-			Owner:      "internal/runrecord owns rollout plans; deterministic rollouts enter through its constructor and promotion binding",
-			OwnerPaths: []string{"internal/runrecord"},
-			Exceptions: map[string]string{},
-			Detect: func(file *ast.File) int {
-				return nonEmptyCompositeSites(file, "runrecord", "RolloutPlan")
-			},
-			Retire: "internal/runrecord stops owning rollout plans",
-		},
-		{
 			Domain:     EntryAuthorityEfficiency,
 			Owner:      "internal/runrecord owns efficiency traces; interaction-efficiency claims enter through its constructor and judgment",
 			OwnerPaths: []string{"internal/runrecord"},
@@ -251,16 +235,6 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				return nonEmptyCompositeSites(file, "runrecord", "EfficiencyTrace")
 			},
 			Retire: "internal/runrecord stops owning efficiency traces",
-		},
-		{
-			Domain:     EntryAuthoritySafety,
-			Owner:      "internal/evaluation owns live safety windows; reentry decisions read windows built by its constructor",
-			OwnerPaths: []string{"internal/evaluation"},
-			Exceptions: map[string]string{},
-			Detect: func(file *ast.File) int {
-				return nonEmptyCompositeSites(file, "evaluation", "LiveSafetyWindow")
-			},
-			Retire: "internal/evaluation stops owning live safety windows",
 		},
 		{
 			Domain: EntryAuthorityGoOnly,

@@ -1,0 +1,130 @@
+//go:build windows
+
+package scratchtrain
+
+import (
+	"fmt"
+	"testing"
+
+	"overgo/internal/artifact"
+	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/runrecord"
+	"overgo/internal/scratchmodel"
+	"overgo/internal/scratchmodeltest"
+	"overgo/internal/trainingprogram"
+)
+
+func TestProfilePromotedByDescendantQuality(t *testing.T) {
+	cudatest.Require(t)
+	oracle := loadOracle(t)
+	candidate := scratchmodeltest.Profile(t)
+	incumbent := candidate
+	// The incumbent's normalization epsilon is degraded decisively: a
+	// 2x nudge left the two 100-step losses inside floating-point
+	// scheduling noise and the comparison flipped run to run. Promotion
+	// is about quality differences that are real, so the fixture makes
+	// one.
+	incumbent.Epsilon = candidate.Epsilon * 1e6
+	var err error
+	incumbent, err = scratchmodel.NewDerivationProfile(incumbent)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	facts := scratchmodel.CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: 100}
+	incumbentLoss, incumbentModel, _, err := trainProfile(facts, incumbent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidateLoss, candidateModel, construction, err := trainProfile(facts, candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if candidateLoss >= incumbentLoss {
+		t.Fatalf("candidate loss %.9f did not beat incumbent %.9f", candidateLoss, incumbentLoss)
+	}
+
+	promotionSplit := profileArtifact(t, artifact.KindDatasetShard, "profile-promotion")
+	code := profileArtifact(t, artifact.KindEvidence, "profile-code")
+	proposer := profileArtifact(t, artifact.KindEvidence, "profile-proposer")
+	proposal, err := trainingprogram.CompileImprovementProposal(trainingprogram.ImprovementSpec{
+		Kind: trainingprogram.ImprovementDerivationProfile, ParentModel: incumbentModel,
+		Incumbent: incumbent.ID, Candidate: candidate.ID, Dataset: construction.Dataset(), DevelopmentSplit: construction.SplitID(),
+		Recipe: construction.Program().ID(), Code: code, Proposer: proposer,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evaluator := profileArtifact(t, artifact.KindEvidence, "profile-evaluator")
+	authority := profileArtifact(t, artifact.KindEvidence, "profile-authority")
+	admission, err := runrecord.AdmitImprovement(proposal, authority, evaluator, promotionSplit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := runrecord.NewRun(construction.Program().ID(), runrecord.OutcomeSucceeded,
+		[]artifact.ID{candidateModel, construction.Dataset(), promotionSplit, code, admission.ID}, []artifact.ID{candidateModel}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	evaluation, err := runrecord.NewEvaluation(construction.Program().ID(), run.ID, construction.Dataset(), []runrecord.Metric{{
+		Name: "causal-loss", Value: candidateLoss, Direction: runrecord.DirectionMinimize,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision, err := runrecord.DecideImprovement(admission, candidateModel, run, evaluation,
+		profileArtifact(t, artifact.KindEvidence, "profile-decider"), runrecord.ImprovementPromote)
+	if err != nil || decision.State != runrecord.ImprovementPromote || decision.Rollback != incumbentModel {
+		t.Fatalf("profile promotion = (%s, %s, %v)", decision.State, decision.Rollback, err)
+	}
+}
+
+func trainProfile(facts scratchmodel.CorpusFacts, profile scratchmodel.DerivationProfile) (float64, artifact.ID, scratchmodel.Construction, error) {
+	construction, err := scratchmodel.Compile(facts, profile)
+	if err != nil {
+		return 0, artifact.ID{}, scratchmodel.Construction{}, err
+	}
+	trainer, err := NewResidentTrainer(construction, facts.Steps, trainingprogram.BuiltinOptimizerPolicy())
+	if err != nil {
+		return 0, artifact.ID{}, scratchmodel.Construction{}, err
+	}
+	defer trainer.Close()
+	train := construction.Split().Train
+	for step := 1; step <= facts.Steps; step++ {
+		tokens, tokenErr := construction.Tokens(train[(step-1)%len(train)])
+		if tokenErr != nil {
+			return 0, artifact.ID{}, scratchmodel.Construction{}, tokenErr
+		}
+		if _, stepErr := trainer.Step(tokens, step); stepErr != nil {
+			return 0, artifact.ID{}, scratchmodel.Construction{}, stepErr
+		}
+	}
+	validation := construction.Split().Validation
+	loss := 0.0
+	for _, document := range validation {
+		tokens, tokenErr := construction.Tokens(document)
+		if tokenErr != nil {
+			return 0, artifact.ID{}, scratchmodel.Construction{}, tokenErr
+		}
+		value, evaluateErr := trainer.Evaluate(tokens)
+		if evaluateErr != nil {
+			return 0, artifact.ID{}, scratchmodel.Construction{}, evaluateErr
+		}
+		loss += value
+	}
+	weights, _, _, err := trainer.Snapshot()
+	if err != nil {
+		return 0, artifact.ID{}, scratchmodel.Construction{}, err
+	}
+	model, err := construction.IdentifyTrainedModel(weights)
+	return loss / float64(len(validation)), model, construction, err
+}
+
+func profileArtifact(t *testing.T, kind artifact.Kind, label string) artifact.ID {
+	t.Helper()
+	id, err := artifact.IdentifyBytes(kind, fmt.Appendf(nil, "%s/%s", t.Name(), label))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}

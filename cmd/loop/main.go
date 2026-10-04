@@ -78,8 +78,6 @@ func run(args []string) error {
 	configPath := flags.String("config", "", "machine-local loop configuration (default .overgo-runtime/loop.json)")
 	repoPath := flags.String("repo", "", "OvergoDB root for the evidence doors; empty resolves the store through the data-root contract")
 	publishStrategySpec := flags.String("publish-strategy", "", "publish one strategy from this spec (worker, catalog, loop config) and exit")
-	experimentSpec := flags.String("experiment", "", "replay one strategy experiment from this spec and print the comparison")
-	publishFitnessSpec := flags.String("publish-fitness", "", "publish one pairwise improvement-fitness proof from this request spec")
 	resourceLanesSpec := flags.String("compare-resource-fitness", "", "replay one resource no-regression proof from this lanes spec")
 	resourceRunsSpec := flags.String("compare-resource-runs", "", "judge a baseline and a candidate run's committed resource observations through the resource no-regression owner from this spec ({name, baseline_run, repeat_runs, candidate_run, required_metrics}; repeat_runs are identical-protocol repeats of the baseline that set the measured noise envelope)")
 	deriveRecipesSpec := flags.String("derive-recipes", "", "derive one materialized candidate's per-arm recipes from this spec")
@@ -95,6 +93,7 @@ func run(args []string) error {
 	resumeMediaExperimentSpec := flags.String("resume-media-experiment", "", "resume one media experiment from this spec, reusing retained acquisitions and publishing the report without opening a model")
 	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step> -message-file <file>")
 	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
+	improveOnce := flags.Bool("improve", false, "run one improvement cycle now, as an emptied plan does: measure the scorecard, fast-forward main if held-out quality holds, and file the gaps as rows")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -107,14 +106,15 @@ func run(args []string) error {
 	}
 	*repoPath = resolved
 	switch {
+	case *improveOnce:
+		var outcome loop.Outcome
+		added, err := loop.Improve(improvementFor(*repoPath), &outcome)
+		fmt.Printf("loop: improvement cycle promoted=%q withheld=%q proposed=%d row(s)\n", outcome.Promoted, outcome.Withheld, added)
+		return err
 	case *publishStrategySpec != "":
 		return publishStrategy(*repoPath, *publishStrategySpec, os.Stdout)
-	case *experimentSpec != "":
-		return compareStrategies(*repoPath, *experimentSpec, os.Stdout)
 	case *resumeMediaExperimentSpec != "":
 		return resumeMediaExperiment(*repoPath, *resumeMediaExperimentSpec, os.Stdout)
-	case *publishFitnessSpec != "":
-		return publishFitness(*repoPath, *publishFitnessSpec, os.Stdout)
 	case *resourceLanesSpec != "":
 		return compareResourceLanes(*repoPath, *resourceLanesSpec, os.Stdout)
 	case *resourceRunsSpec != "":
@@ -184,27 +184,13 @@ func run(args []string) error {
 	if err != nil || !found {
 		return errors.Join(errors.New("loop: configured strategy prompt is unavailable"), err)
 	}
-	world := &execWorld{config: loaded, strategy: strategy, promptPrefix: string(prompt.Data), campaign: campaign}
+	// An empty plan runs the full scorecard, promotes what holds and turns
+	// the gaps into the next rows.
+	world := &execWorld{config: loaded, strategy: strategy, promptPrefix: string(prompt.Data), campaign: campaign, improvement: improvementFor(*repoPath)}
 	outcome, err := loop.Run(world, strategy.Loop)
-	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
-		outcome.Reason, outcome.Invocations, outcome.Parked)
-	if err != nil || outcome.Reason != loop.ReasonPlanComplete {
-		return err
-	}
-	// An empty plan runs the full scorecard: the validations the last
-	// commit made stale are measured again, then the scorecard is published
-	// with what moved since the previous one. A measurement that fails does
-	// not withhold the others' numbers: the scorecard publishes regardless
-	// and the failure is reported beside it.
-	var failed []error
-	for _, command := range [][]string{{"go", "run", "./cmd/validate", "-run"}, {"go", "run", "./cmd/validate", "-scorecard", "-publish"}} {
-		out, err := runTool(command...)
-		fmt.Print(out)
-		if err != nil {
-			failed = append(failed, fmt.Errorf("loop: the plan is empty, but %s failed: %w", strings.Join(command[1:], " "), err))
-		}
-	}
-	return errors.Join(failed...)
+	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; promoted=%q; withheld=%q; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
+		outcome.Reason, outcome.Invocations, outcome.Parked, outcome.Promoted, outcome.Withheld)
+	return err
 }
 
 func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {
@@ -230,6 +216,7 @@ func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {
 
 // execWorld adapts the driver to the repository's real owners.
 type execWorld struct {
+	improvement
 	config       config
 	strategy     loop.Strategy
 	promptPrefix string

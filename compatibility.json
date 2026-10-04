@@ -188,7 +188,7 @@
      "path": "internal/audioparity/audio_recovery_test.go",
      "contains": "func TestAudioCancellationAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:b64801bf05091da071e9af0778607e120ce77f74cdf14323956d273156d14cbd"
+     "identity": "evidence:sha256:b8dbdc4a8205c0b82be1bd3225b2b39ddb5be07e90f9ea7a4e864d895ccaf693"
     },
     {
      "path": "internal/speechrecognition/session.go",
@@ -210,7 +210,7 @@
      "path": "internal/audioparity/audio_recovery_test.go",
      "contains": "func TestAudioPublicationRecoveryAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:b64801bf05091da071e9af0778607e120ce77f74cdf14323956d273156d14cbd"
+     "identity": "evidence:sha256:b8dbdc4a8205c0b82be1bd3225b2b39ddb5be07e90f9ea7a4e864d895ccaf693"
     },
     {
      "path": "internal/trainingworkflow/input_projection.go",
@@ -239,7 +239,7 @@
      "path": "internal/audioparity/segmented_transcription_test.go",
      "contains": "func TestValidatedTranscriptionConsumers(",
      "role": "artifact",
-     "identity": "evidence:sha256:7c0e1ae3f6f06e192a8594d40a0be312f0175aa46fe1c562bee2486ac36ba2ea"
+     "identity": "evidence:sha256:64c4c824d150fa9c24dfa4c6b8ab048edaeeadb18293d3367cc386421ed4de84"
     },
     {
      "path": "internal/audioparity/testdata/segmented_reference.json",
@@ -268,7 +268,7 @@
      "path": "internal/audioparity/vad_acceptance_test.go",
      "contains": "func TestVADOfflineAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:268292ac07e1d0ab79c8b3de7b7653c2a1f57fbeb9d53d974a964706cdf81203"
+     "identity": "evidence:sha256:c32002ceac3f2ac23027c261d55a24f39d233c76de8a91f813b8095811a3e440"
     },
     {
      "path": "internal/audioparity/testdata/vad_reference.json",
@@ -297,7 +297,7 @@
      "path": "internal/audioparity/vad_acceptance_test.go",
      "contains": "func TestVADStreamingAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:268292ac07e1d0ab79c8b3de7b7653c2a1f57fbeb9d53d974a964706cdf81203"
+     "identity": "evidence:sha256:c32002ceac3f2ac23027c261d55a24f39d233c76de8a91f813b8095811a3e440"
     },
     {
      "path": "internal/audioparity/testdata/vad_boundaries.json",
@@ -319,7 +319,7 @@
      "contains": "func TestASRAdapterPublicationAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:733ece637c270c44db078e5e4a3056ac1fe84e3d822045d84142285b30a136ab"
+     "identity": "evidence:sha256:abfea550d00c7d15d02b601d4148547b120a35ca2b6457f54ec85ae0e2b12031"
     }
    ],
    "id": "asr-cpu-adapter-publication",
@@ -341,7 +341,7 @@
      "contains": "func TestASRExactResumeAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:733ece637c270c44db078e5e4a3056ac1fe84e3d822045d84142285b30a136ab"
+     "identity": "evidence:sha256:abfea550d00c7d15d02b601d4148547b120a35ca2b6457f54ec85ae0e2b12031"
     }
    ],
    "id": "asr-cpu-exact-adapter-resume",
@@ -441,13 +441,13 @@
      "contains": "func OpenWithOptions(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:59e45778066e2b7004348990c89610bca0840cb08afbffd294d61314aaf49760"
+     "identity": "file:sha256:dc8e944a91389b73d8e153efb2d657ff7336bf84b2504af7fa478430bbdc905e"
     },
     {
      "contains": "func TestParseEnforcesLimits(",
      "path": "internal/gguf/reader_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d42396631d2509bba9627000a8a673df2e99a3a659719d2721ca6e5c8d1c6b84"
+     "identity": "evidence:sha256:d5960756272d8a23ad02c8cc1bbb6739293b1fff7c4659d5eb5e12a31590b415"
     }
    ],
    "id": "bounded-gguf-parsing",
@@ -468,7 +468,7 @@
      "contains": "func TestQwen35RealTraining(",
      "path": "internal/adaptiveparity/qwen35_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:5c3fcff7144e75edadde940df8ddc2d4371a980226eb34f1a26bbdd267898034"
+     "identity": "evidence:sha256:7285e4188ba6d1d4419a72077073b3b1c77d08ff4d9cfa7cd7172f35e7783721"
     }
    ],
    "id": "qwen35-real-recurrent-layer-training",
@@ -506,7 +506,7 @@
      "contains": "func CompileObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:4d7ecae3f8c42958b6815d1870bb3b5dafd8ae8fb0bcebe1a75c2c53e0ef5c74"
+     "identity": "file:sha256:9872db83a10180eccf8b336398d8ef844966e502b498ddfa99beb63e315aa3a5"
     },
     {
      "contains": "func AudioProcessor(",
@@ -534,7 +534,7 @@
      "contains": "func CompileTrainingObjectiveMatrix(",
      "path": "internal/trainingprogram/objective.go",
      "role": "source",
-     "identity": "file:sha256:4d7ecae3f8c42958b6815d1870bb3b5dafd8ae8fb0bcebe1a75c2c53e0ef5c74"
+     "identity": "file:sha256:9872db83a10180eccf8b336398d8ef844966e502b498ddfa99beb63e315aa3a5"
     },
     {
      "contains": "func CompileObjectiveProgram(",
@@ -683,20 +683,20 @@
    "evidence": [
     {
      "contains": "func executeVQAProgram(",
-     "path": "cmd/vqaparity/recipeserve.go",
+     "path": "cmd/validate/parity_vqa_recipe_serve.go",
      "role": "source",
-     "identity": "file:sha256:90e89bd50dc1ade5facbc6d310abe6075f536095853480c28cd2b86d12777fa4"
+     "identity": "file:sha256:1dd6be5e75185486c0bc87d2f3ec48932c1036bddd44bf78fb48d53d17625b0b"
     },
     {
      "contains": "func TestRxBrainProductionParity(",
-     "path": "cmd/vqaparity/recipeverify_windows_test.go",
+     "path": "cmd/validate/parity_vqa_recipe_verify_windows_test.go",
      "role": "artifact",
      "identity": "evidence:sha256:b8f448d1d77b71ecb9d57d7dd54a0a6d7aad1ddf8b7a4c29612ee946d96ebad1"
     }
    ],
    "id": "rxbrain-vqa-production-oracle",
    "evidence_tier": "device-gated",
-   "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/vqaparity -run '^TestRxBrainProductionParity$' -count=1 -v",
+   "verify": "OVERGO_CUDA_TEST=1 go test ./cmd/validate -run '^TestRxBrainProductionParity$' -count=1 -v",
    "artifact_identity": "sha256:97d121be90fba86b42effe71d2a67c68095a7a74fadd2bb0b848a3c72ed38879+6de406a2da4e3342f6b0186e6e8890a3d73d84f6da3b2f8ac3b8bc6b82721b35+c3e8ab04b94ea11d96ebac29e44e5501c88ed7383525787d4af9b24e9130ccc3",
    "status": "implemented",
    "summary": "RxBrain real-image VQA executes through a compiled and verified recipe, reproduces the exact golden token prefix and coherent EOS answer, then replays bit-exactly through the active alias."
@@ -728,7 +728,7 @@
      "contains": "func splitPathPrefix(",
      "path": "internal/gguf/reader.go",
      "role": "source",
-     "identity": "file:sha256:59e45778066e2b7004348990c89610bca0840cb08afbffd294d61314aaf49760"
+     "identity": "file:sha256:dc8e944a91389b73d8e153efb2d657ff7336bf84b2504af7fa478430bbdc905e"
     },
     {
      "contains": "func TestOpenLoadsAndReadsSplitGGUF(",
@@ -814,7 +814,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:e90e1df9cd402018ba98997d3c03a21457c0a3d0b2c2147ac32fa8857b6dbb51"
+     "identity": "file:sha256:cfe12eaed66b28755f86f2b3bc2bf7c9df32c0d693d1a4657992752c43236bba"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
@@ -1046,7 +1046,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:d763b556c70d24415f040ba1d86e962a133cd870b0a1da1a5047068b2ba2c761"
+     "identity": "file:sha256:3311800e88d051efed2a15dbdf8af0aa9e18d8b05894fa61466e72864a43b2fe"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -1199,7 +1199,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:d763b556c70d24415f040ba1d86e962a133cd870b0a1da1a5047068b2ba2c761"
+     "identity": "file:sha256:3311800e88d051efed2a15dbdf8af0aa9e18d8b05894fa61466e72864a43b2fe"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
@@ -1310,7 +1310,7 @@
      "contains": "func createArchive(",
      "path": "cmd/release/main.go",
      "role": "source",
-     "identity": "file:sha256:c4eadca44668d591614f6c39f6f570e3a36b73846afc963af3259608ea1dfcb9"
+     "identity": "file:sha256:f4d0657014ef5e6f2fcace124779bc592c5456b8bcb58829afe4baf62862be34"
     },
     {
      "contains": "func TestCreateArchiveIsDeterministic(",
@@ -1328,24 +1328,30 @@
   {
    "evidence": [
     {
-     "contains": "func LoadSynthesizer(",
-     "path": "internal/speechsynth/runtime.go",
+     "contains": "func (m *Model) GenerateLatents(",
+     "path": "internal/speechsynth/generate.go",
      "role": "source",
-     "identity": "file:sha256:e98bdd7493c1e520ae390e80ab5e59677cc0d9e8b8280f05787162b840c89a97"
+     "identity": "file:sha256:829b6b36c354ac012f3d3c4c4e9a887a3c39cd8eca2f52232e12e96dcb15fb1a"
     },
     {
-     "contains": "func TestPocketTTSProductionParity(",
-     "path": "internal/adaptiveparity/pocket_tts_test.go",
+     "contains": "func (m *Model) LatentsToPCM(",
+     "path": "internal/speechsynth/codec.go",
+     "role": "source",
+     "identity": "file:sha256:06ea446ab28d3a89d373a8472ec11ef418345cd7ddaf93bf83d58a8dc81d9d92"
+    },
+    {
+     "contains": "func TestSpeakE2EProducesReferenceAudio(",
+     "path": "internal/speechsynth/codec_golden_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:32fd3e9b776b3a7fa1b36dad9e49d9003e1cdbf87e11da2733391d9f9b5ae5c3"
+     "identity": "evidence:sha256:9095b101f804d2201947c98f2ecde6f02a788d0eec2c946e749131fcfe242f30"
     }
    ],
    "id": "pocket-tts-production-oracle",
    "evidence_tier": "pinned-oracle",
-   "verify": "go test -tags integration ./internal/adaptiveparity -run '^TestPocketTTSProductionParity$' -count=1 -v",
+   "verify": "go test ./internal/speechsynth -run '^TestSpeakE2EProducesReferenceAudio$' -count=1 -v",
    "source_commit": "214950b3b0316bcdcab38a3b95127a927c0ab5be",
    "status": "implemented",
-   "summary": "Pocket-TTS executes through its compiled speech recipe and matches pinned latent, EOS, PCM, WAV, rate, channel, and heap evidence."
+   "summary": "Pocket-TTS generation with the reference's recorded noise decodes to the pinned PCM waveform, its end-to-end summary and the reference WAV at the codec's mono sample rate."
   },
   {
    "evidence": [
@@ -1365,7 +1371,7 @@
      "contains": "func TestExactAttentionCaptureRejectsModifiedScorePolicies(",
      "path": "internal/inference/attention_capture_probe_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:ea02dc540c90dfb89bf40eb75b9a0a4d606bac7c12d1ba9c71aa147144abf9d5"
+     "identity": "evidence:sha256:e6944491c89f3f8efdc6ad214ef4516a572c0239891477b9ae3dfb680b109743"
     }
    ],
    "id": "exact-attention-workbench",
@@ -1401,7 +1407,7 @@
      "contains": "func (h *Handler) browseRuns(",
      "path": "internal/server/browse_runs.go",
      "role": "source",
-     "identity": "file:sha256:789d854f0b59bdea7735b03483f01e4eb2b01c86b28ea5c23fe9d06d0cf9b55e"
+     "identity": "file:sha256:01ef12b432dfcaf05312ed342d38272299215a78647952924c00c589fbc6876b"
     },
     {
      "contains": "func TestBrowseRunsReadsOvergoDBRecords(",
@@ -1428,7 +1434,7 @@
      "contains": "modelrecipe.ModuleRoutedImagePrepare:     routed,",
      "path": "internal/mediacapability/image_cuda_windows.go",
      "role": "source",
-     "identity": "file:sha256:c1d915e76ccfb5123a843366d88e6f20f88baac3873b051cf28923ccd8c9f682"
+     "identity": "file:sha256:043d18ad63bf7b261256717862d572ba2cb0df06f8df5796de96f44e9357b7bc"
     },
     {
      "contains": "func TestSenseNovaProductionImageGeneration(",

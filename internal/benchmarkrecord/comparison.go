@@ -57,6 +57,20 @@ type BenchmarkIdentity struct {
 	RealizedResidency  recipe.RealizedResidency `json:"realized_residency"`
 }
 
+// Comparison identifies a full same-producer measurement contract. Its source
+// and module remain bound: this is not a cross-revision currency judgment.
+// Protocol identifies sampling order, EOG behavior and requested residency.
+func (identity BenchmarkIdentity) Comparison(configuration BenchmarkConfiguration, protocol artifact.ID) (artifact.ID, error) {
+	if !validBenchmarkIdentity(identity) || !validBenchmarkConfiguration(configuration) || protocol.Kind() != artifact.KindProfile {
+		return artifact.ID{}, errors.New("benchmark: incomplete comparison contract")
+	}
+	return artifact.JSONID(artifact.KindProfile, struct {
+		Identity      BenchmarkIdentity      `json:"identity"`
+		Configuration BenchmarkConfiguration `json:"configuration"`
+		Protocol      artifact.ID            `json:"protocol"`
+	}{identity, configuration, protocol})
+}
+
 // BenchmarkObservation is a raw measured run, not a summary or an estimate.
 type BenchmarkObservation struct {
 	PromptDigest            string   `json:"prompt_digest"`

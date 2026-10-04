@@ -131,7 +131,7 @@
       "Cells": [
         {
           "Task": "vqa",
-          "Recipe": "recipe:sha256:97d121be90fba86b42effe71d2a67c68095a7a74fadd2bb0b848a3c72ed38879",
+          "Recipe": "recipe:sha256:24f6d5c81c752c600bf32907c8ca4b34379bf0e1910dd30f7d3014091e1fbcbb",
           "Proofs": [
             "modality-verification/rxbrain-native-vqa"
           ],

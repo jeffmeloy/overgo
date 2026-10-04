@@ -48,7 +48,7 @@ func contractResult(t *testing.T, name string) longform.Result {
 	return result
 }
 
-func TestCheckStopsAfterFirstFailure(t *testing.T) {
+func TestAcquisitionContinuesPastFailure(t *testing.T) {
 	for _, measurementFailure := range []bool{false, true} {
 		record := contractResult(t, "fail-fast")
 		calls := 0
@@ -58,19 +58,12 @@ func TestCheckStopsAfterFirstFailure(t *testing.T) {
 				return longform.Result{}, errors.New("measurement failed")
 			}
 			fresh := record
-			fresh.Shape.Measure.PromptTokensPerSecond = record.Shape.Measure.PromptTokensPerSecond * record.Floors.RateRegressionFraction / 2
 			fresh.Verdict.Passed = false
 			return fresh, nil
 		}
 		var output strings.Builder
-		targets := []target{{record: longform.Summary{Result: record}}, {record: longform.Summary{Result: record}}}
-		err := runTargets(t.Context(), &output, options{Check: true}, targets, record.Commit, record.Surface, measure, nil)
-		if err == nil || calls != 1 || !strings.Contains(output.String(), "failed=1 not-started=1") {
-			t.Fatalf("measurement failure=%t: calls=%d err=%v output=%s", measurementFailure, calls, err, output.String())
-		}
-		calls = 0
-		output.Reset()
-		err = runTargets(t.Context(), &output, options{}, targets, record.Commit, record.Surface, measure, nil)
+		targets := []target{{}, {}}
+		err := runTargets(t.Context(), &output, options{}, targets, record.Commit, record.Surface, measure, nil)
 		if err == nil || calls != len(targets) || !strings.Contains(output.String(), "failed=2 not-started=0") {
 			t.Fatalf("acquisition lost remaining targets: calls=%d err=%v output=%s", calls, err, output.String())
 		}
@@ -78,42 +71,19 @@ func TestCheckStopsAfterFirstFailure(t *testing.T) {
 }
 
 func TestCampaignMeasurementContract(t *testing.T) {
-	t.Run("corpus export is immutable", func(t *testing.T) {
-		root := t.TempDir()
-		if err := os.Mkdir(filepath.Join(root, "docs"), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("fixed source corpus"), 0o644); err != nil {
-			t.Fatal(err)
-		}
+	t.Run("in-flight corpus is a snapshot", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "corpus.txt")
-		args := []string{"-root", root, "-export-corpus", path, "-corpus-bytes", "1"}
-		if err := run(args, io.Discard); err != nil {
-			t.Fatal(err)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil || string(data) != "fixed source corpus\n\n" {
-			t.Fatalf("export=%q err=%v", data, err)
-		}
-		if err := run(args, io.Discard); err == nil {
-			t.Fatal("existing frozen corpus overwritten")
-		}
-		cached := options{Corpus: path, corpusText: string(data)}
+		cached := options{Corpus: path, corpusText: "fixed source corpus\n\n"}
 		if err := os.WriteFile(path, []byte("later edit"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if text, err := readCorpus(cached, 0); err != nil || text != string(data) {
+		if text, err := readCorpus(cached, 0); err != nil || text != cached.corpusText {
 			t.Fatal("in-flight corpus snapshot changed")
 		}
 	})
-	t.Run("explicit comparison inputs", func(t *testing.T) {
-		for _, args := range [][]string{{"-all"}, {"-all", "-budget", "1m", "-check"}, {"-all", "-budget", "1m", "-baseline", "absent"}} {
-			if _, err := parseOptions(args); err == nil {
-				t.Fatalf("accepted %v", args)
-			}
-		}
-		if _, err := parseOptions([]string{"-all", "-budget", "1m", "-model-budget", "10s", "-check", "-corpus", "fixed.txt", "-baseline", "selected"}); err != nil {
-			t.Fatal(err)
+	t.Run("measurement requires a budget", func(t *testing.T) {
+		if _, err := parseOptions([]string{"model.gguf"}); err == nil {
+			t.Fatal("unbounded measurement accepted")
 		}
 	})
 	t.Run("input changes and missing rungs refuse", func(t *testing.T) {
@@ -140,77 +110,6 @@ func TestCampaignMeasurementContract(t *testing.T) {
 					t.Fatal("invalid comparison passed")
 				}
 			})
-		}
-	})
-	t.Run("selected record wins over latest and must be valid", func(t *testing.T) {
-		repository := t.TempDir()
-		store, err := overgodb.Open(repository)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer store.Close()
-		record := contractResult(t, "model")
-		accepted, err := longform.Publish(t.Context(), store, record.Inputs.Model, record)
-		if err != nil {
-			t.Fatal(err)
-		}
-		failed := record
-		failed.Verdict = longform.Verdict{Reasons: []string{"known regression"}}
-		bad, err := longform.Publish(t.Context(), store, record.Inputs.Model, failed)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := longform.ReadBaseline(t.Context(), store, bad); err == nil {
-			t.Fatal("failed baseline accepted")
-		}
-		legacy := record
-		legacy.Inputs = longform.Inputs{}
-		old, err := longform.Publish(t.Context(), store, record.Inputs.Model, legacy)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := longform.ReadBaseline(t.Context(), store, old); err == nil {
-			t.Fatal("unbound baseline accepted")
-		}
-		if err := store.Close(); err != nil {
-			t.Fatal(err)
-		}
-		corpus := filepath.Join(t.TempDir(), "corpus.txt")
-		if err := os.WriteFile(corpus, []byte("fixed corpus"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		opts := options{Repository: repository, Corpus: corpus, Baselines: []string{accepted.String()}}
-		targets := []target{{weights: record.Inputs.Model}}
-		if err := bindBaselines(t.Context(), opts, targets); err != nil {
-			t.Fatal(err)
-		}
-		if targets[0].record.Record != accepted {
-			t.Fatal("explicit record was replaced by latest")
-		}
-		opts.Baselines = append(opts.Baselines, accepted.String())
-		if err := bindBaselines(t.Context(), opts, targets); err == nil {
-			t.Fatal("duplicate baseline accepted")
-		}
-		opts.Baselines = opts.Baselines[:1]
-		if err := os.WriteFile(corpus, []byte("changed corpus"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		if err := bindBaselines(t.Context(), opts, targets); err == nil {
-			t.Fatal("changed corpus accepted")
-		}
-	})
-	t.Run("same surface still measures", func(t *testing.T) {
-		record := contractResult(t, "model")
-		calls := 0
-		measure := func(context.Context, io.Writer, options, target, string, string, longform.Floors, int) (longform.Result, error) {
-			calls++
-			fresh := record
-			fresh.Shape.Measure.DecodeTokensPerSecond /= 2
-			return fresh, nil
-		}
-		err := runTargets(t.Context(), io.Discard, options{Check: true}, []target{{record: longform.Summary{Result: record}}}, record.Commit, record.Surface, measure, nil)
-		if calls != 1 || err == nil {
-			t.Fatalf("calls=%d error=%v; same surface bypassed fresh comparison", calls, err)
 		}
 	})
 	t.Run("aggregate cancellation preserves earlier publication", func(t *testing.T) {
@@ -242,7 +141,7 @@ func TestCampaignMeasurementContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer store.Close()
-		if _, found := longform.Latest(t.Context(), store, record.ModelPath); !found {
+		if _, found := longform.LatestByLocation(t.Context(), store, 0)[longform.Key(record.ModelPath)]; !found {
 			t.Fatal("completed model evidence was lost")
 		}
 	})

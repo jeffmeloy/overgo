@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/composition"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/trainingworkflow"
 )
 
 // Tier-0 dose-response protocol, written before the run (Probe Discipline):
@@ -63,21 +63,21 @@ func TestTier0ChainDoseResponse(t *testing.T) {
 			if len(tokens) < 3*span {
 				t.Fatalf("stream too short for draft %d: %d < %d", draft, len(tokens), 3*span)
 			}
-			config := composition.ChainConfig{
+			config := trainingworkflow.ChainConfig{
 				ScorerDir: direction.scorer, DrafterDir: direction.drafter,
 				Prefix: dosePrefix, Draft: draft, Target: doseTarget,
 				Windows: [][]int{
 					tokens[:span], tokens[span : 2*span], tokens[2*span : 3*span],
 				},
 			}
-			result, err := composition.RunChainViability(store, config)
+			result, err := trainingworkflow.RunChainViability(store, config)
 			if err != nil {
 				t.Fatalf("%s draft %d: %v", direction.name, draft, err)
 			}
 			if len(result.Outcomes) != 3 {
 				t.Fatalf("%s draft %d: %d outcomes", direction.name, draft, len(result.Outcomes))
 			}
-			record, err := composition.RecordChainViability(store, config, result)
+			record, err := trainingworkflow.RecordChainViability(store, config, result)
 			if err != nil {
 				t.Fatalf("%s draft %d record: %v", direction.name, draft, err)
 			}

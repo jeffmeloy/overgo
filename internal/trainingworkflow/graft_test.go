@@ -1,0 +1,127 @@
+package trainingworkflow
+
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"overgo/internal/artifact"
+	"overgo/internal/composition"
+	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
+	"overgo/internal/safetensors"
+	"overgo/internal/testutil"
+)
+
+const synthesisComponentTensor = "model.layers.0.mlp.gate_proj.weight"
+
+func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
+	root := t.TempDir()
+	targetDir, donorDir := filepath.Join(root, "target"), filepath.Join(root, "donor")
+	writeSynthesisModel(t, targetDir, 3)
+	writeSynthesisModel(t, donorDir, 5)
+	target, err := identifyModel(targetDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	donor, err := identifyModel(donorDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ranker, err := composition.TrainProposalRanker(nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The donor's matching component is the one candidate; retrieval is not
+	// what this test holds.
+	candidates := []composition.BridgeCandidate{{Donor: donor, Component: synthesisComponentTensor}}
+	proposal, err := composition.NewBridgeProposal(target, candidates, ranker,
+		"go test ./internal/trainingworkflow -run '^TestCompositeSynthesisUsesComponentSessionLifetimes$' -count=1",
+		"bridge requires measured held-out evidence")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(filepath.Join(root, "repodb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	rankerContent, _ := ranker.Content()
+	proposalContent, _ := proposal.Content()
+	if _, err := store.Commit(t.Context(), artifact.Batch{
+		Key: "fixture/component-proposal", Contents: []artifact.Content{rankerContent, proposalContent},
+		Artifacts: []artifact.Descriptor{{ID: target}, {ID: donor}},
+		Lineage:   append(ranker.Lineage(), proposal.Lineage()...),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	derivation := testutil.ArtifactID(t, artifact.KindEvidence, "synthesis decider")
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "fixture/synthesis-decider",
+		Artifacts: []artifact.Descriptor{{ID: derivation}}}); err != nil {
+		t.Fatal(err)
+	}
+	outcome, err := SynthesizeBridge(store, proposal, GraftConfig{
+		TargetDir: targetDir, DonorDir: donorDir, GraftLayer: -1, DonorLayer: -1,
+		Seeds: []int64{7}, Steps: 1, BaseLR: 0.01, Momentum: 0.9,
+		Train: [][]int{{1, 2, 3, 4}, {2, 3, 4, 1}}, HeldOut: []int{1, 3, 2, 4},
+	}, recipe.Decider{CodeCommit: strings.Repeat("a", 40), Derivation: derivation})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := recipe.DecisionRefused
+	if outcome.Result.Ship {
+		want = recipe.DecisionAccepted
+	}
+	if outcome.Decision.Outcome != want || outcome.Record.TrainingPlan != outcome.Result.Recipe ||
+		outcome.Record.Parents[0] != target || outcome.Result.DonorTensor != synthesisComponentTensor ||
+		outcome.Result.SessionPlan.Identity.Kind() != artifact.KindProfile ||
+		len(outcome.Result.SessionPlan.Components) != 2 ||
+		outcome.Result.SessionPlan.Components[0].Model != donor ||
+		outcome.Result.SessionPlan.Components[0].Session != recipe.SessionRequest ||
+		outcome.Result.SessionPlan.Components[1].Model != target ||
+		outcome.Result.SessionPlan.Components[1].Session != recipe.SessionCapacity {
+		t.Fatalf("outcome=%+v", outcome)
+	}
+	if bridge := outcome.Result.Outcomes[0].Bridge; bridge == nil || bridge.Snapshot().Step != 1 {
+		t.Fatalf("seed outcome carries bridge %v, want the one-step trained bridge its checkpoint publishes", bridge)
+	}
+	if _, found, err := artifact.ReadContent(t.Context(), store, outcome.Result.Recipe); err != nil || !found {
+		t.Fatalf("compiled recipe absent: found=%t err=%v", found, err)
+	}
+	if _, found, err := artifact.ReadContent(t.Context(), store, outcome.Result.SessionPlan.Identity); err != nil || !found {
+		t.Fatalf("component session evidence absent: found=%t err=%v", found, err)
+	}
+}
+
+func TestComponentSynthesisLoadsOnlySelectedDonor(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "donor")
+	writeSynthesisModel(t, directory, 11)
+	component, err := loadDonorComponent(directory, -1, synthesisComponentTensor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retained := len(component.gate) + len(component.up) + len(component.down)
+	source, err := safetensors.OpenSource(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	all := 0
+	for _, tensor := range source.Tensors {
+		all += int(tensor.Elements())
+	}
+	if component.gateName != synthesisComponentTensor || component.upName == "" || component.downName == "" ||
+		len(component.gate) == 0 || len(component.up) == 0 || len(component.down) == 0 || retained >= all {
+		t.Fatalf("selected donor = names %q/%q/%q geometry %dx%d retained %d of %d",
+			component.gateName, component.upName, component.downName,
+			component.hidden, component.intermediate, retained, all)
+	}
+}
+
+func writeSynthesisModel(t *testing.T, directory string, seed int64) {
+	t.Helper()
+	weights, shapes := testutil.DenseCausalWeights(t, testutil.DenseCausalSpec{
+		Vocab: 8, Hidden: 8, Heads: 2, HeadDim: 4, KVHeads: 1, Intermediate: 16, Layers: 1, Seed: seed,
+	})
+	writeModel(t, directory, weights, shapes)
+}

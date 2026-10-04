@@ -115,7 +115,9 @@ func TestQwen35RealTraining(t *testing.T) {
 		t.Fatalf("training cache transfer budget exceeded: upload=%d download=%d sync=%d", uploads, downloads, synchronizations)
 	}
 	testutil.RequireFiniteDecrease(t, "Qwen3.5 real-layer trajectory", trajectory, qwen35TrainingSteps)
-	baseline := []float64{13.185788754552203, 11.505549275705816}
+	// The trajectory at the built-in policy's rate for a model that already
+	// learned (parameters^-0.6 since 0585169f5; 11.506 at the earlier -0.5).
+	baseline := []float64{13.185788754552203, 12.912128945310851}
 	// Retain the existing mixed hybrid training trajectory's relative bound.
 	for step, loss := range trajectory {
 		if math.Abs(loss-baseline[step]) > 5e-3*math.Abs(baseline[step]) {

@@ -97,8 +97,10 @@ func TestWebUIBrowserConversationControl(t *testing.T) {
     return result.status==='cancelled' && !sessionStorage.getItem('overgo.inflight');
   })()`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {window.controlOldComposer=document.querySelector('.composer');overgo.openConversation(stoppedSelection);return true;})()`)
-	settle(`!!document.querySelector('.composer') && document.querySelector('.composer')!==controlOldComposer && !document.querySelector('.send-button').disabled`)
-	assertBrowserPredicate(t, ctx, browser, `!document.querySelector('.msg.error') && document.querySelector('.chat-log').textContent.includes('Stopped')`)
+	// The reopened conversation's log fills after its composer mounts, so the
+	// wait holds out for both.
+	settle(`!!document.querySelector('.composer') && document.querySelector('.composer')!==controlOldComposer && !document.querySelector('.send-button').disabled && document.querySelector('.chat-log').textContent.includes('Stopped')`)
+	assertBrowserPredicate(t, ctx, browser, `!document.querySelector('.msg.error')`)
 
 	newChat()
 	send("Recover this response")

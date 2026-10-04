@@ -67,6 +67,13 @@ func TestOversizedRequestDigestsInline(t *testing.T) {
 	if err != nil || id.Kind() != artifact.KindFile {
 		t.Fatalf("request identity = %q, %v", body.RequestSHA256, err)
 	}
+	// The verbatim request is retained to run again; its digest is not.
+	if retained, ok := RetainedRequest(content); !ok || retained != string(content.Data) {
+		t.Fatalf("retained request = %q, %v", retained, ok)
+	}
+	if retained, ok := RetainedRequest(digested); ok {
+		t.Fatalf("digest retained as a request: %q", retained)
+	}
 }
 
 // scalarProgram reuses the package capability fixture for

@@ -12,7 +12,6 @@ package latentimage
 import (
 	"errors"
 	"fmt"
-	"math"
 
 	"overgo/internal/checked"
 	"overgo/internal/hostmath"
@@ -114,11 +113,9 @@ type FinalLayerTrainer struct {
 	hidden, out               int
 	eps                       float64
 	normed                    bool
-	weights                   []float32
-	gradients                 []float32
-	norm, table, linear, bias struct{ start, end int }
+	norm, table, linear, bias int
+	pack                      *optimizer.TensorPack
 	stepper                   optimizer.Stepper
-	optimizerPlan             optimizer.Plan
 	config                    optimizer.Config
 	step                      int
 }
@@ -128,71 +125,49 @@ func NewFinalLayerTrainer(w FinalLayerWeights, eps float64, policy trainingprogr
 	if !checked.PositiveInts(w.Hidden, w.Out) || !checked.PositiveFinite64(eps) {
 		return nil, fmt.Errorf("latentimage final layer: geometry %dx%d eps %g", w.Hidden, w.Out, eps)
 	}
-	type section struct {
-		name       string
-		values     []float32
-		rows, cols int
-		slot       *struct{ start, end int }
+	trainer := &FinalLayerTrainer{hidden: w.Hidden, out: w.Out, eps: eps, normed: w.Norm != nil}
+	groups := []*int{&trainer.table, &trainer.linear, &trainer.bias}
+	sections := []optimizer.TensorSection{
+		{Name: "final.table", Rows: tensor.PairedExtent, Cols: w.Hidden, Values: w.Table},
+		{Name: "final.linear", Rows: w.Out, Cols: w.Hidden, Values: w.Linear},
+		{Name: "final.bias", Rows: tensor.SingletonExtent, Cols: w.Out, Values: w.Bias},
 	}
-	trainerShell := &FinalLayerTrainer{hidden: w.Hidden, out: w.Out, eps: eps, normed: w.Norm != nil}
-	sections := []section{
-		{"final.table", w.Table, tensor.PairedExtent, w.Hidden, &trainerShell.table},
-		{"final.linear", w.Linear, w.Out, w.Hidden, &trainerShell.linear},
-		{"final.bias", w.Bias, tensor.SingletonExtent, w.Out, &trainerShell.bias},
+	if trainer.normed {
+		groups = append([]*int{&trainer.norm}, groups...)
+		sections = append([]optimizer.TensorSection{{Name: "final.norm", Rows: tensor.SingletonExtent, Cols: w.Hidden, Values: w.Norm}}, sections...)
 	}
-	if w.Norm != nil {
-		sections = append([]section{{"final.norm", w.Norm, tensor.SingletonExtent, w.Hidden, &trainerShell.norm}}, sections...)
+	for group, slot := range groups {
+		*slot = group
 	}
-	total := tensor.FirstOffset
-	specs := make([]optimizer.GroupSpec, len(sections))
-	for i, s := range sections {
-		if err := checked.Length(s.values, s.rows, s.cols); err != nil {
-			return nil, fmt.Errorf("latentimage final layer: %s: %w", s.name, err)
-		}
-		specs[i] = optimizer.GroupSpec{Name: s.name, Start: total, End: total + len(s.values), Rows: s.rows, Cols: s.cols}
-		total += len(s.values)
+	var err error
+	if trainer.pack, err = optimizer.NewSectionPack(sections); err != nil {
+		return nil, fmt.Errorf("latentimage final layer: %w", err)
 	}
-	plan, err := optimizer.CompilePlan(total, specs)
-	if err != nil {
+	if trainer.config, err = policy.Config(trainer.pack.ParameterCount()); err != nil {
 		return nil, err
 	}
-	trainer := trainerShell
-	trainer.weights = make([]float32, total)
-	trainer.gradients = make([]float32, total)
-	trainer.config, err = policy.Config(total)
-	if err != nil {
-		return nil, err
-	}
-	for i, s := range sections {
-		s.slot.start, s.slot.end = specs[i].Start, specs[i].End
-		copy(trainer.weights[specs[i].Start:specs[i].End], s.values)
-	}
-	trainer.optimizerPlan = plan
-	trainer.stepper, err = optimizer.NewStepper(trainer.weights, trainer.gradients, plan, trainer.config)
-	if err != nil {
+	if trainer.stepper, err = trainer.pack.NewStepper(trainer.config); err != nil {
 		return nil, err
 	}
 	return trainer, nil
 }
 
 // ParameterCount reports the packed organ parameter total.
-func (t *FinalLayerTrainer) ParameterCount() int { return len(t.weights) }
+func (t *FinalLayerTrainer) ParameterCount() int { return t.pack.ParameterCount() }
 
 // Config exposes the derived hyperparameters for evidence.
 func (t *FinalLayerTrainer) Config() optimizer.Config { return t.config }
 
 // OptimizerPlan is the compiled Muon plan over the packed organ: one group
 // per head tensor.
-func (t *FinalLayerTrainer) OptimizerPlan() optimizer.Plan { return t.optimizerPlan }
+func (t *FinalLayerTrainer) OptimizerPlan() optimizer.Plan { return t.pack.Plan() }
 
 // Snapshot copies the optimizer state the next step continues from.
 func (t *FinalLayerTrainer) Snapshot() optimizer.State { return t.stepper.Snapshot() }
 
 // SaveWeights writes the trained organ at path, the weights Snapshot pairs
 // with.
-func (t *FinalLayerTrainer) SaveWeights(path string) error {
-	return optimizer.SavePlanWeights(path, t.optimizerPlan, t.weights)
-}
+func (t *FinalLayerTrainer) SaveWeights(path string) error { return t.pack.Save(path) }
 
 // Close releases the stepper backend.
 func (t *FinalLayerTrainer) Close() error { return t.stepper.Close() }
@@ -244,16 +219,12 @@ type FinalLayerStepResult = optimizer.ObservedStepResult
 // forwardTrace: normalized rows (pre-affine), affine rows, head output.
 func (t *FinalLayerTrainer) forwardTrace(hidden, temb []float64, rows int) (normed, modulated, out []float64) {
 	h, o := t.hidden, t.out
-	var normW []float32
-	if t.normed {
-		normW = t.weights[t.norm.start:t.norm.end]
-	}
-	table := t.weights[t.table.start:t.table.end]
-	linW := t.weights[t.linear.start:t.linear.end]
-	linB := t.weights[t.bias.start:t.bias.end]
+	table := t.pack.Weights(t.table)
+	linW := t.pack.Weights(t.linear)
+	linB := t.pack.Weights(t.bias)
 	if t.normed {
 		normed = append([]float64(nil), hidden...)
-		hostmath.ZeroCenteredRMSNormF64InPlace(normed, normW, rows, h, t.eps)
+		hostmath.ZeroCenteredRMSNormF64InPlace(normed, t.pack.Weights(t.norm), rows, h, t.eps)
 	} else {
 		normed = hostmath.LayerNormF64(hidden, rows, h, t.eps)
 	}
@@ -287,30 +258,18 @@ func (t *FinalLayerTrainer) lossAndGradients(hidden, temb, target []float64) (fl
 		dOut[i] = 2 * d * invN
 	}
 
-	clear(t.gradients)
-	table := t.weights[t.table.start:t.table.end]
-	linW := t.weights[t.linear.start:t.linear.end]
-	gTable := t.gradients[t.table.start:t.table.end]
-	gLin := t.gradients[t.linear.start:t.linear.end]
-	gBias := t.gradients[t.bias.start:t.bias.end]
-
+	t.pack.ClearGradients()
 	dModulated := make([]float64, rows*h)
-	hostmath.LinearFloat64Backward(dModulated, gLin, gBias, modulated, linW, dOut, rows, h, o)
+	hostmath.LinearFloat64Backward(dModulated, t.pack.Gradients(t.linear), t.pack.Gradients(t.bias), modulated, t.pack.Weights(t.linear), dOut, rows, h, o)
 	// Affine backward: modulated = (1+scale)*n + shift with scale/shift =
 	// temb + table rows (temb is data).
 	dNormed := make([]float64, rows*h)
-	hostmath.AdaptiveAffineBackwardF64(dNormed, gTable, normed, temb, table, dModulated, rows, h)
+	hostmath.AdaptiveAffineBackwardF64(dNormed, t.pack.Gradients(t.table), normed, temb, t.pack.Weights(t.table), dModulated, rows, h)
 	// Zero-centered RMSNorm backward: n_i = x_i*inv*(1+w_i); only the weight
 	// gradient is needed at the organ boundary. The non-parametric LayerNorm
 	// head has no norm parameter, so nothing accumulates.
 	if t.normed {
-		gNorm := t.gradients[t.norm.start:t.norm.end]
-		hostmath.ZeroCenteredRMSNormWeightGradientF64(gNorm, hidden, dNormed, rows, h, t.eps)
+		hostmath.ZeroCenteredRMSNormWeightGradientF64(t.pack.Gradients(t.norm), hidden, dNormed, rows, h, t.eps)
 	}
-
-	var gradientSquared float64
-	for _, g := range t.gradients {
-		gradientSquared += float64(g) * float64(g)
-	}
-	return loss, math.Sqrt(gradientSquared), nil
+	return loss, t.pack.GradientL2(), nil
 }

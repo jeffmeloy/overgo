@@ -579,6 +579,7 @@ type Activation struct {
 	Event      recipe.LifecycleEvent
 	Tier       recipe.EvidenceTier
 	Decisions  []recipe.Decision
+	Verified   runrecord.Verification
 }
 
 // HasActiveRecipe reports declaration only; ActiveRecord validates evidence.
@@ -654,7 +655,7 @@ func ActiveRecord(ctx context.Context, store artifact.Reader, modelID artifact.I
 		return Activation{}, false, errors.New("model recipe: active recipe lacks exact accepted decision")
 	}
 	return Activation{
-		Definition: definition, Event: event, Tier: tier, Decisions: slices.Clone(decisions),
+		Definition: definition, Event: event, Tier: tier, Decisions: slices.Clone(decisions), Verified: verified,
 	}, true, nil
 }
 

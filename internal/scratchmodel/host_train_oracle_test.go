@@ -90,7 +90,7 @@ func (c Construction) TrainHost(totalSteps, steps int, resume *HostCheckpoint) (
 	}
 	model := hostModel{config: c.config, state: state}
 	policy := trainingprogram.BuiltinOptimizerPolicy()
-	baseRate := policy.BaseLearningRate(c.config.EstimatedParams)
+	baseRate := policy.InitializationLearningRate(c.config.EstimatedParams)
 	losses := make([]float64, steps)
 	for localStep := range steps {
 		document := c.split.Train[documentCursor%len(c.split.Train)]

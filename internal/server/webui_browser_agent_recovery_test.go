@@ -75,7 +75,7 @@ func TestWebUIBrowserAgentRecovery(t *testing.T) {
 	settle(`recoveryCards('store.head').length === 1 && recoveryState(recoveryCards('store.head')[0]).startsWith('done') && recoveryGuard().startsWith('steps 1 / ')`)
 
 	// Reloaded, the session's turn and step return with its count.
-	if err := browser.Evaluate(ctx, `location.reload()`, nil); err != nil {
+	if err := browser.Reload(ctx); err != nil {
 		t.Fatal(err)
 	}
 	open()

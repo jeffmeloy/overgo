@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
-	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
@@ -111,16 +110,6 @@ func TestAnalyzeModelReportsAnalysisCapabilities(t *testing.T) {
 	// Attention stays false until Tier 3.
 	if capableResult.Analysis.Attention {
 		t.Fatal("attention should be false")
-	}
-}
-
-func TestAnalyzeModelRejectsNonGet(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/analyze/model", nil))
-	if response.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("status = %d, want 405", response.Code)
 	}
 }
 

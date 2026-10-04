@@ -2,7 +2,9 @@ package modelrecipe
 
 import (
 	"bytes"
+	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -80,52 +82,17 @@ func TestModelDefinitionRoundTripAndExactProfileCompile(t *testing.T) {
 	}
 }
 
+// TestGGUFModelDefinitionOvergoDBResolution: one model written at two paths
+// has one definition, and its facts publish from each path. The second
+// publication changes only where the bytes lie, which a batch keyed by the
+// definition alone refused as a conflict; the store then resolves the
+// definition by identity and holds the new location.
 func TestGGUFModelDefinitionOvergoDBResolution(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "definition.gguf")
-	writeDefinitionGGUF(t, path)
-	file, err := gguf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer file.Close()
-	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Parallel()
 	profile, _ := model.LookupArchitecture(definitionArchitecture)
 	profileDocument, err := NewProfileDocument(profile)
 	if err != nil {
 		t.Fatal(err)
-	}
-	spec, err := model.ReadSpecWithProfile(file, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	document, err := NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondPath := filepath.Join(t.TempDir(), "definition.gguf")
-	writeDefinitionGGUF(t, secondPath)
-	secondFile, err := gguf.Open(secondPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer secondFile.Close()
-	secondInventory, err := modelartifact.FromGGUF(secondFile, artifact.KindModel)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondSpec, err := model.ReadSpecWithProfile(secondFile, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secondDocument, err := NewModelDefinitionDocument(profileDocument, secondInventory.TensorInventory, secondSpec)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if secondDocument.ID != document.ID {
-		t.Fatalf("relocated model definitions differ: %s != %s", secondDocument.ID, document.ID)
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -133,22 +100,50 @@ func TestGGUFModelDefinitionOvergoDBResolution(t *testing.T) {
 	}
 	defer store.Close()
 	ctx := t.Context()
-	resolvedSource, err := document.Resolve(profileDocument, inventory.TensorInventory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := PublishResolvedModelDefinition(
-		ctx, store, inventory, resolvedSource,
-	); err != nil {
-		t.Fatal(err)
-	}
-	resolved, err := ResolveModelDefinition(ctx, store, document.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resolved.Document.Model != inventory.Manifest.ID || resolved.Spec.EmbeddingLength != definitionEmbedding ||
-		resolved.Tensors.ID != inventory.TensorInventory.ID {
-		t.Fatalf("resolved model definition = %+v", resolved)
+	var definition artifact.ID
+	for _, path := range []string{filepath.Join(t.TempDir(), "definition.gguf"), filepath.Join(t.TempDir(), "definition.gguf")} {
+		writeDefinitionGGUF(t, path)
+		file, err := gguf.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
+		if err != nil {
+			t.Fatal(errors.Join(err, file.Close()))
+		}
+		spec, err := model.ReadSpecWithProfile(file, profile)
+		if err := errors.Join(err, file.Close()); err != nil {
+			t.Fatal(err)
+		}
+		document, err := NewModelDefinitionDocument(profileDocument, inventory.TensorInventory, spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if definition.Valid() && document.ID != definition {
+			t.Fatalf("relocated model definitions differ: %s != %s", document.ID, definition)
+		}
+		definition = document.ID
+		resolvedSource, err := document.Resolve(profileDocument, inventory.TensorInventory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := PublishResolvedModelDefinition(ctx, store, inventory, resolvedSource); err != nil {
+			t.Fatalf("publish from %s: %v", path, err)
+		}
+		resolved, err := ResolveModelDefinition(ctx, store, document.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resolved.Document.Model != inventory.Manifest.ID || resolved.Spec.EmbeddingLength != definitionEmbedding ||
+			resolved.Tensors.ID != inventory.TensorInventory.ID {
+			t.Fatalf("resolved model definition = %+v", resolved)
+		}
+		for _, location := range inventory.Locations {
+			held, err := store.Locations(ctx, location.Artifact)
+			if err != nil || !slices.Contains(held, location) {
+				t.Fatalf("store holds %v for %s, want %v: %v", held, location.Artifact, location, err)
+			}
+		}
 	}
 }
 
@@ -189,7 +184,7 @@ func TestPublishResolvedModelDefinitionSeparatesProfiles(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := PublishResolvedModelDefinition(t.Context(), store, inventory, resolved); err != nil {
+		if err := PublishResolvedModelDefinition(t.Context(), store, inventory, resolved); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := ResolveModelDefinition(t.Context(), store, document.ID); err != nil {

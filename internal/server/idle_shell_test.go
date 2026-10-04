@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -109,7 +108,7 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer writer.Close()
-	lock, err := processlock.Acquire(filepath.Join(root, "overgodb.lock"), 0o644)
+	lock, err := processlock.Acquire(root+".lock", 0o644)
 	if err != nil {
 		t.Fatal(err)
 	}

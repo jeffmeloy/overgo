@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -49,16 +50,27 @@ func (workspace *trainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 		return nil, nil
 	}
 	definition := workspace.program.Definition()
+	controls := []workflowControl{
+		{Name: "dataset", Type: workflowControlDataset, Required: true},
+		{Name: "resume", Type: workflowControlCheckpoint},
+		{Name: "output", Type: workflowControlOutput, Required: true},
+		{Name: "steps", Type: workflowControlInteger, Required: true},
+		{Name: "objective_scale", Type: workflowControlNumber, Required: true},
+	}
+	// DPO's loss modes: unset trains DPO's own; the margin is SimPO's.
+	if workspace.objective == trainingprogram.ObjectiveDPO {
+		choices := make([]string, len(workspacePreferenceModes))
+		for index, mode := range workspacePreferenceModes {
+			choices[index] = string(mode)
+		}
+		controls = append(controls,
+			workflowControl{Name: "preference_mode", Type: workflowControlText, Choices: choices},
+			workflowControl{Name: "preference_margin", Type: workflowControlNumber},
+		)
+	}
 	return []WorkflowCapability{{
 		Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model,
-		Inputs: definition.Inputs, Outputs: definition.Outputs, Host: trainsOnHost,
-		Controls: []workflowControl{
-			{Name: "dataset", Type: workflowControlDataset, Required: true},
-			{Name: "resume", Type: workflowControlCheckpoint},
-			{Name: "output", Type: workflowControlOutput, Required: true},
-			{Name: "steps", Type: workflowControlInteger, Required: true},
-			{Name: "objective_scale", Type: workflowControlNumber, Required: true},
-		},
+		Inputs: definition.Inputs, Outputs: definition.Outputs, Host: trainsOnHost, Controls: controls,
 	}}, nil
 }
 
@@ -66,12 +78,19 @@ func (workspace *trainingWorkspace) WorkflowCapabilities(_ context.Context, kind
 // capability declares to the page.
 const trainsOnHost = true
 
+// workspacePreferenceModes are the DPO loss modes the workspace trains
+// besides DPO's own. KTO trains through cmd/train: its unpaired steps have
+// no place in the training trace the workspace records.
+var workspacePreferenceModes = []trainingprogram.PreferenceMode{trainingprogram.PreferenceSimPO, trainingprogram.PreferenceORPO}
+
 type trainingWorkflowInput struct {
-	Dataset        artifact.ID `json:"dataset"`
-	Resume         artifact.ID `json:"resume"`
-	Output         string      `json:"output"`
-	Steps          int         `json:"steps"`
-	ObjectiveScale float64     `json:"objective_scale"`
+	Dataset          artifact.ID                    `json:"dataset"`
+	Resume           artifact.ID                    `json:"resume"`
+	Output           string                         `json:"output"`
+	Steps            int                            `json:"steps"`
+	ObjectiveScale   float64                        `json:"objective_scale"`
+	PreferenceMode   trainingprogram.PreferenceMode `json:"preference_mode"`
+	PreferenceMargin float64                        `json:"preference_margin"`
 }
 
 func (workspace *trainingWorkspace) ExecuteWorkflow(ctx context.Context, kind WorkflowKind, capability WorkflowCapability, raw json.RawMessage, reporter operation.Reporter) (operation.Completion, error) {
@@ -81,6 +100,9 @@ func (workspace *trainingWorkspace) ExecuteWorkflow(ctx context.Context, kind Wo
 	var input trainingWorkflowInput
 	if err := strictjson.DecodeBytes(raw, &input); err != nil {
 		return operation.Completion{}, err
+	}
+	if input.PreferenceMode != "" && !slices.Contains(workspacePreferenceModes, input.PreferenceMode) {
+		return operation.Completion{}, fmt.Errorf("training workspace: preference mode %q is not one the workspace trains", input.PreferenceMode)
 	}
 	return workspace.executeWorkflow(ctx, capability.Recipe, input, reporter)
 }
@@ -168,13 +190,14 @@ func (workspace *trainingWorkspace) executeWorkflow(
 	reporter.Progress(completed, &total)
 	dpo := slices.Grow([]trainingprogram.DPOObservation(nil), input.Steps)
 	grpo := slices.Grow([]trainingprogram.GRPOObservation(nil), input.Steps)
-	result, executeErr := trainingworkflow.Execute(ctx, trainingworkflow.Request{
+	request := trainingworkflow.Request{
 		Repository:     workspace.store,
 		Recipe:         recipeID,
 		ModelDirectory: policyDirectory, ReferenceDirectory: referenceDirectory,
 		DatasetPath: datasetPath, OutputDirectory: output, ResumeDirectory: resumeDirectory,
 		Steps:          input.Steps,
-		ObjectiveScale: input.ObjectiveScale, Host: trainsOnHost,
+		ObjectiveScale: input.ObjectiveScale, Host: trainsOnHost, Observations: workspace.store,
+		PreferenceMode: input.PreferenceMode, PreferenceMargin: input.PreferenceMargin,
 		ObserveDPO: func(observation trainingprogram.DPOObservation) {
 			dpo = append(dpo, observation)
 			completed++
@@ -187,13 +210,24 @@ func (workspace *trainingWorkspace) executeWorkflow(
 			reporter.Progress(completed, &total)
 			reportGRPO(reporter, observation)
 		},
-	})
+	}
+	result, executeErr := trainingworkflow.Execute(ctx, request)
 	if executeErr != nil {
 		return workspace.fail(ctx, definition.ID, inputs, executeErr)
 	}
+	// A DPO run whose objective holds out pairs is approved or refused on
+	// them; GRPO has no held-out target scorer yet, so its decision waits
+	// for an evaluation.
+	var heldout trainingworkflow.HeldoutResult
+	judged := false
+	if workspace.objective == trainingprogram.ObjectiveDPO {
+		if heldout, judged, err = trainingworkflow.JudgePreferenceHeldout(ctx, workspace.store, request, result); err != nil {
+			return workspace.fail(ctx, definition.ID, inputs, err)
+		}
+	}
 	reporter.Publishing()
 	return workspace.publish(ctx, definition.ID, inputs, policy, reference, input.Dataset,
-		result.Checkpoint, output, dpo, grpo)
+		result.Checkpoint, output, dpo, grpo, heldout, judged)
 }
 
 func (workspace *trainingWorkspace) outputPath(name string) (string, error) {
@@ -204,8 +238,10 @@ func (workspace *trainingWorkspace) outputPath(name string) (string, error) {
 	return filepath.Join(workspace.roots.Checkpoints, name), nil
 }
 
-func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, policy, reference, dataset artifact.ID, checkpoint trainingprogram.Checkpoint, path string, dpo []trainingprogram.DPOObservation, grpo []trainingprogram.GRPOObservation) (operation.Completion, error) {
-	data, err := checkpoint.Marshal()
+// publish records the run, its trace and its decision: approved or refused
+// on the held-out verdict when one judged the run, else awaiting evaluation.
+func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifact.ID, inputs []artifact.ID, policy, reference, dataset artifact.ID, checkpoint trainingprogram.Checkpoint, path string, dpo []trainingprogram.DPOObservation, grpo []trainingprogram.GRPOObservation, heldout trainingworkflow.HeldoutResult, judged bool) (operation.Completion, error) {
+	document, err := checkpoint.Content()
 	if err != nil {
 		return operation.Completion{}, err
 	}
@@ -217,7 +253,7 @@ func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifa
 	if err != nil {
 		return operation.Completion{}, err
 	}
-	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: checkpoint.ID(), Size: uint64(len(data))})
+	batch.Artifacts = append(batch.Artifacts, document.Descriptor)
 	var evaluators []artifact.ID
 	seen := make(map[artifact.ID]struct{})
 	for _, observation := range grpo {
@@ -235,6 +271,9 @@ func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifa
 		return operation.Completion{}, err
 	}
 	decision, err := runrecord.NewTrainingDecision(run.ID, recipeID, policy, checkpoint.ID(), trace.ID)
+	if err == nil && judged {
+		decision, err = decision.Judged(heldout.Verdict, heldout.Passed)
+	}
 	if err != nil {
 		return operation.Completion{}, err
 	}
@@ -252,7 +291,11 @@ func (workspace *trainingWorkspace) publish(ctx context.Context, recipeID artifa
 	if _, err := artifact.CommitBatch(ctx, workspace.store, batch); err != nil {
 		return operation.Completion{}, err
 	}
-	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{checkpoint.ID(), trace.ID, decision.ID}}, nil
+	outputs := []artifact.ID{checkpoint.ID(), trace.ID, decision.ID}
+	if judged {
+		outputs = append(outputs, heldout.Verdict)
+	}
+	return operation.Completion{Run: run.ID, Outputs: outputs}, nil
 }
 
 func reportGRPO(reporter operation.Reporter, observation trainingprogram.GRPOObservation) {

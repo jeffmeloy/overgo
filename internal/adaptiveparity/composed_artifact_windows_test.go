@@ -12,6 +12,7 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
+	"overgo/internal/trainingworkflow"
 )
 
 // TestComposedArtifactExecutesAndResolvesLineage pins the compose-model
@@ -45,7 +46,7 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	chainProgram, _, err := composition.ChainPrograms(scorerID, drafterID)
+	chainProgram, _, err := trainingworkflow.ChainPrograms(scorerID, drafterID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +129,7 @@ func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 	// through the generic runtime; the run's chain recipe identity must be
 	// exactly the composed artifact's recipe reference.
 	tokens := qwenAdaptiveProfileTokens
-	result, err := composition.RunChainViability(store, composition.ChainConfig{
+	result, err := trainingworkflow.RunChainViability(store, trainingworkflow.ChainConfig{
 		ScorerDir: scorerDir, DrafterDir: drafterDir,
 		Prefix: 64, Draft: 8, Target: 32,
 		Windows: [][]int{tokens[:104]},

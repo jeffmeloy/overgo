@@ -1,3 +1,5 @@
+//go:build modeltest
+
 package inference
 
 import (
@@ -96,7 +98,7 @@ func publishActiveGGUFRecipe(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := modelrecipe.PublishResolvedModelDefinition(ctx, store, inventory, resolved); err != nil {
+	if err := modelrecipe.PublishResolvedModelDefinition(ctx, store, inventory, resolved); err != nil {
 		t.Fatal(err)
 	}
 	definition, err := modelrecipe.InferenceWithModelDefinition(

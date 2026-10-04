@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
@@ -81,21 +82,24 @@ type modelRow struct {
 
 // suiteRow is one suite's latest evaluation for a model.
 type suiteRow struct {
-	metrics    map[string]float64
-	record     string
-	commit     string
-	wall       time.Duration
-	cases      uint64
-	references []evaluation.ReferenceScore
+	metrics                              map[string]float64
+	record                               string
+	commit                               string
+	wall                                 time.Duration
+	cases                                uint64
+	measuredCases                        uint64
+	carried, qualityReport, replayReport artifact.ID
+	fallback                             bool
+	references                           []evaluation.ReferenceScore
 }
 
-// perCaseCell reports the wall time one case took on average; a suite
-// whose case count is not in the catalog shows the gap.
+// perCaseCell divides current attempt wall only by its measured scope.
+// Carried full quality is not the denominator of a sampled replay.
 func perCaseCell(record suiteRow) string {
-	if record.cases == 0 || record.wall == 0 {
+	if record.measuredCases == 0 || record.wall == 0 {
 		return "—"
 	}
-	return (record.wall / time.Duration(record.cases)).Round(time.Millisecond).String()
+	return (record.wall / time.Duration(record.measuredCases)).Round(time.Millisecond).String()
 }
 
 func generate(ctx context.Context, repository string) ([]byte, error) {
@@ -138,7 +142,21 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 			suite := suiteRow{
 				metrics: summary.Metrics, record: summary.Record.String(),
 				commit: bound.CodeCommit, wall: time.Duration(bound.MeasuredNS),
-				cases: descriptors[summary.Suite].Cases,
+				cases: descriptors[summary.Suite].Cases, measuredCases: descriptors[summary.Suite].Cases,
+				carried: summary.Carried,
+			}
+			if len(bound.Outputs) == 1 {
+				descriptor, found, err := store.Artifact(ctx, bound.Outputs[0])
+				if err != nil {
+					return nil, err
+				}
+				if found && descriptor.Schema == evaluation.ReplayReceiptSchema {
+					suite.measuredCases = 0
+					receipt, err := evaluation.RequireReplayReceipt(ctx, store, descriptor.ID)
+					if err == nil {
+						suite.replayScope(bound, receipt)
+					}
+				}
 			}
 			for _, reference := range references {
 				if reference.Suite == summary.Suite {
@@ -152,6 +170,24 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 		rows = append(rows, row)
 	}
 	return render(rows, descriptors), nil
+}
+
+// replayScope uses only the bound receipt's selected cases. A failed replay
+// keeps its fresh full quality but leaves the combined denominator unknown.
+func (record *suiteRow) replayScope(bound runrecord.Run, receipt evaluation.ReplayReceipt) {
+	record.measuredCases = 0
+	if len(bound.Inputs) != 1 || receipt.Plan != bound.Inputs[0] ||
+		len(bound.Outputs) != 1 || receipt.ID != bound.Outputs[0] {
+		return
+	}
+	record.carried, record.fallback, record.qualityReport = receipt.Carried, receipt.Fallback, receipt.Report
+	if !receipt.Replay.Valid() || uint64(receipt.Cases[len(receipt.Cases)-1]) >= record.cases {
+		return
+	}
+	record.measuredCases, record.replayReport = uint64(len(receipt.Cases)), receipt.Replay
+	if receipt.Fallback {
+		record.measuredCases += record.cases
+	}
 }
 
 // renderSuites states each catalog suite's shape and the two protocols,
@@ -208,12 +244,30 @@ func render(rows []modelRow, descriptors map[string]evaluation.SuiteDescriptor) 
 			continue
 		}
 		names := slices.Sorted(maps.Keys(row.suites))
-		output.WriteString("| Suite | Metrics | Published reference | Commit | Cases | Wall | Per case | Record |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n")
+		output.WriteString("| Suite | Metrics | Published reference | Measured commit | Quality cases | Measured cases | Attempt wall | Per measured case | Quality source | Fresh report | Record |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 		for _, suite := range names {
 			record := row.suites[suite]
-			fmt.Fprintf(&output, "| %s | %s | %s | `%s` | %d | %s | %s | `%s` |\n",
+			quality, fresh := "`"+record.record+"`", "full"
+			if record.measuredCases == 0 {
+				fresh = "unknown measured scope"
+			}
+			if record.carried.Valid() {
+				quality, fresh = "carried; scope unknown", "unknown"
+				if record.measuredCases != 0 {
+					quality = "carried full report `" + record.qualityReport.String() + "`"
+					fresh = "replay `" + record.replayReport.String() + "`"
+				}
+			}
+			if record.fallback {
+				quality = "fresh full report `" + record.qualityReport.String() + "`"
+				fresh = "full after failed replay; replay case count unknown"
+				if record.measuredCases != 0 {
+					fresh = "replay `" + record.replayReport.String() + "` plus full fallback"
+				}
+			}
+			fmt.Fprintf(&output, "| %s | %s | %s | `%s` | %d | %d | %s | %s | %s | %s | `%s` |\n",
 				suite, metricsCell(record.metrics), referenceCell(record.references), record.commit,
-				record.cases, record.wall.Round(time.Millisecond), perCaseCell(record), record.record)
+				record.cases, record.measuredCases, record.wall.Round(time.Millisecond), perCaseCell(record), quality, fresh, record.record)
 		}
 		output.WriteString("\n")
 		if unmeasured := unmeasuredReferences(row); len(unmeasured) != 0 {
@@ -295,7 +349,11 @@ func headlineCell(record suiteRow) string {
 	if !ok {
 		return "—"
 	}
-	return name + " " + fmt.Sprintf(metricFormat, value)
+	label := ""
+	if record.carried.Valid() {
+		label = " (carried quality)"
+	}
+	return name + " " + fmt.Sprintf(metricFormat, value) + label
 }
 
 func metricsCell(metrics map[string]float64) string {

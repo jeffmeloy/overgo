@@ -69,7 +69,7 @@ func TestE4BProjectedTranscription(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = modelrecipe.PublishResolvedModelDefinition(ctx, store, candidate.Inventory, candidate.Resolved); err != nil {
+	if err = modelrecipe.PublishResolvedModelDefinition(ctx, store, candidate.Inventory, candidate.Resolved); err != nil {
 		t.Fatal(err)
 	}
 	if err = modelrecipetest.PublishActivation(ctx, store, "transcription-fixture/inference", candidate.Definition); err != nil {

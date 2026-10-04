@@ -262,10 +262,11 @@ func (workspace *storeGenerationWorkspace) observe(ctx context.Context, model, r
 
 // executionPath names the model directory an executor reads: every media
 // capability resolves a repository directory (config beside weights), so
-// the recorded directory location serves when the store holds one, else
-// the directory holding the present file the catalog resolved.
+// the most specific directory recorded for the model serves when the store
+// holds one (a composite's own, never the parent its inventory shares),
+// else the directory holding the present file the catalog resolved.
 func (workspace *storeGenerationWorkspace) executionPath(ctx context.Context, model artifact.ID, location string) (string, error) {
-	if path, err := artifact.AvailablePath(ctx, workspace.store, model, artifact.LocationDirectory); err == nil {
+	if path, err := discovery.ExecutionDirectory(ctx, workspace.store, model); err == nil {
 		return path, nil
 	}
 	if location == "" {

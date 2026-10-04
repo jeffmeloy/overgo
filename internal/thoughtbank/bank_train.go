@@ -19,14 +19,17 @@ type BankTrainingExample struct {
 type BankStepResult struct {
 	Loss      float64
 	ProgramID string
+	// GradientL2 is the norm of the gradient the step applied.
+	GradientL2 float64
 }
 
 type bankStepState struct {
-	example  BankTrainingExample
-	output   []float32
-	dOutput  []float32
-	gradient *FastWeightBankReadGradients
-	loss     float64
+	example    BankTrainingExample
+	output     []float32
+	dOutput    []float32
+	gradient   *FastWeightBankReadGradients
+	loss       float64
+	gradientL2 float64
 }
 
 // FastWeightBankTrainer runs bank-read training through shared program and Muon owners.
@@ -98,8 +101,29 @@ func (t *FastWeightBankTrainer) Step(example BankTrainingExample) (BankStepResul
 	if err := t.execution.Run(&state); err != nil {
 		return BankStepResult{}, err
 	}
-	return BankStepResult{Loss: state.loss, ProgramID: t.execution.ProgramID().String()}, nil
+	return BankStepResult{Loss: state.loss, ProgramID: t.execution.ProgramID().String(), GradientL2: state.gradientL2}, nil
 }
+
+// Loss evaluates the training objective on example without updating the
+// bank.
+func (t *FastWeightBankTrainer) Loss(example BankTrainingExample) (float64, error) {
+	if t == nil || t.closed {
+		return 0, errors.New("thoughtbank training: session unavailable")
+	}
+	state := bankStepState{example: example}
+	err := t.forward(&state)
+	return state.loss, err
+}
+
+// OptimizerPlan is the plan the trainer's Muon steps: the bank's tensors.
+func (t *FastWeightBankTrainer) OptimizerPlan() optimizer.Plan { return t.pack.Plan() }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (t *FastWeightBankTrainer) Snapshot() optimizer.State { return t.stepper.Snapshot() }
+
+// SaveWeights writes the trained bank tensors at path, the weights Snapshot
+// pairs with.
+func (t *FastWeightBankTrainer) SaveWeights(path string) error { return t.pack.Save(path) }
 
 func (t *FastWeightBankTrainer) forward(state *bankStepState) error {
 	example := state.example
@@ -143,7 +167,8 @@ func (t *FastWeightBankTrainer) backward(state *bankStepState) error {
 	})
 }
 
-func (t *FastWeightBankTrainer) optimize(*bankStepState) error {
+func (t *FastWeightBankTrainer) optimize(state *bankStepState) error {
+	state.gradientL2 = t.pack.GradientL2()
 	if err := t.stepper.Step(); err != nil {
 		return fmt.Errorf("shared Muon: %w", err)
 	}

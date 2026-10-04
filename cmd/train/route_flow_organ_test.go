@@ -25,7 +25,7 @@ func TestTernaryMastersCheckpointRoundTripIsBitExact(t *testing.T) {
 		t.Fatal(err)
 	}
 	muon.Step()
-	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveFlowMatching, nil, plan)
+	program, err := trainingprogram.CompileObjectiveProgram(trainingprogram.ObjectiveLatentL2, nil, plan)
 	if err != nil {
 		t.Fatal(err)
 	}

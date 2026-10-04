@@ -1,19 +1,29 @@
 // validate selects and runs the minimal sufficient end-to-end validation of the
 // whole system for one commit: it accounts for every registered model, derives
-// the appropriate validation for each declared function, and runs only the
-// validations whose surface the commit's changes moved, reusing every cell that
-// stays pinned. The default dry run computes and prints the plan without loading
-// a model or a device; -run executes the selected cells.
+// the appropriate validation for each declared function, and runs the
+// validations whose accepted record is not bound to the identity the code is
+// at now, reusing only current evidence, and runs the improvement cycle's
+// lanes, the real-model suites no landing runs. The default dry run computes and prints the plan without loading a model or a
+// device; -run executes the selected cells and lanes. -claims holds the
+// claims compatibility.json and the training specifications make to the
+// sources they bind and checks the matrices published from them; a claim whose
+// source moved is rebound only after -claims -run re-runs its verify. It also
+// renders the model and media reports from the store on demand, exports the
+// media samples, publishes and checks the capability census, and commits
+// model-verification records. It also runs the smoke oracles against the
+// active inference models, the reference parity comparisons, the hermetic
+// short test lane and the test receipts reviewed media deltas bind.
 package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -21,10 +31,10 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/gitauthority"
-	"overgo/internal/inferencesurface"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/scorecard"
+	"overgo/internal/testevidence"
 )
 
 // catalogLimit bounds the registered-model listing; a truncated denominator is
@@ -33,37 +43,78 @@ const catalogLimit = 4096
 
 func main() { clioptions.MainNamed("validate", run) }
 
-func run() error { return runArgs(context.Background(), os.Args[1:], os.Stdout) }
+// run ends the work in progress, rather than the process, on an interrupt,
+// so a child test run or a model being served is stopped by its owner.
+func run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	return runArgs(ctx, os.Args[1:], os.Stdout)
+}
 
 func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("validate", flag.ContinueOnError)
-	root := flags.String("root", ".", "repository root: the commit range and surfaces are read from it")
+	root := flags.String("root", ".", "repository root: the surfaces and lanes are read from it")
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data-root contract")
-	baseline := flags.String("baseline", "HEAD~1", "commit to diff against; the change set is baseline..HEAD")
-	execute := flags.Bool("run", false, "execute the selected validations (default: dry run prints the plan only)")
+	execute := flags.Bool("run", false, "execute the selected validations promotion waits on and the cycle lanes (default: dry run prints the plan only)")
+	background := flags.Bool("background", false, "with -run: execute the background validations instead, the suites the baseline scorecard does not compare, which never block promotion")
 	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as validated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
 	scorecardView := flags.Bool("scorecard", false, "print the user scorecard: for every activated model and task, time to first output, throughput, held-out quality, failures, load time, peak device memory and setup steps, each read from the store or listed as a gap with its reason, and the share of served models supported by declaration alone; runs nothing")
 	publish := flags.Bool("publish", false, "with -scorecard: write it as the newest record in the scorecards directory beside the store and list what moved since the previous record")
+	gap := flags.String("gap", "", "with -scorecard: fail while the gap this key names is open on the scorecard the store holds, judged against the newest published record's baseline; the verifier of the row the loop proposed for it")
+	claims := flags.Bool("claims", false, "check compatibility.json's claims and the training specifications against their bound sources and the matrices published from them; with -run, re-run the verify of every claim whose bound source moved, rebind the claims that pass, and write the matrices again")
+	models := flags.Bool("models", false, "print the nested model compatibility report: the docs/verification typed specifications joined against the store")
+	media := flags.String("media", "", "print the media capability report rendered from store activations and the verification specifications: markdown, or json for its typed projection; its links resolve from docs/")
+	exportSamples := flags.Bool("export-samples", false, "export healthy media activations' generation outputs as decodable files under docs/media_samples")
+	mediaScope := flags.String("media-scope", "all", "with -export-samples: the tasks exported, all or image-video; the media report always renders every media task")
+	publishCensus := flags.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
+	checkCensus := flags.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
+	recordVerification := flags.String("record-verification", "", "commit a typed model-verification record from a JSON spec (model, name, evidenced capability claims) into the store")
+	smoke := flags.Bool("smoke", false, "serve every active inference model, or the one -model names, against its declared oracle in docs/verification/smoke-oracles.json and record a bound run into the store")
+	budget := flags.Duration("budget", 0, "with -smoke: the total discovery and execution budget; required")
+	smokeModel := flags.String("model", "", "with -smoke: the exact model identity to serve; omitted models receive no evidence credit")
+	diagnostic := flags.Bool("diagnostic", false, "with -smoke: inspect behavior without recording a run")
+	parityRun := flags.Bool("parity", false, "run the reference comparison the first argument names, with the flags after it: audio-oracle, sensenova or vqa")
+	testLane := flags.Bool("tests", false, "run the hermetic short test lane over the packages after the flags (default ./...): a failed, unfinished or unclassified skipped test refuses it")
+	receipt := flags.Bool("receipt", false, "run go test -json, one package at a time, with the go test arguments after the flags, and keep the passing stream in the store as a receipt")
 	command := clioptions.Command{
 		Name:     "validate",
 		Purpose:  "select the minimal sufficient end-to-end validation for a commit and, with -run, execute it",
 		Audience: "the master-lead session and its unattended driver validating the whole system per commit",
 		Constraints: []string{
-			"the default dry run loads no model and opens no device; it prints the plan as JSON",
-			"a cell runs only when the commit's changes move its surface or it has no accepted evidence",
+			"the default dry run itself loads no model and opens no device: it reads the guard records, smoke runs and acceptance receipts (go test's cache replays unchanged ones) and prints the plan as JSON",
+			"a cell runs when its accepted record is not bound to the identity the code is at now, and a serving cell or a DNA model's smoke run is re-acquired every cycle; it is reused only when that record is current, and a benchmark that runs replays its newest record first",
+			"promotion waits on every guard, serving cell, proof and cycle lane, and on a benchmark that re-measures the held-out contract the baseline scorecard beside the store compares; any other benchmark that runs is background, and -run -background runs those",
 			"every registered model is accounted for; each available model is dispatched by its declared functions",
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
-			"-scorecard reads the store and the serving source: it loads no model, opens no device and needs no commit range",
+			"-scorecard reads the store and the serving source: it loads no model and opens no device",
 			"-onboard runs on a clean tree: the activation binds the commit it validated under",
+			"-claims reads the checkout only; a claim is rebound only by its own verify passing, never by hand",
+			"-models, -media and -check-census read the store; -export-samples writes only under docs/media_samples; -publish-census and -record-verification write the store",
+			"-smoke loads each selected model on the device and, without -diagnostic, records its run at the checked-out commit into the store",
+			"-parity, -tests and -receipt take their arguments after the flags; -receipt alone writes the store",
 			"help opens no store and reads nothing",
 		},
 	}
 	if handled, err := command.ParseForHelp(flags, args, output); err != nil || handled {
 		return err
 	}
+	switch {
+	case *parityRun:
+		return runParity(flags.Args(), output)
+	case *testLane:
+		return runTests(flags.Args(), output, func(packages []string) (testevidence.GoTestReport, error) { return runGoTest(ctx, packages) })
+	case *receipt:
+		return runReceipt(ctx, output, *repository, flags.Args())
+	}
 	if flags.NArg() != 0 {
 		return fmt.Errorf("validate: unexpected arguments %v", flags.Args())
+	}
+	if *smoke {
+		return runSmoke(ctx, output, *repository, *budget, *smokeModel, *diagnostic)
+	}
+	if *budget != 0 || *smokeModel != "" || *diagnostic {
+		return errors.New("-budget, -model and -diagnostic go with -smoke")
 	}
 	if *onboardPath != "" {
 		steps, err := newOnboarding(*root, *repository, output)
@@ -82,32 +133,67 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			return err
 		}
 		defer store.Close()
-		records := ""
-		if *publish {
-			records = scorecard.RecordsDirectory(storeRoot)
+		records := scorecard.Directory(storeRoot)
+		if *gap != "" {
+			return openGap(ctx, store, *root, records, *gap, output)
+		}
+		if !*publish {
+			records = ""
 		}
 		return writeScorecard(ctx, store, *root, records, output)
 	}
+	if *claims {
+		return publishedClaims(ctx, output, *root, *execute)
+	}
+	if *media != "" && *media != "markdown" && *media != "json" || *mediaScope != "all" && !*exportSamples {
+		return errors.New("-media renders markdown or json, and -media-scope narrows -export-samples alone; the media report always renders every media task")
+	}
+	if *models || *media != "" || *exportSamples || *publishCensus || *checkCensus != "" || *recordVerification != "" {
+		storeRoot, err := dataroot.StoreRoot(*repository)
+		if err != nil {
+			return err
+		}
+		switch {
+		case *publishCensus || *checkCensus != "":
+			return runCapabilityCensus(storeRoot, *publishCensus, *checkCensus, output)
+		case *recordVerification != "":
+			return runRecordVerification(*recordVerification, storeRoot, output)
+		case *exportSamples:
+			scope, err := resolveMediaReportScope(*mediaScope)
+			if err != nil {
+				return err
+			}
+			return exportMediaSamples(*root, storeRoot, scope)
+		case *media != "":
+			report, err := generateMediaReport(*root, storeRoot)
+			if err != nil {
+				return err
+			}
+			rendered := report.Markdown
+			if *media == "json" {
+				rendered = report.JSON
+			}
+			_, err = output.Write(rendered)
+			return err
+		}
+		store, err := overgodb.OpenReadOnly(storeRoot)
+		if err != nil {
+			return err
+		}
+		report, err := generateModelsReport(*root, store)
+		if err == nil {
+			_, err = output.Write(report)
+		}
+		return errors.Join(err, store.Close())
+	}
 
-	head, err := revParse(ctx, *root, "HEAD")
-	if err != nil {
-		return err
-	}
-	base, err := revParse(ctx, *root, *baseline)
-	if err != nil {
-		return err
-	}
-	changed, err := changedPaths(ctx, *root, base, head)
-	if err != nil {
-		return err
-	}
-	affected, err := surfaceAffected(ctx, *root, changed)
-	if err != nil {
-		return err
-	}
-
+	// One store, resolved once and absolute: the store this command reads is
+	// the one every producer it launches at the repository root writes.
 	storeRoot, err := dataroot.StoreRoot(*repository)
 	if err != nil {
+		return err
+	}
+	if storeRoot, err = filepath.Abs(storeRoot); err != nil {
 		return err
 	}
 	store, err := overgodb.OpenReadOnly(storeRoot)
@@ -116,6 +202,15 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	}
 	defer store.Close()
 	registered, err := registeredCells(ctx, store)
+	if err != nil {
+		return err
+	}
+	compared, err := promotionBaseline(ctx, *root, storeRoot)
+	if err != nil {
+		return err
+	}
+	registered = compareContracts(registered, compared)
+	read, err := readAcceptedRecords(ctx, *root, storeRoot, store, registered)
 	if err != nil {
 		return err
 	}
@@ -128,50 +223,13 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		// The surface the code is at now: a guard record is current only when
-		// it ran on this one.
-		surface, err := inferencesurface.Digest(ctx, *root)
-		if err != nil {
-			return err
-		}
-		records, err := latestGuardRecords(ctx, *root, storeRoot)
-		if err != nil {
-			return err
-		}
-		// One receipt per acceptance package, asked for once.
-		receipts := map[string]testReport{}
-		for _, pkg := range surfacePackages {
-			if _, asked := receipts[pkg]; asked {
-				continue
-			}
-			receipt, err := packageTests(ctx, *root, pkg)
-			if err != nil {
-				return err
-			}
-			receipts[pkg] = receipt
-		}
-		// Each cell's currency has one owner: the long-form guard for the
-		// inference surface, an acceptance package's receipt for the media,
-		// specialized and speech surfaces; the rest are not judged here.
-		currency := func(cell ModelValidation) error {
-			if cell.Validation == guardValidation && slices.Contains(strings.Split(cell.Modality, ","), dnaModality) {
-				run, found, err := latestSmokeRun(ctx, store, cell.Model, cell.Evidence)
-				if err != nil {
-					return err
-				}
-				return smokeCurrent(ctx, *root, cell.Model, run, found)
-			}
-			if cell.Validation == guardValidation {
-				return guardCurrent(records, cell.Location, surface)
-			}
-			return mediaCurrent(receipts[surfacePackages[cell.Surface]], cell.Surface)
-		}
-		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, currency))
+		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, read.current, storeRoot))
 	}
 
-	plan := SelectValidation(Inputs{Baseline: base, Head: head, ChangedPaths: changed, AffectedSurfaces: affected, Registered: registered})
+	plan := SelectValidation(Inputs{Registered: registered, Current: read.current, Scorecard: compared})
+	plan.Suites = cycleSuites()
 	if *execute {
-		return executeRun(ctx, output, *root, plan)
+		return executeRun(ctx, output, *root, storeRoot, store, plan, *background)
 	}
 	return clioptions.WritePrettyJSON(output, plan)
 }
@@ -201,6 +259,10 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 			continue
 		}
 		modality := declaredModality(ctx, store, entry.Model)
+		// A capability resolves the live directory recorded for the model,
+		// never the weights file, shard or head file the catalog found it by;
+		// none recorded leaves its measurement unbound.
+		directory, _ := discovery.ExecutionDirectory(ctx, store, entry.Model)
 		for _, capability := range entry.Capabilities {
 			validations := kindValidation(capability.Task)
 			if len(validations) == 0 {
@@ -208,18 +270,13 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 				continue
 			}
 			for _, validation := range validations {
-				cell := ModelValidation{
-					Model: entry.Model, ModelName: name, Location: entry.Location,
-					Kind: capability.Task, Modality: modality,
+				// The activation's recipe finds the accepted record; whether that
+				// record holds at this tree is the current-evidence decision's.
+				cells = append(cells, ModelValidation{
+					Model: entry.Model, ModelName: name, Location: entry.Location, Directory: directory,
+					Kind: capability.Task, Modality: modality, Recipe: capability.Recipe,
 					Validation: validation.Validation, Surface: validation.Surface, Stale: capability.Stale,
-				}
-				// An active, non-stale activation carries accepted evidence pinned
-				// by its recipe; a stale one has none and must re-acquire. Binding
-				// the exact accepted record and its measured cost is a later cell.
-				if capability.Stale == "" {
-					cell.Evidence = capability.Recipe
-				}
-				cells = append(cells, cell)
+				})
 			}
 		}
 	}
@@ -243,19 +300,4 @@ func revParse(ctx context.Context, root, revision string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
-}
-
-// changedPaths lists the repository-relative paths that differ across base..head.
-func changedPaths(ctx context.Context, root, base, head string) ([]string, error) {
-	out, err := gitauthority.Query(ctx, root, "diff", "--name-only", base+".."+head)
-	if err != nil {
-		return nil, err
-	}
-	var paths []string
-	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			paths = append(paths, trimmed)
-		}
-	}
-	return paths, nil
 }

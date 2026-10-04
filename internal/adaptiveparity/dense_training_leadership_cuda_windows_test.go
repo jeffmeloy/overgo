@@ -18,6 +18,7 @@ import (
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/densecausal"
+	"overgo/internal/densecausaltrain"
 	"overgo/internal/modeltest"
 	"overgo/internal/testutil"
 )
@@ -87,7 +88,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := warm.TrainDeviceResident(worker, [][]int{qwenAdaptiveProfileTokens}, qwenLearningRate, qwenMomentum, densecausal.DeviceTrainingOptions{FrozenLexical: true}); err != nil {
+	if _, err := densecausaltrain.TrainDeviceResident(warm, worker, [][]int{qwenAdaptiveProfileTokens}, qwenLearningRate, qwenMomentum, densecausaltrain.Options{FrozenLexical: true}); err != nil {
 		t.Fatal(err)
 	}
 	warm = nil
@@ -103,7 +104,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
-	result, err := model.TrainDeviceResident(worker, slices.Repeat([][]int{qwenAdaptiveProfileTokens}, qwenTrainingSteps), qwenLearningRate, qwenMomentum, densecausal.DeviceTrainingOptions{FrozenLexical: true, Measure: true})
+	result, err := densecausaltrain.TrainDeviceResident(model, worker, slices.Repeat([][]int{qwenAdaptiveProfileTokens}, qwenTrainingSteps), qwenLearningRate, qwenMomentum, densecausaltrain.Options{FrozenLexical: true, Measure: true})
 	wall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)

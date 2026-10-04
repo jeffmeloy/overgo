@@ -11,7 +11,9 @@ import (
 	"overgo/internal/speechactivity"
 )
 
-func TestVADArtifactRefusals(t *testing.T) {
+// verifyVADArtifactRefusals runs once, as TestVADOfflineAcceptance's
+// artifact-refusals subtest.
+func verifyVADArtifactRefusals(t *testing.T) {
 	t.Parallel()
 	reference, store, _ := loadVADReference(t)
 	l := newVADLifecycle(t, store, reference.Models[0], false)

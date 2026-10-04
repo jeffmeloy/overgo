@@ -33,9 +33,9 @@ type MoTTarget struct {
 // MoTTrainStepResult: measured facts of one observed full-pipeline step.
 type MoTTrainStepResult = optimizer.ObservedStepResult
 
-// motSpans: one layer's trainable vision-branch tensors in the packed flat.
+// motSpans: one layer's trainable vision-branch groups in the pack.
 type motSpans struct {
-	inputNorm, q, k, v, o, postNorm, gate, up, down span
+	inputNorm, q, k, v, o, postNorm, gate, up, down int
 }
 
 // motFrozen: one layer's frozen graph participants.
@@ -56,13 +56,10 @@ type ModalityTransformerTrainer struct {
 	spans     []motSpans
 	finalNorm []float32
 	head      []uint16 // tied head, BF16 [vocab, hidden]
-	weights   []float32
-	gradients []float32
+	pack      *optimizer.TensorPack
 	stepper   optimizer.Stepper
 	config    optimizer.Config
 	step      int
-
-	optimizerPlan optimizer.Plan
 }
 
 // NewModalityTransformerTrainer packs the vision branch of each layer as f32
@@ -84,74 +81,33 @@ func NewModalityTransformerTrainer(cfg Config, layers []LayerWeights, finalNorm 
 	if err != nil {
 		return nil, err
 	}
-	perLayer := []struct {
-		suffix     string
-		rows, cols int
-	}{
-		{suffixInputNorm, 1, d},
-		{suffixQProj, qOut, d},
-		{suffixKProj, kvOut, d},
-		{suffixVProj, kvOut, d},
-		{suffixOProj, d, qOut},
-		{suffixPostNorm, 1, d},
-		{suffixGateProj, inter, d},
-		{suffixUpProj, inter, d},
-		{suffixDownProj, d, inter},
-	}
-	total := 0
-	specs := make([]optimizer.GroupSpec, 0, len(layers)*len(perLayer))
-	for layer := range layers {
-		for _, section := range perLayer {
-			size := section.rows * section.cols
-			specs = append(specs, optimizer.GroupSpec{
-				Name:  fmt.Sprintf("layers.%d.vision.%s", layer, section.suffix),
-				Start: total, End: total + size, Rows: section.rows, Cols: section.cols,
-			})
-			total += size
-		}
-	}
-	compiled, err := optimizer.CompilePlan(total, specs)
-	if err != nil {
-		return nil, err
-	}
-	config, err := policy.Config(total)
-	if err != nil {
-		return nil, err
-	}
 	t := &ModalityTransformerTrainer{
 		cfg: cfg, rope: rope,
 		frozen:    make([]motFrozen, len(layers)),
 		spans:     make([]motSpans, len(layers)),
 		finalNorm: finalNorm, head: head,
-		weights:   make([]float32, total),
-		gradients: make([]float32, total),
-		config:    config,
 	}
+	var sections []optimizer.TensorSection
 	for layer := range layers {
 		w := &layers[layer]
-		base := layer * len(perLayer)
 		sp := &t.spans[layer]
-		targets := []struct {
-			dst    *span
-			values []float32
+		for _, target := range []struct {
+			group   *int
+			section optimizer.TensorSection
 		}{
-			{&sp.inputNorm, w.InputNorm.Vision},
-			{&sp.q, bf16Masters(w.QKV.QVision.Data)},
-			{&sp.k, bf16Masters(w.QKV.KVision.Data)},
-			{&sp.v, bf16Masters(w.QKV.VVision.Data)},
-			{&sp.o, bf16Masters(w.QKV.OVision.Data)},
-			{&sp.postNorm, w.Output.PostVision},
-			{&sp.gate, bf16Masters(w.Output.GateVision.Data)},
-			{&sp.up, bf16Masters(w.Output.UpVision.Data)},
-			{&sp.down, bf16Masters(w.Output.DownVision.Data)},
-		}
-		for i, target := range targets {
-			spec := specs[base+i]
-			if len(target.values) != spec.End-spec.Start {
-				return nil, fmt.Errorf("routed lm mot train: %s has %d values, want %d", spec.Name, len(target.values), spec.End-spec.Start)
-			}
-			*target.dst = span{spec.Start, spec.End}
-			copy(t.weights[spec.Start:spec.End], target.values)
+			{&sp.inputNorm, optimizer.TensorSection{Name: suffixInputNorm, Rows: 1, Cols: d, Values: w.InputNorm.Vision}},
+			{&sp.q, optimizer.TensorSection{Name: suffixQProj, Rows: qOut, Cols: d, BF16: w.QKV.QVision.Data}},
+			{&sp.k, optimizer.TensorSection{Name: suffixKProj, Rows: kvOut, Cols: d, BF16: w.QKV.KVision.Data}},
+			{&sp.v, optimizer.TensorSection{Name: suffixVProj, Rows: kvOut, Cols: d, BF16: w.QKV.VVision.Data}},
+			{&sp.o, optimizer.TensorSection{Name: suffixOProj, Rows: d, Cols: qOut, BF16: w.QKV.OVision.Data}},
+			{&sp.postNorm, optimizer.TensorSection{Name: suffixPostNorm, Rows: 1, Cols: d, Values: w.Output.PostVision}},
+			{&sp.gate, optimizer.TensorSection{Name: suffixGateProj, Rows: inter, Cols: d, BF16: w.Output.GateVision.Data}},
+			{&sp.up, optimizer.TensorSection{Name: suffixUpProj, Rows: inter, Cols: d, BF16: w.Output.UpVision.Data}},
+			{&sp.down, optimizer.TensorSection{Name: suffixDownProj, Rows: d, Cols: inter, BF16: w.Output.DownVision.Data}},
+		} {
+			*target.group = len(sections)
+			target.section.Name = fmt.Sprintf("layers.%d.vision.%s", layer, target.section.Name)
+			sections = append(sections, target.section)
 		}
 		t.frozen[layer] = motFrozen{
 			textInputNorm: w.InputNorm.Text, textPostNorm: w.Output.PostText,
@@ -159,42 +115,44 @@ func NewModalityTransformerTrainer(cfg Config, layers []LayerWeights, finalNorm 
 			textGate: w.Output.GateText, textUp: w.Output.UpText, textDown: w.Output.DownText,
 			qNorm: w.QKV.QNorm, kNorm: w.QKV.KNorm,
 		}
-		// Release the vision BF16 storage — the masters own it now.
+		// Release the vision BF16 storage — the masters own it once packed.
 		w.QKV.QVision, w.QKV.KVision, w.QKV.VVision, w.QKV.OVision = BF16Matrix{}, BF16Matrix{}, BF16Matrix{}, BF16Matrix{}
 		w.Output.GateVision, w.Output.UpVision, w.Output.DownVision = BF16Matrix{}, BF16Matrix{}, BF16Matrix{}
 	}
-	t.optimizerPlan = compiled
-	t.stepper, err = optimizer.NewStepper(t.weights, t.gradients, compiled, t.config)
-	if err != nil {
+	if t.pack, err = optimizer.NewSectionPack(sections); err != nil {
+		return nil, fmt.Errorf("routed lm mot train: %w", err)
+	}
+	if t.config, err = policy.Config(t.pack.ParameterCount()); err != nil {
+		return nil, err
+	}
+	if t.stepper, err = t.pack.NewStepper(t.config); err != nil {
 		return nil, err
 	}
 	return t, nil
 }
 
 // ParameterCount reports the packed trainable parameter total.
-func (t *ModalityTransformerTrainer) ParameterCount() int { return len(t.weights) }
+func (t *ModalityTransformerTrainer) ParameterCount() int { return t.pack.ParameterCount() }
 
 // Config exposes the derived hyperparameters for evidence.
 func (t *ModalityTransformerTrainer) Config() optimizer.Config { return t.config }
 
 // OptimizerPlan is the compiled Muon plan over the packed vision fork: one
 // group per layer tensor.
-func (t *ModalityTransformerTrainer) OptimizerPlan() optimizer.Plan { return t.optimizerPlan }
+func (t *ModalityTransformerTrainer) OptimizerPlan() optimizer.Plan { return t.pack.Plan() }
 
 // Snapshot copies the optimizer state the next step continues from.
 func (t *ModalityTransformerTrainer) Snapshot() optimizer.State { return t.stepper.Snapshot() }
 
 // SaveWeights writes the trained vision fork at path, the weights Snapshot
 // pairs with.
-func (t *ModalityTransformerTrainer) SaveWeights(path string) error {
-	return optimizer.SavePlanWeights(path, t.optimizerPlan, t.weights)
-}
+func (t *ModalityTransformerTrainer) SaveWeights(path string) error { return t.pack.Save(path) }
 
 // Close releases the stepper backend.
 func (t *ModalityTransformerTrainer) Close() error { return t.stepper.Close() }
 
-func (t *ModalityTransformerTrainer) view(s span) []float32     { return t.weights[s.start:s.end] }
-func (t *ModalityTransformerTrainer) gradView(s span) []float32 { return t.gradients[s.start:s.end] }
+func (t *ModalityTransformerTrainer) view(group int) []float32     { return t.pack.Weights(group) }
+func (t *ModalityTransformerTrainer) gradView(group int) []float32 { return t.pack.Gradients(group) }
 
 // motActivations: one layer's retained training-precision intermediates.
 type motActivations struct {
@@ -243,15 +201,11 @@ func (t *ModalityTransformerTrainer) lossAndGradients(hidden []float32, mask []i
 	if err != nil {
 		return 0, 0, err
 	}
-	clear(t.gradients)
+	t.pack.ClearGradients()
 	for layer := len(activations) - 1; layer >= 0; layer-- {
 		dOutput = t.layerBackward(layer, activations[layer], mask, dOutput)
 	}
-	var gradientSquared float64
-	for _, g := range t.gradients {
-		gradientSquared += float64(g) * float64(g)
-	}
-	return loss, math.Sqrt(gradientSquared), nil
+	return loss, t.pack.GradientL2(), nil
 }
 
 // forward: training-precision (f32, unrounded) mirror of PromptLayerForward
@@ -321,7 +275,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 	}
 	// Branch-batched projections: text rows through frozen BF16, vision rows
 	// through the f32 masters.
-	project := func(rows []int, frozenW [3]BF16Matrix, master [3]span) {
+	project := func(rows []int, frozenW [3]BF16Matrix, master [3]int) {
 		if len(rows) == 0 {
 			return
 		}
@@ -339,8 +293,8 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 			scatterRows(dsts[i], projected, rows, outs[i])
 		}
 	}
-	project(zero, [3]BF16Matrix{frozen.textQ, frozen.textK, frozen.textV}, [3]span{})
-	project(nonZero, [3]BF16Matrix{}, [3]span{sp.q, sp.k, sp.v})
+	project(zero, [3]BF16Matrix{frozen.textQ, frozen.textK, frozen.textV}, [3]int{})
+	project(nonZero, [3]BF16Matrix{}, [3]int{sp.q, sp.k, sp.v})
 	// Rope (unrounded) + per-head QK-norm (frozen scales).
 	a.qRoped = append([]float32(nil), a.qProj...)
 	a.kRoped = append([]float32(nil), a.kProj...)
@@ -399,7 +353,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 		}
 	})
 	// Output projection, residual, post-norm, branch MLP.
-	body := func(rows []int, oText BF16Matrix, oMaster span, postWeight []float32, gateText, upText, downText BF16Matrix, gateM, upM, downM span) {
+	body := func(rows []int, oText BF16Matrix, oMaster int, postWeight []float32, gateText, upText, downText BF16Matrix, gateM, upM, downM int) {
 		if len(rows) == 0 {
 			return
 		}
@@ -452,7 +406,7 @@ func (t *ModalityTransformerTrainer) layerForward(layer int, input []float32, ma
 			}
 		}
 	}
-	body(zero, frozen.textO, span{}, frozen.textPostNorm, frozen.textGate, frozen.textUp, frozen.textDown, span{}, span{}, span{})
+	body(zero, frozen.textO, 0, frozen.textPostNorm, frozen.textGate, frozen.textUp, frozen.textDown, 0, 0, 0)
 	body(nonZero, BF16Matrix{}, sp.o, t.view(sp.postNorm), BF16Matrix{}, BF16Matrix{}, BF16Matrix{}, sp.gate, sp.up, sp.down)
 	return a, nil
 }
@@ -653,7 +607,7 @@ func (t *ModalityTransformerTrainer) layerBackward(layer int, a motActivations, 
 			grad    []float32
 			out     int
 			frozenW BF16Matrix
-			master  span
+			master  int
 		}{
 			{dQProj, qOut, frozen.textQ, sp.q},
 			{dKProj, kvOut, frozen.textK, sp.k},

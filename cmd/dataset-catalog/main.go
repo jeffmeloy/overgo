@@ -1,4 +1,6 @@
-// dataset-catalog publishes the legacy dataset inventory into OvergoDB.
+// dataset-catalog publishes the legacy dataset inventory into OvergoDB,
+// registers a directory dataset, or publishes a weighted mixture of
+// registered datasets.
 package main
 
 import (
@@ -9,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -33,14 +36,32 @@ func run(args []string, output io.Writer) error {
 	modality := flags.String("modality", "", "explicit primary modality for -register; empty derives it from the corpus")
 	speechSpec := flags.String("speech-spec", "", "materialize row-addressed speech references from an existing inventory version and this JSON specification")
 	memoryBytes := flags.Uint64("memory", 0, "required source workspace and per-shard reference-metadata byte bound with -speech-spec")
+	mixture := flags.String("mixture", "", "publish a weighted mixture of registered datasets under this name (with -members)")
+	members := flags.String("members", "", "the mixture's registered datasets and their weights: <name>=<weight>,...")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: dataset-catalog [-repo <path>] -legacy <path> -root <path> | -register <name> -root <dir>")
+		return errors.New("usage: dataset-catalog [-repo <path>] -legacy <path> -root <path> | -register <name> -root <dir> | -mixture <name> -members <name>=<weight>,...")
 	}
 	repositoryRoot, err := dataroot.StoreRoot(*repositoryPath)
 	if err != nil {
+		return err
+	}
+	if name := strings.TrimSpace(*mixture); name != "" || *members != "" {
+		if name == "" || *members == "" || *speechSpec != "" || *register != "" || *legacyPath != "" || *contentPath != "" || *modality != "" || *memoryBytes != 0 {
+			return errors.New("dataset-catalog: -mixture requires -members, without -register, -legacy, -root, -modality, -speech-spec or -memory")
+		}
+		store, err := overgodb.Open(repositoryRoot)
+		if err != nil {
+			return err
+		}
+		defer store.Close()
+		published, err := publishMixture(context.Background(), store, name, *members)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(output, "mixture %s dataset=%s members=%d\n", name, published.ID, len(published.Members))
 		return err
 	}
 	contentRoot := filepath.Clean(strings.TrimSpace(*contentPath))
@@ -105,4 +126,42 @@ func run(args []string, output io.Writer) error {
 		publication.Coverage.Registered, publication.Coverage.Published, publication.Coverage.Available,
 		publication.Changed, publication.Commit)
 	return err
+}
+
+// publishMixture publishes a weighted mixture of registered datasets, named
+// by weights as <name>=<weight>,..., and registers it under name, so an
+// objective trains on the mix as on any registered dataset.
+func publishMixture(ctx context.Context, store artifact.Repository, name, weights string) (dataset.Document, error) {
+	var members []dataset.Member
+	for field := range strings.SplitSeq(weights, ",") {
+		member, text, found := strings.Cut(strings.TrimSpace(field), "=")
+		weight, err := strconv.Atoi(text)
+		if !found || err != nil || weight <= 0 {
+			return dataset.Document{}, fmt.Errorf("dataset-catalog: -members %q: want <name>=<weight>,... with positive weights", weights)
+		}
+		id, registered, err := artifact.ResolveAlias(ctx, store, dataset.RegisteredAliasPrefix+member)
+		if err != nil {
+			return dataset.Document{}, err
+		}
+		if !registered {
+			return dataset.Document{}, fmt.Errorf("dataset-catalog: mixture member %q is not a registered dataset", member)
+		}
+		members = append(members, dataset.Member{Dataset: id, Weight: uint64(weight)})
+	}
+	mixture, err := dataset.NewMixture(members)
+	if err != nil {
+		return dataset.Document{}, err
+	}
+	// A mixture already registered under name is published; a rerun
+	// changes nothing.
+	alias, moved, err := artifact.MoveAlias(ctx, store, dataset.RegisteredAliasPrefix+name, mixture.ID)
+	if err != nil || !moved {
+		return mixture, err
+	}
+	batch, err := dataset.PublicationBatch("dataset/mixture/"+name+"/"+mixture.ID.String(), []dataset.Document{mixture}, []artifact.AliasBinding{alias})
+	if err != nil {
+		return dataset.Document{}, err
+	}
+	_, err = artifact.CommitBatch(ctx, store, batch)
+	return mixture, err
 }

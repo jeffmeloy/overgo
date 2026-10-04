@@ -2,6 +2,7 @@ package vqaserve
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
 
@@ -32,7 +34,7 @@ func TestRunProgramBindsDescriptorInputsAndOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	answer, _, err := RunProgram(
+	answer, result, err := RunProgram(
 		t.Context(), store, modelID, program,
 		"vqa/runtime", image, "where?",
 		func(gotImage []byte, question string) (string, error) {
@@ -50,6 +52,12 @@ func TestRunProgramBindsDescriptorInputsAndOutput(t *testing.T) {
 	)
 	if err != nil || answer != "there" {
 		t.Fatalf("answer = (%q, %v)", answer, err)
+	}
+	run, err := runrecord.RequireExactRun(t.Context(), store, result.Run.ID)
+	question, questionErr := artifact.JSONContent(QuestionContract, "where?")
+	output, outputErr := artifact.JSONContent(AnswerContract, "there")
+	if err != nil || questionErr != nil || outputErr != nil || run.Recipe != definition.ID || !slices.Contains(run.Inputs, image.Descriptor.ID) || !slices.Contains(run.Inputs, question.Descriptor.ID) || !slices.Equal(run.Outputs, []artifact.ID{output.Descriptor.ID}) || len(result.NodeWalls) != 2 {
+		t.Fatalf("VQA result run %+v, walls %+v (%v, %v, %v); want the persisted image, question, answer and both stages", run, result.NodeWalls, err, questionErr, outputErr)
 	}
 	head, sequence := store.Head()
 	retained, err := ReadImage(t.Context(), store, image.Descriptor.ID)

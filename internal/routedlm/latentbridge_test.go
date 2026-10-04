@@ -104,10 +104,10 @@ func TestLatentBridgeTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	view := func(section span) []float32 { return trainer.weights[section.start:section.end] }
+	view := trainer.pack.Weights
 	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
-		"bridge.down.weight": view(trainer.downW), "bridge.down.bias": view(trainer.downB),
-		"bridge.up.weight": view(trainer.upW), "bridge.up.bias": view(trainer.upB),
+		"bridge.down.weight": view(bridgeDownW), "bridge.down.bias": view(bridgeDownB),
+		"bridge.up.weight": view(bridgeUpW), "bridge.up.bias": view(bridgeUpB),
 	})
 }
 
@@ -148,23 +148,25 @@ func TestLatentBridgeGradientMatchesFiniteDifference(t *testing.T) {
 		t.Fatalf("step loss %.9g disagrees with evaluation %.9g", result.Loss, baseline)
 	}
 
-	for _, index := range []int{0, 5, probe.upW.start + 3, probe.downB.start, len(probe.weights) - 1} {
+	groups := probe.OptimizerPlan().Groups()
+	for _, index := range []int{0, 5, groups[bridgeUpW].Start + 3, groups[bridgeDownB].Start, probe.ParameterCount() - 1} {
 		fresh, err := NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy())
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := fresh.weights[index]
-		fresh.weights[index] = original + epsilon
+		freshWeights, _ := fresh.pack.Slabs()
+		original := freshWeights[index]
+		freshWeights[index] = original + epsilon
 		plus, err := fresh.Loss(hidden)
 		if err != nil {
 			t.Fatal(err)
 		}
-		fresh.weights[index] = original - epsilon
+		freshWeights[index] = original - epsilon
 		minus, err := fresh.Loss(hidden)
 		if err != nil {
 			t.Fatal(err)
 		}
-		fresh.weights[index] = original
+		freshWeights[index] = original
 		numeric := (plus - minus) / (2 * epsilon)
 
 		grader, err := NewLatentBridgeTrainer(weights, trainingprogram.BuiltinOptimizerPolicy())
@@ -178,7 +180,8 @@ func TestLatentBridgeGradientMatchesFiniteDifference(t *testing.T) {
 		if math.Abs(lossValue-baseline) > 1e-9 || gradientL2 <= 0 {
 			t.Fatalf("gradient pass loss %.9g vs %.9g", lossValue, baseline)
 		}
-		got := float64(grader.gradients[index])
+		_, gradients := grader.pack.Slabs()
+		got := float64(gradients[index])
 		_ = grader.Close()
 		_ = fresh.Close()
 		scale := max(1, max(math.Abs(numeric), math.Abs(got)))

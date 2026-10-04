@@ -1,25 +1,27 @@
 // Package landing lands one plan row through the small gate. The dirty tree
-// is formatted, modernized by go fix, vetted and tested -- go test's own
-// cache decides what runs again -- the lanes the change reaches run (in the
-// host's lane turn, one landing at a time), a few rules compare the changed
-// files with HEAD, the row's own check passes, and
-// a change that reaches the benchmark runs the scorecard's inference slice;
-// then the tree is committed with the row's step removed from the plan. Git
-// holds the record: the message says what the gate measured, and the
-// slice's trailer carries it for the next landing to compare against.
+// is formatted, modernized by go fix and taken as the candidate, a Git tree
+// written through a private index; the candidate is vetted and tested -- go
+// test's own cache decides what runs again -- the lanes the change reaches
+// run (in the host's lane turn, one landing at a time), a few rules compare
+// the changed files with HEAD, the row's own check passes, and a change that
+// reaches the benchmark runs the scorecard's inference slice; then that
+// candidate, with the row's step removed from its plan, is committed onto
+// the HEAD the landing found. Git holds the record: the message says what
+// the gate measured, and the slice's trailer carries it for the next landing
+// to compare against. A refusal names the stage that refused it; the loop
+// classes it, an antivirus quarantine as an external prerequisite, and
+// records its class in the checkout's process state, where a recurrence shows.
 package landing
 
 import (
 	"bytes"
 	"cmp"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -27,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
 	"overgo/internal/plan"
@@ -48,24 +51,35 @@ type Options struct {
 type landing struct {
 	Options
 	item, step string
-	head       string
-	entries    []repoanalysis.DirtyPath
-	paths      []string
-	measured   []string
+	// head is the commit the landing found and publishes onto; merging are
+	// the heads a merge in progress joins to it.
+	head    string
+	merging []string
+	// scratch holds the private index the candidate is written through.
+	scratch  string
+	entries  []repoanalysis.DirtyPath
+	paths    []string
+	measured []string
 	// details say what a stage measured beyond its time: the packages the
 	// test stage ran rather than replayed, what the scorecard slice found.
 	details map[string]string
 	// trailers are the scorecard slices' commit trailers, one per slice
 	// that measured or failed.
 	trailers []string
-	// budget is the growth the landed row declared in the plan.
-	budget plan.Budget
-	// digests are the ship set's bytes as the checks validated them.
-	digests map[string]string
+	// candidate is the tree the checks validate and the commit publishes.
+	candidate string
+	// planned is the plan the candidate holds and advanced is it with the
+	// row's step removed; verifier and budget are the row's check and its
+	// declared growth as that plan states them.
+	planned  []byte
+	advanced plan.Plan
+	verifier string
+	budget   plan.Budget
 }
 
-// Run lands the row and returns the commit. Every check runs over the dirty
-// tree; the first that fails refuses the landing and nothing is committed.
+// Run lands the row and returns the commit. Every check runs over the
+// candidate; the first that fails refuses the landing and nothing is
+// committed.
 func Run(ctx context.Context, options Options) (string, error) {
 	item, step, found := strings.Cut(options.Ref, "/")
 	if !found {
@@ -76,57 +90,32 @@ func Run(ctx context.Context, options Options) (string, error) {
 		return "", err
 	}
 	options.Repo = root
-	l := &landing{Options: options, item: item, step: step, details: map[string]string{}}
 	if err := requireSections(options.Message); err != nil {
 		return "", err
 	}
-	head, err := gitauthority.Query(ctx, options.Repo, "rev-parse", "HEAD")
+	scratch, err := os.MkdirTemp("", "overgo-landing-*")
 	if err != nil {
 		return "", err
 	}
-	l.head = strings.TrimSpace(string(head))
-	document, err := plan.Load(filepath.Join(options.Repo, plan.Path))
-	if err != nil {
+	defer os.RemoveAll(scratch)
+	l := &landing{Options: options, item: item, step: step, scratch: scratch, details: map[string]string{}}
+	if err := l.parents(ctx); err != nil {
 		return "", err
-	}
-	if _, err := plan.Advance(document, item, step); err != nil {
-		return "", fmt.Errorf("land: %s is not an open step of the plan: %w", options.Ref, err)
-	}
-	verify := rowVerify(document, item, step)
-	if at := slices.IndexFunc(document.Items, func(candidate plan.Item) bool { return candidate.ID == item }); at >= 0 {
-		l.budget = document.Items[at].Budget
 	}
 	if err := l.shipSet(ctx); err != nil {
 		return "", err
 	}
-	checks := []struct {
-		name string
-		run  func(context.Context) error
-	}{
-		{"format", l.format},
-		{"fix", l.fix},
-		{"vet", l.vet},
-		{"rules", l.rules},
-		{"test", l.test},
-		{"lanes", l.lanes},
-		{"verify", func(ctx context.Context) error { return l.verify(ctx, verify) }},
-		{"scorecard", l.scorecard},
-	}
-	// A change to the plan alone is data the load above has validated;
+	checks := l.checks()
+	// A change to the plan alone is data the row read above has validated;
 	// nothing compiles it, so only the row's verify can speak to it, and
 	// the tests that read the plan run with the next code landing.
 	if !slices.ContainsFunc(l.paths, func(changed string) bool { return changed != plan.Path }) {
-		checks = slices.DeleteFunc(checks, func(check struct {
-			name string
-			run  func(context.Context) error
-		}) bool {
-			return check.name != "verify"
-		})
+		checks = slices.DeleteFunc(checks, func(check check) bool { return check.name != "verify" })
 	}
 	for _, check := range checks {
 		started := time.Now()
 		if err := check.run(ctx); err != nil {
-			return "", fmt.Errorf("land: %s: %w", check.name, err)
+			return "", fmt.Errorf("%s%s: %w", stagePrefix, check.name, err)
 		}
 		wall := time.Since(started).Round(time.Millisecond)
 		entry := check.name + " " + wall.String()
@@ -138,6 +127,22 @@ func Run(ctx context.Context, options Options) (string, error) {
 	}
 	return l.commit(ctx)
 }
+
+// check is one stage of the gate.
+type check struct {
+	name string
+	run  func(context.Context) error
+}
+
+// checks are the gate's stages in the order they run; a refusal names the
+// stage that refused, and Classify reads the name back.
+func (l *landing) checks() []check {
+	return []check{{"format", l.format}, {"fix", l.fix}, {"vet", l.vet}, {"rules", l.rules},
+		{"test", l.test}, {"lanes", l.lanes}, {"verify", l.verify}, {"scorecard", l.scorecard}}
+}
+
+// stagePrefix opens the refusal of a stage, before the stage's name.
+const stagePrefix = "land: "
 
 // predictedSection opens the part of a landing message that says what the
 // change should do.
@@ -165,20 +170,42 @@ func section(message []byte, label string) (string, bool) {
 	return strings.Join(lines[at:], "\n"), true
 }
 
-func rowVerify(document plan.Plan, item, step string) string {
-	for _, candidate := range document.Items {
-		for _, s := range candidate.Steps {
-			if candidate.ID == item && s.ID == step {
-				return s.Verify
-			}
-		}
+// parents reads the commit the landing publishes onto, seeding the private
+// index from it, and the heads a merge in progress joins to it: a merge
+// lands as the merge.
+func (l *landing) parents(ctx context.Context) error {
+	head, err := gitauthority.Query(ctx, l.Repo, "rev-parse", "HEAD")
+	if err != nil {
+		return err
 	}
-	return ""
+	l.head = strings.TrimSpace(string(head))
+	if _, err := l.staged(ctx, "read-tree", l.head); err != nil {
+		return err
+	}
+	merge, err := gitauthority.Query(ctx, l.Repo, "rev-parse", "--path-format=absolute", "--git-path", "MERGE_HEAD")
+	if err != nil {
+		return err
+	}
+	merging, err := os.ReadFile(strings.TrimSpace(string(merge)))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	l.merging = strings.Fields(string(merging))
+	return nil
 }
 
-// shipSet is the dirty tree. An untracked top-level entry HEAD does not hold
-// is refused: a new root belongs in a change of its own.
+// shipSet takes the dirty tree as the candidate, then reads the paths it
+// changes; a path that changes after the capture is one more path the
+// checks read and the commit refuses. An untracked top-level entry HEAD does
+// not hold is refused: a new root belongs in a change of its own.
 func (l *landing) shipSet(ctx context.Context) error {
+	var err error
+	if l.candidate, err = l.capture(ctx); err != nil {
+		return err
+	}
+	if err := l.row(ctx); err != nil {
+		return err
+	}
 	entries, err := dirtyTree(ctx, l.Repo)
 	if err != nil {
 		return err
@@ -200,27 +227,48 @@ func (l *landing) shipSet(ctx context.Context) error {
 		}
 	}
 	l.entries = entries
-	l.digests, err = shipDigests(l.Repo, l.paths)
-	return err
+	return nil
 }
 
-// shipDigests is each ship-set path's content digest, empty for a path the
-// tree no longer holds: the bytes the checks validate, which the commit
-// must still find.
-func shipDigests(repo string, paths []string) (map[string]string, error) {
-	digests := map[string]string{}
-	for _, name := range paths {
-		data, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(name)))
-		switch {
-		case errors.Is(err, fs.ErrNotExist):
-			digests[name] = ""
-		case err != nil:
-			return nil, err
-		default:
-			digests[name] = fmt.Sprintf("%x", sha256.Sum256(data))
+// capture writes the working tree, as git add -A stages it, through the
+// landing's private index and returns its tree. The index the checkout's own
+// git commands use is neither read nor written.
+func (l *landing) capture(ctx context.Context) (string, error) {
+	if _, err := l.staged(ctx, "add", "-A"); err != nil {
+		return "", err
+	}
+	tree, err := l.staged(ctx, "write-tree")
+	return strings.TrimSpace(tree), err
+}
+
+// row reads the landed row from the plan the candidate holds, so the check
+// the gate runs, the growth the rules admit and the plan the commit
+// publishes all come from the bytes the gate validates.
+func (l *landing) row(ctx context.Context) error {
+	data, err := gitauthority.Query(ctx, l.Repo, "cat-file", "blob", l.candidate+":"+plan.Path)
+	if err != nil {
+		return err
+	}
+	document, err := plan.Parse(data)
+	if err != nil {
+		return err
+	}
+	if l.advanced, err = plan.Advance(document, l.item, l.step); err != nil {
+		return fmt.Errorf("land: %s is not an open step of the plan: %w", l.Ref, err)
+	}
+	l.planned = data
+	for _, item := range document.Items {
+		if item.ID != l.item {
+			continue
+		}
+		l.budget = item.Budget
+		for _, step := range item.Steps {
+			if step.ID == l.step {
+				l.verifier = step.Verify
+			}
 		}
 	}
-	return digests, nil
+	return nil
 }
 
 func dirtyTree(ctx context.Context, repo string) ([]repoanalysis.DirtyPath, error) {
@@ -256,10 +304,6 @@ func (l *landing) format(ctx context.Context) error {
 	return err
 }
 
-// buildTags are the tags vet and fix read with, so every build-tagged test
-// file is checked.
-const buildTags = "modeltest,integration"
-
 // fix applies go fix's modernizers to the changed packages, as format
 // applies gofmt: a legacy form go fix can rewrite is rewritten, not refused.
 // A directory whose files this platform's build excludes, or that does not
@@ -269,12 +313,12 @@ const buildTags = "modeltest,integration"
 func (l *landing) fix(ctx context.Context) error {
 	directories := l.goPackages()
 	if len(directories) != 0 {
-		listed, err := l.run(ctx, nil, "go", append([]string{"list", "-e", "-tags", buildTags, "-f", "{{if not .Error}}{{.ImportPath}}{{end}}"}, directories...)...)
+		listed, err := l.run(ctx, nil, "go", append([]string{"list", "-e", "-tags", CycleTags, "-f", "{{if not .Error}}{{.ImportPath}}{{end}}"}, directories...)...)
 		if err != nil {
 			return err
 		}
 		if packages := strings.Fields(listed); len(packages) != 0 {
-			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-tags", buildTags}, packages...)...); err != nil {
+			if _, err := l.run(ctx, nil, "go", append([]string{"fix", "-tags", CycleTags}, packages...)...); err != nil {
 				return err
 			}
 		}
@@ -290,7 +334,7 @@ func (l *landing) fix(ctx context.Context) error {
 }
 
 func (l *landing) vet(ctx context.Context) error {
-	_, err := l.run(ctx, nil, "go", "vet", "-tags", buildTags, "./...")
+	_, err := l.run(ctx, nil, "go", "vet", "-tags", CycleTags, "./...")
 	return err
 }
 
@@ -313,6 +357,10 @@ func (l *landing) test(ctx context.Context) error {
 // names: the slowest few are where a landing's test time went.
 const reportedPackages = 5
 
+// cachedMarker ends go test's line for a package it replayed from its cache
+// rather than ran.
+const cachedMarker = "\t(cached)"
+
 // ranPackages names the packages go test ran rather than replayed from its
 // cache, slowest first, so the measured test time says what it was spent on.
 func ranPackages(output string) string {
@@ -328,7 +376,7 @@ func ranPackages(output string) string {
 			continue
 		}
 		switch {
-		case parsed.Action == "output" && strings.Contains(parsed.Output, "\t(cached)"):
+		case parsed.Action == "output" && strings.Contains(parsed.Output, cachedMarker):
 			cached[parsed.Package] = true
 		case (parsed.Action == "pass" || parsed.Action == "fail") && !cached[parsed.Package]:
 			ran = append(ran, parsed)
@@ -342,80 +390,85 @@ func ranPackages(output string) string {
 	return fmt.Sprintf("ran %d packages: %s", len(ran), strings.Join(slowest, ", "))
 }
 
-func (l *landing) verify(ctx context.Context, command string) error {
-	if strings.TrimSpace(command) == "" {
+func (l *landing) verify(ctx context.Context) error {
+	if strings.TrimSpace(l.verifier) == "" {
 		return nil
 	}
-	_, err := planverify.Execute(ctx, l.Repo, command, nil)
+	_, err := planverify.Execute(ctx, l.Repo, l.verifier, nil)
 	return err
 }
 
-// commit writes the advanced plan and commits the tree the checks passed.
-// HEAD and the dirty tree must be as the landing found them.
-func (l *landing) commit(ctx context.Context) (string, error) {
-	head, err := gitauthority.Query(ctx, l.Repo, "rev-parse", "HEAD")
+// regularFile is the Git mode the advanced plan is staged with.
+const regularFile = "100644"
+
+// commit publishes the candidate the checks passed, its plan advanced past
+// the row, onto the HEAD the landing found. The working tree must still be
+// the candidate, and HEAD moves by one compare-and-set, so a refusal writes
+// nothing: the plan keeps its row and any edit made meanwhile. Only a
+// landed commit advances the working plan, and only while that plan is
+// still the candidate's; a plan edited during the landing is left as
+// edited and the landing says so.
+func (l *landing) commit(ctx context.Context) (landed string, err error) {
+	lock, err := authoritylock.AcquireContext(ctx, l.Repo)
 	if err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(string(head)) != l.head {
-		return "", errors.New("land: HEAD moved during the landing")
-	}
-	now, err := dirtyTree(ctx, l.Repo)
+	defer func() { err = errors.Join(err, lock.Close()) }()
+	now, err := l.capture(ctx)
 	if err != nil {
 		return "", err
 	}
-	digests, err := shipDigests(l.Repo, l.paths)
-	if err != nil {
-		return "", err
-	}
-	if !sameTree(now, l.entries) || !maps.Equal(digests, l.digests) {
-		return "", errors.New("land: the tree changed during the landing; land again once it is settled")
-	}
-	planPath := filepath.Join(l.Repo, plan.Path)
-	original, err := os.ReadFile(planPath)
-	if err != nil {
-		return "", err
-	}
-	document, err := plan.Load(planPath)
-	if err != nil {
-		return "", err
-	}
-	advanced, err := plan.Advance(document, l.item, l.step)
-	if err != nil {
-		return "", err
-	}
-	if err := plan.Save(planPath, advanced); err != nil {
-		return "", err
-	}
-	// A commit that does not happen gives the row back: the plan returns to
-	// the bytes it held, so the row can land again.
-	committed := false
-	defer func() {
-		if !committed {
-			_ = os.WriteFile(planPath, original, clioptions.PrivateFileMode)
+	if now != l.candidate {
+		changed, err := gitauthority.Query(ctx, l.Repo, "diff-tree", "-r", "--name-only", l.candidate, now)
+		if err != nil {
+			return "", err
 		}
-	}()
-	file, err := os.CreateTemp("", "overgo-landing-*.txt")
+		return "", fmt.Errorf("land: the tree changed during the landing: %s; land again once it is settled",
+			strings.ReplaceAll(strings.TrimSpace(string(changed)), "\n", ", "))
+	}
+	advanced := filepath.Join(l.scratch, "plan.json")
+	if err := plan.Save(advanced, l.advanced); err != nil {
+		return "", err
+	}
+	blob, err := l.staged(ctx, "hash-object", "-w", "--path="+plan.Path, advanced)
 	if err != nil {
 		return "", err
 	}
-	defer os.Remove(file.Name())
-	if _, err := file.WriteString(l.message()); err != nil {
-		file.Close()
+	if _, err := l.staged(ctx, "update-index", "--cacheinfo", regularFile+","+strings.TrimSpace(blob)+","+plan.Path); err != nil {
 		return "", err
 	}
-	if err := file.Close(); err != nil {
+	tree, err := l.staged(ctx, "write-tree")
+	if err != nil {
 		return "", err
 	}
-	if _, err := l.git(ctx, "add", "-A"); err != nil {
+	message := filepath.Join(l.scratch, "message.txt")
+	if err := os.WriteFile(message, []byte(l.message()), clioptions.PrivateFileMode); err != nil {
 		return "", err
 	}
-	if _, err := l.git(ctx, "commit", "-q", "-F", file.Name()); err != nil {
+	arguments := []string{"commit-tree", strings.TrimSpace(tree), "-F", message, "-p", l.head}
+	for _, parent := range l.merging {
+		arguments = append(arguments, "-p", parent)
+	}
+	commit, err := l.git(ctx, arguments...)
+	if err != nil {
 		return "", err
 	}
-	committed = true
-	landed, err := gitauthority.Query(ctx, l.Repo, "rev-parse", "HEAD")
-	return strings.TrimSpace(string(landed)), err
+	landed = strings.TrimSpace(commit)
+	if _, err := l.git(ctx, "update-ref", "-m", "land "+l.Ref, "HEAD", landed, l.head); err != nil {
+		return "", fmt.Errorf("land: publish %s onto %.12s: %w", l.Ref, l.head, err)
+	}
+	planPath := filepath.Join(l.Repo, filepath.FromSlash(plan.Path))
+	held, err := os.ReadFile(planPath)
+	switch {
+	case err != nil:
+	case !bytes.Equal(held, l.planned):
+		err = fmt.Errorf("land: %s landed as %.12s, but %s changed during the landing and is left as edited; reconcile it with HEAD's", l.Ref, landed, plan.Path)
+	default:
+		err = plan.Save(planPath, l.advanced)
+	}
+	// The checkout's index follows the commit, and a merge it concluded ends.
+	_, synced := l.git(ctx, "reset", "-q")
+	return landed, errors.Join(err, synced)
 }
 
 // message is the authored message, what the gate measured, and the trailers:
@@ -426,16 +479,14 @@ func (l *landing) message() string {
 		"\n\n" + strings.Join(trailers, "\n") + "\n"
 }
 
-// sameTree compares two dirty-tree readings by path and status; the plan,
-// which the commit itself rewrites, and a formatted file keep their paths.
-func sameTree(now, then []repoanalysis.DirtyPath) bool {
-	return slices.EqualFunc(now, then, func(a, b repoanalysis.DirtyPath) bool {
-		return a.Path == b.Path && a.OriginalPath == b.OriginalPath
-	})
-}
-
 func (l *landing) git(ctx context.Context, arguments ...string) (string, error) {
 	return l.run(ctx, gitauthority.RepositoryEnvironment(), "git", gitauthority.WriterArguments(arguments...)...)
+}
+
+// staged runs git over the landing's private index.
+func (l *landing) staged(ctx context.Context, arguments ...string) (string, error) {
+	environment := append(gitauthority.RepositoryEnvironment(), "GIT_INDEX_FILE="+filepath.Join(l.scratch, "index"))
+	return l.run(ctx, environment, "git", gitauthority.WriterArguments(arguments...)...)
 }
 
 // run executes one command at the repository root and returns its standard

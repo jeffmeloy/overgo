@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 
@@ -10,7 +11,7 @@ import (
 // trainSeriesForecast is the seriesforecast route: training under a
 // registered forecast objective, whose held-out verdict and trained
 // checkpoint it publishes.
-func trainSeriesForecast(flags *flag.FlagSet, args []string) error {
+func trainSeriesForecast(ctx context.Context, flags *flag.FlagSet, args []string) error {
 	modelDir := flags.String("model", "", "forecast model directory (safetensors + config.json)")
 	steps := clioptions.IntOverride(flags, "steps", "required observed Muon steps")
 	maxWall := clioptions.DurationOverride(flags, "max-wall", "optional projected-wall bound")
@@ -23,5 +24,5 @@ func trainSeriesForecast(flags *flag.FlagSet, args []string) error {
 	if *objectiveAlias == "" || *modelDir == "" || *out == "" || *steps <= 0 {
 		return fmt.Errorf("%s: objective, model, out, and positive steps required", flags.Name())
 	}
-	return runObjective(*storeRoot, *objectiveAlias, *modelDir, *out, *steps, *maxWall)
+	return runObjective(ctx, *storeRoot, *objectiveAlias, *modelDir, *out, *steps, *maxWall)
 }

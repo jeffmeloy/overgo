@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"overgo/internal/tensor"
@@ -122,40 +121,24 @@ func TestAnalyzeStatesSurfacesTruncation(t *testing.T) {
 	}
 }
 
-func TestAnalyzeStatesRejectsInvalidMetric(t *testing.T) {
+// TestAnalyzeStatesRefusals: an unknown metric and a prompt of one token
+// are the client's errors; a model without hidden-state capture cannot
+// answer at all.
+func TestAnalyzeStatesRefusals(t *testing.T) {
 	t.Parallel()
-	handler := newTestHandler(t, threeTokenStates())
-	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"x","metric":"banana"}`)
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", response.Code)
-	}
-}
-
-func TestAnalyzeStatesUnsupportedWithoutCapture(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"x"}`)
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501", response.Code)
-	}
-}
-
-func TestAnalyzeStatesRejectsShortPrompt(t *testing.T) {
-	t.Parallel()
-	gen := &statesGenerator{tokens: []tokenizer.TokenID{7}, width: 2, vectors: []float32{1, 0}}
-	handler := newTestHandler(t, gen)
-	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"x"}`)
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", response.Code)
-	}
-}
-
-func TestAnalyzeStatesRejectsNonPost(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, threeTokenStates())
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/analyze/states", nil))
-	if response.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("status = %d, want 405", response.Code)
+	for _, test := range []struct {
+		name      string
+		generator Generator
+		body      string
+		status    int
+	}{
+		{"invalid metric", threeTokenStates(), `{"prompt":"x","metric":"banana"}`, http.StatusBadRequest},
+		{"no capture", &fakeGenerator{}, `{"prompt":"x"}`, http.StatusNotImplemented},
+		{"short prompt", &statesGenerator{tokens: []tokenizer.TokenID{7}, width: 2, vectors: []float32{1, 0}}, `{"prompt":"x"}`, http.StatusBadRequest},
+	} {
+		response := serveTestRequest(newTestHandler(t, test.generator), http.MethodPost, "/analyze/states", test.body)
+		if response.Code != test.status {
+			t.Errorf("%s: status = %d, want %d", test.name, response.Code, test.status)
+		}
 	}
 }

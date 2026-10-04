@@ -103,9 +103,9 @@ func (l *vadLifecycle) audio(t *testing.T, samples []float32, rate int) artifact
 
 func TestVADOfflineAcceptance(t *testing.T) {
 	t.Parallel()
-	t.Run("artifact-refusals", TestVADArtifactRefusals)
-	t.Run("numerical-reference", TestVADNumericalParity)
-	t.Run("boundary-reference", TestVADOfflineBoundaryParity)
+	t.Run("artifact-refusals", verifyVADArtifactRefusals)
+	t.Run("numerical-reference", verifyVADNumericalReference)
+	t.Run("boundary-reference", verifyVADOfflineBoundaries)
 	reference, store, audio := loadVADReference(t)
 	l := newVADLifecycle(t, store, reference.Models[0], false)
 	for _, name := range []string{"speech", "silence"} {
@@ -149,9 +149,9 @@ func residentAudioAdmission(director *capabilityruntime.ModelSessionDirector[str
 
 func TestVADStreamingAcceptance(t *testing.T) {
 	t.Parallel()
-	t.Run("recovery-and-discontinuity", TestVADStreamRecovery)
-	t.Run("waveform-and-cache-reference", TestVADWaveformStreamParity)
-	t.Run("boundary-reference", TestVADStreamBoundaryParity)
+	t.Run("recovery-and-discontinuity", verifyVADStreamRecovery)
+	t.Run("waveform-and-cache-reference", verifyVADWaveformStream)
+	t.Run("boundary-reference", verifyVADStreamBoundaries)
 	reference, store, audio := loadVADReference(t)
 	l := newVADLifecycle(t, store, reference.Models[1], true)
 	for _, name := range []string{"speech", "silence"} {

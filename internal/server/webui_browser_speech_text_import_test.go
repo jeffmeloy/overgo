@@ -53,6 +53,7 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 	defer browser.Close()
 	settle := func(expression string) {
 		t.Helper()
+		t.Logf("waiting for %s", expression)
 		if err := browser.Eventually(ctx, expression); err != nil {
 			t.Fatalf("%s: %v", expression, err)
 		}
@@ -165,7 +166,7 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 	pressKey(t, ctx, browser, "Enter", 13)
 	settle(`document.body.textContent.includes('speech fixture stopped before synthesis')&&textInput.value==='Send the complete edited text. An edit.'`)
 	check(`importRequest.sources.length===1&&importRequest.sources[0]===sourceID&&importRequest.input.text==='Send the complete edited text. An edit.'&&overgo.errors.length===0`)
-	if err := browser.Evaluate(ctx, `location.reload()`, nil); err != nil {
+	if err := browser.Reload(ctx); err != nil {
 		t.Fatal(err)
 	}
 	settle(`document.querySelector('.composer textarea')?.value==='Send the complete edited text. An edit.'&&[...document.querySelectorAll('.attachment-row button')].some(button=>button.textContent==='Reload stored file')`)

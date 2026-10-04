@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/pathidentity"
 )
 
 const (
@@ -86,15 +85,6 @@ type Lease struct {
 	ID              artifact.ID `json:"-"`
 }
 
-// New validates and identifies one immutable lease declaration.
-func New(value Lease) (Lease, error) {
-	if value.Worker != "" {
-		value.Version = DispatchVersion
-		return Codec.New(value)
-	}
-	return Codec.NewInitial(value)
-}
-
 // Codec is the lease document codec: canonical form, identity and contracts.
 var Codec = func() artifact.DocumentCodec[Lease] {
 	codec := artifact.JSONDocumentCodec("work lease", artifact.KindEvidence, MediaType, Schema,
@@ -117,11 +107,6 @@ func contractFor(value Lease) artifact.DocumentContract {
 	return artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: MediaType, Schema: schema}
 }
 
-// Contracts is the shared query contract for advisory leases and dispatch claims.
-func Contracts() []artifact.DocumentContract {
-	return []artifact.DocumentContract{contractFor(Lease{Version: Version}), contractFor(Lease{Version: DispatchVersion})}
-}
-
 // Record normalizes one lease and moves its worktree alias by CAS.
 func Record(ctx context.Context, repository artifact.Repository, data []byte) (Lease, error) {
 	value, _, err := Codec.Normalize(data)
@@ -139,7 +124,7 @@ func Record(ctx context.Context, repository artifact.Repository, data []byte) (L
 		return recordDispatch(ctx, repository, value)
 	}
 	if exists {
-		owner, found, err := Read(ctx, repository, current)
+		owner, found, err := read(ctx, repository, current)
 		if err != nil {
 			return Lease{}, err
 		}
@@ -160,19 +145,24 @@ func Record(ctx context.Context, repository artifact.Repository, data []byte) (L
 	return value, err
 }
 
-// Read returns false for a non-lease artifact.
-func Read(ctx context.Context, reader artifact.Reader, id artifact.ID) (Lease, bool, error) {
-	return ReadTypedDocument(ctx, reader, id, Codec.Contract, Codec.Read, contractFor(Lease{Version: DispatchVersion}))
+// read returns the lease id names, and false for an artifact that is not an
+// advisory lease or a dispatch claim.
+func read(ctx context.Context, reader artifact.Reader, id artifact.ID) (Lease, bool, error) {
+	descriptor, ok, err := reader.Artifact(ctx, id)
+	if err != nil || !ok {
+		return Lease{}, false, err
+	}
+	matches := func(candidate artifact.DocumentContract) bool {
+		return descriptor.MediaType == candidate.MediaType && descriptor.Schema == candidate.Schema
+	}
+	if !matches(Codec.Contract) && !matches(contractFor(Lease{Version: DispatchVersion})) {
+		return Lease{}, false, nil
+	}
+	return Codec.Read(ctx, reader, id)
 }
-
-// Parse decodes one canonical work lease.
-func Parse(content []byte) (Lease, error) { return Codec.Parse(content) }
 
 // ValidateIdentity checks the lease's canonical form and content-addressed identity.
 func (lease Lease) ValidateIdentity() error { return Codec.ValidateIdentity(lease) }
-
-// WorktreeAlias names the existing CAS ownership binding for a worktree.
-func WorktreeAlias(worktree string) string { return worktreeAlias(worktree) }
 
 // ResolveOwner requires the exact lease to remain the current CAS owner.
 func ResolveOwner(ctx context.Context, reader artifact.Reader, lease Lease) error {
@@ -189,22 +179,6 @@ func ResolveOwner(ctx context.Context, reader artifact.Reader, lease Lease) erro
 		}
 	}
 	return nil
-}
-
-// ReadTypedDocument reads one document when its descriptor matches the contract or an alternative.
-func ReadTypedDocument[T any](ctx context.Context, reader artifact.Reader, id artifact.ID, contract artifact.DocumentContract, read func(context.Context, artifact.Reader, artifact.ID) (T, bool, error), alternatives ...artifact.DocumentContract) (T, bool, error) {
-	var zero T
-	descriptor, ok, err := reader.Artifact(ctx, id)
-	if err != nil || !ok {
-		return zero, false, err
-	}
-	matches := func(candidate artifact.DocumentContract) bool {
-		return descriptor.MediaType == candidate.MediaType && descriptor.Schema == candidate.Schema
-	}
-	if !matches(contract) && !slices.ContainsFunc(alternatives, matches) {
-		return zero, false, nil
-	}
-	return read(ctx, reader, id)
 }
 
 func worktreeAlias(worktree string) string {
@@ -264,39 +238,6 @@ func canonicalize(value *Lease) error {
 	}
 	canonicalizeClaims(&value.Claims)
 	return nil
-}
-
-// ResolveWorkspaceClaims converts requested paths to live filesystem
-// identities. Any uncertainty returns a whole-worktree claim.
-func ResolveWorkspaceClaims(worktree string, read, write []string) (string, WorkspaceClaims) {
-	root, err := pathidentity.Canonical(worktree)
-	if err != nil {
-		return filepath.ToSlash(filepath.Clean(worktree)), WorkspaceClaims{WholeWorktree: true}
-	}
-	claims := WorkspaceClaims{}
-	resolve := func(values []string, destination *[]string) bool {
-		for _, value := range values {
-			candidate := value
-			if !filepath.IsAbs(candidate) {
-				candidate = filepath.Join(root, candidate)
-			}
-			contained, containErr := pathidentity.Contains(root, candidate)
-			if containErr != nil || !contained {
-				return false
-			}
-			absolute, absoluteErr := filepath.Abs(candidate)
-			if absoluteErr != nil {
-				return false
-			}
-			*destination = append(*destination, filepath.ToSlash(filepath.Clean(absolute)))
-		}
-		return true
-	}
-	if !resolve(read, &claims.Read) || !resolve(write, &claims.Write) || len(read)+len(write) == 0 {
-		return filepath.ToSlash(root), WorkspaceClaims{WholeWorktree: true}
-	}
-	canonicalizeClaims(&claims)
-	return filepath.ToSlash(root), claims
 }
 
 func canonicalizeClaims(claims *WorkspaceClaims) {
@@ -435,7 +376,7 @@ func recordDispatch(ctx context.Context, repository artifact.Repository, value L
 	var previous *artifact.ID
 	var lineage []artifact.Lineage
 	if value.Previous.Valid() {
-		owner, found, err := Read(ctx, repository, value.Previous)
+		owner, found, err := read(ctx, repository, value.Previous)
 		if err != nil {
 			return Lease{}, err
 		}

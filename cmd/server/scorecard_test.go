@@ -4,11 +4,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
-	"overgo/internal/jsonfile"
+	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testutil"
 )
 
 // TestServerScorecardReadsTheStore: the launcher's scorecard reader builds
@@ -28,31 +31,48 @@ func TestServerScorecardReadsTheStore(t *testing.T) {
 
 // TestScorecardHistoryReadsPublishedRecords: the launcher's history reader
 // has nothing until two scorecards are published beside the store, then
-// gives what moved between the newest two with which changes improved.
+// gives what moved between the newest two, a faster throughput as better,
+// and refuses a record the scorecard refuses rather than reading around it.
 func TestScorecardHistoryReadsPublishedRecords(t *testing.T) {
 	t.Parallel()
 	storeRoot := filepath.Join(t.TempDir(), "overgodb-store")
 	read := scorecardHistory(storeRoot)
-	publish := func(stamp, commit string, throughput float64) {
+	model := testutil.ArtifactID(t, artifact.KindModel, "alpha")
+	evidence := testutil.ArtifactID(t, artifact.KindEvidence, "measured")
+	published := time.Date(2026, time.September, 29, 10, 0, 0, 0, time.UTC)
+	publish := func(commit string, cell scorecard.Cell) {
 		t.Helper()
-		record := scorecard.Record{Commit: commit, Rows: []scorecard.RecordedRow{{Name: "alpha", Task: "inference",
-			Cells: map[metric.Name]scorecard.RecordedCell{metric.Throughput: {Value: throughput, Unit: "tok/s"}}}}}
-		if err := jsonfile.Write(filepath.Join(scorecard.RecordsDirectory(storeRoot), scorecard.RecordName(stamp)), record, 0o644); err != nil {
+		cells := map[metric.Name]scorecard.Cell{}
+		for _, column := range metric.Columns {
+			cells[column] = scorecard.Cell{Reason: "no record measures it"}
+		}
+		cells[metric.Throughput] = cell
+		record := scorecard.Record{Commit: commit, Rows: []scorecard.Row{{Model: model, Name: "alpha", Task: recipe.TaskInference, Cells: cells}}}
+		published = published.Add(time.Hour)
+		if _, err := scorecard.Publish(scorecard.Directory(storeRoot), published, record); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.MkdirAll(scorecard.RecordsDirectory(storeRoot), 0o755); err != nil {
-		t.Fatal(err)
+	throughput := func(value float64) scorecard.Cell {
+		return scorecard.Cell{Value: value, Unit: "tok/s", Source: evidence, Contract: scorecard.Contract{Metric: "throughput", Origin: "serving"}}
 	}
-	publish("20260929T100000Z", "first", 40)
+	publish("first", throughput(40))
 	if history, err := read(); err != nil || history != nil {
 		t.Fatalf("one record gave %+v, %v", history, err)
 	}
-	publish("20260929T110000Z", "second", 45)
+	publish("second", throughput(45))
 	history, err := read()
 	if err != nil || history == nil || history.Previous != "first" || history.Current != "second" || len(history.Moves) != 1 ||
-		history.Moves[0].Kind != string(scorecard.MoveChanged) || !history.Moves[0].Improved || history.Moves[0].Before != 40 || history.Moves[0].After != 45 {
+		history.Moves[0].Kind != "better" || history.Moves[0].Before != 40 || history.Moves[0].After != 45 {
 		t.Fatalf("history = %+v, %v", history, err)
+	}
+	// A record from before the scorecard's own rules (a cell nothing explains) is refused.
+	refused := filepath.Join(scorecard.Directory(storeRoot), "scorecard-"+published.Add(time.Hour).UTC().Format("20060102T150405Z")+".json")
+	if err := os.WriteFile(refused, []byte(`{"commit":"third","rows":[{"name":"alpha","task":"inference","cells":{"throughput":{"value":1}}}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if history, err := read(); err == nil || history != nil {
+		t.Fatalf("a record with an unexplained cell read as %+v, %v", history, err)
 	}
 	if scorecardHistory("") != nil {
 		t.Fatal("a server without a store read a history")

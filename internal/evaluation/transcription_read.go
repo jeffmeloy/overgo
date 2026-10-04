@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
 )
 
@@ -58,4 +61,72 @@ func RequireTranscriptionReport(ctx context.Context, reader artifact.Reader, id 
 		return TranscriptionReport{}, errors.New("evaluation: transcription report differs from persisted outputs or scoring protocol")
 	}
 	return report, nil
+}
+
+// TranscriptionQualities reads the newest transcription report of each
+// runtime recipe, re-scored from its persisted outputs, as the recipe's word
+// error rate on the report's largest group. The summary's suite is the
+// report's dataset and that group, and its protocol the prompting the plan
+// executed under followed by the normalization the report scored with. A
+// report whose groups hold no utterance measures nothing and is passed over.
+func TranscriptionQualities(ctx context.Context, store *overgodb.Store) (map[artifact.ID]EvalSummary, error) {
+	qualities := map[artifact.ID]EvalSummary{}
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{transcriptionReportContract}, Order: overgodb.DocumentNewestFirst,
+	}, func(data []byte) (TranscriptionReport, error) {
+		var report TranscriptionReport
+		err := strictjson.DecodeBytes(data, &report)
+		return report, err
+	}, func(view overgodb.DocumentView, stored TranscriptionReport) error {
+		plan, err := loadEvidencePlan(ctx, store, stored.Plan)
+		if err != nil {
+			return err
+		}
+		if _, read := qualities[plan.body.RuntimeRecipe]; read {
+			return nil
+		}
+		report, err := RequireTranscriptionReport(ctx, store, view.Content.Descriptor.ID)
+		if err != nil {
+			return err
+		}
+		policy, err := ReadExecutionPolicy(ctx, store, plan.body.Execution)
+		if err != nil {
+			return err
+		}
+		// Groups arrive in name order; only a larger group displaces.
+		var largest transcriptionSlice
+		for _, group := range report.Groups {
+			if group.Utterances > largest.Utterances {
+				largest = group
+			}
+		}
+		if largest.Utterances == 0 {
+			return nil
+		}
+		protocol := []string{policy.Prompting.Label()}
+		for _, operation := range report.Normalization {
+			protocol = append(protocol, string(operation))
+		}
+		summary := EvalSummary{
+			Suite: report.Dataset.String() + "/" + largest.Name, Prompting: strings.Join(protocol, ", "), Record: report.ID,
+			Metrics:    map[string]float64{wordErrorRateMetric: largest.WordErrorRate},
+			Directions: map[string]runrecord.Direction{wordErrorRateMetric: runrecord.DirectionMinimize},
+		}
+		// Re-scoring already checked every prediction against the plan. Missing
+		// environment content retains quality but cannot earn comparison credit.
+		if environment, err := runrecord.RequireEnvironment(ctx, store, plan.body.Environment); err == nil {
+			comparison, err := plan.comparisonIdentity()
+			if err != nil {
+				return err
+			}
+			summary.Comparison, summary.Environment, summary.CodeCommit = comparison, environment.ID, plan.body.CodeCommit
+			summary.ExecutionKnown, summary.Reproducible = true, environment.Reproducible()
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		qualities[plan.body.RuntimeRecipe] = summary
+		return nil
+	})
+	return qualities, err
 }

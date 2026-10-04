@@ -5,7 +5,8 @@ import "testing"
 // TestAcceptedProgressReadsLandingsFromGit holds progress to what git
 // records: a landing of a sibling step or of a prerequisite after the
 // checkpoint is progress for the open row, a landing of an unrelated row or
-// a commit that names no row is not, and a merge brings none.
+// a commit that names no row is not, and a merge that names no row brings
+// none from its side.
 func TestAcceptedProgressReadsLandingsFromGit(t *testing.T) {
 	t.Parallel()
 	document := Plan{Campaign: "progress", Doctrine: "fixture", Items: []Item{

@@ -3,8 +3,10 @@ package seq2seq
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"overgo/internal/hostmath"
+	"overgo/internal/optimizer"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -79,16 +81,74 @@ type Trainer struct {
 	model     *Model
 	layout    trainingLayout
 	bindings  []trainingParameterBinding
+	plan      optimizer.Plan
 	program   trainingprogram.TrainingProgram
 	execution trainingprogram.Execution[trainingStep]
 	weights   []float32
 	gradients []float32
-	optimizer trainingOptimizer
+	optimizer optimizer.Stepper
+	// gradientL2 is the norm of the gradient the latest step applied.
+	gradientL2 float64
 }
 
-type trainingOptimizer interface {
-	Step() error
-	Close() error
+// TrainableParameterCount is how many parameters a trainer of m steps.
+func (m *Model) TrainableParameterCount() int { return newTrainingLayout(m).count }
+
+// NewTrainer binds every declared model parameter to compiled execution and
+// the shared Muon stepper under config.
+func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
+	if model == nil {
+		return nil, errors.New("seq2seq: invalid trainer")
+	}
+	layout := newTrainingLayout(model)
+	bindings := trainingParameterBindings(model, layout)
+	groups := make([]optimizer.GroupSpec, len(bindings))
+	parameters := make([]trainingprogram.ParameterSpec, len(bindings))
+	for index, binding := range bindings {
+		groups[index] = optimizer.GroupSpec{Name: binding.name, Start: binding.span.start, End: binding.span.end, Rows: binding.rows, Cols: binding.cols}
+		parameters[index] = trainingprogram.ParameterSpec{Name: binding.name, Rows: binding.rows, Cols: binding.cols, Trainable: true}
+	}
+	plan, err := optimizer.CompilePlan(layout.count, groups)
+	if err != nil {
+		return nil, err
+	}
+	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
+		Objective: trainingprogram.ObjectiveTokenPrediction,
+		Operators: []trainingprogram.OperatorSpec{
+			{ID: trainingForward, Phase: trainingprogram.PhaseForward},
+			{ID: trainingBackward, Phase: trainingprogram.PhaseBackward},
+			{ID: trainingMuon, Phase: trainingprogram.PhaseOptimize},
+		},
+		Parameters: parameters,
+		Optimizer:  plan,
+	})
+	if err != nil {
+		return nil, err
+	}
+	weights := make([]float32, layout.count)
+	for _, binding := range bindings {
+		binding.load(weights)
+	}
+	gradients := make([]float32, layout.count)
+	muon, err := optimizer.NewStepper(weights, gradients, plan, config)
+	if err != nil {
+		return nil, err
+	}
+	trainer := &Trainer{
+		model: model, layout: layout, bindings: bindings, plan: plan, program: program,
+		weights: weights, gradients: gradients, optimizer: muon,
+	}
+	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[trainingStep]{
+		{Operator: trainingForward, Execute: trainer.forward},
+		{Operator: trainingBackward, Execute: trainer.backward},
+		{Operator: trainingMuon, Execute: trainer.optimize},
+	})
+	if err != nil {
+		_ = muon.Close()
+		return nil, err
+	}
+	trainer.execution = execution
+	return trainer, nil
 }
 
 type trainingStep struct {
@@ -364,6 +424,18 @@ func copyBF16ToFloat32(dst []float32, src []uint16) {
 }
 
 func (t *Trainer) Program() trainingprogram.TrainingProgram { return t.program }
+
+// GradientL2 is the norm of the gradient the latest step applied.
+func (t *Trainer) GradientL2() float64 { return t.gradientL2 }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (t *Trainer) Snapshot() optimizer.State { return t.optimizer.Snapshot() }
+
+// SaveWeights writes the trained parameters, one tensor per plan group at its
+// [rows, cols], so a checkpoint carries exactly what the optimizer steps.
+func (t *Trainer) SaveWeights(path string) error {
+	return optimizer.SavePlanWeights(path, t.plan, t.weights)
+}
 
 func (t *Trainer) Close() error {
 	if t == nil || t.optimizer == nil {
@@ -887,6 +959,11 @@ func (t *Trainer) optimize(state *trainingStep) error {
 		return errors.New("final-norm gradient differs from parameter plan")
 	}
 	copy(t.gradients, state.gradient)
+	var squared float64
+	for _, value := range t.gradients {
+		squared += float64(value) * float64(value)
+	}
+	t.gradientL2 = math.Sqrt(squared)
 	if err := t.optimizer.Step(); err != nil {
 		return err
 	}

@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/jsonabbrev"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
 	"overgo/internal/workflowruntime"
@@ -462,7 +465,8 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 		device: c.device, policy: policy,
 	}
 
-	entry, fresh, err := c.lease(ctx, store, path, key, execution, input)
+	// A session leased resident loaded nothing for this run: its load is zero.
+	entry, fresh, loaded, err := c.lease(ctx, store, path, key, execution, input)
 	if err != nil {
 		return zero, err
 	}
@@ -474,23 +478,20 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	}
 	inputs, err := c.inputs(input, content, program.Definition())
 	if err == nil {
-		output, walls, executeErr := ExecuteMeasured[Output](
+		output, result, executeErr := ExecuteMeasured[Output](
 			ctx, store, modelID, program,
 			RunKey(program.Definition(), content), inputs,
 			func(runtime *workflowruntime.Runtime) error { return c.bind(runtime, modelID, entry.model) },
 		)
-		var measured Measured
+		measured := Measured{Run: result.Run.ID}
 		if executeErr == nil {
-			measured = measure(output, entry.model, walls)
-			measured.Input = content
+			measured = measure(output, entry.model, result, loaded)
 		}
+		measured.Input = content
 		if executeErr != nil {
 			err = c.retire(ctx, key, entry, executeErr)
 		} else if resources.RequestScoped() {
 			err = c.retire(ctx, key, entry, nil)
-		}
-		if executeErr != nil {
-			return zero, err
 		}
 		return measured, err
 	}
@@ -507,15 +508,21 @@ func (c *ModelSessionDirector[Input, Model, Output]) lease(
 	key sessionKey,
 	execution modelrecipe.CapabilityEvidenceSelection,
 	input Input,
-) (*sessionEntry[Model], bool, error) {
-	return c.leaseEntry(ctx, key, execution.Scope,
+) (*sessionEntry[Model], bool, time.Duration, error) {
+	var loaded uint64
+	entry, fresh, err := c.leaseEntry(ctx, key, execution.Scope,
 		func(ctx context.Context) error {
 			_, err := c.refreshExecution(ctx, store, execution)
 			return err
 		},
 		func(ctx context.Context) (Model, error) {
-			return c.load(ctx, store, path, execution.Program, input)
+			clock := processmeasure.NewStopwatch()
+			model, err := c.load(ctx, store, path, execution.Program, input)
+			// A wall the clock could not read stays zero: absent, not guessed.
+			loaded, _ = clock.Elapsed()
+			return model, err
 		})
+	return entry, fresh, time.Duration(loaded), err
 }
 
 func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
@@ -827,7 +834,7 @@ func decodeJSONInput[Input any](
 		return input, artifact.Content{}, errors.New("capability runtime: program model differs from binding")
 	}
 	content, err := artifact.JSONContent(
-		artifact.JSONContract(artifact.KindFile, "overgo."+name+"-input.v1"), input,
+		artifact.JSONContract(artifact.KindFile, "overgo."+name+requestSchema), input,
 	)
 	if err != nil {
 		return input, artifact.Content{}, err
@@ -849,6 +856,16 @@ func decodeJSONInput[Input any](
 // megabyte holds every settings-shaped request while excluding the
 // embedded-tensor classes measured at tens of megabytes.
 const inlineRequestBytes = 1 << 20
+
+// requestSchema ends the schema of a request a run retains whole.
+const requestSchema = "-input.v1"
+
+// RetainedRequest is the request a run retained whole; an oversized request
+// keeps only its digest, which nothing can execute.
+func RetainedRequest(content artifact.Content) (string, bool) {
+	descriptor := content.Descriptor
+	return string(content.Data), descriptor.ID.Kind() == artifact.KindFile && strings.HasSuffix(descriptor.Schema, requestSchema)
+}
 
 // digestRequestContent replaces an oversized request document with its
 // durable footprint: the full request's digest and size for identity,
@@ -898,7 +915,7 @@ func executeScalar[Input, Model, Output any](
 	input Input,
 	model Model,
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
-) (Output, []workflowruntime.NodeWall, error) {
+) (Output, workflowruntime.Result, error) {
 	definition := program.Definition()
 	inputPort := definition.Inputs[0]
 	return ExecuteMeasured[Output](

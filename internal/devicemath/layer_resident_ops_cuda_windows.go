@@ -224,43 +224,6 @@ func allocLayerCache(s *cudaScope, d layerDims) (layerCachePtrs, error) {
 	return c, nil
 }
 
-// allocLayerGrads allocates the 9 resident weight-gradient buffers for one layer.
-func allocLayerGrads(s *cudaScope, d layerDims) (layerGradPtrs, error) {
-	var g layerGradPtrs
-	for _, spec := range []struct {
-		p *driver.DevicePtr
-		n int
-	}{
-		{&g.dInLN, d.hidden}, {&g.dPostLN, d.hidden}, {&g.dQ, d.width * d.hidden}, {&g.dK, d.kvWidth * d.hidden},
-		{&g.dV, d.kvWidth * d.hidden}, {&g.dO, d.hidden * d.width}, {&g.dGate, d.inter * d.hidden},
-		{&g.dUp, d.inter * d.hidden}, {&g.dDown, d.hidden * d.inter},
-	} {
-		p, err := s.alloc(spec.n)
-		if err != nil {
-			return layerGradPtrs{}, err
-		}
-		*spec.p = p
-	}
-	return g, nil
-}
-
-func allocLayerBiasGrads(s *cudaScope, g *layerGradPtrs, d layerDims, biased bool) error {
-	if !biased {
-		return nil
-	}
-	for _, spec := range []struct {
-		p *driver.DevicePtr
-		n int
-	}{{&g.dQBias, d.width}, {&g.dKBias, d.kvWidth}, {&g.dVBias, d.kvWidth}} {
-		pointer, err := s.alloc(spec.n)
-		if err != nil {
-			return err
-		}
-		*spec.p = pointer
-	}
-	return nil
-}
-
 // forwardDevice runs one pre-norm layer forward entirely on device: reads the
 // input residual `in` (never mutated) and the resident weights `w`, writes the
 // activation cache `c` and the advanced residual `xOut`. Transient attention/MLP

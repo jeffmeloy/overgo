@@ -12,6 +12,7 @@ import (
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/servingattempt"
 )
 
 func openServingRepository(config Config) (*overgodb.Store, runrecord.Environment, error) {
@@ -74,9 +75,11 @@ func (h *Handler) publishServing(ctx context.Context, observation runrecord.Serv
 	}); ok {
 		observation.RealizedResidency = observer.RealizedResidency()
 	}
-	published, err := runrecord.PublishServingObservation(context.WithoutCancel(ctx), h.repository, observation)
+	published, err := servingattempt.Record(context.WithoutCancel(ctx), h.repository, observation)
 	if err != nil {
 		h.observationErrors.Add(1)
+	}
+	if !published.ID.Valid() {
 		return artifact.ID{}
 	}
 	h.servingEvents.cursor++

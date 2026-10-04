@@ -21,13 +21,13 @@ func TestScratchTensorForwardDeviceParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	slab := construction.initialF32()
+	slab := construction.InitialWeights()
 	cuda, err := executor.New(0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cuda.Close()
-	hostModel, err := construction.bindMADTransformer(slab)
+	hostModel, err := construction.BindMADTransformer(slab)
 	if err != nil {
 		t.Fatal(err)
 	}

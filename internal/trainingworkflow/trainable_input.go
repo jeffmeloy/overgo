@@ -1,18 +1,20 @@
 package trainingworkflow
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"encoding/json"
-	"errors"
-
 	"overgo/internal/densecausal"
-	artifactexport "overgo/internal/export"
 	"overgo/internal/gguf"
 	"overgo/internal/hfbpe"
+	"overgo/internal/strictjson"
 	"overgo/internal/tokenizer"
+	"overgo/internal/trainingprogram"
 )
 
 // isGGUFModelInput reports whether the model input names one GGUF file.
@@ -23,24 +25,42 @@ func isGGUFModelInput(input string) bool {
 	return err == nil && !info.IsDir() && strings.EqualFold(filepath.Ext(input), ".gguf")
 }
 
+// trainedInput resolves a model input that names a run's output directory
+// to the trained model the run published there over a GGUF base.
+func trainedInput(input string) (string, error) {
+	if info, err := os.Stat(input); err != nil || !info.IsDir() {
+		return input, err
+	}
+	if trained, err := trainingprogram.CheckpointWeightsPath(input); err == nil && isGGUFModelInput(trained) {
+		return trained, nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	return input, nil
+}
+
 // loadTrainableModel materializes the trainable F32 inventory from either
 // model representation through its own loader.
 func loadTrainableModel(input string) (*densecausal.Model, error) {
+	input, err := trainedInput(input)
+	if err != nil {
+		return nil, err
+	}
 	if isGGUFModelInput(input) {
 		return densecausal.LoadGGUF(input)
 	}
 	return densecausal.Load(input)
 }
 
-// checkpointTokenizerGGUF is the metadata-only tokenizer a GGUF-trained
-// checkpoint carries, so resume needs no HF tokenizer files.
-const checkpointTokenizerGGUF = "tokenizer.gguf"
-
-// trainableTokenizer: the encoder training reads text with, and each token's
-// text for showing what it read.
+// trainableTokenizer: the encoder training reads text with, each token's
+// text for showing what it read, and the end-of-sequence token the model
+// declares, which separates documents packed into one training window;
+// ended is false when the model declares none.
 type trainableTokenizer struct {
 	encode func(string) ([]int, error)
 	piece  func(int) string
+	end    int
+	ended  bool
 }
 
 // loadTrainableEncoder resolves the text encoder beside the weights.
@@ -50,23 +70,25 @@ func loadTrainableEncoder(input string) (func(string) ([]int, error), error) {
 }
 
 // loadTrainableTokenizer resolves the tokenizer beside the weights: the HF
-// tokenizer files in a safetensors directory, the tokenizer GGUF metadata
-// embeds, or the metadata-only tokenizer a GGUF-trained checkpoint staged
-// for resume.
+// tokenizer files in a safetensors directory, with the end-of-sequence
+// token its configs declare, or the tokenizer GGUF metadata embeds.
 func loadTrainableTokenizer(input string) (trainableTokenizer, error) {
-	tokenizerPath := input
-	if !isGGUFModelInput(input) {
-		staged := filepath.Join(input, checkpointTokenizerGGUF)
-		if _, err := os.Stat(staged); err != nil {
-			loaded, err := hfbpe.Load(input)
-			if err != nil {
-				return trainableTokenizer{}, err
-			}
-			return trainableTokenizer{encode: loaded.Encode, piece: func(id int) string { return loaded.Decode([]int{id}) }}, nil
-		}
-		tokenizerPath = staged
+	input, err := trainedInput(input)
+	if err != nil {
+		return trainableTokenizer{}, err
 	}
-	file, err := gguf.Open(tokenizerPath)
+	if !isGGUFModelInput(input) {
+		loaded, err := hfbpe.Load(input)
+		if err != nil {
+			return trainableTokenizer{}, err
+		}
+		end, ended, err := declaredEnd(input)
+		if err != nil {
+			return trainableTokenizer{}, err
+		}
+		return trainableTokenizer{encode: loaded.Encode, piece: func(id int) string { return loaded.Decode([]int{id}) }, end: end, ended: ended}, nil
+	}
+	file, err := gguf.Open(input)
 	if err != nil {
 		return trainableTokenizer{}, err
 	}
@@ -89,52 +111,43 @@ func loadTrainableTokenizer(input string) (trainableTokenizer, error) {
 		},
 		// A piece the vocabulary cannot decode shows empty; the id stays beside it.
 		piece: func(id int) string { piece, _ := vocabulary.DecodePiece(tokenizer.TokenID(id), true); return piece },
+		end:   int(vocabulary.EOS), ended: vocabulary.EOS != tokenizer.NullToken,
 	}, nil
 }
 
-// stageCheckpointMetadata stages the files a checkpoint needs for resume
-// beside its weights: a safetensors source copies its own config and
-// tokenizer files, while a GGUF source synthesizes the config from the
-// loaded model facts and extracts the embedded tokenizer as a
-// metadata-only GGUF — the checkpoint stays resumable without the
-// multi-gigabyte source.
-func stageCheckpointMetadata(source, stage string, model *densecausal.Model) error {
-	if !isGGUFModelInput(source) {
-		return artifactexport.CopyFiles(source, stage, []string{"config.json", "tokenizer.json"})
-	}
-	_, untied := model.Shapes["lm_head.weight"]
-	configuration := map[string]any{
-		"num_attention_heads":     model.Dims.Heads,
-		"head_dim":                model.Dims.HeadDim,
-		"rope_theta":              model.Dims.RopeTheta,
-		"rms_norm_eps":            model.Dims.RMSEps,
-		"tie_word_embeddings":     !untied,
-		"max_position_embeddings": model.Dims.ContextLength,
-	}
-	encoded, err := json.MarshalIndent(configuration, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(stage, "config.json"), encoded, 0o644); err != nil {
-		return err
-	}
-	file, err := gguf.Open(source)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	metadata := make([]gguf.Metadata, 0, len(file.Metadata))
-	for _, entry := range file.Metadata {
-		if entry.Key == "general.architecture" || strings.HasPrefix(entry.Key, "tokenizer.") {
-			metadata = append(metadata, entry)
+// declaredEnd reads the end-of-sequence token a safetensors directory
+// declares: the first of generation_config.json's eos_token_id, else of
+// config.json's, the precedence the HF converter resolves. A trained
+// checkpoint carries config.json alone, so its declaration still reads.
+func declaredEnd(directory string) (int, bool, error) {
+	for _, name := range []string{"generation_config.json", "config.json"} {
+		data, err := os.ReadFile(filepath.Join(directory, name))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return 0, false, err
+		}
+		var declared struct {
+			EOS json.RawMessage `json:"eos_token_id"`
+		}
+		if err := json.Unmarshal(data, &declared); err != nil {
+			return 0, false, fmt.Errorf("training workflow: %s: %w", name, err)
+		}
+		if !strictjson.HasValue(declared.EOS) {
+			continue
+		}
+		var ids []int
+		if json.Unmarshal(declared.EOS, &ids) != nil {
+			var id int
+			if err := json.Unmarshal(declared.EOS, &id); err != nil {
+				return 0, false, fmt.Errorf("training workflow: %s eos_token_id is neither a token nor a list of tokens", name)
+			}
+			ids = []int{id}
+		}
+		if len(ids) != 0 {
+			return ids[0], true, nil
 		}
 	}
-	staged, err := os.Create(filepath.Join(stage, checkpointTokenizerGGUF))
-	if err != nil {
-		return err
-	}
-	if err := gguf.Write(staged, metadata, nil, gguf.WriteOptions{}); err != nil {
-		return errors.Join(err, staged.Close())
-	}
-	return staged.Close()
+	return 0, false, nil
 }

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http/httptest"
 	"os"
 	"testing"
@@ -28,16 +29,18 @@ func TestWebUIBrowserWhatGotBetter(t *testing.T) {
 	}
 	defer store.Close()
 	rows := testScorecard(t)
-	serve := func(history *ScorecardHistory) *httptest.Server {
+	serve := func(read ScorecardHistoryReader) *httptest.Server {
 		return httptest.NewServer(newTestHandlerForRepository(t, store, &fakeGenerator{}, func(config *Config) {
 			config.Scorecard = func(context.Context, *overgodb.Store) ([]ScorecardRow, error) { return rows, nil }
-			config.ScorecardHistory = func() (*ScorecardHistory, error) { return history, nil }
+			config.ScorecardHistory = read
 		}))
 	}
-	moved := serve(testScorecardHistory())
+	moved := serve(func() (*ScorecardHistory, error) { return testScorecardHistory(), nil })
 	defer moved.Close()
-	first := serve(nil)
+	first := serve(func() (*ScorecardHistory, error) { return nil, nil })
 	defer first.Close()
+	unreadable := serve(func() (*ScorecardHistory, error) { return nil, errors.New("scorecard-x.json: unknown field") })
+	defer unreadable.Close()
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
 		t.Fatal(err)
@@ -65,11 +68,14 @@ func TestWebUIBrowserWhatGotBetter(t *testing.T) {
   return summary.includes('0123456789ab') && summary.includes('fedcba987654') && summary.includes('1 better, 1 worse') && summary.includes('whether or not work aimed at it')
     && moves('better').join('|') === 'gemma-e4b inference, Throughput: 40.0 tok/s to 45.0 tok/s'
     && moves('worse').join('|') === 'gemma-e4b inference, First output: 100.0 ms to 130.0 ms'
+    && moves('changed').join('|') === 'gemma-e4b inference, Setup steps: 2 to 3'
     && moves('measured').join('|') === 'gemma-e4b inference, Quality: 0.700'
     && moves('unmeasured').join('|') === 'gemma-e4b inference, Peak memory: no benchmark record'
+    && moves('unknown').join('|') === 'gemma-e4b inference, Load'
+    && document.querySelector('#panel-library .scorecard-moves[data-kind="unknown"] li').title === 'measured another way than the baseline'
     && moves('added').join('|') === 'qwen-0.5b inference' && moves('removed').join('|') === 'retired inference';
 })()`)
-	check(`[...document.querySelectorAll('#panel-library .scorecard-moves h4')].map(title => title.textContent).join(',') === 'Better,Worse,Newly measured,No longer measured,New,Gone'`)
+	check(`[...document.querySelectorAll('#panel-library .scorecard-moves h4')].map(title => title.textContent).join('|') === 'Better|Worse|Changed, with no better or worse|Newly measured|No longer measured|Measured differently, so not compared|New|Gone'`)
 	for _, viewport := range webuilane.ScreenViewports {
 		findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "what-got-better")
 		if err != nil || len(findings) != 0 {
@@ -83,5 +89,12 @@ func TestWebUIBrowserWhatGotBetter(t *testing.T) {
 	}
 	settle(`location.origin === ` + "`" + first.URL + "`" + ` && !!document.querySelector('#panel-library .scorecard-history .note')`)
 	check(`document.querySelector('#panel-library .scorecard-history .note').textContent.includes('once two are published') && !document.querySelector('#panel-library .scorecard-moves')`)
-	webuilane.Leg(t, "what got better leg", "with two published scorecards the Library said how many cells got better and worse and listed every move under its kind with both values in their units, whether or not work aimed at it; before two were published it said when they would show")
+
+	// A published record that cannot be read costs the history its answer; the scorecard below it still shows.
+	if err := browser.Evaluate(ctx, `location.href = `+"`"+unreadable.URL+"/#library`", nil); err != nil {
+		t.Fatal(err)
+	}
+	settle(`location.origin === ` + "`" + unreadable.URL + "`" + ` && !!document.querySelector('#panel-library .scorecard-history .note')`)
+	check(`document.querySelector('#panel-library .scorecard-history .note').textContent === 'What moved between scorecards could not be read: scorecard-x.json: unknown field' && !!document.querySelector('#panel-library .scorecard table.grid')`)
+	webuilane.Leg(t, "what got better leg", "with two published scorecards the Library said how many cells got better and worse and listed every move under its kind, including changes with no direction and cells measured differently, whether or not work aimed at it; before two were published it said when they would show; an unreadable record named itself while the scorecard still showed")
 }

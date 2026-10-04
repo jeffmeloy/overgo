@@ -10,7 +10,6 @@ package routedlm
 
 import (
 	"fmt"
-	"math"
 
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
@@ -65,15 +64,19 @@ func LoadLatentBridgeWeights(src *safetensors.Source, b LatentBridgeBinding) (La
 // LatentBridgeTrainer: packed projection pair over the shared Muon stepper.
 type LatentBridgeTrainer struct {
 	hidden, latent int
-	weights        []float32
-	gradients      []float32
-	downW, downB   span
-	upW, upB       span
+	pack           *optimizer.TensorPack
 	stepper        optimizer.Stepper
-	optimizerPlan  optimizer.Plan
 	config         optimizer.Config
 	step           int
 }
+
+// The projection pair's groups in pack order.
+const (
+	bridgeDownW = iota
+	bridgeDownB
+	bridgeUpW
+	bridgeUpB
+)
 
 // NewLatentBridgeTrainer packs the pair as f32 masters and compiles the
 // Muon plan with derived hyperparameters.
@@ -81,91 +84,68 @@ func NewLatentBridgeTrainer(w LatentBridgeWeights, policy trainingprogram.Optimi
 	if w.Hidden <= 0 || w.Latent <= 0 {
 		return nil, fmt.Errorf("routed lm latent bridge: geometry %dx%d", w.Hidden, w.Latent)
 	}
-	sections := []struct {
-		values     []float32
-		rows, cols int
-	}{
-		{bf16Masters(w.DownW.Data), w.Latent, w.Hidden},
-		{w.DownB, 1, w.Latent},
-		{bf16Masters(w.UpW.Data), w.Hidden, w.Latent},
-		{w.UpB, 1, w.Hidden},
-	}
-	names := []string{"bridge.down.weight", "bridge.down.bias", "bridge.up.weight", "bridge.up.bias"}
-	total := 0
-	specs := make([]optimizer.GroupSpec, len(sections))
-	for i, s := range sections {
-		if len(s.values) != s.rows*s.cols {
-			return nil, fmt.Errorf("routed lm latent bridge: %s has %d values, want %d", names[i], len(s.values), s.rows*s.cols)
-		}
-		specs[i] = optimizer.GroupSpec{Name: names[i], Start: total, End: total + len(s.values), Rows: s.rows, Cols: s.cols}
-		total += len(s.values)
-	}
-	plan, err := optimizer.CompilePlan(total, specs)
+	pack, err := optimizer.NewSectionPack([]optimizer.TensorSection{
+		{Name: "bridge.down.weight", Rows: w.Latent, Cols: w.Hidden, BF16: w.DownW.Data},
+		{Name: "bridge.down.bias", Rows: 1, Cols: w.Latent, Values: w.DownB},
+		{Name: "bridge.up.weight", Rows: w.Hidden, Cols: w.Latent, BF16: w.UpW.Data},
+		{Name: "bridge.up.bias", Rows: 1, Cols: w.Hidden, Values: w.UpB},
+	})
 	if err != nil {
+		return nil, fmt.Errorf("routed lm latent bridge: %w", err)
+	}
+	trainer := &LatentBridgeTrainer{hidden: w.Hidden, latent: w.Latent, pack: pack}
+	if trainer.config, err = policy.Config(pack.ParameterCount()); err != nil {
 		return nil, err
 	}
-	config, err := policy.Config(total)
-	if err != nil {
-		return nil, err
-	}
-	trainer := &LatentBridgeTrainer{
-		hidden: w.Hidden, latent: w.Latent,
-		weights:   make([]float32, total),
-		gradients: make([]float32, total),
-		config:    config,
-	}
-	spans := []*span{&trainer.downW, &trainer.downB, &trainer.upW, &trainer.upB}
-	for i, s := range sections {
-		*spans[i] = span{specs[i].Start, specs[i].End}
-		copy(trainer.weights[specs[i].Start:specs[i].End], s.values)
-	}
-	trainer.optimizerPlan = plan
-	trainer.stepper, err = optimizer.NewStepper(trainer.weights, trainer.gradients, plan, trainer.config)
-	if err != nil {
+	if trainer.stepper, err = pack.NewStepper(trainer.config); err != nil {
 		return nil, err
 	}
 	return trainer, nil
 }
 
 // ParameterCount reports the packed organ parameter total.
-func (t *LatentBridgeTrainer) ParameterCount() int { return len(t.weights) }
+func (t *LatentBridgeTrainer) ParameterCount() int { return t.pack.ParameterCount() }
 
 // Config exposes the derived hyperparameters for evidence.
 func (t *LatentBridgeTrainer) Config() optimizer.Config { return t.config }
 
 // OptimizerPlan is the compiled Muon plan over the packed pair: one group
 // per projection tensor.
-func (t *LatentBridgeTrainer) OptimizerPlan() optimizer.Plan { return t.optimizerPlan }
+func (t *LatentBridgeTrainer) OptimizerPlan() optimizer.Plan { return t.pack.Plan() }
 
 // Snapshot copies the optimizer state the next step continues from.
 func (t *LatentBridgeTrainer) Snapshot() optimizer.State { return t.stepper.Snapshot() }
 
 // SaveWeights writes the trained pair at path, the weights Snapshot pairs
 // with.
-func (t *LatentBridgeTrainer) SaveWeights(path string) error {
-	return optimizer.SavePlanWeights(path, t.optimizerPlan, t.weights)
-}
+func (t *LatentBridgeTrainer) SaveWeights(path string) error { return t.pack.Save(path) }
 
 // Close releases the stepper backend.
 func (t *LatentBridgeTrainer) Close() error { return t.stepper.Close() }
 
 // Reconstruct runs the training-precision roundtrip on the packed weights.
 func (t *LatentBridgeTrainer) Reconstruct(hidden []float32) ([]float32, error) {
+	_, out, err := t.forward(hidden)
+	return out, err
+}
+
+// forward: the roundtrip's latent rows and reconstructed hidden rows.
+func (t *LatentBridgeTrainer) forward(hidden []float32) (latent, out []float32, err error) {
 	rows, err := t.rows(hidden)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	latent := make([]float32, rows*t.latent)
-	hostmath.Linear(latent, hidden, t.weights[t.downW.start:t.downW.end], rows, t.hidden, t.latent)
+	latent = make([]float32, rows*t.latent)
+	hostmath.Linear(latent, hidden, t.pack.Weights(bridgeDownW), rows, t.hidden, t.latent)
 	for r := range rows {
-		hostmath.AddBias(latent[r*t.latent:(r+1)*t.latent], t.weights[t.downB.start:t.downB.end])
+		hostmath.AddBias(latent[r*t.latent:(r+1)*t.latent], t.pack.Weights(bridgeDownB))
 	}
-	out := make([]float32, rows*t.hidden)
-	hostmath.Linear(out, latent, t.weights[t.upW.start:t.upW.end], rows, t.latent, t.hidden)
+	out = make([]float32, rows*t.hidden)
+	hostmath.Linear(out, latent, t.pack.Weights(bridgeUpW), rows, t.latent, t.hidden)
 	for r := range rows {
-		hostmath.AddBias(out[r*t.hidden:(r+1)*t.hidden], t.weights[t.upB.start:t.upB.end])
+		hostmath.AddBias(out[r*t.hidden:(r+1)*t.hidden], t.pack.Weights(bridgeUpB))
 	}
-	return out, nil
+	return latent, out, nil
 }
 
 // Loss evaluates the reconstruction MSE without training.
@@ -195,20 +175,11 @@ func (t *LatentBridgeTrainer) Step(hidden []float32) (FlowHeadStepResult, error)
 // lossAndBridgeGradients fills the packed gradient buffer for one pair
 // without stepping.
 func (t *LatentBridgeTrainer) lossAndBridgeGradients(hidden []float32) (float64, float64, error) {
-	rows, err := t.rows(hidden)
+	latent, out, err := t.forward(hidden)
 	if err != nil {
 		return 0, 0, err
 	}
-	latent := make([]float32, rows*t.latent)
-	hostmath.Linear(latent, hidden, t.weights[t.downW.start:t.downW.end], rows, t.hidden, t.latent)
-	for r := range rows {
-		hostmath.AddBias(latent[r*t.latent:(r+1)*t.latent], t.weights[t.downB.start:t.downB.end])
-	}
-	out := make([]float32, rows*t.hidden)
-	hostmath.Linear(out, latent, t.weights[t.upW.start:t.upW.end], rows, t.latent, t.hidden)
-	for r := range rows {
-		hostmath.AddBias(out[r*t.hidden:(r+1)*t.hidden], t.weights[t.upB.start:t.upB.end])
-	}
+	rows := len(hidden) / t.hidden
 
 	invN := 1 / float64(len(hidden))
 	var loss float64
@@ -219,19 +190,14 @@ func (t *LatentBridgeTrainer) lossAndBridgeGradients(hidden []float32) (float64,
 		dOut[i] = float32(2 * d * invN)
 	}
 
-	clear(t.gradients)
+	t.pack.ClearGradients()
 	dLatent := make([]float32, len(latent))
-	hostmath.LinearBackward(dLatent, t.gradients[t.upW.start:t.upW.end], t.gradients[t.upB.start:t.upB.end],
-		latent, t.weights[t.upW.start:t.upW.end], dOut, rows, t.latent, t.hidden, false)
+	hostmath.LinearBackward(dLatent, t.pack.Gradients(bridgeUpW), t.pack.Gradients(bridgeUpB),
+		latent, t.pack.Weights(bridgeUpW), dOut, rows, t.latent, t.hidden, false)
 	dHidden := make([]float32, len(hidden))
-	hostmath.LinearBackward(dHidden, t.gradients[t.downW.start:t.downW.end], t.gradients[t.downB.start:t.downB.end],
-		hidden, t.weights[t.downW.start:t.downW.end], dLatent, rows, t.hidden, t.latent, false)
-
-	var gradientSquared float64
-	for _, g := range t.gradients {
-		gradientSquared += float64(g) * float64(g)
-	}
-	return loss, math.Sqrt(gradientSquared), nil
+	hostmath.LinearBackward(dHidden, t.pack.Gradients(bridgeDownW), t.pack.Gradients(bridgeDownB),
+		hidden, t.pack.Weights(bridgeDownW), dLatent, rows, t.hidden, t.latent, false)
+	return loss, t.pack.GradientL2(), nil
 }
 
 func (t *LatentBridgeTrainer) rows(hidden []float32) (int, error) {

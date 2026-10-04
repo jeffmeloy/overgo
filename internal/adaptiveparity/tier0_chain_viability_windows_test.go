@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/composition"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/trainingworkflow"
 )
 
 // Tier-0 chain protocol, written before the run (Probe Discipline): scorer =
@@ -60,20 +60,20 @@ func TestTier0ChainViability(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	config := composition.ChainConfig{
+	config := trainingworkflow.ChainConfig{
 		ScorerDir: scorerDir, DrafterDir: drafterDir,
 		Prefix: tier0ChainPrefix, Draft: tier0ChainDraft, Target: tier0ChainTarget,
 		Windows: windows,
 	}
 	started := time.Now()
-	result, err := composition.RunChainViability(store, config)
+	result, err := trainingworkflow.RunChainViability(store, config)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(result.Outcomes) != len(windows) {
 		t.Fatalf("outcomes = %d, want one per window", len(result.Outcomes))
 	}
-	record, err := composition.RecordChainViability(store, config, result)
+	record, err := trainingworkflow.RecordChainViability(store, config, result)
 	if err != nil {
 		t.Fatal(err)
 	}

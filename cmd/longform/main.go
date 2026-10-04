@@ -2,9 +2,7 @@
 // 2026-09-04) on servable text models: the SHORT fingerprint shape, the
 // LONG ladder of prompt lengths with a greedy generation and a
 // teacher-forced context score per rung, the rates each rung measured,
-// and a verdict against the declared floors, committed as evidence the
-// suite passes read before they run; -check compares a fresh climb
-// against explicitly selected records on identical corpus/token inputs.
+// and a verdict against the declared floors, committed as evidence.
 package main
 
 import (
@@ -64,28 +62,18 @@ const (
 const corpusBytesPerToken = 6
 
 type options struct {
-	Repository        string
-	Root              string
-	Device            int
-	Publish           bool
-	All               bool
-	Check             bool
-	Guard             bool
-	ValidateBaselines bool
-	GuardCoverage     bool
-	GuardSelect       bool
-	PathsFile         string
-	OutputPrefix      int
-	Models            []string
-	Corpus            string
-	ExportCorpus      string
-	CorpusBytes       int
-	Baselines         []string
-	CompareRecords    []string
-	Budget            time.Duration
-	ModelBudget       time.Duration
-	corpusText        string
-	deviceInfo        driver.DeviceInfo
+	Repository   string
+	Root         string
+	Device       int
+	Publish      bool
+	Guard        bool
+	OutputPrefix int
+	Models       []string
+	Corpus       string
+	Budget       time.Duration
+	ModelBudget  time.Duration
+	corpusText   string
+	deviceInfo   driver.DeviceInfo
 }
 
 func main() {
@@ -99,68 +87,23 @@ func parseOptions(args []string) (options, error) {
 	flags.StringVar(&result.Root, "root", ".", "repository root: the verifying commit, the inference surface, and the corpus are read from it, so a profiler that changes the working directory still runs the tool")
 	flags.IntVar(&result.Device, "device", 0, "CUDA device ordinal")
 	flags.BoolVar(&result.Publish, "publish", false, "commit each result as long-form evidence with a verification claim (requires a clean worktree)")
-	flags.BoolVar(&result.All, "all", false, "run every servable text model, smallest first")
-	flags.BoolVar(&result.Check, "check", false, "measure a fresh ladder against explicit -baseline records on the fixed -corpus; exit 1 on a regression")
 	flags.BoolVar(&result.Guard, "guard", false, "continue past sampled EOG to measure full output budgets on the same greedy device path; require complete recipe-bound quality, rate and allocation evidence through the regression ceiling")
-	flags.BoolVar(&result.ValidateBaselines, "validate-baselines", false, "read-only acceptance of explicit current-surface guard records; does not load models or measure CUDA")
-	flags.BoolVar(&result.GuardCoverage, "guard-coverage", false, "report exact selected text-model execution facts and explicit baseline gaps as JSON; read-only, incomplete coverage exits nonzero")
-	flags.BoolVar(&result.GuardSelect, "guard-select", false, "derive required text-model checks from changed paths and explicit accepted records; read-only, missing coverage refuses")
-	flags.StringVar(&result.PathsFile, "paths-file", "", "with -guard-select: newline-separated repository-relative changed paths")
 	flags.IntVar(&result.OutputPrefix, "show", 240, "characters of the judged generation to print")
-	flags.StringVar(&result.Corpus, "corpus", "", "fixed UTF-8 corpus file; required for -check")
-	flags.StringVar(&result.ExportCorpus, "export-corpus", "", "write a new fixed corpus file from this repository, without measuring models")
-	flags.IntVar(&result.CorpusBytes, "corpus-bytes", 0, "minimum corpus bytes to export; required with -export-corpus")
-	flags.Func("baseline", "repeatable exact accepted long-form record ID; required for every checked model", func(value string) error { result.Baselines = append(result.Baselines, value); return nil })
-	flags.Func("compare-record", "compare an exact stored record against matching -baseline records; repeatable, read-only, no model execution", func(value string) error { result.CompareRecords = append(result.CompareRecords, value); return nil })
+	flags.StringVar(&result.Corpus, "corpus", "", "fixed UTF-8 corpus file; required for -guard")
 	flags.DurationVar(&result.Budget, "budget", 0, "required aggregate measurement deadline")
 	flags.DurationVar(&result.ModelBudget, "model-budget", 0, "optional per-model deadline within the aggregate budget")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
 	result.Models = flags.Args()
-	if len(result.CompareRecords) > 0 {
-		var conflicts []string
-		flags.Visit(func(f *flag.Flag) {
-			switch f.Name {
-			case "compare-record", "baseline", "repo", "root", "budget":
-			default:
-				conflicts = append(conflicts, f.Name)
-			}
-		})
-		if len(conflicts) > 0 || len(result.Models) > 0 || len(result.Baselines) == 0 {
-			return options{}, errors.New("longform: -compare-record requires -baseline and permits only -repo, -root and -budget")
-		}
-	}
-	if result.ExportCorpus != "" {
-		if result.CorpusBytes <= 0 || result.All || len(result.Models) != 0 || result.Check || result.Guard || result.ValidateBaselines || result.GuardCoverage || result.GuardSelect || result.PathsFile != "" || result.Publish || result.Corpus != "" || len(result.Baselines) != 0 {
-			return options{}, errors.New("longform: -export-corpus requires positive -corpus-bytes and no measurement options")
-		}
-		return result, nil
-	}
-	if result.CorpusBytes != 0 || result.Budget <= 0 || result.ModelBudget < 0 {
+	if result.Budget <= 0 || result.ModelBudget < 0 {
 		return options{}, errors.New("longform: measurement requires positive -budget; -model-budget cannot be negative")
-	}
-	if (result.Check || result.ValidateBaselines || result.GuardCoverage || result.GuardSelect) && (result.Corpus == "" || len(result.Baselines) == 0) {
-		return options{}, errors.New("longform: -check and -validate-baselines require a fixed -corpus and explicit -baseline records")
-	}
-	if !result.Check && !result.ValidateBaselines && !result.GuardCoverage && !result.GuardSelect && len(result.CompareRecords) == 0 && len(result.Baselines) != 0 {
-		return options{}, errors.New("longform: -baseline requires -check or -validate-baselines")
 	}
 	if result.Guard && result.Corpus == "" {
 		return options{}, errors.New("longform: -guard requires a fixed -corpus")
 	}
-	if len(result.CompareRecords) == 0 && result.All == (len(result.Models) > 0) {
-		return options{}, errors.New("usage: longform [-repo <store>] [-device N] [-publish | -check] (-all | <model.gguf>...)")
-	}
-	if result.Publish && (result.Check || result.ValidateBaselines) || result.Check && result.ValidateBaselines {
-		return options{}, errors.New("longform: -publish, -check and -validate-baselines are separate modes")
-	}
-	if result.GuardCoverage && (result.Publish || result.Check || result.ValidateBaselines || result.Guard) {
-		return options{}, errors.New("longform: -guard-coverage is a separate read-only mode")
-	}
-	if result.GuardSelect && (!result.All || result.PathsFile == "" || result.Publish || result.Check || result.ValidateBaselines || result.Guard || result.GuardCoverage) ||
-		!result.GuardSelect && result.PathsFile != "" {
-		return options{}, errors.New("longform: -guard-select requires -all and -paths-file, and is separate from measurement and admission modes")
+	if len(result.Models) == 0 {
+		return options{}, errors.New("usage: longform [-repo <store>] [-device N] [-publish] <model.gguf>...")
 	}
 	if result.Repository == "" {
 		roots, err := dataroot.Resolve(result.Root)
@@ -175,23 +118,20 @@ func parseOptions(args []string) (options, error) {
 }
 
 // target is one model the run measures: its listing entry, the weights
-// identity its claim binds to, the short-prompt rates its long-form
-// rates are bounded against, and the explicitly selected comparison record.
+// identity its claim binds to, and the short-prompt rates its long-form
+// rates are bounded against.
 type target struct {
 	entry          discovery.Entry
 	weights        artifact.ID
 	bytes          int64
 	short          longform.ShortRates
 	shortBenchmark artifact.ID
-	record         longform.Summary
 }
 
 // listTargets reads everything the run needs from the store before any
-// model loads: the servable text models (a declared domain without text
-// excludes a model; undeclared models are text), their sizes, the
-// latest short-prompt benchmark per location for measurement. Read-only guard
-// admission needs only selected bytes and active recipes; its measured rates
-// come from separately resolved exact baseline records.
+// model loads: the named servable text models (a declared domain without
+// text refuses a model; undeclared models are text), their sizes, and the
+// latest short-prompt benchmark per location.
 func listTargets(ctx context.Context, options options) ([]target, error) {
 	store, err := overgodb.OpenReadOnly(options.Repository)
 	if err != nil {
@@ -210,22 +150,17 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 	if err != nil {
 		return nil, err
 	}
-	var benchmarks map[string]evaluation.BenchmarkSummary
-	measure := !options.ValidateBaselines && !options.GuardCoverage && !options.GuardSelect
-	if measure {
-		benchmarks = readBenchmarks()
-	}
+	benchmarks := readBenchmarks()
 	wanted := make(map[string]bool, len(requested))
 	for _, path := range requested {
 		wanted[longform.Key(path)] = true
 	}
-	selected := len(requested) > 0
 	var targets []target
 	for _, entry := range entries {
 		if !entry.Present || entry.Stale != "" || entry.Location == "" {
 			continue
 		}
-		if selected && !wanted[longform.Key(entry.Location)] {
+		if !wanted[longform.Key(entry.Location)] {
 			continue
 		}
 		domains, declared, err := modelartifact.EvalDomains(ctx, store, entry.Model)
@@ -233,17 +168,14 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 			return nil, err
 		}
 		if declared && !slices.Contains(domains, evaluation.DomainText) {
-			if selected {
-				return nil, fmt.Errorf("longform: %s declares domains %v, not a text model", entry.Location, domains)
-			}
-			continue
+			return nil, fmt.Errorf("longform: %s declares domains %v, not a text model", entry.Location, domains)
 		}
 		benchmark := benchmarks[entry.Location]
 		short := longform.ShortRates{
 			PromptTokensPerSecond: benchmark.PromptTokensPerSecond,
 			DecodeTokensPerSecond: benchmark.DecodeTokensPerSecond,
 		}
-		if measure && (!validShortRates(short) || !benchmark.Record.Valid() || benchmark.Record.Kind() != artifact.KindEvidence) {
+		if !validShortRates(short) || !benchmark.Record.Valid() || benchmark.Record.Kind() != artifact.KindEvidence {
 			return nil, fmt.Errorf("longform: %s has no bound finite positive short-prompt benchmark; publish one with cmd/benchmark before measurement", entry.Location)
 		}
 		info, err := os.Stat(entry.Location)
@@ -265,9 +197,6 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 	}
 	if len(wanted) > 0 {
 		return nil, fmt.Errorf("longform: not servable model locations: %s", strings.Join(slices.Sorted(maps.Keys(wanted)), ", "))
-	}
-	if len(targets) == 0 {
-		return nil, errors.New("longform: the store holds no servable text model")
 	}
 	// Smallest first (owner rule 2026-09-01): the cheap models surface a
 	// broken run in seconds; the model whose run costs minutes goes last.
@@ -292,29 +221,10 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if options.ExportCorpus != "" {
-		text, err := longform.Corpus(options.Root, options.CorpusBytes)
-		if err != nil {
-			return err
-		}
-		file, err := os.OpenFile(options.ExportCorpus, os.O_WRONLY|os.O_CREATE|os.O_EXCL, clioptions.OutputFileMode)
-		if err != nil {
-			return err
-		}
-		_, writeErr := io.WriteString(file, text)
-		if err := errors.Join(writeErr, file.Close()); err != nil {
-			return err
-		}
-		fmt.Fprintf(output, "corpus exported: %s (%d bytes); no models measured\n", options.ExportCorpus, len(text))
-		return nil
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	ctx, cancel := context.WithTimeoutCause(ctx, options.Budget, fmt.Errorf("longform: aggregate budget %s exhausted: %w", options.Budget, context.DeadlineExceeded))
 	defer cancel()
-	if len(options.CompareRecords) > 0 {
-		return compareStoredRecords(ctx, options, output)
-	}
 	if options.Corpus != "" {
 		options.corpusText, err = readCorpus(options, 0)
 		if err != nil {
@@ -324,56 +234,20 @@ func run(args []string, output io.Writer) error {
 	// Publishing binds the evidence to the verifying commit; a dry run
 	// still names the commit it ran on when the tree is clean.
 	sourceStart := time.Now()
-	diagnostics := output
-	if options.GuardCoverage || options.GuardSelect {
-		diagnostics = os.Stderr
-	}
 	commit, commitErr := runrecord.VerifyingCommit(options.Root)
 	if options.Publish && commitErr != nil {
 		return commitErr
 	}
 	surface, err := longform.Surface(ctx, options.Root)
-	fmt.Fprintf(diagnostics, "long-form source resolution: %s\n", time.Since(sourceStart))
+	fmt.Fprintf(output, "long-form source resolution: %s\n", time.Since(sourceStart))
 	if err != nil {
 		return err
-	}
-	selectionReason := ""
-	if options.GuardSelect {
-		paths, err := readGuardPaths(options.PathsFile)
-		if err != nil {
-			return err
-		}
-		affected, reason, err := longform.Affected(ctx, options.Root, paths)
-		if err != nil {
-			return err
-		}
-		selectionReason = reason
-		if !affected {
-			return clioptions.WritePrettyJSON(output, guardSelection{Surface: surface, Status: "inapplicable", Reason: reason,
-				Exclusions: "no catalog or benchmark history read; no model measurements, GPU tests or modality validation"})
-		}
 	}
 	catalogStart := time.Now()
 	targets, err := listTargets(ctx, options)
-	fmt.Fprintf(diagnostics, "long-form catalog resolution: %s; no models loaded or measured during setup\n", time.Since(catalogStart))
+	fmt.Fprintf(output, "long-form catalog resolution: %s; no models loaded or measured during setup\n", time.Since(catalogStart))
 	if err != nil {
 		return err
-	}
-	if options.GuardCoverage {
-		return reportGuardCoverage(ctx, output, options, targets, surface)
-	}
-	if options.GuardSelect {
-		coverage, coverageErr := loadGuardCoverage(ctx, options, targets, surface)
-		selection, selectionErr := selectGuardChecks(coverage, selectionReason, coverageErr)
-		return errors.Join(selectionErr, clioptions.WritePrettyJSON(output, selection))
-	}
-	if options.Check || options.ValidateBaselines {
-		if err := bindBaselines(ctx, options, targets); err != nil {
-			return err
-		}
-	}
-	if options.ValidateBaselines {
-		return validateSelectedBaselines(output, targets, surface)
 	}
 	return withPublisher(options, func(publish publishModel) error {
 		cuda, err := driver.Open()
@@ -418,7 +292,7 @@ func withPublisher(options options, execute func(publishModel) error) (err error
 func runTargets(ctx context.Context, output io.Writer, options options, targets []target, commit, surface string, measure measureModel, publish publishModel) error {
 	floors := longform.DeclaredFloors()
 	ceiling := 0
-	if options.Check || options.Guard {
+	if options.Guard {
 		ceiling = floors.CheckRungCeiling
 	}
 	var failures []error
@@ -455,9 +329,6 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 		if err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", name, err))
 			fmt.Fprintf(output, "  ERROR %v\n", err)
-			if options.Check {
-				return errors.Join(failures...)
-			}
 			continue
 		}
 		measured++
@@ -468,19 +339,6 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 			}
 		}
 		report(output, result, options.OutputPrefix)
-		if options.Check {
-			verdict := longform.Compare(target.record.Result, result, floors, ceiling)
-			if options.Guard && !result.Verdict.Passed {
-				verdict.Passed = false
-				verdict.Reasons = append(verdict.Reasons, result.Verdict.Reasons...)
-			}
-			fmt.Fprintf(output, "  against record %.12s (surface %.12s): %s\n", target.record.Record, target.record.Result.Surface, verdict)
-			if !verdict.Passed {
-				failures = append(failures, fmt.Errorf("%s: regression: %s", name, verdict))
-				return errors.Join(failures...)
-			}
-			continue
-		}
 		if !result.Verdict.Passed {
 			failures = append(failures, fmt.Errorf("%s: %s", name, result.Verdict))
 		}

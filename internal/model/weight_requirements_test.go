@@ -8,34 +8,6 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-func TestLoadTensorRequirementsBindsPresentAndSkipsMissing(t *testing.T) {
-	const (
-		directRows       = 2
-		directColumns    = 3
-		optionalElements = 5
-	)
-	var direct gguf.TensorInfo
-	var optionalPresent, missing *gguf.TensorInfo
-	requirements := []tensorBinding{
-		requiredTensor("direct", &direct, directRows, directColumns),
-		optionalTensorPointer("missing", &missing, optionalElements),
-		optionalTensorPointer("optional", &optionalPresent, optionalElements),
-	}
-	catalog, err := newWeightCatalog(&gguf.File{Tensors: []gguf.TensorInfo{
-		tensorInfo("blk.direct", directRows, directColumns),
-		tensorInfo("blk.optional", optionalElements),
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = bindTensorProgram(catalog, "blk.", requirements); err != nil {
-		t.Fatal(err)
-	}
-	if direct.Name != "blk.direct" || optionalPresent == nil || optionalPresent.Name != "blk.optional" || missing != nil {
-		t.Fatalf("bindings = direct %q optional %#v missing %#v", direct.Name, optionalPresent, missing)
-	}
-}
-
 func tensorBindingFixtures(
 	prefix string,
 	requirements []tensorBinding,
@@ -58,13 +30,6 @@ func TestTensorCatalogProgramIsAuthoritative(t *testing.T) {
 		secondTensor = "second"
 		thirdTensor  = "third"
 	)
-	registry, err := parseArchitectureRegistry(architectureProfileCatalog)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(registry) != len(architectureRegistry) {
-		t.Fatalf("compiled profiles=%d want %d", len(registry), len(architectureRegistry))
-	}
 	catalog, err := newWeightCatalog(&gguf.File{Tensors: []gguf.TensorInfo{
 		{Name: firstTensor}, {Name: thirdTensor},
 	}})

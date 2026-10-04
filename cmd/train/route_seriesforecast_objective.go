@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -11,7 +10,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/dataroot"
-	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/seriesforecast"
@@ -21,20 +19,13 @@ import (
 	"overgo/internal/trainingworkflow"
 )
 
-// forecastSignature is the time-series pair a forecast objective trains.
-var forecastSignature = recipecontract.ModalitySignature{
-	Inputs:  []recipecontract.Modality{recipecontract.ModalityTimeSeries},
-	Outputs: []recipecontract.Modality{recipecontract.ModalityTimeSeries},
-}
-
 // runObjective trains the model under a registered forecast objective and
 // publishes its held-out verdict and the trained checkpoint at out: both
 // memberships of the objective's registered dataset are materialized through
 // the training data path, the model trains only on the training membership,
 // and the base and trained point forecasts are judged on the held-out
 // membership.
-func runObjective(storeRoot, alias, modelDir, out string, steps int, maxWall time.Duration) error {
-	ctx := context.Background()
+func runObjective(ctx context.Context, storeRoot, alias, modelDir, out string, steps int, maxWall time.Duration) error {
 	store, err := overgodb.Open(storeRoot)
 	if err != nil {
 		return err
@@ -56,7 +47,7 @@ func runObjective(storeRoot, alias, modelDir, out string, steps int, maxWall tim
 	if err != nil {
 		return err
 	}
-	examples, training, err := objectiveExamples(ctx, store, objective, model.Dims.PatchLen, model.Dims.Horizon)
+	data, err := objectiveExamples(ctx, store, objective, model.Dims.PatchLen, model.Dims.Horizon)
 	if err != nil {
 		return err
 	}
@@ -77,13 +68,13 @@ func runObjective(storeRoot, alias, modelDir, out string, steps int, maxWall tim
 		// optimizer.NewStepper runs Muon on the CUDA device on Windows
 		// (stepper_windows.go) and on the host elsewhere; the observation
 		// records which.
-		Alias: alias, ModelPath: weights, Examples: examples, Host: runtime.GOOS != "windows",
-		Train: func(ctx context.Context, recipeID artifact.ID, shown []trainingworkflow.HeldoutExample) error {
-			if err := trainForecast(trainer, shown, plan.Updates()); err != nil {
-				return err
+		Alias: alias, ModelPath: weights, Data: data, Host: runtime.GOOS != "windows",
+		Train: func(ctx context.Context, recipeID artifact.ID, shown []trainingworkflow.HeldoutExample) (trainingprogram.Checkpoint, error) {
+			if err := trainForecast(ctx, trainer, shown, plan.Updates()); err != nil {
+				return trainingprogram.Checkpoint{}, err
 			}
 			// Each update consumed one training record.
-			return publishTrained(ctx, store, recipeID, out, trainer, trainingdata.StreamState{Identity: training, Position: uint64(plan.Updates())})
+			return publishTrained(ctx, store, recipeID, out, trainer, trainingdata.StreamState{Identity: data.Training, Position: uint64(plan.Updates())})
 		},
 		Predict: func(example trainingworkflow.HeldoutExample) (trainingworkflow.HeldoutPrediction, error) {
 			return pointForecast(model, example)
@@ -96,59 +87,29 @@ func runObjective(storeRoot, alias, modelDir, out string, steps int, maxWall tim
 }
 
 // objectiveExamples materializes both of the objective's memberships with the
-// light-curve processor and keys each example by its record identity; it
-// also returns the identity of the materialized training membership, the
-// stream a checkpoint records its position in.
-func objectiveExamples(ctx context.Context, store *overgodb.Store, objective trainingprogram.ObjectiveDocument, patchLen, horizon int) (map[string]trainingworkflow.HeldoutExample, artifact.ID, error) {
-	training, heldout, err := trainingworkflow.ObjectiveMemberships(ctx, store, objective)
-	if err != nil {
-		return nil, artifact.ID{}, err
-	}
-	processorID, err := artifact.IdentifyBytes(artifact.KindProfile, fmt.Appendf(nil, "light-curve-train-v1/%d/%d", patchLen, horizon))
-	if err != nil {
-		return nil, artifact.ID{}, err
-	}
+// light-curve processor and keys each example by its record identity.
+func objectiveExamples(ctx context.Context, store *overgodb.Store, objective trainingprogram.ObjectiveDocument, patchLen, horizon int) (trainingworkflow.ObjectiveData, error) {
 	processor, err := seriesforecast.LightCurveTrainingProcessor(patchLen, horizon)
 	if err != nil {
-		return nil, artifact.ID{}, err
+		return trainingworkflow.ObjectiveData{}, err
 	}
-	examples := map[string]trainingworkflow.HeldoutExample{}
-	var stream artifact.ID
-	for _, membership := range []dataset.Membership{training, heldout} {
-		materialized, err := trainingdata.Materialize(ctx, store, trainingdata.Authority{
-			Dataset: objective.Dataset, Split: membership.ID, Processors: []artifact.ID{processorID}, Signature: forecastSignature,
-		}, []trainingdata.ProcessorBinding{{
-			Artifact: processorID, Modalities: []recipecontract.Modality{recipecontract.ModalityTimeSeries}, Process: processor,
-		}})
-		if err != nil {
-			return nil, artifact.ID{}, err
-		}
-		if membership.ID == training.ID {
-			stream = materialized.Identity()
-		}
-		batch, err := trainingworkflow.ReadAll(ctx, materialized)
-		closeErr := materialized.Close()
-		if err != nil || closeErr != nil {
-			return nil, artifact.ID{}, fmt.Errorf("train -route seriesforecast:%s membership: %w", membership.Partition, errors.Join(err, closeErr))
-		}
-		for _, example := range batch {
+	return trainingworkflow.ObjectiveExamples(ctx, store, objective, fmt.Appendf(nil, "light-curve-train-v1/%d/%d", patchLen, horizon), recipecontract.ModalityTimeSeries, processor,
+		func(example trainingdata.Example) (trainingworkflow.HeldoutExample, error) {
 			input, target, err := seriesforecast.TrainingPair(example)
-			if err != nil {
-				return nil, artifact.ID{}, fmt.Errorf("train -route seriesforecast:record %s: %w", example.ID, err)
-			}
-			examples[example.ID] = trainingworkflow.HeldoutExample{Input: dtype.ConvertSlice[float64](input), Target: dtype.ConvertSlice[float64](target)}
-		}
-	}
-	return examples, stream, nil
+			return trainingworkflow.HeldoutExample{Input: dtype.ConvertSlice[float64](input), Target: dtype.ConvertSlice[float64](target)}, err
+		})
 }
 
 // trainForecast takes updates optimizer steps over the training examples in
-// turn, refusing a step whose loss is not finite.
-func trainForecast(trainer *seriesforecast.Trainer, shown []trainingworkflow.HeldoutExample, updates int) error {
+// turn until ctx ends, refusing a step whose loss is not finite.
+func trainForecast(ctx context.Context, trainer *seriesforecast.Trainer, shown []trainingworkflow.HeldoutExample, updates int) error {
 	if len(shown) == 0 {
 		return fmt.Errorf("train -route seriesforecast:the training membership holds no examples")
 	}
 	for step := range updates {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		example := shown[step%len(shown)]
 		result, err := trainer.Step(dtype.ConvertSlice[float32](example.Input), dtype.ConvertSlice[float32](example.Target))
 		if err != nil {

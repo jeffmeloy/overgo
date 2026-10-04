@@ -7,7 +7,6 @@ const (
 	compositionImport     = "overgo/internal/composition"
 	workflowruntimeImport = "overgo/internal/workflowruntime"
 	inferenceImport       = "overgo/internal/inference"
-	loopImport            = "overgo/internal/loop"
 )
 
 // auditTriggerAndPromotionAuthorities pins the constructors and callers that
@@ -22,8 +21,6 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 	activeCompositeResolutions := map[authoritySiteKey][]int{}
 	compositeSurfaceConstructions := map[authoritySiteKey][]int{}
 	modelPromotions := map[authoritySiteKey][]int{}
-	strategyComparisons := map[authoritySiteKey][]int{}
-	strategyWinnerAssignments := map[authoritySiteKey][]int{}
 
 	for _, source := range sources {
 		// Package-level initializers have no enclosing FuncDecl, but can still
@@ -44,8 +41,6 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 					recordAuthoritySite(causalConstructions, source, "<file>", literal.Pos())
 				case triggerPromotionTypeMatches(source, typeRef, inferenceImport, "internal/inference", "CompositeGenerationSurface"):
 					recordAuthoritySite(compositeSurfaceConstructions, source, "<file>", literal.Pos())
-				case triggerPromotionTypeMatches(source, typeRef, loopImport, "internal/loop", "StrategyComparison"):
-					recordAuthoritySite(strategyComparisons, source, "<file>", literal.Pos())
 				}
 				return true
 			})
@@ -74,22 +69,11 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 						recordAuthoritySite(causalConstructions, source, functionName, typed.Pos())
 					case triggerPromotionTypeMatches(source, typeRef, inferenceImport, "internal/inference", "CompositeGenerationSurface"):
 						recordAuthoritySite(compositeSurfaceConstructions, source, functionName, typed.Pos())
-					case triggerPromotionTypeMatches(source, typeRef, loopImport, "internal/loop", "StrategyComparison"):
-						recordAuthoritySite(strategyComparisons, source, functionName, typed.Pos())
 					}
 				case *ast.SelectorExpr:
 					if typed.Sel.Name == "Promote" && triggerPromotionIdentName(typed.X) == "session" &&
 						triggerPromotionTypeMatches(source, triggerPromotionExpressionType(source, typed.X, locals), workflowruntimeImport, "internal/workflowruntime", "ModelBuildSession") {
 						recordAuthoritySite(modelPromotions, source, functionName, typed.Sel.Pos())
-					}
-				case *ast.AssignStmt:
-					for _, target := range typed.Lhs {
-						selector, ok := target.(*ast.SelectorExpr)
-						if !ok || selector.Sel.Name != "Winner" ||
-							!triggerPromotionTypeMatches(source, triggerPromotionExpressionType(source, selector.X, locals), loopImport, "internal/loop", "StrategyComparison") {
-							continue
-						}
-						recordAuthoritySite(strategyWinnerAssignments, source, functionName, selector.Sel.Pos())
 					}
 				}
 				return true
@@ -120,12 +104,6 @@ func auditTriggerAndPromotionAuthorities(sources []productionAuthoritySource, re
 	})
 	verifyAuthoritySites(report, "promotion", "workflowruntime.ModelBuildSession.Promote", modelPromotions, []authorityAllowance{
 		{File: "internal/workflowruntime/model_builder.go", Function: "ExecuteModelBuild", Count: oneAuthoritySite},
-	})
-	verifyAuthoritySites(report, "promotion", "loop.StrategyComparison construction", strategyComparisons, []authorityAllowance{
-		{File: "internal/loop/experiment.go", Function: "CompareStrategyExperiment", Count: oneAuthoritySite},
-	})
-	verifyAuthoritySites(report, "promotion", "loop.StrategyComparison.Winner assignment", strategyWinnerAssignments, []authorityAllowance{
-		{File: "internal/loop/experiment.go", Function: "CompareStrategyExperiment", Count: oneAuthoritySite},
 	})
 }
 

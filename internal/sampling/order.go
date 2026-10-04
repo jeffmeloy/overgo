@@ -24,6 +24,8 @@ const (
 	SamplerInfill      SamplerStage = "infill"
 )
 
+// defaultSamplerOrder: the supported subset of llama.cpp's default chain;
+// unsupported disabled-by-default stages are omitted
 var defaultSamplerOrder = []SamplerStage{
 	SamplerPenalties,
 	SamplerDry,
@@ -36,19 +38,13 @@ var defaultSamplerOrder = []SamplerStage{
 	SamplerTemperature,
 }
 
-// DefaultSamplerOrder: returns supported subset of llama.cpp's default
-// chain; Unsupported disabled-by-default stages are omitted
-func DefaultSamplerOrder() []SamplerStage {
-	return slices.Clone(defaultSamplerOrder)
-}
-
 // configuredOrder is the default order narrowed to the stages a config
 // sets, temperature always last. A config that names no order samples
 // through only what it configures: an unset (zero) top-p or typical-p never
 // truncates, and Temperature zero stays greedy when a grammar or bias takes
-// sampling off the raw argmax path, as IsRawGreedy reads an empty order.
+// sampling off the raw argmax path, as IsRawGreedy reads it.
 func configuredOrder(config Config) []SamplerStage {
-	return slices.DeleteFunc(DefaultSamplerOrder(), func(stage SamplerStage) bool {
+	return slices.DeleteFunc(slices.Clone(defaultSamplerOrder), func(stage SamplerStage) bool {
 		switch stage {
 		case SamplerPenalties:
 			return (config.RepeatPenalty == 0 || config.RepeatPenalty == 1) &&
@@ -70,15 +66,6 @@ func configuredOrder(config Config) []SamplerStage {
 		}
 		return false
 	})
-}
-
-// FormatSamplerOrder returns the semicolon-delimited public stage names.
-func FormatSamplerOrder(order []SamplerStage) string {
-	names := make([]string, len(order))
-	for index, stage := range order {
-		names[index] = string(stage)
-	}
-	return strings.Join(names, ";")
 }
 
 // ParseSamplerOrder: parses llama.cpp's semicolon-delimited sampler names
@@ -114,11 +101,4 @@ func validateSamplerStage(stage SamplerStage) error {
 	default:
 		return fmt.Errorf("unsupported sampler %q", stage)
 	}
-}
-
-func cloneSamplerOrder(order []SamplerStage) []SamplerStage {
-	if order == nil {
-		return nil
-	}
-	return slices.Clone(order)
 }

@@ -217,12 +217,6 @@ func (f *segmentedFixture) run(t *testing.T) (recipecontract.Transcription, runr
 	return result, run
 }
 
-func TestSegmentedTranscriptionAcceptance(t *testing.T) {
-	t.Parallel()
-	f := newSegmentedFixture(t)
-	f.run(t)
-}
-
 func TestValidatedTranscriptionConsumers(t *testing.T) {
 	t.Parallel()
 	f := newSegmentedFixture(t)

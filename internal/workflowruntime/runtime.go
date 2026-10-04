@@ -255,17 +255,20 @@ func (r *Runtime) executeProgram(
 	}
 	batch, err := executionBatch(key+"/"+run.ID.String(), definition, run, inputFacts, outputFacts)
 	if err != nil {
-		return Result{Outputs: outputs, Run: run}, errors.Join(executeErr, err)
+		return Result{Outputs: outputs}, errors.Join(executeErr, err)
 	}
 	commitContext := ctx
 	if ctx.Err() != nil {
 		commitContext = context.WithoutCancel(ctx)
 	}
 	commit, commitErr := artifact.CommitBatch(commitContext, r.store, batch)
-	result := Result{Outputs: outputs, Run: run, Commit: commit, NodeWalls: nodeWalls}
+	result := Result{Outputs: outputs, Commit: commit, NodeWalls: nodeWalls}
 	if commitErr != nil && !errors.Is(commitErr, artifact.ErrNoChange) {
 		return result, errors.Join(executeErr, commitErr)
 	}
+	// A transaction coordinate alone is not proof of publication: a sync
+	// fault can return one. An unchanged accepted batch already holds the run.
+	result.Run = run
 	return result, executeErr
 }
 

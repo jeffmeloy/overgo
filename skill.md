@@ -228,9 +228,9 @@ requires restart.
   upstream output itself in Git with its provenance (repository, commit,
   checkpoint, input); comparing overgo with its own earlier output stacks
   tolerances.
-- Use `cmd/test-lane`, `cmd/device-lane`, `cmd/smoke-lane`, `cmd/race-lane`,
-  `cmd/webui-lane`. The gate owns change-specific selection, compatibility,
-  manifests, and required checks.
+- Use `cmd/device-lane`, `cmd/webui-lane` and `cmd/validate` (`-tests`,
+  `-smoke`, `-parity`, `-receipt`). The gate owns change-specific selection,
+  compatibility, manifests, and required checks.
 
 ## Sources of truth
 

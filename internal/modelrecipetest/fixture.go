@@ -174,6 +174,13 @@ func PublishActivation(ctx context.Context, store artifact.Repository, key strin
 	if _, _, err := modelrecipe.PublishCandidate(ctx, store, key+"/candidate", definition); err != nil {
 		return err
 	}
+	return ActivateCandidate(ctx, store, key, definition)
+}
+
+// ActivateCandidate takes a published candidate, such as one intake
+// registered, through the real validation, evidence and activation
+// lifecycle, without model loading.
+func ActivateCandidate(ctx context.Context, store artifact.Repository, key string, definition recipe.Definition) error {
 	if _, _, err := modelrecipe.Transition(ctx, store, key+"/validated", definition, recipe.StatusValidated, nil, nil); err != nil {
 		return err
 	}
@@ -234,18 +241,6 @@ func (f Capability) ExecuteScalar(key string, value any) (workflowruntime.Result
 	return f.Runtime.ExecuteProgram(context.Background(), key, operation, nil, f.Program, map[recipe.PortName]workflowruntime.Value{
 		input.Name: {Kind: input.Data, Items: []workflowruntime.Datum{{Value: value}}},
 	})
-}
-
-// MustExecuteScalar runs a scalar capability and returns its typed output.
-func MustExecuteScalar[Value any](t testing.TB, fixture Capability, key string, input any) Value {
-	t.Helper()
-	result, err := fixture.ExecuteScalar(key, input)
-	check(t, err)
-	outputs := fixture.Program.Definition().Outputs
-	if len(outputs) != 1 {
-		t.Fatalf("model recipe fixture: want one output, got %d", len(outputs))
-	}
-	return Output[Value](t, result, outputs[0].Name)
 }
 
 func Output[Value any](t testing.TB, result workflowruntime.Result, name recipe.PortName) Value {

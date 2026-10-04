@@ -3,6 +3,7 @@ package artifact
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"testing"
 )
 
@@ -91,6 +92,43 @@ func TestIdentifyReaderReportsSize(t *testing.T) {
 	want, _ := IdentifyBytes(KindModel, payload)
 	if id != want || size != uint64(len(payload)) {
 		t.Fatalf("identify = (%s, %d), want (%s, %d)", id, size, want, len(payload))
+	}
+}
+
+// writerToSource is a source that can write itself out, as a file can, and
+// records the largest read it was asked for.
+type writerToSource struct {
+	*bytes.Reader
+	wroteItself bool
+	largestRead int
+}
+
+func (source *writerToSource) WriteTo(writer io.Writer) (int64, error) {
+	source.wroteItself = true
+	return source.Reader.WriteTo(writer)
+}
+
+func (source *writerToSource) Read(buffer []byte) (int, error) {
+	source.largestRead = max(source.largestRead, len(buffer))
+	return source.Reader.Read(buffer)
+}
+
+// TestIdentifyReadsItsOwnBuffer holds the hash to reads of its own buffer's
+// size from a source that could write itself out, as a file can through a
+// 32 KiB buffer, with the identity unchanged.
+func TestIdentifyReadsItsOwnBuffer(t *testing.T) {
+	payload := bytes.Repeat([]byte(fixtureModelPayload), identifyBufferBytes/len(fixtureModelPayload)*3)
+	source := &writerToSource{Reader: bytes.NewReader(payload)}
+	id, size, err := Identify(KindModel, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, _ := IdentifyBytes(KindModel, payload)
+	if id != want || size != uint64(len(payload)) {
+		t.Fatalf("identify = (%s, %d), want (%s, %d)", id, size, want, len(payload))
+	}
+	if source.wroteItself || source.largestRead != identifyBufferBytes {
+		t.Fatalf("the hash read through the source's own copy (%t) with reads of at most %d bytes, want reads of %d", source.wroteItself, source.largestRead, identifyBufferBytes)
 	}
 }
 

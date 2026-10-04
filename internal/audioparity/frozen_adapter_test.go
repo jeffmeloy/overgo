@@ -1,24 +1,17 @@
 package audioparity
 
 import (
-	"encoding/binary"
-	"fmt"
-	"math"
 	"os"
 	"slices"
-	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/adaptertrain"
 	"overgo/internal/artifact"
 	"overgo/internal/audiodsp"
-	"overgo/internal/binaryschema"
 	"overgo/internal/dataset"
 	"overgo/internal/hfbpe"
 	"overgo/internal/media"
 	"overgo/internal/overgodb"
-	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
 	"overgo/internal/testutil"
@@ -193,16 +186,14 @@ func loadCTCTrainingFixture(t *testing.T) ctcTrainingFixture {
 func TestASRFrozenAdapterAcceptance(t *testing.T) {
 	t.Parallel()
 	fixture := loadCTCTrainingFixture(t)
-	root, election, record := fixture.root, fixture.election, fixture.record
 	encoder, features, frames, targets := fixture.encoder, fixture.features, fixture.frames, fixture.targets
-	sourceTargets, declaration := record.SourceTargetIDs, fixture.declaration
+	sourceTargets := fixture.record.SourceTargetIDs
 	var ew speechrecognition.Workspace
 	policy := trainingprogram.BuiltinOptimizerPolicy()
 	adapter, err := encoder.NewOutputAdapter(t.Context(), &ew, frames, len(targets), fixture.blank, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
-	started := time.Now()
 	hidden, outputFrames, err := encoder.Encode(t.Context(), features, frames, &ew, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -253,98 +244,5 @@ func TestASRFrozenAdapterAcceptance(t *testing.T) {
 	if err != nil || !slices.Equal(beforeHidden, hidden) || !slices.Equal(beforeBase, base) {
 		t.Fatalf("frozen base replay changed: %v", err)
 	}
-	elapsed := time.Since(started)
-	placement, err := artifact.JSONContent(artifact.JSONContract(artifact.KindProfile, "overgo/frozen-output-placement-observation/v1"), struct {
-		Base     artifact.ID                   `json:"base"`
-		Encoder  speechrecognition.Declaration `json:"encoder"`
-		Position string                        `json:"position"`
-		Width    int                           `json:"width"`
-	}{election.Model.ID, declaration, "final-hidden-before-frozen-output", len(hidden) / outputFrames})
-	if err != nil {
-		t.Fatal(err)
-	}
-	retainFrozenAdapterObservation(t, root, election.Model.ID, execution.ProgramID(), policy, placement, record, beforeAdapter, trained, beforeLoss, afterLoss, adapter.StorageBytes(), elapsed)
-	t.Logf("CPU update: train.100 rows=1, frames=%d, targets=%d, parameters=%d, adapter_numeric_bytes=%d, CTC_sum_before=%.9g after=%.9g; wall=%s (not benchmark); frozen replay exact; held-out WER, resume, reload, serving and GPU not exercised", outputFrames, len(targets), len(trained), adapter.StorageBytes(), beforeLoss, afterLoss, time.Since(started))
-}
-
-// Store immutable observation identities, not a new checkpoint format. The
-// snapshots below identify raw row-major F32 values. The separate lifecycle
-// acceptance tests loadable publication; this test covers observation lineage.
-func retainFrozenAdapterObservation(t *testing.T, root string, base, program artifact.ID, policy trainingprogram.OptimizerPolicy, placement artifact.Content, record ctcTrainingRecord, before, after []float32, beforeLoss, afterLoss float64, numericBytes uint64, elapsed time.Duration) {
-	t.Helper()
-	snapshot := func(values []float32) artifact.Descriptor {
-		encoded := make([]byte, len(values)*binaryschema.Uint32Bytes)
-		for index, value := range values {
-			binary.LittleEndian.PutUint32(encoded[index*binaryschema.Uint32Bytes:], math.Float32bits(value))
-		}
-		id, err := artifact.IdentifyBytes(artifact.KindAdapter, encoded)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return artifact.Descriptor{ID: id, Size: uint64(len(encoded))}
-	}
-	beforeID, afterID := snapshot(before), snapshot(after)
-	source, err := artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/ctc-training-record/v1"), record)
-	if err != nil {
-		t.Fatal(err)
-	}
-	observation, err := artifact.JSONContent(artifact.JSONContract(artifact.KindEvidence, "overgo/frozen-adapter-observation/v1"), struct {
-		Base         artifact.ID `json:"base"`
-		Program      artifact.ID `json:"program"`
-		Before       artifact.ID `json:"adapter_before"`
-		After        artifact.ID `json:"adapter_after"`
-		Placement    artifact.ID `json:"placement"`
-		Source       artifact.ID `json:"source"`
-		Optimizer    artifact.ID `json:"optimizer"`
-		LossBefore   float64     `json:"ctc_sum_before"`
-		LossAfter    float64     `json:"ctc_sum_after"`
-		NumericBytes uint64      `json:"adapter_numeric_bytes"`
-		Scope        string      `json:"scope"`
-	}{base, program, beforeID.ID, afterID.ID, placement.Descriptor.ID, source.Descriptor.ID, policy.ID, beforeLoss, afterLoss, numericBytes,
-		"one CPU update; exact frozen replay; snapshot identities only, no checkpoint publication, resume, held-out WER or served-recipe claim"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sourceIdentity := audioSources(t, root).Identity()
-	environment, err := runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s", sourceIdentity))
-	if err != nil {
-		t.Fatal(err)
-	}
-	commit := strings.TrimSpace(baselineCommand(t, root, "git", "rev-parse", "HEAD"))
-	run, err := runrecord.NewBoundRun(program, runrecord.OutcomeSucceeded,
-		[]artifact.ID{base, beforeID.ID, placement.Descriptor.ID, source.Descriptor.ID, policy.ID},
-		[]artifact.ID{afterID.ID, observation.Descriptor.ID}, "", commit, environment.ID, uint64(elapsed),
-		[]runrecord.PhaseMetric{{Phase: runrecord.PhaseTest, DurationNS: uint64(elapsed)}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	batch, err := run.Batch("frozen-adapter/" + run.ID.String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, get := range []func() (artifact.Content, error){environment.Content, policy.Content} {
-		content, err := get()
-		if err != nil {
-			t.Fatal(err)
-		}
-		batch.Contents = append(batch.Contents, content)
-	}
-	batch.Contents = append(batch.Contents, placement, source, observation)
-	batch.Artifacts = append(batch.Artifacts, beforeID, afterID, artifact.Descriptor{ID: base}, artifact.Descriptor{ID: program})
-	batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(observation.Descriptor.ID, base, program, beforeID.ID, afterID.ID, placement.Descriptor.ID, source.Descriptor.ID, policy.ID)...)
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := runrecord.RequireExactRun(t.Context(), store, run.ID); err != nil {
-		t.Fatal(err)
-	}
-	if content, err := artifact.RequireTypedContent(t.Context(), store, observation.Descriptor.ID); err != nil || !slices.Equal(content.Data, observation.Data) {
-		t.Fatalf("observation round trip differs: %v", err)
-	}
-	t.Logf("isolated-store run=%s recipe=%s adapter=%s placement=%s; gate retains this observation transcript, not a reloadable adapter", run.ID, program, afterID.ID, placement.Descriptor.ID)
+	t.Logf("CPU update: train.100 rows=1, frames=%d, targets=%d, parameters=%d, adapter_numeric_bytes=%d, CTC_sum_before=%.9g after=%.9g; frozen replay exact; held-out WER, resume, reload, serving and GPU not exercised", outputFrames, len(targets), len(trained), adapter.StorageBytes(), beforeLoss, afterLoss)
 }

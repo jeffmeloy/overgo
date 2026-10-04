@@ -80,7 +80,7 @@ func TestBackupWriterReleaseAcceptance(t *testing.T) {
 			destination := filepath.Join(t.TempDir(), "backup")
 			ctx, cancel := context.WithCancelCause(t.Context())
 			defer cancel(nil)
-			boundary := &backupBlobBoundary{Context: ctx, directory: filepath.Join(destination+".partial", blobDirectory), sourceLock: filepath.Join(store.root, lockFilename), cancel: cancel, entered: make(chan struct{}), resume: make(chan struct{})}
+			boundary := &backupBlobBoundary{Context: ctx, directory: filepath.Join(destination+".partial", blobDirectory), sourceLock: writerLockPath(store.root), cancel: cancel, entered: make(chan struct{}), resume: make(chan struct{})}
 			boundary.pause = sync.OnceFunc(func() {
 				close(boundary.entered)
 				<-boundary.resume
@@ -112,7 +112,7 @@ func TestBackupWriterReleaseAcceptance(t *testing.T) {
 			if !boundary.metadataChecked || boundary.metadataErr != nil {
 				t.Fatalf("mutable metadata protection was not observed: %v", boundary.metadataErr)
 			}
-			lock, err := processlock.Acquire(filepath.Join(store.root, lockFilename), storeFileMode)
+			lock, err := processlock.Acquire(writerLockPath(store.root), storeFileMode)
 			if err != nil {
 				cancel(nil)
 				resume()

@@ -10,6 +10,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +22,144 @@ import (
 
 func TestTransactionWriter(t *testing.T) {
 	t.Parallel()
+	for _, cancelGap := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cutover owns the rename gap/cancel=%t", cancelGap), func(t *testing.T) {
+			live, candidate := filepath.Join(t.TempDir(), "live"), filepath.Join(t.TempDir(), "candidate")
+			store, err := Open(live)
+			if err != nil {
+				t.Fatal(err)
+			}
+			batch := fixtureBatch(t)
+			original, err := store.Commit(t.Context(), batch)
+			if err := errors.Join(err, store.Close()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := CloneStore(live, candidate); err != nil {
+				t.Fatal(err)
+			}
+			store, err = Open(candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			prepared, err := store.Commit(t.Context(), artifact.Batch{Key: "prepared", Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindOutput, "candidate")}})
+			if err := errors.Join(err, store.Close()); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancelCause(t.Context())
+			defer cancel(context.Canceled)
+			superseded := fmt.Sprintf("%s.superseded-%.12s", live, original)
+			observed := false
+			boundary := &replacementBoundary{Context: ctx, moved: superseded}
+			boundary.check = sync.OnceFunc(func() {
+				observed = true
+				// Startup must share exclusion even while live does not exist.
+				for _, root := range []string{live, candidate} {
+					if writer, err := Open(root); !errors.Is(err, processlock.ErrBusy) {
+						if writer != nil {
+							writer.Close()
+						}
+						t.Errorf("writer entered during replacement at %s: %v", root, err)
+					}
+				}
+				if _, err := os.Stat(live); !os.IsNotExist(err) {
+					t.Errorf("queued startup recreated live: %v", err)
+				}
+				queued, abandon := context.WithCancelCause(t.Context())
+				abandon(context.Canceled)
+				if writer, err := OpenContext(queued, live); !errors.Is(err, context.Canceled) {
+					if writer != nil {
+						writer.Close()
+					}
+					t.Errorf("cancelled startup during cutover: %v", err)
+				}
+				if cancelGap {
+					cancel(context.Canceled)
+				}
+			})
+			path, err := ReplaceStore(boundary, live, candidate, original.String())
+			if !observed || cancelGap && (!errors.Is(err, context.Canceled) || path != "") || !cancelGap && (err != nil || path != superseded) {
+				t.Fatalf("cutover observed=%t path=%s error=%v", observed, path, err)
+			}
+			store, err = Open(live)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			want := prepared
+			if cancelGap {
+				want = original
+			}
+			if head, _ := store.Head(); head != want {
+				t.Fatalf("live head = %s, want %s", head, want)
+			}
+			if _, found, err := store.Artifact(t.Context(), batch.Artifacts[0].ID); err != nil || !found {
+				t.Fatalf("cutover lost original artifact: %t %v", found, err)
+			}
+			if _, err := store.Commit(t.Context(), artifact.Batch{Key: "after-cutover", Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindOutput, "after cutover")}}); err != nil {
+				t.Fatalf("cutover retained writer ownership: %v", err)
+			}
+			retained := candidate
+			if !cancelGap {
+				retained = superseded
+				want = original
+			} else {
+				want = prepared
+			}
+			reader, err := OpenReadOnly(retained)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer reader.Close()
+			if head, _ := reader.Head(); head != want {
+				t.Fatalf("retained head = %s, want %s", head, want)
+			}
+		})
+	}
+	t.Run("idle handle cannot publish into a displaced journal", func(t *testing.T) {
+		live, candidate := filepath.Join(t.TempDir(), "live"), filepath.Join(t.TempDir(), "candidate")
+		idle, err := Open(live)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer idle.Close()
+		original, err := idle.Commit(t.Context(), fixtureBatch(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := CloneStore(live, candidate); err != nil {
+			t.Fatal(err)
+		}
+		_, err = ReplaceStore(t.Context(), live, candidate, original.String())
+		if runtime.GOOS == "windows" {
+			// Win32 refuses renaming the open journal; neither store may move.
+			if err == nil {
+				t.Fatal("replacement moved an open Windows journal")
+			}
+			for _, root := range []string{live, candidate} {
+				if _, err := os.Stat(filepath.Join(root, storeFilename)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			return
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := idle.Commit(t.Context(), artifact.Batch{Key: "displaced", Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindOutput, "must not publish")}}); err == nil || !strings.Contains(err.Error(), "was replaced") {
+			t.Fatalf("displaced writer: %v", err)
+		}
+		if err := idle.Refresh(t.Context()); err == nil {
+			t.Fatal("displaced view silently refreshed")
+		}
+		reader, err := OpenReadOnly(live)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer reader.Close()
+		if head, _ := reader.Head(); head != original {
+			t.Fatalf("displaced write changed live head: %s", head)
+		}
+	})
 	t.Run("backup refreshes a stale source", func(t *testing.T) {
 		root := t.TempDir()
 		source, err := Open(root)
@@ -138,7 +279,7 @@ func TestTransactionWriter(t *testing.T) {
 		coldWall := time.Since(started)
 		defer cold.Close()
 		started = time.Now()
-		lock, err := processlock.AcquireContext(t.Context(), filepath.Join(root, lockFilename), storeFileMode)
+		lock, err := processlock.AcquireContext(t.Context(), writerLockPath(root), storeFileMode)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -218,7 +359,7 @@ func TestTransactionWriter(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer store.Close()
-		lock, err := processlock.Acquire(filepath.Join(root, lockFilename), storeFileMode)
+		lock, err := processlock.Acquire(writerLockPath(root), storeFileMode)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -234,7 +375,7 @@ func TestTransactionWriter(t *testing.T) {
 		if err := <-done; !errors.Is(err, context.Canceled) {
 			t.Fatalf("cancel = %v", err)
 		}
-		if other, err := processlock.Acquire(filepath.Join(root, lockFilename), storeFileMode); !errors.Is(err, processlock.ErrBusy) {
+		if other, err := processlock.Acquire(writerLockPath(root), storeFileMode); !errors.Is(err, processlock.ErrBusy) {
 			if other != nil {
 				other.Close()
 			}
@@ -319,6 +460,21 @@ func TestTransactionWriter(t *testing.T) {
 	})
 }
 
+// Observe the real rename gap through the existing cancellation boundary.
+// This keeps the comparison deterministic without production hooks or sleeps.
+type replacementBoundary struct {
+	context.Context
+	moved string
+	check func()
+}
+
+func (c *replacementBoundary) Err() error {
+	if _, err := os.Stat(c.moved); err == nil {
+		c.check()
+	}
+	return c.Context.Err()
+}
+
 type transactionRequest struct{ Action, Key string }
 type transactionReply struct {
 	Result   string
@@ -347,7 +503,7 @@ func TestTransactionWriterProcess(t *testing.T) {
 			t.Fatal(err)
 		}
 		if request.Action == "tear" {
-			lock, err := processlock.AcquireContext(t.Context(), filepath.Join(root, lockFilename), storeFileMode)
+			lock, err := processlock.AcquireContext(t.Context(), writerLockPath(root), storeFileMode)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -467,7 +623,7 @@ func testTransactionProcesses(t *testing.T) {
 	if reply := read(first); reply.Result != "locked-torn-tail" {
 		t.Fatal(reply)
 	}
-	if lock, err := processlock.Acquire(filepath.Join(root, lockFilename), storeFileMode); !errors.Is(err, processlock.ErrBusy) {
+	if lock, err := processlock.Acquire(writerLockPath(root), storeFileMode); !errors.Is(err, processlock.ErrBusy) {
 		if lock != nil {
 			lock.Close()
 		}

@@ -42,17 +42,6 @@ func TestCompositionAPIWorkflow(t *testing.T) {
 	}
 }
 
-// TestCompositionGUIWorkflow: the workbench shell declares the compositions
-// tab; the compositions leg drives it over a published authority.
-func TestCompositionGUIWorkflow(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandler(t, &fakeGenerator{})
-	shell := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "")
-	if !strings.Contains(shell.Body.String(), `"id":"compositions"`) {
-		t.Fatal("workbench shell does not load composition module")
-	}
-}
-
 func TestCompositeGenerationUnpromotedRefusal(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())

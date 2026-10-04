@@ -140,7 +140,7 @@ func New(config Config) (*Sampler, error) {
 		return nil, fmt.Errorf("sampling GBNF: %w", err)
 	}
 	config.Grammar = cloneGrammar(config.Grammar)
-	config.Samplers = cloneSamplerOrder(config.Samplers)
+	config.Samplers = slices.Clone(config.Samplers)
 	config.LogitBiases = slices.Clone(config.LogitBiases)
 	config.Infill = cloneInfillVocabulary(config.Infill)
 	for index, stage := range config.Samplers {
@@ -266,7 +266,9 @@ func New(config Config) (*Sampler, error) {
 		grammar:     cloneGrammar(config.Grammar),
 		gbnf:        config.GBNF,
 	}
-	if len(sampler.stages) == 0 {
+	// A named order, even an empty one, is the chain; an omitted one resolves
+	// here, once, to what the config sets.
+	if sampler.stages == nil {
 		sampler.stages = configuredOrder(config)
 	}
 	if sampler.grammar != nil {
@@ -281,9 +283,7 @@ func New(config Config) (*Sampler, error) {
 	}
 	sampler.random = rand.New(source)
 	sampler.mu = 2 * float64(config.MirostatTau)
-	if slices.Contains(config.Samplers, SamplerAdaptiveP) {
-		sampler.adaptive = true
-	}
+	sampler.adaptive = slices.Contains(sampler.stages, SamplerAdaptiveP)
 	sampler.resetAdaptive()
 	return sampler, nil
 }
@@ -295,7 +295,7 @@ func (s *Sampler) Config() Config {
 	result := s.config
 	result.DryBreakers = cloneBreakers(result.DryBreakers)
 	result.Grammar = cloneGrammar(result.Grammar)
-	result.Samplers = cloneSamplerOrder(result.Samplers)
+	result.Samplers = slices.Clone(result.Samplers)
 	result.LogitBiases = slices.Clone(result.LogitBiases)
 	result.Infill = cloneInfillVocabulary(result.Infill)
 	return result
@@ -312,9 +312,9 @@ func (s *Sampler) IsRawGreedy() bool {
 		config.FrequencyPenalty == 0 && config.NoRepeatNgramSize == 0 && config.DryMultiplier == 0 &&
 		config.XTCProbability == 0 && config.Grammar == nil && config.GBNF == nil &&
 		len(config.LogitBiases) == 0 && config.Infill == nil &&
-		(len(config.Samplers) == 0 || slices.Contains(config.Samplers, SamplerTemperature)) &&
-		!slices.Contains(config.Samplers, SamplerAdaptiveP) &&
-		!slices.Contains(config.Samplers, SamplerInfill)
+		slices.Contains(s.stages, SamplerTemperature) &&
+		!slices.Contains(s.stages, SamplerAdaptiveP) &&
+		!slices.Contains(s.stages, SamplerInfill)
 }
 
 // BoundedTopK: exact prefix-filter candidate limit.
@@ -327,7 +327,7 @@ func (s *Sampler) BoundedTopK() (int, bool) {
 		config.GBNF != nil || config.Infill != nil || len(config.LogitBiases) != 0 {
 		return 0, false
 	}
-	for _, stage := range config.Samplers {
+	for _, stage := range s.stages {
 		switch stage {
 		case SamplerPenalties:
 			if config.RepeatPenalty != 1 || config.PresencePenalty != 0 || config.FrequencyPenalty != 0 {
@@ -509,7 +509,7 @@ func (s *Sampler) SampleTopK(ids []int, logits []float32, vocabularySize int) (i
 		}
 		candidates[index] = candidate{id: id, scaledLogit: float64(logits[index])}
 	}
-	stages := s.config.Samplers
+	stages := s.stages
 	for index, stage := range stages {
 		if stage == SamplerTopK {
 			return s.sampleCandidatePipeline(candidates, vocabularySize, nil, stages[index+1:])

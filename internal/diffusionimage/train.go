@@ -63,6 +63,8 @@ type Trainer struct {
 	update    optimizer.Stepper
 	program   trainingprogram.TrainingProgram
 	execution trainingprogram.Execution[trainingState]
+	// gradientL2 is the norm of the gradient the latest step applied.
+	gradientL2 float64
 }
 
 type trainingState struct {
@@ -104,6 +106,27 @@ func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
 }
 
 func (trainer *Trainer) Program() trainingprogram.TrainingProgram { return trainer.program }
+
+// OptimizerPlan is the plan the trainer's Muon steps: every checkpoint tensor.
+func (trainer *Trainer) OptimizerPlan() optimizer.Plan { return trainer.pack.Plan() }
+
+// Snapshot copies the optimizer state the next step continues from.
+func (trainer *Trainer) Snapshot() optimizer.State { return trainer.update.Snapshot() }
+
+// SaveWeights writes the trained tensors at path, the weights Snapshot pairs
+// with.
+func (trainer *Trainer) SaveWeights(path string) error { return trainer.pack.Save(path) }
+
+// GradientL2 is the norm of the gradient the latest step applied.
+func (trainer *Trainer) GradientL2() float64 { return trainer.gradientL2 }
+
+// TrainableParameterCount is how many parameters a trainer of m steps.
+func (m *Model) TrainableParameterCount() (count int) {
+	for _, values := range m.raw {
+		count += len(values)
+	}
+	return count
+}
 
 func (trainer *Trainer) Close() error {
 	if trainer == nil || trainer.update == nil {
@@ -156,6 +179,7 @@ func (trainer *Trainer) optimize(state *trainingState) error {
 	if err := trainer.pack.GatherGradients(state.gradients); err != nil {
 		return err
 	}
+	trainer.gradientL2 = trainer.pack.GradientL2()
 	if err := trainer.update.Step(); err != nil {
 		return err
 	}

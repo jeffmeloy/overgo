@@ -3,9 +3,7 @@
 package seq2seq
 
 import (
-	"errors"
 	"overgo/internal/optimizer"
-	"overgo/internal/trainingprogram"
 
 	"bufio"
 	"context"
@@ -115,7 +113,7 @@ func TestNeedleRealGSM8KCompiledTraining(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +162,7 @@ func TestNeedleRealGSM8KHeldOutEvaluation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +194,7 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
 	block := &generator.model.decoderCross[len(generator.model.decoderCross)-1]
 	rawBefore, foldedBefore := block.rawGate, block.gate
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +250,7 @@ func TestNeedleRealGSM8KFinalCrossAttentionTraining(t *testing.T) {
 
 func TestNeedleRealGSM8KFinalCrossOutputGradient(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
-	trainer, err := NewTrainer(generator.model, 1, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 1, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +302,7 @@ func TestNeedleRealGSM8KFinalCrossOutputMuon(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
 	block := &generator.model.decoderCross[len(generator.model.decoderCross)-1]
 	original := append([]uint16(nil), block.o...)
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +332,7 @@ func TestNeedleRealGSM8KFinalCrossOutputMuon(t *testing.T) {
 
 func TestNeedleRealGSM8KFinalCrossAttentionCoreGradient(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
-	trainer, err := NewTrainer(generator.model, 1, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 1, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -378,7 +376,7 @@ func TestNeedleRealGSM8KFinalCrossQKVMuon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,7 +476,7 @@ func TestNeedleRealGSM8KFullDecoderMuon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -577,7 +575,7 @@ func TestNeedleRealGSM8KEncoderMuon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -670,7 +668,7 @@ func TestNeedleRealGSM8KTiedEmbeddingMuon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -761,7 +759,7 @@ func TestNeedleRealGSM8KCorpusTraining(t *testing.T) {
 	trainBefore := meanLoss(trainPairs)
 	heldOutBefore := meanLoss(heldOutPairs)
 	steps := trainRecords * epochs
-	trainer, err := NewTrainer(generator.model, steps, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, steps, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -786,7 +784,7 @@ func TestNeedleRealGSM8KCorpusTraining(t *testing.T) {
 
 func TestNeedleRealGSM8KFinalSelfAttentionGradient(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
-	trainer, err := NewTrainer(generator.model, 1, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 1, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -829,7 +827,7 @@ func TestNeedleRealGSM8KFinalSelfAttentionGradient(t *testing.T) {
 
 func TestNeedleRealGSM8KPenultimateCrossAttentionGradient(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
-	trainer, err := NewTrainer(generator.model, 1, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 1, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -871,7 +869,7 @@ func TestNeedleRealGSM8KPenultimateCrossAttentionGradient(t *testing.T) {
 
 func TestNeedleRealGSM8KPenultimateSelfAttentionGradient(t *testing.T) {
 	generator, pair, _ := realGSM8KTrainingPair(t, 0)
-	trainer, err := NewTrainer(generator.model, 1, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 1, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -927,7 +925,7 @@ func TestNeedleRealGSM8KPenultimateSelfAttentionMuon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -990,7 +988,7 @@ func TestNeedleRealGSM8KPenultimateCrossAttentionMuon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1037,7 +1035,7 @@ func TestNeedleRealGSM8KPenultimateCrossQKVMuon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1100,7 +1098,7 @@ func TestNeedleRealGSM8KFinalSelfAttentionMuon(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	trainer, err := NewTrainer(generator.model, 3, 0.001, 0.9)
+	trainer, err := newConstantTrainer(generator.model, 3, 0.001, 0.9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1245,62 +1243,7 @@ func verifyGradientClose(t *testing.T, index int, analytic, finite, relativeLimi
 	}
 }
 
-// NewTrainer binds declared decoder parameters to compiled execution and Muon.
-func NewTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, error) {
-	if model == nil || steps <= 0 {
-		return nil, errors.New("seq2seq: invalid trainer")
-	}
-	layout := newTrainingLayout(model)
-	bindings := trainingParameterBindings(model, layout)
-	groups := make([]optimizer.GroupSpec, len(bindings))
-	parameters := make([]trainingprogram.ParameterSpec, len(bindings))
-	for index, binding := range bindings {
-		groups[index] = optimizer.GroupSpec{Name: binding.name, Start: binding.span.start, End: binding.span.end, Rows: binding.rows, Cols: binding.cols}
-		parameters[index] = trainingprogram.ParameterSpec{Name: binding.name, Rows: binding.rows, Cols: binding.cols, Trainable: true}
-	}
-	plan, err := optimizer.CompilePlan(layout.count, groups)
-	if err != nil {
-		return nil, err
-	}
-	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
-		Objective: trainingprogram.ObjectiveTokenPrediction,
-		Operators: []trainingprogram.OperatorSpec{
-			{ID: trainingForward, Phase: trainingprogram.PhaseForward},
-			{ID: trainingBackward, Phase: trainingprogram.PhaseBackward},
-			{ID: trainingMuon, Phase: trainingprogram.PhaseOptimize},
-		},
-		Parameters: parameters,
-		Optimizer:  plan,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if baseLR <= 0 {
-		baseLR = trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(layout.count)
-	}
-	weights := make([]float32, layout.count)
-	for _, binding := range bindings {
-		binding.load(weights)
-	}
-	gradients := make([]float32, layout.count)
-	muon, err := newTrainingOptimizer(weights, gradients, plan, optimizer.Config{
-		BaseLearningRate: baseLR, Momentum: momentum, Steps: steps, Schedule: optimizer.ScheduleConstant,
-	})
-	if err != nil {
-		return nil, err
-	}
-	trainer := &Trainer{
-		model: model, layout: layout, bindings: bindings, program: program, weights: weights, gradients: gradients, optimizer: muon,
-	}
-	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[trainingStep]{
-		{Operator: trainingForward, Execute: trainer.forward},
-		{Operator: trainingBackward, Execute: trainer.backward},
-		{Operator: trainingMuon, Execute: trainer.optimize},
-	})
-	if err != nil {
-		_ = muon.Close()
-		return nil, err
-	}
-	trainer.execution = execution
-	return trainer, nil
+// newConstantTrainer is NewTrainer under a constant learning rate for steps.
+func newConstantTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, error) {
+	return NewTrainer(model, optimizer.Config{BaseLearningRate: baseLR, Momentum: momentum, Steps: steps, Schedule: optimizer.ScheduleConstant})
 }

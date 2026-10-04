@@ -18,8 +18,8 @@ import (
 	"overgo/internal/composition"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/jsonfile"
-	"overgo/internal/loop"
 	"overgo/internal/overgodb"
+	"overgo/internal/trainingworkflow"
 )
 
 func main() { clioptions.MainNamed("seam-align", run) }
@@ -36,20 +36,8 @@ func run() error {
 	selectFlag := flags.String("select", "", "composite scores JSON path: judge realized composites on the multidimensional fitness ({scores})")
 	emit := flags.String("emit", "", "promotion emission JSON path: emit one fit composite through the ablation-armed gate ({verdict, policy, evidence})")
 	drive := flags.String("drive", "", "driver run JSON path: close the improvement loop over recorded evidence under derived budget and saturation")
-	curve := flags.String("curve", "", "recorded driver attempts JSON path: aggregate the learning curve the autonomy ratchet judges ({attempts})")
-	calibrate := flags.String("calibrate", "", "predicted-versus-measured fitness JSON path: audit the enumeration ranker ({predicted, measured})")
-	ratchet := flags.String("ratchet", "", "autonomy review JSON path: widen or roll back the driver budget on the three recorded instruments")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
-	}
-	if strings.TrimSpace(*ratchet) != "" {
-		return reviewAutonomy(*ratchet)
-	}
-	if strings.TrimSpace(*calibrate) != "" {
-		return calibrateRanker(*calibrate)
-	}
-	if strings.TrimSpace(*curve) != "" {
-		return deriveLearningCurve(*curve)
 	}
 	if strings.TrimSpace(*drive) != "" {
 		return driveImprovementLoop(*repoFlag, *drive)
@@ -102,83 +90,11 @@ func run() error {
 	return encoder.Encode(verdict)
 }
 
-// reviewAutonomy runs one autonomy review over the three recorded
-// instruments: the driver attempt record, the ranker calibration samples,
-// and the latest breaker state per metric.
-func reviewAutonomy(reviewPath string) error {
-	var review struct {
-		CurrentBudget uint64                          `json:"current_budget"`
-		Attempts      []loop.DriverAttemptMeasurement `json:"attempts"`
-		Predicted     []float64                       `json:"predicted"`
-		Measured      []float64                       `json:"measured"`
-		Safety        []loop.CircuitBreakerTransition `json:"safety"`
-	}
-	if err := jsonfile.DecodeStrict(reviewPath, &review); err != nil {
-		return err
-	}
-	curve, err := loop.DeriveDriverLearningCurve(review.Attempts)
-	if err != nil {
-		return err
-	}
-	calibration, err := loop.CalibrateCandidatePredictions(review.Predicted, review.Measured)
-	if err != nil {
-		return err
-	}
-	decision, err := loop.RatchetDriverAutonomy(review.CurrentBudget, curve, calibration, review.Safety)
-	if err != nil {
-		return err
-	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetEscapeHTML(false)
-	return encoder.Encode(decision)
-}
-
-// calibrateRanker audits the enumeration ranker's predicted fitness
-// against measured outcomes with the shared concordance audit.
-func calibrateRanker(samplesPath string) error {
-	var samples struct {
-		Predicted []float64 `json:"predicted"`
-		Measured  []float64 `json:"measured"`
-	}
-	if err := jsonfile.DecodeStrict(samplesPath, &samples); err != nil {
-		return err
-	}
-	calibration, err := loop.CalibrateCandidatePredictions(samples.Predicted, samples.Measured)
-	if err != nil {
-		return err
-	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetEscapeHTML(false)
-	return encoder.Encode(calibration)
-}
-
-// deriveLearningCurve aggregates recorded driver attempts into the
-// learning curve the autonomy ratchet judges.
-func deriveLearningCurve(attemptsPath string) error {
-	var recorded struct {
-		Attempts []loop.DriverAttemptMeasurement `json:"attempts"`
-	}
-	if err := jsonfile.DecodeStrict(attemptsPath, &recorded); err != nil {
-		return err
-	}
-	curve, err := loop.DeriveDriverLearningCurve(recorded.Attempts)
-	if err != nil {
-		return err
-	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetEscapeHTML(false)
-	return encoder.Encode(curve)
-}
-
-// driveTargetSpecification binds one target's recorded evidence: the
-// catalog component to improve, the measured donor seams, the recorded
-// seam activations, the training and assembly authorities, the held-out
-// score dimensions, and the promotion policy and ablation evidence.
-type driveTargetSpecification struct {
-	Label        string                             `json:"label"`
-	Component    string                             `json:"component"`
-	Measurements []composition.DonorSeamMeasurement `json:"measurements"`
-	Activations  struct {
+// realizationSpecification binds one realization's recorded evidence, as
+// -realize and every -drive target record it: the target model, the
+// recorded seam activations, and the training and assembly authorities.
+type realizationSpecification struct {
+	Activations struct {
 		Source [][]float64 `json:"source"`
 		Target [][]float64 `json:"target"`
 	} `json:"activations"`
@@ -194,6 +110,40 @@ type driveTargetSpecification struct {
 		Architecture string      `json:"architecture"`
 		Recipe       artifact.ID `json:"recipe"`
 	} `json:"assembly"`
+}
+
+// realize aligns, trains and assembles the candidate from the recorded
+// evidence, replaying the recorded activations as both frozen forwards.
+func (specification realizationSpecification) realize(
+	ctx context.Context, store *overgodb.Store, candidate composition.CompositionCandidate,
+) (trainingworkflow.CandidateRealization, error) {
+	return trainingworkflow.RealizeCompositionCandidate(
+		ctx, store, candidate, specification.Target,
+		trainingworkflow.RealizationSeamActivations{
+			Source: specification.Activations.Source, Target: specification.Activations.Target,
+		},
+		trainingworkflow.RealizationTraining{
+			Dataset: specification.Training.Dataset, Examples: specification.Training.Examples,
+			SourceForward:  trainingworkflow.RecordedSeamForward{Model: candidate.Donor},
+			TargetForward:  trainingworkflow.RecordedSeamForward{Model: specification.Target},
+			TrainingPolicy: specification.Training.TrainingPolicy,
+			Config:         specification.Training.Config, Epochs: specification.Training.Epochs,
+		},
+		trainingworkflow.RealizationAssembly{
+			Architecture: specification.Assembly.Architecture, Recipe: specification.Assembly.Recipe,
+		},
+	)
+}
+
+// driveTargetSpecification binds one target's recorded evidence: the
+// catalog component to improve, the measured donor seams, the realization
+// evidence, the held-out score dimensions, and the promotion policy and
+// ablation evidence.
+type driveTargetSpecification struct {
+	Label        string                             `json:"label"`
+	Component    string                             `json:"component"`
+	Measurements []composition.DonorSeamMeasurement `json:"measurements"`
+	realizationSpecification
 	Score struct {
 		Evaluation artifact.ID                               `json:"evaluation"`
 		Dimensions map[string]composition.CompositeDimension `json:"dimensions"`
@@ -239,8 +189,13 @@ func driveImprovementLoop(repository, runPath string) error {
 		limit = len(components)
 	}
 	byLabel := make(map[string]driveTargetSpecification, len(specification.Targets))
-	targets := make([]composition.CompositionTarget, 0, len(specification.Targets))
+	targets := make([]trainingworkflow.CompositionTarget, 0, len(specification.Targets))
 	for _, target := range specification.Targets {
+		// Every stage binds its target's evidence by label, so a label
+		// names exactly one target.
+		if _, repeated := byLabel[target.Label]; repeated {
+			return fmt.Errorf("target label %q repeats; each target needs its own label", target.Label)
+		}
 		byLabel[target.Label] = target
 		var catalogComponent *composition.CatalogComponent
 		for componentIndex := range components {
@@ -252,46 +207,30 @@ func driveImprovementLoop(repository, runPath string) error {
 		if catalogComponent == nil {
 			return fmt.Errorf("component %q is not in the committed catalog", target.Component)
 		}
-		targets = append(targets, composition.CompositionTarget{
+		targets = append(targets, trainingworkflow.CompositionTarget{
 			Label: target.Label, Component: *catalogComponent,
 		})
 	}
-	stages := composition.CompositionDriverStages{
-		Enumerate: func(_ context.Context, target composition.CompositionTarget) ([]composition.CompositionCandidate, error) {
+	stages := trainingworkflow.CompositionDriverStages{
+		Enumerate: func(_ context.Context, target trainingworkflow.CompositionTarget) ([]composition.CompositionCandidate, error) {
 			candidates, _, err := composition.EnumerateCompositionCandidates(
 				index, target.Component, byLabel[target.Label].Measurements, limit,
 			)
 			return candidates, err
 		},
-		Realize: func(realizeCtx context.Context, candidate composition.CompositionCandidate) (composition.CandidateRealization, error) {
-			bound := byLabel[candidateLabel(byLabel, candidate)]
-			return composition.RealizeCompositionCandidate(
-				realizeCtx, store, candidate, bound.Target,
-				composition.RealizationSeamActivations{
-					Source: bound.Activations.Source, Target: bound.Activations.Target,
-				},
-				composition.RealizationTraining{
-					Dataset: bound.Training.Dataset, Examples: bound.Training.Examples,
-					SourceForward:  composition.RecordedSeamForward{Model: candidate.Donor},
-					TargetForward:  composition.RecordedSeamForward{Model: bound.Target},
-					TrainingPolicy: bound.Training.TrainingPolicy,
-					Config:         bound.Training.Config, Epochs: bound.Training.Epochs,
-				},
-				composition.RealizationAssembly{
-					Architecture: bound.Assembly.Architecture, Recipe: bound.Assembly.Recipe,
-				},
-			)
+		Realize: func(realizeCtx context.Context, target trainingworkflow.CompositionTarget, candidate composition.CompositionCandidate) (trainingworkflow.CandidateRealization, error) {
+			return byLabel[target.Label].realize(realizeCtx, store, candidate)
 		},
-		Score: func(_ context.Context, realization composition.CandidateRealization) (composition.CompositeScore, error) {
-			bound := byLabel[candidateLabel(byLabel, realization.Candidate)]
+		Score: func(_ context.Context, target trainingworkflow.CompositionTarget, realization trainingworkflow.CandidateRealization) (composition.CompositeScore, error) {
+			bound := byLabel[target.Label]
 			return composition.CompositeScore{
 				Composite:  realization.Composite.ID,
 				Evaluation: bound.Score.Evaluation,
 				Dimensions: bound.Score.Dimensions,
 			}, nil
 		},
-		Promote: func(_ context.Context, verdict composition.CompositeFitnessVerdict, realization composition.CandidateRealization) (artifact.ID, error) {
-			bound := byLabel[candidateLabel(byLabel, realization.Candidate)]
+		Promote: func(promoteCtx context.Context, target trainingworkflow.CompositionTarget, verdict composition.CompositeFitnessVerdict, _ trainingworkflow.CandidateRealization) (artifact.ID, error) {
+			bound := byLabel[target.Label]
 			policy, err := composition.NewRepresentationBridgePromotionPolicy(bound.Promotion.Policy)
 			if err != nil {
 				return artifact.ID{}, err
@@ -300,11 +239,11 @@ func driveImprovementLoop(repository, runPath string) error {
 			if err != nil {
 				return artifact.ID{}, err
 			}
-			return promotion.ID, nil
+			return promotion.ID, publishPromotion(promoteCtx, store, policy, promotion)
 		},
 		OperatorStop: func() bool { return false },
 	}
-	report, err := composition.RunCompositionImprovementLoop(
+	report, err := trainingworkflow.RunCompositionImprovementLoop(
 		ctx, store, targets, stages, specification.History,
 	)
 	if err != nil {
@@ -315,17 +254,30 @@ func driveImprovementLoop(repository, runPath string) error {
 	return encoder.Encode(report)
 }
 
-// candidateLabel resolves which target specification a candidate belongs
-// to by its donor and component; single-target runs bind directly.
-func candidateLabel(byLabel map[string]driveTargetSpecification, candidate composition.CompositionCandidate) string {
-	for label, target := range byLabel {
-		for _, measurement := range target.Measurements {
-			if measurement.Donor == candidate.Donor && measurement.Component == candidate.Component {
-				return label
-			}
-		}
+// publishPromotion commits one emitted promotion with the policy it was
+// judged under, so the driver attempt that cites it cites stored evidence;
+// a promotion already held changes nothing.
+func publishPromotion(
+	ctx context.Context, store *overgodb.Store,
+	policy composition.RepresentationBridgePromotionPolicy, promotion composition.RepresentationBridgePromotion,
+) error {
+	policyContent, err := policy.Content()
+	if err != nil {
+		return err
 	}
-	return ""
+	promotionContent, err := promotion.Content()
+	if err != nil {
+		return err
+	}
+	batch, err := artifact.NewDocumentBatch(
+		"composition/promotion/"+promotion.ID.String(),
+		[]artifact.Content{policyContent, promotionContent}, promotion.Lineage(), nil,
+	)
+	if err != nil {
+		return err
+	}
+	_, err = artifact.Publish(ctx, store, batch)
+	return err
 }
 
 // selectComposites judges realized composites on the multidimensional
@@ -381,23 +333,8 @@ func realizeCandidate(repository, specificationPath string) error {
 		return errors.New("seam-align -realize requires -repo")
 	}
 	var specification struct {
-		Candidate   composition.CompositionCandidate `json:"candidate"`
-		Target      artifact.ID                      `json:"target"`
-		Activations struct {
-			Source [][]float64 `json:"source"`
-			Target [][]float64 `json:"target"`
-		} `json:"activations"`
-		Training struct {
-			Dataset        artifact.ID           `json:"dataset"`
-			Examples       []bridgetrain.Example `json:"examples"`
-			TrainingPolicy artifact.ID           `json:"training_policy"`
-			Config         hostoptimizer.Config  `json:"config"`
-			Epochs         int                   `json:"epochs"`
-		} `json:"training"`
-		Assembly struct {
-			Architecture string      `json:"architecture"`
-			Recipe       artifact.ID `json:"recipe"`
-		} `json:"assembly"`
+		Candidate composition.CompositionCandidate `json:"candidate"`
+		realizationSpecification
 	}
 	if err := jsonfile.DecodeStrict(specificationPath, &specification); err != nil {
 		return err
@@ -408,35 +345,11 @@ func realizeCandidate(repository, specificationPath string) error {
 	}
 	defer store.Close()
 	ctx := context.Background()
-	realized, err := composition.RealizeCompositionCandidate(
-		ctx, store, specification.Candidate, specification.Target,
-		composition.RealizationSeamActivations{
-			Source: specification.Activations.Source, Target: specification.Activations.Target,
-		},
-		composition.RealizationTraining{
-			Dataset: specification.Training.Dataset, Examples: specification.Training.Examples,
-			SourceForward:  composition.RecordedSeamForward{Model: specification.Candidate.Donor},
-			TargetForward:  composition.RecordedSeamForward{Model: specification.Target},
-			TrainingPolicy: specification.Training.TrainingPolicy,
-			Config:         specification.Training.Config, Epochs: specification.Training.Epochs,
-		},
-		composition.RealizationAssembly{
-			Architecture: specification.Assembly.Architecture, Recipe: specification.Assembly.Recipe,
-		},
-	)
+	realized, err := specification.realize(ctx, store, specification.Candidate)
 	if err != nil {
 		return err
 	}
-	if realized.Adapter.BridgeAfter.Valid() {
-		if _, err := artifact.CommitBatch(ctx, store, realized.Adapter.Batch); err != nil {
-			return err
-		}
-	}
-	compositeBatch, err := realized.Composite.Batch("composition/realized/" + realized.Composite.ID.String())
-	if err != nil {
-		return err
-	}
-	if _, err := artifact.CommitBatch(ctx, store, compositeBatch); err != nil {
+	if err := trainingworkflow.PublishCandidateRealization(ctx, store, realized); err != nil {
 		return err
 	}
 	encoder := json.NewEncoder(os.Stdout)

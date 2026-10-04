@@ -12,13 +12,17 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/dataset"
 	"overgo/internal/densecausal"
+	artifactexport "overgo/internal/export"
 	"overgo/internal/hostoptimizer"
-
+	"overgo/internal/modelartifact"
+	"overgo/internal/modelintake"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
+	"overgo/internal/tensorcatalog"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
@@ -38,7 +42,14 @@ type Request struct {
 	MaximumSequence    int
 	ObjectiveScale     float64
 	Host               bool
-	FreezeLexical      bool
+	// Device trains the dense-causal model when Host is false.
+	Device        DeviceTrainer
+	FreezeLexical bool
+	// PreferenceMode and PreferenceMargin select the DPO objective's loss
+	// mode and SimPO's target reward margin; other objectives refuse them.
+	// KTO's mode reads the dataset as unpaired completions.
+	PreferenceMode   trainingprogram.PreferenceMode
+	PreferenceMargin float64
 	// Observations: optional typed run evidence.
 	Observations artifact.Repository
 
@@ -46,25 +57,6 @@ type Request struct {
 	ObserveGRPO      func(trainingprogram.GRPOObservation)
 	Progress         io.Writer
 	MaxProjectedWall time.Duration
-}
-
-func stepGuard(request Request, backend string) densecausal.TrainObserver {
-	return func(step int, loss float64, stepWall time.Duration) error {
-		if request.Progress != nil {
-			fmt.Fprintf(request.Progress, "step %d/%d loss %.6f wall %s backend %s\n",
-				step+1, request.Steps, loss, stepWall.Round(time.Millisecond), backend)
-		}
-		if request.MaxProjectedWall > 0 {
-			projected := stepWall * time.Duration(request.Steps)
-			if projected > request.MaxProjectedWall {
-				return fmt.Errorf(
-					"training workflow: step %d took %s on backend %s; %d steps project to %s, over the %s bound -- rerun with a longer -max-wall if intended",
-					step+1, stepWall.Round(time.Second), backend, request.Steps,
-					projected.Round(time.Minute), request.MaxProjectedWall)
-			}
-		}
-		return nil
-	}
 }
 
 type Result struct {
@@ -76,6 +68,7 @@ type Result struct {
 	Plan           trainingprogram.TrainingSessionPlan
 	Losses         []float64
 	DPO            []trainingprogram.DPOObservation
+	KTO            []trainingprogram.KTOObservation
 	GRPO           []trainingprogram.GRPOObservation
 	StreamPosition uint64
 	Checkpoint     trainingprogram.Checkpoint
@@ -117,7 +110,11 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 		if err != nil {
 			return Result{}, fmt.Errorf("training workflow: load checkpoint: %w", err)
 		}
-		inputDirectory = request.ResumeDirectory
+		// A run over a GGUF resumes from the trained model it published.
+		inputDirectory, err = trainedInput(request.ResumeDirectory)
+		if err != nil {
+			return Result{}, err
+		}
 		resumeStream = &trainingdata.StreamState{Identity: resumed.Stream.Identity, Position: resumed.Stream.Position}
 	}
 	modelID := resumed.Model
@@ -131,11 +128,37 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 	if err := observer.Admit(ctx, modelID, request.Recipe); err != nil {
 		return Result{}, err
 	}
+	// Every exit after admission, a setup refusal included, finishes the
+	// session it admitted.
+	result, runErr := admittedRun(ctx, request, observer, inputDirectory, resumed, resumeStream, modelID)
+	if observer != nil {
+		// A cancelled run's outcome records too.
+		observationID, routerIDs, routerCoverage, observeErr := observer.finishTraining(
+			context.WithoutCancel(ctx), modelID, request.Recipe, runErr, result,
+		)
+		if observeErr != nil && runErr == nil {
+			return Result{}, observeErr
+		}
+		result.Observation, result.RouterObservations = observationID, routerIDs
+		result.RouterObservationCoverage = routerCoverage
+		if runErr == nil {
+			runErr = observer.Verify(ctx, request.Recipe, result.Observation, result.Checkpoint.ID())
+		}
+	}
+	return result, runErr
+}
+
+// admittedRun resolves the admitted session's authority, loads its model,
+// tokenizer and dataset, and trains them.
+func admittedRun(ctx context.Context, request Request, observer *Observer, inputDirectory string, resumed trainingprogram.Checkpoint, resumeStream *trainingdata.StreamState, modelID artifact.ID) (Result, error) {
 	authority, err := ResolveSessionAuthority(ctx, request.Repository, modelID, request.Recipe)
 	if err != nil {
 		return Result{}, err
 	}
 	runtime, objective, optimizerPolicy := authority.Program, authority.Objective, authority.Optimizer
+	if objective != trainingprogram.ObjectiveDPO && (request.PreferenceMode != "" || request.PreferenceMargin != 0) {
+		return Result{}, errors.New("training workflow: a preference mode or margin needs the DPO objective")
+	}
 	switch objective {
 	case trainingprogram.ObjectiveDPO:
 		if request.ReferenceDirectory == "" || request.ObjectiveScale <= 0 || request.FreezeLexical {
@@ -183,16 +206,6 @@ func Execute(ctx context.Context, request Request) (Result, error) {
 		resumed: resumed, resumeStream: resumeStream, stepSample: observer.SampleStep,
 	}.run()
 	observer.Phase(runrecord.PhaseForwardBackward, time.Since(trainStarted))
-	if observer != nil {
-		observationID, routerIDs, routerCoverage, observeErr := observer.finishTraining(
-			ctx, modelID, request.Recipe, runErr, result,
-		)
-		if observeErr != nil && runErr == nil {
-			return Result{}, observeErr
-		}
-		result.Observation, result.RouterObservations = observationID, routerIDs
-		result.RouterObservationCoverage = routerCoverage
-	}
 	return result, runErr
 }
 
@@ -220,6 +233,7 @@ type densePrepared struct {
 	reference  *densecausal.Model
 	tokens     [][]int
 	pairs      []trainingdata.PreferenceBatch
+	unpaired   []trainingdata.UnpairedBatch
 	groups     []trainingdata.RolloutGroup
 	evaluators []artifact.ID
 }
@@ -247,16 +261,24 @@ func (session denseSession) run() (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("training workflow: compile authority: %w", err)
 	}
-	result, state, err := session.execute(prepared)
+	result, state, err := session.execute(prepared, plan)
 	if err != nil {
 		return Result{}, err
 	}
 	result.Optimizer = plan.Optimizer()
 	result.Plan = plan
 	result.Checkpoint, err = publishCheckpoint(
-		session.inputDirectory, session.request.OutputDirectory, session.model, authority, state,
+		session.ctx, session.request.Repository, session.inputDirectory, session.request.OutputDirectory, session.model, authority, state,
 	)
 	result.authority = authority
+	// The checkpoint records where the run's evidence goes, and a trained
+	// GGUF registers there as the candidate the server, validate and the
+	// scorecard open.
+	if err == nil && session.request.Observations != nil {
+		var candidate modelintake.Candidate
+		candidate, err = RecordCheckpoint(session.ctx, session.request.Observations, session.request.OutputDirectory, result.Checkpoint)
+		result.Candidate = candidate.Definition.ID
+	}
 	return result, err
 }
 
@@ -278,9 +300,7 @@ func (session denseSession) prepare() (densePrepared, error) {
 	if err != nil {
 		return densePrepared{}, fmt.Errorf("training workflow: load reference: %w", err)
 	}
-	batches, units, stream, data, err := preferenceBatchesResume(
-		session.ctx, session.raw, session.request.Steps, session.encode, session.resumeStream,
-	)
+	_, membership, err := recipeObjective(session.ctx, session.request.Repository, session.runtime.Definition())
 	if err != nil {
 		return densePrepared{}, err
 	}
@@ -288,13 +308,54 @@ func (session denseSession) prepare() (densePrepared, error) {
 	if err != nil {
 		return densePrepared{}, fmt.Errorf("training workflow: identify reference: %w", err)
 	}
+	if session.request.PreferenceMode == trainingprogram.PreferenceKTO {
+		if session.request.PreferenceMargin != 0 {
+			return densePrepared{}, errors.New("training workflow: KTO has no preference margin")
+		}
+		read, err := unpairedBatchesResume(session.ctx, session.raw, session.request.Steps, session.encode, session.resumeStream, membership)
+		if err != nil {
+			return densePrepared{}, err
+		}
+		policy, err := trainingprogram.KTOPolicy(referenceID, session.request.ObjectiveScale, read.desirable, read.undesirable)
+		return densePrepared{
+			units: read.units, data: read.authority, stream: read.stream, reference: reference, unpaired: read.batches, preference: &policy,
+		}, err
+	}
+	batches, units, stream, data, err := preferenceBatchesResume(
+		session.ctx, session.raw, session.request.Steps, session.encode, session.resumeStream, membership,
+	)
+	if err != nil {
+		return densePrepared{}, err
+	}
 	return densePrepared{
 		units: units, data: data, stream: stream, reference: reference, pairs: batches,
-		preference: &trainingprogram.PreferencePolicy{Reference: referenceID, Scale: session.request.ObjectiveScale},
+		preference: &trainingprogram.PreferencePolicy{
+			Reference: referenceID, Scale: session.request.ObjectiveScale,
+			Mode: session.request.PreferenceMode, Margin: session.request.PreferenceMargin,
+		},
 	}, nil
 }
 
-func (session denseSession) execute(prepared densePrepared) (Result, densecausal.TrainState, error) {
+// recipeObjective loads the objective a recipe binds and the committed
+// training membership it splits its dataset by: nil for an objective that
+// trains on all of it, or a recipe that binds none.
+func recipeObjective(ctx context.Context, reader artifact.Reader, definition recipe.Definition) (trainingprogram.ObjectiveDocument, *dataset.Membership, error) {
+	id, bound := definition.PrimaryDependency(recipe.DependencyObjective)
+	if !bound {
+		return trainingprogram.ObjectiveDocument{}, nil, nil
+	}
+	objective, err := trainingprogram.LoadObjective(ctx, reader, id)
+	if err != nil {
+		return trainingprogram.ObjectiveDocument{}, nil, err
+	}
+	membership, found, err := dataset.LoadMembership(ctx, reader, objective.Split)
+	if err != nil || !found {
+		return objective, nil, err
+	}
+	return objective, &membership, nil
+}
+
+func (session denseSession) execute(prepared densePrepared, plan trainingprogram.TrainingSessionPlan) (Result, densecausal.TrainState, error) {
 	if session.objective == trainingprogram.ObjectiveGRPO {
 		var resume *densecausal.RLState
 		if session.resumed.ID().Valid() {
@@ -312,9 +373,16 @@ func (session denseSession) execute(prepared densePrepared) (Result, densecausal
 		if session.resumed.ID().Valid() {
 			resume = &densecausal.RLState{Optimizer: session.resumed.Optimizer, Stream: *session.resumeStream}
 		}
+		if prepared.preference.Mode == trainingprogram.PreferenceKTO {
+			observations, state, err := session.model.TrainKTOBatchesResume(
+				prepared.reference, prepared.unpaired, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
+				*prepared.preference, resume,
+			)
+			return Result{Backend: "host", Objective: session.objective, KTO: observations, StreamPosition: state.Stream.Position}, state.Optimizer, err
+		}
 		observations, state, err := session.model.TrainDPOBatchesResume(
 			prepared.reference, prepared.pairs, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
-			session.request.ObjectiveScale, resume, session.request.ObserveDPO,
+			*prepared.preference, resume, session.request.ObserveDPO,
 		)
 		return Result{
 			Backend: "host", Objective: session.objective, DPO: observations,
@@ -334,13 +402,13 @@ func (session denseSession) execute(prepared densePrepared) (Result, densecausal
 		fmt.Fprintf(session.request.Progress, "lane %s: %d steps, %d batches, frozen_lexical=%t\n",
 			lane, session.request.Steps, len(prepared.tokens), session.request.FreezeLexical)
 	}
-	guard := stepGuard(session.request, lane)
-	observe := guard
-	if session.stepSample != nil {
-		observe = func(step int, loss float64, stepWall time.Duration) error {
-			session.stepSample()
-			return guard(step, loss, stepWall)
+	observe := func(step int, loss float64, stepWall time.Duration) error {
+		session.stepSample()
+		if session.request.Progress != nil {
+			fmt.Fprintf(session.request.Progress, "step %d/%d loss %.6f wall %s backend %s\n",
+				step+1, session.request.Steps, loss, stepWall.Round(time.Millisecond), lane)
 		}
+		return plan.AdmitStepWall(stepWall)
 	}
 	var collector *routerObservationCollector
 	var observeRouter densecausal.MoERouterObserver
@@ -358,7 +426,7 @@ func (session denseSession) execute(prepared densePrepared) (Result, densecausal
 	}
 	losses, backend, state, err := runTrainingState(
 		session.model, prepared.tokens, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
-		!session.request.Host, session.request.FreezeLexical, resume, observe, observeRouter,
+		session.request.Device, !session.request.Host, session.request.FreezeLexical, resume, observe, observeRouter,
 	)
 	result := Result{
 		Backend: backend, Objective: session.objective, Losses: losses,
@@ -370,17 +438,28 @@ func (session denseSession) execute(prepared densePrepared) (Result, densecausal
 	return result, state, err
 }
 
-func publishCheckpoint(source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState) (trainingprogram.Checkpoint, error) {
+// publishCheckpoint publishes the trained model in its source's layout
+// with the checkpoint that resumes it: a GGUF source's trained GGUF, which
+// the server opens and whose untrained tensors store may already hold, or
+// a safetensors directory with its config and tokenizer.
+func publishCheckpoint(ctx context.Context, store artifact.Reader, source, target string, model *densecausal.Model, authority compiledAuthority, state densecausal.TrainState) (trainingprogram.Checkpoint, error) {
 	spec, err := authority.checkpointSpec(state)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
 	checkpoint, err := trainingprogram.PublishCheckpoint(target, spec, func(stage string) error {
+		if isGGUFModelInput(source) {
+			return WriteTrainedModel(ctx, store, source, stage, len(model.Weights), func(name string) ([]float32, bool) {
+				trained, named := tensorcatalog.HFDenseTensorName(name)
+				values, found := model.Weights[trained]
+				return values, named && found
+			})
+		}
 		metadata := map[string]string{"format": "pt", "trainer": "overgo"}
 		if err := safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights), model.Weights, model.Shapes, metadata); err != nil {
 			return err
 		}
-		return stageCheckpointMetadata(source, stage, model)
+		return artifactexport.CopyFiles(source, stage, []string{"config.json", "tokenizer.json"})
 	})
 	if err != nil {
 		return trainingprogram.Checkpoint{}, fmt.Errorf("training workflow: publish checkpoint: %w", err)
@@ -393,36 +472,22 @@ func identifyModel(directory string) (artifact.ID, error) {
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	file, err := os.Open(path)
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	id, _, identifyErr := artifact.Identify(artifact.KindModel, file)
-	return id, errors.Join(identifyErr, file.Close())
+	id, _, err := identifyWeights(path)
+	return id, err
 }
 
-// IdentifyModelWeights resolves the one weights file whose hash is the
-// model identity — the same file a recorded model location names. A GGUF
-// input is its own identity; a directory identifies by model.safetensors,
-// by its single safetensors file under any recorded name, or — for a
-// sharded checkpoint — by the first shard in order, the file intake
-// recorded as the model location. Two unordered safetensors files are
-// ambiguous and refuse.
+// IdentifyModelWeights resolves the model input for bootstrap and held-out
+// execution. A GGUF input names its first shard; a multi-file Safetensors
+// input remains a directory. Neither entry point stands for the whole
+// model's identity: identifyWeights binds the consumed components.
 func IdentifyModelWeights(directory string) (string, error) {
 	if isGGUFModelInput(directory) {
 		return directory, nil
 	}
-	path := filepath.Join(directory, trainingprogram.CheckpointWeights)
-	if _, err := os.Stat(path); err == nil {
+	if path, err := trainingprogram.CheckpointWeightsPath(directory); err == nil && isGGUFModelInput(path) {
 		return path, nil
-	}
-	shards, err := filepath.Glob(filepath.Join(directory, "model-*-of-*.safetensors"))
-	if err != nil {
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", err
-	}
-	if len(shards) > 0 {
-		slices.Sort(shards)
-		return shards[0], nil
 	}
 	candidates, err := filepath.Glob(filepath.Join(directory, "*.safetensors"))
 	if err != nil {
@@ -434,8 +499,55 @@ func IdentifyModelWeights(directory string) (string, error) {
 	case 1:
 		return candidates[0], nil
 	}
-	return "", fmt.Errorf(
-		"training workflow: %d unordered safetensors files in %s; identity is ambiguous", len(candidates), directory)
+	return directory, nil
+}
+
+// identifyWeights retains the raw identity of legacy single Safetensors
+// inputs and binds every component of GGUF and multi-file Safetensors inputs
+// through their existing inventory owners.
+func identifyWeights(input string) (artifact.ID, artifact.Batch, error) {
+	var inventory modelartifact.Inventory
+	var err error
+	if isGGUFModelInput(input) {
+		inventory, err = modelartifact.FromGGUFPath(input)
+	} else {
+		directory := input
+		info, statErr := os.Stat(input)
+		if statErr != nil {
+			return artifact.ID{}, artifact.Batch{}, statErr
+		}
+		if !info.IsDir() {
+			directory = filepath.Dir(input)
+		}
+		candidates, globErr := filepath.Glob(filepath.Join(directory, "*.safetensors"))
+		if globErr != nil {
+			return artifact.ID{}, artifact.Batch{}, globErr
+		}
+		indexes, globErr := filepath.Glob(filepath.Join(directory, "*.safetensors.index.json"))
+		if globErr != nil {
+			return artifact.ID{}, artifact.Batch{}, globErr
+		}
+		if info.IsDir() || len(candidates) > 1 || len(indexes) > 0 {
+			inventory, err = modelartifact.FromSafetensorsPath(directory)
+		}
+	}
+	if err != nil {
+		return artifact.ID{}, artifact.Batch{}, err
+	}
+	if inventory.Manifest.ID.Valid() {
+		batch, err := inventory.Batch("training/weights/" + inventory.Manifest.ID.String())
+		return inventory.Manifest.ID, batch, err
+	}
+	file, err := os.Open(input)
+	if err != nil {
+		return artifact.ID{}, artifact.Batch{}, err
+	}
+	id, size, identifyErr := artifact.Identify(artifact.KindModel, file)
+	if err := errors.Join(identifyErr, file.Close()); err != nil {
+		return artifact.ID{}, artifact.Batch{}, err
+	}
+	location, err := artifact.CanonicalLocalLocation(id, artifact.LocationFile, input)
+	return id, artifact.Batch{Artifacts: []artifact.Descriptor{{ID: id, Size: size}}, Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}}}, err
 }
 
 type compiledAuthority struct {
@@ -611,7 +723,7 @@ func (authority compiledAuthority) checkpointSpec(state densecausal.TrainState) 
 		RunPlan: authority.runPlan, Program: authority.program, Model: authority.model,
 		Dataset: authority.data.Dataset, Split: authority.data.Split,
 		Stream:    trainingprogram.DatasetState{Identity: authority.stream.Identity, Position: authority.stream.Position},
-		Optimizer: state, ParameterCount: len(state.Momentum), RNG: rng,
+		Optimizer: state, ParameterCount: state.Parameters(), RNG: rng,
 		Processors: []artifact.ID{authority.data.Processor}, Projectors: authority.projectors, Codecs: authority.codecs,
 		Lineage: authority.lineage,
 	}, nil

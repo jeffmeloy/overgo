@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/testprocess"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -19,13 +20,11 @@ func TestFractaleProcessLeadership(t *testing.T) {
 		t.Skip(testskip.Inapplicable + ": set OVERGO_FRACTALE_BASELINE=1 for matched Fractale process evidence")
 	}
 	root := testutil.RepoRoot(t)
-	adaptiveGo := os.Getenv("OVERGO_FRACTALE_ADAPTIVE_GO")
-	if adaptiveGo == "" {
-		adaptiveGo = filepath.Join(root, "build", "adaptive-b8fef3cc2", "go")
+	roots, err := dataroot.Resolve(root)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(adaptiveGo, "go.mod")); err != nil {
-		t.Fatalf("UNAVAILABLE: retained adaptive Fractale source absent at %s", adaptiveGo)
-	}
+	adaptiveGo := testprocess.PinnedTree(t, filepath.Dir(roots.Models), "b8fef3cc227ecb9e942146dc130424029dfe679d", "go")
 	temporary := t.TempDir()
 	candidateBinary := filepath.Join(temporary, "overgo-fractale.test.exe")
 	referenceBinary := filepath.Join(temporary, "adaptive-fractale.test.exe")

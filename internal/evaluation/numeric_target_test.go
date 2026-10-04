@@ -16,14 +16,14 @@ func TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions(t *testing
 		if err != nil {
 			t.Fatal(err)
 		}
-		plan, err := CompileNumericTargetPlan(view, NumericTargetSuite{
-			Scorers: []NumericScorerSpec{
-				{Kind: NumericAbsoluteError, Unit: "declared-unit"},
+		plan, err := compileNumericTargetPlan(view, numericTargetSuite{
+			Scorers: []numericScorerSpec{
+				{Kind: numericAbsoluteError, Unit: "declared-unit"},
 				{Kind: numericQuantileLoss, Unit: "declared-unit", Quantile: &quantile},
 				{Kind: numericSquaredError, Unit: "declared-unit"},
 				{Kind: numericLabelAccuracy},
 			},
-			Cases: []NumericTargetCase{{
+			Cases: []numericTargetCase{{
 				Record: "heldout", Values: []float64{-1000, 2, 3.5}, Label: "class-b",
 				Assumptions: []numericAssumption{{Name: "target-order", Value: "dataset-declared"}},
 			}},
@@ -31,7 +31,7 @@ func TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions(t *testing
 		if err != nil {
 			t.Fatal(err)
 		}
-		report, err := ScoreNumericTargets(plan, []NumericTargetObservation{{
+		report, err := scoreNumericTargets(plan, []numericTargetObservation{{
 			Record: "heldout", Values: []float64{-999, 4, -7}, Label: "class-b",
 		}})
 		if err != nil || len(report.Records) != 1 || len(report.Metrics) != len(plan.Scorers) ||

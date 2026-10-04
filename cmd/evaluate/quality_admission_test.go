@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,7 +9,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
-	"overgo/internal/longform"
 	"overgo/internal/testutil"
 )
 
@@ -41,14 +39,11 @@ func TestDerivedQualityRunsWithoutPerformanceQualification(t *testing.T) {
 	if _, _, err := evaluation.CatalogHFCacheBenchmarks(t.Context(), hosted.store, cache); err != nil {
 		t.Fatal(err)
 	}
-	if err := longform.Admit(t.Context(), hosted.store, "", "unmeasured"); !errors.Is(err, longform.ErrRefused) {
-		t.Fatalf("fixture unexpectedly performance-qualified: %v", err)
-	}
 	suites, dropped, err := evaluation.DeriveStoreSuiteFamily(t.Context(), hosted.store, hosted.campaign.Authorities(), "mmlu")
 	if err != nil || len(suites) != 1 || len(dropped) != 0 {
 		t.Fatalf("quality inputs: suites=%d dropped=%v err=%v", len(suites), dropped, err)
 	}
-	if err := native.EvaluateDerived(t.Context(), "mmlu"); err != nil {
+	if err := native.EvaluateDerived(t.Context(), "mmlu", artifact.ID{}); err != nil {
 		t.Fatal(err)
 	}
 	planID := suites[0].Plan().Identity()
@@ -67,10 +62,7 @@ func TestDerivedQualityRunsWithoutPerformanceQualification(t *testing.T) {
 	if report.Plan != planID || len(report.Observations) == 0 || uint64(len(report.Observations)) != suites[0].Descriptor().Cases {
 		t.Fatalf("incomplete quality report: %+v", report)
 	}
-	if err := longform.Admit(t.Context(), hosted.store, "", "unmeasured"); !errors.Is(err, longform.ErrRefused) {
-		t.Fatalf("quality run granted performance credit: %v", err)
-	}
-	if err := native.EvaluateDerived(t.Context(), "absent-family"); err == nil {
+	if err := native.EvaluateDerived(t.Context(), "absent-family", artifact.ID{}); err == nil {
 		t.Fatal("missing quality suite was accepted")
 	}
 }

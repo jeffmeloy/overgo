@@ -4,7 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -24,6 +30,8 @@ type nativeMediaWorkspace struct {
 	completion   map[recipe.Task]operation.Completion
 	mu           sync.Mutex
 	executed     []recipe.Task
+	// root is the directory of the store the outputs are committed to.
+	root string
 }
 
 func (workspace *nativeMediaWorkspace) WorkflowCapabilities(context.Context, WorkflowKind) ([]WorkflowCapability, error) {
@@ -46,7 +54,8 @@ func (workspace *nativeMediaWorkspace) ExecuteWorkflow(
 
 func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byte, []byte) {
 	t.Helper()
-	store, err := overgodb.Open(t.TempDir())
+	root := t.TempDir()
+	store, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,6 +79,7 @@ func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, 
 		t.Fatal(err)
 	}
 	workspace := &nativeMediaWorkspace{
+		root:          root,
 		fakeGenerator: &fakeGenerator{},
 		capabilities: []WorkflowCapability{
 			{
@@ -136,6 +146,61 @@ func TestNativeAudioProtocolUsesActiveRecipeSession(t *testing.T) {
 	}
 	if len(workspace.executed) != 1 || workspace.executed[0] != recipe.TaskSpeech {
 		t.Fatalf("executed=%v", workspace.executed)
+	}
+}
+
+// abandonedPayloadBytes outgrows one io.Copy chunk, so a response whose client
+// is gone stops with payload bytes still unread.
+const abandonedPayloadBytes = 1 << 16
+
+// abandonedResponse is a response whose client went away after the headers:
+// every body write fails.
+type abandonedResponse struct{ header http.Header }
+
+func (response abandonedResponse) Header() http.Header { return response.header }
+
+func (abandonedResponse) WriteHeader(int) {}
+
+func (abandonedResponse) Write([]byte) (int, error) { return 0, errors.New("client went away") }
+
+// TestAbortedContentResponsesReleaseTheirFiles: an artifact download and a
+// speech response whose client goes away mid-payload release the blob file
+// they stream from instead of holding it until the process ends; Windows
+// refuses to remove a file a handle still holds open.
+func TestAbortedContentResponsesReleaseTheirFiles(t *testing.T) {
+	t.Parallel()
+	handler, workspace, _, _ := nativeMediaProtocolFixture(t)
+	image, audio := bytes.Repeat([]byte{1}, abandonedPayloadBytes), bytes.Repeat([]byte{2}, abandonedPayloadBytes)
+	imageID := testutil.ArtifactBytesID(t, artifact.KindOutput, image)
+	audioID := testutil.ArtifactBytesID(t, artifact.KindOutput, audio)
+	if _, err := handler.repository.Commit(t.Context(), artifact.Batch{
+		Key: "native/media/abandoned",
+		Contents: []artifact.Content{
+			{Descriptor: artifact.Descriptor{ID: imageID, Size: uint64(len(image)), MediaType: "image/png"}, Data: image},
+			{Descriptor: artifact.Descriptor{ID: audioID, Size: uint64(len(audio)), MediaType: "audio/wav"}, Data: audio},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	speech := workspace.completion[recipe.TaskSpeech]
+	workspace.completion[recipe.TaskSpeech] = operation.Completion{Run: speech.Run, Outputs: []artifact.ID{audioID}}
+	for _, request := range []*http.Request{
+		httptest.NewRequest(http.MethodGet, "/artifacts/content?id="+imageID.String(), nil),
+		httptest.NewRequest(http.MethodPost, "/v1/audio/speech",
+			strings.NewReader(`{"model":"`+workspace.capabilities[1].Recipe.String()+`","input":"test"}`)),
+	} {
+		handler.ServeHTTP(abandonedResponse{header: http.Header{}}, request)
+	}
+	removed := 0
+	err := filepath.WalkDir(filepath.Join(workspace.root, "blobs"), func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		removed++
+		return os.Remove(path)
+	})
+	if err != nil || removed < 2 {
+		t.Fatalf("removed %d blobs after the aborted responses, want both: %v", removed, err)
 	}
 }
 

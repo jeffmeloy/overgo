@@ -130,11 +130,11 @@ type workspaceMode struct {
 // workspaceModelCapabilities derives the document from the served
 // generator, the loaded projectors, the media decoders this binary
 // registers, and the same capability switch the tabs use.
-func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceModelCapabilities, bool) {
+func (h *Handler) workspaceModelCapabilities(ctx context.Context, listing workspaceListing) (workspaceModelCapabilities, bool) {
 	var model inference.ModelProperties
 	if api, ok := h.generator.(modelPropertiesAPI); ok {
 		model = api.ModelProperties()
-	} else if !h.hasWorkspaceCapability(ctx, workflowGeneration, "") {
+	} else if !h.hasWorkspaceCapability(ctx, listing, workflowGeneration, "") {
 		return workspaceModelCapabilities{}, false
 	}
 	image := h.config.ImageProjector != nil || h.config.Qwen3VLProjector != nil
@@ -197,7 +197,7 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 		{"rerank", "Rerank", "rerank"},
 	}
 	for _, mode := range modes {
-		enabled, refusal := h.workspaceCapability(ctx, mode.capability), ""
+		enabled, refusal := h.workspaceCapability(ctx, listing, mode.capability), ""
 		if !enabled {
 			refusal, _ = workspaceRefusal(mode.capability)
 		}

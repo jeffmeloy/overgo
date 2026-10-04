@@ -925,62 +925,28 @@ func TestBuildOpenELMBlockUsesPerLayerHeadsAndQKNorm(t *testing.T) {
 	}
 }
 
-func TestBuildBailingMoEBlockUsesNormalizedSoftmaxAndSharedExpert(t *testing.T) {
-	builder := tensor.NewBuilder()
-	spec := Spec{CommonSpec: CommonSpec{Architecture: "bailingmoe", EmbeddingLength: 8, FeedForwardLength: 16,
-
-		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
-		KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 10000}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		SharedExpertCount: 2, SharedExpertFF: 12, ExpertWeightsScale: 1.25,
-		ExpertWeightsNorm: true},
-	}
-	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
-	weights := denseBlockInputs(builder, spec)
-	weights.FeedForwardGate, weights.FeedForwardUp, weights.FeedForwardDown = nil, nil, nil
-	weights.FeedForwardRouter = builder.Input("router", dtype.F32, tensor.MustShape(8, 4))
-	weights.FeedForwardGateExperts = builder.Input("gate_exps", dtype.F32, tensor.MustShape(8, 6, 4))
-	weights.FeedForwardUpExperts = builder.Input("up_exps", dtype.F32, tensor.MustShape(8, 6, 4))
-	weights.FeedForwardDownExperts = builder.Input("down_exps", dtype.F32, tensor.MustShape(6, 8, 4))
-	weights.FeedForwardSharedGate = builder.Input("shared_gate", dtype.F32, tensor.MustShape(8, 12))
-	weights.FeedForwardSharedUp = builder.Input("shared_up", dtype.F32, tensor.MustShape(8, 12))
-	weights.FeedForwardSharedDown = builder.Input("shared_down", dtype.F32, tensor.MustShape(12, 8))
-	output, err := buildFixtureDenseBlock(builder, input, spec, weights, []uint32{0, 1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	nodes, err := tensor.Topological(output)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var moe *tensor.Tensor
-	var rope, silu int
-	for _, node := range nodes {
-		switch node.Op {
-		case tensor.OpMoE:
-			moe = node
-		case tensor.OpRoPENormal:
-			rope++
-		case tensor.OpSiLU:
-			silu++
-		}
-	}
-	if moe == nil {
-		t.Fatal("BailingMoE graph is missing MoE operation")
-	}
-	attrs := moe.Attrs.(tensor.MoEAttributes)
-	if attrs.Routing != tensor.MoERoutingSoftmax || !attrs.NormalizeTopKProb ||
-		attrs.TopK != 2 || attrs.Scale != 1.25 || rope != 2 || silu < 1 {
-		t.Fatalf("unexpected BailingMoE graph: attrs=%+v rope=%d silu=%d", attrs, rope, silu)
+// TestBuildSharedExpertSoftmaxMoEBlocks covers BailingMoE (normalized top-k)
+// and DeepSeek (unnormalized top-k) softmax routing with a shared expert.
+func TestBuildSharedExpertSoftmaxMoEBlocks(t *testing.T) {
+	for _, entry := range []struct {
+		architecture string
+		normalize    bool
+		scale        float32
+	}{{"bailingmoe", true, 1.25}, {"deepseek", false, 1.3}} {
+		t.Run(entry.architecture, func(t *testing.T) {
+			testBuildSharedExpertSoftmaxMoEBlock(t, entry.architecture, entry.normalize, entry.scale)
+		})
 	}
 }
 
-func TestBuildDeepSeekMoEBlockUsesUnnormalizedSoftmaxAndSharedExpert(t *testing.T) {
+func testBuildSharedExpertSoftmaxMoEBlock(t *testing.T, architecture string, normalize bool, scale float32) {
 	builder := tensor.NewBuilder()
-	spec := Spec{CommonSpec: CommonSpec{Architecture: "deepseek", EmbeddingLength: 8, FeedForwardLength: 16,
+	spec := Spec{CommonSpec: CommonSpec{Architecture: architecture, EmbeddingLength: 8, FeedForwardLength: 16,
 
-		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1, KeyLength: 4, ValueLength: 4,
-		RopeFrequencyBase: 10000}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
-		SharedExpertCount: 2, SharedExpertFF: 12, ExpertWeightsScale: 1.3},
+		RMSNormEpsilon: 1e-6}, AttentionSpec: AttentionSpec{HeadCount: 2, HeadCountKV: 1,
+		KeyLength: 4, ValueLength: 4, RopeFrequencyBase: 10000}, MoESpec: MoESpec{ExpertCount: 4, ExpertUsedCount: 2, ExpertFeedForward: 6,
+		SharedExpertCount: 2, SharedExpertFF: 12, ExpertWeightsScale: scale,
+		ExpertWeightsNorm: normalize},
 	}
 	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 2))
 	weights := denseBlockInputs(builder, spec)
@@ -1013,12 +979,12 @@ func TestBuildDeepSeekMoEBlockUsesUnnormalizedSoftmaxAndSharedExpert(t *testing.
 		}
 	}
 	if moe == nil {
-		t.Fatal("DeepSeek graph is missing MoE operation")
+		t.Fatalf("%s graph is missing MoE operation", architecture)
 	}
 	attrs := moe.Attrs.(tensor.MoEAttributes)
-	if attrs.Routing != tensor.MoERoutingSoftmax || attrs.NormalizeTopKProb ||
-		attrs.TopK != 2 || attrs.Scale != 1.3 || rope != 2 || silu < 1 {
-		t.Fatalf("unexpected DeepSeek graph: attrs=%+v rope=%d silu=%d", attrs, rope, silu)
+	if attrs.Routing != tensor.MoERoutingSoftmax || attrs.NormalizeTopKProb != normalize ||
+		attrs.TopK != 2 || attrs.Scale != scale || rope != 2 || silu < 1 {
+		t.Fatalf("unexpected %s graph: attrs=%+v rope=%d silu=%d", architecture, attrs, rope, silu)
 	}
 }
 

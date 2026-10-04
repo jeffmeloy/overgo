@@ -53,7 +53,9 @@ func (r *vadFaultRepository) Manifest(ctx context.Context, id artifact.ID) (arti
 	return manifest, found, err
 }
 
-func TestVADStreamRecovery(t *testing.T) {
+// verifyVADStreamRecovery runs once, as TestVADStreamingAcceptance's
+// recovery-and-discontinuity subtest.
+func verifyVADStreamRecovery(t *testing.T) {
 	t.Parallel()
 	reference, store, audio := loadVADReference(t)
 	l := newVADLifecycle(t, store, reference.Models[1], true)

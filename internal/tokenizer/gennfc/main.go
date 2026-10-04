@@ -23,6 +23,10 @@ import (
 	"strings"
 )
 
+// hangulFirst and hangulLast bound the Hangul syllables, which decompose and
+// compose by the arithmetic of Unicode 16 section 3.12 rather than by table.
+const hangulFirst, hangulLast = 0xAC00, 0xD7A3
+
 func main() {
 	source := flag.String("source", "", "pinned Colibri c/qwen38_nfc_tables.h")
 	flag.Parse()
@@ -69,7 +73,10 @@ func main() {
 	}
 	current := map[rune][]rune{}
 	for key := range decompositions {
-		current[key] = expand(key, map[rune]bool{})
+		// Unicode 16 section 3.12: Hangul syllables decompose algorithmically.
+		if key < hangulFirst || key > hangulLast {
+			current[key] = expand(key, map[rune]bool{})
+		}
 	}
 	old := existingNFD()
 	for key, prior := range old {
@@ -97,7 +104,7 @@ func main() {
 	compositionCount := 0
 	for _, row := range regexp.MustCompile(`\{(0x[0-9a-f]+), (0x[0-9a-f]+), (0x[0-9a-f]+)\}`).FindAllStringSubmatch(section("q38_nfc_compose"), -1) {
 		// Unicode 16 section 3.12: Hangul syllables compose algorithmically.
-		if composite := number(row[3]); composite >= 0xAC00 && composite <= 0xD7A3 {
+		if composite := number(row[3]); composite >= hangulFirst && composite <= hangulLast {
 			continue
 		}
 		fmt.Fprintf(&output, "{%s,%s}: %s,\n", row[1], row[2], row[3])
@@ -116,24 +123,26 @@ func number(value string) rune {
 	return rune(n)
 }
 
+// existingNFD decodes the packed records of nfd_table.go, whose only string
+// literals are the pieces of nfdPacked: each space-terminated record is a
+// rune followed by its decomposition.
 func existingNFD() map[rune][]rune {
 	file, err := parser.ParseFile(token.NewFileSet(), "internal/tokenizer/nfd_table.go", nil, 0)
 	check(err)
-	result := map[rune][]rune{}
+	var packed strings.Builder
 	ast.Inspect(file, func(node ast.Node) bool {
-		value, ok := node.(*ast.ValueSpec)
-		if !ok || len(value.Names) != 1 || value.Names[0].Name != "nfdTable" {
-			return true
+		if literal, ok := node.(*ast.BasicLit); ok && literal.Kind == token.STRING {
+			value, err := strconv.Unquote(literal.Value)
+			check(err)
+			packed.WriteString(value)
 		}
-		for _, entry := range value.Values[0].(*ast.CompositeLit).Elts {
-			pair := entry.(*ast.KeyValueExpr)
-			key := number(pair.Key.(*ast.BasicLit).Value)
-			for _, child := range pair.Value.(*ast.CompositeLit).Elts {
-				result[key] = append(result[key], number(child.(*ast.BasicLit).Value))
-			}
-		}
-		return false
+		return true
 	})
+	result := map[rune][]rune{}
+	for record := range strings.FieldsFuncSeq(packed.String(), func(r rune) bool { return r == ' ' }) {
+		values := []rune(record)
+		result[values[0]] = values[1:]
+	}
 	if len(result) == 0 {
 		panic("existing NFD table not found")
 	}

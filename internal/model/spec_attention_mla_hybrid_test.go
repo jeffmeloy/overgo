@@ -116,6 +116,34 @@ func TestReadHunyuanDenseSpec(t *testing.T) {
 	}
 }
 
+func TestReadHunyuanMoESpecDefaultsSharedWidthToModel(t *testing.T) {
+	file := &gguf.File{Metadata: []gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, "hunyuan-moe"),
+		metadata("hunyuan-moe.block_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("hunyuan-moe.context_length", gguf.ValueTypeUint32, uint32(4096)),
+		metadata("hunyuan-moe.embedding_length", gguf.ValueTypeUint32, uint32(8)),
+		metadata("hunyuan-moe.feed_forward_length", gguf.ValueTypeUint32, uint32(12)),
+		metadata("hunyuan-moe.attention.head_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("hunyuan-moe.attention.head_count_kv", gguf.ValueTypeUint32, uint32(1)),
+		metadata("hunyuan-moe.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
+		metadata("hunyuan-moe.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+		metadata("hunyuan-moe.expert_count", gguf.ValueTypeUint32, uint32(4)),
+		metadata("hunyuan-moe.expert_used_count", gguf.ValueTypeUint32, uint32(2)),
+		metadata("hunyuan-moe.expert_feed_forward_length", gguf.ValueTypeUint32, uint32(6)),
+	}}
+	spec, err := ReadSpec(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spec.ExpertFeedForward != 6 || spec.SharedExpertFF != 12 || !spec.ExpertWeightsNorm {
+		t.Fatalf("unexpected Hunyuan-MoE spec: %+v", spec)
+	}
+	file.Metadata = file.Metadata[:len(file.Metadata)-1]
+	if _, err := ReadSpec(file); err == nil {
+		t.Fatal("Hunyuan-MoE accepted missing expert width")
+	}
+}
+
 func TestReadHunyuanVLSpecUsesOptionalMRoPEAndXDRoPE(t *testing.T) {
 	file := &gguf.File{Metadata: []gguf.Metadata{
 		metadata("general.architecture", gguf.ValueTypeString, "hunyuan_vl"),

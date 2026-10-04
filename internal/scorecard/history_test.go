@@ -1,62 +1,78 @@
 package scorecard
 
 import (
-	"path/filepath"
 	"slices"
 	"testing"
 
-	"overgo/internal/jsonfile"
+	"overgo/internal/artifact"
+	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 	"overgo/internal/scorecard/metric"
+	"overgo/internal/testutil"
 )
 
-// TestMovesBetweenRecords compares two published records: a value that
-// changed, a cell that gained or lost its measure, a row that came and one
-// that went; a rising throughput or quality improved, a rising cost did not;
-// and the directory's newest records read back oldest first.
+// TestMovesBetweenRecords compares two published records through the
+// promotion's comparison: a value that changed on one contract, a cell that
+// gained or lost its measure, a cell measured on another contract (Unknown,
+// never better or worse), a row that came and one that went; a rising
+// throughput improved and a rising cost did not, a held-out quality by its
+// own direction; and rows pair by model, so two sharing a name never trade
+// baselines.
 func TestMovesBetweenRecords(t *testing.T) {
 	t.Parallel()
-	row := func(name string, cells map[metric.Name]RecordedCell) RecordedRow {
-		return RecordedRow{Name: name, Task: "inference", Cells: cells}
+	model := func(name string) artifact.ID { return testutil.ArtifactID(t, artifact.KindModel, name) }
+	cell := func(column metric.Name, value float64, unit string) Cell {
+		return Cell{Value: value, Unit: unit, Contract: Contract{Metric: string(column), Origin: originServing}}
 	}
-	before := Record{Commit: "a", Rows: []RecordedRow{
-		row("alpha", map[metric.Name]RecordedCell{
-			metric.Throughput: {Value: 40, Unit: "tok/s"}, metric.FirstOutput: {Value: 100, Unit: "ms"},
-			metric.Quality: {Reason: "no held-out record"}, metric.PeakMemory: {Value: 8, Unit: "bytes"},
+	// A published record carries a cell for every column, a gap naming its reason.
+	row := func(id artifact.ID, name string, cells map[metric.Name]Cell) Row {
+		for _, column := range metric.Columns {
+			if _, found := cells[column]; !found {
+				cells[column] = Cell{Reason: "no record measures it"}
+			}
+		}
+		return Row{Model: id, Name: name, Task: recipe.TaskInference, Cells: cells}
+	}
+	quality := func(value float64, suite string) Cell {
+		return Cell{Value: value, Unit: "accuracy", Direction: runrecord.DirectionMinimize,
+			Contract: Contract{Metric: "perplexity", Origin: originServing, Suite: suite}}
+	}
+	alpha, twin, retired := model("alpha"), model("twin"), model("retired")
+	before := Record{Commit: "a", Rows: []Row{
+		row(alpha, "alpha", map[metric.Name]Cell{
+			metric.Throughput: cell(metric.Throughput, 40, "tok/s"), metric.FirstOutput: cell(metric.FirstOutput, 100, "ms"),
+			metric.Quality: quality(12, "wikitext"), metric.PeakMemory: {Reason: "no benchmark record"}, metric.Load: cell(metric.Load, 5, "ms"),
 		}),
-		row("retired", map[metric.Name]RecordedCell{metric.Throughput: {Value: 9, Unit: "tok/s"}}),
+		row(twin, "same name", map[metric.Name]Cell{metric.Throughput: cell(metric.Throughput, 10, "tok/s")}),
+		row(retired, "retired", map[metric.Name]Cell{metric.Throughput: cell(metric.Throughput, 9, "tok/s")}),
 	}}
-	after := Record{Commit: "b", Rows: []RecordedRow{
-		row("alpha", map[metric.Name]RecordedCell{
-			metric.Throughput: {Value: 45, Unit: "tok/s"}, metric.FirstOutput: {Value: 130, Unit: "ms"},
-			metric.Quality: {Value: 0.7, Unit: "accuracy"}, metric.PeakMemory: {Reason: "no benchmark record"},
+	elsewhere := cell(metric.Load, 6, "ms")
+	elsewhere.Contract.Scope = model("other recipe")
+	after := Record{Commit: "b", Rows: []Row{
+		row(alpha, "alpha", map[metric.Name]Cell{
+			metric.Throughput: cell(metric.Throughput, 45, "tok/s"), metric.FirstOutput: cell(metric.FirstOutput, 130, "ms"),
+			metric.Quality: quality(10, "wikitext"), metric.PeakMemory: cell(metric.PeakMemory, 8, "bytes"), metric.Load: elsewhere,
 		}),
-		row("beta", map[metric.Name]RecordedCell{metric.Throughput: {Value: 30, Unit: "tok/s"}}),
+		row(twin, "same name", map[metric.Name]Cell{metric.Throughput: cell(metric.Throughput, 10, "tok/s")}),
+		row(model("beta"), "same name", map[metric.Name]Cell{metric.Throughput: cell(metric.Throughput, 30, "tok/s")}),
 	}}
 	moves := Moves(before, after)
-	kinds := []string{}
+	var got []string
 	for _, move := range moves {
-		kinds = append(kinds, move.Name+" "+string(move.Column)+" "+string(move.Kind))
+		got = append(got, move.Name+" "+string(move.Column)+" "+string(move.Kind))
 	}
-	want := []string{"alpha first-output changed", "alpha throughput changed", "alpha held-out-quality measured",
-		"alpha peak-device-memory unmeasured", "beta  added", "retired  removed"}
-	if !slices.Equal(kinds, want) {
-		t.Fatalf("moves = %q, want %q", kinds, want)
+	want := []string{"alpha first-output changed", "alpha throughput changed", "alpha held-out-quality changed",
+		"alpha load-time unknown", "alpha peak-device-memory measured", "same name  added", "retired  removed"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("moves = %q, want %q", got, want)
 	}
-	if moves[0].Improved() || !moves[1].Improved() || moves[2].Improved() {
-		t.Fatalf("a slower first output improved or a faster throughput did not: %+v", moves[:3])
+	if moves[0].Advantage() >= 0 || moves[1].Advantage() <= 0 || moves[2].Advantage() <= 0 {
+		t.Fatalf("a slower first output improved, a faster throughput or a lower perplexity did not: %+v", moves[:3])
 	}
-
-	directory := t.TempDir()
-	for index, record := range []Record{before, after, {Commit: "c"}} {
-		if err := jsonfile.Write(filepath.Join(directory, RecordName("20260929T00000"+string(rune('0'+index))+"Z")), record, 0o644); err != nil {
-			t.Fatal(err)
-		}
+	if moves[3].Reason == "" || moves[3].Advantage() != 0 {
+		t.Fatalf("a cell measured on another contract moved as better or worse: %+v", moves[3])
 	}
-	latest, err := LatestRecords(directory, 2)
-	if err != nil || len(latest) != 2 || latest[0].Commit != "b" || latest[1].Commit != "c" {
-		t.Fatalf("the newest two records = %+v, %v", latest, err)
-	}
-	if none, err := LatestRecords(filepath.Join(directory, "absent"), 2); err != nil || len(none) != 0 {
-		t.Fatalf("an absent directory read %+v, %v", none, err)
+	if none := Moves(after, after); len(none) != 0 {
+		t.Fatalf("a record moved against itself: %+v", none)
 	}
 }

@@ -31,7 +31,9 @@ func vadBoundaryCases(t *testing.T) []vadBoundaryCase {
 	return reference.Cases
 }
 
-func TestVADStreamBoundaryParity(t *testing.T) {
+// verifyVADStreamBoundaries runs once, as TestVADStreamingAcceptance's
+// boundary-reference subtest.
+func verifyVADStreamBoundaries(t *testing.T) {
 	t.Parallel()
 	for _, fixture := range vadBoundaryCases(t) {
 		t.Run(fixture.Name, func(t *testing.T) {
@@ -81,7 +83,9 @@ func TestVADStreamBoundaryParity(t *testing.T) {
 	}
 }
 
-func TestVADOfflineBoundaryParity(t *testing.T) {
+// verifyVADOfflineBoundaries runs once, as TestVADOfflineAcceptance's
+// boundary-reference subtest.
+func verifyVADOfflineBoundaries(t *testing.T) {
 	t.Parallel()
 	for _, fixture := range vadBoundaryCases(t) {
 		t.Run(fixture.Name, func(t *testing.T) {

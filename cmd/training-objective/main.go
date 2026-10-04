@@ -23,6 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strings"
 
@@ -52,6 +53,7 @@ func run(args []string, output io.Writer) error {
 	evidenceNote := flags.String("evidence", "", "evidence note identifying why this objective is approved")
 	splitGroupText := flags.String("split-group", "", "unit the training/held-out split keeps whole: asset (all of an asset's records together) or record (each record alone)")
 	splitWeightsText := flags.String("split-weights", "", "declared partition weights, train=<w>,heldout=<w>")
+	heldoutRecords := flags.Uint("heldout-records", 0, "most held-out records a verdict scores, the first by record identity, where scoring one is costly; 0 scores every one")
 	promote := flags.String("promote", "", "registered objective alias to promote from declared to adaptive-evidence (with -observations)")
 	observationsText := flags.String("observations", "", "comma-separated succeeded training session observation IDs grounding the promotion")
 	approve := flags.String("approve", "", "registered objective alias to promote from adaptive-evidence to approved (with -evaluations)")
@@ -81,6 +83,9 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if *heldoutRecords > math.MaxUint32 {
+		return fmt.Errorf("training-objective: -heldout-records %d exceeds %d", *heldoutRecords, uint32(math.MaxUint32))
+	}
 	input := recipecontract.Modality(*inputText)
 	outputModality := recipecontract.Modality(*outputText)
 	if !recipecontract.ValidModality(input) || !recipecontract.ValidModality(outputModality) {
@@ -101,7 +106,7 @@ func run(args []string, output io.Writer) error {
 		Input: input, Output: outputModality,
 		Metric:  trainingprogram.EvaluationMetric(*metricText),
 		Dataset: *datasetName, Evidence: *evidenceNote,
-		SplitGroup: splitGroup(*splitGroupText), SplitWeights: weights,
+		SplitGroup: splitGroup(*splitGroupText), SplitWeights: weights, HeldoutRecords: uint32(*heldoutRecords),
 	})
 	if err != nil {
 		return err
@@ -120,7 +125,7 @@ func promoteObjective(
 	output io.Writer,
 ) error {
 	var evidence []artifact.ID
-	for _, field := range strings.Split(evidenceText, ",") {
+	for field := range strings.SplitSeq(evidenceText, ",") {
 		field = strings.TrimSpace(field)
 		if field == "" {
 			continue
@@ -165,6 +170,9 @@ type objectiveRequest struct {
 	// training and held-out memberships the objective binds.
 	SplitGroup   splitGroup
 	SplitWeights splitWeights
+	// HeldoutRecords bounds the held-out records a verdict scores; zero
+	// scores every one.
+	HeldoutRecords uint32
 }
 
 // publishObjective resolves the registered dataset, derives the stable
@@ -214,7 +222,7 @@ func publishObjective(
 		},
 		Dataset: datasetID, Split: training.ID, Processors: []artifact.ID{processorID},
 		Loss: lossID, Evaluation: evaluationID,
-		Metric: request.Metric, Evidence: []artifact.ID{evidenceID},
+		Metric: request.Metric, HeldoutRecords: request.HeldoutRecords, Evidence: []artifact.ID{evidenceID},
 		// Declared: this command records contract identities and an
 		// evidence note. It measures nothing and runs no evaluation, so
 		// it publishes at the bottom of the validation ladder; adaptive

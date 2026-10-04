@@ -71,7 +71,7 @@ func launchMoE(
 		if err != nil {
 			return err
 		}
-		next := 3
+		next := moeFirstBankInput
 		var gate driver.DevicePtr
 		if attributes.Gated && !attributes.FusedGateUp {
 			gate = pointers.input(next)
@@ -91,17 +91,13 @@ func launchMoE(
 			gate = up
 			intermediate /= 2
 		}
-		if upNode.Type != downNode.Type || attributes.Gated && !attributes.FusedGateUp && node.Inputs[3].Type != upNode.Type {
+		if upNode.Type != downNode.Type || attributes.Gated && !attributes.FusedGateUp && node.Inputs[moeFirstBankInput].Type != upNode.Type {
 			return errors.New("MoE expert storage types differ")
 		}
-		var expertStorage uint32
-		if upNode.Type == dtype.F32 {
-			expertStorage = uint32(dtype.F32)
-		} else if nativeQuantizedType(upNode.Type) {
-			expertStorage = uint32(upNode.Type)
-		} else {
+		if upNode.Type != dtype.F32 && upNode.Type != dtype.BF16 && !nativeQuantizedType(upNode.Type) {
 			return fmt.Errorf("MoE expert storage type %s is unsupported", upNode.Type)
 		}
+		expertStorage := uint32(upNode.Type)
 		var selectionBias driver.DevicePtr
 		optionalIndex := wantInputs
 		if attributes.HasSelectionBias {
@@ -143,27 +139,98 @@ func launchMoE(
 		swigluClamp := attributes.SwiGLUClamp
 		gated := kernelBool(attributes.Gated)
 		fusedGateUp := kernelBool(attributes.FusedGateUp)
-		const (
-			groupedMoEThreads          = uint32(256)
-			groupedMoESharedScalars    = uint64(1)
-			groupedMoESharedEntryBytes = uint64(4)
-		)
-		sharedEntries := uint64(topK)*2 + uint64(groupedMoEThreads) + groupedMoESharedScalars
-		if sharedEntries > math.MaxUint32/groupedMoESharedEntryBytes {
-			return errors.New("grouped MoE shared-memory size exceeds uint32")
+		group, tokenBytes, err := moeScratchGroup(node)
+		if err != nil {
+			return err
 		}
-		sharedBytes := uint32(sharedEntries * groupedMoESharedEntryBytes)
-		return launchGridSharedABI(
-			state, functions[kernelMoeGroupedF32],
-			driver.Dim3{X: tokens, Y: 1, Z: 1},
-			driver.Dim3{X: groupedMoEThreads, Y: 1, Z: 1}, sharedBytes,
-			&input, &routerInput, &router, &gate, &up, &down, &selectionBias, &expertScale,
-			&routerBias, &gateBias, &upBias, &downBias, &selectedExperts, &output,
-			&hidden, &routerHidden, &tokens, &experts, &topK, &intermediate, &normalize,
-			&routing, &scale, &expertStorage, &gated, &fusedGateUp, &activation,
-			&expertIndexDivisor, &swigluClamp,
-		)
+		if blas == nil || blas.scores == 0 || uint64(group)*tokenBytes > blas.scoreBytes {
+			return errors.New("MoE scratch is unavailable")
+		}
+		// A group's route words lead the scratch; its activations follow.
+		routeState := blas.scores
+		activations := routeState +
+			driver.DevicePtr(uint64(group)*(uint64(topK)*moeSlotRouteWords+moeTokenRouteWords)*f32ScalarBytes)
+		if uint64(experts) > math.MaxUint32/f32ScalarBytes || uint64(group)*uint64(hidden) > math.MaxUint32 {
+			return errors.New("grouped MoE launch size exceeds uint32")
+		}
+		logitBytes := experts * uint32(f32ScalarBytes)
+		for start := uint32(0); start < tokens; start += group {
+			count := min(group, tokens-start)
+			tokenOffset := uint64(start) * f32ScalarBytes
+			groupInput := input + driver.DevicePtr(tokenOffset*uint64(hidden))
+			groupRouterInput := routerInput + driver.DevicePtr(tokenOffset*uint64(routerHidden))
+			groupOutput := output + driver.DevicePtr(tokenOffset*uint64(hidden))
+			groupSelected := selectedExperts
+			if attributes.HasSelectedExperts {
+				groupSelected += driver.DevicePtr(tokenOffset * uint64(topK))
+			}
+			if err := launchGridSharedABI(
+				state, functions[kernelMoeRouteF32],
+				driver.Dim3{X: count, Y: 1, Z: 1},
+				driver.Dim3{X: moeRouteThreads, Y: 1, Z: 1}, logitBytes,
+				&groupRouterInput, &router, &selectionBias, &routerBias, &groupSelected, &routeState,
+				&routerHidden, &count, &experts, &topK, &routing,
+			); err != nil {
+				return err
+			}
+			hiddenCount := count * topK * intermediate
+			if err := launch1DABI(
+				state, functions[kernelMoeHiddenF32], hiddenCount,
+				&groupInput, &routeState, &gate, &up, &gateBias, &upBias, &activations,
+				&hidden, &topK, &intermediate, &routing, &expertStorage, &gated, &fusedGateUp,
+				&activation, &expertIndexDivisor, &swigluClamp, &hiddenCount,
+			); err != nil {
+				return err
+			}
+			downCount := count * hidden
+			if err := launch1DABI(
+				state, functions[kernelMoeDownF32], downCount,
+				&routeState, &activations, &down, &expertScale, &downBias, &groupOutput,
+				&hidden, &topK, &intermediate, &normalize, &scale, &expertStorage,
+				&expertIndexDivisor, &downCount,
+			); err != nil {
+				return err
+			}
+		}
+		return nil
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)
 	}
+}
+
+const (
+	// moeFirstBankInput: a routed-expert node's inputs open with its
+	// activations, its router input and its router; the expert banks follow.
+	moeFirstBankInput = 3
+	// moeRouteThreads: the block that computes one token's router logits.
+	moeRouteThreads = uint32(256)
+	// A token's route words: each routed slot's expert and route weight, then
+	// the route weights' sum.
+	moeSlotRouteWords  = uint64(2)
+	moeTokenRouteWords = uint64(1)
+	// moeScratchLimitBytes bounds the scratch one launch group holds; a
+	// longer prompt runs as several groups.
+	moeScratchLimitBytes = uint64(32 << 20)
+)
+
+// moeScratchGroup: the tokens one routed-expert launch group covers and the
+// scratch bytes each of them holds -- its route words and one activation per
+// routed intermediate row.
+func moeScratchGroup(node *tensor.Tensor) (uint32, uint64, error) {
+	attributes, ok := node.Attrs.(tensor.MoEAttributes)
+	downInput := moeFirstBankInput + 1
+	if attributes.Gated && !attributes.FusedGateUp {
+		downInput++
+	}
+	if !ok || len(node.Inputs) <= downInput {
+		return 0, 0, errors.New("invalid MoE attributes")
+	}
+	tokens, intermediate := node.Shape.Dims[1], node.Inputs[downInput].Shape.Dims[0]
+	if tokens == 0 || tokens > math.MaxUint32 || attributes.TopK == 0 ||
+		intermediate == 0 || intermediate > math.MaxUint32/uint64(attributes.TopK) {
+		return 0, 0, errors.New("invalid grouped MoE dimensions")
+	}
+	activations := uint64(attributes.TopK) * intermediate
+	tokenBytes := (uint64(attributes.TopK)*moeSlotRouteWords + moeTokenRouteWords + activations) * f32ScalarBytes
+	return uint32(min(tokens, max(1, moeScratchLimitBytes/tokenBytes))), tokenBytes, nil
 }

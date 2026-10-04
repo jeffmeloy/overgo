@@ -30,11 +30,11 @@ type Graft struct {
 	DonorGate         []float32 // [DonorIntermediate x DonorHidden]
 	DonorUp           []float32 // [DonorIntermediate x DonorHidden]
 	DonorDown         []float32 // [DonorHidden x DonorIntermediate]
-	bridge            []float32
 
-	// The Muon plan and optimizer the bridge's last TrainBridge stepped.
-	optimizerPlan optimizer.Plan
-	muon          *optimizer.Optimizer
+	// The pack Down and Up view, and the optimizer the bridge's last
+	// TrainBridge stepped over it.
+	pack *optimizer.TensorPack
+	muon *optimizer.Optimizer
 }
 
 // BridgeGradNames key the two trainable bridge matrices in Grads.
@@ -57,21 +57,25 @@ func NewGraft(target *Model, layer int, donorGate, donorUp, donorDown []float32,
 		len(donorDown) != donorHidden*donorIntermediate {
 		return nil, fmt.Errorf("densecausal: donor MLP tensors do not match geometry %dx%d", donorHidden, donorIntermediate)
 	}
-	bridgeSize := donorHidden * hidden
-	bridge := make([]float32, 2*bridgeSize)
-	graft := &Graft{
-		Layer: layer, DonorHidden: donorHidden, DonorIntermediate: donorIntermediate,
-		Down:      bridge[:bridgeSize],
-		Up:        bridge[bridgeSize:],
-		DonorGate: donorGate, DonorUp: donorUp, DonorDown: donorDown,
-		bridge: bridge,
-	}
+	down := make([]float32, donorHidden*hidden)
 	random := rand.New(rand.NewSource(seed))
 	scale := float32(1 / math.Sqrt(float64(hidden)))
-	for i := range graft.Down {
-		graft.Down[i] = (random.Float32()*2 - 1) * scale
+	for i := range down {
+		down[i] = (random.Float32()*2 - 1) * scale
 	}
-	return graft, nil
+	pack, err := optimizer.NewSectionPack([]optimizer.TensorSection{
+		{Name: BridgeDownName, Rows: donorHidden, Cols: hidden, Values: down},
+		{Name: BridgeUpName, Rows: hidden, Cols: donorHidden, Values: make([]float32, len(down))},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &Graft{
+		Layer: layer, DonorHidden: donorHidden, DonorIntermediate: donorIntermediate,
+		Down: pack.Weights(0), Up: pack.Weights(1),
+		DonorGate: donorGate, DonorUp: donorUp, DonorDown: donorDown,
+		pack: pack,
+	}, nil
 }
 
 // branchForward computes the graft branch output and retains the trace needed
@@ -100,7 +104,7 @@ func (gr *Graft) branchForward(m *Model, x []float32, seq int) []float32 {
 
 // GraftLoss runs the grafted forward and returns mean causal CE.
 func (m *Model) GraftLoss(gr *Graft, tokens []int) (float64, error) {
-	states, _, err := m.graftForwardStates(gr, tokens)
+	states, _, err := m.graftForwardStates(gr, tokens, false)
 	if err != nil {
 		return 0, err
 	}
@@ -120,10 +124,10 @@ func (m *Model) GraftLoss(gr *Graft, tokens []int) (float64, error) {
 // graft layer's output. The returned preBranch buffer retains the pre-add
 // residual stream (checkpoint posture: the branch trace is recomputed from it
 // in backward).
-func (m *Model) graftForwardStates(gr *Graft, tokens []int) ([][]float32, []float32, error) {
+func (m *Model) graftForwardStates(gr *Graft, tokens []int, retain bool) ([][]float32, []float32, error) {
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
 	var preBranch []float32
-	states, err := m.retainedForwardStates(tokens, func(x []float32, index, seq int) error {
+	states, err := m.retainedForwardStates(tokens, retain, func(x []float32, index, seq int) error {
 		if err := m.layerForward(x, m.layers[index], invFreq, seq); err != nil {
 			return err
 		}
@@ -154,7 +158,7 @@ func (m *Model) GraftLossAndBridgeGrads(gr *Graft, tokens []int, bridge Grads) (
 	}
 	clear(downGradient)
 	clear(upGradient)
-	states, preBranch, err := m.graftForwardStates(gr, tokens)
+	states, preBranch, err := m.graftForwardStates(gr, tokens, true)
 	if err != nil {
 		return 0, err
 	}
@@ -213,32 +217,15 @@ func (m *Model) TrainBridge(gr *Graft, batches [][]int, baseLR, mu float64, step
 	if steps <= 0 || len(batches) == 0 {
 		return nil, fmt.Errorf("densecausal: bridge training needs steps and batches")
 	}
-	hidden := m.Dims.Hidden
-	downSize := gr.DonorHidden * hidden
-	upSize := hidden * gr.DonorHidden
-	weights := gr.bridge
-	gradients := make([]float32, len(weights))
-	bridgeGradients := Grads{
-		BridgeDownName: gradients[:downSize],
-		BridgeUpName:   gradients[downSize:],
-	}
-	plan, err := optimizer.CompilePlan(len(weights), []optimizer.GroupSpec{
-		{Name: BridgeDownName, Start: 0, End: downSize, Rows: gr.DonorHidden, Cols: hidden},
-		{Name: BridgeUpName, Start: downSize, End: downSize + upSize, Rows: hidden, Cols: gr.DonorHidden},
-	})
-	if err != nil {
-		return nil, err
-	}
+	bridgeGradients := Grads{BridgeDownName: gr.pack.Gradients(0), BridgeUpName: gr.pack.Gradients(1)}
 	if baseLR <= 0 {
-		baseLR = trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(len(weights))
+		baseLR = trainingprogram.BuiltinOptimizerPolicy().InitializationLearningRate(gr.pack.ParameterCount())
 	}
-	opt, err := optimizer.New(weights, gradients, plan, optimizer.Config{
-		BaseLearningRate: baseLR, Momentum: mu, Schedule: optimizer.ScheduleConstant,
-	})
+	opt, err := gr.pack.NewOptimizer(constantMuon(baseLR, mu))
 	if err != nil {
 		return nil, err
 	}
-	gr.optimizerPlan, gr.muon = plan, opt
+	gr.muon = opt
 	losses := make([]float64, 0, steps)
 	for step := range steps {
 		batch := batches[step%len(batches)]
@@ -255,15 +242,12 @@ func (m *Model) TrainBridge(gr *Graft, batches [][]int, baseLR, mu float64, step
 	return losses, nil
 }
 
-// OptimizerPlan is the Muon plan the bridge's last TrainBridge compiled: one
-// group per bridge matrix.
-func (gr *Graft) OptimizerPlan() optimizer.Plan { return gr.optimizerPlan }
+// OptimizerPlan is the bridge's Muon plan: one group per bridge matrix.
+func (gr *Graft) OptimizerPlan() optimizer.Plan { return gr.pack.Plan() }
 
 // Snapshot copies the optimizer state the bridge's last TrainBridge left.
 func (gr *Graft) Snapshot() optimizer.State { return gr.muon.Snapshot() }
 
 // SaveWeights writes the trained bridge at path, the weights Snapshot pairs
 // with.
-func (gr *Graft) SaveWeights(path string) error {
-	return optimizer.SavePlanWeights(path, gr.optimizerPlan, gr.bridge)
-}
+func (gr *Graft) SaveWeights(path string) error { return gr.pack.Save(path) }

@@ -1,95 +1,86 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"overgo/internal/authoritylock"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 	"overgo/internal/storepolicy"
 )
 
 // rebuild is overgodb rebuild: it writes the store's projected state into a
-// fresh journal, stripping derived caches whose identities stay registered.
-// The store keeps recipes, prototypes, activations, and evaluated
+// fresh candidate store, stripping derived caches whose identities stay
+// registered. The store keeps recipes, prototypes, activations, and evaluated
 // performance; it stops carrying recomputable snapshots (owner ruling
 // 2026-08-27, measured: 6.07 GB of code manifests against ~450 MB of
-// knowledge). -swap moves the rebuilt journal into place, keeping the old
-// journal alongside; -discard-old removes the old journal after a verified
-// swap.
+// knowledge). -swap puts the candidate into service the way precheck does:
+// under the gate's authority, only once every consumer check passed, and by
+// renaming the whole store, so the superseded store stays beside it and a
+// failed rename restores it.
 func rebuild(flags *flag.FlagSet, args []string) error {
-	repo := flags.String("repo", "overgodb-store", "OvergoDB store directory")
-	destination := flags.String("destination", "tmp/store-rebuild", "directory for the rebuilt store; must not already hold a journal")
-	swap := flags.Bool("swap", false, "move the rebuilt journal into the store directory, keeping the old journal alongside")
-	discardOld := flags.Bool("discard-old", false, "with -swap: remove the old journal after the swap")
+	repository := flags.String("repo", "overgodb-store", "OvergoDB store directory")
+	destination := flags.String("destination", "", "fresh directory for the rebuilt store (default: <repo>.candidate)")
+	checkout := flags.String("checkout", ".", "with -swap: checkout whose committed documents the rebuilt store must satisfy")
+	swap := flags.Bool("swap", false, "put the rebuilt store into service once every consumer check passed, keeping the superseded store beside it")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	rebuiltExists := false
-	if _, err := os.Stat(filepath.Join(*destination, "overgodb.log")); err == nil {
-		rebuiltExists = true
+	*destination = cmp.Or(*destination, filepath.Clean(*repository)+".candidate")
+	if _, err := os.Lstat(*destination); err == nil {
+		return fmt.Errorf("overgodb rebuild:%s already exists; use a fresh destination", *destination)
 	}
-	if rebuiltExists && !*swap {
-		return fmt.Errorf("overgodb rebuild:%s already holds a journal; use a fresh destination", *destination)
-	}
-	if rebuiltExists && *swap {
-		// A verified rebuilt journal already stands; swap it without
-		// rebuilding again.
-		return swapJournals(*repo, *destination, *discardOld)
-	}
-	source, err := overgodb.OpenReadOnly(*repo)
-	if err != nil {
-		return err
-	}
-	report, err := overgodb.Rebuild(context.Background(), source, *destination, storepolicy.DerivedCache, runrecord.RetiredGateAliasesAtRest)
-	closeErr := source.Close()
-	if err != nil {
-		return errors.Join(err, closeErr)
-	}
-	if closeErr != nil {
-		return closeErr
-	}
-	fmt.Printf("rebuilt: artifacts=%d contents_kept=%d (%.2f GB) contents_dropped=%d (%.2f GB) manifests=%d lineage=%d locations=%d aliases=%d batches=%d\n",
-		report.Artifacts, report.ContentsKept, float64(report.BytesKept)/1e9,
-		report.ContentsDropped, float64(report.BytesDropped)/1e9,
-		report.Manifests, report.LineageEdges, report.Locations, report.Aliases, report.Batches)
-	rebuiltJournal := filepath.Join(*destination, "overgodb.log")
-	if info, err := os.Stat(rebuiltJournal); err == nil {
-		fmt.Printf("rebuilt journal: %s (%.2f GB)\n", rebuiltJournal, float64(info.Size())/1e9)
-	}
-	if !*swap {
-		fmt.Println("re-run with -swap to move the rebuilt journal into place")
-		return nil
-	}
-	return swapJournals(*repo, *destination, *discardOld)
-}
-
-func swapJournals(repo, destination string, discardOld bool) error {
-	journal := filepath.Join(repo, "overgodb.log")
-	rebuiltJournal := filepath.Join(destination, "overgodb.log")
-	previous := journal + ".pre-rebuild"
-	if _, err := os.Stat(previous); err == nil {
-		return fmt.Errorf("overgodb rebuild:%s already exists; resolve it before another swap", previous)
-	}
-	if err := os.Rename(journal, previous); err != nil {
-		return err
-	}
-	if err := os.Rename(rebuiltJournal, journal); err != nil {
-		return err
-	}
-	if err := overgodb.MergeBlobTrees(destination, repo); err != nil {
-		return err
-	}
-	fmt.Printf("swapped: previous journal kept at %s\n", previous)
-	if discardOld {
-		if err := os.Remove(previous); err != nil {
+	if *swap {
+		// One hold of the gate's authority covers the rebuild, its checks and
+		// the swap, as it does for precheck.
+		authority, err := authoritylock.Acquire(*checkout)
+		if err != nil {
 			return err
 		}
-		fmt.Println("discarded the previous journal")
+		defer authority.Close()
 	}
-	return nil
+	ctx := context.Background()
+	source, err := overgodb.OpenReadOnly(*repository)
+	if err != nil {
+		return err
+	}
+	head, sequence := source.Head()
+	report, err := overgodb.Rebuild(ctx, source, *destination, storepolicy.DerivedCache, runrecord.RetiredGateAliasesAtRest)
+	if err := errors.Join(err, source.Close()); err != nil {
+		return err
+	}
+	fmt.Printf("rebuilt %s: artifacts=%d contents_kept=%d (%.2f GB) contents_dropped=%d (%.2f GB) manifests=%d lineage=%d locations=%d aliases=%d batches=%d\n",
+		*destination, report.Artifacts, report.ContentsKept, float64(report.BytesKept)/1e9,
+		report.ContentsDropped, float64(report.BytesDropped)/1e9,
+		report.Manifests, report.LineageEdges, report.Locations, report.Aliases, report.Batches)
+	if !*swap {
+		return nil
+	}
+	result := receipt{OperationProof: overgodb.OperationProof{HeadBefore: head.String(), SequenceBefore: sequence}, Candidate: *destination}
+	err = proveRebuilt(ctx, &result, *checkout)
+	if err == nil {
+		err = conclude(&result, true, func() (string, error) {
+			return overgodb.ReplaceStore(ctx, *repository, *destination, result.HeadBefore)
+		})
+	}
+	return errors.Join(err, json.NewEncoder(os.Stdout).Encode(result))
+}
+
+// proveRebuilt runs precheck's consumer checks against the rebuilt candidate
+// and commits the proof into it when every one passed.
+func proveRebuilt(ctx context.Context, result *receipt, checkout string) error {
+	store, err := overgodb.Open(result.Candidate)
+	if err != nil {
+		return err
+	}
+	head, sequence := store.Head()
+	result.HeadAfter, result.SequenceAfter = head.String(), sequence
+	return errors.Join(prove(ctx, result, store, checkout), store.Close())
 }

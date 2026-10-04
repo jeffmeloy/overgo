@@ -576,7 +576,7 @@ func TestSecondWriterFailsClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	lock, err := processlock.Acquire(filepath.Join(root, lockFilename), storeFileMode)
+	lock, err := processlock.Acquire(writerLockPath(root), storeFileMode)
 	if err != nil {
 		t.Fatal(err)
 	}

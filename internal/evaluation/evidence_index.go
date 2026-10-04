@@ -7,13 +7,18 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/benchmarkrecord"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/sampling"
 )
 
 // BenchmarkSummary is the latest committed benchmark claim for one
 // weights file: tier, wall, peak, and the headline rates, time to first
-// token and load time lifted from the claim's evidence document.
+// token and load time lifted from the claim's evidence document. Producer
+// facts are independent: absent or inconsistent facts stay unknown, and
+// neither the claim's publication nor these facts prove source currency.
 type BenchmarkSummary struct {
 	Tier                  string  `json:"tier"`
 	PromptTokensPerSecond float64 `json:"prompt_tokens_per_second_p50,omitzero"`
@@ -28,6 +33,11 @@ type BenchmarkSummary struct {
 	DeviceTotalBytes     uint64      `json:"device_total_bytes,omitzero"`
 	RealizedResidency    string      `json:"realized_residency,omitzero"`
 	Record               artifact.ID `json:"record,omitzero"`
+	CodeCommit           string      `json:"code_commit,omitzero"`
+	Environment          artifact.ID `json:"environment,omitzero"`
+	// Comparison binds a known full same-producer benchmark contract; it does
+	// not establish source currency or cross-revision performance equivalence.
+	Comparison artifact.ID `json:"comparison,omitzero"`
 }
 
 // headlineMetrics orders the metric that stands for an evaluation: an
@@ -51,46 +61,75 @@ func HeadlineMetric(metrics map[string]float64) (name string, value float64, ok 
 }
 
 // EvalSummary is one suite's latest committed evaluation for a recipe
-// under one prompting protocol; the raw-completion anchor and the
-// chat-template pass of the same suite are two summaries.
+// under one acceptance/environment contract. Prompting is only a display label;
+// Comparison binds full acceptance: executable plans include environment;
+// reconstructed target reports bind exact targets/inputs without asserting
+// known execution. Neither identity certifies current source.
 type EvalSummary struct {
-	Suite     string             `json:"suite"`
-	Prompting string             `json:"prompting"`
-	Record    artifact.ID        `json:"record,omitzero"`
-	Metrics   map[string]float64 `json:"metrics"`
+	Suite       string             `json:"suite"`
+	Prompting   string             `json:"prompting"`
+	Record      artifact.ID        `json:"record,omitzero"`
+	Metrics     map[string]float64 `json:"metrics"`
+	Comparison  artifact.ID        `json:"comparison,omitzero"`
+	Environment artifact.ID        `json:"environment,omitzero"`
+	CodeCommit  string             `json:"code_commit,omitzero"`
+	// Directions says which way each metric improves: the scorecard judges
+	// a held-out regression by it.
+	Directions map[string]runrecord.Direction `json:"-"`
+	// ExecutionKnown says the succeeded run, plan and typed environment agree.
+	// It does not establish source currency or full measurement comparability.
+	ExecutionKnown bool `json:"execution_known"`
 	// Reproducible: the run's environment is one the store can reproduce;
 	// false for a hosted model scored through the relay.
 	Reproducible bool `json:"reproducible"`
+	// Carried names the ReplayReceipt of a record that carried an earlier
+	// result forward; zero when its run scored every case.
+	Carried artifact.ID `json:"carried,omitzero"`
 }
 
-// recordExecution reads the prompting protocol an evaluation record ran
-// under (its run's plan input binds the execution policy) and whether its
-// environment is reproducible. A record whose plan cannot be read reports
-// the raw anchor, the only protocol earlier records could have run; a run
-// whose environment cannot be read reports it reproducible, as every
-// earlier environment was.
-func recordExecution(ctx context.Context, store *overgodb.Store, record runrecord.Evaluation) (prompting, bool) {
+// unknownPrompting renders an absent or inconsistent execution authority. It
+// is never an execution policy accepted by a plan.
+const unknownPrompting = "unknown"
+
+// recordExecution reads execution facts through their existing typed owners.
+// Unknown authority retains the measurement and any identified replay receipt,
+// without inventing a protocol or a reproducible environment.
+func recordExecution(ctx context.Context, store *overgodb.Store, record runrecord.Evaluation) EvalSummary {
+	summary := EvalSummary{Record: record.ID, Prompting: unknownPrompting}
 	bound, err := runrecord.RequireRun(ctx, store, record.Run)
-	if err != nil || len(bound.Inputs) == 0 {
-		return PromptingRawCompletion, true
-	}
-	reproducible := true
-	if environment, err := runrecord.RequireEnvironment(ctx, store, bound.Environment); err == nil {
-		reproducible = environment.Reproducible()
-	}
-	content, found, err := artifact.ReadContent(ctx, store, bound.Inputs[0])
-	if err != nil || !found {
-		return PromptingRawCompletion, reproducible
-	}
-	plan, err := ParsePlan(content.Data)
 	if err != nil {
-		return PromptingRawCompletion, reproducible
+		return summary
+	}
+	if len(bound.Outputs) == 1 {
+		if descriptor, found, _ := store.Artifact(ctx, bound.Outputs[0]); found && descriptor.Schema == replayReceiptContract.Schema {
+			if receipt, err := RequireReplayReceipt(ctx, store, descriptor.ID); err == nil && receipt.Carried.Valid() {
+				summary.Carried = descriptor.ID
+			}
+		}
+	}
+	if bound.Outcome != runrecord.OutcomeSucceeded || bound.Recipe != record.Recipe || len(bound.Inputs) != 1 {
+		return summary
+	}
+	plan, err := loadEvidencePlan(ctx, store, bound.Inputs[0])
+	if err != nil || plan.body.RuntimeRecipe != record.Recipe || plan.body.Dataset != record.Dataset ||
+		plan.body.CodeCommit != bound.CodeCommit || plan.body.Environment != bound.Environment {
+		return summary
 	}
 	policy, err := ReadExecutionPolicy(ctx, store, plan.Execution())
 	if err != nil {
-		return PromptingRawCompletion, reproducible
+		return summary
 	}
-	return policy.Prompting, reproducible
+	environment, err := runrecord.RequireEnvironment(ctx, store, bound.Environment)
+	if err != nil {
+		return summary
+	}
+	comparison, err := plan.comparisonIdentity()
+	if err != nil {
+		return summary
+	}
+	summary.Comparison, summary.Environment, summary.CodeCommit = comparison, bound.Environment, bound.CodeCommit
+	summary.Prompting, summary.Reproducible, summary.ExecutionKnown = policy.Prompting.Label(), environment.Reproducible(), true
+	return summary
 }
 
 // EvidenceIndex joins the store's committed evidence back onto models:
@@ -128,15 +167,18 @@ type GuardSummary struct {
 	Device deviceMemory `json:"device"`
 }
 
-// readClaimEvidence decodes a claim's first evidence document into a
-// tolerant headline; an absent or differently shaped document reports false
-// and leaves the headline as it was.
-func readClaimEvidence(ctx context.Context, store *overgodb.Store, claim runrecord.CapabilityClaim, headline any) bool {
+// claimEvidence reads a claim's first evidence document; an absent one is
+// empty, so decoding it into a tolerant headline fails and leaves the
+// headline as it was.
+func claimEvidence(ctx context.Context, store *overgodb.Store, claim runrecord.CapabilityClaim) []byte {
 	if len(claim.Evidence) == 0 {
-		return false
+		return nil
 	}
 	content, found, err := artifact.ReadContent(ctx, store, claim.Evidence[0])
-	return err == nil && found && json.Unmarshal(content.Data, headline) == nil
+	if err != nil || !found {
+		return nil
+	}
+	return content.Data
 }
 
 // benchmarkEvidenceHeadline tolerantly lifts the headline metric out of
@@ -144,8 +186,11 @@ func readClaimEvidence(ctx context.Context, store *overgodb.Store, claim runreco
 // JSON); an absent or differently shaped document leaves the claim's
 // own fields standing.
 type benchmarkEvidenceHeadline struct {
-	LoadMS  float64 `json:"load_ms"`
-	Summary struct {
+	CodeCommit    string                `json:"code_commit"`
+	EnvironmentID artifact.ID           `json:"environment_id"`
+	Environment   runrecord.Environment `json:"environment"`
+	LoadMS        float64               `json:"load_ms"`
+	Summary       struct {
 		PromptTokensPerSecondP50 float64 `json:"prompt_tokens_per_second_p50"`
 		DecodeTokensPerSecondP50 float64 `json:"decode_tokens_per_second_p50"`
 		FirstTokenMSP50          float64 `json:"ttft_ms_p50"`
@@ -158,6 +203,87 @@ type benchmarkEvidenceHeadline struct {
 // deviceMemory is the device total a run measured on.
 type deviceMemory struct {
 	TotalMemoryBytes uint64 `json:"totalMemoryBytes"`
+}
+
+// benchmarkEvidenceContract decodes execution facts independently of the
+// headline. Unknown or malformed optional facts cannot erase measured values.
+type benchmarkEvidenceContract struct {
+	CachePrompt          bool                     `json:"cache_prompt"`
+	BatchSequences       int                      `json:"batch_sequences"`
+	Speculative          bool                     `json:"speculative"`
+	ContextShift         bool                     `json:"context_shift"`
+	Temperature          float64                  `json:"temperature"`
+	TopK                 int                      `json:"top_k"`
+	DeviceTopK           bool                     `json:"device_top_k"`
+	ModelID              artifact.ID              `json:"model_id"`
+	RecipeID             artifact.ID              `json:"recipe_id"`
+	TokenizerContainer   artifact.ID              `json:"tokenizer_container"`
+	ModuleDigest         string                   `json:"module_digest"`
+	OptionsDigest        string                   `json:"options_digest"`
+	AdapterIDs           []artifact.ID            `json:"adapter_ids"`
+	TokensPerSequence    int                      `json:"tokens_per_sequence"`
+	RequestedRuns        int                      `json:"requested_runs"`
+	RequestedWarmup      int                      `json:"requested_warmup"`
+	PromptSuite          []string                 `json:"prompt_suite"`
+	WorkloadDigest       string                   `json:"workload_digest"`
+	Residency            recipe.ResidencyPolicy   `json:"residency"`
+	RealizedResidency    recipe.RealizedResidency `json:"realized_residency"`
+	SamplingProtocol     string                   `json:"sampling_protocol"`
+	SamplerOrder         json.RawMessage          `json:"sampler_order"`
+	EndOfSequenceIgnored *bool                    `json:"end_of_sequence_ignored"`
+}
+
+func benchmarkComparison(data []byte, model artifact.ID, summary BenchmarkSummary) artifact.ID {
+	var headline benchmarkEvidenceContract
+	if json.Unmarshal(data, &headline) != nil {
+		return artifact.ID{}
+	}
+	if headline.ModelID != model || summary.CodeCommit == "" || !summary.Environment.Valid() ||
+		!headline.Residency.Valid() || headline.SamplingProtocol == "" || headline.EndOfSequenceIgnored == nil || len(headline.SamplerOrder) == 0 {
+		return artifact.ID{}
+	}
+	var order []sampling.SamplerStage
+	if json.Unmarshal(headline.SamplerOrder, &order) != nil {
+		return artifact.ID{}
+	}
+	if len(order) == 0 {
+		order = nil
+	}
+	configuration := benchmarkrecord.BenchmarkConfiguration{Tokens: headline.TokensPerSequence, Runs: headline.RequestedRuns,
+		Warmup: headline.RequestedWarmup, CachePrompt: headline.CachePrompt, BatchSequences: headline.BatchSequences,
+		Speculative: headline.Speculative, ContextShift: headline.ContextShift, Temperature: headline.Temperature,
+		TopK: headline.TopK, DeviceTopK: headline.DeviceTopK, Adapters: headline.AdapterIDs}
+	options, err := configuration.Digest()
+	if err != nil || options != headline.OptionsDigest {
+		return artifact.ID{}
+	}
+	workload, err := artifact.JSONID(artifact.KindEvidence, headline.PromptSuite)
+	if err != nil || workload.DigestHex() != headline.WorkloadDigest {
+		return artifact.ID{}
+	}
+	prompts := make([]string, len(headline.PromptSuite))
+	for index, prompt := range headline.PromptSuite {
+		if prompt == "" {
+			return artifact.ID{}
+		}
+		id, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte(prompt))
+		prompts[index] = id.DigestHex()
+	}
+	protocol, err := artifact.JSONID(artifact.KindProfile, struct {
+		Residency        recipe.ResidencyPolicy  `json:"residency"`
+		Sampling         string                  `json:"sampling"`
+		Order            []sampling.SamplerStage `json:"order"`
+		ContinueAfterEOG bool                    `json:"continue_after_eog"`
+	}{headline.Residency, headline.SamplingProtocol, order, *headline.EndOfSequenceIgnored})
+	if err != nil {
+		return artifact.ID{}
+	}
+	identity := benchmarkrecord.BenchmarkIdentity{Model: model, Recipe: headline.RecipeID,
+		TokenizerContainer: headline.TokenizerContainer, Environment: summary.Environment,
+		CodeCommit: summary.CodeCommit, ModuleDigest: headline.ModuleDigest, WorkloadDigest: headline.WorkloadDigest,
+		PromptDigests: prompts, RealizedResidency: headline.RealizedResidency}
+	comparison, _ := identity.Comparison(configuration, protocol)
+	return comparison
 }
 
 // LatestEvidence scans newest-first and keeps the first summary per
@@ -206,13 +332,22 @@ func LatestEvidence(
 					Tier: string(claim.Tier), WallNS: claim.WallNS, PeakDeviceBytes: claim.PeakDeviceBytes,
 					Record: record.ID,
 				}
+				document := claimEvidence(ctx, store, claim)
 				var headline benchmarkEvidenceHeadline
-				if readClaimEvidence(ctx, store, claim, &headline) {
+				if json.Unmarshal(document, &headline) == nil {
 					summary.PromptTokensPerSecond = headline.Summary.PromptTokensPerSecondP50
 					summary.DecodeTokensPerSecond = headline.Summary.DecodeTokensPerSecondP50
 					summary.DeviceAfterLoadBytes, summary.DeviceTotalBytes = headline.DeviceAfterLoadBytes, headline.Device.TotalMemoryBytes
 					summary.RealizedResidency = headline.RealizedResidency
 					summary.FirstTokenMS, summary.LoadMS = headline.Summary.FirstTokenMSP50, headline.LoadMS
+					if headline.CodeCommit == claim.Commit {
+						summary.CodeCommit = headline.CodeCommit
+					}
+					headline.Environment.ID = headline.EnvironmentID
+					if headline.Environment.ValidateIdentity() == nil {
+						summary.Environment = headline.EnvironmentID
+					}
+					summary.Comparison = benchmarkComparison(document, record.Model, summary)
 				}
 				keep(func(location string) {
 					if _, seen := index.BenchmarksByLocation[location]; !seen {
@@ -222,7 +357,7 @@ func LatestEvidence(
 			case claim.Capability == "long-form" && !guarded:
 				guarded = true
 				summary := GuardSummary{Record: record.ID}
-				readClaimEvidence(ctx, store, claim, &summary)
+				_ = json.Unmarshal(claimEvidence(ctx, store, claim), &summary)
 				keep(func(location string) {
 					if _, seen := index.GuardsByLocation[location]; !seen {
 						index.GuardsByLocation[location] = summary
@@ -232,7 +367,7 @@ func LatestEvidence(
 		}
 		return nil
 	})
-	seenSuite := map[artifact.ID]map[string]bool{}
+	seenSuite := map[artifact.ID]map[artifact.ID]bool{}
 	_, _ = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvaluation, MediaType: runrecord.EvaluationMediaType, Schema: runrecord.EvaluationSchema,
@@ -243,23 +378,26 @@ func LatestEvidence(
 		if !named {
 			return nil
 		}
-		protocol, reproducible := recordExecution(ctx, store, record)
-		prompting := protocol.Label()
+		summary := recordExecution(ctx, store, record)
 		if seenSuite[record.Recipe] == nil {
-			seenSuite[record.Recipe] = map[string]bool{}
+			seenSuite[record.Recipe] = map[artifact.ID]bool{}
 		}
-		key := suite + "\x00" + prompting
+		key := summary.Comparison
+		if !summary.ExecutionKnown || !key.Valid() {
+			// Unknowns cannot prove equivalence to another record.
+			key = record.ID
+		}
 		if seenSuite[record.Recipe][key] {
 			return nil
 		}
 		seenSuite[record.Recipe][key] = true
 		metrics := make(map[string]float64, len(record.Metrics))
+		directions := make(map[string]runrecord.Direction, len(record.Metrics))
 		for _, metric := range record.Metrics {
-			metrics[metric.Name] = metric.Value
+			metrics[metric.Name], directions[metric.Name] = metric.Value, metric.Direction
 		}
-		index.EvaluationsByRecipe[record.Recipe] = append(index.EvaluationsByRecipe[record.Recipe], EvalSummary{
-			Suite: suite, Prompting: prompting, Record: record.ID, Metrics: metrics, Reproducible: reproducible,
-		})
+		summary.Suite, summary.Metrics, summary.Directions = suite, metrics, directions
+		index.EvaluationsByRecipe[record.Recipe] = append(index.EvaluationsByRecipe[record.Recipe], summary)
 		return nil
 	})
 	return index

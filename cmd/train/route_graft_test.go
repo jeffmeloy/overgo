@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"overgo/internal/composition"
 	"overgo/internal/overgodb"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingprogram"
+	"overgo/internal/trainingworkflow"
 )
 
 // TestGraftPublishesEachSeedsBridge runs the viability probe on a tiny target
@@ -39,7 +39,7 @@ func TestGraftPublishesEachSeedsBridge(t *testing.T) {
 	if err := os.WriteFile(tokens, []byte("[1, 2, 3, 4, 2, 3, 4, 1, 1, 3, 2, 4]"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := runRoute([]string{"graft", "-target", targetDir, "-donor", donorDir, "-tokens", tokens,
+	if err := runRoute(t.Context(), []string{"graft", "-target", targetDir, "-donor", donorDir, "-tokens", tokens,
 		"-record", storePath, "-out", out, "-steps", "1", "-window", "4"}); err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestGraftPublishesEachSeedsBridge(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, recorded, err := store.Artifact(t.Context(), checkpoint.ID())
-		if err != nil || !recorded || checkpoint.Optimizer.Step != 1 || checkpoint.ParameterCount != len(checkpoint.Optimizer.Momentum) {
+		if err != nil || !recorded || checkpoint.Optimizer.Step != 1 || checkpoint.ParameterCount != checkpoint.Optimizer.Parameters() {
 			t.Fatalf("seed %d checkpoint %s at step %d recorded %t (%v), want the one-step bridge recorded", seed, checkpoint.ID(), checkpoint.Optimizer.Step, recorded, err)
 		}
 	}
@@ -71,16 +71,16 @@ func TestProbeRejectsUncompiledGenerationRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	config := composition.Config{
+	config := trainingworkflow.GraftConfig{
 		TargetDir: "fixture/target", DonorDir: "fixture/donor",
 		Seeds: []int64{7, 11, 13}, Steps: 6,
 	}
-	result := composition.Result{
+	result := trainingworkflow.GraftResult{
 		DonorTensor: "model.layers.14.mlp.gate_proj.weight", GraftLayer: 12,
 		Baseline: 4.849884, Ship: false,
 		Reason: "refusal: worst seed held-out 5.441688 does not beat baseline 4.849884",
 	}
-	if _, err := composition.RecordViability(store, config, result); err == nil {
+	if _, err := trainingworkflow.RecordGraftViability(store, config, result); err == nil {
 		t.Fatal("record accepted path-derived placeholder authority")
 	}
 }

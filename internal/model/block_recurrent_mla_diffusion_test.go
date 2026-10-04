@@ -572,14 +572,6 @@ func TestBuildPLMMLABlock(t *testing.T) {
 	}
 }
 
-func TestBuildDeepSeek2AbsorbedMLABlock(t *testing.T) {
-	testBuildDeepSeek2FamilyAbsorbedMLABlock(t, "deepseek2")
-}
-
-func TestBuildMistral4AbsorbedMLABlock(t *testing.T) {
-	testBuildDeepSeek2FamilyAbsorbedMLABlock(t, "mistral4")
-}
-
 func TestBuildMambaBlock(t *testing.T) {
 	builder := tensor.NewBuilder()
 	spec := Spec{CommonSpec: CommonSpec{Architecture: "mamba", EmbeddingLength: 4, RMSNormEpsilon: 1e-5}, RecurrentSpec: RecurrentSpec{SSMConvKernel: 3, SSMInnerSize: 8, SSMStateSize: 2, SSMTimeStepRank: 2}}
@@ -923,6 +915,12 @@ func TestBuildJambaAttentionMoEBlock(t *testing.T) {
 	}
 	if !attention || !moe || rope {
 		t.Fatalf("Jamba attention graph attention=%v moe=%v rope=%v", attention, moe, rope)
+	}
+}
+
+func TestBuildDeepSeek2FamilyAbsorbedMLABlocks(t *testing.T) {
+	for _, architecture := range []string{"deepseek2", "mistral4"} {
+		t.Run(architecture, func(t *testing.T) { testBuildDeepSeek2FamilyAbsorbedMLABlock(t, architecture) })
 	}
 }
 

@@ -3,8 +3,9 @@
 package optimizer
 
 import (
+	"slices"
+
 	"overgo/internal/cuda/device"
-	"overgo/internal/tensor/dtype"
 )
 
 type deviceStepper struct {
@@ -36,10 +37,9 @@ func (s *deviceStepper) Step() error {
 	return DeviceMuonStepPlan(s.worker, s.weights, s.gradients, s.momentum, s.plan, s.step, s.config)
 }
 
-// Snapshot widens the f32 momentum the device steps, exactly, to the host
-// State.
+// Snapshot copies the f32 momentum the device steps.
 func (s *deviceStepper) Snapshot() State {
-	return State{PlanIdentity: s.plan.Identity(), Config: s.config, Step: s.step, Momentum: dtype.ConvertSlice[float64](s.momentum)}
+	return State{PlanIdentity: s.plan.Identity(), Config: s.config, Step: s.step, MomentumF32: slices.Clone(s.momentum)}
 }
 
 func (s *deviceStepper) Close() error { return s.worker.Close() }

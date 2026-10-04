@@ -168,23 +168,31 @@
           historyHost.replaceChildren(el("p", { class: "note", text: "The unattended loop publishes a scorecard each time it empties its plan; what moved shows here once two are published." }));
           return;
         }
+        if (history.unavailable) {
+          historyHost.replaceChildren(el("p", { class: "note", text: "What moved between scorecards could not be read: " + history.unavailable }));
+          return;
+        }
         const moves = history.moves || [];
         const where = (move) => move.name + " " + move.task + (move.metric ? ", " + (columnLabels.get(move.metric) || move.metric) : "");
         const value = (move, number) => measure(move.metric, move.unit, number);
+        const change = (move) => where(move) + ": " + value(move, move.before) + " to " + value(move, move.after);
+        // A cell measured another way than the previous scorecard's has no comparison; the technical reason waits in the tooltip.
         const groups = [
-          ["better", "Better", (move) => move.kind === "changed" && move.improved, (move) => where(move) + ": " + value(move, move.before) + " to " + value(move, move.after)],
-          ["worse", "Worse", (move) => move.kind === "changed" && !move.improved, (move) => where(move) + ": " + value(move, move.before) + " to " + value(move, move.after)],
-          ["measured", "Newly measured", (move) => move.kind === "measured", (move) => where(move) + ": " + value(move, move.after)],
-          ["unmeasured", "No longer measured", (move) => move.kind === "unmeasured", (move) => where(move) + ": " + move.reason],
-          ["added", "New", (move) => move.kind === "added", where],
-          ["removed", "Gone", (move) => move.kind === "removed", where],
-        ].map(([kind, title, belongs, line]) => [kind, title, moves.filter(belongs).map(line)]).filter(([, , lines]) => lines.length);
+          ["better", "Better", change],
+          ["worse", "Worse", change],
+          ["changed", "Changed, with no better or worse", change],
+          ["measured", "Newly measured", (move) => where(move) + ": " + value(move, move.after)],
+          ["unmeasured", "No longer measured", (move) => where(move) + ": " + move.reason],
+          ["unknown", "Measured differently, so not compared", where],
+          ["added", "New", where],
+          ["removed", "Gone", where],
+        ].map(([kind, title, line]) => [kind, title, moves.filter((move) => move.kind === kind).map((move) => [line(move), move.kind === "unknown" ? move.reason : ""])]).filter(([, , lines]) => lines.length);
         const count = (kind) => (groups.find(([name]) => name === kind) || [, , []])[2].length;
         historyHost.replaceChildren(
           el("p", { class: "note", text: "Since the scorecard of commit " + history.previous.slice(0, 12) + ", the one of " + history.current.slice(0, 12) + ": " +
             (moves.length ? count("better") + " better, " + count("worse") + " worse. Every change is listed, whether or not work aimed at it." : "nothing moved.") }),
           ...groups.map(([kind, title, lines]) => el("div", { class: "scorecard-moves", "data-kind": kind },
-            el("h4", { text: title }), el("ul", {}, ...lines.map((text) => el("li", { text }))))));
+            el("h4", { text: title }), el("ul", {}, ...lines.map(([text, reason]) => el("li", { title: reason, text }))))));
       }
       async function refreshScorecard() {
         let read;

@@ -378,27 +378,56 @@ func TestReadGraniteDeepstackMapping(t *testing.T) {
 	}
 }
 
-func TestReadMaincoderSpec(t *testing.T) {
-	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "maincoder"),
-		metadata("maincoder.block_count", gguf.ValueTypeUint32, uint32(32)),
-		metadata("maincoder.context_length", gguf.ValueTypeUint32, uint32(32768)),
-		metadata("maincoder.embedding_length", gguf.ValueTypeUint32, uint32(2048)),
-		metadata("maincoder.feed_forward_length", gguf.ValueTypeUint32, uint32(8192)),
-		metadata("maincoder.attention.head_count", gguf.ValueTypeUint32, uint32(16)),
-		metadata("maincoder.attention.head_count_kv", gguf.ValueTypeUint32, uint32(4)),
-		metadata("maincoder.rope.freq_base", gguf.ValueTypeFloat32, float32(1_000_000)),
-		metadata("maincoder.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-6)),
-	}}
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "maincoder" ||
-		spec.KeyLength != 128 ||
-		spec.ValueLength != 128 ||
-		!spec.UsesRoPE(0) {
-		t.Fatalf("unexpected Maincoder spec: %+v", spec)
+// TestReadPlainDenseSpecs covers the dense decoders whose metadata differs only
+// in norm kind and attention scale: each derives a 128-wide head and RoPE.
+func TestReadPlainDenseSpecs(t *testing.T) {
+	for _, entry := range []struct {
+		common    CommonSpec
+		attention AttentionSpec
+		layerNorm bool
+		scale     float32
+	}{
+		{CommonSpec{Architecture: "maincoder", BlockCount: 32, ContextLength: 32768, EmbeddingLength: 2048, FeedForwardLength: 8192},
+			AttentionSpec{HeadCount: 16, HeadCountKV: 4, RopeFrequencyBase: 1_000_000}, false, 0},
+		{CommonSpec{Architecture: "orion", BlockCount: 40, ContextLength: 4096, EmbeddingLength: 5120, FeedForwardLength: 13696},
+			AttentionSpec{HeadCount: 40, HeadCountKV: 40, RopeFrequencyBase: 10000}, true, 0},
+		{CommonSpec{Architecture: "starcoder2", BlockCount: 30, ContextLength: 16384, EmbeddingLength: 3072, FeedForwardLength: 12288},
+			AttentionSpec{HeadCount: 24, HeadCountKV: 2, RopeFrequencyBase: 100000}, true, 0},
+		{CommonSpec{Architecture: "codeshell", BlockCount: 42, ContextLength: 8192, EmbeddingLength: 4096, FeedForwardLength: 16384},
+			AttentionSpec{HeadCount: 32, HeadCountKV: 8, RopeFrequencyBase: 10000}, true, 0},
+		{CommonSpec{Architecture: "arcee", BlockCount: 36, ContextLength: 32768, EmbeddingLength: 3072, FeedForwardLength: 8192},
+			AttentionSpec{HeadCount: 24, HeadCountKV: 8, RopeFrequencyBase: 10000}, false, 0.125},
+		{CommonSpec{Architecture: "nemotron", BlockCount: 32, ContextLength: 4096, EmbeddingLength: 4096, FeedForwardLength: 11008},
+			AttentionSpec{HeadCount: 32, HeadCountKV: 8, RopeFrequencyBase: 10000}, true, 0},
+		{CommonSpec{Architecture: "jais2", BlockCount: 32, ContextLength: 32768, EmbeddingLength: 4096, FeedForwardLength: 14336},
+			AttentionSpec{HeadCount: 32, HeadCountKV: 32, RopeFrequencyBase: 10000}, true, 0},
+		{CommonSpec{Architecture: "seed_oss", BlockCount: 64, ContextLength: 32768, EmbeddingLength: 5120, FeedForwardLength: 13824},
+			AttentionSpec{HeadCount: 40, HeadCountKV: 8, RopeFrequencyBase: 10000}, false, 0.125},
+	} {
+		architecture := entry.common.Architecture
+		t.Run(architecture, func(t *testing.T) {
+			epsilonKey := architecture + ".attention.layer_norm_rms_epsilon"
+			if entry.layerNorm {
+				epsilonKey = architecture + ".attention.layer_norm_epsilon"
+			}
+			extra := []gguf.Metadata{metadata(epsilonKey, gguf.ValueTypeFloat32, float32(1e-5))}
+			if entry.scale != 0 {
+				extra = append(extra, metadata(architecture+".attention.scale", gguf.ValueTypeFloat32, entry.scale))
+			}
+			spec, err := ReadSpec(denseSpecFixture(entry.common, entry.attention, extra...))
+			if err != nil {
+				t.Fatal(err)
+			}
+			epsilon, other := spec.RMSNormEpsilon, spec.LayerNormEpsilon
+			if entry.layerNorm {
+				epsilon, other = other, epsilon
+			}
+			if spec.Architecture != architecture || spec.UsesLayerNorm() != entry.layerNorm ||
+				epsilon != 1e-5 || other != 0 || spec.AttentionScale != entry.scale ||
+				spec.KeyLength != 128 || spec.ValueLength != 128 || !spec.UsesRoPE(0) {
+				t.Fatalf("unexpected %s spec: %+v", architecture, spec)
+			}
+		})
 	}
 }
 
@@ -413,68 +442,6 @@ func TestReadDenseMistral3Spec(t *testing.T) {
 		spec.ValueLength != 128 ||
 		!spec.UsesRoPE(0) {
 		t.Fatalf("unexpected Mistral 3 spec: %+v", spec)
-	}
-}
-
-func TestReadOrionSpec(t *testing.T) {
-	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "orion"),
-		metadata("orion.block_count", gguf.ValueTypeUint32, uint32(40)),
-		metadata("orion.context_length", gguf.ValueTypeUint32, uint32(4096)),
-		metadata("orion.embedding_length", gguf.ValueTypeUint32, uint32(5120)),
-		metadata("orion.feed_forward_length", gguf.ValueTypeUint32, uint32(13696)),
-		metadata("orion.attention.head_count", gguf.ValueTypeUint32, uint32(40)),
-		metadata("orion.attention.head_count_kv", gguf.ValueTypeUint32, uint32(40)),
-		metadata("orion.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
-		metadata("orion.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-	}}
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "orion" ||
-		!spec.UsesLayerNorm() ||
-		spec.LayerNormEpsilon != 1e-5 ||
-		spec.RMSNormEpsilon != 0 ||
-		spec.KeyLength != 128 ||
-		!spec.UsesRoPE(0) {
-		t.Fatalf("unexpected Orion spec: %+v", spec)
-	}
-}
-
-func TestReadStarCoder2Spec(t *testing.T) {
-	file := denseSpecFixture(
-		CommonSpec{Architecture: "starcoder2", BlockCount: 30, ContextLength: 16384, EmbeddingLength: 3072, FeedForwardLength: 12288},
-		AttentionSpec{HeadCount: 24, HeadCountKV: 2, RopeFrequencyBase: 100000},
-		metadata("starcoder2.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-	)
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "starcoder2" ||
-		!spec.UsesLayerNorm() ||
-		spec.LayerNormEpsilon != 1e-5 ||
-		spec.KeyLength != 128 {
-		t.Fatalf("unexpected StarCoder2 spec: %+v", spec)
-	}
-}
-
-func TestReadCodeShellSpec(t *testing.T) {
-	file := denseSpecFixture(
-		CommonSpec{Architecture: "codeshell", BlockCount: 42, ContextLength: 8192, EmbeddingLength: 4096, FeedForwardLength: 16384},
-		AttentionSpec{HeadCount: 32, HeadCountKV: 8, RopeFrequencyBase: 10000},
-		metadata("codeshell.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-	)
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "codeshell" ||
-		!spec.UsesLayerNorm() ||
-		spec.LayerNormEpsilon != 1e-5 ||
-		spec.KeyLength != 128 {
-		t.Fatalf("unexpected CodeShell spec: %+v", spec)
 	}
 }
 
@@ -515,63 +482,6 @@ func TestReadBaichuanVariantsSpec(t *testing.T) {
 	}
 	if spec.BlockCount != 40 || spec.UsesRoPE(0) || spec.MaxALiBiBias != 8 {
 		t.Fatalf("unexpected Baichuan 13B spec: %+v", spec)
-	}
-}
-
-func TestReadArceeSpec(t *testing.T) {
-	file := denseSpecFixture(
-		CommonSpec{Architecture: "arcee", BlockCount: 36, ContextLength: 32768, EmbeddingLength: 3072, FeedForwardLength: 8192},
-		AttentionSpec{HeadCount: 24, HeadCountKV: 8, RopeFrequencyBase: 10000},
-		metadata("arcee.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-		metadata("arcee.attention.scale", gguf.ValueTypeFloat32, float32(0.125)),
-	)
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "arcee" ||
-		spec.AttentionScale != 0.125 ||
-		spec.KeyLength != 128 {
-		t.Fatalf("unexpected Arcee spec: %+v", spec)
-	}
-}
-
-func TestReadNemotronSpec(t *testing.T) {
-	file := denseSpecFixture(
-		CommonSpec{Architecture: "nemotron", BlockCount: 32, ContextLength: 4096, EmbeddingLength: 4096, FeedForwardLength: 11008},
-		AttentionSpec{HeadCount: 32, HeadCountKV: 8, RopeFrequencyBase: 10000},
-		metadata("nemotron.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-	)
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "nemotron" ||
-		!spec.UsesLayerNorm() ||
-		spec.LayerNormEpsilon != 1e-5 ||
-		spec.KeyLength != 128 {
-		t.Fatalf("unexpected Nemotron spec: %+v", spec)
-	}
-}
-
-func TestReadJais2Spec(t *testing.T) {
-	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "jais2"),
-		metadata("jais2.block_count", gguf.ValueTypeUint32, uint32(32)),
-		metadata("jais2.context_length", gguf.ValueTypeUint32, uint32(32768)),
-		metadata("jais2.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
-		metadata("jais2.feed_forward_length", gguf.ValueTypeUint32, uint32(14336)),
-		metadata("jais2.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
-		metadata("jais2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(32)),
-		metadata("jais2.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
-		metadata("jais2.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-	}}
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "jais2" || !spec.UsesLayerNorm() || spec.KeyLength != 128 {
-		t.Fatalf("unexpected Jais2 spec: %+v", spec)
 	}
 }
 
@@ -624,22 +534,6 @@ func TestReadMPTAndOLMoRejectInvalidClamp(t *testing.T) {
 		if _, err := ReadSpec(&gguf.File{Metadata: metadataItems}); err == nil {
 			t.Fatalf("negative %s clamp was accepted", architecture)
 		}
-	}
-}
-
-func TestReadSeedOSSSpec(t *testing.T) {
-	file := denseSpecFixture(
-		CommonSpec{Architecture: "seed_oss", BlockCount: 64, ContextLength: 32768, EmbeddingLength: 5120, FeedForwardLength: 13824},
-		AttentionSpec{HeadCount: 40, HeadCountKV: 8, RopeFrequencyBase: 10000},
-		metadata("seed_oss.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-		metadata("seed_oss.attention.scale", gguf.ValueTypeFloat32, float32(0.125)),
-	)
-	spec, err := ReadSpec(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if spec.Architecture != "seed_oss" || spec.AttentionScale != 0.125 || spec.KeyLength != 128 {
-		t.Fatalf("unexpected Seed-OSS spec: %+v", spec)
 	}
 }
 

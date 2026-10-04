@@ -108,7 +108,7 @@ func TestFinalLayerTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	view := func(section struct{ start, end int }) []float32 { return trainer.weights[section.start:section.end] }
+	view := trainer.pack.Weights
 	checkpointtest.RequireRoundTrip(t, program, trainer, map[string][]float32{
 		"final.norm": view(trainer.norm), "final.table": view(trainer.table),
 		"final.linear": view(trainer.linear), "final.bias": view(trainer.bias),
@@ -136,25 +136,28 @@ func TestFinalLayerLayerNormVariantDescendsAndMatchesFiniteDifference(t *testing
 		t.Fatalf("layernorm gradient pass loss %.9g vs %.9g", stepLoss, baseline)
 	}
 	const epsilonFD, limitFD = 1e-4, 2e-2
-	for _, index := range []int{trainer.table.start + 2, trainer.table.start + 7 + 2, trainer.linear.start + 4, trainer.bias.start} {
+	groups := trainer.OptimizerPlan().Groups()
+	_, gradients := trainer.pack.Slabs()
+	for _, index := range []int{groups[trainer.table].Start + 2, groups[trainer.table].Start + 7 + 2, groups[trainer.linear].Start + 4, groups[trainer.bias].Start} {
 		fresh, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := fresh.weights[index]
-		fresh.weights[index] = original + epsilonFD
+		freshWeights, _ := fresh.pack.Slabs()
+		original := freshWeights[index]
+		freshWeights[index] = original + epsilonFD
 		plus, err := fresh.Loss(x, temb, target)
 		if err != nil {
 			t.Fatal(err)
 		}
-		fresh.weights[index] = original - epsilonFD
+		freshWeights[index] = original - epsilonFD
 		minus, err := fresh.Loss(x, temb, target)
 		if err != nil {
 			t.Fatal(err)
 		}
 		_ = fresh.Close()
 		numeric := (plus - minus) / (2 * epsilonFD)
-		got := float64(trainer.gradients[index])
+		got := float64(gradients[index])
 		scale := max(1, max(math.Abs(numeric), math.Abs(got)))
 		if math.Abs(numeric-got)/scale > limitFD {
 			t.Fatalf("layernorm gradient[%d]: analytic=%.6g numeric=%.6g", index, got, numeric)
@@ -198,32 +201,35 @@ func TestFinalLayerGradientMatchesFiniteDifference(t *testing.T) {
 
 	// One index from every group: norm, table scale row, table shift row,
 	// linear, bias.
+	groups := grader.OptimizerPlan().Groups()
 	indices := []int{
-		grader.norm.start + 2,
-		grader.table.start + 3,
-		grader.table.start + 7 + 3,
-		grader.linear.start + 5,
-		grader.bias.start + 1,
+		groups[grader.norm].Start + 2,
+		groups[grader.table].Start + 3,
+		groups[grader.table].Start + 7 + 3,
+		groups[grader.linear].Start + 5,
+		groups[grader.bias].Start + 1,
 	}
+	_, gradients := grader.pack.Slabs()
 	for _, index := range indices {
 		fresh, err := NewFinalLayerTrainer(weights, 1e-6, trainingprogram.BuiltinOptimizerPolicy())
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := fresh.weights[index]
-		fresh.weights[index] = original + epsilon
+		freshWeights, _ := fresh.pack.Slabs()
+		original := freshWeights[index]
+		freshWeights[index] = original + epsilon
 		plus, err := fresh.Loss(x, temb, target)
 		if err != nil {
 			t.Fatal(err)
 		}
-		fresh.weights[index] = original - epsilon
+		freshWeights[index] = original - epsilon
 		minus, err := fresh.Loss(x, temb, target)
 		if err != nil {
 			t.Fatal(err)
 		}
 		_ = fresh.Close()
 		numeric := (plus - minus) / (2 * epsilon)
-		got := float64(grader.gradients[index])
+		got := float64(gradients[index])
 		scale := max(1, max(math.Abs(numeric), math.Abs(got)))
 		if math.Abs(numeric-got)/scale > limit {
 			t.Fatalf("gradient[%d]: analytic=%.6g numeric=%.6g", index, got, numeric)

@@ -1,7 +1,6 @@
 package longform
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,10 +13,8 @@ import (
 )
 
 // A committed run reads back by its weights location as the latest
-// record, and the suite admission turns the record into the three
-// refusals a pass can meet: no record, a record from other code, and a
-// failed verdict; a passing record on this commit admits.
-func TestPublishedRunAdmitsOrRefusesSuitePasses(t *testing.T) {
+// record, whatever the spelling of the path.
+func TestPublishedRunIsTheLatestRecordOfItsLocation(t *testing.T) {
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -39,9 +36,6 @@ func TestPublishedRunAdmitsOrRefusesSuitePasses(t *testing.T) {
 	}
 	commit := strings.Repeat("ab", 20)
 	surface := strings.Repeat("5e", 32)
-	if err := Admit(ctx, store, weightsPath, surface); !errors.Is(err, ErrRefused) || !strings.Contains(err.Error(), "no long-form record") {
-		t.Fatalf("admission without a record = %v", err)
-	}
 
 	floors := DeclaredFloors()
 	failing := Result{
@@ -66,9 +60,6 @@ func TestPublishedRunAdmitsOrRefusesSuitePasses(t *testing.T) {
 	if _, err := Publish(ctx, store, model, failing); err != nil {
 		t.Fatal(err)
 	}
-	if err := Admit(ctx, store, weightsPath, surface); !errors.Is(err, ErrRefused) || !strings.Contains(err.Error(), "failed its floors") {
-		t.Fatalf("admission on a failed verdict = %v", err)
-	}
 
 	passing := failing
 	passing.RealizedResidency = recipe.RealizedHostReference
@@ -78,17 +69,12 @@ func TestPublishedRunAdmitsOrRefusesSuitePasses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	summary, found := Latest(ctx, store, strings.ToUpper(filepath.ToSlash(weightsPath)))
+	byLocation := LatestByLocation(ctx, store, 0)
+	summary, found := byLocation[Key(strings.ToUpper(filepath.ToSlash(weightsPath)))]
 	if !found || summary.Record != record || !summary.Result.Verdict.Passed || summary.Result.Measure.PromptTokensPerSecond != 2400 {
 		t.Fatalf("latest = (%+v, %t)", summary, found)
 	}
-	if err := Admit(ctx, store, weightsPath, surface); err != nil {
-		t.Fatalf("admission on a passing record = %v", err)
-	}
-	if err := Admit(ctx, store, weightsPath, strings.Repeat("6f", 32)); !errors.Is(err, ErrRefused) || !strings.Contains(err.Error(), "measured inference surface") {
-		t.Fatalf("admission on another surface = %v", err)
-	}
-	if byLocation := LatestByLocation(ctx, store, 0); len(byLocation) != 1 {
+	if len(byLocation) != 1 {
 		t.Fatalf("locations = %d, want 1", len(byLocation))
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/clioptions"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
 	"overgo/internal/gguf"
 	"overgo/internal/mediacapability"
@@ -25,7 +26,6 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
-	"overgo/internal/runrecord"
 	"overgo/internal/servingattempt"
 )
 
@@ -62,30 +62,6 @@ func run() error {
 	if verb == "replay" {
 		return replayRouting(os.Args[2:])
 	}
-	if verb == "rollout-plan" {
-		return declareRolloutPlan(os.Args[2:])
-	}
-	if verb == "assign" {
-		return assignRollout(os.Args[2:])
-	}
-	if verb == "rollout-project" {
-		return projectRollout(os.Args[2:])
-	}
-	if verb == "promote-rollout" {
-		return promoteRollout(os.Args[2:])
-	}
-	if verb == "safety-window" {
-		return deriveSafetyWindow(os.Args[2:])
-	}
-	if verb == "breaker" {
-		return judgeBreaker(os.Args[2:])
-	}
-	if verb == "live-rollback" {
-		return liveRollback(os.Args[2:])
-	}
-	if verb == "reenter" {
-		return reenterQuarantine(os.Args[2:])
-	}
 	flags := flag.NewFlagSet("recipe "+verb, flag.ContinueOnError)
 	repoFlag := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
@@ -97,6 +73,8 @@ func run() error {
 	residencyFlag := flags.String("residency", string(recipe.ResidencyHybridNative),
 		"weight residency: stream | host-cache | device-f32 | device-native | device-native-bf16 | hybrid-native | host-reference")
 	input := flags.String("input", "", "task input as JSON; - reads standard input (verify, run)")
+	inputFile := flags.String("input-file", "", "a file holding the task input, in place of -input (verify, run)")
+	reverify := flags.Bool("reverify", false, "re-verify the model's active projection recipe on the verification this run records; refused when the code derives another recipe (verify -task projection)")
 	alias := flags.String("alias", "", "OvergoDB model alias (run)")
 	selection := flags.String("selection", string(modelrecipe.SessionWarm), "alias session selection: pin | warm | spillover (run)")
 	compatibility := flags.String("compatibility", "", "remote peer compatibility evidence ID (spillover run)")
@@ -105,6 +83,19 @@ func run() error {
 	}
 	if flags.NArg() != 1 {
 		return errors.New("exactly one model reference is required")
+	}
+	if *inputFile != "" {
+		if *input != "" {
+			return errors.New("-input and -input-file name the task input twice")
+		}
+		data, err := os.ReadFile(*inputFile)
+		if err != nil {
+			return err
+		}
+		*input = string(data)
+	}
+	if *reverify && (verb != "verify" || recipe.Task(*task) != recipe.TaskProjection) {
+		return errors.New("-reverify re-verifies a projection recipe: it goes with verify -task projection")
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -148,7 +139,7 @@ func run() error {
 				return residencyErr
 			}
 			if selectedTask == recipe.TaskProjection {
-				return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath), rawInput, sessionOverride, residency)
+				return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath), rawInput, sessionOverride, residency, *reverify)
 			}
 			return verifyInference(repository, path, rawInput, sessionOverride, residency)
 		}
@@ -230,6 +221,9 @@ func run() error {
 			selectedSession, selectedTask, capability, rawInput,
 		)
 	case "measure":
+		if selectedTask == recipe.TaskInference {
+			return measureRunner(repository, path)
+		}
 		if !capabilityKnown || capability.Execute == nil {
 			return fmt.Errorf("task %q has no registered runtime", selectedTask)
 		}
@@ -342,17 +336,9 @@ func prepareCapability(
 		batch.Locations = append(batch.Locations, relatedBatch.Locations...)
 	}
 	batch.Contents = append(batch.Contents, facts...)
-	if _, err := artifact.Publish(ctx, store, batch); err != nil {
-		return artifact.ID{}, recipe.Definition{}, fmt.Errorf("publish model facts: %w", err)
-	}
-	// Component-group manifests commit under their own content-derived
-	// keys: the facts batch key is content-bound and predates them.
-	for _, manifest := range source.Manifests {
-		if _, err := artifact.Publish(ctx, store, artifact.Batch{
-			Key: "recipe/component/" + manifest.ID.String(), Manifests: []artifact.Manifest{manifest},
-		}); err != nil {
-			return artifact.ID{}, recipe.Definition{}, fmt.Errorf("publish component manifest: %w", err)
-		}
+	batch.Manifests = append(batch.Manifests, source.Manifests...)
+	if err := modelrecipe.PublishFacts(ctx, store, batch); err != nil {
+		return artifact.ID{}, recipe.Definition{}, err
 	}
 	return modelID, definition, nil
 }
@@ -492,7 +478,8 @@ func executeCapability(
 
 // attemptCapability executes the capability and records the execution as
 // the serving attempt the scorecard counts, the way the server records a
-// page's generation.
+// page's generation, with the load its executor measured as the attempt's
+// load phase and the device memory the process peaked at as the attempt's.
 func attemptCapability(
 	ctx context.Context,
 	store *overgodb.Store,
@@ -508,16 +495,40 @@ func attemptCapability(
 	output, err := capability.Execute(ctx, store, path, selected, input)
 	end, _ := processmeasure.Counter()
 	measured, _ := output.(capabilityruntime.Measured)
+	peak, peakMeasured := devicePeak(processDevicePeak(), measured, err)
 	recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
-		Model: modelID, Recipe: selected.Activation.Definition.ID, Task: task, Started: started, Wall: end - begin,
-		PeakDeviceBytes: measured.PeakDeviceBytes, Cause: err,
+		Model: modelID, Recipe: selected.Activation.Definition.ID, Run: measured.Run, Task: task, Started: started, Wall: end - begin,
+		Load: measured.Load, PeakDeviceBytes: peak, PeakMeasured: peakMeasured, Cause: err,
 	})
 	return output, errors.Join(err, recordErr)
 }
 
+// processDevicePeak reads the device memory the process has peaked at; a
+// test stands in for the device.
+var processDevicePeak = driver.ProcessPeakBytes
+
+// devicePeak is the device memory a capability attempt peaked at, and
+// whether that is a measurement even when it is zero. The command runs one
+// attempt in one process, so what the process peaked at across every device
+// worker is the attempt's own peak, and it is preferred to the peak the
+// executor reports of its model: a video runtime's is the larger of its two
+// sessions' peaks, though they are resident together, and the process's
+// counts them together. A process that allocated nothing leaves the
+// executor's figure. That zero is a measurement only of an attempt that
+// succeeded having loaded its model here: the model was placed, and on no
+// device. A failed attempt, or one that served a recorded answer without
+// loading, as vqa's does, placed nothing a peak could be read from.
+func devicePeak(process uint64, measured capabilityruntime.Measured, cause error) (uint64, bool) {
+	if process != 0 {
+		return process, true
+	}
+	return measured.PeakDeviceBytes, cause == nil && measured.Load > 0
+}
+
 // measureCapability runs the active capability once on the request its
 // verification ran, so the scorecard measures the model the way its users
-// meet it, and prints the output.
+// meet it, and prints the output. Its fresh operation runs the model even
+// when verification already retained the identical request's output.
 func measureCapability(repository, path string, task recipe.Task, capability mediacapability.Capability) error {
 	ctx := context.Background()
 	store, err := overgodb.Open(repository)
@@ -530,83 +541,38 @@ func measureCapability(repository, path string, task recipe.Task, capability med
 		return err
 	}
 	modelID := source.Inventory.Manifest.ID
-	request, err := verifiedRequest(ctx, store, modelID, task)
-	if err != nil {
-		return err
-	}
 	selected, err := modelrecipe.ResolveActiveExecution(ctx, store, modelID, task, modelrecipe.SessionWarm)
 	if err != nil {
 		return err
 	}
-	output, err := attemptCapability(ctx, store, path, modelID, task, selected, capability, request)
+	request, err := verifiedRequest(ctx, store, selected.Activation)
+	if err != nil {
+		return err
+	}
+	output, err := attemptCapability(capabilityruntime.FreshRun(ctx), store, path, modelID, task, selected, capability, request)
 	if err != nil {
 		return err
 	}
 	return json.NewEncoder(os.Stdout).Encode(capabilityruntime.Unwrap(output))
 }
 
-// verifiedRequest is the request the capability's verification ran: the
-// recorded input of a run the activation's lifecycle chain cites, newest
-// first.
-func verifiedRequest(ctx context.Context, store *overgodb.Store, model artifact.ID, task recipe.Task) (string, error) {
-	activation, found, err := modelrecipe.ActiveRecord(ctx, store, model, task)
-	if err != nil {
-		return "", err
-	}
-	if !found {
-		return "", fmt.Errorf("recipe: %s has no active %s capability", model, task)
-	}
-	for event := activation.Event; ; {
-		for _, evidence := range event.Evidence {
-			if evidence.Kind() != artifact.KindRun {
-				continue
-			}
-			verification, err := runrecord.RequireRun(ctx, store, evidence)
-			if err != nil {
-				return "", err
-			}
-			for _, input := range verification.Inputs {
-				content, found, err := artifact.ReadContent(ctx, store, input)
-				if err != nil {
-					return "", err
-				}
-				if found {
-					return string(content.Data), nil
-				}
-			}
-		}
-		if event.PreviousEvent == nil {
-			break
-		}
-		previous, found, err := recipe.ReadLifecycleEvent(ctx, store, *event.PreviousEvent)
+// verifiedRequest is the request the activation's accepted verification ran,
+// when that run retained it whole. A request it kept only as a digest, or
+// not at all, is a measurement gap reported before anything executes, so no
+// serving attempt fails on input that was never runnable.
+func verifiedRequest(ctx context.Context, store artifact.Reader, activation modelrecipe.Activation) (string, error) {
+	verification := activation.Verified
+	for _, input := range verification.Run.Inputs {
+		content, found, err := artifact.ReadContent(ctx, store, input)
 		if err != nil {
 			return "", err
 		}
-		if !found {
-			break
+		if request, retained := capabilityruntime.RetainedRequest(content); found && retained {
+			return request, nil
 		}
-		event = previous
 	}
-	// A run of the recipe from the page records its request as its last
-	// input; the newest one stands in for a verification that recorded none.
-	var request string
-	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{Kind: artifact.KindRun, MediaType: runrecord.RunMediaType, Schema: runrecord.RunSchema}},
-		Order:     overgodb.DocumentNewestFirst,
-	}, runrecord.ParseRun, func(_ overgodb.DocumentView, run runrecord.Run) error {
-		if request != "" || run.Recipe != activation.Definition.ID || len(run.Inputs) == 0 {
-			return nil
-		}
-		content, found, err := artifact.ReadContent(ctx, store, run.Inputs[len(run.Inputs)-1])
-		if found {
-			request = string(content.Data)
-		}
-		return err
-	})
-	if err != nil || request != "" {
-		return request, err
-	}
-	return "", fmt.Errorf("recipe: no run of %s's %s capability recorded its request: run it once from the page, or verify it again with -input", model, task)
+	return "", fmt.Errorf("recipe: %s's accepted verification run %s retained no runnable request (a request over the inline bound keeps only its digest): verify it again with an -input it can retain",
+		activation.Definition.ID, verification.Run.ID)
 }
 
 func parseSessionOverride(text string) (modelintake.SessionOverride, error) {
@@ -639,10 +605,8 @@ func activate(
 		return err
 	}
 	modelID := candidate.Inventory.Manifest.ID
-	if _, err := modelrecipe.PublishResolvedModelDefinition(
-		ctx, store, candidate.Inventory, candidate.Resolved,
-	); err != nil {
-		return fmt.Errorf("publish model facts: %w", err)
+	if err := modelintake.RegisterCandidate(ctx, store, candidate); err != nil {
+		return err
 	}
 	if err := modelrecipe.ActivateCapability(
 		ctx, store, candidate.Definition, verification, recipe.EvidenceVerified, reason,

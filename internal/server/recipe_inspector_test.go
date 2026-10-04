@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"slices"
-	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -133,12 +132,6 @@ func TestActiveRecipeInspectorUsesCompiledOrder(t *testing.T) {
 	}
 	if !slices.Equal(gotOrder, inspectorStageOrder) {
 		t.Fatalf("stage order = %v, want compiled %v", gotOrder, inspectorStageOrder)
-	}
-
-	// The standalone tabs leg drives the recipe tab; the source keeps the
-	// compiled order its own.
-	if module := serveTestRequest(handler, http.MethodGet, "/mod/recipe.js", "").Body.String(); strings.Contains(module, "runtime.stages.sort(") {
-		t.Error("browser reorders compiled stages")
 	}
 
 	refusalText := "compiled module is unavailable"

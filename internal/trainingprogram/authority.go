@@ -48,10 +48,12 @@ type ScratchConstruction struct {
 	rngStreams         []RNGStreamSpec
 }
 
+// CompileScratchConstruction identifies a model built from nothing. A model
+// that reads no text, such as an image generator, names no tokenizer.
 func CompileScratchConstruction(spec ScratchSpec) (ScratchConstruction, error) {
 	if spec.Recipe.Kind() != artifact.KindRecipe || spec.Dataset.Kind() != artifact.KindDataset ||
 		spec.Split.Kind() != artifact.KindDatasetShard || spec.DerivationProfile.Kind() != artifact.KindProfile ||
-		spec.TopologyProfile.Kind() != artifact.KindProfile || spec.Tokenizer.Kind() != artifact.KindTokenizer ||
+		spec.TopologyProfile.Kind() != artifact.KindProfile || spec.Tokenizer.Valid() && spec.Tokenizer.Kind() != artifact.KindTokenizer ||
 		spec.ParameterManifest.Kind() != artifact.KindTensorInventory || spec.InitializerProfile.Kind() != artifact.KindProfile ||
 		spec.InitializedModel.Kind() != artifact.KindModel {
 		return ScratchConstruction{}, errors.New("training program: invalid scratch construction identities")
@@ -66,7 +68,7 @@ func CompileScratchConstruction(spec ScratchSpec) (ScratchConstruction, error) {
 		Split              artifact.ID     `json:"split"`
 		DerivationProfile  artifact.ID     `json:"derivation_profile"`
 		TopologyProfile    artifact.ID     `json:"topology_profile"`
-		Tokenizer          artifact.ID     `json:"tokenizer"`
+		Tokenizer          artifact.ID     `json:"tokenizer,omitzero"`
 		ParameterManifest  artifact.ID     `json:"parameter_manifest"`
 		InitializerProfile artifact.ID     `json:"initializer_profile"`
 		InitializedModel   artifact.ID     `json:"initialized_model"`
@@ -129,15 +131,42 @@ type ProgramSpec struct {
 	Preference *PreferencePolicy
 }
 
-// PreferencePolicy seals reference and objective scale facts.
+// PreferencePolicy seals the DPO objective's reference, scale and loss mode.
 type PreferencePolicy struct {
 	Reference artifact.ID
-	Scale     float64
+	// Scale is β for DPO, SimPO and KTO, and the odds-ratio weight λ for ORPO.
+	Scale float64
+	// Mode is the loss the objective takes over a pair, or KTO's over
+	// unpaired completions. DPO's own mode is the zero value and is
+	// omitted, so DPO programs keep their identities.
+	Mode PreferenceMode `json:",omitempty"`
+	// Margin is SimPO's target reward margin γ; no other mode has one.
+	Margin float64 `json:",omitzero"`
+	// DesirableWeight and UndesirableWeight are KTO's class weights λ_D
+	// and λ_U; no other mode has them.
+	DesirableWeight   float64 `json:",omitzero"`
+	UndesirableWeight float64 `json:",omitzero"`
 }
 
 func (policy PreferencePolicy) Validate() error {
-	if policy.Reference.Kind() != artifact.KindModel || policy.Scale <= 0 || !finite(policy.Scale) {
+	if policy.Reference.Kind() != artifact.KindModel {
 		return errors.New("training program: DPO requires reference model and finite positive scale")
+	}
+	return policy.validLoss()
+}
+
+// validLoss requires a finite positive scale, a declared mode, a finite
+// nonnegative margin that only SimPO carries, and the finite positive class
+// weights that only KTO carries.
+func (policy PreferencePolicy) validLoss() error {
+	weighted := policy.DesirableWeight > 0 && finite(policy.DesirableWeight) &&
+		policy.UndesirableWeight > 0 && finite(policy.UndesirableWeight)
+	unweighted := policy.DesirableWeight == 0 && policy.UndesirableWeight == 0
+	if policy.Scale <= 0 || !finite(policy.Scale) || !slices.Contains(preferenceModes, policy.Mode) ||
+		policy.Margin < 0 || !finite(policy.Margin) || policy.Margin != 0 && policy.Mode != PreferenceSimPO ||
+		!weighted && policy.Mode == PreferenceKTO || !unweighted && policy.Mode != PreferenceKTO {
+		return fmt.Errorf("training program: invalid DPO scale %g, mode %q, margin %g or class weights %g and %g",
+			policy.Scale, policy.Mode, policy.Margin, policy.DesirableWeight, policy.UndesirableWeight)
 	}
 	return nil
 }

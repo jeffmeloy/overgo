@@ -3,7 +3,6 @@ package densecausal
 import (
 	"errors"
 
-	"overgo/internal/optimizer"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
@@ -17,57 +16,30 @@ func (m *Model) TrainGRPOGroupsResume(
 	if len(groups) == 0 {
 		return nil, RLState{}, errors.New("densecausal: GRPO groups absent")
 	}
-	if resume != nil && !resume.Stream.Identity.Valid() {
-		return nil, RLState{}, errors.New("densecausal: GRPO resume stream authority absent")
-	}
-	names, weights, gradients, plan, err := m.trainSetup()
+	run, err := m.newRLRun("GRPO", baseLR, momentum, resume)
 	if err != nil {
 		return nil, RLState{}, err
-	}
-	if baseLR <= 0 {
-		return nil, RLState{}, errors.New("densecausal: positive recipe-derived learning rate required")
-	}
-	update, err := optimizer.New(weights, gradients, plan, optimizer.Config{
-		BaseLearningRate: baseLR, Momentum: momentum, Schedule: optimizer.ScheduleConstant,
-	})
-	if err != nil {
-		return nil, RLState{}, err
-	}
-	if resume != nil {
-		if err := update.Restore(resume.Optimizer); err != nil {
-			return nil, RLState{}, err
-		}
-	}
-	stream := trainingdata.StreamState{}
-	if resume != nil {
-		stream = resume.Stream
 	}
 	observations := make([]trainingprogram.GRPOObservation, 0)
 	for _, group := range groups {
-		if !group.State.Identity.Valid() || stream.Identity.Valid() &&
-			(group.State.Identity != stream.Identity || group.State.Position <= stream.Position) {
-			return nil, RLState{}, errors.New("densecausal: GRPO stream authority differs")
+		if err := run.admit(group.State); err != nil {
+			return nil, RLState{}, err
 		}
-		scatter(m, names, weights)
 		observation, grads, err := m.grpoLossAndGrads(group, scale)
 		if err != nil {
 			return nil, RLState{}, err
 		}
-		m.gatherGrads(names, gradients, grads)
-		step := update.Step()
-		observation.Step = uint64(step.Step)
-		observation.LearningRate = step.LearningRate
-		observation.GradientL2 = step.GradientL2
-		observation.UpdateL2 = step.UpdateL2
+		observation.Step, observation.LearningRate, observation.GradientL2, observation.UpdateL2, err = run.stepObserved(grads)
+		if err != nil {
+			return nil, RLState{}, err
+		}
 		if observe != nil {
 			observe(observation)
 		} else {
 			observations = append(observations, observation)
 		}
-		stream = group.State
 	}
-	scatter(m, names, weights)
-	return observations, RLState{Optimizer: update.Snapshot(), Stream: stream}, nil
+	return observations, run.state(), nil
 }
 
 func (m *Model) grpoLossAndGrads(group trainingdata.RolloutGroup, scale float64) (trainingprogram.GRPOObservation, Grads, error) {

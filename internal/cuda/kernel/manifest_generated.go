@@ -3,13 +3,13 @@
 package kernel
 
 const (
-	BundleABIVersion     = 46
+	BundleABIVersion     = 47
 	BundleTarget         = "compute_89"
 	BundleDefaultThreads = 256
 	BundleVAEConvTile    = 64
 	VectorAddSHA256      = "f0c6eedbbae221be3342bbbb8f782e5413c84515f362cca533905f7f9510c974"
 	TorchCUDARandnSHA256 = "e0a682f3821e61e9be8aa13192986c38010b60d588c027887a07e2681118df59"
-	OpsF32SHA256         = "61c2499d710a4c05c565fa9582de929fc1c9f198c5ceaee859ac43fa513995b2"
+	OpsF32SHA256         = "c249143627d89039d8f08ec6cecf83e275559de4fcacab0b6dcc3fb1e0bff01b"
 )
 
 var bundleAssets = [...]bundleAsset{

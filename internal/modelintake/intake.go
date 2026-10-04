@@ -115,8 +115,8 @@ func PrepareInferenceCandidate(
 func RegisterCandidate(ctx context.Context, store artifact.Repository, candidate Candidate) error {
 	// Facts already published are no change, and a registration repeated
 	// for a model the store knows is a registration, not a fault.
-	if _, err := modelrecipe.PublishResolvedModelDefinition(ctx, store, candidate.Inventory, candidate.Resolved); err != nil && !errors.Is(err, artifact.ErrNoChange) {
-		return fmt.Errorf("publish model facts: %w", err)
+	if err := modelrecipe.PublishResolvedModelDefinition(ctx, store, candidate.Inventory, candidate.Resolved); err != nil {
+		return err
 	}
 	_, published, err := modelrecipe.Status(ctx, store, candidate.Definition.ID)
 	if err != nil {

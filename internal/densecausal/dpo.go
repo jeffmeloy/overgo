@@ -1,11 +1,12 @@
 package densecausal
 
 import (
+	"cmp"
 	"errors"
+	"fmt"
 	"slices"
 
 	"overgo/internal/hostmath"
-	"overgo/internal/optimizer"
 	"overgo/internal/sequencescore"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -19,72 +20,91 @@ type RLState struct {
 func (m *Model) TrainDPOBatchesResume(
 	reference *Model,
 	batches []trainingdata.PreferenceBatch,
-	baseLR, momentum, scale float64,
+	baseLR, momentum float64,
+	preference trainingprogram.PreferencePolicy,
 	resume *RLState,
 	observe func(trainingprogram.DPOObservation),
 ) ([]trainingprogram.DPOObservation, RLState, error) {
 	if reference == nil || len(batches) == 0 {
 		return nil, RLState{}, errors.New("densecausal: DPO reference or batches absent")
 	}
-	if resume != nil && !resume.Stream.Identity.Valid() {
-		return nil, RLState{}, errors.New("densecausal: DPO resume stream authority absent")
-	}
-	names, weights, gradients, plan, err := m.trainSetup()
+	run, err := m.newRLRun("DPO", baseLR, momentum, resume)
 	if err != nil {
 		return nil, RLState{}, err
-	}
-	if baseLR <= 0 {
-		return nil, RLState{}, errors.New("densecausal: positive recipe-derived learning rate required")
-	}
-	update, err := optimizer.New(weights, gradients, plan, optimizer.Config{
-		BaseLearningRate: baseLR, Momentum: momentum, Schedule: optimizer.ScheduleConstant,
-	})
-	if err != nil {
-		return nil, RLState{}, err
-	}
-	if resume != nil {
-		if err := update.Restore(resume.Optimizer); err != nil {
-			return nil, RLState{}, err
-		}
-	}
-	stream := trainingdata.StreamState{}
-	if resume != nil {
-		stream = resume.Stream
 	}
 	observations := make([]trainingprogram.DPOObservation, 0)
 	for _, batch := range batches {
-		if len(batch.Pairs) == 0 || !batch.State.Identity.Valid() ||
-			stream.Identity.Valid() && (batch.State.Identity != stream.Identity || batch.State.Position <= stream.Position) {
-			return nil, RLState{}, errors.New("densecausal: DPO stream authority differs")
+		if err := run.admit(batch.State); err != nil || len(batch.Pairs) == 0 {
+			return nil, RLState{}, cmp.Or(err, errors.New("densecausal: DPO batch holds no pairs"))
 		}
 		for _, pair := range batch.Pairs {
 			if pair.SharedPrefix <= 0 {
 				return nil, RLState{}, errors.New("densecausal: DPO pair lacks exact prefix")
 			}
-			scatter(m, names, weights)
-			observation, grads, err := m.dpoLossAndGrads(reference, pair, scale)
+			observation, grads, err := m.dpoLossAndGrads(reference, pair, preference)
 			if err != nil {
 				return nil, RLState{}, err
 			}
-			m.gatherGrads(names, gradients, grads)
-			step := update.Step()
-			observation.Step = uint64(step.Step)
-			observation.LearningRate = step.LearningRate
-			observation.GradientL2 = step.GradientL2
-			observation.UpdateL2 = step.UpdateL2
+			observation.Step, observation.LearningRate, observation.GradientL2, observation.UpdateL2, err = run.stepObserved(grads)
+			if err != nil {
+				return nil, RLState{}, err
+			}
 			if observe != nil {
 				observe(observation)
 			} else {
 				observations = append(observations, observation)
 			}
 		}
-		stream = batch.State
 	}
-	scatter(m, names, weights)
-	return observations, RLState{Optimizer: update.Snapshot(), Stream: stream}, nil
+	return observations, run.state(), nil
 }
 
-func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePair, scale float64) (trainingprogram.DPOObservation, Grads, error) {
+// rlRun is a DPO or GRPO run: the dense update it steps and the stream
+// position its admitted units reached.
+type rlRun struct {
+	DenseUpdate
+	objective string
+	stream    trainingdata.StreamState
+}
+
+// newRLRun opens the dense update at the resumed optimizer state and stream
+// position; a resume must carry its stream's authority.
+func (m *Model) newRLRun(objective string, baseLR, momentum float64, resume *RLState) (rlRun, error) {
+	run := rlRun{objective: objective}
+	var state *TrainState
+	if resume != nil {
+		if !resume.Stream.Identity.Valid() {
+			return rlRun{}, fmt.Errorf("densecausal: %s resume stream authority absent", objective)
+		}
+		run.stream, state = resume.Stream, &resume.Optimizer
+	}
+	var err error
+	run.DenseUpdate, err = m.NewDenseUpdate(baseLR, momentum, state)
+	return run, err
+}
+
+// admit advances the run to a unit's stream state: valid, and past the
+// run's position when it continues the same stream.
+func (run *rlRun) admit(state trainingdata.StreamState) error {
+	if !state.Identity.Valid() || run.stream.Identity.Valid() &&
+		(state.Identity != run.stream.Identity || state.Position <= run.stream.Position) {
+		return fmt.Errorf("densecausal: %s stream authority differs", run.objective)
+	}
+	run.stream = state
+	return nil
+}
+
+// stepObserved takes one update and returns the facts its observation
+// records: the step, its learning rate, and its gradient and update norms.
+func (run rlRun) stepObserved(grads Grads) (uint64, float64, float64, float64, error) {
+	step, err := run.step(grads)
+	return uint64(step.Step), step.LearningRate, step.GradientL2, step.UpdateL2, err
+}
+
+// state is the optimizer state and stream position the run reached.
+func (run rlRun) state() RLState { return RLState{Optimizer: run.Snapshot(), Stream: run.stream} }
+
+func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePair, preference trainingprogram.PreferencePolicy) (trainingprogram.DPOObservation, Grads, error) {
 	policyChosen, err := m.sequenceTrace(pair.Chosen)
 	if err != nil {
 		return trainingprogram.DPOObservation{}, nil, err
@@ -93,11 +113,11 @@ func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePa
 	if err != nil {
 		return trainingprogram.DPOObservation{}, nil, err
 	}
-	referenceChosen, err := reference.sequenceLogProb(pair.Chosen)
+	referenceChosen, err := reference.SequenceLogProb(pair.Chosen)
 	if err != nil {
 		return trainingprogram.DPOObservation{}, nil, err
 	}
-	referenceRejected, err := reference.sequenceLogProb(pair.Rejected)
+	referenceRejected, err := reference.SequenceLogProb(pair.Rejected)
 	if err != nil {
 		return trainingprogram.DPOObservation{}, nil, err
 	}
@@ -105,7 +125,7 @@ func (m *Model) dpoLossAndGrads(reference *Model, pair trainingdata.PreferencePa
 		PolicyChosen: policyChosen.score, PolicyRejected: policyRejected.score,
 		ReferenceChosen: referenceChosen, ReferenceRejected: referenceRejected,
 	}
-	objective, err := trainingprogram.DPOLoss(scores, scale)
+	objective, err := preference.Loss(scores)
 	if err != nil {
 		return trainingprogram.DPOObservation{}, nil, err
 	}
@@ -158,12 +178,12 @@ func completionCount(mask []bool) uint64 {
 	return count
 }
 
-func (m *Model) sequenceLogProb(sequence trainingdata.PreferenceSequence) (sequencescore.Score, error) {
-	trace, err := m.sequenceTrace(sequence)
-	if err != nil {
-		return sequencescore.Score{}, err
-	}
-	return trace.score, nil
+// SequenceLogProb scores a sequence's completion tokens: the summed log
+// probability the model gives each one after the tokens before it. No
+// backward pass follows, so it keeps no layer input.
+func (m *Model) SequenceLogProb(sequence trainingdata.PreferenceSequence) (sequencescore.Score, error) {
+	trace, err := m.scoreSequence(sequence, false)
+	return trace.score, err
 }
 
 type preferenceTrace struct {
@@ -173,12 +193,19 @@ type preferenceTrace struct {
 	score    sequencescore.Score
 }
 
+// sequenceTrace scores a sequence keeping what its backward pass reads.
 func (m *Model) sequenceTrace(sequence trainingdata.PreferenceSequence) (preferenceTrace, error) {
+	return m.scoreSequence(sequence, true)
+}
+
+// scoreSequence runs the forward over a sequence and selects its completion
+// tokens' log probabilities; retain keeps each layer's input for backward.
+func (m *Model) scoreSequence(sequence trainingdata.PreferenceSequence, retain bool) (preferenceTrace, error) {
 	rows := len(sequence.Tokens) - 1
 	if rows <= 0 || len(sequence.Completion) != len(sequence.Tokens) || sequence.Completion[0] {
 		return preferenceTrace{}, errors.New("densecausal: invalid preference sequence")
 	}
-	states, err := m.forwardStates(sequence.Tokens)
+	states, err := m.forwardStates(sequence.Tokens, retain)
 	if err != nil {
 		return preferenceTrace{}, err
 	}

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/checkpointtest"
 	"overgo/internal/optimizer"
 )
 
@@ -171,4 +172,19 @@ func TestCPUJointTrainerRefusesInvalidRestoreAndTargets(t *testing.T) {
 	if !maps.EqualFunc(wantWeights, jointWeightSnapshot(model), slices.Equal[[]float32]) || !reflect.DeepEqual(wantState, mustJointState(t, trainer)) {
 		t.Fatal("rejected target changed checkpoint state")
 	}
+}
+
+// TestJointTrainerCheckpointRoundTripIsBitExact steps the host joint
+// trainer once and holds the checkpoint it publishes to every trained
+// tensor and the optimizer state bit for bit.
+func TestJointTrainerCheckpointRoundTripIsBitExact(t *testing.T) {
+	model, trainer, example := cpuJointFixture(t)
+	if _, err := trainer.Step(example); err != nil {
+		t.Fatal(err)
+	}
+	if !(trainer.GradientL2() > 0) {
+		t.Fatalf("step gradient norm %g, want a gradient", trainer.GradientL2())
+	}
+	trained, _ := model.TrainedTensors(true)
+	checkpointtest.RequireRoundTrip(t, trainer.Program(), trainer, trained)
 }

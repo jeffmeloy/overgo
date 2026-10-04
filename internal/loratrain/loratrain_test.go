@@ -157,7 +157,7 @@ func TestTrainingLowersTheLossAndFreezesTheBase(t *testing.T) {
 		batches[index] = periodic
 	}
 	var seen []int
-	losses, err := trainer.Train(batches, 0.02, 0.9, func(step int, _ float64, _ time.Duration) error { seen = append(seen, step); return nil })
+	losses, err := trainer.Train(batches, nil, 0.02, 0.9, func(step int, _ float64, _ time.Duration) error { seen = append(seen, step); return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestAdapterCarriesTheTrainingThroughPEFT(t *testing.T) {
 		t.Fatal(err)
 	}
 	batches := [][]int{periodic, periodic, periodic, periodic, periodic, periodic}
-	if _, err := trainer.Train(batches, 0.02, 0.9, nil); err != nil {
+	if _, err := trainer.Train(batches, nil, 0.02, 0.9, nil); err != nil {
 		t.Fatal(err)
 	}
 	saved := filepath.Join(t.TempDir(), "adapter")
@@ -309,13 +309,13 @@ func TestRefusesWhatItCannotTrain(t *testing.T) {
 	if len(trainer.adapter.Modules) != 2 {
 		t.Fatalf("%d modules for q_proj alone, want one per layer", len(trainer.adapter.Modules))
 	}
-	if _, err := trainer.Step(periodic, 0.02, 0.9); err != nil {
+	if _, err := trainer.Step(periodic, nil, 0.02, 0.9); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := trainer.Step(periodic, 0.5, 0.9); err == nil || !strings.Contains(err.Error(), "fixed by the first update") {
+	if _, err := trainer.Step(periodic, nil, 0.5, 0.9); err == nil || !strings.Contains(err.Error(), "fixed by the first update") {
 		t.Errorf("a changed rate: err = %v", err)
 	}
-	if _, err := trainer.Train(nil, 0.02, 0.9, nil); err == nil {
+	if _, err := trainer.Train(nil, nil, 0.02, 0.9, nil); err == nil {
 		t.Error("training on no batches was accepted")
 	}
 	wrong := peft.Adapter{Config: peft.Config{Rank: 1, Alpha: 1}, Modules: map[string]peft.Module{
@@ -323,5 +323,69 @@ func TestRefusesWhatItCannotTrain(t *testing.T) {
 	}}
 	if _, err := Resume(model, wrong); err == nil || !strings.Contains(err.Error(), "the model's") {
 		t.Errorf("an adapter of another shape: err = %v", err)
+	}
+}
+
+// trainedAdapter is the adapter a trainer holds after taking each batch once,
+// with the flags for the tokens it learns, and the losses it saw.
+func trainedAdapter(t *testing.T, batches [][]int, trained [][]bool) (peft.Adapter, []float64) {
+	t.Helper()
+	model, _, _ := tinyModel(t)
+	trainer, err := New(model, Config{Rank: 2, Alpha: 4, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	losses, err := trainer.Train(batches, trained, 0.02, 0.9, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return trainer.Adapter(), losses
+}
+
+// sameAdapter reports whether two adapters hold the same factors.
+func sameAdapter(left, right peft.Adapter) bool {
+	for name, module := range left.Modules {
+		if !slices.Equal(module.Up, right.Modules[name].Up) || !slices.Equal(module.Down, right.Modules[name].Down) {
+			return false
+		}
+	}
+	return true
+}
+
+// TestMaskedBatchesLearnOnlyTheirTrainedTokens: an update's loss and factors do
+// not depend on a token the batch does not train and nothing later reads, and
+// do depend on it once it is trained.
+func TestMaskedBatchesLearnOnlyTheirTrainedTokens(t *testing.T) {
+	swapped := slices.Clone(periodic)
+	swapped[len(swapped)-1] = 7
+	batches := [][]int{periodic, periodic, periodic}
+	others := [][]int{swapped, swapped, swapped}
+	masked := make([]bool, len(periodic))
+	for index := range masked {
+		masked[index] = index < len(periodic)-1
+	}
+	learned := make([]bool, len(periodic))
+	for index := range learned {
+		learned[index] = true
+	}
+	flags := func(flag []bool) [][]bool { return [][]bool{flag, flag, flag} }
+
+	adapter, losses := trainedAdapter(t, batches, flags(masked))
+	otherAdapter, otherLosses := trainedAdapter(t, others, flags(masked))
+	if !slices.Equal(losses, otherLosses) || !sameAdapter(adapter, otherAdapter) {
+		t.Fatalf("a masked final token changed the run: losses %v against %v", losses, otherLosses)
+	}
+	adapter, losses = trainedAdapter(t, batches, flags(learned))
+	otherAdapter, otherLosses = trainedAdapter(t, others, flags(learned))
+	if slices.Equal(losses, otherLosses) || sameAdapter(adapter, otherAdapter) {
+		t.Fatal("a trained final token changed nothing: the swap proves nothing")
+	}
+	model, _, _ := tinyModel(t)
+	trainer, err := New(model, Config{Rank: 2, Alpha: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := trainer.Train(batches, flags(masked)[:2], 0.02, 0.9, nil); err == nil {
+		t.Error("flags for two of three batches were accepted")
 	}
 }

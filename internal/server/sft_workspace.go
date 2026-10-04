@@ -39,8 +39,8 @@ const (
 	// offers: one JSON file per conversation.
 	sftDatasetFormat = "json"
 	// sftNote and sftLoRANote tell the page how a run learns from its dataset.
-	sftNote     = "Learns every token of each conversation as the model's chat template renders it, the user's turns and the template's own markers as well as the replies: the trainer has no loss mask yet."
-	sftLoRANote = "Trains a low-rank adapter over the frozen model rather than the model, and saves it as a Hugging Face PEFT adapter in the output's adapter directory. Like full fine-tuning it learns every token of each conversation, the user's turns and the template's own markers as well as the replies."
+	sftNote     = "Learns the replies of each conversation as the model's chat template renders them, and only reads the user's turns and the template's own markers; train on prompts: true learns every token."
+	sftLoRANote = "Trains a low-rank adapter over the frozen model rather than the model, and saves it as a Hugging Face PEFT adapter in the output's adapter directory. Like full fine-tuning it learns the replies of each conversation and only reads the rest; train on prompts: true learns every token."
 )
 
 // sftMethod is one way the workspace fine-tunes the served model on
@@ -95,7 +95,9 @@ func (workspace *SFTWorkspace) WorkflowCapabilities(_ context.Context, kind Work
 		if method.lora {
 			controls = append(controls, workflowControl{Name: "rank", Type: workflowControlInteger, Required: true, Bounds: &workflowControlBounds{Default: sftLoRADefaultRank, Step: 1}})
 		}
-		controls = append(controls, workflowControl{Name: "output", Type: workflowControlOutput, Required: true})
+		controls = append(controls,
+			workflowControl{Name: "train_on_prompts", Type: workflowControlBoolean},
+			workflowControl{Name: "output", Type: workflowControlOutput, Required: true})
 		capabilities = append(capabilities, WorkflowCapability{
 			Task: recipe.TaskTraining, Recipe: program.ID, Model: workspace.trainer.Model,
 			Name: filepath.Base(workspace.trainer.File) + method.name, Location: workspace.trainer.File,
@@ -128,6 +130,8 @@ type sftInput struct {
 	Steps   int         `json:"steps"`
 	Rank    int         `json:"rank"`
 	Output  string      `json:"output"`
+	// TrainOnPrompts learns every token of each conversation rather than its replies.
+	TrainOnPrompts bool `json:"train_on_prompts"`
 }
 
 // ExecuteWorkflow fine-tunes the served model on the dataset, whole or as an
@@ -168,7 +172,7 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	result, err := trainingworkflow.RunConversationSFT(ctx, workspace.store, trainingworkflow.ConversationSFT{
 		Dataset: input.Dataset, Render: workspace.trainer.Render, ModelDirectory: workspace.trainer.File,
 		OutputDirectory: output, WorkDirectory: filepath.Join(workspace.roots.Datasets, "sft"),
-		Steps: input.Steps, LoRA: lora,
+		Steps: input.Steps, LoRA: lora, Prompts: input.TrainOnPrompts,
 		Step: func(step, _ int, loss float64) {
 			reporter.Progress(uint64(step), &total)
 			reporter.Metric(operation.Metric{Name: "loss", Value: loss})
@@ -205,12 +209,13 @@ func (workspace *SFTWorkspace) PreviewWorkflow(ctx context.Context, kind Workflo
 		return nil, err
 	}
 	var input struct {
-		Dataset artifact.ID `json:"dataset"`
+		Dataset        artifact.ID `json:"dataset"`
+		TrainOnPrompts bool        `json:"train_on_prompts"`
 	}
 	if err := json.Unmarshal(raw, &input); err != nil || input.Dataset.Kind() != artifact.KindDataset {
 		return nil, errors.Join(err, errors.New("sft workspace: preview needs a conversation dataset"))
 	}
-	return trainingworkflow.PreviewConversations(ctx, workspace.store, input.Dataset, workspace.trainer.Render, workspace.trainer.File, position, limit)
+	return trainingworkflow.PreviewConversations(ctx, workspace.store, input.Dataset, workspace.trainer.Render, workspace.trainer.File, input.TrainOnPrompts, position, limit)
 }
 
 // outputDirectory is the directory a run named name writes under root: the

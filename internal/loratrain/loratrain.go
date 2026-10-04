@@ -218,13 +218,14 @@ func (trainer *Trainer) OptimizerState() (optimizer.State, error) {
 	return trainer.optimizer.Snapshot(), nil
 }
 
-// Step takes one update on one token batch and returns its loss. The loss is
-// the adapted model's, before the update.
-func (trainer *Trainer) Step(tokens []int, learningRate, momentum float64) (float64, error) {
+// Step takes one update on one token batch and returns its loss: the adapted
+// model's, before the update, over the tokens trained marks (every token when
+// it is nil), as densecausal's MaskedLossAndGrads learns them.
+func (trainer *Trainer) Step(tokens []int, trained []bool, learningRate, momentum float64) (float64, error) {
 	if err := trainer.ensureOptimizer(learningRate, momentum); err != nil {
 		return 0, err
 	}
-	loss, _, grads, err := trainer.model.LossAndGrads(tokens)
+	loss, grads, err := trainer.model.MaskedLossAndGrads(tokens, trained)
 	if err != nil {
 		return 0, err
 	}
@@ -239,16 +240,25 @@ func (trainer *Trainer) Step(tokens []int, learningRate, momentum float64) (floa
 	return loss, trainer.apply()
 }
 
-// Train takes one update per batch and returns each update's loss. The
-// observer sees every finished update; an error from it stops training there.
-func (trainer *Trainer) Train(batches [][]int, learningRate, momentum float64, observe densecausal.TrainObserver) ([]float64, error) {
+// Train takes one update per batch and returns each update's loss. trained
+// holds each batch's flags for the tokens it learns, or is nil to learn every
+// token. The observer sees every finished update; an error from it stops
+// training there.
+func (trainer *Trainer) Train(batches [][]int, trained [][]bool, learningRate, momentum float64, observe densecausal.TrainObserver) ([]float64, error) {
 	if len(batches) == 0 {
 		return nil, errors.New("loratrain: token batches absent")
+	}
+	if trained != nil && len(trained) != len(batches) {
+		return nil, fmt.Errorf("loratrain: trained flags for %d batches, %d given", len(batches), len(trained))
 	}
 	losses := make([]float64, 0, len(batches))
 	for step, tokens := range batches {
 		started := time.Now()
-		loss, err := trainer.Step(tokens, learningRate, momentum)
+		var flags []bool
+		if trained != nil {
+			flags = trained[step]
+		}
+		loss, err := trainer.Step(tokens, flags, learningRate, momentum)
 		if err != nil {
 			return losses, err
 		}

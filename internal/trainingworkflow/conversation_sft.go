@@ -46,12 +46,14 @@ const (
 	// conversationAliasPrefix names the objectives conversation runs publish;
 	// each takes its own alias so the shared text objective alias never moves.
 	conversationAliasPrefix = "objective.sft."
-	conversationEvidence    = "conversations rendered through the model's chat template, each one record, judged by next-token accuracy on held-out conversations"
+	conversationEvidence    = "conversations rendered through the model's chat template and cut into the stretches a run learns, each one record, judged by next-token accuracy on the learned tokens of held-out conversations"
 )
 
 // ConversationRenderer renders one conversation as the text the model's chat
-// template makes of it, the way serving renders a prompt.
-type ConversationRenderer func([]dataset.ChatMessage) (string, error)
+// template makes of it, the way serving renders a prompt: with the generation
+// prompt that invites the next reply when generationPrompt is set, and ending
+// on the last message as it was said when it is not.
+type ConversationRenderer func(messages []dataset.ChatMessage, generationPrompt bool) (string, error)
 
 // ConversationSFT fine-tunes a text model on a registered conversation
 // dataset: one JSON file per conversation, each an OpenAI messages record.
@@ -62,8 +64,12 @@ type ConversationSFT struct {
 	// directory. OutputDirectory receives the trained model.
 	ModelDirectory  string
 	OutputDirectory string
-	// WorkDirectory receives the rendered conversations, one text file each.
+	// WorkDirectory receives the rendered conversations, one file each.
 	WorkDirectory string
+	// Prompts, when set, learns every token of each conversation, the user's
+	// turns and the template's markers as well as the assistant's replies. A
+	// run learns the replies alone otherwise.
+	Prompts bool
 	// Steps counts updates, each on one packed window of rendered text.
 	Steps int
 	// LoRA, when set, trains a low-rank adapter over the frozen model instead
@@ -79,58 +85,63 @@ type ConversationSFT struct {
 // objective over it under its own alias, holding a few conversations out, and
 // trains the model on the rest, then judges it on the held-out ones. It trains
 // on the host processor: the device trainer links only into the commands that
-// train, never the serving ones that call this. The trainer has no loss mask,
-// so it learns every token of a rendered conversation, the user's and the
-// template's as well as the assistant's.
+// train, never the serving ones that call this. A run learns the assistant's
+// replies, as a model is served to give them, and only reads the user's turns
+// and the template's markers; Prompts learns those too. The loss and the
+// held-out accuracy count the learned tokens alone.
 func RunConversationSFT(ctx context.Context, store *overgodb.Store, request ConversationSFT) (HeldoutResult, error) {
 	if ctx == nil || store == nil || request.Render == nil || request.Dataset.Kind() != artifact.KindDataset || request.WorkDirectory == "" {
 		return HeldoutResult{}, errors.New("training workflow: a conversation run needs a store, a conversation dataset, a renderer and a work directory")
 	}
-	texts, err := renderConversations(ctx, store, request.Dataset, request.Render)
+	records, err := conversationRecords(ctx, store, request.Dataset, request.Render, request.Prompts)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	registered, err := registerRendered(ctx, store, request.WorkDirectory, texts)
+	registered, err := registerRecords(ctx, store, request.WorkDirectory, records)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	alias, err := publishConversationObjective(ctx, store, registered, len(texts))
+	alias, err := publishConversationObjective(ctx, store, registered, len(records))
 	if err != nil {
 		return HeldoutResult{}, err
 	}
 	return RunTextHeldout(ctx, store, TextHeldoutRequest{
 		Alias: alias, ModelDirectory: request.ModelDirectory, OutputDirectory: request.OutputDirectory,
 		Steps: request.Steps, MaximumSequence: conversationWindow, Host: true,
-		Chat: true, Step: request.Step, Progress: request.Progress, LoRA: request.LoRA,
+		Chat: true, Conversations: true, Step: request.Step, Progress: request.Progress, LoRA: request.LoRA,
 	})
 }
 
-// renderConversations reads each conversation of the dataset, in file order,
-// and renders it. A conversation that renders the same as an earlier one is
-// dropped: the inventory keeps one record for identical bytes. A dataset of
-// fewer than two distinct conversations cannot hold one out to judge the
-// others by.
-func renderConversations(ctx context.Context, store *overgodb.Store, source artifact.ID, render ConversationRenderer) ([]string, error) {
+// conversationRecords reads each conversation of the dataset, in file order,
+// renders it and cuts it into segments, and encodes each as the record a run
+// reads. A conversation that renders the same as an earlier one is dropped:
+// the inventory keeps one record for identical bytes. A dataset of fewer than
+// two distinct conversations cannot hold one out to judge the others by.
+func conversationRecords(ctx context.Context, store *overgodb.Store, source artifact.ID, render ConversationRenderer, prompts bool) ([][]byte, error) {
 	files, err := conversationFiles(ctx, store, source)
 	if err != nil {
 		return nil, err
 	}
-	var texts []string
+	var records [][]byte
 	seen := map[string]bool{}
 	for _, file := range files {
-		text, err := renderConversation(file, render)
+		segments, err := conversationSegments(file, render, prompts)
 		if err != nil {
 			return nil, err
 		}
-		if !seen[text] {
-			seen[text] = true
-			texts = append(texts, text)
+		record, err := json.Marshal(conversationRecord{Segments: segments})
+		if err != nil {
+			return nil, err
+		}
+		if !seen[string(record)] {
+			seen[string(record)] = true
+			records = append(records, record)
 		}
 	}
-	if len(texts) < conversationMinimum {
-		return nil, fmt.Errorf("training workflow: %d distinct conversations: a run holds one out to judge the rest, so it needs at least %d", len(texts), conversationMinimum)
+	if len(records) < conversationMinimum {
+		return nil, fmt.Errorf("training workflow: %d distinct conversations: a run holds one out to judge the rest, so it needs at least %d", len(records), conversationMinimum)
 	}
-	return texts, nil
+	return records, nil
 }
 
 // conversationFiles lists the conversation files of a registered dataset, in
@@ -148,32 +159,31 @@ func conversationFiles(ctx context.Context, store *overgodb.Store, source artifa
 	return files, nil
 }
 
-// renderConversation reads one conversation file and renders it.
-func renderConversation(file string, render ConversationRenderer) (string, error) {
+// conversationSegments reads one conversation file, renders it and cuts it
+// into the stretches a run learns and the ones it reads.
+func conversationSegments(file string, render ConversationRenderer, prompts bool) ([]conversationSegment, error) {
 	data, err := os.ReadFile(file)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	var conversation dataset.Conversation
 	if err := json.Unmarshal(data, &conversation); err != nil || len(conversation.Messages) == 0 {
-		return "", fmt.Errorf("training workflow: %s is not a conversation: %w", filepath.Base(file), errors.Join(err, errors.New("no messages")))
+		return nil, fmt.Errorf("training workflow: %s is not a conversation: %w", filepath.Base(file), errors.Join(err, errors.New("no messages")))
 	}
-	text, err := render(conversation.Messages)
+	segments, err := segmentConversation(conversation.Messages, render, prompts)
 	if err != nil {
-		return "", fmt.Errorf("training workflow: render %s: %w", filepath.Base(file), err)
+		return nil, fmt.Errorf("training workflow: render %s: %w", filepath.Base(file), err)
 	}
-	if text == "" {
-		return "", fmt.Errorf("training workflow: %s renders as no text", filepath.Base(file))
-	}
-	return text, nil
+	return segments, nil
 }
 
 // PreviewConversations pages the conversations of a registered dataset as a
 // run reads them: each rendered through the model's chat template and encoded
-// with the tokenizer beside modelInput, every token marked trained because a
-// run has no loss mask. The count is the dataset's conversation files; only
-// the page is read, so the token lengths across the dataset are not listed.
-func PreviewConversations(ctx context.Context, store *overgodb.Store, source artifact.ID, render ConversationRenderer, modelInput string, position, limit int) (Preview, error) {
+// with the tokenizer beside modelInput, each token marked trained when a run
+// learns it, which is every token with prompts set and the assistant's replies
+// otherwise. The count is the dataset's conversation files; only the page is
+// read, so the token lengths across the dataset are not listed.
+func PreviewConversations(ctx context.Context, store *overgodb.Store, source artifact.ID, render ConversationRenderer, modelInput string, prompts bool, position, limit int) (Preview, error) {
 	if ctx == nil || store == nil || render == nil || source.Kind() != artifact.KindDataset || position < 0 || limit <= 0 {
 		return Preview{}, errors.New("training workflow: a conversation preview needs a store, a conversation dataset, a renderer and a valid page")
 	}
@@ -187,39 +197,41 @@ func PreviewConversations(ctx context.Context, store *overgodb.Store, source art
 	}
 	preview := Preview{Objective: trainingprogram.ObjectiveTokenPrediction, Records: len(files), Position: position}
 	for index := position; index < min(len(files), position+limit); index++ {
-		text, err := renderConversation(files[index], render)
+		segments, err := conversationSegments(files[index], render, prompts)
 		if err != nil {
 			return Preview{}, err
 		}
-		ids, err := tokens.encode(text)
+		ids, trained, err := encodeConversation(tokens, segments)
 		if err != nil {
-			return Preview{}, err
+			return Preview{}, fmt.Errorf("training workflow: %s: %w", filepath.Base(files[index]), err)
 		}
 		sequence := PreviewSequence{Label: "conversation", Tokens: make([]PreviewToken, len(ids))}
 		for at, id := range ids {
-			sequence.Tokens[at] = PreviewToken{ID: id, Piece: tokens.piece(id), Trained: true}
+			sequence.Tokens[at] = PreviewToken{ID: id, Piece: tokens.piece(id), Trained: trained[at]}
 		}
 		preview.Page = append(preview.Page, PreviewRecord{ID: filepath.Base(files[index]), Sequences: []PreviewSequence{sequence}})
 	}
 	return preview, nil
 }
 
-// registerRendered writes the texts as one file each, named in record order,
-// under a directory the content names, and registers it as a dataset:
-// rendering the same conversations the same way registers the same dataset.
-func registerRendered(ctx context.Context, store *overgodb.Store, work string, texts []string) (dataset.RegisteredDataset, error) {
+// registerRecords writes the records as one file each, named in record
+// order, under a directory the content names, and registers it as a dataset:
+// rendering the same conversations the same way, learning the same stretches
+// of them, registers the same dataset. A record is JSON, kept in a text file
+// as a generation objective's records are.
+func registerRecords(ctx context.Context, store *overgodb.Store, work string, records [][]byte) (dataset.RegisteredDataset, error) {
 	digest := sha256.New()
-	for _, text := range texts {
-		fmt.Fprintf(digest, "%d:%s", len(text), text)
+	for _, record := range records {
+		fmt.Fprintf(digest, "%d:%s", len(record), record)
 	}
 	name := "sft-" + hex.EncodeToString(digest.Sum(nil))[:conversationNameDigits]
 	directory := filepath.Join(work, name)
 	if err := os.MkdirAll(directory, clioptions.OutputDirectoryMode); err != nil {
 		return dataset.RegisteredDataset{}, err
 	}
-	width := len(strconv.Itoa(len(texts)))
-	for index, text := range texts {
-		if err := os.WriteFile(filepath.Join(directory, fmt.Sprintf("%0*d.txt", width, index+1)), []byte(text), clioptions.PrivateFileMode); err != nil {
+	width := len(strconv.Itoa(len(records)))
+	for index, record := range records {
+		if err := os.WriteFile(filepath.Join(directory, fmt.Sprintf("%0*d.txt", width, index+1)), record, clioptions.PrivateFileMode); err != nil {
 			return dataset.RegisteredDataset{}, err
 		}
 	}

@@ -163,7 +163,7 @@ func (m *Model) GraftLossAndBridgeGrads(gr *Graft, tokens []int, bridge Grads) (
 		return 0, err
 	}
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
-	loss, _, _, err := m.lossAndGradsFromStates(tokens, states, false, nil, func(
+	loss, _, _, err := m.lossAndGradsFromStates(tokens, nil, states, false, nil, func(
 		index int, input, outputGradient []float32, seq int, g Grads,
 	) ([]float32, error) {
 		if index == gr.Layer {

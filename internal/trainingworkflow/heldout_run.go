@@ -210,6 +210,11 @@ func publishHeldout(
 	baseline, candidate evaluation.HeldoutReport,
 	training evaluation.HeldoutTraining,
 ) (HeldoutResult, error) {
+	// A report is named by what it holds, so models that answer every held-out
+	// record alike share one, and a verdict cannot judge a report against itself.
+	if baseline.ID() == candidate.ID() {
+		return HeldoutResult{}, errors.New("training workflow: the trained model answers every held-out record exactly as the base model does, so there is nothing to judge between them: train for more steps or on more data; the trained model is saved")
+	}
 	verdict, err := evaluation.JudgeHeldout(objective, view, plan, baseline, candidate, training)
 	if err != nil {
 		return HeldoutResult{}, err

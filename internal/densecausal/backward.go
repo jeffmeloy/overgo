@@ -7,6 +7,7 @@
 package densecausal
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
@@ -20,15 +21,28 @@ type Grads map[string][]float32
 // mean CE (positions 0..n-2 predict tokens 1..n-1), the full logits, and
 // every parameter gradient.
 func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
-	return m.lossAndGrads(tokens, true, nil)
+	return m.lossAndGrads(tokens, nil, true, nil)
 }
 
-func (m *Model) trainingLossAndGrads(tokens []int, step int, observeRouter MoERouterObserver) (float64, Grads, error) {
+// MaskedLossAndGrads runs forward and full backward on one token batch as
+// LossAndGrads does, but learns only some tokens: trained says, token by
+// token, whether the model is judged on predicting it, so the loss is the
+// mean cross-entropy over the trained tokens alone, a token that is not
+// trained adds nothing to it or to any gradient, and a window of no
+// trained token is refused. The first token is predicted by nothing, so
+// its flag is not read. A nil trained learns every token LossAndGrads
+// does.
+func (m *Model) MaskedLossAndGrads(tokens []int, trained []bool) (float64, Grads, error) {
+	loss, _, gradients, err := m.lossAndGrads(tokens, trained, false, nil)
+	return loss, gradients, err
+}
+
+func (m *Model) trainingLossAndGrads(tokens []int, trained []bool, step int, observeRouter MoERouterObserver) (float64, Grads, error) {
 	var observation *routerObservationContext
 	if observeRouter != nil {
 		observation = &routerObservationContext{step: step, observer: observeRouter}
 	}
-	loss, _, gradients, err := m.lossAndGrads(tokens, false, observation)
+	loss, _, gradients, err := m.lossAndGrads(tokens, trained, false, observation)
 	return loss, gradients, err
 }
 
@@ -37,9 +51,12 @@ type routerObservationContext struct {
 	observer MoERouterObserver
 }
 
-func (m *Model) lossAndGrads(tokens []int, retainLogits bool, observation *routerObservationContext) (float64, []float32, Grads, error) {
+func (m *Model) lossAndGrads(tokens []int, trained []bool, retainLogits bool, observation *routerObservationContext) (float64, []float32, Grads, error) {
 	if len(tokens) < 2 {
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
+	}
+	if trained != nil && (len(trained) != len(tokens) || retainLogits) {
+		return 0, nil, nil, fmt.Errorf("densecausal: %d trained flags for %d tokens, or flags asked with retained logits", len(trained), len(tokens))
 	}
 	// The host trainer runs full causal attention; within the artifact's
 	// declared serving window the two are identical, beyond it they diverge,
@@ -52,7 +69,7 @@ func (m *Model) lossAndGrads(tokens []int, retainLogits bool, observation *route
 		return 0, nil, nil, err
 	}
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
-	return m.lossAndGradsFromStates(tokens, states, retainLogits, Grads{}, func(
+	return m.lossAndGradsFromStates(tokens, trained, states, retainLogits, Grads{}, func(
 		index int, input, outputGradient []float32, sequence int, gradients Grads,
 	) ([]float32, error) {
 		return m.layerBackwardObserved(index, input, outputGradient, invFreq, sequence, gradients, observation)
@@ -68,6 +85,7 @@ type layerGradient func(
 
 func (m *Model) lossAndGradsFromStates(
 	tokens []int,
+	trained []bool,
 	states [][]float32,
 	retainLogits bool,
 	g Grads,
@@ -92,8 +110,14 @@ func (m *Model) lossAndGradsFromStates(
 	} else {
 		rows := seq - 1
 		selected := make([]bool, rows)
+		learned := 0
 		for index := range selected {
-			selected[index] = true
+			if selected[index] = trained == nil || trained[index+1]; selected[index] {
+				learned++
+			}
+		}
+		if learned == 0 {
+			return 0, nil, nil, errors.New("densecausal: no token of the window is trained")
 		}
 		scores := make([]float64, rows)
 		workspace := make([]float32, d.Vocab)
@@ -102,8 +126,10 @@ func (m *Model) lossAndGradsFromStates(
 		}
 		coefficients := make([]float64, rows)
 		for index, score := range scores {
-			loss -= score / float64(rows)
-			coefficients[index] = -1 / float64(rows)
+			if selected[index] {
+				loss -= score / float64(learned)
+				coefficients[index] = -1 / float64(learned)
+			}
 		}
 		if err := hostmath.SelectedLogProbBackward(
 			dNormed[:rows*d.Hidden], gradHead, nil, normed[:rows*d.Hidden], head, nil,

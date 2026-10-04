@@ -55,6 +55,11 @@ type TextHeldoutRequest struct {
 	// tokens in it parse as tokens and its start token is added, as serving
 	// encodes a chat prompt.
 	Chat bool
+	// Conversations reads each record as a conversation cut into segments, each
+	// marked learned or only read (RunConversationSFT writes them). The loss
+	// counts the learned tokens alone and the held-out accuracy judges the
+	// model on predicting them, a run on the host processor as only it masks.
+	Conversations bool
 	// Proof re-verifies the recipe by the training run alone, judging and
 	// publishing no verdict (HeldoutRun.Proof).
 	Proof bool
@@ -88,7 +93,10 @@ type generationPrompt struct {
 // answers it from.
 type textRecord struct {
 	tokens []int
-	prompt generationPrompt
+	// trained marks the tokens a conversation record learns, one flag for each
+	// of tokens; it is nil for a record that learns them all.
+	trained []bool
+	prompt  generationPrompt
 }
 
 // RunTextHeldout trains the model on fixed windows packed from the training
@@ -116,6 +124,9 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.LoRA != nil && (!request.Host || request.FreezeLexical || request.Device != nil) {
 		return HeldoutResult{}, errors.New("training workflow: a LoRA run trains on the host and leaves the lexical table to the frozen base")
 	}
+	if request.Conversations && !request.Host {
+		return HeldoutResult{}, errors.New("training workflow: a conversation run learns only some tokens, which only the host trainer does")
+	}
 	weights, err := IdentifyModelWeights(request.ModelDirectory)
 	if err != nil {
 		return HeldoutResult{}, err
@@ -127,6 +138,9 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	generation := objective.Metric == trainingprogram.MetricGeneratedAnswer
 	if objective.Kind != trainingprogram.ObjectiveTokenPrediction || objective.Metric != trainingprogram.MetricTokenAccuracy && !generation {
 		return HeldoutResult{}, fmt.Errorf("training workflow: objective %q is %q judged by %q, not token prediction by token accuracy or generated answer", request.Alias, objective.Kind, objective.Metric)
+	}
+	if request.Conversations && generation {
+		return HeldoutResult{}, errors.New("training workflow: conversation records are judged by token accuracy, not generated answers")
 	}
 	// The load is the model, its tokenizer, the objective's records and the
 	// plan they train under, as the dense workflow's is.
@@ -146,7 +160,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.MaximumSequence > 0 {
 		sequence = min(sequence, request.MaximumSequence)
 	}
-	data, records, err := textObjectiveData(ctx, store, objective, tokenizer, sequence)
+	data, records, err := textObjectiveData(ctx, store, objective, tokenizer, sequence, request.Conversations)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -176,10 +190,17 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 		Data: data, Load: time.Since(loadStarted), Host: request.Host, Proof: request.Proof,
 		Train: func(ctx context.Context, recipeID artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error) {
 			documents := make([][]int, len(shown))
+			var flags [][]bool
+			if request.Conversations {
+				flags = make([][]bool, len(shown))
+			}
 			for index, example := range shown {
 				documents[index] = records[example.Record].tokens
+				if flags != nil {
+					flags[index] = records[example.Record].trained
+				}
 			}
-			batches, position, err := packWindows(documents, tokenizer.end, sequence, plan.Updates())
+			batches, trained, position, err := packWindows(documents, flags, tokenizer.end, sequence, plan.Updates())
 			if err != nil {
 				return trainingprogram.Checkpoint{}, err
 			}
@@ -206,12 +227,12 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			var state densecausal.TrainState
 			var companion func(stage string) error
 			if adapter != nil {
-				if _, err = adapter.Train(batches, config.BaseLearningRate, config.Momentum, observe); err == nil {
+				if _, err = adapter.Train(batches, trained, config.BaseLearningRate, config.Momentum, observe); err == nil {
 					state, err = adapter.OptimizerState()
 				}
 				companion = adapterCompanion(adapter.Adapter())
 			} else {
-				_, _, state, err = runTrainingState(model, batches, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, request.FreezeLexical, nil, observe, nil)
+				_, _, state, err = runTrainingState(model, batches, trained, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, request.FreezeLexical, nil, observe, nil)
 			}
 			if err != nil {
 				return trainingprogram.Checkpoint{}, err
@@ -223,7 +244,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			if generation {
 				return generateAnswer(model, tokenizer.piece, records[example.Record].prompt)
 			}
-			return nextTokens(model, example)
+			return nextTokens(model, example, records[example.Record].trained)
 		},
 	}, modelID, objective, session.Program.Definition().ID)
 }
@@ -233,31 +254,55 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 // The stream cycles as a training stream cycles its records: a window that
 // reaches the stream's end continues from its start, past the last
 // document's end token, so no token is dropped, nothing is padded (the
-// trainer has no loss mask to exclude padding with) and every window is
+// device trainer has no loss mask to exclude padding with) and every window is
 // exactly sequence tokens, even when the whole stream is shorter than one.
+// trained, when it is not nil, holds each document's flags for the tokens a
+// run learns, and each window comes back with its flags: the end token that
+// follows a document is learned only when every token of the document is, as
+// it is a joint of the packing and not a word of any conversation, and a
+// window that learns no token is refused, as nothing in it could be judged.
 // It also returns how many documents the windows reached, a document
 // counting once its first token entered a window, the stream position a
 // checkpoint records.
-func packWindows(documents [][]int, end, sequence, updates int) ([][]int, uint64, error) {
+func packWindows(documents [][]int, trained [][]bool, end, sequence, updates int) ([][]int, [][]bool, uint64, error) {
 	if len(documents) == 0 {
-		return nil, 0, errors.New("training workflow: the training membership holds no text")
+		return nil, nil, 0, errors.New("training workflow: the training membership holds no text")
 	}
 	var stream []int
+	var learned []bool
 	starts := make([]int, len(documents))
 	for index, document := range documents {
 		starts[index] = len(stream)
 		stream = append(append(stream, document...), end)
+		if trained != nil {
+			learned = append(append(learned, trained[index]...), !slices.Contains(trained[index], false))
+		}
 	}
 	windows := make([][]int, updates)
+	var flags [][]bool
+	if trained != nil {
+		flags = make([][]bool, updates)
+	}
 	for step := range windows {
 		windows[step] = make([]int, sequence)
+		if flags != nil {
+			flags[step] = make([]bool, sequence)
+		}
 		for index := range windows[step] {
-			windows[step][index] = stream[(step*sequence+index)%len(stream)]
+			at := (step*sequence + index) % len(stream)
+			windows[step][index] = stream[at]
+			if flags != nil {
+				flags[step][index] = learned[at]
+			}
+		}
+		// The first token of a window is predicted by nothing: its flag is not read.
+		if flags != nil && !slices.Contains(flags[step][1:], true) {
+			return nil, nil, 0, fmt.Errorf("training workflow: window %d of %d tokens holds no token to learn: prompts fill it, so the run's window is shorter than the prompt that precedes a reply", step+1, sequence)
 		}
 	}
 	read := updates * sequence
 	begun, _ := slices.BinarySearch(starts, read%len(stream))
-	return windows, uint64(read/len(stream)*len(documents) + begun), nil
+	return windows, flags, uint64(read/len(stream)*len(documents) + begun), nil
 }
 
 // textObjectiveData reads both of a text objective's memberships as the
@@ -265,10 +310,12 @@ func packWindows(documents [][]int, end, sequence, updates int) ([][]int, uint64
 // document; its example is its first sequence tokens: the input is the
 // sequence, the target every token after the first. A generation record's
 // document is its prompt and answers, its sequence the prompt followed by
-// the first answer. Every token of each record's sequence, which training
-// packs, and what a held-out generation answers it from return keyed by
-// record.
-func textObjectiveData(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, tokenizer trainableTokenizer, sequence int) (ObjectiveData, map[string]textRecord, error) {
+// the first answer. A conversation record is instead the segments of a
+// rendered conversation, and its example's target is the tokens it learns
+// alone, the ones a held-out run is judged on predicting. Every token of each
+// record's sequence, which training packs, and what a held-out generation
+// answers it from return keyed by record.
+func textObjectiveData(ctx context.Context, reader artifact.Reader, objective trainingprogram.ObjectiveDocument, tokenizer trainableTokenizer, sequence int, conversations bool) (ObjectiveData, map[string]textRecord, error) {
 	generation := objective.Metric == trainingprogram.MetricGeneratedAnswer
 	records := map[string]textRecord{}
 	data, err := ObjectiveExamples(ctx, reader, objective, []byte("overgo/training/text-utf8/v1"), recipecontract.ModalityText,
@@ -286,16 +333,32 @@ func textObjectiveData(ctx context.Context, reader artifact.Reader, objective tr
 				}
 				text, answers = record.Prompt+record.Answers[0], record.Answers
 			}
-			tokens, err := tokenizer.encode(text)
+			var tokens []int
+			var trained []bool
+			var err error
+			if conversations {
+				var record conversationRecord
+				if err = strictjson.DecodeBytes(example.Values[0].Data, &record); err == nil {
+					tokens, trained, err = encodeConversation(tokenizer, record.Segments)
+				}
+			} else {
+				tokens, err = tokenizer.encode(text)
+			}
 			if err != nil {
 				return HeldoutExample{}, err
 			}
-			records[example.ID] = textRecord{tokens: tokens, prompt: prompt}
+			records[example.ID] = textRecord{tokens: tokens, trained: trained, prompt: prompt}
 			tokens = tokens[:min(len(tokens), sequence)]
 			if len(tokens) < 2 {
 				return HeldoutExample{}, fmt.Errorf("encodes to %d token(s); a next-token target needs two", len(tokens))
 			}
-			return HeldoutExample{Input: dtype.ConvertSlice[float64](tokens), Target: dtype.ConvertSlice[float64](tokens[1:]), Answers: answers}, nil
+			target := tokens[1:]
+			if trained != nil {
+				if target = learnedTargets(tokens, trained); len(target) == 0 {
+					return HeldoutExample{}, fmt.Errorf("learns no token within its first %d: its prompt fills them", len(tokens))
+				}
+			}
+			return HeldoutExample{Input: dtype.ConvertSlice[float64](tokens), Target: dtype.ConvertSlice[float64](target), Answers: answers}, nil
 		})
 	return data, records, err
 }
@@ -415,9 +478,23 @@ func generateAnswer(model *densecausal.Model, piece func(int) string, prompt gen
 	return HeldoutPrediction{Text: text.String()}, nil
 }
 
+// learnedTargets are the tokens after the first that trained marks, in order:
+// what a conversation record's model is judged on predicting.
+func learnedTargets(tokens []int, trained []bool) []int {
+	var targets []int
+	for position := 1; position < len(tokens); position++ {
+		if trained[position] {
+			targets = append(targets, tokens[position])
+		}
+	}
+	return targets
+}
+
 // nextTokens answers a record with the model's most likely next token at
-// each position but the last, teacher-forced on the record's own tokens.
-func nextTokens(model *densecausal.Model, example HeldoutExample) (HeldoutPrediction, error) {
+// each position but the last, teacher-forced on the record's own tokens; a
+// record with trained flags is answered at the positions whose next token
+// it learns alone, which are the targets learnedTargets lists.
+func nextTokens(model *densecausal.Model, example HeldoutExample, trained []bool) (HeldoutPrediction, error) {
 	tokens := dtype.ConvertSlice[int](example.Input)
 	_, logits, err := model.Loss(tokens)
 	if err != nil {
@@ -426,6 +503,9 @@ func nextTokens(model *densecausal.Model, example HeldoutExample) (HeldoutPredic
 	vocabulary := model.Dims.Vocab
 	predicted := make([]float64, 0, len(tokens)-1)
 	for position := range len(tokens) - 1 {
+		if trained != nil && !trained[position+1] {
+			continue
+		}
 		row := logits[position*vocabulary : (position+1)*vocabulary]
 		predicted = append(predicted, float64(slices.Index(row, slices.Max(row))))
 	}

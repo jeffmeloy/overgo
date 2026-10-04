@@ -127,7 +127,7 @@ func TestTextObjectivePacksTrainingRecordsIntoWindows(t *testing.T) {
 	if err != nil || !tokenizer.ended {
 		t.Fatalf("tokenizer = (ended %t, %v), want the declared end-of-sequence token", tokenizer.ended, err)
 	}
-	data, records, err := textObjectiveData(ctx, text.store, text.objective, tokenizer, window)
+	data, records, err := textObjectiveData(ctx, text.store, text.objective, tokenizer, window, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestTextObjectivePacksTrainingRecordsIntoWindows(t *testing.T) {
 		}
 		packed, trained[record.ID] = append(packed, records[record.ID].tokens), true
 	}
-	windows, position, err := packWindows(packed, tokenizer.end, window, steps)
+	windows, _, position, err := packWindows(packed, nil, tokenizer.end, window, steps)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +281,7 @@ func TestFrozenLexicalTextRunRecordsItsFrozenPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, _, err := textObjectiveData(ctx, text.store, text.objective, tokenizer, 8)
+	data, _, err := textObjectiveData(ctx, text.store, text.objective, tokenizer, 8, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,7 +404,7 @@ func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
 // counts each document a window began.
 func TestPackWindowsCyclesAShortStream(t *testing.T) {
 	const end = 9
-	windows, position, err := packWindows([][]int{{1, 2}, {3}}, end, 8, 3)
+	windows, _, position, err := packWindows([][]int{{1, 2}, {3}}, nil, end, 8, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +414,7 @@ func TestPackWindowsCyclesAShortStream(t *testing.T) {
 	if !slices.EqualFunc(windows, want, slices.Equal) || position != 10 {
 		t.Fatalf("packed = (%v, position %d), want (%v, position 10)", windows, position, want)
 	}
-	if _, _, err := packWindows(nil, end, 8, 3); err == nil {
+	if _, _, _, err := packWindows(nil, nil, end, 8, 3); err == nil {
 		t.Fatal("an empty training membership packed")
 	}
 }

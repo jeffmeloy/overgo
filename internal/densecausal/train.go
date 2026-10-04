@@ -21,7 +21,17 @@ type MoERouterObserver func(step int, observation MoERouterObservation) error
 
 // Train executes ordered token batches with optional resume and observation.
 func (m *Model) Train(batches [][]int, baseLR, mu float64, resume *TrainState, observe TrainObserver) ([]float64, TrainState, error) {
-	return m.train(batches, baseLR, mu, resume, observe, nil)
+	return m.train(batches, nil, baseLR, mu, resume, observe, nil)
+}
+
+// TrainMasked executes ordered token batches as Train does, each learning only
+// the tokens its trained flags mark (see MaskedLossAndGrads): trained holds one
+// slice of flags for each batch.
+func (m *Model) TrainMasked(batches [][]int, trained [][]bool, baseLR, mu float64, resume *TrainState, observe TrainObserver) ([]float64, TrainState, error) {
+	if len(trained) != len(batches) {
+		return nil, TrainState{}, fmt.Errorf("densecausal: trained flags for %d batches, %d given", len(batches), len(trained))
+	}
+	return m.train(batches, trained, baseLR, mu, resume, observe, nil)
 }
 
 // TrainWithRouterObservations executes the host/reference trainer while
@@ -37,10 +47,10 @@ func (m *Model) TrainWithRouterObservations(
 	if observeRouter == nil {
 		return m.Train(batches, baseLR, mu, resume, observe)
 	}
-	return m.train(batches, baseLR, mu, resume, observe, observeRouter)
+	return m.train(batches, nil, baseLR, mu, resume, observe, observeRouter)
 }
 
-func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.State, observe TrainObserver, observeRouter MoERouterObserver) ([]float64, optimizer.State, error) {
+func (m *Model) train(batches [][]int, trained [][]bool, baseLR, mu float64, resume *optimizer.State, observe TrainObserver, observeRouter MoERouterObserver) ([]float64, optimizer.State, error) {
 	if err := validateTokenBatches(batches); err != nil {
 		return nil, optimizer.State{}, err
 	}
@@ -56,7 +66,11 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 	}
 	for step, tokens := range batches {
 		stepStarted := time.Now()
-		loss, grads, err := m.trainingLossAndGrads(tokens, firstStep+step, observeRouter)
+		var flags []bool
+		if trained != nil {
+			flags = trained[step]
+		}
+		loss, grads, err := m.trainingLossAndGrads(tokens, flags, firstStep+step, observeRouter)
 		if err != nil {
 			return nil, optimizer.State{}, err
 		}

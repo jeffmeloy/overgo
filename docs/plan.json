@@ -5,20 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "sft-loss-mask",
-      "title": "Learn only the assistant tokens of a conversation by default, and let a run choose to learn every token (LlamaFactory train_on_prompt and mask_history, data/processor/supervised.py): the template renders each turn's role, the trainer weights the loss by a per-token mask, and the preview already shows masked and trained spans; closes the parked finding that SFT has no loss mask; acceptance: the gradient on a masked token is zero, the loss normalizes over trained tokens only, and held-out quality is measured with the mask on and off",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Learn only the assistant tokens of a conversation by default, and let a run choose to learn every token (LlamaFactory train_on_prompt and mask_history, data/processor/supervised.py): the template renders each turn's role, the trainer weights the loss by a per-token mask, and the preview already shows masked and trained spans; closes the parked finding that SFT has no loss mask; acceptance: the gradient on a masked token is zero, the loss normalizes over trained tokens only, and held-out quality is measured with the mask on and off",
-          "status": "open",
-          "verify": "test -f internal/trainingworkflow/loss_mask_test.go \u0026\u0026 go test ./internal/trainingworkflow -run '^TestAssistantOnlyLoss$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "train-ema-checkpoints",
       "title": "Keep an exponential moving average of the trained weights or adapter factors and publish it beside the raw checkpoint (ai-toolkit toolkit/ema.py, decay 0.99 by default), and keep only the last K intermediate checkpoints with resume intact; the verdict judges the average against the raw weights; acceptance: the average of a known update sequence equals its closed form, retention deletes only older checkpoints, and a resume from a kept one continues the average",
       "owner": "overgo_gui_cleanup",

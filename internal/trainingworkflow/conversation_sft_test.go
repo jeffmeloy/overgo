@@ -26,12 +26,20 @@ type conversationRun struct {
 	root   string
 }
 
+// assistantLetter is the assistant's role letter in the test template, which a
+// generation prompt is.
+const assistantLetter = "c"
+
 // letters renders a conversation within the tiny model's four-letter
-// vocabulary: each message is its role's letter followed by its content.
-func letters(messages []dataset.ChatMessage) (string, error) {
+// vocabulary: each message is its role's letter followed by its content, and
+// a generation prompt is the assistant's letter.
+func letters(messages []dataset.ChatMessage, generationPrompt bool) (string, error) {
 	var text strings.Builder
 	for _, message := range messages {
-		text.WriteString(map[string]string{"system": "a", "user": "b", "assistant": "c"}[message.Role] + message.Content)
+		text.WriteString(map[string]string{"system": "a", "user": "b", "assistant": assistantLetter}[message.Role] + message.Content)
+	}
+	if generationPrompt {
+		text.WriteString(assistantLetter)
 	}
 	return text.String(), nil
 }
@@ -125,9 +133,23 @@ func TestConversationSFTTrainsOnRenderedConversations(t *testing.T) {
 		t.Fatalf("rendered %d records (%v), want twelve", len(files), err)
 	}
 	first, err := os.ReadFile(files[0])
-	want, _ := letters(periodic(12)[0].Messages)
-	if err != nil || string(first) != want {
-		t.Fatalf("first record = %q (%v), want the first conversation rendered as %q", first, err, want)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record conversationRecord
+	if err := json.Unmarshal(first, &record); err != nil {
+		t.Fatalf("first record %q is not a conversation record: %v", first, err)
+	}
+	want, _ := letters(periodic(12)[0].Messages, false)
+	var text, learned strings.Builder
+	for _, segment := range record.Segments {
+		text.WriteString(segment.Text)
+		if segment.Trained {
+			learned.WriteString(segment.Text)
+		}
+	}
+	if text.String() != want || learned.String() != periodic(12)[0].Messages[1].Content {
+		t.Fatalf("first record spells %q and learns %q, want the first conversation rendered as %q and its reply learned", text.String(), learned.String(), want)
 	}
 	rendered, found, err := run.store.ResolveAlias(ctx, "dataset.registered."+filepath.Base(filepath.Dir(files[0])))
 	if err != nil || !found {
@@ -184,8 +206,8 @@ func TestConversationSFTRefusesWhatItCannotJudge(t *testing.T) {
 	}{
 		{"one conversation", 1, letters, "at least 2"},
 		{"one distinct conversation", 1, letters, "1 distinct"},
-		{"renderer fails", 4, func([]dataset.ChatMessage) (string, error) { return "", errors.New("no template") }, "no template"},
-		{"renders nothing", 4, func([]dataset.ChatMessage) (string, error) { return "", nil }, "renders as no text"},
+		{"renderer fails", 4, func([]dataset.ChatMessage, bool) (string, error) { return "", errors.New("no template") }, "no template"},
+		{"renders nothing", 4, func([]dataset.ChatMessage, bool) (string, error) { return "", nil }, "renders as no text"},
 		{"no renderer", 4, nil, "needs a store"},
 	} {
 		run := registerConversations(t, periodic(scenario.conversations))
@@ -202,31 +224,45 @@ func TestConversationSFTRefusesWhatItCannotJudge(t *testing.T) {
 // TestPreviewConversationsShowsWhatARunTrains pages a conversation dataset as
 // a run reads it: the count is the dataset's files, the page holds only the
 // conversations asked for, each is the rendered text the tokenizer splits, and
-// every token is marked trained because a run has no loss mask.
+// a token is marked trained when the run learns it: the reply's alone, or
+// every token when the run trains on prompts.
 func TestPreviewConversationsShowsWhatARunTrains(t *testing.T) {
 	run := registerConversations(t, periodic(12))
-	preview, err := PreviewConversations(t.Context(), run.store, run.source, letters, run.model, 1, 2)
+	preview, err := PreviewConversations(t.Context(), run.store, run.source, letters, run.model, false, 1, 2)
 	if err != nil || preview.Records != 12 || preview.Position != 1 || len(preview.Page) != 2 || preview.Page[0].ID != "02.json" || preview.Page[1].ID != "03.json" {
 		t.Fatalf("preview = %+v (%v), want twelve records paged from the second, two of them", preview, err)
 	}
 	for index, record := range preview.Page {
-		want, _ := letters(periodic(12)[index+1].Messages)
-		var text strings.Builder
+		messages := periodic(12)[index+1].Messages
+		want, _ := letters(messages, false)
+		var text, learned strings.Builder
 		for _, token := range record.Sequences[0].Tokens {
 			text.WriteString(token.Piece)
-			if !token.Trained {
-				t.Errorf("%s: token %q is masked, want every token trained", record.ID, token.Piece)
+			if token.Trained {
+				learned.WriteString(token.Piece)
 			}
 		}
 		if len(record.Sequences) != 1 || text.String() != want {
 			t.Errorf("%s: tokens spell %q over %d sequences, want the rendered conversation %q", record.ID, text.String(), len(record.Sequences), want)
 		}
+		if learned.String() != messages[1].Content {
+			t.Errorf("%s: trained tokens spell %q, want the reply %q alone", record.ID, learned.String(), messages[1].Content)
+		}
 	}
-	past, err := PreviewConversations(t.Context(), run.store, run.source, letters, run.model, 20, 2)
+	every, err := PreviewConversations(t.Context(), run.store, run.source, letters, run.model, true, 1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, token := range every.Page[0].Sequences[0].Tokens {
+		if !token.Trained {
+			t.Errorf("token %q is masked though the run trains on prompts", token.Piece)
+		}
+	}
+	past, err := PreviewConversations(t.Context(), run.store, run.source, letters, run.model, false, 20, 2)
 	if err != nil || past.Records != 12 || len(past.Page) != 0 {
 		t.Fatalf("a page past the end = %+v (%v), want the count and no records", past, err)
 	}
-	if _, err := PreviewConversations(t.Context(), run.store, run.source, letters, run.model, 0, 0); err == nil {
+	if _, err := PreviewConversations(t.Context(), run.store, run.source, letters, run.model, false, 0, 0); err == nil {
 		t.Fatal("an empty page was accepted")
 	}
 }

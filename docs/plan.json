@@ -4,11 +4,40 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "host-linear-backward",
+      "title": "Run the host backward's linear kernel on the worker pool: its serial loop is 91 percent of a host LoRA step",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the host backward's linear kernel on the worker pool: its serial loop is 91 percent of a host LoRA step",
+          "status": "open",
+          "verify": "go test ./internal/hostmath -count=1 -run '^TestLinearBackwardRunsOnThePool$'",
+          "rationale": "Serves: throughput of host training (LoRA from the Train tab and cmd/train, every dense host run) and the time to an adapter. Evidence (2026-10-04, the profile step of gui-lane-review-residue; tmp/profile_lora.go, Qwen2.5-0.5B from adaptive_new/models, 512 tokens, rank 8, three steps, host only, quiet machine): a step takes 3m54s, 2m57s and 3m47s, allocates about 8 GB and holds 4 to 9 GB of heap. The CPU profile has 1213 s of samples in 638 s, an average of 1.9 cores of 32. Of the 609 s the main goroutine spent in Trainer.Step, 603 s are densecausal.LossAndGrads and 550 s of those are hostmath.LinearBackward's own body (backward.go, about line 198): a scalar triple loop over rows, outputs and inputs that runs on one thread, where the forward linears fan out over the pool (hostmath.linearCols, 594 s across the workers, the other half of the samples). The LoRA code itself is 0.5 percent: project 3.2 s, apply and Delta under 2 s. Change: LinearBackward splits its work over the pool as the forward Linear does, by disjoint output rows of dW (each o row of dW owned by one worker, accumulating over the batch rows) and by disjoint batch rows of dx, so no two workers write one element and the sums keep their order within an element, and its inner loops use the same multiply-add the forward kernel does. Predicted effect: the host backward moves from about 1.9 cores toward the pool's workers, so a host LoRA step of 200 s falls toward the forward's own time (the forward linears took about 85 s per 3 steps of CPU), a 5 to 10 times faster step, and every dense host training run shortens by the same share. Evidence to land: TestLinearBackwardRunsOnThePool holds the parallel result to the serial reference over shapes that split unevenly (rows, in and out not multiples of the worker count), with addDX both ways and with dW and dB nil, and a before and after wall on one LoRA step is recorded here."
+        }
+      ]
+    },
+    {
       "id": "gui-lane-review-residue",
       "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
       "owner": "master-lead",
       "status": "open",
       "steps": [
+        {
+          "id": "lora-helpers",
+          "title": "Cut LoRA training's host cost: factor gradients without a transpose, one add-into-weight helper, backward without non-adapted gradients",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Owner findings (2026-10-04). The trainer rebuilds each adapted weight as W plus s*B*A and reuses the full backward, which costs out*in memory and compute per module per step. Memory: bind clones every adapted weight into frozen, so those weights exist twice on the host, and LossAndGrads has no freeze option, so it computes gradients for weights that are not adapted, the embedding included (about 545 MB of f32 per step on Qwen2.5-0.5B); it also retains the logits (the review's item 7). Per module per step: Delta allocates a full out by in matrix, apply copies base plus delta back into the model, and project calls Transpose2D on the gradient (another full copy) before two more multiplications. In order: (1) compute the factor gradients without transposing, dA = B-transpose times dW accumulated over contiguous rows; (2) one helper adds s*B*A straight into the model weight, with no delta array, and peft.Merge reuses it; (3) give the existing backward a way to skip gradients for non-adapted weights, and call the variant that keeps no logits. These delete more than they add. Also loratrain.Train times each step with time.Since, which reads 0 below a clock tick on Windows: use processmeasure.Counter. MEASURED (2026-10-04 profile, Qwen2.5-0.5B, 512 tokens, rank 8, host): the LoRA algebra is under 1 percent of a step's CPU (project 3.2 s and apply and Delta under 2 s of 609 s over three steps), so items (1) and (2) save time nobody reads; the step is 99 percent densecausal.LossAndGrads, 91 percent of it the serial hostmath.LinearBackward, which the row host-linear-backward takes first. What the LoRA code does cost is memory churn: of 23 GB allocated over three steps Delta is 4.1 GB (18 percent), Transpose2D 2.8 GB (12 percent), the weight clones 1.4 GB (6 percent), and the gradient slots 4.5 GB (19 percent, the embedding's about 545 MB per step among them); the heap holds 4 to 9 GB. So do this step for memory and the lines it deletes, in this order: (3) a backward that skips non-adapted gradients and keeps no logits (the embedding gradient and the retained logits), then (2) one add-into-weight helper that drops the delta array and the apply copy, then (1) the transpose-free factor gradient; each is judged by the peak heap of the profile tool (tmp/profile_lora.go), not by the step's wall, and none lands for a wall claim."
+        },
+        {
+          "id": "merge-paths",
+          "title": "Fuse the merge paths: peft.Merge's buffers and modelmerge.MergeGGUF's one pass per task",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Owner findings (2026-10-04). peft.Merge allocates three full-size buffers per tensor (the base in F32, the delta, the output bytes) plus a transposed copy of Down, over four passes: fold the scale into Up and add row by row into the base values, in parallel, which removes the delta buffer and the transpose (the lora-helpers helper serves it). modelmerge.MergeGGUF clones every tensor and allocates a fresh raw buffer and dequantized slice per task per tensor; the algebra allows one fused pass per task with no clone, base + sum of s_k*(t_k - base) = (1 - sum of s_k)*base + sum of s_k*t_k (float rounding differs slightly, which a new feature may take), and buffers can be reused, sized to the largest tensor. The result is always an F32 GGUF, so a 12B merge writes about 48 GB before quantizing in a second pass: check whether RewriteTo, which takes an output dtype, can write quantized types directly. MEASURED (2026-10-04 profile, tmp/profile_merge.go): peft.Merge of a rank-8 adapter into Qwen2.5-0.5B takes 2.9 s and allocates 3.6 GB (ReadF32 3.2 GB, Delta 2.7 GB, a clone 1.4 GB; the CPU is 38 percent the Delta matmul and 25 percent the writes), not a time cost a user waits on. modelmerge.MergeGGUF of MiniCPM5-1B with itself takes 7.7 s, writes 4.33 GB, allocates 20.7 GB and reaches a 10.1 GB heap (Dequantize 5.2 GB, quantize 2.6 GB, a clone 2.6 GB, the rewrite 1.7 GB); 85 percent of the CPU is the rewrite and the write. The peak heap, 2.3 times the output, is what a 12B merge would meet: measure the peak on a larger model before changing the pass, and do the fused one-pass-per-task and the buffer reuse for that peak, not for the wall."
+        },
         {
           "id": "do",
           "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
@@ -17,32 +46,11 @@
           "rationale": "Serves: failure-rate, throughput and setup-steps in the workbench, and surface area. What the review of the merged GUI lane (2026-10-04) found that gui-lane-review-fixes did not correct: (1) a run that continues an adapter (trainingworkflow.LoRA.From) judges its held-out verdict against the model as the prior adapter leaves it, which LoRA's own comment documents, but the verdict is bound to the base model and the prior adapter's identity is recorded nowhere, so 'passed' reads as base to trained; bind the adapter's digest into the evidence or evaluate the baseline on the true base (an evidence schema change, with the recipe it names). (2) The GGUF export and merge writers take no context, so cancelling an operation does nothing and Manager.Close waits for the write. (3) Every runtime.sessions event in runtime.js reads /loop/status, which loads the plan and runs git, with no in-flight guard. (4) Show command quotes for a POSIX shell where the owner's host is Windows. (5) The conversation verdict scores every token including the chat template and caps held-out at 16 records, and the split groups each record alone; score assistant positions, group by shared prefix. (6) Conversation SFT globs a mutable directory instead of reading through the dataset inventory. (7) loratrain.Step keeps the logits and computes frozen gradients every step (about 600 MB at 512 by 152k). (8) The fine-tuned choice of a merge is a file base name, so two models of one name fail the choice; choose by model id, and admit only a task bound to the same base as modelmerge.TaskArithmetic does. (9) Unreadable long-form evidence reads as a guard failure at an empty commit, and evidence_index.go re-implements longform.LatestByLocation. (10) Surface: one startWebUILane helper for the 24 browser tests (about 700 lines) and one table for the static-layout tests (about 400); the 24 files use t.Skip where testskip.NotApplicable records the kind; loratrain re-derives densecausal.DenseLayerTensorNames; the conversation split repeats dataset.BuildGroupSplit; three one-path-component checks; quantizeGGUF repeats cmd/gguf/quantize.go; the ok/caution ternary at ten sites in the JS; sampling/json_schema_ordered.go repeats the byte order mark. Not a defect on a second read: text_heldout.go's TrainingPlan error is replaced, not lost, when a LoRA trainer supplies the plan."
         },
         {
-          "id": "profile",
-          "title": "Profile one LoRA step and one merge with the existing nsys and pprof recipe",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner findings (2026-10-04), first: measure before changing. Profile one internal/loratrain step on Qwen2.5-0.5B and one peft.Merge and one modelmerge.MergeGGUF, with the nsys and pprof recipe already in use, and record where the time and the memory go; the steps below follow what the profile shows, and the factor-space and device paths only if LoRA training time matters to a user."
-        },
-        {
-          "id": "lora-helpers",
-          "title": "Cut LoRA training's host cost: factor gradients without a transpose, one add-into-weight helper, backward without non-adapted gradients",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner findings (2026-10-04). The trainer rebuilds each adapted weight as W plus s*B*A and reuses the full backward, which costs out*in memory and compute per module per step. Memory: bind clones every adapted weight into frozen, so those weights exist twice on the host, and LossAndGrads has no freeze option, so it computes gradients for weights that are not adapted, the embedding included (about 545 MB of f32 per step on Qwen2.5-0.5B); it also retains the logits (the review's item 7). Per module per step: Delta allocates a full out by in matrix, apply copies base plus delta back into the model, and project calls Transpose2D on the gradient (another full copy) before two more multiplications. In order: (1) compute the factor gradients without transposing, dA = B-transpose times dW accumulated over contiguous rows; (2) one helper adds s*B*A straight into the model weight, with no delta array, and peft.Merge reuses it; (3) give the existing backward a way to skip gradients for non-adapted weights, and call the variant that keeps no logits. These delete more than they add. Also loratrain.Train times each step with time.Since, which reads 0 below a clock tick on Windows: use processmeasure.Counter."
-        },
-        {
-          "id": "merge-paths",
-          "title": "Fuse the merge paths: peft.Merge's buffers and modelmerge.MergeGGUF's one pass per task",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner findings (2026-10-04). peft.Merge allocates three full-size buffers per tensor (the base in F32, the delta, the output bytes) plus a transposed copy of Down, over four passes: fold the scale into Up and add row by row into the base values, in parallel, which removes the delta buffer and the transpose (the lora-helpers helper serves it). modelmerge.MergeGGUF clones every tensor and allocates a fresh raw buffer and dequantized slice per task per tensor; the algebra allows one fused pass per task with no clone, base + sum of s_k*(t_k - base) = (1 - sum of s_k)*base + sum of s_k*t_k (float rounding differs slightly, which a new feature may take), and buffers can be reused, sized to the largest tensor. The result is always an F32 GGUF, so a 12B merge writes about 48 GB before quantizing in a second pass: check whether RewriteTo, which takes an output dtype, can write quantized types directly."
-        },
-        {
           "id": "lora-device",
           "title": "Only if the profile says LoRA training time matters: a factor-space or device-resident LoRA path",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner findings (2026-10-04), the larger step. A factor-space forward and backward that never materializes W plus B*A, or a frozen-base path on the device-resident trainer. This is real new code: do it only if the profile step shows LoRA training time matters to a user of the Train tab. Also worth caching only if it gets slow: the scorecard history view re-decodes every published record per request."
+          "rationale": "Owner findings (2026-10-04), the larger step. A factor-space forward and backward that never materializes W plus B*A, or a frozen-base path on the device-resident trainer. This is real new code: do it only if the profile step shows LoRA training time matters to a user of the Train tab. Also worth caching only if it gets slow: the scorecard history view re-decodes every published record per request. MEASURED (2026-10-04): the host LoRA step is bound by a serial backward kernel (host-linear-backward), not by the algebra, so this step waits for that row's after-measure: only if a pooled host step is still too slow for the Train tab is a factor-space or device-resident path worth writing."
         }
       ]
     },
@@ -408,7 +416,8 @@
             "smoke-declaration-recipe/do",
             "merge-gui-cleanup/do",
             "gui-lane-review-fixes/do",
-            "gui-lane-review-residue/do"
+            "gui-lane-review-residue/do",
+            "host-linear-backward/do"
           ]
         }
       ]

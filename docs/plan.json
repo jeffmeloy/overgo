@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "loop-status",
-          "title": "Read /loop/status on mount and after a stop, not on every runtime.sessions event, with one read in flight",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Review item 3: runtime.js reads /loop/status for every runtime.sessions event, which loads the plan and runs git on the server, with no in-flight guard, so a training run's events load the server and a stale read can overwrite the stopped state after Stop. Also the Show command's POSIX quoting: label the shell it assumes or emit PowerShell too (the owner's host is Windows)."
-        },
-        {
           "id": "cancel",
           "title": "Cancel an export or merge: the writers take the context and check it per tensor",
           "status": "open",

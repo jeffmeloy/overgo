@@ -68,9 +68,11 @@ func TestWebUIBrowserCopyCommand(t *testing.T) {
 	if generator.executions != 0 {
 		t.Fatalf("showing the command ran the workflow %d times", generator.executions)
 	}
+	// The commands are quoted for a POSIX shell, and the page says which shell they are written for.
+	check(`commandPanel().querySelector('.workflow-commands .note').textContent.startsWith('Written for a POSIX shell')`)
 
-	// A changed entry clears the commands.
+	// A changed entry clears the commands, and the note with them.
 	check(`(() => { commandType('seed', '18'); return true; })()`)
-	settle(`commandShown().length === 0`)
+	settle(`commandShown().length === 0 && !commandPanel().querySelector('.workflow-commands .note')`)
 	webuilane.Leg(t, "copy command leg", "with the entries typed the workflow tab showed the command line and HTTP request reproducing the submission with copy controls and ran nothing, a changed entry cleared them, and a missing required entry showed none")
 }

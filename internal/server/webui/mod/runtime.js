@@ -24,6 +24,7 @@
         const state = status.stopped ? "stopped" : status.running ? "running" : "not running";
         const stop = el("button", { class: "btn alt", text: "Stop the loop", disabled: status.stopped, onclick: async () => {
           stop.disabled = true;
+          loopView++;
           try { renderLoop(await overgo.api.post("/loop/stop", {}, { signal: overgo.signal })); }
           catch (err) { if (!overgo.signal.aborted) renderLoop(status, err); }
         } });
@@ -35,9 +36,19 @@
           landing.commit ? el("p", { class: "note loop-landing", text: "Last landing: " + landing.subject + " (" + landing.row + ", " + landing.commit.slice(0, 12) + ", " + new Date(landing.at).toLocaleString() + ")" }) : null,
           failed ? overgo.failure(failed) : null].filter(Boolean));
       }
+      // The server reads the plan and the history to answer, so one read runs at a time (an event while it
+      // runs adds none), and a read that began before the loop was stopped here never draws over the stop.
+      let loopReading = false, loopView = 0;
       async function readLoop() {
-        try { renderLoop(await overgo.api.get("/loop/status", { signal: overgo.signal })); }
-        catch (err) { if (!overgo.signal.aborted && err.status !== 404) { loop.hidden = false; loop.replaceChildren(overgo.failure(err)); } }
+        if (loopReading) return;
+        loopReading = true;
+        const view = ++loopView;
+        try {
+          const status = await overgo.api.get("/loop/status", { signal: overgo.signal });
+          if (view === loopView) renderLoop(status);
+        } catch (err) {
+          if (view === loopView && !overgo.signal.aborted && err.status !== 404) { loop.hidden = false; loop.replaceChildren(overgo.failure(err)); }
+        } finally { loopReading = false; }
       }
       readLoop();
 

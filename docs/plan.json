@@ -8,14 +8,11 @@
       "title": "Close the measured decode and load gaps: Unlimited-OCR decode first",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 2100,
+        "reason": "the single-pass verified load: one pass reads the model once, hashes every byte before it is uploaded and publishes nothing unless every shard equals its claim; it replaces the hash-then-upload structure (store loaders, streamTensor) and buys a load about 4 s shorter on a 12B model, which the owner accepts as growth"
+      },
       "steps": [
-        {
-          "id": "load",
-          "title": "Load a model in one pass: hash while uploading",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner analysis 2026-10-02: load is 21.7-31.1 s for the large models; the about 12 s re-hash on gemma-12B is an extrapolation, not a measurement. Measure first: a per-phase load breakdown (header, hash, read, upload, other) for gemma-12B, Qwen3.8-27B and E4B. Then the single-pass load: hash the bytes as they upload and refuse to serve on a mismatch, which keeps integrity (trusting a size and mtime memo instead was declined). Serves: inference (load-time). Study result 2026-10-03: the second pass exists (hash, then upload) and the hash dominates: SHA-256 runs at 2.0 GB/s in the loader and 2.75 GB/s at most as a single stream. Design, about 430 lines touched: claim the model's id from the persisted discovery memo as a hint, stream each shard once in file order hashing the buffers that upload (a reader goroutine and a hash goroutine; converted tensors accumulate then convert), compare each shard's id with its claim and refuse through the existing release path on a mismatch; tests tamper a raw tensor, a converted tensor, the header, padding and a second shard. Projected for gemma-12B: about 11-12 s today warm, 7.6 s single pass, floor 5.6 s. Going under the floor means verifying per-tensor digests in parallel, an identity-layer change. Prepared device measurement: OVERGO_CUDA_TEST=1 OVERGO_LOAD_STUDY_GGUF=\u003cgguf\u003e go test ./internal/inference -run '^TestZZLoadPhases$' (scratch load-wt). Decide after that measurement whether 4 s a load is worth 430 lines; the hash-buffer step is the cheap part. Built 2026-10-04 (scratchpad single-pass.patch, adversarially reviewed: no P1 or P2): modeldevice.Loader reads each shard once in file order, hashes every byte before it is uploaded or converted, and publishes nothing unless every shard equals its memo claim; production +707/-299 lines (net +408), +2015 syntax nodes; host measurement on gemma-12B fp8-native: hash then upload 9.8 s, single pass 5.7 s, hash floor 5.6 s. Owner 2026-10-04: line count may rise to cut time. Follow-up rows from the same owner note, to look for common code: cmd/evaluate/session.go:70, internal/evaluation/transcription_projected.go:57 and cmd/recipe/inference_measure.go:63 resolve through ResolveActiveGGUF, which hashes the whole file first, so every cycle cell that loads a model pays the hash again; each can take modelrecipe.ResolveClaimedGGUF in a few lines, and cmd/benchmark/identity.go hashes the file for its own identity: one claimed open for every opener of a model."
-        },
         {
           "id": "breakdowns",
           "title": "Measure where E4B and gemma-12B decode time goes, and whether the non-native fp8 variant still serves anything",

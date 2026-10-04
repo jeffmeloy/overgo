@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"strings"
 )
@@ -114,23 +115,54 @@ func JSONID(kind Kind, value any) (ID, error) {
 	return ID{}, err
 }
 
+// ErrContentMismatch marks bytes that do not carry the identity they were
+// claimed under.
+var ErrContentMismatch = errors.New("artifact: content does not match its claimed identity")
+
+// Hasher computes an identity as its content is written in order: the same ID
+// Identify returns for the same bytes, however they are cut into writes.
+type Hasher struct {
+	kind  Kind
+	hash  hash.Hash
+	count uint64
+}
+
+// NewHasher starts the identity of content of the given kind.
+func NewHasher(kind Kind) (*Hasher, error) {
+	if kind == KindInvalid || int(kind) >= len(kindNames) {
+		return nil, errors.New("artifact: invalid kind")
+	}
+	return &Hasher{kind: kind, hash: sha256.New()}, nil
+}
+
+// Write adds content; it never fails.
+func (h *Hasher) Write(data []byte) (int, error) {
+	h.count += uint64(len(data))
+	return h.hash.Write(data)
+}
+
+// ID returns the identity and the byte count of everything written so far.
+func (h *Hasher) ID() (ID, uint64) {
+	var digest [digestBytes]byte
+	copy(digest[:], h.hash.Sum(nil))
+	return ID{kind: h.kind, digest: digest}, h.count
+}
+
 func Identify(kind Kind, reader io.Reader) (ID, uint64, error) {
 	if reader == nil {
 		return ID{}, 0, errors.New("artifact: nil content reader")
 	}
-	if kind == KindInvalid || int(kind) >= len(kindNames) {
-		return ID{}, 0, errors.New("artifact: invalid kind")
+	hasher, err := NewHasher(kind)
+	if err != nil {
+		return ID{}, 0, err
 	}
-	hasher := sha256.New()
 	// Keep reads at the requested size even when the source implements
 	// WriterTo, whose own copy can use a smaller buffer.
-	count, err := io.CopyBuffer(hasher, struct{ io.Reader }{reader}, make([]byte, identifyBufferBytes))
-	if err != nil {
+	if _, err := io.CopyBuffer(hasher, struct{ io.Reader }{reader}, make([]byte, identifyBufferBytes)); err != nil {
 		return ID{}, 0, fmt.Errorf("artifact: hash content: %w", err)
 	}
-	var digest [digestBytes]byte
-	copy(digest[:], hasher.Sum(nil))
-	return ID{kind: kind, digest: digest}, uint64(count), nil
+	id, count := hasher.ID()
+	return id, count, nil
 }
 
 func ParseID(value string) (ID, error) {

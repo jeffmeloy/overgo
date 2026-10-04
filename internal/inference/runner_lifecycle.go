@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"slices"
 
+	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modeldevice"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
@@ -37,7 +39,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	if err != nil {
 		return nil, err
 	}
-	file, path, spec, weights, program, evidenceTier, err := loaded.Take()
+	file, path, spec, weights, program, evidenceTier, claims, err := loaded.Take()
 	if err != nil {
 		return nil, fmt.Errorf("inference: take model program: %w", err)
 	}
@@ -61,6 +63,13 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 			closeAcceleratorResources(decodeWeights, rawWeights, deviceWeights, cuda, worker),
 			file.Close(),
 		)
+	}
+	// Claimed shard identities are proved by the pass that uploads the weights.
+	// A residency that uploads none proves them by hashing before it serves.
+	if len(claims) != 0 && !residency.deviceF32 && !residency.deviceNative {
+		if err := modelartifact.VerifyClaims(file, claims); err != nil {
+			return fail(err)
+		}
 	}
 	vocab, err := tokenizer.Load(file)
 	if err != nil {
@@ -112,20 +121,20 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		}
 		recovered, err = loadWithHostRecovery(residency.hostRecovery, func() error {
 			return loadResidentWeights(
-				ctx, file, weights, outputProjection, loraAdapters, residency, worker,
+				ctx, file, weights, outputProjection, loraAdapters, residency, worker, claims,
 				&deviceWeights, &rawWeights, &decodeWeights,
 			)
 		}, func() error {
-			// A failed hybrid preload must release every partial store before
-			// the retained executor streams weights on later requests.
-			releaseErr := errors.Join(decodeWeights.Close(), rawWeights.Close(), deviceWeights.Close())
-			if releaseErr == nil {
-				decodeWeights, rawWeights, deviceWeights = nil, nil, nil
-			}
-			return releaseErr
+			return releasePartialStores(&decodeWeights, &rawWeights, &deviceWeights)
 		})
 		if err != nil {
 			return fail(err)
+		}
+		// The pass that fell back to streaming stopped before it hashed the whole file.
+		if recovered && len(claims) != 0 {
+			if err := modelartifact.VerifyClaims(file, claims); err != nil {
+				return fail(err)
+			}
 		}
 	} else if !residency.hostReference {
 		cuda, err = executor.New(options.DeviceOrdinal)
@@ -192,6 +201,21 @@ func loadWithHostRecovery(recoverOOM bool, load, release func() error) (bool, er
 	return true, nil
 }
 
+// releasePartialStores frees what a failed hybrid preload left, before the
+// retained executor streams weights on later requests, and forgets what it
+// freed. A model with no decode tensors never made a decode store.
+func releasePartialStores(
+	decode **modeldevice.DeviceConvertedWeights,
+	raw **modeldevice.DeviceWeights,
+	f32 **modeldevice.DeviceConvertedWeights,
+) error {
+	err := closeAcceleratorResources(*decode, *raw, *f32, nil, nil)
+	if err == nil {
+		*decode, *raw, *f32 = nil, nil, nil
+	}
+	return err
+}
+
 func realizedResidencyForOpen(policy recipe.ResidencyPolicy, resident, recovered bool) (recipe.RealizedResidency, error) {
 	if recovered {
 		if policy == recipe.ResidencyHybridNative && !resident {
@@ -232,8 +256,10 @@ func realizedResidencyForOpen(policy recipe.ResidencyPolicy, resident, recovered
 	return "", errors.New("inference: inconsistent realized residency")
 }
 
-// loadResidentWeights: uploads the resident weight stores for a preload open;
-// partially loaded stores stay owned by the caller on failure.
+// loadResidentWeights: uploads the resident weight stores for a preload open in
+// one pass over the file; the stores stay owned by the caller on failure.
+// claims, when present, are the shard identities the pass must find by hashing
+// what it uploads, and the stores hold nothing unless they match.
 func loadResidentWeights(
 	ctx context.Context,
 	file *gguf.File,
@@ -242,6 +268,7 @@ func loadResidentWeights(
 	loraAdapters []loadedLoRA,
 	residency residencyBinding,
 	worker *device.Worker,
+	claims []artifact.ID,
 	deviceWeights **modeldevice.DeviceConvertedWeights,
 	rawWeights **modeldevice.DeviceWeights,
 	decodeWeights **modeldevice.DeviceConvertedWeights,
@@ -251,6 +278,7 @@ func loadResidentWeights(
 	if err != nil {
 		return err
 	}
+	loader := modeldevice.NewLoader(file)
 	selected := selectedModelTensors(file, weights)
 	f32Tensors := selected
 	if residency.deviceNative {
@@ -294,15 +322,15 @@ func loadResidentWeights(
 		if err != nil {
 			return err
 		}
-		if err = (*rawWeights).Load(ctx, file, quantized); err != nil {
-			return err
-		}
+		loader.Raw(*rawWeights, quantized)
 		// native 2D BF16 matmul weights now live in the raw store (above),
 		// serving both decode (native kernel) and prefill (upconvert + SGEMM)
 		// from a single 2-byte copy. The decode catalog covers only tensors that
 		// stayed F32 but drive decode MulMat.
 		var decodeTensors []gguf.TensorInfo
-		_, outputIsRaw := (*rawWeights).Lookup(outputProjection.Name)
+		outputIsRaw := slices.ContainsFunc(quantized, func(info gguf.TensorInfo) bool {
+			return info.Name == outputProjection.Name
+		})
 		if _, isEmbedding := embeddingTensors[outputProjection.Name]; isEmbedding && !outputIsRaw &&
 			outputProjection.Type == dtype.BF16 && outputProjection.Dimensions == 2 {
 			decodeTensors = append(decodeTensors, outputProjection)
@@ -317,15 +345,14 @@ func loadResidentWeights(
 		}
 		if len(decodeTensors) > 0 {
 			*decodeWeights, err = modeldevice.NewDeviceConvertedWeights(worker, dtype.BF16)
-			if err == nil {
-				err = (*decodeWeights).Load(ctx, file, decodeTensors)
-			}
 			if err != nil {
 				return err
 			}
+			loader.Converted(*decodeWeights, decodeTensors)
 		}
 	}
-	return (*deviceWeights).Load(ctx, file, f32Tensors)
+	loader.Converted(*deviceWeights, f32Tensors)
+	return loader.Load(ctx, claims)
 }
 
 func (r *Runner) Close() error {

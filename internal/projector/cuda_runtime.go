@@ -50,7 +50,9 @@ func openProjectorCUDA(
 	if err != nil {
 		return fail(err)
 	}
-	if err := state.weights.Load(ctx, file, infos); err != nil {
+	loader := modeldevice.NewLoader(file)
+	loader.Converted(state.weights, infos)
+	if err := loader.Load(ctx, nil); err != nil {
 		return fail(err)
 	}
 	return state, nil

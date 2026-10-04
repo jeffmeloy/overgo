@@ -55,6 +55,24 @@ type File struct {
 	tensorByName    map[string]int
 	tensorLocations map[string]tensorLocation
 	sourcePaths     []string
+	shards          []Shard
+}
+
+// Shard is one physical file of a logical GGUF: its length, where its tensor
+// data begins, and the source its bytes, header and padding included, read from.
+type Shard struct {
+	Size       uint64
+	DataOffset uint64
+	Source     io.ReaderAt
+}
+
+// Shards lists the physical files in order, one for a single GGUF and one per
+// split otherwise; their sizes sum to the bytes a content identity covers.
+func (f *File) Shards() []Shard {
+	if f == nil {
+		return nil
+	}
+	return slices.Clone(f.shards)
 }
 
 type tensorLocation struct {
@@ -307,6 +325,7 @@ func Parse(source io.ReaderAt, size uint64, options Options) (*File, error) {
 	}
 	file.DataOffset = dataOffset
 	file.DataSize = expectedOffset
+	file.shards = []Shard{{Size: size, DataOffset: dataOffset, Source: source}}
 	file.SplitCount = 1
 	file.tensorLocations = make(map[string]tensorLocation, len(file.Tensors))
 	for _, tensor := range file.Tensors {
@@ -469,6 +488,7 @@ func (f *File) appendSplit(
 	}
 	f.DataSize += part.DataSize
 	f.sourcePaths = append(f.sourcePaths, part.sourcePaths...)
+	f.shards = append(f.shards, part.shards...)
 	for _, original := range part.Tensors {
 		if previous, exists := f.tensorByName[original.Name]; exists {
 			return fmt.Errorf(

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/cuda/driver"
+	"overgo/internal/modeldevice"
 	"overgo/internal/recipe"
 )
 
@@ -64,5 +65,21 @@ func TestHybridNativeFallbackRealizedResidency(t *testing.T) {
 	cleanupFailure := errors.New("injected release failure")
 	if recovered, err := loadWithHostRecovery(true, func() error { return oom }, func() error { return cleanupFailure }); recovered || !errors.Is(err, oom) || !errors.Is(err, cleanupFailure) {
 		t.Fatalf("failed cleanup became streamed success: %v, %v", recovered, err)
+	}
+}
+
+// TestHybridFallbackReleasesPartialStoresWithoutADecodeStore: a model with no
+// decode tensors never made a decode store, and the fallback after an
+// out-of-memory preload must release the stores it has and recover, not
+// dereference the one it lacks.
+func TestHybridFallbackReleasesPartialStoresWithoutADecodeStore(t *testing.T) {
+	var decode *modeldevice.DeviceConvertedWeights
+	raw, f32 := &modeldevice.DeviceWeights{}, &modeldevice.DeviceConvertedWeights{}
+	oom := &driver.ResultError{Operation: "injected resident allocation", Code: 2}
+	recovered, err := loadWithHostRecovery(true, func() error { return oom }, func() error {
+		return releasePartialStores(&decode, &raw, &f32)
+	})
+	if err != nil || !recovered || decode != nil || raw != nil || f32 != nil {
+		t.Fatalf("fallback without a decode store = recovered=%v err=%v stores=%v/%v/%v", recovered, err, decode, raw, f32)
 	}
 }

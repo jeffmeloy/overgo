@@ -41,7 +41,9 @@ func TestDeviceConvertedWeightsFeedExecutor(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer weights.Close()
-	if err := weights.Load(t.Context(), file, file.Tensors); err != nil {
+	loader := NewLoader(file)
+	loader.Converted(weights, file.Tensors)
+	if err := loader.Load(t.Context(), nil); err != nil {
 		t.Fatal(err)
 	}
 	builder := tensor.NewBuilder()

@@ -69,15 +69,43 @@ func FromGGUFPath(path string) (Inventory, error) {
 
 // FromGGUF: typed inventory from an already-validated logical GGUF.
 func FromGGUF(file *gguf.File, kind artifact.Kind) (Inventory, error) {
+	inventory, _, err := FromGGUFClaimed(file, kind, nil)
+	return inventory, err
+}
+
+// Claimer reports the identity remembered for the file at an absolute path and
+// the size it had, without reading the file.
+type Claimer func(path string) (artifact.ID, uint64, bool)
+
+// describeShard names a shard's identity from the claimer when it has one of
+// the size the parsed file has, and by hashing the file otherwise.
+func describeShard(path string, size uint64, claimer Claimer) (descriptor artifact.Descriptor, absolute string, claimed bool, err error) {
+	if claimer != nil {
+		if absolute, err = pathidentity.Canonical(path); err == nil {
+			if id, remembered, ok := claimer(absolute); ok && remembered == size && id.Kind() == artifact.KindTensorSet {
+				return artifact.Descriptor{ID: id, Size: size, MediaType: ggufMediaType}, absolute, true, nil
+			}
+		}
+	}
+	descriptor, absolute, err = identifyFile(path, artifact.KindTensorSet, ggufMediaType)
+	return descriptor, absolute, false, err
+}
+
+// FromGGUFClaimed is FromGGUF where a shard the claimer knows is not read: its
+// identity is a claim, and when any shard is claimed the shard identities are
+// returned in shard order as claims the bytes have not yet proved. The caller
+// must prove them before the model serves, by VerifyClaims or by a pass that
+// hashes the bytes it uploads. The claims are nil when every shard was hashed.
+func FromGGUFClaimed(file *gguf.File, kind artifact.Kind, claimer Claimer) (Inventory, []artifact.ID, error) {
 	if file == nil {
-		return Inventory{}, errors.New("model artifact: nil GGUF")
+		return Inventory{}, nil, errors.New("model artifact: nil GGUF")
 	}
 	if !tensorBearingKind(kind) {
-		return Inventory{}, errors.New("model artifact: GGUF logical kind must be model or projector")
+		return Inventory{}, nil, errors.New("model artifact: GGUF logical kind must be model or projector")
 	}
 	paths := file.SourcePaths()
 	if len(paths) == 0 {
-		return Inventory{}, errors.New("model artifact: GGUF has no physical source paths")
+		return Inventory{}, nil, errors.New("model artifact: GGUF has no physical source paths")
 	}
 	components := make([]artifact.Component, 0, len(paths))
 	descriptors := make([]artifact.Descriptor, 0, len(paths))
@@ -87,11 +115,16 @@ func FromGGUF(file *gguf.File, kind artifact.Kind) (Inventory, error) {
 	if sharded {
 		role = artifact.ComponentWeightsShard
 	}
+	shards := file.Shards()
+	var claims []artifact.ID
+	anyClaimed := false
 	for index, path := range paths {
-		descriptor, absolute, err := identifyFile(path, artifact.KindTensorSet, ggufMediaType)
+		descriptor, absolute, claimed, err := describeShard(path, shards[index].Size, claimer)
 		if err != nil {
-			return Inventory{}, fmt.Errorf("model artifact: GGUF component %d: %w", index, err)
+			return Inventory{}, nil, fmt.Errorf("model artifact: GGUF component %d: %w", index, err)
 		}
+		anyClaimed = anyClaimed || claimed
+		claims = append(claims, descriptor.ID)
 		name := "weights"
 		if sharded {
 			name = indexedName("weights", index)
@@ -104,24 +137,47 @@ func FromGGUF(file *gguf.File, kind artifact.Kind) (Inventory, error) {
 	}
 	manifest, err := artifact.NewManifest(kind, components)
 	if err != nil {
-		return Inventory{}, err
+		return Inventory{}, nil, err
 	}
 	root := filepath.Dir(locations[0].Value)
 	for _, location := range locations[1:] {
 		if filepath.Dir(location.Value) != root {
-			return Inventory{}, errors.New("model artifact: GGUF shards span directories")
+			return Inventory{}, nil, errors.New("model artifact: GGUF shards span directories")
 		}
 	}
 	manifestLocation, err := artifact.CanonicalLocalLocation(manifest.ID, artifact.LocationDirectory, root)
 	if err != nil {
-		return Inventory{}, err
+		return Inventory{}, nil, err
 	}
 	locations = append(locations, manifestLocation)
 	tensors, err := NewGGUFTensorInventory(manifest.ID, file)
 	if err != nil {
-		return Inventory{}, err
+		return Inventory{}, nil, err
 	}
-	return Inventory{Manifest: manifest, TensorInventory: tensors, Components: descriptors, Locations: locations}, nil
+	if !anyClaimed {
+		claims = nil
+	}
+	return Inventory{Manifest: manifest, TensorInventory: tensors, Components: descriptors, Locations: locations}, claims, nil
+}
+
+// VerifyClaims proves claimed shard identities the way FromGGUF would have
+// found them: by hashing each file. It is the whole-file pass a claim is spared
+// when a load hashes the bytes it uploads.
+func VerifyClaims(file *gguf.File, claims []artifact.ID) error {
+	paths := file.SourcePaths()
+	if len(paths) != len(claims) {
+		return fmt.Errorf("model artifact: %d claimed identities for %d shards", len(claims), len(paths))
+	}
+	for index, path := range paths {
+		descriptor, _, err := identifyFile(path, claims[index].Kind(), ggufMediaType)
+		if err != nil {
+			return fmt.Errorf("model artifact: GGUF component %d: %w", index, err)
+		}
+		if descriptor.ID != claims[index] {
+			return fmt.Errorf("%w: %s is %s, claimed %s", artifact.ErrContentMismatch, path, descriptor.ID, claims[index])
+		}
+	}
+	return nil
 }
 
 func tensorBearingKind(kind artifact.Kind) bool {

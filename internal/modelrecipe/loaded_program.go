@@ -28,6 +28,10 @@ type loadedProgramState struct {
 	EvidenceTier recipe.EvidenceTier
 	Program      Plan
 	Policy       RuntimePolicy
+	// Claims are shard identities taken on trust from a claimer: the bytes
+	// have not been hashed, and the program may not serve before they are
+	// proved. Empty when every shard was hashed.
+	Claims []artifact.ID
 }
 
 // ResolveActiveGGUF verifies and compiles the active recipe before execution.
@@ -36,7 +40,21 @@ func ResolveActiveGGUF(
 	store artifact.Reader,
 	path string,
 ) (LoadedProgram, error) {
-	loaded, err := loadGGUFFacts(path)
+	return ResolveClaimedGGUF(ctx, store, path, nil)
+}
+
+// ResolveClaimedGGUF is ResolveActiveGGUF for a file whose identity the
+// claimer remembers: shards it claims are not hashed to find the recipe, so
+// the program carries their identities as claims, which Take returns and its
+// taker must prove before serving. A claimer that claims nothing, or nil,
+// hashes every shard and leaves no claims.
+func ResolveClaimedGGUF(
+	ctx context.Context,
+	store artifact.Reader,
+	path string,
+	claimer modelartifact.Claimer,
+) (LoadedProgram, error) {
+	loaded, err := loadGGUFFacts(path, claimer)
 	if err != nil {
 		return LoadedProgram{}, err
 	}
@@ -100,7 +118,7 @@ func ResolveCandidateGGUF(
 	definition recipe.Definition,
 	resolved ResolvedModelDefinition,
 ) (LoadedProgram, error) {
-	loaded, err := loadGGUFFacts(path)
+	loaded, err := loadGGUFFacts(path, nil)
 	if err != nil {
 		return LoadedProgram{}, err
 	}
@@ -149,7 +167,7 @@ func (l *LoadedProgram) RuntimePolicy() (RuntimePolicy, error) {
 	return l.state.Policy, nil
 }
 
-func loadGGUFFacts(path string) (LoadedProgram, error) {
+func loadGGUFFacts(path string, claimer modelartifact.Claimer) (LoadedProgram, error) {
 	file, err := gguf.Open(path)
 	if err != nil {
 		return LoadedProgram{}, err
@@ -158,7 +176,7 @@ func loadGGUFFacts(path string) (LoadedProgram, error) {
 	fail := func(cause error) (LoadedProgram, error) {
 		return LoadedProgram{}, errors.Join(cause, file.Close())
 	}
-	loaded.state.Inventory, err = modelartifact.FromGGUF(file, artifact.KindModel)
+	loaded.state.Inventory, loaded.state.Claims, err = modelartifact.FromGGUFClaimed(file, artifact.KindModel, claimer)
 	if err != nil {
 		return fail(err)
 	}
@@ -201,17 +219,20 @@ func (l *LoadedProgram) bindResolved(
 	return nil
 }
 
-// Take transfers resolved serving ownership exactly once.
+// Take transfers resolved serving ownership exactly once, with the shard
+// identities the bytes have not yet proved, in shard order: empty when every
+// shard was hashed. The taker must prove each before serving, and refuse with
+// artifact.ErrContentMismatch when a shard carries another identity.
 func (l *LoadedProgram) Take() (
-	*gguf.File, string, model.Spec, model.Weights, Plan, recipe.EvidenceTier, error,
+	*gguf.File, string, model.Spec, model.Weights, Plan, recipe.EvidenceTier, []artifact.ID, error,
 ) {
 	if l == nil || l.state == nil || l.state.File == nil {
-		return nil, "", model.Spec{}, model.Weights{}, Plan{}, "",
+		return nil, "", model.Spec{}, model.Weights{}, Plan{}, "", nil,
 			errors.New("model recipe: loaded program is unavailable or consumed")
 	}
 	state := l.state
 	l.state = nil
-	return state.File, state.Path, state.Spec, state.Weights, state.Program, state.EvidenceTier, nil
+	return state.File, state.Path, state.Spec, state.Weights, state.Program, state.EvidenceTier, state.Claims, nil
 }
 
 // Close releases untransferred GGUF ownership.

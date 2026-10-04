@@ -98,6 +98,7 @@ func (workspace *SFTWorkspace) WorkflowCapabilities(_ context.Context, kind Work
 		controls = append(controls,
 			workflowControl{Name: "train_on_prompts", Type: workflowControlBoolean},
 			workflowControl{Name: "average_weights", Type: workflowControlBoolean},
+			workflowControl{Name: "sample_every", Type: workflowControlInteger},
 			workflowControl{Name: "output", Type: workflowControlOutput, Required: true})
 		capabilities = append(capabilities, WorkflowCapability{
 			Task: recipe.TaskTraining, Recipe: program.ID, Model: workspace.trainer.Model,
@@ -135,6 +136,9 @@ type sftInput struct {
 	TrainOnPrompts bool `json:"train_on_prompts"`
 	// AverageWeights publishes a moving average of the weights as the trained model.
 	AverageWeights bool `json:"average_weights"`
+	// SampleEvery, when positive, has the run generate after the prompts of held-out
+	// conversations every that many updates, for the page to show beside the verdict.
+	SampleEvery int `json:"sample_every"`
 }
 
 // ExecuteWorkflow fine-tunes the served model on the dataset, whole or as an
@@ -154,8 +158,8 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 		return operation.Completion{}, err
 	}
 	inputs := []artifact.ID{workspace.trainer.Model, input.Dataset}
-	if input.Dataset.Kind() != artifact.KindDataset || input.Steps <= 0 {
-		return operation.Completion{}, errors.New("sft workspace: a conversation dataset and a positive number of steps are required")
+	if input.Dataset.Kind() != artifact.KindDataset || input.Steps <= 0 || input.SampleEvery < 0 {
+		return operation.Completion{}, errors.New("sft workspace: a conversation dataset and a positive number of steps are required, and samples come every positive number of steps")
 	}
 	var lora *trainingworkflow.LoRA
 	switch {
@@ -175,7 +179,7 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	result, err := trainingworkflow.RunConversationSFT(ctx, workspace.store, trainingworkflow.ConversationSFT{
 		Dataset: input.Dataset, Render: workspace.trainer.Render, ModelDirectory: workspace.trainer.File,
 		OutputDirectory: output, WorkDirectory: filepath.Join(workspace.roots.Datasets, "sft"),
-		Steps: input.Steps, LoRA: lora, Prompts: input.TrainOnPrompts, Average: input.AverageWeights,
+		Steps: input.Steps, LoRA: lora, Prompts: input.TrainOnPrompts, Average: input.AverageWeights, SampleEvery: input.SampleEvery,
 		Step: func(step, _ int, loss float64) {
 			reporter.Progress(uint64(step), &total)
 			reporter.Metric(operation.Metric{Name: "loss", Value: loss})
@@ -186,6 +190,9 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	}
 	reporter.Publishing()
 	outputs := []artifact.ID{result.Trained, result.Verdict}
+	if result.Samples.Valid() {
+		outputs = append(outputs, result.Samples)
+	}
 	run, err := runrecord.NewRun(program.ID, runrecord.OutcomeSucceeded, inputs, outputs, "")
 	if err != nil {
 		return operation.Completion{}, err

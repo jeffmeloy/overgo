@@ -66,6 +66,11 @@ type TextHeldoutRequest struct {
 	// judges is the average, as ai-toolkit saves its EMA. Only the host trainer
 	// takes it, and a run's weights alone are averaged, not its optimizer state.
 	Average float64
+	// SampleEvery, when positive, has a conversation run generate after the
+	// first prompts of its held-out conversations before it trains, after every
+	// that many updates and at its end, and publish the generations as a
+	// document the result names (HeldoutResult.Samples).
+	SampleEvery int
 	// Proof re-verifies the recipe by the training run alone, judging and
 	// publishing no verdict (HeldoutRun.Proof).
 	Proof bool
@@ -136,6 +141,9 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.Conversations && !request.Host {
 		return HeldoutResult{}, errors.New("training workflow: a conversation run learns only some tokens, which only the host trainer does")
 	}
+	if request.SampleEvery < 0 || request.SampleEvery > 0 && !request.Conversations {
+		return HeldoutResult{}, errors.New("training workflow: samples are generated after the prompts of a conversation run, every positive number of steps")
+	}
 	weights, err := IdentifyModelWeights(request.ModelDirectory)
 	if err != nil {
 		return HeldoutResult{}, err
@@ -195,7 +203,21 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 		return HeldoutResult{}, err
 	}
 	config := plan.Optimizer()
-	return runHeldout(ctx, store, HeldoutRun{
+	var sampling *sampler
+	if request.SampleEvery > 0 {
+		_, heldout, err := objectiveMemberships(ctx, store, objective)
+		if err != nil {
+			return HeldoutResult{}, err
+		}
+		ids := make([]string, len(heldout.Records))
+		for index, record := range heldout.Records {
+			ids[index] = record.ID
+		}
+		if sampling, err = newSampler(model, tokenizer.piece, ids, records, sequence); err != nil {
+			return HeldoutResult{}, err
+		}
+	}
+	result, err := runHeldout(ctx, store, HeldoutRun{
 		Data: data, Load: time.Since(loadStarted), Host: request.Host, Proof: request.Proof,
 		Train: func(ctx context.Context, recipeID artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error) {
 			documents := make([][]int, len(shown))
@@ -221,6 +243,13 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 				fmt.Fprintf(request.Progress, "lane %s: %d steps, %d batches, frozen_lexical=%t\n",
 					lane, plan.Updates(), len(batches), request.FreezeLexical)
 			}
+			// A sampled run generates once before it trains, every SampleEvery updates
+			// and once more at its end, which is the average when it keeps one.
+			if sampling != nil {
+				if err := sampling.sample(0); err != nil {
+					return trainingprogram.Checkpoint{}, err
+				}
+			}
 			// The run reports each update and stops between updates once
 			// its context ends.
 			observe := func(step int, loss float64, stepWall time.Duration) error {
@@ -230,6 +259,11 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 				}
 				if request.Step != nil {
 					request.Step(step+1, plan.Updates(), loss)
+				}
+				if sampling != nil && (step+1)%request.SampleEvery == 0 && step+1 < plan.Updates() {
+					if err := sampling.sample(step + 1); err != nil {
+						return err
+					}
 				}
 				return ctx.Err()
 			}
@@ -252,6 +286,9 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			} else {
 				_, _, state, err = runTrainingState(model, batches, densecausal.TrainOptions{Trained: trained, Average: request.Average}, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, request.FreezeLexical, nil, observe)
 			}
+			if err == nil && sampling != nil {
+				err = sampling.sample(plan.Updates())
+			}
 			if err != nil {
 				return trainingprogram.Checkpoint{}, err
 			}
@@ -265,6 +302,10 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			return nextTokens(model, example, records[example.Record].trained)
 		},
 	}, modelID, objective, session.Program.Definition().ID)
+	if err == nil && sampling != nil {
+		result.Samples, err = sampling.publish(ctx, store, result.Trained)
+	}
+	return result, err
 }
 
 // packWindows joins the documents, in order, each followed by the token

@@ -166,6 +166,22 @@
         link(run, "run"), trained ? link(trained, "trained model") : null, link(id, "verdict"))));
   }
 
+  // renderSamples: what a run generated after the same held-out prompts, before it trained and as it went,
+  // each prompt with the reply the conversation holds and the generations in step order beneath it.
+  function renderSamples(overgo, host, samples) {
+    const { el } = overgo;
+    host.append(el("section", { class: "evidence-block", "aria-label": "Training samples" },
+      el("div", { class: "section-title", text: "Samples while training" }),
+      ...samples.strips.map((strip) => el("div", { "data-record": strip.record },
+        el("div", { class: "note", text: "prompt" }),
+        el("div", { class: "preview-text", text: strip.prompt }),
+        el("div", { class: "note", text: "reply in the conversation" }),
+        el("div", { class: "preview-text", text: strip.expected }),
+        el("ol", {}, ...strip.samples.map((sample) => el("li", { "data-step": String(sample.step) },
+          el("span", { class: "note", text: sample.step === 0 ? "before training " : "after " + sample.step + " updates " }),
+          el("span", { class: "preview-text", text: sample.text }))))))));
+  }
+
   window.overgo.trainingPreview = trainingPreview;
   window.overgo.trainingEvidence = {
     async renderOperation(host, operation, overgo) {
@@ -175,6 +191,10 @@
       if (verdictID) {
         const verdict = await overgo.api.get(overgo.contentURL(verdictID));
         if (verdict && typeof verdict.baseline_value === "number" && typeof verdict.candidate_value === "number") renderVerdict(overgo, host, verdict, verdictID, checkpoint, operation.run);
+        // A sampled run also published what it generated as it trained, beside the verdict.
+        const samplesID = outputs.find((id) => String(id).startsWith("evidence:"));
+        const samples = samplesID ? await overgo.api.get(overgo.contentURL(samplesID)) : null;
+        if (samples && Array.isArray(samples.strips)) renderSamples(overgo, host, samples);
         return;
       }
       const traceID = outputs.find((id) => String(id).startsWith("evidence:"));

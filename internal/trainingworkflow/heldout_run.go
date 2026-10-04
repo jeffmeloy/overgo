@@ -69,7 +69,10 @@ type HeldoutRun struct {
 // verdict.
 type HeldoutResult struct {
 	Observation, Trained, View, Plan, Baseline, Candidate, Verdict artifact.ID
-	Passed                                                         bool
+	// Samples is the document of generations a sampled run published, and is
+	// zero for a run that did not sample.
+	Samples artifact.ID
+	Passed  bool
 }
 
 // ObjectiveData is what a run reads of an objective's dataset through one

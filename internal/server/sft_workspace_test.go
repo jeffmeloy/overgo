@@ -122,6 +122,11 @@ func (fixture sftFixture) inputWithRank(output string, rank int) json.RawMessage
 	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":%d,"rank":%d,"output":%q}`, fixture.conversations.String(), adapterSteps, rank, output))
 }
 
+// inputSampled is the input of a run that samples every given number of updates.
+func (fixture sftFixture) inputSampled(output string, every int) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":4,"sample_every":%d,"output":%q}`, fixture.conversations.String(), every, output))
+}
+
 // inputAveraged is the input of a run that publishes an average of the weights.
 func (fixture sftFixture) inputAveraged(output string) json.RawMessage {
 	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":4,"average_weights":true,"output":%q}`, fixture.conversations.String(), output))
@@ -157,7 +162,7 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	for _, control := range adapterCapability.Controls {
 		adapterControls = append(adapterControls, control.Name)
 	}
-	if adapterCapability.Name != "served, LoRA adapter on conversations" || strings.Join(adapterControls, ",") != "dataset,steps,rank,train_on_prompts,average_weights,output" || adapterCapability.Recipe == capability.Recipe ||
+	if adapterCapability.Name != "served, LoRA adapter on conversations" || strings.Join(adapterControls, ",") != "dataset,steps,rank,train_on_prompts,average_weights,sample_every,output" || adapterCapability.Recipe == capability.Recipe ||
 		adapterCapability.Controls[2].Bounds == nil || adapterCapability.Controls[2].Bounds.Default != sftLoRADefaultRank || !strings.Contains(adapterCapability.Note, "PEFT adapter") {
 		t.Fatalf("LoRA capability = %+v with controls %v, want its own recipe, a rank of default %d and a note naming the PEFT adapter", adapterCapability, adapterControls, sftLoRADefaultRank)
 	}
@@ -165,7 +170,7 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	for _, control := range capability.Controls {
 		controls = append(controls, control.Name)
 	}
-	if capability.Task != recipe.TaskTraining || !capability.Host || capability.Name != "served, on conversations" || strings.Join(controls, ",") != "dataset,steps,train_on_prompts,average_weights,output" {
+	if capability.Task != recipe.TaskTraining || !capability.Host || capability.Name != "served, on conversations" || strings.Join(controls, ",") != "dataset,steps,train_on_prompts,average_weights,sample_every,output" {
 		t.Fatalf("capability = %+v with controls %v", capability, controls)
 	}
 	for _, option := range capability.Controls[2:4] {
@@ -241,6 +246,14 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	averaged, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputAveraged("tuned-average"), stepCounter{steps: &atomic.Int64{}})
 	if err != nil || len(averaged.Outputs) != 2 || averaged.Outputs[0] == completion.Outputs[0] {
 		t.Fatalf("an averaged run = (%+v, %v), want a trained model of its own", averaged, err)
+	}
+	// A sampled run names its samples among its outputs, which the page reads as it reads the verdict.
+	sampled, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputSampled("tuned-samples", 2), stepCounter{steps: &atomic.Int64{}})
+	if err != nil || len(sampled.Outputs) != 3 || sampled.Outputs[2].Kind() != artifact.KindEvidence {
+		t.Fatalf("a sampled run = (%+v, %v), want the trained model, the verdict and the samples", sampled, err)
+	}
+	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputSampled("tuned-negative", -1), testReporter{}); err == nil || !strings.Contains(err.Error(), "samples come every positive") {
+		t.Errorf("a negative sampling interval: err = %v", err)
 	}
 
 	// The LoRA capability previews the same conversations and trains an adapter of the rank given, left

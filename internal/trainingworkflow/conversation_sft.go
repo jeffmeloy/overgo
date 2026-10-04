@@ -78,6 +78,10 @@ type ConversationSFT struct {
 	// adapter's factors, at the decay conversationAverageDecay: the trained
 	// model the run publishes and the verdict judges is the average.
 	Average bool
+	// SampleEvery, when positive, has the run generate after the prompts of two held-out
+	// conversations before it trains, every that many updates and at its end, and publish the
+	// generations (HeldoutResult.Samples) for the page to show in step order.
+	SampleEvery int
 	// Steps counts updates, each on one packed window of rendered text.
 	Steps int
 	// LoRA, when set, trains a low-rank adapter over the frozen model instead
@@ -120,7 +124,7 @@ func RunConversationSFT(ctx context.Context, store *overgodb.Store, request Conv
 	return RunTextHeldout(ctx, store, TextHeldoutRequest{
 		Alias: alias, ModelDirectory: request.ModelDirectory, OutputDirectory: request.OutputDirectory,
 		Steps: request.Steps, MaximumSequence: conversationWindow, Host: true,
-		Chat: true, Conversations: true, Step: request.Step, Progress: request.Progress, LoRA: request.LoRA, Average: decay,
+		Chat: true, Conversations: true, Step: request.Step, Progress: request.Progress, LoRA: request.LoRA, Average: decay, SampleEvery: request.SampleEvery,
 	})
 }
 

@@ -1,8 +1,82 @@
 {
   "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "overgo improves models, and itself, through its own inference and training, unattended. Every row closes or speeds up the improvement loop (measure, find the gap, train or change, judge on held-out data, promote or revert), or directly serves inference or training; otherwise it is not filed. The milestone is the loop itself (improvement-loop): from there, the scorecard's gaps generate the work. Progress is counted in promotions, not landings: a cycle that measured, trained or changed, judged on held-out data and moved main. Until a cycle has promoted, rows that close the cycle rank above rows that only harden or slim it.\n\nFinish partly landed rows before opening new ones. A consolidation reuses an existing owner and deletes the implementations it replaces in the same landing. A new shared component is allowed only when no existing owner can serve several real consumers, and it must remove more than it adds.\n\nOne meaningful run serves every obligation whose identity and contract match: it is written once, as one record with many readers. A run never judges what it produced, and a run leaves its evidence complete by its own contract (every protocol a suite's acceptance asks for), never half-written for a later landing to trip on.\n\nThe landing gate judges the commit; the improvement cycle judges the models. The gate's verdict depends only on the tree: unit, golden, hermetic-fixture and small-device checks. Suites that load real models, read the live store's evidence or sweep the device belong to the cycle, declared by build tag, and promotion of main requires them on the commit it promotes; a store write never changes a landing's verdict. A change's landing cost is read from its diff as three independent effects: the lanes it reaches, whether it expires the inference-surface guards, and whether it needs a pinned-media reconciliation. Lanes are the main cost, so false lane reach is cut. A surface move also expires every evaluation bound to the surface, so the re-evaluation it forces counts in its cost: surface changes are batched and land before an evaluation run, never between its runs, and the guards are re-acquired once after the last of them. A batch is one coherent change, normally one to three related rows, closed before it delays a user-facing result that is ready: an operating limit, not a gate. Dependency work is verified twice, separately: its build and test closure, and the guard surface, which stops at overgodb and runrecord. A saving is the net recurring cost removed, after the replacement tests and their maintenance. A check retires only when its replacement covers the check's actual acceptance contract, whether it moves to the cycle or is deleted; the landing scorecard reports and never refuses, so it replaces no check. The gate writes all numbers; messages name causes, effects and what disappears.\n\nA step's verify fails before the change and passes after; a verify that already passes proves nothing, so a boundary is proved by the table row that fails today. Before a landing, what the gate refuses cheaply is run locally first: the claims check after any hand edit, the invariant tables, the rules' budget and exports, and the step's verify. A refusal found after the lanes costs an hour, and a retried landing rebuilds an identical gate binary.\n\nEach row's rationale carries four plain lines: Serves (the loop stage, or the model or capability it runs or trains), Disappears (the owner reused, the implementations deleted, the tests retired or kept), Evidence (the run and record it reads or produces, and who else reads that record), Batch (the lanes its diff reaches, whether it expires the guards, and whether it needs a media reconciliation: three independent effects, each checked against the diff).\n\nLanding speed is protected by observing it, not by a rule. Each structural boundary (a changed path's lanes, a package kept off the inference surface, a suite kept to the cycle) is pinned as an invariant row in one table per kind, never as a new test function or a snapshot of today's lists. At each periodic review the gate's measured lines in git log are read: the share of landings that reached no lane, lane minutes per landing, and executed versus cached package counts. A rise means a misplaced check or a new false reach, fixed by moving it and adding a table row. There are no time budgets or timeouts, no ratchet baselines, and no separate tracking subsystem.\n\nTraining research is measured at the lowest cost that answers the question, reusing what exists. Optimizer math stays on the device: host Muon on the tied embedding cost about 98 s a step, and moving it took a 540-step run from about 21 hours to 6 minutes. During training only scalars cross to the host (losses, norms, brake decisions), never weights or gradients per step. Reuse comes before acquiring: cached base losses keyed by the exact window plan, existing checkpoints, held-out sets and the verdict code, before any new dataset, pass or tool. An evaluation beats a training run, a norm beats a decomposition, and a one-time computation beats a per-step one. For a training rate question the order is: post-hoc tests on existing checkpoints, then the held-out brake from the training forward against cached base losses, then a per-layer relative step size, and per-direction spectral scaling last.",
+  "doctrine": "overgo improves models, and itself, through its own inference and training, unattended. Every row closes or speeds up the improvement loop (measure, find the gap, train or change, judge on held-out data, promote or revert), or directly serves inference or training; otherwise it is not filed. The milestone is the loop itself (improvement-loop): from there, the scorecard's gaps generate the work. Progress is counted in promotions, not landings: a cycle that measured, trained or changed, judged on held-out data and moved main. While main trails the landings since its last promotion, rows that close the cycle rank above rows that only harden or slim it, and a cycle that cannot finish (killed, withheld) outranks every other row.\n\nFinish partly landed rows before opening new ones. A consolidation reuses an existing owner and deletes the implementations it replaces in the same landing. A new shared component is allowed only when no existing owner can serve several real consumers, and it must remove more than it adds.\n\nOne meaningful run serves every obligation whose identity and contract match: it is written once, as one record with many readers. A run never judges what it produced, and a run leaves its evidence complete by its own contract (every protocol a suite's acceptance asks for), never half-written for a later landing to trip on.\n\nThe landing gate judges the commit; the improvement cycle judges the models. The gate's verdict depends only on the tree: unit, golden, hermetic-fixture and small-device checks. Suites that load real models, read the live store's evidence or sweep the device belong to the cycle, declared by build tag, and promotion of main requires them on the commit it promotes; a store write never changes a landing's verdict. A change's landing cost is read from its diff as three independent effects: the lanes it reaches, whether it expires the inference-surface guards, and whether it needs a pinned-media reconciliation. Lanes are the main cost, so false lane reach is cut. A surface move also expires every evaluation bound to the surface, so the re-evaluation it forces counts in its cost: surface changes are batched and land before an evaluation run, never between its runs, and the guards are re-acquired once after the last of them. A batch is one coherent change, normally one to three related rows, closed before it delays a user-facing result that is ready: an operating limit, not a gate. Dependency work is verified twice, separately: its build and test closure, and the guard surface, which stops at overgodb and runrecord. A saving is the net recurring cost removed, after the replacement tests and their maintenance. A check retires only when its replacement covers the check's actual acceptance contract, whether it moves to the cycle or is deleted; the landing scorecard reports and never refuses, so it replaces no check. The gate writes all numbers; messages name causes, effects and what disappears.\n\nA step's verify fails before the change and passes after; a verify that already passes proves nothing, so a boundary is proved by the table row that fails today. Before a landing, what the gate refuses cheaply is run locally first: the claims check after any hand edit, the invariant tables, the rules' budget and exports, and the step's verify. A refusal found after the lanes costs an hour, and a retried landing rebuilds an identical gate binary.\n\nEach row's rationale carries four plain lines: Serves (the loop stage, or the model or capability it runs or trains), Disappears (the owner reused, the implementations deleted, the tests retired or kept), Evidence (the run and record it reads or produces, and who else reads that record), Batch (the lanes its diff reaches, whether it expires the guards, and whether it needs a media reconciliation: three independent effects, each checked against the diff).\n\nLanding speed is protected by observing it, not by a rule. Each structural boundary (a changed path's lanes, a package kept off the inference surface, a suite kept to the cycle) is pinned as an invariant row in one table per kind, never as a new test function or a snapshot of today's lists. At each periodic review the gate's measured lines in git log are read: the share of landings that reached no lane, lane minutes per landing, and executed versus cached package counts. A rise means a misplaced check or a new false reach, fixed by moving it and adding a table row. There are no time budgets or timeouts, no ratchet baselines, and no separate tracking subsystem.\n\nTraining research is measured at the lowest cost that answers the question, reusing what exists. Optimizer math stays on the device: host Muon on the tied embedding cost about 98 s a step, and moving it took a 540-step run from about 21 hours to 6 minutes. During training only scalars cross to the host (losses, norms, brake decisions), never weights or gradients per step. Reuse comes before acquiring: cached base losses keyed by the exact window plan, existing checkpoints, held-out sets and the verdict code, before any new dataset, pass or tool. An evaluation beats a training run, a norm beats a decomposition, and a one-time computation beats a per-step one. For a training rate question the order is: post-hoc tests on existing checkpoints, then the held-out brake from the training forward against cached base losses, then a per-layer relative step size, and per-direction spectral scaling last.",
   "lane": "master-lead",
   "items": [
+    {
+      "id": "inference-decode-gaps",
+      "title": "Close the measured decode and load gaps: Unlimited-OCR decode first",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "load",
+          "title": "Load a model in one pass: hash while uploading",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Owner analysis 2026-10-02: load is 21.7-31.1 s for the large models; the about 12 s re-hash on gemma-12B is an extrapolation, not a measurement. Measure first: a per-phase load breakdown (header, hash, read, upload, other) for gemma-12B, Qwen3.8-27B and E4B. Then the single-pass load: hash the bytes as they upload and refuse to serve on a mismatch, which keeps integrity (trusting a size and mtime memo instead was declined). Serves: inference (load-time). Study result 2026-10-03: the second pass exists (hash, then upload) and the hash dominates: SHA-256 runs at 2.0 GB/s in the loader and 2.75 GB/s at most as a single stream. Design, about 430 lines touched: claim the model's id from the persisted discovery memo as a hint, stream each shard once in file order hashing the buffers that upload (a reader goroutine and a hash goroutine; converted tensors accumulate then convert), compare each shard's id with its claim and refuse through the existing release path on a mismatch; tests tamper a raw tensor, a converted tensor, the header, padding and a second shard. Projected for gemma-12B: about 11-12 s today warm, 7.6 s single pass, floor 5.6 s. Going under the floor means verifying per-tensor digests in parallel, an identity-layer change. Prepared device measurement: OVERGO_CUDA_TEST=1 OVERGO_LOAD_STUDY_GGUF=\u003cgguf\u003e go test ./internal/inference -run '^TestZZLoadPhases$' (scratch load-wt). Decide after that measurement whether 4 s a load is worth 430 lines; the hash-buffer step is the cheap part."
+        },
+        {
+          "id": "bonsai",
+          "title": "Profile and reduce repeated scale/sign loads in the existing Q1 decode kernel",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Bonsai-27B Q1_0 decodes at 33.2 tok/s, about 13 percent of its bound: prefill is batched, decode is per-vector. Measure the decode step's kernel breakdown first, then a dequantize-in-register decode kernel that keeps each dot's order so outputs stay bit-identical and replay carries its evaluations. Serves: inference (throughput). Code study 2026-10-03 (scratchpad bonsai-decode.md; nothing run on the device): Bonsai-27B is qwen35, 64 blocks, hidden 5120; every matrix is Q1_0 (18 bytes per 128 elements, 3.78 GB), so a decode step reads 3.61 GB and the bandwidth bound is 276.7 tok/s: 33.17 tok/s is 12 percent. The step multiplies 25.6e9 elements, so instruction issue binds, not weight bandwidth. The decode path is the standard one (KV cache, replayed graph, one synchronization); Q1_0 has no q8-input entry (internal/cuda/executor/launch_linear_layout.go:1518-1523), so one column goes through mul_mat_q1_0_f32 (kernels/cuda/ops_f32.cu:5963-6016), one warp per row like bf16, but its loop handles one element per lane and reloads the block's scale and the sign byte each time: 23 instructions and 3 loads per element against 9.5 and 1.5 for bf16 (compiled host-side). Estimated 18-21 ms of the 30 ms step; the rest is a launch floor of 1,748 launches a step, 1,251 of them not matmuls (hypotheses until measured). Fix A is built as a kernel patch (scratchpad bonsai-fixA-kernel.patch, +66 -3 lines of ops_f32.cu, no Go change): the scale is read once per block with stepped addresses, the lane-to-column map and the fma order unchanged, so outputs are bit-identical by construction; 6.3 instructions and 2.25 loads per element; expected 39-68 tok/s. Golden capture (12 cases) and a profile test are written. Its evaluations are slow from the prefill's f16 expansion (ops_f32.cu:5672-5690), a separate lever, as is the launch floor. The verify is the pinned-bits test once the goldens are captured.\nLead correction 2026-10-03: Q1 GEMV already dequantizes in registers. Instruction counts and launch totals are screening hypotheses, not a device bottleneck measurement or proven speedup. Retain the prepared patch and old-output capture, but require current kernel timing before adoption; preserve existing GEMV/prefill references and exact continuation IDs. Decide single-pass loading only after the cheaper buffer repair is measured; defer the 430-line prototype if its total saving does not pay for identity/failure tests and maintenance."
+        },
+        {
+          "id": "breakdowns",
+          "title": "Measure where E4B and gemma-12B decode time goes, and whether the non-native fp8 variant still serves anything",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "gemma-4-E4B decodes at about 40 percent of its bound and gemma-4-12B fp8-native at about 50; kernel breakdowns name the next fix or close the gap as bandwidth-bound. gemma-4-12B-it-fp8 (non-native) is slower, heavier and slower to load than the native file at equal held-out quality (31.1 tok/s, 31.1 s, 22.5 GiB against 41.5, 22.6 s, 14.7 GiB; 0.4919 against 0.4926): ask the owner whether it still serves anything before spending device time on it. After the routed-expert fix Unlimited-OCR's routed layer is still 6.4 times the dense feed-forward of the same weight volume (0.94 ms against 0.15 ms); the warp-per-row shape would close that but reorders sums, so it changes MoE outputs and needs its evaluations re-run. Serves: inference (throughput)."
+        }
+      ]
+    },
+    {
+      "id": "capability-measurements",
+      "title": "Record the load phase of every capability the cycle measures",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "attempts",
+          "title": "Give the rows with no serving attempt a producer the cycle runs",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Six rows have no completed serving attempt. Fractale generation: cmd/validate/surfaces.go kindValidation has no generation case, so no cell. granite and nemotron transcription and webssl image-embedding: the command is bound and their verifications retain runnable requests, but the cell is current by its acceptance receipt, so nothing schedules recipe measure (one manual run fills them; validate-currency's every-cell cycle keeps them filled). Qwen3.8-27B and gemma-4-E4B projection: a projection capability has no executor, so recipe measure refuses it; its proof re-verifies and publishes no attempt, and E4B's producer publishes observations a gate depends on, which the scorecard excludes. Qwen2.5-0.5B training: trainingworkflow/heldout_run.go records no load phase where its sibling routes do. The verify is set per producer as each is built. 2026-10-03: the generation cell and the text held-out run's load phase land with step run-the-model. Left here: a measured producer for the two projection rows (design: about 60-80 lines in cmd/recipe reusing observeInference, verifiedCase and projectedExactRuntime; whether E4B qualifies is unverified), transcription throughput, training throughput and peak, and vqa's load.\nLead scope correction 2026-10-03: the fresh-operation/hash landing delivers none of the prepared token/decode reporting, generation producer or held-out load additions. Carry those exact obligations here with transcription/training throughput, projection producers and VQA load. Fresh performance must cite executed phase scope, not a recovered result or prompt-inclusive wall labeled as pure decode.\nCapability-run prerequisite carries successful scalar/session/VQA producer IDs; it supplies none of the remaining phase/token denominators, missing producers or VQA load measurements. Actual execution Operation is distinct from serving Operation; matching content Run IDs do not prove fresh execution. Those obligations remain here/source-environment."
+        }
+      ]
+    },
+    {
+      "id": "training-rate-per-layer",
+      "title": "Measure whether a per-step relative Muon rate transfers across models",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure whether a per-step relative Muon rate transfers across models",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram -run '^TestDerivedRateFineTunesMeasuredModels$' -count=1",
+          "rationale": "Owner proposal 2026-10-02: derive Muon's rate per layer from the layer, a per-step relative size rho*||W||/||U||, with a held-out brake (paired against the base's per-window loss) and no first-step line search (the 200-window sweep showed the short horizon favours the rate that later drifted). Measured: relative movement over 540 steps scales linearly with the rate; the good run moved matrices 0.8-1.4% (about 2.4e-5 per step), the old rate 6-10%; equal total movement is not equal outcome; 1-D norms and biases move 50-100x less relatively (tmp/relative_movement.go). On Qwen2.5-0.5B matrix weight scales differ at most 1.5x, so the per-layer rule cannot be told from the exponent there. Step: calibrate rho on 0.5B in the scratch sweep harness, then measure a second model; add its measured band as a row of TestDerivedRateFineTunesMeasuredModels; adopt the per-layer rule only if it transfers where the exponent does not; measure the 1-D tensors separately. Serves: train.\n\nPost-hoc evaluation 2026-10-02 (no training; the good run's change, held-out 56 records, host log loss; scratch train3-wt zz_projection_eval_test.go): base 2.5508 (accuracy 0.4936); full change 2.3038 (0.5143, 56/56 records improve); inside W's row and column spaces 2.3913 (65% of the gain); singular-value part 2.5496 (none); rotation part 2.3913; outside W's spaces only 2.2933 (0.5171, beats the full change); full change except q and o 2.2964; q and o only 2.4966. Paired, removing the q/o change: Hodges-Lehmann -0.0074 nats, block-bootstrap 95% [-0.0086, -0.0066], 55/56 records improve. Conclusions: the learning lives mostly in the rectangular layers and outside their current spaces, so the subspace-restricting spectral rules are dropped, and so is the singular-value-only rule; the square attention matrices' update, where weak directions moved 100-240x more than strong ones, slightly hurts in combination. Per layer kind the drifting run's excess was uniform (6.9-7.5x against a 7.35x rate), but within kinds q/k/v relative movement spreads up to 6x across layers. Next arms on the device, paired held-out log loss, replicated on a second model: plain Muon at parameters^-0.6; q and o at a damped relative step; spectral scaling on q and o only if damping helps. Arms 2026-10-03 (Qwen2.5-0.5B, 540 steps of 512 tokens, frozen lexical, the policy's rate 6.078e-06, scratch train5-wt TestZZQORateArms; a per-matrix rate scale on the device Muon step, not landed): plain held-out log loss 2.3042 (token accuracy 0.5144); q and o at a quarter of the rate 2.3004, paired against plain Hodges-Lehmann -0.0034 nats, block-bootstrap 95 percent [-0.0043, -0.0025], 47 of 56 records improve; q and o not trained (scale 1e-9) 2.2997, HL -0.0042 [-0.0054, -0.0034], 48 of 56. Token accuracy does not move (0.5143 to 0.5145). So the square attention matrices' update costs about 0.004 nats of the run's 0.25-nat gain, damping recovers most of it and not training them recovers all: there is nothing for a spectral rule on q and o to win here, and that arm is dropped. Remaining: replicate plain against untrained q and o on a second model (MiniCPM5-1B, a 1B Llama-shaped model with an untied head, ZZ_MODEL in the same harness) before any policy change; the candidate rule is the simplest one, leave q and o untrained when fine-tuning, which also shrinks the update."
+        }
+      ]
+    },
+    {
+      "id": "validate-currency",
+      "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Stage 2 of evaluation-replay/delete-selection (scratchpad delete-selection.md, measured 2026-10-02). What goes: surfaces.go except kindValidation (about -130), the Reuse/Unknown buckets and refusal cases of SelectValidation (-30), acceptedRecords.current and readAcceptedRecords down to grounding and benchmark record binding (-80), recordCurrent/judgeBound/boundKey (-60, a 12-line bindBenchmark keeps protocol, cost and -replay), guard_records.go (-79) with cmd/longform's latest-records verb (-60), media_receipt.go (-111; it runs a real-model go test inside every dry run, about 1-1.5 min per validate call, while the models lane runs the same acceptances every cycle), and the inventory's validated standing (-35): about -550 production lines in cmd/validate and -400 test lines. What it costs: every activated applicable cell runs every cycle, about 2h10 of blocking cells in steady state against today's mean of about 1h, plus less device time for the background fill. Cuts that bring it toward the bar: Unlimited-OCR decodes at 3.9 tok/s, under 1% of its bandwidth bound, and its guard alone takes 11m43 (finding 870a92db); one evaluate process per model for its blocking families saves about 8 min of fixed overhead (measure before adding code); the 9B hybrid training proof (22m05, same cmd/train route and code as the blocking 4B proof) could run in the background, which is decision nine-b-proof-background. Even with all three about 1h40 remains, since guards, serving and media have no cheaper form. Re-measure the steady-state every-cell cost from the first cycle after delete-selection lands and land this when it is within an hour of today's cycles, or on the owner's word. Hazard this row must close (cycle 6, 2026-10-03): a published scorecard labels every cell with the publishing commit, whatever commit its record ran at. A held-out cell that enters a baseline while its record is stale there (a retained contract first listed by new code, or a background fill's record made at the previous measured commit) is later re-measured and compared across a range wider than main..candidate, so drift main already holds withholds the candidate: gemma-4-12B-it-fp8-native's raw mmlu-pro baseline 0.285488697 was a record 115 runtime commits older than main. Re-acquiring every compared cell at the published commit (replay making that cheap) removes the case; until then a baseline cell's value is only as fresh as its record. Measured 2026-10-03, cycle 8 (from 53aef9219, after a kernel change moved every surface): 68 blocking cells re-acquired in about 75 minutes (05:13 to 06:28): 11 guards, 11 serving cells and the DNA smoke, 38 benchmark replays that all carried, 6 training proofs and 2 projection proofs; the 16 media cells were reused and measure in about 5 minutes by hand. So an every-cell cycle is about 80 minutes of cells, not the estimated 2h10: Unlimited-OCR's decode fix took its guard from 11m43 to about a minute, and replays carried in seconds. A cycle where nothing moved is 12 cells in about 6 minutes, so always-run still adds about 75 minutes, most of it the training proofs (the 9B proof alone about 22 minutes). Since d993c2b10 a cycle no longer holds the main checkout, so that time costs device time only, not landings."
+        }
+      ]
+    },
     {
       "id": "evidence-authority",
       "title": "Use checked evidence and explicit source and replay scope in reports",
@@ -19,25 +93,6 @@
           "status": "open",
           "verify": "go test ./internal/scorecard ./internal/evaluation ./internal/trainingworkflow ./cmd/validate",
           "rationale": "Serves: honest candidate/main comparison and reuse from actual producer/input/effect facts. Disappears: publishing HEAD as producer, generic raw/reproducible defaults for missing provenance, suite-only protocol joins and recipe-only serving comparison when replaced by their actual existing owners. Evidence: existing acceptedRecords, typed Cell/Contract, result/run/receipt and bracket owners preserve record/model/input/scorer/execution/environment/protocol identities and alternatives. Keep publication source distinct from producer, full/current/carried scope explicit, independently sufficient mutable external-input acceptance and valid unchanged-input reuse. Unknowns keep visible values but cannot earn compatible evidence.\nCurrent committed prerequisites: generic and specialized checked quality scope, native benchmark model/source/environment/workload/configuration qualification, strict same-producer training bracket pair IDs, and scorecard benchmark authority propagation are checked. Strict source/module scope is not cross-revision currency. b188 successful scalar/session/VQA Run content linkage is checked; it is not producing source/environment or fresh Operation. ce751528 terminal-run repairs failed/close-error handoff and refused publication through existing owners; required gate, exact media source chain and unchanged numerical/recovery/acceptance passed. Output identity and peak unchanged; single retained timing samples establish no causal gain.\nRemaining: actual producing source/environment and scope-dependent currency for serving, checked held-out and benchmark evidence; full case/scorer/execution/protocol identity and alternatives through real reporting/reuse consumers. Workflow NewRun remains unbound; process/go is not device/peer producer environment. Actual execution Operation, partial phases/work/token denominators and missing capability producers remain connected to attempts. Freeze concrete incompatible-source/environment and two-protocol failing cases before adopting further policy; broad host verifier remains provisional, and unknown build/input/effect dependencies retain broader required coverage. Preserve recovery, cancellation/release on actual completion, authorization, numerical and fresh performance/artifact requirements. Batch true lane/test/guard/media reach; no manufactured metadata, new ledger, repeated full census or mandatory SQA gate. Count production/tests, evidence processing, analysis, instrumentation, gate and maintenance; profile before speculative kernels or large loader changes."
-        }
-      ]
-    },
-    {
-      "id": "capability-measurements",
-      "title": "Record the load phase of every capability the cycle measures",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 406,
-        "reason": "the capability runtime times its two load sites and carries the wall in its measurement, the driver keeps a process-wide current and peak, recipe measure records both, and the scorecard reads a sampled zero as measured; the fresh-operation context and hasher Reader-only boundary add bounded correctness plumbing; no speedup or simplification claim for fresh measurements"
-      },
-      "steps": [
-        {
-          "id": "attempts",
-          "title": "Give the rows with no serving attempt a producer the cycle runs",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Six rows have no completed serving attempt. Fractale generation: cmd/validate/surfaces.go kindValidation has no generation case, so no cell. granite and nemotron transcription and webssl image-embedding: the command is bound and their verifications retain runnable requests, but the cell is current by its acceptance receipt, so nothing schedules recipe measure (one manual run fills them; validate-currency's every-cell cycle keeps them filled). Qwen3.8-27B and gemma-4-E4B projection: a projection capability has no executor, so recipe measure refuses it; its proof re-verifies and publishes no attempt, and E4B's producer publishes observations a gate depends on, which the scorecard excludes. Qwen2.5-0.5B training: trainingworkflow/heldout_run.go records no load phase where its sibling routes do. The verify is set per producer as each is built. 2026-10-03: the generation cell and the text held-out run's load phase land with step run-the-model. Left here: a measured producer for the two projection rows (design: about 60-80 lines in cmd/recipe reusing observeInference, verifiedCase and projectedExactRuntime; whether E4B qualifies is unverified), transcription throughput, training throughput and peak, and vqa's load.\nLead scope correction 2026-10-03: the fresh-operation/hash landing delivers none of the prepared token/decode reporting, generation producer or held-out load additions. Carry those exact obligations here with transcription/training throughput, projection producers and VQA load. Fresh performance must cite executed phase scope, not a recovered result or prompt-inclusive wall labeled as pure decode.\nCapability-run prerequisite carries successful scalar/session/VQA producer IDs; it supplies none of the remaining phase/token denominators, missing producers or VQA load measurements. Actual execution Operation is distinct from serving Operation; matching content Run IDs do not prove fresh execution. Those obligations remain here/source-environment."
         }
       ]
     },
@@ -74,84 +129,6 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "Serves: robust portable inference/training and honest verification (owner request; SQA-084). Disappears: unsupported policy literals and mechanisms only when actual consumer evidence establishes a simpler existing owner; fixed ABI/format/model contracts and authorized goals remain. Evidence: Inspect bounded touched model/runtime/kernel and GUI/API/config owners for material hardcoded dimensions, geometry/epsilon/scaling/thresholds and name/string dispatch. Prefer declared model/typed capability/configuration/parsed command facts; retain exact external ABI, file format, public route and pinned reference conventions with source rationale. Derive unsupported model facts or remove parallel classification; no name-fragment/regex policy and no invented universal literal inventory. Audit source/AST/types/parsed commands in bounded owner groups; count analysis, replacement code, fixtures and maintenance. Provisional status verifier is not behavioral proof: before code adoption replace it with the concrete existing owner fixture and actual failing case, then compare identical contracts and total costs; a justified retain/no-change result records derivation and reconsideration in the current plan/evidence. No new analyzer/literal ban, recurring whole-repo census, ledger or separate audit report. Batch: each adopted fix declares true build/test/effect reach and lane/guard/input invalidation; no speculative parallel model work or automatic acceptance reduction."
-        }
-      ]
-    },
-    {
-      "id": "training-rate-per-layer",
-      "title": "Measure whether a per-step relative Muon rate transfers across models",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure whether a per-step relative Muon rate transfers across models",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram -run '^TestDerivedRateFineTunesMeasuredModels$' -count=1",
-          "rationale": "Owner proposal 2026-10-02: derive Muon's rate per layer from the layer, a per-step relative size rho*||W||/||U||, with a held-out brake (paired against the base's per-window loss) and no first-step line search (the 200-window sweep showed the short horizon favours the rate that later drifted). Measured: relative movement over 540 steps scales linearly with the rate; the good run moved matrices 0.8-1.4% (about 2.4e-5 per step), the old rate 6-10%; equal total movement is not equal outcome; 1-D norms and biases move 50-100x less relatively (tmp/relative_movement.go). On Qwen2.5-0.5B matrix weight scales differ at most 1.5x, so the per-layer rule cannot be told from the exponent there. Step: calibrate rho on 0.5B in the scratch sweep harness, then measure a second model; add its measured band as a row of TestDerivedRateFineTunesMeasuredModels; adopt the per-layer rule only if it transfers where the exponent does not; measure the 1-D tensors separately. Serves: train.\n\nPost-hoc evaluation 2026-10-02 (no training; the good run's change, held-out 56 records, host log loss; scratch train3-wt zz_projection_eval_test.go): base 2.5508 (accuracy 0.4936); full change 2.3038 (0.5143, 56/56 records improve); inside W's row and column spaces 2.3913 (65% of the gain); singular-value part 2.5496 (none); rotation part 2.3913; outside W's spaces only 2.2933 (0.5171, beats the full change); full change except q and o 2.2964; q and o only 2.4966. Paired, removing the q/o change: Hodges-Lehmann -0.0074 nats, block-bootstrap 95% [-0.0086, -0.0066], 55/56 records improve. Conclusions: the learning lives mostly in the rectangular layers and outside their current spaces, so the subspace-restricting spectral rules are dropped, and so is the singular-value-only rule; the square attention matrices' update, where weak directions moved 100-240x more than strong ones, slightly hurts in combination. Per layer kind the drifting run's excess was uniform (6.9-7.5x against a 7.35x rate), but within kinds q/k/v relative movement spreads up to 6x across layers. Next arms on the device, paired held-out log loss, replicated on a second model: plain Muon at parameters^-0.6; q and o at a damped relative step; spectral scaling on q and o only if damping helps. Arms 2026-10-03 (Qwen2.5-0.5B, 540 steps of 512 tokens, frozen lexical, the policy's rate 6.078e-06, scratch train5-wt TestZZQORateArms; a per-matrix rate scale on the device Muon step, not landed): plain held-out log loss 2.3042 (token accuracy 0.5144); q and o at a quarter of the rate 2.3004, paired against plain Hodges-Lehmann -0.0034 nats, block-bootstrap 95 percent [-0.0043, -0.0025], 47 of 56 records improve; q and o not trained (scale 1e-9) 2.2997, HL -0.0042 [-0.0054, -0.0034], 48 of 56. Token accuracy does not move (0.5143 to 0.5145). So the square attention matrices' update costs about 0.004 nats of the run's 0.25-nat gain, damping recovers most of it and not training them recovers all: there is nothing for a spectral rule on q and o to win here, and that arm is dropped. Remaining: replicate plain against untrained q and o on a second model (MiniCPM5-1B, a 1B Llama-shaped model with an untied head, ZZ_MODEL in the same harness) before any policy change; the candidate rule is the simplest one, leave q and o untrained when fine-tuning, which also shrinks the update."
-        }
-      ]
-    },
-    {
-      "id": "inference-decode-gaps",
-      "title": "Close the measured decode and load gaps: Unlimited-OCR decode first",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 645,
-        "reason": "the routed-expert node becomes three launches over a per-token scratch with token grouping (launch_moe.go, the scratch reservation in executor.go) and the loader keeps rank-3 bf16 expert banks raw a layer at a time (runner_weights.go); bought: Unlimited-OCR decode 3.94 to 88.2 tok/s and 4.5 GiB less device memory at identical outputs"
-      },
-      "steps": [
-        {
-          "id": "load",
-          "title": "Load a model in one pass: hash while uploading",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner analysis 2026-10-02: load is 21.7-31.1 s for the large models; the about 12 s re-hash on gemma-12B is an extrapolation, not a measurement. Measure first: a per-phase load breakdown (header, hash, read, upload, other) for gemma-12B, Qwen3.8-27B and E4B. Then the single-pass load: hash the bytes as they upload and refuse to serve on a mismatch, which keeps integrity (trusting a size and mtime memo instead was declined). Serves: inference (load-time). Study result 2026-10-03: the second pass exists (hash, then upload) and the hash dominates: SHA-256 runs at 2.0 GB/s in the loader and 2.75 GB/s at most as a single stream. Design, about 430 lines touched: claim the model's id from the persisted discovery memo as a hint, stream each shard once in file order hashing the buffers that upload (a reader goroutine and a hash goroutine; converted tensors accumulate then convert), compare each shard's id with its claim and refuse through the existing release path on a mismatch; tests tamper a raw tensor, a converted tensor, the header, padding and a second shard. Projected for gemma-12B: about 11-12 s today warm, 7.6 s single pass, floor 5.6 s. Going under the floor means verifying per-tensor digests in parallel, an identity-layer change. Prepared device measurement: OVERGO_CUDA_TEST=1 OVERGO_LOAD_STUDY_GGUF=\u003cgguf\u003e go test ./internal/inference -run '^TestZZLoadPhases$' (scratch load-wt). Decide after that measurement whether 4 s a load is worth 430 lines; the hash-buffer step is the cheap part."
-        },
-        {
-          "id": "bonsai",
-          "title": "Profile and reduce repeated scale/sign loads in the existing Q1 decode kernel",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Bonsai-27B Q1_0 decodes at 33.2 tok/s, about 13 percent of its bound: prefill is batched, decode is per-vector. Measure the decode step's kernel breakdown first, then a dequantize-in-register decode kernel that keeps each dot's order so outputs stay bit-identical and replay carries its evaluations. Serves: inference (throughput). Code study 2026-10-03 (scratchpad bonsai-decode.md; nothing run on the device): Bonsai-27B is qwen35, 64 blocks, hidden 5120; every matrix is Q1_0 (18 bytes per 128 elements, 3.78 GB), so a decode step reads 3.61 GB and the bandwidth bound is 276.7 tok/s: 33.17 tok/s is 12 percent. The step multiplies 25.6e9 elements, so instruction issue binds, not weight bandwidth. The decode path is the standard one (KV cache, replayed graph, one synchronization); Q1_0 has no q8-input entry (internal/cuda/executor/launch_linear_layout.go:1518-1523), so one column goes through mul_mat_q1_0_f32 (kernels/cuda/ops_f32.cu:5963-6016), one warp per row like bf16, but its loop handles one element per lane and reloads the block's scale and the sign byte each time: 23 instructions and 3 loads per element against 9.5 and 1.5 for bf16 (compiled host-side). Estimated 18-21 ms of the 30 ms step; the rest is a launch floor of 1,748 launches a step, 1,251 of them not matmuls (hypotheses until measured). Fix A is built as a kernel patch (scratchpad bonsai-fixA-kernel.patch, +66 -3 lines of ops_f32.cu, no Go change): the scale is read once per block with stepped addresses, the lane-to-column map and the fma order unchanged, so outputs are bit-identical by construction; 6.3 instructions and 2.25 loads per element; expected 39-68 tok/s. Golden capture (12 cases) and a profile test are written. Its evaluations are slow from the prefill's f16 expansion (ops_f32.cu:5672-5690), a separate lever, as is the launch floor. The verify is the pinned-bits test once the goldens are captured.\nLead correction 2026-10-03: Q1 GEMV already dequantizes in registers. Instruction counts and launch totals are screening hypotheses, not a device bottleneck measurement or proven speedup. Retain the prepared patch and old-output capture, but require current kernel timing before adoption; preserve existing GEMV/prefill references and exact continuation IDs. Decide single-pass loading only after the cheaper buffer repair is measured; defer the 430-line prototype if its total saving does not pay for identity/failure tests and maintenance."
-        },
-        {
-          "id": "breakdowns",
-          "title": "Measure where E4B and gemma-12B decode time goes, and whether the non-native fp8 variant still serves anything",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "gemma-4-E4B decodes at about 40 percent of its bound and gemma-4-12B fp8-native at about 50; kernel breakdowns name the next fix or close the gap as bandwidth-bound. gemma-4-12B-it-fp8 (non-native) is slower, heavier and slower to load than the native file at equal held-out quality (31.1 tok/s, 31.1 s, 22.5 GiB against 41.5, 22.6 s, 14.7 GiB; 0.4919 against 0.4926): ask the owner whether it still serves anything before spending device time on it. After the routed-expert fix Unlimited-OCR's routed layer is still 6.4 times the dense feed-forward of the same weight volume (0.94 ms against 0.15 ms); the warp-per-row shape would close that but reorders sums, so it changes MoE outputs and needs its evaluations re-run. Serves: inference (throughput)."
-        }
-      ]
-    },
-    {
-      "id": "validate-currency",
-      "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete validate's remaining per-cell currency once re-acquiring every cell is cheap",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Stage 2 of evaluation-replay/delete-selection (scratchpad delete-selection.md, measured 2026-10-02). What goes: surfaces.go except kindValidation (about -130), the Reuse/Unknown buckets and refusal cases of SelectValidation (-30), acceptedRecords.current and readAcceptedRecords down to grounding and benchmark record binding (-80), recordCurrent/judgeBound/boundKey (-60, a 12-line bindBenchmark keeps protocol, cost and -replay), guard_records.go (-79) with cmd/longform's latest-records verb (-60), media_receipt.go (-111; it runs a real-model go test inside every dry run, about 1-1.5 min per validate call, while the models lane runs the same acceptances every cycle), and the inventory's validated standing (-35): about -550 production lines in cmd/validate and -400 test lines. What it costs: every activated applicable cell runs every cycle, about 2h10 of blocking cells in steady state against today's mean of about 1h, plus less device time for the background fill. Cuts that bring it toward the bar: Unlimited-OCR decodes at 3.9 tok/s, under 1% of its bandwidth bound, and its guard alone takes 11m43 (finding 870a92db); one evaluate process per model for its blocking families saves about 8 min of fixed overhead (measure before adding code); the 9B hybrid training proof (22m05, same cmd/train route and code as the blocking 4B proof) could run in the background, which is decision nine-b-proof-background. Even with all three about 1h40 remains, since guards, serving and media have no cheaper form. Re-measure the steady-state every-cell cost from the first cycle after delete-selection lands and land this when it is within an hour of today's cycles, or on the owner's word. Hazard this row must close (cycle 6, 2026-10-03): a published scorecard labels every cell with the publishing commit, whatever commit its record ran at. A held-out cell that enters a baseline while its record is stale there (a retained contract first listed by new code, or a background fill's record made at the previous measured commit) is later re-measured and compared across a range wider than main..candidate, so drift main already holds withholds the candidate: gemma-4-12B-it-fp8-native's raw mmlu-pro baseline 0.285488697 was a record 115 runtime commits older than main. Re-acquiring every compared cell at the published commit (replay making that cheap) removes the case; until then a baseline cell's value is only as fresh as its record. Measured 2026-10-03, cycle 8 (from 53aef9219, after a kernel change moved every surface): 68 blocking cells re-acquired in about 75 minutes (05:13 to 06:28): 11 guards, 11 serving cells and the DNA smoke, 38 benchmark replays that all carried, 6 training proofs and 2 projection proofs; the 16 media cells were reused and measure in about 5 minutes by hand. So an every-cell cycle is about 80 minutes of cells, not the estimated 2h10: Unlimited-OCR's decode fix took its guard from 11m43 to about a minute, and replays carried in seconds. A cycle where nothing moved is 12 cells in about 6 minutes, so always-run still adds about 75 minutes, most of it the training proofs (the 9B proof alone about 22 minutes). Since d993c2b10 a cycle no longer holds the main checkout, so that time costs device time only, not landings."
-        }
-      ]
-    },
-    {
-      "id": "surface-without-capability-tables",
-      "title": "Narrow the inference surface one responsibility at a time",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "capability-tables",
-          "title": "Keep non-text capability edits out of the inference surface",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
-          "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not. Re-measure 2026-09-27 after gate-small-cutover: the gate's own records drive most store growth and evidence churn, so this row may no longer be needed.\n\nServes: loop speed. Disappears: guard expirations caused by non-text edits, so fewer hour-long landings. Evidence: inferencesurface.Moves on each landing's diff. Batch: surface (the last one it causes).\n\nLanes (expected; the gate reads them from the diff): all.\n\nRe-scoped 2026-09-30 (owner review): narrow the surface incrementally, one concrete responsibility per change, each moved to its existing owner:\n- composition's graft training;\n- densecausal's training half;\n- modelrecipe's dataset responsibility, to dataset;\n- the capability tables.\nEach change verifies three things separately: preserved behaviour (its tests), the build and test closure, and the surface invalidation (inferencesurface.Moves on its diff). Guards are re-acquired once after the last of a run of these. Measured 2026-09-30 (change 1 built, graft training moved to trainingworkflow; patch surface1.patch in the master-lead scratchpad): it takes only capabilityruntime and jsonabbrev out of the closure (69 to 67 packages). densecausal, trainingprogram and trainingdata stay because composition/chain.go, the Tier-0 chain probe, uses densecausal's forward half. So change 2 is the chain probe, not densecausal's training half: moving it to its owner drops 8 more packages (agenttool, densecausal, devicemath, hfbpe, operation, trainingdata, trainingprogram, workflowruntime). Moving candidate realization too drops bridgetrain, hostoptimizer and optimizer. Then modelrecipe's dataset responsibility and the capability tables. runrecord/generation.go:59's comment still names composition.RecordViability; fix it in the batch that reaches thoughtbank and integration anyway.\n\nMeasured 2026-09-30, not landed (patch surface5.patch in the master-lead scratchpad):\n- In September, 8 of 153 surface moves came only through modelrecipe's capability tables. RAE 9f5ea65be, the linear entries dde56a6a2 and e7ee897a9, speech-assemble 674f096ee, VQA 1a2da932b, and the audio builders a2df8940b, d68490754 and 6d85fc6b6. Each cost a guard re-acquisition.\n- A cut is blocked because candidate_recipe_derivation.go (production code in modelrecipe) calls CapabilityDefinition, and many binaries link modelrecipe without linking mediacapability. So moving a table out needs either registration at init in the owner package, or the 79-file split.\n- The built cut registers only RAE's image-gen modules from internal/rae at init (+38 nodes). It covers 1 of 7 generation families, and it adds a second way to declare a capability beside the tables. That is not landed, per the owner's subtraction-first review.\n- Options with costs:\n  (1) Every image and video family through one registration seam: about 45 files, including pinned media paths that need reviewed deltas (latentimage and sensenovarecipe runtime_cuda_windows.go, latentvideo production.go, diffusionimage and oscillatorimage runtime.go, sensenovarecipe activate.go).\n  (2) A task-keyed seam for linear capabilities: image embedding is about 40 lines; forecast and generation fixtures hit import cycles in 12 test packages.\n  (3) Audio builders: renames in about 21 files, no pinned paths.\n  (4) New tasks stay on the surface through recipe/schema.go and recipecontract/modality.go whatever is done.\n- Recommendation: take this step only as (1) plus (3) in one registration mechanism that replaces the tables, not beside them, when the next non-text capability lands anyway. Until then, the 8 moves a month cost guard re-acquisitions that are batched once per run."
         }
       ]
     },
@@ -231,7 +208,10 @@
           "title": "Measure generation's unmeasured cells",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-generation",
-          "rationale": "- Fractale-350M-base first-output: no benchmark time to first token and no serving prefill sample\n- Fractale-350M-base throughput: no benchmark decode rate and no served decode phase with output tokens\n- Fractale-350M-base held-out-quality: no evaluation of a derived benchmark suite\n- Fractale-350M-base failure-rate: no completed serving attempts recorded\n- Fractale-350M-base load-time: no benchmark load time and no recorded load phase\n- Fractale-350M-base peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+          "rationale": "- Fractale-350M-base first-output: no benchmark time to first token and no serving prefill sample\n- Fractale-350M-base throughput: no benchmark decode rate and no served decode phase with output tokens\n- Fractale-350M-base held-out-quality: no evaluation of a derived benchmark suite\n- Fractale-350M-base failure-rate: no completed serving attempts recorded\n- Fractale-350M-base load-time: no benchmark load time and no recorded load phase\n- Fractale-350M-base peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline.",
+          "depends_on": [
+            "capability-measurements/attempts"
+          ]
         }
       ]
     },
@@ -246,7 +226,10 @@
           "title": "Measure projection's unmeasured cells",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-projection",
-          "rationale": "- Qwen3.8-27B first-output: no benchmark time to first token and no serving prefill sample\n- Qwen3.8-27B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.8-27B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen3.8-27B failure-rate: no completed serving attempts recorded\n- Qwen3.8-27B load-time: no benchmark load time and no recorded load phase\n- Qwen3.8-27B peak-device-memory: no benchmark or serving peak device memory\n- gemma-4-E4B-it first-output: no benchmark time to first token and no serving prefill sample\n- gemma-4-E4B-it throughput: no benchmark decode rate and no served decode phase with output tokens\n- gemma-4-E4B-it held-out-quality: no evaluation of a derived benchmark suite\n- gemma-4-E4B-it failure-rate: no completed serving attempts recorded\n- gemma-4-E4B-it load-time: no benchmark load time and no recorded load phase\n- gemma-4-E4B-it peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+          "rationale": "- Qwen3.8-27B first-output: no benchmark time to first token and no serving prefill sample\n- Qwen3.8-27B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.8-27B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen3.8-27B failure-rate: no completed serving attempts recorded\n- Qwen3.8-27B load-time: no benchmark load time and no recorded load phase\n- Qwen3.8-27B peak-device-memory: no benchmark or serving peak device memory\n- gemma-4-E4B-it first-output: no benchmark time to first token and no serving prefill sample\n- gemma-4-E4B-it throughput: no benchmark decode rate and no served decode phase with output tokens\n- gemma-4-E4B-it held-out-quality: no evaluation of a derived benchmark suite\n- gemma-4-E4B-it failure-rate: no completed serving attempts recorded\n- gemma-4-E4B-it load-time: no benchmark load time and no recorded load phase\n- gemma-4-E4B-it peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline.",
+          "depends_on": [
+            "capability-measurements/attempts"
+          ]
         }
       ]
     },
@@ -261,7 +244,10 @@
           "title": "Measure seq2seq's unmeasured cells",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-seq2seq",
-          "rationale": "- needle first-output: no benchmark time to first token and no serving prefill sample\n- needle throughput: no benchmark decode rate and no served decode phase with output tokens\n- needle held-out-quality: no evaluation of a derived benchmark suite\n- needle failure-rate: no completed serving attempts recorded\n- needle load-time: no benchmark load time and no recorded load phase\n- needle peak-device-memory: no benchmark or serving peak device memory\n- needle setup-steps: the lifecycle chain names an absent event\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+          "rationale": "- needle first-output: no benchmark time to first token and no serving prefill sample\n- needle throughput: no benchmark decode rate and no served decode phase with output tokens\n- needle held-out-quality: no evaluation of a derived benchmark suite\n- needle failure-rate: no completed serving attempts recorded\n- needle load-time: no benchmark load time and no recorded load phase\n- needle peak-device-memory: no benchmark or serving peak device memory\n- needle setup-steps: the lifecycle chain names an absent event\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline.",
+          "depends_on": [
+            "capability-measurements/attempts"
+          ]
         }
       ]
     },
@@ -276,7 +262,10 @@
           "title": "Measure training's unmeasured cells",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- Hy-Embodied-RxBrain-1.0 held-out-quality: no evaluation of a derived benchmark suite\n- Hy-Embodied-RxBrain-1.0 peak-device-memory: training sessions record device-wide memory use, not their own peak\n- LiveEdit throughput: no benchmark decode rate and no served decode phase with output tokens\n- LiveEdit held-out-quality: no evaluation of a derived benchmark suite\n- LiveEdit peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Qwen2.5-0.5B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen2.5-0.5B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen2.5-0.5B peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Qwen3.5-4B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-4B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen3.5-4B peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Qwen3.5-9B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-9B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen3.5-9B peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Wan2.1-T2V-1.3B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Wan2.1-T2V-1.3B held-out-quality: no evaluation of a derived benchmark suite\n- Wan2.1-T2V-1.3B peak-device-memory: training sessions record device-wide memory use, not their own peak\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- Hy-Embodied-RxBrain-1.0 held-out-quality: no evaluation of a derived benchmark suite\n- Hy-Embodied-RxBrain-1.0 peak-device-memory: training sessions record device-wide memory use, not their own peak\n- LiveEdit throughput: no benchmark decode rate and no served decode phase with output tokens\n- LiveEdit held-out-quality: no evaluation of a derived benchmark suite\n- LiveEdit peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Qwen2.5-0.5B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen2.5-0.5B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen2.5-0.5B peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Qwen3.5-4B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-4B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen3.5-4B peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Qwen3.5-9B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-9B held-out-quality: no evaluation of a derived benchmark suite\n- Qwen3.5-9B peak-device-memory: training sessions record device-wide memory use, not their own peak\n- Wan2.1-T2V-1.3B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Wan2.1-T2V-1.3B held-out-quality: no evaluation of a derived benchmark suite\n- Wan2.1-T2V-1.3B peak-device-memory: training sessions record device-wide memory use, not their own peak\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline.",
+          "depends_on": [
+            "capability-measurements/attempts"
+          ]
         }
       ]
     },
@@ -285,17 +274,16 @@
       "title": "Measure transcription's unmeasured cells",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 320,
-        "reason": "the full speech-recognition recipe compile in modelrecipe and the transcription capability's definer that feeds it from the reviewed declarations"
-      },
       "steps": [
         {
           "id": "do",
           "title": "Measure transcription's unmeasured cells",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-transcription",
-          "rationale": "- granite-speech-5.0-470m-turboctc first-output: no benchmark time to first token and no serving prefill sample\n- granite-speech-5.0-470m-turboctc throughput: no benchmark decode rate and no served decode phase with output tokens\n- granite-speech-5.0-470m-turboctc held-out-quality: no evaluation of a derived benchmark suite\n- granite-speech-5.0-470m-turboctc failure-rate: no completed serving attempts recorded\n- granite-speech-5.0-470m-turboctc load-time: no benchmark load time and no recorded load phase\n- granite-speech-5.0-470m-turboctc peak-device-memory: no benchmark or serving peak device memory\n- nemotron-3.5-asr-streaming-0.6b first-output: no benchmark time to first token and no serving prefill sample\n- nemotron-3.5-asr-streaming-0.6b throughput: no benchmark decode rate and no served decode phase with output tokens\n- nemotron-3.5-asr-streaming-0.6b held-out-quality: no evaluation of a derived benchmark suite\n- nemotron-3.5-asr-streaming-0.6b failure-rate: no completed serving attempts recorded\n- nemotron-3.5-asr-streaming-0.6b load-time: no benchmark load time and no recorded load phase\n- nemotron-3.5-asr-streaming-0.6b peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+          "rationale": "- granite-speech-5.0-470m-turboctc first-output: no benchmark time to first token and no serving prefill sample\n- granite-speech-5.0-470m-turboctc throughput: no benchmark decode rate and no served decode phase with output tokens\n- granite-speech-5.0-470m-turboctc held-out-quality: no evaluation of a derived benchmark suite\n- granite-speech-5.0-470m-turboctc failure-rate: no completed serving attempts recorded\n- granite-speech-5.0-470m-turboctc load-time: no benchmark load time and no recorded load phase\n- granite-speech-5.0-470m-turboctc peak-device-memory: no benchmark or serving peak device memory\n- nemotron-3.5-asr-streaming-0.6b first-output: no benchmark time to first token and no serving prefill sample\n- nemotron-3.5-asr-streaming-0.6b throughput: no benchmark decode rate and no served decode phase with output tokens\n- nemotron-3.5-asr-streaming-0.6b held-out-quality: no evaluation of a derived benchmark suite\n- nemotron-3.5-asr-streaming-0.6b failure-rate: no completed serving attempts recorded\n- nemotron-3.5-asr-streaming-0.6b load-time: no benchmark load time and no recorded load phase\n- nemotron-3.5-asr-streaming-0.6b peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline.",
+          "depends_on": [
+            "capability-measurements/attempts"
+          ]
         }
       ]
     },
@@ -310,7 +298,10 @@
           "title": "Measure vqa's unmeasured cells",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-vqa",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 first-output: no benchmark time to first token and no serving prefill sample\n- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- Hy-Embodied-RxBrain-1.0 held-out-quality: no evaluation of a derived benchmark suite\n- Hy-Embodied-RxBrain-1.0 failure-rate: no completed serving attempts recorded\n- Hy-Embodied-RxBrain-1.0 load-time: no benchmark load time and no recorded load phase\n- Hy-Embodied-RxBrain-1.0 peak-device-memory: no benchmark or serving peak device memory\n- Hy-Embodied-RxBrain-1.0 setup-steps: the lifecycle chain names an absent event\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+          "rationale": "- Hy-Embodied-RxBrain-1.0 first-output: no benchmark time to first token and no serving prefill sample\n- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- Hy-Embodied-RxBrain-1.0 held-out-quality: no evaluation of a derived benchmark suite\n- Hy-Embodied-RxBrain-1.0 failure-rate: no completed serving attempts recorded\n- Hy-Embodied-RxBrain-1.0 load-time: no benchmark load time and no recorded load phase\n- Hy-Embodied-RxBrain-1.0 peak-device-memory: no benchmark or serving peak device memory\n- Hy-Embodied-RxBrain-1.0 setup-steps: the lifecycle chain names an absent event\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20260930T121036Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline.",
+          "depends_on": [
+            "capability-measurements/attempts"
+          ]
         }
       ]
     },
@@ -342,278 +333,12 @@
           "verify": "go run ./cmd/gate -preflight \u0026\u0026 go run ./cmd/benchmark-report -check \u0026\u0026 go run ./cmd/validate -claims",
           "rationale": "Run final host, race, device, browser and release checks once, reusing only proven-independent evidence. Resolve high-priority findings; record dispositions and reopen triggers for deferred capability. Reconcile census, baseline and reports at the closing commit and bind the census. The operator stop stays until the operator resumes.",
           "depends_on": [
-            "plan-tightened/do",
-            "timesfm3-native-declaration/do",
-            "surface-without-capability-tables/do",
-            "rae-generation-path/do",
-            "automation-harness-surface-remainder/do",
-            "surface-move-preflight/do",
-            "reviewed-delta-registry/do",
-            "skipped-fixture-classification/do",
-            "generated-doc-write-under-readers/do",
-            "automation-land-reports-lane-obligation/do",
-            "automation-review-suite-cost-regression/do",
-            "loop-markers-runtime-directory/do",
-            "surface-aware-dispatch/do",
-            "row-scope-budget-surface/do",
-            "store-benchmark-record-redundancy/do",
-            "decode-attention-per-key-cost/do",
-            "simplify-prefill-paths/do",
-            "simplify-execution-core/do",
             "speech-document-admission/do",
-            "plan-reranked/do",
-            "device-measurement-deadlock/do",
-            "registry-document-class/do",
-            "device-holders-rescoped/do",
-            "suite-cost-rescoped/do",
-            "decode-check-on-device/do",
-            "surface-covers-embedded-inputs/do",
-            "replan-consolidation/do",
-            "merge-ff9acf5f2e2c/do",
-            "browser-waits-fail-fast/do",
-            "landing-one-path/do",
-            "consolidation-inventory/do",
-            "inference-inputs-one-definition/do",
-            "one-claim-primitive/do",
-            "device-claim-everywhere/do",
-            "replan-review-feedback/do",
-            "verifier-one-parser/do",
-            "fsatomic-release-not-exit/do",
-            "pack-index-bounds/do",
-            "preflight-gate-one-execution/do",
-            "pack-bounded-streaming/do",
-            "replan-store-simplification/do",
-            "store-queries-bounded/do",
-            "store-bare-descriptor-fill/do",
-            "merge-38f8a354ac0f/do",
-            "file-gui-merge-row/do",
-            "merge-ba5c27d0b64f/do",
-            "file-colibri2-merge-row/do",
-            "claim-renewal/do",
-            "file-guard-coverage-check/do",
-            "paths-candidate-measurement/do",
-            "pack-streams-members/do",
-            "stored-analysis-sheds-impact-lists/do",
-            "webui-refusal-race/do",
-            "modern-census-by-package/do",
-            "plan-unknowns-by-digest/do",
-            "budget-from-measured-growth/do",
-            "store-open-decode-cost/do",
-            "retire-plan-edit-publish/do",
-            "land-row-from-mixed-tree/do",
-            "file-measured-rescopes/do",
-            "delete-sft-evaluation-targets/do",
-            "delete-test-only-exports/do",
-            "retire-unreferenced-commands/do",
-            "env-gated-tests-run-or-go/do",
-            "move-test-only-oracles/do",
-            "delete-hypervector-index/do",
-            "move-test-only-entry-points/do",
-            "move-test-only-device-entry-points/do",
-            "plan-refactor/do",
-            "file-exports-closing-check/do",
-            "impact-sees-deleted-inputs/do",
-            "closure-ledger-one-step/do",
-            "plan-retire-in-one-landing/do",
-            "media-delta-one-command/do",
-            "census-split-one-pass/do",
-            "loophook-stale-build/do",
-            "release-claim-by-item/do",
-            "sqa-automation-replan/do",
-            "consumer-graph-private-islands/do",
-            "sqa-followup-replan/do",
-            "wire-sft-evaluation/do",
-            "e4b-full-parameter-trainer/do",
-            "restore-sft-evaluation-targets/do",
-            "objective-split-at-publication/do",
-            "heldout-tabular-slice/do",
-            "heldout-text-slice/do",
-            "heldout-approval-authority/do",
-            "split-record-identities/do",
-            "merge-79180f0ca8b9/do",
-            "gui-merge-replan/do",
-            "guards-at-e3c53b28/do",
-            "text-objective-command/do",
-            "automation-command-route-tables/do",
-            "models-resolve-by-identity/do",
-            "merge-f4aa36bccbec/do",
-            "audio-merge-replan/do",
-            "merge-ab335708de08/do",
-            "colibri2-merge-replan/do",
-            "colibri2-merge-budget/do",
             "vae-latent-campaign/do",
             "merge-e1ee1326fe2b/do",
-            "vae-merge-replan/do",
-            "vae-codec-stream-port/do",
-            "vae-port-replan/do",
-            "hidden-detached-consoles/do",
-            "hidden-console-replan/do",
-            "automation-merge-one-landing/do",
-            "automation-master-owned-ratchets/do",
-            "automation-lane-consumer-first/do",
-            "automation-hermetic-test-env/do",
-            "lessons-replan/do",
-            "automation-gate-git-lock-per-worktree/do",
-            "hurdles-replan/do",
-            "coverage-repin/do",
-            "automation-typed-failure-kinds/do",
-            "automation-typed-audit-notes/do",
-            "automation-path-surface-catalog/do",
-            "automation-declared-row-class/do",
-            "automation-order-by-cost-and-yield/do",
-            "automation-structured-parsing/do",
-            "preference-loss-variants/do",
-            "classification-replan/do",
-            "automation-gate-rule-table/do",
-            "automation-typed-gate-notes/do",
-            "gate-busy-index-relands/do",
-            "automation-typed-remediation-kinds/do",
-            "consumer-graph-sort-keys/do",
-            "gate-suite-serial-phase/do",
-            "profile-file-facts-memo/do",
-            "typed-skip-kinds/do",
-            "modeltest-tag-compiles/do",
-            "lanes-repair-real-text-pin/do",
-            "pinned-bytes-preflight/do",
-            "receipt-serial-packages/do",
-            "train-routes-first-probes/do",
-            "train-routes-lane-repair/do",
-            "root-documents-refactor/do",
-            "root-policies-beside-owners/do",
-            "tracked-files-need-readers/do",
-            "selection-prose-per-path/do",
-            "ratchet-ledgers-retired/do",
-            "verification-unread-removed/do",
-            "verification-fixture-orphans/do",
-            "readme-carries-main-edit/do",
-            "plan-rows-retire-by-decision/do",
-            "journey-child-failure-cause/do",
-            "deleted-files-select-by-readers/do",
-            "device-lease-host-tests-inline/do",
-            "lanes-never-refuse/do",
-            "admission-before-tests/do",
-            "browser-dialog-ends-waits/do",
-            "lane-runner-foreground/do",
-            "tests-pin-behaviour/do",
-            "selection-union-not-everything/do",
-            "detached-runner-leftovers/do",
-            "repair-outputs-only-when-changed/do",
-            "gate-small-cutover/do",
-            "gate-machinery-deleted/do",
-            "gate-machinery-deleted/old-gate",
-            "gate-machinery-deleted/selection",
-            "gate-machinery-deleted/ledger",
-            "gate-machinery-deleted/census",
-            "gate-machinery-deleted/authority",
-            "gate-machinery-deleted/records",
-            "store-read-only-suite/do",
-            "old-gate-leftovers/do",
-            "plan-tool-plain-data/do",
-            "nfd-table-packed/do",
-            "audioparity-binding-narrowed/do",
-            "lane-reach-test-files/do",
-            "plan-tool-plain-data/flags",
-            "plan-tool-plain-data/merge",
-            "plan-tool-plain-data/claims",
-            "landing-replays-unchanged-suites/do",
-            "landing-binds-candidate-bytes/do",
-            "landing-stream-owners/do",
-            "plan-rerank-2026-09-27/do",
-            "simplify-scorecard-slice/do",
-            "plan-subtraction-2026-09-27/do",
-            "landing-hermetic-tests/do",
-            "stop-state-out-of-store/do",
-            "landing-growth-ratchet/do",
-            "landing-wall-budget/do",
-            "lanes-in-gate/do",
-            "data-outside-module/do",
-            "plan-data-move-2026-09-27/do",
-            "audio-acceptance-lane/do",
-            "fp8-prefill-tensorcore/do",
-            "rules-by-enforcement-level/sqa-039",
-            "rules-by-enforcement-level/sqa-036",
-            "rules-by-enforcement-level/manifest-autofix",
-            "rules-by-enforcement-level/manifest-unchanged",
-            "rules-by-enforcement-level/guard-root-binary",
-            "env-gated-tests-run-or-go/sqa-037",
-            "env-gated-tests-run-or-go/sqa-023",
-            "env-gated-tests-run-or-go/parity-model",
-            "env-gated-tests-run-or-go/thoughtbank",
-            "env-gated-tests-run-or-go/wan",
-            "env-gated-tests-run-or-go/integration",
-            "env-gated-tests-run-or-go/cuda",
-            "env-gated-tests-run-or-go/cuda-rest",
-            "env-gated-tests-run-or-go/e4b",
-            "loop-closure-machinery/do",
-            "owner-decision-queue/records",
-            "owner-decision-queue/dispatch",
-            "owner-decision-queue/answer",
-            "declaration-alone-share/do",
-            "architecture-names-out-of-serving/do",
-            "cuda-lane-rule/do",
-            "automation-command-route-tables/fold-adapter-mixture",
-            "automation-command-route-tables/fold-mot-graft",
-            "automation-command-route-tables/fold-hybrid-stack",
-            "automation-command-route-tables/fold-dit",
-            "automation-command-route-tables/fold-seriesforecast",
-            "automation-command-route-tables/fold-flow-organ",
-            "compatibility-cache-inputs/do",
-            "rae-generation-path/rae-decoder",
-            "rae-generation-path/rae-dit",
-            "generate-declared-sampling/do",
-            "small-dead-code/do",
-            "authority-rules-earn-keep/do",
-            "trainer-shared-run/do",
-            "media-request-resolves-once/do",
-            "training-internals-shared/do",
-            "unexport-unconsumed-names/do",
-            "test-models-from-store/do",
-            "rae-image-capability/do",
-            "unexport-unconsumed-names/evaluation",
-            "device-claim-everywhere/launcher-waits",
-            "unexport-unconsumed-names/server",
-            "trainer-shared-run/shared-run",
-            "test-models-from-store/store-slice",
-            "unexport-unconsumed-names/deadcode",
-            "automation-peer-workspaces/do",
-            "tabfm-regression-objective/do",
-            "heldout-judge-every-objective/do",
-            "improvement-loop/do",
-            "wire-remaining-trainers/do",
-            "compatibility-into-validate/do",
-            "goldens-own-parity/do",
-            "commands-into-tables/do",
-            "loop-parts-wire-or-delete/do",
-            "preference-kto/do",
-            "wire-controller-cluster/do",
-            "wire-dense-to-moe/do",
-            "loop-improve-on-demand/do",
-            "lane-test-cache/do",
-            "lanes-false-reach/do",
-            "recovery-failures-seen/do",
-            "scorecard-reads-task-heldout/do",
-            "invariant-tables/do",
-            "gate-cycle-split/do",
-            "first-trained-improvement/do",
-            "cycle-promotion-scope/do",
-            "cycle-compared-families/do",
-            "cycle-proof-commands/do",
-            "projection-proof-producer/do",
-            "ocr-mmlu-coverage/do",
-            "first-cycle-defects/do",
-            "promotion-correctness/do",
-            "load-time-surface-batch/do",
             "training-rate-per-layer/do",
-            "cycle-fill-worktree/do",
-            "media-proofs-reacquirable/do",
-            "objective-training-proof/do",
-            "evaluation-replay/do",
-            "cycle-measure-worktree/do",
             "validate-currency/do",
-            "inference-decode-gaps/do",
-            "longform-guard-selection/do",
-            "capability-measurements/do",
-            "scorecard-current-measurement/do"
+            "plan-review-2026-10-03/do"
           ]
         }
       ]
@@ -800,35 +525,6 @@
       "answer": "Download it"
     },
     {
-      "id": "rae-downloads",
-      "question": "Fetch RAE's reference code (github.com/bytetriper/RAE) and its encoder checkpoints? models/RAE-collections holds the decoders, DiTs and latent statistics but neither of those.",
-      "options": [
-        "Fetch both",
-        "Leave RAE unvalidated"
-      ],
-      "recommendation": "Fetch both",
-      "blocks": [
-        "rae-generation-path"
-      ],
-      "asked": "2026-09-23",
-      "answer": "Fetch both"
-    },
-    {
-      "id": "fp8-prefill-approach",
-      "question": "Close fp8 prefill's 21% gap to bf16 (3,036 against 3,837 prompt tok/s on the 12B) how? An FP8-by-FP8 GEMM quantizes activations to e4m3, a numerics change that needs held-out evaluation; a kernel that expands e4m3 to f16 in registers keeps today's numbers but is custom tensor-core work.",
-      "options": [
-        "Fused kernel, numbers unchanged",
-        "FP8-by-FP8 GEMM, then held-out evaluation",
-        "Leave the gap"
-      ],
-      "recommendation": "Fused kernel, numbers unchanged",
-      "blocks": [
-        "fp8-prefill-tensorcore"
-      ],
-      "asked": "2026-09-28",
-      "answer": "FP8-by-FP8 GEMM, then held-out evaluation"
-    },
-    {
       "id": "capability-census-disposition",
       "question": "The capability census changed from 209 recorded identities to 220 live ones. Record a disposition that accepts the live census as the new denominator?",
       "options": [
@@ -858,36 +554,6 @@
       "answer": "Allow one Python run to produce the references"
     },
     {
-      "id": "scorecard-schedule",
-      "question": "How does the full scorecard run? A scheduled task is persistent system configuration and sits against the no-timers rule.",
-      "options": [
-        "When the plan empties, from the loop",
-        "A scheduled task",
-        "By hand"
-      ],
-      "recommendation": "When the plan empties, from the loop",
-      "blocks": [
-        "user-scorecard"
-      ],
-      "asked": "2026-09-28",
-      "answer": "When the plan empties, from the loop"
-    },
-    {
-      "id": "decision-inbox-placement",
-      "question": "Where does the one-click decision inbox live? The web UI serves users their models; the decisions are the development plan's. plan -decisions and plan -answer already cover the command line.",
-      "options": [
-        "A Decisions panel in the web UI's workspace",
-        "A separate page served by the plan command",
-        "The command line only"
-      ],
-      "recommendation": "A Decisions panel in the web UI's workspace",
-      "blocks": [
-        "owner-decision-queue"
-      ],
-      "asked": "2026-09-28",
-      "answer": "The command line only"
-    },
-    {
       "id": "nine-b-proof-background",
       "question": "When validate-currency is otherwise ready, should the Qwen3.5-9B hybrid training proof (22m05 a cycle, the same cmd/train route and code as the blocking 4B proof) move to the background, so promotion stops waiting on every training proof? Background saves about 22 min a cycle; the 4B proof still guards the route.",
       "options": [
@@ -909,6 +575,38 @@
         "median of the newest few attempts"
       ],
       "recommendation": "newest measured attempt",
+      "asked": "2026-10-03"
+    },
+    {
+      "id": "heldout-datasets",
+      "question": "Held-out quality is unscored for forecast, image-embedding, image-gen, seq2seq, tabular and vqa because each needs a held-out set the store lacks. Answering authorizes exactly these downloads into the datasets root, each to be verified by hash once fetched: ETTh1 (github.com/zhouhaoyi/ETDataset, 2.6 MB, forecast); BFCL v3 simple (gorilla-llm/Berkeley-Function-Calling-Leaderboard, 0.3 MB, seq2seq); BeyondArena credit-g (TabArena/BeyondArena, 0.2 MB, tabular); TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB, image-gen); A-OKVQA validation (HuggingFaceM4/A-OKVQA, 60 MB, vqa); Imagenette 160 px (fast.ai imagenette2-160, 100 MB, image-embedding). About 173 MB in all. The other five unscored rows (generation, projection, speech, training, video-gen) use sets already on disk and are not blocked.",
+      "options": [
+        "Download all six (about 173 MB)",
+        "Download only the four under 11 MB (ETTh1, BFCL, credit-g, TIFA)",
+        "Download none and score only what is on disk"
+      ],
+      "recommendation": "Download all six (about 173 MB)",
+      "blocks": [
+        "scorecard-unscored-forecast",
+        "scorecard-unscored-seq2seq",
+        "scorecard-unscored-tabular",
+        "scorecard-unscored-image-gen",
+        "scorecard-unscored-vqa",
+        "scorecard-unscored-image-embedding"
+      ],
+      "asked": "2026-10-03"
+    },
+    {
+      "id": "adaptive-new-model-copies",
+      "question": "The remaining models under adaptive_new/models (Wan, the Gemma configs and others) are read by tests through variables that point outside the repository, which cost environment-dependent skips. May they be copied into overgo_data/models, one model at a time, each copy verified (hash, servable identity, baseline lookup, bounded inference) before its locator switches, with the originals left in place and adaptive_new never written to?",
+      "options": [
+        "Copy one at a time, verified, originals kept",
+        "Leave adaptive_new as the models' home"
+      ],
+      "recommendation": "Copy one at a time, verified, originals kept",
+      "blocks": [
+        "models-out-of-adaptive-new"
+      ],
       "asked": "2026-10-03"
     }
   ]

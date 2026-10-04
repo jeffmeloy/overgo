@@ -88,5 +88,37 @@
         }
       ]
     }
+  ],
+  "decisions": [
+    {
+      "id": "image-training-path",
+      "question": "The ai-toolkit review's image rows (diffusion-lora, dataset-auto-caption, latent-embedding-cache) assume a captioned text-to-image trainer that overgo does not have: its image diffusion trainer (diffusionimage, cmd/train route_diffusionimage) is an unconditional U-ViT trained on a manifest of images with no captions, and its text-conditioned route (route_dit) is a research harness over VidGen video clips that already caches its text rows. Which path should the training roadmap take?",
+      "options": [
+        "Keep to the text path: drop the three image rows and take quantized-base-lora next, since text models too large for the host trainer are the open gap",
+        "Build a text-conditioned image LoRA trainer on one named real model family first, then captioning and the latent cache on top of it, and defer quantized-base-lora",
+        "Attach the rows to the existing U-ViT trainer as it is, unconditional and without captions, which gives an adapter no tool outside overgo can load"
+      ],
+      "recommendation": "Keep to the text path: drop the three image rows and take quantized-base-lora next, since text models too large for the host trainer are the open gap",
+      "blocks": [
+        "diffusion-lora",
+        "dataset-auto-caption",
+        "latent-embedding-cache",
+        "quantized-base-lora"
+      ],
+      "asked": "2026-10-04"
+    },
+    {
+      "id": "packing-isolation",
+      "question": "Sequence packing is already padding-free: packWindows joins conversations into windows of exactly the run's length, so the row's premise that steps are lost to padding does not hold. What remains of LlamaFactory's neat packing is isolating each conversation's attention inside a window, which means changing hostmath's attention forward and backward, a surface that moves the training evidence and needs reviewed deltas. Is that isolation worth it?",
+      "options": [
+        "Retire sft-sequence-packing: packing without isolation is what a window is",
+        "Isolate each conversation's attention in a packed window, in the host trainer, behind a reviewed delta"
+      ],
+      "recommendation": "Retire sft-sequence-packing: packing without isolation is what a window is",
+      "blocks": [
+        "sft-sequence-packing"
+      ],
+      "asked": "2026-10-04"
+    }
   ]
 }

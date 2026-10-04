@@ -1,7 +1,8 @@
 // Command gguf holds the model-file tools as subcommands, each with its own
 // flags: gguf <subcommand> [flags] [arguments]. They convert Hugging Face
 // checkpoints to GGUF, hash, inspect, merge, split or quantize GGUF files,
-// and admit the audio files speech datasets are built from.
+// merge a LoRA adapter into a safetensors checkpoint, and admit the audio
+// files speech datasets are built from.
 package main
 
 import (
@@ -23,6 +24,7 @@ var subcommands = map[string]func(flags *flag.FlagSet, args []string) error{
 	"hash":           hashCommand,
 	"inspect":        inspectCommand,
 	"merge":          mergeCommand,
+	"merge-lora":     mergeLoRACommand,
 	"quantize":       quantizeCommand,
 	"safetensors":    safetensorsCommand,
 	"split":          splitCommand,

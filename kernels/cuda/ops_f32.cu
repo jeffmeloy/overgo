@@ -5960,7 +5960,7 @@ __device__ float dequant_iq1_m_value(
         (iq_grid1_lane(iq1SGrid[grid_index], lane) + delta);
 }
 
-#define DEFINE_SMALL_QUANT_KERNELS(TAG, BLOCK_WIDTH, BLOCK_BYTES, DEQUANT) \
+#define DEFINE_SMALL_QUANT_GET_ROWS(TAG, BLOCK_WIDTH, BLOCK_BYTES, DEQUANT) \
 extern "C" __global__ void get_rows_##TAG##_f32( \
         const unsigned char * table, \
         const unsigned int * rows, \
@@ -5979,7 +5979,9 @@ extern "C" __global__ void get_rows_##TAG##_f32( \
     output[index] = DEQUANT( \
         table + block_index * BLOCK_BYTES, \
         column % BLOCK_WIDTH); \
-} \
+}
+
+#define DEFINE_SMALL_QUANT_MUL_MAT(TAG, BLOCK_WIDTH, BLOCK_BYTES, DEQUANT) \
 extern "C" __global__ void mul_mat_##TAG##_f32( \
         const unsigned char * left, \
         const float * right, \
@@ -6013,7 +6015,68 @@ extern "C" __global__ void mul_mat_##TAG##_f32( \
     } \
 }
 
-DEFINE_SMALL_QUANT_KERNELS(q1_0, 128, 18, dequant_q1_0_value)
+#define DEFINE_SMALL_QUANT_KERNELS(TAG, BLOCK_WIDTH, BLOCK_BYTES, DEQUANT) \
+DEFINE_SMALL_QUANT_GET_ROWS(TAG, BLOCK_WIDTH, BLOCK_BYTES, DEQUANT) \
+DEFINE_SMALL_QUANT_MUL_MAT(TAG, BLOCK_WIDTH, BLOCK_BYTES, DEQUANT)
+
+DEFINE_SMALL_QUANT_GET_ROWS(q1_0, 128, 18, dequant_q1_0_value)
+
+constexpr unsigned int Q1_0_BLOCK_WIDTH = 128;
+constexpr unsigned int Q1_0_BLOCK_BYTES = 18;
+constexpr unsigned int Q1_0_SCALE_BYTES = 2;
+
+// mul_mat_q1_0_f32: one warp per output, as the other small-quant kernels,
+// with a block's work hoisted out of its columns. Lane l owns columns l,
+// l+32, l+64, ...; in a 128-wide block those are bit (l % 8) of sign bytes
+// l/8, l/8+4, l/8+8 and l/8+12, so the lane reads the block's scale once and
+// takes its four columns in ascending order. Each lane adds the products the
+// per-element loop added, in the order it added them; the outputs are the
+// same bits. The block, sign and input addresses step by constants so every
+// load is a base plus an immediate.
+extern "C" __global__ void mul_mat_q1_0_f32(
+        const unsigned char * left,
+        const float * right,
+        float * output,
+        unsigned int inner,
+        unsigned int left_rows,
+        unsigned int right_rows) {
+    const unsigned int thread_index = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int warp_index = thread_index / CUDA_WARP_WIDTH;
+    if (warp_index >= left_rows * right_rows) {
+        return;
+    }
+    const unsigned int lane = threadIdx.x % CUDA_WARP_WIDTH;
+    const unsigned int left_row = warp_index % left_rows;
+    const unsigned int right_row = warp_index / left_rows;
+    const unsigned int blocks_per_row = inner / Q1_0_BLOCK_WIDTH;
+    const unsigned char * block =
+        left + (size_t) left_row * blocks_per_row * Q1_0_BLOCK_BYTES;
+    const unsigned char * signs = block + Q1_0_SCALE_BYTES + lane / 8;
+    const unsigned int mask = 1u << (lane % 8);
+    const float * input = right + (size_t) right_row * inner + lane;
+    float sum = 0.0f;
+    for (unsigned int index = 0; index < blocks_per_row; ++index) {
+        const float scale =
+            __half2float(*reinterpret_cast<const __half *>(block));
+        const float negative = -scale;
+#pragma unroll
+        for (unsigned int word = 0; word < Q1_0_BLOCK_WIDTH / CUDA_WARP_WIDTH; ++word) {
+            const unsigned int sign = signs[word * (CUDA_WARP_WIDTH / 8)];
+            sum += ((sign & mask) != 0 ? scale : negative) *
+                input[word * CUDA_WARP_WIDTH];
+        }
+        block += Q1_0_BLOCK_BYTES;
+        signs += Q1_0_BLOCK_BYTES;
+        input += Q1_0_BLOCK_WIDTH;
+    }
+    for (unsigned int offset = CUDA_WARP_WIDTH / 2; offset > 0; offset /= 2) {
+        sum += __shfl_down_sync(0xffffffffu, sum, offset);
+    }
+    if (lane == 0) {
+        output[warp_index] = sum;
+    }
+}
+
 DEFINE_SMALL_QUANT_KERNELS(q2_0, 64, 18, dequant_q2_0_value)
 DEFINE_SMALL_QUANT_KERNELS(tq1_0, 256, 54, dequant_tq1_0_value)
 DEFINE_SMALL_QUANT_KERNELS(tq2_0, 256, 66, dequant_tq2_0_value)

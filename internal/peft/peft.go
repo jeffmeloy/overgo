@@ -120,14 +120,43 @@ func (adapter Adapter) Delta(name string) ([]float32, error) {
 	if !found {
 		return nil, fmt.Errorf("peft: adapter has no module %q", name)
 	}
-	if err := module.validate(name); err != nil {
-		return nil, err
-	}
 	delta := make([]float32, module.Out*module.In)
-	hostmath.Linear(delta, module.Up, hostmath.Transpose2D(module.Down, module.Rank, module.In), module.Out, module.Rank, module.In)
-	scale := float32(adapter.scale(module))
-	for index := range delta {
-		delta[index] *= scale
+	return delta, adapter.AddDelta(delta, name)
+}
+
+// AddDelta adds the weight update of the module name into dst, Out×In
+// row-major, one row of the update at a time on the worker pool, so no matrix
+// of the update is held. Each element sums its Rank products in rank order and
+// scales the sum before it is added, as the update's own matrix would be.
+func (adapter Adapter) AddDelta(dst []float32, name string) error {
+	module, found := adapter.Modules[name]
+	if !found {
+		return fmt.Errorf("peft: adapter has no module %q", name)
 	}
-	return delta, nil
+	if err := module.validate(name); err != nil {
+		return err
+	}
+	if len(dst) != module.Out*module.In {
+		return fmt.Errorf("peft: module %q updates %d values, the weight holds %d", name, module.Out*module.In, len(dst))
+	}
+	scale := float32(adapter.scale(module))
+	hostmath.ParallelRangeF64(module.Out, module.Rank*module.In, func(from, to int) {
+		row := make([]float32, module.In)
+		for out := from; out < to; out++ {
+			clear(row)
+			for rank, up := range module.Up[out*module.Rank : (out+1)*module.Rank] {
+				if up == 0 {
+					continue
+				}
+				for column, down := range module.Down[rank*module.In : (rank+1)*module.In] {
+					row[column] += up * down
+				}
+			}
+			target := dst[out*module.In : (out+1)*module.In]
+			for column, value := range row {
+				target[column] += value * scale
+			}
+		}
+	})
+	return nil
 }

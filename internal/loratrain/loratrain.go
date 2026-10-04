@@ -22,6 +22,7 @@ import (
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
 	"overgo/internal/peft"
+	"overgo/internal/processmeasure"
 )
 
 // The names of an adapter's two factors in the optimizer's tensor pack: the
@@ -183,13 +184,10 @@ func bind(model *densecausal.Model, adapter peft.Adapter) (*Trainer, error) {
 // place: the model reads its weights through slices it bound when it loaded.
 func (trainer *Trainer) apply() error {
 	for name := range trainer.adapter.Modules {
-		delta, err := trainer.adapter.Delta(name)
-		if err != nil {
+		target := trainer.model.Weights[name+weightSuffix]
+		copy(target, trainer.frozen[name])
+		if err := trainer.adapter.AddDelta(target, name); err != nil {
 			return err
-		}
-		target, base := trainer.model.Weights[name+weightSuffix], trainer.frozen[name]
-		for index := range target {
-			target[index] = base[index] + delta[index]
 		}
 	}
 	return nil
@@ -224,7 +222,7 @@ func (trainer *Trainer) Step(tokens []int, learningRate, momentum float64) (floa
 	if err := trainer.ensureOptimizer(learningRate, momentum); err != nil {
 		return 0, err
 	}
-	loss, _, grads, err := trainer.model.LossAndGrads(tokens)
+	loss, grads, err := trainer.model.LossAndGradsOf(tokens, trainer.adapted)
 	if err != nil {
 		return 0, err
 	}
@@ -247,19 +245,31 @@ func (trainer *Trainer) Train(batches [][]int, learningRate, momentum float64, o
 	}
 	losses := make([]float64, 0, len(batches))
 	for step, tokens := range batches {
-		started := time.Now()
+		stopwatch := processmeasure.NewStopwatch()
 		loss, err := trainer.Step(tokens, learningRate, momentum)
 		if err != nil {
 			return losses, err
 		}
 		losses = append(losses, loss)
 		if observe != nil {
-			if err := observe(step, loss, time.Since(started)); err != nil {
+			wall, err := stopwatch.Elapsed()
+			if err != nil {
+				return losses, err
+			}
+			if err := observe(step, loss, time.Duration(wall)); err != nil {
 				return losses, err
 			}
 		}
 	}
 	return losses, nil
+}
+
+// adapted reports whether the weight name is one the adapter adapts, the only
+// weights whose gradient a step needs.
+func (trainer *Trainer) adapted(weight string) bool {
+	module, isWeight := strings.CutSuffix(weight, weightSuffix)
+	_, adapted := trainer.frozen[module]
+	return isWeight && adapted
 }
 
 // ensureOptimizer creates the optimizer on the first update. Its rate and
@@ -297,7 +307,7 @@ func (trainer *Trainer) project(grads densecausal.Grads) error {
 		up := make([]float32, module.Out*module.Rank)
 		hostmath.Linear(up, gradient, module.Down, module.Out, module.In, module.Rank)
 		down := make([]float32, module.Rank*module.In)
-		hostmath.Linear(down, hostmath.Transpose2D(module.Up, module.Out, module.Rank), hostmath.Transpose2D(gradient, module.Out, module.In), module.Rank, module.Out, module.In)
+		hostmath.LinearBackwardInput(down, hostmath.Transpose2D(module.Up, module.Out, module.Rank), gradient, module.Rank, module.In, module.Out)
 		for _, factor := range [][]float32{up, down} {
 			for index := range factor {
 				factor[index] *= float32(scale)

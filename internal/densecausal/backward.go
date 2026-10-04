@@ -8,6 +8,7 @@ package densecausal
 
 import (
 	"fmt"
+	"maps"
 	"math"
 
 	"overgo/internal/hostmath"
@@ -20,7 +21,22 @@ type Grads map[string][]float32
 // mean CE (positions 0..n-2 predict tokens 1..n-1), the full logits, and
 // every parameter gradient.
 func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
-	return m.lossAndGrads(tokens, true, nil)
+	return m.lossAndGrads(tokens, true, nil, Grads{})
+}
+
+// LossAndGradsOf is LossAndGrads for a run that trains some of the weights,
+// and returns the loss and the gradients of the weights train names alone: the
+// others cost neither their memory nor their weight-gradient arithmetic.
+func (m *Model) LossAndGradsOf(tokens []int, train func(name string) bool) (float64, Grads, error) {
+	skipped := Grads{}
+	for name := range m.Weights {
+		if !train(name) {
+			skipped[name] = nil
+		}
+	}
+	loss, _, gradients, err := m.lossAndGrads(tokens, true, nil, skipped)
+	maps.DeleteFunc(gradients, func(_ string, gradient []float32) bool { return gradient == nil })
+	return loss, gradients, err
 }
 
 func (m *Model) trainingLossAndGrads(tokens []int, step int, observeRouter MoERouterObserver) (float64, Grads, error) {
@@ -28,7 +44,7 @@ func (m *Model) trainingLossAndGrads(tokens []int, step int, observeRouter MoERo
 	if observeRouter != nil {
 		observation = &routerObservationContext{step: step, observer: observeRouter}
 	}
-	loss, _, gradients, err := m.lossAndGrads(tokens, false, observation)
+	loss, _, gradients, err := m.lossAndGrads(tokens, false, observation, Grads{})
 	return loss, gradients, err
 }
 
@@ -37,7 +53,9 @@ type routerObservationContext struct {
 	observer MoERouterObserver
 }
 
-func (m *Model) lossAndGrads(tokens []int, retainLogits bool, observation *routerObservationContext) (float64, []float32, Grads, error) {
+// lossAndGrads accumulates into g, where a name held with a nil gradient is a
+// weight whose gradient is skipped.
+func (m *Model) lossAndGrads(tokens []int, retainLogits bool, observation *routerObservationContext, g Grads) (float64, []float32, Grads, error) {
 	if len(tokens) < 2 {
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
@@ -52,7 +70,7 @@ func (m *Model) lossAndGrads(tokens []int, retainLogits bool, observation *route
 		return 0, nil, nil, err
 	}
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
-	return m.lossAndGradsFromStates(tokens, states, retainLogits, Grads{}, func(
+	return m.lossAndGradsFromStates(tokens, states, retainLogits, g, func(
 		index int, input, outputGradient []float32, sequence int, gradients Grads,
 	) ([]float32, error) {
 		return m.layerBackwardObserved(index, input, outputGradient, invFreq, sequence, gradients, observation)

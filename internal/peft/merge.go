@@ -130,12 +130,8 @@ func mergedPayload(adapter Adapter, module string, weight safetensors.Tensor) ([
 	if err != nil {
 		return nil, err
 	}
-	delta, err := adapter.Delta(module)
-	if err != nil {
+	if err := adapter.AddDelta(values, module); err != nil {
 		return nil, err
-	}
-	for index := range values {
-		values[index] += delta[index]
 	}
 	if weight.DType == "BF16" {
 		payload := make([]byte, len(values)*binaryschema.Uint16Bytes)

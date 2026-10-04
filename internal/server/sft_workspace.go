@@ -35,6 +35,9 @@ const (
 	// sftLoRADefaultRank is the rank the page offers a LoRA adapter, the one
 	// PEFT's and LlamaFactory's examples use.
 	sftLoRADefaultRank = 8
+	// sftCheckpointsKept is how many of the checkpoints a run saves along the way
+	// the workbench keeps: the newest.
+	sftCheckpointsKept = 3
 	// sftDatasetFormat is the catalog format of a conversation dataset the page
 	// offers: one JSON file per conversation.
 	sftDatasetFormat = "json"
@@ -99,6 +102,8 @@ func (workspace *SFTWorkspace) WorkflowCapabilities(_ context.Context, kind Work
 			workflowControl{Name: "train_on_prompts", Type: workflowControlBoolean},
 			workflowControl{Name: "average_weights", Type: workflowControlBoolean},
 			workflowControl{Name: "sample_every", Type: workflowControlInteger},
+			workflowControl{Name: "save_every", Type: workflowControlInteger},
+			workflowControl{Name: "resume", Type: workflowControlOutput},
 			workflowControl{Name: "output", Type: workflowControlOutput, Required: true})
 		capabilities = append(capabilities, WorkflowCapability{
 			Task: recipe.TaskTraining, Recipe: program.ID, Model: workspace.trainer.Model,
@@ -139,6 +144,10 @@ type sftInput struct {
 	// SampleEvery, when positive, has the run generate after the prompts of held-out
 	// conversations every that many updates, for the page to show beside the verdict.
 	SampleEvery int `json:"sample_every"`
+	// SaveEvery, when positive, saves a checkpoint after every that many updates, and Resume
+	// names one, an output of an earlier run, to continue from.
+	SaveEvery int    `json:"save_every"`
+	Resume    string `json:"resume"`
 }
 
 // ExecuteWorkflow fine-tunes the served model on the dataset, whole or as an
@@ -158,8 +167,8 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 		return operation.Completion{}, err
 	}
 	inputs := []artifact.ID{workspace.trainer.Model, input.Dataset}
-	if input.Dataset.Kind() != artifact.KindDataset || input.Steps <= 0 || input.SampleEvery < 0 {
-		return operation.Completion{}, errors.New("sft workspace: a conversation dataset and a positive number of steps are required, and samples come every positive number of steps")
+	if input.Dataset.Kind() != artifact.KindDataset || input.Steps <= 0 || input.SampleEvery < 0 || input.SaveEvery < 0 {
+		return operation.Completion{}, errors.New("sft workspace: a conversation dataset and a positive number of steps are required, and samples and saved checkpoints come every positive number of steps")
 	}
 	var lora *trainingworkflow.LoRA
 	switch {
@@ -171,6 +180,10 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 		lora = &trainingworkflow.LoRA{Rank: input.Rank, Alpha: float64(input.Rank * trainingworkflow.LoRAAlphaPerRank)}
 	}
 	output, err := outputDirectory(workspace.roots.Checkpoints, input.Output)
+	var resume string
+	if err == nil && strings.TrimSpace(input.Resume) != "" {
+		resume, err = outputDirectory(workspace.roots.Checkpoints, input.Resume)
+	}
 	if err != nil {
 		return failWorkflow(ctx, workspace.store, program.ID, inputs, "training_failed", err)
 	}
@@ -180,6 +193,7 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 		Dataset: input.Dataset, Render: workspace.trainer.Render, ModelDirectory: workspace.trainer.File,
 		OutputDirectory: output, WorkDirectory: filepath.Join(workspace.roots.Datasets, "sft"),
 		Steps: input.Steps, LoRA: lora, Prompts: input.TrainOnPrompts, Average: input.AverageWeights, SampleEvery: input.SampleEvery,
+		CheckpointEvery: input.SaveEvery, CheckpointKeep: sftCheckpointsKept, Resume: resume,
 		Step: func(step, _ int, loss float64) {
 			reporter.Progress(uint64(step), &total)
 			reporter.Metric(operation.Metric{Name: "loss", Value: loss})

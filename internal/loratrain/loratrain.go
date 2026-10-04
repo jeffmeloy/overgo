@@ -279,6 +279,29 @@ func (trainer *Trainer) Average(decay float64) error {
 	return nil
 }
 
+// AverageState is the moving average of the factors as it stands, nil before
+// Average starts one; it is the trainer's own, which a checkpoint copies.
+func (trainer *Trainer) AverageState() *optimizer.Average { return trainer.average }
+
+// Restore continues training from the optimizer state and moving average (nil
+// for none) an earlier run left at its update, under the rate and momentum it
+// took them with: the trainer must be over the adapter that run left, which
+// Resume made, so that the next update is the one the earlier run took next.
+func (trainer *Trainer) Restore(state optimizer.State, average *optimizer.Average, learningRate, momentum float64) error {
+	if err := trainer.ensureOptimizer(learningRate, momentum); err != nil {
+		return err
+	}
+	if err := trainer.optimizer.Restore(state); err != nil {
+		return err
+	}
+	factors, _ := trainer.pack.Slabs()
+	if average != nil && len(average.Values()) != len(factors) {
+		return fmt.Errorf("loratrain: a resumed average spans %d factor values, the adapter's are %d", len(average.Values()), len(factors))
+	}
+	trainer.average = average
+	return nil
+}
+
 // UseAverage makes the adapter, and the model it is applied to, the moving
 // average of the factors Average started, leaving the optimizer's state as the
 // updates took it.

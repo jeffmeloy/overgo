@@ -5,20 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "train-checkpoint-retention",
-      "title": "Save intermediate checkpoints during a long host run and keep only the last K, with resume continuing the optimizer and the weight average from a kept one (ai-toolkit save_every and max_step_saves_to_keep): a Train tab run of hours survives a stop; acceptance: retention deletes only older checkpoints, a run resumed from a kept one reaches the weights an uninterrupted run reaches, and the average continues rather than restarting",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Save intermediate checkpoints during a long host run and keep only the last K, with resume continuing the optimizer and the weight average from a kept one (ai-toolkit save_every and max_step_saves_to_keep): a Train tab run of hours survives a stop; acceptance: retention deletes only older checkpoints, a run resumed from a kept one reaches the weights an uninterrupted run reaches, and the average continues rather than restarting",
-          "status": "open",
-          "verify": "test -f internal/trainingworkflow/retention_test.go \u0026\u0026 go test ./internal/trainingworkflow -run '^TestCheckpointRetention$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "diffusion-lora",
       "title": "Train a LoRA adapter on the diffusion transformer with the text adapter's factor math, Muon pack and internal/peft (ai-toolkit sd_trainer; the flow-matching path is already in internal/diffusionimage), saved as PEFT safetensors with a documented key mapping to diffusers and ComfyUI names; acceptance: finite-difference gradients, a loss that falls on a tiny fixture, and a saved adapter that merges to the same output. Aspect-ratio buckets (toolkit/buckets.py), caption dropout and timestep weighting (toolkit/timestep_weighing) follow as declared knobs, each adopted only on measured quality",
       "owner": "overgo_gui_cleanup",

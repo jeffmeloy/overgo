@@ -1,12 +1,49 @@
 package loratrain
 
 import (
+	"maps"
 	"math"
+	"math/rand"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/peft"
 )
+
+// factorGradients are the gradients of the loss on the periodic window with
+// respect to each factor of the adapter the config starts, its up factors made
+// nonzero so both factors have one, as the finite-difference check makes them.
+func factorGradients(t *testing.T, config Config) map[string][]float32 {
+	t.Helper()
+	model, _, _ := tinyModel(t)
+	trainer, err := New(model, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	random := rand.New(rand.NewSource(2))
+	for _, name := range slices.Sorted(maps.Keys(trainer.adapter.Modules)) {
+		up := trainer.adapter.Modules[name].Up
+		for index := range up {
+			up[index] = float32(random.NormFloat64()) / 4
+		}
+	}
+	if err := trainer.apply(); err != nil {
+		t.Fatal(err)
+	}
+	_, _, grads, err := model.LossAndGrads(periodic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := trainer.project(grads); err != nil {
+		t.Fatal(err)
+	}
+	copied := map[string][]float32{}
+	for name, values := range trainer.gradients {
+		copied[name] = slices.Clone(values)
+	}
+	return copied
+}
 
 // TestRSLoRAAndLoRAPlus checks the two scalings an adapter can be asked for:
 // rank-stabilized LoRA scales each module by alpha over the root of its rank,
@@ -33,11 +70,24 @@ func TestRSLoRAAndLoRAPlus(t *testing.T) {
 		}
 	})
 
-	t.Run("gradients match finite differences", func(t *testing.T) {
-		// Alphas chosen so each trains at the scale of 3 the plain check does: a larger scale bends
-		// the loss more than float32 central differences can follow at any step.
-		checkFactorGradients(t, Config{Rank: 2, Alpha: 3 * math.Sqrt2, Seed: 1, RSLoRA: true}, 1e-2)
-		checkFactorGradients(t, Config{Rank: 2, Alpha: 6.0 / 4, Seed: 1, UpRate: 4}, 1e-2)
+	t.Run("gradients are the plain adapter's at the same scale", func(t *testing.T) {
+		// Alphas chosen so each module trains at the scale of 3 the plain adapter does: its gradients are
+		// checked against central differences by TestFactorGradientsMatchFiniteDifferences, and a
+		// variant whose scale reaches the projection correctly has exactly those gradients.
+		plain := factorGradients(t, Config{Rank: 2, Alpha: 6, Seed: 1})
+		for name, config := range map[string]Config{
+			"rank-stabilized": {Rank: 2, Alpha: 3 * math.Sqrt2, Seed: 1, RSLoRA: true},
+			"LoRA+":           {Rank: 2, Alpha: 6.0 / 4, Seed: 1, UpRate: 4},
+		} {
+			for factor, want := range plain {
+				got := factorGradients(t, config)[factor]
+				for index, value := range want {
+					if math.Abs(float64(got[index]-value)) > 1e-5+1e-4*math.Abs(float64(value)) {
+						t.Fatalf("%s: %s[%d] gradient %v, the plain adapter's %v", name, factor, index, got[index], value)
+					}
+				}
+			}
+		}
 	})
 
 	t.Run("the up factor's first step is the rate times longer", func(t *testing.T) {

@@ -122,6 +122,12 @@ func (fixture sftFixture) inputWithRank(output string, rank int) json.RawMessage
 	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":%d,"rank":%d,"output":%q}`, fixture.conversations.String(), adapterSteps, rank, output))
 }
 
+// inputSaving is the input of a six-update run that saves a checkpoint every given
+// number of updates and, when from names one, resumes from it.
+func (fixture sftFixture) inputSaving(output string, every int, from string) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":6,"save_every":%d,"resume":%q,"output":%q}`, fixture.conversations.String(), every, from, output))
+}
+
 // inputSampled is the input of a run that samples every given number of updates.
 func (fixture sftFixture) inputSampled(output string, every int) json.RawMessage {
 	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":4,"sample_every":%d,"output":%q}`, fixture.conversations.String(), every, output))
@@ -162,7 +168,7 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	for _, control := range adapterCapability.Controls {
 		adapterControls = append(adapterControls, control.Name)
 	}
-	if adapterCapability.Name != "served, LoRA adapter on conversations" || strings.Join(adapterControls, ",") != "dataset,steps,rank,train_on_prompts,average_weights,sample_every,output" || adapterCapability.Recipe == capability.Recipe ||
+	if adapterCapability.Name != "served, LoRA adapter on conversations" || strings.Join(adapterControls, ",") != "dataset,steps,rank,train_on_prompts,average_weights,sample_every,save_every,resume,output" || adapterCapability.Recipe == capability.Recipe ||
 		adapterCapability.Controls[2].Bounds == nil || adapterCapability.Controls[2].Bounds.Default != sftLoRADefaultRank || !strings.Contains(adapterCapability.Note, "PEFT adapter") {
 		t.Fatalf("LoRA capability = %+v with controls %v, want its own recipe, a rank of default %d and a note naming the PEFT adapter", adapterCapability, adapterControls, sftLoRADefaultRank)
 	}
@@ -170,7 +176,7 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	for _, control := range capability.Controls {
 		controls = append(controls, control.Name)
 	}
-	if capability.Task != recipe.TaskTraining || !capability.Host || capability.Name != "served, on conversations" || strings.Join(controls, ",") != "dataset,steps,train_on_prompts,average_weights,sample_every,output" {
+	if capability.Task != recipe.TaskTraining || !capability.Host || capability.Name != "served, on conversations" || strings.Join(controls, ",") != "dataset,steps,train_on_prompts,average_weights,sample_every,save_every,resume,output" {
 		t.Fatalf("capability = %+v with controls %v", capability, controls)
 	}
 	for _, option := range capability.Controls[2:4] {
@@ -247,12 +253,29 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	if err != nil || len(averaged.Outputs) != 2 || averaged.Outputs[0] == completion.Outputs[0] {
 		t.Fatalf("an averaged run = (%+v, %v), want a trained model of its own", averaged, err)
 	}
+	// A run that saves a checkpoint every second update keeps the newest three, here the last two it
+	// saved, beside its output, and another run resumes from one by its name under the checkpoints root.
+	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputSaving("saved", 2, ""), stepCounter{steps: &atomic.Int64{}}); err != nil {
+		t.Fatalf("a run that saves checkpoints: %v", err)
+	}
+	for _, name := range []string{"saved-step-000002", "saved-step-000004"} {
+		if _, err := os.Stat(filepath.Join(fixture.roots.Checkpoints, name)); err != nil {
+			t.Fatalf("the run left no checkpoint %s: %v", name, err)
+		}
+	}
+	resumedRun, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputSaving("resumed", 0, "saved-step-000004"), stepCounter{steps: &atomic.Int64{}})
+	if err != nil || len(resumedRun.Outputs) != 2 {
+		t.Fatalf("a run resumed from a saved checkpoint = (%+v, %v), want the trained model and its verdict", resumedRun, err)
+	}
+	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputSaving("resumed-absent", 0, "../escape"), testReporter{}); err == nil || !strings.Contains(err.Error(), "one safe path component") {
+		t.Errorf("a resume that names a path: err = %v", err)
+	}
 	// A sampled run names its samples among its outputs, which the page reads as it reads the verdict.
 	sampled, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputSampled("tuned-samples", 2), stepCounter{steps: &atomic.Int64{}})
 	if err != nil || len(sampled.Outputs) != 3 || sampled.Outputs[2].Kind() != artifact.KindEvidence {
 		t.Fatalf("a sampled run = (%+v, %v), want the trained model, the verdict and the samples", sampled, err)
 	}
-	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputSampled("tuned-negative", -1), testReporter{}); err == nil || !strings.Contains(err.Error(), "samples come every positive") {
+	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputSampled("tuned-negative", -1), testReporter{}); err == nil || !strings.Contains(err.Error(), "come every positive number of steps") {
 		t.Errorf("a negative sampling interval: err = %v", err)
 	}
 

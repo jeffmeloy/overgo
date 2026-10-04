@@ -52,3 +52,21 @@ func (average *Average) Values() []float32 { return average.values }
 
 // Updates is how many updates the average has taken.
 func (average *Average) Updates() int { return average.updates }
+
+// RestoreAverage resumes an average that stood at the values after the given
+// number of updates, under the decay it was taken with: its next update warms up
+// from there as the one that followed those updates would have.
+func RestoreAverage(values []float32, updates int, decay float64) (*Average, error) {
+	average, err := NewAverage(values, decay)
+	if err != nil {
+		return nil, err
+	}
+	if updates < 0 {
+		return nil, fmt.Errorf("optimizer: an average cannot have taken %d updates", updates)
+	}
+	average.updates = updates
+	return average, nil
+}
+
+// Decay is the decay the average was started under, before its warm-up.
+func (average *Average) Decay() float64 { return average.decay }

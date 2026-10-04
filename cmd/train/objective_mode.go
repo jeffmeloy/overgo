@@ -30,6 +30,11 @@ type objectiveRun struct {
 	// Average, when positive, is the decay of a moving average of the weights
 	// the run publishes as the trained model, on the host.
 	Average float64
+	// SaveEvery, when positive, saves a checkpoint beside Out after every that many
+	// updates but the last, Keep of the newest kept, and ResumeRun names one to
+	// continue from, all on the host.
+	SaveEvery, Keep int
+	ResumeRun       string
 }
 
 // loraFlags are the -lora flags as parsed.
@@ -103,8 +108,9 @@ func runObjectiveMode(ctx context.Context, store *overgodb.Store, run objectiveR
 	}
 	result, err := trainingworkflow.RunTextHeldout(ctx, store, trainingworkflow.TextHeldoutRequest{
 		Alias: run.Alias, Recipe: recipeID, ModelDirectory: run.Model, OutputDirectory: run.Out, Steps: run.Steps, MaximumSequence: run.Sequence,
-		Host: run.Host || run.LoRA != nil || run.Average > 0, Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
+		Host: run.Host || run.LoRA != nil || run.Average > 0 || run.SaveEvery > 0 || run.ResumeRun != "", Device: denseDevice, FreezeLexical: run.FreezeLexical, MaxProjectedWall: run.MaxWall, Progress: output,
 		Proof: run.Proof, LoRA: run.LoRA, Average: run.Average,
+		CheckpointEvery: run.SaveEvery, CheckpointKeep: run.Keep, Resume: run.ResumeRun,
 	})
 	if err != nil {
 		return err

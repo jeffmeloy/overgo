@@ -28,8 +28,18 @@ type TrainOptions struct {
 	// (optimizer.Average) taken after each update; the run ends with the model
 	// holding the average, its optimizer state the one training reached.
 	Average float64
+	// ResumeAverage continues an average an earlier run left (optimizer.RestoreAverage)
+	// in place of starting one at Average; the weights it spans must be the model's.
+	ResumeAverage *optimizer.Average
 	// ObserveRouter, when set, receives each update's MoE routes.
 	ObserveRouter MoERouterObserver
+	// Checkpoint, when set with a positive CheckpointEvery, is called after every
+	// that many updates, counted from the optimizer's first, but not after the last,
+	// with the number of updates done, the optimizer's state and the average, nil
+	// when the run keeps none; the model's tensors then hold the weights as the
+	// update left them, not the average.
+	CheckpointEvery int
+	Checkpoint      func(done int, state TrainState, average *optimizer.Average) error
 }
 
 // Train executes ordered token batches with optional resume and observation.
@@ -67,8 +77,13 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 		return nil, optimizer.State{}, err
 	}
 	weights, _ := update.Pack.Slabs()
-	var average *optimizer.Average
-	if options.Average > 0 {
+	average := options.ResumeAverage
+	switch {
+	case average != nil:
+		if len(average.Values()) != len(weights) {
+			return nil, optimizer.State{}, fmt.Errorf("densecausal: a resumed average spans %d weights, the model's are %d", len(average.Values()), len(weights))
+		}
+	case options.Average > 0:
 		if average, err = optimizer.NewAverage(weights, options.Average); err != nil {
 			return nil, optimizer.State{}, err
 		}
@@ -100,6 +115,11 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 		}
 		if observe != nil {
 			if err := observe(step, loss, time.Since(stepStarted)); err != nil {
+				return nil, optimizer.State{}, err
+			}
+		}
+		if done := firstStep + step + 1; options.Checkpoint != nil && options.CheckpointEvery > 0 && done%options.CheckpointEvery == 0 && step+1 < len(batches) {
+			if err := options.Checkpoint(done, update.Snapshot(), average); err != nil {
 				return nil, optimizer.State{}, err
 			}
 		}

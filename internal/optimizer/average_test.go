@@ -111,3 +111,48 @@ func TestWeightAverageRefusesWhatItCannotAverage(t *testing.T) {
 		t.Error("the average aliases the weights it started from")
 	}
 }
+
+// TestWeightAverageResumesWhereItStopped checks an average restored from the
+// values and update count an interrupted one had reached takes the same later
+// updates to the same values, to the last bit, as the one that was not
+// interrupted, and refuses a negative count.
+func TestWeightAverageResumesWhereItStopped(t *testing.T) {
+	const decay = 0.9
+	sequence := make([][]float32, 20)
+	for index := range sequence {
+		sequence[index] = []float32{float32(math.Sin(float64(index))), float32(index) / 7}
+	}
+	whole, err := NewAverage([]float32{1, -1}, decay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, weights := range sequence {
+		if err := whole.Update(weights); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first, err := NewAverage([]float32{1, -1}, decay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, weights := range sequence[:8] {
+		if err := first.Update(weights); err != nil {
+			t.Fatal(err)
+		}
+	}
+	resumed, err := RestoreAverage(append([]float32(nil), first.Values()...), first.Updates(), first.Decay())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, weights := range sequence[8:] {
+		if err := resumed.Update(weights); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if resumed.Updates() != whole.Updates() || resumed.Values()[0] != whole.Values()[0] || resumed.Values()[1] != whole.Values()[1] {
+		t.Fatalf("resumed average %v after %d updates, uninterrupted %v after %d", resumed.Values(), resumed.Updates(), whole.Values(), whole.Updates())
+	}
+	if _, err := RestoreAverage([]float32{1}, -1, decay); err == nil {
+		t.Error("a negative update count was accepted")
+	}
+}

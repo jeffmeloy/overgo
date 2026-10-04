@@ -13,6 +13,7 @@ import (
 	"overgo/internal/densecausal"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/loratrain"
+	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
 	"overgo/internal/strictjson"
@@ -71,6 +72,16 @@ type TextHeldoutRequest struct {
 	// that many updates and at its end, and publish the generations as a
 	// document the result names (HeldoutResult.Samples).
 	SampleEvery int
+	// CheckpointEvery, when positive, saves a checkpoint beside the output directory
+	// (output-step-000040) after every that many updates but the last, and
+	// CheckpointKeep of the newest are kept, so a long host run survives a stop.
+	CheckpointEvery int
+	CheckpointKeep  int
+	// Resume names a checkpoint a run saved this way, to continue from: the run
+	// takes the updates after the checkpoint's from its weights, optimizer state and
+	// moving average, and ends where an uninterrupted run would. Its baseline, judged
+	// before it trains, is still the base model's.
+	Resume string
 	// Proof re-verifies the recipe by the training run alone, judging and
 	// publishing no verdict (HeldoutRun.Proof).
 	Proof bool
@@ -140,6 +151,9 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	}
 	if request.Conversations && !request.Host {
 		return HeldoutResult{}, errors.New("training workflow: a conversation run learns only some tokens, which only the host trainer does")
+	}
+	if request.CheckpointEvery < 0 || request.CheckpointEvery > 0 && request.CheckpointKeep < 1 || (request.CheckpointEvery > 0 || request.Resume != "") && !request.Host {
+		return HeldoutResult{}, errors.New("training workflow: a run that saves checkpoints, every positive number of updates and keeping at least one, or resumes from one trains on the host")
 	}
 	if request.SampleEvery < 0 || request.SampleEvery > 0 && !request.Conversations {
 		return HeldoutResult{}, errors.New("training workflow: samples are generated after the prompts of a conversation run, every positive number of steps")
@@ -235,6 +249,23 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			if err != nil {
 				return trainingprogram.Checkpoint{}, err
 			}
+			// A resumed run takes the windows after the ones the checkpoint's updates took, from the
+			// weights, optimizer state and average the checkpoint holds; its baseline, judged before
+			// this, is still the base model's.
+			var resumed resumedRun
+			if request.Resume != "" {
+				if resumed, err = restoreRun(request.Resume, modelID, objective, model, muonPlan, adapter != nil, plan.Updates(), config.BaseLearningRate, config.Momentum); err != nil {
+					return trainingprogram.Checkpoint{}, err
+				}
+				batches = batches[resumed.done:]
+				if trained != nil {
+					trained = trained[resumed.done:]
+				}
+				if resumed.adapter != nil {
+					adapter = resumed.adapter
+				}
+			}
+			first := resumed.done
 			lane := "cuda-resident"
 			if request.Host {
 				lane = "host-reference"
@@ -246,45 +277,76 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			// A sampled run generates once before it trains, every SampleEvery updates
 			// and once more at its end, which is the average when it keeps one.
 			if sampling != nil {
-				if err := sampling.sample(0); err != nil {
+				if err := sampling.sample(first); err != nil {
 					return trainingprogram.Checkpoint{}, err
 				}
 			}
-			// The run reports each update and stops between updates once
-			// its context ends.
+			// A run that saves checkpoints writes one after every CheckpointEvery updates, never
+			// the last, which is the run's own checkpoint, and keeps the newest CheckpointKeep.
+			save := func(done int, state densecausal.TrainState, average *optimizer.Average) error {
+				stream := trainingdata.StreamState{Identity: data.Training, Position: windowPosition(documents, sequence, done)}
+				companions := []func(string) error{averageCompanion(average, muonPlan)}
+				if adapter != nil {
+					companions = append(companions, adapterCompanion(adapter.Adapter()))
+				}
+				target := stepCheckpointDirectory(request.OutputDirectory, done)
+				if _, err := publishTrainedText(ctx, store, request, target, false, model, muonPlan, recipeID, objective, stream, state, companions...); err != nil {
+					return err
+				}
+				return pruneStepCheckpoints(request.OutputDirectory, request.CheckpointKeep)
+			}
+			// The run reports each update, counted from the run's first, and stops between updates
+			// once its context ends.
 			observe := func(step int, loss float64, stepWall time.Duration) error {
+				done := first + step + 1
 				if request.Progress != nil {
 					fmt.Fprintf(request.Progress, "step %d/%d loss %.6f wall %s backend %s\n",
-						step+1, plan.Updates(), loss, stepWall.Round(time.Millisecond), lane)
+						done, plan.Updates(), loss, stepWall.Round(time.Millisecond), lane)
 				}
 				if request.Step != nil {
-					request.Step(step+1, plan.Updates(), loss)
+					request.Step(done, plan.Updates(), loss)
 				}
-				if sampling != nil && (step+1)%request.SampleEvery == 0 && step+1 < plan.Updates() {
-					if err := sampling.sample(step + 1); err != nil {
+				if sampling != nil && done%request.SampleEvery == 0 && done < plan.Updates() {
+					if err := sampling.sample(done); err != nil {
+						return err
+					}
+				}
+				if adapter != nil && request.CheckpointEvery > 0 && done%request.CheckpointEvery == 0 && done < plan.Updates() {
+					state, err := adapter.OptimizerState()
+					if err != nil {
+						return err
+					}
+					if err := save(done, state, adapter.AverageState()); err != nil {
 						return err
 					}
 				}
 				return ctx.Err()
 			}
 			var state densecausal.TrainState
-			var companion func(stage string) error
+			var companions []func(stage string) error
 			if adapter != nil {
-				if request.Average > 0 {
+				if adapter.AverageState() == nil && request.Average > 0 {
 					err = adapter.Average(request.Average)
 				}
 				if err == nil {
 					_, err = adapter.Train(batches, trained, config.BaseLearningRate, config.Momentum, observe)
 				}
-				if err == nil && request.Average > 0 {
+				if err == nil && adapter.AverageState() != nil {
 					err = adapter.UseAverage()
 				}
 				if err == nil {
 					state, err = adapter.OptimizerState()
 				}
-				companion = adapterCompanion(adapter.Adapter())
+				companions = append(companions, adapterCompanion(adapter.Adapter()))
 			} else {
-				_, _, state, err = runTrainingState(model, batches, densecausal.TrainOptions{Trained: trained, Average: request.Average}, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, request.FreezeLexical, nil, observe)
+				var resume *densecausal.TrainState
+				if request.Resume != "" {
+					resume = &resumed.state
+				}
+				_, _, state, err = runTrainingState(model, batches, densecausal.TrainOptions{
+					Trained: trained, Average: request.Average, ResumeAverage: resumed.average,
+					CheckpointEvery: request.CheckpointEvery, Checkpoint: save,
+				}, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, request.FreezeLexical, resume, observe)
 			}
 			if err == nil && sampling != nil {
 				err = sampling.sample(plan.Updates())
@@ -293,7 +355,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 				return trainingprogram.Checkpoint{}, err
 			}
 			stream := trainingdata.StreamState{Identity: data.Training, Position: position}
-			return publishTrainedText(ctx, store, request, model, muonPlan, recipeID, objective, stream, state, companion)
+			return publishTrainedText(ctx, store, request, request.OutputDirectory, true, model, muonPlan, recipeID, objective, stream, state, companions...)
 		},
 		Predict: func(example HeldoutExample) (HeldoutPrediction, error) {
 			if generation {
@@ -329,9 +391,7 @@ func packWindows(documents [][]int, trained [][]bool, end, sequence, updates int
 	}
 	var stream []int
 	var learned []bool
-	starts := make([]int, len(documents))
 	for index, document := range documents {
-		starts[index] = len(stream)
 		stream = append(append(stream, document...), end)
 		if trained != nil {
 			learned = append(append(learned, trained[index]...), !slices.Contains(trained[index], false))
@@ -359,9 +419,23 @@ func packWindows(documents [][]int, trained [][]bool, end, sequence, updates int
 			return nil, nil, 0, fmt.Errorf("training workflow: window %d of %d tokens holds no token to learn: prompts fill it, so the run's window is shorter than the prompt that precedes a reply", step+1, sequence)
 		}
 	}
+	return windows, flags, windowPosition(documents, sequence, updates), nil
+}
+
+// windowPosition is how many documents the first updates windows of sequence
+// tokens reach in the stream packWindows cuts them from, a document counting once
+// its first token entered a window: the stream position a checkpoint after that
+// many updates records.
+func windowPosition(documents [][]int, sequence, updates int) uint64 {
+	starts := make([]int, len(documents))
+	length := 0
+	for index, document := range documents {
+		starts[index] = length
+		length += len(document) + 1
+	}
 	read := updates * sequence
-	begun, _ := slices.BinarySearch(starts, read%len(stream))
-	return windows, flags, uint64(read/len(stream)*len(documents) + begun), nil
+	begun, _ := slices.BinarySearch(starts, read%length)
+	return uint64(read/length*len(documents) + begun)
 }
 
 // textObjectiveData reads both of a text objective's memberships as the
@@ -423,22 +497,25 @@ func textObjectiveData(ctx context.Context, reader artifact.Reader, objective tr
 }
 
 // publishTrainedText publishes the model a held-out text run trained under
-// recipeID as a checkpoint at the request's output directory and records
-// it: the program and run plan the recipe's objective compiles over the
-// model's optimizer plan, its embedding and head frozen when the request
-// froze them, its dataset, training membership and declared processor, and
-// stream, the position the run reached in the training membership.
+// recipeID as a checkpoint at target, and records it when record is set: the
+// program and run plan the recipe's objective compiles over the model's optimizer
+// plan, its embedding and head frozen when the request froze them, its dataset,
+// training membership and declared processor, and stream, the position the run
+// reached in the training membership. A checkpoint a run saves along the way is
+// published and not recorded, so the store holds no candidate model for it.
 func publishTrainedText(
 	ctx context.Context,
 	store *overgodb.Store,
 	request TextHeldoutRequest,
+	target string,
+	record bool,
 	model *densecausal.Model,
 	muonPlan hostoptimizer.Plan,
 	recipeID artifact.ID,
 	objective trainingprogram.ObjectiveDocument,
 	stream trainingdata.StreamState,
 	state densecausal.TrainState,
-	companion func(stage string) error,
+	companions ...func(stage string) error,
 ) (trainingprogram.Checkpoint, error) {
 	if len(objective.Processors) != 1 {
 		return trainingprogram.Checkpoint{}, fmt.Errorf("training workflow: objective %q declares %d processors; a text checkpoint records one", objective.Name, len(objective.Processors))
@@ -463,11 +540,13 @@ func publishTrainedText(
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	checkpoint, err := publishCheckpoint(ctx, store, request.ModelDirectory, request.OutputDirectory, model, authority, state, companion)
+	checkpoint, err := publishCheckpoint(ctx, store, request.ModelDirectory, target, model, authority, state, companions...)
 	if err != nil {
 		return trainingprogram.Checkpoint{}, err
 	}
-	_, err = RecordCheckpoint(ctx, store, request.OutputDirectory, checkpoint)
+	if record {
+		_, err = RecordCheckpoint(ctx, store, target, checkpoint)
+	}
 	return checkpoint, err
 }
 

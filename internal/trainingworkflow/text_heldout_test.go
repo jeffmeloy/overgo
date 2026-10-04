@@ -296,7 +296,7 @@ func TestFrozenLexicalTextRunRecordsItsFrozenPlan(t *testing.T) {
 	publish := func(frozen bool) trainingprogram.Checkpoint {
 		request := TextHeldoutRequest{ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, fmt.Sprintf("trained-%t", frozen)), FreezeLexical: frozen}
 		stream := trainingdata.StreamState{Identity: data.Training, Position: 1}
-		checkpoint, err := publishTrainedText(ctx, text.store, request, model, plan, recipeID, text.objective, stream, state, nil)
+		checkpoint, err := publishTrainedText(ctx, text.store, request, request.OutputDirectory, true, model, plan, recipeID, text.objective, stream, state)
 		if err != nil {
 			t.Fatal(err)
 		}

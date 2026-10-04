@@ -2,7 +2,10 @@ package densecausal
 
 import (
 	"math"
+	"slices"
 	"testing"
+
+	"overgo/internal/optimizer"
 )
 
 // averageDecay is the decay an averaged training test runs under; with six
@@ -86,5 +89,62 @@ func TestAveragedTrainingRefusesADecayOutsideTheOpenUnitInterval(t *testing.T) {
 	}
 	if _, _, err := tinyMuonModel(t).TrainWith(batches, 0.01, 0.9, nil, nil, TrainOptions{Average: 0}); err != nil {
 		t.Errorf("no average: %v", err)
+	}
+}
+
+// TestAveragedTrainingResumesFromACheckpoint trains eight updates under an
+// average, and again with a checkpoint after the fourth: a fresh model given the
+// checkpoint's weights, optimizer state and average and the last four batches
+// ends holding exactly the weights the uninterrupted run did, and the checkpoint
+// is not taken after the last update.
+func TestAveragedTrainingResumesFromACheckpoint(t *testing.T) {
+	const rate, momentum = 0.01, 0.9
+	batches := make([][]int, 8)
+	for index := range batches {
+		batches[index] = []int{(3 + index) % 30, 9, (14 + 2*index) % 30, 5, 21, (7 + index) % 30, 18, 2}
+	}
+	uninterrupted := tinyMuonModel(t)
+	if _, _, err := uninterrupted.TrainWith(batches, rate, momentum, nil, nil, TrainOptions{Average: averageDecay}); err != nil {
+		t.Fatal(err)
+	}
+
+	type saved struct {
+		done    int
+		state   TrainState
+		average *optimizer.Average
+		weights map[string][]float32
+	}
+	var checkpoints []saved
+	interrupted := tinyMuonModel(t)
+	if _, _, err := interrupted.TrainWith(batches, rate, momentum, nil, nil, TrainOptions{
+		Average: averageDecay, CheckpointEvery: 4,
+		Checkpoint: func(done int, state TrainState, average *optimizer.Average) error {
+			weights := map[string][]float32{}
+			for name, values := range interrupted.Weights {
+				weights[name] = slices.Clone(values)
+			}
+			restored, err := optimizer.RestoreAverage(slices.Clone(average.Values()), average.Updates(), average.Decay())
+			checkpoints = append(checkpoints, saved{done, state, restored, weights})
+			return err
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(checkpoints) != 1 || checkpoints[0].done != 4 || checkpoints[0].average.Updates() != 4 {
+		t.Fatalf("%d checkpoints taken, want one, after the fourth of eight updates", len(checkpoints))
+	}
+
+	resumed := tinyMuonModel(t)
+	for name, values := range checkpoints[0].weights {
+		copy(resumed.Weights[name], values)
+	}
+	state := checkpoints[0].state
+	if _, _, err := resumed.TrainWith(batches[4:], rate, momentum, &state, nil, TrainOptions{ResumeAverage: checkpoints[0].average}); err != nil {
+		t.Fatal(err)
+	}
+	for name, values := range uninterrupted.Weights {
+		if !slices.Equal(values, resumed.Weights[name]) {
+			t.Fatalf("%s differs between the uninterrupted run and the one resumed from its fourth update", name)
+		}
 	}
 }

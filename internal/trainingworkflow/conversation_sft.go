@@ -82,6 +82,12 @@ type ConversationSFT struct {
 	// conversations before it trains, every that many updates and at its end, and publish the
 	// generations (HeldoutResult.Samples) for the page to show in step order.
 	SampleEvery int
+	// CheckpointEvery, when positive, saves a checkpoint beside OutputDirectory after every that
+	// many updates but the last, CheckpointKeep of the newest kept, and Resume names one to continue
+	// from (TextHeldoutRequest).
+	CheckpointEvery int
+	CheckpointKeep  int
+	Resume          string
 	// Steps counts updates, each on one packed window of rendered text.
 	Steps int
 	// LoRA, when set, trains a low-rank adapter over the frozen model instead
@@ -125,6 +131,7 @@ func RunConversationSFT(ctx context.Context, store *overgodb.Store, request Conv
 		Alias: alias, ModelDirectory: request.ModelDirectory, OutputDirectory: request.OutputDirectory,
 		Steps: request.Steps, MaximumSequence: conversationWindow, Host: true,
 		Chat: true, Conversations: true, Step: request.Step, Progress: request.Progress, LoRA: request.LoRA, Average: decay, SampleEvery: request.SampleEvery,
+		CheckpointEvery: request.CheckpointEvery, CheckpointKeep: request.CheckpointKeep, Resume: request.Resume,
 	})
 }
 

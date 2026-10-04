@@ -2,6 +2,7 @@ package loratrain
 
 import (
 	"encoding/json"
+	"maps"
 	"math"
 	"math/rand"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"overgo/internal/densecausal"
+	"overgo/internal/optimizer"
 	"overgo/internal/peft"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
@@ -89,9 +91,11 @@ func checkFactorGradients(t *testing.T, config Config, step float64) {
 		t.Fatal(err)
 	}
 	random := rand.New(rand.NewSource(2))
-	for _, module := range trainer.adapter.Modules {
-		for index := range module.Up {
-			module.Up[index] = float32(random.NormFloat64()) / 4
+	// In name order, so the same adapter is checked on every run: a map's order would draw another.
+	for _, name := range slices.Sorted(maps.Keys(trainer.adapter.Modules)) {
+		up := trainer.adapter.Modules[name].Up
+		for index := range up {
+			up[index] = float32(random.NormFloat64()) / 4
 		}
 	}
 	if err := trainer.apply(); err != nil {
@@ -474,6 +478,94 @@ func TestAveragedTrainingEqualsTheAverageOfItsSteps(t *testing.T) {
 	}
 	if err := stepped.Average(1); err == nil {
 		t.Error("a decay of one was accepted")
+	}
+}
+
+// TestAveragedTrainingResumesFromACheckpoint trains an adapter eight updates
+// under an average, and again stopping after the fourth: a trainer over the
+// adapter as it stood then, given the optimizer's state and the average, takes the
+// last four and ends holding exactly the factors, and so the model, the
+// uninterrupted run did.
+func TestAveragedTrainingResumesFromACheckpoint(t *testing.T) {
+	const (
+		decay = 0.9
+		stop  = 4
+		steps = 8
+	)
+	batches := make([][]int, steps)
+	for index := range batches {
+		batches[index] = periodic
+	}
+	config := Config{Rank: 2, Alpha: 4, Seed: 1}
+
+	wholeModel, _, _ := tinyModel(t)
+	whole, err := New(wholeModel, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := whole.Average(decay); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := whole.Train(batches, nil, 0.02, 0.9, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := whole.UseAverage(); err != nil {
+		t.Fatal(err)
+	}
+
+	firstModel, _, _ := tinyModel(t)
+	first, err := New(firstModel, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Average(decay); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.Train(batches[:stop], nil, 0.02, 0.9, nil); err != nil {
+		t.Fatal(err)
+	}
+	state, err := first.OptimizerState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	average, err := optimizer.RestoreAverage(slices.Clone(first.AverageState().Values()), first.AverageState().Updates(), first.AverageState().Decay())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// What a checkpoint holds: the adapter's factors, copied, and the model its factors adapt.
+	stopped := peft.Adapter{Config: first.Adapter().Config, Modules: map[string]peft.Module{}}
+	for name, module := range first.Adapter().Modules {
+		module.Down, module.Up = slices.Clone(module.Down), slices.Clone(module.Up)
+		stopped.Modules[name] = module
+	}
+
+	resumedModel, _, _ := tinyModel(t)
+	resumed, err := Resume(resumedModel, stopped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := resumed.Restore(state, average, 0.02, 0.9); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resumed.Train(batches[stop:], nil, 0.02, 0.9, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := resumed.UseAverage(); err != nil {
+		t.Fatal(err)
+	}
+	for name, module := range whole.Adapter().Modules {
+		other := resumed.Adapter().Modules[name]
+		if !slices.Equal(module.Down, other.Down) || !slices.Equal(module.Up, other.Up) {
+			t.Fatalf("%s differs between the uninterrupted run and the one resumed from its fourth update", name)
+		}
+	}
+	for name, values := range wholeModel.Weights {
+		if !slices.Equal(values, resumedModel.Weights[name]) {
+			t.Fatalf("model tensor %s differs between the uninterrupted and the resumed run", name)
+		}
+	}
+	if err := resumed.Restore(state, nil, 0.5, 0.9); err == nil || !strings.Contains(err.Error(), "fixed by the first update") {
+		t.Errorf("a changed rate on restore: err = %v", err)
 	}
 }
 

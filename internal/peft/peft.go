@@ -99,6 +99,20 @@ func (adapter Adapter) scale(module Module) float64 {
 	return module.Alpha / float64(module.Rank)
 }
 
+// Scale returns the factor the module name's product enters its weight with:
+// its alpha over its rank, or over the root of its rank when the adapter is
+// rank-stabilized.
+func (adapter Adapter) Scale(name string) (float64, error) {
+	module, found := adapter.Modules[name]
+	if !found {
+		return 0, fmt.Errorf("peft: adapter has no module %q", name)
+	}
+	if err := module.validate(name); err != nil {
+		return 0, err
+	}
+	return adapter.scale(module), nil
+}
+
 // Delta returns the weight update of the module name: its scale times Up·Down,
 // Out×In row-major.
 func (adapter Adapter) Delta(name string) ([]float32, error) {

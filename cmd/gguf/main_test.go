@@ -16,7 +16,7 @@ var formerCommands = map[string]string{
 
 // newSubcommands are the model-file tools that replaced no command: each was
 // built as a subcommand, so there is no former command to be gone.
-var newSubcommands = map[string]bool{"merge-lora": true}
+var newSubcommands = map[string]bool{"convert-lora": true, "merge-lora": true}
 
 // TestGGUFSubcommandsReplaceTheirCommands holds each subcommand, one subtest
 // by its name, to the command it replaced: the command is gone and the tool

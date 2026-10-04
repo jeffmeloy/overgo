@@ -5,20 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "lora-gguf-adapter",
-      "title": "Convert a PEFT LoRA adapter to the GGUF adapter inference loads, through the HF converter's own tensor names and q/k permutation, so a trained adapter serves with -lora",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Convert a PEFT LoRA adapter to the GGUF adapter inference loads, through the HF converter's own tensor names and q/k permutation, so a trained adapter serves with -lora",
-          "status": "open",
-          "verify": "go test ./internal/hfconvert -run LoRA -count=1 \u0026\u0026 go test ./cmd/gguf -run ConvertLoRA -count=1"
-        }
-      ]
-    },
-    {
       "id": "lora-train-core",
       "title": "Train a LoRA adapter on the dense causal model with our optimizer: frozen base, low-rank A and B on the attention and MLP projections, gradients projected from the existing backward pass, the adapter written as PEFT safetensors",
       "owner": "overgo_gui_cleanup",

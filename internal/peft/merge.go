@@ -2,9 +2,14 @@ package peft
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"maps"
 	"math"
+	"slices"
 
 	"overgo/internal/binaryschema"
 	"overgo/internal/safetensors"
@@ -50,17 +55,7 @@ func Merge(adapter Adapter, base, destination string) (MergeReport, error) {
 		adapted[name] = module
 	}
 	names := source.Names()
-	plan := safetensors.StreamingPlan{Metadata: map[string]string{"format": "pt"}}
-	for _, shard := range source.Shards() {
-		spec := safetensors.StreamingShardSpec{Name: shard}
-		for _, name := range names {
-			if tensor := source.Tensors[name]; tensor.Shard == shard {
-				spec.Tensors = append(spec.Tensors, safetensors.StreamingTensorSpec{Name: name, DType: tensor.DType, Shape: tensor.Shape})
-			}
-		}
-		plan.Shards = append(plan.Shards, spec)
-	}
-	writer, err := safetensors.NewStreamingWriter(destination, plan)
+	writer, err := safetensors.NewStreamingWriter(destination, mergePlan(source, adapter))
 	if err != nil {
 		return MergeReport{}, err
 	}
@@ -88,6 +83,45 @@ func Merge(adapter Adapter, base, destination string) (MergeReport, error) {
 		return MergeReport{}, err
 	}
 	return MergeReport{Tensors: len(names), Merged: len(adapted)}, nil
+}
+
+// adapterMetadata names the plan entry that binds a merge's staged output to
+// the adapter it merges: a staged partial of another adapter has another plan,
+// so it is refused, never resumed into a checkpoint of two adapters mixed.
+const adapterMetadata = "overgo_adapter"
+
+// mergePlan is the output catalog of merging adapter into source: the source's
+// shards, tensor names, dtypes and shapes, bound to the adapter.
+func mergePlan(source *safetensors.Source, adapter Adapter) safetensors.StreamingPlan {
+	names := source.Names()
+	plan := safetensors.StreamingPlan{Metadata: map[string]string{"format": "pt", adapterMetadata: adapter.digest()}}
+	for _, shard := range source.Shards() {
+		spec := safetensors.StreamingShardSpec{Name: shard}
+		for _, name := range names {
+			if tensor := source.Tensors[name]; tensor.Shard == shard {
+				spec.Tensors = append(spec.Tensors, safetensors.StreamingTensorSpec{Name: name, DType: tensor.DType, Shape: tensor.Shape})
+			}
+		}
+		plan.Shards = append(plan.Shards, spec)
+	}
+	return plan
+}
+
+// digest is the identity of what the adapter adds to a weight: its scale rule
+// and, per module in name order, the name, shape, alpha and factors. A hash
+// never fails a write.
+func (adapter Adapter) digest() string {
+	hash := sha256.New()
+	_ = binary.Write(hash, binary.LittleEndian, adapter.Config.RSLoRA)
+	for _, name := range slices.Sorted(maps.Keys(adapter.Modules)) {
+		module := adapter.Modules[name]
+		_ = binary.Write(hash, binary.LittleEndian, []int64{int64(len(name)), int64(module.Rank), int64(module.In), int64(module.Out)})
+		_, _ = io.WriteString(hash, name)
+		_ = binary.Write(hash, binary.LittleEndian, module.Alpha)
+		_ = binary.Write(hash, binary.LittleEndian, module.Down)
+		_ = binary.Write(hash, binary.LittleEndian, module.Up)
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 // mergedPayload is the module's base weight plus its update, in the weight's own storage.

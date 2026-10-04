@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/export"
 	"overgo/internal/gguf"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -76,11 +77,14 @@ func TestExportQuantizedGGUF(t *testing.T) {
 	if err != nil || !slices.Equal(record.Inputs, []artifact.ID{capability.Model}) || !slices.Equal(record.Outputs, completion.Outputs) {
 		t.Fatalf("export run = %+v err=%v", record, err)
 	}
-	locations, err := store.Locations(ctx, completion.Outputs[0])
-	if err != nil || !slices.ContainsFunc(locations, func(location artifact.Location) bool {
-		return location.Kind == artifact.LocationFile && location.Value == file
-	}) {
-		t.Fatalf("exported locations = %+v, %v", locations, err)
+	inventory, err := modelartifact.FromGGUFPath(file)
+	if err != nil || completion.Outputs[0] != inventory.Manifest.ID {
+		t.Fatalf("the run's output is %s, want the identity every intake gives the written model, %s: %v", completion.Outputs[0], inventory.Manifest.ID, err)
+	}
+	if want, err := artifact.CanonicalLocalLocation(completion.Outputs[0], artifact.LocationDirectory, filepath.Dir(file)); err != nil {
+		t.Fatal(err)
+	} else if locations, err := store.Locations(ctx, completion.Outputs[0]); err != nil || !slices.Contains(locations, want) {
+		t.Fatalf("exported locations = %+v, want %+v: %v", locations, want, err)
 	}
 
 	for input, refusal := range map[string]string{
@@ -142,5 +146,67 @@ func TestGGUFRunsBindTheirSource(t *testing.T) {
 	}
 	if unbound := exportRun("", "unbound"); unbound.CodeCommit != "" || unbound.Environment.Valid() || unbound.MeasuredNS != 0 {
 		t.Fatalf("unbound run = %+v", unbound)
+	}
+}
+
+// TestRepeatExportKeepsItsOutput holds an export of bytes already exported
+// under another name to a second location of the same model: the run, which
+// without a bound commit is the same record, is not a conflict, and neither
+// finished export is removed for the other.
+func TestRepeatExportKeepsItsOutput(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	workspace := NewGGUFWorkspace(store, root, 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
+	capabilities, err := workspace.WorkflowCapabilities(ctx, workflowExport)
+	if err != nil || len(capabilities) != 1 {
+		t.Fatalf("export capabilities = %+v, %v", capabilities, err)
+	}
+	var outputs []artifact.ID
+	for _, name := range []string{"first", "second"} {
+		completion, err := workspace.ExecuteWorkflow(ctx, workflowExport, capabilities[0],
+			json.RawMessage(`{"type":"f16","output":"`+name+`"}`), &recordingReporter{})
+		if err != nil {
+			t.Fatalf("export %s: %v", name, err)
+		}
+		outputs = append(outputs, completion.Outputs...)
+		if _, err := os.Stat(filepath.Join(root, name, "hermetic.f16.gguf")); err != nil {
+			t.Fatalf("export %s left no file: %v", name, err)
+		}
+	}
+	if len(outputs) != 2 || outputs[0] != outputs[1] {
+		t.Fatalf("the same bytes were identified as %v", outputs)
+	}
+	locations, err := store.Locations(ctx, outputs[0])
+	if err != nil || len(locations) != 2 {
+		t.Fatalf("the model sits at %+v, want both exports: %v", locations, err)
+	}
+}
+
+// TestModelBuilderListsNothingWithoutAMerge holds Model Builder's tab to what
+// can run: one catalogued model has no other to merge, and the adapter fold's
+// refusal beside merges is not a capability that enables the tab alone.
+func TestModelBuilderListsNothingWithoutAMerge(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := servingtest.PublishActiveGGUFWithPolicy(ctx, store, testutil.HermeticLlamaGGUF(t, 64), recipe.PlacementHybrid, modelrecipe.DecodeSessionCapacity, recipe.ResidencyHostReference); err != nil {
+		t.Fatal(err)
+	}
+	workspace := NewGGUFWorkspace(store, t.TempDir(), 64, GGUFWriters{Types: export.GGUFTypes(), Export: export.GGUF, Merge: export.MergeGGUF}, "")
+	if capabilities, err := workspace.WorkflowCapabilities(ctx, workflowModelBuild); err != nil || len(capabilities) != 0 {
+		t.Fatalf("one model lists %+v for Model Builder, %v", capabilities, err)
 	}
 }

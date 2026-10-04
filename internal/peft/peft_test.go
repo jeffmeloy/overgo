@@ -1,6 +1,7 @@
 package peft
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"maps"
@@ -471,5 +472,44 @@ func TestMergeRefusesWhatItCannotMerge(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, "out-"+name)); err == nil {
 			t.Errorf("%s: a refused merge published a checkpoint", name)
 		}
+	}
+}
+
+// TestMergeRefusesTheStagedPartialOfAnotherAdapter holds a merge killed midway
+// to resume only for the adapter that began it: another adapter merged to the
+// same destination is refused, where the plan once matched and its tensors were
+// the first adapter's, and the same adapter completes.
+func TestMergeRefusesTheStagedPartialOfAnotherAdapter(t *testing.T) {
+	root := t.TempDir()
+	base, merged := filepath.Join(root, "base"), filepath.Join(root, "merged")
+	writeBase(t, base, "F32")
+	first := testAdapter()
+	source, err := safetensors.OpenSource(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	interrupted, err := safetensors.NewStreamingWriter(merged, mergePlan(source, first))
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := queryModule + moduleWeight
+	payload, err := mergedPayload(first, queryModule, source.Tensors[name])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := interrupted.WriteTensor(name, uint64(len(payload)), bytes.NewReader(payload)); err != nil {
+		t.Fatal(err)
+	}
+
+	other := testAdapter()
+	module := other.Modules[queryModule]
+	module.Alpha *= 2
+	other.Modules[queryModule] = module
+	if _, err := Merge(other, base, merged); err == nil {
+		t.Fatal("another adapter resumed the first adapter's staged tensors")
+	}
+	if report, err := Merge(first, base, merged); err != nil || report.Merged != 2 {
+		t.Fatalf("the adapter that began the merge = %+v, %v", report, err)
 	}
 }

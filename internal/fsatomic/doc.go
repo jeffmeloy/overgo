@@ -2,6 +2,7 @@
 // publishers. Replace makes a same-volume move durable before returning;
 // SyncFile persists metadata changes made through hard links; SyncDirectory
 // persists the containing namespace where the operating system documents that
-// operation. One owner keeps the platform split from being re-derived beside
+// operation; PublishDirectory moves a completed staged directory to a name
+// that must not exist. One owner keeps the platform split from being re-derived beside
 // each store.
 package fsatomic

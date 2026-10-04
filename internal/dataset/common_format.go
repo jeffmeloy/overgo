@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,6 +15,8 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
+	"overgo/internal/fsatomic"
 )
 
 // The common chat formats a dataset arrives in -- alpaca {instruction, input,
@@ -203,38 +206,39 @@ func ImportCommonFormat(ctx context.Context, repository artifact.Repository, nam
 	if err != nil {
 		return RegisteredDataset{}, nil, err
 	}
-	directory := filepath.Join(root, name)
-	if _, err := os.Stat(directory); err == nil {
-		return RegisteredDataset{}, nil, fmt.Errorf("dataset: %s already exists; import under another name", directory)
+	directory, err := fsatomic.PublishDirectory(root, name, clioptions.OutputDirectoryMode, func(stage string) error {
+		return writeConversations(stage, conversations)
+	})
+	if errors.Is(err, fs.ErrExist) {
+		return RegisteredDataset{}, nil, fmt.Errorf("dataset: %s already exists; import under another name", filepath.Join(root, name))
 	}
-	if err := os.MkdirAll(directory, os.ModePerm); err != nil {
-		return RegisteredDataset{}, nil, err
-	}
-	registered, err := writeConversations(ctx, repository, name, directory, conversations)
 	if err != nil {
-		_ = os.RemoveAll(directory)
 		return RegisteredDataset{}, nil, err
+	}
+	registered, err := RegisterDirectoryDatasetAs(ctx, repository, name, directory, ModalityStructured)
+	if err != nil {
+		return RegisteredDataset{}, nil, errors.Join(err, os.RemoveAll(directory))
 	}
 	return registered, formats, nil
 }
 
-// writeConversations writes each conversation as its own JSON file, the
-// names padded to sort in record order, and registers the directory.
-func writeConversations(ctx context.Context, repository artifact.Repository, name, directory string, conversations []Conversation) (RegisteredDataset, error) {
+// writeConversations writes each conversation as its own JSON file in
+// directory, the names padded to sort in record order.
+func writeConversations(directory string, conversations []Conversation) error {
 	width := len(strconv.Itoa(len(conversations)))
 	for index, conversation := range conversations {
 		data, err := json.Marshal(conversation)
 		if err != nil {
-			return RegisteredDataset{}, err
+			return err
 		}
 		file, err := os.Create(filepath.Join(directory, fmt.Sprintf("%0*d.json", width, index+1)))
 		if err != nil {
-			return RegisteredDataset{}, err
+			return err
 		}
 		_, err = file.Write(data)
 		if err := errors.Join(err, file.Close()); err != nil {
-			return RegisteredDataset{}, err
+			return err
 		}
 	}
-	return RegisterDirectoryDatasetAs(ctx, repository, name, directory, ModalityStructured)
+	return nil
 }

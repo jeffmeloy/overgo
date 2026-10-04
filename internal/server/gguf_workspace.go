@@ -13,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/discovery"
+	"overgo/internal/modelartifact"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
@@ -99,6 +100,8 @@ func (workspace *GGUFWorkspace) catalogued(ctx context.Context) ([]discovery.Cat
 // WorkflowCapabilities lists an export per catalogued GGUF model in the
 // Export tab, and in Model Builder a merge onto each as the base with the
 // others as the fine-tuned choice, beside the adapter fold with its refusal.
+// With no merge to offer Model Builder lists nothing, so the refused fold
+// alone does not enable its tab.
 func (workspace *GGUFWorkspace) WorkflowCapabilities(ctx context.Context, kind WorkflowKind) ([]WorkflowCapability, error) {
 	if workspace == nil || (kind != workflowExport && kind != workflowModelBuild) {
 		return nil, nil
@@ -121,7 +124,7 @@ func (workspace *GGUFWorkspace) WorkflowCapabilities(ctx context.Context, kind W
 			capabilities = append(capabilities, capability)
 		}
 	}
-	if kind == workflowModelBuild {
+	if kind == workflowModelBuild && len(capabilities) != 0 {
 		fold, err := ggufProgram(adapterFoldRecipeRuntime, artifact.ID{})
 		if err != nil {
 			return nil, err
@@ -266,15 +269,26 @@ func (workspace *GGUFWorkspace) hostEnvironment(ctx context.Context) (runrecord.
 	return environment, nil
 }
 
-// record commits the run: the models in, the written file out at its
-// location, under the program's recipe.
+// record commits the run: the models in, the written model out under the
+// identity every intake gives a GGUF, at the location it was written to, under
+// the program's recipe. The model's batch is keyed by where it sits, so the
+// same bytes written under another name are another location of one model and
+// not a conflict, and each batch is a publication, whose repeat is success.
 func (workspace *GGUFWorkspace) record(ctx context.Context, program artifact.Descriptor, inputs []artifact.ID, file string, measured uint64) (operation.Completion, error) {
-	written, err := os.Open(file)
+	inventory, err := modelartifact.FromGGUFPath(file)
 	if err != nil {
 		return operation.Completion{}, err
 	}
-	output, size, err := artifact.Identify(artifact.KindModel, written)
-	if err := errors.Join(err, written.Close()); err != nil {
+	output := inventory.Manifest.ID
+	placed, err := artifact.JSONID(artifact.KindEvidence, inventory.Locations)
+	if err != nil {
+		return operation.Completion{}, err
+	}
+	model, err := inventory.Batch("gguf/model/" + placed.DigestHex())
+	if err != nil {
+		return operation.Completion{}, err
+	}
+	if _, err := artifact.Publish(ctx, workspace.store, model); err != nil {
 		return operation.Completion{}, err
 	}
 	run, err := runrecord.NewRun(program.ID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{output}, "")
@@ -292,11 +306,8 @@ func (workspace *GGUFWorkspace) record(ctx context.Context, program artifact.Des
 	if err != nil {
 		return operation.Completion{}, err
 	}
-	batch.Artifacts = append(batch.Artifacts, program, artifact.Descriptor{ID: output, Size: size})
-	batch.Locations = append(batch.Locations, artifact.LocationEvent{
-		Location: artifact.Location{Artifact: output, Kind: artifact.LocationFile, Value: file}, Action: artifact.LocationAdd,
-	})
-	if _, err := artifact.CommitBatch(ctx, workspace.store, batch); err != nil {
+	batch.Artifacts = append(batch.Artifacts, program)
+	if _, err := artifact.Publish(ctx, workspace.store, batch); err != nil {
 		return operation.Completion{}, err
 	}
 	return operation.Completion{Run: run.ID, Outputs: []artifact.ID{output}}, nil

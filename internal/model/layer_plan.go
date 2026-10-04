@@ -404,14 +404,24 @@ func (s Spec) planLayer(profile ArchitectureProfile, layer uint32, recurrent boo
 	return plan, nil
 }
 
-// SupportsCapacityCache: all token caches admit bounded append.
+// SupportsCapacityCache: all token caches admit bounded append. A shared-KV
+// layer appends nothing and reads its source layer's page in the same graph,
+// so it joins the capacity cache when that source does and the plan decodes
+// through the persistent device cache that builds the graph.
 func (p ModelPlan) SupportsCapacityCache() bool {
 	if len(p.layers) == tensor.FirstOffset {
 		return false
 	}
 	for _, layer := range p.layers {
-		if layer.CacheMode.TokenAligned() &&
-			(layer.CacheWrite != cacheWriteConcatOrAppend || layer.SharedKV) {
+		if !layer.CacheMode.TokenAligned() {
+			continue
+		}
+		if layer.CacheWrite != cacheWriteConcatOrAppend {
+			return false
+		}
+		if layer.SharedKV && (!p.forward.PersistentDeviceCache() || int(layer.KVSource) >= len(p.layers) ||
+			!p.layers[layer.KVSource].CacheMode.TokenAligned() ||
+			p.layers[layer.KVSource].CacheWrite != cacheWriteConcatOrAppend) {
 			return false
 		}
 	}

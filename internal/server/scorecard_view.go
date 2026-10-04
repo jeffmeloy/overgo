@@ -47,8 +47,8 @@ type ScorecardMove struct {
 	Task   string  `json:"task"`
 	Kind   string  `json:"kind"`
 	Metric string  `json:"metric,omitzero"`
-	Before float64 `json:"before,omitzero"`
-	After  float64 `json:"after,omitzero"`
+	Before float64 `json:"before"`
+	After  float64 `json:"after"`
 	Unit   string  `json:"unit,omitzero"`
 	Reason string  `json:"reason,omitzero"`
 }

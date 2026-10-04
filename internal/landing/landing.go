@@ -340,15 +340,41 @@ func (l *landing) fix(ctx context.Context) error {
 				return err
 			}
 		}
-		// The API manifest is derived from the source: regenerating it is a
-		// fix, like go fix, not a refusal to land again after.
-		if _, err := os.Stat(filepath.Join(l.Repo, "cmd", "api-manifest")); err == nil {
-			if _, err := l.run(ctx, nil, "go", "run", "./cmd/api-manifest", "-update"); err != nil {
+		// What the source derives is regenerated, as go fix is applied, not
+		// refused for a landing again after.
+		for _, generator := range l.generators() {
+			if _, err := l.run(ctx, generator.environment, "go", generator.arguments...); err != nil {
 				return err
 			}
 		}
 	}
 	return l.shipSet(ctx)
+}
+
+// generator is a command that rewrites a file the source derives.
+type generator struct {
+	arguments, environment []string
+}
+
+// generators are the derived-file commands the repository has, in the order
+// they run: the API manifest, regenerated from the source, and the
+// compatibility claims, each rebound only by its own verify passing, which
+// takes a moment when no bound source moved. A repository without the
+// command has nothing to derive with it.
+func (l *landing) generators() []generator {
+	var held []generator
+	for _, candidate := range []struct {
+		command string
+		generator
+	}{
+		{"api-manifest", generator{arguments: []string{"run", "./cmd/api-manifest", "-update"}}},
+		{"validate", generator{arguments: []string{"run", "./cmd/validate", "-claims", "-run"}, environment: append(os.Environ(), cudaTestEnvironment)}},
+	} {
+		if _, err := os.Stat(filepath.Join(l.Repo, "cmd", candidate.command)); err == nil {
+			held = append(held, candidate.generator)
+		}
+	}
+	return held
 }
 
 func (l *landing) vet(ctx context.Context) error {

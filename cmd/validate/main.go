@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -36,6 +37,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/scorecard"
 	"overgo/internal/testevidence"
+	"overgo/internal/trainingworkflow"
 )
 
 // catalogLimit bounds the registered-model listing; a truncated denominator is
@@ -204,6 +206,16 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		return err
 	}
 	defer store.Close()
+	var scope runScope
+	if *execute {
+		if scope, err = runScopeOf(*background, *cellsOnly, *lanesOnly); err != nil {
+			return err
+		}
+		if scope == scopeLanes {
+			// The lanes need no model resolved: only they run.
+			return executeRun(ctx, output, *root, storeRoot, store, Plan{Suites: cycleSuites()}, scope)
+		}
+	}
 	registered, err := registeredCells(ctx, store)
 	if err != nil {
 		return err
@@ -231,10 +243,6 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	plan := SelectValidation(Inputs{Registered: registered, Scorecard: compared})
 	plan.Suites = cycleSuites()
 	if *execute {
-		scope, err := runScopeOf(*background, *cellsOnly, *lanesOnly)
-		if err != nil {
-			return err
-		}
 		return executeRun(ctx, output, *root, storeRoot, store, plan, scope)
 	}
 	return clioptions.WritePrettyJSON(output, plan)
@@ -254,6 +262,7 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 	if truncated {
 		return nil, fmt.Errorf("validate: registered catalog exceeds listing bound %d; raise the bound", catalogLimit)
 	}
+	entries = currentIdentities(entries, trainingworkflow.WeightsIdentity)
 	var cells []ModelValidation
 	for _, entry := range entries {
 		name := ""
@@ -286,6 +295,52 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 		}
 	}
 	return cells, nil
+}
+
+// currentIdentities drops, at a weights location that more than one model
+// identity answers to, the training capability of the identities the weights
+// no longer resolve to when the identity they do resolve to carries a training
+// capability of its own that is not stale. A file registered under the
+// whole-file hash an older bootstrap recorded and under the complete-manifest
+// identity a training run binds now has a training activation under each, and
+// the superseded one's proof can never hand off: its run is recorded under the
+// current identity's recipe, so it would run, fail and withhold promotion every
+// cycle. Only the training route's own resolution is proven to match the
+// identity a proof binds, so no other task is dropped; a location where one
+// identity alone holds training, or whose identity cannot be resolved, is left
+// as the catalog lists it.
+func currentIdentities(entries []discovery.CatalogEntry, resolve func(location string) (artifact.ID, error)) []discovery.CatalogEntry {
+	training := func(entry discovery.CatalogEntry) bool {
+		return slices.ContainsFunc(entry.Capabilities, func(capability discovery.Capability) bool { return capability.Task == recipe.TaskTraining })
+	}
+	byLocation := map[string][]int{}
+	for index, entry := range entries {
+		if entry.Location != "" && training(entry) {
+			byLocation[entry.Location] = append(byLocation[entry.Location], index)
+		}
+	}
+	entries = slices.Clone(entries)
+	for location, group := range byLocation {
+		if len(group) <= 1 {
+			continue
+		}
+		current, err := resolve(location)
+		if err != nil {
+			continue
+		}
+		at := slices.IndexFunc(group, func(index int) bool { return entries[index].Model == current })
+		if at < 0 || slices.ContainsFunc(entries[group[at]].Capabilities, func(capability discovery.Capability) bool {
+			return capability.Task == recipe.TaskTraining && capability.Stale != ""
+		}) {
+			continue
+		}
+		for _, index := range group {
+			if index != group[at] {
+				entries[index].Capabilities = slices.DeleteFunc(slices.Clone(entries[index].Capabilities), func(capability discovery.Capability) bool { return capability.Task == recipe.TaskTraining })
+			}
+		}
+	}
+	return entries
 }
 
 // kindValidation lists the appropriate validations for one declared task.

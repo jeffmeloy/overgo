@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"overgo/internal/overgodb"
@@ -26,6 +27,21 @@ func testScorecardHistory() *ScorecardHistory {
 		{Name: "qwen-0.5b", Task: "inference", Kind: "added"},
 		{Name: "retired", Task: "inference", Kind: "removed"},
 	}}
+}
+
+// TestScorecardMoveKeepsAZeroMeasure holds a move's before and after to the
+// JSON the page reads even at zero, the healthy baseline of a failure rate and
+// the peak memory of a host run, which the page would otherwise read as absent
+// and print as not a number.
+func TestScorecardMoveKeepsAZeroMeasure(t *testing.T) {
+	t.Parallel()
+	data, err := json.Marshal(ScorecardMove{Name: "m", Task: "inference", Kind: "worse", Metric: "failure-rate", After: 0.05})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"before":0`) || !strings.Contains(string(data), `"after":0.05`) {
+		t.Fatalf("a move from zero marshals as %s, want its before kept", data)
+	}
 }
 
 // TestWhatGotBetterBetweenVersions: the scorecard route carries what moved

@@ -2,12 +2,12 @@ package dataset
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/fsatomic"
 )
 
 // The common chat formats a dataset arrives in -- alpaca {instruction, input,
@@ -63,10 +64,10 @@ type commonMessage struct {
 	Content json.RawMessage `json:"content"`
 }
 
-// ConvertCommonFormat reads a JSON Lines file or a JSON array of records in
+// convertCommonFormat reads a JSON Lines file or a JSON array of records in
 // any of the three formats and returns each as a conversation, with the
 // formats it met in the order it met them.
-func ConvertCommonFormat(source io.Reader) ([]Conversation, []string, error) {
+func convertCommonFormat(source io.Reader) ([]Conversation, []string, error) {
 	reader := bufio.NewReader(source)
 	decoder := json.NewDecoder(reader)
 	if first, err := firstByte(reader); err != nil {
@@ -99,11 +100,11 @@ func ConvertCommonFormat(source io.Reader) ([]Conversation, []string, error) {
 }
 
 // byteOrderMark opens a UTF-8 file some editors save.
-var byteOrderMark = []byte{0xef, 0xbb, 0xbf}
+const byteOrderMark = "\ufeff"
 
 // firstByte peeks the first byte past a byte order mark and white space.
 func firstByte(reader *bufio.Reader) (byte, error) {
-	if peeked, _ := reader.Peek(len(byteOrderMark)); bytes.Equal(peeked, byteOrderMark) {
+	if peeked, _ := reader.Peek(len(byteOrderMark)); string(peeked) == byteOrderMark {
 		_, _ = reader.Discard(len(byteOrderMark))
 	}
 	for {
@@ -199,43 +200,44 @@ func ImportCommonFormat(ctx context.Context, repository artifact.Repository, nam
 	if err != nil {
 		return RegisteredDataset{}, nil, err
 	}
-	conversations, formats, err := ConvertCommonFormat(file)
+	conversations, formats, err := convertCommonFormat(file)
 	_ = file.Close()
 	if err != nil {
 		return RegisteredDataset{}, nil, err
 	}
-	directory := filepath.Join(root, name)
-	if _, err := os.Stat(directory); err == nil {
-		return RegisteredDataset{}, nil, fmt.Errorf("dataset: %s already exists; import under another name", directory)
+	directory, err := fsatomic.PublishDirectory(root, name, fsatomic.DirectoryMode, func(stage string) error {
+		return writeConversations(stage, conversations)
+	})
+	if errors.Is(err, fs.ErrExist) {
+		return RegisteredDataset{}, nil, fmt.Errorf("dataset: %s already exists; import under another name", filepath.Join(root, name))
 	}
-	if err := os.MkdirAll(directory, os.ModePerm); err != nil {
-		return RegisteredDataset{}, nil, err
-	}
-	registered, err := writeConversations(ctx, repository, name, directory, conversations)
 	if err != nil {
-		_ = os.RemoveAll(directory)
 		return RegisteredDataset{}, nil, err
+	}
+	registered, err := RegisterDirectoryDatasetAs(ctx, repository, name, directory, ModalityStructured)
+	if err != nil {
+		return RegisteredDataset{}, nil, errors.Join(err, os.RemoveAll(directory))
 	}
 	return registered, formats, nil
 }
 
-// writeConversations writes each conversation as its own JSON file, the
-// names padded to sort in record order, and registers the directory.
-func writeConversations(ctx context.Context, repository artifact.Repository, name, directory string, conversations []Conversation) (RegisteredDataset, error) {
+// writeConversations writes each conversation as its own JSON file in
+// directory, the names padded to sort in record order.
+func writeConversations(directory string, conversations []Conversation) error {
 	width := len(strconv.Itoa(len(conversations)))
 	for index, conversation := range conversations {
 		data, err := json.Marshal(conversation)
 		if err != nil {
-			return RegisteredDataset{}, err
+			return err
 		}
 		file, err := os.Create(filepath.Join(directory, fmt.Sprintf("%0*d.json", width, index+1)))
 		if err != nil {
-			return RegisteredDataset{}, err
+			return err
 		}
 		_, err = file.Write(data)
 		if err := errors.Join(err, file.Close()); err != nil {
-			return RegisteredDataset{}, err
+			return err
 		}
 	}
-	return RegisterDirectoryDatasetAs(ctx, repository, name, directory, ModalityStructured)
+	return nil
 }

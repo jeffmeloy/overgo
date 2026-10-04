@@ -487,6 +487,13 @@ func identifyModel(directory string) (artifact.ID, error) {
 	if err != nil {
 		return artifact.ID{}, err
 	}
+	return WeightsIdentity(path)
+}
+
+// WeightsIdentity is the model identity a training run over the weights at
+// path binds: the one its bootstrap records its recipe under and its
+// checkpoints resume under.
+func WeightsIdentity(path string) (artifact.ID, error) {
 	id, _, err := identifyWeights(path)
 	return id, err
 }

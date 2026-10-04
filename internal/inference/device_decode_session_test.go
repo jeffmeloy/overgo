@@ -111,6 +111,52 @@ func TestParameterizedDecodeCapacityStaysWithinPageClass(t *testing.T) {
 	}
 }
 
+// TestParameterizedDecodeRefreshesPerLayerRows pins that a replay looks the
+// per-layer embeddings up by the step's token, as it does the token embedding:
+// left at the first step's rows, every later token of a per-layer-embedding
+// model would read the wrong row.
+func TestParameterizedDecodeRefreshesPerLayerRows(t *testing.T) {
+	builder := tensor.NewBuilder()
+	table := builder.Input("table", dtype.F32, tensor.MustShape(2, 4))
+	perLayerTable := builder.Input("per_layer_table", dtype.F32, tensor.MustShape(2, 4))
+	tokenRows := builder.GetRows(table, []uint32{1})
+	perLayerRows := builder.GetRows(perLayerTable, []uint32{1})
+	logits := builder.Add(tokenRows, perLayerRows)
+	if err := builder.Err(); err != nil {
+		t.Fatal(err)
+	}
+	compiled, err := executor.Compile(logits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := compileDecodeSessionPlan(
+		compiled,
+		[]deviceBatchGraph{{logits: logits, tokenInput: tokenRows, perLayerRows: perLayerRows}},
+		[]deviceCacheTargetPlan{{}},
+		decodeSessionIdentity{capacity: 8, branches: 1, tokenCount: 1},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = program.updateBranch(0, []uint32{3}, 5, 5); err != nil {
+		t.Fatal(err)
+	}
+	refreshed := 0
+	for _, slot := range program.dynamic {
+		if slot.kind != decodeDynamicTokenRows {
+			continue
+		}
+		rows := slot.value.(*tensor.GetRowsAttributes).Rows
+		if len(rows) != 1 || rows[0] != 3 {
+			t.Fatalf("token-row slot of %s holds %v after the update, want [3]", slot.node.Name, rows)
+		}
+		refreshed++
+	}
+	if refreshed != 2 {
+		t.Fatalf("%d token-row slots refresh per step, want the token and per-layer lookups", refreshed)
+	}
+}
+
 func TestParameterizedDecodeAttributesCoverDynamicNodes(t *testing.T) {
 	const (
 		activeTokens   = uint32(2)

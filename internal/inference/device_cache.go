@@ -461,6 +461,7 @@ type deviceBatchGraph struct {
 	hidden       *tensor.Tensor
 	feedback     *tensor.Tensor
 	tokenInput   *tensor.Tensor
+	perLayerRows *tensor.Tensor
 	positionRows []*tensor.Tensor
 	keys         []*tensor.Tensor
 	values       []*tensor.Tensor
@@ -1299,6 +1300,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 		embeddingSkip = current
 	}
 	var perLayerInputs []*tensor.Tensor
+	var perLayerRows *tensor.Tensor
 	if r.program.Model.ProjectedInput().PerLayerEmbeddings {
 		if r.weights.PerLayerTokenEmbedding == nil || r.weights.PerLayerModelProjection == nil ||
 			r.weights.PerLayerProjectionNorm == nil {
@@ -1319,8 +1321,9 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 			return fail(inputErr)
 		}
 		deviceFeeds.Add(norm, pointer)
+		perLayerRows = builder.GetRows(perLayerTable, tokenIndices)
 		perLayerInputs, inputErr = r.program.Model.BuildPerLayerInputs(
-			builder, current, builder.GetRows(perLayerTable, tokenIndices), projection, norm,
+			builder, current, perLayerRows, projection, norm,
 		)
 		if inputErr != nil {
 			return fail(inputErr)
@@ -1437,7 +1440,7 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	}
 	return deviceBatchGraph{
 		logits: logits, selection: selection, candidates: candidates, feedback: feedback,
-		hidden: spanHidden, tokenInput: tokenRowInput, positionRows: positionRows,
+		hidden: spanHidden, tokenInput: tokenRowInput, perLayerRows: perLayerRows, positionRows: positionRows,
 		keys: keys, values: values, states: states, cacheInputs: cacheBindings,
 		pastTokens: pastTokens, nextPosition: nextPosition,
 		tokenCount: uint32(tokensPerSequence), sequences: uint32(sequences),

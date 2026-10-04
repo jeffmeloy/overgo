@@ -130,7 +130,9 @@ func TestModelBuilderMergeRun(t *testing.T) {
 		}
 	}
 	locations, err := store.Locations(ctx, run.Outputs[0])
-	if err != nil || !slices.ContainsFunc(locations, func(location artifact.Location) bool { return location.Value == merged }) {
+	if err != nil || !slices.ContainsFunc(locations, func(location artifact.Location) bool {
+		return location.Kind == artifact.LocationDirectory && location.Value == filepath.Dir(merged)
+	}) {
 		t.Fatalf("merged locations = %+v, %v", locations, err)
 	}
 	if _, err := execute(merge, `{"fine_tuned":"absent.gguf","scale":1,"output":"other"}`); err == nil || !strings.Contains(err.Error(), `0 catalogued models are named "absent.gguf"`) {

@@ -1172,7 +1172,8 @@
               return row;
             }
             // The model already serving says so in place of an offer to serve it again.
-            if (name === modelPill.textContent) { row.appendChild(el("span", { class: "tag ok", text: "Serving" })); return row; }
+            // It is the served entry when the catalog names it, and the pill's name only when the catalog does not: a repository's weights all share one file name.
+            if (servedEntry ? item.model === servedEntry.model : name === modelPill.textContent) { row.appendChild(el("span", { class: "tag ok", text: "Serving" })); return row; }
             row.appendChild(el("button", { class: "btn alt", text: "Serve", "data-serve": "", disabled: modelSwitchPending, onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
           }));
         const first = panel.querySelector(".row"); if (first) first.focus();

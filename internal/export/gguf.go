@@ -3,11 +3,13 @@ package export
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/fsatomic"
 	"overgo/internal/gguf"
 	"overgo/internal/modelmerge"
 	"overgo/internal/quant"
@@ -68,24 +70,25 @@ func MergeGGUF(base string, tuned []string, scales []float32, root, name string)
 }
 
 // writeInto makes the new directory name under root, writes the file named
-// for source and suffix into it, and leaves no directory when writing fails.
+// for source and suffix into it, and leaves no directory when writing fails:
+// the directory is staged and moved into place whole, so two writers of one
+// name cannot remove each other's output.
 func writeInto(root, name, source, suffix string, write func(file string) error) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || name == "." || name == ".." || filepath.Base(name) != name {
 		return "", errors.New("export: the output must be one path element")
 	}
-	directory := filepath.Join(root, name)
-	if _, err := os.Stat(directory); err == nil {
-		return "", fmt.Errorf("export: %s already exists; write under another name", directory)
+	base := strings.TrimSuffix(filepath.Base(source), filepath.Ext(source)) + "." + suffix + ".gguf"
+	directory, err := fsatomic.PublishDirectory(root, name, clioptions.OutputDirectoryMode, func(stage string) error {
+		return write(filepath.Join(stage, base))
+	})
+	if errors.Is(err, fs.ErrExist) {
+		return "", fmt.Errorf("export: %s already exists; write under another name", filepath.Join(root, name))
 	}
-	if err := os.MkdirAll(directory, clioptions.OutputDirectoryMode); err != nil {
+	if err != nil {
 		return "", err
 	}
-	file := filepath.Join(directory, strings.TrimSuffix(filepath.Base(source), filepath.Ext(source))+"."+suffix+".gguf")
-	if err := write(file); err != nil {
-		return "", errors.Join(err, os.RemoveAll(directory))
-	}
-	return file, nil
+	return filepath.Join(directory, base), nil
 }
 
 // quantizeGGUF writes source quantized to target at file.

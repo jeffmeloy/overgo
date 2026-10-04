@@ -482,7 +482,7 @@ button.pill { font:inherit; cursor:pointer; }
    its control stands in the second. */
 .picker-card > .row[tabindex] > * { grid-column:1; justify-self:start; max-width:100%; }
 .picker-card > .row[tabindex] > .mono { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:500 var(--t-base) var(--font); }
-.picker-card > .row[tabindex] > .btn, .picker-card > .row[tabindex] > .tag.ok { grid-column:2; grid-row:1 / span 3; justify-self:end; }
+.picker-card > .row[tabindex] > .btn, .picker-card > .row[tabindex] > .tag.ok:not(.support-tier) { grid-column:2; grid-row:1 / span 3; justify-self:end; }
 .picker-facts { min-width:0; }
 .picker-facts .note { display:block; white-space:normal; }
 .picker-facts .keyfield { flex:1 1 120px; min-width:0; }

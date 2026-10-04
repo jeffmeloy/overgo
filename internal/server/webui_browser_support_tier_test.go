@@ -101,6 +101,13 @@ func TestWebUIBrowserSupportTier(t *testing.T) {
   const tier = (name) => ([...document.querySelectorAll('dialog[open] .row[tabindex]')].find(row => row.querySelector('.mono').textContent === name) || document.body).querySelector('.support-tier');
   return tier(` + "`" + health.Model + "`" + `).textContent === 'self-consistent · guarded' && tier('bare.gguf').textContent === 'registered' && tier('bare.gguf').classList.contains('caution');
 })()`)
+	// The served row's marker is the one control tag of the card, and a parity-checked tier takes the name's column, not the control's.
+	check(`(() => {
+  const rows = [...document.querySelectorAll('dialog[open] .row[tabindex]')];
+  const probe = document.createElement('span'); probe.className = 'tag support-tier ok'; rows[0].appendChild(probe);
+  const column = getComputedStyle(probe).gridColumnStart; probe.remove();
+  return rows.filter(row => row.querySelector('.tag.ok:not(.support-tier)')).length === 1 && column === '1';
+})()`)
 	check(`(() => { document.querySelector('dialog[open]').dispatchEvent(new Event('cancel')); return true; })()`)
 	settle(`!document.querySelector('dialog[open]')`)
 

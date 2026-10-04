@@ -67,8 +67,10 @@ Repository shrinks while capability grows.
 3. State change, expected effect, deciding comparison. Probe only uncertainty that
    could change the design.
 4. Fix the cause in its owner; migrate callers; delete displaced code.
-5. Step verify fails before, passes after. Run the gate's cheap refusals locally
-   first: claims check, rules, step verify.
+5. Step verify fails before, passes after. Preflight first:
+   `go run ./cmd/gate -plan <item>/<step> -message-file - -preflight` runs the
+   gate's cheap stages (format, fix, vet, rules, invariant tests, verify), commits
+   nothing. Also `go run ./cmd/validate -claims` after hand edits.
 6. Land: `go run ./cmd/loop -land <item>/<step> -message-file -`; message on stdin
    with `Cause:` and `Predicted effect:` naming scorecard metrics (worsening in
    words). Gate writes numbers. Run unpiped; confirm `git log -1` shows
@@ -89,7 +91,10 @@ Repository shrinks while capability grows.
 - Gate judges the commit from the tree alone: unit, golden, hermetic, small
   device. Store writes never change its verdict.
 - Cycle (`validate -run`) judges models: real-model, live-store, device suites, by
-  build tag. Promotion needs them at the promoted commit.
+  build tag. Promotion needs them at the promoted commit. Phases: cells, publish,
+  lanes; an interrupted cycle resumes at the first unpassed phase when
+  `go run ./cmd/loop -improve` runs again.
+- A hand step is a system defect: change the system so it does not recur.
 - Landing cost = lanes reached + inference-surface guard expiry + pinned-media
   reconciliation. Batch surface moves; land before an evaluation run.
 - Native `go test` selects. No time budgets, ratchets, second selector. Pin

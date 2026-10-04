@@ -31,9 +31,9 @@ func TestCommonFormatsConvert(t *testing.T) {
 	}
 	for name, source := range map[string]string{
 		"lines": alpaca + "\n" + shareGPT + "\r\n\n" + openAI + "\n",
-		"array": string(byteOrderMark) + "  [" + alpaca + "," + shareGPT + "," + openAI + "]",
+		"array": byteOrderMark + "  [" + alpaca + "," + shareGPT + "," + openAI + "]",
 	} {
-		conversations, formats, err := ConvertCommonFormat(strings.NewReader(source))
+		conversations, formats, err := convertCommonFormat(strings.NewReader(source))
 		if err != nil || !reflect.DeepEqual(conversations, want) || !slices.Equal(formats, []string{"alpaca", "sharegpt", "openai-messages"}) {
 			t.Fatalf("%s: conversations=%+v formats=%v err=%v", name, conversations, formats, err)
 		}
@@ -44,7 +44,7 @@ func TestCommonFormatsConvert(t *testing.T) {
 		`{"messages":[{"role":"user","content":[{"type":"image_url"}]}]}`: "record 1: message content part \"image_url\" is not text",
 		"  \n": "the file holds no records",
 	} {
-		if _, _, err := ConvertCommonFormat(strings.NewReader(source)); err == nil || !strings.Contains(err.Error(), refusal) {
+		if _, _, err := convertCommonFormat(strings.NewReader(source)); err == nil || !strings.Contains(err.Error(), refusal) {
 			t.Fatalf("source %q: err=%v, want %q", source, err, refusal)
 		}
 	}

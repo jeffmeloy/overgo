@@ -73,6 +73,13 @@ func loadTrainableEncoder(input string) (func(string) ([]int, error), error) {
 // tokenizer files in a safetensors directory, with the end-of-sequence
 // token its configs declare, or the tokenizer GGUF metadata embeds.
 func loadTrainableTokenizer(input string) (trainableTokenizer, error) {
+	return loadTrainableTokenizerFor(input, false)
+}
+
+// loadTrainableTokenizerFor is loadTrainableTokenizer, reading chat text when
+// chat is set: a GGUF vocabulary parses the control tokens in the text and adds
+// its start token, as serving encodes a chat prompt.
+func loadTrainableTokenizerFor(input string, chat bool) (trainableTokenizer, error) {
 	input, err := trainedInput(input)
 	if err != nil {
 		return trainableTokenizer{}, err
@@ -99,7 +106,7 @@ func loadTrainableTokenizer(input string) (trainableTokenizer, error) {
 	}
 	return trainableTokenizer{
 		encode: func(text string) ([]int, error) {
-			ids, err := vocabulary.Encode(text, tokenizer.EncodeOptions{})
+			ids, err := vocabulary.Encode(text, tokenizer.EncodeOptions{AddSpecial: chat, ParseSpecial: chat})
 			if err != nil {
 				return nil, err
 			}

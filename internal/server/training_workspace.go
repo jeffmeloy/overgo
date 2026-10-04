@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"slices"
-	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
@@ -231,11 +229,7 @@ func (workspace *trainingWorkspace) executeWorkflow(
 }
 
 func (workspace *trainingWorkspace) outputPath(name string) (string, error) {
-	name = strings.TrimSpace(name)
-	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, "\x00\r\n") {
-		return "", errors.New("training workspace: output must be one safe path component")
-	}
-	return filepath.Join(workspace.roots.Checkpoints, name), nil
+	return outputDirectory(workspace.roots.Checkpoints, name)
 }
 
 // publish records the run, its trace and its decision: approved or refused

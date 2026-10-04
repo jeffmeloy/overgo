@@ -47,6 +47,13 @@ type TextHeldoutRequest struct {
 	// Progress, when set, receives the lane the run trains on and a line
 	// per update, as the dense workflow reports them.
 	Progress io.Writer
+	// Step, when set, reports each update as it finishes: its number, the
+	// run's total and its loss.
+	Step func(step, total int, loss float64)
+	// Chat reads each record as rendered chat text: the model's control
+	// tokens in it parse as tokens and its start token is added, as serving
+	// encodes a chat prompt.
+	Chat bool
 	// Proof re-verifies the recipe by the training run alone, judging and
 	// publishing no verdict (HeldoutRun.Proof).
 	Proof bool
@@ -115,7 +122,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	tokenizer, err := loadTrainableTokenizer(request.ModelDirectory)
+	tokenizer, err := loadTrainableTokenizerFor(request.ModelDirectory, request.Chat)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -168,6 +175,9 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 				if request.Progress != nil {
 					fmt.Fprintf(request.Progress, "step %d/%d loss %.6f wall %s backend %s\n",
 						step+1, plan.Updates(), loss, stepWall.Round(time.Millisecond), lane)
+				}
+				if request.Step != nil {
+					request.Step(step+1, plan.Updates(), loss)
 				}
 				return ctx.Err()
 			}

@@ -305,6 +305,19 @@ func run() error {
 		}
 		workflowWorkspaces = append(workflowWorkspaces, workspace)
 	}
+	// Fine-tuning on conversations rides the store alone, as exports do: it trains
+	// the served model, so it needs only that model and the roots it writes under.
+	if workspaceStore != nil && rootsErr == nil {
+		workspace, err := llamaserver.NewSFTWorkspace(workspaceStore, roots, llamaserver.SFTTrainer{
+			Model: runner.ModelID(), File: roots.ResolveModelPath(modelReference),
+			Render: conversationRenderer(runner),
+		})
+		if err != nil {
+			log.Printf("conversation fine-tuning unavailable: %v", err)
+		} else {
+			workflowWorkspaces = append(workflowWorkspaces, workspace)
+		}
+	}
 	if *modelBuilderEnabled {
 		workspace, err := llamaserver.NewModelBuilderWorkspace(shutdownContext, workspaceStore)
 		if err != nil {

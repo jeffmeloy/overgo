@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "merge-paths",
-          "title": "Fuse the merge paths: peft.Merge's buffers and modelmerge.MergeGGUF's one pass per task",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner findings (2026-10-04). peft.Merge allocates three full-size buffers per tensor (the base in F32, the delta, the output bytes) plus a transposed copy of Down, over four passes: fold the scale into Up and add row by row into the base values, in parallel, which removes the delta buffer and the transpose (the lora-helpers helper serves it). modelmerge.MergeGGUF clones every tensor and allocates a fresh raw buffer and dequantized slice per task per tensor; the algebra allows one fused pass per task with no clone, base + sum of s_k*(t_k - base) = (1 - sum of s_k)*base + sum of s_k*t_k (float rounding differs slightly, which a new feature may take), and buffers can be reused, sized to the largest tensor. The result is always an F32 GGUF, so a 12B merge writes about 48 GB before quantizing in a second pass: check whether RewriteTo, which takes an output dtype, can write quantized types directly. MEASURED (2026-10-04 profile, tmp/profile_merge.go): peft.Merge of a rank-8 adapter into Qwen2.5-0.5B takes 2.9 s and allocates 3.6 GB (ReadF32 3.2 GB, Delta 2.7 GB, a clone 1.4 GB; the CPU is 38 percent the Delta matmul and 25 percent the writes), not a time cost a user waits on. modelmerge.MergeGGUF of MiniCPM5-1B with itself takes 7.7 s, writes 4.33 GB, allocates 20.7 GB and reaches a 10.1 GB heap (Dequantize 5.2 GB, quantize 2.6 GB, a clone 2.6 GB, the rewrite 1.7 GB); 85 percent of the CPU is the rewrite and the write. The peak heap, 2.3 times the output, is what a 12B merge would meet: measure the peak on a larger model before changing the pass, and do the fused one-pass-per-task and the buffer reuse for that peak, not for the wall."
-        },
-        {
           "id": "do",
           "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
           "status": "open",

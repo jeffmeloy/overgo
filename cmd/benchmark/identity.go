@@ -60,18 +60,22 @@ func benchmarkModuleDigest() (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// benchmarkAdapterIDs identifies the LoRA files a run applies. A run with none
+// holds nil, which is what its published record reads back as, so the options
+// digest it binds is the digest its reader rebuilds.
 func benchmarkAdapterIDs(paths []string) ([]artifact.ID, error) {
-	ids := make([]artifact.ID, len(paths))
-	for index, path := range paths {
+	var ids []artifact.ID
+	for _, path := range paths {
 		file, err := os.Open(path)
 		if err != nil {
 			return nil, err
 		}
-		ids[index], _, err = artifact.Identify(artifact.KindAdapter, file)
+		id, _, err := artifact.Identify(artifact.KindAdapter, file)
 		closeErr := file.Close()
 		if err != nil || closeErr != nil {
 			return nil, errors.Join(err, closeErr)
 		}
+		ids = append(ids, id)
 	}
 	return ids, nil
 }

@@ -4,21 +4,32 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "inference-decode-gaps",
-      "title": "Close the measured decode and load gaps: Unlimited-OCR decode first",
+      "id": "decode-small-kernels",
+      "title": "Fuse the small decode kernels around the matmuls: norm, residual, scale and activation",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 2100,
-        "reason": "the single-pass verified load: one pass reads the model once, hashes every byte before it is uploaded and publishes nothing unless every shard equals its claim; it replaces the hash-then-upload structure (store loaders, streamTensor) and buys a load about 4 s shorter on a 12B model, which the owner accepts as growth"
-      },
       "steps": [
         {
-          "id": "breakdowns",
-          "title": "Measure where E4B and gemma-12B decode time goes, and whether the non-native fp8 variant still serves anything",
+          "id": "do",
+          "title": "Fuse the small decode kernels around the matmuls: norm, residual, scale and activation",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "gemma-4-E4B decodes at about 40 percent of its bound and gemma-4-12B fp8-native at about 50; kernel breakdowns name the next fix or close the gap as bandwidth-bound. gemma-4-12B-it-fp8 (non-native) is slower, heavier and slower to load than the native file at equal held-out quality (31.1 tok/s, 31.1 s, 22.5 GiB against 41.5, 22.6 s, 14.7 GiB; 0.4919 against 0.4926): ask the owner whether it still serves anything before spending device time on it. After the routed-expert fix Unlimited-OCR's routed layer is still 6.4 times the dense feed-forward of the same weight volume (0.94 ms against 0.15 ms); the warp-per-row shape would close that but reorders sums, so it changes MoE outputs and needs its evaluations re-run. Serves: inference (throughput)."
+          "rationale": "Serves: inference (throughput) for E4B and gemma-12B. Evidence (2026-10-04, Nsight Systems, a decode token): gemma-4-12B fp8-native 22.1 ms wall and 21.0 ms of GPU kernels, of which matmuls (mul_mat_fp8 10.4, mul_mat_bf16 5.2) and the lm-head (2.05) read weights at the device bandwidth, and 3.2 ms is everything else: weighted_rms_norm 1.4 ms (289 launches a token at about 5 us), attention_decode 1.3 ms (47 launches at 28 us, latency-bound at short context), add, rope, multiply, gelu, copy at about 0.5 ms; E4B has the same classes at 2.9 ms. Weight bytes cannot shrink without changing outputs, so this 3 ms (about 14 percent of the step) is the remaining kernel-side gap. Disappears: launches, not code, if the fused kernels replace the separate ones and their tests; fusing sums in the same order keeps outputs identical, which a golden capture over the unmodified kernels proves (the Bonsai row's pattern). Batch: kernels and internal/cuda are pinned media runtime paths (a reviewed delta with a device receipt) and move the inference surface; batch with e4b-decode-graph."
+        }
+      ]
+    },
+    {
+      "id": "e4b-decode-graph",
+      "title": "Replay E4B's decode as a CUDA graph, as gemma-12B's already is",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replay E4B's decode as a CUDA graph, as gemma-12B's already is",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Serves: inference (throughput) for gemma-4-E4B-it. Evidence (2026-10-04, Nsight Systems 2025.1.3 on the RTX 4090 D, cmd/benchmark -tokens 64 at 72bc4248d, three decodes of 64 tokens): E4B-bf16 decodes at 57.9 tok/s, 17.3 ms a token, with 0 graph launches, about 1,040 kernels launched one by one a token, and GPU kernel time of 12.9 ms a token, so about 4.4 ms (a quarter of the step) is launch and host gaps. The matmul and lm-head kernels read about 9.3 GB of weights in 10 ms, which is the device's bandwidth (about 0.93 TB/s of 1.0), so they cannot be sped up; the rest of the gap to the weight-read bound (9.2 ms, 108 tok/s) is non-matmul kernels at 2.9 ms (weighted_rms_norm 1.1, attention_decode 0.9). gemma-4-12B fp8-native, which replays a graph (63 launches in 64 tokens), loses only 1.1 ms of 22.1 to gaps. Disappears: nothing; this adds E4B to the graph path 12B uses, through the same capture owner. Evidence for the verify: graph_launches in the benchmark's own record is 0 for E4B and nonzero after. Batch: internal/inference and the kernels path are on the inference surface, so land with the next surface move. First find why E4B decode is not captured (per-layer embedding or altup ops with host-visible state?) before adding any mechanism."
         }
       ]
     },
@@ -301,7 +312,9 @@
             "plan-review-2026-10-03/do",
             "training-peak/do",
             "bootstrap-gguf-rerun/do",
-            "benchmark-adapters-digest/do"
+            "benchmark-adapters-digest/do",
+            "e4b-decode-graph/do",
+            "decode-small-kernels/do"
           ]
         }
       ]
@@ -584,6 +597,17 @@
         "No, keep main and wait for an owner move"
       ],
       "recommendation": "Yes, move main once to 48d44c5b4 and promote normally after",
+      "asked": "2026-10-04"
+    },
+    {
+      "id": "fp8-nonnative-variant",
+      "question": "gemma-4-12B-it-fp8 (the non-native file) is slower, heavier and slower to load than the native file at equal held-out quality (31.1 tok/s, 31.1 s load, 22.5 GiB against 41.5 tok/s, 22.6 s, 14.7 GiB; 0.4919 against 0.4926; the native file now decodes at 45 tok/s and loads in 7.5 s). Does it still serve anything that justifies the device time of its eight cycle cells and any optimization?",
+      "options": [
+        "Keep it registered and measured, spend no optimization time on it",
+        "Retire it from the cycle and keep the file",
+        "Delete the file"
+      ],
+      "recommendation": "Keep it registered and measured, spend no optimization time on it",
       "asked": "2026-10-04"
     }
   ]

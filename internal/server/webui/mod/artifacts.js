@@ -19,7 +19,7 @@
       let prior = [];
 
       function media(item) {
-        if (!item.payload) return el("div", { class: "note", text: "payload unavailable" });
+        if (!item.payload) return null;
         const type = item.descriptor.media_type || "";
         const url = overgo.contentURL(item.descriptor.id);
         if (type.startsWith("image/")) return el("img", { src: url, alt: item.descriptor.id });
@@ -44,11 +44,11 @@
         status.textContent = focus ? "showing " + fmt.shortID(focus) + "; Load lists every item" : result.artifacts.length + " of " + fmt.grouped(result.count) + " items";
         previous.disabled = !!focus || prior.length === 0;
         next.disabled = !!focus || !result.truncated;
-        gallery.replaceChildren(...result.artifacts.map((item) => el("article", { class: "artifact" },
+        gallery.replaceChildren(...result.artifacts.map((item) => el("article", { class: "artifact" + (item.payload ? "" : " bare") },
           media(item),
           el("div", { class: "mono", title: item.descriptor.id, text: fmt.shortID(item.descriptor.id) }),
           el("div", { class: "note", text: (item.descriptor.media_type || item.descriptor.id.split(":", 1)[0]) + " / " + fmt.bytes(item.descriptor.size) }),
-          el("div", { class: "note", text: (item.producers || []).map(fmt.shortID).join(", ") || "producer unavailable" }))));
+          (item.producers || []).length ? el("div", { class: "note", text: item.producers.map(fmt.shortID).join(", ") }) : null)));
       }, { loading: "Loading artifacts…" });
       loadButton.addEventListener("click", () => overgo.openArtifact(null));
       next.addEventListener("click", () => { prior.push(cursor); cursor = nextCursor; load(); });

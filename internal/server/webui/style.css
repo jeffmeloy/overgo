@@ -453,7 +453,9 @@ summary::-webkit-details-marker { display:none; }
 .inspector { position:fixed; top:0; right:0; bottom:0; width:min(620px, 70vw); overflow:auto; background:var(--bg2); border-left:1px solid var(--line); padding:var(--s4); z-index:5; }
 .inspector[hidden] { display:none; }
 /* ---- header status dots and the approvals count (boot.js refreshStatus, operations_shell.js) ---- */
-.dots { display:inline-flex; gap:var(--s1); align-items:center; }
+.dots { display:inline-flex; gap:var(--s4); align-items:center; }
+/* A connection light is named beside it: the colour is the state, the word says what it is the state of. */
+.dot-label { display:inline-flex; align-items:center; gap:var(--s2); font:var(--t-sm) var(--font); color:var(--dim); }
 #inbox-count { cursor:pointer; color:var(--amber); }
 /* ---- accessibility and phone widths (gui-quality/accessibility-responsive) ---- */
 button.pill { font:inherit; cursor:pointer; }
@@ -502,6 +504,8 @@ td > a { display:inline-flex; align-items:center; min-height:24px; }
    components share the same treatment while retaining their capabilities. */
 .artifact > :first-child { grid-row:1 / span 4; }
 .artifact > :not(:first-child) { grid-column:2; overflow-wrap:anywhere; }
+/* An artifact with no payload to show has no media column: its identity leads. */
+.artifact.bare { display:flex; flex-direction:column; }
 .topbar > .btn { flex:none; }
 .ui-icon { display:block; width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; }
 .topbar > .icon-button { width:40px; padding:var(--s2); }

@@ -31,7 +31,7 @@
           el("div", { class: "section-title", text: "Dataset registry" }),
           el("div", { class: "lens-summary" },
             el("span", { class: "note", text: data.count + " datasets" }),
-            el("span", { class: "note mono", text: data.catalog })),
+            el("span", { class: "note mono", title: data.catalog, text: overgo.fmt.shortID(data.catalog) })),
           search, host, preview);
 
         // previewText: a record in the OpenAI messages form reads as its conversation, any other text as written.
@@ -64,7 +64,7 @@
           for (const d of rows) {
             table.appendChild(overgo.tableRow([el("button", { class: "link-button mono", text: d.name, onclick: () => { chosen = d.name; showPreview(); } }),
               el("span", { class: "tag", text: d.source || "—" }), el("span", { text: d.modality || "—" }), el("span", { text: (d.formats || []).join(", ") || "—" }),
-              String(d.files || 0), el("span", { class: d.available ? "" : "dim", text: d.available ? "available" : "missing" })]));
+              String(d.files || 0), el("span", { class: "tag " + (d.available ? "ok" : "caution"), text: d.available ? "available" : "missing" })]));
           }
           host.replaceChildren(el("div", { class: "note", text: rows.length + " shown" }), table);
         }

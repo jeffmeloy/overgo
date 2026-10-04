@@ -3,8 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -216,16 +220,20 @@ func (w improvement) moveCycle(checkout, commit string) error {
 	return gitWrite(checkout, "checkout", "--quiet", "--detach", "--no-overwrite-ignore", commit)
 }
 
-// cycleState is how far the cycle at one commit got, kept beside the cycle
+// cycleState is how far the cycle for one key got, kept beside the cycle
 // checkout: a run that ends before it finishes, the time limit of whoever
 // started it among the causes, is continued by running the cycle again, which
 // starts at the first phase not passed instead of acquiring every cell again.
-// Only a phase that passed is recorded, so a failure runs again.
+// The key names what the credit is for: the commit, the store the cells and
+// the scorecard go to, and the obligations the dry-run plan names, so a
+// different store or an obligation that changed since (a model activated, a
+// recipe replaced) starts over. Only a phase that passed is recorded, so a
+// failure runs again; the lanes are not recorded, since go test's cache
+// replays the packages whose inputs held and runs the rest.
 type cycleState struct {
-	Commit    string `json:"commit"`
+	Key       string `json:"key"`
 	Cells     bool   `json:"cells"`
 	Published bool   `json:"published"`
-	Lanes     bool   `json:"lanes"`
 }
 
 const (
@@ -233,14 +241,41 @@ const (
 	cycleStateMode = 0o600
 )
 
-// readCycleState is the state kept for commit: none, at another commit or
-// when nothing is kept.
-func readCycleState(path, commit string) cycleState {
+// readCycleState is the state kept for key: none, for another key or when
+// nothing is kept.
+func readCycleState(path, key string) cycleState {
 	var state cycleState
-	if err := jsonfile.DecodeStrict(path, &state); err != nil || state.Commit != commit {
-		return cycleState{Commit: commit}
+	if err := jsonfile.DecodeStrict(path, &state); err != nil || state.Key != key {
+		return cycleState{Key: key}
 	}
 	return state
+}
+
+// obligationsDigest names what the dry-run plan asks of a cycle: the model,
+// task, validation, protocol, recipe and location of every cell it runs or
+// leaves to the background, and why it is scheduled so, without what a run
+// itself changes (the cost it measured, the record it replays).
+func obligationsDigest(plan []byte) (string, error) {
+	var decoded struct {
+		Run        []map[string]any `json:"run"`
+		Background []map[string]any `json:"background"`
+	}
+	if err := json.Unmarshal(plan, &decoded); err != nil {
+		return "", err
+	}
+	var lines []string
+	for bucket, cells := range map[string][]map[string]any{"run": decoded.Run, "background": decoded.Background} {
+		for _, cell := range cells {
+			parts := []string{bucket}
+			for _, field := range []string{"model", "kind", "validation", "protocol", "recipe", "location", "promotion"} {
+				parts = append(parts, fmt.Sprint(cell[field]))
+			}
+			lines = append(lines, strings.Join(parts, "\x00"))
+		}
+	}
+	slices.Sort(lines)
+	sum := sha256.Sum256([]byte(strings.Join(lines, "\n")))
+	return hex.EncodeToString(sum[:]), nil
 }
 
 // measureScorecard measures again, from checkout, the validations promotion
@@ -257,19 +292,33 @@ func measureScorecard(checkout, store string) error {
 	if err != nil {
 		return err
 	}
-	return measurePhases(filepath.Join(filepath.Dir(checkout), cycleStateFile), strings.TrimSpace(string(head)), func(environment []string, arguments ...string) error {
+	absolute, err := filepath.Abs(store)
+	if err != nil {
+		return err
+	}
+	var plan bytes.Buffer
+	if err := validateTo(&plan, checkout, store, nil); err != nil {
+		return fmt.Errorf("loop: the dry-run plan the cycle's phases are keyed by: %w", err)
+	}
+	obligations, err := obligationsDigest(plan.Bytes())
+	if err != nil {
+		return err
+	}
+	key := strings.Join([]string{strings.TrimSpace(string(head)), absolute, obligations}, "|")
+	return measurePhases(filepath.Join(filepath.Dir(checkout), cycleStateFile), key, func(environment []string, arguments ...string) error {
 		return validateIn(checkout, store, environment, arguments...)
 	})
 }
 
-// measurePhases runs the cycle's phases at commit, the cells, the publication
-// and the lanes, in that order, skipping those the state at statePath records
-// as passed. The cells run again whenever they did not pass, and the scorecard
-// publishes again after them, since it then holds fresher numbers.
-func measurePhases(statePath, commit string, validate func(environment []string, arguments ...string) error) error {
+// measurePhases runs the cycle's phases for key, the cells, the publication
+// and the lanes, in that order, skipping the cells and the publication the
+// state at statePath records as passed for that key. The cells run again
+// whenever they did not pass, and the scorecard publishes again after them,
+// since it then holds fresher numbers; the lanes always run.
+func measurePhases(statePath, key string, validate func(environment []string, arguments ...string) error) error {
 	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-measure-%d.error", os.Getpid()))
 	defer os.Remove(errorFile)
-	state := readCycleState(statePath, commit)
+	state := readCycleState(statePath, key)
 	var failed []error
 	phase := func(arguments ...string) bool {
 		_ = os.Remove(errorFile)
@@ -294,10 +343,7 @@ func measurePhases(statePath, commit string, validate func(environment []string,
 		state.Published = phase("-scorecard", "-publish")
 		remember()
 	}
-	if !state.Lanes {
-		state.Lanes = phase("-run", "-lanes")
-		remember()
-	}
+	phase("-run", "-lanes")
 	return errors.Join(failed...)
 }
 
@@ -306,6 +352,11 @@ func measurePhases(statePath, commit string, validate func(environment []string,
 // ignored files, so the data roots the main checkout resolves are bound for
 // it explicitly.
 func validateIn(checkout, store string, environment []string, arguments ...string) error {
+	return validateTo(os.Stdout, checkout, store, environment, arguments...)
+}
+
+// validateTo is validateIn with the command's output sent to output.
+func validateTo(output io.Writer, checkout, store string, environment []string, arguments ...string) error {
 	store, err := filepath.Abs(store)
 	if err != nil {
 		return err
@@ -315,5 +366,5 @@ func validateIn(checkout, store string, environment []string, arguments ...strin
 		return err
 	}
 	command := append([]string{"go", "-C", checkout, "run", "./cmd/validate"}, arguments...)
-	return runToolEnv(slices.Concat(loopEnvironment(), bound, environment), nil, os.Stdout, os.Stdout, append(command, "-repo", store)...)
+	return runToolEnv(slices.Concat(loopEnvironment(), bound, environment), nil, output, os.Stderr, append(command, "-repo", store)...)
 }

@@ -109,7 +109,7 @@
   },
   {
     "model": "model:sha256:fb09299dd00edd7ffdcf8cb48e475d2a9c9e30a22c51f79f6d4d793e983c557b",
-    "recipe": "recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e",
+    "recipe": "recipe:sha256:8fbd18e6c558f0d7bbda91a6d5acf340da3e241522ae3cc02f99793a58a72833",
     "domain": "text",
     "chat": true,
     "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",

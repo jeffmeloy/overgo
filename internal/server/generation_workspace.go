@@ -49,6 +49,10 @@ type workflowControl struct {
 	// lists matching intakes beside it and routes an attachment to it.
 	Label string `json:"label,omitzero"`
 	Media string `json:"media,omitzero"`
+	// Format is the catalog format a dataset control takes: a page offers the
+	// catalogued datasets that hold it by name. A dataset control with none
+	// takes an identity typed in, as a dataset the catalog does not hold needs.
+	Format string `json:"format,omitzero"`
 	// Bounds are a numeric control's declared default, step and rate, from
 	// which a page derives its presets (aspect ratios, durations).
 	Bounds *workflowControlBounds               `json:"bounds,omitempty"`
@@ -97,6 +101,9 @@ type WorkflowCapability struct {
 	Refusal  string      `json:"refusal,omitzero"`
 	// Host: the run executes on the host processor and needs no device memory.
 	Host bool `json:"host,omitzero"`
+	// Note states what the page cannot derive from the controls, such as how
+	// a run learns from its dataset.
+	Note string `json:"note,omitzero"`
 	// model is projected from the compiled recipe by native workspace owners.
 	// It must not be inferred from an unrelated co-hosted text runner.
 	model artifact.ID
@@ -456,6 +463,7 @@ func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 		fields := make(map[string]bool, len(capability.Controls))
 		for _, control := range capability.Controls {
 			if control.Name == "" || !control.Type.valid() || fields[control.Name] || !slotMedia[control.Media] ||
+				control.Format != "" && control.Type != workflowControlDataset ||
 				control.Bounds != nil && (control.Bounds.Step < 0 || control.Bounds.Rate < 0) {
 				return fmt.Errorf("workflow workspace: invalid control %q", control.Name)
 			}

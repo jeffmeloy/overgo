@@ -104,7 +104,7 @@
   // lengthBins: the token-length distribution's bar count, fewer when lengths span less.
   const lengthBins = 8;
   function lengthDistribution(overgo, lengths) {
-    if (!lengths.length) return null;
+    if (!lengths?.length) return null; // a preview that reads only its page lists no lengths
     const low = Math.min(...lengths), high = Math.max(...lengths);
     const width = Math.max(1, Math.ceil((high - low + 1) / lengthBins));
     const counts = new Map();
@@ -146,11 +146,38 @@
     host.replaceChildren(el("div", { class: "row" }, open, prev, next, status), body);
   }
 
+  // renderVerdict: a held-out verdict as the scorecard reads a trained model's quality: the base model's
+  // score, the trained model's, and whether it beats the base, beside the trained model and the run.
+  function renderVerdict(overgo, host, verdict, id, trained, run) {
+    const { el, fmt } = overgo;
+    const sign = { maximize: 1, minimize: -1 }[verdict.direction] || 0;
+    // Below, level with, or beating the base, by the sign of the improvement in the metric's own direction.
+    const outcome = ["below base", "level with base", "beats base"][Math.sign(sign * (verdict.candidate_value - verdict.baseline_value)) + 1];
+    const metric = String(verdict.metric).replace(/[_-]/g, " ");
+    // The label names the role; the short identity after it drops the kind the label already says.
+    const link = (target, label) => overgo.artifactLink(target, label + " " + fmt.shortID(target).replace(/^[a-z]+:/, ""), true);
+    host.replaceChildren(el("section", { class: "evidence-block", "aria-label": "Held-out verdict" },
+      el("div", { class: "section-title", text: "Held-out " + metric }),
+      el("div", { class: "statgrid" },
+        overgo.stat("Base model", verdict.baseline_value.toFixed(3)),
+        overgo.stat("Trained model", verdict.candidate_value.toFixed(3)),
+        overgo.stat("Verdict", outcome)),
+      el("div", { class: "row artifact-links" },
+        link(run, "run"), trained ? link(trained, "trained model") : null, link(id, "verdict"))));
+  }
+
   window.overgo.trainingPreview = trainingPreview;
   window.overgo.trainingEvidence = {
     async renderOperation(host, operation, overgo) {
-      const traceID = (operation.outputs || []).find((id) => String(id).startsWith("evidence:"));
-      const checkpoint = (operation.outputs || []).find((id) => String(id).startsWith("checkpoint:"));
+      const outputs = operation.outputs || [];
+      const checkpoint = outputs.find((id) => String(id).startsWith("checkpoint:"));
+      const verdictID = outputs.find((id) => String(id).startsWith("evaluation:"));
+      if (verdictID) {
+        const verdict = await overgo.api.get(overgo.contentURL(verdictID));
+        if (verdict && typeof verdict.baseline_value === "number" && typeof verdict.candidate_value === "number") renderVerdict(overgo, host, verdict, verdictID, checkpoint, operation.run);
+        return;
+      }
+      const traceID = outputs.find((id) => String(id).startsWith("evidence:"));
       if (!traceID) return;
       const trace = await readTrace(overgo, traceID);
       if (trace) renderTrace(overgo, host, { id: traceID, trace, checkpoint, run: operation.run });

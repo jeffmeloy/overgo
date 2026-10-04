@@ -10,12 +10,14 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
+	"overgo/internal/trainingworkflow"
 )
 
 // sftLetters renders a conversation within the tiny model's four-letter
@@ -36,13 +38,19 @@ type stepCounter struct {
 
 func (counter stepCounter) Progress(done uint64, _ *uint64) { counter.steps.Store(int64(done)) }
 
-// TestSFTWorkspaceFineTunesTheServedModel: the Train tab offers the served
-// model on conversations with three controls; running it renders a registered
-// conversation dataset, trains the model on the host and records one run with the model and conversations in and the
-// trained model and the verdict out; a name that is not one path component is
-// refused as a failed run, never written outside the checkpoints root.
-func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
-	t.Parallel()
+// sftFixture is a served tiny dense model, a store holding a registered
+// dataset of twelve conversations, and the workspace that fine-tunes the model
+// on them.
+type sftFixture struct {
+	store         *overgodb.Store
+	roots         dataroot.Roots
+	workspace     *SFTWorkspace
+	model         artifact.ID
+	conversations artifact.ID
+}
+
+func newSFTFixture(t *testing.T) sftFixture {
+	t.Helper()
 	ctx := t.Context()
 	root := t.TempDir()
 	roots := dataroot.Roots{Models: filepath.Join(root, "models"), Datasets: filepath.Join(root, "datasets"), Checkpoints: filepath.Join(root, "checkpoints")}
@@ -91,6 +99,26 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return sftFixture{store: store, roots: roots, workspace: workspace, model: model, conversations: registered.Dataset}
+}
+
+// input is the run's input naming the fixture's conversations.
+func (fixture sftFixture) input(output string) json.RawMessage {
+	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":4,"output":%q}`, fixture.conversations.String(), output))
+}
+
+// TestSFTWorkspaceFineTunesTheServedModel: the Train tab offers the served
+// model on conversations with three controls and says how a run learns;
+// previewing pages the conversations as rendered; running it renders a
+// registered conversation dataset, trains the model on the host and records
+// one run with the model and conversations in and the trained model and the
+// verdict out; a name that is not one path component is refused as a failed
+// run, never written outside the checkpoints root.
+func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	fixture := newSFTFixture(t)
+	workspace := fixture.workspace
 	if other, err := workspace.WorkflowCapabilities(ctx, workflowExport); err != nil || len(other) != 0 {
 		t.Fatalf("an export listing held %v (%v), want none", other, err)
 	}
@@ -106,31 +134,50 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	if capability.Task != recipe.TaskTraining || !capability.Host || capability.Name != "served, on conversations" || strings.Join(controls, ",") != "dataset,steps,output" {
 		t.Fatalf("capability = %+v with controls %v", capability, controls)
 	}
+	if capability.Note != sftNote || capability.Controls[0].Format != sftDatasetFormat || capability.Controls[0].Label == "" {
+		t.Fatalf("the dataset control declares %+v and the note %q, want the conversation format, a label and how a run learns", capability.Controls[0], capability.Note)
+	}
+
+	// The route lists a capability only when it validates; a format belongs to a dataset control alone.
+	if err := validateWorkflowCapabilities(capabilities); err != nil {
+		t.Fatalf("the Train tab would refuse the listing: %v", err)
+	}
+	changed := capability
+	changed.Controls = slices.Clone(capability.Controls)
+	changed.Controls[1].Format = sftDatasetFormat
+	if err := validateWorkflowCapabilities([]WorkflowCapability{changed}); err == nil {
+		t.Fatal("a dataset format on a number of steps was accepted")
+	}
+
+	page, err := workspace.PreviewWorkflow(ctx, WorkflowTraining, capability.Task, capability.Recipe, fixture.input("tuned"), 1, 2)
+	if preview, ok := page.(trainingworkflow.Preview); err != nil || !ok || preview.Records != 12 || len(preview.Page) != 2 || preview.Page[0].ID != "02.json" {
+		t.Fatalf("preview = (%+v, %v), want the second and third of twelve conversations", page, err)
+	}
+	if _, err := workspace.PreviewWorkflow(ctx, WorkflowTraining, capability.Task, testutil.ArtifactID(t, artifact.KindRecipe, "another"), fixture.input("tuned"), 0, 1); err == nil {
+		t.Fatal("a preview for another recipe was admitted")
+	}
 
 	steps := &atomic.Int64{}
-	input := func(output string) json.RawMessage {
-		return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":4,"output":%q}`, registered.Dataset.String(), output))
-	}
-	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, input("tuned"), stepCounter{steps: steps})
+	completion, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.input("tuned"), stepCounter{steps: steps})
 	if err != nil || len(completion.Outputs) != 2 || steps.Load() != 4 {
 		t.Fatalf("run = (%+v, %v) after %d steps, want the trained model and its verdict after four", completion, err, steps.Load())
 	}
-	run, err := runrecord.RequireRun(ctx, store, completion.Run)
+	run, err := runrecord.RequireRun(ctx, fixture.store, completion.Run)
 	// A run record keeps its artifacts in identity order, not the order they were named in.
-	if err != nil || run.Outcome != runrecord.OutcomeSucceeded || len(run.Inputs) != 2 || !slices.Contains(run.Inputs, model) || !slices.Contains(run.Inputs, registered.Dataset) ||
+	if err != nil || run.Outcome != runrecord.OutcomeSucceeded || len(run.Inputs) != 2 || !slices.Contains(run.Inputs, fixture.model) || !slices.Contains(run.Inputs, fixture.conversations) ||
 		len(run.Outputs) != 2 || !slices.Contains(run.Outputs, completion.Outputs[0]) || !slices.Contains(run.Outputs, completion.Outputs[1]) {
 		t.Fatalf("recorded run = %+v (%v), want the model and conversations in and %v out", run, err, completion.Outputs)
 	}
-	if _, err := os.Stat(filepath.Join(roots.Checkpoints, "tuned")); err != nil {
+	if _, err := os.Stat(filepath.Join(fixture.roots.Checkpoints, "tuned")); err != nil {
 		t.Fatalf("the trained model was not written under the checkpoints root: %v", err)
 	}
 
-	refused, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, input("../escape"), testReporter{})
-	failed, requireErr := runrecord.RequireRun(ctx, store, refused.Run)
+	refused, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.input("../escape"), testReporter{})
+	failed, requireErr := runrecord.RequireRun(ctx, fixture.store, refused.Run)
 	if err == nil || !strings.Contains(err.Error(), "one safe path component") || requireErr != nil || failed.Outcome != runrecord.OutcomeFailed {
 		t.Fatalf("an escaping output = (%v, run %+v, %v), want a refusal recorded as a failed run", err, failed, requireErr)
 	}
-	if _, err := os.Stat(filepath.Join(roots.Checkpoints, "..", "escape")); err == nil {
+	if _, err := os.Stat(filepath.Join(fixture.roots.Checkpoints, "..", "escape")); err == nil {
 		t.Fatal("an escaping output wrote outside the checkpoints root")
 	}
 }

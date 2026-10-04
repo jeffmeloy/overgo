@@ -82,6 +82,32 @@
   function restart() { if (streamController) streamController.abort(); streamController = null; if (subscribers.size) connect(); }
 
   window.overgo.runtimeEvents = { subscribe, restart };
+  // A dataset control that declares a catalog format is a picker of the catalogued datasets holding it;
+  // one that declares none (a preference file the catalog does not hold) takes an identity typed in.
+  const picksDataset = (control) => control.type === "dataset" && !!control.format;
+
+  // offerDataset lists a dataset's option under its identity: a name that arrives later relabels the
+  // option a remembered choice already put there.
+  function offerDataset(select, id, text) {
+    const found = [...select.options].find((option) => option.value === id);
+    if (found) found.text = text;
+    else select.appendChild(window.overgo.el("option", { value: id, text }));
+  }
+
+  // datasetPicker: the registered datasets holding the control's format, by name; the value is the dataset's
+  // identity. (The format is the control's own declaration: media names an artifact slot's file kind.)
+  function datasetPicker(control) {
+    const { api, el, fmt, friendlyError } = window.overgo;
+    const placeholder = el("option", { value: "", text: "select", disabled: control.required, selected: true });
+    const select = el("select", { class: "text", "aria-label": control.label || control.name.replace(/_/g, " ") }, placeholder);
+    api.get("/datasets").then((catalog) => {
+      const offered = (catalog.datasets || []).filter((entry) => entry.available && (entry.formats || []).includes(control.format));
+      for (const entry of offered) offerDataset(select, entry.dataset, entry.name + " · " + fmt.grouped(entry.files) + " files");
+      if (!offered.length && select.options.length === 1) placeholder.text = "none registered: import one in the Library";
+    }).catch((err) => { placeholder.text = err.status === 404 ? "none registered: import one in the Library" : friendlyError(err); });
+    return select;
+  }
+
   // controlInputs renders a capability's declared controls into host: one
   // input per control, typed by the declaration; the returned map binds each
   // control name to its declaration and input. The generation tabs and the
@@ -95,7 +121,9 @@
       // A field the model's artifact exports values for (a voice) is a
       // choice, never a free input; a boolean is one too.
       const choices = (control.choices || []).length ? control.choices : (control.type === "boolean" ? ["true", "false"] : null);
-      if (choices) {
+      if (picksDataset(control)) {
+        input = datasetPicker(control);
+      } else if (choices) {
         input = el("select", { class: "text", "aria-label": control.label || control.name.replace(/_/g, " ") },
           el("option", { value: "", text: control.required ? "select" : "unset", disabled: control.required, selected: true }),
           ...choices.map((choice) => el("option", { value: choice, text: choice })));
@@ -181,6 +209,8 @@
       for (const [name, field] of fields) {
         if (!Object.hasOwn(values, name)) continue;
         const value = String(values[name]);
+        // A dataset's name may not have arrived yet: its identity stands in until it does.
+        if (picksDataset(field.control) && value) offerDataset(field.input, value, window.overgo.fmt.shortID(value));
         field.input.value = field.control.choices?.length && !field.control.choices.includes(value) ? "" : value;
       }
     },
@@ -310,7 +340,7 @@
         function renderControls() {
           const capability = selected();
           fields = overgo.controlInputs(controls, capability ? capability.controls : []);
-          placement.textContent = capability && capability.host ? "Runs on the host processor: it needs no device memory." : "";
+          placement.textContent = [capability?.host && "Runs on the host processor: it needs no device memory.", capability?.note].filter(Boolean).join(" ");
           placement.hidden = !placement.textContent;
           if (!capability) return;
           overgo.rememberedControls.apply(fields, overgo.rememberedControls.last(capability.recipe));

@@ -31,6 +31,13 @@ type SFTTrainer struct {
 // derives from.
 const sftRecipeRuntime = "conversation-sft/v1"
 
+// sftDatasetFormat is the catalog format of a conversation dataset the page
+// offers: one JSON file per conversation.
+const sftDatasetFormat = "json"
+
+// sftNote tells the page how a run learns from its dataset.
+const sftNote = "Learns every token of each conversation as the model's chat template renders it, the user's turns and the template's own markers as well as the replies: the trainer has no loss mask yet."
+
 // SFTWorkspace offers the Train tab a fine-tuning of the served model on a
 // conversation dataset: each conversation is rendered through the model's
 // chat template, a few are held out, the model trains on the rest, and the
@@ -64,10 +71,11 @@ func (workspace *SFTWorkspace) WorkflowCapabilities(_ context.Context, kind Work
 		Task: recipe.TaskTraining, Recipe: program.ID, Model: workspace.trainer.Model,
 		Name: filepath.Base(workspace.trainer.File) + ", on conversations", Location: workspace.trainer.File,
 		Host:    trainsOnHost,
+		Note:    sftNote,
 		Stages:  []recipe.Stage{{Node: recipe.Node{ID: "train", Module: sftRecipeRuntime}}},
 		Outputs: []recipe.Output{{Name: "model", Data: recipe.DataArtifact, Source: recipe.Endpoint{Node: "train", Port: "model"}}},
 		Controls: []workflowControl{
-			{Name: "dataset", Type: workflowControlDataset, Required: true},
+			{Name: "dataset", Type: workflowControlDataset, Required: true, Label: "conversations", Format: sftDatasetFormat},
 			{Name: "steps", Type: workflowControlInteger, Required: true},
 			{Name: "output", Type: workflowControlOutput, Required: true},
 		},
@@ -135,6 +143,29 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 		return operation.Completion{}, err
 	}
 	return operation.Completion{Run: run.ID, Outputs: outputs}, nil
+}
+
+// PreviewWorkflow pages the input's conversations as a run reads them: each
+// rendered through the model's chat template and split into tokens, before any
+// run.
+func (workspace *SFTWorkspace) PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
+	if workspace == nil || kind != WorkflowTraining || task != recipe.TaskTraining {
+		return nil, errors.New("sft workspace: workflow is not admitted")
+	}
+	program, err := ggufProgram(sftRecipeRuntime, workspace.trainer.Model)
+	if err != nil {
+		return nil, err
+	}
+	if recipeID != program.ID {
+		return nil, errors.New("sft workspace: workflow is not admitted")
+	}
+	var input struct {
+		Dataset artifact.ID `json:"dataset"`
+	}
+	if err := json.Unmarshal(raw, &input); err != nil || input.Dataset.Kind() != artifact.KindDataset {
+		return nil, errors.Join(err, errors.New("sft workspace: preview needs a conversation dataset"))
+	}
+	return trainingworkflow.PreviewConversations(ctx, workspace.store, input.Dataset, workspace.trainer.Render, workspace.trainer.File, position, limit)
 }
 
 // outputDirectory is the directory a run named name writes under root: the

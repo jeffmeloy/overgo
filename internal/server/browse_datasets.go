@@ -11,7 +11,9 @@ import (
 )
 
 type datasetEntry struct {
-	Name        string   `json:"name"`
+	Name string `json:"name"`
+	// Dataset is the identity a workflow's dataset control takes.
+	Dataset     string   `json:"dataset"`
 	StorageKind string   `json:"storage_kind"`
 	Source      string   `json:"source"`
 	Modality    string   `json:"modality"`
@@ -107,7 +109,7 @@ func (h *Handler) browseDatasets(response http.ResponseWriter, request *http.Req
 	for index, row := range coverage.Entries {
 		entry := row.Entry
 		entries[index] = datasetEntry{
-			Name: entry.Name, StorageKind: entry.StorageKind, Source: entry.Source, Modality: entry.Modality,
+			Name: entry.Name, Dataset: entry.Dataset.String(), StorageKind: entry.StorageKind, Source: entry.Source, Modality: entry.Modality,
 			Modalities: entry.Modalities,
 			Formats:    entry.Formats, Files: entry.Files, Bytes: entry.Bytes, Available: row.Available,
 		}

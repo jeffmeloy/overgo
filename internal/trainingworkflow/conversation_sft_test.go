@@ -198,3 +198,35 @@ func TestConversationSFTRefusesWhatItCannotJudge(t *testing.T) {
 		}
 	}
 }
+
+// TestPreviewConversationsShowsWhatARunTrains pages a conversation dataset as
+// a run reads it: the count is the dataset's files, the page holds only the
+// conversations asked for, each is the rendered text the tokenizer splits, and
+// every token is marked trained because a run has no loss mask.
+func TestPreviewConversationsShowsWhatARunTrains(t *testing.T) {
+	run := registerConversations(t, periodic(12))
+	preview, err := PreviewConversations(t.Context(), run.store, run.source, letters, run.model, 1, 2)
+	if err != nil || preview.Records != 12 || preview.Position != 1 || len(preview.Page) != 2 || preview.Page[0].ID != "02.json" || preview.Page[1].ID != "03.json" {
+		t.Fatalf("preview = %+v (%v), want twelve records paged from the second, two of them", preview, err)
+	}
+	for index, record := range preview.Page {
+		want, _ := letters(periodic(12)[index+1].Messages)
+		var text strings.Builder
+		for _, token := range record.Sequences[0].Tokens {
+			text.WriteString(token.Piece)
+			if !token.Trained {
+				t.Errorf("%s: token %q is masked, want every token trained", record.ID, token.Piece)
+			}
+		}
+		if len(record.Sequences) != 1 || text.String() != want {
+			t.Errorf("%s: tokens spell %q over %d sequences, want the rendered conversation %q", record.ID, text.String(), len(record.Sequences), want)
+		}
+	}
+	past, err := PreviewConversations(t.Context(), run.store, run.source, letters, run.model, 20, 2)
+	if err != nil || past.Records != 12 || len(past.Page) != 0 {
+		t.Fatalf("a page past the end = %+v (%v), want the count and no records", past, err)
+	}
+	if _, err := PreviewConversations(t.Context(), run.store, run.source, letters, run.model, 0, 0); err == nil {
+		t.Fatal("an empty page was accepted")
+	}
+}

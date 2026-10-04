@@ -108,32 +108,16 @@ func RunConversationSFT(ctx context.Context, store *overgodb.Store, request Conv
 // fewer than two distinct conversations cannot hold one out to judge the
 // others by.
 func renderConversations(ctx context.Context, store *overgodb.Store, source artifact.ID, render ConversationRenderer) ([]string, error) {
-	directory, err := artifact.AvailablePath(ctx, store, source, artifact.LocationDirectory)
-	if err != nil {
-		return nil, fmt.Errorf("training workflow: conversation dataset: %w", err)
-	}
-	files, err := filepath.Glob(filepath.Join(directory, "*.json"))
+	files, err := conversationFiles(ctx, store, source)
 	if err != nil {
 		return nil, err
 	}
-	slices.Sort(files)
 	var texts []string
 	seen := map[string]bool{}
 	for _, file := range files {
-		data, err := os.ReadFile(file)
+		text, err := renderConversation(file, render)
 		if err != nil {
 			return nil, err
-		}
-		var conversation dataset.Conversation
-		if err := json.Unmarshal(data, &conversation); err != nil || len(conversation.Messages) == 0 {
-			return nil, fmt.Errorf("training workflow: %s is not a conversation: %w", filepath.Base(file), errors.Join(err, errors.New("no messages")))
-		}
-		text, err := render(conversation.Messages)
-		if err != nil {
-			return nil, fmt.Errorf("training workflow: render %s: %w", filepath.Base(file), err)
-		}
-		if text == "" {
-			return nil, fmt.Errorf("training workflow: %s renders as no text", filepath.Base(file))
 		}
 		if !seen[text] {
 			seen[text] = true
@@ -144,6 +128,77 @@ func renderConversations(ctx context.Context, store *overgodb.Store, source arti
 		return nil, fmt.Errorf("training workflow: %d distinct conversations: a run holds one out to judge the rest, so it needs at least %d", len(texts), conversationMinimum)
 	}
 	return texts, nil
+}
+
+// conversationFiles lists the conversation files of a registered dataset, in
+// file order.
+func conversationFiles(ctx context.Context, store *overgodb.Store, source artifact.ID) ([]string, error) {
+	directory, err := artifact.AvailablePath(ctx, store, source, artifact.LocationDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("training workflow: conversation dataset: %w", err)
+	}
+	files, err := filepath.Glob(filepath.Join(directory, "*.json"))
+	if err != nil {
+		return nil, err
+	}
+	slices.Sort(files)
+	return files, nil
+}
+
+// renderConversation reads one conversation file and renders it.
+func renderConversation(file string, render ConversationRenderer) (string, error) {
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return "", err
+	}
+	var conversation dataset.Conversation
+	if err := json.Unmarshal(data, &conversation); err != nil || len(conversation.Messages) == 0 {
+		return "", fmt.Errorf("training workflow: %s is not a conversation: %w", filepath.Base(file), errors.Join(err, errors.New("no messages")))
+	}
+	text, err := render(conversation.Messages)
+	if err != nil {
+		return "", fmt.Errorf("training workflow: render %s: %w", filepath.Base(file), err)
+	}
+	if text == "" {
+		return "", fmt.Errorf("training workflow: %s renders as no text", filepath.Base(file))
+	}
+	return text, nil
+}
+
+// PreviewConversations pages the conversations of a registered dataset as a
+// run reads them: each rendered through the model's chat template and encoded
+// with the tokenizer beside modelInput, every token marked trained because a
+// run has no loss mask. The count is the dataset's conversation files; only
+// the page is read, so the token lengths across the dataset are not listed.
+func PreviewConversations(ctx context.Context, store *overgodb.Store, source artifact.ID, render ConversationRenderer, modelInput string, position, limit int) (Preview, error) {
+	if ctx == nil || store == nil || render == nil || source.Kind() != artifact.KindDataset || position < 0 || limit <= 0 {
+		return Preview{}, errors.New("training workflow: a conversation preview needs a store, a conversation dataset, a renderer and a valid page")
+	}
+	files, err := conversationFiles(ctx, store, source)
+	if err != nil {
+		return Preview{}, err
+	}
+	tokens, err := loadTrainableTokenizerFor(modelInput, true)
+	if err != nil {
+		return Preview{}, err
+	}
+	preview := Preview{Objective: trainingprogram.ObjectiveTokenPrediction, Records: len(files), Position: position}
+	for index := position; index < min(len(files), position+limit); index++ {
+		text, err := renderConversation(files[index], render)
+		if err != nil {
+			return Preview{}, err
+		}
+		ids, err := tokens.encode(text)
+		if err != nil {
+			return Preview{}, err
+		}
+		sequence := PreviewSequence{Label: "conversation", Tokens: make([]PreviewToken, len(ids))}
+		for at, id := range ids {
+			sequence.Tokens[at] = PreviewToken{ID: id, Piece: tokens.piece(id), Trained: true}
+		}
+		preview.Page = append(preview.Page, PreviewRecord{ID: filepath.Base(files[index]), Sequences: []PreviewSequence{sequence}})
+	}
+	return preview, nil
 }
 
 // registerRendered writes the texts as one file each, named in record order,

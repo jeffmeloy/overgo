@@ -68,12 +68,12 @@ func JSONScalar[Input, Model, Output any](
 		}
 		// A wall the clock could not read stays zero: absent, not guessed.
 		loaded, _ := clock.Elapsed()
-		output, walls, executeErr := executeScalar[Input, Model, Output](
+		output, result, executeErr := executeScalar[Input, Model, Output](
 			ctx, store, modelID, program, content, input, model, bind,
 		)
 		var measured Measured
 		if executeErr == nil {
-			measured = measure(output, model, walls, time.Duration(loaded))
+			measured = measure(output, model, result, time.Duration(loaded))
 			measured.Input = content
 		}
 		executeErr = errors.Join(executeErr, closeModel(context.WithoutCancel(ctx), model))

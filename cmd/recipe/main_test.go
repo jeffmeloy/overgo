@@ -488,8 +488,25 @@ func TestCapabilityMeasurementRunsTheModel(t *testing.T) {
 				index, step.measure, runs.Load(), err, step.runs)
 		}
 	}
-	if attempts := servingAttempts(t, directory); len(attempts) != 5 {
+	attempts := servingAttempts(t, directory)
+	if len(attempts) != 5 {
 		t.Fatalf("serving attempts = %d; want each of the five executions recorded", len(attempts))
+	}
+	store, err := overgodb.Open(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	input := measuredContent(t, "overgo.forecast-input.v1", request)
+	output, err := artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, "overgo.fixture-forecast.v1"), []float32{1, 2, 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, attempt := range attempts {
+		run, err := runrecord.RequireExactRun(t.Context(), store, attempt.Run)
+		if err != nil || run.Recipe != attempt.Recipe || run.Outcome != runrecord.OutcomeSucceeded || !slices.Contains(run.Inputs, input.Descriptor.ID) || !slices.Equal(run.Outputs, []artifact.ID{output.Descriptor.ID}) {
+			t.Fatalf("serving attempt %s cites run %s = %+v (%v); want its persisted recipe, request and output", attempt.ID, attempt.Run, run, err)
+		}
 	}
 }
 

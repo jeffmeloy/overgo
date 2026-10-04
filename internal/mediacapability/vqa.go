@@ -33,7 +33,7 @@ func vqaCapability() Capability {
 // executeVQA decodes the page request, reads the image from the store and
 // runs the two-stage program: prepare over the processor, generate over
 // the device pipeline under the request's decode budget. The answer text
-// is the output; the per-node walls travel in the measured envelope.
+// is the output; the producer run and node walls travel in the measured envelope.
 func executeVQA(ctx context.Context, store artifact.Repository, path string, selection modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 	var form vqaserve.Request
 	if err := strictjson.DecodeBytes([]byte(raw), &form); err != nil {
@@ -52,7 +52,7 @@ func executeVQA(ctx context.Context, store artifact.Repository, path string, sel
 	}
 	program := selection.Program
 	definition := program.Definition()
-	answer, walls, err := vqaserve.RunProgram(ctx, store, definition.Model, program, capabilityruntime.RunKey(definition, request), image, form.Question,
+	answer, result, err := vqaserve.RunProgram(ctx, store, definition.Model, program, capabilityruntime.RunKey(definition, request), image, form.Question,
 		func(image []byte, question string) (vqaserve.Prepared, error) {
 			return vqaserve.Prepare(path, image, question)
 		},
@@ -63,5 +63,5 @@ func executeVQA(ctx context.Context, store artifact.Repository, path string, sel
 	if err != nil {
 		return nil, err
 	}
-	return capabilityruntime.Measured{Output: answer, Phases: walls, Input: request}, nil
+	return capabilityruntime.Measured{Output: answer, Run: result.Run.ID, Phases: result.NodeWalls, Input: request}, nil
 }

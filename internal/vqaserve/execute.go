@@ -58,7 +58,7 @@ func Input(definition recipe.Definition, kind recipe.DataKind) (recipe.Input, er
 // The image enters the workflow as the document it already is (a stored
 // artifact's own descriptor, or ImageContract over file bytes), so the run
 // records the artifact the store holds rather than a second description
-// of its bytes. It returns the answer text and the per-node walls.
+// of its bytes. It returns the answer text and the persisted workflow result.
 func RunProgram[Prepared any](
 	ctx context.Context,
 	store artifact.Repository,
@@ -69,26 +69,27 @@ func RunProgram[Prepared any](
 	question string,
 	prepare func([]byte, string) (Prepared, error),
 	answer func(context.Context, Prepared) (string, error),
-) (string, []workflowruntime.NodeWall, error) {
+) (string, workflowruntime.Result, error) {
+	var result workflowruntime.Result
 	if len(image.Data) == 0 || strings.TrimSpace(question) == "" || prepare == nil || answer == nil {
-		return "", nil, errors.New("VQA recipe: image, question, and stage adapters are required")
+		return "", result, errors.New("VQA recipe: image, question, and stage adapters are required")
 	}
 	definition := program.Definition()
 	imageInput, err := Input(definition, recipe.DataImage)
 	if err != nil {
-		return "", nil, err
+		return "", result, err
 	}
 	questionInput, err := Input(definition, recipe.DataText)
 	if err != nil {
-		return "", nil, err
+		return "", result, err
 	}
 	stages := program.Stages()
 	if len(stages) != 2 || len(stages[0].Module.Outputs) != 1 || len(stages[1].Module.Inputs) != 1 {
-		return "", nil, fmt.Errorf("VQA recipe: need prepare and generate stages, got %d", len(stages))
+		return "", result, fmt.Errorf("VQA recipe: need prepare and generate stages, got %d", len(stages))
 	}
 	questionContent, err := artifact.JSONContent(QuestionContract, question)
 	if err != nil {
-		return "", nil, err
+		return "", result, err
 	}
 	return capabilityruntime.ExecuteMeasured[string](ctx, store, modelID, program, key,
 		map[recipe.PortName]workflowruntime.Value{

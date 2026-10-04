@@ -55,7 +55,7 @@ func executeVQAProgram(
 		return vqaExecution{}, err
 	}
 	var execution vqaExecution
-	answer, walls, err := vqaserve.RunProgram(
+	answer, result, err := vqaserve.RunProgram(
 		ctx, store, modelID, program, "recipe/vqa/"+strings.ToLower(tag), image, question,
 		func(image []byte, question string) (vqaserve.Prepared, error) {
 			prepared, prepareErr := vqaserve.Prepare(l.modelDir, image, question)
@@ -78,7 +78,7 @@ func executeVQAProgram(
 	if err != nil {
 		return vqaExecution{}, err
 	}
-	execution.text, execution.walls = answer, walls
+	execution.text, execution.walls = answer, result.NodeWalls
 	l.Log(fmt.Sprintf("RECIPE serve %s chain=%v", tag, execution.chain))
 	l.Log(fmt.Sprintf("RECIPE serve %s TEXT %q", tag, execution.text))
 	l.Log(fmt.Sprintf("RECIPE serve %s MEASURE e2e=%s decode=%s (%d steps, %.3f ms/token)",

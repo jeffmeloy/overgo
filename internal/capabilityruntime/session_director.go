@@ -478,14 +478,14 @@ func (c *ModelSessionDirector[Input, Model, Output]) execute(
 	}
 	inputs, err := c.inputs(input, content, program.Definition())
 	if err == nil {
-		output, walls, executeErr := ExecuteMeasured[Output](
+		output, result, executeErr := ExecuteMeasured[Output](
 			ctx, store, modelID, program,
 			RunKey(program.Definition(), content), inputs,
 			func(runtime *workflowruntime.Runtime) error { return c.bind(runtime, modelID, entry.model) },
 		)
 		var measured Measured
 		if executeErr == nil {
-			measured = measure(output, entry.model, walls, loaded)
+			measured = measure(output, entry.model, result, loaded)
 			measured.Input = content
 		}
 		if executeErr != nil {
@@ -918,7 +918,7 @@ func executeScalar[Input, Model, Output any](
 	input Input,
 	model Model,
 	bind func(*workflowruntime.Runtime, artifact.ID, Model) error,
-) (Output, []workflowruntime.NodeWall, error) {
+) (Output, workflowruntime.Result, error) {
 	definition := program.Definition()
 	inputPort := definition.Inputs[0]
 	return ExecuteMeasured[Output](

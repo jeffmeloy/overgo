@@ -281,6 +281,10 @@ func TestFreshRunExecutesWhatAnIdenticalRequestStored(t *testing.T) {
 			}
 			store, _, program := capabilityFixture(t, "fresh-"+name)
 			execution := modelrecipetest.CandidateExecution(t, store, program)
+			output, err := artifact.JSONContent(artifact.JSONContract(artifact.KindOutput, "test.fresh-output.v1"), 5)
+			if err != nil {
+				t.Fatal(err)
+			}
 			var own artifact.ID
 			var fresh context.Context
 			for index, step := range []struct {
@@ -306,6 +310,10 @@ func TestFreshRunExecutesWhatAnIdenticalRequestStored(t *testing.T) {
 						index, step.fresh, measured.Output, measured.Phases, runs.Load(), step.runs)
 				}
 				definition := program.Definition()
+				run, err := runrecord.RequireExactRun(t.Context(), store, measured.Run)
+				if err != nil || run.Recipe != definition.ID || run.Outcome != runrecord.OutcomeSucceeded || len(run.Inputs) != 1 || run.Inputs[0] != measured.Input.Descriptor.ID || len(run.Outputs) != 1 || run.Outputs[0] != output.Descriptor.ID {
+					t.Fatalf("execution %d has producer run %+v (%v); want its persisted recipe, input and output", index, run, err)
+				}
 				operation, err := workflowruntime.ExecutionID(definition.ID, RunKey(definition, measured.Input))
 				if err != nil {
 					t.Fatal(err)

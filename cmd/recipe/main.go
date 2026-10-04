@@ -497,7 +497,7 @@ func attemptCapability(
 	measured, _ := output.(capabilityruntime.Measured)
 	peak, peakMeasured := devicePeak(processDevicePeak(), measured, err)
 	recordErr := servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), store, servingattempt.WholeOutput{
-		Model: modelID, Recipe: selected.Activation.Definition.ID, Task: task, Started: started, Wall: end - begin,
+		Model: modelID, Recipe: selected.Activation.Definition.ID, Run: measured.Run, Task: task, Started: started, Wall: end - begin,
 		Load: measured.Load, PeakDeviceBytes: peak, PeakMeasured: peakMeasured, Cause: err,
 	})
 	return output, errors.Join(err, recordErr)

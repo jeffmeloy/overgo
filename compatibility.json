@@ -685,7 +685,7 @@
      "contains": "func executeVQAProgram(",
      "path": "cmd/validate/parity_vqa_recipe_serve.go",
      "role": "source",
-     "identity": "file:sha256:90e89bd50dc1ade5facbc6d310abe6075f536095853480c28cd2b86d12777fa4"
+     "identity": "file:sha256:1dd6be5e75185486c0bc87d2f3ec48932c1036bddd44bf78fb48d53d17625b0b"
     },
     {
      "contains": "func TestRxBrainProductionParity(",

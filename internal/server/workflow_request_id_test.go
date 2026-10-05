@@ -149,3 +149,62 @@ func TestRunLedgerForgetsAFailureAndTheOldest(t *testing.T) {
 		t.Fatal("the oldest submission is still held after the ledger's capacity was exceeded")
 	}
 }
+
+// TestRunLedgerSurvivesAFailedSubmissionAndAPanic holds the ledger's order to its
+// entries and its owner to a release: a failed submission takes no slot, so the
+// retry that follows it is not evicted early by the failed one's stale place; and
+// a submission that panics finishes as abandoned, so the callers waiting on it are
+// released with an error and the next try owns a submission of its own.
+func TestRunLedgerSurvivesAFailedSubmissionAndAPanic(t *testing.T) {
+	t.Parallel()
+	var ledger runLedger
+	fingerprint := [32]byte{2}
+	first, _, _ := ledger.begin("a", fingerprint)
+	ledger.finish("a", first, artifact.ID{}, errors.New("refused"))
+	retry, owner, err := ledger.begin("a", fingerprint)
+	if err != nil || !owner {
+		t.Fatalf("the retry of a failed submission = (owner %t, %v)", owner, err)
+	}
+	if len(ledger.order) != 1 {
+		t.Fatalf("the order holds %d places after a failure and its retry, want 1", len(ledger.order))
+	}
+	// The ledger fills to its capacity with the retry as its oldest: it is the one evicted last of the others, never
+	// before them, and a failed submission among them leaves its slot free.
+	for index := range ledgerCapacity - 1 {
+		key := fmt.Sprintf("n%d", index)
+		other, _, _ := ledger.begin(key, fingerprint)
+		if index == 0 {
+			ledger.finish(key, other, artifact.ID{}, errors.New("refused"))
+			continue
+		}
+		ledger.finish(key, other, artifact.ID{}, nil)
+	}
+	if held, owner, _ := ledger.begin("a", fingerprint); owner || held != retry {
+		t.Fatalf("the retry was evicted with the ledger at %d of %d submissions", len(ledger.entries), ledgerCapacity)
+	}
+
+	waiting, owner, err := ledger.begin("panics", fingerprint)
+	if err != nil || !owner {
+		t.Fatalf("claim = (owner %t, %v)", owner, err)
+	}
+	other, owner, _ := ledger.begin("panics", fingerprint)
+	if owner || other != waiting {
+		t.Fatal("a second caller did not wait on the first")
+	}
+	released := make(chan error, 1)
+	go func() { _, err := waiting.wait(t.Context()); released <- err }()
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("the panic was swallowed")
+			}
+		}()
+		_, _ = ledger.run("panics", waiting, func() (artifact.ID, error) { panic("submitting failed") })
+	}()
+	if err := <-released; !errors.Is(err, errSubmissionAbandoned) {
+		t.Fatalf("a caller waiting on a submission that panicked got %v, want it abandoned", err)
+	}
+	if _, owner, _ := ledger.begin("panics", fingerprint); !owner {
+		t.Fatal("the next try after a panic does not own a submission of its own")
+	}
+}

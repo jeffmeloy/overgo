@@ -361,8 +361,9 @@ func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Reques
 	}
 	var id artifact.ID
 	if owner {
-		id, err = h.submitWorkflow(context.WithoutCancel(request.Context()), kind, capability, body.Input, body.Sources)
-		h.runs.finish(key, entry, id, err)
+		id, err = h.runs.run(key, entry, func() (artifact.ID, error) {
+			return h.submitWorkflow(context.WithoutCancel(request.Context()), kind, capability, body.Input, body.Sources)
+		})
 	} else {
 		id, err = entry.wait(request.Context())
 	}

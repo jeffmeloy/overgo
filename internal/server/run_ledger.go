@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 
 	"overgo/internal/artifact"
@@ -23,6 +24,10 @@ const (
 // errRequestIDReused refuses a request id the server already holds for a
 // different submission.
 var errRequestIDReused = errors.New("server: the request id belongs to another submission")
+
+// errSubmissionAbandoned is what the callers waiting on a numbered submission
+// are told when its owner never finished it, because submitting panicked.
+var errSubmissionAbandoned = errors.New("server: the submission did not complete")
 
 // runLedger remembers the submissions a client numbered, so a repeat of one, a
 // retry after a response was lost, finds the operation the first started and
@@ -98,18 +103,37 @@ func (ledger *runLedger) begin(key string, fingerprint [sha256.Size]byte) (entry
 }
 
 // finish records what the owner's submission came to and releases the callers
-// waiting on it. A submission that failed is forgotten, so the retry the failure
-// invites is a submission of its own.
+// waiting on it. A submission that failed is forgotten, its place in the order
+// with it, so the retry the failure invites is a submission of its own and
+// neither takes a slot for nothing nor is evicted early by the failed one's
+// stale place.
 func (ledger *runLedger) finish(key string, entry *ledgerEntry, operation artifact.ID, err error) {
 	entry.operation, entry.err = operation, err
 	if err != nil {
 		ledger.mu.Lock()
 		if ledger.entries[key] == entry {
 			delete(ledger.entries, key)
+			ledger.order = slices.DeleteFunc(ledger.order, func(held string) bool { return held == key })
 		}
 		ledger.mu.Unlock()
 	}
 	close(entry.done)
+}
+
+// run submits as the owner of entry and finishes it however submit returns: a
+// panic finishes it as abandoned before it goes on, so the callers waiting on
+// the submission are released and a retry owns a submission of its own.
+func (ledger *runLedger) run(key string, entry *ledgerEntry, submit func() (artifact.ID, error)) (artifact.ID, error) {
+	finished := false
+	defer func() {
+		if !finished {
+			ledger.finish(key, entry, artifact.ID{}, errSubmissionAbandoned)
+		}
+	}()
+	operation, err := submit()
+	finished = true
+	ledger.finish(key, entry, operation, err)
+	return operation, err
 }
 
 // wait is the operation a numbered submission started, once it has.

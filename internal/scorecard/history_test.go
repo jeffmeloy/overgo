@@ -18,6 +18,48 @@ import (
 // throughput improved and a rising cost did not, a held-out quality by its
 // own direction; and rows pair by model, so two sharing a name never trade
 // baselines.
+// TestServingEnvironmentChangeIsUnknown holds a serving value to the environment it was measured
+// in: a throughput measured on one recipe in one environment and again in another is Unknown, not
+// a change a user would read as a gain or a loss; the same environment still compares, and a
+// baseline published before environments were recorded (none) judges as it did.
+func TestServingEnvironmentChangeIsUnknown(t *testing.T) {
+	t.Parallel()
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "served")
+	process, device := testutil.ArtifactID(t, artifact.KindEvidence, "process"), testutil.ArtifactID(t, artifact.KindEvidence, "device")
+	cell := func(value float64, environment artifact.ID) Cell {
+		return Cell{Value: value, Unit: "tok/s", Environment: environment, Contract: Contract{Metric: string(metric.Throughput), Origin: originServing, Scope: recipeID}}
+	}
+	for name, test := range map[string]struct {
+		before, after Cell
+		verdict       Verdict
+	}{
+		"another environment":          {cell(40, process), cell(45, device), Unknown},
+		"the same environment":         {cell(40, device), cell(45, device), holding},
+		"a baseline with none":         {cell(40, artifact.ID{}), cell(45, device), holding},
+		"a record measured with none":  {cell(40, device), cell(45, artifact.ID{}), holding},
+		"another environment and loss": {cell(40, process), cell(30, device), Unknown},
+	} {
+		if verdict, why := holds(test.before, test.after); verdict != test.verdict {
+			t.Errorf("%s: holds = %q (%s), want %q", name, verdict, why, test.verdict)
+		}
+	}
+	// Moves reports the environment change as Unknown too, where it reported a change.
+	model := testutil.ArtifactID(t, artifact.KindModel, "served-model")
+	row := func(throughput Cell) Row {
+		cells := map[metric.Name]Cell{metric.Throughput: throughput}
+		for _, column := range metric.Columns {
+			if _, found := cells[column]; !found {
+				cells[column] = Cell{Reason: "no record measures it"}
+			}
+		}
+		return Row{Model: model, Name: "served", Task: recipe.TaskInference, Cells: cells}
+	}
+	moves := Moves(Record{Commit: "a", Rows: []Row{row(cell(40, process))}}, Record{Commit: "b", Rows: []Row{row(cell(45, device))}})
+	if len(moves) != 1 || moves[0].Kind != moveUnknown {
+		t.Fatalf("moves = %+v, want the one throughput move read as unknown, not changed", moves)
+	}
+}
+
 func TestMovesBetweenRecords(t *testing.T) {
 	t.Parallel()
 	model := func(name string) artifact.ID { return testutil.ArtifactID(t, artifact.KindModel, name) }

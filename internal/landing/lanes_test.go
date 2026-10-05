@@ -383,6 +383,35 @@ func TestCUDATestsNeedALane(t *testing.T) {
 // its go test lines executed or replayed from cache, a lane whose output
 // carries neither with its time alone, and the unreached lanes as skipped.
 // With no lane reached there is no turn to wait for.
+// TestCPULanesOverlapTheDeviceLane holds the lanes a change reaches to the schedule that shares the
+// device and no more: the lanes that need none start at once, beside the rest, and the lanes that
+// share it keep their order and run one at a time; the page's lane is the one that needs no
+// device, and the device and CUDA lanes are the ones that do.
+func TestCPULanesOverlapTheDeviceLane(t *testing.T) {
+	t.Parallel()
+	names := func(candidates []lane) []string {
+		var named []string
+		for _, candidate := range candidates {
+			named = append(named, candidate.name)
+		}
+		return named
+	}
+	beside, shared := splitLanes(lanes)
+	if !slices.Equal(names(beside), []string{"webui"}) || !slices.Equal(names(shared), []string{"device", "cuda"}) {
+		t.Fatalf("lanes split into %v beside and %v sharing the device, want the page beside the device and CUDA lanes in order", names(beside), names(shared))
+	}
+	reached := []lane{{name: "a"}, {name: "page", hostOnly: true}, {name: "b"}, {name: "other", hostOnly: true}}
+	beside, shared = splitLanes(reached)
+	if !slices.Equal(names(beside), []string{"page", "other"}) || !slices.Equal(names(shared), []string{"a", "b"}) {
+		t.Fatalf("a host-only lane stayed in the device queue: %v beside, %v sharing", names(beside), names(shared))
+	}
+	for _, candidate := range cycleLanes {
+		if candidate.hostOnly {
+			t.Errorf("cycle lane %s is host-only: the cycle's lanes read real models and the store, and take their turns alone", candidate.name)
+		}
+	}
+}
+
 func TestLanesMeasurementLine(t *testing.T) {
 	t.Parallel()
 	device := "[device] phase=1/3 heartbeat=running elapsed=0.0s command=go run ./cmd/cuda-info\n" +

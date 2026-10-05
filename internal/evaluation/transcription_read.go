@@ -69,8 +69,14 @@ func RequireTranscriptionReport(ctx context.Context, reader artifact.Reader, id 
 // report's dataset and that group, and its protocol the prompting the plan
 // executed under followed by the normalization the report scored with. A
 // report whose groups hold no utterance measures nothing and is passed over.
-func TranscriptionQualities(ctx context.Context, store *overgodb.Store) (map[artifact.ID]EvalSummary, error) {
+// A report that cannot be reconstructed stops the read with its error, or, when
+// unreadable is given, is reported to it with the recipe it judges and the read
+// goes on: it claims its recipe like a readable one, newest first, so an older
+// report of that recipe does not stand in for it, and costs the recipe its quality
+// and no other.
+func TranscriptionQualities(ctx context.Context, store *overgodb.Store, unreadable func(recipe artifact.ID, reason error)) (map[artifact.ID]EvalSummary, error) {
 	qualities := map[artifact.ID]EvalSummary{}
+	claimed := map[artifact.ID]bool{}
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{transcriptionReportContract}, Order: overgodb.DocumentNewestFirst,
 	}, func(data []byte) (TranscriptionReport, error) {
@@ -82,12 +88,17 @@ func TranscriptionQualities(ctx context.Context, store *overgodb.Store) (map[art
 		if err != nil {
 			return err
 		}
-		if _, read := qualities[plan.body.RuntimeRecipe]; read {
+		if _, read := qualities[plan.body.RuntimeRecipe]; read || claimed[plan.body.RuntimeRecipe] {
 			return nil
 		}
 		report, err := RequireTranscriptionReport(ctx, store, view.Content.Descriptor.ID)
 		if err != nil {
-			return err
+			if unreadable == nil || ctx.Err() != nil {
+				return err
+			}
+			claimed[plan.body.RuntimeRecipe] = true
+			unreadable(plan.body.RuntimeRecipe, err)
+			return nil
 		}
 		policy, err := ReadExecutionPolicy(ctx, store, plan.body.Execution)
 		if err != nil {

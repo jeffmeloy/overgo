@@ -278,6 +278,8 @@ func holds(then, now Cell) (Verdict, string) {
 		return Unknown, then.Contract.Origin + " comparison authority is unknown"
 	case now.Contract != then.Contract:
 		return Unknown, fmt.Sprintf("measured %+v, the baseline %+v", now.Contract, then.Contract)
+	case then.Contract.Origin == originServing && then.Environment.Valid() && now.Environment.Valid() && now.Environment != then.Environment:
+		return Unknown, fmt.Sprintf("measured under environment %s, the baseline under %s", now.Environment, then.Environment)
 	case now.Direction != then.Direction:
 		return Unknown, fmt.Sprintf("improves in direction %q, the baseline in %q", now.Direction, then.Direction)
 	}

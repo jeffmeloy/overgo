@@ -22,7 +22,7 @@ func runTrainingState(model *densecausal.Model, batches [][]int, options denseca
 		losses, state, err := model.TrainWith(batches, learningRate, momentum, resume, observe, options)
 		return losses, "host", state, err
 	}
-	if options.Trained != nil || options.Average != 0 || options.ResumeAverage != nil || options.CheckpointEvery != 0 || options.Checkpoint != nil || options.ObserveRouter != nil {
+	if options.Trained != nil || options.Average != 0 || options.ResumeAverage != nil || options.CheckpointEvery != 0 || options.ObserveRouter != nil {
 		return nil, "", densecausal.TrainState{}, errors.New("training workflow: only the host trainer learns some tokens, averages the weights, saves checkpoints along the way or observes the router")
 	}
 	if device == nil {

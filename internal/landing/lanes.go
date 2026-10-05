@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"overgo/internal/clioptions"
@@ -33,6 +34,24 @@ type lane struct {
 	command func(changed string) []string
 	// environment is added to the gate's own for the lane's command.
 	environment []string
+	// hostOnly says the lane needs no device, a browser against a server on the
+	// host: it runs beside the lanes that share the device, not after them.
+	hostOnly bool
+}
+
+// splitLanes divides the lanes a change reached into those that need no device,
+// which run at once beside the rest, and those that share it, which run one after
+// another in their order: the wall of the lanes is then the device lanes' alone
+// when a host lane is shorter than they are.
+func splitLanes(reached []lane) (beside, shared []lane) {
+	for _, candidate := range reached {
+		if candidate.hostOnly {
+			beside = append(beside, candidate)
+		} else {
+			shared = append(shared, candidate)
+		}
+	}
+	return beside, shared
 }
 
 var lanes = []lane{
@@ -47,7 +66,8 @@ var lanes = []lane{
 		name: "webui", packages: []string{"./internal/server", "./internal/webuilane", "./cmd/webui-lane"},
 		prefixes: []string{"internal/server/webui/", "internal/server/webui_", "cmd/webui-lane/", "internal/webuilane/",
 			"internal/server/workspace_manifest.json", "internal/server/workspace_schema.json"},
-		command: func(string) []string { return []string{"run", "./cmd/webui-lane"} },
+		command:  func(string) []string { return []string{"run", "./cmd/webui-lane"} },
+		hostOnly: true,
 	},
 	{
 		// The CUDA suites outside the device lane's scopes that build their
@@ -196,14 +216,15 @@ func (candidate lane) arguments(changed string) []string {
 // laneTurn names the host-wide turn a landing holds while its lanes run.
 const laneTurn = "overgo-landing-lanes"
 
-// lanes runs every lane the change reaches, one after another: they share
-// the device. They run in the host's lane turn, so another landing on this
-// machine waits for it rather than running its lanes beside these on the
-// one GPU. A turn, not a claim on the device: a claim would make every lane
-// process its member and erase the process identities the device's own
-// admission tests exercise. The measurement says how long finding the
-// reached lanes and waiting for the turn took, and how each lane ended; a
-// lane that refuses the landing logs its time.
+// lanes runs every lane the change reaches: the lanes that share the device one
+// after another, and the lanes that need none beside them. They run in the host's
+// lane turn, so another landing on this machine waits for it rather than running
+// its lanes beside these on the one GPU. A turn, not a claim on the device: a
+// claim would make every lane process its member and erase the process
+// identities the device's own admission tests exercise. A lane that refuses the
+// landing cancels the others. The measurement says how long finding the reached
+// lanes and waiting for the turn took, and how each lane ended; a lane that
+// refuses the landing logs its time.
 func (l *landing) lanes(ctx context.Context) error {
 	changed, err := os.CreateTemp("", "overgo-landing-paths-*.txt")
 	if err != nil {
@@ -240,8 +261,11 @@ func (l *landing) lanes(ctx context.Context) error {
 	waiting := time.Now()
 	return processcontrol.ResourceTransaction(laneTurn, func() error {
 		turnWait := time.Since(waiting).Round(time.Millisecond)
-		var passed []string
-		for _, candidate := range reached {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		entries, failures := map[string]string{}, map[string]error{}
+		var mu sync.Mutex
+		run := func(candidate lane) {
 			fmt.Fprintf(l.Log, "land: lane %s runs\n", candidate.name)
 			var environment []string
 			if len(candidate.environment) > 0 {
@@ -250,11 +274,39 @@ func (l *landing) lanes(ctx context.Context) error {
 			began := time.Now()
 			output, err := l.run(ctx, environment, "go", candidate.arguments(changed.Name())...)
 			wall := time.Since(began).Round(time.Millisecond)
+			mu.Lock()
+			defer mu.Unlock()
 			if err != nil {
 				fmt.Fprintf(l.Log, "land: lane %s refused after %s\n", candidate.name, wall)
-				return fmt.Errorf("lane %s: %w", candidate.name, err)
+				failures[candidate.name] = fmt.Errorf("lane %s: %w", candidate.name, err)
+				cancel()
+				return
 			}
-			passed = append(passed, describeLane(candidate.name, wall, output))
+			entries[candidate.name] = describeLane(candidate.name, wall, output)
+		}
+		beside, shared := splitLanes(reached)
+		var group sync.WaitGroup
+		for _, candidate := range beside {
+			group.Go(func() { run(candidate) })
+		}
+		for _, candidate := range shared {
+			if ctx.Err() != nil {
+				break
+			}
+			run(candidate)
+		}
+		group.Wait()
+		var refused []error
+		var passed []string
+		for _, candidate := range reached {
+			if err := failures[candidate.name]; err != nil {
+				refused = append(refused, err)
+			} else if entry, ok := entries[candidate.name]; ok {
+				passed = append(passed, entry)
+			}
+		}
+		if len(refused) > 0 {
+			return errors.Join(refused...)
 		}
 		l.details["lanes"] = describeLanes(discovery, turnWait, passed, skipped)
 		return nil

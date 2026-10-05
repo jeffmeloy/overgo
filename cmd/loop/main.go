@@ -68,6 +68,12 @@ type config struct {
 	// default as gate.
 	Repository           string `json:"repository"`
 	WorkerTimeoutMinutes int    `json:"worker_timeout_minutes"`
+	// AutoCycleLandings, when positive, starts an improvement cycle between steps once that
+	// many landings have moved what a cycle measures since the last cycle that completed: the
+	// count at which finding which of them broke a failed cycle would cost more than running
+	// one, which the operator sets from the cycle's measured wall (about 1 h 40 min) and a
+	// landing's. Zero starts a cycle only when the plan empties and something moved.
+	AutoCycleLandings int `json:"auto_cycle_landings"`
 }
 
 func main() {
@@ -199,6 +205,7 @@ func run(args []string) error {
 	// An empty plan runs the full scorecard, promotes what holds and turns
 	// the gaps into the next rows.
 	world := &execWorld{config: loaded, strategy: strategy, promptPrefix: string(prompt.Data), campaign: campaign, improvement: improvementFor(*repoPath)}
+	world.improvement.limit = loaded.AutoCycleLandings
 	outcome, err := loop.Run(world, strategy.Loop)
 	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; promoted=%q; withheld=%q; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
 		outcome.Reason, outcome.Invocations, outcome.Parked, outcome.Promoted, outcome.Withheld)

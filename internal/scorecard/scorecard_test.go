@@ -251,7 +251,7 @@ func TestPeakMemoryReadsASampledZero(t *testing.T) {
 	}
 	var none evaluation.BenchmarkSummary
 	host := summaries[recipes["host"]]
-	want := Cell{Unit: "bytes", Label: "0 bytes: runs on the host", Source: observed["host"],
+	want := Cell{Unit: "bytes", Label: "0 bytes: runs on the host", Source: observed["host"], Environment: host.environment,
 		Contract: Contract{Metric: "peak device memory", Origin: originServing, Scope: recipes["host"]}}
 	if cell := peakMemoryCell(none, false, host); !cell.Measured() || cell != want {
 		t.Fatalf("peak-memory cell of an attempt that sampled a device holding nothing = %+v, want the measured zero %+v", cell, want)

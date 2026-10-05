@@ -88,6 +88,58 @@ func TestStoredTranscriptionReportRejectsAlteredScoresAndDenominators(t *testing
 	}
 }
 
+// TestUnreadableTranscriptionReportIsAGap holds the read of a recipe's transcription quality to
+// what a scorecard needs of it: a report that cannot be reconstructed stops a strict read with its
+// error, but with a callback is reported with the recipe it judges and the read goes on, and it
+// claims the recipe, so the older readable report of that recipe does not stand in for the newest.
+func TestUnreadableTranscriptionReportIsAGap(t *testing.T) {
+	t.Parallel()
+	fixture := singleTranscriptionEvaluationFixture(t, TranscriptionCase{
+		Name: "exact", Group: "clean", Source: audioReference(t, "gap-quality"),
+		Reference: "Hello world", SampleCount: 16000, SampleRate: 16000,
+	})
+	defer fixture.store.Close()
+	store := fixture.store.(*overgodb.Store)
+	report, err := EvaluateTranscription(t.Context(), store, fixture.compiled, fixture.plan,
+		[]TranscriptionPrediction{fixture.successfulPrediction(t, "exact", "hello word")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read, err := TranscriptionQualities(t.Context(), store, nil); err != nil || read[fixture.recipe].Record != report.ID {
+		t.Fatalf("a readable report reads as %+v (%v), want its own", read[fixture.recipe], err)
+	}
+	// A newer report whose score is altered cannot be reconstructed from the persisted runs.
+	altered := report
+	altered.ID = artifact.ID{}
+	altered.Overall.WordErrorRate = 0
+	id, err := artifact.JSONID(artifact.KindEvaluation, altered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	altered.ID = id
+	content, err := transcriptionReportContract.ContentJSON(id, altered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: id.String(), Contents: []artifact.Content{content}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := TranscriptionQualities(t.Context(), store, nil); err == nil {
+		t.Fatal("a strict read accepted an unreadable report")
+	}
+	var recipes []artifact.ID
+	var reasons []string
+	read, err := TranscriptionQualities(t.Context(), store, func(recipe artifact.ID, reason error) {
+		recipes, reasons = append(recipes, recipe), append(reasons, reason.Error())
+	})
+	if err != nil || len(recipes) != 1 || recipes[0] != fixture.recipe || reasons[0] == "" {
+		t.Fatalf("an unreadable report was reported as %v %q (%v), want its recipe once with a reason", recipes, reasons, err)
+	}
+	if quality, found := read[fixture.recipe]; found {
+		t.Errorf("the older readable report %+v stood in for the recipe's unreadable newest", quality)
+	}
+}
+
 type transcriptionEvaluationFixture struct {
 	store       artifact.Repository
 	compiled    TranscriptionPlan

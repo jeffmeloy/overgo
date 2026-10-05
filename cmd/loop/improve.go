@@ -38,6 +38,73 @@ type improvement struct {
 	// in the cycle checkout it is given.
 	measure func(checkout string) error
 	fill    func(checkout string) error
+	// limit is how many landings that moved what a cycle measures start a cycle between
+	// steps; zero starts none, so a cycle starts only when the plan empties and something moved.
+	limit int
+	// surface reads the packages a cycle's commands depend on; nil reads them with go list.
+	surface func(ctx context.Context, root string) (map[string]bool, error)
+	// watch says the loop gates its cycles on what moved: an empty plan with nothing moved since
+	// the last cycle that completed starts none. The loop's world sets it; a bare improvement
+	// runs a cycle whenever the plan empties, as before.
+	watch bool
+	// attempted is the commit a cycle the trigger started was begun at, so one that did not
+	// publish is not started again for the same commit.
+	attempted string
+}
+
+// movedSince is the commit of the newest scorecard published and how many commits since it
+// moved what a cycle measures.
+func (w *improvement) movedSince() (last string, moved int, err error) {
+	ctx := context.Background()
+	read := surfaceClosure
+	if w.surface != nil {
+		read = w.surface
+	}
+	closure, err := read(ctx, w.root)
+	if err != nil {
+		return "", 0, err
+	}
+	return landingsThatMovedTheSurface(ctx, w.root, w.records, closure)
+}
+
+// CycleDue says whether landings that moved what a cycle measures have reached the limit since
+// the last cycle that completed, of any outcome, and no cycle was begun for this commit already.
+func (w *improvement) CycleDue() (bool, string, error) {
+	if w.limit <= 0 {
+		return false, "no landing limit is set, so a cycle starts only when the plan empties", nil
+	}
+	head, err := gitauthority.Query(context.Background(), w.root, "rev-parse", "HEAD")
+	if err != nil {
+		return false, "", err
+	}
+	if commit := strings.TrimSpace(string(head)); commit == w.attempted {
+		return false, "a cycle was begun at this commit and published nothing", nil
+	}
+	last, moved, err := w.movedSince()
+	if err != nil {
+		return false, "", err
+	}
+	decision := decideCycle(last, moved, w.limit)
+	if decision.Due {
+		w.attempted = strings.TrimSpace(string(head))
+	}
+	return decision.Due, decision.Reason, nil
+}
+
+// CycleWorthRunning says whether a cycle an empty plan would start has anything to measure: it has
+// when no cycle has completed or something it measures has moved since the last that did.
+func (w *improvement) CycleWorthRunning() (bool, string, error) {
+	if !w.watch {
+		return true, "the cycle is not gated on what moved", nil
+	}
+	last, moved, err := w.movedSince()
+	if err != nil {
+		return false, "", err
+	}
+	if last == "" || moved > 0 {
+		return true, "what a cycle measures moved since the last cycle that completed", nil
+	}
+	return false, decideCycle(last, moved, w.limit).Reason, nil
 }
 
 // improvementFor is the loop's improvement world over a store: this
@@ -45,7 +112,7 @@ type improvement struct {
 // the background validations.
 func improvementFor(store string) improvement {
 	return improvement{
-		root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store),
+		watch: true, root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store),
 		measure: func(checkout string) error { return measureScorecard(checkout, store) },
 		fill: func(checkout string) error {
 			return validateIn(checkout, store, []string{cycleCreditEnvironment(filepath.Dir(checkout))}, "-run", "-background")

@@ -253,12 +253,15 @@ type servingSummary struct {
 	decodeTokens, decodeNS               uint64
 	peakDeviceBytes                      uint64
 	latest, measured, recipe             artifact.ID
+	// environment is where the measured attempt ran: a serving value is read under it, and a baseline
+	// measured under another is Unknown, not a change.
+	environment artifact.ID
 }
 
 // cell is a value read from source, the summary's measured attempt or its
 // latest, as label says.
 func (summary *servingSummary) cell(source artifact.ID, value float64, unit, metric, label string) Cell {
-	return Cell{Value: value, Unit: unit, Label: label, Source: source, Contract: Contract{Metric: metric, Origin: originServing, Scope: summary.recipe}}
+	return Cell{Value: value, Unit: unit, Label: label, Source: source, Environment: summary.environment, Contract: Contract{Metric: metric, Origin: originServing, Scope: summary.recipe}}
 }
 
 // servingByRecipe reads every serving observation, newest first, into one
@@ -314,7 +317,7 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if observation.Outcome != runrecord.OutcomeSucceeded || summary.loaded {
 			return nil
 		}
-		measured := servingSummary{measured: observation.ID}
+		measured := servingSummary{measured: observation.ID, environment: observation.Environment}
 		for _, sample := range observation.Hardware {
 			if sample.Stage == runrecord.ServingHardwarePrefill {
 				measured.firstOutputNS = sample.ElapsedNS
@@ -451,16 +454,16 @@ var verdictTasks = []recipe.Task{recipe.TaskTabular, recipe.TaskForecast}
 type heldoutRecord struct {
 	summary evaluation.EvalSummary
 	base    *float64
-	// unreadable says why the newest verdict of the recipe could not be
-	// reconstructed: its quality is then a gap with that reason, not an older
-	// verdict's value in its place.
+	// unreadable says why the newest verdict or transcription report of the
+	// recipe could not be reconstructed: its quality is then a gap with that
+	// reason, not an older record's value in its place.
 	unreadable string
 }
 
 // cell is the record's held-out quality, beside its base model's value.
 func (record heldoutRecord) cell(task recipe.Task) Cell {
 	if record.unreadable != "" {
-		return gap("its held-out verdict cannot be reconstructed: " + record.unreadable)
+		return gap(record.unreadable)
 	}
 	cell, _ := qualityCell(task, []evaluation.EvalSummary{record.summary}, nil)
 	cell.Base = record.base
@@ -479,13 +482,21 @@ func (record heldoutRecord) cell(task recipe.Task) Cell {
 // recipe on stays among its other held-out qualities, so a baseline measured
 // on one still compares.
 func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discovery.CatalogEntry) (map[artifact.ID]heldoutRecord, error) {
-	reports, err := evaluation.TranscriptionQualities(ctx, store)
+	// A report that cannot be reconstructed leaves its recipe's quality a gap that says why, and the
+	// other recipes' measured.
+	unreadable := map[artifact.ID]string{}
+	reports, err := evaluation.TranscriptionQualities(ctx, store, func(recipeID artifact.ID, reason error) {
+		unreadable[recipeID] = reason.Error()
+	})
 	if err != nil {
 		return nil, err
 	}
-	records := make(map[artifact.ID]heldoutRecord, len(reports))
+	records := make(map[artifact.ID]heldoutRecord, len(reports)+len(unreadable))
 	for recipeID, report := range reports {
 		records[recipeID] = heldoutRecord{summary: report}
+	}
+	for recipeID, reason := range unreadable {
+		records[recipeID] = heldoutRecord{unreadable: "its transcription report cannot be reconstructed: " + reason}
 	}
 	served := map[string][]artifact.ID{}
 	for _, entry := range entries {
@@ -527,7 +538,7 @@ func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discov
 		// The verdict claims its recipe like a readable one, newest first.
 		if session, err := runrecord.RequireServingObservation(ctx, store, observation); err == nil {
 			if _, found := records[session.Recipe]; !found {
-				records[session.Recipe] = heldoutRecord{unreadable: reason.Error()}
+				records[session.Recipe] = heldoutRecord{unreadable: "its held-out verdict cannot be reconstructed: " + reason.Error()}
 			}
 		}
 	})

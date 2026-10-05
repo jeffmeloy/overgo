@@ -507,8 +507,10 @@ type workbenchWorkspace struct {
 // the workspace-boundary audit holds each handler file to the workspaces it
 // declares, so no workspace silently reaches the entire handler.
 type Handler struct {
-	config             Config
-	inflight           inflightRegistry
+	config   Config
+	inflight inflightRegistry
+	// runs remembers the numbered workflow submissions, so a repeat starts nothing.
+	runs               runLedger
 	started            time.Time
 	requestsTotal      atomic.Uint64
 	requestsActive     atomic.Int64

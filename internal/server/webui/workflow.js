@@ -416,7 +416,7 @@
           evidence.replaceChildren();
           let accepted;
           try {
-            accepted = await api.post("/" + definition.scope + "/run", { task: capability.task, recipe: capability.recipe, input });
+            accepted = await api.submit("/" + definition.scope + "/run", { task: capability.task, recipe: capability.recipe, input });
             overgo.rememberedControls.remember(capability.recipe, overgo.rememberedControls.values(fields));
           } catch (err) { status.replaceChildren(overgo.failure(err)); run.disabled = false; return; }
           await follow(accepted.operation);

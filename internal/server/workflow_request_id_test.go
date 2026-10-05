@@ -1,0 +1,151 @@
+package server
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+	"sync"
+	"testing"
+
+	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
+	"overgo/internal/testutil"
+)
+
+// TestWorkflowRunIsIdempotentByRequestID posts one numbered submission many times,
+// at once and again afterwards: every answer names one operation and the executor
+// ran once; the same number on other input is refused, a number that is no token is
+// refused, and a submission with no number still starts an operation of its own each
+// time.
+func TestWorkflowRunIsIdempotentByRequestID(t *testing.T) {
+	t.Parallel()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "numbered workflow recipe")
+	generator := &generationWorkspaceGenerator{
+		fakeGenerator: &fakeGenerator{}, repository: store,
+		run: testutil.ArtifactID(t, artifact.KindRun, "numbered workflow run"),
+		capability: WorkflowCapability{
+			Task: recipe.TaskGeneration, Recipe: recipeID,
+			Stages:   []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}},
+			Controls: []workflowControl{{Name: "text", Type: workflowControlText, Required: true}},
+		},
+	}
+	handler, err := New(Config{Repository: store, Workflows: generator}, generator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = handler.Close() })
+	post := func(request, text string) (int, workflowResponse) {
+		t.Helper()
+		body, err := json.Marshal(workflowRequest{Task: recipe.TaskGeneration, Recipe: recipeID, Input: json.RawMessage(fmt.Sprintf(`{"text":%q}`, text)), Request: request})
+		if err != nil {
+			t.Fatal(err)
+		}
+		response := serveTestRequest(handler, http.MethodPost, "/generation/run", string(body))
+		var submission workflowResponse
+		if response.Code == http.StatusAccepted {
+			if err := json.Unmarshal(response.Body.Bytes(), &submission); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return response.Code, submission
+	}
+	executions := func() int {
+		generator.mu.Lock()
+		defer generator.mu.Unlock()
+		return generator.executions
+	}
+
+	// Eight posts of one numbered submission at once, then one more after it finished.
+	operations := make([]artifact.ID, 8)
+	var group sync.WaitGroup
+	for index := range operations {
+		group.Go(func() {
+			code, submission := post("run-one", "hello")
+			if code != http.StatusAccepted {
+				t.Errorf("post %d answered %d", index, code)
+			}
+			operations[index] = submission.Operation
+		})
+	}
+	group.Wait()
+	for _, id := range operations {
+		if id != operations[0] || !id.Valid() {
+			t.Fatalf("numbered posts named operations %v, want one", operations)
+		}
+	}
+	if waited := serveTestRequest(handler, http.MethodGet, "/operations/wait?id="+operations[0].String(), ""); waited.Code != http.StatusOK {
+		t.Fatalf("wait status=%d body=%s", waited.Code, waited.Body.String())
+	}
+	if code, again := post("run-one", "hello"); code != http.StatusAccepted || again.Operation != operations[0] {
+		t.Fatalf("a repeat after the run finished = (%d, %v), want the same operation %v", code, again.Operation, operations[0])
+	}
+	if got := executions(); got != 1 {
+		t.Fatalf("%d executions of one numbered submission, want one", got)
+	}
+
+	// The number belongs to what was asked: other input under it is refused, and starts nothing.
+	response := serveTestRequest(handler, http.MethodPost, "/generation/run", mustJSON(t, workflowRequest{Task: recipe.TaskGeneration, Recipe: recipeID, Input: json.RawMessage(`{"text":"another"}`), Request: "run-one"}))
+	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "request_id_reused") {
+		t.Fatalf("reused number: status=%d body=%s, want a conflict naming the reuse", response.Code, response.Body.String())
+	}
+	for _, bad := range []string{"has space", strings.Repeat("x", maxRequestIDLength+1), "semi;colon"} {
+		if code, _ := post(bad, "hello"); code != http.StatusBadRequest {
+			t.Errorf("request id %q answered %d, want a bad request", bad, code)
+		}
+	}
+	if got := executions(); got != 1 {
+		t.Fatalf("%d executions after refusals, want still one", got)
+	}
+
+	// With no number a submission is its own, as before.
+	_, first := post("", "plain")
+	_, second := post("", "plain")
+	if first.Operation == second.Operation {
+		t.Fatalf("two unnumbered submissions named one operation %v", first.Operation)
+	}
+}
+
+func mustJSON(t *testing.T, value any) string {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(encoded)
+}
+
+// TestRunLedgerForgetsAFailureAndTheOldest checks a submission that failed may be
+// numbered again, and that the ledger holds a bounded number of submissions, the
+// newest.
+func TestRunLedgerForgetsAFailureAndTheOldest(t *testing.T) {
+	t.Parallel()
+	var ledger runLedger
+	fingerprint := [32]byte{1}
+	entry, owner, err := ledger.begin("a", fingerprint)
+	if err != nil || !owner {
+		t.Fatalf("first claim = (owner %t, %v)", owner, err)
+	}
+	waiting, owner, err := ledger.begin("a", fingerprint)
+	if err != nil || owner || waiting != entry {
+		t.Fatalf("second claim = (owner %t, same entry %t, %v), want to wait on the first", owner, waiting == entry, err)
+	}
+	ledger.finish("a", entry, artifact.ID{}, errors.New("refused"))
+	if _, owner, err := ledger.begin("a", fingerprint); err != nil || !owner {
+		t.Fatalf("after a failed submission, a claim = (owner %t, %v), want to own it again", owner, err)
+	}
+	for index := range ledgerCapacity {
+		other, _, _ := ledger.begin(fmt.Sprintf("n%d", index), fingerprint)
+		ledger.finish(fmt.Sprintf("n%d", index), other, artifact.ID{}, nil)
+	}
+	if _, owner, _ := ledger.begin("a", fingerprint); !owner {
+		t.Fatal("the oldest submission is still held after the ledger's capacity was exceeded")
+	}
+}

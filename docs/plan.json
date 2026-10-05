@@ -4,6 +4,21 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "host-linear-interleave",
+      "title": "Interleave the host f32 dot kernels: they are 97 percent of a pooled host LoRA step, bound by one add chain per output",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Interleave the host f32 dot kernels: they are 97 percent of a pooled host LoRA step, bound by one add chain per output",
+          "status": "open",
+          "verify": "go test ./internal/hostmath -count=1 -run '^TestInterleavedLinearMatchesTheSerialDot$'",
+          "rationale": "Serves: throughput of host training and of host inference paths that use hostmath.Linear (LoRA from the Train tab, cmd/train, the conversation fine-tune). Evidence (2026-10-04, after host-linear-backward and lora-helpers; tmp/profile_lora.go, Qwen2.5-0.5B, 512 tokens, rank 8): a step is 27 s on 15.7 cores, and 97 percent of its CPU is three kernels: hostmath.linearCols (the forward, 41 percent), linearInputGradient (30 percent) and LinearWeightGradient (26 percent), each a scalar float32 loop that adds one product at a time into one accumulator (or one row element), at 0.33 ns per multiply-add (the dispatch calibration's f32 rate) where a chain of dependent adds is latency-bound, not throughput-bound. Hypothesis to measure: compute four independent outputs (four weight rows of linearCols, four batch rows of the input gradient, four dW rows of the weight gradient) in one pass so their adds interleave and the loaded input is reused, with each output element still summing its terms in the order it did, so the result stays bit for bit the serial loop's and the goldens hold. Measure on one kernel in a benchmark first; expected 2 to 4 times on the kernels, so a step toward 10 s. Go has no SIMD intrinsics in the pinned toolchain; an assembly or archsimd kernel is the larger step and waits for this one's result. hostmath is a pinned media path: the landing ships a reviewed delta."
+        }
+      ]
+    },
+    {
       "id": "gui-lane-review-residue",
       "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
       "owner": "master-lead",
@@ -13,13 +28,6 @@
         "reason": "AddDelta (the row-at-a-time update) and LossAndGradsOf (the named gradients) are new; the update matrix, the weight-gradient transpose and the copy loop they replace are gone, and the step allocates 40 percent less"
       },
       "steps": [
-        {
-          "id": "lora-device",
-          "title": "Only if the profile says LoRA training time matters: a factor-space or device-resident LoRA path",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner findings (2026-10-04), the larger step. A factor-space forward and backward that never materializes W plus B*A, or a frozen-base path on the device-resident trainer. This is real new code: do it only if the profile step shows LoRA training time matters to a user of the Train tab. Also worth caching only if it gets slow: the scorecard history view re-decodes every published record per request. MEASURED (2026-10-04): the host LoRA step is bound by a serial backward kernel (host-linear-backward), not by the algebra, so this step waits for that row's after-measure: only if a pooled host step is still too slow for the Train tab is a factor-space or device-resident path worth writing."
-        },
         {
           "id": "loss-mask",
           "title": "Give the conversation fine-tune a loss mask, so it learns and is judged on the assistant's tokens",
@@ -420,7 +428,8 @@
             "merge-gui-cleanup/do",
             "gui-lane-review-fixes/do",
             "gui-lane-review-residue/do",
-            "host-linear-backward/do"
+            "host-linear-backward/do",
+            "host-linear-interleave/do"
           ]
         }
       ]

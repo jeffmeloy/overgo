@@ -2,10 +2,8 @@ package server
 
 import (
 	"net/http/httptest"
-	"os"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -17,30 +15,13 @@ import (
 // and a retrieval search without a projection is refused where it was asked.
 func TestWebUIBrowserAgentTab(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the agent tab leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the agent tab leg uses Chromium through cmd/webui-lane")
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea')`)
 	check(`(() => { location.hash = 'agent'; return true; })()`)
 	settle(`!!document.querySelector('#panel-agent.active details.fold')`)

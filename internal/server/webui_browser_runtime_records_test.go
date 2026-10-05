@@ -14,7 +14,6 @@ import (
 	"overgo/internal/operatoraction"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -27,9 +26,7 @@ import (
 // stored interaction replays its trace.
 func TestWebUIBrowserRuntimeRecords(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the runtime records leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the runtime records leg uses Chromium through cmd/webui-lane")
 	ctx := t.Context()
 	handler, store := servingStreamFixture(t, 8)
 	id := func(kind artifact.Kind, label string) artifact.ID { return testutil.ArtifactID(t, kind, label) }

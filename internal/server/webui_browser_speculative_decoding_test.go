@@ -2,10 +2,8 @@ package server
 
 import (
 	"net/http/httptest"
-	"os"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -16,30 +14,13 @@ import (
 // draft head offers no toggle.
 func TestWebUIBrowserSpeculativeDecoding(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the speculative decoding leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the speculative decoding leg uses Chromium through cmd/webui-lane")
 	drafting := httptest.NewServer(newTestHandlerWithRepository(t, &draftGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{})}))
 	defer drafting.Close()
 	plain := httptest.NewServer(newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{})))
 	defer plain.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, drafting.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, drafting.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	const toggle = `document.querySelector('#conversation-settings input[aria-label="speculative decoding"]')`
 	settle(`!!document.querySelector('.composer textarea') && !!document.querySelector('#conversation-settings input[aria-label="temperature"]')`)
 

@@ -2,10 +2,8 @@ package server
 
 import (
 	"net/http/httptest"
-	"os"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -16,30 +14,13 @@ import (
 // draws the token lengths of every sequence.
 func TestWebUIBrowserTrainingPreview(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the training preview leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the training preview leg uses Chromium through cmd/webui-lane")
 	fixture := newDPOTrainingFixture(t)
 	handler := newTestHandlerForRepository(t, fixture.store, &fakeGenerator{}, func(config *Config) { config.Workflows = fixture.workspace })
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	check(`(() => { location.hash = 'training-jobs'; return true; })()`)
 	settle(`!!document.querySelector('#panel-training-jobs.active select[aria-label="capability"] option') && [...document.querySelectorAll('#panel-training-jobs button')].some(button => button.textContent === 'Preview as trained')`)
 	check(`(() => {

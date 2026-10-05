@@ -3,14 +3,12 @@ package server
 import (
 	"context"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -38,9 +36,7 @@ func (generator *unofferedGenerator) WorkflowCapabilities(ctx context.Context, k
 // the mode's gallery shows the kind that capability declares.
 func TestWebUIBrowserUnofferedTask(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "the unoffered task leg runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the unoffered task leg runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -66,22 +62,8 @@ func TestWebUIBrowserUnofferedTask(t *testing.T) {
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle(`!!document.querySelector('.composer select[aria-label="mode"] option[value="image-gen"]')`)
 	check(`(() => { const mode = document.querySelector('.composer select[aria-label="mode"]'); mode.value = 'image-gen'; mode.dispatchEvent(new Event('change')); return true; })()`)

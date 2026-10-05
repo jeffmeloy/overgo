@@ -268,32 +268,6 @@ func TestAdapterCarriesTheTrainingThroughPEFT(t *testing.T) {
 	}
 }
 
-// TestProjectionNamesAreRecognizedExactly: a dense layer's linear projection
-// weight splits into its module path and projection name, and nothing else
-// does: not a mixture expert's, which sits a segment deeper, a norm, a bias,
-// the embedding, or a layer index that is not a number.
-func TestProjectionNamesAreRecognizedExactly(t *testing.T) {
-	for name, want := range map[string][2]string{
-		"model.layers.0.self_attn.q_proj.weight":             {"model.layers.0.self_attn.q_proj", "q_proj"},
-		"model.layers.12.mlp.down_proj.weight":               {"model.layers.12.mlp.down_proj", "down_proj"},
-		"model.layers.3.self_attn.o_proj.weight":             {"model.layers.3.self_attn.o_proj", "o_proj"},
-		"model.layers.0.mlp.experts.3.gate_proj.weight":      {},
-		"model.layers.0.mlp.shared_experts.gate_proj.weight": {},
-		"model.layers.x.mlp.up_proj.weight":                  {},
-		"model.layers.0.self_attn.q_proj.bias":               {},
-		"model.layers.0.input_layernorm.weight":              {},
-		"model.layers.0.attention.q_proj.weight":             {},
-		"model.embed_tokens.weight":                          {},
-		"lm_head.weight":                                     {},
-		"":                                                   {},
-	} {
-		module, projected, ok := projection(name)
-		if ok != (want[0] != "") || module != want[0] || projected != want[1] {
-			t.Errorf("projection(%q) = (%q, %q, %t), want (%q, %q)", name, module, projected, ok, want[0], want[1])
-		}
-	}
-}
-
 // TestRefusesWhatItCannotTrain: a rank the projection cannot hold, a model with
 // no target projection, a rate that changes after the first update, an adapter
 // whose shapes are not the model's, and no batches.

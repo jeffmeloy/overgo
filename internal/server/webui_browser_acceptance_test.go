@@ -362,6 +362,42 @@ func assertBrowserPredicate(t *testing.T, ctx context.Context, browser *webuilan
 	}
 }
 
+// requireWebUILane skips a browser test outside cmd/webui-lane, which owns the
+// browser and names its lane in the environment; reason says why the test needs
+// it, and the skip is recorded as one the lane declares.
+func requireWebUILane(t *testing.T, reason string) {
+	t.Helper()
+	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
+		testskip.NotApplicable(t, reason)
+	}
+}
+
+// openBrowserLeg opens the page at url in the lane's browser and returns what a
+// leg drives it with: the context it lives in, the browser, check for an
+// expression that must be true now and settle for one that must become true.
+// The caller closes the browser before the servers behind it, which hold
+// connections the page keeps open.
+func openBrowserLeg(t *testing.T, url string) (context.Context, *webuilane.Browser, func(expression string), func(expression string)) {
+	t.Helper()
+	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := t.Context()
+	browser, err := webuilane.Open(ctx, path, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
+	settle := func(expression string) {
+		t.Helper()
+		if err := browser.Eventually(ctx, expression); err != nil {
+			t.Fatalf("%s: %v", expression, err)
+		}
+	}
+	return ctx, browser, check, settle
+}
+
 // TestWebUIBrowserFrontPage drives the front page in a real browser
 // (professional GUI campaign, gui-quality/accessibility-responsive): every
 // control a keyboard user needs is a native focusable element, a real Tab

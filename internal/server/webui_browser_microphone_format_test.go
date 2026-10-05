@@ -6,7 +6,6 @@ import (
 	"os"
 	"overgo/internal/media"
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 	"strconv"
 	"testing"
@@ -14,9 +13,7 @@ import (
 
 func TestWebUIBrowserMicrophoneFormat(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "microphone format runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "microphone format runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

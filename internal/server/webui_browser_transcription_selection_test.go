@@ -13,7 +13,6 @@ import (
 
 	"overgo/internal/operation"
 	"overgo/internal/runrecord"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -64,9 +63,7 @@ func TestTranscriptionSelectedRecipe(t *testing.T) {
 
 func TestWebUIBrowserTranscriptionSelection(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "transcription selection runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "transcription selection runs through cmd/webui-lane")
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	// The chat attachment declaration allows WAV; transcription itself uses the
 	// independent, admitted native ASR fixture and never this projector.
@@ -91,15 +88,7 @@ func TestWebUIBrowserTranscriptionSelection(t *testing.T) {
 		fixture.handler.ServeHTTP(w, r)
 	}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := func(expression string) {

@@ -402,8 +402,10 @@
           if (!submitted) return;
           try {
             const answer = await api.post("/" + definition.scope + "/command", { task: submitted.capability.task, recipe: submitted.capability.recipe, input: submitted.input });
+            // The server quotes for a POSIX shell, which a Windows host reaches through Git Bash or WSL, so the page says so.
             commands.replaceChildren(...answer.commands.map((item) => el("div", { class: "workflow-command" },
-              el("span", { class: "tag", text: item.kind === "cli" ? "command line" : "HTTP" }), el("pre", { class: "mono", text: item.text }), overgo.copyButton(item.text))));
+              el("span", { class: "tag", text: item.kind === "cli" ? "command line" : "HTTP" }), el("pre", { class: "mono", text: item.text }), overgo.copyButton(item.text))),
+              ...(answer.commands.length ? [el("p", { class: "note", text: "Written for a POSIX shell: bash or zsh, or Git Bash or WSL on Windows." })] : []));
           } catch (err) { commands.replaceChildren(overgo.failure(err)); }
         });
         run.addEventListener("click", async () => {

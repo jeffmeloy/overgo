@@ -3,12 +3,10 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"slices"
 	"sync"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -18,9 +16,7 @@ import (
 // one) and a GET row sends GET with its query.
 func TestWebUIBrowserRouteExplorer(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "the route explorer runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the route explorer runs through cmd/webui-lane")
 	handler := newTestHandler(t, &fakeGenerator{})
 	defer handler.Close()
 	var mu sync.Mutex
@@ -34,22 +30,8 @@ func TestWebUIBrowserRouteExplorer(t *testing.T) {
 		handler.ServeHTTP(response, request)
 	}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#api")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, settle := openBrowserLeg(t, server.URL+"/app.html#api")
 	defer browser.Close()
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`document.querySelectorAll('#panel-api .card').length > 10`)
 	// The filter narrows the table to the rows naming the typed path.
 	assertBrowserPredicate(t, ctx, browser, `(() => {

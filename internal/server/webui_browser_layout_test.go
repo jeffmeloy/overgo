@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -14,9 +13,7 @@ import (
 // a phone viewport reduced by its keyboard, instead of scoring header density.
 func TestWebUIBrowserConversationLayout(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "browser layout runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "browser layout runs through cmd/webui-lane")
 	repository, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -28,15 +25,7 @@ func TestWebUIBrowserConversationLayout(t *testing.T) {
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
 	if err := browser.Eventually(ctx, `!!document.querySelector('#panel-chat.active .composer textarea')`); err != nil {
 		t.Fatal(err)

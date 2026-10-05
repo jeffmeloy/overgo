@@ -1339,6 +1339,65 @@
         ]
       },
       "scope": "the receipt re-runs, on the device, real workers allocating and freeing through their libraries while the process ledger follows and returns to its prior total, and on the host the ledger's sums across libraries and its peak under concurrent libraries; ProcessCurrentBytes reads the same atomic those tests already hold"
+    },
+    {
+      "changes": {
+        "internal/hostmath/backward.go": {
+          "after_sha256": "92e27a64714e1feeb57e7a4847859b142fb8224607a5d71d9239e4ae0ff4f617",
+          "before_sha256": "98815aa281662a64bebe5fda6c89ce930bfb19c44e6b764b57bad464995a855a",
+          "reason": "LinearBackward runs its weight, bias and input gradients through the kernels the package already fans out over the worker pool, each over rows it owns alone and each element summing in the serial loop's order, so its result is that loop's bit for bit; the serial loop is deleted and LinearBackwardInput shares its body with the accumulating variant"
+        },
+        "internal/hostmath/dispatch.go": {
+          "after_sha256": "c85204476df4e2b7d57fc15fe5b87b4d700422978bb875e3d1088b5d49f47cca",
+          "before_sha256": "7cb42dbb622322c9a38344613c4c52ae236f323729b757fcee7fa837bd2b9f3f",
+          "reason": "the gate's fix stage writes the worker floor of the calibration as max, the same value"
+        },
+        "internal/hostmath/parallel.go": {
+          "after_sha256": "24fa8e89ca7451cd1144440d418785a4fd57aa831633a17fce623971bd9d2388",
+          "before_sha256": "a238bbf5d61a8ebefaf855990532b0d1e531c2a646dc31021f5934ba0aa709a5",
+          "reason": "the gate's fix stage writes the pool's worker floor as max, the same value"
+        }
+      },
+      "evidence": "evidence:sha256:367c32a0b1db0fda493bf887e16f66e19d6355e5432c25d65100dc50f62a5132",
+      "id": "host-linear-backward",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/hostmath": [
+          "TestDispatchSchedulingPreservesResults",
+          "TestLinearBackwardRunsOnThePool"
+        ]
+      },
+      "scope": "the receipt re-runs the pooled LinearBackward against a copy of the serial loop it replaced, bit for bit over shapes that split unevenly across workers and one that fans out, with dx set and accumulated and with each of dx, dW and dB absent, and the dispatch test that holds pool scheduling to the serial results; media paths that call LinearBackward keep their arithmetic and its order"
+    },
+    {
+      "changes": {
+        "internal/hostmath/backward.go": {
+          "after_sha256": "ca83886b1b04dfd1c7c81386877a26d1c581a994a28efd619dcaa08b5bf19aa9",
+          "before_sha256": "92e27a64714e1feeb57e7a4847859b142fb8224607a5d71d9239e4ae0ff4f617",
+          "reason": "the weight gradient adds four batch rows' terms into each element per load and store, and the input gradient reads each weight row once for four batch rows, each element still adding its terms in the order the one-row loop did, with the zero gradients the loop skipped still skipped"
+        },
+        "internal/hostmath/hostmath.go": {
+          "after_sha256": "d82dc7ca625b8731c8840864e426913993b49a58e747328d5ba9a8a814dc462c",
+          "before_sha256": "85129c7ac0df1ae890d26ea7b233811c97dc832a60aeec838ec090dedc6d020f",
+          "reason": "linearCols computes four input rows against each weight row in one pass, four sums advancing together, each summing its products in ascending order as the single dot did"
+        },
+        "internal/hostmath/interleave.go": {
+          "after_sha256": "88e7626773fc36a801b4ad772cb9e8cc7ab8e71957663fbaf731b0ccb1a6e3bb",
+          "before_sha256": "",
+          "reason": "the four-wide dot and add kernels the linear kernels share, the helpers that cut a block of rows and gradients, and the constants naming how many outputs they advance"
+        }
+      },
+      "evidence": "evidence:sha256:6b9b5ebf53fe09828e856d2378e867279b844d7c7c4090bfc13eb55d92a47272",
+      "id": "host-linear-interleave",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/hostmath": [
+          "TestDispatchSchedulingPreservesResults",
+          "TestInterleavedLinearMatchesTheSerialDot",
+          "TestLinearBackwardRunsOnThePool"
+        ]
+      },
+      "scope": "the receipt re-runs the interleaved forward, weight-gradient and input-gradient kernels against copies of the one-output loops they replaced, bit for bit over row counts that leave none to three rows past a block of four, with zero gradients, the input gradient set and accumulated and each of dx, dW and dB absent, and the dispatch test that holds pool scheduling to the serial results; media paths that call these kernels keep their arithmetic and its order"
     }
   ],
   "paths": [

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 	"strconv"
 	"sync"
@@ -15,9 +14,7 @@ import (
 
 func TestWebUIBrowserAudioInput(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "isolated native transcription startup probe")
-	}
+	requireWebUILane(t, "isolated native transcription startup probe")
 	for _, earlyKey := range []bool{true, false} {
 		t.Run("early-key="+strconv.FormatBool(earlyKey), func(t *testing.T) {
 			fixture := newTranscriptionHTTPFixture(t, nil)

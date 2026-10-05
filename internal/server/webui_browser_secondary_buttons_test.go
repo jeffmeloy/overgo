@@ -2,11 +2,9 @@ package server
 
 import (
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -16,28 +14,11 @@ import (
 // the primary action; an icon button keeps its line transparent.
 func TestWebUIBrowserSecondaryButtons(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the secondary buttons leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the secondary buttons leg uses Chromium through cmd/webui-lane")
 	server := httptest.NewServer(newTestHandlerWithRepository(t, &fakeGenerator{}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	// outlined: every visible secondary button has a line unlike its surface; an icon button has none.
 	const outlined = `(() => {
   const visible = [...document.querySelectorAll('.btn.alt')].filter(button => button.getClientRects().length && getComputedStyle(button).visibility !== 'hidden');

@@ -110,3 +110,48 @@ func TestModelSupportTier(t *testing.T) {
 		t.Fatalf("failed guard support = %+v", support)
 	}
 }
+
+// TestUnreadableGuardEvidenceIsNoGuard holds a long-form record whose evidence
+// cannot be read to no guard at all: the model is not shown as having failed
+// its floors at a commit the record never stated.
+func TestUnreadableGuardEvidenceIsNoGuard(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
+	ctx := t.Context()
+	store := handler.config.Repository
+	weightsPath := filepath.Join(t.TempDir(), "unreadable.gguf")
+	if err := os.WriteFile(weightsPath, []byte("unreadable guard weights"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	weights, err := os.Open(weightsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, _, err := artifact.Identify(artifact.KindModel, weights)
+	weights.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidenceData := []byte("the long-form record is not a document")
+	evidence, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(evidenceData))
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := runrecord.NewModelVerification(model, "fixture", []runrecord.CapabilityClaim{{
+		Capability: "long-form", Tier: runrecord.TierCapabilityMeasured,
+		Commit: "0123456789abcdef0123456789abcdef01234567", Evidence: []artifact.ID{evidence},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runrecord.CommitVerificationClaim(ctx, store, record, evidenceData, evidence, weightsPath); err != nil {
+		t.Fatal(err)
+	}
+	registered, err := filepath.Abs(weightsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if guard, found := handler.catalogEvidence(ctx, nil).GuardsByLocation[registered]; found {
+		t.Fatalf("unreadable evidence became a guard: %+v", guard)
+	}
+}

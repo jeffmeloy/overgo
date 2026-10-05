@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -28,8 +29,8 @@ import (
 // new directory named by the output under root and returns the written file.
 type GGUFWriters struct {
 	Types  []string
-	Export func(source, root, output, typeName string) (string, error)
-	Merge  func(base string, tuned []string, scales []float32, root, output string) (string, error)
+	Export func(ctx context.Context, source, root, output, typeName string) (string, error)
+	Merge  func(ctx context.Context, base string, tuned []string, scales []float32, root, output string) (string, error)
 }
 
 // GGUFWorkspace offers every catalogued GGUF model to the launcher's GGUF
@@ -110,13 +111,10 @@ func (workspace *GGUFWorkspace) WorkflowCapabilities(ctx context.Context, kind W
 	if err != nil {
 		return nil, err
 	}
-	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		names = append(names, filepath.Base(entry.Location))
-	}
+	names := modelNames(entries)
 	var capabilities []WorkflowCapability
-	for _, entry := range entries {
-		capability, err := workspace.capability(kind, entry, names)
+	for index, entry := range entries {
+		capability, err := workspace.capability(kind, entry, names, index)
 		if err != nil {
 			return nil, err
 		}
@@ -138,8 +136,8 @@ func (workspace *GGUFWorkspace) WorkflowCapabilities(ctx context.Context, kind W
 
 // capability is one model's export, or its merge as the base when another
 // catalogued model can be merged into it.
-func (workspace *GGUFWorkspace) capability(kind WorkflowKind, entry discovery.CatalogEntry, names []string) (WorkflowCapability, error) {
-	name := filepath.Base(entry.Location)
+func (workspace *GGUFWorkspace) capability(kind WorkflowKind, entry discovery.CatalogEntry, names []string, index int) (WorkflowCapability, error) {
+	name := names[index]
 	capability := WorkflowCapability{Model: entry.Model, Name: name, Location: entry.Location,
 		Outputs: []recipe.Output{{Name: "model", Data: recipe.DataArtifact, Source: recipe.Endpoint{Node: "write", Port: "model"}}}}
 	runtime := exportRecipeRuntime
@@ -149,12 +147,7 @@ func (workspace *GGUFWorkspace) capability(kind WorkflowKind, entry discovery.Ca
 		capability.Controls = []workflowControl{{Name: "type", Type: workflowControlText, Required: true, Choices: workspace.writers.Types}}
 	case kind == workflowModelBuild && workspace.writers.Merge != nil && len(names) > 1:
 		runtime, capability.Task = mergeRecipeRuntime, recipe.TaskMerge
-		others := make([]string, 0, len(names)-1)
-		for _, other := range names {
-			if other != name {
-				others = append(others, other)
-			}
-		}
+		others := slices.Delete(slices.Clone(names), index, index+1)
 		capability.Controls = []workflowControl{
 			{Name: "fine_tuned", Type: workflowControlText, Required: true, Choices: others},
 			{Name: "scale", Type: workflowControlNumber, Required: true},
@@ -196,7 +189,7 @@ func (workspace *GGUFWorkspace) ExecuteWorkflow(ctx context.Context, kind Workfl
 	stopwatch := processmeasure.NewStopwatch()
 	if capability.Task == recipe.TaskExport {
 		runtime = exportRecipeRuntime
-		file, err = workspace.writers.Export(capability.Location, workspace.root, input.Output, input.Type)
+		file, err = workspace.writers.Export(ctx, capability.Location, workspace.root, input.Output, input.Type)
 	} else {
 		var tuned discovery.CatalogEntry
 		if tuned, err = workspace.fineTuned(ctx, input.FineTuned); err == nil && !checked.Finite32(input.Scale) {
@@ -204,7 +197,7 @@ func (workspace *GGUFWorkspace) ExecuteWorkflow(ctx context.Context, kind Workfl
 		}
 		if err == nil {
 			inputs = append(inputs, tuned.Model)
-			file, err = workspace.writers.Merge(capability.Location, []string{tuned.Location}, []float32{input.Scale}, workspace.root, input.Output)
+			file, err = workspace.writers.Merge(ctx, capability.Location, []string{tuned.Location}, []float32{input.Scale}, workspace.root, input.Output)
 		}
 	}
 	if err != nil {
@@ -228,16 +221,46 @@ func (workspace *GGUFWorkspace) ExecuteWorkflow(ctx context.Context, kind Workfl
 	return completion, nil
 }
 
-// fineTuned is the one catalogued GGUF model with the file name.
+// modelNames names each catalogued GGUF as a person tells it apart, as the page
+// names models: its file, with as many folders above it as it takes when
+// another model shares that name, so two files of one name are two choices.
+func modelNames(entries []discovery.CatalogEntry) []string {
+	parts := make([][]string, len(entries))
+	for index, entry := range entries {
+		parts[index] = strings.FieldsFunc(filepath.ToSlash(entry.Location), func(r rune) bool { return r == '/' })
+	}
+	tail := func(index, depth int) string {
+		return strings.Join(parts[index][max(len(parts[index])-depth, 0):], "/")
+	}
+	shared := func(index, depth int) bool {
+		for other := range parts {
+			if other != index && tail(other, depth) == tail(index, depth) {
+				return true
+			}
+		}
+		return false
+	}
+	names := make([]string, len(entries))
+	for index := range entries {
+		depth := 1
+		for depth < len(parts[index]) && shared(index, depth) {
+			depth++
+		}
+		names[index] = tail(index, depth)
+	}
+	return names
+}
+
+// fineTuned is the one catalogued GGUF model by the name modelNames gives it.
 func (workspace *GGUFWorkspace) fineTuned(ctx context.Context, name string) (discovery.CatalogEntry, error) {
 	entries, err := workspace.catalogued(ctx)
 	if err != nil {
 		return discovery.CatalogEntry{}, err
 	}
 	var matched []discovery.CatalogEntry
-	for _, entry := range entries {
-		if filepath.Base(entry.Location) == name {
-			matched = append(matched, entry)
+	for index, named := range modelNames(entries) {
+		if named == name {
+			matched = append(matched, entries[index])
 		}
 	}
 	if len(matched) != 1 {
@@ -280,6 +303,9 @@ func (workspace *GGUFWorkspace) record(ctx context.Context, program artifact.Des
 		return operation.Completion{}, err
 	}
 	output := inventory.Manifest.ID
+	if slices.Contains(inputs, output) {
+		return operation.Completion{}, fmt.Errorf("gguf workspace: the written model is %s, one of the models it was made from; a merge at scale 1 of one model is that model", output)
+	}
 	placed, err := artifact.JSONID(artifact.KindEvidence, inventory.Locations)
 	if err != nil {
 		return operation.Completion{}, err

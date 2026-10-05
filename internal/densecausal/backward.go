@@ -9,6 +9,7 @@ package densecausal
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 
 	"overgo/internal/hostmath"
@@ -21,7 +22,17 @@ type Grads map[string][]float32
 // mean CE (positions 0..n-2 predict tokens 1..n-1), the full logits, and
 // every parameter gradient.
 func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
-	return m.lossAndGrads(tokens, nil, true, nil)
+	return m.lossAndGrads(tokens, nil, true, nil, Grads{})
+}
+
+// LossAndGradsOf is LossAndGrads for a run that trains some of the weights,
+// and returns the loss and the gradients of the weights train names alone: the
+// others cost neither their memory nor their weight-gradient arithmetic.
+func (m *Model) LossAndGradsOf(tokens []int, train func(name string) bool) (float64, Grads, error) {
+	skipped := m.skippedGradients(train)
+	loss, _, gradients, err := m.lossAndGrads(tokens, nil, true, nil, skipped)
+	maps.DeleteFunc(gradients, func(_ string, gradient []float32) bool { return gradient == nil })
+	return loss, gradients, err
 }
 
 // MaskedLossAndGrads runs forward and full backward on one token batch as
@@ -33,8 +44,29 @@ func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
 // its flag is not read. A nil trained learns every token LossAndGrads
 // does.
 func (m *Model) MaskedLossAndGrads(tokens []int, trained []bool) (float64, Grads, error) {
-	loss, _, gradients, err := m.lossAndGrads(tokens, trained, false, nil)
+	return m.MaskedLossAndGradsOf(tokens, trained, func(string) bool { return true })
+}
+
+// MaskedLossAndGradsOf is MaskedLossAndGrads for a run that trains some of the
+// weights, as LossAndGradsOf is for LossAndGrads: it returns the gradients of the
+// weights train names alone, and the logits are never kept.
+func (m *Model) MaskedLossAndGradsOf(tokens []int, trained []bool, train func(name string) bool) (float64, Grads, error) {
+	skipped := m.skippedGradients(train)
+	loss, _, gradients, err := m.lossAndGrads(tokens, trained, false, nil, skipped)
+	maps.DeleteFunc(gradients, func(_ string, gradient []float32) bool { return gradient == nil })
 	return loss, gradients, err
+}
+
+// skippedGradients holds a nil gradient for each weight train does not name, the
+// form lossAndGrads reads as a gradient to leave uncomputed.
+func (m *Model) skippedGradients(train func(name string) bool) Grads {
+	skipped := Grads{}
+	for name := range m.Weights {
+		if !train(name) {
+			skipped[name] = nil
+		}
+	}
+	return skipped
 }
 
 func (m *Model) trainingLossAndGrads(tokens []int, trained []bool, step int, observeRouter MoERouterObserver) (float64, Grads, error) {
@@ -42,7 +74,7 @@ func (m *Model) trainingLossAndGrads(tokens []int, trained []bool, step int, obs
 	if observeRouter != nil {
 		observation = &routerObservationContext{step: step, observer: observeRouter}
 	}
-	loss, _, gradients, err := m.lossAndGrads(tokens, trained, false, observation)
+	loss, _, gradients, err := m.lossAndGrads(tokens, trained, false, observation, Grads{})
 	return loss, gradients, err
 }
 
@@ -51,7 +83,9 @@ type routerObservationContext struct {
 	observer MoERouterObserver
 }
 
-func (m *Model) lossAndGrads(tokens []int, trained []bool, retainLogits bool, observation *routerObservationContext) (float64, []float32, Grads, error) {
+// lossAndGrads accumulates into g, where a name held with a nil gradient is a
+// weight whose gradient is skipped.
+func (m *Model) lossAndGrads(tokens []int, trained []bool, retainLogits bool, observation *routerObservationContext, g Grads) (float64, []float32, Grads, error) {
 	if len(tokens) < 2 {
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
@@ -69,7 +103,7 @@ func (m *Model) lossAndGrads(tokens []int, trained []bool, retainLogits bool, ob
 		return 0, nil, nil, err
 	}
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
-	return m.lossAndGradsFromStates(tokens, trained, states, retainLogits, Grads{}, func(
+	return m.lossAndGradsFromStates(tokens, trained, states, retainLogits, g, func(
 		index int, input, outputGradient []float32, sequence int, gradients Grads,
 	) ([]float32, error) {
 		return m.layerBackwardObserved(index, input, outputGradient, invFreq, sequence, gradients, observation)

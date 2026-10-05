@@ -1,8 +1,10 @@
 package export
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -32,13 +34,13 @@ func GGUFTypes() []string {
 // written file. Ollama reads the chat template from the GGUF's own metadata,
 // so the Modelfile names the file alone. An existing directory is refused;
 // a failed export leaves no directory.
-func GGUF(source, root, name, typeName string) (string, error) {
+func GGUF(ctx context.Context, source, root, name, typeName string) (string, error) {
 	target, ok := quant.ParseType(typeName)
 	if !ok || !quant.CanQuantize(target) || quant.RequiresImportance(target) {
 		return "", fmt.Errorf("export: %q is not a type an export writes without an importance matrix", typeName)
 	}
-	return writeInto(root, name, source, strings.ToLower(typeName), func(file string) error {
-		if err := quantizeGGUF(source, file, target); err != nil {
+	return writeInto(ctx, root, name, source, strings.ToLower(typeName), func(file string) error {
+		if err := quantizeGGUF(ctx, source, file, target); err != nil {
 			return err
 		}
 		modelfile := "FROM ./" + filepath.Base(file) + "\n"
@@ -49,7 +51,7 @@ func GGUF(source, root, name, typeName string) (string, error) {
 // MergeGGUF writes base + sum(scale * (fine-tuned - base)) of GGUF models
 // sharing the base's tensor inventory, as an F32 GGUF, into a new directory
 // named name under root, and returns the written file.
-func MergeGGUF(base string, tuned []string, scales []float32, root, name string) (string, error) {
+func MergeGGUF(ctx context.Context, base string, tuned []string, scales []float32, root, name string) (string, error) {
 	if len(tuned) != len(scales) {
 		return "", errors.New("export: every fine-tuned model needs its scale")
 	}
@@ -57,12 +59,12 @@ func MergeGGUF(base string, tuned []string, scales []float32, root, name string)
 	for index := range tuned {
 		tasks[index] = modelmerge.GGUFTask{Path: tuned[index], Scale: scales[index]}
 	}
-	return writeInto(root, name, base, "merged", func(file string) error {
+	return writeInto(ctx, root, name, base, "merged", func(file string) error {
 		destination, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_EXCL, clioptions.OutputFileMode)
 		if err != nil {
 			return err
 		}
-		if err := modelmerge.MergeGGUF(base, tasks, destination); err != nil {
+		if err := modelmerge.MergeGGUF(base, tasks, contextWriter{ctx: ctx, writer: destination}); err != nil {
 			return errors.Join(err, destination.Close())
 		}
 		return errors.Join(destination.Sync(), destination.Close())
@@ -73,11 +75,11 @@ func MergeGGUF(base string, tuned []string, scales []float32, root, name string)
 // for source and suffix into it, and leaves no directory when writing fails:
 // the directory is staged and moved into place whole, so two writers of one
 // name cannot remove each other's output.
-func writeInto(root, name, source, suffix string, write func(file string) error) (string, error) {
-	name = strings.TrimSpace(name)
-	if name == "" || name == "." || name == ".." || filepath.Base(name) != name {
-		return "", errors.New("export: the output must be one path element")
+func writeInto(ctx context.Context, root, name, source, suffix string, write func(file string) error) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
+	name = strings.TrimSpace(name)
 	base := strings.TrimSuffix(filepath.Base(source), filepath.Ext(source)) + "." + suffix + ".gguf"
 	directory, err := fsatomic.PublishDirectory(root, name, clioptions.OutputDirectoryMode, func(stage string) error {
 		return write(filepath.Join(stage, base))
@@ -91,8 +93,24 @@ func writeInto(root, name, source, suffix string, write func(file string) error)
 	return filepath.Join(directory, base), nil
 }
 
+// contextWriter stops a write the context has cancelled: a writer reaches each
+// tensor in turn, so a cancelled export or merge ends at the next write, and its
+// staged directory is removed.
+type contextWriter struct {
+	ctx    context.Context
+	writer io.Writer
+}
+
+// Write passes the bytes on unless the context is done, and then writes none.
+func (w contextWriter) Write(data []byte) (int, error) {
+	if err := w.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return w.writer.Write(data)
+}
+
 // quantizeGGUF writes source quantized to target at file.
-func quantizeGGUF(source, file string, target gguf.DType) error {
+func quantizeGGUF(ctx context.Context, source, file string, target gguf.DType) error {
 	input, err := gguf.Open(source)
 	if err != nil {
 		return err
@@ -102,7 +120,7 @@ func quantizeGGUF(source, file string, target gguf.DType) error {
 	if err != nil {
 		return err
 	}
-	if _, err := input.QuantizeTo(destination, target, gguf.QuantizeOptions{}); err != nil {
+	if _, err := input.QuantizeTo(contextWriter{ctx: ctx, writer: destination}, target, gguf.QuantizeOptions{}); err != nil {
 		return errors.Join(err, destination.Close())
 	}
 	return errors.Join(destination.Sync(), destination.Close())

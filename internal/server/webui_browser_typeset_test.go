@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -21,9 +20,7 @@ import (
 // measure token rather than running the conversation's full width.
 func TestWebUIBrowserTypeset(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "the typeset leg runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the typeset leg runs through cmd/webui-lane")
 	stylesheet, err := os.ReadFile("webui/style.css")
 	if err != nil {
 		t.Fatal(err)

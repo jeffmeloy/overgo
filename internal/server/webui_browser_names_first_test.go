@@ -7,7 +7,6 @@ import (
 	"os"
 	"testing"
 
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -19,9 +18,7 @@ import (
 // full location in the Library row's title.
 func TestWebUIBrowserNamesFirst(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the names leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the names leg uses Chromium through cmd/webui-lane")
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	entry := func(model, location string) map[string]any {
 		return map[string]any{"model": model, "location": location, "present": true, "recipe": "recipe:" + model,
@@ -45,23 +42,8 @@ func TestWebUIBrowserNamesFirst(t *testing.T) {
 		handler.ServeHTTP(w, r)
 	}))
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/#library")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, server.URL+"/#library")
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	const named = `'flux-dev/transformer/model.safetensors|sd-turbo/transformer/model.safetensors|big-model/model-00001-of-00008.safetensors|solo.gguf'`
 
 	// The Library names each model by what tells it apart, its location in the title.

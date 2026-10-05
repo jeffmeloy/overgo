@@ -194,39 +194,18 @@ func SoftmaxCrossEntropy(dLogits, logits []float32, targets []int, rows, classes
 
 // LinearBackward: forward was dst = x·w^T with w row-major [out,in]. Writes
 // dx (set, or += when addDX), and accumulates dW += dy^T⊗x and dB += dy
-// when non-nil.
+// when non-nil. Each part runs on the worker pool over rows it owns alone, and
+// every element sums its terms in the order the serial loop over rows and
+// outputs did, so the result is that loop's.
 func LinearBackward(dx, dW, dB, x, w, dy []float32, rows, inDim, outDim int, addDX bool) {
-	for r := range rows {
-		xRow := x[r*inDim : (r+1)*inDim]
-		dyRow := dy[r*outDim : (r+1)*outDim]
-		var dxRow []float32
-		if dx != nil {
-			dxRow = dx[r*inDim : (r+1)*inDim]
-			if !addDX {
-				clear(dxRow)
-			}
-		}
-		for o := range outDim {
-			g := dyRow[o]
-			if dB != nil {
-				dB[o] += g
-			}
-			if g == 0 {
-				continue
-			}
-			if dW != nil {
-				dWRow := dW[o*inDim : (o+1)*inDim]
-				for c := range inDim {
-					dWRow[c] += g * xRow[c]
-				}
-			}
-			if dxRow != nil {
-				wRow := w[o*inDim : (o+1)*inDim]
-				for c := range inDim {
-					dxRow[c] += g * wRow[c]
-				}
-			}
-		}
+	if dW != nil {
+		LinearWeightGradient(dW, x, dy, rows, inDim, outDim)
+	}
+	if dB != nil {
+		AddBiasGradientF32(dB, dy, rows, outDim)
+	}
+	if dx != nil {
+		linearInputGradient(dx, dy, w, rows, inDim, outDim, addDX)
 	}
 }
 
@@ -406,15 +385,20 @@ func LinearWeightGradient(dW, x, dy []float32, rows, inDim, outDim int) {
 	ParallelRangeF64(outDim, rows*inDim, func(oLo, oHi int) {
 		for o := oLo; o < oHi; o++ {
 			dWRow := dW[o*inDim : (o+1)*inDim]
-			for r := range rows {
-				g := dy[r*outDim+o]
-				if g == 0 {
+			xRow := func(r int) []float32 { return x[r*inDim : (r+1)*inDim] }
+			r := 0
+			for ; r+interleave <= rows; r += interleave {
+				gradients := column(dy, r*outDim+o, outDim)
+				if anyZero(gradients) {
+					for lane, gradient := range gradients {
+						axpy(dWRow, gradient, xRow(r+lane))
+					}
 					continue
 				}
-				xRow := x[r*inDim : (r+1)*inDim]
-				for c := range inDim {
-					dWRow[c] += g * xRow[c]
-				}
+				axpy4(dWRow, gradients, block(x, r, inDim))
+			}
+			for ; r < rows; r++ {
+				axpy(dWRow, dy[r*outDim+o], xRow(r))
 			}
 		}
 	})
@@ -424,19 +408,36 @@ func LinearWeightGradient(dW, x, dy []float32, rows, inDim, outDim int) {
 // VJP of Linear without materializing the transpose), parallel over rows —
 // each worker owns disjoint dx rows.
 func LinearBackwardInput(dx, dy, w []float32, rows, inDim, outDim int) {
+	linearInputGradient(dx, dy, w, rows, inDim, outDim, false)
+}
+
+// linearInputGradient is LinearBackwardInput that adds into dx when accumulate.
+func linearInputGradient(dx, dy, w []float32, rows, inDim, outDim int, accumulate bool) {
 	ParallelRangeF64(rows, inDim*outDim, func(rLo, rHi int) {
-		for r := rLo; r < rHi; r++ {
-			dxRow := dx[r*inDim : (r+1)*inDim]
-			clear(dxRow)
-			dyRow := dy[r*outDim : (r+1)*outDim]
-			for o, g := range dyRow {
-				if g == 0 {
+		dxRow := func(r int) []float32 { return dx[r*inDim : (r+1)*inDim] }
+		if !accumulate {
+			for r := rLo; r < rHi; r++ {
+				clear(dxRow(r))
+			}
+		}
+		r := rLo
+		// Four batch rows share each weight row, which is read once for them.
+		for ; r+interleave <= rHi; r += interleave {
+			for o := range outDim {
+				wRow := w[o*inDim : (o+1)*inDim]
+				gradients := column(dy, r*outDim+o, outDim)
+				if anyZero(gradients) {
+					for lane, gradient := range gradients {
+						axpy(dxRow(r+lane), gradient, wRow)
+					}
 					continue
 				}
-				wRow := w[o*inDim : (o+1)*inDim]
-				for c := range inDim {
-					dxRow[c] += g * wRow[c]
-				}
+				axpyShared4(wRow, block(dx, r, inDim), gradients)
+			}
+		}
+		for ; r < rHi; r++ {
+			for o, g := range dy[r*outDim : (r+1)*outDim] {
+				axpy(dxRow(r), g, w[o*inDim:(o+1)*inDim])
 			}
 		}
 	})

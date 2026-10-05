@@ -31,17 +31,25 @@ func (f *File) RewriteTo(destination io.Writer, target DType, transform func(Ten
 	return Write(destination, metadata, tensors, WriteOptions{Version: f.Version, Alignment: f.Alignment})
 }
 
-// rewriteReader yields one rewritten tensor, computed on its first read.
+// rewriteReader yields one rewritten tensor, computed on its first read and
+// released when its last byte is read.
 type rewriteReader struct {
 	file      *File
 	tensor    TensorInfo
 	target    DType
 	transform func(TensorInfo, []float32) error
 	encoded   *bytes.Reader
+	done      bool
 }
 
-// Read yields the rewritten tensor's encoded bytes.
+// Read yields the rewritten tensor's encoded bytes. The writer holds every
+// tensor's reader until the file is written, so a reader that kept its bytes
+// would hold the whole rewritten file in memory: it drops them at the last
+// byte, and a read after that is the end.
 func (reader *rewriteReader) Read(buffer []byte) (int, error) {
+	if reader.done {
+		return 0, io.EOF
+	}
 	if reader.encoded == nil {
 		encoded, err := reader.rewrite()
 		if err != nil {
@@ -49,7 +57,11 @@ func (reader *rewriteReader) Read(buffer []byte) (int, error) {
 		}
 		reader.encoded = bytes.NewReader(encoded)
 	}
-	return reader.encoded.Read(buffer)
+	count, err := reader.encoded.Read(buffer)
+	if reader.encoded.Len() == 0 {
+		reader.encoded, reader.done = nil, true
+	}
+	return count, err
 }
 
 func (reader *rewriteReader) rewrite() ([]byte, error) {

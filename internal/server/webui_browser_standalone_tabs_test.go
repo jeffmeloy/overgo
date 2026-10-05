@@ -10,7 +10,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -39,9 +38,7 @@ func (fixture *standaloneEvaluationFixture) CompareEvaluations(_ context.Context
 // compares two runs.
 func TestWebUIBrowserStandaloneTabs(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the standalone tabs leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the standalone tabs leg uses Chromium through cmd/webui-lane")
 	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
 		t.Fatal(err)

@@ -7,15 +7,12 @@ import (
 	"testing"
 
 	"overgo/internal/runrecord"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserConversationActions(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "conversation actions run through cmd/webui-lane")
-	}
+	requireWebUILane(t, "conversation actions run through cmd/webui-lane")
 	seed, _, _ := conversationHistoryFixture(t)
 	description, ok := seed.interactionDescription()
 	if !ok {
@@ -32,15 +29,7 @@ func TestWebUIBrowserConversationActions(t *testing.T) {
 	handler := newTestHandlerForRepository(t, seed.repository, generator)
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, _ := openBrowserLeg(t, server.URL)
 	defer browser.Close()
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle := func(expression string) {

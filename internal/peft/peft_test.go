@@ -80,6 +80,33 @@ func TestDeltaIsTheScaledProduct(t *testing.T) {
 	}
 }
 
+// TestAddDeltaAddsTheUpdateInPlace holds the update added row by row into a
+// weight to the weight plus the update's own matrix, bit for bit, and a weight
+// of another size to a refusal that leaves it untouched.
+func TestAddDeltaAddsTheUpdateInPlace(t *testing.T) {
+	adapter := testAdapter()
+	delta, err := adapter.Delta(queryModule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weight := make([]float32, len(delta))
+	want := make([]float32, len(delta))
+	for index := range weight {
+		weight[index] = float32(index) - 5
+		want[index] = weight[index] + delta[index]
+	}
+	if err := adapter.AddDelta(weight, queryModule); err != nil || !slices.Equal(weight, want) {
+		t.Fatalf("added = %v, %v, want %v", weight, err, want)
+	}
+	short := make([]float32, len(delta)-1)
+	if err := adapter.AddDelta(short, queryModule); err == nil || !strings.Contains(err.Error(), "the weight holds") {
+		t.Fatalf("a weight of another size: %v", err)
+	}
+	if !slices.Equal(short, make([]float32, len(short))) {
+		t.Fatal("a refused update changed the weight")
+	}
+}
+
 // TestValidateRefusesWhatCannotBeApplied: factors that do not fill their
 // shapes, scales that are not positive, values that are not finite, a tensor
 // name given for a module name, and an empty adapter.

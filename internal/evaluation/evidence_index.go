@@ -357,7 +357,10 @@ func LatestEvidence(
 			case claim.Capability == "long-form" && !guarded:
 				guarded = true
 				summary := GuardSummary{Record: record.ID}
-				_ = json.Unmarshal(claimEvidence(ctx, store, claim), &summary)
+				if json.Unmarshal(claimEvidence(ctx, store, claim), &summary) != nil {
+					// A record whose evidence cannot be read states no guard, passed or failed.
+					break
+				}
 				keep(func(location string) {
 					if _, seen := index.GuardsByLocation[location]; !seen {
 						index.GuardsByLocation[location] = summary

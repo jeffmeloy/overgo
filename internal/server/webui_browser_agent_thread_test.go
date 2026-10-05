@@ -4,12 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -20,9 +18,7 @@ import (
 // the previewed operation and run as a tool card.
 func TestWebUIBrowserAgentThread(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the agent thread leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the agent thread leg uses Chromium through cmd/webui-lane")
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
 	// A mutation manual whose only role is the approval gate; its argv
@@ -60,23 +56,8 @@ func TestWebUIBrowserAgentThread(t *testing.T) {
 	activateAgentFromAPI(t, fixture.handler, created.ID)
 	server := httptest.NewServer(fixture.handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, browser, check, settle := openBrowserLeg(t, server.URL)
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	settle(`!!document.querySelector('.composer textarea') && [...document.querySelectorAll('.composer select[aria-label="mode"] option')].some(option => option.value === 'agent')`)
 	check(`(() => {
   window.agentSurface = () => document.querySelector('.agent-session');

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -20,9 +19,7 @@ import (
 // it says when they will show.
 func TestWebUIBrowserWhatGotBetter(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.Inapplicable + ": the what got better leg uses Chromium through cmd/webui-lane")
-	}
+	requireWebUILane(t, "the what got better leg uses Chromium through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -41,23 +38,8 @@ func TestWebUIBrowserWhatGotBetter(t *testing.T) {
 	defer first.Close()
 	unreadable := serve(func() (*ScorecardHistory, error) { return nil, errors.New("scorecard-x.json: unknown field") })
 	defer unreadable.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, moved.URL+"/#library")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, check, settle := openBrowserLeg(t, moved.URL+"/#library")
 	defer browser.Close()
-	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	// A view opens once the page has: a hash names it after the Library has mounted.
 	openScorecard := func() {
 		t.Helper()

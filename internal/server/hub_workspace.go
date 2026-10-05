@@ -78,7 +78,8 @@ func catalogListing(entries []discovery.CatalogEntry, evidence evaluation.Eviden
 			}
 		}
 		guard, guarded := evidence.GuardsByLocation[entry.Location]
-		model.Support = catalogSupport(model, guard, guarded)
+		// A guard that names no commit states none to have passed or failed at, though its rungs still measure memory.
+		model.Support = catalogSupport(model, guard, guarded && guard.Commit != "")
 		model.Memory = catalogMemory(model.Benchmark, guard)
 		listed = append(listed, model)
 	}

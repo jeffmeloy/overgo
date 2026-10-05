@@ -2,11 +2,9 @@ package server
 
 import (
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -15,9 +13,7 @@ import (
 // stays out of the navigation with its reason.
 func TestWebUIBrowserWorkspaceReachability(t *testing.T) {
 	t.Parallel()
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		testskip.NotApplicable(t, "workspace reachability runs through cmd/webui-lane")
-	}
+	requireWebUILane(t, "workspace reachability runs through cmd/webui-lane")
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -29,22 +25,8 @@ func TestWebUIBrowserWorkspaceReachability(t *testing.T) {
 	defer handler.Close()
 	server := httptest.NewServer(handler)
 	defer server.Close()
-	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx := t.Context()
-	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#training-jobs")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ctx, browser, _, settle := openBrowserLeg(t, server.URL+"/app.html#training-jobs")
 	defer browser.Close()
-	settle := func(expression string) {
-		t.Helper()
-		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatalf("%s: %v", expression, err)
-		}
-	}
 	// Each enabled workspace mounts its own controls: the workflow tabs list
 	// the launch's capability, Evaluations lists the evaluable model's plan.
 	settle(`!!document.querySelector('#panel-training-jobs.active select[aria-label="capability"] option')`)

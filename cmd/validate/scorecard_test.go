@@ -143,6 +143,26 @@ func TestProposedGapVerifierReadsTheStore(t *testing.T) {
 	}
 }
 
+// TestOpenGapRefusesAKeyThatNamesNoGap holds a verifier's closed to a key
+// that could open: a task without its kind, a kind without a task and a task
+// the catalog lacks read as errors, not as gaps closed, while a well-formed
+// key whose gap is absent still passes.
+func TestOpenGapRefusesAKeyThatNamesNoGap(t *testing.T) {
+	t.Parallel()
+	directory := scorecardFixture(t)
+	for _, key := range []string{"projection", "scorecard-unmeasured", "scorecard-unmeasured-", "scorecard-unmeasured-nonsense", "scorecard-unmeasure-forecast", "unmeasured-forecast"} {
+		var output bytes.Buffer
+		err := runArgs(t.Context(), []string{"-scorecard", "-repo", directory, "-gap", key}, &output)
+		if err == nil || !strings.Contains(err.Error(), "names no gap") || strings.Contains(output.String(), "closed") {
+			t.Fatalf("the key %q was not refused: %v %q", key, err, output.String())
+		}
+	}
+	var output bytes.Buffer
+	if err := runArgs(t.Context(), []string{"-scorecard", "-repo", directory, "-gap", "scorecard-failing-image-gen"}, &output); err != nil || !strings.Contains(output.String(), "is closed") {
+		t.Fatalf("a well-formed key whose gap is absent did not read closed: %v %q", err, output.String())
+	}
+}
+
 // scorecardFixture publishes a store, in a directory of its own, whose
 // scorecard has a served forecast model and an image model nobody served.
 // Served attempts give the forecast model its time to first output (the

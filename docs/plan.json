@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-gap-key",
-      "title": "validate -scorecard -gap reads a key that names no gap as closed",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "validate -scorecard -gap reads a key that names no gap as closed",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestOpenGapRefusesAKeyThatNamesNoGap$'",
-          "rationale": "Serves: the honesty of every row a verifier closes. Evidence (2026-10-05): cee26ab22 retired four rows (projection, training, transcription, vqa) on 'validate -scorecard -gap \u003ctask\u003e reports closed'; the key the rows carry is scorecard-unmeasured-\u003ctask\u003e, and openGap (cmd/validate/scorecard.go) answers '\u003ckey\u003e is closed.' for any key that matches no gap, so a mistyped key passes vacuously. Improvement cycle 14's scorecard proposed the four rows again. Change: openGap refuses a key that is not scorecard-\u003ckind\u003e-\u003ctask\u003e for a gap kind the scorecard produces and a task the catalog knows, with the test; closed then means a well-formed key whose gap is absent. Predicted effect: none a user reads; a row's closure can no longer rest on a vacuous pass."
-        }
-      ]
-    },
-    {
       "id": "evidence-authority",
       "title": "Use checked evidence and explicit source and replay scope in reports",
       "owner": "master-lead",

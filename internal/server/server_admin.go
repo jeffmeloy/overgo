@@ -805,6 +805,7 @@ func (h *Handler) generate(
 		return nil
 	}
 	ids, text, err := session.Model().Generate(ctx, prompt, options)
+	h.requests.addTokens(ctx, promptTokens.Load(), outputTokens.Load())
 	hardware.sample(ctx, runrecord.ServingHardwareFinish)
 	if err != nil {
 		h.generationErrors.Add(1)

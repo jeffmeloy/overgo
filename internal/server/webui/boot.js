@@ -1358,7 +1358,9 @@
     }
     const start = location.hash.slice(1);
     applyCapabilities();
-    const named = tabs.some((t) => t.id === start);
+    // A hash names a tab or one of a tab's views: opening the page at a view lands on it, not on the first tab.
+    // A hash names a tab or one of a tab's views: opening the page at a view lands on it, not on the first tab.
+    const named = !!routeOf(start).tab;
     if (named || capabilityDocument) activate(named ? start : (tabs[0] && tabs[0].id));
     syncColdStart();
     refreshStatus();

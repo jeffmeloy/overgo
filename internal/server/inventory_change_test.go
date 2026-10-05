@@ -49,7 +49,7 @@ func TestMutationsRefreshTheirInventories(t *testing.T) {
 		{http.MethodPost, http.StatusConflict, false},
 		{http.MethodGet, http.StatusOK, false},
 	} {
-		handler.serveInventoryChange(answering(call.status), httptest.NewRecorder(), httptest.NewRequest(call.method, "/agents/state", nil))
+		handler.serveInventoryChange(answering(call.status), &statusRecorder{ResponseWriter: httptest.NewRecorder(), status: http.StatusOK}, httptest.NewRequest(call.method, "/agents/state", nil))
 		select {
 		case event := <-events:
 			if !call.changes || event.name != "workspace.changed" || event.value.(workspaceChange).Inventory != "/agents" {

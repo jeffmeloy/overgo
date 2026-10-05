@@ -510,7 +510,9 @@ type Handler struct {
 	config   Config
 	inflight inflightRegistry
 	// runs remembers the numbered workflow submissions, so a repeat starts nothing.
-	runs               runLedger
+	runs runLedger
+	// requests keeps the API requests the server answered, for the Requests tab.
+	requests           requestMonitor
 	started            time.Time
 	requestsTotal      atomic.Uint64
 	requestsActive     atomic.Int64
@@ -816,6 +818,18 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 	h.requestsActive.Add(counterStep)
 	defer h.requestsActive.Add(-counterStep)
 	route, routed := resolveRoute(request.URL.Path)
+	// A routed request is answered through the recorder that keeps its status: the inventory
+	// change reads it, and the monitor shows it. The static page is no API request.
+	var recorder *statusRecorder
+	if routed {
+		recorder = &statusRecorder{ResponseWriter: response, status: http.StatusOK}
+		response = recorder
+		if !route.Unrecorded {
+			var finish func(*statusRecorder)
+			request, finish = h.requests.begin(request, route.Path)
+			defer finish(recorder)
+		}
+	}
 	if routed && route.Authentication == routeBearer && !h.authorized(request) {
 		response.Header().Set("WWW-Authenticate", "Bearer")
 		writeError(
@@ -839,7 +853,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	if routed && route.Inventory {
-		h.serveInventoryChange(route, response, request)
+		h.serveInventoryChange(route, recorder, request)
 		return
 	}
 	if routed {

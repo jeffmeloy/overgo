@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "do",
-          "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Serves: failure-rate, throughput and setup-steps in the workbench, and surface area. What the review of the merged GUI lane (2026-10-04) found that gui-lane-review-fixes did not correct: (1) a run that continues an adapter (trainingworkflow.LoRA.From) judges its held-out verdict against the model as the prior adapter leaves it, which LoRA's own comment documents, but the verdict is bound to the base model and the prior adapter's identity is recorded nowhere, so 'passed' reads as base to trained; bind the adapter's digest into the evidence or evaluate the baseline on the true base (an evidence schema change, with the recipe it names). (2) The GGUF export and merge writers take no context, so cancelling an operation does nothing and Manager.Close waits for the write. (3) Every runtime.sessions event in runtime.js reads /loop/status, which loads the plan and runs git, with no in-flight guard. (4) Show command quotes for a POSIX shell where the owner's host is Windows. (5) The conversation verdict scores every token including the chat template and caps held-out at 16 records, and the split groups each record alone; score assistant positions, group by shared prefix. (6) Conversation SFT globs a mutable directory instead of reading through the dataset inventory. (7) loratrain.Step keeps the logits and computes frozen gradients every step (about 600 MB at 512 by 152k). (8) The fine-tuned choice of a merge is a file base name, so two models of one name fail the choice; choose by model id, and admit only a task bound to the same base as modelmerge.TaskArithmetic does. (9) Unreadable long-form evidence reads as a guard failure at an empty commit, and evidence_index.go re-implements longform.LatestByLocation. (10) Surface: one startWebUILane helper for the 24 browser tests (about 700 lines) and one table for the static-layout tests (about 400); the 24 files use t.Skip where testskip.NotApplicable records the kind; loratrain re-derives densecausal.DenseLayerTensorNames; the conversation split repeats dataset.BuildGroupSplit; three one-path-component checks; quantizeGGUF repeats cmd/gguf/quantize.go; the ok/caution ternary at ten sites in the JS; sampling/json_schema_ordered.go repeats the byte order mark. Not a defect on a second read: text_heldout.go's TrainingPlan error is replaced, not lost, when a LoRA trainer supplies the plan. Found while doing lora-helpers (2026-10-04, a hypothesis to measure, not a measurement): the dense trainer's logit-free path (densecausal.trainingLossAndGrads, which cmd/train uses) takes the head's loss and gradient through hostmath.SelectedLogProbInto and SelectedLogProbBackward, which loop over the batch rows serially and project each row against the whole 151936-row head three times (for the normalizer, the tile and the gradient): about 2e11 multiply-adds per 512-token step of Qwen2.5-0.5B, some 70 s on one thread at 0.35 ns, where the retained-logits path rides the pooled Linear and LinearBackward in a few seconds for 622 MB of logits and their gradient. That is why loratrain keeps the logits; pooling the selected log-prob kernels over rows (each row owns its dX row, the weight gradient accumulates in row order per column block) would let both paths drop them. Measure the dense Train step's head before filing it."
-        },
-        {
           "id": "lora-device",
           "title": "Only if the profile says LoRA training time matters: a factor-space or device-resident LoRA path",
           "status": "open",
@@ -40,6 +33,27 @@
           "status": "open",
           "verify": "go run ./cmd/plan -status",
           "rationale": "From the verdict step (2026-10-04): conversationSplit gives every record its own group, so the variants of one chat (a prefix and its continuation, or near-duplicates the exact-text dedup keeps) can sit on both sides and the verdict reads memorization. Group by the conversation's opening turns (a digest of its first user message, or of the rendered text's first window) and assign groups, not records, to the held-out side by the digest order, through dataset.SplitOf with the records' groups. The source conversations are read by globbing a mutable directory (conversationFiles); the rendered dataset the run trains and judges on is content-addressed, so what was trained is identified truly, but its lineage to the source dataset is not recorded: record it (the rendered dataset derived from the source) when the split changes."
+        },
+        {
+          "id": "adapter-baseline",
+          "title": "Bind a continued adapter into its held-out verdict, or judge the baseline on the true base",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the review (2026-10-04), still open: a run that continues an adapter (trainingworkflow.LoRA.From) judges its held-out verdict against the model as the prior adapter leaves it, which LoRA's own comment documents, but the verdict is bound to the base model (text_heldout.go, heldout_run.go) and the prior adapter's identity is recorded nowhere, so 'passed' reads as base to trained. Either bind the prior adapter's digest (peft's Adapter.digest, added with the merge plan) into the evidence the verdict publishes, with the recipe it names, or evaluate the baseline on the true base before the adapter is applied (Resume applies it at load). An evidence schema change; Resume also never compares adapter.Config.BaseModel to the model it is given."
+        },
+        {
+          "id": "selected-logprob",
+          "title": "Pool the selected log-prob kernels over rows, so the logit-free path and LoRA can drop the logits",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "A hypothesis to measure first (from lora-helpers, 2026-10-04): hostmath.SelectedLogProbInto and SelectedLogProbBackward loop over the batch rows serially and project each row against the whole head three times (about 2e11 multiply-adds per 512-token step of Qwen2.5-0.5B, some 70 s on one thread), which is why loratrain keeps 622 MB of logits and their gradient and the dense trainer's logit-free path may be the slower one. Time densecausal.trainingLossAndGrads against LossAndGrads on one host step; if the head dominates, pool the kernels (each row owns its dX row; the weight gradient accumulates in row order per column block) and let both paths drop the logits."
+        },
+        {
+          "id": "surface-rest",
+          "title": "The surface the first pass left: quantizeGGUF, the page's tone ternary, the byte order mark, the guard's expiry",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Left by the surface step and the review (2026-10-04): export.quantizeGGUF repeats cmd/gguf's quantize (open exclusive, quantize, sync, cleanup; they differ in importance handling, so one owner in internal/gguf, such as QuantizeToFile); the page's ok-or-caution ternary at six exact sites (a helper would not shorten them; skip unless a tone map is wanted); sampling/json_schema_ordered.go repeats the byte order mark dataset names; and the support tier's guarded rung never compares a guard's Surface with the current longform.Surface, so a guard that code changes expired still reads as held, which its detail text only warns of."
         }
       ]
     },

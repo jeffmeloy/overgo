@@ -25,15 +25,16 @@ type routeDescriptor struct {
 	// Inventory: a successful call other than a GET changes the inventory its
 	// path's first segment names, and the event hub tells every workspace.
 	Inventory bool
-	// Unrecorded: the request monitor leaves the route out, the monitor's own reads and a
-	// subscription that is held open for as long as a page listens.
+	// Unrecorded: the request monitor leaves the route out, the monitor's own reads, the health
+	// probes the page and any supervisor repeat every few seconds, and a subscription that is held
+	// open for as long as a page listens.
 	Unrecorded bool
 }
 
 var routeCatalog = []routeDescriptor{
-	{Path: "/health", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).health},
-	{Path: "/healthz", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).health},
-	{Path: "/v1/health", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).health},
+	{Path: "/health", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).health, Unrecorded: true},
+	{Path: "/healthz", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).health, Unrecorded: true},
+	{Path: "/v1/health", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).health, Unrecorded: true},
 	{Path: "/metrics", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).metrics},
 	{Path: "/v1/models", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).models},
 	{Path: "/models", Authentication: routePublic, Methods: []string{http.MethodGet}, Handler: (*Handler).models},

@@ -30,14 +30,11 @@
       "title": "Repair what the review of the GUI lane's second merge found: the request ring, the checkpoint pruning, the conversation run and the quantized adapter's memory",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 80,
+        "reason": "A request's recorded method is one of nine named standard methods or OTHER, so the request ring is bounded in bytes as well as entries; the list and its lookup are the growth."
+      },
       "steps": [
-        {
-          "id": "request-ring-bounds",
-          "title": "Bound what the API request ring stores and keep refused and health requests out of it",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestRequestMonitorBoundsWhatItStores$'",
-          "rationale": "Serves: a server a stranger cannot grow. Review of the staged GUI lane merge (2026-10-05, three read-only reviews of the merged tree, nothing run): internal/server/request_monitor.go:44 stores request.Method verbatim and begin runs before the auth check (server.go:829 against :833); MaxHeaderBytes is 1 MiB (cmd/server/main.go:491) and Go accepts any token-valid method up to that, so an unauthenticated caller sending 256 requests with a 1 MiB method fills the ring with about 256 MiB that the Requests view re-marshals on every poll: bounded in entries, not in bytes. Also server.go:829 records 401 and 403 probes and the page's own /health probe (every 10 s, boot.js:309,1355), so 256 entries turn over in minutes. Change: record only the methods the router knows (or cap the length), do not record /health, and skip refused requests. Test first: a request with an oversize method stores a bounded record, a refused request and /health are not stored, a normal request is."
-        },
         {
           "id": "requests-view",
           "title": "Keep the Requests view's rows while it polls, its filter state and a malformed payload",

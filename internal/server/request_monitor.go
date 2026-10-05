@@ -13,6 +13,21 @@ import (
 // still being answered is held until it ends, so the count in flight is never cut short.
 const requestMonitorCapacity = 256
 
+// recordedMethods are the methods the monitor records by name. A request may name any token as
+// its method, up to the header limit, and the route is recorded before the caller is
+// authenticated, so what the ring keeps of each request has to be bounded for the ring to be.
+var recordedMethods = []string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions, http.MethodConnect, http.MethodTrace}
+
+// otherMethod stands in the ring for a method the monitor does not record by name.
+const otherMethod = "OTHER"
+
+func recordedMethod(method string) string {
+	if slices.Contains(recordedMethods, method) {
+		return method
+	}
+	return otherMethod
+}
+
 // monitoredRequest is one API request from the route that took it to the status it answered.
 type monitoredRequest struct {
 	id               uint64
@@ -41,7 +56,7 @@ type monitoredKey struct{}
 func (m *requestMonitor) begin(request *http.Request, route string) (*http.Request, func(*statusRecorder)) {
 	m.mu.Lock()
 	m.total++
-	record := &monitoredRequest{id: m.total, method: request.Method, route: route, started: time.Now()}
+	record := &monitoredRequest{id: m.total, method: recordedMethod(request.Method), route: route, started: time.Now()}
 	if m.active == nil {
 		m.active = map[uint64]*monitoredRequest{}
 	}

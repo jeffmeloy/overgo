@@ -71,9 +71,9 @@ func TestRequestMonitorRecordsWhatTheServerAnswered(t *testing.T) {
 	}
 
 	for range requestMonitorCapacity + 8 {
-		serveTestRequest(handler, http.MethodGet, "/health", "")
+		serveTestRequest(handler, http.MethodGet, "/v1/models", "")
 	}
-	if full := monitorLog(t, handler); len(full.Requests) != requestMonitorCapacity || full.Limit != requestMonitorCapacity || full.Requests[0].Route != "/health" {
+	if full := monitorLog(t, handler); len(full.Requests) != requestMonitorCapacity || full.Limit != requestMonitorCapacity || full.Requests[0].Route != "/v1/models" {
 		t.Fatalf("the monitor holds %d requests, want the newest %d", len(full.Requests), requestMonitorCapacity)
 	}
 }
@@ -131,5 +131,37 @@ func TestRequestMonitorStreamsThroughTheRecorder(t *testing.T) {
 	finished := handler.requests.snapshot().Requests
 	if len(finished) != 1 || finished[0].InFlight || finished[0].Status != http.StatusOK || finished[0].CompletionTokens != 4 || finished[0].DurationMS < float64(tokenDelay/time.Millisecond) {
 		t.Fatalf("the finished stream = %+v, want 200 with four tokens that took at least a token's delay", finished)
+	}
+}
+
+// TestRequestMonitorBoundsWhatItStores holds the ring to bytes as well as entries: the route is
+// recorded before the caller is authenticated and a method may be any token up to the header
+// limit, so a method the monitor does not know is stored as OTHER, not as sent; and the health
+// probes a page repeats every few seconds are not recorded, while a call to any other route is.
+func TestRequestMonitorBoundsWhatItStores(t *testing.T) {
+	t.Parallel()
+	handler := newTestHandler(t, &fakeGenerator{})
+	defer handler.Close()
+	long := strings.Repeat("X", 1<<20)
+	for _, call := range []struct{ method, path string }{
+		{long, "/v1/models"},
+		{http.MethodGet, "/health"},
+		{http.MethodGet, "/healthz"},
+		{http.MethodGet, "/v1/health"},
+		{http.MethodGet, "/v1/models"},
+	} {
+		serveTestRequest(handler, call.method, call.path, "")
+	}
+	log := monitorLog(t, handler)
+	if log.Total != 2 || len(log.Requests) != 2 {
+		t.Fatalf("the monitor holds %d of %d requests, want the two to /v1/models: %+v", len(log.Requests), log.Total, log.Requests)
+	}
+	for _, entry := range log.Requests {
+		if entry.Route != "/v1/models" || len(entry.Method) > len(http.MethodOptions) {
+			t.Errorf("the monitor kept %+v", entry)
+		}
+	}
+	if log.Requests[1].Method != otherMethod || log.Requests[0].Method != http.MethodGet {
+		t.Errorf("methods = %q then %q, want %q then %q", log.Requests[1].Method, log.Requests[0].Method, otherMethod, http.MethodGet)
 	}
 }

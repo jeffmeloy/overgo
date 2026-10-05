@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "main-staging",
-      "title": "Local main is only GitHub staging: judge a cycle against a recorded baseline, record the commit that held, push only when asked",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 200,
-        "reason": "The held marker is the baseline's authority in place of a branch pointer: MarkHeld and the marker's reader (a small file beside a published record), Baseline reading Record.Held first, and Promote writing the marker where it moved a branch; the push-held step's own growth is still to come."
-      },
-      "steps": [
-        {
-          "id": "push-held",
-          "title": "Push the last held commit to origin/main only when asked, fast-forward only",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestPushHeldPushesTheHeldCommitOnlyWhenAsked$'",
-          "rationale": "Serves: the owner's rule (push only when asked) as a command instead of a hand step. A small command, run by the owner, computes the last held commit from the records and runs git push origin \u003ccommit\u003e:main, refusing anything that is not a fast-forward of origin/main and refusing to run from the loop or without its explicit flag. The loop itself never pushes. Test first: the held commit is the one pushed; without the flag nothing is; a non-descendant of origin/main is refused (a temporary bare repository as origin)."
-        }
-      ]
-    },
-    {
       "id": "cycle-trigger",
       "title": "Start the improvement cycle when what it measures has moved, not by hand",
       "owner": "master-lead",

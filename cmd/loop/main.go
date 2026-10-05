@@ -41,7 +41,11 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
+	"overgo/internal/scorecard"
 )
+
+// pushRemote is the remote -push-held publishes the held commit to.
+const pushRemote = "origin"
 
 // The loop's pause marker lives in the checkout's process state; the legacy
 // path under docs is carried across on first use.
@@ -94,6 +98,8 @@ func run(args []string) error {
 	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step> -message-file <file>")
 	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
 	improveOnce := flags.Bool("improve", false, "run one improvement cycle now, as an emptied plan does: measure the scorecard, record it as held if held-out quality holds, and file the gaps as rows")
+	pushHeldOnce := flags.Bool("push-held", false, "the owner's command: push the commit the newest held scorecard names to origin's main, fast-forward only; refused from a worker's environment and without -confirm-push")
+	confirmPush := flags.Bool("confirm-push", false, "with -push-held: say the push is wanted")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -106,6 +112,12 @@ func run(args []string) error {
 	}
 	*repoPath = resolved
 	switch {
+	case *pushHeldOnce:
+		commit, err := pushHeld(loopWorktree, scorecard.Directory(*repoPath), pushRemote, *confirmPush, os.Getenv(plan.AutomationWorkerEnvironment) != "")
+		if err == nil {
+			fmt.Printf("loop: %s/main holds the held commit %s\n", pushRemote, commit)
+		}
+		return err
 	case *improveOnce:
 		var outcome loop.Outcome
 		added, err := loop.Improve(improvementFor(*repoPath), &outcome)

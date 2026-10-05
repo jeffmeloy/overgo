@@ -806,14 +806,15 @@ func (h *Handler) generate(
 	}
 	ids, text, err := session.Model().Generate(ctx, prompt, options)
 	h.requests.addTokens(ctx, promptTokens.Load(), outputTokens.Load())
-	hardware.sample(ctx, runrecord.ServingHardwareFinish)
+	hardware.finish(ctx)
 	if err != nil {
 		h.generationErrors.Add(1)
 	}
 	if modelID, recipeID, ok := h.servingIdentity(recipe.TaskInference); ok {
 		after := before
 		if api, available := h.generator.(deviceExecutionAPI); available {
-			after, _ = api.DeviceExecutionStats(ctx)
+			// A cancelled request still reads what it moved: the device refuses a read under a cancelled context.
+			after, _ = api.DeviceExecutionStats(context.WithoutCancel(ctx))
 		}
 		wall, wallErr := clock.Elapsed()
 		if wallErr = errors.Join(wallErr, hardware.walls.Err); wallErr != nil {

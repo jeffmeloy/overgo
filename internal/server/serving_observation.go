@@ -189,6 +189,13 @@ func (collector *servingHardwareCollector) sample(ctx context.Context, stage run
 	})
 }
 
+// finish takes the sample that closes a generation, under a context that a cancel does not end: the device
+// refuses a read under a cancelled context, so a cancelled run's release was never observed, though the cancelled
+// run is exactly the one whose release a person waits for.
+func (collector *servingHardwareCollector) finish(ctx context.Context) {
+	collector.sample(context.WithoutCancel(ctx), runrecord.ServingHardwareFinish)
+}
+
 func (collector *servingHardwareCollector) peakDeviceBytes() uint64 {
 	var peak uint64
 	for _, sample := range collector.samples {

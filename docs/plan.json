@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "cancel-finish-sample",
-          "title": "Read a cancelled generation's device finish sample under a context that is not cancelled",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestCancelledGenerationStillReadsItsFinishSample$'",
-          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): cancel to actual resource release. internal/server/server_admin.go:809,816 reads the device stats after a generation with the request's context, which a cancel has cancelled, so the finish sample is rejected (internal/cuda/device/worker.go:125) and the one real chat observation of release is silently discarded; the cancel instant is recorded nowhere, the outcome is recorded (runrecord/serving_observation.go:330) and the scorecard skips it (scorecard.go:302), and release is proven by tests only for export, merge and download and by a real sample only for training (trainingworkflow/session_observation.go:197). Change: read the finish sample under context.WithoutCancel (a one-line defect fix) so a cancelled run's start and finish pair proves the release. Test first: a generation cancelled mid-stream still records its finish sample."
-        },
-        {
           "id": "media-observation-fields",
           "title": "Record a web media generation's load, decode, output tokens and device peak as the command line does",
           "status": "open",

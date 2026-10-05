@@ -10,11 +10,39 @@
       "status": "open",
       "steps": [
         {
-          "id": "journey-inventory",
-          "title": "Inventory what the four journeys already record and name the smallest addition for each gap",
+          "id": "swap-phases",
+          "title": "Report a model swap's drain, stop, launch and ready time, and stop counting the page's own held-open streams against the drain",
           "status": "open",
-          "verify": "go test ./internal/plan -count=1",
-          "rationale": "Serves: measuring action to usable result. Owner 2026-10-05: optimize complete user journeys through measured reductions in repeated work and complexity; use existing native benchmarks, allocation counts and CPU profiles; judge gains against total maintenance cost; behavioral regression tests and comparable benchmarks, no new ratchets, selectors or frameworks (see the doctrine). The journeys: submit to first visible answer; cold model selection to usable response; cancel to actual resource release; interrupted cycle to useful progress. For each, separate loading, admission wait, execution, publication and rendering. Existing records to read first: runrecord ServingObservation (load phase, prefill and decode hardware samples, outcome), the capability director's admission and retirement (SQA-096 is the cancel-to-release gap), the landing gate's measured line and the cycle's state file (cycle_state.json) for interrupted progress, the browser tests' timings for rendering. Output: a table in this step's rationale of journey by phase, which record measures it today and which phase nothing measures, then one filed step per gap that needs less than a new framework (reuse the existing observation, add a field, or decline). No instrumentation beyond what explains a real elapsed-time gain."
+          "verify": "go test ./internal/modelswap -count=1 -run '^TestSwapReportsItsPhasesAndDoesNotWaitOnAHeldOpenStream$'",
+          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): cold model selection to usable response. internal/modelswap/supervisor.go Acquire (:84-146) waits for the old child's in-flight requests to drain before it stops it, bounded by drainGrace = 15 s (:46-50), because the workbench's activity stream stays open for the life of the page and counts as in flight (verified in the source: refs \u003e 0 keeps the swap waiting until the grace ends); no stream is closed before the swap request, so every swap with a page open can cost up to 15 s before the new model even launches, and nothing records it: Ready is untimed (:140), the page times the swap with Date.now (boot.js:1079) and shows a chip 'served X after Ns' (boot.js:1099) but stores nothing. Change, measure first: report the drain, stop, launch and ready milliseconds on the header the page already reads (proxy.go:154, boot.js:1088) and show them in the chip, then take the page's own held-open streams out of the drain (the routes marked Unrecorded in internal/server/routes.go are the held-open subscriptions; or sever them at the swap request) and keep the grace for a real request. Test first: a swap with one held-open stream and one finishing request waits for the request and not the stream, and the phases are reported."
+        },
+        {
+          "id": "cancel-finish-sample",
+          "title": "Read a cancelled generation's device finish sample under a context that is not cancelled",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestCancelledGenerationStillReadsItsFinishSample$'",
+          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): cancel to actual resource release. internal/server/server_admin.go:809,816 reads the device stats after a generation with the request's context, which a cancel has cancelled, so the finish sample is rejected (internal/cuda/device/worker.go:125) and the one real chat observation of release is silently discarded; the cancel instant is recorded nowhere, the outcome is recorded (runrecord/serving_observation.go:330) and the scorecard skips it (scorecard.go:302), and release is proven by tests only for export, merge and download and by a real sample only for training (trainingworkflow/session_observation.go:197). Change: read the finish sample under context.WithoutCancel (a one-line defect fix) so a cancelled run's start and finish pair proves the release. Test first: a generation cancelled mid-stream still records its finish sample."
+        },
+        {
+          "id": "media-observation-fields",
+          "title": "Record a web media generation's load, decode, output tokens and device peak as the command line does",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestMediaGenerationRecordsItsLoadAndDecode$'",
+          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): cold model selection to usable response through the media path. internal/server/generation_store_workspace.go:257 publishes the serving observation without Load, Decode, OutputTokens and PeakMeasured, which cmd/recipe/main.go:503 passes, so the load-time, first-output and throughput cells never reflect people using the page for image, video or speech generation. Three fields. Test first: a media generation through the workspace records a load phase and the device peak."
+        },
+        {
+          "id": "client-first-token",
+          "title": "Show the time from submit to the first visible token beside a chat answer's usage",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserShowsTheFirstTokenTime$' -leg 'first token leg'",
+          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): submit to first visible answer. The only measure that spans proxy, admission, prompt preparation, prefill and paint is the client's: composer.js consume (:301-314) can stamp the start of the turn, the first token event and one animation frame after it, shown beside the usage cards (chat.js:46). Display only; the scorecard's first-output cell reads the server's prefill sample, not a token (scorecard.go:316,391), and real time to first token exists only offline (cmd/benchmark/timing.go:22). No performance.now exists anywhere in the web UI today. Test first: a streamed turn in the browser lane shows a first-token time that is at least the delay the fixture imposed."
+        },
+        {
+          "id": "chat-admission-wait",
+          "title": "Time a chat request's lease wait and prompt preparation and show them in the Requests tab",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestRequestMonitorShowsAdmissionWait$'",
+          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): submit to first visible answer and cancel to release. Admission is a count only (capabilityruntime/session_director.go:301 Waiting) and the slot clock starts after the lease (server.go:777); prompt preparation (protocol_common.go:191) is untimed. Time Lease (server.go:781) and prepare, store both on the monitored request (request_monitor.go) in memory with no schema change, and show them in the Requests tab: it explains the wait right after a Stop, when the next request waits on the unwinding slot. Modest value: do it only if the measured wait is visible. Declined as disproportionate: new PhaseAdmission or cancel enum values in the durable record (runrecord/record.go:175,465), per-state timestamps on operations, a download unwind event, a first-token stamp inside generate (the scorecard cell is one decode step off)."
         },
         {
           "id": "evidence-profile",
@@ -116,6 +144,28 @@
       ]
     },
     {
+      "id": "cycle-trigger",
+      "title": "Start the improvement cycle when what it measures has moved, not by hand",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "trigger-surface",
+          "title": "Let the loop start a cycle when the measured surface moved since the last completed run, the obligations changed, or no actionable row is left, bounded by a count of such landings",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestLoopStartsACycleWhenTheMeasuredSurfaceMoved$'",
+          "rationale": "Serves: the cycle running when it can tell something, and never twice for one failure. Owner idea 2026-10-05 (start a run when result-affecting code changed since the last passing run, or the plan has no tasks left; no run while a commit uses the GPU for its longer test runs; a cap on the gap) with these refinements. (1) The surface is everything a cell executes, not only the inference outputs: the scorecard also judges throughput, first-output, load-time and peak-device-memory, so a speed-only change counts; take the inference surface, the training code, the kernels and the recipes, and the cycle's obligations digest (cycle_state.json already keys on it), because a new activation or dataset changes what a cycle measures without a commit. The computation-fingerprint step is the fine-grained form of the same test (per recipe and cell). (2) Compare with the last completed run of any outcome, not the last passing one: a failing cycle would otherwise restart itself while the surface still differs from the last pass; after a non-pass the failed measurement is filed as the next plan item and the loop waits for a change; the last passing run stays the baseline for promotion. (3) 'No tasks left' never happens while owner-blocked rows stay open: the condition is no actionable row (plan -next reports only blocked rows), or an explicit request. (4) The cap is a count of landings that touched the surface since the last run, with a derivation and a reason, not a bare number: the count at which bisecting a failed batch would cost more than a cycle; not elapsed time. (5) The trigger lives in cmd/loop's unattended driver (the 2 h limit is a property of the agent session's tool, not of the loop), never fires while a stop is active, and a killed run resumes at its first unpassed phase as today. Test first: with a recorded last run, a landing that touches the surface starts a cycle once, one that does not does not, a failed run is not restarted until the surface changes again, the cap starts a run, and an active stop starts nothing."
+        },
+        {
+          "id": "shared-device-turn",
+          "title": "Make a cycle take the same device turn the landings wait for, with timed cells starting only on a quiet machine",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestCycleAndLandingsShareOneDeviceTurn$'",
+          "rationale": "Serves: no landing's device lanes overlapping a cycle's cells, and the cycle not starving landings. Evidence: the gate's retained lines show landings waiting 5 to 22 minutes for the shared device's turn (the landing's lanes have a turn wait, internal/landing/lanes.go:242, and the cycle holds its own lock, cmd/loop/improve.go:189, which refuses rather than waits); a cycle is about 2.5 hours of cells and lanes, and CPU-bound cells have read 2 to 13 times slower while a test ran beside them (hypothesis, to re-measure quiet). Change: the cycle takes the lane turn per phase, so device-lane landings queue behind a phase and not behind the whole cycle; the timed cells (media and serving first-output, throughput, load) start only when no landing is running and a landing's CPU-only lanes wait for them; quality cells may overlap CPU-only landings. Test first: a cycle phase and a landing's device lane never hold the turn together, and a landing that reaches no device lane is not delayed by a quality cell."
+        }
+      ]
+    },
+    {
       "id": "sqa-defects",
       "title": "Repair the confirmed defects the SQA review of da1ec2c77 found, P1 first",
       "owner": "master-lead",
@@ -161,7 +211,7 @@
           "title": "Key interrupted cell and publication credit to the inputs the run consumed (SQA-089)",
           "status": "open",
           "verify": "go test ./cmd/loop -count=1 -run '^TestCycleCreditFollowsTheInputsARunConsumes$'",
-          "rationale": "Serves: a resumed cycle that never credits a measurement its inputs invalidated. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): eb15395a8 keys credit to HEAD, the absolute store and obligationsDigest and reruns lanes on every resume (credited), but obligationsDigest projects only model, kind, validation, protocol, recipe, location and promotion: ModelValidation.Directory, Grounding, Objective, Conditioning, Projector, the baseline scorecard identity and the executing environment are absent, so a changed declared input (groundTraining derives Objective and Conditioning that trainingRun consumes) can leave the key equal. Change: derive the key from the typed execution obligations and the existing evidence input and environment identities, excluding measured cost and replay pointers only where they cannot change the acceptance contract; unknown validity credits nothing. Test first: extend TestObligationsDigestIgnoresWhatARunChanges with real changes to Directory, Grounding, Objective, Conditioning and Projector (each invalidates the affected cells and the publication that depends on them) and keep the cost and replay neutrality, other-store, other-commit and failed-phase cases. Related: evidence-authority/source-environment, campaign-closeout."
+          "rationale": "Serves: a resumed cycle that never credits a measurement its inputs invalidated. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): eb15395a8 keys credit to HEAD, the absolute store and obligationsDigest and reruns lanes on every resume (credited), but obligationsDigest projects only model, kind, validation, protocol, recipe, location and promotion: ModelValidation.Directory, Grounding, Objective, Conditioning, Projector, the baseline scorecard identity and the executing environment are absent, so a changed declared input (groundTraining derives Objective and Conditioning that trainingRun consumes) can leave the key equal. Change: derive the key from the typed execution obligations and the existing evidence input and environment identities, excluding measured cost and replay pointers only where they cannot change the acceptance contract; unknown validity credits nothing. Test first: extend TestObligationsDigestIgnoresWhatARunChanges with real changes to Directory, Grounding, Objective, Conditioning and Projector (each invalidates the affected cells and the publication that depends on them) and keep the cost and replay neutrality, other-store, other-commit and failed-phase cases. Related: evidence-authority/source-environment, campaign-closeout. Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository) adds: add the acquired cell keys to cycleState, using the fields obligationsDigest already joins (improve.go:270), and have executeRun (cmd/validate/run.go:180) skip them; it is the one item of the journey inventory that changes elapsed time, moderate in size."
         },
         {
           "id": "download-cancel",
@@ -178,6 +228,13 @@
       "owner": "master-lead",
       "status": "open",
       "steps": [
+        {
+          "id": "cycle-report",
+          "title": "Print what an interrupted cycle credited and the wall of each phase",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestCycleReportsWhatItCreditedAndEachPhaseWall$'",
+          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): interrupted cycle to useful progress, the least measured journey. The cycle prints no wall per phase and measurePhases (cmd/loop/improve.go:337-346) skips a credited phase silently, so nothing shows what was credited against redone; the only evidence is a unit test with a fake validator (improve_resume_test.go:17). Credit is all-or-nothing per phase (cycleState :233, written after a phase ends :339): the cells phase is credited only after every cell passes, selection re-runs every cell every cycle (cmd/validate/selection.go:107-111), a benchmark cell may take up to 6 h (validate/run.go:37) and a kill in cell 7 redoes cells 1 to 6; Fill has no credit at all. First step, trivial: print each phase's wall and what was credited. Test first: a resumed cycle's output names the credited phases and each phase's wall. The per-cell credit is sqa-defects/interrupted-credit and dev-speed/computation-fingerprint."
+        },
         {
           "id": "multi-step-landing",
           "title": "Let one landing complete several plan steps with one gate run",
@@ -204,7 +261,7 @@
           "title": "Carry a measurement when the computation that produced it is unchanged",
           "status": "open",
           "verify": "go test ./internal/evaluation -count=1 -run '^TestMeasurementCarriesWhileTheComputationFingerprintHolds$'",
-          "rationale": "Serves: the cycle (about 1.5 h of cells, 1 h of lanes and up to 1.9 h per bbh cell in the fill, 17 cells, re-acquired every cycle) and every resumed cycle. Most commits touch no inference path. Idea: a per-recipe computation fingerprint, the hash of the transitive Go packages that execute it (go list -deps), its kernels, recipe, weights and environment; a measurement taken at an equal fingerprint is carried (the replay-and-carry of evaluations already does this for quality, with a 32-case replay as the check), and only cells whose fingerprint moved run. First step of the work: measure over the last cycles how many re-measured cells had an equal fingerprint (record the count here), then the evaluation owner takes it. Replaces hand-listed runtime paths (the media pin was retired for that reason). Test first: an unrelated package change leaves the fingerprint, a package or kernel the recipe reaches changes it. Scope validation and reuse by the actual dependencies (kernels, generated or embedded data, models, recipes, environment and subprocess effects); a dependency the walk cannot see keeps the broader coverage rather than being assumed unchanged. Judge it against its total maintenance cost (code, tests, fixtures, gate work), and decline it if the measured count of re-measured cells with an equal fingerprint is small."
+          "rationale": "Serves: the cycle (about 1.5 h of cells, 1 h of lanes and up to 1.9 h per bbh cell in the fill, 17 cells, re-acquired every cycle) and every resumed cycle. Most commits touch no inference path. Idea: a per-recipe computation fingerprint, the hash of the transitive Go packages that execute it (go list -deps), its kernels, recipe, weights and environment; a measurement taken at an equal fingerprint is carried (the replay-and-carry of evaluations already does this for quality, with a 32-case replay as the check), and only cells whose fingerprint moved run. First step of the work: measure over the last cycles how many re-measured cells had an equal fingerprint (record the count here), then the evaluation owner takes it. Replaces hand-listed runtime paths (the media pin was retired for that reason). Test first: an unrelated package change leaves the fingerprint, a package or kernel the recipe reaches changes it. Scope validation and reuse by the actual dependencies (kernels, generated or embedded data, models, recipes, environment and subprocess effects); a dependency the walk cannot see keeps the broader coverage rather than being assumed unchanged. Judge it against its total maintenance cost (code, tests, fixtures, gate work), and decline it if the measured count of re-measured cells with an equal fingerprint is small. Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): a cell's credit across an interrupted cycle is the same fingerprint question per cell (cmd/loop/improve.go:337-346, validate/selection.go:107-111)."
         }
       ]
     },

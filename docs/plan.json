@@ -4,37 +4,15 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "gui-lane-review-2",
-      "title": "Repair what the review of the GUI lane's second merge found: the request ring, the checkpoint pruning, the conversation run and the quantized adapter's memory",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 400,
-        "reason": "A numbered submission is finished however submitting returns (run, with the abandoned error a panic leaves its waiters) and a failed one leaves the ledger's order; those are the growth of the run ledger step. Earlier allowance kept: the request ring's nine named methods. Conversation boundaries: the whole text's encoding places each segment boundary through prefix encodings (replacing the continuation encoder, which is deleted) and turnTail finds the whitespace a template writes after its end-of-turn marker; the held-tensor refusal at load, still to come, is the rest of the row's allowance."
-      },
-      "steps": [
-        {
-          "id": "held-tensor-readable",
-          "title": "Refuse at load a held quantized tensor the dequantizer cannot read",
-          "status": "open",
-          "verify": "go test ./internal/densecausal -count=1 -run '^TestFrozenLoadRefusesAHeldTensorTheDequantizerCannotRead$'",
-          "rationale": "Serves: failures at load, not at the first forward. What quantized-lora-edges left of the GUI lane review: LoadGGUFFrozen holds a quantized tensor as its stored bytes without reading it, so one of an unsupported type or an element count that is not a whole number of the type's blocks fails only when the first forward dequantizes it, after the run has spent its load and baseline. Change: check each held tensor at load, as the dequantizer's block size and type table say, without dequantizing it. Test first: a held tensor of an unsupported type, and one whose elements are not whole blocks, are refused at LoadGGUFFrozen with the tensor named."
-        }
-      ]
-    },
-    {
       "id": "main-staging",
       "title": "Local main is only GitHub staging: judge a cycle against a recorded baseline, record the commit that held, push only when asked",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "The held marker is the baseline's authority in place of a branch pointer: MarkHeld and the marker's reader (a small file beside a published record), Baseline reading Record.Held first, and Promote writing the marker where it moved a branch; the push-held step's own growth is still to come."
+      },
       "steps": [
-        {
-          "id": "baseline-decoupled",
-          "title": "Choose the comparison baseline from the records, not from where main points",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestBaselineIsTheNewestHeldRecordNotMain$'",
-          "rationale": "Serves: promotion that no longer depends on a branch pointer, and the open decision baseline-comparison-authority. Owner 2026-10-05: main is only used for GitHub staging (origin/main is 194 commits behind and is pushed only when asked), not the branch users run. The code still reads it as that: internal/scorecard/record.go PromotedBranch, Baseline (:111, the newest earlier record whose commit main holds) and Withheld (:136, no earlier scorecard measured the commit main holds), cmd/loop/improve.go:85-101 (promotion update-refs main, fast-forward only), the message in cmd/validate/selection.go:194. Change: the cycle records the commit that held as a marker beside its scorecard record instead of moving a branch, and Baseline is the newest earlier record that held, or the record the owner designates; main stays a staging pointer nothing reads. Designating the first baseline is the owner's one decision (cycle 10's 48d44c5b4 carries comparison authority; so will any later record that passes its lanes). Test first: Baseline returns the held record with main pointing elsewhere or absent, and never a record that did not hold. Do not answer baseline-comparison-authority: it is the owner's. When this lands, update skill.md's Intent bullet that says the cycle fast-forwards main and main is promoted: master takes landings, local main is only GitHub staging (owner, 2026-10-05), and a cycle's promotion is judged against a recorded baseline scorecard."
-        },
         {
           "id": "push-held",
           "title": "Push the last held commit to origin/main only when asked, fast-forward only",

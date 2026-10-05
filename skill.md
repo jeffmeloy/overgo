@@ -17,9 +17,9 @@ hardware.
   revert. A row that neither closes nor speeds the loop, nor serves inference or
   training, is not filed.
 - Progress = promotions, not landings. `go run ./cmd/loop -improve`: measure,
-  fast-forward `main` only if held-out quality holds against main's scorecard,
-  file gaps as rows. `master` takes landings; `main` is promoted; push only when
-  asked.
+  record the scorecard as held only if held-out quality holds against the newest
+  held record, file gaps as rows. `master` takes landings; local `main` is only
+  GitHub staging, which nothing reads; push only when asked.
 - Humans or models propose; operators set goals, budgets, stops; executable policy
   admits and activates; OvergoDB holds state; the plan holds implementation.
 - Be ambitious. Aim each change at capability, performance, development

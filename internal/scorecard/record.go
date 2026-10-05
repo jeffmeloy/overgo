@@ -19,8 +19,11 @@ import (
 	"overgo/internal/scorecard/metric"
 )
 
-// PromotedBranch is the branch users run: the loop moves it, only forward,
-// to a commit whose scorecard holds against its baseline.
+// PromotedBranch is the branch GitHub staging reads, which the loop no longer
+// moves: a commit whose scorecard holds against its baseline is recorded as held
+// beside its record (MarkHeld), and a baseline is the newest held record. The
+// branch is read only for the first baseline, while no record is held, as the
+// commit it pointed at when held records began.
 const PromotedBranch = "refs/heads/main"
 
 // A published record is named by the time it was published, so the
@@ -33,15 +36,45 @@ const (
 	recordTime                      = "20060102T150405Z"
 	recordDirectoryMode fs.FileMode = 0o755
 	recordMode          fs.FileMode = 0o644
+	// heldSuffix ends the marker that records a published record held: the file of the
+	// record, with this in place of its extension, naming the commit that held.
+	heldSuffix = ".held"
 )
 
 // Record is one published scorecard: the publishing commit and every row.
 // A cell's producing CodeCommit is separate; publication does not prove currency.
-// Name is the file it was read from.
+// Name is the file it was read from, and Held says its marker was found beside it.
 type Record struct {
 	Commit string `json:"commit"`
 	Rows   []Row  `json:"rows"`
 	Name   string `json:"-"`
+	Held   bool   `json:"-"`
+}
+
+// heldMarker is what a marker records of the commit that held.
+type heldMarker struct {
+	Commit string `json:"commit"`
+}
+
+// heldPath is where the marker of a record read from name sits beside it.
+func heldPath(directory, name string) string {
+	return filepath.Join(directory, strings.TrimSuffix(name, recordSuffix)+heldSuffix)
+}
+
+// MarkHeld records that the published record held: its commit passed its promotion
+// against its baseline, so it is what later records are judged against. Marking a
+// record again changes nothing.
+func MarkHeld(directory string, record Record) error {
+	if record.Name == "" || record.Commit == "" {
+		return errors.New("scorecard: only a published record can be marked held")
+	}
+	return jsonfile.Write(heldPath(directory, record.Name), heldMarker{Commit: record.Commit}, recordMode)
+}
+
+// held reads the marker beside a record: held only when it names the record's own commit.
+func held(directory string, record Record) bool {
+	var marker heldMarker
+	return jsonfile.DecodeStrict(heldPath(directory, record.Name), &marker) == nil && marker.Commit == record.Commit
 }
 
 // Directory is where the scorecards of the store at root are published.
@@ -86,6 +119,7 @@ func Records(directory string) ([]Record, error) {
 		if err := record.explained(); err != nil {
 			return nil, fmt.Errorf("%s: %w", entry.Name(), err)
 		}
+		record.Held = held(directory, record)
 		records = append(records, record)
 	}
 	return records, nil
@@ -104,21 +138,27 @@ func (record Record) explained() error {
 	return nil
 }
 
-// Baseline is the record the newest one is judged against: the newest
-// earlier record that measured the commit the promoted branch holds. Without
-// one there is no baseline: an earlier record of another commit is not what
-// users run, so it judges nothing.
+// Baseline is the record the newest one is judged against: the newest earlier
+// record marked held, whatever any branch points at. Until a record is held, the
+// first baseline is the newest earlier record that measured the commit the
+// promoted branch pointed at. Without either there is no baseline: an earlier
+// record that did not hold judges nothing.
 func Baseline(ctx context.Context, root string, records []Record) (*Record, error) {
 	if len(records) <= 1 {
 		return nil, nil
 	}
-	held, err := gitauthority.Query(ctx, root, "for-each-ref", "--format=%(objectname)", PromotedBranch)
+	earlier := records[:len(records)-1]
+	for index, record := range slices.Backward(earlier) {
+		if record.Held {
+			return &earlier[index], nil
+		}
+	}
+	pointed, err := gitauthority.Query(ctx, root, "for-each-ref", "--format=%(objectname)", PromotedBranch)
 	if err != nil {
 		return nil, err
 	}
-	earlier := records[:len(records)-1]
 	for index, record := range slices.Backward(earlier) {
-		if record.Commit == strings.TrimSpace(string(held)) {
+		if record.Commit == strings.TrimSpace(string(pointed)) {
 			return &earlier[index], nil
 		}
 	}
@@ -133,7 +173,7 @@ func Baseline(ctx context.Context, root string, records []Record) (*Record, erro
 // nothing until its evaluation lands.
 func (record Record) Withheld(baseline *Record) string {
 	if baseline == nil {
-		return "no earlier scorecard measured the commit " + PromotedBranch + " holds"
+		return "no earlier scorecard is recorded as held, and none measured the commit " + PromotedBranch + " pointed at"
 	}
 	for _, row := range record.Rows {
 		if cell := row.Cells[metric.Quality]; !cell.NotApplicable && !cell.Measured() {

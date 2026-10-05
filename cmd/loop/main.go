@@ -93,7 +93,7 @@ func run(args []string) error {
 	resumeMediaExperimentSpec := flags.String("resume-media-experiment", "", "resume one media experiment from this spec, reusing retained acquisitions and publishing the report without opening a model")
 	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step> -message-file <file>")
 	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
-	improveOnce := flags.Bool("improve", false, "run one improvement cycle now, as an emptied plan does: measure the scorecard, fast-forward main if held-out quality holds, and file the gaps as rows")
+	improveOnce := flags.Bool("improve", false, "run one improvement cycle now, as an emptied plan does: measure the scorecard, record it as held if held-out quality holds, and file the gaps as rows")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}

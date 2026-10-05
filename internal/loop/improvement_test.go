@@ -102,7 +102,7 @@ func TestLoopPromotesOnlyOnHeldOutFitness(t *testing.T) {
 		{name: "another suite scores lower", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.2, "mmlu-pro"), 40, 0), withheld: unknown},
 		{name: "a vanished baseline row", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: &scorecard.Record{Commit: "b"}, withheld: unknown},
 		{name: "a new optional metric", baseline: unmeasured(record("a", accuracy(0.5, "mmlu"), 40, 0), metric.Load), published: record("b", accuracy(0.5, "mmlu"), 40, 0)},
-		{name: "no scorecard of main", published: record("b", accuracy(0.9, "mmlu"), 40, 0), withheld: "no earlier scorecard measured the commit refs/heads/main holds"},
+		{name: "no scorecard of main", published: record("b", accuracy(0.9, "mmlu"), 40, 0), withheld: "no earlier scorecard is recorded as held"},
 		{name: "held-out quality missing", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", scorecard.Cell{Reason: "no held-out suite ran"}, 40, 0), withheld: "has no inference held-out quality: no held-out suite ran"},
 		{name: "failed validation", baseline: record("a", accuracy(0.5, "mmlu"), 40, 0), published: record("b", accuracy(0.6, "mmlu"), 40, 0),
 			measureErr: errors.New("validate -run: cycle lane models: overgo/internal/x: TestY skipped without declaring itself inapplicable"),

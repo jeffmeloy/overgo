@@ -26,11 +26,10 @@ import (
 )
 
 // improvement closes the loop each time the plan empties: the scorecard run
-// is the promotion evidence, the promoted branch moves only on a holding
-// scorecard, and the gaps return as rows of the plan at path plan. root is
-// the checkout whose HEAD is measured, whose branch is promoted and whose
-// plan mutation lock is taken; records is the directory the scorecards are
-// published in.
+// is the promotion evidence, a holding scorecard is recorded as held, which
+// the next is judged against, and the gaps return as rows of the plan at path
+// plan. root is the checkout whose HEAD is measured and whose plan mutation
+// lock is taken; records is the directory the scorecards are published in.
 type improvement struct {
 	root, plan, records string
 	// measure runs the stale validations promotion waits on and publishes
@@ -76,30 +75,26 @@ func (w improvement) Measure() (*scorecard.Record, *scorecard.Record, error) {
 	return &records[len(records)-1], baseline, measured
 }
 
-// Promote fast-forwards the promoted branch to commit, creating it on the
-// first promotion. A branch holding a commit the measured one does not
-// contain refuses, and the move holds only if nothing moved the branch since
-// it was read. Promotion never pushes: users receive main when it is pushed.
+// Promote records that the scorecard published for commit held: its record is
+// marked held, and the records after it are judged against it. No branch moves
+// and nothing is pushed: main is only the staging pointer for GitHub, which the
+// owner pushes when asked.
 func (w improvement) Promote(commit string) error {
-	ctx := context.Background()
-	held, err := gitauthority.Query(ctx, w.root, "for-each-ref", "--format=%(objectname)", scorecard.PromotedBranch)
+	records, err := scorecard.Records(w.records)
 	if err != nil {
 		return err
 	}
-	promoted := strings.TrimSpace(string(held))
-	if promoted == commit {
+	for _, record := range slices.Backward(records) {
+		if record.Commit != commit {
+			continue
+		}
+		if err := scorecard.MarkHeld(w.records, record); err != nil {
+			return err
+		}
+		fmt.Printf("loop: the scorecard held at %s: %s is recorded as held\n", commit, record.Name)
 		return nil
 	}
-	if promoted != "" {
-		if _, err := gitauthority.Query(ctx, w.root, "merge-base", "--is-ancestor", promoted, commit); err != nil {
-			return fmt.Errorf("%s holds %.12s, which %.12s does not contain; promotion only fast-forwards: %w", scorecard.PromotedBranch, promoted, commit, err)
-		}
-	}
-	if err := gitWrite(w.root, "update-ref", "-m", "loop: the scorecard holds", scorecard.PromotedBranch, commit, promoted); err != nil {
-		return err
-	}
-	fmt.Printf("loop: promoted %s to %s\n", scorecard.PromotedBranch, commit)
-	return nil
+	return fmt.Errorf("no published scorecard measured %.12s, so none can be recorded as held", commit)
 }
 
 // gitWrite runs one git command that writes the checkout at directory.

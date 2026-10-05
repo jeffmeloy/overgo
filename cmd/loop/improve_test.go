@@ -153,7 +153,7 @@ func TestNoScorecardOfMainPromotesNothing(t *testing.T) {
 	if _, err := loop.Improve(improver, &outcome); err != nil {
 		t.Fatal(err)
 	}
-	if outcome.Promoted != "" || !strings.Contains(outcome.Withheld, "no earlier scorecard measured the commit") || gitFixture(t, repository, "rev-parse", "main") != held {
+	if outcome.Promoted != "" || !strings.Contains(outcome.Withheld, "no earlier scorecard is recorded as held") || gitFixture(t, repository, "rev-parse", "main") != held {
 		t.Fatalf("promoted %q, withheld %q, main %s; want main unmoved at %s and the missing baseline stated", outcome.Promoted, outcome.Withheld, gitFixture(t, repository, "rev-parse", "main"), held)
 	}
 }
@@ -303,12 +303,12 @@ func (w *planWorld) Paused() bool { return false }
 
 // TestPromotionWaitsForAHoldingScorecard runs the loop over a real
 // repository whose main holds the last promoted commit. The first scorecard
-// of the new commit has a lower held-out accuracy: main stays, and the fall
-// becomes the row the worker lands. The next scorecard holds, and main
-// fast-forwards to the measured commit, which the remote never receives.
-// Each cycle's background validations fail, which neither stops the loop
-// nor withholds the promotion. A main holding a commit the measured one
-// lacks is refused, not rewound.
+// of the new commit has a lower held-out accuracy: nothing is recorded as held,
+// and the fall becomes the row the worker lands. The next scorecard holds, and
+// its record is marked held, which the following cycle is judged against; main
+// is never moved and the remote never receives anything. Each cycle's
+// background validations fail, which neither stops the loop nor withholds the
+// promotion.
 func TestPromotionWaitsForAHoldingScorecard(t *testing.T) {
 	t.Parallel()
 	repository, remote := t.TempDir(), t.TempDir()
@@ -355,17 +355,33 @@ func TestPromotionWaitsForAHoldingScorecard(t *testing.T) {
 	if !slices.Equal(world.heldAt, []string{promotedCommit}) {
 		t.Fatalf("the worker ran %d times with main at %v; want once, on the fall, with main unmoved at %s", len(world.heldAt), world.heldAt, promotedCommit)
 	}
-	if promoted() != measuredCommit || outcome.Promoted != measuredCommit {
-		t.Fatalf("main = %s, promoted %q; want the measured commit %s once its scorecard held", promoted(), outcome.Promoted, measuredCommit)
+	if outcome.Promoted != measuredCommit {
+		t.Fatalf("promoted %q; want the measured commit %s once its scorecard held", outcome.Promoted, measuredCommit)
+	}
+	if now := promoted(); now != promotedCommit {
+		t.Fatalf("main moved to %s; promotion records a held scorecard and moves no branch", now)
 	}
 	if pushed := git(remote, "rev-parse", "main"); pushed != promotedCommit {
 		t.Fatalf("the remote's main moved to %s; promotion never pushes", pushed)
 	}
-	git(repository, "checkout", "-q", "--orphan", "elsewhere")
-	git(repository, "commit", "-q", "--allow-empty", "-m", "unrelated")
-	unrelated := git(repository, "rev-parse", "HEAD")
-	git(repository, "update-ref", "refs/heads/main", unrelated)
-	if err := world.Promote(measuredCommit); err == nil || promoted() != unrelated {
-		t.Fatalf("promoting over a main the measured commit does not contain = %v, main %s; want a refusal", err, promoted())
+	// The record that held is marked, the one that fell is not, and the next cycle is judged against it.
+	marked, err := scorecard.Records(records)
+	if err != nil || len(marked) != len(scripted) || marked[0].Held || marked[1].Held || !marked[2].Held {
+		t.Fatalf("held markers after the cycles = %v (%v), want only the last record, the one that held", heldOf(marked), err)
 	}
+	if baseline, err := scorecard.Baseline(t.Context(), repository, append(marked, scorecard.Record{Commit: "next"})); err != nil || baseline == nil || baseline.Name != marked[2].Name {
+		t.Fatalf("the baseline of the next record = %+v (%v), want the record that held", baseline, err)
+	}
+	if err := world.Promote("0000000000000000000000000000000000000000"); err == nil {
+		t.Fatal("a commit no scorecard measured was recorded as held")
+	}
+}
+
+// heldOf says which of the records are marked held.
+func heldOf(records []scorecard.Record) []bool {
+	held := make([]bool, len(records))
+	for index, record := range records {
+		held[index] = record.Held
+	}
+	return held
 }

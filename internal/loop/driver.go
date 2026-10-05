@@ -82,9 +82,9 @@ type ObligationWorld interface {
 
 // ImprovementWorld is the optional world extension that closes the
 // improvement loop each time the plan empties: the scorecard run is the
-// promotion evidence, the promoted branch moves only when the run's
-// held-out quality holds against its baseline, and the run's gaps return as
-// plan rows, the next work.
+// promotion evidence, the run is recorded as held only when its held-out
+// quality holds against its baseline, and the run's gaps return as plan rows,
+// the next work.
 type ImprovementWorld interface {
 	// Measure runs the scorecard at the main checkout's HEAD, in a checkout
 	// apart from it so rows land while it runs, and returns the record it
@@ -92,8 +92,8 @@ type ImprovementWorld interface {
 	// there is none. A failed validation returns its error beside the
 	// published record; a run that published nothing returns no record.
 	Measure() (published, baseline *scorecard.Record, err error)
-	// Promote moves the promoted branch forward to the measured commit. It
-	// never pushes.
+	// Promote records the measured commit's scorecard as held, the baseline
+	// the next is judged against. It moves no branch and never pushes.
 	Promote(commit string) error
 	// Propose writes the gaps the plan does not hold as rows and reports how
 	// many it added.
@@ -263,7 +263,7 @@ func improve(world World, outcome *Outcome) (int, error) {
 
 // Improve runs one improvement cycle: it measures the scorecard, promotes
 // the measured commit only when the record is not withheld (a baseline
-// measured on the promoted branch, every held-out quality measured, none
+// recorded as held, every held-out quality measured, none
 // fallen), proposes the gaps as rows, then fills the validations promotion
 // does not compare at the measured commit. The measurement and the fill
 // record their claims in a checkout of that commit apart from the main one,

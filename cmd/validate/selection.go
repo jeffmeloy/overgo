@@ -191,7 +191,7 @@ func (plan *Plan) schedule(sel Selected, baseline *scorecard.Record) {
 // baseline measured one.
 func comparedContracts(baseline *scorecard.Record, cell ModelValidation) ([]scorecard.Contract, string) {
 	if baseline == nil {
-		return nil, "no baseline scorecard measured the commit " + scorecard.PromotedBranch + " holds, so promotion compares no held-out contract"
+		return nil, "no baseline scorecard is recorded as held, so promotion compares no held-out contract"
 	}
 	var contracts []scorecard.Contract
 	if at := slices.IndexFunc(baseline.Rows, func(row scorecard.Row) bool { return row.Model == cell.Model && row.Task == cell.Kind }); at >= 0 {

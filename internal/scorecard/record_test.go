@@ -297,6 +297,52 @@ func TestTrainedBelowBaseIsAGap(t *testing.T) {
 // TestKnownGapKeyNamesTheKeysGapsProposes holds the verifier's key check to
 // the keys the scorecard proposes: each kind on a task with a hyphen in its
 // name is known, and a key missing its kind, its task or the prefix is not.
+// TestBaselineIsTheNewestHeldRecordNotMain holds a baseline to the records: the newest earlier
+// record marked held is chosen with no repository at all (main absent), a record newer than it
+// that did not hold is never chosen, a marker that names another commit marks nothing, and
+// only a published record can be marked.
+func TestBaselineIsTheNewestHeldRecordNotMain(t *testing.T) {
+	t.Parallel()
+	directory := t.TempDir()
+	published := time.Date(2026, time.October, 5, 12, 0, 0, 0, time.UTC)
+	for index, commit := range []string{"a", "b", "c", "d", "e"} {
+		if _, err := Publish(directory, published.Add(time.Duration(index)*time.Hour), Record{Commit: commit}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	records, err := Records(directory)
+	if err != nil || len(records) != 5 {
+		t.Fatalf("records = %d (%v), want five", len(records), err)
+	}
+	for _, record := range records {
+		if record.Held {
+			t.Fatalf("record %s is held before anything was marked", record.Commit)
+		}
+	}
+	if err := MarkHeld(directory, records[1]); err != nil {
+		t.Fatal(err)
+	}
+	// The marker beside the third record names a commit that is not its own.
+	if err := os.WriteFile(heldPath(directory, records[2].Name), []byte(`{"commit":"elsewhere"}`), recordMode); err != nil {
+		t.Fatal(err)
+	}
+	if err := MarkHeld(directory, Record{Commit: "x"}); err == nil {
+		t.Error("a record that was never published was marked held")
+	}
+	records, err = Records(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if held := []bool{records[0].Held, records[1].Held, records[2].Held, records[3].Held, records[4].Held}; !slices.Equal(held, []bool{false, true, false, false, false}) {
+		t.Fatalf("held records = %v, want only the second", held)
+	}
+	// No repository holds a main: a baseline comes from the markers alone.
+	baseline, err := Baseline(t.Context(), t.TempDir(), records)
+	if err != nil || baseline == nil || baseline.Commit != "b" {
+		t.Fatalf("baseline of the newest record = %+v (%v), want the held record b, not the newer ones that did not hold", baseline, err)
+	}
+}
+
 func TestKnownGapKeyNamesTheKeysGapsProposes(t *testing.T) {
 	t.Parallel()
 	for _, kind := range gapKinds {

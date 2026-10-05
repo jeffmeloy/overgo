@@ -4,65 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "gui-lane-review-residue",
-      "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 320,
-        "reason": "AddDelta (the row-at-a-time update) and LossAndGradsOf (the named gradients) are new; the update matrix, the weight-gradient transpose and the copy loop they replace are gone, and the step allocates 40 percent less"
-      },
-      "steps": [
-        {
-          "id": "loss-mask",
-          "title": "Give the conversation fine-tune a loss mask, so it learns and is judged on the assistant's tokens",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From the verdict step (2026-10-04, read again): the conversation fine-tune is honest about it (RunConversationSFT's doc, conversationEvidence and the preview mark every token trained because the trainer has no loss mask), but a verdict of next-token accuracy over every token of the rendered conversation can pass by learning the chat template or the user's turns. A real fix is a feature: (1) the renderer reports the assistant's spans (render turn by turn, or the template's own offsets), (2) the dense trainer takes a per-position loss weight (densecausal's training loss, hostmath.SoftmaxCrossEntropy and the retained-logits path today average over every position), (3) HeldoutExample carries the scored positions and the evaluator counts only them, (4) the objective's metric names what it scores so evidence of the two kinds never compares, and the preview marks only the assistant's tokens trained. Also the held-out cap of 16 records is a machine-specific policy (one host's 13 minutes a pass): derive it from the run's own budget."
-        },
-        {
-          "id": "split-groups",
-          "title": "Keep conversations that share a prefix on one side of the held-out split",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From the verdict step (2026-10-04): conversationSplit gives every record its own group, so the variants of one chat (a prefix and its continuation, or near-duplicates the exact-text dedup keeps) can sit on both sides and the verdict reads memorization. Group by the conversation's opening turns (a digest of its first user message, or of the rendered text's first window) and assign groups, not records, to the held-out side by the digest order, through dataset.SplitOf with the records' groups. The source conversations are read by globbing a mutable directory (conversationFiles); the rendered dataset the run trains and judges on is content-addressed, so what was trained is identified truly, but its lineage to the source dataset is not recorded: record it (the rendered dataset derived from the source) when the split changes."
-        },
-        {
-          "id": "adapter-baseline",
-          "title": "Bind a continued adapter into its held-out verdict, or judge the baseline on the true base",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From the review (2026-10-04), still open: a run that continues an adapter (trainingworkflow.LoRA.From) judges its held-out verdict against the model as the prior adapter leaves it, which LoRA's own comment documents, but the verdict is bound to the base model (text_heldout.go, heldout_run.go) and the prior adapter's identity is recorded nowhere, so 'passed' reads as base to trained. Either bind the prior adapter's digest (peft's Adapter.digest, added with the merge plan) into the evidence the verdict publishes, with the recipe it names, or evaluate the baseline on the true base before the adapter is applied (Resume applies it at load). An evidence schema change; Resume also never compares adapter.Config.BaseModel to the model it is given."
-        },
-        {
-          "id": "surface-rest",
-          "title": "The surface the first pass left: quantizeGGUF, the page's tone ternary, the byte order mark, the guard's expiry",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Left by the surface step and the review (2026-10-04): export.quantizeGGUF repeats cmd/gguf's quantize (open exclusive, quantize, sync, cleanup; they differ in importance handling, so one owner in internal/gguf, such as QuantizeToFile); the page's ok-or-caution ternary at six exact sites (a helper would not shorten them; skip unless a tone map is wanted); sampling/json_schema_ordered.go repeats the byte order mark dataset names; and the support tier's guarded rung never compares a guard's Surface with the current longform.Surface, so a guard that code changes expired still reads as held, which its detail text only warns of."
-        }
-      ]
-    },
-    {
-      "id": "smoke-declaration-recipe",
-      "title": "A smoke declaration names no recipe: the live activation binds, so a replaced recipe needs no hand edit",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 100,
-        "reason": "binding the recipe from the entries replaces the declaration field and its comparison"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A smoke declaration names no recipe: the live activation binds, so a replaced recipe needs no hand edit",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestSmokeDeclarationBindsTheLiveRecipe$'",
-          "rationale": "Serves: the gate's landings and the improvement cycle. Evidence (2026-10-04): the cycle's promotion replaced E4B's active inference recipe (d6ba6736 to 8fbd18e6), and the next landing was refused by TestAcceptedSmokeOracles, which holds docs/verification/smoke-oracles.json's pinned recipe to the live activation; the pin was edited by hand (the same recipe is pinned again in docs/verification/e4b-validation.json and text-vision-coverage.json as recorded history of the evidence they cite, which stays). Disappears: the recipe field of the smoke declaration, which restates what the store's active record already says, and the hand edit each recipe replacement then costs. Change: a declaration names the model and its oracle; bindSmokeOracles takes the recipe from the live activation, so the smoke evidence is bound to the recipe the model runs under when it is read. Evidence: TestSmokeDeclarationBindsTheLiveRecipe replaces a model's activation with another recipe and holds the binding to the new one, and TestAcceptedSmokeOracles keeps the denominator, duplicate and stale refusals."
-        }
-      ]
-    },
-    {
       "id": "host-session-memory",
       "title": "A host training session samples no device memory, whatever else its process holds",
       "owner": "master-lead",
@@ -366,6 +307,46 @@
           "status": "open",
           "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/validate -run '^TestAcceptedCapabilityCensus$' -count=1 -v",
           "rationale": "S6: after the guard re-acquisition of 2026-09-30 (10 of 10 published at surface 50f89def), the audits still fail. The accepted baselines they compare against lack realized residency ('comparison lacks matching realized residency'), and the census needs the owner's review of 11 identities (snapshot 209, live 220). Re-acquire the accepted baselines with realized residency, or retire those comparisons against a replacement that covers their contract; never hand-edit. The guard audits move beside validate's guard_records.go.\n\nSQA 2026-09-30: SQA-044 (P2): required acceptances are credited by the typed interpreter, never by exit status. SQA-053 is handled in promotion-correctness/current-evidence.\n\nFold landed 2026-10-01 without re-pointing the 12 coverage-proof Verify strings that name ./cmd/compatibility (11 text-vision, 1 image-video). Each proof's stored gate step binds the sha256 of its exact Verify string (internal/runrecord/completion_evidence.go:38-41, checked via media_coverage.go:400-406). Re-pointing them fails six acceptance tests ('completion acceptance evidence does not match the plan authority'), and nothing in the tree produces these gate records: formatCompletionAcceptanceEvidence has no non-test caller. The re-pointing is built in the scratchpad's compatfold-repoint.patch (new digests: text-vision 62ebc6e5..., image-video 6bf91882...). It applies together with re-acquired records once a producer exists, or the proofs retire against a replacement that covers their contract. Until then the strings name a command that no longer exists, as recorded history.\n\nDeferred 2026-10-02 below the rows that can progress: the census needs the owner's review of the 11 identities the live catalog adds (snapshot 209, live 220), and re-acquiring the accepted baselines with realized residency needs the GPU. Raised with the owner in the session. 2026-10-03: the three longform guard acceptances this verify named (TestAcceptedFP8Guard, TestRetiredGuardRecords, TestAcceptedGuardCatalog) were deleted with the guard catalog by longform-guard-selection; they ran in no lane and could not pass. The capability census acceptance remains this step's verify, and it too is gated on a variable no lane sets."
+        }
+      ]
+    },
+    {
+      "id": "gui-lane-review-residue",
+      "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 320,
+        "reason": "AddDelta (the row-at-a-time update) and LossAndGradsOf (the named gradients) are new; the update matrix, the weight-gradient transpose and the copy loop they replace are gone, and the step allocates 40 percent less"
+      },
+      "steps": [
+        {
+          "id": "surface-rest",
+          "title": "The surface the first pass left: quantizeGGUF, the page's tone ternary, the byte order mark, the guard's expiry",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Left by the surface step and the review (2026-10-04): export.quantizeGGUF repeats cmd/gguf's quantize (open exclusive, quantize, sync, cleanup; they differ in importance handling, so one owner in internal/gguf, such as QuantizeToFile); the page's ok-or-caution ternary at six exact sites (a helper would not shorten them; skip unless a tone map is wanted); sampling/json_schema_ordered.go repeats the byte order mark dataset names; and the support tier's guarded rung never compares a guard's Surface with the current longform.Surface, so a guard that code changes expired still reads as held, which its detail text only warns of."
+        },
+        {
+          "id": "adapter-baseline",
+          "title": "Bind a continued adapter into its held-out verdict, or judge the baseline on the true base",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the review (2026-10-04), still open: a run that continues an adapter (trainingworkflow.LoRA.From) judges its held-out verdict against the model as the prior adapter leaves it, which LoRA's own comment documents, but the verdict is bound to the base model (text_heldout.go, heldout_run.go) and the prior adapter's identity is recorded nowhere, so 'passed' reads as base to trained. Either bind the prior adapter's digest (peft's Adapter.digest, added with the merge plan) into the evidence the verdict publishes, with the recipe it names, or evaluate the baseline on the true base before the adapter is applied (Resume applies it at load). An evidence schema change; Resume also never compares adapter.Config.BaseModel to the model it is given."
+        },
+        {
+          "id": "split-groups",
+          "title": "Keep conversations that share a prefix on one side of the held-out split",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the verdict step (2026-10-04): conversationSplit gives every record its own group, so the variants of one chat (a prefix and its continuation, or near-duplicates the exact-text dedup keeps) can sit on both sides and the verdict reads memorization. Group by the conversation's opening turns (a digest of its first user message, or of the rendered text's first window) and assign groups, not records, to the held-out side by the digest order, through dataset.SplitOf with the records' groups. The source conversations are read by globbing a mutable directory (conversationFiles); the rendered dataset the run trains and judges on is content-addressed, so what was trained is identified truly, but its lineage to the source dataset is not recorded: record it (the rendered dataset derived from the source) when the split changes."
+        },
+        {
+          "id": "loss-mask",
+          "title": "Give the conversation fine-tune a loss mask, so it learns and is judged on the assistant's tokens",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the verdict step (2026-10-04, read again): the conversation fine-tune is honest about it (RunConversationSFT's doc, conversationEvidence and the preview mark every token trained because the trainer has no loss mask), but a verdict of next-token accuracy over every token of the rendered conversation can pass by learning the chat template or the user's turns. A real fix is a feature: (1) the renderer reports the assistant's spans (render turn by turn, or the template's own offsets), (2) the dense trainer takes a per-position loss weight (densecausal's training loss, hostmath.SoftmaxCrossEntropy and the retained-logits path today average over every position), (3) HeldoutExample carries the scored positions and the evaluator counts only them, (4) the objective's metric names what it scores so evidence of the two kinds never compares, and the preview marks only the assistant's tokens trained. Also the held-out cap of 16 records is a machine-specific policy (one host's 13 minutes a pass): derive it from the run's own budget."
         }
       ]
     },

@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "journey-performance",
-      "title": "Optimize complete user journeys: profile the streaming composer, then the journeys' repeated work",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2700,
-        "reason": "A swap is accounted for and no longer waits on the page's own held-open stream: a lease per request (target, the swap's phases, release and hold-open), the supervisor's held count and four timed phases, the held-open header the server sets and the proxy reads, the phases header and the chip that names them; the lease and its bookkeeping are the growth, which replaces the grace-only drain that cost a swap up to 15 s. Landed with them in one gate run, because the cycle held HEAD still while the work was made: the request log's admission and preparation timings; the SQA review's merge plan base digest, the director's per-selection proof of its refresh and its retiring accounting until Close returns (which replace the head-bound view), the download registry's transferring job, the GGUF rank check and the carried receipt's readable flag; and the GUI lane review's step-checkpoint names and own saves, the conversation skip-and-count, the sample strip bounds, the model's stored row layout and the trained-model view for a quantized base, the held-tensor refusal and the adapter's per-layer gradient settling (MaskedLossAndLayerGradsOf). Each is bounded growth that closes a defect or measures a wait; the deleted head-bound view is the one deletion."
-      },
-      "steps": [
-        {
-          "id": "evidence-profile",
-          "title": "Profile evidence reconstruction on the real store with the existing benchmarks and remove repeated reads where material",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestBuildReadsEachEvaluationOnce$'",
-          "rationale": "Serves: the landing's scorecard stage and every cycle's publication. Owner 2026-10-05: optimize complete user journeys through measured reductions in repeated work and complexity; use existing native benchmarks, allocation counts and CPU profiles; judge gains against total maintenance cost; behavioral regression tests and comparable benchmarks, no new ratchets, selectors or frameworks (see the doctrine). Start from the Benchmark functions that exist for scorecard.Build, evaluation.LatestEvidence and the held-out verdict visit (go test -bench -benchmem -cpuprofile on a copy of the store): count store reads per evaluation, allocations and wall, and find reads repeated within one build (read 2026-10-05: evidence_index.go recordExecution already reads each evaluation's run, and cmd/benchmark-report then calls RequireEvaluation and RequireRun again for every summary it prints). The gate measured the scorecard stage at median 0.6 s and mean 7.1 s over 134 landings, so it is only worth it if a build on the real store is slow. Remove repeated reads through the existing owner, not a cache layer; retire the step with the numbers if immaterial."
-        }
-      ]
-    },
-    {
       "id": "gui-lane-review-2",
       "title": "Repair what the review of the GUI lane's second merge found: the request ring, the checkpoint pruning, the conversation run and the quantized adapter's memory",
       "owner": "master-lead",

@@ -14,18 +14,11 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestCapabilityCatalogListsNonInferenceActivations closes the "why only
-// five servable" finding: a model whose only activation is a capability
-// task (forecast here) is invisible to the inference-only Servable query
-// but must appear in the capability catalog beside chat models, carrying
-// its task and tier.
-func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
+// activatedForecaster registers a model whose only activation is a verified forecast capability,
+// its weights a file on disk, and returns its manifest, its definition and the file's path.
+func activatedForecaster(t *testing.T, store *overgodb.Store) (artifact.Manifest, recipe.Definition, string) {
+	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
 	payload := []byte("capability-catalog-weights")
 	component := testutil.ArtifactBytesID(t, artifact.KindTensorSet, payload)
 	location := filepath.Join(t.TempDir(), "forecaster.bin")
@@ -72,6 +65,60 @@ func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
+	return manifest, definition, location
+}
+
+// TestRememberedCapabilityCatalogPersistsWhatItHashed lists the catalog twice over the store's own
+// memo: the first pass hashes the registered weights and publishes their identities, so the memo a
+// later pass loads (in this process or another) answers the same file from its stat alone; a pass
+// that hashed nothing publishes nothing, so the alias does not move.
+func TestRememberedCapabilityCatalogPersistsWhatItHashed(t *testing.T) {
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	manifest, _, location := activatedForecaster(t, store)
+	if _, bound, err := artifact.ResolveAlias(ctx, store, IdentityEvidenceAlias); err != nil || bound {
+		t.Fatalf("a store nothing has listed holds identity evidence (%t, %v)", bound, err)
+	}
+	entries, _, err := RememberedCapabilityCatalog(ctx, store, 100)
+	if err != nil || len(entries) != 1 || entries[0].Model != manifest.ID || !entries[0].Present {
+		t.Fatalf("first listing = (%+v, %v), want the forecast model present", entries, err)
+	}
+	first, bound, err := artifact.ResolveAlias(ctx, store, IdentityEvidenceAlias)
+	if err != nil || !bound {
+		t.Fatalf("the first listing published no identity evidence (%t, %v)", bound, err)
+	}
+	info, err := os.Stat(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, hit := LoadMemo(ctx, store).lookup(location+"\x00"+artifact.KindTensorSet.String(), info); !hit {
+		t.Error("the memo a later pass loads does not answer the weights from their stat")
+	}
+	if _, _, err := RememberedCapabilityCatalog(ctx, store, 100); err != nil {
+		t.Fatal(err)
+	}
+	if second, _, err := artifact.ResolveAlias(ctx, store, IdentityEvidenceAlias); err != nil || second != first {
+		t.Fatalf("a listing that hashed nothing moved the identity evidence from %v to %v (%v)", first, second, err)
+	}
+}
+
+// TestCapabilityCatalogListsNonInferenceActivations closes the "why only
+// five servable" finding: a model whose only activation is a capability
+// task (forecast here) is invisible to the inference-only Servable query
+// but must appear in the capability catalog beside chat models, carrying
+// its task and tier.
+func TestCapabilityCatalogListsNonInferenceActivations(t *testing.T) {
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	manifest, definition, location := activatedForecaster(t, store)
 	servable, err := Servable(ctx, store, 10)
 	if err != nil {
 		t.Fatal(err)

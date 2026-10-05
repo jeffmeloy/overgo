@@ -127,7 +127,10 @@ func (row Row) Measured(column metric.Name) []Cell {
 // Build reads the scorecard from the store: one row for every activation
 // the capability catalog lists, across every task.
 func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
-	entries, truncated, err := discovery.CapabilityCatalog(ctx, store, catalogLimit, discovery.LoadMemo(ctx, store))
+	// The registered weights this pass hashes persist, so the next build answers from stat checks, as
+	// the capability census does, instead of reading every model's bytes again: about 21 of the
+	// 26 seconds of a build on the real store, 2026-10-05.
+	entries, truncated, err := discovery.RememberedCapabilityCatalog(ctx, store, catalogLimit)
 	if err != nil {
 		return nil, err
 	}

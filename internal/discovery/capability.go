@@ -47,6 +47,19 @@ func CapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int, me
 	return capabilityCatalog(ctx, store, limit, memo, false)
 }
 
+// RememberedCapabilityCatalog is CapabilityCatalog over the store's own digest
+// memo: what the pass hashes is published, so the next one, in this process or
+// another, answers each registered file from its stat instead of reading its
+// bytes again. A pass that hashed nothing publishes nothing.
+func RememberedCapabilityCatalog(ctx context.Context, store *overgodb.Store, limit int) ([]CatalogEntry, bool, error) {
+	memo := LoadMemo(ctx, store)
+	entries, truncated, err := CapabilityCatalog(ctx, store, limit, memo)
+	if err != nil {
+		return nil, false, err
+	}
+	return entries, truncated, PublishMemo(ctx, store, memo)
+}
+
 // RegisteredCatalog includes every registered model identity, even without an
 // activation or available bytes. It shares the serving catalog's activation
 // and presence checks; callers must refuse a truncated campaign denominator.

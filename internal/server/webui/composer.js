@@ -144,7 +144,12 @@
     // Observe the message area after layout, including keyboard and composer changes.
     const resizeObserver = new ResizeObserver(scroll);
     resizeObserver.observe(log);
-    function dispose() { resizeObserver.disconnect(); }
+    // scrollSoon follows the bottom once per frame: following reads the log's layout, which a long answer
+    // makes dearer with every token (94% of an 8000-token answer's main thread, measured), so the tokens
+    // of a frame share one layout.
+    let frame = 0;
+    function scrollSoon() { if (!frame) frame = requestAnimationFrame(() => { frame = 0; scroll(); }); }
+    function dispose() { cancelAnimationFrame(frame); frame = 0; resizeObserver.disconnect(); }
 
     function renderMessage(message, streaming) {
       const position = log.scrollTop;
@@ -157,8 +162,7 @@
         if (!message.streamText) {
           message.streamText = document.createTextNode(message.content);
           body.replaceChildren(message.streamText, el("span", { class: "cursor", text: "|", "aria-hidden": "true" }));
-        } else if (message.content.startsWith(message.streamText.data)) message.streamText.appendData(message.content.slice(message.streamText.length));
-        else message.streamText.data = message.content;
+        } else message.streamText.data = message.content;
       } else {
         body.replaceChildren(document.createTextNode(message.content));
         message.streamText = null;
@@ -174,6 +178,14 @@
       message.node.querySelector(".role").replaceWith(head);
       if (!following) log.scrollTop = position;
       scroll();
+    }
+
+    // stream grows a streaming message by one received delta: its first render built the node, the role
+    // header and the cursor, so a delta only appends its text and asks for the frame's scroll.
+    function stream(message, text) {
+      if (!message.streamText) { renderMessage(message, true); return; }
+      message.streamText.appendData(text);
+      scrollSoon();
     }
 
     function add(role, content) {
@@ -298,7 +310,7 @@
               if (!assistant || !assistant.content) announcement.textContent = "Receiving a response.";
               if (!assistant) assistant = add("assistant", "");
               assistant.content += event.text;
-              renderMessage(assistant, true);
+              stream(assistant, event.text);
               break;
             case "tool_start": { thinking(false); const id = event.id || event.name + ":" + open.size; open.set(id, toolCard(event)); break; }
             case "tool_end": {

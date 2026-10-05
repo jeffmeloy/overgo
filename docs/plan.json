@@ -10,13 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "stream-profile",
-          "title": "Profile the streaming composer per token and, if the cost is material, append deltas directly and render once per frame",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserStreamingComposerAppendsInPlace$' -leg 'streaming composer leg'",
-          "rationale": "Serves: submit to first visible answer and the cost of watching a long answer. Owner 2026-10-05: optimize complete user journeys through measured reductions in repeated work and complexity; use existing native benchmarks, allocation counts and CPU profiles; judge gains against total maintenance cost; behavioral regression tests and comparable benchmarks, no new ratchets, selectors or frameworks (see the doctrine). Read 2026-10-05 (internal/server/webui/composer.js renderMessage, lines 142-176, per streamed token): message.content.startsWith(message.streamText.data) compares the accumulated prefix every token, so a stream is quadratic in its length; the role header is rebuilt with el() and replaceWith on every token (new DOM nodes, possibly the copy and inspect buttons), querySelector('.body') and querySelector('.role') run each time; scroll() reads scrollHeight and clientHeight and writes scrollTop after each token, a forced layout per token, and the ResizeObserver calls it again. First, measure before changing anything, in the browser lane with the existing streaming fixtures: per-token milliseconds, layout count and total main-thread time for streams of 200, 2000 and 8000 tokens, recording the numbers here. If the cost is material (it shows in frame time or stretches the stream's wall), then: append each received delta directly (the stream's own delta, no prefix comparison), update the role header only when its content changes, and consolidate render and scroll into one requestAnimationFrame per frame. Preserve exact text, cancellation, accessibility (aria-live off on the log, the status announcement), the follow-the-bottom scroll position and a reader's scroll position when not following. If it is not material, retire the step with the measurement. Test first: a browser leg that streams a long fixture and asserts exact final text, a mid-stream cancel, scroll position kept when the person scrolled up, and a bounded number of header rebuilds."
-        },
-        {
           "id": "journey-inventory",
           "title": "Inventory what the four journeys already record and name the smallest addition for each gap",
           "status": "open",

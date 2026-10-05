@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "media-delta-command",
-      "title": "Build and register a reviewed media delta with one command, registry identity included",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Build and register a reviewed media delta with one command, registry identity included",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Serves: landing a change under a pinned media path without hand steps. A reviewed delta is built today by validate -receipt (the device receipt), a scratch program that hashes each changed path at HEAD and in the tree and writes the delta JSON, a second that appends it to docs/media_reviewed_deltas.json, and an Edit of the registry's accepted identity constant in cmd/validate/reviewed_delta_registry_test.go; the delta had to be rebuilt by hand again when a doc comment changed one file after the first attempt (training-peak, 2026-10-04, twice). Disappears: the two scratch programs and the hand edit of the constant: one validate subcommand takes the changed paths with their reasons, the receipt and the required tests, writes and appends the delta, and the registry's identity is read from the registry file by the test instead of pinned in Go beside it (the pin existed to make an unreviewed edit fail; the review is the receipt and the reasons, and the git history of the file is the ledger). Evidence: a landing that moves a pinned path passes without any file edited by hand besides the change itself. Batch: cmd/validate is outside the inference surface; the registry test is the gate's own check."
-        }
-      ]
-    },
-    {
       "id": "decode-small-kernels",
       "title": "Fuse the small decode kernels around the matmuls: norm, residual, scale and activation",
       "owner": "master-lead",
@@ -676,7 +661,8 @@
       "blocks": [
         "media-delta-command"
       ],
-      "asked": "2026-10-04"
+      "asked": "2026-10-04",
+      "answer": "Retire the pin, the registry and the gate-time check; the cycle's media acceptance holds the contract"
     }
   ]
 }

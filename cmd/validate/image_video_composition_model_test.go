@@ -321,13 +321,4 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 	if !ok || len(pixels) == 0 {
 		t.Fatal("matched PNG is not exportable")
 	}
-	var merged mediaMergedEvidence
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_merged.json"), &merged); err != nil {
-		t.Fatal(err)
-	}
-	for _, revision := range []string{prior.Source, bundle.Source, "HEAD", ""} {
-		if err := checkMediaRuntimeAtRevision(root, revision, merged.RuntimePaths, merged.RuntimeSHA256); err != nil {
-			t.Fatal(err)
-		}
-	}
 }

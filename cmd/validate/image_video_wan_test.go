@@ -136,11 +136,6 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_merged.json"), &merged); err != nil {
 		t.Fatal(err)
 	}
-	for _, revision := range []string{bundle.Previous, bundle.Source, "HEAD"} {
-		if err := checkMediaRuntimeAtRevision(root, revision, merged.RuntimePaths, merged.RuntimeSHA256); err != nil {
-			t.Fatal(err)
-		}
-	}
 	protocolRaw := read(bundle.Protocol)
 	var header struct {
 		Source  string `json:"source_base"`

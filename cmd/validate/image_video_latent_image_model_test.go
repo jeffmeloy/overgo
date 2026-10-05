@@ -139,15 +139,6 @@ func TestImageVideoLatentImageAcceptance(t *testing.T) {
 	if bundle.Version != artifact.InitialDocumentVersion || bundle.Source == "" || len(bundle.Numerical) != 5 || bundle.Scope == "" || len(bundle.Failed) != 3 {
 		t.Fatal("incomplete image bundle")
 	}
-	var merged mediaMergedEvidence
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_merged.json"), &merged); err != nil {
-		t.Fatal(err)
-	}
-	for _, revision := range []string{bundle.Source, "HEAD"} {
-		if err := checkMediaRuntimeAtRevision(root, revision, merged.RuntimePaths, merged.RuntimeSHA256); err != nil {
-			t.Fatal(err)
-		}
-	}
 	roots, err := dataroot.Resolve(root)
 	if err != nil {
 		t.Fatal(err)

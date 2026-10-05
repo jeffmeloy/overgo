@@ -5,62 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "diffusion-lora",
-      "title": "Train a LoRA adapter on the diffusion transformer with the text adapter's factor math, Muon pack and internal/peft (ai-toolkit sd_trainer; the flow-matching path is already in internal/diffusionimage), saved as PEFT safetensors with a documented key mapping to diffusers and ComfyUI names; acceptance: finite-difference gradients, a loss that falls on a tiny fixture, and a saved adapter that merges to the same output. Aspect-ratio buckets (toolkit/buckets.py), caption dropout and timestep weighting (toolkit/timestep_weighing) follow as declared knobs, each adopted only on measured quality",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Train a LoRA adapter on the diffusion transformer with the text adapter's factor math, Muon pack and internal/peft (ai-toolkit sd_trainer; the flow-matching path is already in internal/diffusionimage), saved as PEFT safetensors with a documented key mapping to diffusers and ComfyUI names; acceptance: finite-difference gradients, a loss that falls on a tiny fixture, and a saved adapter that merges to the same output. Aspect-ratio buckets (toolkit/buckets.py), caption dropout and timestep weighting (toolkit/timestep_weighing) follow as declared knobs, each adopted only on measured quality",
-          "status": "open",
-          "verify": "test -f internal/diffusionimage/lora_test.go \u0026\u0026 go test ./internal/diffusionimage -run '^TestLoRA' -count=1 -v"
-        }
-      ]
-    },
-    {
-      "id": "dataset-auto-caption",
-      "title": "Caption a folder of images with a served vision model and register the folder as a dataset (ai-toolkit extensions_built_in/captioner, Qwen3VLCaptioner), through the existing VQA serving and dataset admission; acceptance: a fixture folder yields one caption per image with the model and prompt recorded, and the Datasets tab offers the result",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Caption a folder of images with a served vision model and register the folder as a dataset (ai-toolkit extensions_built_in/captioner, Qwen3VLCaptioner), through the existing VQA serving and dataset admission; acceptance: a fixture folder yields one caption per image with the model and prompt recorded, and the Datasets tab offers the result",
-          "status": "open",
-          "verify": "test -f internal/dataset/caption_test.go \u0026\u0026 go test ./internal/dataset -run '^TestCaptionFolder$' -count=1 -v"
-        }
-      ]
-    },
-    {
-      "id": "latent-embedding-cache",
-      "title": "Cache the encoded image latents and text-encoder embeddings the image trainer re-derives every step (ai-toolkit cache_latents_to_disk, toolkit/dataloader_mixins.py), keyed by the content hash and the encoder's identity so a changed file or encoder misses instead of serving stale data; acceptance: a second epoch reads the cache with zero encoder runs and the cached step equals the uncached one",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Cache the encoded image latents and text-encoder embeddings the image trainer re-derives every step (ai-toolkit cache_latents_to_disk, toolkit/dataloader_mixins.py), keyed by the content hash and the encoder's identity so a changed file or encoder misses instead of serving stale data; acceptance: a second epoch reads the cache with zero encoder runs and the cached step equals the uncached one",
-          "status": "open",
-          "verify": "test -f internal/latentimage/cache_test.go \u0026\u0026 go test ./internal/latentimage -run '^TestEncodedCache$' -count=1 -v"
-        }
-      ]
-    },
-    {
-      "id": "sft-sequence-packing",
-      "title": "Pack several short conversations into one sequence with attention kept inside each conversation and positions restarted (LlamaFactory neat_packing, data/collator.py), so the text trainer stops spending steps on padding; acceptance: a packed step's loss and gradients equal the sum over the same conversations run separately, and throughput on short conversations rises",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Pack several short conversations into one sequence with attention kept inside each conversation and positions restarted (LlamaFactory neat_packing, data/collator.py), so the text trainer stops spending steps on padding; acceptance: a packed step's loss and gradients equal the sum over the same conversations run separately, and throughput on short conversations rises",
-          "status": "open",
-          "verify": "test -f internal/densecausal/packing_test.go \u0026\u0026 go test ./internal/densecausal -run '^TestPackedSequences$' -count=1 -v"
-        }
-      ]
-    },
-    {
       "id": "quantized-base-lora",
       "title": "Train a LoRA adapter on a quantized base, QLoRA style (LlamaFactory model/adapter.py): the frozen base stays in its GGUF quantization and is dequantized where used, the factors and optimizer state stay f32, and the adapter saves as the same PEFT directory; judged by peak-device-memory and host memory against the dense run at equal held-out quality. Owner fork: taken after the image rows unless the owner wants it first for text models too large for the host trainer",
       "owner": "overgo_gui_cleanup",
@@ -91,7 +35,8 @@
         "latent-embedding-cache",
         "quantized-base-lora"
       ],
-      "asked": "2026-10-04"
+      "asked": "2026-10-04",
+      "answer": "Keep to the text path: drop the three image rows and take quantized-base-lora next, since text models too large for the host trainer are the open gap"
     },
     {
       "id": "packing-isolation",
@@ -104,7 +49,8 @@
       "blocks": [
         "sft-sequence-packing"
       ],
-      "asked": "2026-10-04"
+      "asked": "2026-10-04",
+      "answer": "Retire sft-sequence-packing: packing without isolation is what a window is"
     }
   ]
 }

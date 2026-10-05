@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "media-observation-fields",
-          "title": "Record a web media generation's load, decode, output tokens and device peak as the command line does",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestMediaGenerationRecordsItsLoadAndDecode$'",
-          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): cold model selection to usable response through the media path. internal/server/generation_store_workspace.go:257 publishes the serving observation without Load, Decode, OutputTokens and PeakMeasured, which cmd/recipe/main.go:503 passes, so the load-time, first-output and throughput cells never reflect people using the page for image, video or speech generation. Three fields. Test first: a media generation through the workspace records a load phase and the device peak."
-        },
-        {
           "id": "client-first-token",
           "title": "Show the time from submit to the first visible token beside a chat answer's usage",
           "status": "open",

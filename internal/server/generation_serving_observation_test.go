@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
@@ -35,13 +36,18 @@ func TestGenerationRunPublishesServingObservation(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("activation = (%v, %v)", found, err)
 	}
-	const peak = 3 << 20
+	const (
+		peak        = 3 << 20
+		load        = 2 * time.Second
+		decode      = 5 * time.Second
+		outputToken = 7
+	)
 	catalog := map[recipe.Task]mediacapability.Capability{recipe.TaskImageGen: {
 		Execute: func(_ context.Context, _ artifact.Repository, _ string, _ modelrecipe.CapabilityEvidenceSelection, raw string) (any, error) {
 			if raw == `{"class":2}` {
 				return nil, errors.New("the model refused the class")
 			}
-			return capabilityruntime.Measured{Output: tinyPNG(t), PeakDeviceBytes: peak}, nil
+			return capabilityruntime.Measured{Output: tinyPNG(t), PeakDeviceBytes: peak, Load: load, Decode: decode, OutputTokens: outputToken}, nil
 		},
 	}}
 	workspace := NewStoreGenerationWorkspace(store, BindGenerationCatalog(catalog, mediacapability.Controls, mediacapability.OutputContent), 16)
@@ -65,6 +71,18 @@ func TestGenerationRunPublishesServingObservation(t *testing.T) {
 		if observation.Outcome == runrecord.OutcomeSucceeded && (observation.MeasuredNS == 0 || observation.Resources.PeakDeviceBytes != peak) {
 			t.Fatalf("the success records %d ns and %d peak bytes, want the whole output's time and %d bytes",
 				observation.MeasuredNS, observation.Resources.PeakDeviceBytes, peak)
+		}
+		// What the command line records of an attempt, a person at the page's attempt records too: the load, the
+		// decode and the tokens the executor measured, which the load-time and throughput cells read.
+		if observation.Outcome == runrecord.OutcomeSucceeded {
+			phases := map[runrecord.Phase]uint64{}
+			for _, phase := range observation.Phases {
+				phases[phase.Phase] = phase.DurationNS
+			}
+			if phases[runrecord.PhaseLoad] != uint64(load) || phases[runrecord.PhaseDecode] != uint64(decode) || observation.Usage.OutputTokens != outputToken {
+				t.Fatalf("the success records load %d ns, decode %d ns and %d tokens, want %d, %d and %d",
+					phases[runrecord.PhaseLoad], phases[runrecord.PhaseDecode], observation.Usage.OutputTokens, uint64(load), uint64(decode), outputToken)
+			}
 		}
 	}
 	if outcomes[runrecord.OutcomeSucceeded] != 1 || outcomes[runrecord.OutcomeFailed] != 1 || len(outcomes) != 2 {

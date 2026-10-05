@@ -256,7 +256,10 @@ const generationFailure = "generation_failed"
 func (workspace *storeGenerationWorkspace) observe(ctx context.Context, model, recipeID, run artifact.ID, task recipe.Task, started time.Time, wall time.Duration, measured capabilityruntime.Measured, cause error) {
 	_ = servingattempt.RecordWholeOutput(context.WithoutCancel(ctx), workspace.store, servingattempt.WholeOutput{
 		Model: model, Recipe: recipeID, Run: run, Task: task, Started: started, Wall: wall,
-		PeakDeviceBytes: measured.PeakDeviceBytes, Cause: cause,
+		Load: measured.Load, Decode: measured.Decode, OutputTokens: measured.OutputTokens,
+		// The server's process holds other models, so the executor's own peak is the attempt's, and a zero of it is a
+		// measurement only of an attempt that succeeded having loaded its model (cmd/recipe's devicePeak, for one process).
+		PeakDeviceBytes: measured.PeakDeviceBytes, PeakMeasured: cause == nil && measured.Load > 0, Cause: cause,
 	})
 }
 

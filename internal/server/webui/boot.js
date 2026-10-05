@@ -62,6 +62,9 @@
   // for; newRequestNumber is a UUID where the browser makes one and 128 random bits in hex where it does not.
   const requestNumbers = new Map();
   const unansweredSubmissionLimit = 16;
+  // gatewayStatuses are the answers a timeout or a gateway gives for a server that may have started the run: they leave
+  // a submission unanswered, so its next try goes under the same number.
+  const gatewayStatuses = [408, 502, 503, 504];
   const requestNumberBytes = 16;
   function newRequestNumber() {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -83,7 +86,8 @@
     },
     // submit: a POST of a run the server numbers, so a response lost on its way back leaves the next try of the
     // same submission to find the operation the first started rather than start another. The number is kept only
-    // while the last try got no answer from the server; any answer, a refusal too, settles it.
+    // while the last try got no answer from the server, or only a timeout's or a gateway's; any other answer, a
+    // refusal too, settles it.
     async submit(path, body, opts) {
       const signature = path + JSON.stringify(body);
       const request = requestNumbers.get(signature) || newRequestNumber();
@@ -95,7 +99,7 @@
         requestNumbers.delete(signature);
         return answer;
       } catch (err) {
-        if (err.status) requestNumbers.delete(signature);
+        if (err.status && !gatewayStatuses.includes(err.status)) requestNumbers.delete(signature);
         throw err;
       }
     },

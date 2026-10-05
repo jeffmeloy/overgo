@@ -64,13 +64,6 @@
       },
       "steps": [
         {
-          "id": "submit-keeps-number",
-          "title": "Keep a submission's request number through a timeout or gateway answer",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserSubmitKeepsItsNumberThroughAGatewayAnswer$' -leg 'submit number leg'",
-          "rationale": "Serves: a retry that starts nothing twice. Review of the staged GUI lane merge (2026-10-05): internal/server/webui/boot.js:98 (api.submit) drops the client's request number on any HTTP status, so a waiter's 408 (protocol_io.go:130) or a gateway's 502, 503 or 504 after the server started the run gives the next click a new number and a second run; the comment says an answer settles it, but those answers do not come from the server's handling of the submission. A number kept after a status-less failure never expires (bounded only by unansweredSubmissionLimit): decide whether that needs more than the server's 256-entry ledger. Change: keep the number through 408, 502, 503 and 504, drop it on any other answer. Test first: a browser leg that makes the first try answer 504 and checks the second try carries the same number, and a 400 answer makes a new one."
-        },
-        {
           "id": "checkpoint-own-saves",
           "title": "Prune and resume only this run's own step checkpoints, and refuse another run's directories",
           "status": "open",

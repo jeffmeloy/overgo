@@ -80,9 +80,17 @@ func segmentConversation(messages []dataset.ChatMessage, render ConversationRend
 		if !strings.HasPrefix(through, prompt) || !strings.HasPrefix(full, through) || len(prompt) < done {
 			return nil, errors.New("the chat template does not render the conversation turn by turn, so a reply cannot be told from its prompt: train on the prompts too")
 		}
+		tail, err := turnTail(messages, index, prompt, render)
+		if err != nil {
+			return nil, err
+		}
+		learnedEnd := len(through)
+		if strings.HasSuffix(through, tail) {
+			learnedEnd -= len(tail)
+		}
 		keep(full[done:len(prompt)], false)
-		keep(full[len(prompt):len(through)], true)
-		done = len(through)
+		keep(full[len(prompt):learnedEnd], true)
+		done = learnedEnd
 	}
 	if done == 0 {
 		return nil, errors.New("has no assistant reply to learn")
@@ -91,37 +99,74 @@ func segmentConversation(messages []dataset.ChatMessage, render ConversationRend
 	return segments, nil
 }
 
-// encodeConversation tokenizes a record's segments in order, the first as the
-// tokenizer encodes a conversation and each later one as a continuation of the
-// text before it, and says per token whether its segment is learned. The tokens
-// must be those the whole text encodes to, or a segment boundary falls inside a
-// token and no token can be said to be a reply's: the tokenizer and the
-// template then do not agree where a reply starts.
+// turnWhitespace is what a template may write after the marker that closes a turn.
+const turnWhitespace = " \t\r\n"
+
+// turnTail is the whitespace a template writes after the marker that closes an
+// assistant turn, a newline after an end-of-turn token for one: the learned span of a
+// reply stops before it, since the model would be rewarded for a token only the
+// template has. It is found by rendering the turn with no content, so it is what the
+// template adds after any reply, and is empty for a template that closes a turn with
+// no marker, where whatever follows the reply is the reply's own.
+func turnTail(messages []dataset.ChatMessage, index int, prompt string, render ConversationRenderer) (string, error) {
+	emptied := slices.Clone(messages[:index+1])
+	emptied[index].Content = ""
+	rendered, err := render(emptied, false)
+	if err != nil {
+		return "", err
+	}
+	closing, found := strings.CutPrefix(rendered, prompt)
+	if !found {
+		return "", nil
+	}
+	marker := strings.TrimRight(closing, turnWhitespace)
+	if marker == "" {
+		return "", nil
+	}
+	return closing[len(marker):], nil
+}
+
+// encodeConversation tokenizes a record's segments as the tokenizer encodes the whole
+// text, and says per token whether its segment is learned: a segment ends where the
+// encoding of the text up to its end does, which must be the start of the whole
+// text's encoding, or a segment boundary falls inside a token and no token can be
+// said to be a reply's: the tokenizer and the template then do not agree where a
+// reply starts. Every boundary is placed in text that begins at the start, so a
+// vocabulary that adds a space at the start of what it encodes, or a token at the
+// end, is read as it reads the whole.
 func encodeConversation(tokens trainableTokenizer, segments []conversationSegment) ([]int, []bool, error) {
-	var ids []int
-	var trained []bool
 	var whole strings.Builder
-	for index, segment := range segments {
-		encode := tokens.extend
-		if index == 0 {
-			encode = tokens.encode
-		}
-		piece, err := encode(segment.Text)
-		if err != nil {
-			return nil, nil, err
-		}
-		ids = append(ids, piece...)
-		trained = append(trained, slices.Repeat([]bool{segment.Trained}, len(piece))...)
+	for _, segment := range segments {
 		whole.WriteString(segment.Text)
 	}
-	if len(segments) > 1 {
-		again, err := tokens.encode(whole.String())
-		if err != nil {
-			return nil, nil, err
+	ids, err := tokens.encode(whole.String())
+	if err != nil {
+		return nil, nil, err
+	}
+	trained := make([]bool, len(ids))
+	var prefix strings.Builder
+	start := 0
+	for at, segment := range segments {
+		prefix.WriteString(segment.Text)
+		end := len(ids)
+		if at < len(segments)-1 {
+			head, err := tokens.encode(prefix.String())
+			if err != nil {
+				return nil, nil, err
+			}
+			// A token the vocabulary adds at the end of what it encodes belongs to the end of the text.
+			if tokens.ended && len(head) > 0 && head[len(head)-1] == tokens.end && (len(head) > len(ids) || ids[len(head)-1] != tokens.end) {
+				head = head[:len(head)-1]
+			}
+			if len(head) > len(ids) || !slices.Equal(head, ids[:len(head)]) {
+				return nil, nil, errors.New("the tokenizer encodes the conversation up to a turn to other tokens than it begins its whole encoding with, so a reply's tokens cannot be told from its prompt's: train on the prompts too")
+			}
+			end = len(head)
 		}
-		if !slices.Equal(again, ids) {
-			return nil, nil, errors.New("the tokenizer encodes the conversation turn by turn to other tokens than it encodes it whole, so a reply's tokens cannot be told from its prompt's: train on the prompts too")
+		for position := start; position < end; position++ {
+			trained[position] = segment.Trained
 		}
+		start = end
 	}
 	return ids, trained, nil
 }

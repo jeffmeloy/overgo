@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 140,
-        "reason": "A numbered submission is finished however submitting returns (run, with the abandoned error a panic leaves its waiters) and a failed one leaves the ledger's order; those are the growth of the run ledger step. Earlier allowance kept: the request ring's nine named methods."
+        "nodes": 400,
+        "reason": "A numbered submission is finished however submitting returns (run, with the abandoned error a panic leaves its waiters) and a failed one leaves the ledger's order; those are the growth of the run ledger step. Earlier allowance kept: the request ring's nine named methods. Conversation boundaries: the whole text's encoding places each segment boundary through prefix encodings (replacing the continuation encoder, which is deleted) and turnTail finds the whitespace a template writes after its end-of-turn marker; the held-tensor refusal at load, still to come, is the rest of the row's allowance."
       },
       "steps": [
-        {
-          "id": "conversation-boundary-tokens",
-          "title": "Hold a conversation's segment boundary to a tokenizer that adds a prefix, and learn a reply without the template's trailing newline",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestConversationBoundaryHoldsForAPrefixingTokenizer$'",
-          "rationale": "Serves: masked fine-tuning on the model families that most users run. What the skip-and-count step (conversation-run-robust, landed with checkpoint-own-saves) left of the GUI lane review: encodeConversation (conversation_mask.go) encodes the first segment with the tokenizer's encode and each later one with trainable_input.go's extend, and a SentencePiece vocabulary that adds the dummy-prefix space (tokenizer/bpe.go, AddPrefix) re-adds it at the start of every continuation while the whole text has it once, so the equality check fails for every conversation on Llama-2, Mistral and Gemma GGUFs and each is now skipped (medium confidence: it depends on AddPrefix); the same check fails for a vocabulary that adds an end token to the first segment's encode. The learned span through - prompt (segmentConversation) includes the template's trailing newline after the end-of-turn marker, a free token in the loss and the accuracy; training loss is a micro-mean over each window's selected rows while held-out accuracy is a per-record fraction (see gui-lane-review-residue/loss-mask for the metric that names its scope). Change: encode each prefix of the segments whole and place a boundary where the shorter encoding is a prefix of the longer one, so no continuation encoder is needed, and cut the learned span at the end-of-turn marker. Test first: a vocabulary that adds a prefix cuts a conversation at the same tokens as the whole encoding, and a reply's learned tokens end at the marker.\n\nLanded: a conversation the model's template or tokenizer cannot cut, or whose reply the window does not reach, is skipped, named with its reason in HeldoutResult.Skipped, on the run's progress and as the server's skipped_conversations metric; the run is refused only when none can be learned from. The held-out set is built from the usable conversations, so no run judges a subset it chose after the split. A reply the model's own context (below the 512-token window) does not reach is still the run's error."
-        },
         {
           "id": "held-tensor-readable",
           "title": "Refuse at load a held quantized tensor the dequantizer cannot read",

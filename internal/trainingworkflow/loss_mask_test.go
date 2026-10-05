@@ -184,22 +184,22 @@ func TestSegmentConversationRefusesWhatItCannotCut(t *testing.T) {
 	}
 }
 
+// bytesOf is a tokenizer's byte-per-token encoding of text.
+func bytesOf(text string) []int {
+	ids := make([]int, len(text))
+	for index := range text {
+		ids[index] = int(text[index])
+	}
+	return ids
+}
+
 // TestEncodeConversationMarksTheTokensOfLearnedSegments checks each token takes
-// its segment's flag, the first segment opens as a chat does and the rest
-// continue it, and a tokenizer that disagrees with itself about where a reply
-// starts is refused.
+// its segment's flag, the start token opens the conversation once, and a
+// tokenizer that disagrees with itself about where a reply starts is refused.
 func TestEncodeConversationMarksTheTokensOfLearnedSegments(t *testing.T) {
 	const start = 99
-	bytesOf := func(text string) []int {
-		ids := make([]int, len(text))
-		for index := range text {
-			ids[index] = int(text[index])
-		}
-		return ids
-	}
 	tokens := trainableTokenizer{
 		encode: func(text string) ([]int, error) { return append([]int{start}, bytesOf(text)...), nil },
-		extend: func(text string) ([]int, error) { return bytesOf(text), nil },
 	}
 	segments := []conversationSegment{{Text: "ab"}, {Text: "cd", Trained: true}, {Text: "e"}}
 	ids, trained, err := encodeConversation(tokens, segments)
@@ -212,11 +212,76 @@ func TestEncodeConversationMarksTheTokensOfLearnedSegments(t *testing.T) {
 	if want := []bool{false, false, false, true, true, false}; !slices.Equal(trained, want) {
 		t.Errorf("trained %v, want %v", trained, want)
 	}
-	// A tokenizer whose continuation adds a space prefix, as a sentencepiece vocabulary may.
-	prefixing := tokens
-	prefixing.extend = func(text string) ([]int, error) { return bytesOf(" " + text), nil }
-	if _, _, err := encodeConversation(prefixing, segments); err == nil || !strings.Contains(err.Error(), "turn by turn") {
-		t.Errorf("a tokenizer that disagrees with itself: err = %v", err)
+	// A tokenizer that merges "bc" into one token, so the boundary after "ab" falls inside it.
+	merging := trainableTokenizer{encode: func(text string) ([]int, error) {
+		var ids []int
+		for position := 0; position < len(text); position++ {
+			if strings.HasPrefix(text[position:], "bc") {
+				ids, position = append(ids, 200), position+1
+				continue
+			}
+			ids = append(ids, int(text[position]))
+		}
+		return ids, nil
+	}}
+	if _, _, err := encodeConversation(merging, segments); err == nil || !strings.Contains(err.Error(), "train on the prompts too") {
+		t.Errorf("a tokenizer that merges across a boundary: err = %v", err)
+	}
+}
+
+// TestConversationBoundaryHoldsForAPrefixingTokenizer holds a segment boundary to what the
+// tokenizer reads the whole text as: a vocabulary that adds a space at the start of the text
+// it encodes, as a sentencepiece one does, and one that adds an end token, cut a conversation
+// at the tokens its whole encoding has (a continuation encoder re-added the space at every
+// boundary, so every conversation was refused); and a reply's learned tokens end at the
+// template's end-of-turn marker, not at the newline the template writes after it.
+func TestConversationBoundaryHoldsForAPrefixingTokenizer(t *testing.T) {
+	const start, space, end = 99, 32, 98
+	segments := []conversationSegment{{Text: "ab"}, {Text: "cd", Trained: true}, {Text: "e"}}
+	prefixing := trainableTokenizer{encode: func(text string) ([]int, error) { return append([]int{start, space}, bytesOf(text)...), nil }}
+	ids, trained, err := encodeConversation(prefixing, segments)
+	if want := append([]int{start, space}, bytesOf("abcde")...); err != nil || !slices.Equal(ids, want) {
+		t.Fatalf("a prefixing tokenizer: tokens %v (%v), want its whole encoding %v", ids, err, want)
+	}
+	if want := []bool{false, false, false, false, true, true, false}; !slices.Equal(trained, want) {
+		t.Errorf("a prefixing tokenizer: trained %v, want %v: the prefix belongs to the first segment", trained, want)
+	}
+	closing := trainableTokenizer{end: end, ended: true, encode: func(text string) ([]int, error) { return append(bytesOf(text), end), nil }}
+	ids, trained, err = encodeConversation(closing, segments)
+	if want := append(bytesOf("abcde"), end); err != nil || !slices.Equal(ids, want) {
+		t.Fatalf("a tokenizer that adds an end token: tokens %v (%v), want %v", ids, err, want)
+	}
+	if want := []bool{false, false, true, true, false, false}; !slices.Equal(trained, want) {
+		t.Errorf("a tokenizer that adds an end token: trained %v, want %v: the end token follows the last segment", trained, want)
+	}
+
+	// A template that closes each turn with a marker and a newline.
+	marked := func(messages []dataset.ChatMessage, generationPrompt bool) (string, error) {
+		var text strings.Builder
+		for _, message := range messages {
+			text.WriteString("<" + message.Role + ">" + message.Content + "</>\n")
+		}
+		if generationPrompt {
+			text.WriteString("<assistant>")
+		}
+		return text.String(), nil
+	}
+	messages := []dataset.ChatMessage{{Role: "user", Content: "ab"}, {Role: "assistant", Content: "cd"}}
+	cut, err := segmentConversation(messages, marked, false)
+	want := []conversationSegment{{Text: "<user>ab</>\n<assistant>"}, {Text: "cd</>", Trained: true}, {Text: "\n"}}
+	if err != nil || !slices.Equal(cut, want) {
+		t.Errorf("a template that follows its marker with a newline: segments %+v (%v), want %+v", cut, err, want)
+	}
+	// A template with no marker keeps whatever follows the reply as the reply's own.
+	plain := func(messages []dataset.ChatMessage, generationPrompt bool) (string, error) {
+		text, err := letters(messages, generationPrompt)
+		if !generationPrompt {
+			text += "\n"
+		}
+		return text, err
+	}
+	if cut, err = segmentConversation(messages, plain, false); err != nil || len(cut) == 0 || cut[len(cut)-1].Text != "cd\n" || !cut[len(cut)-1].Trained {
+		t.Errorf("a template with no marker: segments %+v (%v), want the reply learned through its newline", cut, err)
 	}
 }
 

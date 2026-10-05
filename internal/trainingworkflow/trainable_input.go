@@ -69,12 +69,9 @@ func loadFrozenModel(input string, hold func(name string) bool) (*densecausal.Mo
 // trainableTokenizer: the encoder training reads text with, each token's
 // text for showing what it read, and the end-of-sequence token the model
 // declares, which separates documents packed into one training window;
-// ended is false when the model declares none. extend encodes text that
-// follows text already encoded, as encode would, without the start token a
-// chat encoding opens with.
+// ended is false when the model declares none.
 type trainableTokenizer struct {
 	encode func(string) ([]int, error)
-	extend func(string) ([]int, error)
 	piece  func(int) string
 	end    int
 	ended  bool
@@ -110,7 +107,7 @@ func loadTrainableTokenizerFor(input string, chat bool) (trainableTokenizer, err
 		if err != nil {
 			return trainableTokenizer{}, err
 		}
-		return trainableTokenizer{encode: loaded.Encode, extend: loaded.Encode, piece: func(id int) string { return loaded.Decode([]int{id}) }, end: end, ended: ended}, nil
+		return trainableTokenizer{encode: loaded.Encode, piece: func(id int) string { return loaded.Decode([]int{id}) }, end: end, ended: ended}, nil
 	}
 	file, err := gguf.Open(input)
 	if err != nil {
@@ -136,7 +133,6 @@ func loadTrainableTokenizerFor(input string, chat bool) (trainableTokenizer, err
 	}
 	return trainableTokenizer{
 		encode: encodeWith(tokenizer.EncodeOptions{AddSpecial: chat, ParseSpecial: chat}),
-		extend: encodeWith(tokenizer.EncodeOptions{ParseSpecial: chat}),
 		// A piece the vocabulary cannot decode shows empty; the id stays beside it.
 		piece: func(id int) string { piece, _ := vocabulary.DecodePiece(tokenizer.TokenID(id), true); return piece },
 		end:   int(vocabulary.EOS), ended: vocabulary.EOS != tokenizer.NullToken,

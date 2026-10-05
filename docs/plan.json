@@ -4,6 +4,21 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "scorecard-gap-key",
+      "title": "validate -scorecard -gap reads a key that names no gap as closed",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "validate -scorecard -gap reads a key that names no gap as closed",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestOpenGapRefusesAKeyThatNamesNoGap$'",
+          "rationale": "Serves: the honesty of every row a verifier closes. Evidence (2026-10-05): cee26ab22 retired four rows (projection, training, transcription, vqa) on 'validate -scorecard -gap \u003ctask\u003e reports closed'; the key the rows carry is scorecard-unmeasured-\u003ctask\u003e, and openGap (cmd/validate/scorecard.go) answers '\u003ckey\u003e is closed.' for any key that matches no gap, so a mistyped key passes vacuously. Improvement cycle 14's scorecard proposed the four rows again. Change: openGap refuses a key that is not scorecard-\u003ckind\u003e-\u003ctask\u003e for a gap kind the scorecard produces and a task the catalog knows, with the test; closed then means a well-formed key whose gap is absent. Predicted effect: none a user reads; a row's closure can no longer rest on a vacuous pass."
+        }
+      ]
+    },
+    {
       "id": "evidence-authority",
       "title": "Use checked evidence and explicit source and replay scope in reports",
       "owner": "master-lead",
@@ -179,6 +194,21 @@
       ]
     },
     {
+      "id": "e4b-accepted-coverage",
+      "title": "Accepted coverage names E4B's replaced recipe: the models lane fails every cycle until the cell is re-accepted or the document stops pinning the recipe",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Accepted coverage names E4B's replaced recipe: the models lane fails every cycle until the cell is re-accepted or the document stops pinning the recipe",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestAcceptedTextVisionEvidence$'",
+          "rationale": "Serves: every improvement cycle's promotion and the honesty of the accepted-coverage census. Evidence (2026-10-05, cycle 14 at cee26ab22, the models lane, OVERGO_DATA_ROOT set): TestAcceptedTextVisionEvidence, TestAcceptedModalityCoverage, TestAcceptedProtocolCoverageProjection and TestStructuredMediaReportProjection fail with 'coverage: missing, duplicate or changed activation model:sha256:fb09299d.../inference' (E4B). docs/verification/text-vision-coverage.json (and e4b-validation.json) declare E4B's accepted inference cell under recipe d6ba6736, the activation before the E4B graph replay (2026-10-04, output digest 94ce44fc unchanged); the store's active inference recipe for E4B is now 8fbd18e6, so the accepted denominator no longer matches the live catalog, and the cell's proofs (modality-verification/retained-model-bundles, thirty E4B native-protocol, quality and resource cells) were acquired under the old recipe. The same cycle also failed cmd/benchmark-report's TestAcceptedSmallModelMMLUPro for a different reason, which landed as a fix beside this row: the smoke declaration no longer names a recipe (smoke-declaration-recipe, 2026-10-05) and that test still compared the declared one. Why the gate did not see either: both read the live store and run in the cycle's models lane, not in the landing's. Options: (a) re-acquire E4B's retained modality bundles under the new recipe and update the document and its digest pins (device hours, the rigorous path); (b) make the coverage document name the model's capability and proofs and bind the recipe the way the smoke declaration now does, with each proof still carrying the recipe it was acquired under so a replaced recipe is visible as proof-for-an-earlier-recipe, not as a failing census; (c) accept the replacement as output-identical on the recorded digest and re-pin (a hand edit of evidence authority: never without the owner). Recommend (b), then (a) for the proofs the cycle does not re-acquire. Until then no cycle's models lane passes, so no cycle can promote, in addition to the owner's baseline-comparison-authority decision."
+        }
+      ]
+    },
+    {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
       "owner": "master-lead",
@@ -216,7 +246,9 @@
             "gui-lane-review-fixes/do",
             "gui-lane-review-residue/do",
             "host-linear-backward/do",
-            "host-linear-interleave/do"
+            "host-linear-interleave/do",
+            "e4b-accepted-coverage/do",
+            "scorecard-gap-key/do"
           ]
         }
       ]
@@ -383,6 +415,126 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-vqa",
           "rationale": "- Hy-Embodied-RxBrain-1.0 held-out-quality: no held-out evaluation for vqa yet; proposed: the image caption-matching set the store already scores a projection on, then A-OKVQA validation (HuggingFaceM4/A-OKVQA, 60 MB) multiple-choice accuracy\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unknown-inference",
+      "title": "Measure inference held-out quality again on the baseline scorecard's models and contracts",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure inference held-out quality again on the baseline scorecard's models and contracts",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unknown-inference",
+          "rationale": "- Bonsai-27B-Q1_0 held-out-quality: evaluation comparison authority is unknown\n- Bonsai-27B-Q1_0 held-out-quality: evaluation comparison authority is unknown\n- Carbon-500M-f16-ropefix held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.8-27B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.8-27B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.8-27B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.8-27B held-out-quality: evaluation comparison authority is unknown\n- Unlimited-OCR-bf16 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unknown-projection",
+      "title": "Measure projection held-out quality again on the baseline scorecard's models and contracts",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure projection held-out quality again on the baseline scorecard's models and contracts",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unknown-projection",
+          "rationale": "- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unknown-training",
+      "title": "Measure training held-out quality again on the baseline scorecard's models and contracts",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure training held-out quality again on the baseline scorecard's models and contracts",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unknown-training",
+          "rationale": "- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unknown-transcription",
+      "title": "Measure transcription held-out quality again on the baseline scorecard's models and contracts",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure transcription held-out quality again on the baseline scorecard's models and contracts",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unknown-transcription",
+          "rationale": "- granite-speech-5.0-470m-turboctc held-out-quality: evaluation comparison authority is unknown\n- nemotron-3.5-asr-streaming-0.6b held-out-quality: evaluation comparison authority is unknown\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-projection",
+      "title": "Measure projection's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure projection's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-projection",
+          "rationale": "- Qwen3.8-27B first-output: no benchmark time to first token and no serving prefill sample\n- Qwen3.8-27B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.8-27B failure-rate: no completed serving attempts recorded\n- Qwen3.8-27B load-time: no benchmark load time and no recorded load phase\n- Qwen3.8-27B peak-device-memory: no benchmark or serving peak device memory\n- gemma-4-E4B-it first-output: no benchmark time to first token and no serving prefill sample\n- gemma-4-E4B-it throughput: no benchmark decode rate and no served decode phase with output tokens\n- gemma-4-E4B-it failure-rate: no completed serving attempts recorded\n- gemma-4-E4B-it load-time: no benchmark load time and no recorded load phase\n- gemma-4-E4B-it peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-training",
+      "title": "Measure training's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure training's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- LiveEdit throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen2.5-0.5B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-4B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-4B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-9B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-9B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Wan2.1-T2V-1.3B throughput: no benchmark decode rate and no served decode phase with output tokens\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-transcription",
+      "title": "Measure transcription's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure transcription's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-transcription",
+          "rationale": "- granite-speech-5.0-470m-turboctc throughput: no benchmark decode rate and no served decode phase with output tokens\n- nemotron-3.5-asr-streaming-0.6b throughput: no benchmark decode rate and no served decode phase with output tokens\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-vqa",
+      "title": "Measure vqa's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure vqa's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-vqa",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 load-time: no benchmark load time and no recorded load phase\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     }

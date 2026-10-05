@@ -4,6 +4,121 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "main-staging",
+      "title": "Local main is only GitHub staging: judge a cycle against a recorded baseline, record the commit that held, push only when asked",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "baseline-decoupled",
+          "title": "Choose the comparison baseline from the records, not from where main points",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestBaselineIsTheNewestHeldRecordNotMain$'",
+          "rationale": "Serves: promotion that no longer depends on a branch pointer, and the open decision baseline-comparison-authority. Owner 2026-10-05: main is only used for GitHub staging (origin/main is 194 commits behind and is pushed only when asked), not the branch users run. The code still reads it as that: internal/scorecard/record.go PromotedBranch, Baseline (:111, the newest earlier record whose commit main holds) and Withheld (:136, no earlier scorecard measured the commit main holds), cmd/loop/improve.go:85-101 (promotion update-refs main, fast-forward only), the message in cmd/validate/selection.go:194. Change: the cycle records the commit that held as a marker beside its scorecard record instead of moving a branch, and Baseline is the newest earlier record that held, or the record the owner designates; main stays a staging pointer nothing reads. Designating the first baseline is the owner's one decision (cycle 10's 48d44c5b4 carries comparison authority; so will any later record that passes its lanes). Test first: Baseline returns the held record with main pointing elsewhere or absent, and never a record that did not hold. Do not answer baseline-comparison-authority: it is the owner's."
+        },
+        {
+          "id": "push-held",
+          "title": "Push the last held commit to origin/main only when asked, fast-forward only",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestPushHeldPushesTheHeldCommitOnlyWhenAsked$'",
+          "rationale": "Serves: the owner's rule (push only when asked) as a command instead of a hand step. A small command, run by the owner, computes the last held commit from the records and runs git push origin \u003ccommit\u003e:main, refusing anything that is not a fast-forward of origin/main and refusing to run from the loop or without its explicit flag. The loop itself never pushes. Test first: the held commit is the one pushed; without the flag nothing is; a non-descendant of origin/main is refused (a temporary bare repository as origin)."
+        }
+      ]
+    },
+    {
+      "id": "sqa-defects",
+      "title": "Repair the confirmed defects the SQA review of da1ec2c77 found, P1 first",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "carried-receipt",
+          "title": "Read a carried quality's scoring commit as unknown when a recognized receipt cannot be read",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestScoredCommitIsUnknownForAnUnreadableReceipt$'",
+          "rationale": "Serves: carried-quality attribution that never names a wrong commit. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run) note on da1ec2c77: carriedReceipt returns zero for a recognized replay receipt that cannot be read (RequireReplayReceipt fails) exactly as for a run with no receipt, so scoredCommit walking a chain stops at the broken link and returns that run's CodeCommit as the scoring commit. Change: carriedReceipt tells a run with no receipt from a recognized receipt it cannot read, and scoredCommit returns empty for the second (the cell then carries no scoring commit, as for an unreadable link). Test first: a chain with one unreadable receipt reads empty, an intact chain still names the first run (cmd/validate TestEvaluationReplayCarriesIdenticalOutputs keeps its assertions)."
+        },
+        {
+          "id": "peft-resume-base",
+          "title": "Bind a resumed PEFT merge to the exact base model as well as the adapter (SQA-093, P1)",
+          "status": "open",
+          "verify": "go test ./internal/peft -count=1 -run '^TestMergeRefusesTheStagedPartialOfAnotherBase$'",
+          "rationale": "Serves: a merged checkpoint that is one model. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): mergePlan binds the adapter, modules, factors and the output shard, name, dtype and shape catalog, but no base model identity; Merge opens whatever base directory the caller names and skips writer.Completed tensors, and StreamingWriter accepts an existing .partial with the same plan hash without comparing staged tensors to the new source, so two bases of one catalog and different weights share a plan: a tensor staged from base A is skipped while the rest come from base B and Finalize publishes a hybrid, with base companions copied from B (public cmd/gguf merge-lora). The existing fixture refuses a different adapter on one unchanged base. Change: the plan metadata carries the content identity of the base components each output depends on, through the existing source/artifact content owner (not paths or timestamps); a partial from another or unknown base is refused before any tensor is skipped; an unchanged base resumes, a changed adapter still refuses. Test first: extend TestMergeRefusesTheStagedPartialOfAnotherAdapter with two tiny bases of identical catalog and different bytes (stage under A, resume under B must refuse), and a same-base resume equals an uninterrupted merge. Count the identity reads. Related: evidence-authority/source-environment."
+        },
+        {
+          "id": "capability-refresh",
+          "title": "Bind a skipped capability refresh to a validated selection at the current head (SQA-095, P1)",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime -count=1 -run '^TestSkippedRefreshNeedsAValidatedSelectionAtTheHead$'",
+          "rationale": "Serves: capability authority that is validated, not assumed from an unchanged head. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): ModelSessionDirector.refreshExecution (internal/capabilityruntime/session_director.go:91) calls one director-wide HeadBoundView.Reconcile that adopts the new head before RefreshCapabilityExecution succeeds, and on changed=false returns the supplied execution without validating its identity, scope or aliases: after a stale selected alias is removed, a first refresh rejects it but advances the view, so a retry of the same selection at that unchanged head skips the rejection; a successful refresh of selection A proves nothing of B; a concurrent request can see the advanced head before the first refresh finishes. Change: keep modelrecipe.RefreshCapabilityExecution the authority; drop the unconditional unchanged-head return or reuse only a result validated for the exact selection identity, scope and store coordinate, never publishing proof before validation completes or caching a refusal as success. Test first: a tiny real activation store removes a selected alias; repeated attempts on the unchanged head refuse before load, its independent alternate passes, two selections and an in-flight or failed refresh cannot borrow each other's proof, compatible rebinding still works."
+        },
+        {
+          "id": "retiring-close",
+          "title": "Count every retiring model until its Close completes (SQA-096)",
+          "status": "open",
+          "verify": "go test ./internal/capabilityruntime -count=1 -run '^TestBlockedCloseHoldsCapacityOnEveryRetirementPath$'",
+          "rationale": "Serves: the session capacity and shutdown guarantees. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): capacity admission counts len(entries)+retiring; supersedeLocked and failed-load removal increment retiring and finishRetirement (session_director.go:792) decrements it after closeEntry returns, but ordinary idle eviction and retire (execution or reset errors, request-scoped completion) delete the entry and notify before calling Close without counting it, so at capacity one a Close blocked on a channel lets another caller start a replacement load, and director Close can report complete while a separate Close is still running. Change: route eviction and retirement through the existing retirement accounting and completion owner (entry mutex and borrower ownership observed, no double close), keeping removed entries counted and shutdown aware until Close returns, with its error. Test first: at capacity one a channel-blocked Close during idle eviction and during request-error retirement prevents a second load until released, Snapshot includes the retiring resource, and director Close waits; the existing reuse, bounded-wait, replace-before-drain and exactly-once-Close assertions stay."
+        },
+        {
+          "id": "gguf-rank",
+          "title": "Validate a GGUF attention tensor's rank and geometry before unpermuting its rows (SQA-094)",
+          "status": "open",
+          "verify": "go test ./internal/densecausal -count=1 -run '^TestLlamaGGUFRefusesAMalformedAttentionProjection$'",
+          "rationale": "Serves: a refusal where a panic crosses an error boundary. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): 04eec10f0 moved the llama q/k row transformation ahead of shape validation, so a structurally valid GGUF naming blk.0.attn_q.weight or attn_k.weight with one positive extent loads, and LoadGGUF evaluates shape[1] and panics before tensorcatalog.Shape can return a rank error; unpermuteRows also divides rows by heads by two, so the projection and head geometry must be checked before any transformation, not trusted from metadata. Reachable through loadTrainableModel (CLI and workspace training). Change: validate rank and per-head paired-row geometry through the existing tensorcatalog shape owner first and return a contextual error; no panic recovery, no truncation or padding. Test first: the existing tiny llama fixture with a rank-one projection and with inconsistent geometry returns an error; load_gguf_unpermute_test.go's valid-permutation and MiniCPM agreement assertions stay."
+        },
+        {
+          "id": "interrupted-credit",
+          "title": "Key interrupted cell and publication credit to the inputs the run consumed (SQA-089)",
+          "status": "open",
+          "verify": "go test ./cmd/loop -count=1 -run '^TestCycleCreditFollowsTheInputsARunConsumes$'",
+          "rationale": "Serves: a resumed cycle that never credits a measurement its inputs invalidated. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): eb15395a8 keys credit to HEAD, the absolute store and obligationsDigest and reruns lanes on every resume (credited), but obligationsDigest projects only model, kind, validation, protocol, recipe, location and promotion: ModelValidation.Directory, Grounding, Objective, Conditioning, Projector, the baseline scorecard identity and the executing environment are absent, so a changed declared input (groundTraining derives Objective and Conditioning that trainingRun consumes) can leave the key equal. Change: derive the key from the typed execution obligations and the existing evidence input and environment identities, excluding measured cost and replay pointers only where they cannot change the acceptance contract; unknown validity credits nothing. Test first: extend TestObligationsDigestIgnoresWhatARunChanges with real changes to Directory, Grounding, Objective, Conditioning and Projector (each invalidates the affected cells and the publication that depends on them) and keep the cost and replay neutrality, other-store, other-commit and failed-phase cases. Related: evidence-authority/source-environment, campaign-closeout."
+        },
+        {
+          "id": "download-cancel",
+          "title": "Hold download capacity and history until a cancelled transfer actually finishes (SQA-081)",
+          "status": "open",
+          "verify": "go test ./internal/server -count=1 -run '^TestCancelledDownloadHoldsItsSlotUntilItFinishes$'",
+          "rationale": "Serves: the configured transfer bound. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): cancel changes the rendered state at once and admit counts running labels and can evict non-running jobs while Client.Download and its cleanup are still active, so cancelling A and admitting B at capacity one runs two. Actual completion is already owned by runHubDownload (internal/server/hub_workspace.go:568) and its WaitGroup. Change: admission and eviction use that in-flight ownership, capacity and history protection release on actual completion, immediate API cancellation reporting, the shutdown wait, destination locks and the stable cancelled outcome stay; the label-poll loop and its immediate-admission expectation are deleted. Test first: a deterministic pending-completion case (cancellation alone releases neither the slot nor the history protection; completion releases both)."
+        }
+      ]
+    },
+    {
+      "id": "dev-speed",
+      "title": "Cut the time a landing, a cycle and a resumed cycle cost, from the session's measurements",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "multi-step-landing",
+          "title": "Let one landing complete several plan steps with one gate run",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestLandingCompletesSeveralSteps$'",
+          "rationale": "Serves: the landing wall, which is mostly lanes (10 to 17 minutes whatever the change). Evidence 2026-10-05: seven audit landings cost about 1.5 hours of waiting. Change: -land takes more than one item/step, one commit with a Landed-Row trailer per step and each step's removal; every named step's verify must pass and the message states a Cause and a Predicted effect that covers them. Test first: two steps land together, both are removed, both trailers are in git, and one failing verify refuses the whole landing."
+        },
+        {
+          "id": "tagged-lane-impact",
+          "title": "Run the modeltest tests a landing's changed packages reach, in the landing",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTaggedTestsRunWhenTheirClosureChanges$'",
+          "rationale": "Serves: failures found at landing time, not 2.5 hours later in a cycle. Evidence 2026-10-05: cycle 14's models lane found two bugs a landing could have (cmd/benchmark-report TestAcceptedSmallModelMMLUPro after smoke-declaration-recipe, and the cmd/validate accepted-coverage census after the E4B recipe replacement) because modeltest-tagged tests read the live store and only the cycle runs them. Change: the landing maps its changed packages to the tagged tests whose package closure (go list -deps -test -tags modeltest) contains one and runs those against the store; the four coverage tests took 83 s, so it runs only the reachable ones. Test first: a changed package inside a tagged test's closure selects it, one outside does not."
+        },
+        {
+          "id": "gate-profile",
+          "title": "Profile the gate's own wall and overlap CPU-only lanes with the device lane",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestCPULanesOverlapTheDeviceLane$'",
+          "rationale": "Serves: the landing wall. The method that took a host LoRA step from 3m54s to 18.4 s (average cores = pprof samples over wall) applies to the gate: the device and cuda lanes run -p=1 and the machine has 32 cores. First measure, per stage and lane, wall and average cores for three real landings and record them in this step; then overlap the lanes that need no device with the device lane where nothing times a cell (a cycle's timed cells stay alone on the machine). Test first: the lane scheduler starts a CPU-only lane while a device lane runs and never two device lanes."
+        },
+        {
+          "id": "computation-fingerprint",
+          "title": "Carry a measurement when the computation that produced it is unchanged",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestMeasurementCarriesWhileTheComputationFingerprintHolds$'",
+          "rationale": "Serves: the cycle (about 1.5 h of cells, 1 h of lanes and up to 1.9 h per bbh cell in the fill, 17 cells, re-acquired every cycle) and every resumed cycle. Most commits touch no inference path. Idea: a per-recipe computation fingerprint, the hash of the transitive Go packages that execute it (go list -deps), its kernels, recipe, weights and environment; a measurement taken at an equal fingerprint is carried (the replay-and-carry of evaluations already does this for quality, with a 32-case replay as the check), and only cells whose fingerprint moved run. First step of the work: measure over the last cycles how many re-measured cells had an equal fingerprint (record the count here), then the evaluation owner takes it. Replaces hand-listed runtime paths (the media pin was retired for that reason). Test first: an unrelated package change leaves the fingerprint, a package or kernel the recipe reaches changes it."
+        }
+      ]
+    },
+    {
       "id": "evidence-authority",
       "title": "Use checked evidence and explicit source and replay scope in reports",
       "owner": "master-lead",
@@ -25,7 +140,7 @@
           "title": "Leave a transcription row's quality a gap, with its reason, when its report is unreadable",
           "status": "open",
           "verify": "go test ./internal/scorecard -count=1 -run '^TestUnreadableTranscriptionReportIsAGap$'",
-          "rationale": "Serves: the same robustness the verdict-gap step gave held-out verdicts. Audit 2026-10-05 (read): internal/scorecard/transcription_read.go:81-95,117-121 TranscriptionQualities returns an error that aborts scorecard.Build when one transcription report is unreadable; it should become a row gap with the reason, as heldoutRecord.unreadable does (the evidence stays strict: an unreadable report is never a value). Failing test first: an unreadable report leaves the other rows measured and its row's quality a gap that reads the reason."
+          "rationale": "Serves: the same robustness the verdict-gap step gave held-out verdicts. Audit 2026-10-05 (read): internal/scorecard/transcription_read.go:81-95,117-121 TranscriptionQualities returns an error that aborts scorecard.Build when one transcription report is unreadable; it should become a row gap with the reason, as heldoutRecord.unreadable does (the evidence stays strict: an unreadable report is never a value). Failing test first: an unreadable report leaves the other rows measured and its row's quality a gap that reads the reason. Correction 2026-10-05: the file is internal/evaluation/transcription_read.go, not internal/scorecard. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run) SQA-091 residual after d1fc1196a: VisitHeldoutVerdicts' unreadable callback loses the verdict identity (heldoutRecord keeps only a rendered reason) and heldoutRecords silently ignores a failed RequireServingObservation, so an unreadable observation reserves no recipe and surfaces no unknown; keep the original verdict or observation identity, a typed unreadable outcome and its binding scope; actual I/O and cancellation failures stay distinct from an unreadable record; a newer invalid same-recipe verdict is not replaced as current by an older one; keep strict nil-callback reconstruction. Test with the existing tiny fixture: mixed valid and invalid verdicts, newest invalid, missing observation."
         },
         {
           "id": "baseline-protocol-join",
@@ -39,7 +154,77 @@
           "title": "Attribute scorecard values to producing source, environment and protocol",
           "status": "open",
           "verify": "go test ./internal/scorecard ./internal/evaluation ./internal/trainingworkflow ./cmd/validate",
-          "rationale": "Serves: honest candidate/main comparison and reuse from actual producer/input/effect facts. Disappears: publishing HEAD as producer, generic raw/reproducible defaults for missing provenance, suite-only protocol joins and recipe-only serving comparison when replaced by their actual existing owners. Evidence: existing acceptedRecords, typed Cell/Contract, result/run/receipt and bracket owners preserve record/model/input/scorer/execution/environment/protocol identities and alternatives. Keep publication source distinct from producer, full/current/carried scope explicit, independently sufficient mutable external-input acceptance and valid unchanged-input reuse. Unknowns keep visible values but cannot earn compatible evidence.\nCurrent committed prerequisites: generic and specialized checked quality scope, native benchmark model/source/environment/workload/configuration qualification, strict same-producer training bracket pair IDs, and scorecard benchmark authority propagation are checked. Strict source/module scope is not cross-revision currency. b188 successful scalar/session/VQA Run content linkage is checked; it is not producing source/environment or fresh Operation. ce751528 terminal-run repairs failed/close-error handoff and refused publication through existing owners; required gate, exact media source chain and unchanged numerical/recovery/acceptance passed. Output identity and peak unchanged; single retained timing samples establish no causal gain.\nRemaining: actual producing source/environment and scope-dependent currency for serving, checked held-out and benchmark evidence; full case/scorer/execution/protocol identity and alternatives through real reporting/reuse consumers. Workflow NewRun remains unbound; process/go is not device/peer producer environment. Actual execution Operation, partial phases/work/token denominators and missing capability producers remain connected to attempts. Freeze concrete incompatible-source/environment and two-protocol failing cases before adopting further policy; broad host verifier remains provisional, and unknown build/input/effect dependencies retain broader required coverage. Preserve recovery, cancellation/release on actual completion, authorization, numerical and fresh performance/artifact requirements. Batch true lane/test/guard/media reach; no manufactured metadata, new ledger, repeated full census or mandatory SQA gate. Count production/tests, evidence processing, analysis, instrumentation, gate and maintenance; profile before speculative kernels or large loader changes. Review findings 2026-10-04 (read, not yet measured on a toolchain change): (1) the evaluation Comparison binds the run's Environment id (internal/evaluation/plan.go:275), whose identity holds the host name and the Go runtime version (internal/runrecord/environment.go:56), so a toolchain bump or a host rename would make every baseline held-out cell Unknown and withhold promotion until the baseline moves: derive the comparison's environment from the device, backend and driver facts that change results, and keep host and runtime strings out of it, with a table row that fails today. (2) internal/evaluation/heldout_verdict.go:369-377: one held-out verdict that cannot be reconstructed aborts all of scorecard.Build; it should leave that row's quality as a gap with the reason. (3) A baseline published before comparison authority had no comparison on any evaluation cell, so the first cycle at new code is withheld by construction: it is handled once by moving main to the first record that carries them, never by relaxing holds. Finding 1 (the comparison binds the run's Environment id, whose identity holds the host name and the Go version, so a toolchain bump or a host rename would make every baseline held-out cell Unknown) waits for the owner's baseline-comparison-authority decision: re-keying the comparison identity now would make a record published at the current scheme, the one the decision proposes to promote, Unknown to every later candidate. Land it with a baseline published after the change, or in the same move of main. Finding 2 landed as the step verdict-gap (2026-10-05)."
+          "rationale": "Serves: honest candidate/main comparison and reuse from actual producer/input/effect facts. Disappears: publishing HEAD as producer, generic raw/reproducible defaults for missing provenance, suite-only protocol joins and recipe-only serving comparison when replaced by their actual existing owners. Evidence: existing acceptedRecords, typed Cell/Contract, result/run/receipt and bracket owners preserve record/model/input/scorer/execution/environment/protocol identities and alternatives. Keep publication source distinct from producer, full/current/carried scope explicit, independently sufficient mutable external-input acceptance and valid unchanged-input reuse. Unknowns keep visible values but cannot earn compatible evidence.\nCurrent committed prerequisites: generic and specialized checked quality scope, native benchmark model/source/environment/workload/configuration qualification, strict same-producer training bracket pair IDs, and scorecard benchmark authority propagation are checked. Strict source/module scope is not cross-revision currency. b188 successful scalar/session/VQA Run content linkage is checked; it is not producing source/environment or fresh Operation. ce751528 terminal-run repairs failed/close-error handoff and refused publication through existing owners; required gate, exact media source chain and unchanged numerical/recovery/acceptance passed. Output identity and peak unchanged; single retained timing samples establish no causal gain.\nRemaining: actual producing source/environment and scope-dependent currency for serving, checked held-out and benchmark evidence; full case/scorer/execution/protocol identity and alternatives through real reporting/reuse consumers. Workflow NewRun remains unbound; process/go is not device/peer producer environment. Actual execution Operation, partial phases/work/token denominators and missing capability producers remain connected to attempts. Freeze concrete incompatible-source/environment and two-protocol failing cases before adopting further policy; broad host verifier remains provisional, and unknown build/input/effect dependencies retain broader required coverage. Preserve recovery, cancellation/release on actual completion, authorization, numerical and fresh performance/artifact requirements. Batch true lane/test/guard/media reach; no manufactured metadata, new ledger, repeated full census or mandatory SQA gate. Count production/tests, evidence processing, analysis, instrumentation, gate and maintenance; profile before speculative kernels or large loader changes. Review findings 2026-10-04 (read, not yet measured on a toolchain change): (1) the evaluation Comparison binds the run's Environment id (internal/evaluation/plan.go:275), whose identity holds the host name and the Go runtime version (internal/runrecord/environment.go:56), so a toolchain bump or a host rename would make every baseline held-out cell Unknown and withhold promotion until the baseline moves: derive the comparison's environment from the device, backend and driver facts that change results, and keep host and runtime strings out of it, with a table row that fails today. (2) internal/evaluation/heldout_verdict.go:369-377: one held-out verdict that cannot be reconstructed aborts all of scorecard.Build; it should leave that row's quality as a gap with the reason. (3) A baseline published before comparison authority had no comparison on any evaluation cell, so the first cycle at new code is withheld by construction: it is handled once by moving main to the first record that carries them, never by relaxing holds. Finding 1 (the comparison binds the run's Environment id, whose identity holds the host name and the Go version, so a toolchain bump or a host rename would make every baseline held-out cell Unknown) waits for the owner's baseline-comparison-authority decision: re-keying the comparison identity now would make a record published at the current scheme, the one the decision proposes to promote, Unknown to every later candidate. Land it with a baseline published after the change, or in the same move of main. Finding 2 landed as the step verdict-gap (2026-10-05). SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): SQA-053 (P1) is this row's steps; SQA-078 (sampled replay acceptance and retained evidence scope explicit to consumers) and the unreadable-receipt residual of the carried-quality step (sqa-defects/carried-receipt) belong here too."
+        }
+      ]
+    },
+    {
+      "id": "gui-lane-review-residue",
+      "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 320,
+        "reason": "AddDelta (the row-at-a-time update) and LossAndGradsOf (the named gradients) are new; the update matrix, the weight-gradient transpose and the copy loop they replace are gone, and the step allocates 40 percent less"
+      },
+      "steps": [
+        {
+          "id": "surface-rest",
+          "title": "The surface the first pass left: quantizeGGUF, the page's tone ternary, the byte order mark, the guard's expiry",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Left by the surface step and the review (2026-10-04): export.quantizeGGUF repeats cmd/gguf's quantize (open exclusive, quantize, sync, cleanup; they differ in importance handling, so one owner in internal/gguf, such as QuantizeToFile); the page's ok-or-caution ternary at six exact sites (a helper would not shorten them; skip unless a tone map is wanted); sampling/json_schema_ordered.go repeats the byte order mark dataset names; and the support tier's guarded rung never compares a guard's Surface with the current longform.Surface, so a guard that code changes expired still reads as held, which its detail text only warns of."
+        },
+        {
+          "id": "adapter-baseline",
+          "title": "Bind a continued adapter into its held-out verdict, or judge the baseline on the true base",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the review (2026-10-04), still open: a run that continues an adapter (trainingworkflow.LoRA.From) judges its held-out verdict against the model as the prior adapter leaves it, which LoRA's own comment documents, but the verdict is bound to the base model (text_heldout.go, heldout_run.go) and the prior adapter's identity is recorded nowhere, so 'passed' reads as base to trained. Either bind the prior adapter's digest (peft's Adapter.digest, added with the merge plan) into the evidence the verdict publishes, with the recipe it names, or evaluate the baseline on the true base before the adapter is applied (Resume applies it at load). An evidence schema change; Resume also never compares adapter.Config.BaseModel to the model it is given. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): SQA-092 (P2): LoRA.From loads a nonzero prior adapter, loratrain.Resume binds it before runHeldout predicts the baseline, and runHeldout publishes HeldoutTraining.Model as the base model id with no prior-adapter identity, so heldoutRecords can show a continued-adapter score as the unadapted base quality or as a base-to-trained comparison. Choose and document one authority: evaluate the true base before applying the prior adapter, or bind the prior adapter's digest, config and factors into the baseline's identity and report base plus adapter explicitly; thread it through recipe, run, verdict, reconstruction and scorecard; a label change alone or a fallback to an older base is not a fix; continuation and strict reconstruction stay."
+        },
+        {
+          "id": "split-groups",
+          "title": "Keep conversations that share a prefix on one side of the held-out split",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the verdict step (2026-10-04): conversationSplit gives every record its own group, so the variants of one chat (a prefix and its continuation, or near-duplicates the exact-text dedup keeps) can sit on both sides and the verdict reads memorization. Group by the conversation's opening turns (a digest of its first user message, or of the rendered text's first window) and assign groups, not records, to the held-out side by the digest order, through dataset.SplitOf with the records' groups. The source conversations are read by globbing a mutable directory (conversationFiles); the rendered dataset the run trains and judges on is content-addressed, so what was trained is identified truly, but its lineage to the source dataset is not recorded: record it (the rendered dataset derived from the source) when the split changes."
+        },
+        {
+          "id": "loss-mask",
+          "title": "Give the conversation fine-tune a loss mask, so it learns and is judged on the assistant's tokens",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "From the verdict step (2026-10-04, read again): the conversation fine-tune is honest about it (RunConversationSFT's doc, conversationEvidence and the preview mark every token trained because the trainer has no loss mask), but a verdict of next-token accuracy over every token of the rendered conversation can pass by learning the chat template or the user's turns. A real fix is a feature: (1) the renderer reports the assistant's spans (render turn by turn, or the template's own offsets), (2) the dense trainer takes a per-position loss weight (densecausal's training loss, hostmath.SoftmaxCrossEntropy and the retained-logits path today average over every position), (3) HeldoutExample carries the scored positions and the evaluator counts only them, (4) the objective's metric names what it scores so evidence of the two kinds never compares, and the preview marks only the assistant's tokens trained. Also the held-out cap of 16 records is a machine-specific policy (one host's 13 minutes a pass): derive it from the run's own budget."
+        }
+      ]
+    },
+    {
+      "id": "speech-document-admission",
+      "title": "Admit or retire the GUI lane's document speech program",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit or retire the GUI lane's document speech program",
+          "status": "open",
+          "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
+          "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
+        }
+      ]
+    },
+    {
+      "id": "compatibility-into-validate",
+      "title": "Fold cmd/compatibility into validate, re-verifying claims whose source moves",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "evidence",
+          "title": "Refresh the accepted evidence the audits read, by re-running it",
+          "status": "open",
+          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/validate -run '^TestAcceptedCapabilityCensus$' -count=1 -v",
+          "rationale": "S6: after the guard re-acquisition of 2026-09-30 (10 of 10 published at surface 50f89def), the audits still fail. The accepted baselines they compare against lack realized residency ('comparison lacks matching realized residency'), and the census needs the owner's review of 11 identities (snapshot 209, live 220). Re-acquire the accepted baselines with realized residency, or retire those comparisons against a replacement that covers their contract; never hand-edit. The guard audits move beside validate's guard_records.go.\n\nSQA 2026-09-30: SQA-044 (P2): required acceptances are credited by the typed interpreter, never by exit status. SQA-053 is handled in promotion-correctness/current-evidence.\n\nFold landed 2026-10-01 without re-pointing the 12 coverage-proof Verify strings that name ./cmd/compatibility (11 text-vision, 1 image-video). Each proof's stored gate step binds the sha256 of its exact Verify string (internal/runrecord/completion_evidence.go:38-41, checked via media_coverage.go:400-406). Re-pointing them fails six acceptance tests ('completion acceptance evidence does not match the plan authority'), and nothing in the tree produces these gate records: formatCompletionAcceptanceEvidence has no non-test caller. The re-pointing is built in the scratchpad's compatfold-repoint.patch (new digests: text-vision 62ebc6e5..., image-video 6bf91882...). It applies together with re-acquired records once a producer exists, or the proofs retire against a replacement that covers their contract. Until then the strings name a command that no longer exists, as recorded history.\n\nDeferred 2026-10-02 below the rows that can progress: the census needs the owner's review of the 11 identities the live catalog adds (snapshot 209, live 220), and re-acquiring the accepted baselines with realized residency needs the GPU. Raised with the owner in the session. 2026-10-03: the three longform guard acceptances this verify named (TestAcceptedFP8Guard, TestRetiredGuardRecords, TestAcceptedGuardCatalog) were deleted with the guard catalog by longform-guard-selection; they ran in no lane and could not pass. The capability census acceptance remains this step's verify, and it too is gated on a variable no lane sets."
         }
       ]
     },
@@ -54,7 +239,7 @@
           "title": "Audit execution, test, polling and retry timers in their lifetime owners",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Serves: robust portable inference/training and honest verification (owner request; SQA-084). Disappears: unsupported policy literals and mechanisms only when actual consumer evidence establishes a simpler existing owner; fixed ABI/format/model contracts and authorized goals remain. Evidence: Start with cmd/webui-lane/main.go20m versus landing/CUDA -timeout=0, actual predicate/cancellation/terminal/process lifetime; include cmd/validate90m/25m/6h and route60m/30m/120m/10m walls, polling and retry/backoff consumers. Distinguish externally declared deadlines/authorized budgets from unsupported internal hang/retry policy; derive or remove unsupported mechanisms. No arbitrary longer timer and no claim that watchdog removal diagnoses a pending predicate. Audit source/AST/types/parsed commands in bounded owner groups; count analysis, replacement code, fixtures and maintenance. Provisional status verifier is not behavioral proof: before code adoption replace it with the concrete existing owner fixture and actual failing case, then compare identical contracts and total costs; a justified retain/no-change result records derivation and reconsideration in the current plan/evidence. No new analyzer/literal ban, recurring whole-repo census, ledger or separate audit report. Batch: each adopted fix declares true build/test/effect reach and lane/guard/input invalidation; no speculative parallel model work or automatic acceptance reduction. Explicit owner request2026-10-03. Bounded audits through the existing development/SQA loop, followed by concrete verified owner repairs or supported retention. Naming or configuring an arbitrary value is insufficient. Preserve other workers, accepted numerical/protocol/ABI/model facts and caller/operator goals. Browser policy remains SQA-083; replay acceptance/reporting belongs to evidence-authority/replay-cost and rate policy to training-rate-per-layer, so this row connects rather than duplicates their changes."
+          "rationale": "Serves: robust portable inference/training and honest verification (owner request; SQA-084). Disappears: unsupported policy literals and mechanisms only when actual consumer evidence establishes a simpler existing owner; fixed ABI/format/model contracts and authorized goals remain. Evidence: Start with cmd/webui-lane/main.go20m versus landing/CUDA -timeout=0, actual predicate/cancellation/terminal/process lifetime; include cmd/validate90m/25m/6h and route60m/30m/120m/10m walls, polling and retry/backoff consumers. Distinguish externally declared deadlines/authorized budgets from unsupported internal hang/retry policy; derive or remove unsupported mechanisms. No arbitrary longer timer and no claim that watchdog removal diagnoses a pending predicate. Audit source/AST/types/parsed commands in bounded owner groups; count analysis, replacement code, fixtures and maintenance. Provisional status verifier is not behavioral proof: before code adoption replace it with the concrete existing owner fixture and actual failing case, then compare identical contracts and total costs; a justified retain/no-change result records derivation and reconsideration in the current plan/evidence. No new analyzer/literal ban, recurring whole-repo census, ledger or separate audit report. Batch: each adopted fix declares true build/test/effect reach and lane/guard/input invalidation; no speculative parallel model work or automatic acceptance reduction. Explicit owner request2026-10-03. Bounded audits through the existing development/SQA loop, followed by concrete verified owner repairs or supported retention. Naming or configuring an arbitrary value is insufficient. Preserve other workers, accepted numerical/protocol/ABI/model facts and caller/operator goals. Browser policy remains SQA-083; replay acceptance/reporting belongs to evidence-authority/replay-cost and rate policy to training-rate-per-layer, so this row connects rather than duplicates their changes. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): SQA-083 (P2): cmd/webui-lane/main.go:159 runLane passes -count=1 -timeout=20m to the browser lane with no derivation (cmd/device-lane passes -timeout=20m per package too), while the ordinary and CUDA gate lanes run -timeout=0; the retained browser runs (53 s and 58 s) do not explain the historical 1200 s stall. Replace the limit with the gate's no-timeout convention, keep signal and context cancellation and process cleanup, diagnose any recurring stall from the retained predicate and page state in its owner (the SpeechTextImport stall stays uncertain); do not raise the limit or invent an idle timer. SQA-087: consolidate the resource-wait tests around an actual contended release."
         },
         {
           "id": "resources",
@@ -68,7 +253,7 @@
           "title": "Audit numerical and verification literals through independent coverage owners",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Serves: robust portable inference/training and honest verification (owner request; SQA-084). Disappears: unsupported policy literals and mechanisms only when actual consumer evidence establishes a simpler existing owner; fixed ABI/format/model contracts and authorized goals remain. Evidence: Review training proof steps3/1 and sequence128, time/case/sample thresholds including replay32/longest-quarter, tolerance/seed/fixture/setup values and acceptance consumers. Connect source/protocol/replay fixes to evidence-authority and optimizer settings to training-rate-per-layer; do not change their own judge. Retain numerical/reference/recovery/authorization contracts and independently sufficient selection reasons; compiler/custom analyzer overlap is assessed for exact guarantees, with net test removal preferred where no behavior is lost. Audit source/AST/types/parsed commands in bounded owner groups; count analysis, replacement code, fixtures and maintenance. Provisional status verifier is not behavioral proof: before code adoption replace it with the concrete existing owner fixture and actual failing case, then compare identical contracts and total costs; a justified retain/no-change result records derivation and reconsideration in the current plan/evidence. No new analyzer/literal ban, recurring whole-repo census, ledger or separate audit report. Batch: each adopted fix declares true build/test/effect reach and lane/guard/input invalidation; no speculative parallel model work or automatic acceptance reduction.\nAfter replay-cost representation/cost repair, SQA-078 residual policy remains here: unchanged32/longest-quarter selection is not an established probability bound or prompt coverage rule. Preserve current accepted sampling policy and independently sufficient numerical/artifact/fresh-performance requirements; any proposed acceptance replacement needs its independent deciding evidence and recorded owner disposition. No new recurring full suite or duplicate policy owner."
+          "rationale": "Serves: robust portable inference/training and honest verification (owner request; SQA-084). Disappears: unsupported policy literals and mechanisms only when actual consumer evidence establishes a simpler existing owner; fixed ABI/format/model contracts and authorized goals remain. Evidence: Review training proof steps3/1 and sequence128, time/case/sample thresholds including replay32/longest-quarter, tolerance/seed/fixture/setup values and acceptance consumers. Connect source/protocol/replay fixes to evidence-authority and optimizer settings to training-rate-per-layer; do not change their own judge. Retain numerical/reference/recovery/authorization contracts and independently sufficient selection reasons; compiler/custom analyzer overlap is assessed for exact guarantees, with net test removal preferred where no behavior is lost. Audit source/AST/types/parsed commands in bounded owner groups; count analysis, replacement code, fixtures and maintenance. Provisional status verifier is not behavioral proof: before code adoption replace it with the concrete existing owner fixture and actual failing case, then compare identical contracts and total costs; a justified retain/no-change result records derivation and reconsideration in the current plan/evidence. No new analyzer/literal ban, recurring whole-repo census, ledger or separate audit report. Batch: each adopted fix declares true build/test/effect reach and lane/guard/input invalidation; no speculative parallel model work or automatic acceptance reduction.\nAfter replay-cost representation/cost repair, SQA-078 residual policy remains here: unchanged32/longest-quarter selection is not an established probability bound or prompt coverage rule. Preserve current accepted sampling policy and independently sufficient numerical/artifact/fresh-performance requirements; any proposed acceptance replacement needs its independent deciding evidence and recorded owner disposition. No new recurring full suite or duplicate policy owner. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): SQA-088 (P2) duplicate test work: delete gguf TestBoundedBoundaryPolicyContract (keeping TestParseEnforcesLimits, which compatibility.json names), delete repoanalysis TestFixedTimersRetiredFromProduction and TestFixedTimersRetired with liveFixedTimerCensus when unused (keeping TestNoFixedTimers), move the server prediction-limit test into testing/synctest; loader fuzz consolidation and runner migration need a bounded diagnosis first."
         },
         {
           "id": "model-contracts",
@@ -80,17 +265,137 @@
       ]
     },
     {
-      "id": "models-out-of-adaptive-new",
-      "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
+      "id": "scorecard-unmeasured-projection",
+      "title": "Measure projection's unmeasured cells",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
+          "title": "Measure projection's unmeasured cells",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestNoTestReadsAdaptiveNew$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27. Once goldens lock the ports, move the remaining models under adaptive_new/models (Wan, the Gemma configs) into overgo/models as TabFM was, and drop the test environment variables that point there: fewer outside paths, fewer environment-dependent skips and flakes. OWNER PERMISSION needed for the moves: the guard protects model directories.\n\nServes: inference and training on local models. Disappears: the remaining model paths into adaptive_new and their test variables. Batch: host.\n\nFrom simplify-checkpoint-locations, retired 2026-09-29: move a checkpoint out of adaptive_new only where a live dependency on the retired root remains; verify the staged copy (hash, servable identity, baseline lookup, bounded inference, rollback) before switching locators; keep the original; no model vanishes.\n\nLanes (expected; the gate reads them from the diff): the lanes of the packages whose tests move. From goldens-own-parity (closed 2026-09-30): the reference comparisons that remain (cmd/vqaparity, most of internal/adaptiveparity, the rest of cmd/sensenovaparity) stay because their goldens live outside git, in adaptive_new fixtures and store captures. Committing those goldens and pointing the kept tests at them is what lets those packages go; a provenance manifest would not. Never-run tests found on the way, each gated on a variable or tag nothing sets: TestGemma4FP8Leadership (OVERGO_GEMMA4_BASELINE), TestInferenceTextAndStructuredEvidenceIdentity, the modeltest process-peak tests, cmd/vqaparity TestRxBrainProductionParity, sensenovarecipe's SeededLatent and FullGeneration tests, and projector TestGemma4Real* and TestQwen3VLRealFixture. Each goes into a lane that sets its gate, or is deleted if a running test covers it. Also never run (2026-09-30): internal/adaptiveparity's experiment probes (TestComponentCompositionViability, TestTier0ChainViability, TestTier0ChainDoseResponse, TestBridgeSynthesisProducesEvidenceOrRefusal, TestAdapterRetrialProbe) sit behind OVERGO_PROBE_TEST, which no lane sets, and need Carbon-500M or MiniCPM5-1B, which are not registered on the master-lead machine. They are the only real-model runs of the graft and chain code that moved to trainingworkflow."
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-projection",
+          "rationale": "- Qwen3.8-27B first-output: no benchmark time to first token and no serving prefill sample\n- Qwen3.8-27B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.8-27B failure-rate: no completed serving attempts recorded\n- Qwen3.8-27B load-time: no benchmark load time and no recorded load phase\n- Qwen3.8-27B peak-device-memory: no benchmark or serving peak device memory\n- gemma-4-E4B-it first-output: no benchmark time to first token and no serving prefill sample\n- gemma-4-E4B-it throughput: no benchmark decode rate and no served decode phase with output tokens\n- gemma-4-E4B-it failure-rate: no completed serving attempts recorded\n- gemma-4-E4B-it load-time: no benchmark load time and no recorded load phase\n- gemma-4-E4B-it peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-training",
+      "title": "Measure training's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure training's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- LiveEdit throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen2.5-0.5B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-4B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-4B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-9B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-9B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Wan2.1-T2V-1.3B throughput: no benchmark decode rate and no served decode phase with output tokens\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-transcription",
+      "title": "Measure transcription's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure transcription's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-transcription",
+          "rationale": "- granite-speech-5.0-470m-turboctc throughput: no benchmark decode rate and no served decode phase with output tokens\n- nemotron-3.5-asr-streaming-0.6b throughput: no benchmark decode rate and no served decode phase with output tokens\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unmeasured-vqa",
+      "title": "Measure vqa's unmeasured cells",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure vqa's unmeasured cells",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-vqa",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 load-time: no benchmark load time and no recorded load phase\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-generation",
+      "title": "Define the held-out evaluation that measures generation quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures generation quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-generation",
+          "rationale": "- Fractale-350M-base held-out-quality: no held-out evaluation for generation yet; proposed: WikiText-2 test (Salesforce/wikitext wikitext-2-raw-v1, 0.7 MB) perplexity, as a sequence-scoring suite\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-projection",
+      "title": "Define the held-out evaluation that measures projection quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures projection quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-projection",
+          "rationale": "- Qwen3.8-27B held-out-quality: no held-out evaluation for projection yet; proposed: the image, video, multi-image and mixed caption-matching sets the store already scores a projection on\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-speech",
+      "title": "Define the held-out evaluation that measures speech quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures speech quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-speech",
+          "rationale": "- pocket-tts held-out-quality: no held-out evaluation for speech yet; proposed: LibriSpeech test-clean texts (on disk), synthesized then transcribed by a local speech recognizer: round-trip word error rate\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-training",
+      "title": "Define the held-out evaluation that measures training quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures training quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-training",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- LiveEdit held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen2.5-0.5B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen3.5-4B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen3.5-9B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Wan2.1-T2V-1.3B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-video-gen",
+      "title": "Define the held-out evaluation that measures video-gen quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures video-gen quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-video-gen",
+          "rationale": "- LiveEdit held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n- Un-0 held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n- Wan2.1-T2V-1.3B held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     },
@@ -126,76 +431,6 @@
           "status": "open",
           "verify": "go run ./cmd/validate -claims \u0026\u0026 go test ./internal/representation -run '^TestLatentStateObservationAndSampleContract$' -count=1",
           "rationale": "Superseded by the owner's decision (2026-09-25) to take the VAE lane in consumer-backed parts: vae-codec-stream-port ported the runtime part; the lane's research scaffolding (typed latent state, codec, geometry, readiness and robust-statistics contracts without production callers, runrecord experimental_* record families, campaign-history adoption in internal/plan) stays in the lane until its first latent capability has a consumer. This row merges the lane at that point, re-titled to the head then merged; its harness growth is budgeted against automation-one-record-table."
-        }
-      ]
-    },
-    {
-      "id": "speech-document-admission",
-      "title": "Admit or retire the GUI lane's document speech program",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Admit or retire the GUI lane's document speech program",
-          "status": "open",
-          "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
-          "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
-        }
-      ]
-    },
-    {
-      "id": "compatibility-into-validate",
-      "title": "Fold cmd/compatibility into validate, re-verifying claims whose source moves",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "evidence",
-          "title": "Refresh the accepted evidence the audits read, by re-running it",
-          "status": "open",
-          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/validate -run '^TestAcceptedCapabilityCensus$' -count=1 -v",
-          "rationale": "S6: after the guard re-acquisition of 2026-09-30 (10 of 10 published at surface 50f89def), the audits still fail. The accepted baselines they compare against lack realized residency ('comparison lacks matching realized residency'), and the census needs the owner's review of 11 identities (snapshot 209, live 220). Re-acquire the accepted baselines with realized residency, or retire those comparisons against a replacement that covers their contract; never hand-edit. The guard audits move beside validate's guard_records.go.\n\nSQA 2026-09-30: SQA-044 (P2): required acceptances are credited by the typed interpreter, never by exit status. SQA-053 is handled in promotion-correctness/current-evidence.\n\nFold landed 2026-10-01 without re-pointing the 12 coverage-proof Verify strings that name ./cmd/compatibility (11 text-vision, 1 image-video). Each proof's stored gate step binds the sha256 of its exact Verify string (internal/runrecord/completion_evidence.go:38-41, checked via media_coverage.go:400-406). Re-pointing them fails six acceptance tests ('completion acceptance evidence does not match the plan authority'), and nothing in the tree produces these gate records: formatCompletionAcceptanceEvidence has no non-test caller. The re-pointing is built in the scratchpad's compatfold-repoint.patch (new digests: text-vision 62ebc6e5..., image-video 6bf91882...). It applies together with re-acquired records once a producer exists, or the proofs retire against a replacement that covers their contract. Until then the strings name a command that no longer exists, as recorded history.\n\nDeferred 2026-10-02 below the rows that can progress: the census needs the owner's review of the 11 identities the live catalog adds (snapshot 209, live 220), and re-acquiring the accepted baselines with realized residency needs the GPU. Raised with the owner in the session. 2026-10-03: the three longform guard acceptances this verify named (TestAcceptedFP8Guard, TestRetiredGuardRecords, TestAcceptedGuardCatalog) were deleted with the guard catalog by longform-guard-selection; they ran in no lane and could not pass. The capability census acceptance remains this step's verify, and it too is gated on a variable no lane sets."
-        }
-      ]
-    },
-    {
-      "id": "gui-lane-review-residue",
-      "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 320,
-        "reason": "AddDelta (the row-at-a-time update) and LossAndGradsOf (the named gradients) are new; the update matrix, the weight-gradient transpose and the copy loop they replace are gone, and the step allocates 40 percent less"
-      },
-      "steps": [
-        {
-          "id": "surface-rest",
-          "title": "The surface the first pass left: quantizeGGUF, the page's tone ternary, the byte order mark, the guard's expiry",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Left by the surface step and the review (2026-10-04): export.quantizeGGUF repeats cmd/gguf's quantize (open exclusive, quantize, sync, cleanup; they differ in importance handling, so one owner in internal/gguf, such as QuantizeToFile); the page's ok-or-caution ternary at six exact sites (a helper would not shorten them; skip unless a tone map is wanted); sampling/json_schema_ordered.go repeats the byte order mark dataset names; and the support tier's guarded rung never compares a guard's Surface with the current longform.Surface, so a guard that code changes expired still reads as held, which its detail text only warns of."
-        },
-        {
-          "id": "adapter-baseline",
-          "title": "Bind a continued adapter into its held-out verdict, or judge the baseline on the true base",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From the review (2026-10-04), still open: a run that continues an adapter (trainingworkflow.LoRA.From) judges its held-out verdict against the model as the prior adapter leaves it, which LoRA's own comment documents, but the verdict is bound to the base model (text_heldout.go, heldout_run.go) and the prior adapter's identity is recorded nowhere, so 'passed' reads as base to trained. Either bind the prior adapter's digest (peft's Adapter.digest, added with the merge plan) into the evidence the verdict publishes, with the recipe it names, or evaluate the baseline on the true base before the adapter is applied (Resume applies it at load). An evidence schema change; Resume also never compares adapter.Config.BaseModel to the model it is given."
-        },
-        {
-          "id": "split-groups",
-          "title": "Keep conversations that share a prefix on one side of the held-out split",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From the verdict step (2026-10-04): conversationSplit gives every record its own group, so the variants of one chat (a prefix and its continuation, or near-duplicates the exact-text dedup keeps) can sit on both sides and the verdict reads memorization. Group by the conversation's opening turns (a digest of its first user message, or of the rendered text's first window) and assign groups, not records, to the held-out side by the digest order, through dataset.SplitOf with the records' groups. The source conversations are read by globbing a mutable directory (conversationFiles); the rendered dataset the run trains and judges on is content-addressed, so what was trained is identified truly, but its lineage to the source dataset is not recorded: record it (the rendered dataset derived from the source) when the split changes."
-        },
-        {
-          "id": "loss-mask",
-          "title": "Give the conversation fine-tune a loss mask, so it learns and is judged on the assistant's tokens",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "From the verdict step (2026-10-04, read again): the conversation fine-tune is honest about it (RunConversationSFT's doc, conversationEvidence and the preview mark every token trained because the trainer has no loss mask), but a verdict of next-token accuracy over every token of the rendered conversation can pass by learning the chat template or the user's turns. A real fix is a feature: (1) the renderer reports the assistant's spans (render turn by turn, or the template's own offsets), (2) the dense trainer takes a per-position loss weight (densecausal's training loss, hostmath.SoftmaxCrossEntropy and the retained-logits path today average over every position), (3) HeldoutExample carries the scored positions and the evaluator counts only them, (4) the objective's metric names what it scores so evidence of the two kinds never compares, and the preview marks only the assistant's tokens trained. Also the held-out cap of 16 records is a machine-specific policy (one host's 13 minutes a pass): derive it from the run's own budget."
         }
       ]
     },
@@ -246,173 +481,24 @@
             "evidence-authority/producer-commit-executable",
             "evidence-authority/serving-environment",
             "evidence-authority/transcription-gap",
-            "evidence-authority/baseline-protocol-join"
+            "evidence-authority/baseline-protocol-join",
+            "plan-refactor-sqa/do"
           ]
         }
       ]
     },
     {
-      "id": "scorecard-unscored-forecast",
-      "title": "Define the held-out evaluation that measures forecast quality",
+      "id": "models-out-of-adaptive-new",
+      "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Define the held-out evaluation that measures forecast quality",
+          "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
           "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-forecast",
-          "rationale": "- timesfm-2.5-200m-transformers held-out-quality: no held-out evaluation for forecast yet; proposed: a forecast objective over ETTh1 (github.com/zhouhaoyi/ETDataset, 2.6 MB), its held-out windows judged by train -route seriesforecast\n- timesfm-3.0-pytorch held-out-quality: no held-out evaluation for forecast yet; proposed: a forecast objective over ETTh1 (github.com/zhouhaoyi/ETDataset, 2.6 MB), its held-out windows judged by train -route seriesforecast\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-generation",
-      "title": "Define the held-out evaluation that measures generation quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures generation quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-generation",
-          "rationale": "- Fractale-350M-base held-out-quality: no held-out evaluation for generation yet; proposed: WikiText-2 test (Salesforce/wikitext wikitext-2-raw-v1, 0.7 MB) perplexity, as a sequence-scoring suite\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-image-embedding",
-      "title": "Define the held-out evaluation that measures image-embedding quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures image-embedding quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-embedding",
-          "rationale": "- webssl-dino300m-full2b-224 held-out-quality: no held-out evaluation for image-embedding yet; proposed: Imagenette 160 px (fast.ai imagenette2-160, 100 MB) k-nearest-neighbour accuracy from the model's own embeddings\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-image-gen",
-      "title": "Define the held-out evaluation that measures image-gen quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures image-gen quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-gen",
-          "rationale": "- Krea-2-Turbo held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- SenseNova-U1-8B-MoT-Infographic-V3 held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- SimpleDiffusion-TensorProductAttentionRope held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- Un-0 held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-projection",
-      "title": "Define the held-out evaluation that measures projection quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures projection quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-projection",
-          "rationale": "- Qwen3.8-27B held-out-quality: no held-out evaluation for projection yet; proposed: the image, video, multi-image and mixed caption-matching sets the store already scores a projection on\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-seq2seq",
-      "title": "Define the held-out evaluation that measures seq2seq quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures seq2seq quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-seq2seq",
-          "rationale": "- needle held-out-quality: no held-out evaluation for seq2seq yet; proposed: BFCL v3 simple (gorilla-llm/Berkeley-Function-Calling-Leaderboard, 0.3 MB) exact match of the parsed call\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-speech",
-      "title": "Define the held-out evaluation that measures speech quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures speech quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-speech",
-          "rationale": "- pocket-tts held-out-quality: no held-out evaluation for speech yet; proposed: LibriSpeech test-clean texts (on disk), synthesized then transcribed by a local speech recognizer: round-trip word error rate\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-tabular",
-      "title": "Define the held-out evaluation that measures tabular quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures tabular quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-tabular",
-          "rationale": "- tabfm-1.0.0-pytorch held-out-quality: no held-out evaluation for tabular yet; proposed: a table-prediction objective over BeyondArena credit-g (TabArena/BeyondArena, 0.2 MB), its held-out rows judged by train -route tabular\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-training",
-      "title": "Define the held-out evaluation that measures training quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures training quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-training",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- LiveEdit held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen2.5-0.5B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen3.5-4B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen3.5-9B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Wan2.1-T2V-1.3B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-video-gen",
-      "title": "Define the held-out evaluation that measures video-gen quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures video-gen quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-video-gen",
-          "rationale": "- LiveEdit held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n- Un-0 held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n- Wan2.1-T2V-1.3B held-out-quality: no held-out evaluation for video-gen yet; proposed: held-out VidGen-1M captions (on disk), each clip matched to its caption by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-vqa",
-      "title": "Define the held-out evaluation that measures vqa quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures vqa quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-vqa",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 held-out-quality: no held-out evaluation for vqa yet; proposed: the image caption-matching set the store already scores a projection on, then A-OKVQA validation (HuggingFaceM4/A-OKVQA, 60 MB) multiple-choice accuracy\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+          "verify": "go test ./internal/repoanalysis -run '^TestNoTestReadsAdaptiveNew$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27. Once goldens lock the ports, move the remaining models under adaptive_new/models (Wan, the Gemma configs) into overgo/models as TabFM was, and drop the test environment variables that point there: fewer outside paths, fewer environment-dependent skips and flakes. OWNER PERMISSION needed for the moves: the guard protects model directories.\n\nServes: inference and training on local models. Disappears: the remaining model paths into adaptive_new and their test variables. Batch: host.\n\nFrom simplify-checkpoint-locations, retired 2026-09-29: move a checkpoint out of adaptive_new only where a live dependency on the retired root remains; verify the staged copy (hash, servable identity, baseline lookup, bounded inference, rollback) before switching locators; keep the original; no model vanishes.\n\nLanes (expected; the gate reads them from the diff): the lanes of the packages whose tests move. From goldens-own-parity (closed 2026-09-30): the reference comparisons that remain (cmd/vqaparity, most of internal/adaptiveparity, the rest of cmd/sensenovaparity) stay because their goldens live outside git, in adaptive_new fixtures and store captures. Committing those goldens and pointing the kept tests at them is what lets those packages go; a provenance manifest would not. Never-run tests found on the way, each gated on a variable or tag nothing sets: TestGemma4FP8Leadership (OVERGO_GEMMA4_BASELINE), TestInferenceTextAndStructuredEvidenceIdentity, the modeltest process-peak tests, cmd/vqaparity TestRxBrainProductionParity, sensenovarecipe's SeededLatent and FullGeneration tests, and projector TestGemma4Real* and TestQwen3VLRealFixture. Each goes into a lane that sets its gate, or is deleted if a running test covers it. Also never run (2026-09-30): internal/adaptiveparity's experiment probes (TestComponentCompositionViability, TestTier0ChainViability, TestTier0ChainDoseResponse, TestBridgeSynthesisProducesEvidenceOrRefusal, TestAdapterRetrialProbe) sit behind OVERGO_PROBE_TEST, which no lane sets, and need Carbon-500M or MiniCPM5-1B, which are not registered on the master-lead machine. They are the only real-model runs of the graft and chain code that moved to trainingworkflow."
         }
       ]
     },
@@ -477,62 +563,92 @@
       ]
     },
     {
-      "id": "scorecard-unmeasured-projection",
-      "title": "Measure projection's unmeasured cells",
+      "id": "scorecard-unscored-forecast",
+      "title": "Define the held-out evaluation that measures forecast quality",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Measure projection's unmeasured cells",
+          "title": "Define the held-out evaluation that measures forecast quality",
           "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-projection",
-          "rationale": "- Qwen3.8-27B first-output: no benchmark time to first token and no serving prefill sample\n- Qwen3.8-27B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.8-27B failure-rate: no completed serving attempts recorded\n- Qwen3.8-27B load-time: no benchmark load time and no recorded load phase\n- Qwen3.8-27B peak-device-memory: no benchmark or serving peak device memory\n- gemma-4-E4B-it first-output: no benchmark time to first token and no serving prefill sample\n- gemma-4-E4B-it throughput: no benchmark decode rate and no served decode phase with output tokens\n- gemma-4-E4B-it failure-rate: no completed serving attempts recorded\n- gemma-4-E4B-it load-time: no benchmark load time and no recorded load phase\n- gemma-4-E4B-it peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-forecast",
+          "rationale": "- timesfm-2.5-200m-transformers held-out-quality: no held-out evaluation for forecast yet; proposed: a forecast objective over ETTh1 (github.com/zhouhaoyi/ETDataset, 2.6 MB), its held-out windows judged by train -route seriesforecast\n- timesfm-3.0-pytorch held-out-quality: no held-out evaluation for forecast yet; proposed: a forecast objective over ETTh1 (github.com/zhouhaoyi/ETDataset, 2.6 MB), its held-out windows judged by train -route seriesforecast\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     },
     {
-      "id": "scorecard-unmeasured-training",
-      "title": "Measure training's unmeasured cells",
+      "id": "scorecard-unscored-image-embedding",
+      "title": "Define the held-out evaluation that measures image-embedding quality",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Measure training's unmeasured cells",
+          "title": "Define the held-out evaluation that measures image-embedding quality",
           "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- LiveEdit throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen2.5-0.5B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-4B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-4B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-9B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-9B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Wan2.1-T2V-1.3B throughput: no benchmark decode rate and no served decode phase with output tokens\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-embedding",
+          "rationale": "- webssl-dino300m-full2b-224 held-out-quality: no held-out evaluation for image-embedding yet; proposed: Imagenette 160 px (fast.ai imagenette2-160, 100 MB) k-nearest-neighbour accuracy from the model's own embeddings\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     },
     {
-      "id": "scorecard-unmeasured-transcription",
-      "title": "Measure transcription's unmeasured cells",
+      "id": "scorecard-unscored-image-gen",
+      "title": "Define the held-out evaluation that measures image-gen quality",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Measure transcription's unmeasured cells",
+          "title": "Define the held-out evaluation that measures image-gen quality",
           "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-transcription",
-          "rationale": "- granite-speech-5.0-470m-turboctc throughput: no benchmark decode rate and no served decode phase with output tokens\n- nemotron-3.5-asr-streaming-0.6b throughput: no benchmark decode rate and no served decode phase with output tokens\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-gen",
+          "rationale": "- Krea-2-Turbo held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- SenseNova-U1-8B-MoT-Infographic-V3 held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- SimpleDiffusion-TensorProductAttentionRope held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n- Un-0 held-out-quality: no held-out evaluation for image-gen yet; proposed: TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     },
     {
-      "id": "scorecard-unmeasured-vqa",
-      "title": "Measure vqa's unmeasured cells",
+      "id": "scorecard-unscored-seq2seq",
+      "title": "Define the held-out evaluation that measures seq2seq quality",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Measure vqa's unmeasured cells",
+          "title": "Define the held-out evaluation that measures seq2seq quality",
           "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-vqa",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 load-time: no benchmark load time and no recorded load phase\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-seq2seq",
+          "rationale": "- needle held-out-quality: no held-out evaluation for seq2seq yet; proposed: BFCL v3 simple (gorilla-llm/Berkeley-Function-Calling-Leaderboard, 0.3 MB) exact match of the parsed call\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-tabular",
+      "title": "Define the held-out evaluation that measures tabular quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures tabular quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-tabular",
+          "rationale": "- tabfm-1.0.0-pytorch held-out-quality: no held-out evaluation for tabular yet; proposed: a table-prediction objective over BeyondArena credit-g (TabArena/BeyondArena, 0.2 MB), its held-out rows judged by train -route tabular\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-unscored-vqa",
+      "title": "Define the held-out evaluation that measures vqa quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures vqa quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-vqa",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 held-out-quality: no held-out evaluation for vqa yet; proposed: the image caption-matching set the store already scores a projection on, then A-OKVQA validation (HuggingFaceM4/A-OKVQA, 60 MB) multiple-choice accuracy\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     }

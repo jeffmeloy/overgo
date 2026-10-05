@@ -290,7 +290,7 @@ func runSynthesize(
 	if err != nil {
 		return err
 	}
-	revision, err := runrecord.HeadCommit(".")
+	revision, err := runrecord.ExecutableCodeCommit(".")
 	if err != nil {
 		return err
 	}

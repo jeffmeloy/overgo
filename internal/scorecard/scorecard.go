@@ -448,10 +448,17 @@ var verdictTasks = []recipe.Task{recipe.TaskTabular, recipe.TaskForecast}
 type heldoutRecord struct {
 	summary evaluation.EvalSummary
 	base    *float64
+	// unreadable says why the newest verdict of the recipe could not be
+	// reconstructed: its quality is then a gap with that reason, not an older
+	// verdict's value in its place.
+	unreadable string
 }
 
 // cell is the record's held-out quality, beside its base model's value.
 func (record heldoutRecord) cell(task recipe.Task) Cell {
+	if record.unreadable != "" {
+		return gap("its held-out verdict cannot be reconstructed: " + record.unreadable)
+	}
 	cell, _ := qualityCell(task, []evaluation.EvalSummary{record.summary}, nil)
 	cell.Base = record.base
 	return cell
@@ -513,6 +520,13 @@ func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discov
 			read(recipeID, heldoutRecord{summary: base})
 		}
 		return nil
+	}, func(observation artifact.ID, reason error) {
+		// The verdict claims its recipe like a readable one, newest first.
+		if session, err := runrecord.RequireServingObservation(ctx, store, observation); err == nil {
+			if _, found := records[session.Recipe]; !found {
+				records[session.Recipe] = heldoutRecord{unreadable: reason.Error()}
+			}
+		}
 	})
 	return records, err
 }
@@ -556,9 +570,15 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 		// LatestEvidence owns deduplication by the bound contract; display
 		// labels cannot discard independently sufficient alternatives here.
 		if name, value, ok := evaluation.HeadlineMetric(summary.Metrics); ok {
+			label, commit := fmt.Sprintf("%s, %s (%s)", name, summary.Suite, summary.Prompting), summary.CodeCommit
+			if summary.Carried.Valid() {
+				// A carried result stands on the run that scored it, which
+				// the carrying run only replayed a sample of.
+				label, commit = label+", carried", summary.ScoredCommit
+			}
 			measured = append(measured, heldout{cases: descriptors[summary.Suite].Cases, cell: Cell{
-				Value: value, Label: fmt.Sprintf("%s, %s (%s)", name, summary.Suite, summary.Prompting), Source: summary.Record, Direction: summary.Directions[name],
-				CodeCommit: summary.CodeCommit, Environment: summary.Environment,
+				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
+				CodeCommit: commit, Environment: summary.Environment,
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})
 		}

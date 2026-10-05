@@ -276,6 +276,28 @@ const (
 	gapUnscored   = "unscored"
 )
 
+// gapKinds are the kinds of gap Gaps proposes, each the middle of a gap's
+// key.
+var gapKinds = []string{gapBelowBase, gapFailing, gapUnmeasured, gapUnscored, string(regressed), string(Unknown)}
+
+// gapKeyPrefix begins every gap's key.
+const gapKeyPrefix = "scorecard"
+
+// gapKey names the gap of a kind on a task.
+func gapKey(kind string, task recipe.Task) string {
+	return strings.Join([]string{gapKeyPrefix, kind, string(task)}, "-")
+}
+
+// KnownGapKey reports whether key names a gap the scorecard can propose: a
+// kind of gap on a task the catalog holds. A key that matches none is not a
+// gap that is closed; nothing could ever open it.
+func KnownGapKey(key string) bool {
+	return slices.ContainsFunc(gapKinds, func(kind string) bool {
+		task, found := strings.CutPrefix(key, gapKey(kind, ""))
+		return found && recipe.Task(task).Valid()
+	})
+}
+
 // Gap is the work one task's shortfall on one metric asks for, with every
 // row that falls short and its reason or values. Key names the gap the same
 // way in every record, so its row is proposed once and its verifier finds
@@ -300,7 +322,7 @@ func (record Record) Gaps(baseline *Record) []Gap {
 	// One gap per kind and task: its metrics are lines of the one row, so
 	// a task's missing measurements are one piece of work.
 	add := func(kind string, row *Row, column metric.Name, line string) {
-		key := strings.Join([]string{"scorecard", kind, string(row.Task)}, "-")
+		key := gapKey(kind, row.Task)
 		if grouped[key] == nil {
 			grouped[key] = &Gap{Key: key, Title: gapTitle(kind, row.Task), kind: kind}
 		}

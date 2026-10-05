@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"runtime/debug"
 	"slices"
 	"time"
 
@@ -18,17 +17,6 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/workflowruntime"
 )
-
-func codeRevision() (string, error) {
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" && len(setting.Value) == 40 {
-				return setting.Value, nil
-			}
-		}
-	}
-	return runrecord.HeadCommit(".")
-}
 
 func cudaEnvironment() (runrecord.Environment, error) {
 	library, err := driver.Open()
@@ -68,7 +56,7 @@ func publishVQAVerification(
 	if err != nil {
 		return modelrecipe.Verification{}, err
 	}
-	revision, err := codeRevision()
+	revision, err := runrecord.ExecutableCodeCommit(".")
 	if err != nil {
 		return modelrecipe.Verification{}, err
 	}

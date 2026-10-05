@@ -11,6 +11,32 @@ import (
 	"overgo/internal/evaluation"
 )
 
+// TestSmokeDeclarationBindsTheLiveRecipe holds a declaration, which names a
+// model and its claim and no recipe, to the recipe the model is active under
+// when the declarations are bound: replacing the activation moves the bound
+// oracle, and its identity with it, with no edit to the declaration.
+func TestSmokeDeclarationBindsTheLiveRecipe(t *testing.T) {
+	t.Parallel()
+	model, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("live"))
+	declaration := smokeOracle{Model: model, Domain: "text", Chat: true, Claim: "addition", Generation: &evaluation.GeneratedAnswerCase{Name: "addition", Prompt: "2+2?", MaxTokens: 16, Answers: []string{"4"}}}
+	var identities []artifact.ID
+	for _, name := range []string{"first activation", "replacement"} {
+		live, _ := artifact.IdentifyBytes(artifact.KindRecipe, []byte(name))
+		bound, err := bindSmokeOracles([]smokeOracle{declaration}, []discovery.Entry{{Model: model, Recipe: live, Present: true}})
+		if err != nil || bound[model].Recipe != live {
+			t.Fatalf("%s: bound %+v, %v, want the live recipe %s", name, bound[model], err, live)
+		}
+		id, err := artifact.JSONID(artifact.KindProfile, bound[model])
+		if err != nil {
+			t.Fatal(err)
+		}
+		identities = append(identities, id)
+	}
+	if identities[0] == identities[1] {
+		t.Fatal("a replaced activation left the bound oracle's identity as it was")
+	}
+}
+
 func TestSelectedSmokeOracleBinding(t *testing.T) {
 	t.Parallel()
 	model, _ := artifact.IdentifyBytes(artifact.KindModel, []byte("selected"))

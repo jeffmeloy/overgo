@@ -184,3 +184,47 @@ func TestDefinitionRejectsSchemaMismatchCycleAndDeadNode(t *testing.T) {
 		}
 	}
 }
+
+// TestSameComputationIgnoresOnlyTheSessionPolicy holds a replaced recipe to
+// the computation it replaces: a session policy on any node leaves it the
+// same computation, while a placement, a module, a node or a dependency that
+// moves does not.
+func TestSameComputationIgnoresOnlyTheSessionPolicy(t *testing.T) {
+	t.Parallel()
+	base, _ := fixtureRecipe(t)
+	rebuild := func(nodes []Node, dependencies []Dependency) Definition {
+		t.Helper()
+		value, err := NewDefinitionWithDependencies(base.Task, dependencies, nodes, base.Edges, base.Inputs, base.Outputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	session := slices.Clone(base.Nodes)
+	session[0].Session = SessionCapacity
+	replaced := rebuild(session, base.Dependencies)
+	if replaced.ID == base.ID {
+		t.Fatal("a session policy left the recipe's identity as it was")
+	}
+	for _, pair := range [][2]Definition{{base, replaced}, {replaced, base}, {base, base}} {
+		if same, err := pair[0].SameComputation(pair[1]); err != nil || !same {
+			t.Fatalf("a session policy made another computation: %v %v", same, err)
+		}
+	}
+	moved := func(change func(*Node)) []Node {
+		nodes := slices.Clone(session)
+		change(&nodes[0])
+		return nodes
+	}
+	other := testutil.ArtifactID(t, artifact.KindModel, "another model")
+	for name, changed := range map[string]Definition{
+		"placement": rebuild(moved(func(node *Node) { node.Placement = PlacementDevice }), base.Dependencies),
+		"module":    rebuild(moved(func(node *Node) { node.Module = "other.module" }), base.Dependencies),
+		"node":      rebuild(append(slices.Clone(session), Node{ID: "extra", Module: fixtureSourceModule, Placement: PlacementHost}), base.Dependencies),
+		"model":     rebuild(session, []Dependency{{Role: DependencyModel, Artifact: other}}),
+	} {
+		if same, err := base.SameComputation(changed); err != nil || same {
+			t.Fatalf("a changed %s read as the same computation: %v %v", name, same, err)
+		}
+	}
+}

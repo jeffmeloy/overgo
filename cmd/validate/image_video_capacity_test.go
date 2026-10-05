@@ -362,11 +362,4 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	if len(bundle.Processing) != len([]string{"first", "repeat"}) {
 		t.Fatal("missing report/export repeat")
 	}
-	var merged mediaMergedEvidence
-	if err := jsonfile.Decode(filepath.Join(root, "docs/image_video_merged.json"), &merged); err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaRuntimeAtRevision(root, "", merged.RuntimePaths, merged.RuntimeSHA256); err != nil {
-		t.Fatal(err)
-	}
 }

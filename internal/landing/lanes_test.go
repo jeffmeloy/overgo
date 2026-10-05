@@ -280,7 +280,6 @@ func TestReachInvariants(t *testing.T) {
 		{"cmd/validate/models_report_model_test.go", gateLanes, false, "models", "the model report renders against the live store"},
 		{"cmd/validate/musr_normalization_model_test.go", gateLanes, false, "models", "MuSR normalization replays retained scores from the live store"},
 		{"cmd/validate/qwen4_ifeval_model_test.go", gateLanes, false, "models", "the Qwen 4B IFEval acquisition reads retained responses from the live store"},
-		{"cmd/validate/reviewed_delta_registry_model_test.go", gateLanes, false, "models", "the reviewed deltas' receipts are read from the live store"},
 		{"cmd/longform/accepted_baseline_model_test.go", gateLanes, false, "models", "the historical guard audit reads the live store's guard records"},
 		{"internal/evaluation/bbh_native_model_test.go", gateLanes, false, "models", "the native BBH protocol reads its retained oracle from the live store"},
 		{"internal/evaluation/ifeval_language_model_test.go", gateLanes, false, "models", "IFEval language parity reads its retained oracle from the live store"},

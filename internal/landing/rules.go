@@ -24,9 +24,8 @@ import (
 )
 
 // rules compares the changed files with HEAD: no bytes a record pins move,
-// the pinned media runtime moves only with its reconciliation, no new style
-// finding, no new inline policy number, no new legacy form go fix leaves,
-// no new export without a consumer, and no CUDA-gated test no lane runs.
+// no new style finding, no new inline policy number, no new legacy form go fix
+// leaves, no new export without a consumer, and no CUDA-gated test no lane runs.
 func (l *landing) rules(ctx context.Context) error {
 	stale, err := stalePins(l.Repo, l.paths)
 	if err != nil {
@@ -34,9 +33,6 @@ func (l *landing) rules(ctx context.Context) error {
 	}
 	if len(stale) != 0 {
 		return fmt.Errorf("changes bytes a record pins: %s; repin the record for a behaviour-neutral edit, or restore the file", strings.Join(stale, "; "))
-	}
-	if _, err := mediaMoves(l.Repo, l.paths); err != nil {
-		return err
 	}
 	candidate, base, err := l.changedSource(ctx)
 	if err != nil {

@@ -88,8 +88,12 @@ func promotionBaseline(ctx context.Context, root, storeRoot string) (*scorecard.
 
 // openGap fails while the gap key names is open on the scorecard the store
 // holds now, judged against the newest published record's baseline: the
-// verifier of the row the loop proposed for the gap.
+// verifier of the row the loop proposed for the gap. A key that names no gap
+// the scorecard can propose fails too: it would read as closed for ever.
 func openGap(ctx context.Context, store *overgodb.Store, root, records, key string, output io.Writer) error {
+	if !scorecard.KnownGapKey(key) {
+		return fmt.Errorf("%q names no gap: a gap key is scorecard, a kind of gap and a task, as the row the loop proposed carries it", key)
+	}
 	rows, err := scorecard.Build(ctx, store)
 	if err != nil {
 		return err

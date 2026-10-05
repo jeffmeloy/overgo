@@ -85,6 +85,12 @@ type EvalSummary struct {
 	// Carried names the ReplayReceipt of a record that carried an earlier
 	// result forward; zero when its run scored every case.
 	Carried artifact.ID `json:"carried,omitzero"`
+	// ScoredCommit is the code commit of the run that scored the cases the
+	// metrics stand on: CodeCommit for a run that scored them all, and for a
+	// carried result the commit of the run its chain of carries began at,
+	// which CodeCommit, the carrying run's, is not. Empty when a link of the
+	// chain cannot be read.
+	ScoredCommit string `json:"scored_commit,omitzero"`
 }
 
 // unknownPrompting renders an absent or inconsistent execution authority. It
@@ -100,12 +106,10 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	if err != nil {
 		return summary
 	}
-	if len(bound.Outputs) == 1 {
-		if descriptor, found, _ := store.Artifact(ctx, bound.Outputs[0]); found && descriptor.Schema == replayReceiptContract.Schema {
-			if receipt, err := RequireReplayReceipt(ctx, store, descriptor.ID); err == nil && receipt.Carried.Valid() {
-				summary.Carried = descriptor.ID
-			}
-		}
+	var carried artifact.ID
+	summary.Carried, carried = carriedReceipt(ctx, store, bound)
+	if carried.Valid() {
+		summary.ScoredCommit = scoredCommit(ctx, store, carried)
 	}
 	if bound.Outcome != runrecord.OutcomeSucceeded || bound.Recipe != record.Recipe || len(bound.Inputs) != 1 {
 		return summary
@@ -130,6 +134,46 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 	summary.Comparison, summary.Environment, summary.CodeCommit = comparison, bound.Environment, bound.CodeCommit
 	summary.Prompting, summary.Reproducible, summary.ExecutionKnown = policy.Prompting.Label(), environment.Reproducible(), true
 	return summary
+}
+
+// carriedReceipt names the replay receipt a run reports and the record that
+// receipt carried forward; both are zero for a run that scored its own cases.
+func carriedReceipt(ctx context.Context, store *overgodb.Store, bound runrecord.Run) (receipt, carried artifact.ID) {
+	if len(bound.Outputs) != 1 {
+		return artifact.ID{}, artifact.ID{}
+	}
+	descriptor, found, _ := store.Artifact(ctx, bound.Outputs[0])
+	if !found || descriptor.Schema != replayReceiptContract.Schema {
+		return artifact.ID{}, artifact.ID{}
+	}
+	named, err := RequireReplayReceipt(ctx, store, descriptor.ID)
+	if err != nil || !named.Carried.Valid() {
+		return artifact.ID{}, artifact.ID{}
+	}
+	return descriptor.ID, named.Carried
+}
+
+// scoredCommit is the code commit of the run that scored the cases a carried
+// record's result stands on: its chain of carries followed to the first record
+// whose run carried nothing, or empty when a link cannot be read. Each record's
+// identity holds the one it carried, so a chain cannot loop.
+func scoredCommit(ctx context.Context, store *overgodb.Store, carried artifact.ID) string {
+	for carried.Valid() {
+		record, err := runrecord.RequireEvaluation(ctx, store, carried)
+		if err != nil {
+			return ""
+		}
+		bound, err := runrecord.RequireRun(ctx, store, record.Run)
+		if err != nil {
+			return ""
+		}
+		var earlier artifact.ID
+		if _, earlier = carriedReceipt(ctx, store, bound); !earlier.Valid() {
+			return bound.CodeCommit
+		}
+		carried = earlier
+	}
+	return ""
 }
 
 // EvidenceIndex joins the store's committed evidence back onto models:

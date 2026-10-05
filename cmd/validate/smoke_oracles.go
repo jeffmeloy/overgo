@@ -21,10 +21,12 @@ import (
 
 const smokeOraclePath = "docs/verification/smoke-oracles.json"
 
-// Declarations bind a narrow smoke claim to an exact active recipe.
+// A declaration names a model and the narrow smoke claim made of it; the recipe
+// the claim binds to is the model's live activation, taken when the declarations
+// are bound, so a replaced recipe needs no edit here.
 type smokeOracle struct {
 	Model         artifact.ID                     `json:"model"`
-	Recipe        artifact.ID                     `json:"recipe"`
+	Recipe        artifact.ID                     `json:"recipe,omitzero"`
 	Domain        string                          `json:"domain"`
 	Chat          bool                            `json:"chat"`
 	Generation    *evaluation.GeneratedAnswerCase `json:"generation,omitempty"`
@@ -67,7 +69,7 @@ func bindSmokeOracles(declarations []smokeOracle, entries []discovery.Entry) (ma
 		if _, duplicate := bound[declaration.Model]; duplicate {
 			return nil, errors.New("smoke: duplicate model declaration")
 		}
-		if declaration.Model.Kind() != artifact.KindModel || declaration.Recipe.Kind() != artifact.KindRecipe || declaration.Claim == "" || declaration.Domain == "" {
+		if declaration.Model.Kind() != artifact.KindModel || declaration.Claim == "" || declaration.Domain == "" {
 			return nil, errors.New("smoke: missing model, recipe, domain or claim")
 		}
 		if declaration.Generation == nil && declaration.ReferenceFile == "" {
@@ -93,10 +95,12 @@ func bindSmokeOracles(declarations []smokeOracle, entries []discovery.Entry) (ma
 	seen := map[artifact.ID]bool{}
 	for _, entry := range entries {
 		declaration, exists := bound[entry.Model]
-		if !exists || seen[entry.Model] || declaration.Recipe != entry.Recipe || !entry.Present || entry.Stale != "" {
-			return nil, fmt.Errorf("smoke: absent, duplicate, stale or mismatched activation %s", entry.Model)
+		if !exists || seen[entry.Model] || entry.Recipe.Kind() != artifact.KindRecipe || !entry.Present || entry.Stale != "" {
+			return nil, fmt.Errorf("smoke: absent, duplicate, stale or unbound activation %s", entry.Model)
 		}
 		seen[entry.Model] = true
+		declaration.Recipe = entry.Recipe
+		bound[entry.Model] = declaration
 	}
 	return bound, nil
 }

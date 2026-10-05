@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
@@ -11,15 +12,49 @@ import (
 	"overgo/internal/tensorcatalog"
 )
 
+// llamaArchitecture is the GGUF architecture whose conversion permutes the
+// query and key rows for the interleaved rotary layout.
+const llamaArchitecture = "llama"
+
+// The HF names the permuted projections end with.
+const (
+	queryProjection = ".self_attn.q_proj.weight"
+	keyProjection   = ".self_attn.k_proj.weight"
+	// rotaryPair is how many rows a rotary pair spans: the conversion interleaves
+	// each head's first half of rows with its second.
+	rotaryPair = 2
+)
+
+// unpermuteRows undoes the permutation GGUF conversion applies to a query or
+// key projection's output rows: each of heads heads stores its rows interleaved
+// in rotary pairs (row 2j+k) where the checkpoint holds its first half of rows,
+// then its second (row k*half+j).
+func unpermuteRows(values []float32, rows, columns, heads int) []float32 {
+	half := rows / heads / rotaryPair
+	restored := make([]float32, len(values))
+	for head := range heads {
+		first := head * rotaryPair * half
+		for j := range half {
+			for k := range rotaryPair {
+				stored, original := first+j*rotaryPair+k, first+k*half+j
+				copy(restored[original*columns:(original+1)*columns], values[stored*columns:(stored+1)*columns])
+			}
+		}
+	}
+	return restored
+}
+
 // LoadGGUF opens one GGUF model file and materializes the same trainable
 // F32 inventory Load materializes from a safetensors directory: GGUF is a
 // different representation of the same weights, so every tensor
 // dequantizes to f32 through the quantization owner, names map back to
 // the HF catalog through the same table conversion writes with, and the
-// model facts read from GGUF metadata. Interleaved-RoPE conversions store
-// permuted attention rows and refuse until row unpermutation lands, and
-// mixture models refuse until the expert name mapping lands — an exact
-// refusal, never a silently wrong catalog.
+// model facts read from GGUF metadata. The llama architecture's conversion
+// permutes the query and key rows for the interleaved rotary layout, and
+// the load undoes it; another interleaved-rotary architecture refuses until
+// its conversion's permutation is established, and mixture models refuse
+// until the expert name mapping lands — an exact refusal, never a silently
+// wrong catalog.
 func LoadGGUF(path string) (*Model, error) {
 	return loadGGUF(path, nil)
 }
@@ -50,9 +85,11 @@ func loadGGUF(path string, hold func(name string) bool) (*Model, error) {
 	}
 	// A profile that declares the normal (interleaved) rotary layout is one
 	// whose GGUF conversion permuted the query and key rows from the HF
-	// layout the trainer indexes.
-	if spec.Profile().Position == model.PositionNormal {
-		return nil, fmt.Errorf("densecausal: %s declares the normal rotary layout, so its GGUF stores rope-permuted attention rows; training load requires unpermutation, which is not yet implemented", spec.Architecture)
+	// layout the trainer indexes; the llama conversion's permutation is
+	// known, so its rows are put back as they load.
+	permuted := spec.Profile().Position == model.PositionNormal
+	if permuted && spec.Architecture != llamaArchitecture {
+		return nil, fmt.Errorf("densecausal: %s declares the normal rotary layout, so its GGUF stores rope-permuted attention rows; training load requires its conversion's unpermutation, which is established for %s alone", spec.Architecture, llamaArchitecture)
 	}
 	if spec.HasExperts() {
 		return nil, errors.New("densecausal: mixture GGUF training load requires the expert tensor mapping, which is not yet implemented")
@@ -92,6 +129,14 @@ func loadGGUF(path string, hold func(name string) bool) (*Model, error) {
 		values, err := quant.Dequantize(info.Type, storage, elements)
 		if err != nil {
 			return nil, fmt.Errorf("densecausal: dequantize %q: %w", info.Name, err)
+		}
+		if permuted {
+			switch {
+			case strings.HasSuffix(name, queryProjection):
+				values = unpermuteRows(values, shape[0], shape[1], int(spec.HeadCount))
+			case strings.HasSuffix(name, keyProjection):
+				values = unpermuteRows(values, shape[0], shape[1], int(spec.HeadCountKV))
+			}
 		}
 		weights[name] = values
 	}

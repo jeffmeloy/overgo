@@ -293,3 +293,22 @@ func TestTrainedBelowBaseIsAGap(t *testing.T) {
 		t.Fatalf("the published record proposes %+v, want %s", gaps, key)
 	}
 }
+
+// TestKnownGapKeyNamesTheKeysGapsProposes holds the verifier's key check to
+// the keys the scorecard proposes: each kind on a task with a hyphen in its
+// name is known, and a key missing its kind, its task or the prefix is not.
+func TestKnownGapKeyNamesTheKeysGapsProposes(t *testing.T) {
+	t.Parallel()
+	for _, kind := range gapKinds {
+		for _, task := range []recipe.Task{recipe.TaskInference, recipe.TaskImageGen, recipe.TaskVQA} {
+			if key := gapKey(kind, task); !KnownGapKey(key) {
+				t.Fatalf("the key %q the scorecard proposes is not known", key)
+			}
+		}
+	}
+	for _, key := range []string{"", "projection", "scorecard", "scorecard-unmeasured", "scorecard-unmeasured-", "scorecard-unmeasured-nonsense", "unmeasured-inference", "scorecard-unmeasured-inference-extra"} {
+		if KnownGapKey(key) {
+			t.Fatalf("the key %q names no gap and is known", key)
+		}
+	}
+}

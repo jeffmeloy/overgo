@@ -51,6 +51,12 @@ type Observer struct {
 	stepUsed    uint64
 	stepElapsed uint64
 	stepSampled bool
+	// host marks a session that runs on the host processor: it holds no device
+	// memory, whatever else its process does. process reads the device memory
+	// the process holds and the most it has held, which a device session reads
+	// as its own.
+	host    bool
+	process func() (current, peak uint64)
 	// pre holds the evidence standing when the session was admitted, so
 	// Finish can publish the bracket: improvement as the delta between
 	// committed records, never a narrated claim.
@@ -71,7 +77,7 @@ func NewObserver(store artifact.Repository, host bool) (*Observer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("training observation: environment: %w", err)
 	}
-	return &Observer{store: store, environment: environment, started: time.Now(), clock: processmeasure.NewStopwatch()}, nil
+	return &Observer{store: store, environment: environment, started: time.Now(), clock: processmeasure.NewStopwatch(), host: host, process: processLedger}, nil
 }
 
 // Admit acquires directed training ownership.
@@ -111,18 +117,33 @@ func (o *Observer) Phase(phase runrecord.Phase, wall time.Duration) {
 	o.phases = append(o.phases, runrecord.PhaseMetric{Phase: phase, DurationNS: uint64(wall)})
 }
 
-// sampleHardware records the device memory this process holds and the most
-// it has held, from the driver's process-wide ledger: the session's own
-// residency, which a training process alone owns, never the device's use
-// beside other processes. A session that allocates nothing, a host run,
-// samples zero, which is a measurement.
+// processLedger reads the driver's process-wide ledger: the device memory this
+// process holds and the most it has held.
+func processLedger() (current, peak uint64) {
+	return driver.ProcessCurrentBytes(), driver.ProcessPeakBytes()
+}
+
+// held is the device memory the session holds and the most it has held: the
+// process ledger for a device session, which a training process alone owns, and
+// zero for a host one, which holds none whatever else its process does (a
+// workbench trains on the host beside a resident inference runner). Zero is a
+// measurement.
+func (o *Observer) held() (current, peak uint64) {
+	if o.host {
+		return 0, 0
+	}
+	return o.process()
+}
+
+// sampleHardware records the device memory the session holds and the most it
+// has held, never the device's use beside other processes.
 func (o *Observer) sampleHardware(stage runrecord.ServingHardwareStage) {
 	if o == nil {
 		return
 	}
+	current, peak := o.held()
 	o.hardware = append(o.hardware, runrecord.ServingHardwareSample{
-		Stage: stage, ElapsedNS: o.walls.Elapsed(o.clock),
-		DeviceCurrentBytes: driver.ProcessCurrentBytes(), DevicePeakBytes: driver.ProcessPeakBytes(),
+		Stage: stage, ElapsedNS: o.walls.Elapsed(o.clock), DeviceCurrentBytes: current, DevicePeakBytes: peak,
 	})
 }
 
@@ -131,7 +152,7 @@ func (o *Observer) SampleStep() {
 	if o == nil {
 		return
 	}
-	used := driver.ProcessCurrentBytes()
+	used, _ := o.held()
 	if o.stepSampled && used <= o.stepUsed {
 		return
 	}

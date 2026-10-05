@@ -16,6 +16,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
 
@@ -95,7 +96,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 		if _, err := artifact.JSONID(artifact.KindProfile, d); err != nil {
 			t.Fatal(err)
 		}
-		entries[i] = discovery.Entry{Model: d.Model, Recipe: d.Recipe, Present: true}
+		entries[i] = discovery.Entry{Model: d.Model, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "smoke-"+d.Model.String()), Present: true}
 		switch d.Domain {
 		case "text":
 			text++

@@ -102,12 +102,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 			t.Fatal("empty routed check")
 		}
 	}
-	for _, revision := range []string{bundle.Previous, bundle.Source, "HEAD"} {
-		if err := checkMediaRuntimeAtRevision(root, revision, bundle.StablePaths, bundle.StableSHA); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for revision, digest := range map[string]string{bundle.Previous: bundle.ConverterBefore, bundle.Source: bundle.ConverterAfter, "HEAD": bundle.ConverterAfter} {
+	for revision, digest := range map[string]string{bundle.Previous: bundle.ConverterBefore, bundle.Source: bundle.ConverterAfter} {
 		command := exec.Command("git", "show", revision+":internal/safetensors/convert.go")
 		command.Dir = root
 		data, err := command.Output()

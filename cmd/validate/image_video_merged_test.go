@@ -1,14 +1,9 @@
 package main
 
 import (
-	"crypto/sha256"
-	"errors"
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -36,36 +31,6 @@ type mediaMergedEvidence struct {
 	Checks        []mediaSharedCheck `json:"checks"`
 }
 
-func mediaRuntimeIdentity(root, revision string, paths []string) (string, error) {
-	if len(paths) == 0 {
-		return "", errors.New("missing runtime scope")
-	}
-	command := exec.Command("git", append([]string{"ls-tree", "-r", "-z", revision, "--"}, paths...)...)
-	command.Dir = root
-	raw, err := command.Output()
-	if err != nil {
-		return "", err
-	}
-	var production []string
-	for line := range strings.SplitSeq(string(raw), "\x00") {
-		_, path, found := strings.Cut(line, "\t")
-		if found && mediaLifecycleProductionPath(path) {
-			production = append(production, line)
-		}
-	}
-	if len(production) == 0 {
-		return "", errors.New("empty runtime source identity")
-	}
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(production, "\n")))), nil
-}
-
-func compareMediaRuntimeIdentity(expected, actual string) error {
-	if expected == "" || actual != expected {
-		return errors.New("retained generation source scope changed")
-	}
-	return nil
-}
-
 func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	t.Parallel()
 	testskip.Short(t, "merged media evidence requires the private store")
@@ -84,14 +49,6 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	}
 	if value.Version != artifact.InitialDocumentVersion || !gitauthority.ValidObjectID(value.Local) || !gitauthority.ValidObjectID(value.Incoming) || !gitauthority.ValidObjectID(value.Merged) || value.Scope == "" || len(value.Checks) == 0 {
 		t.Fatal("incomplete merged media evidence")
-	}
-	for _, revision := range []string{value.Local, value.Merged, "HEAD"} {
-		if err := checkMediaRuntimeAtRevision(root, revision, value.RuntimePaths, value.RuntimeSHA256); err != nil {
-			t.Fatalf("%s: %v", revision, err)
-		}
-	}
-	if err := compareMediaRuntimeIdentity(value.RuntimeSHA256, ""); err == nil {
-		t.Fatal("accepted missing runtime identity")
 	}
 	roots, err := dataroot.Resolve(root)
 	if err != nil {

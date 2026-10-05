@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"slices"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/hostmath"
 )
 
@@ -142,35 +144,15 @@ func (m *Model) lossAndGradsFromStates(
 		loss = hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
 		hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
 	} else {
-		rows := seq - 1
-		selected := make([]bool, rows)
-		learned := 0
-		for index := range selected {
-			if selected[index] = trained == nil || trained[index+1]; selected[index] {
-				learned++
+		// A row predicts the token after it, so the flags of the tokens from the second on select the rows.
+		var selected []bool
+		if trained != nil {
+			selected = trained[1:]
+			if !slices.Contains(selected, true) {
+				return 0, nil, nil, errors.New("densecausal: no token of the window is trained")
 			}
 		}
-		if learned == 0 {
-			return 0, nil, nil, errors.New("densecausal: no token of the window is trained")
-		}
-		scores := make([]float64, rows)
-		workspace := make([]float32, d.Vocab)
-		if err := hostmath.SelectedLogProbInto(scores, normed[:rows*d.Hidden], head, nil, tokens[1:], selected, rows, d.Hidden, d.Vocab, workspace); err != nil {
-			return 0, nil, nil, err
-		}
-		coefficients := make([]float64, rows)
-		for index, score := range scores {
-			if selected[index] {
-				loss -= score / float64(learned)
-				coefficients[index] = -1 / float64(learned)
-			}
-		}
-		if err := hostmath.SelectedLogProbBackward(
-			dNormed[:rows*d.Hidden], gradHead, nil, normed[:rows*d.Hidden], head, nil,
-			tokens[1:], selected, coefficients, rows, d.Hidden, d.Vocab, workspace, false,
-		); err != nil {
-			return 0, nil, nil, err
-		}
+		loss = headBackward(normed[:(seq-1)*d.Hidden], tokens[1:], selected, head, gradHead, dNormed[:(seq-1)*d.Hidden], d.Hidden, d.Vocab, headWindowRows(d.Vocab))
 	}
 	dx := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, m.tensors.finalNorm.name, d.Hidden), final, m.tensors.finalNorm.values, dNormed, seq, d.Hidden, d.RMSEps, false)
@@ -190,6 +172,66 @@ func (m *Model) lossAndGradsFromStates(
 		scatterEmbeddingGradient(gradEmbed, dx, tokens, d.Hidden)
 	}
 	return loss, logits, g, nil
+}
+
+// headWindowBytes bounds the logits and their gradient a logit-free backward
+// holds at once, so the memory a long sequence over a large vocabulary needs
+// does not grow with the sequence.
+const headWindowBytes = 1 << 28
+
+// headWindowBuffers is how many matrices of a window's rows by the vocabulary
+// the head holds at once: the logits and their gradient.
+const headWindowBuffers = 2
+
+// headWindowRows is how many rows the head is applied to at once: as many as
+// their logits and gradient fit in the window, never none.
+func headWindowRows(vocab int) int {
+	return max(headWindowBytes/(headWindowBuffers*vocab*binaryschema.Uint32Bytes), 1)
+}
+
+// headBackward is the mean cross-entropy of the head over the selected rows of
+// normed (every row when selected is nil) against their targets, and its
+// gradient: dNormed is set, a row not selected keeping the zero it holds, and
+// gradHead (when not nil) accumulated. The selected rows are gathered and the
+// head is applied to window of them at a time, each window's logits on the
+// worker pool and its gradient through the pooled linear backward, so the
+// logits of the whole sequence are never held and a row the run does not train
+// costs the head nothing. Each row's gradient is its own, so the windows add up
+// to the selected rows'.
+func headBackward(normed []float32, targets []int, selected []bool, head, gradHead, dNormed []float32, hidden, vocab, window int) float64 {
+	chosen := make([]int, 0, len(targets))
+	for row := range targets {
+		if selected == nil || selected[row] {
+			chosen = append(chosen, row)
+		}
+	}
+	width := min(window, len(chosen))
+	logits, dLogits := make([]float32, width*vocab), make([]float32, width*vocab)
+	gathered, dGathered := make([]float32, width*hidden), make([]float32, width*hidden)
+	picked := make([]int, width)
+	var loss float64
+	for start := 0; start < len(chosen); start += window {
+		members := chosen[start:min(start+window, len(chosen))]
+		count := len(members)
+		for index, row := range members {
+			copy(gathered[index*hidden:(index+1)*hidden], normed[row*hidden:(row+1)*hidden])
+			picked[index] = targets[row]
+		}
+		hostmath.Linear(logits[:count*vocab], gathered[:count*hidden], head, count, hidden, vocab)
+		mean := hostmath.SoftmaxCrossEntropy(dLogits[:count*vocab], logits[:count*vocab], picked[:count], count, vocab)
+		// The window's mean and gradient are over its own rows; the selected rows' are over all of them.
+		share := float64(count) / float64(len(chosen))
+		loss += mean * share
+		scale := float32(share)
+		for index := range dLogits[:count*vocab] {
+			dLogits[index] *= scale
+		}
+		hostmath.LinearBackward(dGathered[:count*hidden], gradHead, nil, gathered[:count*hidden], head, dLogits[:count*vocab], count, hidden, vocab, false)
+		for index, row := range members {
+			copy(dNormed[row*hidden:(row+1)*hidden], dGathered[index*hidden:(index+1)*hidden])
+		}
+	}
+	return loss
 }
 
 // scatterEmbeddingGradient adds each token's input gradient row onto its

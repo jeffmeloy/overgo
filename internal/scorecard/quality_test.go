@@ -525,8 +525,19 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 		{Model: directory.ID, Capabilities: []discovery.Capability{{Task: recipe.TaskTabular, Recipe: tabular}, {Task: recipe.TaskInference, Recipe: inference}}},
 	})
 	if missingCheckpoint || wrongModel {
-		if err == nil {
-			t.Fatalf("invalid held-out evidence was reported as quality: %+v", records)
+		// A verdict that cannot be reconstructed is no quality, and no abort: its
+		// recipe's held-out quality is a gap that says why.
+		if err != nil {
+			t.Fatalf("a verdict that cannot be reconstructed stopped the read: %v", err)
+		}
+		for recipeID, record := range records {
+			if len(record.summary.Metrics) != 0 {
+				t.Fatalf("invalid held-out evidence was reported as quality for %s: %+v", recipeID, record)
+			}
+		}
+		held := records[training]
+		if cell := held.cell(recipe.TaskTraining); cell.Reason == "" || !strings.Contains(cell.Reason, "cannot be reconstructed") {
+			t.Fatalf("the training recipe's quality = %+v, want a gap naming the verdict that cannot be reconstructed", cell)
 		}
 		return
 	}
@@ -600,4 +611,28 @@ func trainedCheckpoint(t *testing.T, model, source, split artifact.ID) (training
 		t.Fatal(err)
 	}
 	return checkpoint, batch
+}
+
+// TestCarriedQualityNamesItsSource holds a carried held-out quality to the
+// run that scored it: a result carried forward reads as carried and names the
+// commit of the run its chain began at, not the commit of the run that
+// replayed a sample of it, while a quality a run scored itself keeps its own.
+func TestCarriedQualityNamesItsSource(t *testing.T) {
+	t.Parallel()
+	scored, carrying := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	carried := evaluation.EvalSummary{
+		Suite: "fixture", Prompting: "raw-completion", Record: testutil.ArtifactID(t, artifact.KindEvaluation, "carrier"),
+		Metrics: map[string]float64{"accuracy": 0.5}, Directions: map[string]runrecord.Direction{"accuracy": runrecord.DirectionMaximize},
+		CodeCommit: carrying, ScoredCommit: scored, Carried: testutil.ArtifactID(t, artifact.KindEvaluation, "receipt"), ExecutionKnown: true,
+	}
+	cell, _ := qualityCell(recipe.TaskInference, []evaluation.EvalSummary{carried}, nil)
+	if cell.CodeCommit != scored || !strings.HasSuffix(cell.Label, ", carried") {
+		t.Fatalf("a carried quality reads %q at %q, want carried at the scoring run's %q", cell.Label, cell.CodeCommit, scored)
+	}
+	own := carried
+	own.Carried, own.ScoredCommit = artifact.ID{}, ""
+	cell, _ = qualityCell(recipe.TaskInference, []evaluation.EvalSummary{own}, nil)
+	if cell.CodeCommit != carrying || strings.Contains(cell.Label, "carried") {
+		t.Fatalf("a quality its run scored reads %q at %q, want its own commit %q and no carried scope", cell.Label, cell.CodeCommit, carrying)
+	}
 }

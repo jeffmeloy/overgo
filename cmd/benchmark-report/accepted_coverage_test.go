@@ -24,18 +24,18 @@ const mmluProSuite = "store/mmlu-pro"
 // models, the operator-owned 27B excluded.
 const minMMLUProCovered = 6
 
-// smokeOraclePath declares, per servable model and active recipe, the
-// protocol validate -smoke verifies it under; chat is true for a model served
+// smokeOraclePath declares, per servable model, the protocol validate -smoke
+// verifies it under (against the recipe the model is active under); chat is true for a model served
 // through its own chat template. It is the declaration that tells a chat text
 // model from a text decoder built for something else.
 const smokeOraclePath = "../../docs/verification/smoke-oracles.json"
 
 // smokeProtocol is the part of a smoke oracle declaration this acceptance
-// reads: the recipe it binds and whether it serves through the chat template.
+// reads: the model and whether it serves through the chat template. A
+// declaration names no recipe; it binds the model's active one.
 type smokeProtocol struct {
-	Model  artifact.ID `json:"model"`
-	Recipe artifact.ID `json:"recipe"`
-	Chat   bool        `json:"chat"`
+	Model artifact.ID `json:"model"`
+	Chat  bool        `json:"chat"`
 }
 
 // TestAcceptedSmallModelMMLUPro accepts the small-model MMLU-Pro coverage: every
@@ -99,9 +99,10 @@ func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 			continue // no MMLU-Pro record: the operator-owned 27B or a non-text model.
 		}
 		// Fail closed: a model is exempt from the chat protocol only by a
-		// declaration of its active recipe that serves it without the template.
+		// declaration that serves it without the template, which binds its
+		// active recipe.
 		declaration, found := declared[entry.Model]
-		chat := !found || declaration.Recipe != entry.Recipe || declaration.Chat
+		chat := !found || declaration.Chat
 		switch mmluProCoverage(chat, protocols) {
 		case mmluProComplete:
 			covered++

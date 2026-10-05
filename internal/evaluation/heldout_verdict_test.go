@@ -289,10 +289,17 @@ func TestCommittedVerdictRescoresItsReports(t *testing.T) {
 		visitErr := VisitHeldoutVerdicts(ctx, store, func(_ artifact.ID, _, trained EvalSummary) error {
 			visited = append(visited, trained)
 			return nil
-		})
+		}, nil)
 		if approvalErr != nil {
 			if visitErr == nil || len(visited) != 0 {
 				t.Fatalf("%s invalid verdict reached reporting: %+v, %v", key, visited, visitErr)
+			}
+			// Told to go on, the visit reports the verdicts it cannot read and ends without error.
+			var unreadable []artifact.ID
+			if err := VisitHeldoutVerdicts(ctx, store, func(artifact.ID, EvalSummary, EvalSummary) error { return nil }, func(observation artifact.ID, _ error) {
+				unreadable = append(unreadable, observation)
+			}); err != nil || len(unreadable) == 0 {
+				t.Fatalf("%s tolerant visit = (%v, %v), want the unreadable verdict reported and no error", key, unreadable, err)
 			}
 		} else if visitErr != nil || len(visited) == 0 || visited[0].Record != verdict.ID || visited[0].Metrics[string(verdict.Metric)] != verdict.CandidateValue {
 			t.Fatalf("%s reporting = (%+v, %v), want the reconstructed value including a valid loss", key, visited, visitErr)

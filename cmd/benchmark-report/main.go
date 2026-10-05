@@ -130,7 +130,7 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 			return nil, err
 		}
 		row.references = references
-		for _, summary := range index.EvaluationsByRecipe[entry.Recipe] {
+		for _, summary := range newestPerColumn(index.EvaluationsByRecipe[entry.Recipe]) {
 			record, err := runrecord.RequireEvaluation(ctx, store, summary.Record)
 			if err != nil {
 				return nil, err
@@ -163,9 +163,7 @@ func generate(ctx context.Context, repository string) ([]byte, error) {
 					suite.references = append(suite.references, reference)
 				}
 			}
-			// One column per suite and prompting protocol: the raw
-			// anchor and the template-shaped pass stand side by side.
-			row.suites[summary.Suite+" ("+summary.Prompting+")"] = suite
+			row.suites[columnName(summary)] = suite
 		}
 		rows = append(rows, row)
 	}
@@ -377,13 +375,41 @@ func referenceCell(references []evaluation.ReferenceScore) string {
 	return strings.Join(parts, "<br>")
 }
 
+// columnName is the one column a suite and prompting protocol take: the
+// raw anchor and the template-shaped pass stand side by side.
+func columnName(summary evaluation.EvalSummary) string {
+	return summary.Suite + " (" + summary.Prompting + ")"
+}
+
+// newestPerColumn keeps the first of each column among a recipe's evaluations,
+// which the index lists newest first with one per comparison: a column shows
+// the latest committed evaluation, and an older record of the same suite and
+// protocol, scored under another comparison, does not replace it.
+func newestPerColumn(summaries []evaluation.EvalSummary) []evaluation.EvalSummary {
+	var kept []evaluation.EvalSummary
+	seen := map[string]bool{}
+	for _, summary := range summaries {
+		if !seen[columnName(summary)] {
+			seen[columnName(summary)] = true
+			kept = append(kept, summary)
+		}
+	}
+	return kept
+}
+
 // unmeasuredReferences lists the model's declared references whose
 // suite has no committed evaluation, so a declaration never hides
-// behind a missing measurement.
+// behind a missing measurement. A suite is one column per prompting
+// protocol, each holding the references of its suite, so a reference is
+// measured when any column holds it.
 func unmeasuredReferences(row modelRow) []evaluation.ReferenceScore {
 	var unmeasured []evaluation.ReferenceScore
 	for _, reference := range row.references {
-		if _, measured := row.suites[reference.Suite]; !measured {
+		measured := false
+		for _, suite := range row.suites {
+			measured = measured || slices.Contains(suite.references, reference)
+		}
+		if !measured {
 			unmeasured = append(unmeasured, reference)
 		}
 	}

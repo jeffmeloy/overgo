@@ -299,7 +299,13 @@ func checkAcceptedDenominator(ctx context.Context, store artifact.Reader, expect
 			}
 			k := key{entry.Model, capability.Task}
 			cell, found := wanted[k]
-			if !found || !entry.Present || capability.Stale != "" || capability.Recipe != cell.Recipe || !slices.Equal(declared, domains[entry.Model]) {
+			covered := false
+			if found {
+				if covered, err = acceptanceCovers(ctx, store, cell.Recipe, capability.Recipe); err != nil {
+					return err
+				}
+			}
+			if !found || !entry.Present || capability.Stale != "" || !covered || !slices.Equal(declared, domains[entry.Model]) {
 				return fmt.Errorf("coverage: missing, duplicate or changed activation %s/%s", entry.Model, capability.Task)
 			}
 			definition, err := recipe.RequireDefinition(ctx, store, capability.Recipe)

@@ -18,6 +18,21 @@ type conversationSegment struct {
 	Trained bool   `json:"trained,omitzero"`
 }
 
+// unusableConversation is why one well-formed conversation cannot be cut into the
+// stretches a run learns and reads under this model's chat template and tokenizer.
+// A run skips such a conversation and says so; a file that is no conversation at
+// all is the dataset's fault and stays an error.
+type unusableConversation struct{ error }
+
+// Unwrap is the reason the conversation cannot be learned from.
+func (unusable unusableConversation) Unwrap() error { return unusable.error }
+
+// SkippedConversation is a conversation of the dataset a run left out, and why.
+type SkippedConversation struct {
+	File   string
+	Reason string
+}
+
 // conversationRecord is one conversation as a run reads it: its rendering, in
 // order, cut into the stretches a run learns and the stretches it only reads.
 type conversationRecord struct {

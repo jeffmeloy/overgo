@@ -176,6 +176,81 @@ func TestConversationSFTTrainsOnRenderedConversations(t *testing.T) {
 	}
 }
 
+// TestConversationRunSkipsAnUnusableConversationAndSaysSo holds a run to the records it
+// can learn from: a conversation with no assistant reply and one whose reply lies
+// beyond the window are each left out, named with the reason in the result and on the
+// run's progress, the run trains and is judged on the six that remain; a dataset none
+// of whose conversations can be learned from is refused, with the first reason.
+func TestConversationRunSkipsAnUnusableConversationAndSaysSo(t *testing.T) {
+	userOnly := dataset.Conversation{Messages: []dataset.ChatMessage{{Role: "user", Content: "ab"}}}
+	overlong := dataset.Conversation{Messages: []dataset.ChatMessage{
+		{Role: "user", Content: strings.Repeat("ab", conversationWindow)},
+		{Role: "assistant", Content: "cd"},
+	}}
+	run := registerConversations(t, append(periodic(6), userOnly, overlong))
+	var progress strings.Builder
+	result, err := RunConversationSFT(t.Context(), run.store, ConversationSFT{
+		Dataset: run.source, Render: letters, ModelDirectory: run.model, WorkDirectory: run.work,
+		OutputDirectory: filepath.Join(run.root, "trained"), Steps: 2, Progress: &progress,
+	})
+	if err != nil || !result.Verdict.Valid() {
+		t.Fatalf("a dataset of six usable conversations and two unusable ran as (%v, %v)", result.Verdict, err)
+	}
+	if len(result.Skipped) != 2 || result.Skipped[0].File != "07.json" || !strings.Contains(result.Skipped[0].Reason, "no assistant reply") ||
+		result.Skipped[1].File != "08.json" || !strings.Contains(result.Skipped[1].Reason, "learns no token") {
+		t.Fatalf("skipped = %+v, want the user-only conversation and the overlong one, each with its reason", result.Skipped)
+	}
+	if !strings.Contains(progress.String(), "skipped 2 of 8 conversations") {
+		t.Errorf("progress %q does not say two of eight were skipped", progress.String())
+	}
+	if files, err := filepath.Glob(filepath.Join(run.work, "sft-*", "*.txt")); err != nil || len(files) != 6 {
+		t.Errorf("rendered %d records (%v), want the six usable ones", len(files), err)
+	}
+
+	none := registerConversations(t, []dataset.Conversation{userOnly, {Messages: []dataset.ChatMessage{{Role: "user", Content: "ba"}}}})
+	_, err = RunConversationSFT(t.Context(), none.store, ConversationSFT{
+		Dataset: none.source, Render: letters, ModelDirectory: none.model, WorkDirectory: none.work,
+		OutputDirectory: filepath.Join(none.root, "trained"), Steps: 2,
+	})
+	if err == nil || !strings.Contains(err.Error(), "the 2 skipped as unusable, the first 01.json") || !strings.Contains(err.Error(), "no assistant reply") {
+		t.Fatalf("a dataset of unusable conversations: %v, want it refused naming the skipped and the first reason", err)
+	}
+}
+
+// TestObjectiveSFTAliasNeedsItsConversations holds a conversation objective to the run
+// that reads its segments: trained as raw text, as the command line trains an objective
+// by its alias, it would learn every token of the records' JSON and publish a verdict
+// that looks like a masked run's, so the text run refuses it where a conversation run
+// of the same objective, which published it, goes on.
+func TestObjectiveSFTAliasNeedsItsConversations(t *testing.T) {
+	run := registerConversations(t, periodic(4))
+	ctx := t.Context()
+	if _, err := RunConversationSFT(ctx, run.store, ConversationSFT{
+		Dataset: run.source, Render: letters, ModelDirectory: run.model, WorkDirectory: run.work,
+		OutputDirectory: filepath.Join(run.root, "masked"), Steps: 2,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	files, err := filepath.Glob(filepath.Join(run.work, "sft-*", "*.txt"))
+	if err != nil || len(files) == 0 {
+		t.Fatalf("the conversation run rendered %d records (%v)", len(files), err)
+	}
+	rendered, found, err := run.store.ResolveAlias(ctx, "dataset.registered."+filepath.Base(filepath.Dir(files[0])))
+	if err != nil || !found {
+		t.Fatalf("the rendered conversations registered no dataset (%t, %v)", found, err)
+	}
+	alias := conversationAliasPrefix + rendered.DigestHex()[:conversationNameDigits]
+	_, err = RunTextHeldout(ctx, run.store, TextHeldoutRequest{
+		Alias: alias, ModelDirectory: run.model, OutputDirectory: filepath.Join(run.root, "raw"), Steps: 2, Host: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "conversation objective") {
+		t.Fatalf("an objective of conversations trained as raw text: %v, want it refused as a conversation objective", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(run.root, "raw")); statErr == nil {
+		t.Error("the refused run published a model")
+	}
+}
+
 // TestConversationSFTDropsRepeatedConversations: conversations that render
 // the same register one record, so a dataset of six conversations, three of
 // them one repeated, trains on four records with one held out.

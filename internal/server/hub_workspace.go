@@ -297,6 +297,10 @@ type downloadJob struct {
 	Received    int64  `json:"received"`
 	Total       int64  `json:"total"`
 	Files       int    `json:"files"`
+	// transferring is true from admission until the job's transfer goroutine has unwound: a cancel changes the
+	// job's state at once, but the connection and the files stay live until then, so only then does the job free
+	// its slot and its place in the history.
+	transferring bool
 }
 
 const (
@@ -365,7 +369,7 @@ func (r *downloadRegistry) admit(job *downloadJob, cancel context.CancelFunc) er
 	}
 	running := 0
 	for _, existing := range r.jobs {
-		if existing.State == downloadStateRunning {
+		if existing.transferring {
 			running++
 		}
 	}
@@ -378,7 +382,7 @@ func (r *downloadRegistry) admit(job *downloadJob, cancel context.CancelFunc) er
 	for len(r.jobs) >= r.maxRetained {
 		oldest := uint64(0)
 		for id, existing := range r.jobs {
-			if existing.State != downloadStateRunning && (oldest == 0 || id < oldest) {
+			if !existing.transferring && (oldest == 0 || id < oldest) {
 				oldest = id
 			}
 		}
@@ -388,11 +392,19 @@ func (r *downloadRegistry) admit(job *downloadJob, cancel context.CancelFunc) er
 		delete(r.jobs, oldest)
 		delete(r.cancels, oldest)
 	}
+	job.transferring = true
 	r.jobs[job.ID] = job
 	r.cancels[job.ID] = cancel
 	r.transfers.Add(1)
 	r.changedLocked()
 	return nil
+}
+
+// unwound records that a job's transfer goroutine has returned, which frees its slot and its place in the history.
+func (r *downloadRegistry) unwound(job *downloadJob) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	job.transferring = false
 }
 
 // shutdown is the one download lifecycle owner on the way out: it stops
@@ -567,6 +579,7 @@ func (h *Handler) cancelHubDownload(response http.ResponseWriter, request *http.
 
 func (h *Handler) runHubDownload(ctx context.Context, client *hfhub.Client, kind hfhub.RepoKind, body downloadRequestBody, destination string, job *downloadJob) {
 	defer h.downloads.transfers.Done()
+	defer h.downloads.unwound(job)
 	resolved, err := client.Download(ctx, hfhub.DownloadRequest{
 		Kind: kind, Repository: body.Repository, Revision: body.Revision, Destination: destination,
 		Observe: func(progress hfhub.Progress) { h.downloads.observe(job, progress) },

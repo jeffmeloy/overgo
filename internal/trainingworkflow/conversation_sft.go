@@ -111,9 +111,20 @@ func RunConversationSFT(ctx context.Context, store *overgodb.Store, request Conv
 	if ctx == nil || store == nil || request.Render == nil || request.Dataset.Kind() != artifact.KindDataset || request.WorkDirectory == "" {
 		return HeldoutResult{}, errors.New("training workflow: a conversation run needs a store, a conversation dataset, a renderer and a work directory")
 	}
-	records, err := conversationRecords(ctx, store, request.Dataset, request.Render, request.Prompts)
+	if request.Prompts && request.SampleEvery > 0 {
+		return HeldoutResult{}, errors.New("training workflow: samples are generated after a conversation's prompt, and a run that learns the prompts too has no stretch to generate after")
+	}
+	tokens, err := loadTrainableTokenizerFor(request.ModelDirectory, true)
 	if err != nil {
 		return HeldoutResult{}, err
+	}
+	records, skipped, err := conversationRecords(ctx, store, request.Dataset, request.Render, request.Prompts, tokens)
+	if err != nil {
+		return HeldoutResult{}, err
+	}
+	if len(skipped) > 0 && request.Progress != nil {
+		fmt.Fprintf(request.Progress, "skipped %d of %d conversations the run cannot learn from; the first, %s: %s\n",
+			len(skipped), len(skipped)+len(records), skipped[0].File, skipped[0].Reason)
 	}
 	registered, err := registerRecords(ctx, store, request.WorkDirectory, records)
 	if err != nil {
@@ -127,34 +138,49 @@ func RunConversationSFT(ctx context.Context, store *overgodb.Store, request Conv
 	if request.Average {
 		decay = conversationAverageDecay
 	}
-	return RunTextHeldout(ctx, store, TextHeldoutRequest{
+	result, err := RunTextHeldout(ctx, store, TextHeldoutRequest{
 		Alias: alias, ModelDirectory: request.ModelDirectory, OutputDirectory: request.OutputDirectory,
 		Steps: request.Steps, MaximumSequence: conversationWindow, Host: true,
 		Chat: true, Conversations: true, Step: request.Step, Progress: request.Progress, LoRA: request.LoRA, Average: decay, SampleEvery: request.SampleEvery,
 		CheckpointEvery: request.CheckpointEvery, CheckpointKeep: request.CheckpointKeep, Resume: request.Resume,
 	})
+	result.Skipped = skipped
+	return result, err
 }
 
 // conversationRecords reads each conversation of the dataset, in file order,
 // renders it and cuts it into segments, and encodes each as the record a run
 // reads. A conversation that renders the same as an earlier one is dropped:
-// the inventory keeps one record for identical bytes. A dataset of fewer than
-// two distinct conversations cannot hold one out to judge the others by.
-func conversationRecords(ctx context.Context, store *overgodb.Store, source artifact.ID, render ConversationRenderer, prompts bool) ([][]byte, error) {
+// the inventory keeps one record for identical bytes. A conversation the model's
+// template or tokenizer cannot cut into a stretch to learn and the stretches
+// before it, or whose reply the window does not reach, is skipped and returned
+// with its reason, so one such record does not end the run; the records are the
+// ones that remain, and a dataset of fewer than two distinct ones cannot hold
+// one out to judge the others by.
+func conversationRecords(ctx context.Context, store *overgodb.Store, source artifact.ID, render ConversationRenderer, prompts bool, tokens trainableTokenizer) ([][]byte, []SkippedConversation, error) {
 	files, err := conversationFiles(ctx, store, source)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var records [][]byte
+	var skipped []SkippedConversation
 	seen := map[string]bool{}
 	for _, file := range files {
 		segments, err := conversationSegments(file, render, prompts)
+		if err == nil {
+			err = learnable(tokens, segments)
+		}
+		var unusable unusableConversation
+		if errors.As(err, &unusable) {
+			skipped = append(skipped, SkippedConversation{File: filepath.Base(file), Reason: err.Error()})
+			continue
+		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		record, err := json.Marshal(conversationRecord{Segments: segments})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if !seen[string(record)] {
 			seen[string(record)] = true
@@ -162,9 +188,27 @@ func conversationRecords(ctx context.Context, store *overgodb.Store, source arti
 		}
 	}
 	if len(records) < conversationMinimum {
-		return nil, fmt.Errorf("training workflow: %d distinct conversations: a run holds one out to judge the rest, so it needs at least %d", len(records), conversationMinimum)
+		reason := ""
+		if len(skipped) > 0 {
+			reason = fmt.Sprintf("; the %d skipped as unusable, the first %s: %s", len(skipped), skipped[0].File, skipped[0].Reason)
+		}
+		return nil, nil, fmt.Errorf("training workflow: %d distinct conversations: a run holds one out to judge the rest, so it needs at least %d%s", len(records), conversationMinimum, reason)
 	}
-	return records, nil
+	return records, skipped, nil
+}
+
+// learnable holds a rendered conversation to what a run needs of its record under
+// the model's tokenizer: tokens that tell a reply from its prompt, and a token to
+// learn within the window.
+func learnable(tokens trainableTokenizer, segments []conversationSegment) error {
+	ids, trained, err := encodeConversation(tokens, segments)
+	if err == nil {
+		_, err = nextTargets(ids[:min(len(ids), conversationWindow)], trained)
+	}
+	if err != nil {
+		return unusableConversation{err}
+	}
+	return nil
 }
 
 // conversationFiles lists the conversation files of a registered dataset, in
@@ -195,7 +239,7 @@ func conversationSegments(file string, render ConversationRenderer, prompts bool
 	}
 	segments, err := segmentConversation(conversation.Messages, render, prompts)
 	if err != nil {
-		return nil, fmt.Errorf("training workflow: render %s: %w", filepath.Base(file), err)
+		return nil, unusableConversation{fmt.Errorf("training workflow: render %s: %w", filepath.Base(file), err)}
 	}
 	return segments, nil
 }

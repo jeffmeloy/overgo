@@ -73,6 +73,10 @@ type HeldoutResult struct {
 	// zero for a run that did not sample.
 	Samples artifact.ID
 	Passed  bool
+	// Skipped is the conversations a conversation run left out because the model's
+	// template or tokenizer cannot cut them into the stretches it learns, which the
+	// verdict was not judged on and the model was not trained on.
+	Skipped []SkippedConversation
 }
 
 // ObjectiveData is what a run reads of an objective's dataset through one

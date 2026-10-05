@@ -22,7 +22,6 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/safetensors"
-	"overgo/internal/tensorcatalog"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/workflowrecipe"
@@ -450,11 +449,7 @@ func publishCheckpoint(ctx context.Context, store artifact.Reader, source, targe
 	}
 	writeModel := func(stage string) error {
 		if isGGUFModelInput(source) {
-			return WriteTrainedModel(ctx, store, source, stage, len(model.Weights), func(name string) ([]float32, bool) {
-				trained, named := tensorcatalog.HFDenseTensorName(name)
-				values, found := model.Weights[trained]
-				return values, named && found
-			})
+			return WriteTrainedModel(ctx, store, source, stage, len(model.Weights), trainedGGUFTensors(model))
 		}
 		metadata := map[string]string{"format": "pt", "trainer": "overgo"}
 		if err := safetensors.Save(filepath.Join(stage, trainingprogram.CheckpointWeights), model.Weights, model.Shapes, metadata); err != nil {

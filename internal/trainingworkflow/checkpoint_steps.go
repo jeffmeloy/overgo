@@ -4,17 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
-	"strconv"
-	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/atomicfile"
-	"overgo/internal/binaryschema"
 	"overgo/internal/clioptions"
 	"overgo/internal/densecausal"
+	"overgo/internal/fsatomic"
 	"overgo/internal/hostoptimizer"
 	"overgo/internal/loratrain"
 	"overgo/internal/optimizer"
@@ -44,36 +42,52 @@ const (
 
 // stepCheckpointDirectory is where a run writing to output saves its checkpoint
 // after the given number of updates, beside output so that the checkpoints root
-// holds them and a name given there resumes from one.
+// holds them and a name given there resumes from one. The name joins the output's
+// last element, so an output written with a trailing separator is still the
+// directory the checkpoint sits beside, never inside.
 func stepCheckpointDirectory(output string, updates int) string {
-	return output + stepCheckpointInfix + fmt.Sprintf("%0*d", stepCheckpointDigits, updates)
+	clean := filepath.Clean(output)
+	return filepath.Join(filepath.Dir(clean), filepath.Base(clean)+stepCheckpointInfix+fmt.Sprintf("%0*d", stepCheckpointDigits, updates))
 }
 
-// pruneStepCheckpoints deletes the checkpoints a run saved along the way to output
-// but the newest keep of them. Only a directory named as stepCheckpointDirectory
-// names one is a candidate, so nothing else beside output is touched.
-func pruneStepCheckpoints(output string, keep int) error {
-	if keep < 1 {
-		return errors.New("training workflow: a run that saves checkpoints keeps at least one")
+// checkStepNames refuses a run to output that would save a checkpoint after the
+// updates following first, every that many of the run's updates, where a directory
+// already stands, before the run spends anything: the publish would refuse it only
+// when the run reached it. An output that is not one path element beside its
+// checkpoints is refused too. Directories a run does not write are left alone.
+func checkStepNames(output string, every, first, updates int) error {
+	if err := fsatomic.PathComponent(filepath.Base(filepath.Clean(output))); err != nil {
+		return fmt.Errorf("training workflow: a run that saves checkpoints beside its output needs an output named by one element: %w", err)
 	}
-	entries, err := os.ReadDir(filepath.Dir(output))
-	if err != nil {
-		return err
-	}
-	prefix := filepath.Base(output) + stepCheckpointInfix
-	var saved []string
-	for _, entry := range entries {
-		number, found := strings.CutPrefix(entry.Name(), prefix)
-		if _, err := strconv.ParseUint(number, binaryschema.DecimalRadix, binaryschema.Width64Bits); !found || err != nil || len(number) != stepCheckpointDigits || !entry.IsDir() {
-			continue
-		}
-		saved = append(saved, entry.Name())
-	}
-	slices.Sort(saved)
-	for _, name := range saved[:max(len(saved)-keep, 0)] {
-		if err := os.RemoveAll(filepath.Join(filepath.Dir(output), name)); err != nil {
+	for done := (first/every + 1) * every; done < updates; done += every {
+		target := stepCheckpointDirectory(output, done)
+		if _, err := os.Lstat(target); err == nil {
+			return fmt.Errorf("training workflow: %s, where the run would save its checkpoint after update %d, already exists: resume into another output or remove it", target, done)
+		} else if !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
+	}
+	return nil
+}
+
+// stepSaves is the checkpoints one run saved along the way to its output, oldest
+// first. A run prunes only these: a directory an earlier run left beside the
+// output, however it is named or numbered, is neither outranked by the run's saves
+// nor deleted by them.
+type stepSaves struct {
+	keep int
+	own  []string
+}
+
+// saved records the checkpoint the run just wrote at target and deletes its own
+// oldest ones beyond the newest keep.
+func (saves *stepSaves) saved(target string) error {
+	saves.own = append(saves.own, target)
+	for len(saves.own) > saves.keep {
+		if err := os.RemoveAll(saves.own[0]); err != nil {
+			return err
+		}
+		saves.own = saves.own[1:]
 	}
 	return nil
 }

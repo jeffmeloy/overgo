@@ -79,30 +79,60 @@ type ModelSessionDirector[Input, Model, Output any] struct {
 	retiring      int
 	retiringUsers int
 
-	// authorityView is the head-bound continuity coordinate that lets
-	// repeated capability-authority freshness checks skip alias
-	// re-resolution while the canonical store has not moved.
-	authorityView HeadBoundView
+	// authorityProof is the store coordinate at which each selection's capability
+	// authority was last validated, and authorityValid the selections validated at it:
+	// a selection skips alias re-resolution only at the coordinate its own validation
+	// succeeded at, never because the head did not move for another selection.
+	authorityMu    sync.Mutex
+	authorityProof headCoordinate
+	authorityValid map[artifact.ID]struct{}
 }
 
-// refreshExecution re-resolves capability authority only when the canonical
-// store moved since this director's last reconciled head; an unmoved head
-// keeps the already-proven selection without any alias resolution.
+// headCoordinate is one exact store head.
+type headCoordinate struct {
+	head     artifact.CommitID
+	sequence uint64
+}
+
+// headSource is a store that reports its head.
+type headSource interface {
+	Head() (artifact.CommitID, uint64)
+}
+
+// refreshExecution answers the selection's current capability authority. A
+// selection validated at the store's current head is not validated again: the
+// proof is its own, recorded only after its validation succeeded, at the head
+// read before it began, so a refusal is never cached as success, a selection
+// never borrows another's proof, and a store that moves during a validation
+// leaves the next call to validate again.
 func (c *ModelSessionDirector[Input, Model, Output]) refreshExecution(
 	ctx context.Context,
 	store artifact.Repository,
 	execution modelrecipe.CapabilityEvidenceSelection,
 ) (modelrecipe.CapabilityEvidenceSelection, error) {
-	if source, ok := store.(DeltaSource); ok {
-		changed, _, _, err := c.authorityView.Reconcile(ctx, source)
-		if err != nil {
-			return modelrecipe.CapabilityEvidenceSelection{}, err
-		}
-		if !changed {
+	source, tracked := store.(headSource)
+	var at headCoordinate
+	if tracked {
+		at.head, at.sequence = source.Head()
+		c.authorityMu.Lock()
+		_, proven := c.authorityValid[execution.Identity]
+		proven = proven && c.authorityProof == at
+		c.authorityMu.Unlock()
+		if proven {
 			return execution, nil
 		}
 	}
-	return modelrecipe.RefreshCapabilityExecution(ctx, store, execution)
+	refreshed, err := modelrecipe.RefreshCapabilityExecution(ctx, store, execution)
+	if err != nil || !tracked {
+		return refreshed, err
+	}
+	c.authorityMu.Lock()
+	defer c.authorityMu.Unlock()
+	if c.authorityProof != at || c.authorityValid == nil {
+		c.authorityProof, c.authorityValid = at, map[artifact.ID]struct{}{}
+	}
+	c.authorityValid[refreshed.Identity] = struct{}{}
+	return refreshed, nil
 }
 
 // SessionLease: admitted use of one resident model session.
@@ -596,15 +626,16 @@ func (c *ModelSessionDirector[Input, Model, Output]) leaseEntry(
 				}
 				continue
 			}
+			// An evicted model keeps its place in the capacity until its Close returns: it is retiring, like a superseded one.
 			oldest.dead = true
+			oldest.closing = true
+			oldest.retiring = true
 			delete(c.entries, oldestKey)
 			c.evictions++
+			c.retiring++
 			c.notify()
 			c.mu.Unlock()
-			oldest.mu.Lock()
-			err := closeEntry(context.WithoutCancel(ctx), oldest)
-			oldest.mu.Unlock()
-			if err != nil {
+			if err := c.finishRetirement(context.WithoutCancel(ctx), oldest); err != nil {
 				return nil, false, err
 			}
 			continue
@@ -732,9 +763,25 @@ func (c *ModelSessionDirector[Input, Model, Output]) retire(ctx context.Context,
 		delete(c.entries, key)
 		c.retirements++
 	}
+	// The entry counts as retiring, its borrowers as retiring users, until its Close returns: a replacement
+	// does not load beside it and a closing director waits for it. The caller holds the entry's lock.
+	if !entry.retiring {
+		entry.retiring = true
+		c.retiring++
+		c.retiringUsers += entry.borrowers
+	}
 	c.notify()
 	c.mu.Unlock()
-	return errors.Join(cause, closeEntry(context.WithoutCancel(ctx), entry))
+	closeErr := closeEntry(context.WithoutCancel(ctx), entry)
+	c.mu.Lock()
+	if entry.retiring {
+		entry.retiring = false
+		c.retiring--
+		c.retiringUsers -= entry.borrowers
+	}
+	c.notify()
+	c.mu.Unlock()
+	return errors.Join(cause, closeErr)
 }
 
 func (c *ModelSessionDirector[Input, Model, Output]) release(entry *sessionEntry[Model]) {

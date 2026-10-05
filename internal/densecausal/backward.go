@@ -65,6 +65,20 @@ func (m *Model) MaskedLossAndGradsOf(tokens []int, trained []bool, train func(na
 	return loss, gradients, err
 }
 
+// MaskedLossAndLayerGradsOf is MaskedLossAndGradsOf for a run that takes the
+// gradients of each decoder layer's weights as that layer's backward finishes: settle
+// is called with them, layers last to first, and they are released as it returns, so a
+// step holds one layer's gradients at a time, not every layer's. The gradients returned
+// are those of the weights outside the layers (the embedding, the head and the final
+// norm) that train names. The loss and every gradient are the bits MaskedLossAndGradsOf
+// gives.
+func (m *Model) MaskedLossAndLayerGradsOf(tokens []int, trained []bool, train func(name string) bool, settle LayerSettler) (float64, Grads, error) {
+	skipped := m.skippedGradients(train)
+	loss, _, gradients, err := m.lossAndGradsSettled(tokens, trained, trained == nil, nil, skipped, settle)
+	maps.DeleteFunc(gradients, func(_ string, gradient []float32) bool { return gradient == nil })
+	return loss, gradients, err
+}
+
 // skippedGradients holds a nil gradient for each weight train does not name, the
 // form lossAndGrads reads as a gradient to leave uncomputed.
 func (m *Model) skippedGradients(train func(name string) bool) Grads {
@@ -94,6 +108,26 @@ type routerObservationContext struct {
 // lossAndGrads accumulates into g, where a name held with a nil gradient is a
 // weight whose gradient is skipped.
 func (m *Model) lossAndGrads(tokens []int, trained []bool, retainLogits bool, observation *routerObservationContext, g Grads) (float64, []float32, Grads, error) {
+	return m.lossAndGradsSettled(tokens, trained, retainLogits, observation, g, nil)
+}
+
+// LayerSettler takes the gradients of one decoder layer's weights as that layer's
+// backward finishes. It owns them only for the call: they are released as it returns.
+type LayerSettler func(layer int, gradients Grads) error
+
+// releaseLayerGradients drops the layer's gradients, which no later layer's backward
+// reads, so that a pass that settles each layer holds one layer's at a time.
+func (m *Model) releaseLayerGradients(index int, gradients Grads) {
+	names := m.layers[index].names
+	for _, name := range []string{names.InLN, names.Q, names.K, names.V, names.O, names.QB, names.KB, names.VB, names.PostLN, names.Gate, names.Up, names.Down} {
+		delete(gradients, name)
+	}
+}
+
+// lossAndGradsSettled is lossAndGrads that, when settle is set, hands it each layer's
+// gradients as that layer's backward finishes and releases them once it returns, so
+// the gradients held at once are one layer's and not every layer's.
+func (m *Model) lossAndGradsSettled(tokens []int, trained []bool, retainLogits bool, observation *routerObservationContext, g Grads, settle LayerSettler) (float64, []float32, Grads, error) {
 	if len(tokens) < 2 {
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
 	}
@@ -114,7 +148,15 @@ func (m *Model) lossAndGrads(tokens []int, trained []bool, retainLogits bool, ob
 	return m.lossAndGradsFromStates(tokens, trained, states, retainLogits, g, func(
 		index int, input, outputGradient []float32, sequence int, gradients Grads,
 	) ([]float32, error) {
-		return m.layerBackwardObserved(index, input, outputGradient, invFreq, sequence, gradients, observation)
+		dx, err := m.layerBackwardObserved(index, input, outputGradient, invFreq, sequence, gradients, observation)
+		if err != nil || settle == nil {
+			return dx, err
+		}
+		if err := settle(index, gradients); err != nil {
+			return nil, err
+		}
+		m.releaseLayerGradients(index, gradients)
+		return dx, nil
 	})
 }
 

@@ -12,6 +12,63 @@ import (
 // scratch one layer reads through is a small part of what a dense model would hold.
 const quantizedLayers = 6
 
+// TestQuantizedBaseHoldsNoFullSizeWeightGradients holds a step over a quantized base to
+// the gradients of one layer at a time: as each layer's backward finishes its weight
+// gradients are projected to the factors' and released, so the full-size gradient values
+// live at once never exceed one layer's seven projections, where holding every layer's
+// until the end would need the layers' sum; and the factors it leaves are, to the last
+// bit, what projecting every layer's gradients at the end gives.
+func TestQuantizedBaseHoldsNoFullSizeWeightGradients(t *testing.T) {
+	path := testutil.QuantizedDenseGGUF(t, quantizedLayers)
+	frozen, err := densecausal.LoadGGUFFrozen(path, Adapts(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	trainer, err := New(frozen, Config{Rank: 4, Alpha: 8, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var oneLayer int
+	for name, module := range trainer.Adapter().Modules {
+		if layer, _ := moduleLayer(name); layer == 0 {
+			oneLayer += module.Out * module.In
+		}
+	}
+	var peak, settles int
+	trainer.onSettle = func(live int) { peak, settles = max(peak, live), settles+1 }
+	if _, err := trainer.Step(periodic, nil, 0.02, 0.9); err != nil {
+		t.Fatal(err)
+	}
+	if settles != quantizedLayers {
+		t.Fatalf("the step settled %d layers, want each of %d", settles, quantizedLayers)
+	}
+	if peak > oneLayer || peak == 0 {
+		t.Fatalf("a step held %d full-size gradient values at once, want no more than one layer's %d (all %d layers' would be %d)", peak, oneLayer, quantizedLayers, oneLayer*quantizedLayers)
+	}
+
+	// The factors are the ones every layer's gradients projected at the end give.
+	second, err := densecausal.LoadGGUFFrozen(path, Adapts(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reference, err := New(second, Config{Rank: 4, Alpha: 8, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, grads, err := second.MaskedLossAndGradsOf(periodic, nil, reference.adapted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := projectAll(reference, grads); err != nil {
+		t.Fatal(err)
+	}
+	for name, gradient := range reference.gradients {
+		if !slices.Equal(gradient, trainer.gradients[name]) {
+			t.Fatalf("%s: the gradient projected as each layer finished differs from the one projected at the end", name)
+		}
+	}
+}
+
 // TestAdapterOnQuantizedBase trains the same adapter over a Q8_0 GGUF held two ways,
 // every weight dequantized at load and the adapted projections kept as stored and
 // dequantized as each layer reads them: the two runs have the same losses and end

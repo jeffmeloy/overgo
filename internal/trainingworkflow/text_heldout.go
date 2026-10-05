@@ -74,7 +74,9 @@ type TextHeldoutRequest struct {
 	SampleEvery int
 	// CheckpointEvery, when positive, saves a checkpoint beside the output directory
 	// (output-step-000040) after every that many updates but the last, and
-	// CheckpointKeep of the newest are kept, so a long host run survives a stop.
+	// CheckpointKeep of the newest of those the run saved are kept, so a long host
+	// run survives a stop; a directory of that name an earlier run left is neither
+	// kept nor deleted, and one the run would save to refuses the run.
 	CheckpointEvery int
 	CheckpointKeep  int
 	// Resume names a checkpoint a run saved this way, to continue from: the run
@@ -140,6 +142,12 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	if request.OutputDirectory == "" {
 		return HeldoutResult{}, errors.New("training workflow: a held-out text run publishes its trained model, so it needs an output directory")
 	}
+	// An objective a conversation run published holds records of segments, each marked learned or
+	// only read; trained as raw text, it would learn every token of the segments' JSON and be judged
+	// by the same accuracy as a masked run, a verdict that looks equal to one and is not.
+	if strings.HasPrefix(request.Alias, conversationAliasPrefix) && !request.Conversations {
+		return HeldoutResult{}, fmt.Errorf("training workflow: %s is a conversation objective, whose records are segments of rendered conversations that only a conversation run reads; train it through one", request.Alias)
+	}
 	if request.Host && request.FreezeLexical {
 		return HeldoutResult{}, errors.New("training workflow: host and frozen lexical execution are incompatible")
 	}
@@ -157,6 +165,10 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	}
 	if request.SampleEvery < 0 || request.SampleEvery > 0 && !request.Conversations {
 		return HeldoutResult{}, errors.New("training workflow: samples are generated after the prompts of a conversation run, every positive number of steps")
+	}
+	if request.SampleEvery > 0 && sampleRounds(request.Steps, request.SampleEvery) > sampleRoundsMost {
+		return HeldoutResult{}, fmt.Errorf("training workflow: sampling every %d of %d updates generates %d times, and a run samples at most %d: sample every %d updates or more",
+			request.SampleEvery, request.Steps, sampleRounds(request.Steps, request.SampleEvery), sampleRoundsMost, (request.Steps-1)/(sampleRoundsMost-1)+1)
 	}
 	weights, err := IdentifyModelWeights(request.ModelDirectory)
 	if err != nil {
@@ -239,6 +251,13 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			return HeldoutResult{}, err
 		}
 	}
+	// A run that starts at its first update knows every name it will save to now, before its
+	// baseline; one that resumes knows its first update only when it has read the checkpoint.
+	if request.CheckpointEvery > 0 && request.Resume == "" {
+		if err := checkStepNames(request.OutputDirectory, request.CheckpointEvery, 0, plan.Updates()); err != nil {
+			return HeldoutResult{}, err
+		}
+	}
 	result, err := runHeldout(ctx, store, HeldoutRun{
 		Data: data, Load: time.Since(loadStarted), Host: request.Host, Proof: request.Proof,
 		Train: func(ctx context.Context, recipeID artifact.ID, shown []HeldoutExample) (trainingprogram.Checkpoint, error) {
@@ -265,6 +284,10 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 				if resumed, err = restoreRun(request.Resume, modelID, objective, model, muonPlan, adapter != nil, plan.Updates(), config.BaseLearningRate, config.Momentum); err != nil {
 					return trainingprogram.Checkpoint{}, err
 				}
+				if resumed.average != nil && request.Average != resumed.average.Decay() && request.Progress != nil {
+					fmt.Fprintf(request.Progress, "resuming continues the checkpoint's moving average, at decay %g after %d updates, not the decay %g this run asked for\n",
+						resumed.average.Decay(), resumed.average.Updates(), request.Average)
+				}
 				batches = batches[resumed.done:]
 				if trained != nil {
 					trained = trained[resumed.done:]
@@ -285,12 +308,30 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			// A sampled run generates once before it trains, every SampleEvery updates
 			// and once more at its end, which is the average when it keeps one.
 			if sampling != nil {
-				if err := sampling.sample(first); err != nil {
+				if err := sampling.sample(ctx, first); err != nil {
 					return trainingprogram.Checkpoint{}, err
 				}
 			}
 			// A run that saves checkpoints writes one after every CheckpointEvery updates, never
-			// the last, which is the run's own checkpoint, and keeps the newest CheckpointKeep.
+			// the last, which is the run's own checkpoint, and keeps the newest CheckpointKeep of
+			// those it wrote. A fresh run checked its names before its baseline; a resumed one,
+			// whose first update is known only now, checks them here.
+			saves := &stepSaves{keep: request.CheckpointKeep}
+			if request.CheckpointEvery > 0 && request.Resume != "" {
+				if err := checkStepNames(request.OutputDirectory, request.CheckpointEvery, first, plan.Updates()); err != nil {
+					return trainingprogram.Checkpoint{}, err
+				}
+			}
+			// A run that holds some adapted projections quantized publishes the base as stored, the
+			// adapter beside it, so the projections it merged in place publish as the base had them.
+			published := func() *densecausal.Model {
+				if adapter != nil {
+					if unmerged := adapter.Unmerged(); len(unmerged) > 0 {
+						return model.WithWeights(unmerged)
+					}
+				}
+				return model
+			}
 			save := func(done int, state densecausal.TrainState, average *optimizer.Average) error {
 				stream := trainingdata.StreamState{Identity: data.Training, Position: windowPosition(documents, sequence, done)}
 				companions := []func(string) error{averageCompanion(average, muonPlan)}
@@ -298,10 +339,10 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 					companions = append(companions, adapterCompanion(adapter.Adapter()))
 				}
 				target := stepCheckpointDirectory(request.OutputDirectory, done)
-				if _, err := publishTrainedText(ctx, store, request, target, false, model, muonPlan, recipeID, objective, stream, state, companions...); err != nil {
+				if _, err := publishTrainedText(ctx, store, request, target, false, published(), muonPlan, recipeID, objective, stream, state, companions...); err != nil {
 					return err
 				}
-				return pruneStepCheckpoints(request.OutputDirectory, request.CheckpointKeep)
+				return saves.saved(target)
 			}
 			// The run reports each update, counted from the run's first, and stops between updates
 			// once its context ends.
@@ -315,7 +356,7 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 					request.Step(done, plan.Updates(), loss)
 				}
 				if sampling != nil && done%request.SampleEvery == 0 && done < plan.Updates() {
-					if err := sampling.sample(done); err != nil {
+					if err := sampling.sample(ctx, done); err != nil {
 						return err
 					}
 				}
@@ -357,17 +398,17 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 				}, config.BaseLearningRate, config.Momentum, request.Device, !request.Host, request.FreezeLexical, resume, observe)
 			}
 			if err == nil && sampling != nil {
-				err = sampling.sample(plan.Updates())
+				err = sampling.sample(ctx, plan.Updates())
 			}
 			if err != nil {
 				return trainingprogram.Checkpoint{}, err
 			}
 			stream := trainingdata.StreamState{Identity: data.Training, Position: position}
-			return publishTrainedText(ctx, store, request, request.OutputDirectory, true, model, muonPlan, recipeID, objective, stream, state, companions...)
+			return publishTrainedText(ctx, store, request, request.OutputDirectory, true, published(), muonPlan, recipeID, objective, stream, state, companions...)
 		},
 		Predict: func(example HeldoutExample) (HeldoutPrediction, error) {
 			if generation {
-				return generateAnswer(model, tokenizer.piece, records[example.Record].prompt)
+				return generateAnswer(ctx, model, tokenizer.piece, records[example.Record].prompt)
 			}
 			return nextTokens(model, example, records[example.Record].trained)
 		},
@@ -490,14 +531,9 @@ func textObjectiveData(ctx context.Context, reader artifact.Reader, objective tr
 			}
 			records[example.ID] = textRecord{tokens: tokens, trained: trained, prompt: prompt}
 			tokens = tokens[:min(len(tokens), sequence)]
-			if len(tokens) < 2 {
-				return HeldoutExample{}, fmt.Errorf("encodes to %d token(s); a next-token target needs two", len(tokens))
-			}
-			target := tokens[1:]
-			if trained != nil {
-				if target = learnedTargets(tokens, trained); len(target) == 0 {
-					return HeldoutExample{}, fmt.Errorf("learns no token within its first %d: its prompt fills them", len(tokens))
-				}
+			target, err := nextTargets(tokens, trained)
+			if err != nil {
+				return HeldoutExample{}, err
 			}
 			return HeldoutExample{Input: dtype.ConvertSlice[float64](tokens), Target: dtype.ConvertSlice[float64](target), Answers: answers}, nil
 		})
@@ -608,10 +644,13 @@ func readPromptAnswers(encode func(string) ([]int, error), data []byte) (promptA
 
 // generateAnswer continues a prompt greedily, the model's most likely token
 // at a time, and answers with the continuation's text.
-func generateAnswer(model *densecausal.Model, piece func(int) string, prompt generationPrompt) (HeldoutPrediction, error) {
+func generateAnswer(ctx context.Context, model *densecausal.Model, piece func(int) string, prompt generationPrompt) (HeldoutPrediction, error) {
 	tokens := slices.Clone(prompt.tokens)
 	var text strings.Builder
 	for range prompt.length {
+		if err := ctx.Err(); err != nil {
+			return HeldoutPrediction{}, err
+		}
 		logits, err := model.Logits(tokens)
 		if err != nil {
 			return HeldoutPrediction{}, err
@@ -622,6 +661,22 @@ func generateAnswer(model *densecausal.Model, piece func(int) string, prompt gen
 		text.WriteString(piece(next))
 	}
 	return HeldoutPrediction{Text: text.String()}, nil
+}
+
+// nextTargets is what a record's first tokens are judged on predicting: every
+// token after the first, or for a conversation, which marks the tokens it learns
+// in trained, only those; a record that leaves none to predict is refused.
+func nextTargets(tokens []int, trained []bool) ([]int, error) {
+	if len(tokens) < 2 {
+		return nil, fmt.Errorf("encodes to %d token(s); a next-token target needs two", len(tokens))
+	}
+	if trained == nil {
+		return tokens[1:], nil
+	}
+	if target := learnedTargets(tokens, trained); len(target) > 0 {
+		return target, nil
+	}
+	return nil, fmt.Errorf("learns no token within its first %d: its prompt fills them", len(tokens))
 }
 
 // learnedTargets are the tokens after the first that trained marks, in order:

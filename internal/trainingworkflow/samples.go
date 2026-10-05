@@ -18,6 +18,15 @@ const (
 	// sampleTokens bounds how many tokens a sample generates, so sampling a
 	// long reply costs a bounded number of forward passes on the host.
 	sampleTokens = 48
+	// sampleRoundsMost bounds how many times a run samples. A strip is read as a
+	// row of generations beside the verdict, which is no more than twenty wide, and
+	// a round is up to sampleRecords times sampleTokens forward passes over the
+	// whole window, none cached, so a run that sampled at every update would spend
+	// more on its preview than on its training.
+	sampleRoundsMost = 20
+	// sampleEndRounds are the rounds a sampled run takes besides its interval's: one before it
+	// trains and one at its end.
+	sampleEndRounds = 2
 )
 
 // sampleAt is what the model generated after a prompt once a run had taken Step
@@ -129,11 +138,19 @@ func spell(piece func(int) string, tokens []int) string {
 	return text.String()
 }
 
+// sampleRounds is how many times a run of updates updates, sampled every that many,
+// generates: once before it trains, after each multiple of every before its last
+// update, and once at its end.
+func sampleRounds(updates, every int) int {
+	return max(updates-1, 0)/every + sampleEndRounds
+}
+
 // sample generates after each prompt with the model as it now stands and files
-// the text under step.
-func (sampler *sampler) sample(step int) error {
+// the text under step. A round ends when ctx does, between the tokens it
+// generates, not after its last.
+func (sampler *sampler) sample(ctx context.Context, step int) error {
 	for index, prompt := range sampler.prompts {
-		answer, err := generateAnswer(sampler.model, sampler.piece, prompt)
+		answer, err := generateAnswer(ctx, sampler.model, sampler.piece, prompt)
 		if err != nil {
 			return err
 		}

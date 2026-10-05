@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"image"
 	"strings"
+	"time"
 
 	"overgo/internal/inference"
 	"overgo/internal/media"
@@ -542,6 +543,8 @@ func (h *Handler) preparePrompt(
 	prompt nativePrompt,
 	tokenizeText bool,
 ) (preparedPrompt, error) {
+	started := time.Now()
+	defer func() { h.requests.addWaits(ctx, 0, time.Since(started)) }()
 	result := preparedPrompt{
 		nativePrompt: prompt,
 		Multimodal:   nativePromptHasMedia(prompt),

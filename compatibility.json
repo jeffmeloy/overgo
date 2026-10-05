@@ -561,7 +561,7 @@
      "contains": "func validateMultimodalImages(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:7112ce9b501f5779e83ee136877466558ce806d2a6f80f9944e4a1165e10d7bb"
+     "identity": "file:sha256:e3762bf281eced149248ee62aab15ac03b650320215e036838eab904a809f140"
     },
     {
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
@@ -1067,7 +1067,7 @@
      "contains": "func (h *Handler) preparePrompt(",
      "path": "internal/server/server_native_prompt.go",
      "role": "source",
-     "identity": "file:sha256:7112ce9b501f5779e83ee136877466558ce806d2a6f80f9944e4a1165e10d7bb"
+     "identity": "file:sha256:e3762bf281eced149248ee62aab15ac03b650320215e036838eab904a809f140"
     },
     {
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",

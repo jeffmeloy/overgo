@@ -56,7 +56,7 @@ var quantizedTokenTypes = []int32{tokenUnknown, tokenControl, tokenControl, toke
 // its path.
 func QuantizedDenseGGUF(t *testing.T, layers int) string {
 	t.Helper()
-	return quantizedDenseGGUF(t, layers, "qwen2")
+	return quantizedDenseGGUF(t, layers, "qwen2", false)
 }
 
 // QuantizedLlamaGGUF is QuantizedDenseGGUF for the llama architecture, whose
@@ -65,10 +65,17 @@ func QuantizedDenseGGUF(t *testing.T, layers int) string {
 // does).
 func QuantizedLlamaGGUF(t *testing.T, layers int) string {
 	t.Helper()
-	return quantizedDenseGGUF(t, layers, "llama")
+	return quantizedDenseGGUF(t, layers, "llama", false)
 }
 
-func quantizedDenseGGUF(t *testing.T, layers int, architecture string) string {
+// QuantizedEmbeddingGGUF is QuantizedDenseGGUF with the token embedding stored as Q8_0
+// too, a tensor a frozen load must not hold, as no layer dequantizes it.
+func QuantizedEmbeddingGGUF(t *testing.T, layers int) string {
+	t.Helper()
+	return quantizedDenseGGUF(t, layers, "qwen2", true)
+}
+
+func quantizedDenseGGUF(t *testing.T, layers int, architecture string, storedEmbedding bool) string {
 	t.Helper()
 	random := rand.New(rand.NewSource(quantizedSeed))
 	values := func(extents []uint64, scale float64) []float32 {
@@ -114,8 +121,12 @@ func quantizedDenseGGUF(t *testing.T, layers int, architecture string) string {
 		GGUFScalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(1)),
 		GGUFScalar("tokenizer.ggml.eos_token_id", gguf.ValueTypeUint32, uint32(quantizedEOS)),
 	}
+	embedding := full("token_embd.weight", []uint64{quantizedHidden, quantizedVocab}, quantizedEmbedding)
+	if storedEmbedding {
+		embedding = stored("token_embd.weight", []uint64{quantizedHidden, quantizedVocab})
+	}
 	tensors := []gguf.TensorData{
-		full("token_embd.weight", []uint64{quantizedHidden, quantizedVocab}, quantizedEmbedding),
+		embedding,
 		full("output_norm.weight", []uint64{quantizedHidden}, 1),
 		full("output.weight", []uint64{quantizedHidden, quantizedVocab}, quantizedEmbedding),
 	}

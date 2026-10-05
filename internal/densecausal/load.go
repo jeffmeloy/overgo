@@ -61,6 +61,10 @@ type Model struct {
 	// frozen holds the projections kept in their stored quantization, nil for a
 	// model that holds every weight in full precision (see frozen.go).
 	frozen *frozenWeights
+	// storedHeads names, with the head count its rows interleave by, each weight a GGUF
+	// load reordered from the file's layout into the checkpoint's (a llama query or key
+	// projection), nil for a model whose weights are as their file stores them.
+	storedHeads map[string]int
 }
 
 // MoERouterLayers returns the artifact-derived routed layer indices. The

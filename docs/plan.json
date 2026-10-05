@@ -4,22 +4,30 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "fill-same-commit-rerun",
+      "title": "Make a rerun of the cycle at an unchanged commit reuse what its first run measured instead of failing the cells it finished: the fill's bbh and ifeval cells refused with 'alias compare-and-set failed' and 'batch key already names different content'",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make a rerun of the cycle at an unchanged commit reuse what its first run measured instead of failing the cells it finished: the fill's bbh and ifeval cells refused with 'alias compare-and-set failed' and 'batch key already names different content'",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestEvaluationAtAnUnchangedPlanReusesItsCampaign$'",
+          "rationale": " Serves: an interrupted cycle that keeps what it measured (owner doctrine: interrupted cycle to useful progress; see sqa-defects/interrupted-credit). Cycle 16 (2026-10-05, HEAD a44a526d1) measured its 85 cells in 1 h, passed its three lanes and withheld promotion: the baseline scorecard (5455dc909) compares 82 held-out-quality cells whose authority at a44a526d1 is unknown because the suites they stand on (bbh, ifeval, mmlu, mmlu-pro for each baseline model) are measured only by the fill, which runs after the decision. The tool cap killed the run 3 minutes into the fill; the rerun at the same HEAD repeated the lanes (cached, 6 min) and then failed the fill cells the first run had started: 1/17 bbh MiniCPM5-1B-native-chat 'evaluate: store/bbh: overgodb: alias compare-and-set failed: evaluation/campaigns/profile:sha256:3169a100... is already bound' (a 32-case replay that matched, whose receipt binds campaignAlias(plan) at replay.go publishReplayReceipt although the first run had bound it), 2/17 ifeval MiniCPM5-1B-native-chat the same error, and 3/17 ifeval Qwen2.5-0.5B-f16 'sample store/ifeval: evaluating in full, not carrying evaluation:sha256:a024c1a2...: its replay failed (instruction generation: non-canonical document)' and then 'evaluate: store/ifeval: overgodb: batch key already names different content: evaluation/authorities/profile:sha256:4fdc4ee4...' (two publications of one plan whose authority contents differ, so the ifeval suite's compiled content is not the same twice). Cell 4/17 then evaluated bbh on Qwen3.8-27B-UD-Q6_K in full, 5761 cases, 1.1 s a case, about 1 h 45 min, so the 17 cells need several hours and the 2 h cap ends any one run inside them. Change: an evaluation whose plan already has a campaign alias at this commit returns the campaign it bound (a succeeded run at that commit) and measures nothing, through publishReplayReceipt and publishCampaignReport as the one owner of the alias; make the ifeval suite's compiled authority content deterministic (find what differs between the two compilations: the instruction generation's non-canonical document) so a second publication of one plan is byte-identical; and record each finished fill cell so a rerun skips it (interrupted-credit's cell keys). Test first: evaluating the same suite at the same commit twice reuses the first campaign and publishes one receipt; compiling the ifeval suite twice gives byte-identical authorities. Residual question for the owner: the cycle decides promotion before the fill measures the suites the baseline compares, so promotion is withheld until a cycle's fill has run and the next cycle carries it; see main-staging/baseline-decoupled."
+        }
+      ]
+    },
+    {
       "id": "journey-performance",
       "title": "Optimize complete user journeys: profile the streaming composer, then the journeys' repeated work",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 460,
-        "reason": "A swap is accounted for and no longer waits on the page's own held-open stream: a lease per request (target, the swap's phases, release and hold-open), the supervisor's held count and four timed phases, the held-open header the server sets and the proxy reads, the phases header and the chip that names them; the lease and its bookkeeping are the growth, which replaces the grace-only drain that cost a swap up to 15 s."
+        "nodes": 2700,
+        "reason": "A swap is accounted for and no longer waits on the page's own held-open stream: a lease per request (target, the swap's phases, release and hold-open), the supervisor's held count and four timed phases, the held-open header the server sets and the proxy reads, the phases header and the chip that names them; the lease and its bookkeeping are the growth, which replaces the grace-only drain that cost a swap up to 15 s. Landed with them in one gate run, because the cycle held HEAD still while the work was made: the request log's admission and preparation timings; the SQA review's merge plan base digest, the director's per-selection proof of its refresh and its retiring accounting until Close returns (which replace the head-bound view), the download registry's transferring job, the GGUF rank check and the carried receipt's readable flag; and the GUI lane review's step-checkpoint names and own saves, the conversation skip-and-count, the sample strip bounds, the model's stored row layout and the trained-model view for a quantized base, the held-tensor refusal and the adapter's per-layer gradient settling (MaskedLossAndLayerGradsOf). Each is bounded growth that closes a defect or measures a wait; the deleted head-bound view is the one deletion."
       },
       "steps": [
-        {
-          "id": "chat-admission-wait",
-          "title": "Time a chat request's lease wait and prompt preparation and show them in the Requests tab",
-          "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestRequestMonitorShowsAdmissionWait$'",
-          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): submit to first visible answer and cancel to release. Admission is a count only (capabilityruntime/session_director.go:301 Waiting) and the slot clock starts after the lease (server.go:777); prompt preparation (protocol_common.go:191) is untimed. Time Lease (server.go:781) and prepare, store both on the monitored request (request_monitor.go) in memory with no schema change, and show them in the Requests tab: it explains the wait right after a Stop, when the next request waits on the unwinding slot. Modest value: do it only if the measured wait is visible. Declined as disproportionate: new PhaseAdmission or cancel enum values in the durable record (runrecord/record.go:175,465), per-state timestamps on operations, a download unwind event, a first-token stamp inside generate (the scorecard cell is one decode step off)."
-        },
         {
           "id": "evidence-profile",
           "title": "Profile evidence reconstruction on the real store with the existing benchmarks and remove repeated reads where material",
@@ -40,46 +48,18 @@
       },
       "steps": [
         {
-          "id": "checkpoint-own-saves",
-          "title": "Prune and resume only this run's own step checkpoints, and refuse another run's directories",
+          "id": "conversation-boundary-tokens",
+          "title": "Hold a conversation's segment boundary to a tokenizer that adds a prefix, and learn a reply without the template's trailing newline",
           "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestStepCheckpointsIgnoreAnotherRunsDirectories$'",
-          "rationale": "Serves: a long run that is not aborted or robbed by what an earlier one left. Review of the staged GUI lane merge (2026-10-05, three read-only reviews of the merged tree, nothing run) (two reviews agree): internal/trainingworkflow/checkpoint_steps.go:59-78 prunes by name, keeping the highest-numbered, so a stale out-step-000700 outranks the new run's saves and with keep=1 a fresh run deletes each checkpoint it writes while a stale out-step-000200 stays; any directory matching \u003cout\u003e-step-NNNNNN is deleted whether or not this run wrote it; text_heldout.go:300-301 PublishCheckpoint fails with 'target already exists' (trainingprogram/checkpoint.go:374) when an earlier run left a step directory of the same number, after the work is done; stepCheckpointDirectory (:49) joins strings, so -out 'run\\' writes run\\-step-000020 inside the output and the final publish fails the same way, and resuming from a non-newest step fails at the next existing name; text_heldout.go:140 checks only that the output is non-empty. Change: at the start refuse (or clear, by an explicit option) existing \u003cout\u003e-step-* directories, record the saves this run wrote and prune only those, build the path through the path-component owner. Test first: a stale higher-numbered directory neither outranks nor blocks a fresh run, a resume from a non-newest step works, a bystander directory survives."
+          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestConversationBoundaryHoldsForAPrefixingTokenizer$'",
+          "rationale": "Serves: masked fine-tuning on the model families that most users run. What the skip-and-count step (conversation-run-robust, landed with checkpoint-own-saves) left of the GUI lane review: encodeConversation (conversation_mask.go) encodes the first segment with the tokenizer's encode and each later one with trainable_input.go's extend, and a SentencePiece vocabulary that adds the dummy-prefix space (tokenizer/bpe.go, AddPrefix) re-adds it at the start of every continuation while the whole text has it once, so the equality check fails for every conversation on Llama-2, Mistral and Gemma GGUFs and each is now skipped (medium confidence: it depends on AddPrefix); the same check fails for a vocabulary that adds an end token to the first segment's encode. The learned span through - prompt (segmentConversation) includes the template's trailing newline after the end-of-turn marker, a free token in the loss and the accuracy; training loss is a micro-mean over each window's selected rows while held-out accuracy is a per-record fraction (see gui-lane-review-residue/loss-mask for the metric that names its scope). Change: encode each prefix of the segments whole and place a boundary where the shorter encoding is a prefix of the longer one, so no continuation encoder is needed, and cut the learned span at the end-of-turn marker. Test first: a vocabulary that adds a prefix cuts a conversation at the same tokens as the whole encoding, and a reply's learned tokens end at the marker.\n\nLanded: a conversation the model's template or tokenizer cannot cut, or whose reply the window does not reach, is skipped, named with its reason in HeldoutResult.Skipped, on the run's progress and as the server's skipped_conversations metric; the run is refused only when none can be learned from. The held-out set is built from the usable conversations, so no run judges a subset it chose after the split. A reply the model's own context (below the 512-token window) does not reach is still the run's error."
         },
         {
-          "id": "sft-objective-cli",
-          "title": "Refuse a conversation objective the command line would train as raw text",
+          "id": "held-tensor-readable",
+          "title": "Refuse at load a held quantized tensor the dequantizer cannot read",
           "status": "open",
-          "verify": "go test ./cmd/train -count=1 -run '^TestObjectiveSFTAliasNeedsItsConversations$'",
-          "rationale": "Serves: evidence that means what it says. Review of the staged GUI lane merge (2026-10-05, three read-only reviews of the merged tree, nothing run): cmd/train/objective_mode.go:110 never sets Conversations and nothing guards the objective.sft.* aliases, so train -objective objective.sft.\u003cdigest\u003e trains on the raw {\"segments\":...} JSON text with every token learned, judged under the same objective and the same token-accuracy metric as a masked run: a verdict that looks equal to a masked one. trainingworkflow/conversation_sft.go:279-291 also leaves the loss, evaluation and processor profiles at the same derived constants for masked and unmasked evidence. Change: the command line resolves an objective.sft.* alias to its conversations or refuses it; and see gui-lane-review-residue/loss-mask for the metric that names its scope. Test first: the alias without conversations is refused, with them it runs masked."
-        },
-        {
-          "id": "conversation-run-robust",
-          "title": "Skip a conversation the run cannot learn from and say so, instead of aborting the whole run",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestConversationRunSkipsAnUnusableConversationAndSaysSo$'",
-          "rationale": "Serves: a conversation run that survives one bad record. Review of the staged GUI lane merge (2026-10-05, three read-only reviews of the merged tree, nothing run): one unusable conversation aborts the run loudly (no divide by zero, nothing dropped): a user-only conversation (conversation_mask.go:73 has no assistant reply), a reply that begins beyond token 512 (text_heldout.go:498), a reply that starts with a newline (boundary tokens differ, conversation_mask.go:108); and with SentencePiece vocabularies extend (trainable_input.go:139) re-adds the dummy-prefix space on every continuation (tokenizer/bpe.go:56-58), so every conversation fails the equality check and masking is unusable on Llama-2, Mistral or Gemma GGUFs (medium confidence: it depends on AddPrefix). Also the learned span through - prompt (conversation_mask.go:69) includes the template's trailing newline after the end-of-turn marker, a free token in loss and accuracy, and training loss is a micro-mean over each window's selected rows while held-out accuracy is a per-record fraction. Change: skip and count the conversations that cannot be masked, refuse the run only when none can, report the count in the evidence, and make the boundary check hold for a prefix-adding tokenizer. Test first: a mixed set trains on the usable ones and the verdict names how many were skipped."
-        },
-        {
-          "id": "sample-strip-budget",
-          "title": "Bound the sample strip's cost and cancellation, and refuse the options that cannot run together",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestSampleStripCostIsBounded$'",
-          "rationale": "Serves: a run whose preview does not cost more than its training. Review of the staged GUI lane merge (2026-10-05, three read-only reviews of the merged tree, nothing run): samples.go:94-122 and text_heldout.go:611 fix the prompts and decode greedily (correct), but each round is up to 2 x 48 uncached Logits calls computing the head over every position (forward.go:282), rounds number steps/SampleEvery+2 with no cap, and cancellation is checked only in observe after a whole round; train_on_prompts with sample_every makes first\u003c1 skip every record (samples.go:98-101) so the run dies after the model load with a misleading error and the server does not reject the combination. Change: cap rounds against the run's own budget, check cancellation within a round, reject the combination at the server. Test first: the strip's work is bounded for a long run and a cancel stops inside a round."
-        },
-        {
-          "id": "lora-gradient-memory",
-          "title": "Project each layer's weight gradient to the adapter's factors inside the backward, so a quantized-base run holds no full-size gradients",
-          "status": "open",
-          "verify": "go test ./internal/loratrain -count=1 -run '^TestQuantizedBaseHoldsNoFullSizeWeightGradients$'",
-          "rationale": "Serves: the point of training an adapter over a quantized base (peak memory) and the lane's claim for it. Review of the staged GUI lane merge (2026-10-05, three read-only reviews of the merged tree, nothing run) (training-core review, medium confidence): the lane saves the weights' memory only: layerBackwardObserved allocates a full-size dW per adapted projection through GradientSlot and keeps every layer's dW in grads until project() runs (loratrain.go:305-309), so peak memory is still about 4 bytes times the adapted parameter count (roughly 26 GB for a 7B base) on top of the stored bytes, and the lane's test measures WeightBytes only. Change: project each layer's dW to factor gradients in the backward callback and release it. Test first: peak live gradient bytes during a step on the quantized fixture are one layer's, not all layers'. Also: the merge now reads a llama base's q and k in full (they must be reordered); permuting the stored quantized rows instead would keep them held, if the measured memory warrants it."
-        },
-        {
-          "id": "quantized-lora-edges",
-          "title": "Refuse a held tensor the forward cannot read, publish a model whose projections are all merged or none, and say when a resume overrides the average",
-          "status": "open",
-          "verify": "go test ./internal/densecausal -count=1 -run '^TestFrozenLoadRefusesAHeldTensorTheForwardCannotRead$'",
-          "rationale": "Serves: failures at load, not silent wrong results later. Review of the staged GUI lane merge (2026-10-05, three read-only reviews of the merged tree, nothing run) (training-core review): LoadGGUFFrozen is exported with an arbitrary predicate, and a held embedding, head or norm gets scratch[name] (load_gguf.go:145-160) but useLayer dequantizes only the seven layer projections (frozen.go:98-108), so it reads zeros with no error (reachable by API misuse only; a quantized tensor of unaligned element count or unsupported type also fails only at the first forward); F32-stored projections are loaded dense, cloned and merged in place (loratrain.go:195,225-236) while quantized ones are never merged into Weights, and publishCheckpoint (workflow.go:451) writes only Weights, so the published GGUF has the update in some projections and not others while the PEFT directory holds the full adapter (serving both double-applies it on the F32 projections; rare); a resumed checkpoint's average and decay override the request's Average=0 or another decay (text_heldout.go:336, train.go:80-83) and backend.go:24 refuses Average on the device trainer but not ResumeAverage, CheckpointEvery or Checkpoint. Test first: a held non-projection tensor is refused at load."
+          "verify": "go test ./internal/densecausal -count=1 -run '^TestFrozenLoadRefusesAHeldTensorTheDequantizerCannotRead$'",
+          "rationale": "Serves: failures at load, not at the first forward. What quantized-lora-edges left of the GUI lane review: LoadGGUFFrozen holds a quantized tensor as its stored bytes without reading it, so one of an unsupported type or an element count that is not a whole number of the type's blocks fails only when the first forward dequantizes it, after the run has spent its load and baseline. Change: check each held tensor at load, as the dequantizer's block size and type table say, without dequantizing it. Test first: a held tensor of an unsupported type, and one whose elements are not whole blocks, are refused at LoadGGUFFrozen with the tensor named."
         }
       ]
     },
@@ -134,41 +114,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "carried-receipt",
-          "title": "Read a carried quality's scoring commit as unknown when a recognized receipt cannot be read",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestScoredCommitIsUnknownForAnUnreadableReceipt$'",
-          "rationale": "Serves: carried-quality attribution that never names a wrong commit. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run) note on da1ec2c77: carriedReceipt returns zero for a recognized replay receipt that cannot be read (RequireReplayReceipt fails) exactly as for a run with no receipt, so scoredCommit walking a chain stops at the broken link and returns that run's CodeCommit as the scoring commit. Change: carriedReceipt tells a run with no receipt from a recognized receipt it cannot read, and scoredCommit returns empty for the second (the cell then carries no scoring commit, as for an unreadable link). Test first: a chain with one unreadable receipt reads empty, an intact chain still names the first run (cmd/validate TestEvaluationReplayCarriesIdenticalOutputs keeps its assertions)."
-        },
-        {
-          "id": "peft-resume-base",
-          "title": "Bind a resumed PEFT merge to the exact base model as well as the adapter (SQA-093, P1)",
-          "status": "open",
-          "verify": "go test ./internal/peft -count=1 -run '^TestMergeRefusesTheStagedPartialOfAnotherBase$'",
-          "rationale": "Serves: a merged checkpoint that is one model. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): mergePlan binds the adapter, modules, factors and the output shard, name, dtype and shape catalog, but no base model identity; Merge opens whatever base directory the caller names and skips writer.Completed tensors, and StreamingWriter accepts an existing .partial with the same plan hash without comparing staged tensors to the new source, so two bases of one catalog and different weights share a plan: a tensor staged from base A is skipped while the rest come from base B and Finalize publishes a hybrid, with base companions copied from B (public cmd/gguf merge-lora). The existing fixture refuses a different adapter on one unchanged base. Change: the plan metadata carries the content identity of the base components each output depends on, through the existing source/artifact content owner (not paths or timestamps); a partial from another or unknown base is refused before any tensor is skipped; an unchanged base resumes, a changed adapter still refuses. Test first: extend TestMergeRefusesTheStagedPartialOfAnotherAdapter with two tiny bases of identical catalog and different bytes (stage under A, resume under B must refuse), and a same-base resume equals an uninterrupted merge. Count the identity reads. Related: evidence-authority/source-environment."
-        },
-        {
-          "id": "capability-refresh",
-          "title": "Bind a skipped capability refresh to a validated selection at the current head (SQA-095, P1)",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime -count=1 -run '^TestSkippedRefreshNeedsAValidatedSelectionAtTheHead$'",
-          "rationale": "Serves: capability authority that is validated, not assumed from an unchanged head. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): ModelSessionDirector.refreshExecution (internal/capabilityruntime/session_director.go:91) calls one director-wide HeadBoundView.Reconcile that adopts the new head before RefreshCapabilityExecution succeeds, and on changed=false returns the supplied execution without validating its identity, scope or aliases: after a stale selected alias is removed, a first refresh rejects it but advances the view, so a retry of the same selection at that unchanged head skips the rejection; a successful refresh of selection A proves nothing of B; a concurrent request can see the advanced head before the first refresh finishes. Change: keep modelrecipe.RefreshCapabilityExecution the authority; drop the unconditional unchanged-head return or reuse only a result validated for the exact selection identity, scope and store coordinate, never publishing proof before validation completes or caching a refusal as success. Test first: a tiny real activation store removes a selected alias; repeated attempts on the unchanged head refuse before load, its independent alternate passes, two selections and an in-flight or failed refresh cannot borrow each other's proof, compatible rebinding still works."
-        },
-        {
-          "id": "retiring-close",
-          "title": "Count every retiring model until its Close completes (SQA-096)",
-          "status": "open",
-          "verify": "go test ./internal/capabilityruntime -count=1 -run '^TestBlockedCloseHoldsCapacityOnEveryRetirementPath$'",
-          "rationale": "Serves: the session capacity and shutdown guarantees. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): capacity admission counts len(entries)+retiring; supersedeLocked and failed-load removal increment retiring and finishRetirement (session_director.go:792) decrements it after closeEntry returns, but ordinary idle eviction and retire (execution or reset errors, request-scoped completion) delete the entry and notify before calling Close without counting it, so at capacity one a Close blocked on a channel lets another caller start a replacement load, and director Close can report complete while a separate Close is still running. Change: route eviction and retirement through the existing retirement accounting and completion owner (entry mutex and borrower ownership observed, no double close), keeping removed entries counted and shutdown aware until Close returns, with its error. Test first: at capacity one a channel-blocked Close during idle eviction and during request-error retirement prevents a second load until released, Snapshot includes the retiring resource, and director Close waits; the existing reuse, bounded-wait, replace-before-drain and exactly-once-Close assertions stay."
-        },
-        {
-          "id": "gguf-rank",
-          "title": "Validate a GGUF attention tensor's rank and geometry before unpermuting its rows (SQA-094)",
-          "status": "open",
-          "verify": "go test ./internal/densecausal -count=1 -run '^TestLlamaGGUFRefusesAMalformedAttentionProjection$'",
-          "rationale": "Serves: a refusal where a panic crosses an error boundary. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): 04eec10f0 moved the llama q/k row transformation ahead of shape validation, so a structurally valid GGUF naming blk.0.attn_q.weight or attn_k.weight with one positive extent loads, and LoadGGUF evaluates shape[1] and panics before tensorcatalog.Shape can return a rank error; unpermuteRows also divides rows by heads by two, so the projection and head geometry must be checked before any transformation, not trusted from metadata. Reachable through loadTrainableModel (CLI and workspace training). Change: validate rank and per-head paired-row geometry through the existing tensorcatalog shape owner first and return a contextual error; no panic recovery, no truncation or padding. Test first: the existing tiny llama fixture with a rank-one projection and with inconsistent geometry returns an error; load_gguf_unpermute_test.go's valid-permutation and MiniCPM agreement assertions stay."
-        },
-        {
           "id": "interrupted-credit",
           "title": "Key interrupted cell and publication credit to the inputs the run consumed (SQA-089)",
           "status": "open",
@@ -176,11 +121,11 @@
           "rationale": "Serves: a resumed cycle that never credits a measurement its inputs invalidated. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): eb15395a8 keys credit to HEAD, the absolute store and obligationsDigest and reruns lanes on every resume (credited), but obligationsDigest projects only model, kind, validation, protocol, recipe, location and promotion: ModelValidation.Directory, Grounding, Objective, Conditioning, Projector, the baseline scorecard identity and the executing environment are absent, so a changed declared input (groundTraining derives Objective and Conditioning that trainingRun consumes) can leave the key equal. Change: derive the key from the typed execution obligations and the existing evidence input and environment identities, excluding measured cost and replay pointers only where they cannot change the acceptance contract; unknown validity credits nothing. Test first: extend TestObligationsDigestIgnoresWhatARunChanges with real changes to Directory, Grounding, Objective, Conditioning and Projector (each invalidates the affected cells and the publication that depends on them) and keep the cost and replay neutrality, other-store, other-commit and failed-phase cases. Related: evidence-authority/source-environment, campaign-closeout. Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository) adds: add the acquired cell keys to cycleState, using the fields obligationsDigest already joins (improve.go:270), and have executeRun (cmd/validate/run.go:180) skip them; it is the one item of the journey inventory that changes elapsed time, moderate in size."
         },
         {
-          "id": "download-cancel",
-          "title": "Hold download capacity and history until a cancelled transfer actually finishes (SQA-081)",
+          "id": "head-bound-delta-retire",
+          "title": "Delete the head-bound delta API the capability director no longer uses",
           "status": "open",
-          "verify": "go test ./internal/server -count=1 -run '^TestCancelledDownloadHoldsItsSlotUntilItFinishes$'",
-          "rationale": "Serves: the configured transfer bound. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): cancel changes the rendered state at once and admit counts running labels and can evict non-running jobs while Client.Download and its cleanup are still active, so cancelling A and admitting B at capacity one runs two. Actual completion is already owned by runHubDownload (internal/server/hub_workspace.go:568) and its WaitGroup. Change: admission and eviction use that in-flight ownership, capacity and history protection release on actual completion, immediate API cancellation reporting, the shutdown wait, destination locks and the stable cancelled outcome stay; the label-poll loop and its immediate-admission expectation are deleted. Test first: a deterministic pending-completion case (cancellation alone releases neither the slot nor the history protection; completion releases both)."
+          "verify": "test ! -f internal/overgodb/head_bound_delta.go \u0026\u0026 go build ./internal/overgodb",
+          "rationale": "Serves: dev velocity and memory: no production code to carry. The capability director's refresh no longer reads a coalesced view change (the five-fix landing deleted capabilityruntime's HeadBoundView, which refreshed on a delta and so could keep a selection whose authority had moved), so overgodb.DeltasSince and HeadBoundDelta (internal/overgodb/head_bound_delta.go and its test) have no consumer outside their own tests. Change: delete both files. Test first: the build holds without them."
         }
       ]
     },
@@ -593,7 +538,8 @@
             "evidence-authority/baseline-protocol-join",
             "plan-refactor-sqa/do",
             "skill-ambition/do",
-            "plan-cycle15/do"
+            "plan-cycle15/do",
+            "fill-same-commit-rerun/do"
           ]
         }
       ]

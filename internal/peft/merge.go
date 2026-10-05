@@ -55,7 +55,11 @@ func Merge(adapter Adapter, base, destination string) (MergeReport, error) {
 		adapted[name] = module
 	}
 	names := source.Names()
-	writer, err := safetensors.NewStreamingWriter(destination, mergePlan(source, adapter))
+	plan, err := mergePlan(source, adapter)
+	if err != nil {
+		return MergeReport{}, err
+	}
+	writer, err := safetensors.NewStreamingWriter(destination, plan)
 	if err != nil {
 		return MergeReport{}, err
 	}
@@ -90,11 +94,34 @@ func Merge(adapter Adapter, base, destination string) (MergeReport, error) {
 // so it is refused, never resumed into a checkpoint of two adapters mixed.
 const adapterMetadata = "overgo_adapter"
 
+// baseMetadata names the plan entry that binds a staged merge to the base it
+// reads: two bases of one tensor catalog and different bytes have different
+// plans, so a partial staged from one is refused when the other is merged,
+// never resumed into a checkpoint whose tensors came from two models.
+const baseMetadata = "overgo_base"
+
+// baseDigest is the identity of the bytes a merge reads: the digest of each opened
+// shard, in name order, which the source computes from the handles it will read.
+func baseDigest(digests []safetensors.ShardDigest) string {
+	hash := sha256.New()
+	for _, shard := range digests {
+		_ = binary.Write(hash, binary.LittleEndian, []uint64{uint64(len(shard.Name)), shard.Size})
+		_, _ = io.WriteString(hash, shard.Name)
+		_, _ = hash.Write(shard.Digest[:])
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
 // mergePlan is the output catalog of merging adapter into source: the source's
-// shards, tensor names, dtypes and shapes, bound to the adapter.
-func mergePlan(source *safetensors.Source, adapter Adapter) safetensors.StreamingPlan {
+// shards, tensor names, dtypes and shapes, bound to the adapter and to the
+// content of the base. Binding the base reads it once more than the merge does.
+func mergePlan(source *safetensors.Source, adapter Adapter) (safetensors.StreamingPlan, error) {
+	digests, err := source.ShardDigests()
+	if err != nil {
+		return safetensors.StreamingPlan{}, fmt.Errorf("peft: identify the base checkpoint: %w", err)
+	}
 	names := source.Names()
-	plan := safetensors.StreamingPlan{Metadata: map[string]string{"format": "pt", adapterMetadata: adapter.digest()}}
+	plan := safetensors.StreamingPlan{Metadata: map[string]string{"format": "pt", adapterMetadata: adapter.digest(), baseMetadata: baseDigest(digests)}}
 	for _, shard := range source.Shards() {
 		spec := safetensors.StreamingShardSpec{Name: shard}
 		for _, name := range names {
@@ -104,7 +131,7 @@ func mergePlan(source *safetensors.Source, adapter Adapter) safetensors.Streamin
 		}
 		plan.Shards = append(plan.Shards, spec)
 	}
-	return plan
+	return plan, nil
 }
 
 // digest is the identity of what the adapter adds to a weight: its scale rule

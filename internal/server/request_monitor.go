@@ -37,6 +37,11 @@ type monitoredRequest struct {
 	status           int
 	promptTokens     uint64
 	completionTokens uint64
+	// admission is how long the request waited for a place to run, which is the time the slot
+	// before it took to unwind when one was just stopped, and preparation how long its prompt
+	// took to prepare (tokenized, or its media projected); each is the sum over the request's
+	// own, and neither is the request's generation, which the duration and tokens show.
+	admission, preparation time.Duration
 }
 
 // requestMonitor keeps what the server answered, for the Requests tab: the requests in flight and
@@ -87,6 +92,19 @@ func (m *requestMonitor) addTokens(ctx context.Context, prompt, completion uint6
 	record.completionTokens += completion
 }
 
+// addWaits adds time a request spent before it generated, waiting for a place to run and
+// preparing its prompt, to the request its context belongs to.
+func (m *requestMonitor) addWaits(ctx context.Context, admission, preparation time.Duration) {
+	record, monitored := ctx.Value(monitoredKey{}).(*monitoredRequest)
+	if !monitored {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	record.admission += admission
+	record.preparation += preparation
+}
+
 // requestEntry is a request as the Requests tab reads it: a request in flight has no status, and
 // its duration is the time it has run so far.
 type requestEntry struct {
@@ -99,6 +117,8 @@ type requestEntry struct {
 	InFlight         bool    `json:"in_flight,omitzero"`
 	PromptTokens     uint64  `json:"prompt_tokens,omitzero"`
 	CompletionTokens uint64  `json:"completion_tokens,omitzero"`
+	AdmissionMS      float64 `json:"admission_ms,omitzero"`
+	PreparationMS    float64 `json:"preparation_ms,omitzero"`
 }
 
 type requestLogResponse struct {
@@ -127,6 +147,7 @@ func entryOf(record *monitoredRequest, inFlight bool) requestEntry {
 	entry := requestEntry{
 		ID: record.id, Method: record.method, Route: record.route, StartedUnixMS: record.started.UnixMilli(),
 		DurationMS: float64(record.duration) / float64(time.Millisecond), PromptTokens: record.promptTokens, CompletionTokens: record.completionTokens,
+		AdmissionMS: float64(record.admission) / float64(time.Millisecond), PreparationMS: float64(record.preparation) / float64(time.Millisecond),
 	}
 	if inFlight {
 		entry.InFlight = true

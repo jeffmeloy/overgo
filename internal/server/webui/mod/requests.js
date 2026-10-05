@@ -23,6 +23,15 @@
     return parts.join(" · ");
   }
 
+  // waited: what a request spent before it generated, waiting for a place to run (after a stop, the slot before it
+  // unwinding) and preparing its prompt, each shown only when the server measured it.
+  function waited(item, fmt) {
+    const parts = [];
+    if (item.admission_ms) parts.push("place " + fmt.elapsed(item.admission_ms));
+    if (item.preparation_ms) parts.push("prompt " + fmt.elapsed(item.preparation_ms));
+    return parts.join(" · ");
+  }
+
   window.overgo.registerTab({
     id: "requests",
     async mount(panel, overgo) {
@@ -37,13 +46,14 @@
         if (!latest) return;
         summary.textContent = totals(latest, fmt);
         const shown = latest.requests.filter((item) => show.value === "all" || (show.value === "in-flight" ? item.in_flight : failed(item)));
-        listHost.replaceChildren(overgo.table(["time", "method", "route", "status", "duration", "tokens"], shown.map((item) => [
+        listHost.replaceChildren(overgo.table(["time", "method", "route", "status", "duration", "tokens", "waited"], shown.map((item) => [
           new Date(item.started_ms).toLocaleTimeString(),
           item.method,
           item.route,
           item.in_flight ? el("span", { class: "tag", text: "in flight" }) : failed(item) ? el("span", { class: "tag caution", text: String(item.status) }) : String(item.status),
           fmt.elapsed(item.duration_ms),
           item.prompt_tokens || item.completion_tokens ? item.prompt_tokens + " in · " + item.completion_tokens + " out" : "",
+          waited(item, fmt),
         ]), "request-grid", "No requests match."));
       }
       show.addEventListener("input", draw);

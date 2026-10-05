@@ -1,6 +1,7 @@
 package trainingworkflow
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/gguf"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/peft"
 	"overgo/internal/testutil"
@@ -78,6 +80,46 @@ func TestQuantizedBaseAdapterRunMatchesTheDenseRun(t *testing.T) {
 	for _, want := range []string{trainingprogram.CheckpointModel, trainingprogram.CheckpointFrozenShard, LoRAAdapterDirectory} {
 		if !slices.Contains(names, want) {
 			t.Errorf("the quantized run's checkpoint holds %v, missing %s", names, want)
+		}
+	}
+}
+
+// TestQuantizedBaseOfALlamaPublishesTheBaseAsStored holds a quantized-base run over a
+// llama GGUF to what it says it publishes: its query and key projections load
+// reordered and in full precision, so the adapter merges into them in place, but the
+// model the run publishes is the base as stored, every tensor with the base's type
+// and bytes, the adapter beside it: a published model that held the update in
+// some projections and not others would be served with the adapter applied twice
+// to those.
+func TestQuantizedBaseOfALlamaPublishesTheBaseAsStored(t *testing.T) {
+	base := testutil.QuantizedLlamaGGUF(t, 2)
+	text := registerTextObjective(t, averageDocuments(), trainingprogram.MetricTokenAccuracy)
+	ctx := t.Context()
+	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, text.store); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(text.root, "llama-quantized")
+	if _, err := RunTextHeldout(ctx, text.store, TextHeldoutRequest{
+		Alias: text.alias, ModelDirectory: base, OutputDirectory: output, Steps: 8, Host: true,
+		LoRA: &LoRA{Rank: 4, Alpha: 8, Seed: 1, Quantized: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	original, err := gguf.Open(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer original.Close()
+	published, err := gguf.Open(filepath.Join(output, trainingprogram.CheckpointModel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer published.Close()
+	for _, info := range original.Tensors {
+		baseInfo, baseData := readStored(t, original, info.Name)
+		publishedInfo, publishedData := readStored(t, published, info.Name)
+		if publishedInfo.Type != baseInfo.Type || !bytes.Equal(publishedData, baseData) {
+			t.Errorf("%s: published as %s, not the base's %s bytes", info.Name, publishedInfo.Type, baseInfo.Type)
 		}
 	}
 }

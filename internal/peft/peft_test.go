@@ -516,7 +516,11 @@ func TestMergeRefusesTheStagedPartialOfAnotherAdapter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer source.Close()
-	interrupted, err := safetensors.NewStreamingWriter(merged, mergePlan(source, first))
+	plan, err := mergePlan(source, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	interrupted, err := safetensors.NewStreamingWriter(merged, plan)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -538,5 +542,69 @@ func TestMergeRefusesTheStagedPartialOfAnotherAdapter(t *testing.T) {
 	}
 	if report, err := Merge(first, base, merged); err != nil || report.Merged != 2 {
 		t.Fatalf("the adapter that began the merge = %+v, %v", report, err)
+	}
+}
+
+// TestMergeRefusesTheStagedPartialOfAnotherBase holds a merge killed midway to resume
+// only against the base that began it: two bases of one tensor catalog and different
+// bytes share an adapter's plan and a tensor catalog, so a partial staged from the first
+// resumed against the second would publish one checkpoint of two models; it is refused,
+// the base that began it completes, and the checkpoint it makes equals an uninterrupted
+// merge of that base.
+func TestMergeRefusesTheStagedPartialOfAnotherBase(t *testing.T) {
+	root := t.TempDir()
+	first, second, merged := filepath.Join(root, "first"), filepath.Join(root, "second"), filepath.Join(root, "merged")
+	values := writeBase(t, first, "F32")
+	// The second base differs in a tensor the adapter does not touch: the catalog and the adapted tensors agree.
+	changed := maps.Clone(values)
+	changed["model.layers.0.self_attn.k_proj.weight"] = slices.Clone(values["model.layers.0.self_attn.k_proj.weight"])
+	changed["model.layers.0.self_attn.k_proj.weight"][0] += 1
+	shapes := map[string][]int{
+		queryModule + ".weight": {3, 4}, valueModule + ".weight": {2, 4},
+		"model.layers.0.input_layernorm.weight": {4}, "model.layers.0.self_attn.k_proj.weight": {2, 4},
+	}
+	if err := os.MkdirAll(second, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := safetensors.Save(filepath.Join(second, "model.safetensors"), changed, shapes, nil); err != nil {
+		t.Fatal(err)
+	}
+	adapter := testAdapter()
+	source, err := safetensors.OpenSource(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	plan, err := mergePlan(source, adapter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	interrupted, err := safetensors.NewStreamingWriter(merged, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"model.layers.0.input_layernorm.weight", "model.layers.0.self_attn.k_proj.weight"} {
+		tensor := source.Tensors[name]
+		if err := interrupted.WriteTensor(name, uint64(tensor.Size()), tensor.Reader()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := Merge(adapter, second, merged); err == nil {
+		t.Fatal("another base resumed the first base's staged tensors")
+	}
+	if report, err := Merge(adapter, first, merged); err != nil || report.Merged != 2 {
+		t.Fatalf("the base that began the merge = %+v, %v", report, err)
+	}
+	fresh := filepath.Join(root, "fresh")
+	if _, err := Merge(adapter, first, fresh); err != nil {
+		t.Fatal(err)
+	}
+	resumed, err := os.ReadFile(filepath.Join(merged, "model.safetensors"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	uninterrupted, err := os.ReadFile(filepath.Join(fresh, "model.safetensors"))
+	if err != nil || !bytes.Equal(resumed, uninterrupted) {
+		t.Fatalf("the resumed merge differs from an uninterrupted merge of the same base (%v)", err)
 	}
 }

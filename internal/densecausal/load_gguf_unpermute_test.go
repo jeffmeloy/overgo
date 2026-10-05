@@ -75,6 +75,9 @@ func TestLlamaGGUFLoadsItsAttentionRowsInCheckpointOrder(t *testing.T) {
 		if got := permuteRows(loaded, shape[0], shape[1], projection.heads); !slices.Equal(got, stored(projection.stored)) {
 			t.Errorf("%s: the loaded rows, permuted as the conversion permutes them, are not the file's", projection.loaded)
 		}
+		if got := model.StoredRows(projection.loaded, loaded); !slices.Equal(got, stored(projection.stored)) {
+			t.Errorf("%s: StoredRows does not put the loaded rows back as the file stores them", projection.loaded)
+		}
 		if slices.Equal(loaded, stored(projection.stored)) {
 			t.Errorf("%s: the rows load as stored, still permuted", projection.loaded)
 		}

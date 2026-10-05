@@ -175,6 +175,9 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	if input.Dataset.Kind() != artifact.KindDataset || input.Steps <= 0 || input.SampleEvery < 0 || input.SaveEvery < 0 {
 		return operation.Completion{}, errors.New("sft workspace: a conversation dataset and a positive number of steps are required, and samples and saved checkpoints come every positive number of steps")
 	}
+	if input.TrainOnPrompts && input.SampleEvery > 0 {
+		return operation.Completion{}, errors.New("sft workspace: samples are generated after a conversation's prompt, so a run that also trains on the prompts cannot sample")
+	}
 	var lora *trainingworkflow.LoRA
 	switch {
 	case method.lora && input.Rank <= 0:
@@ -206,6 +209,9 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	})
 	if err != nil {
 		return failWorkflow(ctx, workspace.store, program.ID, inputs, "training_failed", err)
+	}
+	if len(result.Skipped) > 0 {
+		reporter.Metric(operation.Metric{Name: "skipped_conversations", Value: float64(len(result.Skipped))})
 	}
 	reporter.Publishing()
 	outputs := []artifact.ID{result.Trained, result.Verdict}

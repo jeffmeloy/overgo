@@ -288,6 +288,10 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, fixture.inputSampled("tuned-negative", -1), testReporter{}); err == nil || !strings.Contains(err.Error(), "come every positive number of steps") {
 		t.Errorf("a negative sampling interval: err = %v", err)
 	}
+	onPromptsSampled := json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":4,"sample_every":2,"train_on_prompts":true,"output":"tuned-prompts"}`, fixture.conversations.String()))
+	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, capability, onPromptsSampled, testReporter{}); err == nil || !strings.Contains(err.Error(), "also trains on the prompts") {
+		t.Errorf("samples of a run that learns the prompts: err = %v, want it refused before the run", err)
+	}
 
 	// The LoRA capability previews the same conversations and trains an adapter of the rank given, left
 	// beside the trained model as a PEFT directory the whole-model run does not write.

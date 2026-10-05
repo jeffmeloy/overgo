@@ -3,7 +3,9 @@ package densecausal
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strings"
 
 	"overgo/internal/gguf"
@@ -23,6 +25,8 @@ const (
 	// rotaryPair is how many rows a rotary pair spans: the conversion interleaves
 	// each head's first half of rows with its second.
 	rotaryPair = 2
+	// projectionRank is the rank of a projection: a matrix of output rows by input columns.
+	projectionRank = 2
 )
 
 // unpermuteRows undoes the permutation GGUF conversion applies to a query or
@@ -42,6 +46,75 @@ func unpermuteRows(values []float32, rows, columns, heads int) []float32 {
 		}
 	}
 	return restored
+}
+
+// interleaveRows is unpermuteRows' inverse: a query or key projection's rows as the
+// checkpoint holds them, put back into the layout the GGUF conversion stores.
+func interleaveRows(values []float32, rows, columns, heads int) []float32 {
+	half := rows / heads / rotaryPair
+	stored := make([]float32, len(values))
+	for head := range heads {
+		first := head * rotaryPair * half
+		for j := range half {
+			for k := range rotaryPair {
+				at, original := first+j*rotaryPair+k, first+k*half+j
+				copy(stored[at*columns:(at+1)*columns], values[original*columns:(original+1)*columns])
+			}
+		}
+	}
+	return stored
+}
+
+// WithWeights is a view of the model whose named weights hold the values given and
+// whose others are the model's own, which is what a model is published as when some
+// of its weights are published as another run left them: the view shares the
+// model's shapes and every weight not replaced, and the model is unchanged.
+func (m *Model) WithWeights(replaced map[string][]float32) *Model {
+	view := *m
+	view.Weights = maps.Clone(m.Weights)
+	maps.Copy(view.Weights, replaced)
+	return &view
+}
+
+// StoredRows is the weight's values as the GGUF the model was loaded from stores
+// them, which is how a model trained over that file is written back: the values
+// themselves for every weight but a llama query or key projection, whose rows the
+// load reordered and this puts back. The values are not modified.
+func (m *Model) StoredRows(name string, values []float32) []float32 {
+	heads, reordered := m.storedHeads[name]
+	if !reordered {
+		return values
+	}
+	shape := m.Shapes[name]
+	return interleaveRows(values, shape[0], shape[1], heads)
+}
+
+// isLayerProjection reports whether the HF-named weight is one of a decoder layer's
+// seven linear projections, the weights useLayer dequantizes for a layer.
+func isLayerProjection(name string) bool {
+	rest, layered := strings.CutPrefix(name, "model.layers.")
+	if !layered {
+		return false
+	}
+	_, kind, nested := strings.Cut(rest, ".")
+	return nested && slices.Contains(layerProjectionKinds, kind)
+}
+
+// layerProjectionKinds are the projections' names without their layer, the keys of a
+// frozen model's scratch.
+var layerProjectionKinds = []string{
+	"self_attn.q_proj.weight", "self_attn.k_proj.weight", "self_attn.v_proj.weight", "self_attn.o_proj.weight",
+	"mlp.gate_proj.weight", "mlp.up_proj.weight", "mlp.down_proj.weight",
+}
+
+// checkRotaryRows refuses a query or key projection whose shape the row
+// reordering cannot read: a matrix of rows by columns whose rows are a whole
+// number of rotary pairs for each of heads heads.
+func checkRotaryRows(name string, shape []int, heads int) error {
+	if len(shape) != projectionRank || heads <= 0 || shape[0]%(heads*rotaryPair) != 0 {
+		return fmt.Errorf("densecausal: %q has shape %v, not a matrix of %d heads of whole rotary row pairs", name, shape, heads)
+	}
+	return nil
 }
 
 // LoadGGUF opens one GGUF model file and materializes the same trainable
@@ -97,6 +170,7 @@ func loadGGUF(path string, hold func(name string) bool) (*Model, error) {
 	weights := make(map[string][]float32, len(file.Tensors))
 	shapes := make(map[string][]int, len(file.Tensors))
 	held := map[string]frozenTensor{}
+	storedHeads := map[string]int{}
 	for _, info := range file.Tensors {
 		if info.Name == "rope_freqs.weight" {
 			continue
@@ -124,8 +198,24 @@ func loadGGUF(path string, hold func(name string) bool) (*Model, error) {
 		shapes[name] = shape
 		// A held tensor is dequantized as stored, so a llama query or key
 		// projection, whose stored rows the load must reorder, is read in full.
+		heads := int(spec.HeadCount)
+		if strings.HasSuffix(name, keyProjection) {
+			heads = int(spec.HeadCountKV)
+		}
 		reordered := permuted && (strings.HasSuffix(name, queryProjection) || strings.HasSuffix(name, keyProjection))
+		if reordered {
+			// The metadata's head count does not make a tensor a projection: its rank and rows are checked
+			// before any row is moved, so a malformed file is refused where it would otherwise panic.
+			if err := checkRotaryRows(info.Name, shape, heads); err != nil {
+				return nil, err
+			}
+		}
 		if hold != nil && info.Type != gguf.DTypeF32 && hold(name) && !reordered {
+			// A layer dequantizes only its seven projections as it reads them: any other held tensor
+			// would be read as the zeros of its scratch, with no error.
+			if !isLayerProjection(name) {
+				return nil, fmt.Errorf("densecausal: %q cannot be held in its stored quantization: only a layer's linear projections are dequantized as a layer reads them", name)
+			}
 			held[name] = frozenTensor{stored: info.Type, data: storage}
 			continue
 		}
@@ -133,13 +223,9 @@ func loadGGUF(path string, hold func(name string) bool) (*Model, error) {
 		if err != nil {
 			return nil, fmt.Errorf("densecausal: dequantize %q: %w", info.Name, err)
 		}
-		if permuted {
-			switch {
-			case strings.HasSuffix(name, queryProjection):
-				values = unpermuteRows(values, shape[0], shape[1], int(spec.HeadCount))
-			case strings.HasSuffix(name, keyProjection):
-				values = unpermuteRows(values, shape[0], shape[1], int(spec.HeadCountKV))
-			}
+		if reordered {
+			values = unpermuteRows(values, shape[0], shape[1], heads)
+			storedHeads[name] = heads
 		}
 		weights[name] = values
 	}
@@ -171,6 +257,9 @@ func loadGGUF(path string, hold func(name string) bool) (*Model, error) {
 		return nil, err
 	}
 	m.Dims.ContextLength = int(spec.ContextLength)
+	if len(storedHeads) != 0 {
+		m.storedHeads = storedHeads
+	}
 	if len(held) != 0 {
 		for name := range held {
 			delete(m.Weights, name)

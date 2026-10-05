@@ -5,9 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"overgo/internal/tokenizer"
 )
 
 // monitorLog reads the monitor's ring through the route the Requests tab reads.
@@ -75,6 +79,78 @@ func TestRequestMonitorRecordsWhatTheServerAnswered(t *testing.T) {
 	}
 	if full := monitorLog(t, handler); len(full.Requests) != requestMonitorCapacity || full.Limit != requestMonitorCapacity || full.Requests[0].Route != "/v1/models" {
 		t.Fatalf("the monitor holds %d requests, want the newest %d", len(full.Requests), requestMonitorCapacity)
+	}
+}
+
+// floatSlackMS is the rounding of a sum of two durations held as milliseconds, far below a clock tick.
+const floatSlackMS = 1e-9
+
+// clockMoves returns once the clock the monitor times with has moved, which on a platform whose
+// monotonic clock ticks coarsely is the least a measured wait can show; the scheduler paces it.
+func clockMoves(t *testing.T) {
+	t.Helper()
+	begin := time.Now()
+	for time.Since(begin) <= 0 && t.Context().Err() == nil {
+		runtime.Gosched()
+	}
+}
+
+// slowTokenizer is a generator whose prompts take a measurable time to tokenize.
+type slowTokenizer struct{ *fakeGenerator }
+
+func (generator slowTokenizer) TokenizeText(text string, addSpecial, parseSpecial bool) ([]tokenizer.TokenID, error) {
+	begin := time.Now()
+	for time.Since(begin) <= 0 {
+		runtime.Gosched()
+	}
+	return generator.fakeGenerator.TokenizeText(text, addSpecial, parseSpecial)
+}
+
+// TestRequestMonitorShowsAdmissionWait holds one place and sends a second request that has to
+// wait for it: the monitor shows the second one's wait for the place, which the first, that took
+// the free place at once, did not have, and the time each spent preparing its prompt, both
+// beside the duration that includes them, so a request that is slow to start says whether it
+// was waiting or preparing.
+func TestRequestMonitorShowsAdmissionWait(t *testing.T) {
+	t.Parallel()
+	generator := &fakeGenerator{pieces: []string{"A"}, started: make(chan struct{}), release: make(chan struct{})}
+	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, MaxConcurrent: 1}, slowTokenizer{generator})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer handler.Close()
+	var served sync.WaitGroup
+	send := func() {
+		served.Go(func() {
+			if response := serveTestRequest(handler, http.MethodPost, "/v1/completions", `{"prompt":"hi","max_tokens":1}`); response.Code != http.StatusOK {
+				t.Errorf("completion answered %d: %s", response.Code, response.Body.String())
+			}
+		})
+	}
+	send()
+	<-generator.started
+	send()
+	// The second request is waiting for the place once the director counts it; the scheduler, not a clock, paces the look.
+	for handler.sessions.Snapshot().Waiting == 0 && t.Context().Err() == nil {
+		runtime.Gosched()
+	}
+	// The place is released once the clock the monitor reads has moved, so the wait it measured is not a tick shorter than any.
+	clockMoves(t)
+	close(generator.release)
+	served.Wait()
+	log := monitorLog(t, handler).Requests
+	if len(log) != 2 {
+		t.Fatalf("the monitor holds %d requests, want the two completions: %+v", len(log), log)
+	}
+	first, second := log[1], log[0]
+	if second.AdmissionMS <= 0 || second.AdmissionMS <= first.AdmissionMS {
+		t.Errorf("the request that waited for the place shows %v ms of admission and the one that did not %v, want the waiter's the greater", second.AdmissionMS, first.AdmissionMS)
+	}
+	for index, entry := range []requestEntry{first, second} {
+		// Whole clock ticks, as milliseconds: the two waits lie inside the duration, up to the floating point sum.
+		if entry.PreparationMS <= 0 || entry.AdmissionMS+entry.PreparationMS > entry.DurationMS+floatSlackMS {
+			t.Errorf("request %d shows %v ms of admission and %v of preparation inside a duration of %v", index, entry.AdmissionMS, entry.PreparationMS, entry.DurationMS)
+		}
 	}
 }
 

@@ -779,7 +779,9 @@ func (h *Handler) activateSession(lease *requestSession) {
 }
 
 func (h *Handler) acquireRequestSession(ctx context.Context, response http.ResponseWriter, requested int) (*requestSession, bool) {
+	waiting := time.Now()
 	lease, err := h.sessions.Lease(ctx, requested)
+	h.requests.addWaits(ctx, time.Since(waiting), 0)
 	if err != nil {
 		if errors.Is(err, capabilityruntime.ErrAdmissionQueueFull) || errors.Is(err, capabilityruntime.ErrSessionUnavailable) {
 			writeError(response, http.StatusTooManyRequests, "server_busy", err.Error())

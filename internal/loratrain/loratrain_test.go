@@ -19,6 +19,17 @@ import (
 	"overgo/internal/testutil"
 )
 
+// projectAll projects every module's gradient from grads, as a step does for the modules
+// the layers settle and the pass returns.
+func projectAll(trainer *Trainer, grads densecausal.Grads) error {
+	for name := range trainer.adapter.Modules {
+		if err := trainer.project(name, grads); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // embeddingScale makes the tiny model's frozen tied embedding large enough for
 // its logits to separate: with it, Muon at a rate of 0.02 takes the loss on a
 // repeated pattern from about four to a quarter in forty updates.
@@ -105,7 +116,7 @@ func checkFactorGradients(t *testing.T, config Config, step float64) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := trainer.project(grads); err != nil {
+	if err := projectAll(trainer, grads); err != nil {
 		t.Fatal(err)
 	}
 	checked := 0

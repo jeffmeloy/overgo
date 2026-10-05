@@ -66,17 +66,17 @@ func TestWorkbenchAPIDownloadAdmissionAndCancellation(t *testing.T) {
 	if cancel.Code != http.StatusOK || !strings.Contains(cancel.Body.String(), downloadStateCancelled) {
 		t.Fatalf("cancel status=%d body=%s", cancel.Code, cancel.Body.String())
 	}
-	// The cancelled job settles once its goroutine has recorded the
-	// interruption; the scheduler, not a clock, paces the look.
+	// The cancelled job reports cancelled at once, but its slot is free only when its transfer goroutine has
+	// unwound, so the next admission is refused until then; the scheduler, not a clock, paces the retry.
+	var admitted *httptest.ResponseRecorder
 	for {
-		listed := httptest.NewRecorder()
-		handler.ServeHTTP(listed, httptest.NewRequest(http.MethodGet, "/hub/downloads", nil))
-		if strings.Count(listed.Body.String(), downloadStateCancelled) == 1 {
+		admitted = start(strconv.Itoa(len(accepted) + 1))
+		if admitted.Code != http.StatusTooManyRequests || t.Context().Err() != nil {
 			break
 		}
 		runtime.Gosched()
 	}
-	if admitted := start(strconv.Itoa(len(accepted) + 1)); admitted.Code != http.StatusAccepted {
+	if admitted.Code != http.StatusAccepted {
 		t.Fatalf("post-cancel admission status = %d body=%s", admitted.Code, admitted.Body.String())
 	}
 }

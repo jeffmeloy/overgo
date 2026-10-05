@@ -43,6 +43,109 @@ func publishedWeights(t *testing.T, output string) []byte {
 	return data
 }
 
+// TestStepCheckpointsIgnoreAnotherRunsDirectories holds a run's saves to the run: a
+// directory an earlier run left beside the output, numbered above or below the
+// run's own saves, neither outranks them in retention nor is deleted by it; a
+// name the run would save to that is already taken refuses the run before it
+// trains, naming it; an output written with a trailing separator saves beside
+// itself, not inside; and a run resumed from a step that is not the newest
+// continues once the later steps it would write over are gone, leaving the step
+// it resumed from.
+func TestStepCheckpointsIgnoreAnotherRunsDirectories(t *testing.T) {
+	text := registerTextObjective(t, averageDocuments(), trainingprogram.MetricTokenAccuracy)
+	const steps = 10
+	run := func(output string, request TextHeldoutRequest) error {
+		request.Alias, request.ModelDirectory, request.OutputDirectory, request.Steps, request.Host = text.alias, text.model, output, steps, true
+		_, err := RunTextHeldout(t.Context(), text.store, request)
+		return err
+	}
+	exists := func(path string) bool {
+		_, err := os.Stat(path)
+		return err == nil
+	}
+	stale := func(output string, numbers ...string) []string {
+		var made []string
+		for _, number := range numbers {
+			path := output + stepCheckpointInfix + number
+			if err := os.Mkdir(path, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			made = append(made, path)
+		}
+		return made
+	}
+
+	t.Run("a stale directory neither outranks the run's saves nor is deleted by them", func(t *testing.T) {
+		output := filepath.Join(text.root, "fresh")
+		older := stale(output, "000200", "000700")
+		if err := run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 1}); err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range older {
+			if !exists(path) {
+				t.Errorf("the run deleted %s, which an earlier run left", path)
+			}
+		}
+		if got, want := stepCheckpoints(t, output), []string{"fresh-step-000008", "fresh-step-000200", "fresh-step-000700"}; !slices.Equal(got, want) {
+			t.Fatalf("step directories after the run %v, want its newest save beside the stale two %v", got, want)
+		}
+	})
+
+	t.Run("a name the run would save to that is taken refuses it before it trains", func(t *testing.T) {
+		output := filepath.Join(text.root, "taken")
+		taken := stale(output, "000004")
+		err := run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 2})
+		if err == nil || !strings.Contains(err.Error(), taken[0]) {
+			t.Fatalf("the run was %v, want it refused naming %s", err, taken[0])
+		}
+		if exists(output) || !exists(taken[0]) || len(stepCheckpoints(t, output)) != 1 {
+			t.Fatalf("a refused run left %v, want only the directory that was there", stepCheckpoints(t, output))
+		}
+	})
+
+	t.Run("an output with a trailing separator saves beside itself", func(t *testing.T) {
+		output := filepath.Join(text.root, "slashed")
+		if err := run(output+string(filepath.Separator), TextHeldoutRequest{CheckpointEvery: 4, CheckpointKeep: 2}); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := stepCheckpoints(t, output), []string{"slashed-step-000004", "slashed-step-000008"}; !slices.Equal(got, want) {
+			t.Fatalf("step directories %v, want %v beside the output", got, want)
+		}
+		if _, err := trainingprogram.LoadCheckpoint(output); err != nil {
+			t.Fatal(err)
+		}
+		if exists(filepath.Join(output, "-step-000004")) {
+			t.Error("a checkpoint was saved inside the output")
+		}
+	})
+
+	t.Run("a run resumed from a step that is not the newest continues once the later steps are gone", func(t *testing.T) {
+		output := filepath.Join(text.root, "resumable")
+		if err := run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 4}); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.RemoveAll(output); err != nil {
+			t.Fatal(err)
+		}
+		from := output + stepCheckpointInfix + "000004"
+		err := run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 1, Resume: from})
+		if err == nil || !strings.Contains(err.Error(), output+stepCheckpointInfix+"000006") {
+			t.Fatalf("the resumed run was %v, want it refused naming the first later step", err)
+		}
+		for _, later := range []string{"000006", "000008"} {
+			if err := os.RemoveAll(output + stepCheckpointInfix + later); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := run(output, TextHeldoutRequest{CheckpointEvery: 2, CheckpointKeep: 1, Resume: from}); err != nil {
+			t.Fatal(err)
+		}
+		if got, want := stepCheckpoints(t, output), []string{"resumable-step-000002", "resumable-step-000004", "resumable-step-000008"}; !slices.Equal(got, want) {
+			t.Fatalf("step directories %v, want the step resumed from, the earlier run's older one and the resumed run's newest save %v", got, want)
+		}
+	})
+}
+
 // TestCheckpointRetention runs a text objective that saves a checkpoint every
 // second update and keeps two, and checks what a run that saves checkpoints must:
 // only the older ones are deleted and nothing else beside the output is; a run
@@ -109,9 +212,13 @@ func TestCheckpointRetention(t *testing.T) {
 		}
 		// A checkpoint of a run that kept no average gives the resumed run none to continue; and
 		// the average a checkpoint holds is continued even when the resuming run does not name one.
-		restarted := run(t, "resumed-no-flag", TextHeldoutRequest{Resume: filepath.Join(text.root, "interrupted"+stepCheckpointInfix+"000004")})
+		var progress strings.Builder
+		restarted := run(t, "resumed-no-flag", TextHeldoutRequest{Resume: filepath.Join(text.root, "interrupted"+stepCheckpointInfix+"000004"), Progress: &progress})
 		if !slices.Equal(publishedWeights(t, whole), publishedWeights(t, restarted)) {
 			t.Error("a run resumed from a checkpoint with an average dropped it")
+		}
+		if !strings.Contains(progress.String(), "resuming continues the checkpoint's moving average, at decay 0.9 after 4 updates, not the decay 0 this run asked for") {
+			t.Errorf("a resume that overrides the average it asked for did not say so; progress was %q", progress.String())
 		}
 	})
 

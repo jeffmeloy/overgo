@@ -107,7 +107,7 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 		return summary
 	}
 	var carried artifact.ID
-	summary.Carried, carried = carriedReceipt(ctx, store, bound)
+	summary.Carried, carried, _ = carriedReceipt(ctx, store, bound)
 	if carried.Valid() {
 		summary.ScoredCommit = scoredCommit(ctx, store, carried)
 	}
@@ -137,26 +137,32 @@ func recordExecution(ctx context.Context, store *overgodb.Store, record runrecor
 }
 
 // carriedReceipt names the replay receipt a run reports and the record that
-// receipt carried forward; both are zero for a run that scored its own cases.
-func carriedReceipt(ctx context.Context, store *overgodb.Store, bound runrecord.Run) (receipt, carried artifact.ID) {
+// receipt carried forward; both are zero for a run that scored its own cases,
+// and readable is false for a run that reports a receipt it cannot read, which
+// is no run that scored its own.
+func carriedReceipt(ctx context.Context, store *overgodb.Store, bound runrecord.Run) (receipt, carried artifact.ID, readable bool) {
 	if len(bound.Outputs) != 1 {
-		return artifact.ID{}, artifact.ID{}
+		return artifact.ID{}, artifact.ID{}, true
 	}
 	descriptor, found, _ := store.Artifact(ctx, bound.Outputs[0])
 	if !found || descriptor.Schema != replayReceiptContract.Schema {
-		return artifact.ID{}, artifact.ID{}
+		return artifact.ID{}, artifact.ID{}, true
 	}
 	named, err := RequireReplayReceipt(ctx, store, descriptor.ID)
-	if err != nil || !named.Carried.Valid() {
-		return artifact.ID{}, artifact.ID{}
+	if err != nil {
+		return artifact.ID{}, artifact.ID{}, false
 	}
-	return descriptor.ID, named.Carried
+	if !named.Carried.Valid() {
+		return artifact.ID{}, artifact.ID{}, true
+	}
+	return descriptor.ID, named.Carried, true
 }
 
 // scoredCommit is the code commit of the run that scored the cases a carried
 // record's result stands on: its chain of carries followed to the first record
-// whose run carried nothing, or empty when a link cannot be read. Each record's
-// identity holds the one it carried, so a chain cannot loop.
+// whose run carried nothing, or empty when a link cannot be read, a run that
+// reports a receipt it cannot read being one. Each record's identity holds the
+// one it carried, so a chain cannot loop.
 func scoredCommit(ctx context.Context, store *overgodb.Store, carried artifact.ID) string {
 	for carried.Valid() {
 		record, err := runrecord.RequireEvaluation(ctx, store, carried)
@@ -167,8 +173,11 @@ func scoredCommit(ctx context.Context, store *overgodb.Store, carried artifact.I
 		if err != nil {
 			return ""
 		}
-		var earlier artifact.ID
-		if _, earlier = carriedReceipt(ctx, store, bound); !earlier.Valid() {
+		_, earlier, readable := carriedReceipt(ctx, store, bound)
+		if !readable {
+			return ""
+		}
+		if !earlier.Valid() {
 			return bound.CodeCommit
 		}
 		carried = earlier

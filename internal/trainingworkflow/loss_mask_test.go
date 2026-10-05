@@ -76,9 +76,9 @@ func TestAssistantOnlyLoss(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, prompts := range []bool{false, true} {
-		records, err := conversationRecords(ctx, run.store, run.source, letters, prompts)
-		if err != nil {
-			t.Fatal(err)
+		records, skipped, err := conversationRecords(ctx, run.store, run.source, letters, prompts, tokens)
+		if err != nil || len(skipped) != 0 {
+			t.Fatalf("records = %d, skipped %v, err %v: want every conversation usable", len(records), skipped, err)
 		}
 		registered, err := registerRecords(ctx, run.store, run.work, records)
 		if err != nil {

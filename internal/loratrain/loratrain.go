@@ -94,6 +94,11 @@ type Trainer struct {
 	quantized bool
 	// average, once Average starts it, follows the factors after each update.
 	average *optimizer.Average
+	// layerModules are the adapter's modules by the decoder layer they adapt.
+	layerModules map[int][]string
+	// onSettle, when set, is told how many full-size gradient values a step holds as each
+	// layer's are projected: a test's view of the step's peak.
+	onSettle func(live int)
 }
 
 // New starts an adapter on the model: every target projection of every dense
@@ -175,10 +180,13 @@ func Resume(model *densecausal.Model, adapter peft.Adapter) (*Trainer, error) {
 // bind freezes the model's adapted weights and packs the adapter's factors for
 // the optimizer.
 func bind(model *densecausal.Model, adapter peft.Adapter) (*Trainer, error) {
-	trainer := &Trainer{model: model, adapter: adapter, frozen: map[string][]float32{}, gradients: map[string][]float32{}}
+	trainer := &Trainer{model: model, adapter: adapter, frozen: map[string][]float32{}, gradients: map[string][]float32{}, layerModules: map[int][]string{}}
 	factors := map[string][]float32{}
 	shapes := map[string][matrixRank]int{}
 	for name, module := range adapter.Modules {
+		if layer, layered := moduleLayer(name); layered {
+			trainer.layerModules[layer] = append(trainer.layerModules[layer], name)
+		}
 		weight := name + weightSuffix
 		shape := model.Shapes[weight]
 		if len(shape) != matrixRank || shape[0] != module.Out || shape[1] != module.In {
@@ -235,6 +243,22 @@ func (trainer *Trainer) apply() error {
 		}
 	}
 	return nil
+}
+
+// Unmerged is the base values of the adapted weights a model that holds others of
+// them quantized holds in full precision and has adapted in place (a projection the
+// file stores in full precision, or a llama query or key, which loads reordered): the
+// model a quantized run publishes is the base as stored, the adapter beside it, so
+// these are what it publishes of them. It is nil for a run that holds none quantized.
+func (trainer *Trainer) Unmerged() map[string][]float32 {
+	if !trainer.quantized {
+		return nil
+	}
+	unmerged := make(map[string][]float32, len(trainer.frozen))
+	for name, base := range trainer.frozen {
+		unmerged[name+weightSuffix] = base
+	}
+	return unmerged
 }
 
 // RestoreBase puts the model's adapted weights back to the frozen base: the
@@ -302,12 +326,32 @@ func (trainer *Trainer) Step(tokens []int, trained []bool, learningRate, momentu
 	if err := trainer.ensureOptimizer(learningRate, momentum); err != nil {
 		return 0, err
 	}
-	loss, grads, err := trainer.model.MaskedLossAndGradsOf(tokens, trained, trainer.adapted)
+	// Each layer's weight gradients are projected to its modules' factor gradients as that layer's
+	// backward finishes and released, so a step holds one layer's full-size gradients, not every
+	// layer's; a module outside the layers is projected from what the pass returns.
+	settled := map[string]bool{}
+	loss, grads, err := trainer.model.MaskedLossAndLayerGradsOf(tokens, trained, trainer.adapted, func(layer int, gradients densecausal.Grads) error {
+		if trainer.onSettle != nil {
+			trainer.onSettle(liveValues(gradients))
+		}
+		for _, name := range trainer.layerModules[layer] {
+			if err := trainer.project(name, gradients); err != nil {
+				return err
+			}
+			settled[name] = true
+		}
+		return nil
+	})
 	if err != nil {
 		return 0, err
 	}
-	if err := trainer.project(grads); err != nil {
-		return 0, err
+	for name := range trainer.adapter.Modules {
+		if settled[name] {
+			continue
+		}
+		if err := trainer.project(name, grads); err != nil {
+			return 0, err
+		}
 	}
 	if err := trainer.pack.GatherGradients(trainer.gradients); err != nil {
 		return 0, err
@@ -435,29 +479,46 @@ func (trainer *Trainer) ensureOptimizer(learningRate, momentum float64) error {
 	return nil
 }
 
-// project turns the gradient of the loss with respect to each effective weight
-// into the gradients of its two factors: with W = base + s·B·A, dB = s·dW·Aᵀ
-// and dA = s·Bᵀ·dW.
-func (trainer *Trainer) project(grads densecausal.Grads) error {
-	for name, module := range trainer.adapter.Modules {
-		gradient := grads[name+weightSuffix]
-		if len(gradient) != module.Out*module.In {
-			return fmt.Errorf("loratrain: the backward pass gave %d gradient values for %s, want %d", len(gradient), name+weightSuffix, module.Out*module.In)
-		}
-		scale, err := trainer.adapter.Scale(name)
-		if err != nil {
-			return err
-		}
-		up := make([]float32, module.Out*module.Rank)
-		hostmath.Linear(up, gradient, module.Down, module.Out, module.In, module.Rank)
-		down := make([]float32, module.Rank*module.In)
-		hostmath.LinearBackwardInput(down, hostmath.Transpose2D(module.Up, module.Out, module.Rank), gradient, module.Rank, module.In, module.Out)
-		for _, factor := range [][]float32{up, down} {
-			for index := range factor {
-				factor[index] *= float32(scale)
-			}
-		}
-		trainer.gradients[name+downFactor], trainer.gradients[name+upFactor] = down, up
+// project turns the gradient of the loss with respect to the effective weight of
+// one module into the gradients of its two factors: with W = base + s·B·A,
+// dB = s·dW·Aᵀ and dA = s·Bᵀ·dW.
+func (trainer *Trainer) project(name string, grads densecausal.Grads) error {
+	module := trainer.adapter.Modules[name]
+	gradient := grads[name+weightSuffix]
+	if len(gradient) != module.Out*module.In {
+		return fmt.Errorf("loratrain: the backward pass gave %d gradient values for %s, want %d", len(gradient), name+weightSuffix, module.Out*module.In)
 	}
+	scale, err := trainer.adapter.Scale(name)
+	if err != nil {
+		return err
+	}
+	up := make([]float32, module.Out*module.Rank)
+	hostmath.Linear(up, gradient, module.Down, module.Out, module.In, module.Rank)
+	down := make([]float32, module.Rank*module.In)
+	hostmath.LinearBackwardInput(down, hostmath.Transpose2D(module.Up, module.Out, module.Rank), gradient, module.Rank, module.In, module.Out)
+	for _, factor := range [][]float32{up, down} {
+		for index := range factor {
+			factor[index] *= float32(scale)
+		}
+	}
+	trainer.gradients[name+downFactor], trainer.gradients[name+upFactor] = down, up
 	return nil
+}
+
+// liveValues is how many gradient values the map holds.
+func liveValues(gradients densecausal.Grads) int {
+	total := 0
+	for _, gradient := range gradients {
+		total += len(gradient)
+	}
+	return total
+}
+
+// moduleLayer is the decoder layer a module of the adapter belongs to, which its
+// name gives as model.layers.<n>.<module>.
+func moduleLayer(module string) (int, bool) {
+	rest, prefixed := strings.CutPrefix(module, layerNamePrefix)
+	number, _, nested := strings.Cut(rest, ".")
+	layer, err := strconv.Atoi(number)
+	return layer, prefixed && nested && err == nil
 }

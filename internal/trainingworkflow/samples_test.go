@@ -1,6 +1,8 @@
 package trainingworkflow
 
 import (
+	"context"
+	"errors"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -82,6 +84,62 @@ func TestTrainingSamplesRefuseWhatTheyCannotAnswer(t *testing.T) {
 		if _, err := RunTextHeldout(t.Context(), text.store, request); err == nil || !strings.Contains(err.Error(), "samples are generated") {
 			t.Errorf("%s: err = %v, want the refusal naming samples", name, err)
 		}
+	}
+}
+
+// TestSampleStripCostIsBounded holds a run's preview to a cost it can afford: a run
+// that would sample more often than a strip is read refuses before it loads anything and
+// names the interval that would do; a run that learns the prompts too, which leaves
+// no stretch to generate after, is refused; and a cancel ends a round between the
+// tokens it generates, not after its last.
+func TestSampleStripCostIsBounded(t *testing.T) {
+	if got := sampleRounds(samplingSteps, samplingEvery); got != 5 {
+		t.Fatalf("sampleRounds(%d, %d) = %d, want the steps 0, 10, 20, 30 and 40", samplingSteps, samplingEvery, got)
+	}
+	if got := sampleRounds(1, 1); got != 2 {
+		t.Fatalf("a one-update run samples %d times, want before and after", got)
+	}
+
+	run := registerConversations(t, periodic(12))
+	ctx := t.Context()
+	request := ConversationSFT{
+		Dataset: run.source, Render: letters, ModelDirectory: run.model, WorkDirectory: run.work,
+		OutputDirectory: filepath.Join(run.root, "refused"), Steps: 1000, SampleEvery: 1,
+	}
+	_, err := RunConversationSFT(ctx, run.store, request)
+	if err == nil || !strings.Contains(err.Error(), "samples at most 20") || !strings.Contains(err.Error(), "every 53 updates or more") {
+		t.Fatalf("sampling every update of a thousand: err = %v, want it refused naming the interval", err)
+	}
+	if got := sampleRounds(1000, 53); got > sampleRoundsMost || sampleRounds(1000, 52) <= sampleRoundsMost {
+		t.Errorf("the interval named, 53, samples %d times and 52 samples %d, want it the smallest within %d", got, sampleRounds(1000, 52), sampleRoundsMost)
+	}
+	request.Steps, request.SampleEvery, request.Prompts = 4, 2, true
+	if _, err := RunConversationSFT(ctx, run.store, request); err == nil || !strings.Contains(err.Error(), "learns the prompts too") {
+		t.Errorf("samples of a run that learns the prompts: err = %v", err)
+	}
+
+	model, err := loadTrainableModel(run.model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelled, cancel := context.WithCancel(ctx)
+	defer cancel()
+	pieces := 0
+	prompts := []generationPrompt{{tokens: []int{1, 2}, length: sampleTokens}, {tokens: []int{2, 1}, length: sampleTokens}}
+	strips := &sampler{
+		model: model, prompts: prompts, strips: make([]sampleStrip, len(prompts)),
+		piece: func(int) string {
+			if pieces++; pieces == 3 {
+				cancel()
+			}
+			return "x"
+		},
+	}
+	if err := strips.sample(cancelled, 7); !errors.Is(err, context.Canceled) || pieces != 3 {
+		t.Fatalf("a round cancelled at its third token = (%v) after %d tokens, want it stopped there of %d", err, pieces, len(prompts)*sampleTokens)
+	}
+	if len(strips.strips[0].Samples) != 0 || len(strips.strips[1].Samples) != 0 {
+		t.Error("a cancelled round filed a sample")
 	}
 }
 

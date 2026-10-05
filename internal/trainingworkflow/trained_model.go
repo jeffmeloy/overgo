@@ -14,10 +14,12 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/binaryschema"
+	"overgo/internal/densecausal"
 	"overgo/internal/gguf"
 	"overgo/internal/modelintake"
 	"overgo/internal/quant"
 	"overgo/internal/recipe"
+	"overgo/internal/tensorcatalog"
 	"overgo/internal/trainingprogram"
 )
 
@@ -88,6 +90,18 @@ func WriteTrainedModel(ctx context.Context, store artifact.Reader, base, directo
 	}
 	return gguf.WriteFileExclusive(filepath.Join(directory, trainingprogram.CheckpointModel),
 		shardMetadata(file.Metadata, trainedShard, total), held, options)
+}
+
+// trainedGGUFTensors is the lookup WriteTrainedModel takes for a model trained over
+// a GGUF base: the weight the model holds under the HF name of the base's tensor, in
+// the layout the base stores it (a llama query or key projection is reordered at load
+// and put back here, or the published file would read back reordered twice).
+func trainedGGUFTensors(model *densecausal.Model) func(name string) ([]float32, bool) {
+	return func(name string) ([]float32, bool) {
+		trained, named := tensorcatalog.HFDenseTensorName(name)
+		values, found := model.Weights[trained]
+		return model.StoredRows(trained, values), named && found
+	}
 }
 
 // trainedShard and frozenShard index the shards of a trained model, which

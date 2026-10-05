@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/densecausal"
 	"overgo/internal/gguf"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
@@ -108,6 +109,43 @@ func TestTrainedModelKeepsUnchangedTensorsAsStored(t *testing.T) {
 	}
 	if err := WriteTrainedModel(t.Context(), store, base, refused, len(trained), lookupTrained(trained)); err == nil {
 		t.Fatal("a trained tensor the base does not hold was accepted")
+	}
+}
+
+// TestTrainedLlamaModelKeepsItsAttentionRowsInTheBaseOrder holds a trained model
+// published over a llama GGUF to the order its file stores: the load reorders a
+// llama query and key projection from the interleaved layout the conversion
+// wrote into the one the trainer computes in, so a model trained over it, however
+// little, is written back in the base's order, and a load of what was written
+// reads the weights the trained model held.
+func TestTrainedLlamaModelKeepsItsAttentionRowsInTheBaseOrder(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	base := testutil.QuantizedLlamaGGUF(t, 1)
+	model, err := densecausal.LoadGGUF(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(filepath.Join(root, "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	directory := filepath.Join(root, "trained")
+	if err := os.Mkdir(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteTrainedModel(t.Context(), store, base, directory, len(model.Weights), trainedGGUFTensors(model)); err != nil {
+		t.Fatal(err)
+	}
+	again, err := densecausal.LoadGGUF(filepath.Join(directory, trainingprogram.CheckpointModel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, values := range model.Weights {
+		if !slices.Equal(again.Weights[name], values) {
+			t.Errorf("%s: the published model reads back as other weights than the ones it was trained as", name)
+		}
 	}
 }
 

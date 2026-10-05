@@ -35,7 +35,7 @@ func factorGradients(t *testing.T, config Config) map[string][]float32 {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := trainer.project(grads); err != nil {
+	if err := projectAll(trainer, grads); err != nil {
 		t.Fatal(err)
 	}
 	copied := map[string][]float32{}

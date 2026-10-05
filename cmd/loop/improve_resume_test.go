@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"overgo/internal/clioptions"
 )
 
 // TestCycleReportsWhatItCreditedAndEachPhaseWall holds a cycle to saying what it did with
@@ -87,6 +89,53 @@ func TestInterruptedCycleResumesAtItsFirstUnpassedPhase(t *testing.T) {
 		got, err := cycle(step.key, step.fail)
 		if !slices.Equal(got, step.want) || (err != nil) != step.wantErr {
 			t.Errorf("%s: ran %q with error %v, want %q (error %t)", step.name, got, err, step.want, step.wantErr)
+		}
+	}
+}
+
+// TestCycleCreditFollowsTheInputsARunConsumes holds the credit of a cycle to what a run reads: a
+// change to the root an inventory was registered from, the committed data a training or
+// projection run reads (grounding, objective, conditioning, projector) changes the obligations
+// the cycle is keyed by, as a changed recipe does; every phase a cycle runs is told the file its
+// cells' credit is kept in, beside the cycle's state.
+func TestCycleCreditFollowsTheInputsARunConsumes(t *testing.T) {
+	t.Parallel()
+	digest := func(cell string) string {
+		t.Helper()
+		value, err := obligationsDigest([]byte(`{"run":[{"model":"m","kind":"training","validation":"training-proof","recipe":"r1"` + cell + `}],"background":[]}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	base := digest("")
+	for field, value := range map[string]string{
+		"directory": "d:/models/a", "grounding": "dataset:1", "objective": "objective.registered.text-text", "conditioning": "d:/video-stack", "projector": "d:/mmproj.gguf",
+	} {
+		changed := digest(`,"` + field + `":"` + value + `"`)
+		if changed == base {
+			t.Errorf("a cell that names a %s left the obligations as they were", field)
+		}
+		if digest(`,"`+field+`":"`+value+`x"`) == changed {
+			t.Errorf("a changed %s left the obligations as they were", field)
+		}
+	}
+
+	state := filepath.Join(t.TempDir(), cycleStateFile)
+	var told [][]string
+	if err := measurePhases(state, "commit|store|obligations", io.Discard, func(environment []string, _ ...string) error {
+		told = append(told, environment)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	want := clioptions.CycleCreditEnvironment + "=" + filepath.Join(filepath.Dir(state), cycleCreditFile)
+	if len(told) != 3 {
+		t.Fatalf("the cycle ran %d phases, want three", len(told))
+	}
+	for index, environment := range told {
+		if !slices.Contains(environment, want) {
+			t.Errorf("phase %d was told %q, want the credit file %q among them", index, environment, want)
 		}
 	}
 }

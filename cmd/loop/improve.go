@@ -47,7 +47,9 @@ func improvementFor(store string) improvement {
 	return improvement{
 		root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store),
 		measure: func(checkout string) error { return measureScorecard(checkout, store) },
-		fill:    func(checkout string) error { return validateIn(checkout, store, nil, "-run", "-background") },
+		fill: func(checkout string) error {
+			return validateIn(checkout, store, []string{cycleCreditEnvironment(filepath.Dir(checkout))}, "-run", "-background")
+		},
 	}
 }
 
@@ -151,6 +153,7 @@ const proposalStep = "do"
 func (w improvement) Fill(commit string) {
 	// The cycle has reached its decision: the next one measures afresh.
 	defer os.Remove(filepath.Join(w.root, processlock.StateDirectory, cycleStateFile))
+	defer os.Remove(filepath.Join(w.root, processlock.StateDirectory, cycleCreditFile))
 	err := w.inCycle(commit, func(checkout string) error {
 		fmt.Printf("loop: filling the background validations at %.12s in %s\n", commit, checkout)
 		return w.fill(checkout)
@@ -235,7 +238,17 @@ type cycleState struct {
 const (
 	cycleStateFile = "cycle_state.json"
 	cycleStateMode = 0o600
+	// cycleCreditFile keeps the cells the cycle's runs acquired, beside the state, which
+	// validate -run reads and writes through clioptions.CycleCreditEnvironment so a run
+	// cut short continues from the cell it stopped at.
+	cycleCreditFile = "cycle_credit.json"
 )
+
+// cycleCreditEnvironment is the setting that has a validate run of this cycle keep and read
+// the cells it acquired in the state directory beside the cycle's checkout.
+func cycleCreditEnvironment(stateDirectory string) string {
+	return clioptions.CycleCreditEnvironment + "=" + filepath.Join(stateDirectory, cycleCreditFile)
+}
 
 // readCycleState is the state kept for key: none, for another key or when
 // nothing is kept.
@@ -249,7 +262,9 @@ func readCycleState(path, key string) cycleState {
 
 // obligationsDigest names what the dry-run plan asks of a cycle: the model,
 // task, validation, protocol, recipe and location of every cell it runs or
-// leaves to the background, and why it is scheduled so, without what a run
+// leaves to the background, the root its inventory was registered from and the
+// committed data its training and projection runs read (grounding, objective,
+// conditioning, projector), and why it is scheduled so, without what a run
 // itself changes (the cost it measured, the record it replays).
 func obligationsDigest(plan []byte) (string, error) {
 	var decoded struct {
@@ -263,7 +278,7 @@ func obligationsDigest(plan []byte) (string, error) {
 	for bucket, cells := range map[string][]map[string]any{"run": decoded.Run, "background": decoded.Background} {
 		for _, cell := range cells {
 			parts := []string{bucket}
-			for _, field := range []string{"model", "kind", "validation", "protocol", "recipe", "location", "promotion"} {
+			for _, field := range []string{"model", "kind", "validation", "protocol", "recipe", "location", "directory", "grounding", "objective", "conditioning", "projector", "promotion"} {
 				parts = append(parts, fmt.Sprint(cell[field]))
 			}
 			lines = append(lines, strings.Join(parts, "\x00"))
@@ -321,7 +336,7 @@ func measurePhases(statePath, key string, report io.Writer, validate func(enviro
 	phase := func(name string, arguments ...string) bool {
 		_ = os.Remove(errorFile)
 		started := time.Now()
-		err := validate([]string{clioptions.ErrorFileEnvironment + "=" + errorFile}, arguments...)
+		err := validate([]string{clioptions.ErrorFileEnvironment + "=" + errorFile, cycleCreditEnvironment(filepath.Dir(statePath))}, arguments...)
 		verdict := "passed"
 		if err != nil {
 			verdict = "did not pass"

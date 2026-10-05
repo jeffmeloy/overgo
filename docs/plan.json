@@ -59,21 +59,6 @@
       ]
     },
     {
-      "id": "sqa-defects",
-      "title": "Repair the confirmed defects the SQA review of da1ec2c77 found, P1 first",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "interrupted-credit",
-          "title": "Key interrupted cell and publication credit to the inputs the run consumed (SQA-089)",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestCycleCreditFollowsTheInputsARunConsumes$'",
-          "rationale": "Serves: a resumed cycle that never credits a measurement its inputs invalidated. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): eb15395a8 keys credit to HEAD, the absolute store and obligationsDigest and reruns lanes on every resume (credited), but obligationsDigest projects only model, kind, validation, protocol, recipe, location and promotion: ModelValidation.Directory, Grounding, Objective, Conditioning, Projector, the baseline scorecard identity and the executing environment are absent, so a changed declared input (groundTraining derives Objective and Conditioning that trainingRun consumes) can leave the key equal. Change: derive the key from the typed execution obligations and the existing evidence input and environment identities, excluding measured cost and replay pointers only where they cannot change the acceptance contract; unknown validity credits nothing. Test first: extend TestObligationsDigestIgnoresWhatARunChanges with real changes to Directory, Grounding, Objective, Conditioning and Projector (each invalidates the affected cells and the publication that depends on them) and keep the cost and replay neutrality, other-store, other-commit and failed-phase cases. Related: evidence-authority/source-environment, campaign-closeout. Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository) adds: add the acquired cell keys to cycleState, using the fields obligationsDigest already joins (improve.go:270), and have executeRun (cmd/validate/run.go:180) skip them; it is the one item of the journey inventory that changes elapsed time, moderate in size."
-        }
-      ]
-    },
-    {
       "id": "evidence-authority",
       "title": "Use checked evidence and explicit source and replay scope in reports",
       "owner": "master-lead",

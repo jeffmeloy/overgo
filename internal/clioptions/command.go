@@ -33,6 +33,12 @@ const (
 	// ErrorFileEnvironment names a file a failing command also writes its
 	// final error to, so a supervisor reads the refusal without parsing output.
 	ErrorFileEnvironment = "OVERGO_ERROR_FILE"
+	// CycleCreditEnvironment names the file an improvement cycle keeps the cells it
+	// acquired in: a validate -run that sets it skips each cell an earlier run of the
+	// same cycle, the same commit into the same store, already acquired, so a cycle
+	// cut short by its time limit continues from the cell it stopped at. The cycle
+	// sets it for its cells and its fill; a run by hand does not.
+	CycleCreditEnvironment = "OVERGO_CYCLE_CREDIT"
 )
 
 // Main: common command error exit. The error file is this command's alone:

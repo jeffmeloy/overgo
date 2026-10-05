@@ -177,6 +177,7 @@ func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, s
 			failed = append(failed, fmt.Sprintf("%s: %v", subject, err))
 		}
 	}
+	credit := cycleCellCredit(ctx, root, storeRoot)
 	for index, sel := range cells {
 		var name string
 		var args, environment []string
@@ -195,6 +196,11 @@ func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, s
 			unbound = append(unbound, fmt.Sprintf("%s %s: %v", displayName(sel.ModelValidation), sel.Validation, err))
 			continue
 		}
+		if credit.has(sel.ModelValidation) {
+			fmt.Fprintf(output, "validate -run %d/%d: %s %s credited: an earlier run of this cycle acquired it, so it is not run again\n", index+1, len(cells), sel.Validation, displayName(sel.ModelValidation))
+			acquired++
+			continue
+		}
 		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s; %s)\n", index+1, len(cells), sel.Validation, displayName(sel.ModelValidation), sel.Reason, sel.Promotion)
 		if sel.Validation == trainingProof {
 			err = acquireTraining(ctx, output, root, store, sel.ModelValidation, name, args, environment...)
@@ -202,6 +208,11 @@ func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, s
 			err = acquire(ctx, output, root, name, args, environment...)
 		}
 		record(fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation), err)
+		if err == nil {
+			if creditErr := credit.add(sel.ModelValidation); creditErr != nil {
+				fmt.Fprintf(output, "validate -run: the cycle's credit for this cell was not kept: %v\n", creditErr)
+			}
+		}
 	}
 	for _, suite := range suites {
 		fmt.Fprintf(output, "validate -run cycle lane %s\n", suite.Lane)

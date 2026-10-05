@@ -258,6 +258,19 @@ func TestEvaluationReplayCarriesIdenticalOutputs(t *testing.T) {
 		t.Fatalf("a carry of a carry reads commit %q scored at %q, want the third run's and the first run's %q", summary.CodeCommit, summary.ScoredCommit, strings.Repeat("a", 40))
 	}
 
+	// A rerun at the commit just evaluated, as a cycle resumed at an unchanged HEAD does, is not refused
+	// where the first run bound the plan's campaign: the plan's campaign stays the first run's.
+	campaignBefore, found, err := artifact.ResolveAlias(ctx, store, "evaluation/campaigns/"+suite.Plan().Identity().String())
+	if err != nil || !found {
+		t.Fatalf("the plan's campaign is bound to %s (found %t, %v), want the carry of a carry's", campaignBefore, found, err)
+	}
+	if rerun, _, _ := evaluate("c", device, "", data, again.Evaluation); !rerun.Report.Valid() {
+		t.Fatalf("a rerun at the same commit reported %s", rerun.Report)
+	}
+	if campaignAfter, _, err := artifact.ResolveAlias(ctx, store, "evaluation/campaigns/"+suite.Plan().Identity().String()); err != nil || campaignAfter != campaignBefore {
+		t.Fatalf("a rerun at the same commit moved the plan's campaign from %s to %s (%v)", campaignBefore, campaignAfter, err)
+	}
+
 	// One case whose scores moved by one unit in the last place runs in full.
 	longest := slices.IndexFunc(suiteCases.Cases, func(c evaluation.MultipleChoiceCase) bool { return c.Name == byLength[len(byLength)-1] })
 	drifted, suite, cases := evaluate("d", device, suiteCases.Cases[longest].Prompt, data, again.Evaluation)

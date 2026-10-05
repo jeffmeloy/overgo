@@ -173,14 +173,18 @@ func (campaign *Campaign) publishReplayReceipt(ctx context.Context, suite Compil
 		parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
 		var aliases []artifact.AliasBinding
 		if !receipt.Fallback {
-			aliases = []artifact.AliasBinding{{Name: campaignAlias(receipt.Plan), Target: receipt.ID}}
+			aliases, err = bindCampaignOnce(ctx, campaign.repository, receipt.Plan, receipt.ID)
+		}
+		if err != nil {
+			return artifact.ID{}, err
 		}
 		batch, batchErr := replayReceiptCodec.Batch("evaluation/replay/"+receipt.ID.String(), receipt,
 			artifact.DependencyLineage(receipt.ID, parents...), aliases)
 		if batchErr != nil {
 			return artifact.ID{}, batchErr
 		}
-		_, err = artifact.CommitBatch(ctx, campaign.repository, batch)
+		// A receipt a rerun already published, with the campaign bound elsewhere, changes nothing.
+		_, err = artifact.Publish(ctx, campaign.repository, batch)
 	}
 	return receipt.ID, err
 }

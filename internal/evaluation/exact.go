@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
@@ -158,9 +159,12 @@ func Record(
 	if err != nil {
 		return ExactResult{}, err
 	}
+	// A generation cut inside a character holds bytes that are no text; kept as produced it is written
+	// as the replacement character's escape and read back as the character, which encodes
+	// differently, so a retained generation or report would be refused on its next read.
 	result := ExactResult{
 		Name: name, PromptTokens: promptTokens,
-		GeneratedTokens: len(ids) - promptTokens, Text: generated.String(),
+		GeneratedTokens: len(ids) - promptTokens, Text: strings.ToValidUTF8(generated.String(), string(utf8.RuneError)),
 		WallNS: wall,
 	}
 	return result, nil

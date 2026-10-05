@@ -2,6 +2,8 @@ package evaluation
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"reflect"
@@ -9,6 +11,10 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/strictjson"
 )
+
+// authorityKeyDigits is how many hex digits of the digest of a plan's published contents end the
+// key of the batch that publishes them, enough that two sets of one plan's contents do not meet.
+const authorityKeyDigits = 16
 
 func shardAlias(plan, shard artifact.ID) string {
 	return "evaluation/shards/" + plan.String() + "/" + shard.String()
@@ -58,8 +64,16 @@ func publishPlanAuthorities(
 	contents = append(contents, planContent)
 	lineage := artifact.DependencyLineage(plan.body.Split, plan.body.Dataset)
 	lineage = append(lineage, plan.Lineage()...)
+	// The batch is named by the plan and by what it publishes: a plan published alone (by a carry
+	// or a failed attempt) and the same plan published with its dataset (by an evaluation in full)
+	// are two publications, and one key may not name both.
+	digest := sha256.New()
+	for _, content := range contents {
+		digest.Write([]byte(content.Descriptor.ID.String()))
+	}
 	batch, err := artifact.NewDocumentBatch(
-		"evaluation/authorities/"+plan.identity.String(), contents, lineage, nil,
+		"evaluation/authorities/"+plan.identity.String()+"/"+hex.EncodeToString(digest.Sum(nil))[:authorityKeyDigits],
+		contents, lineage, nil,
 	)
 	if err != nil {
 		return err
@@ -255,15 +269,36 @@ func publishCampaignDocument[T any](
 	if err != nil {
 		return err
 	}
-	alias := campaignAlias(plan)
+	key := campaignAlias(plan)
+	bindings, err := bindCampaignOnce(ctx, repository, plan, id)
+	if err != nil {
+		return err
+	}
+	if len(bindings) == 0 {
+		// The campaign is another document's: this one is published beside it, under a key of its own.
+		key += "/" + id.String()
+	}
 	batch, err := artifact.NewDocumentBatch(
-		alias, []artifact.Content{content},
+		key, []artifact.Content{content},
 		artifact.DependencyLineage(id, plan, dataset),
-		[]artifact.AliasBinding{{Name: alias, Target: id}},
+		bindings,
 	)
 	if err != nil {
 		return err
 	}
 	_, err = artifact.CommitBatch(ctx, repository, batch)
 	return err
+}
+
+// bindCampaignOnce is the binding that makes target the campaign of plan, or none when the plan
+// already has another's: a plan's campaign is the first evaluation that completed it, and an evaluation
+// at the same plan after that (a cycle rerun at an unchanged commit replays its newest record,
+// which is the first run's, so its receipt is another document) leaves the campaign where it is.
+func bindCampaignOnce(ctx context.Context, repository artifact.Repository, plan, target artifact.ID) ([]artifact.AliasBinding, error) {
+	alias := campaignAlias(plan)
+	current, bound, err := artifact.ResolveAlias(ctx, repository, alias)
+	if err != nil || bound && current != target {
+		return nil, err
+	}
+	return []artifact.AliasBinding{{Name: alias, Target: target}}, nil
 }

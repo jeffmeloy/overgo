@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "fill-same-commit-rerun",
-      "title": "Make a rerun of the cycle at an unchanged commit reuse what its first run measured instead of failing the cells it finished: the fill's bbh and ifeval cells refused with 'alias compare-and-set failed' and 'batch key already names different content'",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make a rerun of the cycle at an unchanged commit reuse what its first run measured instead of failing the cells it finished: the fill's bbh and ifeval cells refused with 'alias compare-and-set failed' and 'batch key already names different content'",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestEvaluationAtAnUnchangedPlanReusesItsCampaign$'",
-          "rationale": " Serves: an interrupted cycle that keeps what it measured (owner doctrine: interrupted cycle to useful progress; see sqa-defects/interrupted-credit). Cycle 16 (2026-10-05, HEAD a44a526d1) measured its 85 cells in 1 h, passed its three lanes and withheld promotion: the baseline scorecard (5455dc909) compares 82 held-out-quality cells whose authority at a44a526d1 is unknown because the suites they stand on (bbh, ifeval, mmlu, mmlu-pro for each baseline model) are measured only by the fill, which runs after the decision. The tool cap killed the run 3 minutes into the fill; the rerun at the same HEAD repeated the lanes (cached, 6 min) and then failed the fill cells the first run had started: 1/17 bbh MiniCPM5-1B-native-chat 'evaluate: store/bbh: overgodb: alias compare-and-set failed: evaluation/campaigns/profile:sha256:3169a100... is already bound' (a 32-case replay that matched, whose receipt binds campaignAlias(plan) at replay.go publishReplayReceipt although the first run had bound it), 2/17 ifeval MiniCPM5-1B-native-chat the same error, and 3/17 ifeval Qwen2.5-0.5B-f16 'sample store/ifeval: evaluating in full, not carrying evaluation:sha256:a024c1a2...: its replay failed (instruction generation: non-canonical document)' and then 'evaluate: store/ifeval: overgodb: batch key already names different content: evaluation/authorities/profile:sha256:4fdc4ee4...' (two publications of one plan whose authority contents differ, so the ifeval suite's compiled content is not the same twice). Cell 4/17 then evaluated bbh on Qwen3.8-27B-UD-Q6_K in full, 5761 cases, 1.1 s a case, about 1 h 45 min, so the 17 cells need several hours and the 2 h cap ends any one run inside them. Change: an evaluation whose plan already has a campaign alias at this commit returns the campaign it bound (a succeeded run at that commit) and measures nothing, through publishReplayReceipt and publishCampaignReport as the one owner of the alias; make the ifeval suite's compiled authority content deterministic (find what differs between the two compilations: the instruction generation's non-canonical document) so a second publication of one plan is byte-identical; and record each finished fill cell so a rerun skips it (interrupted-credit's cell keys). Test first: evaluating the same suite at the same commit twice reuses the first campaign and publishes one receipt; compiling the ifeval suite twice gives byte-identical authorities. Residual question for the owner: the cycle decides promotion before the fill measures the suites the baseline compares, so promotion is withheld until a cycle's fill has run and the next cycle carries it; see main-staging/baseline-decoupled."
-        }
-      ]
-    },
-    {
       "id": "journey-performance",
       "title": "Optimize complete user journeys: profile the streaming composer, then the journeys' repeated work",
       "owner": "master-lead",

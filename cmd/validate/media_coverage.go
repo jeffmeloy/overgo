@@ -55,6 +55,10 @@ type modalityProtocolProjection struct {
 
 type modalityCellProjection struct {
 	acceptedCell
+	// AcceptedUnder is the recipe the acceptance was acquired under when the
+	// activation is another that is the same computation; Recipe is always
+	// the active one.
+	AcceptedUnder                              artifact.ID `json:",omitzero"`
 	Implemented, Activated, Measured, Accepted bool
 	RequiredPhases, AcceptedPhases             int
 	HistoricalVerifier                         *mediaVerifierProjection `json:",omitzero"`
@@ -242,10 +246,18 @@ func projectModalityCoverage(ctx context.Context, root string, store *overgodb.S
 				cell.Gap = capability.Stale
 			}
 			if accepted, found := cells[key{entry.Model, capability.Task}]; found {
-				if !entry.Present || !cell.Activated || !cell.Implemented || accepted.Recipe != capability.Recipe || row.Execution != "local" || !slices.Equal(row.Domains, domains[entry.Model]) {
+				covered, err := acceptanceCovers(ctx, store, accepted.Recipe, capability.Recipe)
+				if err != nil {
+					return nil, err
+				}
+				if !entry.Present || !cell.Activated || !cell.Implemented || !covered || row.Execution != "local" || !slices.Equal(row.Domains, domains[entry.Model]) {
 					return nil, errors.New("coverage: accepted activation changed")
 				}
 				cell.acceptedCell = accepted
+				cell.Recipe = capability.Recipe
+				if accepted.Recipe != capability.Recipe {
+					cell.AcceptedUnder = accepted.Recipe
+				}
 				cell.Accepted = true
 				cell.RequiredPhases, cell.AcceptedPhases = len(accepted.Proofs), len(accepted.Proofs)
 				cell.Gap = "Acceptance retains producer source and protocol scope; current performance and broader quality are not established."
@@ -389,6 +401,25 @@ type acceptedCell struct {
 	Recipe artifact.ID
 	Proofs []string
 	Scope  string
+}
+
+// acceptanceCovers reports whether what was accepted under the recipe accepted
+// holds for the recipe active now: the same recipe, or one that is the same
+// computation, as when a recipe is replaced for how long its decode session
+// lives.
+func acceptanceCovers(ctx context.Context, store artifact.Reader, accepted, active artifact.ID) (bool, error) {
+	if accepted == active {
+		return true, nil
+	}
+	before, err := recipe.RequireDefinition(ctx, store, accepted)
+	if err != nil {
+		return false, err
+	}
+	after, err := recipe.RequireDefinition(ctx, store, active)
+	if err != nil {
+		return false, err
+	}
+	return before.SameComputation(after)
 }
 
 type acceptedGateProof struct {

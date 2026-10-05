@@ -179,21 +179,6 @@
       ]
     },
     {
-      "id": "e4b-accepted-coverage",
-      "title": "Accepted coverage names E4B's replaced recipe: the models lane fails every cycle until the cell is re-accepted or the document stops pinning the recipe",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Accepted coverage names E4B's replaced recipe: the models lane fails every cycle until the cell is re-accepted or the document stops pinning the recipe",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestAcceptedTextVisionEvidence$'",
-          "rationale": "Serves: every improvement cycle's promotion and the honesty of the accepted-coverage census. Evidence (2026-10-05, cycle 14 at cee26ab22, the models lane, OVERGO_DATA_ROOT set): TestAcceptedTextVisionEvidence, TestAcceptedModalityCoverage, TestAcceptedProtocolCoverageProjection and TestStructuredMediaReportProjection fail with 'coverage: missing, duplicate or changed activation model:sha256:fb09299d.../inference' (E4B). docs/verification/text-vision-coverage.json (and e4b-validation.json) declare E4B's accepted inference cell under recipe d6ba6736, the activation before the E4B graph replay (2026-10-04, output digest 94ce44fc unchanged); the store's active inference recipe for E4B is now 8fbd18e6, so the accepted denominator no longer matches the live catalog, and the cell's proofs (modality-verification/retained-model-bundles, thirty E4B native-protocol, quality and resource cells) were acquired under the old recipe. The same cycle also failed cmd/benchmark-report's TestAcceptedSmallModelMMLUPro for a different reason, which landed as a fix beside this row: the smoke declaration no longer names a recipe (smoke-declaration-recipe, 2026-10-05) and that test still compared the declared one. Why the gate did not see either: both read the live store and run in the cycle's models lane, not in the landing's. Options: (a) re-acquire E4B's retained modality bundles under the new recipe and update the document and its digest pins (device hours, the rigorous path); (b) make the coverage document name the model's capability and proofs and bind the recipe the way the smoke declaration now does, with each proof still carrying the recipe it was acquired under so a replaced recipe is visible as proof-for-an-earlier-recipe, not as a failing census; (c) accept the replacement as output-identical on the recorded digest and re-pin (a hand edit of evidence authority: never without the owner). Recommend (b), then (a) for the proofs the cycle does not re-acquire. Until then no cycle's models lane passes, so no cycle can promote, in addition to the owner's baseline-comparison-authority decision."
-        }
-      ]
-    },
-    {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
       "owner": "master-lead",

@@ -82,6 +82,32 @@ func (d Definition) ValidateIdentity() error {
 	return definitionCodec.ValidateIdentity(d)
 }
 
+// SameComputation reports whether d and other describe one computation: the
+// same task, dependencies, nodes, edges and ports, apart from the nodes'
+// session policy, which sets how long a decode cache and its graph live and
+// changes no output. A recipe replaced by one that is the same computation
+// keeps what was accepted of the first.
+func (d Definition) SameComputation(other Definition) (bool, error) {
+	first, err := d.withoutSessions()
+	if err != nil {
+		return false, err
+	}
+	second, err := other.withoutSessions()
+	if err != nil {
+		return false, err
+	}
+	return first.ID == second.ID, nil
+}
+
+// withoutSessions is d with every node's session policy cleared.
+func (d Definition) withoutSessions() (Definition, error) {
+	nodes := slices.Clone(d.Nodes)
+	for i := range nodes {
+		nodes[i].Session = ""
+	}
+	return NewDefinitionWithDependencies(d.Task, d.Dependencies, nodes, d.Edges, d.Inputs, d.Outputs)
+}
+
 func (d Definition) Content() ([]byte, error) {
 	return definitionCodec.ContentBytes(d)
 }

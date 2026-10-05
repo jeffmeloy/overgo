@@ -379,11 +379,17 @@ func referenceCell(references []evaluation.ReferenceScore) string {
 
 // unmeasuredReferences lists the model's declared references whose
 // suite has no committed evaluation, so a declaration never hides
-// behind a missing measurement.
+// behind a missing measurement. A suite is one column per prompting
+// protocol, each holding the references of its suite, so a reference is
+// measured when any column holds it.
 func unmeasuredReferences(row modelRow) []evaluation.ReferenceScore {
 	var unmeasured []evaluation.ReferenceScore
 	for _, reference := range row.references {
-		if _, measured := row.suites[reference.Suite]; !measured {
+		measured := false
+		for _, suite := range row.suites {
+			measured = measured || slices.Contains(suite.references, reference)
+		}
+		if !measured {
 			unmeasured = append(unmeasured, reference)
 		}
 	}

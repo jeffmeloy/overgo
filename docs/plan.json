@@ -14,6 +14,48 @@
       },
       "steps": [
         {
+          "id": "report-newest-evaluation",
+          "title": "Keep the newest evaluation when two comparisons share a report label",
+          "status": "open",
+          "verify": "go test ./cmd/benchmark-report -count=1 -run '^TestReportKeepsTheNewestEvaluationOfALabel$'",
+          "rationale": "Serves: a report that prints the newest evaluation. Audit 2026-10-05 (read): cmd/benchmark-report/main.go:133-168 keys by Suite+Prompting while LatestEvidence keeps one summary per Comparison newest first (internal/evaluation/evidence_index.go:378,388-396,403), so the last assignment, the oldest record, wins; unknown-execution records share the label '(unknown)' and collide the same way; Prompt and Decode tok/s print no producing commit or environment although BenchmarkSummary carries both. Failing test first: one recipe and suite scored in two environments prints the older record's metrics and commit as latest. Keep the first record per key or put the Comparison in the key."
+        },
+        {
+          "id": "carried-quality-source",
+          "title": "Attribute a carried quality to the evaluation it was carried from",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestCarriedQualityNamesItsSource$'",
+          "rationale": "Serves: a quality cell that names the evaluation it came from. Audit 2026-10-05 (read): EvaluateOrCarry publishes the earlier record's metrics in a run at the new commit (internal/evaluation/replay.go:82-83,159); recordExecution sets summary.CodeCommit to that run's commit (evidence_index.go:105-106,130) and qualityCell (internal/scorecard/scorecard.go:573-576) never reads summary.Carried, so the cell shows the new commit and no carried scope; cmd/benchmark-report marks carried records. Real fact: receipt.Carried is the earlier evaluation and RequireEvaluation plus RequireRun gives its CodeCommit (the receipt is already loaded at evidence_index.go:105). Failing test first: a qualityCell table row with Carried valid labels it carried and does not show the carrying run's commit. A carry chain needs a bounded follow-through."
+        },
+        {
+          "id": "producer-commit-executable",
+          "title": "Take a gate's producer commit from the executable, not from HEAD or the caller",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestProducerCommitIsTheExecutables$'",
+          "rationale": "Serves: a gate whose producer commit is the producer. Audit 2026-10-05 (read): cmd/validate/parity_vqa_recipe_verify.go:22-31 codeRevision accepts vcs.revision ignoring vcs.modified and falls back to HeadCommit('.') with no cleanliness check, becoming the gate's CodeCommit; cmd/evaluate/main.go:288-294 with session.go:92 binds a hand-written -manifest code_commit as the producer of every plan and run (the transcription path compares at transcription.go:149); cmd/train/route_graft.go:293 has the same HEAD fallback for Decider.CodeCommit. Real fact: runrecord.ExecutableCodeCommit (internal/runrecord/verifying_commit.go:14) refuses modified builds and falls back to a clean-tree check. Caveat: modelintake.CleanRevision checks Go files only on purpose (docs edits must not block): do not switch it blindly. Failing test first: in a temp repository with a dirty tree codeRevision returns HEAD today and should return an error."
+        },
+        {
+          "id": "serving-environment",
+          "title": "Carry a serving cell's environment so a changed environment reads Unknown, not changed",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestServingEnvironmentChangeIsUnknown$'",
+          "rationale": "Serves: a scorecard that does not call an environment change a regression or a gain. Audit 2026-10-05 (read): servingSummary.cell (internal/scorecard/scorecard.go:257-259,289-292) leaves Cell.Environment and CodeCommit empty although observation.Environment is set; Contract.Scope is the recipe alone (record.go:231-248, history.go:88-103), so observations from process/go and from cuda:0 for one recipe merge into one summary and Moves and scorecardMoves report 'changed' for a recipe-scoped serving change when only the environment changed. The model is not the gap: recipe.Definition.Model already makes the recipe model-specific. Failing test first: Moves on two serving cells with one Scope and different Environment is Unknown, today changed. Store observation.Environment and make holds treat a serving environment mismatch as Unknown. The held-out verdict cells have the same hole (internal/evaluation/heldout_verdict.go:398-404, producer read at scorecard.go:508): trace the held-out scoring run before changing them."
+        },
+        {
+          "id": "transcription-gap",
+          "title": "Leave a transcription row's quality a gap, with its reason, when its report is unreadable",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestUnreadableTranscriptionReportIsAGap$'",
+          "rationale": "Serves: the same robustness the verdict-gap step gave held-out verdicts. Audit 2026-10-05 (read): internal/scorecard/transcription_read.go:81-95,117-121 TranscriptionQualities returns an error that aborts scorecard.Build when one transcription report is unreadable; it should become a row gap with the reason, as heldoutRecord.unreadable does (the evidence stays strict: an unreadable report is never a value). Failing test first: an unreadable report leaves the other rows measured and its row's quality a gap that reads the reason."
+        },
+        {
+          "id": "baseline-protocol-join",
+          "title": "Join a baseline contract to its re-acquisition by comparison, not by suite family and label",
+          "status": "open",
+          "verify": "go test ./cmd/validate -count=1 -run '^TestBaselineContractsJoinByComparison$'",
+          "rationale": "Serves: a baseline contract re-acquired as the protocol it was. Audit 2026-10-05 (read): cmd/validate/selection.go:166-168,224-245 and bound_records.go:71 match a baseline contract to a re-acquisition cell by ofFamily(Suite) plus the Prompting label, ignoring the Comparison (scorer, case set, execution) scorecard.Contract carries; two baseline contracts on one suite and label with different Comparison merge in compareContracts and bind replays only the newest record, so the other stays Unknown and promotion is withheld. This mostly arises from the environment in the Comparison (finding 1 of source-environment): resolve with it, after the owner's baseline-comparison-authority decision, or freeze the two-protocol case first (compareContracts is pure and table-testable)."
+        },
+        {
           "id": "source-environment",
           "title": "Attribute scorecard values to producing source, environment and protocol",
           "status": "open",
@@ -218,7 +260,14 @@
             "host-linear-backward/do",
             "host-linear-interleave/do",
             "e4b-accepted-coverage/do",
-            "scorecard-gap-key/do"
+            "scorecard-gap-key/do",
+            "evidence-authority/report-suite-key",
+            "evidence-authority/report-newest-evaluation",
+            "evidence-authority/carried-quality-source",
+            "evidence-authority/producer-commit-executable",
+            "evidence-authority/serving-environment",
+            "evidence-authority/transcription-gap",
+            "evidence-authority/baseline-protocol-join"
           ]
         }
       ]

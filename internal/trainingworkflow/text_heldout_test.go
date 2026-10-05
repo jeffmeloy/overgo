@@ -365,7 +365,7 @@ func TestTextObjectiveProofReverifiesWithoutAVerdict(t *testing.T) {
 	if err := evaluation.VisitHeldoutVerdicts(ctx, text.store, func(observation artifact.ID, _, _ evaluation.EvalSummary) error {
 		judged = append(judged, observation)
 		return nil
-	}); err != nil || !slices.Equal(judged, []artifact.ID{full.Observation}) {
+	}, nil); err != nil || !slices.Equal(judged, []artifact.ID{full.Observation}) {
 		t.Fatalf("held-out verdicts judged sessions (%v, %v), want the full run's %s alone", judged, err, full.Observation)
 	}
 	modelID, err := identifyModel(text.model)

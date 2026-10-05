@@ -365,17 +365,24 @@ func reconstructHeldoutVerdict(ctx context.Context, reader artifact.Reader, verd
 // checkpoint, memberships and reports. Valid losses remain visible. Each
 // value is summarized as
 // an evaluation of the objective's held-out view under the verdict's target
-// plan, in the verdict's direction.
-func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func(observation artifact.ID, base, trained EvalSummary) error) error {
+// plan, in the verdict's direction. A verdict that cannot be reconstructed
+// stops the visit with its error, or, when unreadable is given, is reported to
+// it with the observation it judged and the visit goes on, so one verdict that
+// cannot be read costs the row it judges its quality and no other.
+func VisitHeldoutVerdicts(ctx context.Context, store *overgodb.Store, visit func(observation artifact.ID, base, trained EvalSummary) error, unreadable func(observation artifact.ID, reason error)) error {
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{heldoutVerdictCodec.Contract}, Order: overgodb.DocumentNewestFirst,
 	}, heldoutVerdictCodec.Parse, func(_ overgodb.DocumentView, verdict heldoutVerdict) error {
 		objective, err := trainingprogram.LoadObjective(ctx, store, verdict.Objective)
-		if err != nil {
-			return err
+		if err == nil {
+			err = reconstructHeldoutVerdict(ctx, store, verdict, objective)
 		}
-		if err := reconstructHeldoutVerdict(ctx, store, verdict, objective); err != nil {
-			return err
+		if err != nil {
+			if unreadable == nil {
+				return err
+			}
+			unreadable(verdict.Observation, err)
+			return nil
 		}
 		// A reconstructed target report compares exact retained targets and
 		// inputs, independently of unknown execution metadata. It does not

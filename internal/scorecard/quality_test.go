@@ -525,8 +525,19 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 		{Model: directory.ID, Capabilities: []discovery.Capability{{Task: recipe.TaskTabular, Recipe: tabular}, {Task: recipe.TaskInference, Recipe: inference}}},
 	})
 	if missingCheckpoint || wrongModel {
-		if err == nil {
-			t.Fatalf("invalid held-out evidence was reported as quality: %+v", records)
+		// A verdict that cannot be reconstructed is no quality, and no abort: its
+		// recipe's held-out quality is a gap that says why.
+		if err != nil {
+			t.Fatalf("a verdict that cannot be reconstructed stopped the read: %v", err)
+		}
+		for recipeID, record := range records {
+			if len(record.summary.Metrics) != 0 {
+				t.Fatalf("invalid held-out evidence was reported as quality for %s: %+v", recipeID, record)
+			}
+		}
+		held := records[training]
+		if cell := held.cell(recipe.TaskTraining); cell.Reason == "" || !strings.Contains(cell.Reason, "cannot be reconstructed") {
+			t.Fatalf("the training recipe's quality = %+v, want a gap naming the verdict that cannot be reconstructed", cell)
 		}
 		return
 	}

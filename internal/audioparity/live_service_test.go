@@ -497,9 +497,9 @@ func TestASRLiveOperationsAcceptance(t *testing.T) {
 	ctx, cancel := context.WithCancelCause(t.Context())
 	swapped := make(chan error, 1)
 	go func() {
-		_, release, err := supervisor.Acquire(ctx, modelswap.Servable{Name: filepath.Base(location), Model: other.Model.String(), Location: location})
-		if release != nil {
-			release()
+		lease, err := supervisor.Acquire(ctx, modelswap.Servable{Name: filepath.Base(location), Model: other.Model.String(), Location: location})
+		if lease != nil {
+			lease.Release()
 		}
 		swapped <- err
 	}()

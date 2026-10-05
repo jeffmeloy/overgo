@@ -1555,7 +1555,7 @@
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRModelSwitchAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:7bc34b706d4c99013d399ef4e6ec2cb2663c13c441e48ae26ab4d2a8163c9fed"
+     "identity": "evidence:sha256:9883f712ff67856621a223aac71e45959aa764e0e9fe3f8d293ba0cbd6e28c9e"
     }
    ]
   },
@@ -1571,13 +1571,13 @@
      "path": "internal/modelswap/proxy.go",
      "contains": "func routingEnvelope(",
      "role": "source",
-     "identity": "file:sha256:accc285ec31519f462af79a25792d83fe822d02db7f3f943a78858f4fe5e09c5"
+     "identity": "file:sha256:89d78cee751591b1b877a85155aecb107e1b907542b89d9ec4a7239dbe847c4d"
     },
     {
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRLiveOperationsAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:7bc34b706d4c99013d399ef4e6ec2cb2663c13c441e48ae26ab4d2a8163c9fed"
+     "identity": "evidence:sha256:9883f712ff67856621a223aac71e45959aa764e0e9fe3f8d293ba0cbd6e28c9e"
     }
    ]
   }

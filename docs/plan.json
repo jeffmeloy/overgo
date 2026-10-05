@@ -8,14 +8,11 @@
       "title": "Optimize complete user journeys: profile the streaming composer, then the journeys' repeated work",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 460,
+        "reason": "A swap is accounted for and no longer waits on the page's own held-open stream: a lease per request (target, the swap's phases, release and hold-open), the supervisor's held count and four timed phases, the held-open header the server sets and the proxy reads, the phases header and the chip that names them; the lease and its bookkeeping are the growth, which replaces the grace-only drain that cost a swap up to 15 s."
+      },
       "steps": [
-        {
-          "id": "swap-phases",
-          "title": "Report a model swap's drain, stop, launch and ready time, and stop counting the page's own held-open streams against the drain",
-          "status": "open",
-          "verify": "go test ./internal/modelswap -count=1 -run '^TestSwapReportsItsPhasesAndDoesNotWaitOnAHeldOpenStream$'",
-          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): cold model selection to usable response. internal/modelswap/supervisor.go Acquire (:84-146) waits for the old child's in-flight requests to drain before it stops it, bounded by drainGrace = 15 s (:46-50), because the workbench's activity stream stays open for the life of the page and counts as in flight (verified in the source: refs \u003e 0 keeps the swap waiting until the grace ends); no stream is closed before the swap request, so every swap with a page open can cost up to 15 s before the new model even launches, and nothing records it: Ready is untimed (:140), the page times the swap with Date.now (boot.js:1079) and shows a chip 'served X after Ns' (boot.js:1099) but stores nothing. Change, measure first: report the drain, stop, launch and ready milliseconds on the header the page already reads (proxy.go:154, boot.js:1088) and show them in the chip, then take the page's own held-open streams out of the drain (the routes marked Unrecorded in internal/server/routes.go are the held-open subscriptions; or sever them at the swap request) and keep the grace for a real request. Test first: a swap with one held-open stream and one finishing request waits for the request and not the stream, and the phases are reported."
-        },
         {
           "id": "cancel-finish-sample",
           "title": "Read a cancelled generation's device finish sample under a context that is not cancelled",

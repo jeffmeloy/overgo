@@ -1088,8 +1088,10 @@
       const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, loadingTickMS);
       try {
         // The proxy names its serving child in the header; a server answering directly sends none and cannot swap.
-        let via = null;
-        await api.get("/health?swap=" + encodeURIComponent(item.model), { onHeaders: (headers) => { via = headers.get("X-Overgo-Swap-Proxy"); } });
+        // The proxy also accounts for the swap in milliseconds ("drain=15000;stop=40;launch=800;ready=4200"): the chip names the parts that took time.
+        const swapPhases = (header) => (header || "").split(";").map((part) => part.split("=")).filter(([, ms]) => Number(ms) > 0).map(([phase, ms]) => phase + " " + window.overgo.fmt.elapsed(Number(ms))).join(" · ");
+        let via = null, phases = "";
+        await api.get("/health?swap=" + encodeURIComponent(item.model), { onHeaders: (headers) => { via = headers.get("X-Overgo-Swap-Proxy"); phases = swapPhases(headers.get("X-Overgo-Swap-Phases")); } });
         invalidateModel();
         const manifest = await api.get("/workspace/manifest");
         if (manifest.model && manifest.model.model === item.model && manifest.model.recipe === item.recipe) {
@@ -1100,7 +1102,7 @@
           setModelSwitchBlocked(false);
           // The served swap is the operation chip's receipt; the picker has done its work and leaves.
           const elapsed = Math.round((Date.now() - started) / 1000);
-          window.overgo.localOperation(Object.assign(chip, { state: "completed", detail: "served " + modelPill.textContent + " after " + elapsed + "s" +
+          window.overgo.localOperation(Object.assign(chip, { state: "completed", detail: "served " + modelPill.textContent + " after " + elapsed + "s" + (phases ? " (" + phases + ")" : "") +
             (capabilityDocument ? " · context " + capabilityDocument.context_length + " · " + Object.keys(capabilityDocument.modalities || {}).filter((kind) => capabilityDocument.modalities[kind]).join(", ") : "") }));
           if (panel === currentPanel) close();
           return;

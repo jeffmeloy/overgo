@@ -830,6 +830,9 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 			defer finish(recorder)
 		}
 	}
+	if routed && route.HeldOpen {
+		response.Header().Set(apimanifest.HeldOpenHeader, "1")
+	}
 	if routed && route.Authentication == routeBearer && !h.authorized(request) {
 		response.Header().Set("WWW-Authenticate", "Bearer")
 		writeError(

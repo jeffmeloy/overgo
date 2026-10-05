@@ -20,6 +20,9 @@ import (
 	"overgo/internal/processcontrol"
 )
 
+// swapPhasesHeader names, on the answer to the request that caused a swap, what each part of it cost.
+const swapPhasesHeader = "X-Overgo-Swap-Phases"
+
 // maxRoutedBodyBytes bounds the request body the router buffers to
 // read its model field; matches the serving multimodal request bound.
 const maxRoutedBodyBytes = 32 << 20
@@ -130,7 +133,7 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		http.Error(response, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
-	target, release, err := p.Supervisor.Acquire(request.Context(), servable)
+	lease, err := p.Supervisor.Acquire(request.Context(), servable)
 	if err != nil {
 		code := "model_load_failed"
 		if errors.Is(err, processcontrol.ErrResourceBusy) {
@@ -143,8 +146,8 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		_ = json.NewEncoder(response).Encode(map[string]any{"error": map[string]string{"code": code, "message": err.Error()}})
 		return
 	}
-	defer release()
-	upstream, err := url.Parse(target)
+	defer lease.Release()
+	upstream, err := url.Parse(lease.Target)
 	if err != nil {
 		http.Error(response, err.Error(), http.StatusInternalServerError)
 		return
@@ -152,10 +155,16 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	// Every proxied answer names the proxy, so a shell behind it can show the
 	// swap capability and a shell served directly can say it is absent.
 	response.Header().Set("X-Overgo-Swap-Proxy", servable.Name)
+	if lease.Swap.Launched {
+		response.Header().Set(swapPhasesHeader, lease.Swap.String())
+	}
 	proxy := httputil.NewSingleHostReverseProxy(upstream)
 	proxy.FlushInterval = -1
 	proxy.ErrorHandler = writeProxyError
 	proxy.ModifyResponse = func(upstream *http.Response) error {
+		if upstream.Header.Get(apimanifest.HeldOpenHeader) != "" {
+			lease.HoldOpen()
+		}
 		if upstream.StatusCode != http.StatusSwitchingProtocols {
 			upstream.Body = &proxyResponseBody{ReadCloser: upstream.Body, ctx: request.Context()}
 		}

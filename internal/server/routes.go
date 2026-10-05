@@ -29,6 +29,9 @@ type routeDescriptor struct {
 	// probes the page and any supervisor repeat every few seconds, and a subscription that is held
 	// open for as long as a page listens.
 	Unrecorded bool
+	// HeldOpen: the answer is a subscription a page holds open for as long as it listens. The response says so, so a swap
+	// proxy in front of the server does not wait for it to end when the model changes.
+	HeldOpen bool
 }
 
 var routeCatalog = []routeDescriptor{
@@ -123,7 +126,7 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/loop/status", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).loopStatus},
 	{Path: "/loop/stop", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).loopStop},
 	{Path: "/runtime/activity", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeActivity},
-	{Path: "/runtime/activity/stream", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeActivityStream, Unrecorded: true},
+	{Path: "/runtime/activity/stream", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeActivityStream, Unrecorded: true, HeldOpen: true},
 	{Path: "/requests", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).requestLog, Unrecorded: true},
 	{Path: "/runtime/peers", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).remotePeerAuthority},
 	{Path: "/slots", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).slotStatus},

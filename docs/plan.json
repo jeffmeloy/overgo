@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "host-linear-interleave",
-      "title": "Interleave the host f32 dot kernels: they are 97 percent of a pooled host LoRA step, bound by one add chain per output",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Interleave the host f32 dot kernels: they are 97 percent of a pooled host LoRA step, bound by one add chain per output",
-          "status": "open",
-          "verify": "go test ./internal/hostmath -count=1 -run '^TestInterleavedLinearMatchesTheSerialDot$'",
-          "rationale": "Serves: throughput of host training and of host inference paths that use hostmath.Linear (LoRA from the Train tab, cmd/train, the conversation fine-tune). Evidence (2026-10-04, after host-linear-backward and lora-helpers; tmp/profile_lora.go, Qwen2.5-0.5B, 512 tokens, rank 8): a step is 27 s on 15.7 cores, and 97 percent of its CPU is three kernels: hostmath.linearCols (the forward, 41 percent), linearInputGradient (30 percent) and LinearWeightGradient (26 percent), each a scalar float32 loop that adds one product at a time into one accumulator (or one row element), at 0.33 ns per multiply-add (the dispatch calibration's f32 rate) where a chain of dependent adds is latency-bound, not throughput-bound. Hypothesis to measure: compute four independent outputs (four weight rows of linearCols, four batch rows of the input gradient, four dW rows of the weight gradient) in one pass so their adds interleave and the loaded input is reused, with each output element still summing its terms in the order it did, so the result stays bit for bit the serial loop's and the goldens hold. Measure on one kernel in a benchmark first; expected 2 to 4 times on the kernels, so a step toward 10 s. Go has no SIMD intrinsics in the pinned toolchain; an assembly or archsimd kernel is the larger step and waits for this one's result. hostmath is a pinned media path: the landing ships a reviewed delta."
-        }
-      ]
-    },
-    {
       "id": "gui-lane-review-residue",
       "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
       "owner": "master-lead",

@@ -385,15 +385,20 @@ func LinearWeightGradient(dW, x, dy []float32, rows, inDim, outDim int) {
 	ParallelRangeF64(outDim, rows*inDim, func(oLo, oHi int) {
 		for o := oLo; o < oHi; o++ {
 			dWRow := dW[o*inDim : (o+1)*inDim]
-			for r := range rows {
-				g := dy[r*outDim+o]
-				if g == 0 {
+			xRow := func(r int) []float32 { return x[r*inDim : (r+1)*inDim] }
+			r := 0
+			for ; r+interleave <= rows; r += interleave {
+				gradients := column(dy, r*outDim+o, outDim)
+				if anyZero(gradients) {
+					for lane, gradient := range gradients {
+						axpy(dWRow, gradient, xRow(r+lane))
+					}
 					continue
 				}
-				xRow := x[r*inDim : (r+1)*inDim]
-				for c := range inDim {
-					dWRow[c] += g * xRow[c]
-				}
+				axpy4(dWRow, gradients, block(x, r, inDim))
+			}
+			for ; r < rows; r++ {
+				axpy(dWRow, dy[r*outDim+o], xRow(r))
 			}
 		}
 	})
@@ -409,20 +414,30 @@ func LinearBackwardInput(dx, dy, w []float32, rows, inDim, outDim int) {
 // linearInputGradient is LinearBackwardInput that adds into dx when accumulate.
 func linearInputGradient(dx, dy, w []float32, rows, inDim, outDim int, accumulate bool) {
 	ParallelRangeF64(rows, inDim*outDim, func(rLo, rHi int) {
-		for r := rLo; r < rHi; r++ {
-			dxRow := dx[r*inDim : (r+1)*inDim]
-			if !accumulate {
-				clear(dxRow)
+		dxRow := func(r int) []float32 { return dx[r*inDim : (r+1)*inDim] }
+		if !accumulate {
+			for r := rLo; r < rHi; r++ {
+				clear(dxRow(r))
 			}
-			dyRow := dy[r*outDim : (r+1)*outDim]
-			for o, g := range dyRow {
-				if g == 0 {
+		}
+		r := rLo
+		// Four batch rows share each weight row, which is read once for them.
+		for ; r+interleave <= rHi; r += interleave {
+			for o := range outDim {
+				wRow := w[o*inDim : (o+1)*inDim]
+				gradients := column(dy, r*outDim+o, outDim)
+				if anyZero(gradients) {
+					for lane, gradient := range gradients {
+						axpy(dxRow(r+lane), gradient, wRow)
+					}
 					continue
 				}
-				wRow := w[o*inDim : (o+1)*inDim]
-				for c := range inDim {
-					dxRow[c] += g * wRow[c]
-				}
+				axpyShared4(wRow, block(dx, r, inDim), gradients)
+			}
+		}
+		for ; r < rHi; r++ {
+			for o, g := range dy[r*outDim : (r+1)*outDim] {
+				axpy(dxRow(r), g, w[o*inDim:(o+1)*inDim])
 			}
 		}
 	})

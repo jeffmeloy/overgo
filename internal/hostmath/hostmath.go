@@ -274,7 +274,13 @@ func LinearBF16BackwardInput(dx, dy []float32, w []uint16, rows, inDim, outDim i
 func linearCols(dst, x, w []float32, rows, inDim, outDim, oStart, oEnd int) {
 	for o := oStart; o < oEnd; o++ {
 		wRow := w[o*inDim : (o+1)*inDim]
-		for r := range rows {
+		r := 0
+		for ; r+interleave <= rows; r += interleave {
+			for lane, sum := range dot4(wRow, block(x, r, inDim)) {
+				dst[(r+lane)*outDim+o] = sum
+			}
+		}
+		for ; r < rows; r++ {
 			xRow := x[r*inDim : (r+1)*inDim]
 			var sum float32
 			for c := range wRow {

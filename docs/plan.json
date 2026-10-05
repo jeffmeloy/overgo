@@ -9,17 +9,10 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 110,
-        "reason": "the tolerant verdict visit, the recipe's gap record and its cell are new (the verdict-gap step); the earlier 2-node allowance for the style walk's OR is kept inside it"
+        "nodes": 230,
+        "reason": "A carried held-out quality is attributed to the run that scored it: a bounded-by-identity walk of the carry chain through the receipt each run reports (the receipt read the evidence index already did, now one helper) and the scorecard cell's carried scope; the walk and the cell are the growth. Earlier allowance kept: the tolerant verdict visit, the recipe's gap record and its cell (the verdict-gap step)."
       },
       "steps": [
-        {
-          "id": "carried-quality-source",
-          "title": "Attribute a carried quality to the evaluation it was carried from",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestCarriedQualityNamesItsSource$'",
-          "rationale": "Serves: a quality cell that names the evaluation it came from. Audit 2026-10-05 (read): EvaluateOrCarry publishes the earlier record's metrics in a run at the new commit (internal/evaluation/replay.go:82-83,159); recordExecution sets summary.CodeCommit to that run's commit (evidence_index.go:105-106,130) and qualityCell (internal/scorecard/scorecard.go:573-576) never reads summary.Carried, so the cell shows the new commit and no carried scope; cmd/benchmark-report marks carried records. Real fact: receipt.Carried is the earlier evaluation and RequireEvaluation plus RequireRun gives its CodeCommit (the receipt is already loaded at evidence_index.go:105). Failing test first: a qualityCell table row with Carried valid labels it carried and does not show the carrying run's commit. A carry chain needs a bounded follow-through."
-        },
         {
           "id": "producer-commit-executable",
           "title": "Take a gate's producer commit from the executable, not from HEAD or the caller",

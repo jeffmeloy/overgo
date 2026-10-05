@@ -612,3 +612,27 @@ func trainedCheckpoint(t *testing.T, model, source, split artifact.ID) (training
 	}
 	return checkpoint, batch
 }
+
+// TestCarriedQualityNamesItsSource holds a carried held-out quality to the
+// run that scored it: a result carried forward reads as carried and names the
+// commit of the run its chain began at, not the commit of the run that
+// replayed a sample of it, while a quality a run scored itself keeps its own.
+func TestCarriedQualityNamesItsSource(t *testing.T) {
+	t.Parallel()
+	scored, carrying := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	carried := evaluation.EvalSummary{
+		Suite: "fixture", Prompting: "raw-completion", Record: testutil.ArtifactID(t, artifact.KindEvaluation, "carrier"),
+		Metrics: map[string]float64{"accuracy": 0.5}, Directions: map[string]runrecord.Direction{"accuracy": runrecord.DirectionMaximize},
+		CodeCommit: carrying, ScoredCommit: scored, Carried: testutil.ArtifactID(t, artifact.KindEvaluation, "receipt"), ExecutionKnown: true,
+	}
+	cell, _ := qualityCell(recipe.TaskInference, []evaluation.EvalSummary{carried}, nil)
+	if cell.CodeCommit != scored || !strings.HasSuffix(cell.Label, ", carried") {
+		t.Fatalf("a carried quality reads %q at %q, want carried at the scoring run's %q", cell.Label, cell.CodeCommit, scored)
+	}
+	own := carried
+	own.Carried, own.ScoredCommit = artifact.ID{}, ""
+	cell, _ = qualityCell(recipe.TaskInference, []evaluation.EvalSummary{own}, nil)
+	if cell.CodeCommit != carrying || strings.Contains(cell.Label, "carried") {
+		t.Fatalf("a quality its run scored reads %q at %q, want its own commit %q and no carried scope", cell.Label, cell.CodeCommit, carrying)
+	}
+}

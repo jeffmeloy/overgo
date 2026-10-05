@@ -200,6 +200,9 @@ func TestEvaluationReplayCarriesIdenticalOutputs(t *testing.T) {
 		summary.Prompting != evaluation.PromptingRawCompletion.Label() || !summary.Reproducible {
 		t.Fatalf("the evidence index does not read the carried record as a fresh one marked carried: %+v", summary)
 	}
+	if summary.CodeCommit != strings.Repeat("b", 40) || summary.ScoredCommit != strings.Repeat("a", 40) {
+		t.Fatalf("a carried result reads commit %q scored at %q, want the carrying run's %q and the scoring run's %q", summary.CodeCommit, summary.ScoredCommit, strings.Repeat("b", 40), strings.Repeat("a", 40))
+	}
 	if _, err := evaluation.RequireEvaluationEvidence(ctx, store, carried.Evidence); err != nil {
 		t.Fatalf("the carried evaluation's evidence does not verify: %v", err)
 	}
@@ -250,6 +253,9 @@ func TestEvaluationReplayCarriesIdenticalOutputs(t *testing.T) {
 	again, _, cases := evaluate("c", device, "", data, carried.Evaluation)
 	if cases != 32 || again.Carried != carried.Evaluation || receipt(again.Report).Report != full.Report {
 		t.Fatalf("a replay against a carried record scored %d cases, carried %s on %s", cases, again.Carried, receipt(again.Report).Report)
+	}
+	if summary := latest(suite); summary.CodeCommit != strings.Repeat("c", 40) || summary.ScoredCommit != strings.Repeat("a", 40) {
+		t.Fatalf("a carry of a carry reads commit %q scored at %q, want the third run's and the first run's %q", summary.CodeCommit, summary.ScoredCommit, strings.Repeat("a", 40))
 	}
 
 	// One case whose scores moved by one unit in the last place runs in full.

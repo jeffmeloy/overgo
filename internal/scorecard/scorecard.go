@@ -570,9 +570,15 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 		// LatestEvidence owns deduplication by the bound contract; display
 		// labels cannot discard independently sufficient alternatives here.
 		if name, value, ok := evaluation.HeadlineMetric(summary.Metrics); ok {
+			label, commit := fmt.Sprintf("%s, %s (%s)", name, summary.Suite, summary.Prompting), summary.CodeCommit
+			if summary.Carried.Valid() {
+				// A carried result stands on the run that scored it, which
+				// the carrying run only replayed a sample of.
+				label, commit = label+", carried", summary.ScoredCommit
+			}
 			measured = append(measured, heldout{cases: descriptors[summary.Suite].Cases, cell: Cell{
-				Value: value, Label: fmt.Sprintf("%s, %s (%s)", name, summary.Suite, summary.Prompting), Source: summary.Record, Direction: summary.Directions[name],
-				CodeCommit: summary.CodeCommit, Environment: summary.Environment,
+				Value: value, Label: label, Source: summary.Record, Direction: summary.Directions[name],
+				CodeCommit: commit, Environment: summary.Environment,
 				Contract: Contract{Metric: name, Origin: originEvaluation, Suite: summary.Suite, Protocol: summary.Prompting, Comparison: summary.Comparison},
 			}})
 		}

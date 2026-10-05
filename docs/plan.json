@@ -35,13 +35,6 @@
           "rationale": "From the review (2026-10-04), still open: a run that continues an adapter (trainingworkflow.LoRA.From) judges its held-out verdict against the model as the prior adapter leaves it, which LoRA's own comment documents, but the verdict is bound to the base model (text_heldout.go, heldout_run.go) and the prior adapter's identity is recorded nowhere, so 'passed' reads as base to trained. Either bind the prior adapter's digest (peft's Adapter.digest, added with the merge plan) into the evidence the verdict publishes, with the recipe it names, or evaluate the baseline on the true base before the adapter is applied (Resume applies it at load). An evidence schema change; Resume also never compares adapter.Config.BaseModel to the model it is given."
         },
         {
-          "id": "selected-logprob",
-          "title": "Pool the selected log-prob kernels over rows, so the logit-free path and LoRA can drop the logits",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "A hypothesis to measure first (from lora-helpers, 2026-10-04): hostmath.SelectedLogProbInto and SelectedLogProbBackward loop over the batch rows serially and project each row against the whole head three times (about 2e11 multiply-adds per 512-token step of Qwen2.5-0.5B, some 70 s on one thread), which is why loratrain keeps 622 MB of logits and their gradient and the dense trainer's logit-free path may be the slower one. Time densecausal.trainingLossAndGrads against LossAndGrads on one host step; if the head dominates, pool the kernels (each row owns its dX row; the weight gradient accumulates in row order per column block) and let both paths drop the logits."
-        },
-        {
           "id": "surface-rest",
           "title": "The surface the first pass left: quantizeGGUF, the page's tone ternary, the byte order mark, the guard's expiry",
           "status": "open",

@@ -11,6 +11,7 @@ import (
 	"maps"
 	"math"
 
+	"overgo/internal/binaryschema"
 	"overgo/internal/hostmath"
 )
 
@@ -108,27 +109,7 @@ func (m *Model) lossAndGradsFromStates(
 		loss = hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
 		hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
 	} else {
-		rows := seq - 1
-		selected := make([]bool, rows)
-		for index := range selected {
-			selected[index] = true
-		}
-		scores := make([]float64, rows)
-		workspace := make([]float32, d.Vocab)
-		if err := hostmath.SelectedLogProbInto(scores, normed[:rows*d.Hidden], head, nil, tokens[1:], selected, rows, d.Hidden, d.Vocab, workspace); err != nil {
-			return 0, nil, nil, err
-		}
-		coefficients := make([]float64, rows)
-		for index, score := range scores {
-			loss -= score / float64(rows)
-			coefficients[index] = -1 / float64(rows)
-		}
-		if err := hostmath.SelectedLogProbBackward(
-			dNormed[:rows*d.Hidden], gradHead, nil, normed[:rows*d.Hidden], head, nil,
-			tokens[1:], selected, coefficients, rows, d.Hidden, d.Vocab, workspace, false,
-		); err != nil {
-			return 0, nil, nil, err
-		}
+		loss = headBackward(normed[:(seq-1)*d.Hidden], tokens[1:], head, gradHead, dNormed[:(seq-1)*d.Hidden], d.Hidden, d.Vocab, headWindowRows(d.Vocab))
 	}
 	dx := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, m.tensors.finalNorm.name, d.Hidden), final, m.tensors.finalNorm.values, dNormed, seq, d.Hidden, d.RMSEps, false)
@@ -148,6 +129,48 @@ func (m *Model) lossAndGradsFromStates(
 		scatterEmbeddingGradient(gradEmbed, dx, tokens, d.Hidden)
 	}
 	return loss, logits, g, nil
+}
+
+// headWindowBytes bounds the logits and their gradient a logit-free backward
+// holds at once, so the memory a long sequence over a large vocabulary needs
+// does not grow with the sequence.
+const headWindowBytes = 1 << 28
+
+// headWindowBuffers is how many matrices of a window's rows by the vocabulary
+// the head holds at once: the logits and their gradient.
+const headWindowBuffers = 2
+
+// headWindowRows is how many rows the head is applied to at once: as many as
+// their logits and gradient fit in the window, never none.
+func headWindowRows(vocab int) int {
+	return max(headWindowBytes/(headWindowBuffers*vocab*binaryschema.Uint32Bytes), 1)
+}
+
+// headBackward is the mean cross-entropy of the head over the rows of normed
+// against their targets, and its gradient: dNormed is set and gradHead (when
+// not nil) accumulated. The head is applied to window rows at a time, each
+// window's logits on the worker pool and its gradient through the pooled linear
+// backward, so the logits of the whole sequence are never held. Each row's
+// gradient is its own, so the windows add up to the sequence's.
+func headBackward(normed []float32, targets []int, head, gradHead, dNormed []float32, hidden, vocab, window int) float64 {
+	rows := len(targets)
+	logits, dLogits := make([]float32, min(window, rows)*vocab), make([]float32, min(window, rows)*vocab)
+	var loss float64
+	for start := 0; start < rows; start += window {
+		count := min(window, rows-start)
+		chunk := normed[start*hidden : (start+count)*hidden]
+		hostmath.Linear(logits[:count*vocab], chunk, head, count, hidden, vocab)
+		mean := hostmath.SoftmaxCrossEntropy(dLogits[:count*vocab], logits[:count*vocab], targets[start:start+count], count, vocab)
+		// The window's mean and gradient are over its own rows; the sequence's are over all of them.
+		share := float64(count) / float64(rows)
+		loss += mean * share
+		scale := float32(share)
+		for index := range dLogits[:count*vocab] {
+			dLogits[index] *= scale
+		}
+		hostmath.LinearBackward(dNormed[start*hidden:(start+count)*hidden], gradHead, nil, chunk, head, dLogits[:count*vocab], count, hidden, vocab, false)
+	}
+	return loss
 }
 
 // scatterEmbeddingGradient adds each token's input gradient row onto its

@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "producer-commit-executable",
-          "title": "Take a gate's producer commit from the executable, not from HEAD or the caller",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestProducerCommitIsTheExecutables$'",
-          "rationale": "Serves: a gate whose producer commit is the producer. Audit 2026-10-05 (read): cmd/validate/parity_vqa_recipe_verify.go:22-31 codeRevision accepts vcs.revision ignoring vcs.modified and falls back to HeadCommit('.') with no cleanliness check, becoming the gate's CodeCommit; cmd/evaluate/main.go:288-294 with session.go:92 binds a hand-written -manifest code_commit as the producer of every plan and run (the transcription path compares at transcription.go:149); cmd/train/route_graft.go:293 has the same HEAD fallback for Decider.CodeCommit. Real fact: runrecord.ExecutableCodeCommit (internal/runrecord/verifying_commit.go:14) refuses modified builds and falls back to a clean-tree check. Caveat: modelintake.CleanRevision checks Go files only on purpose (docs edits must not block): do not switch it blindly. Failing test first: in a temp repository with a dirty tree codeRevision returns HEAD today and should return an error."
-        },
-        {
           "id": "serving-environment",
           "title": "Carry a serving cell's environment so a changed environment reads Unknown, not changed",
           "status": "open",

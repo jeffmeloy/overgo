@@ -25,6 +25,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
+	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
 )
 
@@ -219,6 +220,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	executableCommit, err := runrecord.ExecutableCodeCommit(".")
+	if err != nil {
+		return err
+	}
+	if err := requireProducer(compiled.CodeCommit, executableCommit); err != nil {
+		return err
+	}
 	if *worker {
 		if *modelIndex < 0 || *modelIndex >= len(compiled.Models) {
 			return errors.New("evaluate: worker model index is invalid")
@@ -250,6 +258,17 @@ func run() error {
 		}
 		return nil
 	})
+}
+
+// requireProducer refuses a manifest that names a commit other than the one
+// this executable is built from: the commit becomes the producer of every plan
+// and run the evaluation records, so a hand-written one would attribute the
+// evidence to source that did not produce it.
+func requireProducer(claimed, executable string) error {
+	if claimed != executable {
+		return fmt.Errorf("evaluate: the manifest names commit %.12s as the producer, but this executable is built from %.12s", claimed, executable)
+	}
+	return nil
 }
 
 func readManifest(path string) (manifest, error) {

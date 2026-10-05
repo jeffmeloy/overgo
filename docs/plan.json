@@ -8,6 +8,10 @@
       "title": "Measure whether a per-step relative Muon rate transfers across models",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 200,
+        "reason": "unpermuteRows and its constants are new: a llama GGUF, the commonest local format, becomes trainable"
+      },
       "steps": [
         {
           "id": "do",

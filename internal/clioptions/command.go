@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strings"
 
+	"overgo/internal/fsatomic"
 	"overgo/internal/processcontrol"
 )
 
@@ -25,7 +26,7 @@ const (
 	OutputFileMode = os.FileMode(0o644)
 	// OutputDirectoryMode is the traversable mode for generated output
 	// directories.
-	OutputDirectoryMode = os.FileMode(0o755)
+	OutputDirectoryMode = fsatomic.DirectoryMode
 	// PrivateFileMode is the owner-only mode for local state that can contain
 	// command arguments, failure context, or other non-published evidence.
 	PrivateFileMode = os.FileMode(0o600)

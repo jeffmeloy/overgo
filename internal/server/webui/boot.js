@@ -58,6 +58,15 @@
     inFlight++;
     try { return await request; } finally { inFlight--; }
   }
+  // requestNumbers: the number each submission whose last try went unanswered was sent under, by what it asked
+  // for; newRequestNumber is a UUID where the browser makes one and 128 random bits in hex where it does not.
+  const requestNumbers = new Map();
+  const unansweredSubmissionLimit = 16;
+  const requestNumberBytes = 16;
+  function newRequestNumber() {
+    if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+    return Array.from(crypto.getRandomValues(new Uint8Array(requestNumberBytes)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
   // readPaths: the paths each workspace read fetched, keyed by its signal, so a changed inventory refreshes it.
   const readPaths = new WeakMap();
   const api = {
@@ -71,6 +80,24 @@
     },
     async post(path, body, opts) {
       return readJSON(await tracked(fetch(path, { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body), signal: opts && opts.signal })));
+    },
+    // submit: a POST of a run the server numbers, so a response lost on its way back leaves the next try of the
+    // same submission to find the operation the first started rather than start another. The number is kept only
+    // while the last try got no answer from the server; any answer, a refusal too, settles it.
+    async submit(path, body, opts) {
+      const signature = path + JSON.stringify(body);
+      const request = requestNumbers.get(signature) || newRequestNumber();
+      requestNumbers.delete(signature);
+      requestNumbers.set(signature, request);
+      if (requestNumbers.size > unansweredSubmissionLimit) requestNumbers.delete(requestNumbers.keys().next().value);
+      try {
+        const answer = await api.post(path, Object.assign({}, body, { request }), opts);
+        requestNumbers.delete(signature);
+        return answer;
+      } catch (err) {
+        if (err.status) requestNumbers.delete(signature);
+        throw err;
+      }
     },
     // upload: a file's bytes under their own media type (opts.mediaType sends the body raw); the server answers the stored artifact.
     async upload(path, file, opts) { return readJSON(await this.stream(path, file, Object.assign({ mediaType: file.type || 'application/octet-stream' }, opts))); },
@@ -1331,7 +1358,9 @@
     }
     const start = location.hash.slice(1);
     applyCapabilities();
-    const named = tabs.some((t) => t.id === start);
+    // A hash names a tab or one of a tab's views: opening the page at a view lands on it, not on the first tab.
+    // A hash names a tab or one of a tab's views: opening the page at a view lands on it, not on the first tab.
+    const named = !!routeOf(start).tab;
     if (named || capabilityDocument) activate(named ? start : (tabs[0] && tabs[0].id));
     syncColdStart();
     refreshStatus();

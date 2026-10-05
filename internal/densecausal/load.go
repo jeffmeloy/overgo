@@ -58,6 +58,9 @@ type Model struct {
 	Shapes  map[string][]int
 	tensors modelTensorBindings
 	layers  []layer
+	// frozen holds the projections kept in their stored quantization, nil for a
+	// model that holds every weight in full precision (see frozen.go).
+	frozen *frozenWeights
 }
 
 // MoERouterLayers returns the artifact-derived routed layer indices. The

@@ -220,6 +220,10 @@ type workflowRequest struct {
 	// prompt as the request's source. Each must be an artifact the
 	// repository holds.
 	Sources []artifact.ID `json:"sources,omitempty"`
+	// Request, when set, numbers the submission: a repeat of it, as a retry
+	// after a lost response is, is answered with the operation the first started
+	// and starts none (see runLedger).
+	Request string `json:"request,omitzero"`
 }
 
 type workflowResponse struct {
@@ -331,7 +335,37 @@ func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Reques
 	if !admitted {
 		return
 	}
-	id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), kind, capability, body.Input, body.Sources)
+	if body.Request == "" {
+		id, err := h.submitWorkflow(context.WithoutCancel(request.Context()), kind, capability, body.Input, body.Sources)
+		if err != nil {
+			writeGenerationError(response, err)
+			return
+		}
+		writeJSON(response, http.StatusAccepted, workflowResponse{Operation: id})
+		return
+	}
+	if !validRequestID(body.Request) {
+		writeInvalidRequestMessage(response, "request must be 1 to 64 letters, digits, hyphens or underscores")
+		return
+	}
+	fingerprint, err := submissionFingerprint(body)
+	if err != nil {
+		writeGenerationError(response, err)
+		return
+	}
+	key := string(kind) + "/" + body.Request
+	entry, owner, err := h.runs.begin(key, fingerprint)
+	if err != nil {
+		writeError(response, http.StatusConflict, "request_id_reused", err.Error())
+		return
+	}
+	var id artifact.ID
+	if owner {
+		id, err = h.submitWorkflow(context.WithoutCancel(request.Context()), kind, capability, body.Input, body.Sources)
+		h.runs.finish(key, entry, id, err)
+	} else {
+		id, err = entry.wait(request.Context())
+	}
 	if err != nil {
 		writeGenerationError(response, err)
 		return

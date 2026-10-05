@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/clioptions"
 	"overgo/internal/fsatomic"
 )
 
@@ -206,7 +205,7 @@ func ImportCommonFormat(ctx context.Context, repository artifact.Repository, nam
 	if err != nil {
 		return RegisteredDataset{}, nil, err
 	}
-	directory, err := fsatomic.PublishDirectory(root, name, clioptions.OutputDirectoryMode, func(stage string) error {
+	directory, err := fsatomic.PublishDirectory(root, name, fsatomic.DirectoryMode, func(stage string) error {
 		return writeConversations(stage, conversations)
 	})
 	if errors.Is(err, fs.ErrExist) {

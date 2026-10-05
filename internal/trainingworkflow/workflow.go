@@ -425,8 +425,8 @@ func (session denseSession) execute(prepared densePrepared, plan trainingprogram
 		observeRouter = collector.observe
 	}
 	losses, backend, state, err := runTrainingState(
-		session.model, prepared.tokens, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
-		session.request.Device, !session.request.Host, session.request.FreezeLexical, resume, observe, observeRouter,
+		session.model, prepared.tokens, densecausal.TrainOptions{ObserveRouter: observeRouter}, session.optimizerConfig.BaseLearningRate, session.optimizerConfig.Momentum,
+		session.request.Device, !session.request.Host, session.request.FreezeLexical, resume, observe,
 	)
 	result := Result{
 		Backend: backend, Objective: session.objective, Losses: losses,

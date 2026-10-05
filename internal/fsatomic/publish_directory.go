@@ -9,6 +9,9 @@ import (
 	"strings"
 )
 
+// DirectoryMode is the traversable mode a directory is published with.
+const DirectoryMode fs.FileMode = 0o755
+
 // PathComponent refuses a name that is not one safe path component: one that
 // is empty, is . or .., holds a separator, or holds NUL, CR or LF, which a
 // name chosen by a user must not be before it is joined to a directory.

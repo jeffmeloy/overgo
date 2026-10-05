@@ -2,6 +2,7 @@ package loratrain
 
 import (
 	"encoding/json"
+	"maps"
 	"math"
 	"math/rand"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"overgo/internal/densecausal"
+	"overgo/internal/optimizer"
 	"overgo/internal/peft"
 	"overgo/internal/safetensors"
 	"overgo/internal/testutil"
@@ -77,15 +79,23 @@ func loss(t *testing.T, model *densecausal.Model, tokens []int) float64 {
 // central differences of the loss, with the up factors made nonzero so both
 // factors' gradients are nonzero.
 func TestFactorGradientsMatchFiniteDifferences(t *testing.T) {
+	checkFactorGradients(t, Config{Rank: 2, Alpha: 6, Seed: 1}, 1e-2)
+}
+
+// checkFactorGradients is that check for the adapter the config starts, with central differences taken the given step apart: a larger scale bends the loss more, so needs a smaller one.
+func checkFactorGradients(t *testing.T, config Config, step float64) {
+	t.Helper()
 	model, _, _ := tinyModel(t)
-	trainer, err := New(model, Config{Rank: 2, Alpha: 6, Seed: 1})
+	trainer, err := New(model, config)
 	if err != nil {
 		t.Fatal(err)
 	}
 	random := rand.New(rand.NewSource(2))
-	for _, module := range trainer.adapter.Modules {
-		for index := range module.Up {
-			module.Up[index] = float32(random.NormFloat64()) / 4
+	// In name order, so the same adapter is checked on every run: a map's order would draw another.
+	for _, name := range slices.Sorted(maps.Keys(trainer.adapter.Modules)) {
+		up := trainer.adapter.Modules[name].Up
+		for index := range up {
+			up[index] = float32(random.NormFloat64()) / 4
 		}
 	}
 	if err := trainer.apply(); err != nil {
@@ -98,19 +108,18 @@ func TestFactorGradientsMatchFiniteDifferences(t *testing.T) {
 	if err := trainer.project(grads); err != nil {
 		t.Fatal(err)
 	}
-	const step = 1e-2
 	checked := 0
 	for _, name := range []string{"model.layers.0.self_attn.q_proj", "model.layers.1.self_attn.k_proj", "model.layers.0.mlp.down_proj"} {
 		module := trainer.adapter.Modules[name]
 		for factorName, factor := range map[string][]float32{name + downFactor: module.Down, name + upFactor: module.Up} {
 			for _, index := range []int{0, 3, len(factor) - 1} {
 				original := factor[index]
-				factor[index] = original + step
+				factor[index] = original + float32(step)
 				if err := trainer.apply(); err != nil {
 					t.Fatal(err)
 				}
 				up := loss(t, model, periodic)
-				factor[index] = original - step
+				factor[index] = original - float32(step)
 				if err := trainer.apply(); err != nil {
 					t.Fatal(err)
 				}
@@ -157,7 +166,7 @@ func TestTrainingLowersTheLossAndFreezesTheBase(t *testing.T) {
 		batches[index] = periodic
 	}
 	var seen []int
-	losses, err := trainer.Train(batches, 0.02, 0.9, func(step int, _ float64, _ time.Duration) error { seen = append(seen, step); return nil })
+	losses, err := trainer.Train(batches, nil, 0.02, 0.9, func(step int, _ float64, _ time.Duration) error { seen = append(seen, step); return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +223,7 @@ func TestAdapterCarriesTheTrainingThroughPEFT(t *testing.T) {
 		t.Fatal(err)
 	}
 	batches := [][]int{periodic, periodic, periodic, periodic, periodic, periodic}
-	if _, err := trainer.Train(batches, 0.02, 0.9, nil); err != nil {
+	if _, err := trainer.Train(batches, nil, 0.02, 0.9, nil); err != nil {
 		t.Fatal(err)
 	}
 	saved := filepath.Join(t.TempDir(), "adapter")
@@ -283,13 +292,13 @@ func TestRefusesWhatItCannotTrain(t *testing.T) {
 	if len(trainer.adapter.Modules) != 2 {
 		t.Fatalf("%d modules for q_proj alone, want one per layer", len(trainer.adapter.Modules))
 	}
-	if _, err := trainer.Step(periodic, 0.02, 0.9); err != nil {
+	if _, err := trainer.Step(periodic, nil, 0.02, 0.9); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := trainer.Step(periodic, 0.5, 0.9); err == nil || !strings.Contains(err.Error(), "fixed by the first update") {
+	if _, err := trainer.Step(periodic, nil, 0.5, 0.9); err == nil || !strings.Contains(err.Error(), "fixed by the first update") {
 		t.Errorf("a changed rate: err = %v", err)
 	}
-	if _, err := trainer.Train(nil, 0.02, 0.9, nil); err == nil {
+	if _, err := trainer.Train(nil, nil, 0.02, 0.9, nil); err == nil {
 		t.Error("training on no batches was accepted")
 	}
 	wrong := peft.Adapter{Config: peft.Config{Rank: 1, Alpha: 1}, Modules: map[string]peft.Module{
@@ -298,4 +307,246 @@ func TestRefusesWhatItCannotTrain(t *testing.T) {
 	if _, err := Resume(model, wrong); err == nil || !strings.Contains(err.Error(), "the model's") {
 		t.Errorf("an adapter of another shape: err = %v", err)
 	}
+}
+
+// trainedAdapter is the adapter a trainer holds after taking each batch once,
+// with the flags for the tokens it learns, and the losses it saw.
+func trainedAdapter(t *testing.T, batches [][]int, trained [][]bool) (peft.Adapter, []float64) {
+	t.Helper()
+	model, _, _ := tinyModel(t)
+	trainer, err := New(model, Config{Rank: 2, Alpha: 4, Seed: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	losses, err := trainer.Train(batches, trained, 0.02, 0.9, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return trainer.Adapter(), losses
+}
+
+// sameAdapter reports whether two adapters hold the same factors.
+func sameAdapter(left, right peft.Adapter) bool {
+	for name, module := range left.Modules {
+		if !slices.Equal(module.Up, right.Modules[name].Up) || !slices.Equal(module.Down, right.Modules[name].Down) {
+			return false
+		}
+	}
+	return true
+}
+
+// TestMaskedBatchesLearnOnlyTheirTrainedTokens: an update's loss and factors do
+// not depend on a token the batch does not train and nothing later reads, and
+// do depend on it once it is trained.
+func TestMaskedBatchesLearnOnlyTheirTrainedTokens(t *testing.T) {
+	swapped := slices.Clone(periodic)
+	swapped[len(swapped)-1] = 7
+	batches := [][]int{periodic, periodic, periodic}
+	others := [][]int{swapped, swapped, swapped}
+	masked := make([]bool, len(periodic))
+	for index := range masked {
+		masked[index] = index < len(periodic)-1
+	}
+	learned := make([]bool, len(periodic))
+	for index := range learned {
+		learned[index] = true
+	}
+	flags := func(flag []bool) [][]bool { return [][]bool{flag, flag, flag} }
+
+	adapter, losses := trainedAdapter(t, batches, flags(masked))
+	otherAdapter, otherLosses := trainedAdapter(t, others, flags(masked))
+	if !slices.Equal(losses, otherLosses) || !sameAdapter(adapter, otherAdapter) {
+		t.Fatalf("a masked final token changed the run: losses %v against %v", losses, otherLosses)
+	}
+	adapter, losses = trainedAdapter(t, batches, flags(learned))
+	otherAdapter, otherLosses = trainedAdapter(t, others, flags(learned))
+	if slices.Equal(losses, otherLosses) || sameAdapter(adapter, otherAdapter) {
+		t.Fatal("a trained final token changed nothing: the swap proves nothing")
+	}
+	model, _, _ := tinyModel(t)
+	trainer, err := New(model, Config{Rank: 2, Alpha: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := trainer.Train(batches, flags(masked)[:2], 0.02, 0.9, nil); err == nil {
+		t.Error("flags for two of three batches were accepted")
+	}
+}
+
+// TestAveragedTrainingEqualsTheAverageOfItsSteps trains one adapter six updates
+// with a moving average of its factors and another identical one the same six,
+// taking each update's factors: the first ends holding the average the recurrence
+// gives them, written out here, and the model it is applied to holds the base plus
+// that averaged adapter's update.
+func TestAveragedTrainingEqualsTheAverageOfItsSteps(t *testing.T) {
+	const (
+		decay = 0.99
+		steps = 6
+	)
+	batches := make([][]int, steps)
+	for index := range batches {
+		batches[index] = periodic
+	}
+	config := Config{Rank: 2, Alpha: 4, Seed: 1}
+
+	model, _, _ := tinyModel(t)
+	stepped, err := New(model, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := map[string][2][]float64{}
+	for name, module := range stepped.Adapter().Modules {
+		expected[name] = [2][]float64{widen(module.Down), widen(module.Up)}
+	}
+	for update := 1; update <= steps; update++ {
+		if _, err := stepped.Step(periodic, nil, 0.02, 0.9); err != nil {
+			t.Fatal(err)
+		}
+		keep := min(decay, float64(1+update)/float64(10+update))
+		for name, module := range stepped.Adapter().Modules {
+			for factor, values := range [2][]float32{module.Down, module.Up} {
+				for index, value := range values {
+					expected[name][factor][index] = keep*expected[name][factor][index] + (1-keep)*float64(value)
+				}
+			}
+		}
+	}
+
+	averagedModel, _, original := tinyModel(t)
+	averaged, err := New(averagedModel, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := averaged.Average(decay); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := averaged.Train(batches, nil, 0.02, 0.9, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := averaged.UseAverage(); err != nil {
+		t.Fatal(err)
+	}
+	for name, module := range averaged.Adapter().Modules {
+		for factor, values := range [2][]float32{module.Down, module.Up} {
+			for index, value := range values {
+				if got, want := float64(value), expected[name][factor][index]; math.Abs(got-want) > 1e-5 {
+					t.Fatalf("%s factor %d [%d] = %v, the average of the steps is %v", name, factor, index, got, want)
+				}
+			}
+		}
+	}
+	for name, module := range averaged.Adapter().Modules {
+		delta, err := averaged.Adapter().Delta(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		weight := averagedModel.Weights[name+weightSuffix]
+		for index, value := range weight {
+			if want := original[name+weightSuffix][index] + delta[index]; math.Abs(float64(value-want)) > 1e-5 {
+				t.Fatalf("%s[%d] = %v, the base plus the averaged adapter is %v (module of rank %d)", name, index, value, want, module.Rank)
+			}
+		}
+	}
+	if err := stepped.UseAverage(); err == nil {
+		t.Error("an average that was never started was used")
+	}
+	if err := stepped.Average(1); err == nil {
+		t.Error("a decay of one was accepted")
+	}
+}
+
+// TestAveragedTrainingResumesFromACheckpoint trains an adapter eight updates
+// under an average, and again stopping after the fourth: a trainer over the
+// adapter as it stood then, given the optimizer's state and the average, takes the
+// last four and ends holding exactly the factors, and so the model, the
+// uninterrupted run did.
+func TestAveragedTrainingResumesFromACheckpoint(t *testing.T) {
+	const (
+		decay = 0.9
+		stop  = 4
+		steps = 8
+	)
+	batches := make([][]int, steps)
+	for index := range batches {
+		batches[index] = periodic
+	}
+	config := Config{Rank: 2, Alpha: 4, Seed: 1}
+
+	wholeModel, _, _ := tinyModel(t)
+	whole, err := New(wholeModel, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := whole.Average(decay); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := whole.Train(batches, nil, 0.02, 0.9, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := whole.UseAverage(); err != nil {
+		t.Fatal(err)
+	}
+
+	firstModel, _, _ := tinyModel(t)
+	first, err := New(firstModel, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Average(decay); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.Train(batches[:stop], nil, 0.02, 0.9, nil); err != nil {
+		t.Fatal(err)
+	}
+	state, err := first.OptimizerState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	average, err := optimizer.RestoreAverage(slices.Clone(first.AverageState().Values()), first.AverageState().Updates(), first.AverageState().Decay())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// What a checkpoint holds: the adapter's factors, copied, and the model its factors adapt.
+	stopped := peft.Adapter{Config: first.Adapter().Config, Modules: map[string]peft.Module{}}
+	for name, module := range first.Adapter().Modules {
+		module.Down, module.Up = slices.Clone(module.Down), slices.Clone(module.Up)
+		stopped.Modules[name] = module
+	}
+
+	resumedModel, _, _ := tinyModel(t)
+	resumed, err := Resume(resumedModel, stopped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := resumed.Restore(state, average, 0.02, 0.9); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resumed.Train(batches[stop:], nil, 0.02, 0.9, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := resumed.UseAverage(); err != nil {
+		t.Fatal(err)
+	}
+	for name, module := range whole.Adapter().Modules {
+		other := resumed.Adapter().Modules[name]
+		if !slices.Equal(module.Down, other.Down) || !slices.Equal(module.Up, other.Up) {
+			t.Fatalf("%s differs between the uninterrupted run and the one resumed from its fourth update", name)
+		}
+	}
+	for name, values := range wholeModel.Weights {
+		if !slices.Equal(values, resumedModel.Weights[name]) {
+			t.Fatalf("model tensor %s differs between the uninterrupted and the resumed run", name)
+		}
+	}
+	if err := resumed.Restore(state, nil, 0.5, 0.9); err == nil || !strings.Contains(err.Error(), "fixed by the first update") {
+		t.Errorf("a changed rate on restore: err = %v", err)
+	}
+}
+
+func widen(values []float32) []float64 {
+	wide := make([]float64, len(values))
+	for index, value := range values {
+		wide[index] = float64(value)
+	}
+	return wide
 }

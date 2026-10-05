@@ -45,9 +45,9 @@ func TestWorkspaceManifest(t *testing.T) {
 			t.Fatalf("workspace manifest lacks %q", required)
 		}
 	}
-	// Five places; the analysis tabs are Inspect's views and the scorecard is the Library's, with no
-	// navigation entry of their own.
-	owners := map[string]string{"inspect": "inspect", "library": "models"}
+	// Five places; the analysis tabs are Inspect's views, the scorecard is the Library's and the requests
+	// the API tab's, with no navigation entry of their own.
+	owners := map[string]string{"inspect": "inspect", "library": "models", "api": "operations"}
 	views := 0
 	for _, tab := range manifest.Tabs {
 		if tab.ViewOf == "" {
@@ -58,8 +58,8 @@ func TestWorkspaceManifest(t *testing.T) {
 			t.Errorf("view %+v does not belong to a place that shows it", tab)
 		}
 	}
-	if len(manifest.Sections) != 5 || views != 7 {
-		t.Fatalf("workspace manifest has %d places and %d views, want 5 and 7", len(manifest.Sections), views)
+	if len(manifest.Sections) != 5 || views != 8 {
+		t.Fatalf("workspace manifest has %d places and %d views, want 5 and 8", len(manifest.Sections), views)
 	}
 }
 

@@ -56,6 +56,24 @@ func unpermuteRows(values []float32, rows, columns, heads int) []float32 {
 // until the expert name mapping lands — an exact refusal, never a silently
 // wrong catalog.
 func LoadGGUF(path string) (*Model, error) {
+	return loadGGUF(path, nil)
+}
+
+// LoadGGUFFrozen is LoadGGUF for a model whose weights hold names, by their
+// catalog names, stay in the quantization the file stores them in instead of
+// dequantizing at load: they are dequantized into a scratch buffer as each layer
+// reads them, so the model holds their stored bytes and one layer's scratch, not
+// every weight in full precision. A tensor the file stores in full precision is
+// loaded as LoadGGUF loads it, and so is a llama query or key projection. The model is for training an adapter over those
+// weights (see Model.OnDequantize); it trains no weight of its own.
+func LoadGGUFFrozen(path string, hold func(name string) bool) (*Model, error) {
+	if hold == nil {
+		return nil, errors.New("densecausal: freezing GGUF weights needs the predicate that names them")
+	}
+	return loadGGUF(path, hold)
+}
+
+func loadGGUF(path string, hold func(name string) bool) (*Model, error) {
 	file, err := gguf.Open(path)
 	if err != nil {
 		return nil, err
@@ -78,6 +96,7 @@ func LoadGGUF(path string) (*Model, error) {
 	}
 	weights := make(map[string][]float32, len(file.Tensors))
 	shapes := make(map[string][]int, len(file.Tensors))
+	held := map[string]frozenTensor{}
 	for _, info := range file.Tensors {
 		if info.Name == "rope_freqs.weight" {
 			continue
@@ -102,6 +121,14 @@ func LoadGGUF(path string) (*Model, error) {
 		if err := file.ReadTensorData(info, storage); err != nil {
 			return nil, fmt.Errorf("densecausal: read %q: %w", info.Name, err)
 		}
+		shapes[name] = shape
+		// A held tensor is dequantized as stored, so a llama query or key
+		// projection, whose stored rows the load must reorder, is read in full.
+		reordered := permuted && (strings.HasSuffix(name, queryProjection) || strings.HasSuffix(name, keyProjection))
+		if hold != nil && info.Type != gguf.DTypeF32 && hold(name) && !reordered {
+			held[name] = frozenTensor{stored: info.Type, data: storage}
+			continue
+		}
 		values, err := quant.Dequantize(info.Type, storage, elements)
 		if err != nil {
 			return nil, fmt.Errorf("densecausal: dequantize %q: %w", info.Name, err)
@@ -115,7 +142,25 @@ func LoadGGUF(path string) (*Model, error) {
 			}
 		}
 		weights[name] = values
-		shapes[name] = shape
+	}
+	// A frozen projection's slice, which a layer binds, is a prefix of the scratch of
+	// its kind, shared by every layer, sized for the largest.
+	scratch := map[string][]float32{}
+	for name := range held {
+		kind, size := projectionKind(name), 1
+		for _, extent := range shapes[name] {
+			size *= extent
+		}
+		if len(scratch[kind]) < size {
+			scratch[kind] = make([]float32, size)
+		}
+	}
+	for name := range held {
+		size := 1
+		for _, extent := range shapes[name] {
+			size *= extent
+		}
+		weights[name] = scratch[projectionKind(name)][:size]
 	}
 	m, err := NewMixtureModel(
 		weights, shapes, int(spec.HeadCount), int(spec.KeyLength),
@@ -126,5 +171,11 @@ func LoadGGUF(path string) (*Model, error) {
 		return nil, err
 	}
 	m.Dims.ContextLength = int(spec.ContextLength)
+	if len(held) != 0 {
+		for name := range held {
+			delete(m.Weights, name)
+		}
+		m.frozen = &frozenWeights{tensors: held, scratch: scratch}
+	}
 	return m, nil
 }

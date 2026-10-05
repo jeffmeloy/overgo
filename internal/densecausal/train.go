@@ -19,9 +19,40 @@ type TrainObserver func(step int, loss float64, stepWall time.Duration) error
 // It is observation-only: the delivered slices do not alias training state.
 type MoERouterObserver func(step int, observation MoERouterObservation) error
 
+// TrainOptions are what a host training run adds to its token batches.
+type TrainOptions struct {
+	// Trained holds each batch's flags for the tokens it learns (see
+	// MaskedLossAndGrads); nil learns every token.
+	Trained [][]bool
+	// Average, when positive, is the decay of a moving average of the weights
+	// (optimizer.Average) taken after each update; the run ends with the model
+	// holding the average, its optimizer state the one training reached.
+	Average float64
+	// ResumeAverage continues an average an earlier run left (optimizer.RestoreAverage)
+	// in place of starting one at Average; the weights it spans must be the model's.
+	ResumeAverage *optimizer.Average
+	// ObserveRouter, when set, receives each update's MoE routes.
+	ObserveRouter MoERouterObserver
+	// Checkpoint, when set with a positive CheckpointEvery, is called after every
+	// that many updates, counted from the optimizer's first, but not after the last,
+	// with the number of updates done, the optimizer's state and the average, nil
+	// when the run keeps none; the model's tensors then hold the weights as the
+	// update left them, not the average.
+	CheckpointEvery int
+	Checkpoint      func(done int, state TrainState, average *optimizer.Average) error
+}
+
 // Train executes ordered token batches with optional resume and observation.
 func (m *Model) Train(batches [][]int, baseLR, mu float64, resume *TrainState, observe TrainObserver) ([]float64, TrainState, error) {
-	return m.train(batches, baseLR, mu, resume, observe, nil)
+	return m.TrainWith(batches, baseLR, mu, resume, observe, TrainOptions{})
+}
+
+// TrainWith executes ordered token batches as Train does, under the options.
+func (m *Model) TrainWith(batches [][]int, baseLR, mu float64, resume *TrainState, observe TrainObserver, options TrainOptions) ([]float64, TrainState, error) {
+	if options.Trained != nil && len(options.Trained) != len(batches) {
+		return nil, TrainState{}, fmt.Errorf("densecausal: trained flags for %d batches, %d given", len(batches), len(options.Trained))
+	}
+	return m.train(batches, baseLR, mu, resume, observe, options)
 }
 
 // TrainWithRouterObservations executes the host/reference trainer while
@@ -34,19 +65,28 @@ func (m *Model) TrainWithRouterObservations(
 	observe TrainObserver,
 	observeRouter MoERouterObserver,
 ) ([]float64, TrainState, error) {
-	if observeRouter == nil {
-		return m.Train(batches, baseLR, mu, resume, observe)
-	}
-	return m.train(batches, baseLR, mu, resume, observe, observeRouter)
+	return m.train(batches, baseLR, mu, resume, observe, TrainOptions{ObserveRouter: observeRouter})
 }
 
-func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.State, observe TrainObserver, observeRouter MoERouterObserver) ([]float64, optimizer.State, error) {
+func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.State, observe TrainObserver, options TrainOptions) ([]float64, optimizer.State, error) {
 	if err := validateTokenBatches(batches); err != nil {
 		return nil, optimizer.State{}, err
 	}
 	update, err := m.NewDenseUpdate(baseLR, mu, resume)
 	if err != nil {
 		return nil, optimizer.State{}, err
+	}
+	weights, _ := update.Pack.Slabs()
+	average := options.ResumeAverage
+	switch {
+	case average != nil:
+		if len(average.Values()) != len(weights) {
+			return nil, optimizer.State{}, fmt.Errorf("densecausal: a resumed average spans %d weights, the model's are %d", len(average.Values()), len(weights))
+		}
+	case options.Average > 0:
+		if average, err = optimizer.NewAverage(weights, options.Average); err != nil {
+			return nil, optimizer.State{}, err
+		}
 	}
 
 	trajectory := make([]float64, 0, len(batches))
@@ -56,7 +96,11 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 	}
 	for step, tokens := range batches {
 		stepStarted := time.Now()
-		loss, grads, err := m.trainingLossAndGrads(tokens, firstStep+step, observeRouter)
+		var flags []bool
+		if options.Trained != nil {
+			flags = options.Trained[step]
+		}
+		loss, grads, err := m.trainingLossAndGrads(tokens, flags, firstStep+step, options.ObserveRouter)
 		if err != nil {
 			return nil, optimizer.State{}, err
 		}
@@ -64,11 +108,25 @@ func (m *Model) train(batches [][]int, baseLR, mu float64, resume *optimizer.Sta
 		if _, err := update.step(grads); err != nil {
 			return nil, optimizer.State{}, err
 		}
+		if average != nil {
+			if err := average.Update(weights); err != nil {
+				return nil, optimizer.State{}, err
+			}
+		}
 		if observe != nil {
 			if err := observe(step, loss, time.Since(stepStarted)); err != nil {
 				return nil, optimizer.State{}, err
 			}
 		}
+		if done := firstStep + step + 1; options.Checkpoint != nil && options.CheckpointEvery > 0 && done%options.CheckpointEvery == 0 && step+1 < len(batches) {
+			if err := options.Checkpoint(done, update.Snapshot(), average); err != nil {
+				return nil, optimizer.State{}, err
+			}
+		}
+	}
+	if average != nil {
+		copy(weights, average.Values())
+		update.Pack.Scatter()
 	}
 	return trajectory, update.Snapshot(), nil
 }
@@ -128,12 +186,18 @@ func validateTokenBatches(batches [][]int) error {
 
 // TrainingPlan compiles dense parameter and Muon identity without storage.
 func (m *Model) TrainingPlan() (optimizer.Plan, error) {
+	if m.frozen != nil {
+		return optimizer.Plan{}, errFrozen
+	}
 	return optimizer.TensorPlan(m.Weights, m.muonGeometry)
 }
 
 // TrainingPack packs every model tensor over the TrainingPlan; its Scatter
 // publishes the packed weights back to the model tensors.
 func (m *Model) TrainingPack() (*optimizer.TensorPack, error) {
+	if m.frozen != nil {
+		return nil, errFrozen
+	}
 	return optimizer.NewTensorPack(m.Weights, m.muonGeometry)
 }
 

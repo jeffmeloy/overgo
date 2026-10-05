@@ -180,7 +180,7 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, _, err := textObjectiveData(ctx, store, objective, tokenizer, baseModel.Dims.ContextLength)
+	data, _, err := textObjectiveData(ctx, store, objective, tokenizer, baseModel.Dims.ContextLength, false)
 	if err != nil || data.Heldout != verdict.Inputs {
 		t.Fatalf("held-out inputs read again = (%s, %v), want the bound %s", data.Heldout, err, verdict.Inputs)
 	}
@@ -210,7 +210,7 @@ func TestHeldoutApprovalReconstructsTheTrainedResult(t *testing.T) {
 		for _, target := range cases {
 			example := data.Examples[target.Record]
 			example.Record = target.Record
-			prediction, err := nextTokens(model, example)
+			prediction, err := nextTokens(model, example, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

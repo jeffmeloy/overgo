@@ -153,10 +153,14 @@ func (recorder *statusRecorder) WriteHeader(status int) {
 // Unwrap hands http.ResponseController the writer underneath.
 func (recorder *statusRecorder) Unwrap() http.ResponseWriter { return recorder.ResponseWriter }
 
+// Flush keeps a streamed route streaming: the handlers find the flusher by asserting it on the writer.
+func (recorder *statusRecorder) Flush() {
+	_ = http.NewResponseController(recorder.ResponseWriter).Flush()
+}
+
 // serveInventoryChange serves an inventory route and, when a call other than
 // a GET succeeds, tells every workspace which inventory it changed.
-func (h *Handler) serveInventoryChange(route routeDescriptor, response http.ResponseWriter, request *http.Request) {
-	recorder := &statusRecorder{ResponseWriter: response, status: http.StatusOK}
+func (h *Handler) serveInventoryChange(route routeDescriptor, recorder *statusRecorder, request *http.Request) {
 	route.Handler(h, recorder, request)
 	if request.Method != http.MethodGet && recorder.status < http.StatusMultipleChoices {
 		segment, _, _ := strings.Cut(strings.TrimPrefix(route.Path, "/"), "/")

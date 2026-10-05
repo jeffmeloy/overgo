@@ -56,17 +56,17 @@ func TestTrainObjectiveModeFreezesLexicalOnTheDevice(t *testing.T) {
 // own rank, alpha and targets, so the others are not carried beside it.
 func TestLoRAFlagsMakeTheRunTheyAskFor(t *testing.T) {
 	t.Parallel()
-	if lora := loraRequest(0, 0, "", 0, ""); lora != nil {
+	if lora := loraRequest(loraFlags{}); lora != nil {
 		t.Fatalf("no flags asked for %+v", lora)
 	}
-	lora := loraRequest(8, 0, "q_proj, v_proj,,", 7, "")
+	lora := loraRequest(loraFlags{Rank: 8, Targets: "q_proj, v_proj,,", Seed: 7})
 	if lora == nil || lora.Rank != 8 || lora.Alpha != 16 || !slices.Equal(lora.Targets, []string{"q_proj", "v_proj"}) || lora.Seed != 7 || lora.From != "" {
 		t.Fatalf("rank 8 asked for %+v, want alpha 16 and the two targets", lora)
 	}
-	if lora := loraRequest(8, 32, "", 0, ""); lora == nil || lora.Alpha != 32 || len(lora.Targets) != 0 {
+	if lora := loraRequest(loraFlags{Rank: 8, Alpha: 32, RSLoRA: true, Plus: 4}); lora == nil || lora.Alpha != 32 || len(lora.Targets) != 0 || !lora.RSLoRA || lora.UpRate != 4 {
 		t.Fatalf("an explicit alpha asked for %+v", lora)
 	}
-	if lora := loraRequest(8, 32, "q_proj", 7, "adapter"); lora == nil || lora.From != "adapter" || lora.Rank != 0 || lora.Alpha != 0 || len(lora.Targets) != 0 || lora.Seed != 0 {
+	if lora := loraRequest(loraFlags{Rank: 8, Alpha: 32, Targets: "q_proj", Seed: 7, From: "adapter", RSLoRA: true, Plus: 4, Quantized: true}); lora == nil || lora.From != "adapter" || lora.Rank != 0 || lora.Alpha != 0 || len(lora.Targets) != 0 || lora.Seed != 0 || lora.RSLoRA || lora.UpRate != 0 || !lora.Quantized {
 		t.Fatalf("continuing an adapter asked for %+v, want only its directory", lora)
 	}
 }

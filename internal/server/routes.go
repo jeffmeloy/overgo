@@ -25,6 +25,9 @@ type routeDescriptor struct {
 	// Inventory: a successful call other than a GET changes the inventory its
 	// path's first segment names, and the event hub tells every workspace.
 	Inventory bool
+	// Unrecorded: the request monitor leaves the route out, the monitor's own reads and a
+	// subscription that is held open for as long as a page listens.
+	Unrecorded bool
 }
 
 var routeCatalog = []routeDescriptor{
@@ -119,7 +122,8 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/loop/status", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).loopStatus},
 	{Path: "/loop/stop", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).loopStop},
 	{Path: "/runtime/activity", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeActivity},
-	{Path: "/runtime/activity/stream", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeActivityStream},
+	{Path: "/runtime/activity/stream", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).runtimeActivityStream, Unrecorded: true},
+	{Path: "/requests", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).requestLog, Unrecorded: true},
 	{Path: "/runtime/peers", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).remotePeerAuthority},
 	{Path: "/slots", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).slotStatus},
 	{Path: "/lora-adapters", Authentication: routeBearer, Methods: []string{http.MethodGet, http.MethodPost}, Handler: (*Handler).loraAdapters, Inventory: true},

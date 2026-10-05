@@ -7,9 +7,11 @@
 package densecausal
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"math"
+	"slices"
 
 	"overgo/internal/binaryschema"
 	"overgo/internal/hostmath"
@@ -22,30 +24,65 @@ type Grads map[string][]float32
 // mean CE (positions 0..n-2 predict tokens 1..n-1), the full logits, and
 // every parameter gradient.
 func (m *Model) LossAndGrads(tokens []int) (float64, []float32, Grads, error) {
-	return m.lossAndGrads(tokens, true, nil, Grads{})
+	return m.lossAndGrads(tokens, nil, true, nil, Grads{})
 }
 
 // LossAndGradsOf is LossAndGrads for a run that trains some of the weights,
 // and returns the loss and the gradients of the weights train names alone: the
 // others cost neither their memory nor their weight-gradient arithmetic.
 func (m *Model) LossAndGradsOf(tokens []int, train func(name string) bool) (float64, Grads, error) {
+	skipped := m.skippedGradients(train)
+	loss, _, gradients, err := m.lossAndGrads(tokens, nil, true, nil, skipped)
+	maps.DeleteFunc(gradients, func(_ string, gradient []float32) bool { return gradient == nil })
+	return loss, gradients, err
+}
+
+// MaskedLossAndGrads runs forward and full backward on one token batch as
+// LossAndGrads does, but learns only some tokens: trained says, token by
+// token, whether the model is judged on predicting it, so the loss is the
+// mean cross-entropy over the trained tokens alone, a token that is not
+// trained adds nothing to it or to any gradient, and a window of no
+// trained token is refused. The first token is predicted by nothing, so
+// its flag is not read. A nil trained learns every token LossAndGrads
+// does.
+func (m *Model) MaskedLossAndGrads(tokens []int, trained []bool) (float64, Grads, error) {
+	return m.MaskedLossAndGradsOf(tokens, trained, func(string) bool { return true })
+}
+
+// MaskedLossAndGradsOf is MaskedLossAndGrads for a run that trains some of the
+// weights, as LossAndGradsOf is for LossAndGrads: it returns the gradients of the
+// weights train names alone. A nil trained is LossAndGradsOf itself, which keeps
+// the logits through the backward, the faster path and the one whose loss and
+// gradients are the same bits as ever; a mask runs the windowed head, which the
+// retained logits cannot serve.
+func (m *Model) MaskedLossAndGradsOf(tokens []int, trained []bool, train func(name string) bool) (float64, Grads, error) {
+	if trained == nil {
+		return m.LossAndGradsOf(tokens, train)
+	}
+	skipped := m.skippedGradients(train)
+	loss, _, gradients, err := m.lossAndGrads(tokens, trained, false, nil, skipped)
+	maps.DeleteFunc(gradients, func(_ string, gradient []float32) bool { return gradient == nil })
+	return loss, gradients, err
+}
+
+// skippedGradients holds a nil gradient for each weight train does not name, the
+// form lossAndGrads reads as a gradient to leave uncomputed.
+func (m *Model) skippedGradients(train func(name string) bool) Grads {
 	skipped := Grads{}
 	for name := range m.Weights {
 		if !train(name) {
 			skipped[name] = nil
 		}
 	}
-	loss, _, gradients, err := m.lossAndGrads(tokens, true, nil, skipped)
-	maps.DeleteFunc(gradients, func(_ string, gradient []float32) bool { return gradient == nil })
-	return loss, gradients, err
+	return skipped
 }
 
-func (m *Model) trainingLossAndGrads(tokens []int, step int, observeRouter MoERouterObserver) (float64, Grads, error) {
+func (m *Model) trainingLossAndGrads(tokens []int, trained []bool, step int, observeRouter MoERouterObserver) (float64, Grads, error) {
 	var observation *routerObservationContext
 	if observeRouter != nil {
 		observation = &routerObservationContext{step: step, observer: observeRouter}
 	}
-	loss, _, gradients, err := m.lossAndGrads(tokens, false, observation, Grads{})
+	loss, _, gradients, err := m.lossAndGrads(tokens, trained, false, observation, Grads{})
 	return loss, gradients, err
 }
 
@@ -56,9 +93,12 @@ type routerObservationContext struct {
 
 // lossAndGrads accumulates into g, where a name held with a nil gradient is a
 // weight whose gradient is skipped.
-func (m *Model) lossAndGrads(tokens []int, retainLogits bool, observation *routerObservationContext, g Grads) (float64, []float32, Grads, error) {
+func (m *Model) lossAndGrads(tokens []int, trained []bool, retainLogits bool, observation *routerObservationContext, g Grads) (float64, []float32, Grads, error) {
 	if len(tokens) < 2 {
 		return 0, nil, nil, fmt.Errorf("densecausal: need at least 2 tokens, got %d", len(tokens))
+	}
+	if trained != nil && (len(trained) != len(tokens) || retainLogits) {
+		return 0, nil, nil, fmt.Errorf("densecausal: %d trained flags for %d tokens, or flags asked with retained logits", len(trained), len(tokens))
 	}
 	// The host trainer runs full causal attention; within the artifact's
 	// declared serving window the two are identical, beyond it they diverge,
@@ -71,7 +111,7 @@ func (m *Model) lossAndGrads(tokens []int, retainLogits bool, observation *route
 		return 0, nil, nil, err
 	}
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
-	return m.lossAndGradsFromStates(tokens, states, retainLogits, g, func(
+	return m.lossAndGradsFromStates(tokens, trained, states, retainLogits, g, func(
 		index int, input, outputGradient []float32, sequence int, gradients Grads,
 	) ([]float32, error) {
 		return m.layerBackwardObserved(index, input, outputGradient, invFreq, sequence, gradients, observation)
@@ -87,6 +127,7 @@ type layerGradient func(
 
 func (m *Model) lossAndGradsFromStates(
 	tokens []int,
+	trained []bool,
 	states [][]float32,
 	retainLogits bool,
 	g Grads,
@@ -109,7 +150,15 @@ func (m *Model) lossAndGradsFromStates(
 		loss = hostmath.SoftmaxCrossEntropy(dLogits[:(seq-1)*d.Vocab], logits[:(seq-1)*d.Vocab], tokens[1:], seq-1, d.Vocab)
 		hostmath.LinearBackward(dNormed, gradHead, nil, normed, head, dLogits, seq, d.Hidden, d.Vocab, false)
 	} else {
-		loss = headBackward(normed[:(seq-1)*d.Hidden], tokens[1:], head, gradHead, dNormed[:(seq-1)*d.Hidden], d.Hidden, d.Vocab, headWindowRows(d.Vocab))
+		// A row predicts the token after it, so the flags of the tokens from the second on select the rows.
+		var selected []bool
+		if trained != nil {
+			selected = trained[1:]
+			if !slices.Contains(selected, true) {
+				return 0, nil, nil, errors.New("densecausal: no token of the window is trained")
+			}
+		}
+		loss = headBackward(normed[:(seq-1)*d.Hidden], tokens[1:], selected, head, gradHead, dNormed[:(seq-1)*d.Hidden], d.Hidden, d.Vocab, headWindowRows(d.Vocab))
 	}
 	dx := make([]float32, seq*d.Hidden)
 	hostmath.RMSNormBackward(dx, hostmath.GradientSlot(g, m.tensors.finalNorm.name, d.Hidden), final, m.tensors.finalNorm.values, dNormed, seq, d.Hidden, d.RMSEps, false)
@@ -146,29 +195,47 @@ func headWindowRows(vocab int) int {
 	return max(headWindowBytes/(headWindowBuffers*vocab*binaryschema.Uint32Bytes), 1)
 }
 
-// headBackward is the mean cross-entropy of the head over the rows of normed
-// against their targets, and its gradient: dNormed is set and gradHead (when
-// not nil) accumulated. The head is applied to window rows at a time, each
-// window's logits on the worker pool and its gradient through the pooled linear
-// backward, so the logits of the whole sequence are never held. Each row's
-// gradient is its own, so the windows add up to the sequence's.
-func headBackward(normed []float32, targets []int, head, gradHead, dNormed []float32, hidden, vocab, window int) float64 {
-	rows := len(targets)
-	logits, dLogits := make([]float32, min(window, rows)*vocab), make([]float32, min(window, rows)*vocab)
+// headBackward is the mean cross-entropy of the head over the selected rows of
+// normed (every row when selected is nil) against their targets, and its
+// gradient: dNormed is set, a row not selected keeping the zero it holds, and
+// gradHead (when not nil) accumulated. The selected rows are gathered and the
+// head is applied to window of them at a time, each window's logits on the
+// worker pool and its gradient through the pooled linear backward, so the
+// logits of the whole sequence are never held and a row the run does not train
+// costs the head nothing. Each row's gradient is its own, so the windows add up
+// to the selected rows'.
+func headBackward(normed []float32, targets []int, selected []bool, head, gradHead, dNormed []float32, hidden, vocab, window int) float64 {
+	chosen := make([]int, 0, len(targets))
+	for row := range targets {
+		if selected == nil || selected[row] {
+			chosen = append(chosen, row)
+		}
+	}
+	width := min(window, len(chosen))
+	logits, dLogits := make([]float32, width*vocab), make([]float32, width*vocab)
+	gathered, dGathered := make([]float32, width*hidden), make([]float32, width*hidden)
+	picked := make([]int, width)
 	var loss float64
-	for start := 0; start < rows; start += window {
-		count := min(window, rows-start)
-		chunk := normed[start*hidden : (start+count)*hidden]
-		hostmath.Linear(logits[:count*vocab], chunk, head, count, hidden, vocab)
-		mean := hostmath.SoftmaxCrossEntropy(dLogits[:count*vocab], logits[:count*vocab], targets[start:start+count], count, vocab)
-		// The window's mean and gradient are over its own rows; the sequence's are over all of them.
-		share := float64(count) / float64(rows)
+	for start := 0; start < len(chosen); start += window {
+		members := chosen[start:min(start+window, len(chosen))]
+		count := len(members)
+		for index, row := range members {
+			copy(gathered[index*hidden:(index+1)*hidden], normed[row*hidden:(row+1)*hidden])
+			picked[index] = targets[row]
+		}
+		hostmath.Linear(logits[:count*vocab], gathered[:count*hidden], head, count, hidden, vocab)
+		mean := hostmath.SoftmaxCrossEntropy(dLogits[:count*vocab], logits[:count*vocab], picked[:count], count, vocab)
+		// The window's mean and gradient are over its own rows; the selected rows' are over all of them.
+		share := float64(count) / float64(len(chosen))
 		loss += mean * share
 		scale := float32(share)
 		for index := range dLogits[:count*vocab] {
 			dLogits[index] *= scale
 		}
-		hostmath.LinearBackward(dNormed[start*hidden:(start+count)*hidden], gradHead, nil, chunk, head, dLogits[:count*vocab], count, hidden, vocab, false)
+		hostmath.LinearBackward(dGathered[:count*hidden], gradHead, nil, gathered[:count*hidden], head, dLogits[:count*vocab], count, hidden, vocab, false)
+		for index, row := range members {
+			copy(dNormed[row*hidden:(row+1)*hidden], dGathered[index*hidden:(index+1)*hidden])
+		}
 	}
 	return loss
 }
@@ -197,7 +264,10 @@ func (m *Model) layerBackwardObserved(
 	observationContext *routerObservationContext,
 ) ([]float32, error) {
 	d := m.Dims
-	l := m.layers[index]
+	l, err := m.useLayer(index)
+	if err != nil {
+		return nil, err
+	}
 	width := d.Heads * d.HeadDim
 	kvWidth := d.KVHeads * d.HeadDim
 

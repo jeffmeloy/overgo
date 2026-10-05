@@ -3,6 +3,7 @@ package trainingworkflow
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 
 	"overgo/internal/densecausal"
 	"overgo/internal/loratrain"
@@ -31,17 +32,49 @@ type LoRA struct {
 	Targets []string
 	// Seed makes the factors' initialization repeat.
 	Seed uint64
-	From string
+	// RSLoRA scales every module by alpha over the root of its rank, and UpRate
+	// trains the up factor that many times faster than the down one (loratrain.Config).
+	RSLoRA bool
+	UpRate float64
+	From   string
+	// Quantized keeps each adapted projection of a GGUF base in the quantization the file
+	// stores it in, dequantizing it as each layer reads it, so the run holds those weights
+	// as stored bytes rather than in full precision. The model it publishes is then the base
+	// as stored, the adapter it trained in the checkpoint's PEFT directory, which the server
+	// loads beside the base or gguf merge-lora writes into it; a base that is not a GGUF
+	// is refused.
+	Quantized bool
+}
+
+// frozenWeights is the predicate naming the weights a Quantized run holds as
+// stored: those the adapter adapts, by the targets that start one or by the
+// modules of the adapter that continues.
+func (lora LoRA) frozenWeights() (func(weight string) bool, error) {
+	if lora.From == "" {
+		return loratrain.Adapts(lora.Targets), nil
+	}
+	adapter, err := peft.Load(lora.From)
+	if err != nil {
+		return nil, err
+	}
+	return func(weight string) bool {
+		module, found := strings.CutSuffix(weight, ".weight")
+		_, adapted := adapter.Modules[module]
+		return found && adapted
+	}, nil
 }
 
 // trainer starts the run's adapter over the model read from modelDirectory,
 // which a new adapter's PEFT config names as the model it was trained on.
 func (lora LoRA) trainer(model *densecausal.Model, modelDirectory string) (*loratrain.Trainer, error) {
 	if lora.From == "" {
-		return loratrain.New(model, loratrain.Config{Rank: lora.Rank, Alpha: lora.Alpha, Targets: lora.Targets, Seed: lora.Seed, BaseModel: filepath.Base(modelDirectory)})
+		return loratrain.New(model, loratrain.Config{
+			Rank: lora.Rank, Alpha: lora.Alpha, Targets: lora.Targets, Seed: lora.Seed, BaseModel: filepath.Base(modelDirectory),
+			RSLoRA: lora.RSLoRA, UpRate: lora.UpRate,
+		})
 	}
-	if lora.Rank != 0 || lora.Alpha != 0 || len(lora.Targets) != 0 {
-		return nil, errors.New("training workflow: a LoRA run that continues an adapter takes the adapter's own rank, alpha and targets")
+	if lora.Rank != 0 || lora.Alpha != 0 || len(lora.Targets) != 0 || lora.RSLoRA || lora.UpRate != 0 {
+		return nil, errors.New("training workflow: a LoRA run that continues an adapter takes the adapter's own rank, alpha, targets and scaling")
 	}
 	adapter, err := peft.Load(lora.From)
 	if err != nil {

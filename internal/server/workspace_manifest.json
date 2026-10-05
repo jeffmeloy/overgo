@@ -26,6 +26,7 @@
     {"id": "runs", "label": "Runs", "section": "operations", "capability": "repository", "module": "training"},
     {"id": "artifacts", "label": "Artifacts", "section": "operations", "capability": "repository"},
     {"id": "api", "label": "API", "section": "operations", "capability": "explorer"},
+    {"id": "requests", "label": "Requests", "section": "operations", "capability": "explorer", "view_of": "api"},
     {"id": "inspect", "label": "Inspect", "section": "inspect", "capability": "analysis"},
     {"id": "model", "label": "Model", "section": "inspect", "capability": "model.properties", "module": "analyze_model", "view_of": "inspect"},
     {"id": "vocab", "label": "Vocabulary", "section": "inspect", "capability": "analysis.vocabulary", "module": "analyze_vocab", "view_of": "inspect"},

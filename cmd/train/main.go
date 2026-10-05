@@ -18,6 +18,10 @@ import (
 	"overgo/internal/trainingworkflow"
 )
 
+// defaultKeptCheckpoints is how many of the checkpoints -save-every writes the run
+// keeps unless -keep-last names another number: the newest three.
+const defaultKeptCheckpoints = 3
+
 // denseDevice trains a dense-causal model on the device; the Windows build,
 // which carries the CUDA worker, registers it.
 var denseDevice trainingworkflow.DeviceTrainer
@@ -58,14 +62,27 @@ func run() error {
 	loraAlpha := flag.Float64("lora-alpha", 0, "with -lora-rank: the adapter's alpha, its scale being alpha over rank; omitted takes twice the rank")
 	loraTargets := flag.String("lora-targets", "", "with -lora-rank: comma-separated projections to adapt (q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj); omitted adapts all of them")
 	loraSeed := flag.Uint64("lora-seed", 0, "with -lora-rank: seed of the adapter's initialization")
+	average := flag.Float64("average", 0, "with -objective: keep a moving average of the trained weights, or of an adapter's factors, at this decay in (0, 1) (0.99 is usual), warmed up so a short run is not mostly its start, and publish the average as the trained model; runs on the host")
+	loraRSLoRA := flag.Bool("lora-rslora", false, "with -lora-rank: rank-stabilized LoRA, each module scaled by alpha over the root of its rank rather than over its rank")
+	loraPlus := flag.Float64("lora-plus", 0, "with -lora-rank: LoRA+, the up factor learning this many times faster than the down factor (1 or more); omitted is plain LoRA")
+	saveEvery := flag.Int("save-every", 0, "with -objective: save a checkpoint beside -out (out-step-000040) after every this many updates but the last, on the host")
+	keepLast := flag.Int("keep-last", defaultKeptCheckpoints, "with -save-every: how many of the newest saved checkpoints to keep")
+	resumeRun := flag.String("resume-run", "", "with -objective: continue from a checkpoint a run saved with -save-every, on the host; the run ends where an uninterrupted one would")
+	loraQuantized := flag.Bool("lora-quantized", false, "with -lora-rank and a GGUF -model: keep each adapted projection as the file stores it, quantized, dequantizing it as its layer reads it, so the run needs far less memory; the model published is then the base as stored, with the adapter in its adapter directory")
 	loraFrom := flag.String("lora-from", "", "with -objective: continue training the PEFT adapter in this directory, which brings its own rank, alpha and targets")
 	flag.Parse()
 	if *proof && *objective == "" {
 		return fmt.Errorf("train: -proof re-verifies an -objective recipe; it needs -objective")
 	}
-	lora := loraRequest(*loraRank, *loraAlpha, *loraTargets, *loraSeed, *loraFrom)
-	if lora == nil && (*loraAlpha != 0 || *loraTargets != "" || *loraSeed != 0) {
-		return fmt.Errorf("train: -lora-alpha, -lora-targets and -lora-seed shape an adapter; they need -lora-rank or -lora-from")
+	lora := loraRequest(loraFlags{Rank: *loraRank, Alpha: *loraAlpha, Targets: *loraTargets, Seed: *loraSeed, From: *loraFrom, RSLoRA: *loraRSLoRA, Plus: *loraPlus, Quantized: *loraQuantized})
+	if lora == nil && (*loraAlpha != 0 || *loraTargets != "" || *loraSeed != 0 || *loraRSLoRA || *loraPlus != 0 || *loraQuantized) {
+		return fmt.Errorf("train: -lora-alpha, -lora-targets, -lora-seed, -lora-rslora, -lora-plus and -lora-quantized shape an adapter; they need -lora-rank or -lora-from")
+	}
+	if (*saveEvery != 0 || *resumeRun != "") && *objective == "" {
+		return fmt.Errorf("train: saving checkpoints and resuming a run belong to an -objective run; -save-every and -resume-run need -objective")
+	}
+	if *average != 0 && *objective == "" {
+		return fmt.Errorf("train: a moving average of the weights is kept under an -objective; -average needs -objective")
 	}
 	if lora != nil && *objective == "" {
 		return fmt.Errorf("train: a LoRA adapter trains under an -objective; -lora-rank and -lora-from need -objective")
@@ -80,7 +97,7 @@ func run() error {
 		flag.Visit(func(given *flag.Flag) { set[given.Name] = true })
 		return runObjectiveMode(ctx, store, objectiveRun{
 			Alias: *objective, Recipe: *recipeID, Model: *model, Out: *output, Steps: *steps, Sequence: *maximumSequence, Host: *host,
-			FreezeLexical: *freezeLexical, Proof: *proof, MaxWall: *maxWall, LoRA: lora,
+			FreezeLexical: *freezeLexical, Proof: *proof, MaxWall: *maxWall, LoRA: lora, Average: *average, SaveEvery: *saveEvery, Keep: *keepLast, ResumeRun: *resumeRun,
 		}, set, os.Stdout)
 	}
 	if *previewDataset != "" {

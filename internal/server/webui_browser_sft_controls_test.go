@@ -44,7 +44,7 @@ func TestWebUIBrowserSFTControls(t *testing.T) {
 	// The dataset is a picker of names: the conversation dataset by name, its identity the value.
 	settle(fmt.Sprintf(`!!control('conversations') && [...control('conversations').querySelectorAll('select option')].some((option) => option.value === %q && option.text === 'chats · 12 files')`, id))
 	// The page says where the run happens and how it learns, beside the controls.
-	check(`/Runs on the host processor/.test(trainingPanel().querySelector('.workflow-placement').textContent) && /Learns every token of each conversation/.test(trainingPanel().querySelector('.workflow-placement').textContent)`)
+	check(`/Runs on the host processor/.test(trainingPanel().querySelector('.workflow-placement').textContent) && /Learns the replies of each conversation/.test(trainingPanel().querySelector('.workflow-placement').textContent)`)
 	check(fmt.Sprintf(`(() => {
   const select = control('conversations').querySelector('select');
   select.value = %q;
@@ -59,9 +59,16 @@ func TestWebUIBrowserSFTControls(t *testing.T) {
 	settle(`!!trainingPanel().querySelector('[data-sequence="conversation"]')`)
 	check(`(() => {
   const sequence = trainingPanel().querySelector('[data-sequence="conversation"]');
-  const trained = sequence.querySelectorAll('.token-run .trained').length;
-  return trained > 0 && sequence.querySelectorAll('.token-run .masked').length === 0 && sequence.querySelector('.note').textContent === 'conversation · ' + trained + ' trained of ' + trained + ' tokens';
+  const trained = sequence.querySelectorAll('.token-run .trained').length, masked = sequence.querySelectorAll('.token-run .masked').length;
+  return trained > 0 && masked > 0 && sequence.querySelector('.note').textContent === 'conversation · ' + trained + ' trained of ' + (trained + masked) + ' tokens';
 })()`)
+	// Averaging the weights is a yes or no beside it, unset until chosen.
+	check(`!!control('average weights') && control('average weights').querySelector('select').value === '' && [...control('average weights').querySelectorAll('option')].some((option) => option.value === 'true')`)
+	// Trained on the prompts too, every token is learned; the choice is then put back.
+	check(`(() => { const select = control('train on prompts').querySelector('select'); select.value = 'true'; select.dispatchEvent(new Event('input', { bubbles: true })); return select.value === 'true'; })()`)
+	check(`(() => { press('Preview as trained'); return true; })()`)
+	settle(`(() => { const sequence = trainingPanel().querySelector('[data-sequence="conversation"]'); return !!sequence && sequence.querySelectorAll('.token-run .masked').length === 0 && sequence.querySelectorAll('.token-run .trained').length > 0; })()`)
+	check(`(() => { const select = control('train on prompts').querySelector('select'); select.value = ''; select.dispatchEvent(new Event('input', { bubbles: true })); return select.value === ''; })()`)
 
 	// A finished run shows the held-out verdict beside the trained model and the run.
 	check(`(() => { press('Run'); return true; })()`)
@@ -121,11 +128,11 @@ func TestWebUIBrowserLoRAControls(t *testing.T) {
   const select = control('conversations').querySelector('select');
   select.value = %q;
   select.dispatchEvent(new Event('input', { bubbles: true }));
-  control('steps').querySelector('input').value = '4';
+  control('steps').querySelector('input').value = '%d';
   control('rank').querySelector('input').value = '2';
   control('output').querySelector('input').value = 'adapted';
   return select.value === %q;
-})()`, fixture.conversations.String(), fixture.conversations.String()))
+})()`, fixture.conversations.String(), adapterSteps, fixture.conversations.String()))
 
 	// The conversations preview as rendered, as for the whole model.
 	check(`(() => { press('Preview as trained'); return true; })()`)

@@ -36,12 +36,15 @@ const (
 	// sftLoRADefaultRank is the rank the page offers a LoRA adapter, the one
 	// PEFT's and LlamaFactory's examples use.
 	sftLoRADefaultRank = 8
+	// sftCheckpointsKept is how many of the checkpoints a run saves along the way
+	// the workbench keeps: the newest.
+	sftCheckpointsKept = 3
 	// sftDatasetFormat is the catalog format of a conversation dataset the page
 	// offers: one JSON file per conversation.
 	sftDatasetFormat = "json"
 	// sftNote and sftLoRANote tell the page how a run learns from its dataset.
-	sftNote     = "Learns every token of each conversation as the model's chat template renders it, the user's turns and the template's own markers as well as the replies: the trainer has no loss mask yet."
-	sftLoRANote = "Trains a low-rank adapter over the frozen model rather than the model, and saves it as a Hugging Face PEFT adapter in the output's adapter directory. Like full fine-tuning it learns every token of each conversation, the user's turns and the template's own markers as well as the replies."
+	sftNote     = "Learns the replies of each conversation as the model's chat template renders them, and only reads the user's turns and the template's own markers; train on prompts: true learns every token, and average weights: true publishes a moving average of the weights."
+	sftLoRANote = "Trains a low-rank adapter over the frozen model rather than the model, and saves it as a Hugging Face PEFT adapter in the output's adapter directory. Like full fine-tuning it learns the replies of each conversation and only reads the rest; train on prompts: true learns every token, and average weights: true publishes a moving average of the adapter's factors. Quantized base: true keeps the adapted projections as the GGUF stores them and dequantizes each as its layer reads it, so the run needs far less memory; the model it publishes is then the base as stored, with the adapter in its adapter directory."
 )
 
 // sftMethod is one way the workspace fine-tunes the served model on
@@ -95,8 +98,15 @@ func (workspace *SFTWorkspace) WorkflowCapabilities(_ context.Context, kind Work
 		}
 		if method.lora {
 			controls = append(controls, workflowControl{Name: "rank", Type: workflowControlInteger, Required: true, Bounds: &workflowControlBounds{Default: sftLoRADefaultRank, Step: 1}})
+			controls = append(controls, workflowControl{Name: "quantized_base", Type: workflowControlBoolean})
 		}
-		controls = append(controls, workflowControl{Name: "output", Type: workflowControlOutput, Required: true})
+		controls = append(controls,
+			workflowControl{Name: "train_on_prompts", Type: workflowControlBoolean},
+			workflowControl{Name: "average_weights", Type: workflowControlBoolean},
+			workflowControl{Name: "sample_every", Type: workflowControlInteger},
+			workflowControl{Name: "save_every", Type: workflowControlInteger},
+			workflowControl{Name: "resume", Type: workflowControlOutput},
+			workflowControl{Name: "output", Type: workflowControlOutput, Required: true})
 		capabilities = append(capabilities, WorkflowCapability{
 			Task: recipe.TaskTraining, Recipe: program.ID, Model: workspace.trainer.Model,
 			Name: filepath.Base(workspace.trainer.File) + method.name, Location: workspace.trainer.File,
@@ -129,6 +139,20 @@ type sftInput struct {
 	Steps   int         `json:"steps"`
 	Rank    int         `json:"rank"`
 	Output  string      `json:"output"`
+	// TrainOnPrompts learns every token of each conversation rather than its replies.
+	TrainOnPrompts bool `json:"train_on_prompts"`
+	// QuantizedBase holds the adapted projections of the served GGUF as stored, dequantized as each
+	// layer reads them, so a LoRA run needs far less memory.
+	QuantizedBase bool `json:"quantized_base"`
+	// AverageWeights publishes a moving average of the weights as the trained model.
+	AverageWeights bool `json:"average_weights"`
+	// SampleEvery, when positive, has the run generate after the prompts of held-out
+	// conversations every that many updates, for the page to show beside the verdict.
+	SampleEvery int `json:"sample_every"`
+	// SaveEvery, when positive, saves a checkpoint after every that many updates, and Resume
+	// names one, an output of an earlier run, to continue from.
+	SaveEvery int    `json:"save_every"`
+	Resume    string `json:"resume"`
 }
 
 // ExecuteWorkflow fine-tunes the served model on the dataset, whole or as an
@@ -148,19 +172,23 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 		return operation.Completion{}, err
 	}
 	inputs := []artifact.ID{workspace.trainer.Model, input.Dataset}
-	if input.Dataset.Kind() != artifact.KindDataset || input.Steps <= 0 {
-		return operation.Completion{}, errors.New("sft workspace: a conversation dataset and a positive number of steps are required")
+	if input.Dataset.Kind() != artifact.KindDataset || input.Steps <= 0 || input.SampleEvery < 0 || input.SaveEvery < 0 {
+		return operation.Completion{}, errors.New("sft workspace: a conversation dataset and a positive number of steps are required, and samples and saved checkpoints come every positive number of steps")
 	}
 	var lora *trainingworkflow.LoRA
 	switch {
 	case method.lora && input.Rank <= 0:
 		return operation.Completion{}, errors.New("sft workspace: a LoRA adapter needs a positive rank")
-	case !method.lora && input.Rank != 0:
-		return operation.Completion{}, errors.New("sft workspace: a rank belongs to the LoRA adapter, not to fine-tuning the whole model")
+	case !method.lora && (input.Rank != 0 || input.QuantizedBase):
+		return operation.Completion{}, errors.New("sft workspace: a rank and a quantized base belong to the LoRA adapter, not to fine-tuning the whole model")
 	case method.lora:
-		lora = &trainingworkflow.LoRA{Rank: input.Rank, Alpha: float64(input.Rank * trainingworkflow.LoRAAlphaPerRank)}
+		lora = &trainingworkflow.LoRA{Rank: input.Rank, Alpha: float64(input.Rank * trainingworkflow.LoRAAlphaPerRank), Quantized: input.QuantizedBase}
 	}
 	output, err := outputDirectory(workspace.roots.Checkpoints, input.Output)
+	var resume string
+	if err == nil && strings.TrimSpace(input.Resume) != "" {
+		resume, err = outputDirectory(workspace.roots.Checkpoints, input.Resume)
+	}
 	if err != nil {
 		return failWorkflow(ctx, workspace.store, program.ID, inputs, "training_failed", err)
 	}
@@ -169,7 +197,8 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	result, err := trainingworkflow.RunConversationSFT(ctx, workspace.store, trainingworkflow.ConversationSFT{
 		Dataset: input.Dataset, Render: workspace.trainer.Render, ModelDirectory: workspace.trainer.File,
 		OutputDirectory: output, WorkDirectory: filepath.Join(workspace.roots.Datasets, "sft"),
-		Steps: input.Steps, LoRA: lora,
+		Steps: input.Steps, LoRA: lora, Prompts: input.TrainOnPrompts, Average: input.AverageWeights, SampleEvery: input.SampleEvery,
+		CheckpointEvery: input.SaveEvery, CheckpointKeep: sftCheckpointsKept, Resume: resume,
 		Step: func(step, _ int, loss float64) {
 			reporter.Progress(uint64(step), &total)
 			reporter.Metric(operation.Metric{Name: "loss", Value: loss})
@@ -180,6 +209,9 @@ func (workspace *SFTWorkspace) ExecuteWorkflow(ctx context.Context, kind Workflo
 	}
 	reporter.Publishing()
 	outputs := []artifact.ID{result.Trained, result.Verdict}
+	if result.Samples.Valid() {
+		outputs = append(outputs, result.Samples)
+	}
 	run, err := runrecord.NewRun(program.ID, runrecord.OutcomeSucceeded, inputs, outputs, "")
 	if err != nil {
 		return operation.Completion{}, err
@@ -206,12 +238,13 @@ func (workspace *SFTWorkspace) PreviewWorkflow(ctx context.Context, kind Workflo
 		return nil, err
 	}
 	var input struct {
-		Dataset artifact.ID `json:"dataset"`
+		Dataset        artifact.ID `json:"dataset"`
+		TrainOnPrompts bool        `json:"train_on_prompts"`
 	}
 	if err := json.Unmarshal(raw, &input); err != nil || input.Dataset.Kind() != artifact.KindDataset {
 		return nil, errors.Join(err, errors.New("sft workspace: preview needs a conversation dataset"))
 	}
-	return trainingworkflow.PreviewConversations(ctx, workspace.store, input.Dataset, workspace.trainer.Render, workspace.trainer.File, position, limit)
+	return trainingworkflow.PreviewConversations(ctx, workspace.store, input.Dataset, workspace.trainer.Render, workspace.trainer.File, input.TrainOnPrompts, position, limit)
 }
 
 // outputDirectory is the directory a run named name writes under root: the

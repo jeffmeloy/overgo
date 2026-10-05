@@ -293,6 +293,38 @@
       if (signal) signal.addEventListener('abort', abort, { once: true });
     });
   };
+  // runNotice tells a person a run has ended while the page is not in front. A final state seen on a
+  // hidden document puts the count of runs ended since before the tab's title until the page is shown
+  // again, and raises a browser notification when its permission is granted. The permission is asked
+  // once, from the click that starts a long run, which is the only place a browser takes the request.
+  const noticeAskedKey = "overgo.notice.asked";
+  let endedHidden = 0, shownTitle = "";
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden || !endedHidden) return;
+    endedHidden = 0;
+    document.title = shownTitle;
+  });
+  window.overgo.runNotice = {
+    ask() {
+      if (!("Notification" in window) || Notification.permission !== "default") return;
+      try {
+        if (localStorage.getItem(noticeAskedKey)) return;
+        localStorage.setItem(noticeAskedKey, "1");
+      } catch (_) { /* storage refused: the request is made again at the next long run */ }
+      Notification.requestPermission();
+    },
+    ended(label, state) {
+      if (!document.hidden) return;
+      if (!endedHidden) shownTitle = document.title;
+      endedHidden++;
+      document.title = "(" + endedHidden + ") " + shownTitle;
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      try {
+        const notice = new Notification(label + " " + state);
+        notice.addEventListener("click", () => { window.focus(); notice.close(); });
+      } catch (_) { /* a browser that refuses a page's notification keeps the title mark */ }
+    },
+  };
   window.overgo.workflowWorkspace = function (definition) {
     window.overgo.registerTab({
       id: definition.id,
@@ -384,6 +416,7 @@
           status.textContent = "running / " + fmt.shortID(operation);
           try {
             const completed = await overgo.waitOperation(operation, renderOperation);
+            overgo.runNotice.ended(overgo.title, completed.state);
             if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
           } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
         }
@@ -412,11 +445,12 @@
           const submitted = submission();
           if (!submitted) return;
           const { capability, input } = submitted;
+          if (definition.longRun) overgo.runNotice.ask();
           run.disabled = true;
           evidence.replaceChildren();
           let accepted;
           try {
-            accepted = await api.post("/" + definition.scope + "/run", { task: capability.task, recipe: capability.recipe, input });
+            accepted = await api.submit("/" + definition.scope + "/run", { task: capability.task, recipe: capability.recipe, input });
             overgo.rememberedControls.remember(capability.recipe, overgo.rememberedControls.values(fields));
           } catch (err) { status.replaceChildren(overgo.failure(err)); run.disabled = false; return; }
           await follow(accepted.operation);

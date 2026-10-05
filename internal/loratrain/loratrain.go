@@ -13,6 +13,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -66,6 +67,16 @@ type Config struct {
 	Seed uint64
 	// BaseModel names the model the adapter is trained on, as PEFT records it.
 	BaseModel string
+	// RSLoRA scales every module by Alpha over the root of its rank rather than
+	// over its rank (rank-stabilized LoRA), as PEFT records with use_rslora.
+	RSLoRA bool
+	// UpRate is LoRA+: the up factor learns this many times faster than the down
+	// factor; zero or one is plain LoRA. The optimizer steps every factor by a
+	// size that does not depend on its scale, so the up factor is stored over the
+	// rate and its module's alpha is the rate times Alpha: the product, and so the
+	// adapted model, is the one a faster up factor would reach, and a saved
+	// adapter's alpha is that of the module as trained.
+	UpRate float64
 }
 
 // Trainer trains one adapter over a model. It owns the model's adapted weights
@@ -78,6 +89,11 @@ type Trainer struct {
 	optimizer *optimizer.Optimizer
 	config    optimizer.Config
 	gradients map[string][]float32
+	// quantized is set when the model holds the adapted weights frozen in their stored
+	// quantization, which take the update as each layer reads them (Model.OnDequantize).
+	quantized bool
+	// average, once Average starts it, follows the factors after each update.
+	average *optimizer.Average
 }
 
 // New starts an adapter on the model: every target projection of every dense
@@ -88,6 +104,14 @@ func New(model *densecausal.Model, config Config) (*Trainer, error) {
 	if model == nil || config.Rank <= 0 || math.IsNaN(config.Alpha) || math.IsInf(config.Alpha, 0) || config.Alpha <= 0 {
 		return nil, errors.New("loratrain: a model and a positive rank and alpha are required")
 	}
+	if config.UpRate == 0 {
+		config.UpRate = 1
+	}
+	if math.IsNaN(config.UpRate) || math.IsInf(config.UpRate, 0) || config.UpRate < 1 {
+		return nil, fmt.Errorf("loratrain: an up-factor rate of %v is below one, where the up factor would learn slower than the down factor", config.UpRate)
+	}
+	// The scale each module trains under: LoRA+ folds its rate into alpha (see Config.UpRate).
+	config.Alpha *= config.UpRate
 	targets := config.Targets
 	if len(targets) == 0 {
 		for _, projected := range projections {
@@ -124,7 +148,7 @@ func New(model *densecausal.Model, config Config) (*Trainer, error) {
 		return nil, fmt.Errorf("loratrain: no dense layer of the model has a target projection among %v", targets)
 	}
 	adapter := peft.Adapter{
-		Config:  peft.Config{BaseModel: config.BaseModel, Rank: config.Rank, Alpha: config.Alpha, TargetModules: slices.Compact(slices.Sorted(slices.Values(targets)))},
+		Config:  peft.Config{BaseModel: config.BaseModel, Rank: config.Rank, Alpha: config.Alpha, RSLoRA: config.RSLoRA, TargetModules: slices.Compact(slices.Sorted(slices.Values(targets)))},
 		Modules: modules,
 	}
 	return bind(model, adapter)
@@ -157,10 +181,19 @@ func bind(model *densecausal.Model, adapter peft.Adapter) (*Trainer, error) {
 	for name, module := range adapter.Modules {
 		weight := name + weightSuffix
 		shape := model.Shapes[weight]
-		if len(shape) != matrixRank || shape[0] != module.Out || shape[1] != module.In || len(model.Weights[weight]) != module.Out*module.In {
+		if len(shape) != matrixRank || shape[0] != module.Out || shape[1] != module.In {
 			return nil, fmt.Errorf("loratrain: adapter module %q is %d by %d, the model's %s is %v", name, module.Out, module.In, weight, shape)
 		}
-		trainer.frozen[name] = slices.Clone(model.Weights[weight])
+		if model.Frozen(weight) {
+			// The model dequantizes this weight for each layer that reads it and hands it here to
+			// take the update, so no copy of the base or of the adapted weight is held.
+			trainer.quantized = true
+		} else {
+			if len(model.Weights[weight]) != module.Out*module.In {
+				return nil, fmt.Errorf("loratrain: the model's %s holds %d values, adapter module %q is %d by %d", weight, len(model.Weights[weight]), name, module.Out, module.In)
+			}
+			trainer.frozen[name] = slices.Clone(model.Weights[weight])
+		}
 		factors[name+downFactor], shapes[name+downFactor] = module.Down, [matrixRank]int{module.Rank, module.In}
 		factors[name+upFactor], shapes[name+upFactor] = module.Up, [matrixRank]int{module.Out, module.Rank}
 	}
@@ -169,15 +202,34 @@ func bind(model *densecausal.Model, adapter peft.Adapter) (*Trainer, error) {
 		return nil, err
 	}
 	trainer.pack = pack
+	if trainer.quantized {
+		if err := model.OnDequantize(trainer.addUpdate); err != nil {
+			return nil, err
+		}
+	}
 	return trainer, trainer.apply()
+}
+
+// addUpdate adds the adapter's update to a frozen weight the model has just
+// dequantized for a layer; a weight no module adapts is left as it is.
+func (trainer *Trainer) addUpdate(weight string, values []float32) error {
+	module, isWeight := strings.CutSuffix(weight, weightSuffix)
+	if _, adapted := trainer.adapter.Modules[module]; !isWeight || !adapted {
+		return nil
+	}
+	return trainer.adapter.AddDelta(values, module)
 }
 
 // apply puts the base plus the adapter's update into each adapted weight, in
 // place: the model reads its weights through slices it bound when it loaded.
 func (trainer *Trainer) apply() error {
 	for name := range trainer.adapter.Modules {
+		base, held := trainer.frozen[name]
+		if !held {
+			continue // a frozen weight takes the update as each layer reads it
+		}
 		target := trainer.model.Weights[name+weightSuffix]
-		copy(target, trainer.frozen[name])
+		copy(target, base)
 		if err := trainer.adapter.AddDelta(target, name); err != nil {
 			return err
 		}
@@ -185,12 +237,47 @@ func (trainer *Trainer) apply() error {
 	return nil
 }
 
-// RestoreBase puts the model's adapted weights back to the frozen base.
+// RestoreBase puts the model's adapted weights back to the frozen base: the
+// copies of them it holds, and for weights frozen in their quantization, the
+// update the model adds as each layer reads them, which it stops adding.
 func (trainer *Trainer) RestoreBase() {
 	for name, base := range trainer.frozen {
 		copy(trainer.model.Weights[name+weightSuffix], base)
 	}
+	if trainer.quantized {
+		_ = trainer.model.OnDequantize(nil)
+	}
 }
+
+// Adapts is the predicate for the weights an adapter over the projections named
+// by targets (the seven linear ones when empty) adapts, which a model can hold
+// frozen in their stored quantization (densecausal.LoadGGUFFrozen).
+func Adapts(targets []string) func(weight string) bool {
+	if len(targets) == 0 {
+		for _, projected := range projections {
+			targets = append(targets, projected.target)
+		}
+	}
+	return func(weight string) bool {
+		rest, prefixed := strings.CutPrefix(weight, layerNamePrefix)
+		layer, _, nested := strings.Cut(rest, ".")
+		index, err := strconv.Atoi(layer)
+		if !prefixed || !nested || err != nil {
+			return false
+		}
+		names := densecausal.DenseLayerTensorNames(index)
+		for _, projected := range projections {
+			if projected.weight(names) == weight && slices.Contains(targets, projected.target) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// layerNamePrefix opens the name of every weight of a decoder layer, followed by
+// the layer's number.
+const layerNamePrefix = "model.layers."
 
 // Adapter returns the adapter as it stands now. Its factors are the trainer's
 // own, not copies: save or clone it before training further.
@@ -208,13 +295,14 @@ func (trainer *Trainer) OptimizerState() (optimizer.State, error) {
 	return trainer.optimizer.Snapshot(), nil
 }
 
-// Step takes one update on one token batch and returns its loss. The loss is
-// the adapted model's, before the update.
-func (trainer *Trainer) Step(tokens []int, learningRate, momentum float64) (float64, error) {
+// Step takes one update on one token batch and returns its loss: the adapted
+// model's, before the update, over the tokens trained marks (every token when
+// it is nil), as densecausal's MaskedLossAndGrads learns them.
+func (trainer *Trainer) Step(tokens []int, trained []bool, learningRate, momentum float64) (float64, error) {
 	if err := trainer.ensureOptimizer(learningRate, momentum); err != nil {
 		return 0, err
 	}
-	loss, grads, err := trainer.model.LossAndGradsOf(tokens, trainer.adapted)
+	loss, grads, err := trainer.model.MaskedLossAndGradsOf(tokens, trained, trainer.adapted)
 	if err != nil {
 		return 0, err
 	}
@@ -226,19 +314,83 @@ func (trainer *Trainer) Step(tokens []int, learningRate, momentum float64) (floa
 	}
 	trainer.optimizer.Step()
 	trainer.pack.Scatter()
+	if trainer.average != nil {
+		factors, _ := trainer.pack.Slabs()
+		if err := trainer.average.Update(factors); err != nil {
+			return 0, err
+		}
+	}
 	return loss, trainer.apply()
 }
 
-// Train takes one update per batch and returns each update's loss. The
-// observer sees every finished update; an error from it stops training there.
-func (trainer *Trainer) Train(batches [][]int, learningRate, momentum float64, observe densecausal.TrainObserver) ([]float64, error) {
+// Average starts a moving average of the factors under the decay (see
+// optimizer.Average), taken after each update from here on, from the factors as
+// they stand. UseAverage then makes the adapter the average.
+func (trainer *Trainer) Average(decay float64) error {
+	factors, _ := trainer.pack.Slabs()
+	average, err := optimizer.NewAverage(factors, decay)
+	if err != nil {
+		return err
+	}
+	trainer.average = average
+	return nil
+}
+
+// AverageState is the moving average of the factors as it stands, nil before
+// Average starts one; it is the trainer's own, which a checkpoint copies.
+func (trainer *Trainer) AverageState() *optimizer.Average { return trainer.average }
+
+// Restore continues training from the optimizer state and moving average (nil
+// for none) an earlier run left at its update, under the rate and momentum it
+// took them with: the trainer must be over the adapter that run left, which
+// Resume made, so that the next update is the one the earlier run took next.
+func (trainer *Trainer) Restore(state optimizer.State, average *optimizer.Average, learningRate, momentum float64) error {
+	if err := trainer.ensureOptimizer(learningRate, momentum); err != nil {
+		return err
+	}
+	if err := trainer.optimizer.Restore(state); err != nil {
+		return err
+	}
+	factors, _ := trainer.pack.Slabs()
+	if average != nil && len(average.Values()) != len(factors) {
+		return fmt.Errorf("loratrain: a resumed average spans %d factor values, the adapter's are %d", len(average.Values()), len(factors))
+	}
+	trainer.average = average
+	return nil
+}
+
+// UseAverage makes the adapter, and the model it is applied to, the moving
+// average of the factors Average started, leaving the optimizer's state as the
+// updates took it.
+func (trainer *Trainer) UseAverage() error {
+	if trainer.average == nil {
+		return errors.New("loratrain: no average was started")
+	}
+	factors, _ := trainer.pack.Slabs()
+	copy(factors, trainer.average.Values())
+	trainer.pack.Scatter()
+	return trainer.apply()
+}
+
+// Train takes one update per batch and returns each update's loss. trained
+// holds each batch's flags for the tokens it learns, or is nil to learn every
+// token. The observer sees every finished update; an error from it stops
+// training there.
+func (trainer *Trainer) Train(batches [][]int, trained [][]bool, learningRate, momentum float64, observe densecausal.TrainObserver) ([]float64, error) {
 	if len(batches) == 0 {
 		return nil, errors.New("loratrain: token batches absent")
+	}
+	if trained != nil && len(trained) != len(batches) {
+		return nil, fmt.Errorf("loratrain: trained flags for %d batches, %d given", len(batches), len(trained))
 	}
 	losses := make([]float64, 0, len(batches))
 	for step, tokens := range batches {
 		stopwatch := processmeasure.NewStopwatch()
-		loss, err := trainer.Step(tokens, learningRate, momentum)
+		var flags []bool
+		if trained != nil {
+			flags = trained[step]
+		}
+		loss, err := trainer.Step(tokens, flags, learningRate, momentum)
 		if err != nil {
 			return losses, err
 		}
@@ -260,7 +412,7 @@ func (trainer *Trainer) Train(batches [][]int, learningRate, momentum float64, o
 // weights whose gradient a step needs.
 func (trainer *Trainer) adapted(weight string) bool {
 	module, isWeight := strings.CutSuffix(weight, weightSuffix)
-	_, adapted := trainer.frozen[module]
+	_, adapted := trainer.adapter.Modules[module]
 	return isWeight && adapted
 }
 

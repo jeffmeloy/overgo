@@ -534,11 +534,11 @@ func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discov
 			read(recipeID, heldoutRecord{summary: base})
 		}
 		return nil
-	}, func(observation artifact.ID, reason error) {
-		// The verdict claims its recipe like a readable one, newest first.
+	}, func(verdict, observation artifact.ID, reason error) {
+		// The verdict claims its recipe like a readable one, newest first, and its gap names the verdict.
 		if session, err := runrecord.RequireServingObservation(ctx, store, observation); err == nil {
 			if _, found := records[session.Recipe]; !found {
-				records[session.Recipe] = heldoutRecord{unreadable: "its held-out verdict cannot be reconstructed: " + reason.Error()}
+				records[session.Recipe] = heldoutRecord{unreadable: "its held-out verdict " + verdict.String() + " cannot be reconstructed: " + reason.Error()}
 			}
 		}
 	})

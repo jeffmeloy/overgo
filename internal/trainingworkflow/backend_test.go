@@ -1,12 +1,35 @@
 package trainingworkflow
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"overgo/internal/densecausal"
 	"overgo/internal/optimizer"
+	"overgo/internal/trainingprogram"
 )
+
+// TestTextRunOnTheDeviceReachesTheDeviceTrainer holds a held-out text run whose request names a
+// device trainer to training on it: the options a run passes whatever its request (a checkpoint
+// callback at an interval of zero) are not what only the host honours, so the run reaches the
+// trainer, which here is the host's behind the device's signature, and publishes its verdict.
+// A change to the device path's guards that the landing's tests could not reach once refused every
+// device-trained run.
+func TestTextRunOnTheDeviceReachesTheDeviceTrainer(t *testing.T) {
+	text := registerTextObjective(t, averageDocuments(), trainingprogram.MetricTokenAccuracy)
+	reached := 0
+	device := func(model *densecausal.Model, batches [][]int, learningRate, momentum float64, _ bool, resume *densecausal.TrainState, observe densecausal.TrainObserver) ([]float64, densecausal.TrainState, error) {
+		reached++
+		return model.TrainWith(batches, learningRate, momentum, resume, observe, densecausal.TrainOptions{})
+	}
+	result, err := RunTextHeldout(t.Context(), text.store, TextHeldoutRequest{
+		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, "device"), Steps: 4, Device: device,
+	})
+	if err != nil || !result.Verdict.Valid() || reached != 1 {
+		t.Fatalf("a run on the device trainer = (%+v, %v) with %d trainer calls, want a verdict from one", result, err, reached)
+	}
+}
 
 // TestDeviceRunRefusesWhatOnlyTheHostTrains holds the device path to the options it can honour:
 // a run that learns some tokens, averages the weights, continues a resumed average, saves

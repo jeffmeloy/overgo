@@ -218,11 +218,16 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	muonPlan, err := model.TrainingPlan()
 	var adapter *loratrain.Trainer
 	if request.LoRA != nil {
-		// The trainer leaves the model equal to the base until its first update, so the
-		// base's held-out answers below are the base's. Its plan, over the factors, is
-		// the one the program, the recipe's rate and the checkpoint name.
+		// A new adapter leaves the model equal to the base until its first update; one that
+		// continues a prior adapter applies it at load, so it is taken out again here and put
+		// back when the run trains: the baseline below is judged on the base, never on the prior
+		// adapter's model, which would read the continuation as base to trained. Its plan, over
+		// the factors, is the one the program, the recipe's rate and the checkpoint name.
 		if adapter, err = request.LoRA.trainer(model, request.ModelDirectory); err == nil {
 			muonPlan = adapter.Plan()
+			if request.LoRA.From != "" {
+				adapter.RestoreBase()
+			}
 		}
 	}
 	if err != nil {
@@ -279,6 +284,11 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 			// A resumed run takes the windows after the ones the checkpoint's updates took, from the
 			// weights, optimizer state and average the checkpoint holds; its baseline, judged before
 			// this, is still the base model's.
+			if request.LoRA != nil && request.LoRA.From != "" && request.Resume == "" {
+				if err := adapter.Reapply(); err != nil {
+					return trainingprogram.Checkpoint{}, err
+				}
+			}
 			var resumed resumedRun
 			if request.Resume != "" {
 				if resumed, err = restoreRun(request.Resume, modelID, objective, model, muonPlan, adapter != nil, plan.Updates(), config.BaseLearningRate, config.Momentum); err != nil {

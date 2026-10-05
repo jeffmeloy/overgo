@@ -273,6 +273,18 @@ func (trainer *Trainer) RestoreBase() {
 	}
 }
 
+// Reapply puts the adapter's update back into the model's adapted weights after
+// RestoreBase took it out: the base plus the adapter as it stands, which is how
+// a run judges the base it started from before it trains the adapter.
+func (trainer *Trainer) Reapply() error {
+	if trainer.quantized {
+		if err := trainer.model.OnDequantize(trainer.addUpdate); err != nil {
+			return err
+		}
+	}
+	return trainer.apply()
+}
+
 // Adapts is the predicate for the weights an adapter over the projections named
 // by targets (the seven linear ones when empty) adapts, which a model can hold
 // frozen in their stored quantization (densecausal.LoadGGUFFrozen).

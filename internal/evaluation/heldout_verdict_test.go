@@ -296,7 +296,7 @@ func TestCommittedVerdictRescoresItsReports(t *testing.T) {
 			}
 			// Told to go on, the visit reports the verdicts it cannot read and ends without error.
 			var unreadable []artifact.ID
-			if err := VisitHeldoutVerdicts(ctx, store, func(artifact.ID, EvalSummary, EvalSummary) error { return nil }, func(observation artifact.ID, _ error) {
+			if err := VisitHeldoutVerdicts(ctx, store, func(artifact.ID, EvalSummary, EvalSummary) error { return nil }, func(_, observation artifact.ID, _ error) {
 				unreadable = append(unreadable, observation)
 			}); err != nil || len(unreadable) == 0 {
 				t.Fatalf("%s tolerant visit = (%v, %v), want the unreadable verdict reported and no error", key, unreadable, err)

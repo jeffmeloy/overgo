@@ -120,6 +120,52 @@ func TestLoRARunRefusesWhatItCannotRun(t *testing.T) {
 	}
 }
 
+// TestContinuedAdapterIsJudgedAgainstTheTrueBase holds the verdict of a run that continues an
+// adapter to its baseline: the base model as it was before any adapter, which a first run of the
+// same objective measured, and not the model with the prior adapter applied, which would read the
+// continuation as base to trained and the prior adapter's gain as nothing the run did.
+func TestContinuedAdapterIsJudgedAgainstTheTrueBase(t *testing.T) {
+	var documents []string
+	for index := range 12 {
+		documents = append(documents, strings.Repeat("abcd", 5)[:6+index])
+	}
+	text := registerTextObjective(t, documents, trainingprogram.MetricTokenAccuracy)
+	ctx := t.Context()
+	values := func(result HeldoutResult) (baseline, candidate float64) {
+		t.Helper()
+		var verdict struct {
+			BaselineValue  float64 `json:"baseline_value"`
+			CandidateValue float64 `json:"candidate_value"`
+		}
+		content, found, err := artifact.ReadContent(ctx, text.store, result.Verdict)
+		if err != nil || !found || json.Unmarshal(content.Data, &verdict) != nil {
+			t.Fatalf("verdict content = (found %t, %v)", found, err)
+		}
+		return verdict.BaselineValue, verdict.CandidateValue
+	}
+	first := filepath.Join(text.root, "first")
+	firstResult, err := RunTextHeldout(ctx, text.store, TextHeldoutRequest{
+		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: first, Steps: 16, Host: true, LoRA: &LoRA{Rank: 4, Alpha: 8, Seed: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, trained := values(firstResult)
+	if base == trained {
+		t.Fatalf("the first run's adapter left the held-out accuracy at %v: the fixture cannot tell a base baseline from an adapted one", base)
+	}
+	secondResult, err := RunTextHeldout(ctx, text.store, TextHeldoutRequest{
+		Alias: text.alias, ModelDirectory: text.model, OutputDirectory: filepath.Join(text.root, "second"), Steps: 4, Host: true,
+		LoRA: &LoRA{From: filepath.Join(first, LoRAAdapterDirectory)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := values(secondResult); again != base {
+		t.Fatalf("the continued run's baseline is %v, want the true base's %v, not the first adapter's %v", again, base, trained)
+	}
+}
+
 // TestLoRARunContinuesAnAdapterFromPEFT: a run given the PEFT directory a
 // previous run left starts from that adapter's factors, trains them further and
 // leaves its own adapter in its own checkpoint; naming a rank beside the adapter

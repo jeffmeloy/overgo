@@ -536,8 +536,8 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 			}
 		}
 		held := records[training]
-		if cell := held.cell(recipe.TaskTraining); cell.Reason == "" || !strings.Contains(cell.Reason, "cannot be reconstructed") {
-			t.Fatalf("the training recipe's quality = %+v, want a gap naming the verdict that cannot be reconstructed", cell)
+		if cell := held.cell(recipe.TaskTraining); cell.Reason == "" || !strings.Contains(cell.Reason, "cannot be reconstructed") || !strings.Contains(cell.Reason, verdict.ID.String()) {
+			t.Fatalf("the training recipe's quality = %+v, want a gap naming the verdict %s that cannot be reconstructed", cell, verdict.ID)
 		}
 		return
 	}

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -130,7 +131,11 @@ func RunConversationSFT(ctx context.Context, store *overgodb.Store, request Conv
 	if err != nil {
 		return HeldoutResult{}, err
 	}
-	alias, err := publishConversationObjective(ctx, store, registered, len(records))
+	groups, err := conversationGroups(records)
+	if err != nil {
+		return HeldoutResult{}, err
+	}
+	alias, err := publishConversationObjective(ctx, store, registered, groups)
 	if err != nil {
 		return HeldoutResult{}, err
 	}
@@ -308,8 +313,8 @@ func registerRecords(ctx context.Context, store *overgodb.Store, work string, re
 // publishConversationObjective publishes the token-prediction objective over
 // the registered text, its held-out conversations chosen by the order of
 // their record identities' digests, and binds it to an alias of its own.
-func publishConversationObjective(ctx context.Context, store *overgodb.Store, registered dataset.RegisteredDataset, count int) (string, error) {
-	plan, training, err := conversationSplit(registered.Dataset, count)
+func publishConversationObjective(ctx context.Context, store *overgodb.Store, registered dataset.RegisteredDataset, groups []string) (string, error) {
+	plan, training, err := conversationSplit(registered.Dataset, groups)
 	if err != nil {
 		return "", err
 	}
@@ -375,25 +380,67 @@ func publishConversationObjective(ctx context.Context, store *overgodb.Store, re
 	return alias, nil
 }
 
-// conversationSplit divides the dataset's records into a training and a
-// held-out membership: the held-out ones are the first by the digest of the
-// record identity, so a dataset always splits the same way and neither side
-// is ever empty.
-func conversationSplit(source artifact.ID, count int) (dataset.SplitPlan, dataset.Membership, error) {
-	records := make([]dataset.Record, count)
-	for index := range records {
-		id := dataset.RecordID(source, dataset.InventoryAssetName, uint64(index))
-		records[index] = dataset.Record{ID: id, Group: id}
+// conversationGroups names the group each record belongs to: the digest of how its conversation
+// opens, the text before its first reply when it learns replies (the system prompt and the
+// opening turns), or its first window when it learns every token, so the variants of one chat (a
+// prefix and its continuation, conversations that differ only in a reply) share a group.
+func conversationGroups(records [][]byte) ([]string, error) {
+	groups := make([]string, len(records))
+	for index, data := range records {
+		var record conversationRecord
+		if err := json.Unmarshal(data, &record); err != nil || len(record.Segments) == 0 {
+			return nil, fmt.Errorf("training workflow: conversation record %d is unreadable: %w", index, errors.Join(err, errors.New("no segments")))
+		}
+		opening := record.Segments[0].Text
+		if record.Segments[0].Trained {
+			opening = opening[:min(len(opening), conversationWindow)]
+		}
+		sum := sha256.Sum256([]byte(opening))
+		groups[index] = hex.EncodeToString(sum[:])
 	}
-	ordered := slices.Clone(records)
-	slices.SortFunc(ordered, func(left, right dataset.Record) int {
+	return groups, nil
+}
+
+// conversationSplit divides the dataset's records into a training and a held-out membership,
+// by group: the held-out groups are the first by the digest of their first record, taken whole
+// until a tenth of the records, at most the cap, are held out, so a dataset always splits the same way,
+// no conversation's variants sit on both sides of the verdict, and neither side is ever empty.
+func conversationSplit(source artifact.ID, groups []string) (dataset.SplitPlan, dataset.Membership, error) {
+	count := len(groups)
+	members := map[string][]dataset.Record{}
+	for index, group := range groups {
+		id := dataset.RecordID(source, dataset.InventoryAssetName, uint64(index))
+		members[group] = append(members[group], dataset.Record{ID: id, Group: group})
+	}
+	byDigest := func(left, right dataset.Record) int {
 		leftDigest, rightDigest := sha256.Sum256([]byte(left.ID)), sha256.Sum256([]byte(right.ID))
 		return bytes.Compare(leftDigest[:], rightDigest[:])
-	})
-	held := min(max(count/conversationHeldoutShare, 1), conversationHeldoutRecords)
+	}
+	// A group sorts by its first record's digest, so conversations that all open differently
+	// are held out in the order their records' digests give, as they were before groups.
+	for _, records := range members {
+		slices.SortFunc(records, byDigest)
+	}
+	order := slices.Collect(maps.Keys(members))
+	slices.SortFunc(order, func(left, right string) int { return byDigest(members[left][0], members[right][0]) })
+	target := min(max(count/conversationHeldoutShare, 1), conversationHeldoutRecords)
+	var held, kept []dataset.Record
+	for _, group := range order {
+		// A group joins the held-out side while the side is short of its share and the training side keeps a record.
+		if len(held) < target && count-len(held)-len(members[group]) > 0 {
+			held = append(held, members[group]...)
+		} else {
+			kept = append(kept, members[group]...)
+		}
+	}
+	if len(held) == 0 || len(kept) == 0 {
+		return dataset.SplitPlan{}, dataset.Membership{}, fmt.Errorf("training workflow: the conversations open in %d distinct way(s), too few to hold one out to judge the rest", len(order))
+	}
+	slices.SortFunc(held, byDigest)
+	slices.SortFunc(kept, byDigest)
 	// Partitions list by name, the order a split canonicalizes them in.
 	plan, err := dataset.SplitOf(source, 0, []dataset.PartitionRecords{
-		{Name: conversationHeldout, Records: ordered[:held]}, {Name: conversationTrain, Records: ordered[held:]},
+		{Name: conversationHeldout, Records: held}, {Name: conversationTrain, Records: kept},
 	})
 	if err != nil {
 		return dataset.SplitPlan{}, dataset.Membership{}, err

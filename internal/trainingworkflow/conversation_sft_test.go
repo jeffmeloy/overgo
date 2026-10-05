@@ -217,6 +217,69 @@ func TestConversationRunSkipsAnUnusableConversationAndSaysSo(t *testing.T) {
 	}
 }
 
+// TestConversationsSharingAnOpeningNeverSplitAcrossTheVerdict holds the held-out side of a
+// conversation run to whole groups: conversations that open alike (the same system prompt and
+// first turns, whatever they go on to say) are one group, and held-out groups are taken whole, so
+// no variant of a conversation the model trains on is one it is judged on, which the verdict would
+// read as memorization; a dataset that opens one way has no held-out side to give and is refused.
+func TestConversationsSharingAnOpeningNeverSplitAcrossTheVerdict(t *testing.T) {
+	source, err := artifact.IdentifyBytes(artifact.KindDataset, []byte("chats"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := func(opening, reply string) []byte {
+		data, err := json.Marshal(conversationRecord{Segments: []conversationSegment{
+			{Text: opening}, {Text: reply, Trained: true},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	// Twenty conversations in ten openings, two replies to each: a tenth held out is two records.
+	var records [][]byte
+	for index := range 10 {
+		opening := strings.Repeat("a", 1+index)
+		records = append(records, record(opening, "cd"), record(opening, "dc"))
+	}
+	groups, err := conversationGroups(records)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := 0; index < len(records); index += 2 {
+		if groups[index] != groups[index+1] {
+			t.Fatalf("records %d and %d open alike and are in groups %.12s and %.12s", index, index+1, groups[index], groups[index+1])
+		}
+	}
+	_, training, err := conversationSplit(source, groups)
+	if err != nil {
+		t.Fatal(err)
+	}
+	trained := map[string]bool{}
+	for _, member := range training.Records {
+		trained[member.ID] = true
+	}
+	if len(trained) == 0 || len(trained) >= len(records) {
+		t.Fatalf("training holds %d of %d records, want some held out and some kept", len(trained), len(records))
+	}
+	for index := 0; index < len(records); index += 2 {
+		first := trained[dataset.RecordID(source, dataset.InventoryAssetName, uint64(index))]
+		second := trained[dataset.RecordID(source, dataset.InventoryAssetName, uint64(index+1))]
+		if first != second {
+			t.Errorf("records %d and %d open alike but only one is trained on (%t, %t): a variant of what the model trained on is judged", index, index+1, first, second)
+		}
+	}
+
+	// One opening for every conversation leaves nothing to hold out apart from the rest.
+	alike, err := conversationGroups([][]byte{record("ab", "cd"), record("ab", "dc")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := conversationSplit(source, alike); err == nil || !strings.Contains(err.Error(), "distinct way") {
+		t.Errorf("conversations that all open one way: err = %v, want them refused", err)
+	}
+}
+
 // TestObjectiveSFTAliasNeedsItsConversations holds a conversation objective to the run
 // that reads its segments: trained as raw text, as the command line trains an objective
 // by its alias, it would learn every token of the records' JSON and publish a verdict

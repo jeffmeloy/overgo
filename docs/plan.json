@@ -4,21 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "decode-small-kernels",
-      "title": "Fuse the small decode kernels around the matmuls: norm, residual, scale and activation",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fuse the small decode kernels around the matmuls: norm, residual, scale and activation",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Serves: inference (throughput) for E4B and gemma-12B. Evidence (2026-10-04, Nsight Systems, a decode token): gemma-4-12B fp8-native 22.1 ms wall and 21.0 ms of GPU kernels, of which matmuls (mul_mat_fp8 10.4, mul_mat_bf16 5.2) and the lm-head (2.05) read weights at the device bandwidth, and 3.2 ms is everything else: weighted_rms_norm 1.4 ms (289 launches a token at about 5 us), attention_decode 1.3 ms (47 launches at 28 us, latency-bound at short context), add, rope, multiply, gelu, copy at about 0.5 ms; E4B has the same classes at 2.9 ms. Weight bytes cannot shrink without changing outputs, so this 3 ms (about 14 percent of the step) is the remaining kernel-side gap. Disappears: launches, not code, if the fused kernels replace the separate ones and their tests; fusing sums in the same order keeps outputs identical, which a golden capture over the unmodified kernels proves (the Bonsai row's pattern). Batch: kernels and internal/cuda are pinned media runtime paths (a reviewed delta with a device receipt) and move the inference surface; batch with e4b-decode-graph. Study and patch 2026-10-04 (scratchpad fuse.patch, fuse-study.md; built host-only, never run on the device): the GELU gate pair Multiply(GELU(gate), up) fuses into the existing activated-gate family as one launch, and the gate/up matvec pair plus activation fuses into one launch (bf16 for E4B through the existing kernel with GELU accepted, fp8 for 12B through a new mul_mat_fp8_gate_f32), removing 144 launches a token on 12B (1104 to 960) and 168 on E4B (1110 to 942): an estimated 0.3 ms on 12B (1.4 percent) and about 1 ms on E4B while it is not graph-replayed, less after e4b-decode-graph. Hand-written Go +55/-22 lines, CUDA +78/-33, nine pinned files touched (kernels, internal/cuda executor and kernel), so it needs a reviewed delta (decision media-delta-gate) and a golden capture on the device from the unmodified tree (commands in fuse-study.md section 4). The larger fusion, the residual-stream chain norm + add + scale + norm (about 240 launches a token on 12B and 252 on E4B), is designed but not built. Decision: the gain is small beside e4b-decode-graph (a quarter of E4B's step), so this row waits for it and for the owner's answer on the delta gate; then build the residual chain with the GELU fusion as one kernel family, since two rows would each pay the pinned-path cost."
-        }
-      ]
-    },
-    {
       "id": "training-rate-per-layer",
       "title": "Measure whether a per-step relative Muon rate transfers across models",
       "owner": "master-lead",

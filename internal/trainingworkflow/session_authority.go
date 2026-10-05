@@ -24,14 +24,29 @@ type SessionAuthority struct {
 // verifies and activates a candidate.
 var trainableStatuses = []recipe.Status{recipe.StatusCandidate, recipe.StatusValidated, recipe.StatusActive}
 
+// supersededBySibling reports whether recipeID, in status, lost the model's
+// active training slot to another recipe that is active and verified now, not to
+// a retirement with failed proof, which leaves the slot naming the retired one.
+func supersededBySibling(ctx context.Context, repository artifact.Reader, model, recipeID artifact.ID, status recipe.Status) bool {
+	if status != recipe.StatusSuperseded {
+		return false
+	}
+	active, found, err := modelrecipe.ActiveRecord(ctx, repository, model, recipe.TaskTraining)
+	return err == nil && found && active.Definition.ID != recipeID
+}
+
 // ResolveSessionAuthority resolves the exact training policy of the
-// published, unretired training recipe recipeID for model.
+// published, unretired training recipe recipeID for model. A recipe that
+// another training recipe of the model superseded by activating is not
+// retired: a model keeps one active training recipe, a run under another
+// objective's default activates its own, and the next run of the first
+// objective trains under the recipe it lost the slot to a live successor.
 func ResolveSessionAuthority(ctx context.Context, repository artifact.Reader, model, recipeID artifact.ID) (SessionAuthority, error) {
 	status, published, err := modelrecipe.Status(ctx, repository, recipeID)
 	if err != nil {
 		return SessionAuthority{}, err
 	}
-	if !published || !slices.Contains(trainableStatuses, status) {
+	if !published || !slices.Contains(trainableStatuses, status) && !supersededBySibling(ctx, repository, model, recipeID, status) {
 		return SessionAuthority{}, fmt.Errorf("training workflow: recipe %s is %q, not a published training recipe a run may train under", recipeID, status)
 	}
 	definition, err := recipe.RequireDefinition(ctx, repository, recipeID)

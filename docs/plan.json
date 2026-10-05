@@ -5,20 +5,6 @@
   "scope": "lane",
   "items": [
     {
-      "id": "gui-run-completion-notice",
-      "title": "Tell a person a long run has ended when the page is not in front (Unsloth Studio's completion watch): when a run the page follows reaches a final state while the document is hidden, the tab title carries a mark until the page is shown again, and a browser notification is raised when permission is already granted, asked for once at the first training run; acceptance: a browser leg hides the page, finishes a short fine-tune, reads the marked title and sees it clear when the page is shown",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Tell a person a long run has ended when the page is not in front (Unsloth Studio's completion watch): when a run the page follows reaches a final state while the document is hidden, the tab title carries a mark until the page is shown again, and a browser notification is raised when permission is already granted, asked for once at the first training run; acceptance: a browser leg hides the page, finishes a short fine-tune, reads the marked title and sees it clear when the page is shown",
-          "status": "open",
-          "verify": "test -f internal/server/webui_browser_run_notice_test.go \u0026\u0026 go run ./cmd/webui-lane -run RunNotice"
-        }
-      ]
-    },
-    {
       "id": "gui-api-monitor",
       "title": "Show every API request the server answers in a bounded ring (Unsloth Studio's api-monitor idea): method, route, status, duration, in-flight, and for generations the prompt and completion tokens; a Requests tab lists them newest first with a filter for in-flight and failed, a header of totals, error rate, slowest call and tokens per second; the monitor's own polling and the static page are not recorded; acceptance: a Go test drives routes and reads them back with status, duration and tokens, a streamed response still streams through the recorder, and a browser leg reads the tab",
       "owner": "overgo_gui_cleanup",

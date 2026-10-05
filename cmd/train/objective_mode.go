@@ -46,6 +46,8 @@ type loraFlags struct {
 	From    string
 	RSLoRA  bool
 	Plus    float64
+	// Quantized keeps the adapted projections of a GGUF base as the file stores them.
+	Quantized bool
 }
 
 // loraRequest is the LoRA run the -lora flags ask for: none when they ask for
@@ -66,10 +68,10 @@ func loraRequest(flags loraFlags) *trainingworkflow.LoRA {
 		}
 	}
 	if flags.From != "" {
-		// A continued adapter brings its own rank, alpha, targets and scaling.
-		return &trainingworkflow.LoRA{From: flags.From}
+		// A continued adapter brings its own rank, alpha, targets and scaling; whether to keep its base quantized is the run's.
+		return &trainingworkflow.LoRA{From: flags.From, Quantized: flags.Quantized}
 	}
-	return &trainingworkflow.LoRA{Rank: flags.Rank, Alpha: flags.Alpha, Targets: names, Seed: flags.Seed, RSLoRA: flags.RSLoRA, UpRate: flags.Plus}
+	return &trainingworkflow.LoRA{Rank: flags.Rank, Alpha: flags.Alpha, Targets: names, Seed: flags.Seed, RSLoRA: flags.RSLoRA, UpRate: flags.Plus, Quantized: flags.Quantized}
 }
 
 // objectiveConflictingFlags are the flags an -objective run cannot honour,

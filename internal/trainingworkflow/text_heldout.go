@@ -176,7 +176,15 @@ func RunTextHeldout(ctx context.Context, store *overgodb.Store, request TextHeld
 	// The load is the model, its tokenizer, the objective's records and the
 	// plan they train under, as the dense workflow's is.
 	loadStarted := time.Now()
-	model, err := loadTrainableModel(request.ModelDirectory)
+	var model *densecausal.Model
+	if request.LoRA != nil && request.LoRA.Quantized {
+		var hold func(string) bool
+		if hold, err = request.LoRA.frozenWeights(); err == nil {
+			model, err = loadFrozenModel(request.ModelDirectory, hold)
+		}
+	} else {
+		model, err = loadTrainableModel(request.ModelDirectory)
+	}
 	if err != nil {
 		return HeldoutResult{}, err
 	}

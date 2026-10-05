@@ -122,6 +122,16 @@ func (fixture sftFixture) inputWithRank(output string, rank int) json.RawMessage
 	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":%d,"rank":%d,"output":%q}`, fixture.conversations.String(), adapterSteps, rank, output))
 }
 
+// inputQuantized is the input of a rank-2 LoRA run that holds the adapted projections as
+// stored when quantized is set; without the rank it is a whole-model run asking for one.
+func (fixture sftFixture) inputQuantized(output string, withRank bool) json.RawMessage {
+	rank := 0
+	if withRank {
+		rank = 2
+	}
+	return json.RawMessage(fmt.Sprintf(`{"dataset":%q,"steps":%d,"rank":%d,"quantized_base":true,"output":%q}`, fixture.conversations.String(), adapterSteps, rank, output))
+}
+
 // inputSaving is the input of a six-update run that saves a checkpoint every given
 // number of updates and, when from names one, resumes from it.
 func (fixture sftFixture) inputSaving(output string, every int, from string) json.RawMessage {
@@ -168,7 +178,7 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	for _, control := range adapterCapability.Controls {
 		adapterControls = append(adapterControls, control.Name)
 	}
-	if adapterCapability.Name != "served, LoRA adapter on conversations" || strings.Join(adapterControls, ",") != "dataset,steps,rank,train_on_prompts,average_weights,sample_every,save_every,resume,output" || adapterCapability.Recipe == capability.Recipe ||
+	if adapterCapability.Name != "served, LoRA adapter on conversations" || strings.Join(adapterControls, ",") != "dataset,steps,rank,quantized_base,train_on_prompts,average_weights,sample_every,save_every,resume,output" || adapterCapability.Recipe == capability.Recipe ||
 		adapterCapability.Controls[2].Bounds == nil || adapterCapability.Controls[2].Bounds.Default != sftLoRADefaultRank || !strings.Contains(adapterCapability.Note, "PEFT adapter") {
 		t.Fatalf("LoRA capability = %+v with controls %v, want its own recipe, a rank of default %d and a note naming the PEFT adapter", adapterCapability, adapterControls, sftLoRADefaultRank)
 	}
@@ -295,13 +305,19 @@ func TestSFTWorkspaceFineTunesTheServedModel(t *testing.T) {
 	if err != nil || len(adapter.Modules) != 7 || adapter.Config.Rank != 2 || adapter.Config.Alpha != 4 {
 		t.Fatalf("adapter = (%+v with %d modules, %v), want the seven projections at rank 2 and alpha 4", adapter.Config, len(adapter.Modules), err)
 	}
+	// A LoRA run may hold the adapted projections as a GGUF stores them; the fixture's served model is a
+	// safetensors directory, which stores no quantization to keep, so the run is refused and recorded as failed.
+	if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, adapterCapability, fixture.inputQuantized("quantized", true), testReporter{}); err == nil || !strings.Contains(err.Error(), "only in a GGUF base") {
+		t.Errorf("a quantized-base run over a safetensors model: err = %v, want the refusal naming the GGUF base", err)
+	}
 	for name, scenario := range map[string]struct {
 		capability WorkflowCapability
 		input      json.RawMessage
 		want       string
 	}{
-		"adapter without a rank":  {adapterCapability, fixture.input("no-rank"), "positive rank"},
-		"rank on the whole model": {capability, fixture.inputWithRank("rank-on-model", 2), "belongs to the LoRA adapter"},
+		"adapter without a rank":            {adapterCapability, fixture.input("no-rank"), "positive rank"},
+		"rank on the whole model":           {capability, fixture.inputWithRank("rank-on-model", 2), "belong to the LoRA adapter"},
+		"quantized base on the whole model": {capability, fixture.inputQuantized("quantized-on-model", false), "belong to the LoRA adapter"},
 	} {
 		if _, err := workspace.ExecuteWorkflow(ctx, WorkflowTraining, scenario.capability, scenario.input, testReporter{}); err == nil || !strings.Contains(err.Error(), scenario.want) {
 			t.Errorf("%s: err = %v, want it to say %q", name, err, scenario.want)

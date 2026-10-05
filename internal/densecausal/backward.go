@@ -216,7 +216,10 @@ func (m *Model) layerBackwardObserved(
 	observationContext *routerObservationContext,
 ) ([]float32, error) {
 	d := m.Dims
-	l := m.layers[index]
+	l, err := m.useLayer(index)
+	if err != nil {
+		return nil, err
+	}
 	width := d.Heads * d.HeadDim
 	kvWidth := d.KVHeads * d.HeadDim
 

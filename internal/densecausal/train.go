@@ -186,12 +186,18 @@ func validateTokenBatches(batches [][]int) error {
 
 // TrainingPlan compiles dense parameter and Muon identity without storage.
 func (m *Model) TrainingPlan() (optimizer.Plan, error) {
+	if m.frozen != nil {
+		return optimizer.Plan{}, errFrozen
+	}
 	return optimizer.TensorPlan(m.Weights, m.muonGeometry)
 }
 
 // TrainingPack packs every model tensor over the TrainingPlan; its Scatter
 // publishes the packed weights back to the model tensors.
 func (m *Model) TrainingPack() (*optimizer.TensorPack, error) {
+	if m.frozen != nil {
+		return nil, errFrozen
+	}
 	return optimizer.NewTensorPack(m.Weights, m.muonGeometry)
 }
 

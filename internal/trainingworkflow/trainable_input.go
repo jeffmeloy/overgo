@@ -52,6 +52,20 @@ func loadTrainableModel(input string) (*densecausal.Model, error) {
 	return densecausal.Load(input)
 }
 
+// loadFrozenModel materializes the trainable model from a GGUF base holding the
+// weights hold names as the file stores them, each dequantized as a layer reads it
+// (densecausal.LoadGGUFFrozen); a base that is not a GGUF has nothing stored to hold.
+func loadFrozenModel(input string, hold func(name string) bool) (*densecausal.Model, error) {
+	input, err := trainedInput(input)
+	if err != nil {
+		return nil, err
+	}
+	if !isGGUFModelInput(input) {
+		return nil, errors.New("training workflow: weights stay quantized only in a GGUF base")
+	}
+	return densecausal.LoadGGUFFrozen(input, hold)
+}
+
 // trainableTokenizer: the encoder training reads text with, each token's
 // text for showing what it read, and the end-of-sequence token the model
 // declares, which separates documents packed into one training window;

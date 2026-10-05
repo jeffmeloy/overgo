@@ -66,7 +66,7 @@ func TestLoRAFlagsMakeTheRunTheyAskFor(t *testing.T) {
 	if lora := loraRequest(loraFlags{Rank: 8, Alpha: 32, RSLoRA: true, Plus: 4}); lora == nil || lora.Alpha != 32 || len(lora.Targets) != 0 || !lora.RSLoRA || lora.UpRate != 4 {
 		t.Fatalf("an explicit alpha asked for %+v", lora)
 	}
-	if lora := loraRequest(loraFlags{Rank: 8, Alpha: 32, Targets: "q_proj", Seed: 7, From: "adapter", RSLoRA: true, Plus: 4}); lora == nil || lora.From != "adapter" || lora.Rank != 0 || lora.Alpha != 0 || len(lora.Targets) != 0 || lora.Seed != 0 || lora.RSLoRA || lora.UpRate != 0 {
+	if lora := loraRequest(loraFlags{Rank: 8, Alpha: 32, Targets: "q_proj", Seed: 7, From: "adapter", RSLoRA: true, Plus: 4, Quantized: true}); lora == nil || lora.From != "adapter" || lora.Rank != 0 || lora.Alpha != 0 || len(lora.Targets) != 0 || lora.Seed != 0 || lora.RSLoRA || lora.UpRate != 0 || !lora.Quantized {
 		t.Fatalf("continuing an adapter asked for %+v, want only its directory", lora)
 	}
 }

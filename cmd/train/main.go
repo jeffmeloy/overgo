@@ -68,14 +68,15 @@ func run() error {
 	saveEvery := flag.Int("save-every", 0, "with -objective: save a checkpoint beside -out (out-step-000040) after every this many updates but the last, on the host")
 	keepLast := flag.Int("keep-last", defaultKeptCheckpoints, "with -save-every: how many of the newest saved checkpoints to keep")
 	resumeRun := flag.String("resume-run", "", "with -objective: continue from a checkpoint a run saved with -save-every, on the host; the run ends where an uninterrupted one would")
+	loraQuantized := flag.Bool("lora-quantized", false, "with -lora-rank and a GGUF -model: keep each adapted projection as the file stores it, quantized, dequantizing it as its layer reads it, so the run needs far less memory; the model published is then the base as stored, with the adapter in its adapter directory")
 	loraFrom := flag.String("lora-from", "", "with -objective: continue training the PEFT adapter in this directory, which brings its own rank, alpha and targets")
 	flag.Parse()
 	if *proof && *objective == "" {
 		return fmt.Errorf("train: -proof re-verifies an -objective recipe; it needs -objective")
 	}
-	lora := loraRequest(loraFlags{Rank: *loraRank, Alpha: *loraAlpha, Targets: *loraTargets, Seed: *loraSeed, From: *loraFrom, RSLoRA: *loraRSLoRA, Plus: *loraPlus})
-	if lora == nil && (*loraAlpha != 0 || *loraTargets != "" || *loraSeed != 0 || *loraRSLoRA || *loraPlus != 0) {
-		return fmt.Errorf("train: -lora-alpha, -lora-targets, -lora-seed, -lora-rslora and -lora-plus shape an adapter; they need -lora-rank or -lora-from")
+	lora := loraRequest(loraFlags{Rank: *loraRank, Alpha: *loraAlpha, Targets: *loraTargets, Seed: *loraSeed, From: *loraFrom, RSLoRA: *loraRSLoRA, Plus: *loraPlus, Quantized: *loraQuantized})
+	if lora == nil && (*loraAlpha != 0 || *loraTargets != "" || *loraSeed != 0 || *loraRSLoRA || *loraPlus != 0 || *loraQuantized) {
+		return fmt.Errorf("train: -lora-alpha, -lora-targets, -lora-seed, -lora-rslora, -lora-plus and -lora-quantized shape an adapter; they need -lora-rank or -lora-from")
 	}
 	if (*saveEvery != 0 || *resumeRun != "") && *objective == "" {
 		return fmt.Errorf("train: saving checkpoints and resuming a run belong to an -objective run; -save-every and -resume-run need -objective")

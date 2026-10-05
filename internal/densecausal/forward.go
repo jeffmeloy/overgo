@@ -228,7 +228,11 @@ func (m *Model) forwardStates(tokens []int, retain bool) ([][]float32, error) {
 	d := m.Dims
 	invFreq := hostmath.RopeInvFreq(d.RopeTheta, d.HeadDim)
 	return m.retainedForwardStates(tokens, retain, func(x []float32, index, seq int) error {
-		return m.layerForward(x, m.layers[index], invFreq, seq)
+		l, err := m.useLayer(index)
+		if err != nil {
+			return err
+		}
+		return m.layerForward(x, l, invFreq, seq)
 	})
 }
 

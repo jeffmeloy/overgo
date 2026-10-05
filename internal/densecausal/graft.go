@@ -128,7 +128,11 @@ func (m *Model) graftForwardStates(gr *Graft, tokens []int, retain bool) ([][]fl
 	invFreq := hostmath.RopeInvFreq(m.Dims.RopeTheta, m.Dims.HeadDim)
 	var preBranch []float32
 	states, err := m.retainedForwardStates(tokens, retain, func(x []float32, index, seq int) error {
-		if err := m.layerForward(x, m.layers[index], invFreq, seq); err != nil {
+		l, err := m.useLayer(index)
+		if err != nil {
+			return err
+		}
+		if err := m.layerForward(x, l, invFreq, seq); err != nil {
 			return err
 		}
 		if index == gr.Layer {

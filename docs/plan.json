@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "client-first-token",
-          "title": "Show the time from submit to the first visible token beside a chat answer's usage",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserShowsTheFirstTokenTime$' -leg 'first token leg'",
-          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): submit to first visible answer. The only measure that spans proxy, admission, prompt preparation, prefill and paint is the client's: composer.js consume (:301-314) can stamp the start of the turn, the first token event and one animation frame after it, shown beside the usage cards (chat.js:46). Display only; the scorecard's first-output cell reads the server's prefill sample, not a token (scorecard.go:316,391), and real time to first token exists only offline (cmd/benchmark/timing.go:22). No performance.now exists anywhere in the web UI today. Test first: a streamed turn in the browser lane shows a first-token time that is at least the delay the fixture imposed."
-        },
-        {
           "id": "chat-admission-wait",
           "title": "Time a chat request's lease wait and prompt preparation and show them in the Requests tab",
           "status": "open",

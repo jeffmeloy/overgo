@@ -749,8 +749,10 @@
           } })));
       thread.node.prepend(welcome);
 
-      function renderFacts(inputTokens, usage, timings) {
+      function renderFacts(inputTokens, usage, timings, firstToken) {
         const cards = [];
+        // The time from sending the turn to its first visible token: the one measure that spans the proxy, admission, prefill and paint.
+        if (firstToken != null) cards.push(overgo.stat("First token", Math.round(firstToken), "ms"));
         if (inputTokens == null && usage && usage.prompt_tokens) inputTokens = usage.prompt_tokens; // a hosted turn: the provider's count, the count route having refused
         if (inputTokens != null) { cards.push(overgo.stat("Input", fmt.grouped(inputTokens), "tokens")); if (contextLength != null) cards.push(overgo.stat("Available", fmt.grouped(Number(contextLength) - Number(inputTokens)), "tokens"), overgo.stat("Context ratio", inputTokens + " / " + contextLength)); }
         if (usage && usage.completion_tokens != null) cards.push(overgo.stat("Completion", fmt.grouped(usage.completion_tokens), "tokens"));
@@ -820,7 +822,7 @@
             yield event;
           }
         }
-        const terminal = await thread.consume(noting(overgo.streams.responses(response)), assistant);
+        const terminal = await thread.consume(noting(overgo.streams.responses(response)), assistant, turn.submitted);
         if (overgo.signal.aborted) return;
         if (!terminal.status) throw new Error("The response has no confirmed result. Resume to check it.");
         lastResponseID = terminal.status === "failed" ? turn.previous : latest;
@@ -832,7 +834,7 @@
         if (terminal.status === "failed") {
           if (turn.branch) restoreBranch(turn.branch, 'The branch failed.'); else restorePrompt(turn.prompt);
         }
-        renderFacts(inputTokens, terminal.usage, terminal.timings);
+        renderFacts(inputTokens, terminal.usage, terminal.timings, terminal.firstToken);
         overgo.refreshConversations();
       }
 
@@ -897,7 +899,7 @@
           const response = await streamTurn("/v1/responses", request, "POST");
           note.remove();
           if (partial) { assistant.content = partial.content; thread.renderMessage(assistant, true); }
-          activeTurn = { response: "", model: modelID, previous: stoppedID, assistant, users, prompt: null };
+          activeTurn = { response: "", model: modelID, previous: stoppedID, assistant, users, prompt: null, submitted: performance.now() };
           await consumeTurn(response, assistant, null);
         } catch (err) {
           if (overgo.signal.aborted) return;
@@ -975,7 +977,7 @@
           turnSettings(request);
           const count = await overgo.api.post("/v1/responses/input_tokens", request, { signal: controller.signal }).catch(() => null) /* reviewed: a hosted model's provider tokenizes, the count route refuses, and the meter stays empty by design */;
           controller.signal.throwIfAborted();
-          activeTurn = { response: "", model: modelID, previous: lastResponseID, assistant, users, branch, prompt: { text, attachments } };
+          activeTurn = { response: "", model: modelID, previous: lastResponseID, assistant, users, branch, prompt: { text, attachments }, submitted: performance.now() };
           renderFacts(count ? count.input_tokens : null, null, null);
           await consumeTurn(await streamTurn("/v1/responses", request, "POST"), assistant, count ? count.input_tokens : null);
         } catch (err) {

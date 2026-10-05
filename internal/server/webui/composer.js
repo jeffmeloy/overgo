@@ -297,8 +297,9 @@
     }
 
     // consume drives one turn from an event source: tokens land in the message (markdown at done),
-    // tool and media events become cards, usage is returned as the terminal facts.
-    async function consume(events, assistant) {
+    // tool and media events become cards, usage is returned as the terminal facts. submitted, when given, is the
+    // performance.now() the turn was sent at: the terminal facts then carry firstToken, the milliseconds to the first token.
+    async function consume(events, assistant, submitted) {
       const terminal = {};
       const open = new Map();
       thinking(true);
@@ -307,6 +308,7 @@
           switch (event.type) {
             case "token":
               thinking(false);
+              if (submitted !== undefined && terminal.firstToken === undefined) terminal.firstToken = performance.now() - submitted;
               if (!assistant || !assistant.content) announcement.textContent = "Receiving a response.";
               if (!assistant) assistant = add("assistant", "");
               assistant.content += event.text;

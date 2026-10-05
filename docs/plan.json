@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "host-session-memory",
-      "title": "A host training session samples no device memory, whatever else its process holds",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 150,
-        "reason": "one ledger reader on the Observer and its test, paid by the range assertion the test replaces"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "A host training session samples no device memory, whatever else its process holds",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^(TestObserverSamplesTheProcessLedger|TestAHostSessionHoldsNoDeviceMemory)$'",
-          "rationale": "Serves: SQA-086 (2026-10-04), the one source-confirmed defect of the process-ledger landing c288. Disappears: the Observer's unconditional read of the driver's process-lifetime counters for a session that declared itself CPU/host. Change: the Observer holds the ledger its session answers to: the driver's process counters for a device session, and a reader of zero for a host one, which NewObserver declares already (cpu/host); sampleHardware and SampleStep read it, so a workbench that trains on the CPU beside a resident inference runner records the measured zero its session held, never the runner's allocation as the training recipe's peak. Not changed: a device session still reads the process ledger, which is its own where cmd/train is the process (the only caller of NewObserver with host=false), and no ledger is reset or subtracted; a device session in a process that holds other device memory stays unsolved and has no caller. Evidence: TestAHostSessionHoldsNoDeviceMemory gives the Observer's reader a nonzero process ledger and holds the host session's samples to zero and the device session's to the ledger, replacing the live-global range assertion of TestObserverSamplesTheProcessLedger, which could not tell a sibling's memory from the session's own."
-        }
-      ]
-    },
-    {
       "id": "media-delta-command",
       "title": "Build and register a reviewed media delta with one command, registry identity included",
       "owner": "master-lead",

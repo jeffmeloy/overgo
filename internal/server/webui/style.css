@@ -462,6 +462,7 @@ button.pill { font:inherit; cursor:pointer; }
 
 /* Utilities: the one place a size, spacing or emphasis is named; the scripts carry no inline style attributes. */
 [hidden] { display:none !important; }
+.view-hidden { display:none !important; }
 .w-80 { width:80px; } .w-90 { width:90px; } .w-110 { width:110px; } .w-130 { width:130px; } .w-150 { width:150px; } .w-auto { width:auto; }
 .mw-420 { max-width:420px; } .mw-440 { max-width:440px; } .fit-width { max-width:100%; }
 .mt-s2 { margin-top:var(--s2); } .mt-s4 { margin-top:var(--s4); } .mb-s3 { margin-bottom:var(--s3); }

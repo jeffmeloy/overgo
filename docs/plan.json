@@ -71,13 +71,6 @@
           "rationale": "Serves: a retry that starts nothing twice. Review of the staged GUI lane merge (2026-10-05): internal/server/webui/boot.js:98 (api.submit) drops the client's request number on any HTTP status, so a waiter's 408 (protocol_io.go:130) or a gateway's 502, 503 or 504 after the server started the run gives the next click a new number and a second run; the comment says an answer settles it, but those answers do not come from the server's handling of the submission. A number kept after a status-less failure never expires (bounded only by unansweredSubmissionLimit): decide whether that needs more than the server's 256-entry ledger. Change: keep the number through 408, 502, 503 and 504, drop it on any other answer. Test first: a browser leg that makes the first try answer 504 and checks the second try carries the same number, and a 400 answer makes a new one."
         },
         {
-          "id": "requests-view",
-          "title": "Keep the Requests view's rows while it polls, its filter state and a malformed payload",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserRequestsViewKeepsItsRowsWhilePolling$' -leg 'requests view leg'",
-          "rationale": "Serves: a view that can be read. Review of the staged GUI lane merge (2026-10-05, three read-only reviews of the merged tree, nothing run): internal/server/webui/mod/requests.js:50,52 polls refresh() with no argument, and boot.js:441 skips the loading placeholder only for its private refreshing symbol, so every 2 seconds the table is replaced by Loading and redrawn, the page height collapses and scroll position is lost (datasets.js:57 and inbox.js:55 pass { loading: null }); mod/api.js:71 show() sets hidden=false on every node of the explorer including the route cards, so after a filter, a switch to Requests and back every card shows while the count still says 3 of 80 routes match; a payload with no requests throws inside draw and leaves latest assigned, so the Show input handler (line 49) throws on every change, and panel.checkVisibility() is missing before Safari 17.4. Test first: a browser leg that polls twice and asserts the rows are never replaced by the placeholder, the filter survives the tab switch, and a malformed payload shows the failure card without poisoning the handlers."
-        },
-        {
           "id": "checkpoint-own-saves",
           "title": "Prune and resume only this run's own step checkpoints, and refuse another run's directories",
           "status": "open",

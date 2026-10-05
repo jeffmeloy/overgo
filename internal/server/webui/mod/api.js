@@ -68,7 +68,8 @@
       panel.append(viewHost);
       function show(id) {
         const view = views.find((item) => item.id === id);
-        for (const node of explorer) node.hidden = !!view;
+        // A class, not hidden: the route filter hides cards by hidden, which a view switch must leave as it was.
+        for (const node of explorer) node.classList.toggle("view-hidden", !!view);
         for (const button of chooser.children) button.setAttribute("aria-selected", String(button.dataset.view === (view ? view.id : "api")));
         history.replaceState(null, "", "#" + (view ? view.id : "api"));
         if (view) overgo.embed(view.id, viewHost);

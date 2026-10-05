@@ -47,9 +47,17 @@
         ]), "request-grid", "No requests match."));
       }
       show.addEventListener("input", draw);
-      const refresh = overgo.read(listHost, (signal) => api.get("/requests", { signal }), (answer) => { latest = answer; draw(); }, { loading: "Loading…" });
+      // The placeholder is the first read's alone: a read again every few seconds must not blank the table it replaces.
+      // A payload that is not a list is refused before it is kept, so a later change of filter draws the last good one.
+      listHost.replaceChildren(el("div", { class: "note", text: "Loading…" }));
+      const refresh = overgo.read(listHost, (signal) => api.get("/requests", { signal }), (answer) => {
+        if (!answer || !Array.isArray(answer.requests)) throw new Error("the server's request log was not a list");
+        latest = answer;
+        draw();
+      }, { loading: null });
       // The tab is a view its owner mounts, so it ends with the owner's next choice, and it reads only while it shows.
-      const timer = setInterval(() => { if (!document.hidden && panel.checkVisibility()) refresh(); }, refreshMS);
+      const visible = () => !document.hidden && (typeof panel.checkVisibility !== "function" || panel.checkVisibility());
+      const timer = setInterval(() => { if (visible()) refresh(); }, refreshMS);
       overgo.onRelease(() => clearInterval(timer));
       await refresh();
     },

@@ -4,6 +4,39 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "dev-speed",
+      "title": "Cut the time a landing, a cycle and a resumed cycle cost, from the session's measurements",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 700,
+        "reason": "The cycle's report: a writer through measurePhases and a line for each phase run or credited (cycle-report). The multi-step landing: the steps a landing names are parsed once (rows), each is advanced past in the plan, their checks run once each and their rows' growth adds up, and the commit carries a trailer for each; the tagged-lane impact, the gate profile and the computation fingerprint are the rest of the row's allowance."
+      },
+      "steps": [
+        {
+          "id": "tagged-lane-impact",
+          "title": "Run the modeltest tests a landing's changed packages reach, in the landing",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestTaggedTestsRunWhenTheirClosureChanges$'",
+          "rationale": "Serves: failures found at landing time, not 2.5 hours later in a cycle. Evidence 2026-10-05: cycle 14's models lane found two bugs a landing could have (cmd/benchmark-report TestAcceptedSmallModelMMLUPro after smoke-declaration-recipe, and the cmd/validate accepted-coverage census after the E4B recipe replacement) because modeltest-tagged tests read the live store and only the cycle runs them. Change: the landing maps its changed packages to the tagged tests whose package closure (go list -deps -test -tags modeltest) contains one and runs those against the store; the four coverage tests took 83 s, so it runs only the reachable ones. Test first: a changed package inside a tagged test's closure selects it, one outside does not. Unknown dependencies (data files read at run time, subprocesses) keep the broader coverage; the selection is the package closure the toolchain reports, not a new selector or list."
+        },
+        {
+          "id": "gate-profile",
+          "title": "Profile the gate's own wall and overlap CPU-only lanes with the device lane",
+          "status": "open",
+          "verify": "go test ./internal/landing -count=1 -run '^TestCPULanesOverlapTheDeviceLane$'",
+          "rationale": "Serves: the landing wall. The method that took a host LoRA step from 3m54s to 18.4 s (average cores = pprof samples over wall) applies to the gate: the device and cuda lanes run -p=1 and the machine has 32 cores. First measure, per stage and lane, wall and average cores for three real landings and record them in this step; then overlap the lanes that need no device with the device lane where nothing times a cell (a cycle's timed cells stay alone on the machine). Test first: the lane scheduler starts a CPU-only lane while a device lane runs and never two device lanes. Measured 2026-10-05 from the retained 'Measured by the gate' lines of the last 150 landings (go run ./tmp/gate_costs.go 150): the whole gate's median is 3m03s, its mean 8m and its p90 17m; lanes are 15.0 of 20.0 hours (75%), the test stage 3.8 hours (19%), and fix, vet, rules, invariants, verify and scorecard together under 1.3 hours. 16 landings reached no lane. The 14 whose lanes took 8 minutes or more ran the device lane (2.5 to 5 min), the cuda lane (5 min with all 16 packages executed and none cached, once 16 min) and the browser lane (54 s) one after another, and three also waited 5 to 22 minutes for the shared device's turn. Reaching a device lane is a real dependency (hostmath, loratrain and merges sit under device tests), so the saving is in sharing one lane run across steps and in overlapping what needs no device, not in narrower reach."
+        },
+        {
+          "id": "computation-fingerprint",
+          "title": "Carry a measurement when the computation that produced it is unchanged",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestMeasurementCarriesWhileTheComputationFingerprintHolds$'",
+          "rationale": "Serves: the cycle (about 1.5 h of cells, 1 h of lanes and up to 1.9 h per bbh cell in the fill, 17 cells, re-acquired every cycle) and every resumed cycle. Most commits touch no inference path. Idea: a per-recipe computation fingerprint, the hash of the transitive Go packages that execute it (go list -deps), its kernels, recipe, weights and environment; a measurement taken at an equal fingerprint is carried (the replay-and-carry of evaluations already does this for quality, with a 32-case replay as the check), and only cells whose fingerprint moved run. First step of the work: measure over the last cycles how many re-measured cells had an equal fingerprint (record the count here), then the evaluation owner takes it. Replaces hand-listed runtime paths (the media pin was retired for that reason). Test first: an unrelated package change leaves the fingerprint, a package or kernel the recipe reaches changes it. Scope validation and reuse by the actual dependencies (kernels, generated or embedded data, models, recipes, environment and subprocess effects); a dependency the walk cannot see keeps the broader coverage rather than being assumed unchanged. Judge it against its total maintenance cost (code, tests, fixtures, gate work), and decline it if the measured count of re-measured cells with an equal fingerprint is small. Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): a cell's credit across an interrupted cycle is the same fingerprint question per cell (cmd/loop/improve.go:337-346, validate/selection.go:107-111). Improvement cycle 15 (2026-10-05, measured at b69b2d98e, started 09:27, ended by the agent tool's 2 h limit at 11:27 in its models lane): the lanes phase did not finish before the agent tool's 2 h limit, and a cycle resumes only at the commit it measured (credit is keyed by HEAD, the store and the obligations); twelve landings had moved HEAD by then, so the rerun the limit calls for would measure all 85 cells again (about 1.3 h) although no landing touched what any cell executes. Keying credit by what a cell executes (this step) is what lets a cycle survive the landings that run beside it."
+        }
+      ]
+    },
+    {
       "id": "cycle-trigger",
       "title": "Start the improvement cycle when what it measures has moved, not by hand",
       "owner": "master-lead",
@@ -37,56 +70,6 @@
           "status": "open",
           "verify": "go test ./cmd/loop -count=1 -run '^TestCycleCreditFollowsTheInputsARunConsumes$'",
           "rationale": "Serves: a resumed cycle that never credits a measurement its inputs invalidated. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): eb15395a8 keys credit to HEAD, the absolute store and obligationsDigest and reruns lanes on every resume (credited), but obligationsDigest projects only model, kind, validation, protocol, recipe, location and promotion: ModelValidation.Directory, Grounding, Objective, Conditioning, Projector, the baseline scorecard identity and the executing environment are absent, so a changed declared input (groundTraining derives Objective and Conditioning that trainingRun consumes) can leave the key equal. Change: derive the key from the typed execution obligations and the existing evidence input and environment identities, excluding measured cost and replay pointers only where they cannot change the acceptance contract; unknown validity credits nothing. Test first: extend TestObligationsDigestIgnoresWhatARunChanges with real changes to Directory, Grounding, Objective, Conditioning and Projector (each invalidates the affected cells and the publication that depends on them) and keep the cost and replay neutrality, other-store, other-commit and failed-phase cases. Related: evidence-authority/source-environment, campaign-closeout. Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository) adds: add the acquired cell keys to cycleState, using the fields obligationsDigest already joins (improve.go:270), and have executeRun (cmd/validate/run.go:180) skip them; it is the one item of the journey inventory that changes elapsed time, moderate in size."
-        },
-        {
-          "id": "head-bound-delta-retire",
-          "title": "Delete the head-bound delta API the capability director no longer uses",
-          "status": "open",
-          "verify": "test ! -f internal/overgodb/head_bound_delta.go \u0026\u0026 go build ./internal/overgodb",
-          "rationale": "Serves: dev velocity and memory: no production code to carry. The capability director's refresh no longer reads a coalesced view change (the five-fix landing deleted capabilityruntime's HeadBoundView, which refreshed on a delta and so could keep a selection whose authority had moved), so overgodb.DeltasSince and HeadBoundDelta (internal/overgodb/head_bound_delta.go and its test) have no consumer outside their own tests. Change: delete both files. Test first: the build holds without them."
-        }
-      ]
-    },
-    {
-      "id": "dev-speed",
-      "title": "Cut the time a landing, a cycle and a resumed cycle cost, from the session's measurements",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "cycle-report",
-          "title": "Print what an interrupted cycle credited and the wall of each phase",
-          "status": "open",
-          "verify": "go test ./cmd/loop -count=1 -run '^TestCycleReportsWhatItCreditedAndEachPhaseWall$'",
-          "rationale": "Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): interrupted cycle to useful progress, the least measured journey. The cycle prints no wall per phase and measurePhases (cmd/loop/improve.go:337-346) skips a credited phase silently, so nothing shows what was credited against redone; the only evidence is a unit test with a fake validator (improve_resume_test.go:17). Credit is all-or-nothing per phase (cycleState :233, written after a phase ends :339): the cells phase is credited only after every cell passes, selection re-runs every cell every cycle (cmd/validate/selection.go:107-111), a benchmark cell may take up to 6 h (validate/run.go:37) and a kill in cell 7 redoes cells 1 to 6; Fill has no credit at all. First step, trivial: print each phase's wall and what was credited. Test first: a resumed cycle's output names the credited phases and each phase's wall. The per-cell credit is sqa-defects/interrupted-credit and dev-speed/computation-fingerprint."
-        },
-        {
-          "id": "multi-step-landing",
-          "title": "Let one landing complete several plan steps with one gate run",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestLandingCompletesSeveralSteps$'",
-          "rationale": "Serves: the landing wall, which is mostly lanes. Measured 2026-10-05 from the retained 'Measured by the gate' lines of the last 150 landings (go run ./tmp/gate_costs.go 150): the whole gate's median is 3m03s, its mean 8m and its p90 17m; lanes are 15.0 of 20.0 hours (75%), the test stage 3.8 hours (19%), and fix, vet, rules, invariants, verify and scorecard together under 1.3 hours. 16 landings reached no lane. The 14 whose lanes took 8 minutes or more ran the device lane (2.5 to 5 min), the cuda lane (5 min with all 16 packages executed and none cached, once 16 min) and the browser lane (54 s) one after another, and three also waited 5 to 22 minutes for the shared device's turn. Reaching a device lane is a real dependency (hostmath, loratrain and merges sit under device tests), so the saving is in sharing one lane run across steps and in overlapping what needs no device, not in narrower reach. A landing that reaches the device lanes costs 9 to 25 minutes however small, so several steps that all reach them should pay once: this session's seven audit landings cost about 1.5 hours of waiting. Share one valid gate execution across compatible plan steps and obligations. Change: -land takes more than one item/step, one commit with a Landed-Row trailer per step and each step's removal; every named step's verify must pass and the message states a Cause and a Predicted effect that covers them. Test first: two steps land together, both are removed, both trailers are in git, and one failing verify refuses the whole landing."
-        },
-        {
-          "id": "tagged-lane-impact",
-          "title": "Run the modeltest tests a landing's changed packages reach, in the landing",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestTaggedTestsRunWhenTheirClosureChanges$'",
-          "rationale": "Serves: failures found at landing time, not 2.5 hours later in a cycle. Evidence 2026-10-05: cycle 14's models lane found two bugs a landing could have (cmd/benchmark-report TestAcceptedSmallModelMMLUPro after smoke-declaration-recipe, and the cmd/validate accepted-coverage census after the E4B recipe replacement) because modeltest-tagged tests read the live store and only the cycle runs them. Change: the landing maps its changed packages to the tagged tests whose package closure (go list -deps -test -tags modeltest) contains one and runs those against the store; the four coverage tests took 83 s, so it runs only the reachable ones. Test first: a changed package inside a tagged test's closure selects it, one outside does not. Unknown dependencies (data files read at run time, subprocesses) keep the broader coverage; the selection is the package closure the toolchain reports, not a new selector or list."
-        },
-        {
-          "id": "gate-profile",
-          "title": "Profile the gate's own wall and overlap CPU-only lanes with the device lane",
-          "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestCPULanesOverlapTheDeviceLane$'",
-          "rationale": "Serves: the landing wall. The method that took a host LoRA step from 3m54s to 18.4 s (average cores = pprof samples over wall) applies to the gate: the device and cuda lanes run -p=1 and the machine has 32 cores. First measure, per stage and lane, wall and average cores for three real landings and record them in this step; then overlap the lanes that need no device with the device lane where nothing times a cell (a cycle's timed cells stay alone on the machine). Test first: the lane scheduler starts a CPU-only lane while a device lane runs and never two device lanes. Measured 2026-10-05 from the retained 'Measured by the gate' lines of the last 150 landings (go run ./tmp/gate_costs.go 150): the whole gate's median is 3m03s, its mean 8m and its p90 17m; lanes are 15.0 of 20.0 hours (75%), the test stage 3.8 hours (19%), and fix, vet, rules, invariants, verify and scorecard together under 1.3 hours. 16 landings reached no lane. The 14 whose lanes took 8 minutes or more ran the device lane (2.5 to 5 min), the cuda lane (5 min with all 16 packages executed and none cached, once 16 min) and the browser lane (54 s) one after another, and three also waited 5 to 22 minutes for the shared device's turn. Reaching a device lane is a real dependency (hostmath, loratrain and merges sit under device tests), so the saving is in sharing one lane run across steps and in overlapping what needs no device, not in narrower reach."
-        },
-        {
-          "id": "computation-fingerprint",
-          "title": "Carry a measurement when the computation that produced it is unchanged",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -count=1 -run '^TestMeasurementCarriesWhileTheComputationFingerprintHolds$'",
-          "rationale": "Serves: the cycle (about 1.5 h of cells, 1 h of lanes and up to 1.9 h per bbh cell in the fill, 17 cells, re-acquired every cycle) and every resumed cycle. Most commits touch no inference path. Idea: a per-recipe computation fingerprint, the hash of the transitive Go packages that execute it (go list -deps), its kernels, recipe, weights and environment; a measurement taken at an equal fingerprint is carried (the replay-and-carry of evaluations already does this for quality, with a 32-case replay as the check), and only cells whose fingerprint moved run. First step of the work: measure over the last cycles how many re-measured cells had an equal fingerprint (record the count here), then the evaluation owner takes it. Replaces hand-listed runtime paths (the media pin was retired for that reason). Test first: an unrelated package change leaves the fingerprint, a package or kernel the recipe reaches changes it. Scope validation and reuse by the actual dependencies (kernels, generated or embedded data, models, recipes, environment and subprocess effects); a dependency the walk cannot see keeps the broader coverage rather than being assumed unchanged. Judge it against its total maintenance cost (code, tests, fixtures, gate work), and decline it if the measured count of re-measured cells with an equal fingerprint is small. Journey inventory 2026-10-05 (read-only audit of what each journey already records; paths relative to the repository): a cell's credit across an interrupted cycle is the same fingerprint question per cell (cmd/loop/improve.go:337-346, validate/selection.go:107-111). Improvement cycle 15 (2026-10-05, measured at b69b2d98e, started 09:27, ended by the agent tool's 2 h limit at 11:27 in its models lane): the lanes phase did not finish before the agent tool's 2 h limit, and a cycle resumes only at the commit it measured (credit is keyed by HEAD, the store and the obligations); twelve landings had moved HEAD by then, so the rerun the limit calls for would measure all 85 cells again (about 1.3 h) although no landing touched what any cell executes. Keying credit by what a cell executes (this step) is what lets a cycle survive the landings that run beside it."
         }
       ]
     },

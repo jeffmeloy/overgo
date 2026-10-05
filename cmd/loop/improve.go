@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
@@ -300,7 +301,7 @@ func measureScorecard(checkout, store string) error {
 		return err
 	}
 	key := strings.Join([]string{strings.TrimSpace(string(head)), absolute, obligations}, "|")
-	return measurePhases(filepath.Join(filepath.Dir(checkout), cycleStateFile), key, func(environment []string, arguments ...string) error {
+	return measurePhases(filepath.Join(filepath.Dir(checkout), cycleStateFile), key, os.Stdout, func(environment []string, arguments ...string) error {
 		return validateIn(checkout, store, environment, arguments...)
 	})
 }
@@ -309,15 +310,23 @@ func measureScorecard(checkout, store string) error {
 // and the lanes, in that order, skipping the cells and the publication the
 // state at statePath records as passed for that key. The cells run again
 // whenever they did not pass, and the scorecard publishes again after them,
-// since it then holds fresher numbers; the lanes always run.
-func measurePhases(statePath, key string, validate func(environment []string, arguments ...string) error) error {
+// since it then holds fresher numbers; the lanes always run. The report says
+// what a resumed cycle credited and, for each phase it ran, how long it took
+// and whether it passed.
+func measurePhases(statePath, key string, report io.Writer, validate func(environment []string, arguments ...string) error) error {
 	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-measure-%d.error", os.Getpid()))
 	defer os.Remove(errorFile)
 	state := readCycleState(statePath, key)
 	var failed []error
-	phase := func(arguments ...string) bool {
+	phase := func(name string, arguments ...string) bool {
 		_ = os.Remove(errorFile)
+		started := time.Now()
 		err := validate([]string{clioptions.ErrorFileEnvironment + "=" + errorFile}, arguments...)
+		verdict := "passed"
+		if err != nil {
+			verdict = "did not pass"
+		}
+		fmt.Fprintf(report, "loop: cycle phase %s %s in %s\n", name, verdict, time.Since(started).Round(time.Millisecond))
 		if err != nil {
 			final, _ := os.ReadFile(errorFile)
 			failed = append(failed, fmt.Errorf("loop: the plan is empty, but validate %s failed: %w: %s", strings.Join(arguments, " "), err, bytes.TrimSpace(final)))
@@ -331,14 +340,18 @@ func measurePhases(statePath, key string, validate func(environment []string, ar
 	}
 	remeasured := !state.Cells
 	if remeasured {
-		state.Cells = phase("-run", "-cells")
+		state.Cells = phase("cells", "-run", "-cells")
 		remember()
+	} else {
+		fmt.Fprintln(report, "loop: cycle phase cells credited from the interrupted run of this key: not run again")
 	}
 	if remeasured || !state.Published {
-		state.Published = phase("-scorecard", "-publish")
+		state.Published = phase("publication", "-scorecard", "-publish")
 		remember()
+	} else {
+		fmt.Fprintln(report, "loop: cycle phase publication credited from the interrupted run of this key: not run again")
 	}
-	phase("-run", "-lanes")
+	phase("lanes", "-run", "-lanes")
 	return errors.Join(failed...)
 }
 

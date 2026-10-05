@@ -126,8 +126,10 @@ func (w execRowWorld) Landed(reference string) (string, error) {
 		return "", err
 	}
 	commit, body, _ := strings.Cut(string(message), "\n")
-	if !strings.Contains(body, "\n"+plan.LandedRowTrailer+": "+reference+"\n") {
-		return "", fmt.Errorf("loop: the gate reported success but HEAD %.12s is not the landing of %s", commit, reference)
+	for row := range strings.SplitSeq(reference, ",") {
+		if !strings.Contains(body, "\n"+plan.LandedRowTrailer+": "+strings.TrimSpace(row)+"\n") {
+			return "", fmt.Errorf("loop: the gate reported success but HEAD %.12s is not the landing of %s", commit, row)
+		}
 	}
 	return commit, nil
 }
@@ -141,8 +143,8 @@ const standardInput = "-"
 // change or a cause outside it refused the landing, and how often that
 // class of refusal recurred.
 func landCommand(reference, messageFile string, input io.Reader, output io.Writer) error {
-	if strings.Count(reference, "/") != 1 || strings.TrimSpace(messageFile) == "" {
-		return fmt.Errorf("usage: loop -land <item>/<step> -message-file <file, or - for standard input>")
+	if strings.Count(reference, "/") != strings.Count(reference, ",")+1 || strings.TrimSpace(messageFile) == "" {
+		return fmt.Errorf("usage: loop -land <item>/<step>[,<item>/<step>...] -message-file <file, or - for standard input>")
 	}
 	var message []byte
 	if messageFile == standardInput {

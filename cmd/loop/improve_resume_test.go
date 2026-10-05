@@ -2,11 +2,51 @@ package main
 
 import (
 	"errors"
+	"io"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
 )
+
+// TestCycleReportsWhatItCreditedAndEachPhaseWall holds a cycle to saying what it did with
+// the interrupted run it continued: a first run names each phase it ran, how it ended and its
+// wall; the run that continues it names the phases it credited, and the lanes it ran again,
+// so no phase is skipped or redone in silence.
+func TestCycleReportsWhatItCreditedAndEachPhaseWall(t *testing.T) {
+	t.Parallel()
+	state := filepath.Join(t.TempDir(), cycleStateFile)
+	cycle := func(failing string) string {
+		var report strings.Builder
+		_ = measurePhases(state, "commit|store|obligations", &report, func(_ []string, arguments ...string) error {
+			if strings.Join(arguments, " ") == failing {
+				return errors.New("ended")
+			}
+			return nil
+		})
+		return report.String()
+	}
+	wall := regexp.MustCompile(`in [0-9.]+(µs|ms|s|m)`)
+	first := cycle("-run -lanes")
+	for _, want := range []string{"phase cells passed", "phase publication passed", "phase lanes did not pass"} {
+		if !strings.Contains(first, want) {
+			t.Errorf("the first run's report %q does not say %q", first, want)
+		}
+	}
+	if got := len(wall.FindAllString(first, -1)); got != 3 {
+		t.Errorf("the first run's report %q gives %d phase walls, want one for each of three phases", first, got)
+	}
+	resumed := cycle("")
+	for _, want := range []string{"phase cells credited from the interrupted run", "phase publication credited from the interrupted run", "phase lanes passed"} {
+		if !strings.Contains(resumed, want) {
+			t.Errorf("the resumed run's report %q does not say %q", resumed, want)
+		}
+	}
+	if strings.Contains(resumed, "phase cells passed") || len(wall.FindAllString(resumed, -1)) != 1 {
+		t.Errorf("the resumed run's report %q ran a credited phase again or gave more than the lanes' wall", resumed)
+	}
+}
 
 // TestInterruptedCycleResumesAtItsFirstUnpassedPhase holds a cycle to going on
 // from where it stopped for the same key: the cells and the publication that
@@ -29,7 +69,7 @@ func TestInterruptedCycleResumesAtItsFirstUnpassedPhase(t *testing.T) {
 	}
 	cycle := func(key, failPhase string) ([]string, error) {
 		ran, failing = nil, failPhase
-		err := measurePhases(state, key, validate)
+		err := measurePhases(state, key, io.Discard, validate)
 		return ran, err
 	}
 	const cells, publish, lanes = "-run -cells", "-scorecard -publish", "-run -lanes"

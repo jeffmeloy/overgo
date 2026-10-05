@@ -55,7 +55,7 @@ func (l *landing) rules(ctx context.Context) error {
 		findings = append(findings, directory+" has CUDA-gated tests that no lane runs; add it to a lane that sets "+cudaTestEnvironment)
 	}
 	if growth := productionNodes(candidate) - productionNodes(base); !admits(l.budget, growth) {
-		findings = append(findings, fmt.Sprintf("adds %d production syntax nodes beyond row %s's budget %+v; pay for them with deletions, or declare the growth in the row's budget", growth, l.item, l.budget))
+		findings = append(findings, fmt.Sprintf("adds %d production syntax nodes beyond the budget %+v of the row(s) %s; pay for them with deletions, or declare the growth in the row's budget", growth, l.budget, l.Ref))
 	}
 	if len(findings) != 0 {
 		return errors.New(strings.Join(findings, "; "))

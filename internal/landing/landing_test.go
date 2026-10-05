@@ -35,10 +35,13 @@ func (f *sliceFixture) planPath() string {
 }
 
 // candidate takes the dirty tree as a landing of row/do at HEAD takes it.
-func (f *sliceFixture) candidate() *landing {
+func (f *sliceFixture) candidate() *landing { return f.candidateOf("row/do") }
+
+// candidateOf takes the dirty tree as a landing of the named steps at HEAD takes it.
+func (f *sliceFixture) candidateOf(reference string) *landing {
 	f.t.Helper()
-	l := &landing{Options: Options{Repo: f.repo, Ref: "row/do", Message: []byte("change"), Log: io.Discard},
-		item: "row", step: "do", scratch: f.t.TempDir(), details: map[string]string{}}
+	l := &landing{Options: Options{Repo: f.repo, Ref: reference, Message: []byte("change"), Log: io.Discard},
+		scratch: f.t.TempDir(), details: map[string]string{}}
 	if err := l.parents(f.t.Context()); err != nil {
 		f.t.Fatal(err)
 	}
@@ -67,6 +70,65 @@ func (f *sliceFixture) read(name string) string {
 		f.t.Fatal(err)
 	}
 	return string(data)
+}
+
+// TestLandingCompletesSeveralSteps holds a landing that names several steps, joined by commas, to
+// one gate run over one candidate: each step must be open in the plan and each step's check must
+// pass, the rows' declared growth adds up, one commit removes every named step and leaves the
+// others, and the commit carries a Landed-Row trailer for each; a step named twice or not open,
+// or one whose check fails, refuses the whole landing.
+func TestLandingCompletesSeveralSteps(t *testing.T) {
+	t.Parallel()
+	fixture := newRowFixture(t, map[string]string{"a.txt": "base\n"})
+	document := plan.Plan{Campaign: "fixture", Doctrine: "fixture", Items: []plan.Item{
+		{ID: "row", Title: "row", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 10},
+			Steps: []plan.Step{{ID: "do", Title: "row", Status: plan.StatusOpen, Verify: "true"}, {ID: "later", Title: "later", Status: plan.StatusOpen, Verify: "true"}}},
+		{ID: "other", Title: "other", Status: plan.StatusOpen, Budget: plan.Budget{Nodes: 5},
+			Steps: []plan.Step{{ID: "do", Title: "other", Status: plan.StatusOpen, Verify: "true"}}},
+		{ID: "failing", Title: "failing", Status: plan.StatusOpen,
+			Steps: []plan.Step{{ID: "do", Title: "failing", Status: plan.StatusOpen, Verify: "false"}}},
+	}}
+	if err := plan.Save(fixture.planPath(), document); err != nil {
+		t.Fatal(err)
+	}
+	fixture.git("add", "-A")
+	fixture.git("commit", "-q", "-m", "plan of several rows")
+	fixture.write("a.txt", "changed\n")
+
+	l := fixture.candidateOf("row/do,other/do")
+	if l.budget.Nodes != 15 || len(l.verifiers) != 1 {
+		t.Fatalf("budget %+v and checks %q, want the two rows' growth added and the one check, which both steps share, run once", l.budget, l.verifiers)
+	}
+	if err := l.verify(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	commit, err := l.commit(t.Context())
+	if err != nil {
+		t.Fatalf("two steps did not land together: %v", err)
+	}
+	message := fixture.git("show", "-s", "--format=%B", commit)
+	for _, want := range []string{plan.LandedRowTrailer + ": row/do", plan.LandedRowTrailer + ": other/do"} {
+		if !strings.Contains(message, want) {
+			t.Errorf("the landing's message %q lacks the trailer %q", message, want)
+		}
+	}
+	published, err := plan.Parse([]byte(fixture.git("cat-file", "blob", commit+":"+plan.Path)))
+	if err != nil || len(published.Items) != 2 || published.Items[0].ID != "row" || len(published.Items[0].Steps) != 1 || published.Items[0].Steps[0].ID != "later" || published.Items[1].ID != "failing" {
+		t.Fatalf("the landed plan = %+v (%v), want both named steps removed and the rest left", published.Items, err)
+	}
+
+	// One failing check refuses the landing, and a step named twice or not open never starts one.
+	fixture.write("a.txt", "again\n")
+	if failing := fixture.candidateOf("row/later,failing/do"); failing.verify(t.Context()) == nil {
+		t.Error("a landing of a step whose check fails passed its verify stage")
+	}
+	for name, reference := range map[string]string{"a step twice": "row/later,row/later", "a step not in the plan": "row/later,other/gone", "no step": "row"} {
+		if _, err := rows(reference); err == nil {
+			if l := (&landing{Options: Options{Repo: fixture.repo, Ref: reference}}); l.parents(t.Context()) == nil && l.shipSet(t.Context()) == nil {
+				t.Errorf("%s: %q was accepted", name, reference)
+			}
+		}
+	}
 }
 
 // TestLandingFixRegeneratesTheAPIManifest holds the fix stage to the
@@ -105,8 +167,8 @@ func TestLandingPublishesTheCheckedCandidate(t *testing.T) {
 	original := fixture.read(plan.Path)
 	fixture.write("a.txt", "checked\n")
 	l := fixture.candidate()
-	if l.verifier != "true" {
-		t.Fatalf("the row's check = %q, want the candidate plan's", l.verifier)
+	if !slices.Equal(l.verifiers, []string{"true"}) {
+		t.Fatalf("the row's checks = %q, want the candidate plan's", l.verifiers)
 	}
 
 	fixture.write("a.txt", "edited after the candidate\n")

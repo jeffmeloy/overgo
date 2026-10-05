@@ -54,7 +54,6 @@ type Options struct {
 
 type landing struct {
 	Options
-	item, step string
 	// head is the commit the landing found and publishes onto; merging are
 	// the heads a merge in progress joins to it.
 	head    string
@@ -73,21 +72,21 @@ type landing struct {
 	// candidate is the tree the checks validate and the commit publishes.
 	candidate string
 	// planned is the plan the candidate holds and advanced is it with the
-	// row's step removed; verifier and budget are the row's check and its
-	// declared growth as that plan states them.
-	planned  []byte
-	advanced plan.Plan
-	verifier string
-	budget   plan.Budget
+	// landed steps removed; verifiers and budget are the steps' checks and
+	// the declared growth of their rows, summed over the distinct rows, as
+	// that plan states them.
+	planned   []byte
+	advanced  plan.Plan
+	verifiers []string
+	budget    plan.Budget
 }
 
 // Run lands the row and returns the commit. Every check runs over the
 // candidate; the first that fails refuses the landing and nothing is
 // committed.
 func Run(ctx context.Context, options Options) (string, error) {
-	item, step, found := strings.Cut(options.Ref, "/")
-	if !found {
-		return "", fmt.Errorf("land: %q is not item/step", options.Ref)
+	if _, err := rows(options.Ref); err != nil {
+		return "", err
 	}
 	root, err := filepath.Abs(options.Repo)
 	if err != nil {
@@ -102,7 +101,7 @@ func Run(ctx context.Context, options Options) (string, error) {
 		return "", err
 	}
 	defer os.RemoveAll(scratch)
-	l := &landing{Options: options, item: item, step: step, scratch: scratch, details: map[string]string{}}
+	l := &landing{Options: options, scratch: scratch, details: map[string]string{}}
 	if err := l.parents(ctx); err != nil {
 		return "", err
 	}
@@ -271,22 +270,60 @@ func (l *landing) row(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if l.advanced, err = plan.Advance(document, l.item, l.step); err != nil {
-		return fmt.Errorf("land: %s is not an open step of the plan: %w", l.Ref, err)
+	named, err := rows(l.Ref)
+	if err != nil {
+		return err
 	}
-	l.planned = data
-	for _, item := range document.Items {
-		if item.ID != l.item {
-			continue
-		}
-		l.budget = item.Budget
-		for _, step := range item.Steps {
-			if step.ID == l.step {
-				l.verifier = step.Verify
+	l.advanced, l.verifiers, l.budget = document, nil, plan.Budget{}
+	counted := map[string]bool{}
+	for _, row := range named {
+		// A step's check and its row's declared growth are read from the plan before the step is removed.
+		for _, item := range l.advanced.Items {
+			if item.ID != row.item {
+				continue
+			}
+			if !counted[item.ID] {
+				counted[item.ID] = true
+				l.budget.Nodes += item.Budget.Nodes
+				l.budget.Reason = cmp.Or(l.budget.Reason, item.Budget.Reason)
+			}
+			for _, step := range item.Steps {
+				if step.ID == row.step && !slices.Contains(l.verifiers, step.Verify) {
+					l.verifiers = append(l.verifiers, step.Verify)
+				}
 			}
 		}
+		if l.advanced, err = plan.Advance(l.advanced, row.item, row.step); err != nil {
+			return fmt.Errorf("land: %s is not an open step of the plan: %w", row, err)
+		}
 	}
+	l.planned = data
 	return nil
+}
+
+// ref names one plan step a landing completes.
+type ref struct{ item, step string }
+
+// String is the step as a landing names it, item/step.
+func (r ref) String() string { return r.item + "/" + r.step }
+
+// rows reads the steps a landing names: item/step, or several of them joined by commas, which
+// land together in one commit, each with its trailer, under one gate run. A step named twice, or
+// a name that is not item/step, is refused.
+func rows(reference string) ([]ref, error) {
+	var named []ref
+	for part := range strings.SplitSeq(reference, ",") {
+		item, step, found := strings.Cut(strings.TrimSpace(part), "/")
+		if !found || item == "" || step == "" || strings.Contains(step, "/") {
+			return nil, fmt.Errorf("land: %q is not item/step, or item/step steps joined by commas", reference)
+		}
+		next := ref{item, step}
+		if slices.Contains(named, next) {
+			return nil, fmt.Errorf("land: %s is named twice in %q", next, reference)
+		}
+		named = append(named, next)
+	}
+	return named, nil
 }
 
 func dirtyTree(ctx context.Context, repo string) ([]repoanalysis.DirtyPath, error) {
@@ -460,11 +497,15 @@ func ranPackages(output string) string {
 }
 
 func (l *landing) verify(ctx context.Context) error {
-	if strings.TrimSpace(l.verifier) == "" {
-		return nil
+	for _, verifier := range l.verifiers {
+		if strings.TrimSpace(verifier) == "" {
+			continue
+		}
+		if _, err := planverify.Execute(ctx, l.Repo, verifier, nil); err != nil {
+			return err
+		}
 	}
-	_, err := planverify.Execute(ctx, l.Repo, l.verifier, nil)
-	return err
+	return nil
 }
 
 // regularFile is the Git mode the advanced plan is staged with.
@@ -543,7 +584,11 @@ func (l *landing) commit(ctx context.Context) (landed string, err error) {
 // message is the authored message, what the gate measured, and the trailers:
 // the scorecard slices, then the landed row.
 func (l *landing) message() string {
-	trailers := append(slices.Clone(l.trailers), plan.LandedRowTrailer+": "+l.Ref)
+	trailers := slices.Clone(l.trailers)
+	named, _ := rows(l.Ref)
+	for _, row := range named {
+		trailers = append(trailers, plan.LandedRowTrailer+": "+row.String())
+	}
 	return strings.TrimSpace(string(l.Message)) + "\n\nMeasured by the gate: " + strings.Join(l.measured, ", ") +
 		"\n\n" + strings.Join(trailers, "\n") + "\n"
 }

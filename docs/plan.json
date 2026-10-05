@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "report-newest-evaluation",
-          "title": "Keep the newest evaluation when two comparisons share a report label",
-          "status": "open",
-          "verify": "go test ./cmd/benchmark-report -count=1 -run '^TestReportKeepsTheNewestEvaluationOfALabel$'",
-          "rationale": "Serves: a report that prints the newest evaluation. Audit 2026-10-05 (read): cmd/benchmark-report/main.go:133-168 keys by Suite+Prompting while LatestEvidence keeps one summary per Comparison newest first (internal/evaluation/evidence_index.go:378,388-396,403), so the last assignment, the oldest record, wins; unknown-execution records share the label '(unknown)' and collide the same way; Prompt and Decode tok/s print no producing commit or environment although BenchmarkSummary carries both. Failing test first: one recipe and suite scored in two environments prints the older record's metrics and commit as latest. Keep the first record per key or put the Comparison in the key."
-        },
-        {
           "id": "carried-quality-source",
           "title": "Attribute a carried quality to the evaluation it was carried from",
           "status": "open",

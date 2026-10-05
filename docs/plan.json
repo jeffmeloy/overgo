@@ -114,7 +114,7 @@
           "title": "Choose the comparison baseline from the records, not from where main points",
           "status": "open",
           "verify": "go test ./internal/scorecard -count=1 -run '^TestBaselineIsTheNewestHeldRecordNotMain$'",
-          "rationale": "Serves: promotion that no longer depends on a branch pointer, and the open decision baseline-comparison-authority. Owner 2026-10-05: main is only used for GitHub staging (origin/main is 194 commits behind and is pushed only when asked), not the branch users run. The code still reads it as that: internal/scorecard/record.go PromotedBranch, Baseline (:111, the newest earlier record whose commit main holds) and Withheld (:136, no earlier scorecard measured the commit main holds), cmd/loop/improve.go:85-101 (promotion update-refs main, fast-forward only), the message in cmd/validate/selection.go:194. Change: the cycle records the commit that held as a marker beside its scorecard record instead of moving a branch, and Baseline is the newest earlier record that held, or the record the owner designates; main stays a staging pointer nothing reads. Designating the first baseline is the owner's one decision (cycle 10's 48d44c5b4 carries comparison authority; so will any later record that passes its lanes). Test first: Baseline returns the held record with main pointing elsewhere or absent, and never a record that did not hold. Do not answer baseline-comparison-authority: it is the owner's."
+          "rationale": "Serves: promotion that no longer depends on a branch pointer, and the open decision baseline-comparison-authority. Owner 2026-10-05: main is only used for GitHub staging (origin/main is 194 commits behind and is pushed only when asked), not the branch users run. The code still reads it as that: internal/scorecard/record.go PromotedBranch, Baseline (:111, the newest earlier record whose commit main holds) and Withheld (:136, no earlier scorecard measured the commit main holds), cmd/loop/improve.go:85-101 (promotion update-refs main, fast-forward only), the message in cmd/validate/selection.go:194. Change: the cycle records the commit that held as a marker beside its scorecard record instead of moving a branch, and Baseline is the newest earlier record that held, or the record the owner designates; main stays a staging pointer nothing reads. Designating the first baseline is the owner's one decision (cycle 10's 48d44c5b4 carries comparison authority; so will any later record that passes its lanes). Test first: Baseline returns the held record with main pointing elsewhere or absent, and never a record that did not hold. Do not answer baseline-comparison-authority: it is the owner's. When this lands, update skill.md's Intent bullet that says the cycle fast-forwards main and main is promoted: master takes landings, local main is only GitHub staging (owner, 2026-10-05), and a cycle's promotion is judged against a recorded baseline scorecard."
         },
         {
           "id": "push-held",
@@ -582,7 +582,8 @@
             "evidence-authority/serving-environment",
             "evidence-authority/transcription-gap",
             "evidence-authority/baseline-protocol-join",
-            "plan-refactor-sqa/do"
+            "plan-refactor-sqa/do",
+            "skill-ambition/do"
           ]
         }
       ]

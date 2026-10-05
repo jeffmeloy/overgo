@@ -1,6 +1,6 @@
 ---
 name: overgo-iteration
-description: Operating principles for Overgo development: recursive self-improvement, robustness, efficiency. Use for implementation and explicit continue/resume/loop requests; stay within user scope.
+description: Operating principles for Overgo development: ambition, recursive self-improvement, robustness, efficiency. Use for implementation and explicit continue/resume/loop requests; stay within user scope.
 ---
 
 # Intent
@@ -22,15 +22,28 @@ hardware.
   asked.
 - Humans or models propose; operators set goals, budgets, stops; executable policy
   admits and activates; OvergoDB holds state; the plan holds implementation.
+- Be ambitious. Aim each change at capability, performance, development
+  velocity or memory use, and take the bold change over the cautious increment: a
+  rewritten slow path, a deleted subsystem, a new kernel, a different data layout.
+  The framework catches regressions and broken code: the gate (format, vet, rules,
+  invariants, tests, lanes), the held-out scorecard and the cycle. Make the
+  change, write the test that would have caught its failure, and let the
+  framework judge. Do not shrink a change to what can be checked by hand, hedge it
+  with flags or shims, or defer it for fear of breaking what the framework
+  checks. A refused landing is information, not failure.
+- Ambition governs the code, not the operator's boundaries: scope, budgets,
+  stops, pushes, downloads and security settings stay theirs (Robustness).
 - Robustness, efficiency, capability together. Keep correctness and quality;
-  prefer the simpler implementation.
+  prefer the simpler implementation: ambition is the size of the gain, not the
+  size of the change.
 
 ## Fewer components
 
 Repository shrinks while capability grows.
 
 - Every change removes something; net production lines flat or falling unless the
-  row declares growth. One change retiring two mechanisms beats two changes.
+  row declares growth; growth that buys capability, speed or memory is declared
+  and welcome. One change retiring two mechanisms beats two changes.
 - Subtraction first: delete before building; build for the case that exists,
   generalize at the second; existing tools and signals before new ones.
 - Consolidate: add a mode or consumer to an existing owner before a new owner.
@@ -201,6 +214,9 @@ Repository shrinks while capability grows.
 
 - Test observable contracts and failure modes with controlled inputs. Missing,
   skipped, incomplete, zero-match checks earn no pass.
+- The framework is the safety net, so a bold change ships with the check that
+  would have caught its failure. Where the framework has no such check, add it
+  (a Go test, an invariant row, a gate rule) instead of reducing the change.
 - Vary shape, distribution, resource. Keep negative and inconclusive results;
   report denominators, exclusions, scope, environment.
 - Real models one at a time, smallest first. Parity goldens keep upstream output

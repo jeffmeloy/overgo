@@ -42,6 +42,9 @@ func TestDerivedRateFineTunesMeasuredModels(t *testing.T) {
 		{"Qwen2.5-0.5B", 494032768, 4.5e-6, 1.35e-5,
 			"2026-10-02 WikiText-2 sweep, frozen lexical, 512-token windows: 4.5e-5 drifted from -0.15 to +0.22 nats over 200 windows; " +
 				"4.5e-6 to 1.35e-5 held -0.21 to -0.26 nats over 200 and 540 windows"},
+		{"MiniCPM5-1B", 1080632832, 3.8e-6, 3.801e-6,
+			"2026-10-05 WikiText-2, frozen lexical, 540 steps of 512 tokens, trained on the device from the model's GGUF: " +
+				"the derived rate 3.8e-6, the one rate measured, took the 56 held-out records from 3.2571 to 2.6598 nats (token accuracy 0.3883 to 0.4682)"},
 	} {
 		if rate := policy.BaseLearningRate(measured.parameters); rate < measured.lowest || rate > measured.highest {
 			t.Errorf("%s: derived rate %.3g outside the measured fine-tuning band [%.3g, %.3g] (%s)",

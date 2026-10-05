@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "training-rate-per-layer",
-      "title": "Measure whether a per-step relative Muon rate transfers across models",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 200,
-        "reason": "unpermuteRows and its constants are new: a llama GGUF, the commonest local format, becomes trainable"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure whether a per-step relative Muon rate transfers across models",
-          "status": "open",
-          "verify": "go test ./internal/trainingprogram -run '^TestDerivedRateFineTunesMeasuredModels$' -count=1",
-          "rationale": "Owner proposal 2026-10-02: derive Muon's rate per layer from the layer, a per-step relative size rho*||W||/||U||, with a held-out brake (paired against the base's per-window loss) and no first-step line search (the 200-window sweep showed the short horizon favours the rate that later drifted). Measured: relative movement over 540 steps scales linearly with the rate; the good run moved matrices 0.8-1.4% (about 2.4e-5 per step), the old rate 6-10%; equal total movement is not equal outcome; 1-D norms and biases move 50-100x less relatively (tmp/relative_movement.go). On Qwen2.5-0.5B matrix weight scales differ at most 1.5x, so the per-layer rule cannot be told from the exponent there. Step: calibrate rho on 0.5B in the scratch sweep harness, then measure a second model; add its measured band as a row of TestDerivedRateFineTunesMeasuredModels; adopt the per-layer rule only if it transfers where the exponent does not; measure the 1-D tensors separately. Serves: train.\n\nPost-hoc evaluation 2026-10-02 (no training; the good run's change, held-out 56 records, host log loss; scratch train3-wt zz_projection_eval_test.go): base 2.5508 (accuracy 0.4936); full change 2.3038 (0.5143, 56/56 records improve); inside W's row and column spaces 2.3913 (65% of the gain); singular-value part 2.5496 (none); rotation part 2.3913; outside W's spaces only 2.2933 (0.5171, beats the full change); full change except q and o 2.2964; q and o only 2.4966. Paired, removing the q/o change: Hodges-Lehmann -0.0074 nats, block-bootstrap 95% [-0.0086, -0.0066], 55/56 records improve. Conclusions: the learning lives mostly in the rectangular layers and outside their current spaces, so the subspace-restricting spectral rules are dropped, and so is the singular-value-only rule; the square attention matrices' update, where weak directions moved 100-240x more than strong ones, slightly hurts in combination. Per layer kind the drifting run's excess was uniform (6.9-7.5x against a 7.35x rate), but within kinds q/k/v relative movement spreads up to 6x across layers. Next arms on the device, paired held-out log loss, replicated on a second model: plain Muon at parameters^-0.6; q and o at a damped relative step; spectral scaling on q and o only if damping helps. Arms 2026-10-03 (Qwen2.5-0.5B, 540 steps of 512 tokens, frozen lexical, the policy's rate 6.078e-06, scratch train5-wt TestZZQORateArms; a per-matrix rate scale on the device Muon step, not landed): plain held-out log loss 2.3042 (token accuracy 0.5144); q and o at a quarter of the rate 2.3004, paired against plain Hodges-Lehmann -0.0034 nats, block-bootstrap 95 percent [-0.0043, -0.0025], 47 of 56 records improve; q and o not trained (scale 1e-9) 2.2997, HL -0.0042 [-0.0054, -0.0034], 48 of 56. Token accuracy does not move (0.5143 to 0.5145). So the square attention matrices' update costs about 0.004 nats of the run's 0.25-nat gain, damping recovers most of it and not training them recovers all: there is nothing for a spectral rule on q and o to win here, and that arm is dropped. Remaining: replicate plain against untrained q and o on a second model (MiniCPM5-1B, a 1B Llama-shaped model with an untied head, ZZ_MODEL in the same harness) before any policy change; the candidate rule is the simplest one, leave q and o untrained when fine-tuning, which also shrinks the update."
-        }
-      ]
-    },
-    {
       "id": "evidence-authority",
       "title": "Use checked evidence and explicit source and replay scope in reports",
       "owner": "master-lead",

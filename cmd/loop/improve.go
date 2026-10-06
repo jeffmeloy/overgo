@@ -211,7 +211,7 @@ const targetBits = 64
 // proposalStep is the one step a proposed row has.
 const proposalStep = "do"
 
-// Fill runs the background validations, the suites the baseline scorecard
+// Fill runs the background validations, the suites the scorecard
 // does not compare, after the cycle's decision: their evidence flows
 // without delaying the gaps the scorecard filed, and a failure is reported
 // here and changes nothing the cycle decided. They run in the cycle

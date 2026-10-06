@@ -157,7 +157,8 @@
             "python-golden-references/do",
             "record-judged-generation-decision/do",
             "record-training-route-decision/do",
-            "say-contracts-in-words/do"
+            "say-contracts-in-words/do",
+            "scorecard-wording-baseline/do"
           ]
         }
       ]

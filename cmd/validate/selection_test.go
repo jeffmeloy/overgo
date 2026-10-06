@@ -161,8 +161,8 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 				continue
 			}
 			if measured := "store/" + sel.Validation + " (" + sel.Protocol + ")"; scenario.baseline != nil &&
-				!strings.HasPrefix(sel.Promotion, "blocking: the baseline scorecard compares accuracy on "+measured) &&
-				!(strings.HasPrefix(sel.Promotion, "background: the baseline scorecard compares accuracy on ") && strings.HasSuffix(sel.Promotion, ", not "+sel.Validation+" ("+sel.Protocol+")")) {
+				!strings.HasPrefix(sel.Promotion, "blocking: the scorecard compares accuracy on "+measured) &&
+				!(strings.HasPrefix(sel.Promotion, "background: the scorecard compares accuracy on ") && strings.HasSuffix(sel.Promotion, ", not "+sel.Validation+" ("+sel.Protocol+")")) {
 				t.Errorf("%s: %s does not say which contract the baseline compares: %q", scenario.name, sel.Validation, sel.Promotion)
 			}
 		}
@@ -198,7 +198,7 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 }
 
 // TestEveryComparedContractHasACell holds promotion to a fresh measurement of
-// every held-out contract the baseline scorecard compares, whatever family
+// every held-out contract the scorecard compares, whatever family
 // its suite is. The baseline compares a text model on store/mmlu under the
 // chat template, a family no inference activation is benchmarked on by
 // default; a DNA model on store/dna; another text model on store/mmlu-pro;
@@ -299,7 +299,7 @@ func TestEveryComparedContractHasACell(t *testing.T) {
 			t.Fatalf("%s's compared %s has no blocking cell: run=%+v", row.Name, contract.Suite, plan.Run)
 		}
 		sel := plan.Run[at]
-		if sel.Protocol != contract.Protocol || !strings.HasPrefix(sel.Promotion, "blocking: the baseline scorecard compares accuracy on "+contract.Suite+" ("+contract.Protocol+")") {
+		if sel.Protocol != contract.Protocol || !strings.HasPrefix(sel.Promotion, "blocking: the scorecard compares accuracy on "+contract.Suite+" ("+contract.Protocol+")") {
 			t.Fatalf("%s's %s cell runs under %s and says %q, want the compared %s", row.Name, sel.Validation, sel.Protocol, sel.Promotion, contract.Protocol)
 		}
 		name, args, err := reacquireCommand(sel.ModelValidation, store)

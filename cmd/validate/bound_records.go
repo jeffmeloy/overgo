@@ -21,7 +21,7 @@ import (
 // whether the replay reproduces it and carries it forward, else runs in full.
 
 // benchmarkFamilies are the derived-suite families every inference activation
-// owes an accuracy benchmark on, besides the family the baseline scorecard
+// owes an accuracy benchmark on, besides the family the scorecard
 // compares for it.
 var benchmarkFamilies = []string{"mmlu-pro", "bbh", "ifeval"}
 
@@ -55,7 +55,7 @@ func readBenchmarkEvidence(ctx context.Context, store *overgodb.Store) benchmark
 
 // bind gives a benchmark cell the protocol, cost and replay record of its
 // recipe's newest evaluation of the family's suite, under the protocol the
-// cell names when the baseline scorecard compares it, else under whichever
+// cell names when the scorecard compares it, else under whichever
 // protocol ran last. A family no record measures yet takes the named protocol
 // or its first, and runs in full. The cell is inapplicable when its model
 // declares evaluation domains that admit no suite of the family, as

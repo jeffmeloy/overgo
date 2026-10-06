@@ -57,7 +57,7 @@ type Selected struct {
 }
 
 // Inputs are the resolved facts the selection reduces: every registered
-// model's validation obligations, and the baseline scorecard the cycle's next
+// model's validation obligations, and the scorecard the cycle's next
 // record is compared with, nil when none is published.
 type Inputs struct {
 	Registered []ModelValidation
@@ -67,7 +67,7 @@ type Inputs struct {
 // Plan is the validation decision for one tree: run every activated
 // applicable cell, the scorecard waiting on what it compares while the rest runs
 // in the background, and account for every registered model and every lane of
-// the improvement cycle. Scorecard names the baseline scorecard that scoped
+// the improvement cycle. Scorecard names the scorecard that scoped
 // the run.
 type Plan struct {
 	Scorecard          string     `json:"scorecard"`
@@ -170,9 +170,9 @@ func (plan *Plan) schedule(sel Selected, baseline *scorecard.Record) {
 		case none != "":
 			why = none
 		case blocking:
-			why = "the baseline scorecard compares " + compared[at]
+			why = "the scorecard compares " + compared[at]
 		default:
-			why = "the baseline scorecard compares " + strings.Join(compared, ", ") + ", not " + sel.Validation + " (" + sel.Protocol + ")"
+			why = "the scorecard compares " + strings.Join(compared, ", ") + ", not " + sel.Validation + " (" + sel.Protocol + ")"
 		}
 	}
 	if blocking {
@@ -184,7 +184,7 @@ func (plan *Plan) schedule(sel Selected, baseline *scorecard.Record) {
 	plan.Background = append(plan.Background, sel)
 }
 
-// comparedContracts are the held-out contracts the baseline scorecard
+// comparedContracts are the held-out contracts the scorecard
 // compares for a cell's model and task: those of every held-out quality the
 // baseline row measured, the headline and each other, the cells scorecard's
 // Pair.Compare holds a record to. It says why there are none when no
@@ -200,13 +200,13 @@ func comparedContracts(baseline *scorecard.Record, cell ModelValidation) ([]scor
 		}
 	}
 	if len(contracts) == 0 {
-		return nil, "the baseline scorecard measured no held-out quality for this model and task"
+		return nil, "the scorecard measured no held-out quality for this model and task"
 	}
 	return contracts, ""
 }
 
 // compareContracts gives each inference activation a benchmark cell on each
-// held-out contract the baseline scorecard compares for it, under the
+// held-out contract the scorecard compares for it, under the
 // protocol it compares, so every compared contract is judged and re-acquired
 // as compared rather than under whichever protocol ran last. A compared
 // contract takes the activation's cell of its family that no other compared

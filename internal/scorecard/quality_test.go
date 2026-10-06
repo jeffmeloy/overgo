@@ -351,20 +351,23 @@ func TestQualityReadsHeldoutVerdicts(t *testing.T) {
 	for _, test := range []struct {
 		name                                            string
 		complete, losing, missingCheckpoint, wrongModel bool
+		// unreadableObservation adds a newer verdict whose observation cannot be read.
+		unreadableObservation bool
 	}{
 		{name: "legacy-weight-file"},
 		{name: "complete-model", complete: true},
 		{name: "valid-loss", complete: true, losing: true},
 		{name: "missing-checkpoint", complete: true, missingCheckpoint: true},
 		{name: "wrong-observed-model", complete: true, wrongModel: true},
+		{name: "newer-verdict-with-an-unreadable-observation", complete: true, unreadableObservation: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			testQualityReadsHeldoutVerdict(t, test.complete, test.losing, test.missingCheckpoint, test.wrongModel)
+			testQualityReadsHeldoutVerdict(t, test.complete, test.losing, test.missingCheckpoint, test.wrongModel, test.unreadableObservation)
 		})
 	}
 }
 
-func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheckpoint, wrongModel bool) {
+func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheckpoint, wrongModel, unreadableObservation bool) {
 	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
@@ -518,11 +521,55 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 	if _, err := artifact.Publish(ctx, store, judged); err != nil {
 		t.Fatal(err)
 	}
+	// A newer verdict of another observation, which the store holds no content of: it can be neither
+	// reconstructed nor attributed to a recipe, and the older verdict above must not stand in for it.
+	var newer artifact.ID
+	if unreadableObservation {
+		lost, err := runrecord.NewServingObservation(runrecord.ServingObservation{
+			Model: observedModel, Recipe: training, Environment: environment, Task: recipe.TaskTraining,
+			Outcome: runrecord.OutcomeSucceeded, StartedUnixNS: 2, MeasuredNS: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := artifact.Publish(ctx, store, artifact.Batch{Key: "quality/verdict/lost-session", Artifacts: []artifact.Descriptor{{ID: lost.ID}}}); err != nil {
+			t.Fatal(err)
+		}
+		later, err := evaluation.JudgeHeldout(objective, view, plan, base, trained, evaluation.HeldoutTraining{
+			Observation: lost.ID, Model: trainedWeights, Inputs: id(artifact.KindProfile, "inputs"), Trained: checkpoint,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		again, err := evaluation.HeldoutBatch(view, plan, base, trained, later)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := artifact.Publish(ctx, store, again); err != nil {
+			t.Fatal(err)
+		}
+		newer = later.ID
+	}
 
 	records, err := heldoutRecords(ctx, store, []discovery.CatalogEntry{
 		{Model: trainedWeights, Capabilities: []discovery.Capability{{Task: recipe.TaskTraining, Recipe: training}}},
 		{Model: directory.ID, Capabilities: []discovery.Capability{{Task: recipe.TaskTabular, Recipe: tabular}, {Task: recipe.TaskInference, Recipe: inference}}},
 	})
+	if unreadableObservation {
+		if err != nil {
+			t.Fatalf("a verdict whose observation cannot be read stopped the read: %v", err)
+		}
+		for read, task := range map[artifact.ID]recipe.Task{training: recipe.TaskTraining, tabular: recipe.TaskTabular} {
+			cell := records[read].cell(task)
+			if cell.Measured() || !strings.Contains(cell.Reason, newer.String()) || !strings.Contains(cell.Reason, "older verdict is not known to be this recipe's newest") {
+				t.Fatalf("%s's quality = %+v, want a gap naming the newer verdict %s, not the older verdict's value in its place", task, cell, newer)
+			}
+		}
+		if _, found := records[inference]; found {
+			t.Fatal("an inference recipe, which no verdict judges, read a held-out record")
+		}
+		return
+	}
 	if missingCheckpoint || wrongModel {
 		// A verdict that cannot be reconstructed is no quality, and no abort: its
 		// recipe's held-out quality is a gap that says why.

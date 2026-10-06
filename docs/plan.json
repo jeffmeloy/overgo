@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "evidence-authority",
-      "title": "Use checked evidence and explicit source and replay scope in reports",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 230,
-        "reason": "A carried held-out quality is attributed to the run that scored it: a bounded-by-identity walk of the carry chain through the receipt each run reports (the receipt read the evidence index already did, now one helper) and the scorecard cell's carried scope; the walk and the cell are the growth. Earlier allowance kept: the tolerant verdict visit, the recipe's gap record and its cell (the verdict-gap step)."
-      },
-      "steps": [
-        {
-          "id": "unreadable-observation",
-          "title": "Surface a held-out verdict whose serving observation cannot be read, which reserves no recipe today",
-          "status": "open",
-          "verify": "go test ./internal/scorecard -count=1 -run '^TestUnreadableServingObservationSurfacesAnUnknown$'",
-          "rationale": "Serves: a scorecard that names what it could not read. What heldout-unreadable-identity left of SQA-091 (docs/sqa_findings.json): heldoutRecords' unreadable callback keeps the verdict's identity now, but when RequireServingObservation fails for the unreadable verdict's observation the recipe it judges is unknown, so the callback does nothing and the verdict reserves no recipe: an older readable verdict of that recipe stands in for the newest, and nothing surfaces the loss. Change: a typed unreadable outcome that carries the verdict and the observation it could not read, and a scorecard line (a gap on the verdict's task rows, or a published list beside the record) that says an unreadable verdict exists and which, so it is never silent; I/O and cancellation failures stay distinct. Test with the existing tiny fixture: a newest verdict whose observation is missing beside an older readable one."
-        }
-      ]
-    },
-    {
       "id": "gui-lane-review-residue",
       "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
       "owner": "master-lead",

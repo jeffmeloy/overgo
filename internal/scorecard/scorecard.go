@@ -521,15 +521,23 @@ func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discov
 			}
 		}
 	}
+	// A verdict whose observation cannot be read names no recipe, so it claims none; and every verdict
+	// older than it, read after it, may then not be its recipe's newest, so those recipes read a gap that
+	// names it and not the older verdict's value in its place.
+	var unattributed string
+	read := func(recipeID artifact.ID, record heldoutRecord) {
+		if _, found := records[recipeID]; found {
+			return
+		}
+		if unattributed != "" {
+			record = heldoutRecord{unreadable: unattributed}
+		}
+		records[recipeID] = record
+	}
 	err = evaluation.VisitHeldoutVerdicts(ctx, store, func(observation artifact.ID, base, trained evaluation.EvalSummary) error {
 		session, err := runrecord.RequireServingObservation(ctx, store, observation)
 		if err != nil {
 			return err
-		}
-		read := func(recipeID artifact.ID, record heldoutRecord) {
-			if _, found := records[recipeID]; !found {
-				records[recipeID] = record
-			}
 		}
 		_, value, _ := evaluation.HeadlineMetric(base.Metrics)
 		read(session.Recipe, heldoutRecord{summary: trained, base: &value})
@@ -539,11 +547,14 @@ func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discov
 		return nil
 	}, func(verdict, observation artifact.ID, reason error) {
 		// The verdict claims its recipe like a readable one, newest first, and its gap names the verdict.
-		if session, err := runrecord.RequireServingObservation(ctx, store, observation); err == nil {
-			if _, found := records[session.Recipe]; !found {
-				records[session.Recipe] = heldoutRecord{unreadable: "its held-out verdict " + verdict.String() + " cannot be reconstructed: " + reason.Error()}
+		session, err := runrecord.RequireServingObservation(ctx, store, observation)
+		if err != nil {
+			if unattributed == "" {
+				unattributed = fmt.Sprintf("a newer held-out verdict %s cannot be attributed to a recipe (it cannot be reconstructed: %v; its observation %s cannot be read: %v), so an older verdict is not known to be this recipe's newest", verdict, reason, observation, err)
 			}
+			return
 		}
+		read(session.Recipe, heldoutRecord{unreadable: "its held-out verdict " + verdict.String() + " cannot be reconstructed: " + reason.Error()})
 	})
 	return records, err
 }

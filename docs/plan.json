@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "scorecard-comparison",
-      "title": "Compare every scorecard cell with its newest earlier complete, comparable measurement, and drop the held-marker, promotion and main-pointer machinery",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 34,
-        "reason": "The comparison of every measure against its newest earlier measurement: the reference, the per-measure comparison with its frozen allowances, the failed share as counts, and a decline's key and restoration verifier, net of the held markers, the promotion methods, the main fallback and the unknown rows it removes, which paid for the rest."
-      },
-      "steps": [
-        {
-          "id": "completeness-acceptance",
-          "title": "Exclude the measurements a failed run invalidates, and keep the failed check required until it passes (finished measurements already survive a failure, and nothing accepts a commit)",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner direction 2026-10-05. Done by the comparison landing: a failed validation or lane no longer discards the cells a cycle finished (the record is published, compared and its declines filed; loop.Improve returns the failure beside it), and nothing accepts or withholds a commit, so completeness and acceptance are already separate. Remaining: a measurement the failure invalidates is excluded from the reference and the comparison, not kept (a cell measured beside a landing before the quiet machine, a run the failure shows was wrong), and a failed required check stays required, with its repair work, until it passes, which the cycle's lane result does not yet carry past the cycle that ran it. Needs a typed mark on the record or the cell saying which measurements a failure invalidated, from the failing run's own evidence, not an inferred list. Preserve interrupted-run recovery (the cycle's resume key and per-cell credit)."
-        }
-      ]
-    },
-    {
       "id": "evidence-authority",
       "title": "Use checked evidence and explicit source and replay scope in reports",
       "owner": "master-lead",

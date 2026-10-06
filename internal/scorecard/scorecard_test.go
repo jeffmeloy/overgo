@@ -2,6 +2,7 @@ package scorecard
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
@@ -96,8 +97,10 @@ func TestServingCountsWhatUsersHit(t *testing.T) {
 
 // TestServingCellsReadTheNewestMeasuredAttempt holds the timing and memory
 // cells to one attempt: the newest success that timed its model's load, as
-// the cycle measures a recipe. An older, slower measured attempt is not
-// blended in, so a landed improvement reads in full; a later request served
+// the cycle measures a recipe, and the timing cells to carry how far the
+// newest three such attempts differ (their range over their mean), which an
+// older, slower attempt widens and never blends in, so a landed improvement
+// reads in full. A later request served
 // from a resident session, which times no load, does not stand in for the
 // measurement; and a stale benchmark record is read only where no attempt
 // measured the cell. A recipe whose attempts never timed a load reads its
@@ -167,9 +170,12 @@ func TestServingCellsReadTheNewestMeasuredAttempt(t *testing.T) {
 		"first output": firstOutputCell(recipe.TaskInference, stale, true, summary), "throughput": throughputCell(recipe.TaskInference, stale, true, summary),
 		"load": loadCell(stale, true, summary), "peak": peakMemoryCell(stale, true, summary),
 	} {
+		// Two attempts timed their load: the slow one (200 ms prefill, 5 tok/s, 9 s load) and the fast one
+		// (100 ms, 80 tok/s, 4 s): the cell reads the fast one, and its spread is their range over their mean.
 		want := map[string]float64{"first output": 100, "throughput": 80, "load": 4000, "peak": peak}[name]
-		if cell.Value != want || cell.Source != fast || cell.Contract.Origin != originServing {
-			t.Errorf("%s = %+v, want %v from the newest attempt that timed its load", name, cell, want)
+		spread := map[string]float64{"first output": 100.0 / 150, "throughput": 75 / 42.5, "load": 5000.0 / 6500, "peak": 0}[name]
+		if cell.Value != want || cell.Source != fast || cell.Contract.Origin != originServing || math.Abs(cell.Spread-spread) > 1e-9 {
+			t.Errorf("%s = %+v, want %v with spread %v from the newest attempt that timed its load", name, cell, want, spread)
 		}
 	}
 	if cell := failureCell(summary); cell.Value != 0 || cell.Source != latest {

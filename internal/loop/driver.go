@@ -169,9 +169,16 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, fmt.Errorf("loop: read plan: %w", err)
 		}
 		if !open {
-			if added, err := improve(world); err != nil || added == 0 {
+			added, err := improve(world)
+			if err != nil {
 				outcome.Reason = ReasonPlanComplete
 				return outcome, err
+			}
+			// A cycle files its rows when its scorecard is published, before its lanes
+			// run, so rows may be in the plan that this last proposal found already held.
+			if _, filed, readErr := world.Current(); added == 0 && (readErr != nil || !filed) {
+				outcome.Reason = ReasonPlanComplete
+				return outcome, readErr
 			}
 			continue
 		}

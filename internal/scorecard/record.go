@@ -233,7 +233,7 @@ func holds(column metric.Name, then, now Cell) (Verdict, string) {
 	case column == metric.Failures && (then.Attempts == 0 || now.Attempts == 0):
 		return Unknown, "the failed share was published without the attempts it counts"
 	}
-	declined := worse(column, cmp.Or(now.Direction, columnDirections[column]), now.Value, then.Value)
+	declined := worse(column, cmp.Or(now.Direction, columnDirections[column]), now.Value, then.Value, max(now.Spread, then.Spread))
 	if column == metric.Failures {
 		declined = now.Value*float64(now.Attempts)-then.Value*float64(now.Attempts) > failureNoise
 	}
@@ -244,10 +244,12 @@ func holds(column metric.Name, then, now Cell) (Verdict, string) {
 }
 
 // worse reports whether value is worse than reference in the column's direction
-// by more than the column's noise allows; a value with no direction never is.
-func worse(column metric.Name, direction runrecord.Direction, value, reference float64) bool {
+// by more than the column's noise allows, or than the spread the attempts a timing is
+// the median of differ by, whichever is more: a cell whose own repeats vary more than
+// the column's frozen allowance is judged by its own. A value with no direction never is.
+func worse(column metric.Name, direction runrecord.Direction, value, reference, spread float64) bool {
 	advantage, directed := direction.Advantage(value, reference)
-	return directed && -advantage > allowances[column]*max(math.Abs(value), math.Abs(reference))
+	return directed && -advantage > max(allowances[column], spread)*max(math.Abs(value), math.Abs(reference))
 }
 
 // float32Precision is the relative precision of the float32 logits every
@@ -360,7 +362,7 @@ func Restored(rows []Row, key string, target float64) (restored, found bool) {
 		for _, column := range metric.Columns {
 			for _, cell := range row.Measured(column) {
 				if regressionKey(row, column, cell) == key {
-					return !worse(column, cmp.Or(cell.Direction, columnDirections[column]), cell.Value, target), true
+					return !worse(column, cmp.Or(cell.Direction, columnDirections[column]), cell.Value, target, cell.Spread), true
 				}
 			}
 		}
@@ -429,7 +431,7 @@ func (record Record) Gaps(reference *Record) []Gap {
 				add(gapFailing, row, column, cell.Label)
 			}
 		}
-		if cell := row.Cells[metric.Quality]; cell.Measured() && cell.Base != nil && worse(metric.Quality, cell.Direction, cell.Value, *cell.Base) {
+		if cell := row.Cells[metric.Quality]; cell.Measured() && cell.Base != nil && worse(metric.Quality, cell.Direction, cell.Value, *cell.Base, 0) {
 			add(gapBelowBase, row, metric.Quality, cell.QualityText())
 		}
 	}

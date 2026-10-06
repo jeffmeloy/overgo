@@ -156,7 +156,7 @@ func TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain(t *testing.T) {
 	if err := publish(0.5); err != nil {
 		t.Fatal(err)
 	}
-	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func(string) error { return publish(0.4) }, fill: func(string) error { return nil }}
+	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func(string, func() error) error { return publish(0.4) }, fill: func(string) error { return nil }}
 	added, err := loop.Improve(improver)
 	if err != nil || added != 1 {
 		t.Fatalf("a cycle against the record before it proposed %d row(s), %v; want the one decline", added, err)
@@ -217,7 +217,7 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 			}
 			git(repository, "commit", "-q", "-am", "landed during the "+stage)
 		}
-		improver.measure = func(checkout string) error {
+		improver.measure = func(checkout string, _ func() error) error {
 			inCycle("measure", checkout)
 			published = published.Add(time.Hour)
 			_, err := scorecard.Publish(records, published, scorecard.Record{Commit: git(checkout, "rev-parse", "HEAD"), Rows: []scorecard.Row{
@@ -241,7 +241,7 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 			t.Fatalf("round %d: %d worktrees registered after the cycle; want the main checkout and the cycle checkout", round, registered)
 		}
 	}
-	improver.measure = func(string) error {
+	improver.measure = func(string, func() error) error {
 		t.Error("measured in a cycle checkout another cycle holds or a run left a change in")
 		return nil
 	}
@@ -355,7 +355,7 @@ func TestADeclineBecomesTheRowTheLoopWorks(t *testing.T) {
 		fills++
 		return errors.New("a background suite failed")
 	}
-	world := &planWorld{improvement: improvement{root: repository, plan: emptyPlan(t), records: records, measure: func(string) error { return publish() }, fill: fill}}
+	world := &planWorld{improvement: improvement{root: repository, plan: emptyPlan(t), records: records, measure: func(string, func() error) error { return publish() }, fill: fill}}
 	outcome, err := loop.Run(world, loop.Config{MaxAttemptsPerStep: 1, MaxInvocations: 2})
 	if err != nil || outcome.Reason != loop.ReasonPlanComplete || len(world.parked) != 0 || fills != len(scripted)-1 {
 		t.Fatalf("outcome=%+v err=%v parked=%v fills=%d", outcome, err, world.parked, fills)

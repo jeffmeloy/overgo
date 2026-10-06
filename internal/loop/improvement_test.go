@@ -166,3 +166,32 @@ func TestCycleFilesDeclinesAndAcceptsNothing(t *testing.T) {
 		t.Fatalf("a run that published no scorecard: outcome=%+v err=%v proposed=%v filled=%v", outcome, err, world.proposed, world.filled)
 	}
 }
+
+// filingWorld files its rows while its scorecard is measured, as a cycle does when the scorecard
+// is published and before its lanes run, so its proposals after the lanes find them held and
+// add none.
+type filingWorld struct {
+	improvingWorld
+	measured int
+}
+
+func (w *filingWorld) Measure() (*scorecard.Record, *scorecard.Record, error) {
+	w.measured++
+	if w.measured == 1 {
+		w.steps = []Step{{Item: "filed-early", ID: "do"}}
+	}
+	return w.published, w.reference, w.measureErr
+}
+
+// TestRowsFiledBeforeTheLanesKeepTheLoopGoing holds the loop to the plan and not to the count of rows
+// a cycle's last proposal added: rows filed while the scorecard was measured make the plan open
+// again though that proposal added none, so the worker runs, and a cycle that files nothing ends the loop.
+func TestRowsFiledBeforeTheLanesKeepTheLoopGoing(t *testing.T) {
+	t.Parallel()
+	advance := func(w *fakeWorld, _ Step, _ string) string { w.steps = nil; return "" }
+	world := &filingWorld{improvingWorld: improvingWorld{fakeWorld: fakeWorld{behavior: []func(*fakeWorld, Step, string) string{advance}}, published: &scorecard.Record{Commit: "b"}}}
+	outcome, err := Run(world, Config{MaxAttemptsPerStep: 1, MaxInvocations: 3})
+	if err != nil || outcome.Reason != ReasonPlanComplete || world.call != 1 || world.measured != 2 {
+		t.Fatalf("outcome=%+v err=%v: %d worker run(s) and %d cycle(s), want the filed row worked once, then a cycle that filed nothing", outcome, err, world.call, world.measured)
+	}
+}

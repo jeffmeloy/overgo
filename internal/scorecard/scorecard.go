@@ -50,6 +50,10 @@ type Cell struct {
 	// Attempts is the denominator of a failed share: the attempts it counts, so
 	// two shares compare as counts and not as rates over unlike samples.
 	Attempts int `json:"attempts,omitzero"`
+	// Spread is how far the attempts a serving timing is the median of differ, as a share of that
+	// median (their range over it): the cell's own repeat noise, which a comparison allows beside the
+	// column's. Zero where one attempt measured it.
+	Spread float64 `json:"spread,omitzero"`
 }
 
 // QualityText renders a held-out quality as a user reads it: its value, its
@@ -259,6 +263,50 @@ type servingSummary struct {
 	// environment is where the measured attempt ran: a serving value is read under it, and a baseline
 	// measured under another is Unknown, not a change.
 	environment artifact.ID
+	// The spreads are how far the recent measured attempts' first outputs, loads and decode rates differ.
+	firstSpread, loadSpread, decodeSpread float64
+}
+
+// recentAttempts is how many of a recipe's newest measured attempts a serving timing's spread is read
+// from. One attempt of a short operation varies by a factor of two or more with scheduling and cache
+// state, so a cell carries how far a few of them differ.
+const recentAttempts = 3
+
+// timed is a timing cell with how far the summary's recent measured attempts differ.
+func (summary *servingSummary) timed(spread, value float64, unit, metric, label string) Cell {
+	cell := summary.cell(summary.measured, value, unit, metric, label)
+	cell.Spread = spread
+	return cell
+}
+
+// servingSample is the timings of one measured attempt.
+type servingSample struct {
+	firstOutput, wholeOutput, load, decodeRate float64
+}
+
+// settle records how far the recent measured attempts' timings differ. One attempt shows no spread.
+func (summary *servingSummary) settle(samples []servingSample) {
+	summary.firstSpread = max(spreadOf(samples, func(sample servingSample) float64 { return sample.firstOutput }),
+		spreadOf(samples, func(sample servingSample) float64 { return sample.wholeOutput }))
+	summary.loadSpread = spreadOf(samples, func(sample servingSample) float64 { return sample.load })
+	summary.decodeSpread = spreadOf(samples, func(sample servingSample) float64 { return sample.decodeRate })
+}
+
+// spreadOf is the range of the nonzero values of one timing among samples over their mean.
+func spreadOf(samples []servingSample, value func(servingSample) float64) float64 {
+	var sum, low, high float64
+	count := 0
+	for _, sample := range samples {
+		if measured := value(sample); measured > 0 {
+			sum, count = sum+measured, count+1
+			low = min(cmp.Or(low, measured), measured)
+			high = max(high, measured)
+		}
+	}
+	if count <= 1 {
+		return 0
+	}
+	return (high - low) * float64(count) / sum
 }
 
 // cell is a value read from source, the summary's measured attempt or its
@@ -286,6 +334,7 @@ func (summary *servingSummary) cell(source artifact.ID, value float64, unit, met
 // its projection recipe.
 func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.ID]*servingSummary, error) {
 	summaries := map[artifact.ID]*servingSummary{}
+	recent := map[artifact.ID][]servingSample{}
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
 			Kind: artifact.KindEvidence, MediaType: runrecord.ServingObservationMediaType, Schema: runrecord.ServingObservationSchema,
@@ -317,7 +366,9 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		if counted {
 			summary.attempts++
 		}
-		if observation.Outcome != runrecord.OutcomeSucceeded || summary.loaded {
+		// Past the attempt that timed its load, an older success is read only for the timings the
+		// median is of.
+		if observation.Outcome != runrecord.OutcomeSucceeded || summary.loaded && len(recent[observation.Recipe]) >= recentAttempts {
 			return nil
 		}
 		measured := servingSummary{measured: observation.ID, environment: observation.Environment}
@@ -343,9 +394,16 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 				measured.decodeTokens, measured.decodeNS = observation.Usage.OutputTokens, phase.DurationNS
 			}
 		}
+		if measured.loaded && len(recent[observation.Recipe]) < recentAttempts {
+			sample := servingSample{firstOutput: float64(measured.firstOutputNS), wholeOutput: float64(measured.wholeOutputNS), load: float64(measured.loadNS)}
+			if measured.decodeNS != 0 {
+				sample.decodeRate = float64(measured.decodeTokens) / time.Duration(measured.decodeNS).Seconds()
+			}
+			recent[observation.Recipe] = append(recent[observation.Recipe], sample)
+		}
 		// The newest success stands until an older one that timed its load
-		// is found: that one is the measurement.
-		if summary.measured.Valid() && !measured.loaded {
+		// is found: that one is the measurement, and the older ones past it only join the median.
+		if summary.loaded || summary.measured.Valid() && !measured.loaded {
 			return nil
 		}
 		measured.attempts, measured.failures, measured.cancelled = summary.attempts, summary.failures, summary.cancelled
@@ -353,6 +411,9 @@ func servingByRecipe(ctx context.Context, store *overgodb.Store) (map[artifact.I
 		*summary = measured
 		return nil
 	})
+	for recipeID, samples := range recent {
+		summaries[recipeID].settle(samples)
+	}
 	return summaries, err
 }
 
@@ -398,13 +459,13 @@ func firstOutputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, be
 		return inapplicable("a training session has no first output")
 	}
 	if observed != nil && observed.firstOutputNS != 0 {
-		return observed.cell(observed.measured, milliseconds(observed.firstOutputNS), "ms", "time to prefill", "serving time to prefill, the newest measured attempt")
+		return observed.timed(observed.firstSpread, milliseconds(observed.firstOutputNS), "ms", "time to prefill", "serving time to prefill, the newest measured attempt")
 	}
 	if benchmarked && benchmark.FirstTokenMS != 0 {
 		return benchmarkCell(benchmark.FirstTokenMS, "ms", "time to first token, median", benchmark)
 	}
 	if observed != nil && observed.wholeOutputNS != 0 {
-		return observed.cell(observed.measured, milliseconds(observed.wholeOutputNS), "ms", "time to the whole output", "serving time to the whole output, the newest measured attempt")
+		return observed.timed(observed.firstSpread, milliseconds(observed.wholeOutputNS), "ms", "time to the whole output", "serving time to the whole output, the newest measured attempt")
 	}
 	return gap("no benchmark time to first token and no serving prefill sample")
 }
@@ -412,7 +473,7 @@ func firstOutputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, be
 func throughputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
 	if observed != nil && observed.decodeTokens != 0 && observed.decodeNS != 0 {
 		rate := float64(observed.decodeTokens) / time.Duration(observed.decodeNS).Seconds()
-		return observed.cell(observed.measured, rate, "tok/s", "output tokens over decode time", "serving output tokens over decode time, the newest measured attempt")
+		return observed.timed(observed.decodeSpread, rate, "tok/s", "output tokens over decode time", "serving output tokens over decode time, the newest measured attempt")
 	}
 	if benchmarked && benchmark.DecodeTokensPerSecond != 0 {
 		return benchmarkCell(benchmark.DecodeTokensPerSecond, "tok/s", "decode rate, median", benchmark)
@@ -648,7 +709,7 @@ func failureCell(observed *servingSummary) Cell {
 
 func loadCell(benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
 	if observed != nil && observed.loadNS != 0 {
-		return observed.cell(observed.measured, milliseconds(observed.loadNS), "ms", "load phase", "load phase, the newest measured attempt")
+		return observed.timed(observed.loadSpread, milliseconds(observed.loadNS), "ms", "load phase", "load phase, the newest measured attempt")
 	}
 	if benchmarked && benchmark.LoadMS != 0 {
 		return benchmarkCell(benchmark.LoadMS, "ms", "load", benchmark)

@@ -37,7 +37,7 @@ type improvement struct {
 	// measure runs the stale validations the scorecard compares and publishes
 	// it; fill runs the stale ones it does not compare. Each runs
 	// in the cycle checkout it is given.
-	measure func(checkout string) error
+	measure func(checkout string, published func() error) error
 	fill    func(checkout string) error
 	// limit is how many landings that moved what a cycle measures start a cycle between
 	// steps; zero starts none, so a cycle starts only when the plan empties and something moved.
@@ -114,7 +114,9 @@ func (w *improvement) CycleWorthRunning() (bool, string, error) {
 func improvementFor(store string) improvement {
 	return improvement{
 		watch: true, root: loopWorktree, plan: plan.Path, records: scorecard.Directory(store),
-		measure: func(checkout string) error { return measureScorecard(checkout, store) },
+		measure: func(checkout string, published func() error) error {
+			return measureScorecard(checkout, store, published)
+		},
 		fill: func(checkout string) error {
 			return validateIn(checkout, store, []string{cycleCreditEnvironment(filepath.Dir(checkout))}, "-run", "-background")
 		},
@@ -135,12 +137,28 @@ func (w improvement) Measure() (*scorecard.Record, *scorecard.Record, error) {
 		return nil, nil, err
 	}
 	commit := strings.TrimSpace(string(head))
-	measured := w.inCycle(commit, w.measure)
+	measured := w.inCycle(commit, func(checkout string) error {
+		return w.measure(checkout, func() error { return w.file(commit) })
+	})
 	records, err := scorecard.Records(w.records)
 	if err != nil || len(records) == 0 || records[len(records)-1].Commit != commit {
 		return nil, nil, errors.Join(measured, err)
 	}
 	return &records[len(records)-1], scorecard.Reference(records), measured
+}
+
+// file writes the gaps of the record published for commit as rows, as the cycle's
+// proposals do, but as soon as the scorecard is published and before the lanes run:
+// a cycle the lanes (about forty minutes) outlast loses nothing it found, and the
+// proposals after the lanes find those rows held already.
+func (w improvement) file(commit string) error {
+	records, err := scorecard.Records(w.records)
+	if err != nil || len(records) == 0 || records[len(records)-1].Commit != commit {
+		return err
+	}
+	published := records[len(records)-1]
+	_, err = w.Propose(published, published.Gaps(scorecard.Reference(records)))
+	return err
 }
 
 // gitWrite runs one git command that writes the checkout at directory.
@@ -348,7 +366,7 @@ func obligationsDigest(plan []byte) (string, error) {
 // regardless and the failure is returned beside it with the final error the
 // command wrote to its error file, so the withheld promotion names each cell
 // or lane validate -run acquired nothing for, and why.
-func measureScorecard(checkout, store string) error {
+func measureScorecard(checkout, store string, published func() error) error {
 	head, err := gitauthority.Query(context.Background(), checkout, "rev-parse", "HEAD")
 	if err != nil {
 		return err
@@ -366,7 +384,7 @@ func measureScorecard(checkout, store string) error {
 		return err
 	}
 	key := strings.Join([]string{strings.TrimSpace(string(head)), absolute, obligations}, "|")
-	return measurePhases(filepath.Join(filepath.Dir(checkout), cycleStateFile), key, os.Stdout, func(environment []string, arguments ...string) error {
+	return measurePhases(filepath.Join(filepath.Dir(checkout), cycleStateFile), key, os.Stdout, published, func(environment []string, arguments ...string) error {
 		return validateIn(checkout, store, environment, arguments...)
 	})
 }
@@ -375,10 +393,12 @@ func measureScorecard(checkout, store string) error {
 // and the lanes, in that order, skipping the cells and the publication the
 // state at statePath records as passed for that key. The cells run again
 // whenever they did not pass, and the scorecard publishes again after them,
-// since it then holds fresher numbers; the lanes always run. The report says
-// what a resumed cycle credited and, for each phase it ran, how long it took
-// and whether it passed.
-func measurePhases(statePath, key string, report io.Writer, validate func(environment []string, arguments ...string) error) error {
+// since it then holds fresher numbers; the lanes always run. When the
+// publication is in hand, published runs before the lanes, so what the
+// scorecard found is filed while a cycle the lanes would cut short can still
+// file it. The report says what a resumed cycle credited and, for each phase
+// it ran, how long it took and whether it passed.
+func measurePhases(statePath, key string, report io.Writer, published func() error, validate func(environment []string, arguments ...string) error) error {
 	errorFile := filepath.Join(os.TempDir(), fmt.Sprintf("overgo-loop-measure-%d.error", os.Getpid()))
 	defer os.Remove(errorFile)
 	state := readCycleState(statePath, key)
@@ -415,6 +435,11 @@ func measurePhases(statePath, key string, report io.Writer, validate func(enviro
 		remember()
 	} else {
 		fmt.Fprintln(report, "loop: cycle phase publication credited from the interrupted run of this key: not run again")
+	}
+	if published != nil && state.Published {
+		if err := published(); err != nil {
+			failed = append(failed, err)
+		}
 	}
 	phase("lanes", "-run", "-lanes")
 	return errors.Join(failed...)

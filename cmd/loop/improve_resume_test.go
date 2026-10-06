@@ -21,7 +21,7 @@ func TestCycleReportsWhatItCreditedAndEachPhaseWall(t *testing.T) {
 	state := filepath.Join(t.TempDir(), cycleStateFile)
 	cycle := func(failing string) string {
 		var report strings.Builder
-		_ = measurePhases(state, "commit|store|obligations", &report, func(_ []string, arguments ...string) error {
+		_ = measurePhases(state, "commit|store|obligations", &report, nil, func(_ []string, arguments ...string) error {
 			if strings.Join(arguments, " ") == failing {
 				return errors.New("ended")
 			}
@@ -71,7 +71,7 @@ func TestInterruptedCycleResumesAtItsFirstUnpassedPhase(t *testing.T) {
 	}
 	cycle := func(key, failPhase string) ([]string, error) {
 		ran, failing = nil, failPhase
-		err := measurePhases(state, key, io.Discard, validate)
+		err := measurePhases(state, key, io.Discard, nil, validate)
 		return ran, err
 	}
 	const cells, publish, lanes = "-run -cells", "-scorecard -publish", "-run -lanes"
@@ -123,7 +123,7 @@ func TestCycleCreditFollowsTheInputsARunConsumes(t *testing.T) {
 
 	state := filepath.Join(t.TempDir(), cycleStateFile)
 	var told [][]string
-	if err := measurePhases(state, "commit|store|obligations", io.Discard, func(environment []string, _ ...string) error {
+	if err := measurePhases(state, "commit|store|obligations", io.Discard, nil, func(environment []string, _ ...string) error {
 		told = append(told, environment)
 		return nil
 	}); err != nil {
@@ -166,5 +166,49 @@ func TestObligationsDigestIgnoresWhatARunChanges(t *testing.T) {
 		if digest(plan) == base {
 			t.Errorf("%s left the obligations as they were", name)
 		}
+	}
+}
+
+// TestTheGapsAreFiledBeforeTheLanesRun holds a cycle to filing what its scorecard found as soon as
+// the scorecard is published: the hook runs after the publication and before the lanes, so a
+// cycle the lanes outlast has filed already; it runs again when an interrupted run's publication is
+// credited, and never when the scorecard did not publish.
+func TestTheGapsAreFiledBeforeTheLanesRun(t *testing.T) {
+	t.Parallel()
+	var order []string
+	failing := ""
+	validate := func(_ []string, arguments ...string) error {
+		phase := strings.Join(arguments, " ")
+		order = append(order, phase)
+		if phase == failing {
+			return errors.New("ended")
+		}
+		return nil
+	}
+	filed := func() error {
+		order = append(order, "filed")
+		return nil
+	}
+	const cells, publish, lanes = "-run -cells", "-scorecard -publish", "-run -lanes"
+	for _, step := range []struct {
+		name, key, fail string
+		want            []string
+	}{
+		{"a cycle", "commit-a|store|obligations", lanes, []string{cells, publish, "filed", lanes}},
+		{"a scorecard that did not publish", "commit-b|store|obligations", publish, []string{cells, publish, lanes}},
+	} {
+		order, failing = nil, step.fail
+		_ = measurePhases(filepath.Join(t.TempDir(), cycleStateFile), step.key, io.Discard, filed, validate)
+		if !slices.Equal(order, step.want) {
+			t.Errorf("%s: ran %q, want %q", step.name, order, step.want)
+		}
+	}
+	state := filepath.Join(t.TempDir(), cycleStateFile)
+	failing, order = lanes, nil
+	_ = measurePhases(state, "commit-c|store|obligations", io.Discard, filed, validate)
+	failing, order = "", nil
+	_ = measurePhases(state, "commit-c|store|obligations", io.Discard, filed, validate)
+	if want := []string{"filed", lanes}; !slices.Equal(order, want) {
+		t.Errorf("the interrupted cycle's credited publication: ran %q, want %q", order, want)
 	}
 }

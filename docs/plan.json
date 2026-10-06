@@ -4,25 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "gui-lane-review-residue",
-      "title": "Carry what the GUI lane's review left: the continued adapter's baseline, cancellation, loop status load, copy command shell, surface",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 320,
-        "reason": "AddDelta (the row-at-a-time update) and LossAndGradsOf (the named gradients) are new; the update matrix, the weight-gradient transpose and the copy loop they replace are gone, and the step allocates 40 percent less"
-      },
-      "steps": [
-        {
-          "id": "loss-mask",
-          "title": "Finish the loss mask: the scored positions travel with the held-out example, the metric names what it scores, and the 16-record cap comes from the run's budget",
-          "status": "open",
-          "verify": "go test ./internal/trainingworkflow -count=1 -run '^TestConversationMetricNamesItsScopeAndPositions$'",
-          "rationale": "From the verdict step (2026-10-04, read again): the conversation fine-tune is honest about it (RunConversationSFT's doc, conversationEvidence and the preview mark every token trained because the trainer has no loss mask), but a verdict of next-token accuracy over every token of the rendered conversation can pass by learning the chat template or the user's turns. A real fix is a feature: (1) the renderer reports the assistant's spans (render turn by turn, or the template's own offsets), (2) the dense trainer takes a per-position loss weight (densecausal's training loss, hostmath.SoftmaxCrossEntropy and the retained-logits path today average over every position), (3) HeldoutExample carries the scored positions and the evaluator counts only them, (4) the objective's metric names what it scores so evidence of the two kinds never compares, and the preview marks only the assistant's tokens trained. Also the held-out cap of 16 records is a machine-specific policy (one host's 13 minutes a pass): derive it from the run's own budget. Review of the staged GUI lane merge (2026-10-05, three read-only reviews of the merged tree, nothing run): the lane's loss-mask commit delivered (1) the renderer's assistant spans (prefix differences of turn-by-turn renders; no tool turns, ChatMessage has none), (2) a per-position mask in the trainer (boolean, not fractional; the retained-logits path refuses a mask) and the preview marking only assistant tokens as trained. Remaining: (3) HeldoutExample carries the scored positions only partly (Target holds the learned tokens, the positions live in a side map nextTokens reads); (4) the metric is still token-accuracy, so evidence of masked and unmasked runs differs only in its evidence string and dataset digest (conversation_sft.go:279-291); and the 16-record cap is still the literal conversationHeldoutRecords (conversation_sft.go:30, used at :349) with the comment citing the 13-minute pass. Verify names the test that checks (3) and (4)."
-        }
-      ]
-    },
-    {
       "id": "speech-document-admission",
       "title": "Admit or retire the GUI lane's document speech program",
       "owner": "professional_overgo_gui",

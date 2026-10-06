@@ -651,6 +651,13 @@ func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discov
 	return records, err
 }
 
+// trainingProvesRoute is why a training recipe no held-out verdict covers has no held-out quality:
+// only a train -objective session over a registered objective holds data out and publishes a
+// verdict, and the other routes' sessions prove the route, a bounded run whose evidence is that
+// its loss descends. The owner decided (2026-10-06, training-proof-route-quality) that such a
+// recipe reads not applicable with this reason, and no row is filed for it.
+const trainingProvesRoute = "a training recipe is scored by a held-out verdict, which only a train -objective session over a registered objective publishes; this recipe's session proves its route, a bounded run whose evidence is that its loss descends, and holds out no data"
+
 // heldoutProposals names, for each task no held-out evaluation measures yet,
 // the held-out set and metric proposed to measure it. Such a row's quality
 // is not applicable rather than missing: it files no decline, and the
@@ -659,7 +666,6 @@ func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discov
 // recipe runs the derived suites.
 var heldoutProposals = map[recipe.Task]string{
 	recipe.TaskGeneration:     "WikiText-2 test (Salesforce/wikitext wikitext-2-raw-v1, 0.7 MB) perplexity, as a sequence-scoring suite",
-	recipe.TaskTraining:       "a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective",
 	recipe.TaskProjection:     "the image, video, multi-image and mixed caption-matching sets the store already scores a projection on",
 	recipe.TaskVQA:            "the image caption-matching set the store already scores a projection on, then A-OKVQA validation (HuggingFaceM4/A-OKVQA, 60 MB) multiple-choice accuracy",
 	recipe.TaskImageGen:       "TIFA v1.0 (github.com/Yushi-Hu/tifa, 10 MB) question answering over each image by a local vision-language model",
@@ -707,6 +713,8 @@ func qualityCell(task recipe.Task, summaries []evaluation.EvalSummary, descripto
 	case len(measured) != 0:
 	case len(summaries) != 0:
 		return gap("the latest evaluation reports no metric"), nil
+	case task == recipe.TaskTraining:
+		return inapplicable(trainingProvesRoute), nil
 	case heldoutProposals[task] != "":
 		return inapplicable(fmt.Sprintf("no held-out evaluation for %s yet; proposed: %s", task, heldoutProposals[task])), nil
 	default:

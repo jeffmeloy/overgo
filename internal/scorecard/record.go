@@ -442,7 +442,9 @@ func (record Record) Gaps(reference *Record) []Gap {
 			switch cell := row.Cells[column]; {
 			case !cell.Measured() && !cell.NotApplicable:
 				add(gapUnmeasured, row, column, cell.Reason)
-			case column == metric.Quality && cell.NotApplicable:
+			case column == metric.Quality && cell.NotApplicable && heldoutProposals[row.Task] != "":
+				// Only a held-out evaluation proposed for the task is work to define;
+				// a task with none proposed declared its quality not applicable.
 				add(gapUnscored, row, column, cell.Reason)
 			case column == metric.Failures && cell.Value > 0:
 				add(gapFailing, row, column, cell.Label)

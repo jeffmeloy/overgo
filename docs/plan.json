@@ -49,21 +49,6 @@
       ]
     },
     {
-      "id": "scorecard-unscored-training",
-      "title": "Define the held-out evaluation that measures training quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures training quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-training",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- LiveEdit held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen2.5-0.5B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen3.5-4B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Qwen3.5-9B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n- Wan2.1-T2V-1.3B held-out-quality: no held-out evaluation for training yet; proposed: a token-prediction objective whose split commits a held-out membership of WikiText-2 (on disk), judged by train -objective\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unscored-video-gen",
       "title": "Define the held-out evaluation that measures video-gen quality",
       "owner": "master-lead",
@@ -338,7 +323,8 @@
         "Delete the file"
       ],
       "recommendation": "Keep it registered and measured, spend no optimization time on it",
-      "asked": "2026-10-04"
+      "asked": "2026-10-04",
+      "answer": "Keep it registered and measured, spend no optimization time on it"
     },
     {
       "id": "media-delta-gate",
@@ -368,7 +354,8 @@
         "scorecard-unscored-image-gen",
         "scorecard-unscored-video-gen"
       ],
-      "asked": "2026-10-06"
+      "asked": "2026-10-06",
+      "answer": "Build one judged-generation suite kind for speech, image-gen and video-gen"
     },
     {
       "id": "training-proof-route-quality",
@@ -382,7 +369,8 @@
       "blocks": [
         "scorecard-unscored-training"
       ],
-      "asked": "2026-10-06"
+      "asked": "2026-10-06",
+      "answer": "Declare the proof-route recipes' held-out quality not applicable, stating that their sessions prove a route"
     },
     {
       "id": "adaptive-new-copy-budget",
@@ -394,7 +382,8 @@
         "Copy the large ones too, then delete the originals after each verified copy"
       ],
       "recommendation": "Copy the models under 10 GB now, and decide the large ones separately",
-      "asked": "2026-10-06"
+      "asked": "2026-10-06",
+      "answer": "Copy the models under 10 GB now, and decide the large ones separately"
     }
   ]
 }

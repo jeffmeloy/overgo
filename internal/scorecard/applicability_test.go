@@ -5,6 +5,7 @@ import (
 
 	"overgo/internal/evaluation"
 	"overgo/internal/recipe"
+	"overgo/internal/scorecard/metric"
 )
 
 // TestScorecardStatesInapplicableMetrics holds the scorecard to stating,
@@ -25,5 +26,26 @@ func TestScorecardStatesInapplicableMetrics(t *testing.T) {
 	}
 	if cell := firstOutputCell(recipe.TaskTraining, none, false, nil); !cell.NotApplicable {
 		t.Fatalf("training first output = %+v, want a stated inapplicability", cell)
+	}
+	// A training session decodes no output tokens, whatever else it measured.
+	if cell := throughputCell(recipe.TaskTraining, none, false, &servingSummary{decodeTokens: 10, decodeNS: 1}); !cell.NotApplicable || cell.Reason == "" {
+		t.Fatalf("training throughput = %+v, want a stated inapplicability", cell)
+	}
+	// A projection cell no attempt measured states why it is not a measurement missing; one an attempt measured stays.
+	row := Row{Task: recipe.TaskProjection, Cells: map[metric.Name]Cell{
+		metric.FirstOutput: gap("no serving prefill sample"), metric.Throughput: gap("no decode phase"), metric.Failures: gap("no attempts"),
+		metric.Load: {Value: 500, Unit: "ms"}, metric.PeakMemory: gap("no peak"), metric.Quality: gap("no held-out evaluation"),
+	}}
+	markProjectionInRequest(&row)
+	for _, column := range []metric.Name{metric.FirstOutput, metric.Throughput, metric.Failures, metric.PeakMemory} {
+		if cell := row.Cells[column]; !cell.NotApplicable || cell.Reason != projectionInRequest {
+			t.Errorf("projection %s = %+v, want it stated as in the model's request", column, cell)
+		}
+	}
+	if load := row.Cells[metric.Load]; !load.Measured() || load.NotApplicable {
+		t.Errorf("a measured projection load = %+v, want it kept", load)
+	}
+	if quality := row.Cells[metric.Quality]; quality.NotApplicable {
+		t.Errorf("projection held-out quality = %+v, want it left to its own evaluation", quality)
 	}
 }

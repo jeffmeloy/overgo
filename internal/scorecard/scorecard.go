@@ -192,6 +192,9 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			row.Cells[metric.Load] = loadCell(benchmark, measured, observed)
 			row.Cells[metric.PeakMemory] = peakMemoryCell(benchmark, measured, observed)
 			row.Cells[metric.SetupSteps] = setupCell(ctx, store, entry.Model, capability.Task)
+			if capability.Task == recipe.TaskProjection {
+				markProjectionInRequest(&row)
+			}
 			rows = append(rows, row)
 		}
 	}
@@ -199,6 +202,20 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 		return cmp.Or(strings.Compare(left.Name, right.Name), strings.Compare(string(left.Task), string(right.Task)))
 	})
 	return rows, nil
+}
+
+// projectionInRequest is why a projection cell no attempt measured is not applicable.
+const projectionInRequest = "a projector runs inside the model's multimodal request, whose timing, memory and failures are measured on the model's inference and vqa rows"
+
+// markProjectionInRequest states, on a projection row, that each performance cell no attempt measured is
+// not a measurement missing: a projector runs inside the model's multimodal request, whose first output,
+// throughput, load, memory and failures the model's own rows measure. A cell an attempt measured stays.
+func markProjectionInRequest(row *Row) {
+	for _, column := range []metric.Name{metric.FirstOutput, metric.Throughput, metric.Failures, metric.Load, metric.PeakMemory} {
+		if cell := row.Cells[column]; !cell.Measured() && !cell.NotApplicable {
+			row.Cells[column] = inapplicable(projectionInRequest)
+		}
+	}
 }
 
 // declaredArchitecture is the architecture the recipe's profile dependency
@@ -471,6 +488,10 @@ func firstOutputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, be
 }
 
 func throughputCell(task recipe.Task, benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {
+	if task == recipe.TaskTraining {
+		// A training session learns; it decodes no output tokens, so a decode rate is not its rate.
+		return inapplicable("a training session does not decode output tokens")
+	}
 	if observed != nil && observed.decodeTokens != 0 && observed.decodeNS != 0 {
 		rate := float64(observed.decodeTokens) / time.Duration(observed.decodeNS).Seconds()
 		return observed.timed(observed.decodeSpread, rate, "tok/s", "output tokens over decode time", "serving output tokens over decode time, the newest measured attempt")

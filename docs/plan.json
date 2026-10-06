@@ -19,36 +19,6 @@
       ]
     },
     {
-      "id": "scorecard-unmeasured-projection",
-      "title": "Measure projection's unmeasured cells",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure projection's unmeasured cells",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-projection",
-          "rationale": "- Qwen3.8-27B first-output: no benchmark time to first token and no serving prefill sample\n- Qwen3.8-27B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.8-27B failure-rate: no completed serving attempts recorded\n- Qwen3.8-27B load-time: no benchmark load time and no recorded load phase\n- Qwen3.8-27B peak-device-memory: no benchmark or serving peak device memory\n- gemma-4-E4B-it first-output: no benchmark time to first token and no serving prefill sample\n- gemma-4-E4B-it throughput: no benchmark decode rate and no served decode phase with output tokens\n- gemma-4-E4B-it failure-rate: no completed serving attempts recorded\n- gemma-4-E4B-it load-time: no benchmark load time and no recorded load phase\n- gemma-4-E4B-it peak-device-memory: no benchmark or serving peak device memory\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unmeasured-training",
-      "title": "Measure training's unmeasured cells",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure training's unmeasured cells",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-training",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- Hy-Embodied-RxBrain-1.0 throughput: no benchmark decode rate and no served decode phase with output tokens\n- LiveEdit throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen2.5-0.5B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-4B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-4B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-9B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Qwen3.5-9B throughput: no benchmark decode rate and no served decode phase with output tokens\n- Wan2.1-T2V-1.3B throughput: no benchmark decode rate and no served decode phase with output tokens\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unmeasured-transcription",
       "title": "Measure transcription's unmeasured cells",
       "owner": "master-lead",

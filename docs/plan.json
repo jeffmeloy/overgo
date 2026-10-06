@@ -264,21 +264,6 @@
       ]
     },
     {
-      "id": "scorecard-unscored-tabular",
-      "title": "Define the held-out evaluation that measures tabular quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures tabular quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-tabular",
-          "rationale": "- tabfm-1.0.0-pytorch held-out-quality: no held-out evaluation for tabular yet; proposed: a table-prediction objective over BeyondArena credit-g (TabArena/BeyondArena, 0.2 MB), its held-out rows judged by train -route tabular\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unscored-vqa",
       "title": "Define the held-out evaluation that measures vqa quality",
       "owner": "master-lead",
@@ -381,7 +366,8 @@
         "scorecard-unscored-vqa",
         "scorecard-unscored-image-embedding"
       ],
-      "asked": "2026-10-03"
+      "asked": "2026-10-03",
+      "answer": "Download only the four under 11 MB (ETTh1, BFCL, credit-g, TIFA)"
     },
     {
       "id": "adaptive-new-model-copies",
@@ -409,7 +395,8 @@
       "blocks": [
         "scorecard-unscored-generation"
       ],
-      "asked": "2026-10-06"
+      "asked": "2026-10-06",
+      "answer": "Download the WikiText-2 test split (about 0.7 MB)"
     },
     {
       "id": "fp8-nonnative-variant",

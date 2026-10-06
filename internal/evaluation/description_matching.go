@@ -28,7 +28,7 @@ const (
 	// clips' middle frames, each asked of as one image.
 	frameMatchingSource = "vidgen-1m/frame-description-matching"
 	frameMatchingSchema = "overgo/vidgen-frame-description-matching/v1"
-	frameExtension      = ".png"
+	imageExtension      = ".png"
 	// frameDescriptionTokens bounds the description a model writes of a frame.
 	frameDescriptionTokens = 48
 	frameQuestion          = "Describe this image in detail."
@@ -256,7 +256,7 @@ func BuildFrameDescriptionMatching(spec CaptionMatchingSpec) (DescriptionMatchin
 		}
 		suite.Cases = append(suite.Cases, DescriptionMatchingCase{
 			Name:       suite.Source + "/" + round.vid,
-			Prompt:     mediaPrompt(MediaImage, round.vid+frameExtension, frameQuestion),
+			Prompt:     mediaPrompt(MediaImage, round.vid+imageExtension, frameQuestion),
 			MaxTokens:  frameDescriptionTokens,
 			Candidates: candidates,
 			Answer:     slices.Index(round.options, round.vid),

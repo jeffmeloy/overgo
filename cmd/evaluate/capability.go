@@ -152,6 +152,7 @@ var capabilitySessions = map[string]func(context.Context, *overgodb.Store, manif
 	string(recipe.TaskForecast): openForecastSession,
 	string(recipe.TaskVQA):      openVQASession,
 	string(recipe.TaskSpeech):   openSpeechSession,
+	string(recipe.TaskImageGen): openJudgedImageSession,
 }
 
 // openThoughtBankSession opens the model at path when it is a Fractale

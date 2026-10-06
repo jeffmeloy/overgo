@@ -113,7 +113,7 @@ func TestFrameDescriptionMatchingAsksOfTheVideoSuitesClips(t *testing.T) {
 		kind, name, question, ok := ParseMediaPrompt(testCase.Prompt)
 		_, clip, _, _ := ParseMediaPrompt(video.Cases[index].Prompt)
 		vid := strings.TrimSuffix(clip, clipExtension)
-		if !ok || kind != MediaImage || name != vid+frameExtension || question != frameQuestion ||
+		if !ok || kind != MediaImage || name != vid+imageExtension || question != frameQuestion ||
 			len(testCase.Candidates) != captionChoices || testCase.Candidates[testCase.Answer] != "caption of "+vid {
 			t.Fatalf("case %d (%s): %q does not ask for the frame of %s with its caption among %v", index, testCase.Name, testCase.Prompt, vid, testCase.Candidates)
 		}

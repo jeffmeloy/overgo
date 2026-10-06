@@ -3,6 +3,7 @@ package evaluation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"strings"
@@ -42,9 +43,13 @@ type GeneratedAnswerCase struct {
 }
 
 type GeneratedAnswerSuite struct {
-	Kind       string                `json:"kind"`
-	Schema     string                `json:"schema"`
-	Source     string                `json:"source"`
+	Kind   string `json:"kind"`
+	Schema string `json:"schema"`
+	Source string `json:"source"`
+	// Judge names the model that answers the cases about media another model
+	// made, when the suite scores that other model: the score depends on it, so a
+	// session whose judge differs is refused.
+	Judge      string                `json:"judge,omitzero"`
 	Transforms []string              `json:"transforms"`
 	Cases      []GeneratedAnswerCase `json:"cases"`
 }
@@ -142,6 +147,10 @@ func evaluateGeneratedAnswer(
 ) (generatedAnswerReport, error) {
 	if ctx == nil || repository == nil || generator == nil || compiled.identity != plan.body.CaseProfile {
 		return generatedAnswerReport{}, errors.New("evaluation: generated-answer authority differs")
+	}
+	judge, judged := generator.(interface{ Judge() string })
+	if judged != (compiled.suite.Judge != "") || judged && judge.Judge() != compiled.suite.Judge {
+		return generatedAnswerReport{}, fmt.Errorf("evaluation: the suite is judged by %q, and this session's runtime does not answer as that judge", compiled.suite.Judge)
 	}
 	contents, err := datasetContents(
 		compiled.dataset, compiled.split, compiled.suite.Cases,

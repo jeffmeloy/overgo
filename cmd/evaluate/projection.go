@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	_ "image/png"
 	"os"
 	"path/filepath"
 
@@ -40,24 +42,38 @@ func (projectionRuntime) ScoreContinuations(context.Context, string, []string) (
 	return nil, errors.New("evaluate: a projection evaluation scores generated answers, not continuation likelihoods")
 }
 
-// Generate asks the question of the video the prompt names.
+// Generate asks the question of the video or image the prompt names.
 func (r projectionRuntime) Generate(ctx context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
 	kind, name, question, named := evaluation.ParseMediaPrompt(prompt)
-	if !named || kind != evaluation.MediaVideo {
-		return nil, "", errors.New("evaluate: a projection case names the video its question asks about")
+	if !named {
+		return nil, "", errors.New("evaluate: a projection case names the video or image its question asks about")
 	}
 	path, err := mediaPath(r.root, name)
 	if err != nil {
 		return nil, "", err
 	}
-	video := r.runner.RuntimePolicy().Interactive.Video
-	frames, err := media.DecodeVideoFile(ctx, path, r.ffmpeg, video.FPS, video.MaxFrames)
-	if err != nil {
-		return nil, "", fmt.Errorf("evaluate: decode video %s: %w", name, err)
+	var built projector.MultimodalPrompt
+	switch kind {
+	case evaluation.MediaVideo:
+		video := r.runner.RuntimePolicy().Interactive.Video
+		frames, decodeErr := media.DecodeVideoFile(ctx, path, r.ffmpeg, video.FPS, video.MaxFrames)
+		if decodeErr != nil {
+			return nil, "", fmt.Errorf("evaluate: decode video %s: %w", name, decodeErr)
+		}
+		built, err = r.vision.BuildVideoPrompt(ctx, r.runner, frames, "", question, video.FPS, false)
+	case evaluation.MediaImage:
+		file, openErr := os.Open(path)
+		if openErr != nil {
+			return nil, "", openErr
+		}
+		picture, _, decodeErr := image.Decode(file)
+		if err := errors.Join(decodeErr, file.Close()); err != nil {
+			return nil, "", fmt.Errorf("evaluate: decode image %s: %w", name, err)
+		}
+		built, err = r.vision.BuildImagePrompt(ctx, r.runner, picture, "", question, false)
 	}
-	built, err := r.vision.BuildVideoPrompt(ctx, r.runner, frames, "", question, video.FPS, false)
 	if err != nil {
-		return nil, "", fmt.Errorf("evaluate: project video %s: %w", name, err)
+		return nil, "", fmt.Errorf("evaluate: project %s %s: %w", kind, name, err)
 	}
 	promptIDs, projected, err := inference.CompileProjectedInputs(built, r.runner.Spec().EmbeddingLength)
 	if err != nil {

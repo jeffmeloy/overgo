@@ -169,6 +169,10 @@
       "title": "Define the held-out evaluation that measures image-gen quality",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 2400,
+        "reason": "The render command and its manifest (cmd/evaluate/render.go), the judged image session (cmd/evaluate/judged.go), the TIFA question suite and the judge a generated-answer suite names (internal/evaluation) are the production code a held-out evaluation of an image model needs: its output is a picture, which evaluate could neither draw from a caption outside the serving record nor have a vision-language model judge"
+      },
       "steps": [
         {
           "id": "do",

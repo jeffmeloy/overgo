@@ -69,7 +69,7 @@ func run() error {
 	manifestPath := flag.String("manifest", "", "evaluation manifest")
 	worker := flag.Bool("worker", false, "run one model worker")
 	modelIndex := flag.Int("model-index", -1, "worker model index")
-	modelPath := flag.String("model-path", "", "worker model path for -all (the parent lists the catalog once and hands each worker its model)")
+	modelPath := flag.String("model-path", "", "worker model path for -all (the parent lists the catalog once and hands each worker its model), or the image model -render-tifa draws with")
 	budget := flag.Duration("budget", evaluationBudget, "wall-clock ceiling on one -all pass, shared as equal slices across the models still to run; a model cut at its slice is recorded budget-exceeded")
 	importCache := flag.String("import-hf-cache", "", "scan a HuggingFace dataset cache root, import every recognized benchmark, and publish the active catalog")
 	listSuites := flag.Bool("list-derived-suites", false, "compile the store's benchmark catalog into suites and list their descriptors")
@@ -94,7 +94,9 @@ func run() error {
 	captionSeed := flag.Uint64("seed", defaultCaptionSeed, "with -build-caption-matching: the seed that picks the clips and the distractors")
 	framesOut := flag.String("frames-out", "", "with -build-caption-matching: cut each case's clip to its middle frame in this directory and ask for a description of the frame, for a model that reads one image and describes it")
 	speechParquet := flag.String("build-speech-round-trip", "", "write the speech round-trip suite of this LibriSpeech parquet file's transcripts to -suite-out: -cases of them, read aloud and judged by the recognizer -judge names")
-	speechJudge := flag.String("judge", "", "with -build-speech-round-trip: the speech recognizer directory that listens")
+	speechJudge := flag.String("judge", "", "with -build-speech-round-trip or -render-tifa: the model that judges, a speech recognizer directory that listens or a vision-language model file that looks")
+	tifaQuestions := flag.String("render-tifa", "", "draw a picture of each of -cases TIFA captions with the image model -model-path names, and write the suite that asks the judge about them to -suite-out, the pictures to -media-out: the argument is TIFA's question-answer file")
+	mediaOut := flag.String("media-out", "", "with -render-tifa: the directory the pictures and their render manifest are written to")
 	speechVoice := flag.String("voice", defaultSpeechVoice, "with -build-speech-round-trip: the voice that reads")
 	functionCalls := flag.String("build-function-calls", "", "write the function-call suite of the Berkeley Function-Calling Leaderboard's simple category held in this directory to -suite-out")
 	seriesCSV := flag.String("build-series-forecast", "", "write the series-forecast suite of this ETT file's oil temperature to -suite-out: consecutive windows that show -context readings and ask for the -horizon after them")
@@ -154,6 +156,12 @@ func run() error {
 		ctx, cancel := context.WithTimeoutCause(context.Background(), *budget, errors.New("transcription evaluation budget exhausted"))
 		defer cancel()
 		return evaluateTranscriptionResourceManifest(ctx, *repository, path)
+	}
+	if questions := strings.TrimSpace(*tifaQuestions); questions != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" {
+			return errors.New("usage: evaluate -render-tifa <tifa_v1.0_question_answers.json> -model-path <image model directory> -judge <vision-language model> -media-out <directory> -suite-out <suite.json> [-repo <store>] [-cases N] [-seed N]")
+		}
+		return writeTIFAImages(context.Background(), questions, strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), *captionCases, *captionSeed)
 	}
 	if parquet := strings.TrimSpace(*speechParquet); parquet != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*speechJudge) == "" {

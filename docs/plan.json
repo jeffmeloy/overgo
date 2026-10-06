@@ -222,25 +222,6 @@
       ]
     },
     {
-      "id": "scorecard-unscored-seq2seq",
-      "title": "Define the held-out evaluation that measures seq2seq quality",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2700,
-        "reason": "The function-call suite kind and its scorer (internal/evaluation/function_call.go), the leaderboard's suite builder (bfcl_function_calls.go), the seq2seq text generation and the capability session evaluate shares between Fractale and needle (cmd/evaluate/capability.go) are the production code a held-out evaluation of seq2seq needs: evaluate could not score the call a model writes, nor open an encoder-decoder model under its recipe"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures seq2seq quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-seq2seq",
-          "rationale": "- needle held-out-quality: no held-out evaluation for seq2seq yet; proposed: BFCL v3 simple (gorilla-llm/Berkeley-Function-Calling-Leaderboard, 0.3 MB) exact match of the parsed call\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unscored-vqa",
       "title": "Define the held-out evaluation that measures vqa quality",
       "owner": "master-lead",

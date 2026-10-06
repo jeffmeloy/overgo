@@ -4,6 +4,21 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "models-out-of-adaptive-new",
+      "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestNoTestReadsAdaptiveNew$' -count=1",
+          "rationale": "Owner recommendation 2026-09-27. Once goldens lock the ports, move the remaining models under adaptive_new/models (Wan, the Gemma configs) into overgo/models as TabFM was, and drop the test environment variables that point there: fewer outside paths, fewer environment-dependent skips and flakes. OWNER PERMISSION needed for the moves: the guard protects model directories.\n\nServes: inference and training on local models. Disappears: the remaining model paths into adaptive_new and their test variables. Batch: host.\n\nFrom simplify-checkpoint-locations, retired 2026-09-29: move a checkpoint out of adaptive_new only where a live dependency on the retired root remains; verify the staged copy (hash, servable identity, baseline lookup, bounded inference, rollback) before switching locators; keep the original; no model vanishes.\n\nLanes (expected; the gate reads them from the diff): the lanes of the packages whose tests move. From goldens-own-parity (closed 2026-09-30): the reference comparisons that remain (cmd/vqaparity, most of internal/adaptiveparity, the rest of cmd/sensenovaparity) stay because their goldens live outside git, in adaptive_new fixtures and store captures. Committing those goldens and pointing the kept tests at them is what lets those packages go; a provenance manifest would not. Never-run tests found on the way, each gated on a variable or tag nothing sets: TestGemma4FP8Leadership (OVERGO_GEMMA4_BASELINE), TestInferenceTextAndStructuredEvidenceIdentity, the modeltest process-peak tests, cmd/vqaparity TestRxBrainProductionParity, sensenovarecipe's SeededLatent and FullGeneration tests, and projector TestGemma4Real* and TestQwen3VLRealFixture. Each goes into a lane that sets its gate, or is deleted if a running test covers it. Also never run (2026-09-30): internal/adaptiveparity's experiment probes (TestComponentCompositionViability, TestTier0ChainViability, TestTier0ChainDoseResponse, TestBridgeSynthesisProducesEvidenceOrRefusal, TestAdapterRetrialProbe) sit behind OVERGO_PROBE_TEST, which no lane sets, and need Carbon-500M or MiniCPM5-1B, which are not registered on the master-lead machine. They are the only real-model runs of the graft and chain code that moved to trainingworkflow."
+        }
+      ]
+    },
+    {
       "id": "speech-document-admission",
       "title": "Admit or retire the GUI lane's document speech program",
       "owner": "professional_overgo_gui",
@@ -158,23 +173,9 @@
             "record-judged-generation-decision/do",
             "record-training-route-decision/do",
             "say-contracts-in-words/do",
-            "scorecard-wording-baseline/do"
+            "scorecard-wording-baseline/do",
+            "record-adaptive-new-copy-budget/do"
           ]
-        }
-      ]
-    },
-    {
-      "id": "models-out-of-adaptive-new",
-      "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestNoTestReadsAdaptiveNew$' -count=1",
-          "rationale": "Owner recommendation 2026-09-27. Once goldens lock the ports, move the remaining models under adaptive_new/models (Wan, the Gemma configs) into overgo/models as TabFM was, and drop the test environment variables that point there: fewer outside paths, fewer environment-dependent skips and flakes. OWNER PERMISSION needed for the moves: the guard protects model directories.\n\nServes: inference and training on local models. Disappears: the remaining model paths into adaptive_new and their test variables. Batch: host.\n\nFrom simplify-checkpoint-locations, retired 2026-09-29: move a checkpoint out of adaptive_new only where a live dependency on the retired root remains; verify the staged copy (hash, servable identity, baseline lookup, bounded inference, rollback) before switching locators; keep the original; no model vanishes.\n\nLanes (expected; the gate reads them from the diff): the lanes of the packages whose tests move. From goldens-own-parity (closed 2026-09-30): the reference comparisons that remain (cmd/vqaparity, most of internal/adaptiveparity, the rest of cmd/sensenovaparity) stay because their goldens live outside git, in adaptive_new fixtures and store captures. Committing those goldens and pointing the kept tests at them is what lets those packages go; a provenance manifest would not. Never-run tests found on the way, each gated on a variable or tag nothing sets: TestGemma4FP8Leadership (OVERGO_GEMMA4_BASELINE), TestInferenceTextAndStructuredEvidenceIdentity, the modeltest process-peak tests, cmd/vqaparity TestRxBrainProductionParity, sensenovarecipe's SeededLatent and FullGeneration tests, and projector TestGemma4Real* and TestQwen3VLRealFixture. Each goes into a lane that sets its gate, or is deleted if a running test covers it. Also never run (2026-09-30): internal/adaptiveparity's experiment probes (TestComponentCompositionViability, TestTier0ChainViability, TestTier0ChainDoseResponse, TestBridgeSynthesisProducesEvidenceOrRefusal, TestAdapterRetrialProbe) sit behind OVERGO_PROBE_TEST, which no lane sets, and need Carbon-500M or MiniCPM5-1B, which are not registered on the master-lead machine. They are the only real-model runs of the graft and chain code that moved to trainingworkflow."
         }
       ]
     },
@@ -381,6 +382,18 @@
       "blocks": [
         "scorecard-unscored-training"
       ],
+      "asked": "2026-10-06"
+    },
+    {
+      "id": "adaptive-new-copy-budget",
+      "question": "adaptive_new/models holds about 430 GB in 20 model directories (Krea-2-Turbo 116 GB, SenseNova-U1 66, bonzai 40, Wan2.1 33, LiveEdit 32, gemma-4-E4B 30, gemma-4-12B-fp8 29, Hy-Embodied 24, Qwen3.5-4B 18, Unlimited-OCR 13, pocket-tts 9, Qwen3.5-9B 9, then eight under 5 GB), and C: has 536 GB free at 86% full. The answer to adaptive-new-model-copies kept every original, so copying all of them leaves about 100 GB free. Which models should move into overgo_data/models now?",
+      "options": [
+        "Copy the models under 10 GB now, and decide the large ones separately",
+        "Copy every model, originals kept (leaves about 100 GB free)",
+        "Copy the models under 10 GB now and leave the large ones where they are, their test variables kept",
+        "Copy the large ones too, then delete the originals after each verified copy"
+      ],
+      "recommendation": "Copy the models under 10 GB now, and decide the large ones separately",
       "asked": "2026-10-06"
     }
   ]

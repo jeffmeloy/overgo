@@ -19,25 +19,6 @@
       ]
     },
     {
-      "id": "scorecard-unscored-projection",
-      "title": "Define the held-out evaluation that measures projection quality",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2110,
-        "reason": "Opening a model with its multimodal projector under its projection recipe (cmd/evaluate/projection.go), the prompt line that names a case's video (internal/evaluation/media_prompt.go) and the held-out video caption-matching suite builder (internal/evaluation/caption_matching.go) are the production code a held-out evaluation of projection needs: evaluate could not show a model a video, nor build a suite that does"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures projection quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-projection",
-          "rationale": "- Qwen3.8-27B held-out-quality: no held-out evaluation for projection yet; proposed: the image, video, multi-image and mixed caption-matching sets the store already scores a projection on\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unscored-speech",
       "title": "Define the held-out evaluation that measures speech quality",
       "owner": "master-lead",

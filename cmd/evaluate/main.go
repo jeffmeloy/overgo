@@ -46,6 +46,10 @@ type manifest struct {
 type modelRequest struct {
 	Path   string   `json:"path"`
 	Suites []string `json:"suites"`
+	// Projector evaluates the model under its active projection recipe with
+	// this multimodal projector, its cases asking about videos of MediaRoot.
+	Projector string `json:"projector,omitempty"`
+	MediaRoot string `json:"media_root,omitempty"`
 }
 
 type workerLauncher func(context.Context, int) error
@@ -77,6 +81,11 @@ func run() error {
 	transcriptionResourceManifest := flag.String("transcription-resource-manifest", "", "execute a pinned native speech or projected transcription corpus from clean source")
 	importDNA := flag.String("import-dna-corpus", "", "import a bounded slice of every parquet subset under this corpus root and merge the entries into the active benchmark catalog")
 	dnaLimit := flag.Int("dna-limit", 16, "sequences imported per corpus subset for -import-dna-corpus")
+	captionClips := flag.String("build-caption-matching", "", "write the video caption-matching suite of the clips in this directory to -suite-out: each case asks which of four captions describes a clip")
+	captionSource := flag.String("captions", "", "with -build-caption-matching: the caption file; empty takes the one the clip directory holds")
+	captionCases := flag.Int("cases", defaultCaptionCases, "with -build-caption-matching: clips the suite asks about")
+	captionSeed := flag.Uint64("seed", defaultCaptionSeed, "with -build-caption-matching: the seed that picks the clips and the distractors")
+	suiteOut := flag.String("suite-out", "", "with -build-caption-matching: the suite file to write")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
 	analysisPath := cmp.Or(strings.TrimSpace(*alignmentManifest), strings.TrimSpace(*diarizationManifest))
@@ -130,6 +139,12 @@ func run() error {
 		ctx, cancel := context.WithTimeoutCause(context.Background(), *budget, errors.New("transcription evaluation budget exhausted"))
 		defer cancel()
 		return evaluateTranscriptionResourceManifest(ctx, *repository, path)
+	}
+	if clips := strings.TrimSpace(*captionClips); clips != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {
+			return errors.New("usage: evaluate -build-caption-matching <clip directory> -suite-out <suite.json> [-captions <file>] [-cases N] [-seed N]")
+		}
+		return writeCaptionMatching(clips, strings.TrimSpace(*captionSource), strings.TrimSpace(*suiteOut), *captionCases, *captionSeed)
 	}
 	if root := strings.TrimSpace(*importDNA); root != "" {
 		if flag.NArg() != 0 {

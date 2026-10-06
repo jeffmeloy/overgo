@@ -201,6 +201,11 @@ Repository shrinks while capability grows.
 - Go owns runtime, orchestration, tooling. No runtime cgo; no Python in the tree
   (goldens are data from the Python original). CUDA through the kernel manifest.
   Scratch in `tmp/`, executables in `bin/`.
+- The one place for Python is `scripts/python_golden_references/` (git-ignored):
+  the scripts that produce a golden reference from the Python original. The gate
+  and the Go code never run them. Each starts with a header naming what it
+  produces, the Python original and library versions it used, its seed, and the
+  output file or store identity. Evaluation sets, tools and anything else are Go.
 - Models, datasets, store, `build/` live in `OVERGO_DATA_ROOT`, outside the module.
 - Port through typed contracts and recipe-selected consumers. llama.cpp for pinned
   behavior; `adaptive_new` read-only. Keep commits, licenses, artifact identities.

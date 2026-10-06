@@ -75,6 +75,13 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 	if thoughtBank {
 		return session, nil
 	}
+	if request.Projector != "" {
+		session, err := openProjectionSession(ctx, store, value, request)
+		if err != nil {
+			return fail(err)
+		}
+		return session, nil
+	}
 	runner, err := modelcli.OpenRunner(ctx, value.Repository, request.Path, inference.OpenOptions{DeviceOrdinal: value.Device})
 	if err != nil {
 		return fail(err)

@@ -23,6 +23,10 @@
       "title": "Define the held-out evaluation that measures projection quality",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 2110,
+        "reason": "Opening a model with its multimodal projector under its projection recipe (cmd/evaluate/projection.go), the prompt line that names a case's video (internal/evaluation/media_prompt.go) and the held-out video caption-matching suite builder (internal/evaluation/caption_matching.go) are the production code a held-out evaluation of projection needs: evaluate could not show a model a video, nor build a suite that does"
+      },
       "steps": [
         {
           "id": "do",
@@ -168,7 +172,8 @@
             "scorecard-comparison/do",
             "scorecard-regressed-a63c5fb83cd83d80/do",
             "scorecard-cell-noise/do",
-            "comparison-wording/do"
+            "comparison-wording/do",
+            "python-golden-references/do"
           ]
         }
       ]

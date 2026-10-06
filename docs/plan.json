@@ -208,25 +208,6 @@
       ]
     },
     {
-      "id": "scorecard-unscored-vqa",
-      "title": "Define the held-out evaluation that measures vqa quality",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1340,
-        "reason": "The vqa session and frame cutting (cmd/evaluate/vqa.go) and the description-matching suite kind and frame builder (internal/evaluation) are the production code a held-out evaluation of a visual-question-answering model needs: evaluate could not open a vqa model under its recipe, show one image, nor score a model that answers in descriptions by the caption its description matches; the caption builder's shared rounds are the rest"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures vqa quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-vqa",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 held-out-quality: no held-out evaluation for vqa yet; proposed: the image caption-matching set the store already scores a projection on, then A-OKVQA validation (HuggingFaceM4/A-OKVQA, 60 MB) multiple-choice accuracy\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
       "id": "scorecard-regressed-45ceeaafaa2be823",
       "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 184.646633 tok/s",
       "owner": "master-lead",

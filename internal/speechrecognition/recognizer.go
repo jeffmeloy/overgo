@@ -102,6 +102,10 @@ func LoadRecognizer(ctx context.Context, directory string, spec RecognizerSpec, 
 	}, nil
 }
 
+// SampleRate is the rate a recording must have to be transcribed: the recognizer
+// reads the audio's own rate and does not resample it.
+func (r *Recognizer) SampleRate() int { return r.frontend.SampleRate() }
+
 // TranscriptionRequest is one recording to transcribe: the encoded audio and
 // the sample bound the decoder is admitted to read, which the caller states
 // rather than inheriting from the file.

@@ -337,6 +337,10 @@ func (p *Frontend) workspace(w *Workspace, featureCount, sampleCount int, invers
 	return nil
 }
 
+// SampleRate is the rate the frontend's input must have for ProcessGrouped, which
+// does not resample.
+func (p *Frontend) SampleRate() int { return p.config.SampleRate }
+
 // Process computes frame-major log-mel features from a complete ordered set of
 // mono chunks, without concatenating them unless explicit FIR resampling is
 // required. This is offline chunk assembly, not a live streaming session.

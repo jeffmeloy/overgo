@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 
 	"overgo/internal/evaluation"
@@ -44,13 +45,60 @@ func (r speechRuntime) RoundTrip(ctx context.Context, text, voice string, seed i
 	if err != nil {
 		return "", err
 	}
-	recording, err := media.EncodeWAVPCM16(audio.PCM, audio.SampleRate)
+	heard, err := resampleTo(ctx, audio.PCM, audio.SampleRate, r.recognizer.SampleRate())
+	if err != nil {
+		return "", err
+	}
+	recording, err := media.EncodeWAVPCM16(heard, r.recognizer.SampleRate())
 	if err != nil {
 		return "", err
 	}
 	return r.recognizer.Transcribe(ctx, speechrecognition.TranscriptionRequest{
-		Audio: recording, MaximumSamples: uint64(len(audio.PCM)), MemoryBytes: speechJudgeMemoryBytes,
+		Audio: recording, MaximumSamples: uint64(len(heard)), MemoryBytes: speechJudgeMemoryBytes,
 	})
+}
+
+// resampleHalfWidth is how many zero crossings of the low-pass each side of a
+// tap's centre the resampler's filter keeps: more is a sharper cut-off.
+const resampleHalfWidth = 16
+
+// nyquistFraction is the highest frequency a sample rate can hold, as a fraction of the rate.
+const nyquistFraction = 0.5
+
+// fullTurn is the radians in one cycle.
+const fullTurn = math.Pi + math.Pi
+
+// resampleTo converts samples from one rate to another through a polyphase
+// windowed-sinc filter that cuts off at the lower of the two rates' Nyquist
+// frequencies, so a recording is heard by a recognizer at the rate it declares.
+func resampleTo(ctx context.Context, samples []float32, from, to int) ([]float32, error) {
+	if from <= 0 || to <= 0 {
+		return nil, fmt.Errorf("evaluate: resample from %d Hz to %d Hz", from, to)
+	}
+	if from == to {
+		return samples, nil
+	}
+	divisor, remainder := from, to
+	for remainder != 0 {
+		divisor, remainder = remainder, divisor%remainder
+	}
+	up, down := to/divisor, from/divisor
+	half := resampleHalfWidth * max(up, down)
+	taps := make([]float64, half+half+1)
+	cutoff := nyquistFraction / float64(max(up, down))
+	// The window reaches its zero one tap past each end of the filter, twice the half-width plus two taps across.
+	span := float64(half + half + 1 + 1)
+	for index := range taps {
+		offset := float64(index - half)
+		sinc := cutoff + cutoff
+		if offset != 0 {
+			sinc = math.Sin(fullTurn*cutoff*offset) / (math.Pi * offset)
+		}
+		// The Hann window over the filter's support, written as the square of a cosine.
+		cosine := math.Cos(math.Pi * offset / span)
+		taps[index] = float64(up) * sinc * cosine * cosine
+	}
+	return media.ResamplePoly(ctx, nil, samples, up, down, taps)
 }
 
 // Judge names the recognizer that listens.

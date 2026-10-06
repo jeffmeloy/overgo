@@ -181,6 +181,10 @@
       "title": "Define the held-out evaluation that measures forecast quality",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1950,
+        "reason": "The series-forecast suite kind (internal/evaluation/series_forecast.go), its ETT window builder (ett_series_forecast.go) and the forecast session in evaluate (cmd/evaluate/capability.go) are the production code a held-out evaluation of a native forecasting model needs: evaluate could not score forecasts without training the model, nor open a forecasting model under its recipe"
+      },
       "steps": [
         {
           "id": "do",

@@ -76,10 +76,11 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		return session, nil
 	}
 	if request.Task != "" {
-		if request.Task != string(recipe.TaskSeq2Seq) {
+		open, known := capabilitySessions[request.Task]
+		if !known {
 			return fail(fmt.Errorf("evaluate: task %q has no capability session", request.Task))
 		}
-		session, err := openSeq2SeqSession(ctx, store, value, request.Path)
+		session, err := open(ctx, store, value, request.Path)
 		if err != nil {
 			return fail(err)
 		}

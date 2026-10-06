@@ -3,7 +3,9 @@ package main
 import (
 	"testing"
 
+	"overgo/internal/inference"
 	"overgo/internal/overgodb"
+	"overgo/internal/seriesforecast"
 )
 
 // TestADirectoryThatIsNoFractaleModelOpensNoThoughtBankSession holds the
@@ -20,5 +22,33 @@ func TestADirectoryThatIsNoFractaleModelOpensNoThoughtBankSession(t *testing.T) 
 	session, opened, err := openThoughtBankSession(t.Context(), store, manifest{}, t.TempDir())
 	if session != nil || opened || err != nil {
 		t.Fatalf("an empty directory opened (%v, %t, %v), want no session and no error", session, opened, err)
+	}
+}
+
+// TestCapabilityTasksAreTheOnesASessionExists holds the manifest's task names
+// to the capabilities evaluate opens, and a capability to the runtime it is:
+// a forecasting model forecasts no more steps than its horizon and generates
+// and scores no text.
+func TestCapabilityTasksAreTheOnesASessionExists(t *testing.T) {
+	t.Parallel()
+	if len(capabilitySessions) == 0 {
+		t.Fatal("no capability session is named")
+	}
+	for _, task := range []string{"seq2seq", "forecast"} {
+		if capabilitySessions[task] == nil {
+			t.Errorf("task %q has no capability session", task)
+		}
+	}
+	runtime := forecastRuntime{model: &seriesforecast.Model{Dims: seriesforecast.Dims{Horizon: 4, Quantiles: 2}}}
+	for _, steps := range []int{0, 5} {
+		if _, err := runtime.Forecast([]float32{1}, steps); err == nil {
+			t.Errorf("%d steps were forecast by a model whose horizon is 4", steps)
+		}
+	}
+	if _, _, err := runtime.Generate(t.Context(), "text", inference.GenerateOptions{}); err == nil {
+		t.Error("a forecasting model generated text")
+	}
+	if _, err := runtime.ScoreContinuations(t.Context(), "text", []string{"candidate"}); err == nil {
+		t.Error("a forecasting model scored a continuation")
 	}
 }

@@ -90,7 +90,10 @@ func run() error {
 	captionCases := flag.Int("cases", defaultCaptionCases, "with -build-caption-matching: clips the suite asks about")
 	captionSeed := flag.Uint64("seed", defaultCaptionSeed, "with -build-caption-matching: the seed that picks the clips and the distractors")
 	functionCalls := flag.String("build-function-calls", "", "write the function-call suite of the Berkeley Function-Calling Leaderboard's simple category held in this directory to -suite-out")
-	suiteOut := flag.String("suite-out", "", "with -build-caption-matching or -build-function-calls: the suite file to write")
+	seriesCSV := flag.String("build-series-forecast", "", "write the series-forecast suite of this ETT file's oil temperature to -suite-out: consecutive windows that show -context readings and ask for the -horizon after them")
+	seriesContext := flag.Int("context", defaultSeriesContext, "with -build-series-forecast: readings each window shows")
+	seriesHorizon := flag.Int("horizon", defaultSeriesHorizon, "with -build-series-forecast: readings each window asks for")
+	suiteOut := flag.String("suite-out", "", "with -build-caption-matching, -build-function-calls or -build-series-forecast: the suite file to write")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
 	analysisPath := cmp.Or(strings.TrimSpace(*alignmentManifest), strings.TrimSpace(*diarizationManifest))
@@ -144,6 +147,12 @@ func run() error {
 		ctx, cancel := context.WithTimeoutCause(context.Background(), *budget, errors.New("transcription evaluation budget exhausted"))
 		defer cancel()
 		return evaluateTranscriptionResourceManifest(ctx, *repository, path)
+	}
+	if csv := strings.TrimSpace(*seriesCSV); csv != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {
+			return errors.New("usage: evaluate -build-series-forecast <ETTh1.csv> -suite-out <suite.json> [-context N] [-horizon N]")
+		}
+		return writeSeriesForecast(csv, strings.TrimSpace(*suiteOut), *seriesContext, *seriesHorizon)
 	}
 	if directory := strings.TrimSpace(*functionCalls); directory != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {

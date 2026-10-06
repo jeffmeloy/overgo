@@ -14,6 +14,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/seq2seq"
 	"overgo/internal/sequencescore"
+	"overgo/internal/seriesforecast"
 	"overgo/internal/textgeneration"
 	"overgo/internal/thoughtbank"
 	"overgo/internal/tokenizer"
@@ -63,6 +64,40 @@ func (seq2seqRuntime) ScoreContinuations(context.Context, string, []string) ([]s
 	return nil, errors.New("evaluate: an encoder-decoder evaluation scores generated text, not continuation likelihoods")
 }
 
+// forecastRuntime is a forecasting model as an evaluation runtime: it
+// forecasts the steps after a series, as its point channel, and generates and
+// scores no text.
+type forecastRuntime struct {
+	model *seriesforecast.Model
+}
+
+// Forecast is the point forecast of the steps after series, as many as asked
+// of the model's horizon.
+func (r forecastRuntime) Forecast(series []float32, steps int) ([]float32, error) {
+	if steps <= 0 || steps > r.model.Dims.Horizon {
+		return nil, fmt.Errorf("evaluate: %d steps asked of a model that forecasts %d", steps, r.model.Dims.Horizon)
+	}
+	forecast, err := r.model.Forecast(series)
+	if err != nil {
+		return nil, err
+	}
+	points := make([]float32, steps)
+	for step := range points {
+		points[step] = forecast[step*r.model.Dims.Quantiles]
+	}
+	return points, nil
+}
+
+// Generate refuses: a forecasting model writes no text.
+func (forecastRuntime) Generate(context.Context, string, inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
+	return nil, "", errors.New("evaluate: a forecasting model generates no text")
+}
+
+// ScoreContinuations refuses: a forecasting model scores no text.
+func (forecastRuntime) ScoreContinuations(context.Context, string, []string) ([]sequencescore.Score, error) {
+	return nil, errors.New("evaluate: a forecasting model scores no continuation")
+}
+
 // capabilitySession evaluates a capability model under its active recipe:
 // the records it publishes bind that recipe, so the scorecard reads them as
 // the recipe's held-out quality.
@@ -110,6 +145,13 @@ func openCapabilitySession(
 	return &capabilitySession{store: store, release: release, campaign: campaign}, nil
 }
 
+// capabilitySessions opens a model a manifest names by its task, under the
+// model's active recipe for that task.
+var capabilitySessions = map[string]func(context.Context, *overgodb.Store, manifest, string) (evaluationSession, error){
+	string(recipe.TaskSeq2Seq):  openSeq2SeqSession,
+	string(recipe.TaskForecast): openForecastSession,
+}
+
 // openThoughtBankSession opens the model at path when it is a Fractale
 // generation model, and reports false, opening nothing, when it is not one.
 func openThoughtBankSession(ctx context.Context, store *overgodb.Store, value manifest, path string) (evaluationSession, bool, error) {
@@ -134,6 +176,19 @@ func openSeq2SeqSession(ctx context.Context, store *overgodb.Store, value manife
 	return openCapabilitySession(ctx, store, value, source, recipe.TaskSeq2Seq, func() (evaluation.Runtime, func(context.Context) error, error) {
 		generator, err := seq2seq.LoadGenerator(path)
 		return seq2seqRuntime{generator}, func(context.Context) error { return nil }, err
+	})
+}
+
+// openForecastSession opens the forecasting model at path under its active
+// forecast recipe.
+func openForecastSession(ctx context.Context, store *overgodb.Store, value manifest, path string) (evaluationSession, error) {
+	source, err := mediacapability.Catalog[recipe.TaskForecast].Resolve(path)
+	if err != nil {
+		return nil, fmt.Errorf("evaluate: %s is no forecast model: %w", path, err)
+	}
+	return openCapabilitySession(ctx, store, value, source, recipe.TaskForecast, func() (evaluation.Runtime, func(context.Context) error, error) {
+		model, err := seriesforecast.Load(path)
+		return forecastRuntime{model}, func(context.Context) error { return nil }, err
 	})
 }
 

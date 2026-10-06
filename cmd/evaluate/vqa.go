@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
@@ -47,6 +48,10 @@ type vqaRuntime struct {
 	modelDir string
 	program  recipe.Program
 	root     string
+	// attempt names this evaluation run: the workflow stores each answer under
+	// its key, so a key that did not change between runs would replay the last
+	// run's answers instead of asking the model again.
+	attempt string
 }
 
 // ShapeChatPrompt returns the prompt itself: the pipeline shapes it.
@@ -76,7 +81,11 @@ func (r *vqaRuntime) Generate(ctx context.Context, prompt string, options infere
 	if err != nil {
 		return nil, "", err
 	}
-	text, _, err := vqaserve.RunProgram(ctx, r.store, r.modelID, r.program, "evaluation/vqa/"+name, image, question,
+	key, err := vqaRunKey(r.attempt, name, question, options.MaxNewTokens)
+	if err != nil {
+		return nil, "", err
+	}
+	text, _, err := vqaserve.RunProgram(ctx, r.store, r.modelID, r.program, key, image, question,
 		func(image []byte, question string) (vqaserve.Prepared, error) {
 			prepared, err := vqaserve.Prepare(r.modelDir, image, question)
 			if err == nil && options.OnPromptEvaluated != nil {
@@ -99,6 +108,20 @@ func (r *vqaRuntime) Generate(ctx context.Context, prompt string, options infere
 	return nil, text, nil
 }
 
+// vqaRunKey names the workflow run of one question about one image in one
+// evaluation attempt, under one decode budget: the run's stored answer is
+// replayed for the same key, so each of these changes it.
+func vqaRunKey(attempt, name, question string, steps int) (string, error) {
+	key, err := artifact.JSONID(artifact.KindProfile, struct {
+		Attempt, Name, Question string
+		Steps                   int
+	}{attempt, name, question, steps})
+	if err != nil {
+		return "", err
+	}
+	return "evaluation/vqa/" + key.DigestHex(), nil
+}
+
 // openVQASession opens the visual-question-answering model at the request's
 // path under its active vqa recipe; its cases ask about images of the media root.
 func openVQASession(ctx context.Context, store *overgodb.Store, value manifest, request modelRequest) (evaluationSession, error) {
@@ -109,7 +132,7 @@ func openVQASession(ctx context.Context, store *overgodb.Store, value manifest, 
 	modelID := source.Inventory.Manifest.ID
 	return openCapabilitySession(ctx, store, value, source, recipe.TaskVQA, func() (evaluation.Runtime, func(context.Context) error, error) {
 		_, program, err := modelrecipe.ResolveActiveCapability(ctx, store, modelID, recipe.TaskVQA)
-		return &vqaRuntime{store: store, modelID: modelID, modelDir: request.Path, program: program, root: request.MediaRoot},
+		return &vqaRuntime{store: store, modelID: modelID, modelDir: request.Path, program: program, root: request.MediaRoot, attempt: time.Now().UTC().Format(time.RFC3339Nano)},
 			func(context.Context) error { return nil }, err
 	})
 }

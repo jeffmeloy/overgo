@@ -25,6 +25,31 @@ func TestADirectoryThatIsNoFractaleModelOpensNoThoughtBankSession(t *testing.T) 
 	}
 }
 
+// TestAVQAAnswerIsReplayedOnlyForTheSameQuestionOfTheSameAttempt holds the
+// workflow key of a vqa answer to everything the answer depends on: the same
+// attempt, image, question and budget keep it, and any change of one moves it,
+// so an evaluation run never replays the answers of another.
+func TestAVQAAnswerIsReplayedOnlyForTheSameQuestionOfTheSameAttempt(t *testing.T) {
+	t.Parallel()
+	base, err := vqaRunKey("attempt-1", "a.png", "Describe the image.", 48)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := vqaRunKey("attempt-1", "a.png", "Describe the image.", 48); again != base {
+		t.Fatal("the same attempt, image, question and budget changed the key")
+	}
+	for name, key := range map[string]func() (string, error){
+		"another attempt":  func() (string, error) { return vqaRunKey("attempt-2", "a.png", "Describe the image.", 48) },
+		"another image":    func() (string, error) { return vqaRunKey("attempt-1", "b.png", "Describe the image.", 48) },
+		"another question": func() (string, error) { return vqaRunKey("attempt-1", "a.png", "Which letter?", 48) },
+		"another budget":   func() (string, error) { return vqaRunKey("attempt-1", "a.png", "Describe the image.", 1) },
+	} {
+		if moved, err := key(); err != nil || moved == base {
+			t.Errorf("%s left the key at %q (%v)", name, moved, err)
+		}
+	}
+}
+
 // TestCapabilityTasksAreTheOnesASessionExists holds the manifest's task names
 // to the capabilities evaluate opens, and a capability to the runtime it is:
 // a forecasting model forecasts no more steps than its horizon and generates

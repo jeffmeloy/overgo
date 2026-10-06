@@ -155,7 +155,8 @@
             "scorecard-cell-noise/do",
             "comparison-wording/do",
             "python-golden-references/do",
-            "record-judged-generation-decision/do"
+            "record-judged-generation-decision/do",
+            "record-training-route-decision/do"
           ]
         }
       ]
@@ -408,6 +409,20 @@
         "scorecard-unscored-speech",
         "scorecard-unscored-image-gen",
         "scorecard-unscored-video-gen"
+      ],
+      "asked": "2026-10-06"
+    },
+    {
+      "id": "training-proof-route-quality",
+      "question": "Held-out quality of training is scored for a recipe only by a train -objective session, which publishes a held-out verdict. Qwen2.5-0.5B trains through that route and now has its verdict (a token-prediction objective over a held-out third of the WikiText-2 articles). The other six training recipes belong to routes that prove the route rather than score text: Qwen3.5-4B and 9B hybrid-stack (a bounded observed full-stack run whose evidence is that loss descends), Wan2.1 and LiveEdit dit, Hy-Embodied mot. None of those routes holds out data or scores a model, and a token-prediction objective does not fit a diffusion or a mixture-of-transformers model. Scoring them means giving each route a held-out objective of its own (days of work each, and a 20-step proof run's held-out value says little). Which do you want?",
+      "options": [
+        "Declare the proof-route recipes' held-out quality not applicable, stating that their sessions prove a route",
+        "Give each proof route a held-out objective and score its recipe",
+        "Leave the proof-route recipes unscored"
+      ],
+      "recommendation": "Declare the proof-route recipes' held-out quality not applicable, stating that their sessions prove a route",
+      "blocks": [
+        "scorecard-unscored-training"
       ],
       "asked": "2026-10-06"
     }

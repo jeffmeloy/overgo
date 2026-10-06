@@ -14,13 +14,6 @@
       },
       "steps": [
         {
-          "id": "baseline-protocol-join",
-          "title": "Join a baseline contract to its re-acquisition by comparison, not by suite family and label",
-          "status": "open",
-          "verify": "go test ./cmd/validate -count=1 -run '^TestBaselineContractsJoinByComparison$'",
-          "rationale": "Serves: a baseline contract re-acquired as the protocol it was. Audit 2026-10-05 (read): cmd/validate/selection.go:166-168,224-245 and bound_records.go:71 match a baseline contract to a re-acquisition cell by ofFamily(Suite) plus the Prompting label, ignoring the Comparison (scorer, case set, execution) scorecard.Contract carries; two baseline contracts on one suite and label with different Comparison merge in compareContracts and bind replays only the newest record, so the other stays Unknown and promotion is withheld. This mostly arises from the environment in the Comparison (finding 1 of source-environment): resolve with it (the owner's baseline-comparison-authority decision fell with scorecard-comparison: a cell is compared with its newest earlier measurement, not a promoted baseline), or freeze the two-protocol case first (compareContracts is pure and table-testable)."
-        },
-        {
           "id": "source-environment",
           "title": "Attribute scorecard values to producing source, environment and protocol",
           "status": "open",

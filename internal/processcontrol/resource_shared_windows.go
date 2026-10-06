@@ -56,6 +56,21 @@ func openResourceAdmission(name string, shared bool) (syscall.Handle, error) {
 	return handle, nil
 }
 
+// holdResource opens the admission file with no sharing, so a shared admission
+// or another hold on the name finds a sharing violation, and closes it on release.
+func holdResource(name string) (func() error, error) {
+	handle, err := openResourceAdmission(name, false)
+	if err != nil {
+		return nil, err
+	}
+	// The release wakes the processes waiting on this resource.
+	return sync.OnceValue(func() error {
+		err := syscall.CloseHandle(handle)
+		signalResourceRelease(name)
+		return err
+	}), nil
+}
+
 func shareResource(name string) (func() error, error) {
 	if resourceJobs[name] != 0 {
 		return func() error { return nil }, nil

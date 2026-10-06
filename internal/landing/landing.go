@@ -50,6 +50,10 @@ type Options struct {
 	// and with the same refusals, and commits nothing: what the long stages
 	// would refuse for a reason the cheap ones know is found in seconds.
 	Preflight bool
+	// Quiet holds the host's quiet machine for the landing's whole run, waiting for the
+	// timed measurement in progress. The landing command sets it; a fixture does not, so
+	// a test of the gate never waits for a cycle's cell.
+	Quiet bool
 }
 
 type landing struct {
@@ -102,6 +106,13 @@ func Run(ctx context.Context, options Options) (string, error) {
 	}
 	defer os.RemoveAll(scratch)
 	l := &landing{Options: options, scratch: scratch, details: map[string]string{}}
+	if options.Quiet {
+		release, err := l.holdQuiet(ctx)
+		if err != nil {
+			return "", err
+		}
+		defer func() { _ = release() }()
+	}
 	if err := l.parents(ctx); err != nil {
 		return "", err
 	}
@@ -607,6 +618,11 @@ func (l *landing) staged(ctx context.Context, arguments ...string) (string, erro
 // output; a failure carries the tail of both streams. Each stream has its
 // own buffer: the two are drained concurrently.
 func (l *landing) run(ctx context.Context, environment []string, name string, arguments ...string) (string, error) {
+	// Every command says whose it is, so a measurement it runs does not wait for this landing.
+	if environment == nil {
+		environment = os.Environ()
+	}
+	environment = append(slices.Clone(environment), underLandingEnvironment+"=1")
 	var output, diagnostics bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 		Path: name, Args: arguments, Dir: l.Repo, Env: environment, Stdout: &output, Stderr: &diagnostics,

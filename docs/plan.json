@@ -4,21 +4,45 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "cycle-trigger",
-      "title": "Start the improvement cycle when what it measures has moved, not by hand",
+      "id": "scorecard-comparison",
+      "title": "Compare every scorecard cell with its newest earlier complete, comparable measurement, and drop the held-marker, promotion and main-pointer machinery",
       "owner": "master-lead",
       "status": "open",
-      "budget": {
-        "nodes": 450,
-        "reason": "The cycle trigger: the surface's closure and its path test, the decision with its reasons, the improvement world's two trigger methods and the count of landings that moved the surface, and the driver's hook before a step and its gate on an empty plan; the shared device turn is the rest of the row's allowance."
-      },
       "steps": [
         {
-          "id": "shared-device-turn",
-          "title": "Make a cycle take the same device turn the landings wait for, with timed cells starting only on a quiet machine",
+          "id": "newest-comparable",
+          "title": "Compare each cell with its newest earlier complete, comparable measurement through the existing comparator; never substitute an older value for a missing current one",
           "status": "open",
-          "verify": "go test ./internal/landing -count=1 -run '^TestCycleAndLandingsShareOneDeviceTurn$'",
-          "rationale": "Serves: no landing's device lanes overlapping a cycle's cells, and the cycle not starving landings. Evidence: the gate's retained lines show landings waiting 5 to 22 minutes for the shared device's turn (the landing's lanes have a turn wait, internal/landing/lanes.go:242, and the cycle holds its own lock, cmd/loop/improve.go:189, which refuses rather than waits); a cycle is about 2.5 hours of cells and lanes, and CPU-bound cells have read 2 to 13 times slower while a test ran beside them (hypothesis, to re-measure quiet). Change: the cycle takes the lane turn per phase, so device-lane landings queue behind a phase and not behind the whole cycle; the timed cells (media and serving first-output, throughput, load) start only when no landing is running and a landing's CPU-only lanes wait for them; quality cells may overlap CPU-only landings. Test first: a cycle phase and a landing's device lane never hold the turn together, and a landing that reaches no device lane is not delayed by a quality cell. Improvement cycle 15 (2026-10-05, measured at b69b2d98e, started 09:27, ended by the agent tool's 2 h limit at 11:27 in its models lane) ran beside twelve landings the owner asked for (plan, server and browser work with no device lane): the cells that finished while they ran read slower than cycle 14's on the CPU-bound and media cells (Krea-2-Turbo first output 14.0 to 19.7 s, LiveEdit video first output 42.9 to 58.5 s, granite-speech first output 3.0 to 3.9 s, Hy-Embodied training load 7 to 40 s, the dino embedding 4.4 to 5.2 s), while the inference first-output and throughput cells mostly moved by a few percent (Qwen3.5-9B throughput 77.6 to 71.4 tok/s the largest): consistent with the lesson that a build or test beside a timed cell slows it, a hypothesis to re-measure on a quiet machine, not a finding about the code; the Hy-Embodied training load (7 to 40 s, near LiveEdit's and Wan's 42 and 41 s) should be checked on its own. The lane phase also took longer than a landing would wait."
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Owner direction 2026-10-05, after the held-marker and promotion machinery of the scorecard exercise proved more complex than the problem. The baseline of a cell is its newest earlier complete record whose contract compares (the existing comparator decides), not a held marker or the main pointer; a cell with no current value is unknown and shows it, an older value is never put in its place. Extend the existing table tests: older comparable baselines, incomplete records, missing current values, persistent regression. Declare the actual net production and test growth in the landing message.\n\nDesign cautions from the build review (2026-10-05), to be answered in the build: (1) a sliding baseline lets a decline of less than the allowance per cycle walk down unfiled, so the allowances come from identical repeat runs and stay tight, and one check against the last value known not to have declined is a comparison, not a marker; (2) a record measured beside a build (cycle 15) becomes a contaminated baseline that hides a later real regression or files a false one, which the quiet machine (cycle-trigger/shared-device-turn) prevents for timed cells and the comparator must not paper over for the rest; (3) one systemic slowdown files a row per model, task, measure and contract, so a cycle files one plan item with a step per key; (4) land the comparator, the cycle's switch to it and the removals in one multi-step landing with a negative production budget, so two comparators never coexist."
+        },
+        {
+          "id": "all-seven-measures",
+          "title": "Compare all seven measures: quality at its float32 tolerance over every held-out suite, performance within allowances frozen from identical repeat runs, setup counts exactly, failure rates over comparable denominators; show raw deltas",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Owner direction 2026-10-05. Preserve quality's float32 tolerance and every held-out suite; freeze the performance allowances (first-output, throughput, load-time, peak-device-memory) from identical repeat runs, not a typed number; compare setup-steps counts exactly and failure-rate only where the denominators compare; print the raw delta of every compared cell. Table tests: the noise boundary on both sides, distinct suites that must not merge."
+        },
+        {
+          "id": "completeness-acceptance",
+          "title": "Separate completeness from acceptance: finished measurements survive lane failures while the required checks and repair work remain, and measurements a failure invalidates are excluded",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Owner direction 2026-10-05. A cycle whose lane failed (cycle 18: the models lane, killed or flaked) must not discard the cells it finished: they are kept as complete measurements and the failed check stays required, with its repair work, until it passes; a measurement the failure invalidates (taken by a build the failure shows was wrong) is excluded, not kept. Preserve interrupted-run recovery (the cycle's resume key and per-cell credit)."
+        },
+        {
+          "id": "regression-rows",
+          "title": "File a row only for a decline beyond tolerance, keyed by model, task, measure and full contract, retaining its original restoration target; report unknowns without creating rows",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Owner direction 2026-10-05. A persistent regression keeps one row, found again by its key (model, task, measure, full contract) and still pointing at the value it must be restored to, not at the latest worse one; an unknown (no comparable earlier measurement, no current value) is reported in the scorecard and files nothing. Table test: persistent regression keeps its original restoration target."
+        },
+        {
+          "id": "remove-held",
+          "title": "Remove the held-based ceremony: markers, promotion methods, the main fallback and the obsolete unknown rows; keep model acceptance, interrupted-run recovery and authorized fast-forward pushes of named commits",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Owner direction 2026-10-05. Remove the .held markers and MarkHeld, the Promote and Baseline methods, the legacy main-pointer fallback, and the scorecard-unknown-* rows (they re-measure against a baseline that no longer exists); the decision baseline-comparison-authority falls with them. Preserve what is not ceremony: a model's acceptance (activation), the cycle's interrupted-run recovery, and the owner's authorized fast-forward push of a named commit (cmd/loop -push-held becomes a push of a named commit, still refusing worker environments). Declare the actual net production and test growth, expected negative."
         }
       ]
     },
@@ -368,7 +392,8 @@
             "plan-refactor-sqa/do",
             "skill-ambition/do",
             "plan-cycle15/do",
-            "fill-same-commit-rerun/do"
+            "fill-same-commit-rerun/do",
+            "scorecard-comparison/do"
           ]
         }
       ]

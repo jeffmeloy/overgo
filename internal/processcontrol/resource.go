@@ -72,6 +72,20 @@ func ShareResource(name string) (func() error, error) {
 	return shareResource(name)
 }
 
+// HoldResource admits one holder alone until its release function runs or its
+// process exits: ClaimResource's exclusion that ends before the process does,
+// for a hold taken around one piece of work. Shared holders and other exclusive
+// holders see contention while it lasts, and its release wakes the waiters on
+// the resource (AwaitResource). It grants no bytes and contains no children.
+func HoldResource(name string) (func() error, error) {
+	if !validResourceName(name) {
+		return nil, errors.New("processcontrol: invalid physical resource name")
+	}
+	resourceMu.Lock()
+	defer resourceMu.Unlock()
+	return holdResource(name)
+}
+
 func validResourceName(name string) bool {
 	return name != "" && strings.TrimSpace(name) == name && !strings.ContainsRune(name, 0)
 }

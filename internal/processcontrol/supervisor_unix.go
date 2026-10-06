@@ -17,6 +17,10 @@ func shareResource(string) (func() error, error) {
 	return nil, errors.New("processcontrol: shared physical resource admission requires Windows")
 }
 
+func holdResource(string) (func() error, error) {
+	return nil, errors.New("processcontrol: physical resource holds require Windows")
+}
+
 func resourceTransaction(string, func() error) error {
 	return errors.New("processcontrol: physical resource transactions require Windows")
 }

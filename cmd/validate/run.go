@@ -16,6 +16,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
+	"overgo/internal/landing"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
@@ -149,7 +150,9 @@ func runScopeOf(background, cellsOnly, lanesOnly bool) (runScope, error) {
 // environment and publishes its checkpoint beneath private invocation scratch.
 // Its exact fresh gate/run handoff is checked after actual process completion
 // and store refresh; a projection proof's producer runs under the environment it
-// publishes by. An empty run set is the clean "nothing to re-acquire" result.
+// publishes by. An empty run set is the clean "nothing to re-acquire" result. A timed cell
+// runs while no landing does and none starts, and the quality cells and the lanes, whose
+// results are not times, run beside landings.
 func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, store *overgodb.Store, plan Plan, scope runScope) error {
 	cells, suites := plan.Run, plan.Suites
 	switch scope {
@@ -202,10 +205,16 @@ func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, s
 			continue
 		}
 		fmt.Fprintf(output, "validate -run %d/%d: %s %s (%s; %s)\n", index+1, len(cells), sel.Validation, displayName(sel.ModelValidation), sel.Reason, sel.Promotion)
-		if sel.Validation == trainingProof {
-			err = acquireTraining(ctx, output, root, store, sel.ModelValidation, name, args, environment...)
+		acquireCell := func() error {
+			if sel.Validation == trainingProof {
+				return acquireTraining(ctx, output, root, store, sel.ModelValidation, name, args, environment...)
+			}
+			return acquire(ctx, output, root, name, args, environment...)
+		}
+		if timedValidation(sel.Validation) {
+			err = landing.Measuring(ctx, output, acquireCell)
 		} else {
-			err = acquire(ctx, output, root, name, args, environment...)
+			err = acquireCell()
 		}
 		record(fmt.Sprintf("%s %s", displayName(sel.ModelValidation), sel.Validation), err)
 		if err == nil {
@@ -234,6 +243,18 @@ func executeRun(ctx context.Context, output io.Writer, root, storeRoot string, s
 	}
 	fmt.Fprintf(output, "validate -run: re-acquired %d cell(s)\n", acquired)
 	return nil
+}
+
+// timedValidation says whether a cell's result is a time the scorecard compares: the
+// serving and capability measurements read first output, throughput and load, and the
+// proofs that train read load, so a build or a test beside one slows what it reads. The
+// benchmarks, the guards and the lanes read answers and memory, which a busy machine does not change.
+func timedValidation(validation string) bool {
+	switch validation {
+	case trainingProof, projectionProof, servingValidation, "image-proof", "video-proof", "speech-proof", "vqa-proof", "specialized-proof":
+		return true
+	}
+	return false
 }
 
 // errInapplicable marks a required outcome that only declared exclusions

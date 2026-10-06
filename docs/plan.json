@@ -154,7 +154,8 @@
             "scorecard-regressed-a63c5fb83cd83d80/do",
             "scorecard-cell-noise/do",
             "comparison-wording/do",
-            "python-golden-references/do"
+            "python-golden-references/do",
+            "record-judged-generation-decision/do"
           ]
         }
       ]
@@ -393,6 +394,22 @@
       ],
       "asked": "2026-10-04",
       "answer": "Retire the pin, the registry and the gate-time check; the cycle's media acceptance holds the contract"
+    },
+    {
+      "id": "judged-generation-evaluation",
+      "question": "Speech, image-gen and video-gen quality cannot be scored by the model alone: pocket-tts outputs audio, the image generators pictures, Wan2.1 and Un-0 clips. Each proposal scores the output by a second local model: a speech recognizer for round-trip word error rate, a vision-language model for TIFA questions and for matching a clip to its caption. evaluate has no suite in which a generator's output is judged by another model, and a record must name both the generator's recipe, which the scorecard reads, and the judge's identity, which the score depends on. One judged-generation suite kind (the projection session already shows a video to Qwen3.8-27B) would serve all three rows and their eight models, with a new session for each judge modality.",
+      "options": [
+        "Build one judged-generation suite kind for speech, image-gen and video-gen",
+        "Score speech by its recognizer round trip only, and leave image-gen and video-gen unscored",
+        "Leave all three unscored"
+      ],
+      "recommendation": "Build one judged-generation suite kind for speech, image-gen and video-gen",
+      "blocks": [
+        "scorecard-unscored-speech",
+        "scorecard-unscored-image-gen",
+        "scorecard-unscored-video-gen"
+      ],
+      "asked": "2026-10-06"
     }
   ]
 }

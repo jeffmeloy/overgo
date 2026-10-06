@@ -36,7 +36,7 @@ func TestScorecardStatesInapplicableMetrics(t *testing.T) {
 		metric.FirstOutput: gap("no serving prefill sample"), metric.Throughput: gap("no decode phase"), metric.Failures: gap("no attempts"),
 		metric.Load: {Value: 500, Unit: "ms"}, metric.PeakMemory: gap("no peak"), metric.Quality: gap("no held-out evaluation"),
 	}}
-	markProjectionInRequest(&row)
+	stateNotApplicable(&row)
 	for _, column := range []metric.Name{metric.FirstOutput, metric.Throughput, metric.Failures, metric.PeakMemory} {
 		if cell := row.Cells[column]; !cell.NotApplicable || cell.Reason != projectionInRequest {
 			t.Errorf("projection %s = %+v, want it stated as in the model's request", column, cell)
@@ -47,5 +47,19 @@ func TestScorecardStatesInapplicableMetrics(t *testing.T) {
 	}
 	if quality := row.Cells[metric.Quality]; quality.NotApplicable {
 		t.Errorf("projection held-out quality = %+v, want it left to its own evaluation", quality)
+	}
+	// A vqa row has no load phase of its own, and says so only where no attempt timed one; its other cells stay gaps.
+	vqa := Row{Task: recipe.TaskVQA, Cells: map[metric.Name]Cell{metric.Load: gap("no recorded load phase"), metric.FirstOutput: gap("no prefill sample")}}
+	stateNotApplicable(&vqa)
+	if load := vqa.Cells[metric.Load]; !load.NotApplicable || load.Reason != vqaStreamsWeights {
+		t.Errorf("vqa load = %+v, want it stated as part of its first output", load)
+	}
+	if first := vqa.Cells[metric.FirstOutput]; first.NotApplicable {
+		t.Errorf("vqa first output = %+v, want a gap to measure", first)
+	}
+	timed := Row{Task: recipe.TaskVQA, Cells: map[metric.Name]Cell{metric.Load: {Value: 900, Unit: "ms"}}}
+	stateNotApplicable(&timed)
+	if load := timed.Cells[metric.Load]; load.NotApplicable || !load.Measured() {
+		t.Errorf("a vqa load an attempt timed = %+v, want it kept", load)
 	}
 }

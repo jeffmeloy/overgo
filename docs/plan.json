@@ -19,21 +19,6 @@
       ]
     },
     {
-      "id": "scorecard-unmeasured-vqa",
-      "title": "Measure vqa's unmeasured cells",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure vqa's unmeasured cells",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-vqa",
-          "rationale": "- Hy-Embodied-RxBrain-1.0 load-time: no benchmark load time and no recorded load phase\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unscored-generation",
       "title": "Define the held-out evaluation that measures generation quality",
       "owner": "master-lead",

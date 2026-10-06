@@ -192,9 +192,7 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 			row.Cells[metric.Load] = loadCell(benchmark, measured, observed)
 			row.Cells[metric.PeakMemory] = peakMemoryCell(benchmark, measured, observed)
 			row.Cells[metric.SetupSteps] = setupCell(ctx, store, entry.Model, capability.Task)
-			if capability.Task == recipe.TaskProjection {
-				markProjectionInRequest(&row)
-			}
+			stateNotApplicable(&row)
 			rows = append(rows, row)
 		}
 	}
@@ -207,13 +205,25 @@ func Build(ctx context.Context, store *overgodb.Store) ([]Row, error) {
 // projectionInRequest is why a projection cell no attempt measured is not applicable.
 const projectionInRequest = "a projector runs inside the model's multimodal request, whose timing, memory and failures are measured on the model's inference and vqa rows"
 
-// markProjectionInRequest states, on a projection row, that each performance cell no attempt measured is
-// not a measurement missing: a projector runs inside the model's multimodal request, whose first output,
-// throughput, load, memory and failures the model's own rows measure. A cell an attempt measured stays.
-func markProjectionInRequest(row *Row) {
-	for _, column := range []metric.Name{metric.FirstOutput, metric.Throughput, metric.Failures, metric.Load, metric.PeakMemory} {
+// vqaStreamsWeights is why a vqa row's load time, when no attempt measured one, is not applicable.
+const vqaStreamsWeights = "vqa reads each layer's weights during its first pass, so its load is part of its first output and no separate load phase exists"
+
+// stateNotApplicable states, on a row, each cell no attempt measured that is not a measurement
+// missing: a projector runs inside the model's multimodal request, whose first output, throughput,
+// load, memory and failures the model's own rows measure, and the vqa pipeline reads its weights
+// layer by layer during its first pass, so it has no load phase of its own. A cell an attempt
+// measured stays.
+func stateNotApplicable(row *Row) {
+	reasons := map[recipe.Task]map[metric.Name]string{
+		recipe.TaskProjection: {
+			metric.FirstOutput: projectionInRequest, metric.Throughput: projectionInRequest, metric.Failures: projectionInRequest,
+			metric.Load: projectionInRequest, metric.PeakMemory: projectionInRequest,
+		},
+		recipe.TaskVQA: {metric.Load: vqaStreamsWeights},
+	}
+	for column, reason := range reasons[row.Task] {
 		if cell := row.Cells[column]; !cell.Measured() && !cell.NotApplicable {
-			row.Cells[column] = inapplicable(projectionInRequest)
+			row.Cells[column] = inapplicable(reason)
 		}
 	}
 }

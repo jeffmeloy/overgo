@@ -23,6 +23,10 @@
       "title": "Define the held-out evaluation that measures generation quality",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1030,
+        "reason": "A Fractale likelihood scorer (internal/thoughtbank/score.go) and the evaluate session that opens Fractale under its generation recipe (cmd/evaluate/thoughtbank.go) are the production code a held-out evaluation of generation needs: Fractale reports no likelihood and evaluate opens no Fractale session, so no sequence-scoring suite could run against it"
+      },
       "steps": [
         {
           "id": "do",

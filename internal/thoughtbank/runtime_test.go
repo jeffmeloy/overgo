@@ -17,11 +17,10 @@ func TestGenerateRequestHasNoPackageLocalTokenCeiling(t *testing.T) {
 	}
 }
 
-// TestGeneratorReportsTheTokensItDecoded generates twice on a tiny model
-// under two bounds and holds the count the generator reports to the tokens
-// of its last generation, the count a measured attempt records against the
-// generation stage's wall.
-func TestGeneratorReportsTheTokensItDecoded(t *testing.T) {
+// fixtureGenerator is a generator over the small fixture model with a
+// one-character-per-token tokenizer, so a text's tokens are its characters.
+func fixtureGenerator(t *testing.T) (*Generator, int) {
+	t.Helper()
 	weights, fixture := buildFixtureModel(1)
 	vocabulary := make(map[string]int, fixture.vocab)
 	for index := range fixture.vocab {
@@ -41,7 +40,15 @@ func TestGeneratorReportsTheTokensItDecoded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	generator := &Generator{weights: weights, config: ArchConfig{MemDim: fixture.memDim}, tokenizer: tokenizer}
+	return &Generator{weights: weights, config: ArchConfig{MemDim: fixture.memDim}, tokenizer: tokenizer}, fixture.vocab
+}
+
+// TestGeneratorReportsTheTokensItDecoded generates twice on a tiny model
+// under two bounds and holds the count the generator reports to the tokens
+// of its last generation, the count a measured attempt records against the
+// generation stage's wall.
+func TestGeneratorReportsTheTokensItDecoded(t *testing.T) {
+	generator, _ := fixtureGenerator(t)
 	for _, bound := range []int{5, 2} {
 		generation, err := generator.Generate(textgeneration.Request{Text: "cab", MaxTokens: bound})
 		if err != nil {

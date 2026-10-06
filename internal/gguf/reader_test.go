@@ -91,10 +91,6 @@ func TestAdversarialGGUFCatalogCountsFailBeforeAllocation(t *testing.T) {
 	}
 }
 
-func TestBoundedBoundaryPolicyContract(t *testing.T) {
-	testBoundedBoundaryPolicy(t)
-}
-
 func TestParseEnforcesLimits(t *testing.T) {
 	testBoundedBoundaryPolicy(t)
 }

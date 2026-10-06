@@ -447,7 +447,7 @@
      "contains": "func TestParseEnforcesLimits(",
      "path": "internal/gguf/reader_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d5960756272d8a23ad02c8cc1bbb6739293b1fff7c4659d5eb5e12a31590b415"
+     "identity": "evidence:sha256:da83d5aba19af7dae10dbd57db798b0fedeadeb0f5ba1a5951685418387e47ea"
     }
    ],
    "id": "bounded-gguf-parsing",

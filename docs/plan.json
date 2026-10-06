@@ -4,6 +4,21 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "scorecard-cell-noise",
+      "title": "Compare a serving cell by its own spread of recent attempts, not by one global allowance on one attempt",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compare a serving cell by its own spread of recent attempts, not by one global allowance on one attempt",
+          "status": "open",
+          "verify": "go run ./cmd/plan -status",
+          "rationale": "Serves: a scorecard whose declines are real. Evidence (2026-10-06): the first cycle under the per-cell comparison filed one decline, Un-0 image-gen first output 8.96 to 16.37 ms (+82.7 percent, beyond the 0.35 allowance); the next cycle read 23.03 ms, and three immediate repeats of the same serving measurement on the idle machine (nothing else running) read 49.12, 18.07 and 30.51 ms. Un-0 video-gen read 26.6, 43.6 and 47.0 ms over cycles 18 to 20. The cell is a CPU-bound 9 ms operation, so one attempt varies by a factor of 2.7 with scheduling and cache state, far past an allowance frozen from the pooled spread of every cell (0.35 at the 90th percentile over 28 first-output cells), and the scorecard reads the newest measured attempt alone. A single global allowance cannot cover a cell whose own repeat spread is wider, and a single sample cannot be told from its noise. Change to consider, judged against its cost: read a serving cell from the median of its newest few measured attempts (the store already holds each attempt, and a cell then needs no extra run), and allow a decline no smaller than that cell's own recent spread, never the global allowance alone, so a cell's allowance comes from its own identical repeat runs as the owner's direction says. No new ledger and no per-model literal. Preserve: peak memory and setup steps exact, quality at float32, the failed share as counts. Test first with the Un-0 values above as the table row that files a decline today and must not.\n\nA second flaw, same row: improvement.Measure runs the cells, publishes, then runs the lanes (about 40 minutes), and loop.Improve files the gaps only after Measure returns, so a cycle cut after publication loses its declines for good (cycle 20 was cut by the agent's two-hour limit in its lanes; cycle 21 then compared against the already declined record). File the gaps right after publication, before the lanes run, so the lanes' result is returned beside rows already filed."
+        }
+      ]
+    },
+    {
       "id": "speech-document-admission",
       "title": "Admit or retire the GUI lane's document speech program",
       "owner": "professional_overgo_gui",
@@ -240,7 +255,9 @@
             "skill-ambition/do",
             "plan-cycle15/do",
             "fill-same-commit-rerun/do",
-            "scorecard-comparison/do"
+            "scorecard-comparison/do",
+            "scorecard-regressed-a63c5fb83cd83d80/do",
+            "scorecard-cell-noise/do"
           ]
         }
       ]

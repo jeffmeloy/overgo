@@ -46,6 +46,10 @@ type manifest struct {
 type modelRequest struct {
 	Path   string   `json:"path"`
 	Suites []string `json:"suites"`
+	// Task names the capability a model evaluates under when its path alone
+	// does not: seq2seq opens an encoder-decoder model under its active
+	// seq2seq recipe.
+	Task string `json:"task,omitempty"`
 	// Projector evaluates the model under its active projection recipe with
 	// this multimodal projector, its cases asking about videos of MediaRoot.
 	Projector string `json:"projector,omitempty"`
@@ -85,7 +89,8 @@ func run() error {
 	captionSource := flag.String("captions", "", "with -build-caption-matching: the caption file; empty takes the one the clip directory holds")
 	captionCases := flag.Int("cases", defaultCaptionCases, "with -build-caption-matching: clips the suite asks about")
 	captionSeed := flag.Uint64("seed", defaultCaptionSeed, "with -build-caption-matching: the seed that picks the clips and the distractors")
-	suiteOut := flag.String("suite-out", "", "with -build-caption-matching: the suite file to write")
+	functionCalls := flag.String("build-function-calls", "", "write the function-call suite of the Berkeley Function-Calling Leaderboard's simple category held in this directory to -suite-out")
+	suiteOut := flag.String("suite-out", "", "with -build-caption-matching or -build-function-calls: the suite file to write")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
 	analysisPath := cmp.Or(strings.TrimSpace(*alignmentManifest), strings.TrimSpace(*diarizationManifest))
@@ -139,6 +144,12 @@ func run() error {
 		ctx, cancel := context.WithTimeoutCause(context.Background(), *budget, errors.New("transcription evaluation budget exhausted"))
 		defer cancel()
 		return evaluateTranscriptionResourceManifest(ctx, *repository, path)
+	}
+	if directory := strings.TrimSpace(*functionCalls); directory != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {
+			return errors.New("usage: evaluate -build-function-calls <leaderboard directory> -suite-out <suite.json>")
+		}
+		return writeFunctionCalls(directory, strings.TrimSpace(*suiteOut))
 	}
 	if clips := strings.TrimSpace(*captionClips); clips != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {

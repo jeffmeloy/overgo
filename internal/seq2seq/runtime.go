@@ -68,6 +68,21 @@ func (g *Generator) prepareGeneration(encoded encodedRequest) (textSelector, err
 	return textGeneration{tokens: selector, generator: g}, nil
 }
 
+// Generate answers one request directly: it encodes the text, prepares the
+// decode and reads back the text the decode selects, the stages a recipe's
+// runtime binds one after another.
+func (g *Generator) Generate(request textgeneration.Request) (string, error) {
+	encoded, err := g.encodeRequest(request)
+	if err != nil {
+		return "", err
+	}
+	selector, err := g.prepareGeneration(encoded)
+	if err != nil {
+		return "", err
+	}
+	return selector.selectText()
+}
+
 // RegisterRuntime binds one loaded generator to its text stages.
 func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, generator *Generator) error {
 	if generator == nil {

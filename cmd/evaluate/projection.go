@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -80,9 +79,6 @@ const (
 // clips.
 const captionFile = "VidGen_1M_video_caption.json"
 
-// suiteFileMode is the permission of a suite file written for a run.
-const suiteFileMode = 0o600
-
 // writeCaptionMatching builds the video caption-matching suite of a clip
 // directory and writes it to out, the suite file a projection evaluation runs.
 func writeCaptionMatching(clips, captions, out string, cases int, seed uint64) error {
@@ -93,15 +89,7 @@ func writeCaptionMatching(clips, captions, out string, cases int, seed uint64) e
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(suite)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(out, data, suiteFileMode); err != nil {
-		return err
-	}
-	fmt.Printf("caption-matching suite %s: %d cases over the clips of %s\n", out, len(suite.Cases), clips)
-	return nil
+	return writeSuite(out, suite, len(suite.Cases), "caption-matching")
 }
 
 // mediaPath resolves a case's media name inside the media root: a name that

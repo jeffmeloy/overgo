@@ -75,6 +75,16 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 	if thoughtBank {
 		return session, nil
 	}
+	if request.Task != "" {
+		if request.Task != string(recipe.TaskSeq2Seq) {
+			return fail(fmt.Errorf("evaluate: task %q has no capability session", request.Task))
+		}
+		session, err := openSeq2SeqSession(ctx, store, value, request.Path)
+		if err != nil {
+			return fail(err)
+		}
+		return session, nil
+	}
 	if request.Projector != "" {
 		session, err := openProjectionSession(ctx, store, value, request)
 		if err != nil {

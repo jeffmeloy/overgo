@@ -226,6 +226,10 @@
       "title": "Define the held-out evaluation that measures seq2seq quality",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 2700,
+        "reason": "The function-call suite kind and its scorer (internal/evaluation/function_call.go), the leaderboard's suite builder (bfcl_function_calls.go), the seq2seq text generation and the capability session evaluate shares between Fractale and needle (cmd/evaluate/capability.go) are the production code a held-out evaluation of seq2seq needs: evaluate could not score the call a model writes, nor open an encoder-decoder model under its recipe"
+      },
       "steps": [
         {
           "id": "do",

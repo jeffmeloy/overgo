@@ -29,13 +29,6 @@
       },
       "steps": [
         {
-          "id": "resources",
-          "title": "Audit fixed resource, batch and buffer settings against available capacity",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Serves: robust portable inference/training and honest verification (owner request; SQA-084). Disappears: unsupported policy literals and mechanisms only when actual consumer evidence establishes a simpler existing owner; fixed ABI/format/model contracts and authorized goals remain. Evidence: Start with trainingRoutes GOGC50/GOMEMLIMIT68GiB and actual collector/allocator/admission consumers; inspect material worker/batch/chunk/buffer/pool/capacity/reserve settings through current resource owners. Carried from the retired gui-lane-review-residue/loss-mask (2026-10-05): conversationHeldoutRecords = 16 (internal/trainingworkflow/conversation_sft.go) caps a conversation run's held-out records at what one host judged in about 13 minutes a pass; it is a fixed resource setting, so derive it from the run's own time budget and the measured cost of one held-out record, or keep it with that reason stated. Retain format-imposed dimensions, count transient plus retained memory, preserve fairness/cancellation/release on actual completion; derive from usable capacity/workload or retain a justified declared limit. No blanket GPU parallelism. Audit source/AST/types/parsed commands in bounded owner groups; count analysis, replacement code, fixtures and maintenance. Provisional status verifier is not behavioral proof: before code adoption replace it with the concrete existing owner fixture and actual failing case, then compare identical contracts and total costs; a justified retain/no-change result records derivation and reconsideration in the current plan/evidence. No new analyzer/literal ban, recurring whole-repo census, ledger or separate audit report. Batch: each adopted fix declares true build/test/effect reach and lane/guard/input invalidation; no speculative parallel model work or automatic acceptance reduction."
-        },
-        {
           "id": "acceptance",
           "title": "Audit numerical and verification literals through independent coverage owners",
           "status": "open",

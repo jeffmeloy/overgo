@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,14 +28,14 @@ import (
 )
 
 // improvement closes the loop each time the plan empties: the scorecard run
-// is the promotion evidence, a holding scorecard is recorded as held, which
-// the next is judged against, and the gaps return as rows of the plan at path
+// measures, each cell is compared with its newest earlier complete
+// measurement, and the gaps return as rows of the plan at path
 // plan. root is the checkout whose HEAD is measured and whose plan mutation
 // lock is taken; records is the directory the scorecards are published in.
 type improvement struct {
 	root, plan, records string
-	// measure runs the stale validations promotion waits on and publishes
-	// the scorecard; fill runs the stale ones it does not compare. Each runs
+	// measure runs the stale validations the scorecard compares and publishes
+	// it; fill runs the stale ones it does not compare. Each runs
 	// in the cycle checkout it is given.
 	measure func(checkout string) error
 	fill    func(checkout string) error
@@ -121,7 +122,8 @@ func improvementFor(store string) improvement {
 }
 
 // Measure runs the scorecard at root's HEAD in the cycle checkout and
-// returns the record published at that commit and that record's baseline. A
+// returns the record published at that commit and the reference its cells are
+// compared with (scorecard.Reference). A
 // cycle the run before this one left unfinished continues where it stopped
 // (see cycleState), and the record it published is the one returned. Rows land
 // in root while it runs: the claims it records bind the commit the cycle
@@ -138,33 +140,7 @@ func (w improvement) Measure() (*scorecard.Record, *scorecard.Record, error) {
 	if err != nil || len(records) == 0 || records[len(records)-1].Commit != commit {
 		return nil, nil, errors.Join(measured, err)
 	}
-	baseline, err := scorecard.Baseline(context.Background(), w.root, records)
-	if err != nil {
-		return nil, nil, errors.Join(measured, err)
-	}
-	return &records[len(records)-1], baseline, measured
-}
-
-// Promote records that the scorecard published for commit held: its record is
-// marked held, and the records after it are judged against it. No branch moves
-// and nothing is pushed: main is only the staging pointer for GitHub, which the
-// owner pushes when asked.
-func (w improvement) Promote(commit string) error {
-	records, err := scorecard.Records(w.records)
-	if err != nil {
-		return err
-	}
-	for _, record := range slices.Backward(records) {
-		if record.Commit != commit {
-			continue
-		}
-		if err := scorecard.MarkHeld(w.records, record); err != nil {
-			return err
-		}
-		fmt.Printf("loop: the scorecard held at %s: %s is recorded as held\n", commit, record.Name)
-		return nil
-	}
-	return fmt.Errorf("no published scorecard measured %.12s, so none can be recorded as held", commit)
+	return &records[len(records)-1], scorecard.Reference(records), measured
 }
 
 // gitWrite runs one git command that writes the checkout at directory.
@@ -178,7 +154,8 @@ func gitWrite(directory string, arguments ...string) error {
 
 // Propose appends a row for each gap the plan does not hold, owned by the
 // plan's lane and verified by the gap closing on the scorecard the store
-// holds, and reports how many it added.
+// holds, and reports how many it added. A row that exists is never rewritten,
+// so a decline's row keeps the value it was first to be restored to.
 func (w improvement) Propose(published scorecard.Record, gaps []scorecard.Gap) (added int, err error) {
 	lock, err := authoritylock.AcquireContext(context.Background(), w.root)
 	if err != nil {
@@ -193,11 +170,14 @@ func (w improvement) Propose(published scorecard.Record, gaps []scorecard.Gap) (
 		if slices.ContainsFunc(document.Items, func(item plan.Item) bool { return item.ID == gap.Key }) {
 			continue
 		}
+		verify := "go run ./cmd/validate -scorecard -gap " + gap.Key
+		if gap.Restore {
+			verify += " -target " + strconv.FormatFloat(gap.Target, 'g', -1, targetBits)
+		}
 		document.Items = append(document.Items, plan.Item{ID: gap.Key, Title: gap.Title, Owner: document.Lane, Status: plan.StatusOpen, Steps: []plan.Step{{
-			ID: proposalStep, Title: gap.Title, Status: plan.StatusOpen,
-			Verify: "go run ./cmd/validate -scorecard -gap " + gap.Key,
+			ID: proposalStep, Title: gap.Title, Status: plan.StatusOpen, Verify: verify,
 			Rationale: gap.Detail + "\nServes: measure and find the gap; the loop proposed this row from scorecard " + published.Name +
-				". Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline.",
+				". Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it.",
 		}}})
 		added++
 	}
@@ -206,6 +186,9 @@ func (w improvement) Propose(published scorecard.Record, gaps []scorecard.Gap) (
 	}
 	return added, plan.Save(w.plan, document)
 }
+
+// targetBits is the precision a decline's restoration target is written in, the float64 it is read as.
+const targetBits = 64
 
 // proposalStep is the one step a proposed row has.
 const proposalStep = "do"

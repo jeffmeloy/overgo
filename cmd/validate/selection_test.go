@@ -42,9 +42,8 @@ func fixtureRepository(t *testing.T) (root, head string) {
 }
 
 // TestCycleRunsWhatPromotionCompares scopes the cells that run, every
-// activated cell, to what promotion compares. In a fixture repository the
-// promoted branch holds the commit that the baseline scorecard, published
-// beside the store, measured; its one row holds the model's held-out
+// activated cell, to what the scorecard compares. The newest scorecard,
+// published beside the store, measured the fixture repository's commit; its one row holds the model's held-out
 // accuracy on store/mmlu-pro under the chat template. The model's guard,
 // serving cell and training proof run and block promotion, and so does its
 // mmlu-pro, the compared contract, which takes the chat template the
@@ -74,12 +73,9 @@ func TestCycleRunsWhatPromotionCompares(t *testing.T) {
 	if _, err := scorecard.Publish(scorecard.Directory(store), time.Now(), scorecard.Record{Commit: promoted, Rows: []scorecard.Row{row}}); err != nil {
 		t.Fatal(err)
 	}
-	if output, err := exec.Command("git", "-C", root, "update-ref", scorecard.PromotedBranch, promoted).CombinedOutput(); err != nil {
-		t.Fatalf("promote %s: %v: %s", promoted, err, output)
-	}
-	baseline, err := promotionBaseline(t.Context(), root, store)
+	baseline, err := lastRecord(store)
 	if err != nil || baseline == nil || baseline.Commit != promoted {
-		t.Fatalf("the baseline scorecard beside the store was not read: %+v, %v", baseline, err)
+		t.Fatalf("the newest scorecard beside the store was not read: %+v, %v", baseline, err)
 	}
 
 	cell := func(id artifact.ID, task recipe.Task, validation, protocol string) ModelValidation {

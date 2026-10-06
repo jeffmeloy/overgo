@@ -66,7 +66,7 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, root, records st
 		_, err = fmt.Fprintf(output, "\nPublished %s, the first record: nothing to compare with.\n", path)
 		return err
 	}
-	if moved := scorecardMoves(previous[len(previous)-1], current); len(moved) != 0 {
+	if moved := scorecardMoves(*scorecard.Reference(append(previous, current)), current); len(moved) != 0 {
 		_, err = fmt.Fprintf(output, "\nPublished %s. Since the previous record:\n%s\n", path, strings.Join(moved, "\n"))
 		return err
 	}
@@ -74,39 +74,48 @@ func writeScorecard(ctx context.Context, store *overgodb.Store, root, records st
 	return err
 }
 
-// promotionBaseline is the scorecard the cycle's next record is judged
-// against: of those published beside the store, the newest that measured the
-// commit the promoted branch holds, as Baseline chooses it for the record the
-// cycle publishes after them. Nil when none did.
-func promotionBaseline(ctx context.Context, root, storeRoot string) (*scorecard.Record, error) {
+// lastRecord is the scorecard the cycle's next record is compared with when it
+// chooses what to re-measure: the newest published beside the store, whose
+// contracts a re-measurement is to join. Nil when none is published.
+func lastRecord(storeRoot string) (*scorecard.Record, error) {
 	published, err := scorecard.Records(scorecard.Directory(storeRoot))
-	if err != nil {
+	if err != nil || len(published) == 0 {
 		return nil, err
 	}
-	return scorecard.Baseline(ctx, root, append(published, scorecard.Record{}))
+	return &published[len(published)-1], nil
 }
 
 // openGap fails while the gap key names is open on the scorecard the store
-// holds now, judged against the newest published record's baseline: the
-// verifier of the row the loop proposed for the gap. A key that names no gap
-// the scorecard can propose fails too: it would read as closed for ever.
-func openGap(ctx context.Context, store *overgodb.Store, root, records, key string, output io.Writer) error {
+// holds now, compared with the measurements published before it: the verifier
+// of the row the loop proposed for the gap. A decline's key names one cell and
+// target is the value it is to be restored to, which the row carries from the
+// cycle that first found the decline; the gap is closed when the cell is back at
+// it, not worse by more than the column's noise. A key that names no gap the
+// scorecard can propose fails too: it would read as closed for ever.
+func openGap(ctx context.Context, store *overgodb.Store, records, key string, target *float64, output io.Writer) error {
 	if !scorecard.KnownGapKey(key) {
-		return fmt.Errorf("%q names no gap: a gap key is scorecard, a kind of gap and a task, as the row the loop proposed carries it", key)
+		return fmt.Errorf("%q names no gap: a gap key is scorecard, a kind of gap and a task, or the decline of one cell, as the row the loop proposed carries it", key)
 	}
 	rows, err := scorecard.Build(ctx, store)
 	if err != nil {
+		return err
+	}
+	if target != nil {
+		restored, found := scorecard.Restored(rows, key, *target)
+		switch {
+		case !found:
+			return fmt.Errorf("%s is open: no cell of the scorecard is measured on the contract it named", key)
+		case !restored:
+			return fmt.Errorf("%s is open: the cell is not back at %g", key, *target)
+		}
+		_, err = fmt.Fprintf(output, "%s is closed.\n", key)
 		return err
 	}
 	published, err := scorecard.Records(records)
 	if err != nil {
 		return err
 	}
-	baseline, err := scorecard.Baseline(ctx, root, published)
-	if err != nil {
-		return err
-	}
-	gaps := scorecard.Record{Rows: rows}.Gaps(baseline)
+	gaps := scorecard.Record{Rows: rows}.Gaps(scorecard.Reference(append(published, scorecard.Record{})))
 	if at := slices.IndexFunc(gaps, func(gap scorecard.Gap) bool { return gap.Key == key }); at >= 0 {
 		return fmt.Errorf("%s is open:\n%s", key, gaps[at].Detail)
 	}

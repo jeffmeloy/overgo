@@ -81,27 +81,23 @@ type ObligationWorld interface {
 }
 
 // ImprovementWorld is the optional world extension that closes the
-// improvement loop each time the plan empties: the scorecard run is the
-// promotion evidence, the run is recorded as held only when its held-out
-// quality holds against its baseline, and the run's gaps return as plan rows,
-// the next work.
+// improvement loop each time the plan empties: the scorecard run measures, each
+// cell is compared with its newest earlier complete measurement, and the run's
+// gaps, the declines among them, return as plan rows, the next work.
 type ImprovementWorld interface {
 	// Measure runs the scorecard at the main checkout's HEAD, in a checkout
 	// apart from it so rows land while it runs, and returns the record it
-	// published and the baseline that record is judged against, nil when
-	// there is none. A failed validation returns its error beside the
-	// published record; a run that published nothing returns no record.
-	Measure() (published, baseline *scorecard.Record, err error)
-	// Promote records the measured commit's scorecard as held, the baseline
-	// the next is judged against. It moves no branch and never pushes.
-	Promote(commit string) error
+	// published and the reference its cells are compared with (the scorecard
+	// package's Reference), nil when there is none. A failed validation returns
+	// its error beside the published record, whose finished cells stand; a run
+	// that published nothing returns no record.
+	Measure() (published, reference *scorecard.Record, err error)
 	// Propose writes the gaps the plan does not hold as rows and reports how
 	// many it added.
 	Propose(published scorecard.Record, gaps []scorecard.Gap) (added int, err error)
-	// Fill runs the validations promotion does not compare at the commit
-	// the scorecard measured, after the cycle's decision, so their evidence
-	// flows without delaying or withholding a promotion. It reports its own
-	// failure.
+	// Fill runs the validations the scorecard does not compare at the commit
+	// the scorecard measured, after the gaps are filed, so their evidence flows
+	// without delaying them. It reports its own failure.
 	Fill(commit string)
 }
 
@@ -112,10 +108,6 @@ type Outcome struct {
 	Parked      []string
 	// ObligationsDue is the last replay's count of follow-ups still owed.
 	ObligationsDue uint64
-	// Promoted is the commit the last holding scorecard promoted, if any.
-	Promoted string
-	// Withheld is why the last scorecard promoted nothing, if it did not.
-	Withheld string
 }
 
 const (
@@ -177,7 +169,7 @@ func Run(world World, config Config) (Outcome, error) {
 			return outcome, fmt.Errorf("loop: read plan: %w", err)
 		}
 		if !open {
-			if added, err := improve(world, &outcome); err != nil || added == 0 {
+			if added, err := improve(world); err != nil || added == 0 {
 				outcome.Reason = ReasonPlanComplete
 				return outcome, err
 			}
@@ -190,7 +182,7 @@ func Run(world World, config Config) (Outcome, error) {
 				return outcome, fmt.Errorf("loop: cycle trigger: %w", err)
 			}
 			if due && measures {
-				if _, err := Improve(improver, &outcome); err != nil {
+				if _, err := Improve(improver); err != nil {
 					return outcome, err
 				}
 				continue
@@ -276,7 +268,7 @@ func Run(world World, config Config) (Outcome, error) {
 
 // improve runs one improvement cycle when the plan empties. A world that
 // does not measure adds nothing.
-func improve(world World, outcome *Outcome) (int, error) {
+func improve(world World) (int, error) {
 	improver, measures := world.(ImprovementWorld)
 	if !measures {
 		return 0, nil
@@ -289,37 +281,27 @@ func improve(world World, outcome *Outcome) (int, error) {
 			return 0, err
 		}
 	}
-	return Improve(improver, outcome)
+	return Improve(improver)
 }
 
-// Improve runs one improvement cycle: it measures the scorecard, promotes
-// the measured commit only when the record is not withheld (a baseline
-// recorded as held, every held-out quality measured, none
-// fallen), proposes the gaps as rows, then fills the validations promotion
-// does not compare at the measured commit. The measurement and the fill
-// record their claims in a checkout of that commit apart from the main one,
-// so rows land while they run and the proposals do not wait on the fill:
-// the rows reach the plan before the fill's hours start, and a fill that is
-// stopped loses none of them. A failed validation leaves stale cells, so it
-// promotes nothing; its record still names the gaps. The outcome says why a
-// commit was withheld, a failed validation by the failure Measure returned.
-// The driver runs it when the plan empties, and cmd/loop -improve on demand.
-func Improve(improver ImprovementWorld, outcome *Outcome) (int, error) {
-	published, baseline, err := improver.Measure()
+// Improve runs one improvement cycle: it measures the scorecard, proposes
+// the gaps as rows (each cell compared with its newest earlier complete
+// measurement, so a decline is a row and an Unknown is only reported), then fills
+// the validations the scorecard does not compare at the measured commit. The
+// measurement and the fill record their claims in a checkout of that commit
+// apart from the main one, so rows land while they run and the proposals do not
+// wait on the fill: the rows reach the plan before the fill's hours start, and
+// a fill that is stopped loses none of them. A failed validation does not
+// discard the cells that finished: the record is published and compared, and
+// the failure is returned beside it for the repair work it asks. Completeness
+// and acceptance are separate: nothing here accepts a commit. The driver runs
+// it when the plan empties, and cmd/loop -improve on demand.
+func Improve(improver ImprovementWorld) (int, error) {
+	published, reference, err := improver.Measure()
 	if published == nil {
 		return 0, errors.Join(errors.New("loop: no scorecard was published"), err)
 	}
-	outcome.Withheld = published.Withheld(baseline)
-	if err != nil {
-		outcome.Withheld = "a validation failed, so the scorecard's cells are stale: " + err.Error()
-	}
-	if outcome.Withheld == "" {
-		if err := improver.Promote(published.Commit); err != nil {
-			return 0, fmt.Errorf("loop: promote: %w", err)
-		}
-		outcome.Promoted = published.Commit
-	}
-	added, proposeErr := improver.Propose(*published, published.Gaps(baseline))
+	added, proposeErr := improver.Propose(*published, published.Gaps(reference))
 	improver.Fill(published.Commit)
 	return added, errors.Join(err, proposeErr)
 }

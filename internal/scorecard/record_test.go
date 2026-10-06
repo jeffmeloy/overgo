@@ -26,7 +26,7 @@ func TestComparisonRequiresEvaluationAuthorities(t *testing.T) {
 	for _, origin := range []string{originEvaluation, originBenchmark} {
 		unknown := Cell{Value: 0.5, Direction: runrecord.DirectionMaximize,
 			Contract: Contract{Metric: "fixture", Origin: origin}}
-		if verdict, why := holds(unknown, unknown); verdict != Unknown || why == "" {
+		if verdict, why := holds(metric.Quality, unknown, unknown); verdict != Unknown || why == "" {
 			t.Fatalf("unknown %s compares as %q (%s)", origin, verdict, why)
 		}
 	}
@@ -62,17 +62,17 @@ func TestComparisonRequiresEvaluationAuthorities(t *testing.T) {
 
 // TestComparisonIsTyped holds the one comparison to identity and typed
 // contracts. Rows pair by model and task, never by display name: a renamed
-// model keeps its baseline, and two models sharing a name never trade
-// theirs. A held-out quality compares only on the baseline's metric, suite,
+// model keeps its reference, and two models sharing a name never trade
+// theirs. A held-out quality compares only on the reference's metric, suite,
 // protocol, origin and direction, where it holds or regresses. Every
-// held-out quality the baseline measured is held, the headline and each
+// held-out quality the reference measured is held, the headline and each
 // retained beside it, in whatever order the record lists them: one that
-// falls or vanishes while the headline holds withholds promotion. A vanished
-// row (every row, too), a lost cell, a changed contract and a baseline cell
-// published before contracts are unknown: they withhold promotion and are
-// proposed as a gap. A metric, a suite or a row the baseline did not measure
-// holds and blocks nothing. Serving aggregates of other recipes' attempts,
-// and a benchmark beside a serving median in the same unit, do not compare.
+// falls while the headline holds is a decline, filed as a gap. A vanished
+// row (every row, too), a lost cell, a changed contract and a reference cell
+// published before contracts are unknown: they are reported and file nothing.
+// A metric, a suite or a row the reference did not measure holds and asks
+// nothing. Serving aggregates of other recipes' attempts, and a benchmark
+// beside a serving median in the same unit, do not compare.
 func TestComparisonIsTyped(t *testing.T) {
 	t.Parallel()
 	source := testutil.ArtifactID(t, artifact.KindEvaluation, "typed-comparison")
@@ -167,16 +167,13 @@ func TestComparisonIsTyped(t *testing.T) {
 			t.Errorf("%s: verdict %s, want %s", scenario.name, verdict, scenario.verdict)
 			continue
 		}
-		withheld := scenario.record.Withheld(against)
-		if (withheld == "") != (verdict == holding) {
-			t.Fatalf("%s: withheld %q for a %s comparison", scenario.name, withheld, verdict)
-		}
+		// Only a decline asks for work: an unknown is reported and files no row.
 		proposed := false
 		for _, gap := range scenario.record.Gaps(against) {
-			proposed = proposed || gap.kind == string(verdict)
+			proposed = proposed || gap.kind == string(regressed)
 		}
-		if verdict != holding && !proposed {
-			t.Fatalf("%s: gaps %+v; a %s comparison is not proposed", scenario.name, scenario.record.Gaps(against), verdict)
+		if proposed != (verdict == regressed) {
+			t.Fatalf("%s: gaps %+v; a %s comparison is proposed: %t", scenario.name, scenario.record.Gaps(against), verdict, proposed)
 		}
 	}
 	legacy := row(first, "shared", 0.5, Contract{})
@@ -250,9 +247,12 @@ func TestTrainedBelowBaseIsAGap(t *testing.T) {
 		if at >= 0 && (gaps[at].Title != "Make training beat its base model on held-out quality" || !strings.Contains(gaps[at].Detail, "vs base")) {
 			t.Fatalf("%s: gap %+v does not name the work or show both values", name, gaps[at])
 		}
-		baseline := Record{Commit: "a", Rows: []Row{scenario.row}}
-		if withheld := record.Withheld(&baseline); withheld != "" {
-			t.Fatalf("%s: withheld %q; a trained model below its base is a gap, not a reason to withhold the commit", name, withheld)
+		// It judges a training against its base model: held against its own earlier value, it files no decline.
+		reference := Record{Commit: "a", Rows: []Row{scenario.row}}
+		for _, gap := range record.Gaps(&reference) {
+			if gap.kind == string(regressed) {
+				t.Fatalf("%s: %+v; a trained model below its base is not a decline from itself", name, gap)
+			}
 		}
 	}
 	if gaps := (Record{Rows: []Row{below}}).Gaps(nil); len(gaps) != 1 || gaps[0].Detail != line {
@@ -296,53 +296,8 @@ func TestTrainedBelowBaseIsAGap(t *testing.T) {
 
 // TestKnownGapKeyNamesTheKeysGapsProposes holds the verifier's key check to
 // the keys the scorecard proposes: each kind on a task with a hyphen in its
-// name is known, and a key missing its kind, its task or the prefix is not.
-// TestBaselineIsTheNewestHeldRecordNotMain holds a baseline to the records: the newest earlier
-// record marked held is chosen with no repository at all (main absent), a record newer than it
-// that did not hold is never chosen, a marker that names another commit marks nothing, and
-// only a published record can be marked.
-func TestBaselineIsTheNewestHeldRecordNotMain(t *testing.T) {
-	t.Parallel()
-	directory := t.TempDir()
-	published := time.Date(2026, time.October, 5, 12, 0, 0, 0, time.UTC)
-	for index, commit := range []string{"a", "b", "c", "d", "e"} {
-		if _, err := Publish(directory, published.Add(time.Duration(index)*time.Hour), Record{Commit: commit}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	records, err := Records(directory)
-	if err != nil || len(records) != 5 {
-		t.Fatalf("records = %d (%v), want five", len(records), err)
-	}
-	for _, record := range records {
-		if record.Held {
-			t.Fatalf("record %s is held before anything was marked", record.Commit)
-		}
-	}
-	if err := MarkHeld(directory, records[1]); err != nil {
-		t.Fatal(err)
-	}
-	// The marker beside the third record names a commit that is not its own.
-	if err := os.WriteFile(heldPath(directory, records[2].Name), []byte(`{"commit":"elsewhere"}`), recordMode); err != nil {
-		t.Fatal(err)
-	}
-	if err := MarkHeld(directory, Record{Commit: "x"}); err == nil {
-		t.Error("a record that was never published was marked held")
-	}
-	records, err = Records(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if held := []bool{records[0].Held, records[1].Held, records[2].Held, records[3].Held, records[4].Held}; !slices.Equal(held, []bool{false, true, false, false, false}) {
-		t.Fatalf("held records = %v, want only the second", held)
-	}
-	// No repository holds a main: a baseline comes from the markers alone.
-	baseline, err := Baseline(t.Context(), t.TempDir(), records)
-	if err != nil || baseline == nil || baseline.Commit != "b" {
-		t.Fatalf("baseline of the newest record = %+v (%v), want the held record b, not the newer ones that did not hold", baseline, err)
-	}
-}
-
+// name is known, so is the decline of a cell (the prefix and sixteen hex digits
+// of its digest), and a key missing its kind, its task or the prefix is not.
 func TestKnownGapKeyNamesTheKeysGapsProposes(t *testing.T) {
 	t.Parallel()
 	for _, kind := range gapKinds {
@@ -352,9 +307,191 @@ func TestKnownGapKeyNamesTheKeysGapsProposes(t *testing.T) {
 			}
 		}
 	}
-	for _, key := range []string{"", "projection", "scorecard", "scorecard-unmeasured", "scorecard-unmeasured-", "scorecard-unmeasured-nonsense", "unmeasured-inference", "scorecard-unmeasured-inference-extra"} {
+	decline := regressionKey(Row{Model: testutil.ArtifactID(t, artifact.KindModel, "declined"), Task: recipe.TaskInference}, metric.Throughput, Cell{Contract: Contract{Metric: "rate", Origin: originServing}})
+	if !KnownGapKey(decline) {
+		t.Fatalf("the key %q of a decline is not known", decline)
+	}
+	for _, key := range []string{"", "projection", "scorecard", "scorecard-unmeasured", "scorecard-unmeasured-", "scorecard-unmeasured-nonsense", "unmeasured-inference", "scorecard-unmeasured-inference-extra",
+		"scorecard-regressed-", "scorecard-regressed-inference", "scorecard-regressed-0123456789abcdef0", "scorecard-unknown-inference"} {
 		if KnownGapKey(key) {
 			t.Fatalf("the key %q names no gap and is known", key)
+		}
+	}
+}
+
+// measuredFixture is a model's row with a cell for every column, a gap naming
+// its reason where the fixture measures none.
+func measuredFixture(model artifact.ID, cells map[metric.Name]Cell) Row {
+	for _, column := range metric.Columns {
+		if _, found := cells[column]; !found {
+			cells[column] = gap("no record measures it")
+		}
+	}
+	return Row{Model: model, Name: "served", Task: recipe.TaskInference, Cells: cells}
+}
+
+// TestReferenceIsEachCellsNewestEarlierMeasurement holds the reference a record is
+// compared with to the records before it: the newest earlier record's cells, one it
+// did not measure taken from the newest older record that did, and nothing in place
+// of a value the newest record lacks. A record alone has no reference, and building
+// one changes no record.
+func TestReferenceIsEachCellsNewestEarlierMeasurement(t *testing.T) {
+	t.Parallel()
+	model := testutil.ArtifactID(t, artifact.KindModel, "served")
+	contract := Contract{Metric: "rate", Origin: originServing}
+	measured := func(value float64) Cell { return Cell{Value: value, Unit: "tok/s", Contract: contract} }
+	older := Record{Commit: "a", Rows: []Row{measuredFixture(model, map[metric.Name]Cell{metric.Throughput: measured(40), metric.Load: measured(9)})}}
+	incomplete := Record{Commit: "b", Rows: []Row{measuredFixture(model, map[metric.Name]Cell{metric.Throughput: gap("the run failed"), metric.Load: measured(8)})}}
+	current := Record{Commit: "c", Rows: []Row{measuredFixture(model, map[metric.Name]Cell{metric.Throughput: measured(25), metric.Load: measured(8)})}}
+	records := []Record{older, incomplete, current}
+
+	reference := Reference(records)
+	if reference == nil || reference.Commit != "b" {
+		t.Fatalf("reference = %+v, want the newest earlier record's", reference)
+	}
+	if cells := reference.Rows[0].Cells; cells[metric.Throughput].Value != 40 || cells[metric.Load].Value != 8 {
+		t.Fatalf("reference throughput %v and load %v, want the older record's 40 for the cell the incomplete record lacks and its own 8", cells[metric.Throughput].Value, cells[metric.Load].Value)
+	}
+	if incomplete.Rows[0].Cells[metric.Throughput].Measured() {
+		t.Fatal("building the reference filled the incomplete record's own cell")
+	}
+	if Reference(records[:1]) != nil || Reference(nil) != nil {
+		t.Fatal("a record with none before it has a reference")
+	}
+
+	// The cell declined from the older record's value, and the incomplete record is no reference for it.
+	var declined []Gap
+	for _, gap := range current.Gaps(reference) {
+		if gap.kind == string(regressed) {
+			declined = append(declined, gap)
+		}
+	}
+	if len(declined) != 1 || declined[0].Target != 40 || !declined[0].Restore || !strings.Contains(declined[0].Detail, "-37.5%") {
+		t.Fatalf("declines = %+v, want throughput's one, to be restored to 40, with its raw change", declined)
+	}
+
+	// A value the current record lacks is Unknown, never answered by an older one, and files no decline.
+	lost := Record{Commit: "d", Rows: []Row{measuredFixture(model, map[metric.Name]Cell{metric.Throughput: gap("the run failed"), metric.Load: measured(8)})}}
+	pair := Pair{Before: &reference.Rows[0], After: &lost.Rows[0]}
+	if compared := pair.Compare(metric.Throughput); len(compared) != 1 || compared[0].Verdict != Unknown || !strings.Contains(compared[0].Why, "no current value: the run failed") {
+		t.Fatalf("a cell with no current value compares as %+v, want unknown", compared)
+	}
+	for _, gap := range lost.Gaps(reference) {
+		if gap.kind == string(regressed) {
+			t.Fatalf("a cell with no current value is filed as a decline: %+v", gap)
+		}
+	}
+}
+
+// TestADeclineMustPassTheColumnsNoise holds each column to what a decline is in it: a
+// quality only by float32 arithmetic, a count of setup steps by any increase, a failed
+// share by more than one failure beyond what the earlier share predicts at the attempts
+// counted now (and not at all when either share lost its attempts), and the four
+// performance columns by more than their frozen allowances, each side of the line.
+func TestADeclineMustPassTheColumnsNoise(t *testing.T) {
+	t.Parallel()
+	contract := Contract{Metric: "rate", Origin: originServing}
+	cell := func(value float64) Cell { return Cell{Value: value, Contract: contract} }
+	failed := func(failures, attempts int) Cell {
+		return Cell{Value: float64(failures) / float64(attempts), Attempts: attempts, Contract: contract}
+	}
+	setup := func(steps float64) Cell {
+		return Cell{Value: steps, Contract: Contract{Metric: "transitions", Origin: originLifecycle}}
+	}
+	for _, test := range []struct {
+		name         string
+		column       metric.Name
+		then, now    Cell
+		wantVerdict  Verdict
+		wantContains string
+	}{
+		{"first output inside the allowance", metric.FirstOutput, cell(100), cell(134), holding, ""},
+		{"first output beyond it", metric.FirstOutput, cell(100), cell(160), regressed, "+60.0%"},
+		{"first output faster", metric.FirstOutput, cell(100), cell(40), holding, ""},
+		{"throughput inside the allowance", metric.Throughput, cell(40), cell(35), holding, ""},
+		{"throughput beyond it", metric.Throughput, cell(40), cell(33), regressed, "-17.5%"},
+		{"throughput faster", metric.Throughput, cell(40), cell(80), holding, ""},
+		{"load inside the allowance", metric.Load, cell(5000), cell(7000), holding, ""},
+		{"load beyond it", metric.Load, cell(5000), cell(8000), regressed, ""},
+		{"peak memory a rounding more", metric.PeakMemory, cell(1000), cell(1005), holding, ""},
+		{"peak memory more", metric.PeakMemory, cell(1000), cell(1020), regressed, ""},
+		{"setup steps the same", metric.SetupSteps, setup(3), setup(3), holding, ""},
+		{"setup steps one more", metric.SetupSteps, setup(3), setup(4), regressed, "+1"},
+		{"setup steps fewer", metric.SetupSteps, setup(4), setup(3), holding, ""},
+		{"one more failure in a hundred", metric.Failures, failed(1, 100), failed(2, 100), holding, ""},
+		{"two more failures in a hundred", metric.Failures, failed(1, 100), failed(3, 100), regressed, ""},
+		{"the same share over ten times the attempts", metric.Failures, failed(1, 100), failed(10, 1000), holding, ""},
+		{"one failure in ten against a hundredth", metric.Failures, failed(1, 100), failed(1, 10), holding, ""},
+		{"three failures in ten against a hundredth", metric.Failures, failed(1, 100), failed(3, 10), regressed, ""},
+		{"a share published without its attempts", metric.Failures, cell(0.01), failed(2, 100), Unknown, "without the attempts"},
+	} {
+		verdict, why := holds(test.column, test.then, test.now)
+		if verdict != test.wantVerdict || !strings.Contains(why, test.wantContains) {
+			t.Errorf("%s: holds = %q (%s), want %q containing %q", test.name, verdict, why, test.wantVerdict, test.wantContains)
+		}
+	}
+}
+
+// TestADeclineKeepsItsKeyAndItsOriginalRestorationTarget holds a decline to the one cell
+// that declined: its key names the model, the task, the measure and the whole contract and
+// no value, so a cell that stays down, or goes further down, is found again under the same
+// key, and the target its row carries is the value it declined from. Of two held-out suites,
+// the one that fell is the one filed. A decline is restored when the cell is back within
+// the column's noise of the target, and a key no cell carries is not.
+func TestADeclineKeepsItsKeyAndItsOriginalRestorationTarget(t *testing.T) {
+	t.Parallel()
+	model := testutil.ArtifactID(t, artifact.KindModel, "declined")
+	source := testutil.ArtifactID(t, artifact.KindEvaluation, "decline")
+	mmlu := Contract{Metric: "accuracy", Origin: originEvaluation, Suite: "store/mmlu", Protocol: "chat-template", Comparison: testutil.ArtifactID(t, artifact.KindProfile, "mmlu-chat-environment")}
+	pro := mmlu
+	pro.Suite = "store/mmlu-pro"
+	quality := func(value float64, contract Contract) Cell {
+		return Cell{Value: value, Label: "accuracy", Source: source, Direction: runrecord.DirectionMaximize, Contract: contract}
+	}
+	row := func(headline, other float64) Row {
+		fixture := measuredFixture(model, map[metric.Name]Cell{metric.Quality: quality(headline, mmlu)})
+		fixture.Heldout = []Cell{quality(other, pro)}
+		return fixture
+	}
+	declines := func(now, reference Row) []Gap {
+		var found []Gap
+		for _, gap := range (Record{Commit: "b", Rows: []Row{now}}).Gaps(&Record{Commit: "a", Rows: []Row{reference}}) {
+			if gap.kind == string(regressed) {
+				found = append(found, gap)
+			}
+		}
+		return found
+	}
+	first := declines(row(0.8, 0.5), row(0.8, 0.7))
+	if len(first) != 1 || first[0].Target != 0.7 || !first[0].Restore || !strings.Contains(first[0].Detail, "store/mmlu-pro") || strings.Contains(first[0].Detail, "mmlu,") {
+		t.Fatalf("declines = %+v, want only the suite that fell, to be restored to 0.7", first)
+	}
+	// It stays down, then goes further down: the same key, whatever it is compared with.
+	again := declines(row(0.8, 0.4), row(0.8, 0.5))
+	if len(again) != 1 || again[0].Key != first[0].Key || again[0].Target != 0.5 {
+		t.Fatalf("a further decline = %+v, want the key %s", again, first[0].Key)
+	}
+	if got := declines(row(0.8, 0.5), row(0.8, 0.5)); len(got) != 0 {
+		t.Fatalf("a cell that stayed down against itself is a decline again: %+v", got)
+	}
+	// The other suite declining is another cell, so another key.
+	if other := declines(row(0.6, 0.7), row(0.8, 0.7)); len(other) != 1 || other[0].Key == first[0].Key {
+		t.Fatalf("the headline suite declining = %+v, want a key of its own", other)
+	}
+
+	rows := func(headline, other float64) []Row { return []Row{row(headline, other)} }
+	for name, test := range map[string]struct {
+		rows            []Row
+		restored, found bool
+	}{
+		"still down":             {rows(0.8, 0.5), false, true},
+		"back":                   {rows(0.8, 0.7), true, true},
+		"above where it was":     {rows(0.8, 0.9), true, true},
+		"within the noise of it": {rows(0.8, 0.7*(1-1e-8)), true, true},
+		"another model's cell":   {[]Row{{Model: testutil.ArtifactID(t, artifact.KindModel, "other"), Task: recipe.TaskInference, Cells: row(0.8, 0.7).Cells, Heldout: row(0.8, 0.7).Heldout}}, false, false},
+	} {
+		if restored, found := Restored(test.rows, first[0].Key, 0.7); restored != test.restored || found != test.found {
+			t.Errorf("%s: Restored = (%t, %t), want (%t, %t)", name, restored, found, test.restored, test.found)
 		}
 	}
 }

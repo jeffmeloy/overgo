@@ -21,6 +21,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -56,7 +57,7 @@ func run() error {
 
 func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("validate", flag.ContinueOnError)
-	root := flags.String("root", ".", "repository root: the promoted branch and the grounding files are read from it, and the commands run in it")
+	root := flags.String("root", ".", "repository root: the grounding files are read from it, and the commands run in it")
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data-root contract")
 	execute := flags.Bool("run", false, "execute the selected validations promotion waits on and the cycle lanes (default: dry run prints the plan only)")
 	background := flags.Bool("background", false, "with -run: execute the background validations instead, the suites the baseline scorecard does not compare, which never block promotion")
@@ -66,7 +67,8 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
 	scorecardView := flags.Bool("scorecard", false, "print the user scorecard: for every activated model and task, time to first output, throughput, held-out quality, failures, load time, peak device memory and setup steps, each read from the store or listed as a gap with its reason, and the share of served models supported by declaration alone; runs nothing")
 	publish := flags.Bool("publish", false, "with -scorecard: write it as the newest record in the scorecards directory beside the store and list what moved since the previous record")
-	gap := flags.String("gap", "", "with -scorecard: fail while the gap this key names is open on the scorecard the store holds, judged against the newest published record's baseline; the verifier of the row the loop proposed for it")
+	gap := flags.String("gap", "", "with -scorecard: fail while the gap this key names is open on the scorecard the store holds, compared with the measurements published before it; the verifier of the row the loop proposed for it")
+	target := flags.Float64("target", math.NaN(), "with -gap, for the key of a decline: the value its cell is to be restored to, which the row carries from the cycle that found the decline")
 	claims := flags.Bool("claims", false, "check compatibility.json's claims and the training specifications against their bound sources and the matrices published from them; with -run, re-run the verify of every claim whose bound source moved, rebind the claims that pass, and write the matrices again")
 	models := flags.Bool("models", false, "print the nested model compatibility report: the docs/verification typed specifications joined against the store")
 	media := flags.String("media", "", "print the media capability report rendered from store activations and the verification specifications: markdown, or json for its typed projection; its links resolve from docs/")
@@ -140,7 +142,11 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		defer store.Close()
 		records := scorecard.Directory(storeRoot)
 		if *gap != "" {
-			return openGap(ctx, store, *root, records, *gap, output)
+			var restoreTo *float64
+			if !math.IsNaN(*target) {
+				restoreTo = target
+			}
+			return openGap(ctx, store, records, *gap, restoreTo, output)
 		}
 		if !*publish {
 			records = ""
@@ -220,7 +226,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
-	compared, err := promotionBaseline(ctx, *root, storeRoot)
+	compared, err := lastRecord(storeRoot)
 	if err != nil {
 		return err
 	}

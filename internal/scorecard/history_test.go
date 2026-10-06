@@ -39,7 +39,7 @@ func TestServingEnvironmentChangeIsUnknown(t *testing.T) {
 		"a record measured with none":  {cell(40, device), cell(45, artifact.ID{}), holding},
 		"another environment and loss": {cell(40, process), cell(30, device), Unknown},
 	} {
-		if verdict, why := holds(test.before, test.after); verdict != test.verdict {
+		if verdict, why := holds(metric.Throughput, test.before, test.after); verdict != test.verdict {
 			t.Errorf("%s: holds = %q (%s), want %q", name, verdict, why, test.verdict)
 		}
 	}

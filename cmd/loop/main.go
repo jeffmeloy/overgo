@@ -41,10 +41,9 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
-	"overgo/internal/scorecard"
 )
 
-// pushRemote is the remote -push-held publishes the held commit to.
+// pushRemote is the remote -push publishes the named commit to.
 const pushRemote = "origin"
 
 // The loop's pause marker lives in the checkout's process state; the legacy
@@ -103,9 +102,9 @@ func run(args []string) error {
 	resumeMediaExperimentSpec := flags.String("resume-media-experiment", "", "resume one media experiment from this spec, reusing retained acquisitions and publishing the report without opening a model")
 	landReference := flags.String("land", "", "land one row through the small gate over the dirty tree and confirm the landing from git: -land <item>/<step> -message-file <file>")
 	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
-	improveOnce := flags.Bool("improve", false, "run one improvement cycle now, as an emptied plan does: measure the scorecard, record it as held if held-out quality holds, and file the gaps as rows")
-	pushHeldOnce := flags.Bool("push-held", false, "the owner's command: push the commit the newest held scorecard names to origin's main, fast-forward only; refused from a worker's environment and without -confirm-push")
-	confirmPush := flags.Bool("confirm-push", false, "with -push-held: say the push is wanted")
+	improveOnce := flags.Bool("improve", false, "run one improvement cycle now, as an emptied plan does: measure the scorecard, compare each cell with its newest earlier complete measurement, and file the declines and the other gaps as rows")
+	pushCommit := flags.String("push", "", "the owner's command: push the named commit to origin's main, fast-forward only; refused from a worker's environment and without -confirm-push")
+	confirmPush := flags.Bool("confirm-push", false, "with -push: say the push is wanted")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -118,16 +117,15 @@ func run(args []string) error {
 	}
 	*repoPath = resolved
 	switch {
-	case *pushHeldOnce:
-		commit, err := pushHeld(loopWorktree, scorecard.Directory(*repoPath), pushRemote, *confirmPush, os.Getenv(plan.AutomationWorkerEnvironment) != "")
+	case *pushCommit != "":
+		commit, err := pushNamed(loopWorktree, *pushCommit, pushRemote, *confirmPush, os.Getenv(plan.AutomationWorkerEnvironment) != "")
 		if err == nil {
-			fmt.Printf("loop: %s/main holds the held commit %s\n", pushRemote, commit)
+			fmt.Printf("loop: %s/main holds %s\n", pushRemote, commit)
 		}
 		return err
 	case *improveOnce:
-		var outcome loop.Outcome
-		added, err := loop.Improve(improvementFor(*repoPath), &outcome)
-		fmt.Printf("loop: improvement cycle promoted=%q withheld=%q proposed=%d row(s)\n", outcome.Promoted, outcome.Withheld, added)
+		added, err := loop.Improve(improvementFor(*repoPath))
+		fmt.Printf("loop: improvement cycle proposed=%d row(s)\n", added)
 		return err
 	case *publishStrategySpec != "":
 		return publishStrategy(*repoPath, *publishStrategySpec, os.Stdout)
@@ -202,13 +200,12 @@ func run(args []string) error {
 	if err != nil || !found {
 		return errors.Join(errors.New("loop: configured strategy prompt is unavailable"), err)
 	}
-	// An empty plan runs the full scorecard, promotes what holds and turns
-	// the gaps into the next rows.
+	// An empty plan runs the full scorecard and turns the gaps into the next rows.
 	world := &execWorld{config: loaded, strategy: strategy, promptPrefix: string(prompt.Data), campaign: campaign, improvement: improvementFor(*repoPath)}
 	world.improvement.limit = loaded.AutoCycleLandings
 	outcome, err := loop.Run(world, strategy.Loop)
-	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; promoted=%q; withheld=%q; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
-		outcome.Reason, outcome.Invocations, outcome.Parked, outcome.Promoted, outcome.Withheld)
+	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
+		outcome.Reason, outcome.Invocations, outcome.Parked)
 	return err
 }
 

@@ -77,10 +77,21 @@ func TestScorecardGapsBecomeProposals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var decline string
+	for _, gap := range published.Gaps(&baseline) {
+		if gap.Restore {
+			decline = gap.Key
+		}
+	}
 	var keys []string
 	for _, item := range document.Items {
 		keys = append(keys, item.ID)
-		if len(item.Steps) != 1 || item.Steps[0].Verify != "go run ./cmd/validate -scorecard -gap "+item.ID || !strings.Contains(item.Steps[0].Rationale, published.Name) {
+		// A decline's row carries the value its cell is to be restored to, which no later pass rewrites.
+		verify := "go run ./cmd/validate -scorecard -gap " + item.ID
+		if item.ID == decline {
+			verify += " -target 0.5"
+		}
+		if len(item.Steps) != 1 || item.Steps[0].Verify != verify || !strings.Contains(item.Steps[0].Rationale, published.Name) {
 			t.Fatalf("row %+v is not verified by its gap closing on the store's scorecard", item)
 		}
 		if item.Owner != document.Lane {
@@ -89,7 +100,7 @@ func TestScorecardGapsBecomeProposals(t *testing.T) {
 	}
 	want := []string{
 		"scorecard-failing-inference",
-		"scorecard-regressed-inference",
+		decline,
 		"scorecard-unmeasured-image-gen",
 		"scorecard-unmeasured-inference",
 	}
@@ -99,7 +110,7 @@ func TestScorecardGapsBecomeProposals(t *testing.T) {
 	if rationale := document.Items[3].Steps[0].Rationale; !strings.Contains(rationale, "- alpha load-time: "+unmeasured.Reason) || !strings.Contains(rationale, "- beta load-time: "+unmeasured.Reason) {
 		t.Fatalf("the inference load row does not list both models with their reason:\n%s", rationale)
 	}
-	if !strings.Contains(document.Items[1].Steps[0].Rationale, "- alpha held-out-quality: 0.5 to 0.4") {
+	if !strings.Contains(document.Items[1].Steps[0].Rationale, "alpha held-out-quality") || !strings.Contains(document.Items[1].Steps[0].Rationale, "0.5 to 0.4 (-0.1, -20.0%") {
 		t.Fatalf("the regression row does not state the fall:\n%s", document.Items[1].Steps[0].Rationale)
 	}
 	if item, step, open := plan.Current(document, ""); !open || item.ID != want[0] || step.ID != proposalStep {
@@ -123,21 +134,18 @@ func gitFixture(t *testing.T, directory string, arguments ...string) string {
 	return strings.TrimSpace(string(output))
 }
 
-// TestNoScorecardOfMainPromotesNothing publishes two scorecards of a commit
-// main does not hold, the second better than the first. Neither measured
-// main, so there is no baseline: main stays and the outcome says why, rather
-// than judging the commit against its own earlier record.
-func TestNoScorecardOfMainPromotesNothing(t *testing.T) {
+// TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain publishes two scorecards of a
+// commit in a repository that holds no main, the second worse than the first. The cell is
+// compared with its newest earlier measurement, the first record, whatever any branch points
+// at: the decline is proposed as the row that restores it, to the value it declined from.
+func TestCycleComparesWithTheNewestEarlierScorecardWithoutAMain(t *testing.T) {
 	t.Parallel()
 	repository := t.TempDir()
 	gitFixture(t, repository, "init", "-q", "-b", "master")
-	gitFixture(t, repository, "commit", "-q", "--allow-empty", "-m", "main")
-	gitFixture(t, repository, "branch", "main")
-	held := gitFixture(t, repository, "rev-parse", "main")
 	gitFixture(t, repository, "commit", "-q", "--allow-empty", "-m", "measured")
 	measured := gitFixture(t, repository, "rev-parse", "HEAD")
 
-	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-no-main-baseline")
+	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-no-main-reference")
 	records := filepath.Join(t.TempDir(), "scorecards")
 	published := time.Date(2026, time.September, 30, 12, 0, 0, 0, time.UTC)
 	publish := func(accuracy float64) error {
@@ -148,13 +156,14 @@ func TestNoScorecardOfMainPromotesNothing(t *testing.T) {
 	if err := publish(0.5); err != nil {
 		t.Fatal(err)
 	}
-	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func(string) error { return publish(0.6) }, fill: func(string) error { return nil }}
-	var outcome loop.Outcome
-	if _, err := loop.Improve(improver, &outcome); err != nil {
-		t.Fatal(err)
+	improver := improvement{root: repository, plan: emptyPlan(t), records: records, measure: func(string) error { return publish(0.4) }, fill: func(string) error { return nil }}
+	added, err := loop.Improve(improver)
+	if err != nil || added != 1 {
+		t.Fatalf("a cycle against the record before it proposed %d row(s), %v; want the one decline", added, err)
 	}
-	if outcome.Promoted != "" || !strings.Contains(outcome.Withheld, "no earlier scorecard is recorded as held") || gitFixture(t, repository, "rev-parse", "main") != held {
-		t.Fatalf("promoted %q, withheld %q, main %s; want main unmoved at %s and the missing baseline stated", outcome.Promoted, outcome.Withheld, gitFixture(t, repository, "rev-parse", "main"), held)
+	document, err := plan.Load(improver.plan)
+	if err != nil || len(document.Items) != 1 || !strings.HasPrefix(document.Items[0].ID, "scorecard-regressed-") || !strings.HasSuffix(document.Items[0].Steps[0].Verify, " -target 0.5") {
+		t.Fatalf("plan = %+v (%v), want the decline's row, to be restored to 0.5", document.Items, err)
 	}
 }
 
@@ -219,8 +228,7 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 			inCycle("fill", checkout)
 			return failure
 		}
-		var outcome loop.Outcome
-		if _, err := loop.Improve(improver, &outcome); err != nil {
+		if _, err := loop.Improve(improver); err != nil {
 			t.Fatalf("round %d: %v", round, err)
 		}
 		if !slices.Equal(ran, []string{"measure", "fill"}) {
@@ -241,7 +249,7 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := loop.Improve(improver, &loop.Outcome{}); !errors.Is(err, processlock.ErrBusy) {
+	if _, err := loop.Improve(improver); !errors.Is(err, processlock.ErrBusy) {
 		t.Fatalf("a cycle checkout another cycle holds gave %v; want a refusal", err)
 	}
 	if err := held.Close(); err != nil {
@@ -251,7 +259,7 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 	if err := os.WriteFile(stray, []byte("a run left this"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := loop.Improve(improver, &loop.Outcome{}); err == nil || !strings.Contains(err.Error(), "stray.txt") {
+	if _, err := loop.Improve(improver); err == nil || !strings.Contains(err.Error(), "stray.txt") {
 		t.Fatalf("a cycle checkout holding a change gave %v; want a refusal naming the change", err)
 	}
 	if _, err := os.Stat(stray); err != nil {
@@ -260,13 +268,12 @@ func TestCycleRunsInItsOwnCheckout(t *testing.T) {
 }
 
 // planWorld drives the loop over a plan file: its worker lands the
-// dispatched row the way the gate does, by removing it, and records which
-// commit the promoted branch held when it ran.
+// dispatched row the way the gate does, by removing it, and records the
+// verify command of the row it landed.
 type planWorld struct {
 	improvement
-	promoted func() string
-	heldAt   []string
-	parked   []string
+	worked []string
+	parked []string
 }
 
 func (w *planWorld) Current() (loop.Step, bool, error) {
@@ -281,9 +288,15 @@ func (w *planWorld) Current() (loop.Step, bool, error) {
 func (w *planWorld) Prompt(step loop.Step) (string, error) { return "TASK " + step.Key(), nil }
 
 func (w *planWorld) RunWorker(step loop.Step, _, _ string) (string, error) {
-	w.heldAt = append(w.heldAt, w.promoted())
 	document, err := plan.Load(w.plan)
 	if err == nil {
+		for _, item := range document.Items {
+			for _, candidate := range item.Steps {
+				if item.ID == step.Item && candidate.ID == step.ID {
+					w.worked = append(w.worked, candidate.Verify)
+				}
+			}
+		}
 		document, err = plan.Advance(document, step.Item, step.ID)
 	}
 	if err == nil {
@@ -301,34 +314,29 @@ func (w *planWorld) Park(step loop.Step, reason string) error {
 
 func (w *planWorld) Paused() bool { return false }
 
-// TestPromotionWaitsForAHoldingScorecard runs the loop over a real
-// repository whose main holds the last promoted commit. The first scorecard
-// of the new commit has a lower held-out accuracy: nothing is recorded as held,
-// and the fall becomes the row the worker lands. The next scorecard holds, and
-// its record is marked held, which the following cycle is judged against; main
-// is never moved and the remote never receives anything. Each cycle's
-// background validations fail, which neither stops the loop nor withholds the
-// promotion.
-func TestPromotionWaitsForAHoldingScorecard(t *testing.T) {
+// TestADeclineBecomesTheRowTheLoopWorks runs the loop over a real repository. The first
+// scorecard of the new commit has a lower held-out accuracy than the one before it: the
+// decline becomes the row the worker lands, to be restored to the value it fell from. The next
+// scorecard has the accuracy back, compared with the record before it: nothing declined, no
+// row is proposed, and the plan stays empty. Each cycle's background validations fail, which
+// neither stops the loop nor discards a record. No branch moves and the remote receives nothing.
+func TestADeclineBecomesTheRowTheLoopWorks(t *testing.T) {
 	t.Parallel()
 	repository, remote := t.TempDir(), t.TempDir()
 	git := func(directory string, arguments ...string) string { return gitFixture(t, directory, arguments...) }
 	git(remote, "init", "-q", "--bare")
 	git(repository, "init", "-q", "-b", "master")
-	git(repository, "commit", "-q", "--allow-empty", "-m", "promoted")
-	promotedCommit := git(repository, "rev-parse", "HEAD")
-	git(repository, "branch", "main")
+	git(repository, "commit", "-q", "--allow-empty", "-m", "earlier")
+	earlierCommit := git(repository, "rev-parse", "HEAD")
 	git(repository, "remote", "add", "origin", remote)
-	git(repository, "push", "-q", "origin", "main")
 	git(repository, "commit", "-q", "--allow-empty", "-m", "measured")
 	measuredCommit := git(repository, "rev-parse", "HEAD")
-	promoted := func() string { return git(repository, "rev-parse", "main") }
 
-	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-promotion")
+	source := testutil.ArtifactID(t, artifact.KindEvidence, "loop-decline")
 	records := filepath.Join(t.TempDir(), "scorecards")
 	published := time.Date(2026, time.September, 29, 12, 0, 0, 0, time.UTC)
 	scripted := []scorecard.Record{
-		{Commit: promotedCommit, Rows: []scorecard.Row{scoredRow(t, source, "alpha", recipe.TaskInference, 0.5, 0, scorecard.Cell{Value: 1, Source: source})}},
+		{Commit: earlierCommit, Rows: []scorecard.Row{scoredRow(t, source, "alpha", recipe.TaskInference, 0.5, 0, scorecard.Cell{Value: 1, Source: source})}},
 		{Commit: measuredCommit, Rows: []scorecard.Row{scoredRow(t, source, "alpha", recipe.TaskInference, 0.4, 0, scorecard.Cell{Value: 1, Source: source})}},
 		{Commit: measuredCommit, Rows: []scorecard.Row{scoredRow(t, source, "alpha", recipe.TaskInference, 0.5, 0, scorecard.Cell{Value: 1, Source: source})}},
 	}
@@ -347,41 +355,18 @@ func TestPromotionWaitsForAHoldingScorecard(t *testing.T) {
 		fills++
 		return errors.New("a background suite failed")
 	}
-	world := &planWorld{promoted: promoted, improvement: improvement{root: repository, plan: emptyPlan(t), records: records, measure: func(string) error { return publish() }, fill: fill}}
+	world := &planWorld{improvement: improvement{root: repository, plan: emptyPlan(t), records: records, measure: func(string) error { return publish() }, fill: fill}}
 	outcome, err := loop.Run(world, loop.Config{MaxAttemptsPerStep: 1, MaxInvocations: 2})
 	if err != nil || outcome.Reason != loop.ReasonPlanComplete || len(world.parked) != 0 || fills != len(scripted)-1 {
 		t.Fatalf("outcome=%+v err=%v parked=%v fills=%d", outcome, err, world.parked, fills)
 	}
-	if !slices.Equal(world.heldAt, []string{promotedCommit}) {
-		t.Fatalf("the worker ran %d times with main at %v; want once, on the fall, with main unmoved at %s", len(world.heldAt), world.heldAt, promotedCommit)
+	if len(world.worked) != 1 || !strings.Contains(world.worked[0], "-gap scorecard-regressed-") || !strings.HasSuffix(world.worked[0], " -target 0.5") {
+		t.Fatalf("the worker ran %q; want once, on the decline, to be restored to 0.5", world.worked)
 	}
-	if outcome.Promoted != measuredCommit {
-		t.Fatalf("promoted %q; want the measured commit %s once its scorecard held", outcome.Promoted, measuredCommit)
+	if refs := git(remote, "for-each-ref"); refs != "" {
+		t.Fatalf("the remote holds %q; a cycle never pushes", refs)
 	}
-	if now := promoted(); now != promotedCommit {
-		t.Fatalf("main moved to %s; promotion records a held scorecard and moves no branch", now)
+	if all, err := scorecard.Records(records); err != nil || len(all) != len(scripted) {
+		t.Fatalf("records after the cycles = %d (%v), want all %d: a failed fill discards none", len(all), err, len(scripted))
 	}
-	if pushed := git(remote, "rev-parse", "main"); pushed != promotedCommit {
-		t.Fatalf("the remote's main moved to %s; promotion never pushes", pushed)
-	}
-	// The record that held is marked, the one that fell is not, and the next cycle is judged against it.
-	marked, err := scorecard.Records(records)
-	if err != nil || len(marked) != len(scripted) || marked[0].Held || marked[1].Held || !marked[2].Held {
-		t.Fatalf("held markers after the cycles = %v (%v), want only the last record, the one that held", heldOf(marked), err)
-	}
-	if baseline, err := scorecard.Baseline(t.Context(), repository, append(marked, scorecard.Record{Commit: "next"})); err != nil || baseline == nil || baseline.Name != marked[2].Name {
-		t.Fatalf("the baseline of the next record = %+v (%v), want the record that held", baseline, err)
-	}
-	if err := world.Promote("0000000000000000000000000000000000000000"); err == nil {
-		t.Fatal("a commit no scorecard measured was recorded as held")
-	}
-}
-
-// heldOf says which of the records are marked held.
-func heldOf(records []scorecard.Record) []bool {
-	held := make([]bool, len(records))
-	for index, record := range records {
-		held[index] = record.Held
-	}
-	return held
 }

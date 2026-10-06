@@ -196,18 +196,17 @@ func TestQualityReadsEachTasksHeldoutEvidence(t *testing.T) {
 	}
 	proposed, _ := qualityCell(recipe.TaskImageGen, nil, nil)
 	published := Record{Commit: "b", Rows: []Row{row("projector", recipe.TaskProjection, cell), row("painter", recipe.TaskImageGen, proposed)}}
-	baseline := Record{Commit: "a"}
-	if withheld := published.Withheld(&baseline); withheld != "" {
-		t.Fatalf("a task whose held-out evaluation is only proposed withholds promotion: %s", withheld)
-	}
-	gaps := published.Gaps(&baseline)
+	reference := Record{Commit: "a"}
+	gaps := published.Gaps(&reference)
 	if len(gaps) != 1 || gaps[0].Key != "scorecard-unscored-image-gen" || !strings.Contains(gaps[0].Detail, "painter held-out-quality: "+proposed.Reason) {
 		t.Fatalf("gaps = %+v, want one row to define image-gen's held-out evaluation", gaps)
 	}
 	unevaluated, _ := qualityCell(recipe.TaskInference, nil, nil)
 	published.Rows = append(published.Rows, row("reader", recipe.TaskInference, unevaluated))
-	if unevaluated.NotApplicable || unevaluated.Measured() || !strings.Contains(published.Withheld(&baseline), "reader has no inference held-out quality") {
-		t.Fatalf("an inference recipe nothing evaluated reads %+v and withholds %q, want a gap that withholds", unevaluated, published.Withheld(&baseline))
+	gaps = published.Gaps(&reference)
+	at := slices.IndexFunc(gaps, func(gap Gap) bool { return gap.Key == "scorecard-unmeasured-inference" })
+	if unevaluated.NotApplicable || unevaluated.Measured() || at < 0 || !strings.Contains(gaps[at].Detail, "reader held-out-quality: ") {
+		t.Fatalf("an inference recipe nothing evaluated reads %+v and proposes %+v, want a measurement to take", unevaluated, gaps)
 	}
 }
 
@@ -309,7 +308,7 @@ func TestQualityReadsTranscriptionReports(t *testing.T) {
 		t.Fatal(err)
 	}
 	cell := records[transcriber].cell(recipe.TaskTranscription)
-	if verdict, _ := holds(cell, cell); verdict != Unknown || cell.Contract.Comparison.Valid() {
+	if verdict, _ := holds(metric.Quality, cell, cell); verdict != Unknown || cell.Contract.Comparison.Valid() {
 		t.Fatal("an absent environment document earned a transcription comparison")
 	}
 	batch, err := platform.Batch("quality/transcription/environment")
@@ -324,7 +323,7 @@ func TestQualityReadsTranscriptionReports(t *testing.T) {
 		t.Fatal(err)
 	}
 	cell = records[transcriber].cell(recipe.TaskTranscription)
-	if verdict, why := holds(cell, cell); verdict != holding || !cell.Contract.Comparison.Valid() || cell.CodeCommit != commit || cell.Environment != environment {
+	if verdict, why := holds(metric.Quality, cell, cell); verdict != holding || !cell.Contract.Comparison.Valid() || cell.CodeCommit != commit || cell.Environment != environment {
 		t.Fatalf("fully checked transcription cannot compare: %+v (%s)", cell, why)
 	}
 	protocol := []string{evaluation.PromptingRawCompletion.Label()}
@@ -553,7 +552,7 @@ func testQualityReadsHeldoutVerdict(t *testing.T, complete, losing, missingCheck
 		based  bool
 	}{{recipe.TaskTraining, training, trainedValue, true}, {recipe.TaskTabular, tabular, baseValue, false}} {
 		cell := records[read.recipe].cell(read.task)
-		if verdict, why := holds(cell, cell); verdict != holding || !cell.Contract.Comparison.Valid() || comparison.Valid() && cell.Contract.Comparison != comparison || cell.CodeCommit != "" {
+		if verdict, why := holds(metric.Quality, cell, cell); verdict != holding || !cell.Contract.Comparison.Valid() || comparison.Valid() && cell.Contract.Comparison != comparison || cell.CodeCommit != "" {
 			t.Fatalf("fully re-scored held-out contract cannot compare or invented a producer: %+v (%s)", cell, why)
 		}
 		comparison, want.Comparison = cell.Contract.Comparison, cell.Contract.Comparison

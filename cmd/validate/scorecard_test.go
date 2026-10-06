@@ -229,3 +229,37 @@ func scorecardFixture(t *testing.T) string {
 	}
 	return directory
 }
+
+// TestTheGapVerifierRefusesWhatNoCellCarries holds the verifier of a proposed row to what it
+// reads: a key that names no gap the scorecard can propose fails (it would read as closed for
+// ever), and so does the key of a decline that no cell of the scorecard the store holds carries,
+// whatever target the row names, rather than reading as restored.
+func TestTheGapVerifierRefusesWhatNoCellCarries(t *testing.T) {
+	t.Parallel()
+	directory := scorecardFixture(t)
+	const absent = "scorecard-regressed-0123456789abcdef"
+	for name, test := range map[string]struct {
+		arguments []string
+		want      string
+	}{
+		"an unknown key":               {[]string{"-gap", "scorecard-nonsense"}, "names no gap"},
+		"a decline no cell carries":    {[]string{"-gap", absent, "-target", "5"}, "no cell of the scorecard"},
+		"the old unknown row's key":    {[]string{"-gap", "scorecard-unknown-inference"}, "names no gap"},
+		"a malformed decline's key":    {[]string{"-gap", "scorecard-regressed-inference", "-target", "5"}, "names no gap"},
+		"a decline with no target":     {[]string{"-gap", absent}, "is closed"},
+		"a decline with a zero target": {[]string{"-gap", absent, "-target", "0"}, "no cell of the scorecard"},
+	} {
+		var output bytes.Buffer
+		err := runArgs(t.Context(), append([]string{"-scorecard", "-repo", directory}, test.arguments...), &output)
+		if test.want == "is closed" {
+			// With no target the key is read as a gap of the live scorecard, which no cell opens.
+			if err != nil || !strings.Contains(output.String(), test.want) {
+				t.Errorf("%s: = (%v, %q), want it closed", name, err, output.String())
+			}
+			continue
+		}
+		if err == nil || !strings.Contains(err.Error(), test.want) {
+			t.Errorf("%s: err = %v, want it to say %q", name, err, test.want)
+		}
+	}
+}

@@ -47,6 +47,9 @@ type Cell struct {
 	NotApplicable bool                `json:"not_applicable,omitzero"`
 	Direction     runrecord.Direction `json:"direction,omitzero"`
 	Contract      Contract            `json:"contract,omitzero"`
+	// Attempts is the denominator of a failed share: the attempts it counts, so
+	// two shares compare as counts and not as rates over unlike samples.
+	Attempts int `json:"attempts,omitzero"`
 }
 
 // QualityText renders a held-out quality as a user reads it: its value, its
@@ -626,8 +629,10 @@ func failureCell(observed *servingSummary) Cell {
 	if !observed.succeeded {
 		since = "and none succeeded"
 	}
-	return observed.cell(observed.latest, float64(observed.failures)/float64(observed.attempts), "", "failed share of attempts",
+	cell := observed.cell(observed.latest, float64(observed.failures)/float64(observed.attempts), "", "failed share of attempts",
 		fmt.Sprintf("%d failed and %d cancelled %s", observed.failures, observed.cancelled, since))
+	cell.Attempts = observed.attempts
+	return cell
 }
 
 func loadCell(benchmark evaluation.BenchmarkSummary, benchmarked bool, observed *servingSummary) Cell {

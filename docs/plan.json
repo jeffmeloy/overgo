@@ -8,41 +8,17 @@
       "title": "Compare every scorecard cell with its newest earlier complete, comparable measurement, and drop the held-marker, promotion and main-pointer machinery",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 34,
+        "reason": "The comparison of every measure against its newest earlier measurement: the reference, the per-measure comparison with its frozen allowances, the failed share as counts, and a decline's key and restoration verifier, net of the held markers, the promotion methods, the main fallback and the unknown rows it removes, which paid for the rest."
+      },
       "steps": [
         {
-          "id": "newest-comparable",
-          "title": "Compare each cell with its newest earlier complete, comparable measurement through the existing comparator; never substitute an older value for a missing current one",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner direction 2026-10-05, after the held-marker and promotion machinery of the scorecard exercise proved more complex than the problem. The baseline of a cell is its newest earlier complete record whose contract compares (the existing comparator decides), not a held marker or the main pointer; a cell with no current value is unknown and shows it, an older value is never put in its place. Extend the existing table tests: older comparable baselines, incomplete records, missing current values, persistent regression. Declare the actual net production and test growth in the landing message.\n\nDesign cautions from the build review (2026-10-05), to be answered in the build: (1) a sliding baseline lets a decline of less than the allowance per cycle walk down unfiled, so the allowances come from identical repeat runs and stay tight, and one check against the last value known not to have declined is a comparison, not a marker; (2) a record measured beside a build (cycle 15) becomes a contaminated baseline that hides a later real regression or files a false one, which the quiet machine (cycle-trigger/shared-device-turn) prevents for timed cells and the comparator must not paper over for the rest; (3) one systemic slowdown files a row per model, task, measure and contract, so a cycle files one plan item with a step per key; (4) land the comparator, the cycle's switch to it and the removals in one multi-step landing with a negative production budget, so two comparators never coexist."
-        },
-        {
-          "id": "all-seven-measures",
-          "title": "Compare all seven measures: quality at its float32 tolerance over every held-out suite, performance within allowances frozen from identical repeat runs, setup counts exactly, failure rates over comparable denominators; show raw deltas",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner direction 2026-10-05. Preserve quality's float32 tolerance and every held-out suite; freeze the performance allowances (first-output, throughput, load-time, peak-device-memory) from identical repeat runs, not a typed number; compare setup-steps counts exactly and failure-rate only where the denominators compare; print the raw delta of every compared cell. Table tests: the noise boundary on both sides, distinct suites that must not merge."
-        },
-        {
           "id": "completeness-acceptance",
-          "title": "Separate completeness from acceptance: finished measurements survive lane failures while the required checks and repair work remain, and measurements a failure invalidates are excluded",
+          "title": "Exclude the measurements a failed run invalidates, and keep the failed check required until it passes (finished measurements already survive a failure, and nothing accepts a commit)",
           "status": "open",
           "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner direction 2026-10-05. A cycle whose lane failed (cycle 18: the models lane, killed or flaked) must not discard the cells it finished: they are kept as complete measurements and the failed check stays required, with its repair work, until it passes; a measurement the failure invalidates (taken by a build the failure shows was wrong) is excluded, not kept. Preserve interrupted-run recovery (the cycle's resume key and per-cell credit)."
-        },
-        {
-          "id": "regression-rows",
-          "title": "File a row only for a decline beyond tolerance, keyed by model, task, measure and full contract, retaining its original restoration target; report unknowns without creating rows",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner direction 2026-10-05. A persistent regression keeps one row, found again by its key (model, task, measure, full contract) and still pointing at the value it must be restored to, not at the latest worse one; an unknown (no comparable earlier measurement, no current value) is reported in the scorecard and files nothing. Table test: persistent regression keeps its original restoration target."
-        },
-        {
-          "id": "remove-held",
-          "title": "Remove the held-based ceremony: markers, promotion methods, the main fallback and the obsolete unknown rows; keep model acceptance, interrupted-run recovery and authorized fast-forward pushes of named commits",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Owner direction 2026-10-05. Remove the .held markers and MarkHeld, the Promote and Baseline methods, the legacy main-pointer fallback, and the scorecard-unknown-* rows (they re-measure against a baseline that no longer exists); the decision baseline-comparison-authority falls with them. Preserve what is not ceremony: a model's acceptance (activation), the cycle's interrupted-run recovery, and the owner's authorized fast-forward push of a named commit (cmd/loop -push-held becomes a push of a named commit, still refusing worker environments). Declare the actual net production and test growth, expected negative."
+          "rationale": "Owner direction 2026-10-05. Done by the comparison landing: a failed validation or lane no longer discards the cells a cycle finished (the record is published, compared and its declines filed; loop.Improve returns the failure beside it), and nothing accepts or withholds a commit, so completeness and acceptance are already separate. Remaining: a measurement the failure invalidates is excluded from the reference and the comparison, not kept (a cell measured beside a landing before the quiet machine, a run the failure shows was wrong), and a failed required check stays required, with its repair work, until it passes, which the cycle's lane result does not yet carry past the cycle that ran it. Needs a typed mark on the record or the cell saying which measurements a failure invalidated, from the failing run's own evidence, not an inferred list. Preserve interrupted-run recovery (the cycle's resume key and per-cell credit)."
         }
       ]
     },
@@ -61,7 +37,7 @@
           "title": "Join a baseline contract to its re-acquisition by comparison, not by suite family and label",
           "status": "open",
           "verify": "go test ./cmd/validate -count=1 -run '^TestBaselineContractsJoinByComparison$'",
-          "rationale": "Serves: a baseline contract re-acquired as the protocol it was. Audit 2026-10-05 (read): cmd/validate/selection.go:166-168,224-245 and bound_records.go:71 match a baseline contract to a re-acquisition cell by ofFamily(Suite) plus the Prompting label, ignoring the Comparison (scorer, case set, execution) scorecard.Contract carries; two baseline contracts on one suite and label with different Comparison merge in compareContracts and bind replays only the newest record, so the other stays Unknown and promotion is withheld. This mostly arises from the environment in the Comparison (finding 1 of source-environment): resolve with it, after the owner's baseline-comparison-authority decision, or freeze the two-protocol case first (compareContracts is pure and table-testable)."
+          "rationale": "Serves: a baseline contract re-acquired as the protocol it was. Audit 2026-10-05 (read): cmd/validate/selection.go:166-168,224-245 and bound_records.go:71 match a baseline contract to a re-acquisition cell by ofFamily(Suite) plus the Prompting label, ignoring the Comparison (scorer, case set, execution) scorecard.Contract carries; two baseline contracts on one suite and label with different Comparison merge in compareContracts and bind replays only the newest record, so the other stays Unknown and promotion is withheld. This mostly arises from the environment in the Comparison (finding 1 of source-environment): resolve with it (the owner's baseline-comparison-authority decision fell with scorecard-comparison: a cell is compared with its newest earlier measurement, not a promoted baseline), or freeze the two-protocol case first (compareContracts is pure and table-testable)."
         },
         {
           "id": "source-environment",
@@ -414,66 +390,6 @@
       ]
     },
     {
-      "id": "scorecard-unknown-inference",
-      "title": "Measure inference held-out quality again on the baseline scorecard's models and contracts",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure inference held-out quality again on the baseline scorecard's models and contracts",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unknown-inference",
-          "rationale": "- Bonsai-27B-Q1_0 held-out-quality: evaluation comparison authority is unknown\n- Bonsai-27B-Q1_0 held-out-quality: evaluation comparison authority is unknown\n- Carbon-500M-f16-ropefix held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- MiniCPM5-1B-native-chat held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-4B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.5-9B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.8-27B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.8-27B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.8-27B held-out-quality: evaluation comparison authority is unknown\n- Qwen3.8-27B held-out-quality: evaluation comparison authority is unknown\n- Unlimited-OCR-bf16 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8 held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-12B-it-fp8-native held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unknown-projection",
-      "title": "Measure projection held-out quality again on the baseline scorecard's models and contracts",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure projection held-out quality again on the baseline scorecard's models and contracts",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unknown-projection",
-          "rationale": "- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n- gemma-4-E4B-it held-out-quality: evaluation comparison authority is unknown\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unknown-training",
-      "title": "Measure training held-out quality again on the baseline scorecard's models and contracts",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure training held-out quality again on the baseline scorecard's models and contracts",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unknown-training",
-          "rationale": "- Qwen2.5-0.5B held-out-quality: evaluation comparison authority is unknown\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unknown-transcription",
-      "title": "Measure transcription held-out quality again on the baseline scorecard's models and contracts",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure transcription held-out quality again on the baseline scorecard's models and contracts",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unknown-transcription",
-          "rationale": "- granite-speech-5.0-470m-turboctc held-out-quality: evaluation comparison authority is unknown\n- nemotron-3.5-asr-streaming-0.6b held-out-quality: evaluation comparison authority is unknown\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unscored-forecast",
       "title": "Define the held-out evaluation that measures forecast quality",
       "owner": "master-lead",
@@ -666,17 +582,6 @@
       ],
       "asked": "2026-10-03",
       "answer": "Copy one at a time, verified, originals kept"
-    },
-    {
-      "id": "baseline-comparison-authority",
-      "question": "The newest promoted scorecard (main = 5455dc909) predates comparison authority, so every evaluation cell in it reads Unknown to the code that now judges promotion and no candidate can promote against it. Cycle 10 (48d44c5b4) measured every blocking cell, passed every lane and published a record whose evaluation cells carry comparison authority, and was withheld only for that reason. Every baseline held-out quality holds by value against that record (83 hold, none regressed; the 3 cells a loose match flags are other contracts of the same suites, and the baseline's own cell is carried there by the same source evaluation with the same value). May the promoted branch move once, outside the cycle, to that commit?",
-      "options": [
-        "Yes, move main once to 48d44c5b4 and promote normally after",
-        "No, relax the Unknown rule for baselines that carry no comparison authority",
-        "No, keep main and wait for an owner move"
-      ],
-      "recommendation": "Yes, move main once to 48d44c5b4 and promote normally after",
-      "asked": "2026-10-04"
     },
     {
       "id": "fp8-nonnative-variant",

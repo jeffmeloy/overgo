@@ -64,7 +64,7 @@ var columnDirections = map[metric.Name]runrecord.Direction{
 }
 
 // Moves lists what moved from the previous record to the current, through
-// the comparison the promotion uses: rows pair by model and task, a cell
+// the comparison the cycle files declines by: rows pair by model and task, a cell
 // both records measure moves only where they measured it on one contract,
 // and one they measured on different contracts is Unknown, never better or
 // worse. Rows come in the current record's order, their cells in column

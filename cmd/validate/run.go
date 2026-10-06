@@ -110,7 +110,7 @@ func reacquireCommand(cell ModelValidation, store string) (string, []string, err
 }
 
 // runScope is what -run executes: the whole cycle, the background cells alone
-// (which the loop asks for after promotion's decision), or one half of the
+// (which the loop asks for after the scorecard's gaps are filed), or one half of the
 // cycle so its scorecard can publish between them.
 type runScope int
 
@@ -137,13 +137,13 @@ func runScopeOf(background, cellsOnly, lanesOnly bool) (runScope, error) {
 	return scopeCycle, nil
 }
 
-// executeRun runs the cells promotion waits on smallest-first through the
+// executeRun runs the cells the scorecard waits on smallest-first through the
 // process owner, each into the selected store, then the cycle lanes; the scope
 // narrows that to the background cells, the blocking cells or the lanes. A cell or lane is acquired only as
 // acquire judges its run, so a go test passes by the outcomes it requires,
 // never by its exit. One that fails is reported, not accepted, and the rest
 // still run: one model's broken measurement withholds no other's, and a
-// blocking failure withholds promotion. One whose required tests only
+// blocking failure fails the cycle. One whose required tests only
 // declared themselves inapplicable here acquired nothing and withholds too,
 // reported apart from the failures, as cells without a bound command are
 // reported as incomplete coverage. A training run runs under its route's

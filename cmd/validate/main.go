@@ -59,9 +59,9 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("validate", flag.ContinueOnError)
 	root := flags.String("root", ".", "repository root: the grounding files are read from it, and the commands run in it")
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data-root contract")
-	execute := flags.Bool("run", false, "execute the selected validations promotion waits on and the cycle lanes (default: dry run prints the plan only)")
-	background := flags.Bool("background", false, "with -run: execute the background validations instead, the suites the baseline scorecard does not compare, which never block promotion")
-	cellsOnly := flags.Bool("cells", false, "with -run: execute only the cells promotion waits on, leaving the cycle lanes to -run -lanes, so a cycle can publish its scorecard between them")
+	execute := flags.Bool("run", false, "execute the selected validations the scorecard waits on and the cycle lanes (default: dry run prints the plan only)")
+	background := flags.Bool("background", false, "with -run: execute the background validations instead, the suites the baseline scorecard does not compare, which the scorecard never waits on")
+	cellsOnly := flags.Bool("cells", false, "with -run: execute only the cells the scorecard waits on, leaving the cycle lanes to -run -lanes, so a cycle can publish its scorecard between them")
 	lanesOnly := flags.Bool("lanes", false, "with -run: execute only the cycle lanes, which go test's cache replays for the packages no change reached")
 	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as activated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
 	onboardPath := flags.String("onboard", "", "a model directory or GGUF: convert a Hugging Face directory, register, record and replay an exact suite, activate, and run the long-form guard, in one command")
@@ -91,7 +91,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		Constraints: []string{
 			"the default dry run itself loads no model and opens no device: it reads the registered models and the newest benchmark evaluations and prints the plan as JSON",
 			"every activated cell the model's declaration does not exclude runs every cycle, whatever it recorded before; a benchmark names -replay of its newest record under its protocol, which evaluate carries forward only when the replay reproduces it",
-			"promotion waits on every guard, serving cell, proof and cycle lane, and on a benchmark that re-measures the held-out contract the baseline scorecard beside the store compares; any other benchmark is background, and -run -background runs those",
+			"the scorecard waits on every guard, serving cell, proof and cycle lane, and on a benchmark that re-measures the held-out contract the baseline scorecard beside the store compares; any other benchmark is background, and -run -background runs those",
 			"every registered model is accounted for; each available model is dispatched by its declared functions",
 			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
 			"-scorecard reads the store and the serving source: it loads no model and opens no device",
@@ -310,7 +310,7 @@ func registeredCells(ctx context.Context, store *overgodb.Store) ([]ModelValidat
 // whole-file hash an older bootstrap recorded and under the complete-manifest
 // identity a training run binds now has a training activation under each, and
 // the superseded one's proof can never hand off: its run is recorded under the
-// current identity's recipe, so it would run, fail and withhold promotion every
+// current identity's recipe, so it would run, fail the cycle every
 // cycle. Only the training route's own resolution is proven to match the
 // identity a proof binds, so no other task is dropped; a location where one
 // identity alone holds training, or whose identity cannot be resolved, is left

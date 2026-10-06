@@ -49,7 +49,7 @@ type ModelValidation struct {
 }
 
 // Selected pairs an obligation with the reason it landed in its plan bucket
-// and, for a cell that runs, whether promotion waits on it and why.
+// and, for a cell that runs, whether the scorecard waits on it and why.
 type Selected struct {
 	ModelValidation
 	Reason    string `json:"reason"`
@@ -58,14 +58,14 @@ type Selected struct {
 
 // Inputs are the resolved facts the selection reduces: every registered
 // model's validation obligations, and the baseline scorecard the cycle's next
-// record is judged against, nil when none measured the promoted commit.
+// record is compared with, nil when none is published.
 type Inputs struct {
 	Registered []ModelValidation
 	Scorecard  *scorecard.Record
 }
 
 // Plan is the validation decision for one tree: run every activated
-// applicable cell, promotion waiting on what it compares while the rest runs
+// applicable cell, the scorecard waiting on what it compares while the rest runs
 // in the background, and account for every registered model and every lane of
 // the improvement cycle. Scorecard names the baseline scorecard that scoped
 // the run.
@@ -106,7 +106,7 @@ func cycleSuites() []SelectedSuite {
 // asks whether its evidence still holds, and a benchmark that runs replays its
 // newest record first, which evaluate carries forward only when the replay
 // reproduces it. Everything else is operator-owned, registered-inactive, or
-// inappropriate to its kind. A cell that runs is scheduled by what promotion
+// inappropriate to its kind. A cell that runs is scheduled by what the scorecard
 // compares. Every bucket is ordered cheapest first so a broken run surfaces
 // on a small model in seconds.
 func SelectValidation(in Inputs) Plan {
@@ -148,15 +148,15 @@ func SelectValidation(in Inputs) Plan {
 	return plan
 }
 
-// schedule files a cell that runs by what promotion compares, saying which
-// and why: in Run when promotion waits on its pass, else in Background.
-// Promotion waits on every guard, serving cell and proof, and on a benchmark
+// schedule files a cell that runs by what the scorecard compares, saying which
+// and why: in Run when the scorecard waits on its pass, else in Background.
+// The scorecard waits on every guard, serving cell and proof, and on a benchmark
 // that re-measures a held-out contract, suite and protocol, the baseline
 // scorecard compares for its model and task. Any other benchmark, one never
 // run for the model among them, runs in the background and never blocks
-// promotion.
+// the scorecard.
 func (plan *Plan) schedule(sel Selected, baseline *scorecard.Record) {
-	blocking, why := true, "promotion waits on every "+sel.Validation+" cell"
+	blocking, why := true, "the scorecard waits on every "+sel.Validation+" cell"
 	if benchmark(sel.ModelValidation) {
 		contracts, none := comparedContracts(baseline, sel.ModelValidation)
 		compared := make([]string, len(contracts))

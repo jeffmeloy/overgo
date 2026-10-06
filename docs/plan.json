@@ -182,7 +182,8 @@
             "fill-same-commit-rerun/do",
             "scorecard-comparison/do",
             "scorecard-regressed-a63c5fb83cd83d80/do",
-            "scorecard-cell-noise/do"
+            "scorecard-cell-noise/do",
+            "comparison-wording/do"
           ]
         }
       ]
@@ -395,6 +396,20 @@
       ],
       "asked": "2026-10-03",
       "answer": "Copy one at a time, verified, originals kept"
+    },
+    {
+      "id": "heldout-generation-dataset",
+      "question": "Held-out quality is unscored for generation (Fractale-350M-base) because the held-out text the proposal names, the WikiText-2 test split (Salesforce/wikitext, wikitext-2-raw-v1, 0.7 MB), is not on disk: only wikitext2_train.txt is, which a model may have trained on. Answering authorizes exactly this one download into the datasets root.",
+      "options": [
+        "Download the WikiText-2 test split (about 0.7 MB)",
+        "Score generation on a held-out membership of the on-disk training articles instead",
+        "Download nothing and leave generation unscored"
+      ],
+      "recommendation": "Download the WikiText-2 test split (about 0.7 MB)",
+      "blocks": [
+        "scorecard-unscored-generation"
+      ],
+      "asked": "2026-10-06"
     },
     {
       "id": "fp8-nonnative-variant",

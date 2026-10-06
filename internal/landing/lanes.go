@@ -88,9 +88,9 @@ const CycleTags = "modeltest,integration"
 
 // cycleLanes are what the improvement cycle runs in the gate's place: real
 // models, the live store and the served-model journeys, which guard what
-// main is promoted to. validate -run runs each of them every cycle, go test's
-// cache replaying the packages nothing changed, and promotion waits on its
-// pass.
+// the cycle compares. validate -run runs each of them every cycle, go test's
+// cache replaying the packages nothing changed, and the cycle reports
+// its pass.
 var cycleLanes = []lane{
 	{
 		// A served-model journey or the server command.

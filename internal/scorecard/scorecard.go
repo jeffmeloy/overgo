@@ -653,7 +653,7 @@ func heldoutRecords(ctx context.Context, store *overgodb.Store, entries []discov
 
 // heldoutProposals names, for each task no held-out evaluation measures yet,
 // the held-out set and metric proposed to measure it. Such a row's quality
-// is not applicable rather than missing: it withholds no promotion, and the
+// is not applicable rather than missing: it files no decline, and the
 // loop proposes defining the evaluation. A task's entry goes when its
 // held-out evaluation lands; inference has none, since every inference
 // recipe runs the derived suites.

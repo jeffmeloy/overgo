@@ -7,8 +7,8 @@
 // retries the same step with the failure tail as feedback, or parks loudly
 // after the attempt budget. Continuity is a for-loop in a process that cannot
 // be talked out of anything, so it works regardless of harness or model. When
-// the plan empties, the scorecard measures what the work changed, a holding
-// held-out quality promotes it, and the gaps become the next rows.
+// the plan empties, the scorecard measures what the work changed, each cell
+// is compared with its newest earlier measurement, and the gaps become the next rows.
 package loop
 
 import (

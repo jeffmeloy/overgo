@@ -213,7 +213,7 @@ const proposalStep = "do"
 
 // Fill runs the background validations, the suites the baseline scorecard
 // does not compare, after the cycle's decision: their evidence flows
-// without delaying or withholding a promotion, and a failure is reported
+// without delaying the gaps the scorecard filed, and a failure is reported
 // here and changes nothing the cycle decided. They run in the cycle
 // checkout at the measured commit, as the scorecard did, so the claims they
 // record bind that commit and rows land in the main checkout while they
@@ -357,14 +357,14 @@ func obligationsDigest(plan []byte) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// measureScorecard measures again, from checkout, the validations promotion
-// waits on, then publishes the scorecard of store with what moved since the
+// measureScorecard measures again, from checkout, the validations the scorecard
+// compares, then publishes the scorecard of store with what moved since the
 // previous one, then runs the cycle lanes, which go test's cache replays for
 // the packages no change reached. The scorecard publishes before the lanes, so
 // the cells' numbers exist when a long lane run is cut short. A failed
-// validation does not withhold the others' numbers: the scorecard publishes
+// validation does not discard the others' numbers: the scorecard publishes
 // regardless and the failure is returned beside it with the final error the
-// command wrote to its error file, so the withheld promotion names each cell
+// command wrote to its error file, so the cycle names each cell
 // or lane validate -run acquired nothing for, and why.
 func measureScorecard(checkout, store string, published func() error) error {
 	head, err := gitauthority.Query(context.Background(), checkout, "rev-parse", "HEAD")

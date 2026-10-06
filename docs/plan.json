@@ -19,25 +19,6 @@
       ]
     },
     {
-      "id": "derived-settings",
-      "title": "Audit timers and governing literals; derive justified values or retire their mechanisms",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2,
-        "reason": "The device lane's no-timeout constant, a named setting in place of a limit with no derivation."
-      },
-      "steps": [
-        {
-          "id": "model-contracts",
-          "title": "Audit model, protocol and string literals at declared boundaries",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Serves: robust portable inference/training and honest verification (owner request; SQA-084). Disappears: unsupported policy literals and mechanisms only when actual consumer evidence establishes a simpler existing owner; fixed ABI/format/model contracts and authorized goals remain. Evidence: Inspect bounded touched model/runtime/kernel and GUI/API/config owners for material hardcoded dimensions, geometry/epsilon/scaling/thresholds and name/string dispatch. Prefer declared model/typed capability/configuration/parsed command facts; retain exact external ABI, file format, public route and pinned reference conventions with source rationale. Derive unsupported model facts or remove parallel classification; no name-fragment/regex policy and no invented universal literal inventory. Audit source/AST/types/parsed commands in bounded owner groups; count analysis, replacement code, fixtures and maintenance. Provisional status verifier is not behavioral proof: before code adoption replace it with the concrete existing owner fixture and actual failing case, then compare identical contracts and total costs; a justified retain/no-change result records derivation and reconsideration in the current plan/evidence. No new analyzer/literal ban, recurring whole-repo census, ledger or separate audit report. Batch: each adopted fix declares true build/test/effect reach and lane/guard/input invalidation; no speculative parallel model work or automatic acceptance reduction."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unmeasured-projection",
       "title": "Measure projection's unmeasured cells",
       "owner": "master-lead",

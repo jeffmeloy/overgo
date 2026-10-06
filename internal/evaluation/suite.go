@@ -98,6 +98,21 @@ func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 					Metrics: sequenceScoringMetrics(report.MeanNLLPerToken, report.Perplexity),
 				}, err
 			})
+	case speechRoundTripKind:
+		var source SpeechRoundTripSuite
+		if err := strictjson.DecodeBytes(data, &source); err != nil {
+			return CompiledSuite{}, err
+		}
+		compiled, err := compileSpeechRoundTrip(source)
+		if err != nil {
+			return CompiledSuite{}, err
+		}
+		plan, err := bindSpeechRoundTrip(compiled, authorities)
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, speechRoundTripMetrics(0),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+				report, err := evaluateSpeechRoundTrip(ctx, repository, runtime, compiled, plan)
+				return suiteResult{Report: report.ID, Metrics: speechRoundTripMetrics(report.WordErrorRate)}, err
+			})
 	case descriptionMatchingKind:
 		var source DescriptionMatchingSuite
 		if err := strictjson.DecodeBytes(data, &source); err != nil {

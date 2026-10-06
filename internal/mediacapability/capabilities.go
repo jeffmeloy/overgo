@@ -283,6 +283,17 @@ func reviewedRecognizer(path string) (speechrecognition.RecognizerSpec, error) {
 	}, nil
 }
 
+// OpenRecognizer loads the speech recognizer at path against its reviewed
+// declarations, for a caller that transcribes audio directly, as an
+// evaluation does when it uses a recognizer to judge another model's speech.
+func OpenRecognizer(ctx context.Context, path string, memoryBytes uint64) (*speechrecognition.Recognizer, error) {
+	spec, err := reviewedRecognizer(path)
+	if err != nil {
+		return nil, err
+	}
+	return speechrecognition.LoadRecognizer(ctx, path, spec, memoryBytes)
+}
+
 // loadRecognizer loads the checkpoint against its reviewed declarations.
 func loadRecognizer(ctx context.Context, _ artifact.Repository, path string, _ recipe.Program, request speechrecognition.TranscriptionRequest) (*speechrecognition.Recognizer, error) {
 	spec, err := reviewedRecognizer(path)

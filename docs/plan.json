@@ -4,6 +4,25 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "scorecard-unscored-speech",
+      "title": "Define the held-out evaluation that measures speech quality",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 2450,
+        "reason": "The speech round-trip suite kind and the LibriSpeech builder (internal/evaluation), the synthesizer's document reading (internal/speechsynth/speak.go), the recognizer opener (internal/mediacapability) and the speech session (cmd/evaluate/speech.go) are the production code a held-out evaluation of a speech model needs: its output is audio, and evaluate could not have a recognizer judge another model's speech"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Define the held-out evaluation that measures speech quality",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-speech",
+          "rationale": "- pocket-tts held-out-quality: no held-out evaluation for speech yet; proposed: LibriSpeech test-clean texts (on disk), synthesized then transcribed by a local speech recognizer: round-trip word error rate\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
       "id": "models-out-of-adaptive-new",
       "title": "Move the remaining models out of adaptive_new and drop the test variables that point there",
       "owner": "master-lead",
@@ -30,21 +49,6 @@
           "status": "open",
           "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
           "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
-        }
-      ]
-    },
-    {
-      "id": "scorecard-unscored-speech",
-      "title": "Define the held-out evaluation that measures speech quality",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures speech quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-speech",
-          "rationale": "- pocket-tts held-out-quality: no held-out evaluation for speech yet; proposed: LibriSpeech test-clean texts (on disk), synthesized then transcribed by a local speech recognizer: round-trip word error rate\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
         }
       ]
     },

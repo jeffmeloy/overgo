@@ -46,6 +46,9 @@ type manifest struct {
 type modelRequest struct {
 	Path   string   `json:"path"`
 	Suites []string `json:"suites"`
+	// Judge names the speech recognizer directory that listens to a speech model's
+	// recordings and writes down what it heard.
+	Judge string `json:"judge,omitempty"`
 	// Task names the capability a model evaluates under when its path alone
 	// does not: seq2seq opens an encoder-decoder model under its active
 	// seq2seq recipe.
@@ -90,11 +93,14 @@ func run() error {
 	captionCases := flag.Int("cases", defaultCaptionCases, "with -build-caption-matching: clips the suite asks about")
 	captionSeed := flag.Uint64("seed", defaultCaptionSeed, "with -build-caption-matching: the seed that picks the clips and the distractors")
 	framesOut := flag.String("frames-out", "", "with -build-caption-matching: cut each case's clip to its middle frame in this directory and ask for a description of the frame, for a model that reads one image and describes it")
+	speechParquet := flag.String("build-speech-round-trip", "", "write the speech round-trip suite of this LibriSpeech parquet file's transcripts to -suite-out: -cases of them, read aloud and judged by the recognizer -judge names")
+	speechJudge := flag.String("judge", "", "with -build-speech-round-trip: the speech recognizer directory that listens")
+	speechVoice := flag.String("voice", defaultSpeechVoice, "with -build-speech-round-trip: the voice that reads")
 	functionCalls := flag.String("build-function-calls", "", "write the function-call suite of the Berkeley Function-Calling Leaderboard's simple category held in this directory to -suite-out")
 	seriesCSV := flag.String("build-series-forecast", "", "write the series-forecast suite of this ETT file's oil temperature to -suite-out: consecutive windows that show -context readings and ask for the -horizon after them")
 	seriesContext := flag.Int("context", defaultSeriesContext, "with -build-series-forecast: readings each window shows")
 	seriesHorizon := flag.Int("horizon", defaultSeriesHorizon, "with -build-series-forecast: readings each window asks for")
-	suiteOut := flag.String("suite-out", "", "with -build-caption-matching, -build-function-calls or -build-series-forecast: the suite file to write")
+	suiteOut := flag.String("suite-out", "", "with a -build- flag: the suite file to write")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
 	analysisPath := cmp.Or(strings.TrimSpace(*alignmentManifest), strings.TrimSpace(*diarizationManifest))
@@ -148,6 +154,12 @@ func run() error {
 		ctx, cancel := context.WithTimeoutCause(context.Background(), *budget, errors.New("transcription evaluation budget exhausted"))
 		defer cancel()
 		return evaluateTranscriptionResourceManifest(ctx, *repository, path)
+	}
+	if parquet := strings.TrimSpace(*speechParquet); parquet != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*speechJudge) == "" {
+			return errors.New("usage: evaluate -build-speech-round-trip <test.parquet> -judge <recognizer directory> -suite-out <suite.json> [-voice name] [-cases N] [-seed N]")
+		}
+		return writeSpeechRoundTrip(context.Background(), parquet, strings.TrimSpace(*speechJudge), strings.TrimSpace(*speechVoice), strings.TrimSpace(*suiteOut), *captionCases, *captionSeed)
 	}
 	if csv := strings.TrimSpace(*seriesCSV); csv != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {

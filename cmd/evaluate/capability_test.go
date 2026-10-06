@@ -59,10 +59,23 @@ func TestCapabilityTasksAreTheOnesASessionExists(t *testing.T) {
 	if len(capabilitySessions) == 0 {
 		t.Fatal("no capability session is named")
 	}
-	for _, task := range []string{"seq2seq", "forecast", "vqa"} {
+	for _, task := range []string{"seq2seq", "forecast", "vqa", "speech"} {
 		if capabilitySessions[task] == nil {
 			t.Errorf("task %q has no capability session", task)
 		}
+	}
+	speech := speechRuntime{judge: "recognizer"}
+	if speech.Judge() != "recognizer" {
+		t.Error("a speech session does not name its judge")
+	}
+	if _, _, err := speech.Generate(t.Context(), "text", inference.GenerateOptions{}); err == nil {
+		t.Error("a speech model generated text")
+	}
+	if _, err := speech.ScoreContinuations(t.Context(), "text", []string{"candidate"}); err == nil {
+		t.Error("a speech model scored a continuation")
+	}
+	if _, err := openSpeechSession(t.Context(), nil, manifest{}, modelRequest{Path: t.TempDir()}); err == nil {
+		t.Error("a speech session opened with no judge named")
 	}
 	vqa := &vqaRuntime{}
 	if _, _, err := vqa.Generate(t.Context(), "Which description matches?", inference.GenerateOptions{}); err == nil {

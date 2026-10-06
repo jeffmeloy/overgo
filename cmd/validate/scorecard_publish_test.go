@@ -70,10 +70,10 @@ func TestScheduledScorecardPublishesDeltas(t *testing.T) {
 		"- beta inference: gone",
 	}
 	moved := scorecardMoves(records[0], records[1])
-	// The user needs both incompatible metrics and origins; Go's rendered
-	// struct layout and empty fields are not part of that reporting contract.
-	if len(moved) != len(want)+1 || !strings.HasPrefix(moved[0], "- alpha-renamed inference, First output: measured ") ||
-		!strings.Contains(moved[0], "Metric:time to prefill Origin:serving") || !strings.Contains(moved[0], "the reference {Metric:time to first token, median Origin:benchmark") ||
+	// The user needs both incompatible metrics and origins, named in words.
+	if len(moved) != len(want)+1 || !strings.HasPrefix(moved[0], "- alpha-renamed inference, First output: measured on another contract: ") ||
+		!strings.Contains(moved[0], `the measure is "time to prefill", the reference's "time to first token, median"`) ||
+		!strings.Contains(moved[0], `the origin is "serving", the reference's "benchmark"`) ||
 		!slices.Equal(moved[1:], want) {
 		t.Fatalf("moved =\n%q\nwant\n%q", moved, want)
 	}

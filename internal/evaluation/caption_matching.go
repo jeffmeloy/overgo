@@ -14,6 +14,11 @@ import (
 const (
 	captionMatchingSource = "vidgen-1m/caption-matching"
 	captionMatchingSchema = "overgo/vidgen-caption-matching/v1"
+	// frameMatchingSource and frameMatchingSchema name the suite whose cases show
+	// a still frame cut from the clip, for a model that reads one image.
+	frameMatchingSource = "vidgen-1m/frame-caption-matching"
+	frameMatchingSchema = "overgo/vidgen-frame-caption-matching/v1"
+	frameExtension      = ".png"
 	// captionChoices is how many captions a case offers: the true one and the
 	// distractors, lettered in the order they are shown.
 	captionChoices = 4
@@ -23,7 +28,7 @@ const (
 	clipExtension       = ".mp4"
 	// sceneMarker joins a source video's identity to a scene number in a clip's name.
 	sceneMarker     = "-Scene-"
-	captionQuestion = "Which description matches the video?\n%s\nAnswer with the letter only."
+	captionQuestion = "Which description matches the %s?\n%s\nAnswer with the letter only."
 )
 
 // CaptionMatchingSpec names what a caption-matching suite is built from: a
@@ -34,6 +39,10 @@ type CaptionMatchingSpec struct {
 	Captions string
 	Cases    int
 	Seed     uint64
+	// Kind is what each case shows: the clip itself, or a frame cut from it,
+	// named by the clip's identity and the extension of a frame. The frames
+	// are the caller's to write.
+	Kind MediaKind
 }
 
 type captionRow struct {
@@ -81,9 +90,17 @@ func BuildCaptionMatching(spec CaptionMatchingSpec) (GeneratedAnswerSuite, error
 	}
 	rng := rand.New(rand.NewPCG(spec.Seed, spec.Seed))
 	rng.Shuffle(len(clips), func(left, right int) { clips[left], clips[right] = clips[right], clips[left] })
+	// A model that reads one image answers in a sentence that opens with its
+	// letter, so its answer is read by that letter.
 	suite := GeneratedAnswerSuite{
 		Kind: GeneratedAnswerKind, Schema: captionMatchingSchema, Source: captionMatchingSource,
 		Transforms: []string{TransformTrimSpace, transformLowercase},
+	}
+	kind, extension, noun := MediaVideo, clipExtension, "video"
+	if spec.Kind == MediaImage {
+		kind, extension, noun = MediaImage, frameExtension, "image"
+		suite.Schema, suite.Source = frameMatchingSchema, frameMatchingSource
+		suite.Transforms = []string{TransformTrimSpace, transformLeadingLetter, transformLowercase}
 	}
 	for _, vid := range clips[:spec.Cases] {
 		options := []string{vid}
@@ -112,8 +129,8 @@ func BuildCaptionMatching(spec CaptionMatchingSpec) (GeneratedAnswerSuite, error
 			listing = append(listing, fmt.Sprintf("%c. %s", captionLetters[index], captions[option]))
 		}
 		suite.Cases = append(suite.Cases, GeneratedAnswerCase{
-			Name:      captionMatchingSource + "/" + vid,
-			Prompt:    mediaPrompt(MediaVideo, vid+clipExtension, fmt.Sprintf(captionQuestion, strings.Join(listing, "\n"))),
+			Name:      suite.Source + "/" + vid,
+			Prompt:    mediaPrompt(kind, vid+extension, fmt.Sprintf(captionQuestion, noun, strings.Join(listing, "\n"))),
 			MaxTokens: captionAnswerTokens,
 			Answers:   []string{string(captionLetters[slices.Index(options, vid)])},
 		})

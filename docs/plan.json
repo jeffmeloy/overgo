@@ -156,7 +156,8 @@
             "comparison-wording/do",
             "python-golden-references/do",
             "record-judged-generation-decision/do",
-            "record-training-route-decision/do"
+            "record-training-route-decision/do",
+            "say-contracts-in-words/do"
           ]
         }
       ]
@@ -211,6 +212,10 @@
       "title": "Define the held-out evaluation that measures vqa quality",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 1180,
+        "reason": "The vqa session and frame cutting (cmd/evaluate/vqa.go), the image form of the caption-matching suite and the leading-letter reading of an answer (internal/evaluation) are the production code a held-out evaluation of a visual-question-answering model needs: evaluate could not open a vqa model under its recipe, show one image, nor read a sentence answer as its letter"
+      },
       "steps": [
         {
           "id": "do",
@@ -218,6 +223,21 @@
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-vqa",
           "rationale": "- Hy-Embodied-RxBrain-1.0 held-out-quality: no held-out evaluation for vqa yet; proposed: the image caption-matching set the store already scores a projection on, then A-OKVQA validation (HuggingFaceM4/A-OKVQA, 60 MB) multiple-choice accuracy\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
+        }
+      ]
+    },
+    {
+      "id": "scorecard-regressed-45ceeaafaa2be823",
+      "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 184.646633 tok/s",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore Hy-Embodied-RxBrain-1.0 vqa throughput to 184.646633 tok/s",
+          "status": "open",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-regressed-45ceeaafaa2be823 -target 184.64663250703964",
+          "rationale": "- Hy-Embodied-RxBrain-1.0 throughput, {Metric:output tokens over decode time Origin:serving Suite: Protocol: Comparison: Scope:recipe:sha256:24f6d5c81c752c600bf32907c8ca4b34379bf0e1910dd30f7d3014091e1fbcbb}: 184.646633 to 155.152418 (-29.4942147, -16.0%; serving output tokens over decode time, the newest measured attempt)\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261006T160201Z.json. Evidence: the verifier reads the scorecard the store holds, compared with the measurements before it."
         }
       ]
     }

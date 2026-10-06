@@ -8,8 +8,12 @@ import (
 // MediaKind is the kind of media a case's prompt rides.
 type MediaKind string
 
-// MediaVideo is a case that asks about one video clip.
-const MediaVideo MediaKind = "video"
+const (
+	// MediaVideo is a case that asks about one video clip.
+	MediaVideo MediaKind = "video"
+	// MediaImage is a case that asks about one still image.
+	MediaImage MediaKind = "image"
+)
 
 // mediaPromptOpening and mediaPromptClosing frame the one line that names a
 // case's media: a suite stays a plain text document, and a runtime that holds
@@ -40,7 +44,7 @@ func ParseMediaPrompt(prompt string) (kind MediaKind, name, question string, ok 
 	fields := strings.Fields(line)
 	kindField, hasKind := strings.CutPrefix(fieldAt(fields, 0), "kind=")
 	nameField, hasName := strings.CutPrefix(fieldAt(fields, 1), "name=")
-	if len(fields) != mediaPromptFields || !hasKind || !hasName || nameField == "" || MediaKind(kindField) != MediaVideo {
+	if len(fields) != mediaPromptFields || !hasKind || !hasName || nameField == "" || MediaKind(kindField) != MediaVideo && MediaKind(kindField) != MediaImage {
 		return "", "", "", false
 	}
 	return MediaKind(kindField), nameField, question, true

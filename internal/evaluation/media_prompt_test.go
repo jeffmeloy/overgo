@@ -7,9 +7,14 @@ import "testing"
 func TestMediaPromptReadsBackWhatItWrote(t *testing.T) {
 	t.Parallel()
 	const question = "Which description matches the video?\nA. one\nB. two\nAnswer with the letter."
-	kind, name, got, ok := ParseMediaPrompt(mediaPrompt(MediaVideo, "Eep9uvenxAo-Scene-0030.mp4", question))
-	if !ok || kind != MediaVideo || name != "Eep9uvenxAo-Scene-0030.mp4" || got != question {
-		t.Fatalf("parsed (%q, %q, %q, %t)", kind, name, got, ok)
+	for _, test := range []struct {
+		kind MediaKind
+		name string
+	}{{MediaVideo, "Eep9uvenxAo-Scene-0030.mp4"}, {MediaImage, "Eep9uvenxAo-Scene-0030.png"}} {
+		kind, name, got, ok := ParseMediaPrompt(mediaPrompt(test.kind, test.name, question))
+		if !ok || kind != test.kind || name != test.name || got != question {
+			t.Fatalf("parsed (%q, %q, %q, %t), want %s %s", kind, name, got, ok, test.kind, test.name)
+		}
 	}
 }
 

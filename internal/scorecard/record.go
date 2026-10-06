@@ -209,6 +209,23 @@ func (pair Pair) Compare(column metric.Name) []Comparison {
 	return comparisons
 }
 
+// contractDifference says in words how two contracts differ, naming each part
+// that does: the measure, where its value comes from, the suite and protocol it
+// was scored on, the comparison authority, and the recipe it was measured under.
+func contractDifference(now, then Contract) string {
+	var differing []string
+	for _, part := range []struct{ name, now, then string }{
+		{"the measure", now.Metric, then.Metric}, {"the origin", now.Origin, then.Origin},
+		{"the suite", now.Suite, then.Suite}, {"the protocol", now.Protocol, then.Protocol},
+		{"the comparison authority", now.Comparison.String(), then.Comparison.String()}, {"the recipe", now.Scope.String(), then.Scope.String()},
+	} {
+		if part.now != part.then {
+			differing = append(differing, fmt.Sprintf("%s is %q, the reference's %q", part.name, part.now, part.then))
+		}
+	}
+	return "measured on another contract: " + strings.Join(differing, "; ")
+}
+
 // holds reports how now holds the reference's measured cell then of a column,
 // and why when it does not. It has regressed when now measured it on the same
 // contract and direction and it got worse by more than the column's noise
@@ -225,7 +242,7 @@ func holds(column metric.Name, then, now Cell) (Verdict, string) {
 	case (then.Contract.Origin == originEvaluation || then.Contract.Origin == originBenchmark) && !then.Contract.Comparison.Valid():
 		return Unknown, then.Contract.Origin + " comparison authority is unknown"
 	case now.Contract != then.Contract:
-		return Unknown, fmt.Sprintf("measured %+v, the reference %+v", now.Contract, then.Contract)
+		return Unknown, contractDifference(now.Contract, then.Contract)
 	case then.Contract.Origin == originServing && then.Environment.Valid() && now.Environment.Valid() && now.Environment != then.Environment:
 		return Unknown, fmt.Sprintf("measured under environment %s, the reference under %s", now.Environment, then.Environment)
 	case now.Direction != then.Direction:

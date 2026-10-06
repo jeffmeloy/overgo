@@ -147,9 +147,10 @@ func openCapabilitySession(
 
 // capabilitySessions opens a model a manifest names by its task, under the
 // model's active recipe for that task.
-var capabilitySessions = map[string]func(context.Context, *overgodb.Store, manifest, string) (evaluationSession, error){
+var capabilitySessions = map[string]func(context.Context, *overgodb.Store, manifest, modelRequest) (evaluationSession, error){
 	string(recipe.TaskSeq2Seq):  openSeq2SeqSession,
 	string(recipe.TaskForecast): openForecastSession,
+	string(recipe.TaskVQA):      openVQASession,
 }
 
 // openThoughtBankSession opens the model at path when it is a Fractale
@@ -168,7 +169,8 @@ func openThoughtBankSession(ctx context.Context, store *overgodb.Store, value ma
 
 // openSeq2SeqSession opens the encoder-decoder model at path under its active
 // seq2seq recipe.
-func openSeq2SeqSession(ctx context.Context, store *overgodb.Store, value manifest, path string) (evaluationSession, error) {
+func openSeq2SeqSession(ctx context.Context, store *overgodb.Store, value manifest, request modelRequest) (evaluationSession, error) {
+	path := request.Path
 	source, err := mediacapability.Catalog[recipe.TaskSeq2Seq].Resolve(path)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no seq2seq model: %w", path, err)
@@ -181,7 +183,8 @@ func openSeq2SeqSession(ctx context.Context, store *overgodb.Store, value manife
 
 // openForecastSession opens the forecasting model at path under its active
 // forecast recipe.
-func openForecastSession(ctx context.Context, store *overgodb.Store, value manifest, path string) (evaluationSession, error) {
+func openForecastSession(ctx context.Context, store *overgodb.Store, value manifest, request modelRequest) (evaluationSession, error) {
+	path := request.Path
 	source, err := mediacapability.Catalog[recipe.TaskForecast].Resolve(path)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate: %s is no forecast model: %w", path, err)

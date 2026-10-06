@@ -34,10 +34,23 @@ func TestCapabilityTasksAreTheOnesASessionExists(t *testing.T) {
 	if len(capabilitySessions) == 0 {
 		t.Fatal("no capability session is named")
 	}
-	for _, task := range []string{"seq2seq", "forecast"} {
+	for _, task := range []string{"seq2seq", "forecast", "vqa"} {
 		if capabilitySessions[task] == nil {
 			t.Errorf("task %q has no capability session", task)
 		}
+	}
+	vqa := &vqaRuntime{}
+	if _, _, err := vqa.Generate(t.Context(), "Which description matches?", inference.GenerateOptions{}); err == nil {
+		t.Error("a prompt that names no image was answered")
+	}
+	if _, _, err := vqa.Generate(t.Context(), "<overgo-media kind=video name=a.mp4>\nWhich?", inference.GenerateOptions{}); err == nil {
+		t.Error("a video was answered by a model that reads one image")
+	}
+	if _, _, err := vqa.Generate(t.Context(), "<overgo-media kind=image name=../a.png>\nWhich?", inference.GenerateOptions{}); err == nil {
+		t.Error("an image outside the media root was answered")
+	}
+	if _, err := vqa.ScoreContinuations(t.Context(), "text", []string{"candidate"}); err == nil {
+		t.Error("a vqa evaluation scored a continuation")
 	}
 	runtime := forecastRuntime{model: &seriesforecast.Model{Dims: seriesforecast.Dims{Horizon: 4, Quantiles: 2}}}
 	for _, steps := range []int{0, 5} {

@@ -80,7 +80,7 @@ func openEvaluationSession(ctx context.Context, value manifest, request modelReq
 		if !known {
 			return fail(fmt.Errorf("evaluate: task %q has no capability session", request.Task))
 		}
-		session, err := open(ctx, store, value, request.Path)
+		session, err := open(ctx, store, value, request)
 		if err != nil {
 			return fail(err)
 		}

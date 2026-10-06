@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
@@ -65,10 +64,11 @@ func openThoughtBankSession(ctx context.Context, store *overgodb.Store, value ma
 		return nil, true, err
 	}
 	definition := activation.Definition
-	profile, _ := definition.PrimaryDependency(recipe.DependencyProfile)
-	modelDefinition, found := definition.PrimaryDependency(recipe.DependencyDefinition)
-	if !found {
-		return nil, true, fmt.Errorf("evaluate: the generation recipe %s of %s names no model definition", definition.ID, path)
+	// A capability model has no language-model spec to define it: its
+	// definition binds the recipe it executes to its model and tensors.
+	modelDefinition, err := modelrecipe.PublishTaskModelDefinition(ctx, store, definition.ID)
+	if err != nil {
+		return nil, true, err
 	}
 	environment, err := runrecord.CurrentEnvironment("host", "go")
 	if err != nil {
@@ -79,7 +79,7 @@ func openThoughtBankSession(ctx context.Context, store *overgodb.Store, value ma
 		return nil, true, err
 	}
 	campaign, err := evaluation.NewIsolatedCampaign(store, thoughtBankRuntime{generator}, modelrecipe.ProgramIdentity{
-		Model: modelID, Profile: profile, Definition: modelDefinition, Recipe: definition.ID, RecipeVersion: definition.Version,
+		Model: modelID, Definition: modelDefinition, Recipe: definition.ID, RecipeVersion: definition.Version,
 		Placement: recipe.PlacementHost, Runtime: modelrecipe.RuntimeInference,
 	}, environment, value.CodeCommit)
 	if err != nil {

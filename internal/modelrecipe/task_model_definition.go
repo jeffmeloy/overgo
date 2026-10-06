@@ -36,7 +36,8 @@ func taskModelDefinitionLineage(value taskModelDefinition) []artifact.Lineage {
 }
 
 // PublishTaskModelDefinition binds an existing executable recipe, model manifest
-// and tensor inventory. It neither activates the recipe nor executes a model.
+// and, when the recipe names one, tensor inventory. It neither activates the
+// recipe nor executes a model.
 func PublishTaskModelDefinition(ctx context.Context, repository artifact.Repository, recipeID artifact.ID) (artifact.ID, error) {
 	if ctx == nil || repository == nil || recipeID.Kind() != artifact.KindRecipe {
 		return artifact.ID{}, errors.New("model recipe: invalid task definition publication")
@@ -102,7 +103,9 @@ func requireTaskModelDefinition(ctx context.Context, reader artifact.Reader, val
 	}
 	inventoryID, found := definition.PrimaryDependency(recipe.DependencyTensorInventory)
 	if !found {
-		return errors.New("model recipe: task definition requires a tensor inventory")
+		// A recipe that depends on its model alone, as a generation recipe
+		// does, binds no tensors beyond the model's own manifest, checked above.
+		return nil
 	}
 	inventory, found, err := modelartifact.ReadTensorInventoryDocument(ctx, reader, inventoryID)
 	if err != nil || !found || inventory.Owner != value.Model {

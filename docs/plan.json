@@ -19,21 +19,6 @@
       ]
     },
     {
-      "id": "scorecard-unmeasured-transcription",
-      "title": "Measure transcription's unmeasured cells",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure transcription's unmeasured cells",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unmeasured-transcription",
-          "rationale": "- granite-speech-5.0-470m-turboctc throughput: no benchmark decode rate and no served decode phase with output tokens\n- nemotron-3.5-asr-streaming-0.6b throughput: no benchmark decode rate and no served decode phase with output tokens\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261005T072437Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
-    },
-    {
       "id": "scorecard-unmeasured-vqa",
       "title": "Measure vqa's unmeasured cells",
       "owner": "master-lead",

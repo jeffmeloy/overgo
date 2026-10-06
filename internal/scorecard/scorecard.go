@@ -97,7 +97,7 @@ const (
 // is their rate.
 var wholeOutputTasks = []recipe.Task{
 	recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskForecast,
-	recipe.TaskTabular, recipe.TaskImageEmbedding, recipe.TaskActivityDetection,
+	recipe.TaskTabular, recipe.TaskImageEmbedding, recipe.TaskActivityDetection, recipe.TaskTranscription,
 }
 
 // Measured reports whether a record measures the cell.

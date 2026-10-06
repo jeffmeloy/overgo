@@ -89,7 +89,7 @@ func run() error {
 	captionSource := flag.String("captions", "", "with -build-caption-matching: the caption file; empty takes the one the clip directory holds")
 	captionCases := flag.Int("cases", defaultCaptionCases, "with -build-caption-matching: clips the suite asks about")
 	captionSeed := flag.Uint64("seed", defaultCaptionSeed, "with -build-caption-matching: the seed that picks the clips and the distractors")
-	framesOut := flag.String("frames-out", "", "with -build-caption-matching: cut each case's clip to its middle frame in this directory and ask about the frame, for a model that reads one image")
+	framesOut := flag.String("frames-out", "", "with -build-caption-matching: cut each case's clip to its middle frame in this directory and ask for a description of the frame, for a model that reads one image and describes it")
 	functionCalls := flag.String("build-function-calls", "", "write the function-call suite of the Berkeley Function-Calling Leaderboard's simple category held in this directory to -suite-out")
 	seriesCSV := flag.String("build-series-forecast", "", "write the series-forecast suite of this ETT file's oil temperature to -suite-out: consecutive windows that show -context readings and ask for the -horizon after them")
 	seriesContext := flag.Int("context", defaultSeriesContext, "with -build-series-forecast: readings each window shows")

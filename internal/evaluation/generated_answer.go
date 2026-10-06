@@ -6,16 +6,13 @@ import (
 	"math"
 	"slices"
 	"strings"
-	"unicode"
 
 	"overgo/internal/artifact"
 )
 
 const (
-	GeneratedAnswerKind = "generated-answer"
-	TransformTrimSpace  = "trim-space"
-	// transformLeadingLetter reads an answer as the one letter it opens with.
-	transformLeadingLetter      = "leading-letter"
+	GeneratedAnswerKind         = "generated-answer"
+	TransformTrimSpace          = "trim-space"
 	transformLowercase          = "lowercase"
 	generatedAnswerMediaType    = "application/vnd.overgo.generated-answer-dataset+json"
 	generatedAnswerSchema       = "overgo/generated-answer-dataset/v1"
@@ -85,7 +82,7 @@ func CompileGeneratedAnswer(suite GeneratedAnswerSuite) (generatedAnswerPlan, er
 	suite.Transforms = slices.Clone(suite.Transforms)
 	seenTransforms := make(map[string]struct{}, len(suite.Transforms))
 	for _, transform := range suite.Transforms {
-		if transform != TransformTrimSpace && transform != transformLowercase && transform != transformLeadingLetter {
+		if transform != TransformTrimSpace && transform != transformLowercase {
 			return generatedAnswerPlan{}, errors.New("evaluation: unknown answer transform")
 		}
 		if _, duplicate := seenTransforms[transform]; duplicate {
@@ -210,19 +207,7 @@ func normalizeAnswer[T ~string](value string, operations []T) string {
 			value = strings.TrimSpace(value)
 		case transformLowercase:
 			value = strings.ToLower(value)
-		case transformLeadingLetter:
-			value = leadingLetter(value)
 		}
 	}
 	return value
-}
-
-// leadingLetter is the single letter an answer opens with, as "B" opens "B.",
-// "B)" and "B because ...", and the answer itself when it opens with a word.
-func leadingLetter(value string) string {
-	runes := []rune(strings.TrimSpace(value))
-	if len(runes) == 0 || !unicode.IsLetter(runes[0]) || len(runes) > 1 && unicode.IsLetter(runes[1]) {
-		return value
-	}
-	return string(runes[0])
 }

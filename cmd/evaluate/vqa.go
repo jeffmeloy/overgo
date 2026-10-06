@@ -114,10 +114,10 @@ func openVQASession(ctx context.Context, store *overgodb.Store, value manifest, 
 	})
 }
 
-// writeFrames cuts, for each case of a frame caption-matching suite, the
+// writeFrames cuts, for each case of a frame description-matching suite, the
 // middle frame of the clip its prompt names and writes it to directory under
 // the name the prompt gives it.
-func writeFrames(ctx context.Context, suite evaluation.GeneratedAnswerSuite, clips, directory, ffmpeg string) error {
+func writeFrames(ctx context.Context, suite evaluation.DescriptionMatchingSuite, clips, directory, ffmpeg string) error {
 	if err := os.MkdirAll(directory, frameDirectoryMode); err != nil {
 		return err
 	}

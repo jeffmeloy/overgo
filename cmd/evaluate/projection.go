@@ -81,24 +81,27 @@ const captionFile = "VidGen_1M_video_caption.json"
 
 // writeCaptionMatching builds the video caption-matching suite of a clip
 // directory and writes it to out, the suite file a projection evaluation runs.
-// With a frames directory it builds the suite of the clips' middle frames, as
-// an image model is asked, and cuts those frames to the directory.
+// With a frames directory it builds the suite of the clips' middle frames, for
+// a model that reads one image and answers in a description, and cuts those
+// frames to the directory.
 func writeCaptionMatching(ctx context.Context, clips, captions, out, frames string, cases int, seed uint64) error {
 	if captions == "" {
 		captions = filepath.Join(clips, captionFile)
 	}
 	spec := evaluation.CaptionMatchingSpec{Clips: clips, Captions: captions, Cases: cases, Seed: seed}
 	if frames != "" {
-		spec.Kind = evaluation.MediaImage
+		suite, err := evaluation.BuildFrameDescriptionMatching(spec)
+		if err != nil {
+			return err
+		}
+		if err := writeFrames(ctx, suite, clips, frames, os.Getenv("OVERGO_FFMPEG")); err != nil {
+			return err
+		}
+		return writeSuite(out, suite, len(suite.Cases), "frame description-matching")
 	}
 	suite, err := evaluation.BuildCaptionMatching(spec)
 	if err != nil {
 		return err
-	}
-	if frames != "" {
-		if err := writeFrames(ctx, suite, clips, frames, os.Getenv("OVERGO_FFMPEG")); err != nil {
-			return err
-		}
 	}
 	return writeSuite(out, suite, len(suite.Cases), "caption-matching")
 }

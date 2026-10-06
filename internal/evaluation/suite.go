@@ -98,6 +98,21 @@ func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 					Metrics: sequenceScoringMetrics(report.MeanNLLPerToken, report.Perplexity),
 				}, err
 			})
+	case descriptionMatchingKind:
+		var source DescriptionMatchingSuite
+		if err := strictjson.DecodeBytes(data, &source); err != nil {
+			return CompiledSuite{}, err
+		}
+		compiled, err := compileDescriptionMatching(source)
+		if err != nil {
+			return CompiledSuite{}, err
+		}
+		plan, err := bindDescriptionMatching(compiled, authorities)
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetrics(0, nil),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+				report, err := evaluateDescriptionMatching(ctx, repository, runtime, compiled, plan)
+				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
+			})
 	case seriesForecastKind:
 		var source SeriesForecastSuite
 		if err := strictjson.DecodeBytes(data, &source); err != nil {

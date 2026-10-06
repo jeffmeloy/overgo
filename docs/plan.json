@@ -213,8 +213,8 @@
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 1180,
-        "reason": "The vqa session and frame cutting (cmd/evaluate/vqa.go), the image form of the caption-matching suite and the leading-letter reading of an answer (internal/evaluation) are the production code a held-out evaluation of a visual-question-answering model needs: evaluate could not open a vqa model under its recipe, show one image, nor read a sentence answer as its letter"
+        "nodes": 1340,
+        "reason": "The vqa session and frame cutting (cmd/evaluate/vqa.go) and the description-matching suite kind and frame builder (internal/evaluation) are the production code a held-out evaluation of a visual-question-answering model needs: evaluate could not open a vqa model under its recipe, show one image, nor score a model that answers in descriptions by the caption its description matches; the caption builder's shared rounds are the rest"
       },
       "steps": [
         {

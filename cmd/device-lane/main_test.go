@@ -23,7 +23,7 @@ func TestDevicePlan(t *testing.T) {
 	if len(steps) != 2 || !slices.Equal(steps[0], []string{"go", "run", "./cmd/cuda-smoke"}) {
 		t.Fatalf("scoped steps = %v", steps)
 	}
-	want := []string{"go", "test", "-json", "-p=1", "-timeout=20m", "./internal/cuda/kernel", "./internal/optimizer", "-count=1"}
+	want := []string{"go", "test", "-json", "-p=1", "-timeout=0", "./internal/cuda/kernel", "./internal/optimizer", "-count=1"}
 	if !slices.Equal(steps[1], want) {
 		t.Fatalf("selected packages = %v, want %v", steps[1], want)
 	}
@@ -35,8 +35,8 @@ func TestDevicePlan(t *testing.T) {
 		if !slices.Contains(step, "-p=1") {
 			t.Fatalf("device test step is not serialized: %v", step)
 		}
-		if !slices.Contains(step, "-timeout=20m") {
-			t.Fatalf("device test step lacks real-suite timeout: %v", step)
+		if !slices.Contains(step, "-timeout=0") {
+			t.Fatalf("device test step lacks the no-timeout convention: %v", step)
 		}
 	}
 }
@@ -44,7 +44,7 @@ func TestDevicePlan(t *testing.T) {
 func TestDeviceLaneRunsChangedTestPackage(t *testing.T) {
 	steps := deviceSteps(devicescope.VerificationPlan{Packages: []string{"./internal/adaptiveparity"}})
 	want := []string{
-		"go", "test", "-json", "-p=1", "-timeout=20m", "./internal/adaptiveparity", "-count=1",
+		"go", "test", "-json", "-p=1", "-timeout=0", "./internal/adaptiveparity", "-count=1",
 	}
 	if len(steps) != 2 || !slices.Equal(steps[1], want) {
 		t.Fatalf("selected test step = %v, want %v", steps, want)

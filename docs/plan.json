@@ -23,14 +23,11 @@
       "title": "Audit timers and governing literals; derive justified values or retire their mechanisms",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 2,
+        "reason": "The device lane's no-timeout constant, a named setting in place of a limit with no derivation."
+      },
       "steps": [
-        {
-          "id": "timers",
-          "title": "Audit execution, test, polling and retry timers in their lifetime owners",
-          "status": "open",
-          "verify": "go run ./cmd/plan -status",
-          "rationale": "Serves: robust portable inference/training and honest verification (owner request; SQA-084). Disappears: unsupported policy literals and mechanisms only when actual consumer evidence establishes a simpler existing owner; fixed ABI/format/model contracts and authorized goals remain. Evidence: Start with cmd/webui-lane/main.go20m versus landing/CUDA -timeout=0, actual predicate/cancellation/terminal/process lifetime; include cmd/validate90m/25m/6h and route60m/30m/120m/10m walls, polling and retry/backoff consumers. Distinguish externally declared deadlines/authorized budgets from unsupported internal hang/retry policy; derive or remove unsupported mechanisms. No arbitrary longer timer and no claim that watchdog removal diagnoses a pending predicate. Audit source/AST/types/parsed commands in bounded owner groups; count analysis, replacement code, fixtures and maintenance. Provisional status verifier is not behavioral proof: before code adoption replace it with the concrete existing owner fixture and actual failing case, then compare identical contracts and total costs; a justified retain/no-change result records derivation and reconsideration in the current plan/evidence. No new analyzer/literal ban, recurring whole-repo census, ledger or separate audit report. Batch: each adopted fix declares true build/test/effect reach and lane/guard/input invalidation; no speculative parallel model work or automatic acceptance reduction. Explicit owner request2026-10-03. Bounded audits through the existing development/SQA loop, followed by concrete verified owner repairs or supported retention. Naming or configuring an arbitrary value is insufficient. Preserve other workers, accepted numerical/protocol/ABI/model facts and caller/operator goals. Browser policy remains SQA-083; replay acceptance/reporting belongs to evidence-authority/replay-cost and rate policy to training-rate-per-layer, so this row connects rather than duplicates their changes. SQA review of da1ec2c77 (docs/sqa_findings.json, 2026-10-05, source-based, nothing run): SQA-083 (P2): cmd/webui-lane/main.go:159 runLane passes -count=1 -timeout=20m to the browser lane with no derivation (cmd/device-lane passes -timeout=20m per package too), while the ordinary and CUDA gate lanes run -timeout=0; the retained browser runs (53 s and 58 s) do not explain the historical 1200 s stall. Replace the limit with the gate's no-timeout convention, keep signal and context cancellation and process cleanup, diagnose any recurring stall from the retained predicate and page state in its owner (the SpeechTextImport stall stays uncertain); do not raise the limit or invent an idle timer. SQA-087: consolidate the resource-wait tests around an actual contended release."
-        },
         {
           "id": "resources",
           "title": "Audit fixed resource, batch and buffer settings against available capacity",

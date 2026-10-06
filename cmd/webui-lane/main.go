@@ -156,7 +156,10 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra, required 
 	env := append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser, webuilane.LegRecordsEnvironment+"="+legs)
 	env = append(env, extra...)
 	args := append([]string{"test"}, packages...)
-	args = append(args, "-run", run, "-count=1", "-timeout=20m", "-json")
+	// No go test timeout, as the gate's other lanes run: a limit here had no derivation (the retained
+	// runs took about a minute), and a stalled browser test is diagnosed from the retained page state
+	// and its predicate, with the lane's own cancellation and process cleanup, not cut off by a clock.
+	args = append(args, "-run", run, "-count=1", "-timeout=0", "-json")
 	report, runErr := testevidence.RunGoTestCommand(ctx, processcontrol.Command{Path: "go", Args: args, Env: env}, testevidence.GoTestOptions{
 		DiagnosticBytes: clioptions.DiagnosticTailBytes,
 		Progress: func(done testevidence.PackageProgress) {

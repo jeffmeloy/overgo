@@ -418,7 +418,7 @@ func trainDiT(ctx context.Context, flags *flag.FlagSet, args []string) (err erro
 		if err != nil {
 			return err
 		}
-		vaeCheckpoint := filepath.Join(*modelDir, "Wan2.1_VAE.pth")
+		vaeCheckpoint := latentvideo.AutoencoderWeights(*modelDir)
 		vaeCatalog, err := pytorchzip.ReadCatalog(vaeCheckpoint)
 		if err != nil {
 			return err

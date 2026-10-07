@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/latentimage"
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
@@ -88,7 +89,7 @@ func resolveVideoSource(path string) (Source, error) {
 			{Path: filepath.Join(path, "ar-forcing_002000.pt"), Name: "liveedit/weights", Role: artifact.ComponentWeights},
 			{Path: filepath.Join(wan, "config.json"), Name: "wan/config", Role: artifact.ComponentConfig},
 			{Path: filepath.Join(wan, "diffusion_pytorch_model.safetensors"), Name: "wan/weights", Role: artifact.ComponentWeights},
-			{Path: filepath.Join(wan, "Wan2.1_VAE.pth"), Name: "wan/vae", Role: artifact.ComponentWeights},
+			{Path: latentvideo.AutoencoderWeights(wan), Name: "wan/vae", Role: artifact.ComponentWeights},
 		})
 		if err == nil {
 			var own artifact.Location
@@ -112,7 +113,7 @@ func resolveVideoSource(path string) (Source, error) {
 		inventory, err := modelartifact.FromFiles(path, []modelartifact.FileSpec{
 			{Path: filepath.Join(path, "config.json"), Name: "config", Role: artifact.ComponentConfig},
 			{Path: filepath.Join(path, "diffusion_pytorch_model.safetensors"), Name: "denoiser/weights", Role: artifact.ComponentWeights},
-			{Path: filepath.Join(path, "Wan2.1_VAE.pth"), Name: "vae/weights", Role: artifact.ComponentWeights},
+			{Path: latentvideo.AutoencoderWeights(path), Name: "vae/weights", Role: artifact.ComponentWeights},
 		})
 		return Source{Inventory: inventory, Define: func(modelID artifact.ID) (recipe.Definition, []artifact.Content, error) {
 			profile, err := latentvideo.ResolveProfile(path)
@@ -128,4 +129,19 @@ func resolveVideoSource(path string) (Source, error) {
 		}}, err
 	}
 	return resolveDeclaredVideoSource(path)
+}
+
+// reconstructionCapability keeps the autoencoder resident on the device and
+// passes each request's picture through it.
+func reconstructionCapability() Capability {
+	director, err := capabilityruntime.NewModelSessionDirector[latentvideo.ReconstructionRequest, *latentvideo.AutoencoderRuntime, latentimage.EncodedImage](
+		"reconstruction", imageDevice, imageSessionCapacity,
+		latentvideo.ValidateReconstructionRequest,
+		capabilityruntime.IgnoreInput[latentvideo.ReconstructionRequest](latentvideo.LoadAutoencoderRuntime),
+		func(ctx context.Context, runtime *latentvideo.AutoencoderRuntime, request latentvideo.ReconstructionRequest) error {
+			return runtime.Reset(ctx, request)
+		},
+		latentvideo.RegisterAutoencoderRuntime,
+	)
+	return inventoryCapability(autoencoderInventory, sessionExecutor(director, err))
 }

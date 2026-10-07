@@ -367,7 +367,7 @@ func kindValidation(task recipe.Task) []string {
 		return []string{"speech-proof"}
 	case "vqa":
 		return []string{"vqa-proof"}
-	case "seq2seq", "forecast", "tabular", "image-embedding", "generation":
+	case "seq2seq", "forecast", "tabular", "image-embedding", "reconstruction", "generation":
 		return []string{"specialized-proof"}
 	case "training":
 		return []string{trainingProof}

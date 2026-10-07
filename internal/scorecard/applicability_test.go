@@ -16,7 +16,7 @@ import (
 func TestScorecardStatesInapplicableMetrics(t *testing.T) {
 	t.Parallel()
 	var none evaluation.BenchmarkSummary
-	for _, task := range []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskImageEmbedding, recipe.TaskTranscription} {
+	for _, task := range []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskImageEmbedding, recipe.TaskReconstruction, recipe.TaskTranscription} {
 		if cell := throughputCell(task, none, false, nil); cell.Measured() || !cell.NotApplicable || cell.Reason == "" {
 			t.Fatalf("%s throughput = %+v, want a stated inapplicability", task, cell)
 		}

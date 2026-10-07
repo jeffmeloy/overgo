@@ -86,8 +86,9 @@ type generationPolicy struct {
 	Seed       uint64  `json:"seed"`
 }
 
-// ResolveProfile validates the artifact against the supported Wan profile.
-func ResolveProfile(modelDirectory string) (Profile, error) {
+// declaredProfile is the supported Wan profile as the catalog declares it,
+// before any artifact is read against it.
+func declaredProfile() (Profile, error) {
 	var catalog []Profile
 	if err := strictjson.DecodeBytes(videoProfileCatalogJSON, &catalog); err != nil {
 		return Profile{}, fmt.Errorf("latent video: decode profile catalog: %w", err)
@@ -96,7 +97,12 @@ func ResolveProfile(modelDirectory string) (Profile, error) {
 	if !ok {
 		return Profile{}, errors.New("latent video: profile catalog is empty")
 	}
-	profile, err := videoProfileCodec.New(profileSource)
+	return videoProfileCodec.New(profileSource)
+}
+
+// ResolveProfile validates the artifact against the supported Wan profile.
+func ResolveProfile(modelDirectory string) (Profile, error) {
+	profile, err := declaredProfile()
 	if err != nil {
 		return Profile{}, err
 	}
@@ -138,8 +144,8 @@ func (p Profile) validate() error {
 
 // IsWan recognizes the production checkpoint boundary without loading weights.
 func IsWan(path string) bool {
-	for _, name := range []string{"config.json", "diffusion_pytorch_model.safetensors", "Wan2.1_VAE.pth"} {
-		if info, err := os.Stat(filepath.Join(path, name)); err != nil || info.IsDir() {
+	for _, file := range []string{filepath.Join(path, "config.json"), filepath.Join(path, "diffusion_pytorch_model.safetensors"), AutoencoderWeights(path)} {
+		if info, err := os.Stat(file); err != nil || info.IsDir() {
 			return false
 		}
 	}

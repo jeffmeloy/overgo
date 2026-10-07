@@ -101,7 +101,7 @@ const (
 // is their rate.
 var wholeOutputTasks = []recipe.Task{
 	recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskForecast,
-	recipe.TaskTabular, recipe.TaskImageEmbedding, recipe.TaskActivityDetection, recipe.TaskTranscription,
+	recipe.TaskTabular, recipe.TaskImageEmbedding, recipe.TaskReconstruction, recipe.TaskActivityDetection, recipe.TaskTranscription,
 }
 
 // Measured reports whether a record measures the cell.
@@ -732,6 +732,7 @@ var heldoutProposals = map[recipe.Task]string{
 	recipe.TaskTabular:        "a table-prediction objective over BeyondArena credit-g (TabArena/BeyondArena, 0.2 MB), its held-out rows judged by train -route tabular",
 	recipe.TaskForecast:       "a forecast objective over ETTh1 (github.com/zhouhaoyi/ETDataset, 2.6 MB), its held-out windows judged by train -route seriesforecast",
 	recipe.TaskImageEmbedding: "Imagenette 160 px (fast.ai imagenette2-160, 100 MB) k-nearest-neighbour accuracy from the model's own embeddings",
+	recipe.TaskReconstruction: "held-out VidGen-1M frames and clips (on disk) through the autoencoder and back: the peak signal-to-noise ratio of what comes out against what went in",
 }
 
 // qualityCell is the headline metric of the recipe's newest evaluation of

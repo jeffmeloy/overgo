@@ -209,7 +209,7 @@ func TestEveryBlockingProofHasACommand(t *testing.T) {
 	cells := []ModelValidation{stack, edit, mot, hybrid, dense, ungrounded, objective, exact, protocol, otherSuite}
 	for _, task := range []recipe.Task{
 		recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskTranscription,
-		recipe.TaskVQA, recipe.TaskSeq2Seq, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskImageEmbedding,
+		recipe.TaskVQA, recipe.TaskSeq2Seq, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskImageEmbedding, recipe.TaskReconstruction,
 	} {
 		for _, validation := range kindValidation(task) {
 			cells = append(cells, ModelValidation{

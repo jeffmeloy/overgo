@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
-	"path/filepath"
 	"sync"
 
 	"overgo/internal/cuda/driver"
@@ -97,7 +96,7 @@ func NewGenerator(config GeneratorConfig) (generator *Generator, err error) {
 			generator = nil
 		}
 	}()
-	checkpoint := filepath.Join(config.ModelDirectory, "Wan2.1_VAE.pth")
+	checkpoint := AutoencoderWeights(config.ModelDirectory)
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
 	if err != nil {
 		return generator, err

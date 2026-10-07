@@ -32,21 +32,21 @@
       },
       "steps": [
         {
-          "id": "capability",
-          "title": "Encode and decode a picture or clip with an installed autoencoder as one request",
-          "status": "open",
-          "verify": "go test ./internal/mediacapability -count=1 -run '^TestCodecRoundTripsThroughAnInstalledAutoencoder$'",
-          "rationale": "Master takes over the VAE lane here (owner, 2026-10-07; branch codex/overgo_vae, campaign overgo_rsi_with_vae). The lane's goal stands: an autoencoder's latent is one way to propose a change inside the improvement loop, judged on held-out data like any other, and never an authority of its own. Its method does not: in five weeks it landed about 3000 lines of contracts and none of its 32 open steps, because every contract waited for a later consumer. Master builds the consumers first and ports a lane file only in the commit that first calls it. The branch stays as a source to port from, as adaptive_new is; master no longer merges it, and its worktree and store are the owner's to archive.\n\nThis step is the lane's first proof, exact inference of an installed autoencoder, made a capability: a codec task whose request is a picture or clip and whose answer is the reconstruction and the latent's size. Two installed pairs can round-trip today: the Wan2.1 VAE, whose device encode and decode run inside the video editor and through media.CodecChunkStream (the one part of the lane master already holds, with three production callers), and the representation autoencoder, the DINOv2 encoder that already serves image-embedding feeding internal/rae's decoder. The Krea image VAE has a decoder and no encoder on master; it is named as that, not given a pretend round trip.\n\nServes: inference on local models, and the control every later latent row is compared with. Disappears: autoencoders that only a generator can reach. Evidence: a fixture frame round-trips within the tolerance the decode goldens hold. Batch: device."
-        },
-        {
           "id": "heldout",
           "title": "Measure what a round trip loses on held-out frames and clips",
           "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-codec",
+          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-reconstruction",
           "rationale": "A reconstruction suite in evaluate: held-out VidGen frames (the ones cut for the image-embedding evaluation) and 21-frame clips go in, the reconstruction comes back, and the score is the peak signal-to-noise ratio between them, with the latent's size as a share of the input's shown beside it. The scorecard proposes the evaluation for the codec task and this step closes its gap, as the other tasks' rows did.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the scorecard's codec rows carry a held-out quality. Batch: device.",
           "depends_on": [
             "latent-codec-roundtrip/capability"
           ]
+        },
+        {
+          "id": "representation-pair",
+          "title": "Pass a picture through the representation autoencoder and back: the DINOv2 encoder with registers into the installed decoder",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestPictureRoundTripsThroughTheRepresentationAutoencoder$'",
+          "rationale": "The second installed pair. The capability step gave the reconstruction task its first autoencoder, the Wan2.1 VAE. The representation autoencoder's decoder runs on master inside class-conditional image generation (internal/rae), and its encoder, DINOv2 base with registers, is installed (models/dinov2-with-registers-base) but has no forward here: internal/vitencoder runs the plain DINOv2 family only. This step adds the register tokens to that encoder's declaration, feeds its patch grid, normalized by the decoder's recorded statistics, to the decoder, and binds the pair to the reconstruction task beside the Wan pair, so the held-out reconstruction suite scores both and the later latent rows have two families of latent to compare. The Krea image VAE stays out: it has a decoder and no encoder on master.\n\nServes: inference on local models, and a second control for the latent rows. Disappears: a decoder only a generator can reach. Evidence: a picture round-trips through the pair on the device and the reconstruction suite scores it. Batch: device."
         }
       ]
     },

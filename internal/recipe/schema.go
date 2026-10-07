@@ -63,6 +63,9 @@ const (
 	TaskVQA Task = "vqa"
 	// TaskImageEmbedding embeds one image as its pooled embedding vector.
 	TaskImageEmbedding Task = "image-embedding"
+	// TaskReconstruction passes one picture through an autoencoder, into
+	// its latent and back, and returns the picture that comes out.
+	TaskReconstruction Task = "reconstruction"
 	// TaskExport writes a model in a distribution format another runtime
 	// loads, such as a quantized GGUF.
 	TaskExport Task = "export"
@@ -407,7 +410,7 @@ func validateTask(task Task) error {
 	case TaskInference, TaskGeneration, TaskEmbedding, TaskRerank, TaskProjection, TaskTraining,
 		TaskForecast, TaskTabular, TaskSeq2Seq, TaskSpeech, TaskTranscription, TaskAlignment,
 		TaskDiarization, TaskActivityDetection, TaskAudioConversion, TaskAudioGeneration,
-		TaskImageGen, TaskVideoGen, TaskVQA, TaskImageEmbedding, TaskExport, TaskMerge:
+		TaskImageGen, TaskVideoGen, TaskVQA, TaskImageEmbedding, TaskReconstruction, TaskExport, TaskMerge:
 		return nil
 	default:
 		return fmt.Errorf("recipe: invalid task %q", task)

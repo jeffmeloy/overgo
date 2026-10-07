@@ -4,6 +4,7 @@ package mediacapability
 
 import (
 	"context"
+	"errors"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
@@ -25,4 +26,12 @@ func videoCapability() Capability {
 			modelrecipe.ModuleOscillatorVideoPrepare: execute,
 		}.Execute,
 	}
+}
+
+// reconstructionCapability resolves an autoencoder anywhere and runs it only
+// where its device runtime is built.
+func reconstructionCapability() Capability {
+	return inventoryCapability(autoencoderInventory, func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {
+		return nil, errors.New("media capability: an autoencoder's round trip runs on a CUDA device, which this build does not drive")
+	})
 }

@@ -60,6 +60,9 @@ const (
 	// ModuleEmbedImage identifies the host image-embedding forward: an
 	// encoded image in, its pooled embedding vector out.
 	ModuleEmbedImage recipe.ModuleID = "model.embed-image"
+	// ModuleReconstructImage identifies an autoencoder's round trip: an
+	// encoded picture in, the picture its latent decodes to out.
+	ModuleReconstructImage recipe.ModuleID = "model.reconstruct-image"
 )
 
 // The host stages of an RAE collection's class-conditional generation:
@@ -400,6 +403,11 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 	// The encoder stays loaded across requests; each request brings one image.
 	recipe.TaskImageEmbedding: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "embed", module: ModuleEmbedImage, input: "image", output: "embedding", inputData: recipe.DataImage, outData: recipe.DataEmbeddings, session: recipe.SessionCapacity},
+	}},
+	// The autoencoder's two halves stay on the device across requests; each
+	// request brings one picture of its own size.
+	recipe.TaskReconstruction: {placement: recipe.PlacementHybrid, stages: []scalarStage{
+		{node: "reconstruct", module: ModuleReconstructImage, input: "image", output: "reconstruction", inputData: recipe.DataImage, outData: recipe.DataImage, session: recipe.SessionCapacity},
 	}},
 }
 
@@ -749,6 +757,7 @@ func mustCatalog() *recipe.Catalog {
 	}
 	for _, task := range []recipe.Task{
 		recipe.TaskGeneration, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageEmbedding,
+		recipe.TaskReconstruction,
 	} {
 		modules = append(modules, linearCapabilities[task].modules(task)...)
 	}

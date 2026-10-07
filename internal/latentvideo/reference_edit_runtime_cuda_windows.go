@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -74,7 +73,7 @@ func NewReferenceEditRuntime(config ReferenceEditRuntimeConfig) (runtime *refere
 	if err != nil {
 		return nil, err
 	}
-	vaeCheckpoint := filepath.Join(config.WanDirectory, "Wan2.1_VAE.pth")
+	vaeCheckpoint := AutoencoderWeights(config.WanDirectory)
 	catalog, err := pytorchzip.ReadCatalog(vaeCheckpoint)
 	if err != nil {
 		return nil, err

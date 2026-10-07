@@ -106,6 +106,7 @@ func run() error {
 	seriesCSV := flag.String("build-series-forecast", "", "write the series-forecast suite of this ETT file's oil temperature to -suite-out: consecutive windows that show -context readings and ask for the -horizon after them")
 	seriesContext := flag.Int("context", defaultSeriesContext, "with -build-series-forecast: readings each window shows")
 	seriesHorizon := flag.Int("horizon", defaultSeriesHorizon, "with -build-series-forecast: readings each window asks for")
+	passagesParquet := flag.String("build-passages", "", "write the held-out likelihood suite of this WikiText-2 test parquet file to -suite-out: passages evenly spaced through the split, each starting on a line and ending on a word")
 	suiteOut := flag.String("suite-out", "", "with a -build- flag: the suite file to write")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
@@ -195,6 +196,12 @@ func run() error {
 			return errors.New("usage: evaluate -build-function-calls <leaderboard directory> -suite-out <suite.json>")
 		}
 		return writeFunctionCalls(directory, strings.TrimSpace(*suiteOut))
+	}
+	if parquet := strings.TrimSpace(*passagesParquet); parquet != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {
+			return errors.New("usage: evaluate -build-passages <wikitext test parquet> -suite-out <suite.json>")
+		}
+		return writePassages(context.Background(), parquet, strings.TrimSpace(*suiteOut))
 	}
 	if clips := strings.TrimSpace(*captionClips); clips != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {

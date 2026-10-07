@@ -4,6 +4,24 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "evaluation-builders-in-go",
+      "title": "Build the held-out evaluation sets with Go commands where a Python script still builds them",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 410,
+        "reason": "The WikiText-2 passage builder moves from a Python script in tmp into the evaluate command: the function that cuts the passages and the flag that reads the split's text column and writes the suite. The credit-g step declares its own growth when it lands"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Build the held-out evaluation sets with Go commands where a Python script still builds them",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -count=1 -run '^TestCreditGRequestsAreDisjointAndStandardized$'"
+        }
+      ]
+    },
+    {
       "id": "speech-document-admission",
       "title": "Admit or retire the GUI lane's document speech program",
       "owner": "professional_overgo_gui",
@@ -115,7 +133,8 @@
             "say-contracts-in-words/do",
             "scorecard-wording-baseline/do",
             "record-adaptive-new-copy-budget/do",
-            "plan-decision-blocks/do"
+            "plan-decision-blocks/do",
+            "evaluation-builders-in-go/do"
           ]
         }
       ]

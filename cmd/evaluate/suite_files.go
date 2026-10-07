@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 )
 
@@ -47,6 +49,27 @@ func writeSeriesForecast(csv, out string, context, horizon int) error {
 		return err
 	}
 	return writeSuite(out, suite, len(suite.Cases), "series-forecast")
+}
+
+// passageLines bounds the lines read from a split's text column, far above
+// the few thousand a WikiText-2 split holds.
+const passageLines = 1 << 20
+
+// writePassages builds the held-out likelihood suite of a WikiText-2 test
+// parquet file's text column and writes it to out.
+func writePassages(ctx context.Context, parquet, out string) error {
+	var lines []string
+	if err := dataset.ReadParquetTextRows(ctx, parquet, "text", passageLines, func(_ uint64, line string) error {
+		lines = append(lines, line)
+		return nil
+	}); err != nil {
+		return err
+	}
+	suite, cases, err := evaluation.BuildWikiTextPassages(lines)
+	if err != nil {
+		return err
+	}
+	return writeSuite(out, suite, cases, "passages")
 }
 
 // writeFunctionCalls builds the function-call suite of the leaderboard's

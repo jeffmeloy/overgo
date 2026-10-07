@@ -4,20 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "census-rebind-after-latent-rows",
-      "title": "Rebind the accepted model census after this campaign's registrations and evaluations",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Rebind the accepted model census after this campaign's registrations and evaluations",
-          "status": "open",
-          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/validate -count=1 -run '^TestAcceptedCapabilityCensus$'"
-        }
-      ]
-    },
-    {
       "id": "latent-change-proposer",
       "title": "Propose a model change from a latent of earlier changes and judge it on held-out data against plain controls",
       "owner": "master-lead",

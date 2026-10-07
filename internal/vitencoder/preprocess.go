@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/jsonfile"
+	"overgo/internal/media"
 )
 
 // The resize below is PIL's 8-bit bicubic resample, which a checkpoint's own
@@ -47,11 +48,15 @@ type resampleWeights struct {
 	weights [][]int64
 }
 
-func pilWeights(inSize, outSize int) resampleWeights {
+// filterWeights are one axis's antialiased bicubic coefficients: for each
+// output position the first source index it reads and the weights of the
+// source positions from there, which sum to one. The cubic is widened by the
+// downscale factor, so a smaller output averages what it covers.
+func filterWeights(inSize, outSize int) ([]int, [][]float64) {
 	scale := float64(inSize) / float64(outSize)
 	filterScale := max(scale, 1)
 	support := bicubicSupport * filterScale
-	result := resampleWeights{start: make([]int, outSize), weights: make([][]int64, outSize)}
+	start, weights := make([]int, outSize), make([][]float64, outSize)
 	for out := range outSize {
 		center := (float64(out) + 0.5) * scale
 		first := max(int(center-support+0.5), 0)
@@ -62,20 +67,76 @@ func pilWeights(inSize, outSize int) resampleWeights {
 			coefficients[index] = bicubic((float64(index+first) - center + 0.5) / filterScale)
 			total += coefficients[index]
 		}
+		if total != 0 {
+			for index := range coefficients {
+				coefficients[index] /= total
+			}
+		}
+		start[out], weights[out] = first, coefficients
+	}
+	return start, weights
+}
+
+func pilWeights(inSize, outSize int) resampleWeights {
+	start, weights := filterWeights(inSize, outSize)
+	result := resampleWeights{start: start, weights: make([][]int64, outSize)}
+	for out, coefficients := range weights {
 		fixed := make([]int64, len(coefficients))
 		for index, value := range coefficients {
-			if total != 0 {
-				value /= total
-			}
 			if value < 0 {
 				fixed[index] = int64(-0.5 + value*(1<<pilPrecisionBits))
 			} else {
 				fixed[index] = int64(0.5 + value*(1<<pilPrecisionBits))
 			}
 		}
-		result.start[out], result.weights[out] = first, fixed
+		result.weights[out] = fixed
 	}
 	return result
+}
+
+// fitPositions fits a checkpoint's position embeddings, one for the class
+// token and one for each patch of the grid it was trained at, to the grid
+// this encoder runs at, as the reference does on every forward: the class
+// position is kept and the patch positions are resampled over the grid with
+// the antialiased bicubic filter. A checkpoint run at its trained grid is
+// returned as it is.
+func fitPositions(position []float32, trained, grid, hidden int) []float32 {
+	if trained == grid {
+		return position
+	}
+	start, weights := filterWeights(trained, grid)
+	patches := position[hidden:]
+	across := make([]float64, trained*grid*hidden)
+	for row := range trained {
+		for column := range grid {
+			into := across[(row*grid+column)*hidden:][:hidden]
+			for offset, weight := range weights[column] {
+				from := patches[(row*trained+start[column]+offset)*hidden:][:hidden]
+				for channel, value := range from {
+					into[channel] += weight * float64(value)
+				}
+			}
+		}
+	}
+	fitted := make([]float32, (1+grid*grid)*hidden)
+	copy(fitted, position[:hidden])
+	sum := make([]float64, hidden)
+	for row := range grid {
+		for column := range grid {
+			clear(sum)
+			for offset, weight := range weights[row] {
+				from := across[((start[row]+offset)*grid+column)*hidden:][:hidden]
+				for channel, value := range from {
+					sum[channel] += weight * value
+				}
+			}
+			into := fitted[(1+row*grid+column)*hidden:][:hidden]
+			for channel, value := range sum {
+				into[channel] = float32(value)
+			}
+		}
+	}
+	return fitted
 }
 
 // clip8 drops the fixed-point fraction and clamps to a byte.
@@ -202,4 +263,63 @@ func (p preprocess) pixels(source []uint8, height, width int) ([]float32, error)
 		}
 	}
 	return pixels, nil
+}
+
+// cubicTaps is how many source positions a cubic convolution reads on an axis.
+const cubicTaps = 4
+
+// InterpolateBicubic resizes channel-first float pixels as torch's bicubic
+// interpolation does without antialiasing (align_corners false): each output
+// position reads the four source positions around the point it maps to,
+// weighted by the cubic convolution kernel, and a position past an edge reads
+// the edge. It is the resize a reference applies to a picture already in
+// floats, where the checkpoint's own image processor resizes bytes. The
+// point an output position maps to is computed in single precision, as torch
+// computes it: two hundred pixels along it differs in the fifth decimal from
+// its double, which a picture with hard edges shows.
+func InterpolateBicubic(pixels []float32, planes, height, width, outHeight, outWidth int) ([]float32, error) {
+	if !checked.PositiveInts(planes, height, width, outHeight, outWidth) || !checked.Equal(len(pixels), planes*height*width) {
+		return nil, errors.New("vitencoder: interpolation input does not match its declared size")
+	}
+	taps := func(inSize, outSize int) ([]int, [][cubicTaps]float32) {
+		scale := float32(inSize) / float32(outSize)
+		first, weights := make([]int, outSize), make([][cubicTaps]float32, outSize)
+		for out := range outSize {
+			point := scale*(float32(out)+media.RasterSampleCenter) - media.RasterSampleCenter
+			floor := float32(math.Floor(float64(point)))
+			first[out] = int(floor) - 1
+			for tap := range cubicTaps {
+				// The taps sit one before the point's floor and three on from there.
+				weights[out][tap] = float32(media.CubicConvolutionWeight(float64(point-floor) + 1 - float64(tap)))
+			}
+		}
+		return first, weights
+	}
+	columnFirst, columnWeights := taps(width, outWidth)
+	rowFirst, rowWeights := taps(height, outHeight)
+	resized := make([]float32, planes*outHeight*outWidth)
+	for plane := range planes {
+		source := pixels[plane*height*width:]
+		for y := range outHeight {
+			for x := range outWidth {
+				var sum float32
+				for rowTap, rowWeight := range rowWeights[y] {
+					row := min(max(rowFirst[y]+rowTap, 0), height-1) * width
+					var across float32
+					for columnTap, columnWeight := range columnWeights[x] {
+						across += source[row+min(max(columnFirst[x]+columnTap, 0), width-1)] * columnWeight
+					}
+					sum += across * rowWeight
+				}
+				resized[(plane*outHeight+y)*outWidth+x] = sum
+			}
+		}
+	}
+	return resized, nil
+}
+
+// Normalization is the pixel mean and deviation, by channel, the encoder's
+// image processor normalizes a picture in [0, 1] by.
+func (e *Encoder) Normalization() (mean, deviation [channels]float32) {
+	return e.preprocess.mean, e.preprocess.std
 }

@@ -226,6 +226,17 @@ func (d *vitDecoder) decode(latent []float32) ([]float32, error) {
 			rows[token*d.latent+channel] = latent[index]*d.scale[index] + d.shift[index]
 		}
 	}
+	return d.decodeTokens(rows)
+}
+
+// decodeTokens turns the encoder's own tokens, one row of latent channels
+// for each patch of the grid, into channel-first pixels in the encoder's
+// input range: what decode reads once it has undone a latent's normalization.
+func (d *vitDecoder) decodeTokens(rows []float32) ([]float32, error) {
+	tokens := d.grid * d.grid
+	if !checked.Equal(len(rows), d.latent*tokens) {
+		return nil, fmt.Errorf("rae: %d token values, want %d", len(rows), d.latent*tokens)
+	}
 	sequence := tokens + 1
 	hidden := make([]float32, sequence*d.hidden)
 	copy(hidden, d.class)

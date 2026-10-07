@@ -31,13 +31,13 @@ func videoCapability() Capability {
 // errNoAutoencoderDevice is why an autoencoder resolves here and does not run.
 var errNoAutoencoderDevice = errors.New("media capability: an autoencoder's round trip runs on a CUDA device, which this build does not drive")
 
-// reconstructionCapability resolves an autoencoder anywhere and runs it only
-// where its device runtime is built.
-func reconstructionCapability() Capability {
-	return inventoryCapability(autoencoderInventory, func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {
+// deviceReconstruction refuses: a Wan autoencoder resolves anywhere and runs
+// only where its device runtime is built.
+func deviceReconstruction() capabilityruntime.Executor {
+	return func(context.Context, artifact.Repository, string, modelrecipe.CapabilityEvidenceSelection, string) (any, error) {
 		return nil, errNoAutoencoderDevice
-	})
+	}
 }
 
-// OpenAutoencoder refuses: the device runtime is not built here.
-func OpenAutoencoder(string) (Autoencoder, error) { return nil, errNoAutoencoderDevice }
+// openDeviceAutoencoder refuses: the device runtime is not built here.
+func openDeviceAutoencoder(string) (Autoencoder, error) { return nil, errNoAutoencoderDevice }

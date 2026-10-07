@@ -24,12 +24,14 @@ const (
 	// gives the autoencoder unless a run names another number: 21 is five temporal strides
 	// of four and the frame that opens them, the length the video editor's sources are cut to.
 	defaultReconstructionFrames = 21
-	// reconstructionFPS, reconstructionWidth and reconstructionHeight are the rate and size
-	// a reconstruction suite cuts its clips at: the 480p frame the installed video
-	// autoencoder's generator draws at, sixteen frames a second.
-	reconstructionFPS    = 16
-	reconstructionWidth  = 832
-	reconstructionHeight = 480
+	// reconstructionFPS is the rate a reconstruction suite cuts its clips at, and
+	// defaultReconstructionWidth by defaultReconstructionHeight the size unless a run names
+	// another: the 480p frame the installed video autoencoder's generator draws at. An
+	// autoencoder that works at one size, as a representation autoencoder does at 256 by
+	// 256, is given a suite cut to that size.
+	reconstructionFPS           = 16
+	defaultReconstructionWidth  = 832
+	defaultReconstructionHeight = 480
 )
 
 // reconstructionRuntime is an autoencoder as an evaluation runtime: it passes a clip of the
@@ -103,10 +105,10 @@ func openReconstructionSession(ctx context.Context, store *overgodb.Store, value
 }
 
 // writeClipReconstruction writes the reconstruction suite of cases clips of a directory,
-// picked by seed and each cut to frames frames, to out.
-func writeClipReconstruction(clips, out string, cases, frames int, seed uint64) error {
+// picked by seed and each cut to frames frames of width by height, to out.
+func writeClipReconstruction(clips, out string, cases, frames, width, height int, seed uint64) error {
 	suite, err := evaluation.BuildClipReconstruction(clips, cases, seed, evaluation.ClipCut{
-		Frames: frames, FPS: reconstructionFPS, Width: reconstructionWidth, Height: reconstructionHeight,
+		Frames: frames, FPS: reconstructionFPS, Width: width, Height: height,
 	})
 	if err != nil {
 		return err

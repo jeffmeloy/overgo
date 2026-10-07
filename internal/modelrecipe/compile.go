@@ -63,6 +63,10 @@ const (
 	// ModuleReconstructImage identifies an autoencoder's round trip: an
 	// encoded picture in, the picture its latent decodes to out.
 	ModuleReconstructImage recipe.ModuleID = "model.reconstruct-image"
+	// ModuleReconstructRepresentation identifies a representation
+	// autoencoder's round trip, which runs on the host: an encoded picture
+	// in, the picture its decoder makes of the encoder's tokens out.
+	ModuleReconstructRepresentation recipe.ModuleID = "model.reconstruct-representation"
 )
 
 // The host stages of an RAE collection's class-conditional generation:
@@ -448,6 +452,18 @@ var latentVideoCapability = linearCapability{placement: recipe.PlacementHybrid, 
 	{node: "decode", module: ModuleLatentVideoDecode, input: "features", output: "video", inputData: recipe.DataVideoTensor, outData: recipe.DataVideo},
 }}
 
+// representationReconstructionCapability is the reconstruction task on the
+// host: a representation autoencoder's encoder and decoder both run there.
+var representationReconstructionCapability = linearCapability{placement: recipe.PlacementHost, stages: []scalarStage{
+	{node: "reconstruct", module: ModuleReconstructRepresentation, input: "image", output: "reconstruction", inputData: recipe.DataImage, outData: recipe.DataImage, session: recipe.SessionCapacity},
+}}
+
+// RepresentationReconstructionDefinition returns the host topology a
+// representation autoencoder's round trip executes on.
+func RepresentationReconstructionDefinition(modelID artifact.ID) (recipe.Definition, error) {
+	return representationReconstructionCapability.definition(recipe.TaskReconstruction, modelID)
+}
+
 // CapabilityDefinition returns task-indexed executable topology.
 func CapabilityDefinition(task recipe.Task, modelID artifact.ID) (recipe.Definition, error) {
 	if task == recipe.TaskVQA {
@@ -765,6 +781,7 @@ func mustCatalog() *recipe.Catalog {
 	for _, capability := range []linearCapability{latentImageCapability, oscillatorImageCapability, diffusionImageCapability, routedImageCapability, raeImageCapability} {
 		modules = append(modules, capability.modules(recipe.TaskImageGen)...)
 	}
+	modules = append(modules, representationReconstructionCapability.modules(recipe.TaskReconstruction)...)
 	modules = append(modules, oscillatorVideoCapability.modules(recipe.TaskVideoGen)...)
 	modules = append(modules, latentVideoCapability.modules(recipe.TaskVideoGen)...)
 	modules = append(modules,

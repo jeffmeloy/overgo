@@ -131,9 +131,9 @@ func resolveVideoSource(path string) (Source, error) {
 	return resolveDeclaredVideoSource(path)
 }
 
-// reconstructionCapability keeps the autoencoder resident on the device and
+// deviceReconstruction keeps a Wan autoencoder resident on the device and
 // passes each request's picture through it.
-func reconstructionCapability() Capability {
+func deviceReconstruction() capabilityruntime.Executor {
 	director, err := capabilityruntime.NewModelSessionDirector[latentvideo.ReconstructionRequest, *latentvideo.AutoencoderRuntime, latentimage.EncodedImage](
 		"reconstruction", imageDevice, imageSessionCapacity,
 		latentvideo.ValidateReconstructionRequest,
@@ -143,12 +143,12 @@ func reconstructionCapability() Capability {
 		},
 		latentvideo.RegisterAutoencoderRuntime,
 	)
-	return inventoryCapability(autoencoderInventory, sessionExecutor(director, err))
+	return sessionExecutor(director, err)
 }
 
-// OpenAutoencoder loads the autoencoder in a directory onto the device and
-// holds it until the caller closes it.
-func OpenAutoencoder(path string) (Autoencoder, error) {
+// openDeviceAutoencoder loads the Wan autoencoder in a directory onto the
+// device and holds it until the caller closes it.
+func openDeviceAutoencoder(path string) (Autoencoder, error) {
 	runtime, err := latentvideo.LoadAutoencoderRuntime(path)
 	if err != nil {
 		return nil, err

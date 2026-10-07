@@ -74,7 +74,7 @@ func TestDinov2MatchesReference(t *testing.T) {
 			t.Fatalf("normalized pixel %d = %v, reference %v", at, pixels[at], reference.Pixels[index])
 		}
 	}
-	tokens, err := encoder.encode(pixels)
+	tokens, err := encoder.encode(pixels, true)
 	if err != nil {
 		t.Fatal(err)
 	}

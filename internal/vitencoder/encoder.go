@@ -1,9 +1,9 @@
 // Package vitencoder runs a vision transformer encoder -- patch embedding, a
-// class token, pre-norm attention blocks with layer scale and a gated
-// feed-forward, and a final norm -- from a checkpoint whose geometry and
-// image processor its own configuration files state and whose tensors a
-// reviewed declaration binds, so a new checkpoint of the family is data, not
-// code.
+// class token and any register tokens, pre-norm attention blocks with layer
+// scale and a gated or a plain feed-forward, and a final norm -- from a
+// checkpoint whose geometry and image processor its own configuration files
+// state and whose tensors a reviewed declaration binds, so a new checkpoint
+// of a family is data, not code.
 package vitencoder
 
 import (
@@ -19,7 +19,8 @@ import (
 )
 
 // LayerTensors names one block's tensors; each name holds %d for the layer.
-// An empty layer-scale name means the block has none.
+// An empty layer-scale name means the block has none. A block names either
+// the gated feed-forward's fused input (gate_up) or the plain one's (up).
 type LayerTensors struct {
 	Norm1Weight string `json:"norm1_weight"`
 	Norm1Bias   string `json:"norm1_bias"`
@@ -34,8 +35,10 @@ type LayerTensors struct {
 	Scale1      string `json:"scale1,omitzero"`
 	Norm2Weight string `json:"norm2_weight"`
 	Norm2Bias   string `json:"norm2_bias"`
-	GateUp      string `json:"gate_up"`
-	GateUpBias  string `json:"gate_up_bias"`
+	GateUp      string `json:"gate_up,omitzero"`
+	GateUpBias  string `json:"gate_up_bias,omitzero"`
+	Up          string `json:"up,omitzero"`
+	UpBias      string `json:"up_bias,omitzero"`
 	Down        string `json:"down"`
 	DownBias    string `json:"down_bias"`
 	Scale2      string `json:"scale2,omitzero"`
@@ -47,6 +50,7 @@ type Declaration struct {
 	ModelType string `json:"model_type"`
 	Tensors   struct {
 		ClassToken         string       `json:"class_token"`
+		RegisterTokens     string       `json:"register_tokens,omitzero"`
 		PositionEmbeddings string       `json:"position_embeddings"`
 		PatchWeight        string       `json:"patch_weight"`
 		PatchBias          string       `json:"patch_bias"`
@@ -64,13 +68,14 @@ type geometry struct {
 	Layers    int     `json:"num_hidden_layers"`
 	PatchSize int     `json:"patch_size"`
 	ImageSize int     `json:"image_size"`
+	Registers int     `json:"num_register_tokens"`
 	Epsilon   float64 `json:"layer_norm_eps"`
 }
 
 type layer struct {
 	norm1Weight, norm1Bias, query, queryBias, key, keyBias, value, valueBias []float32
 	output, outputBias, scale1, norm2Weight, norm2Bias                       []float32
-	gateUp, gateUpBias, down, downBias, scale2                               []float32
+	gateUp, gateUpBias, up, upBias, down, downBias, scale2                   []float32
 	intermediate                                                             int
 }
 
@@ -79,6 +84,7 @@ type Encoder struct {
 	geometry                     geometry
 	preprocess                   preprocess
 	classToken, position         []float32
+	registers                    []float32
 	patchWeight, patchBias       []float32
 	finalWeight, finalBias       []float32
 	layers                       []layer
@@ -106,9 +112,10 @@ func Load(directory string) (*Encoder, error) {
 	if err != nil {
 		return nil, err
 	}
-	if g.PatchSize <= 0 || g.Hidden <= 0 || g.Heads <= 0 || g.Hidden%g.Heads != 0 || g.Layers <= 0 || g.Epsilon <= 0 ||
-		p.crop != g.ImageSize || p.crop%g.PatchSize != 0 {
-		return nil, errors.New("vitencoder: checkpoint geometry is incomplete or disagrees with its image processor")
+	t := declaration.Tensors
+	if g.PatchSize <= 0 || g.Hidden <= 0 || g.Heads <= 0 || g.Hidden%g.Heads != 0 || g.Layers <= 0 || g.Epsilon <= 0 || g.Registers < 0 ||
+		p.crop <= 0 || p.crop%g.PatchSize != 0 || g.ImageSize <= 0 || g.ImageSize%g.PatchSize != 0 || (t.RegisterTokens == "") != (g.Registers == 0) {
+		return nil, errors.New("vitencoder: checkpoint geometry is incomplete or disagrees with its image processor or declaration")
 	}
 	source, err := safetensors.OpenSource(directory)
 	if err != nil {
@@ -129,25 +136,32 @@ func Load(directory string) (*Encoder, error) {
 		return values, nil
 	}
 	e := &Encoder{geometry: g, preprocess: p, grid: p.crop / g.PatchSize, patchInputSize: channels * g.PatchSize * g.PatchSize}
-	e.tokens = 1 + e.grid*e.grid
+	e.tokens = 1 + g.Registers + e.grid*e.grid
 	e.pixelCount = channels * p.crop * p.crop
-	t := declaration.Tensors
+	// The checkpoint holds a position for the class token and for each patch
+	// of the grid it was trained at.
+	trained := g.ImageSize / g.PatchSize
 	for _, binding := range []struct {
 		target *[]float32
 		name   string
 		size   int
 	}{
 		{&e.classToken, t.ClassToken, g.Hidden},
-		{&e.position, t.PositionEmbeddings, e.tokens * g.Hidden},
+		{&e.position, t.PositionEmbeddings, (1 + trained*trained) * g.Hidden},
+		{&e.registers, t.RegisterTokens, g.Registers * g.Hidden},
 		{&e.patchWeight, t.PatchWeight, g.Hidden * e.patchInputSize},
 		{&e.patchBias, t.PatchBias, g.Hidden},
 		{&e.finalWeight, t.FinalNormWeight, g.Hidden},
 		{&e.finalBias, t.FinalNormBias, g.Hidden},
 	} {
+		if binding.name == "" {
+			continue
+		}
 		if *binding.target, err = read(binding.name, binding.size); err != nil {
 			return nil, err
 		}
 	}
+	e.position = fitPositions(e.position, trained, e.grid, g.Hidden)
 	square := g.Hidden * g.Hidden
 	for index := range g.Layers {
 		names := t.Layer
@@ -165,6 +179,7 @@ func Load(directory string) (*Encoder, error) {
 			{&l.scale1, names.Scale1, g.Hidden},
 			{&l.norm2Weight, names.Norm2Weight, g.Hidden}, {&l.norm2Bias, names.Norm2Bias, g.Hidden},
 			{&l.gateUp, names.GateUp, checked.UnknownCount()}, {&l.gateUpBias, names.GateUpBias, checked.UnknownCount()},
+			{&l.up, names.Up, checked.UnknownCount()}, {&l.upBias, names.UpBias, checked.UnknownCount()},
 			{&l.down, names.Down, checked.UnknownCount()}, {&l.downBias, names.DownBias, g.Hidden},
 			{&l.scale2, names.Scale2, g.Hidden},
 		} {
@@ -175,9 +190,12 @@ func Load(directory string) (*Encoder, error) {
 				return nil, err
 			}
 		}
-		l.intermediate = len(l.gateUpBias) / 2
-		if l.intermediate == 0 || len(l.gateUp) != 2*l.intermediate*g.Hidden || len(l.down) != g.Hidden*l.intermediate {
-			return nil, fmt.Errorf("vitencoder: layer %d gated feed-forward shapes disagree", index)
+		// The gated feed-forward fuses its gate and its value in one input
+		// of twice the width; the plain one's input is the width itself.
+		l.intermediate = len(l.gateUpBias)/2 + len(l.upBias)
+		if l.intermediate == 0 || (l.gateUp == nil) == (l.up == nil) || len(l.gateUp)+len(l.up) != (len(l.gateUpBias)+len(l.upBias))*g.Hidden ||
+			len(l.down) != g.Hidden*l.intermediate {
+			return nil, fmt.Errorf("vitencoder: layer %d feed-forward shapes disagree", index)
 		}
 		e.layers = append(e.layers, l)
 	}
@@ -196,16 +214,36 @@ func (e *Encoder) Embed(image []byte) ([]float32, error) {
 	if err != nil {
 		return nil, err
 	}
-	tokens, err := e.encode(pixels)
+	tokens, err := e.encode(pixels, true)
 	if err != nil {
 		return nil, err
 	}
 	return tokens[:e.geometry.Hidden:e.geometry.Hidden], nil
 }
 
+// Patches runs normalized channel-first pixels of the encoder's input size
+// through the encoder and returns its patch tokens, row by row over the grid,
+// without the class and register tokens. affine keeps the final norm's
+// learned scale and shift; a representation autoencoder reads the tokens of
+// the norm without them.
+func (e *Encoder) Patches(pixels []float32, affine bool) ([]float32, error) {
+	tokens, err := e.encode(pixels, affine)
+	if err != nil {
+		return nil, err
+	}
+	return tokens[(1+e.geometry.Registers)*e.geometry.Hidden:], nil
+}
+
+// Shape is the side of the square input the encoder takes, the side of its
+// patch grid, and the width of each token.
+func (e *Encoder) Shape() (input, grid, hidden int) {
+	return e.preprocess.crop, e.grid, e.geometry.Hidden
+}
+
 // encode runs normalized channel-first pixels through the encoder and returns
-// every token after the final norm, the class token first.
-func (e *Encoder) encode(pixels []float32) ([]float32, error) {
+// every token after the final norm: the class token, any registers, then the
+// patches.
+func (e *Encoder) encode(pixels []float32, affine bool) ([]float32, error) {
 	g := e.geometry
 	crop := e.preprocess.crop
 	if !checked.Equal(len(pixels), e.pixelCount) {
@@ -224,12 +262,18 @@ func (e *Encoder) encode(pixels []float32) ([]float32, error) {
 			}
 		}
 	}
+	// The class token and the patches take their positions; the registers
+	// sit between them and take none.
 	hidden := make([]float32, e.tokens*g.Hidden)
-	copy(hidden, e.classToken)
-	linear(hidden[g.Hidden:], patches, e.patchWeight, e.patchBias, e.grid*e.grid, e.patchInputSize, g.Hidden)
-	for index, value := range e.position {
-		hidden[index] += value
+	patched := hidden[(1+g.Registers)*g.Hidden:]
+	linear(patched, patches, e.patchWeight, e.patchBias, e.grid*e.grid, e.patchInputSize, g.Hidden)
+	for index, value := range e.position[g.Hidden:] {
+		patched[index] += value
 	}
+	for index, value := range e.classToken {
+		hidden[index] = value + e.position[index]
+	}
+	copy(hidden[g.Hidden:], e.registers)
 	normed := make([]float32, len(hidden))
 	q, k, v := make([]float32, len(hidden)), make([]float32, len(hidden)), make([]float32, len(hidden))
 	projected := make([]float32, len(hidden))
@@ -242,19 +286,28 @@ func (e *Encoder) encode(pixels []float32) ([]float32, error) {
 		linear(projected, attended, l.output, l.outputBias, e.tokens, g.Hidden, g.Hidden)
 		addScaled(hidden, projected, l.scale1, g.Hidden)
 		hostmath.LayerNormInto(normed, hidden, l.norm2Weight, l.norm2Bias, e.tokens, g.Hidden, g.Epsilon)
-		gated := make([]float32, e.tokens*2*l.intermediate)
-		linear(gated, normed, l.gateUp, l.gateUpBias, e.tokens, g.Hidden, 2*l.intermediate)
 		inner := make([]float32, e.tokens*l.intermediate)
-		for token := range e.tokens {
-			row := gated[token*2*l.intermediate:]
-			for index := range l.intermediate {
-				inner[token*l.intermediate+index] = float32(hostmath.SiLU(float64(row[index]))) * row[l.intermediate+index]
+		if l.up != nil {
+			linear(inner, normed, l.up, l.upBias, e.tokens, g.Hidden, l.intermediate)
+			hostmath.GELUErfInPlace(inner)
+		} else {
+			gated := make([]float32, e.tokens*2*l.intermediate)
+			linear(gated, normed, l.gateUp, l.gateUpBias, e.tokens, g.Hidden, 2*l.intermediate)
+			for token := range e.tokens {
+				row := gated[token*2*l.intermediate:]
+				for index := range l.intermediate {
+					inner[token*l.intermediate+index] = float32(hostmath.SiLU(float64(row[index]))) * row[l.intermediate+index]
+				}
 			}
 		}
 		linear(projected, inner, l.down, l.downBias, e.tokens, l.intermediate, g.Hidden)
 		addScaled(hidden, projected, l.scale2, g.Hidden)
 	}
-	hostmath.LayerNormInto(hidden, hidden, e.finalWeight, e.finalBias, e.tokens, g.Hidden, g.Epsilon)
+	finalWeight, finalBias := e.finalWeight, e.finalBias
+	if !affine {
+		finalWeight, finalBias = nil, nil
+	}
+	hostmath.LayerNormInto(hidden, hidden, finalWeight, finalBias, e.tokens, g.Hidden, g.Epsilon)
 	for _, value := range hidden {
 		if !checked.Finite32(value) {
 			return nil, errors.New("vitencoder: the encoder produced a non-finite value")

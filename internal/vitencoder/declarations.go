@@ -14,8 +14,11 @@ import (
 //go:embed recipes/dinov2.json
 var dinov2Declaration []byte
 
+//go:embed recipes/dinov2_with_registers.json
+var dinov2WithRegistersDeclaration []byte
+
 // reviewed maps a model type to its reviewed declaration.
-var reviewed = map[string][]byte{"dinov2": dinov2Declaration}
+var reviewed = map[string][]byte{"dinov2": dinov2Declaration, "dinov2_with_registers": dinov2WithRegistersDeclaration}
 
 // declarationFor returns the reviewed declaration for a model type; known is
 // false when no reviewed declaration answers for it.

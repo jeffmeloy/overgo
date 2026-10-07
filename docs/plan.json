@@ -32,21 +32,11 @@
       },
       "steps": [
         {
-          "id": "heldout",
-          "title": "Measure what a round trip loses on held-out frames and clips",
+          "id": "representation-heldout",
+          "title": "Measure what the representation autoencoder's round trip loses, beside the Wan autoencoder on the same pictures",
           "status": "open",
           "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-reconstruction",
-          "rationale": "A reconstruction suite in evaluate: held-out VidGen frames (the ones cut for the image-embedding evaluation) and 21-frame clips go in, the reconstruction comes back, and the score is the peak signal-to-noise ratio between them, with the latent's size as a share of the input's shown beside it. The scorecard proposes the evaluation for the codec task and this step closes its gap, as the other tasks' rows did.\n\nServes: measure and find the gap. Disappears: nothing. Evidence: the scorecard's codec rows carry a held-out quality. Batch: device.",
-          "depends_on": [
-            "latent-codec-roundtrip/capability"
-          ]
-        },
-        {
-          "id": "representation-pair",
-          "title": "Pass a picture through the representation autoencoder and back: the DINOv2 encoder with registers into the installed decoder",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/mediacapability -count=1 -run '^TestPictureRoundTripsThroughTheRepresentationAutoencoder$'",
-          "rationale": "The second installed pair. The capability step gave the reconstruction task its first autoencoder, the Wan2.1 VAE. The representation autoencoder's decoder runs on master inside class-conditional image generation (internal/rae), and its encoder, DINOv2 base with registers, is installed (models/dinov2-with-registers-base) but has no forward here: internal/vitencoder runs the plain DINOv2 family only. This step adds the register tokens to that encoder's declaration, feeds its patch grid, normalized by the decoder's recorded statistics, to the decoder, and binds the pair to the reconstruction task beside the Wan pair, so the held-out reconstruction suite scores both and the later latent rows have two families of latent to compare. The Krea image VAE stays out: it has a decoder and no encoder on master.\n\nServes: inference on local models, and a second control for the latent rows. Disappears: a decoder only a generator can reach. Evidence: a picture round-trips through the pair on the device and the reconstruction suite scores it. Batch: device."
+          "rationale": "Once the pair is registered its scorecard row proposes the reconstruction evaluation. The pair works at one size, 256 by 256, so a suite of held-out VidGen frames is cut to that size (evaluate -build-reconstruction -frames 1 -width 256 -height 256), and the Wan autoencoder is scored on the same suite, so the two families of latent are read on the same pictures: one keeps the pixels through a latent a twelfth their size, the other keeps what the picture shows through a latent as large as the picture. Serves: measure and find the gap; the control the encoder bridge is judged against. Disappears: nothing. Evidence: both autoencoders' rows carry a held-out quality on the shared suite. Batch: host for the pair, device for the Wan autoencoder."
         }
       ]
     },

@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/media"
+	"overgo/internal/pytorchzip"
 	"overgo/internal/tensor"
 )
 
@@ -20,6 +21,24 @@ import (
 // encoder and the decoder the generator, the editor and a round trip all use.
 func AutoencoderWeights(directory string) string {
 	return filepath.Join(directory, "Wan2.1_VAE.pth")
+}
+
+// AutoencoderDecoderOperations names the operations of the decoder a Wan
+// directory's autoencoder holds, in the order it runs them.
+func AutoencoderDecoderOperations(directory string) ([]string, error) {
+	catalog, err := pytorchzip.ReadCatalog(AutoencoderWeights(directory))
+	if err != nil {
+		return nil, err
+	}
+	plan, err := CompileVAEDecoderPlan(catalog.Tensors)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, len(plan.Operations))
+	for index, operation := range plan.Operations {
+		names[index] = operation.Name
+	}
+	return names, nil
 }
 
 // ReconstructionRequest is one encoded picture, PNG or JPEG, to pass through

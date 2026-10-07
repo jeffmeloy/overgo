@@ -4,24 +4,6 @@
   "lane": "master-lead",
   "items": [
     {
-      "id": "video-edit-evaluation",
-      "title": "Measure the video editor: a held-out evaluation of instructed changes to real clips",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 1865,
-        "reason": "The edit side of the render command (cutting and publishing source clips, the editor's request), the suite of change and content questions with its list of instructions, a frame decoder at a given size, and the digest of a request from its bytes are the production code a held-out evaluation of a video editor needs: evaluate could not give an editor a clip, and the editor refused one of ordinary size"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure the video editor: a held-out evaluation of instructed changes to real clips",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-video-gen"
-        }
-      ]
-    },
-    {
       "id": "census-rebind-after-latent-rows",
       "title": "Rebind the accepted model census after this campaign's registrations and evaluations",
       "owner": "master-lead",
@@ -36,47 +18,15 @@
       ]
     },
     {
-      "id": "latent-encoder-bridge",
-      "title": "Fit a connector between two encoders' latents and judge it by what the decoder then reconstructs",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 3200,
-        "reason": "A bridged pair as a runtime of the reconstruction task and a train route that fits its bridge in closed form and judges it by what the decoder draws: the installed WebSSL encoder and RAE decoder do not fit each other, and nothing on master could join two encoders' feature spaces for a decoder"
-      },
-      "steps": [
-        {
-          "id": "train",
-          "title": "Register the bridged pair and measure it on the shared suite beside the decoder's own encoder",
-          "status": "open",
-          "verify": "go test -tags modeltest ./internal/mediacapability -count=1 -run '^TestPictureRoundTripsThroughABridgedPair$' \u0026\u0026 go run ./cmd/validate -scorecard -gap scorecard-unscored-reconstruction",
-          "rationale": "The lane's tensor-bridge proof in its smallest useful form. Two installed parts do not fit each other: the WebSSL DINO encoder gives features 1024 wide and the RAE decoder expects DINOv2-base features 768 wide. A map from one feature space to the other makes them a working pair, and it needs no backward pass through either model: the targets are the DINOv2 encoder's own features of the same frames. A probe on 40 frames showed it works: the decoder draws the same scene from the bridged features, about 3 dB under what it draws from its own encoder's.\n\nThe row's shape changed with what was found. The fit is linear least squares, which the seam alignment already on master solves exactly (composition.AlignSeamAdapter), so the affine rung is fitted in closed form by the fit step and is the kept rung unless something beats it. A Muon rung on the same objective has nothing to gain: it starts at the optimum of the loss it would descend. What could gain is training the bridge against the decoder's picture rather than the encoder's features, which needs the decoder's backward pass; whether master has one is what the codec-training row's reach step measures, and that rung belongs there. The low-rank rung is dropped: it has fewer weights and no way to beat the full map on held-out frames once the fit has frames enough.\n\nThis step registers the fitted bridge as a pair of its own, a model made of the bridge, the encoder it maps and the decoder it feeds, and scores it on the shared suite of the row before, beside the decoder's own encoder as the ceiling.\n\nServes: train or change, on the smallest latent component the installed models offer. Disappears: nothing. Evidence: the bridged pair's held-out reconstruction beside the ceiling's. Batch: host.",
-          "depends_on": [
-            "latent-codec-roundtrip/heldout"
-          ]
-        }
-      ]
-    },
-    {
       "id": "latent-codec-training",
       "title": "Train an installed decoder natively and show a held-out gain over it, or record that there is none",
       "owner": "master-lead",
       "status": "open",
       "budget": {
-        "nodes": 0,
-        "reason": "A reconstruction objective and a codec training route: nothing on master trains an autoencoder, so the lane's first supervised win has no trainer to run on"
+        "nodes": 4000,
+        "reason": "A backward pass for the representation autoencoder's decoder, a trainer that steps a bridge with Muon against the picture the frozen decoder draws, and the train route that runs it under a supervised session: no installed autoencoder had any part that could be trained against its pictures"
       },
       "steps": [
-        {
-          "id": "reach",
-          "title": "Find which installed decoder the existing backward operators can train, and take one step",
-          "status": "open",
-          "verify": "go test ./cmd/train -count=1 -run '^TestCodecRouteTrainsADecoderOrNamesTheMissingOperator$'",
-          "rationale": "Nothing on master trains an autoencoder: there is no reconstruction objective and no backward pass for the Wan VAE's three-dimensional convolutions or the RAE decoder's transformer. Before building either, this step answers by measurement which one is in reach: a codec training route binds a reconstruction objective to an installed decoder and either takes a finite Muon step whose loss falls on training frames, or refuses and names the first operator that has no backward pass. The candidates in order of least new code are the RAE decoder, whose attention and feed-forward blocks the dense trainers already differentiate, then the Wan VAE decoder. No width, depth, rate or schedule is chosen by hand: each comes from the checkpoint, from the training program's derivation, or is refused.\n\nServes: train or change. Disappears: nothing. Evidence: the route's proof run, or its refusal naming the operator. Batch: device.",
-          "depends_on": [
-            "latent-codec-roundtrip/heldout"
-          ]
-        },
         {
           "id": "win",
           "title": "Adapt the decoder to one domain and publish the held-out verdict against the installed decoder",

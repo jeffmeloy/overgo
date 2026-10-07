@@ -77,9 +77,10 @@ const bridgeDirectoryMode = 0o700
 // whose tokens the bridge maps, and the collection whose decoder reads what
 // it maps them to.
 type BridgedPair struct {
-	Bridge        string
-	SourceEncoder string
-	Collection    Collection
+	Bridge              string
+	SourceEncoder       string
+	CollectionDirectory string
+	Collection          Collection
 }
 
 // ResolveBridgedPair reads directory as a bridged pair. held is false when
@@ -104,11 +105,12 @@ func ResolveBridgedPair(directory string) (pair BridgedPair, held bool, err erro
 		return BridgedPair{}, true, errors.New("rae: the bridge does not name the encoder and the collection it joins")
 	}
 	parent := filepath.Dir(directory)
-	collection, collectionHeld, err := ResolveCollection(filepath.Join(parent, collectionName))
+	collectionDirectory := filepath.Join(parent, collectionName)
+	collection, collectionHeld, err := ResolveCollection(collectionDirectory)
 	if err != nil || !collectionHeld {
 		return BridgedPair{}, true, errors.Join(err, fmt.Errorf("rae: the bridge's collection %s is absent", collectionName))
 	}
-	pair = BridgedPair{Bridge: path, SourceEncoder: filepath.Join(parent, encoder), Collection: collection}
+	pair = BridgedPair{Bridge: path, SourceEncoder: filepath.Join(parent, encoder), CollectionDirectory: collectionDirectory, Collection: collection}
 	if _, err := os.Stat(pair.SourceEncoder); err != nil {
 		return BridgedPair{}, true, fmt.Errorf("rae: the bridge's encoder %s: %w", encoder, err)
 	}
@@ -178,6 +180,12 @@ func bridgeTo(decoder *vitDecoder, source *vitencoder.Encoder, bridge EncoderBri
 
 // Side is the side of the square picture the pair takes and gives back.
 func (a *BridgedAutoencoder) Side() int { return a.decoder.grid * a.decoder.patch }
+
+// BridgeParameterCount is the count of the bridge's weights and offsets: what
+// training the pair's bridge moves.
+func (a *BridgedAutoencoder) BridgeParameterCount() int {
+	return len(a.bridge.Weight) + len(a.bridge.Bias)
+}
 
 // Latent is the extent of what the decoder reads: its channels and the side
 // of its grid.

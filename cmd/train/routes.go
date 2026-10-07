@@ -19,6 +19,7 @@ const routeFlag = "-route"
 // registers itself from that platform's file.
 var trainRoutes = map[string]func(ctx context.Context, flags *flag.FlagSet, args []string) error{
 	"diffusionimage":  trainDiffusionImage,
+	"codec":           trainCodec,
 	"dit":             trainDiT,
 	"encoder-bridge":  trainEncoderBridge,
 	"flow-organ":      trainFlowOrgan,

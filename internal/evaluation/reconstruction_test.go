@@ -225,4 +225,27 @@ func TestClipReconstructionSuiteBindsEachClipToItsBytes(t *testing.T) {
 	if _, err := BuildClipReconstruction(directory, 4, 17, cut); err == nil {
 		t.Fatal("four clips were drawn from three")
 	}
+	// A cut that crops is another set under a source that says so; a suite
+	// built before cuts could crop keeps the identity it had.
+	cropped, err := BuildClipReconstruction(directory, 2, 17, ClipCut{Frames: 1, FPS: 16, Width: 256, Height: 256, Crop: true})
+	if err != nil || cropped.Source != "vidgen-1m/reconstruction/1x256x256-cropped" {
+		t.Fatalf("a cropped cut is named %q, %v", cropped.Source, err)
+	}
+	stretched := cropped
+	stretched.Cut.Crop = false
+	left, err := compileReconstruction(cropped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	right, err := compileReconstruction(stretched)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if left.dataset == right.dataset {
+		t.Fatal("a cropped and a stretched cut of the same clips are one dataset")
+	}
+	encoded, err := json.Marshal(suite.Cut)
+	if err != nil || strings.Contains(string(encoded), "crop") {
+		t.Fatalf("a cut that does not crop is written as %s, %v", encoded, err)
+	}
 }

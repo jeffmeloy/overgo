@@ -51,11 +51,14 @@ var (
 
 // ClipCut is how a reconstruction suite gives every clip to the autoencoder: its first
 // Frames frames at FPS a second, each scaled to Width by Height. One frame is a picture.
+// Crop keeps a frame's proportions, scaling it until it covers the size and taking its
+// middle, where a cut without it scales the frame to the size as it is.
 type ClipCut struct {
-	Frames int `json:"frames"`
-	FPS    int `json:"fps"`
-	Width  int `json:"width"`
-	Height int `json:"height"`
+	Frames int  `json:"frames"`
+	FPS    int  `json:"fps"`
+	Width  int  `json:"width"`
+	Height int  `json:"height"`
+	Crop   bool `json:"crop,omitzero"`
 }
 
 // RoundTrip is a clip as it went into an autoencoder and as it came back: the same count
@@ -268,6 +271,9 @@ func BuildClipReconstruction(directory string, count int, seed uint64, cut ClipC
 	rng.Shuffle(len(clips), func(left, right int) { clips[left], clips[right] = clips[right], clips[left] })
 	// The suite is named by its cut, so a set of pictures and a set of clips read apart.
 	source := fmt.Sprintf("%s/%dx%dx%d", clipReconstructionSource, cut.Frames, cut.Height, cut.Width)
+	if cut.Crop {
+		source += "-cropped"
+	}
 	suite := ReconstructionSuite{Kind: reconstructionKind, Schema: clipReconstructionSchema, Source: source, Cut: cut}
 	for _, clip := range clips[:count] {
 		data, err := os.ReadFile(filepath.Join(directory, clip))

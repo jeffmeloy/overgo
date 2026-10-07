@@ -203,6 +203,22 @@ func validateVideoDecode(fps float64, maximum int) error {
 // smaller one covers: a clip cut for a model to edit is given at the size the
 // model works at.
 func DecodeVideoFileAt(ctx context.Context, path, configuredFFmpeg string, fps float64, maximum, width, height int) ([]image.Image, error) {
+	return decodeVideoFileSized(ctx, path, configuredFFmpeg, fps, maximum, width, height, ":flags=area")
+}
+
+// DecodeVideoFileCovering decodes a clip's first frames like
+// DecodeVideoFileAt, but keeps each frame's proportions: the frame is scaled
+// until it covers width by height and its middle is taken. A clip cut to a
+// square, for a model that works at one, is not squashed into it.
+func DecodeVideoFileCovering(ctx context.Context, path, configuredFFmpeg string, fps float64, maximum, width, height int) ([]image.Image, error) {
+	size := strconv.Itoa(width) + ":" + strconv.Itoa(height)
+	return decodeVideoFileSized(ctx, path, configuredFFmpeg, fps, maximum, width, height, ":force_original_aspect_ratio=increase:flags=area,crop="+size)
+}
+
+// decodeVideoFileSized decodes a clip's first frames through the frame-rate
+// filter and a scale to width by height that ends in fit, the scale's
+// options and any filter after it.
+func decodeVideoFileSized(ctx context.Context, path, configuredFFmpeg string, fps float64, maximum, width, height int, fit string) ([]image.Image, error) {
 	if err := validateVideoDecode(fps, maximum); err != nil {
 		return nil, err
 	}
@@ -217,7 +233,7 @@ func DecodeVideoFileAt(ctx context.Context, path, configuredFFmpeg string, fps f
 	if err != nil {
 		return nil, err
 	}
-	scale := ",scale=" + strconv.Itoa(width) + ":" + strconv.Itoa(height) + ":flags=area"
+	scale := ",scale=" + strconv.Itoa(width) + ":" + strconv.Itoa(height) + fit
 	return decodeFFmpegFiltered(ctx, ffmpeg, absolutePath, nil, frameRateFilter(fps)+scale, maximum)
 }
 

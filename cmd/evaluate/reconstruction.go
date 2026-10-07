@@ -57,7 +57,11 @@ func (r reconstructionRuntime) Reconstruct(ctx context.Context, clip evaluation.
 	if sum := sha256.Sum256(data); hex.EncodeToString(sum[:]) != clip.SHA256 {
 		return evaluation.RoundTrip{}, errors.New("evaluate: " + clip.Clip + " is not the clip its digest names")
 	}
-	frames, err := media.DecodeVideoFileAt(ctx, path, r.ffmpeg, float64(cut.FPS), cut.Frames, cut.Width, cut.Height)
+	decode := media.DecodeVideoFileAt
+	if cut.Crop {
+		decode = media.DecodeVideoFileCovering
+	}
+	frames, err := decode(ctx, path, r.ffmpeg, float64(cut.FPS), cut.Frames, cut.Width, cut.Height)
 	if err != nil || len(frames) != cut.Frames {
 		return evaluation.RoundTrip{}, fmt.Errorf("evaluate: %s gave %d of the %d frames asked: %w", clip.Clip, len(frames), cut.Frames, err)
 	}
@@ -105,10 +109,11 @@ func openReconstructionSession(ctx context.Context, store *overgodb.Store, value
 }
 
 // writeClipReconstruction writes the reconstruction suite of cases clips of a directory,
-// picked by seed and each cut to frames frames of width by height, to out.
-func writeClipReconstruction(clips, out string, cases, frames, width, height int, seed uint64) error {
+// picked by seed and each cut to frames frames of width by height, cropped to keep their
+// proportions when crop says so, to out.
+func writeClipReconstruction(clips, out string, cases, frames, width, height int, crop bool, seed uint64) error {
 	suite, err := evaluation.BuildClipReconstruction(clips, cases, seed, evaluation.ClipCut{
-		Frames: frames, FPS: reconstructionFPS, Width: width, Height: height,
+		Frames: frames, FPS: reconstructionFPS, Width: width, Height: height, Crop: crop,
 	})
 	if err != nil {
 		return err

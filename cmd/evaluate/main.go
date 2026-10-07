@@ -105,6 +105,7 @@ func run() error {
 	reconstructionFrames := flag.Int("frames", defaultReconstructionFrames, "with -build-reconstruction: frames of each clip the autoencoder is given; 1 is a picture")
 	reconstructionWidth := flag.Int("width", defaultReconstructionWidth, "with -build-reconstruction: the width each frame is cut to")
 	reconstructionHeight := flag.Int("height", defaultReconstructionHeight, "with -build-reconstruction: the height each frame is cut to")
+	reconstructionCrop := flag.Bool("crop", false, "with -build-reconstruction: keep each frame's proportions, scaling it until it covers -width by -height and taking its middle, rather than scaling it to that size as it is")
 	mediaOut := flag.String("media-out", "", "with -render-tifa, -render-vidgen or -build-scene-retrieval: the directory the pictures, clips or frames are written to, with the render manifest of a generator")
 	speechVoice := flag.String("voice", defaultSpeechVoice, "with -build-speech-round-trip: the voice that reads")
 	functionCalls := flag.String("build-function-calls", "", "write the function-call suite of the Berkeley Function-Calling Leaderboard's simple category held in this directory to -suite-out")
@@ -177,9 +178,9 @@ func run() error {
 	}
 	if clips := strings.TrimSpace(*reconstructionClips); clips != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" {
-			return errors.New("usage: evaluate -build-reconstruction <clip directory> -suite-out <suite.json> [-frames N] [-width N] [-height N] [-cases N] [-seed N]")
+			return errors.New("usage: evaluate -build-reconstruction <clip directory> -suite-out <suite.json> [-frames N] [-width N] [-height N] [-crop] [-cases N] [-seed N]")
 		}
-		return writeClipReconstruction(clips, strings.TrimSpace(*suiteOut), *captionCases, *reconstructionFrames, *reconstructionWidth, *reconstructionHeight, *captionSeed)
+		return writeClipReconstruction(clips, strings.TrimSpace(*suiteOut), *captionCases, *reconstructionFrames, *reconstructionWidth, *reconstructionHeight, *reconstructionCrop, *captionSeed)
 	}
 	if clips := strings.TrimSpace(*editClips); clips != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" {

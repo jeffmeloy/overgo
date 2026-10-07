@@ -98,7 +98,9 @@ func run() error {
 	tifaQuestions := flag.String("render-tifa", "", "draw a picture of each of -cases TIFA captions with the image model -model-path names, and write the suite that asks the judge about them to -suite-out, the pictures to -media-out: the argument is TIFA's question-answer file")
 	vidgenCaptions := flag.String("render-vidgen", "", "draw a clip of each of -cases VidGen captions with the video model -model-path names, and write the suite that asks the judge which of four captions each shows to -suite-out, the clips to -media-out: the argument is VidGen's caption file")
 	renderSet := flag.String("render-set", "", "with -render-tifa or -render-vidgen: comma-separated name=number settings that replace fields of the request the model's verification ran, such as width=416,height=240")
-	mediaOut := flag.String("media-out", "", "with -render-tifa or -render-vidgen: the directory the pictures or clips and their render manifest are written to")
+	sceneClips := flag.String("build-scene-retrieval", "", "write the scene-retrieval suite of the clips in this directory to -suite-out, the frames to -media-out: a frame of every clip with a sibling scene of its source video, and of -distractors clips with none")
+	sceneDistractors := flag.Int("distractors", defaultSceneDistractors, "with -build-scene-retrieval: clips of a source video with no other scene to add to the gallery")
+	mediaOut := flag.String("media-out", "", "with -render-tifa, -render-vidgen or -build-scene-retrieval: the directory the pictures, clips or frames are written to, with the render manifest of a generator")
 	speechVoice := flag.String("voice", defaultSpeechVoice, "with -build-speech-round-trip: the voice that reads")
 	functionCalls := flag.String("build-function-calls", "", "write the function-call suite of the Berkeley Function-Calling Leaderboard's simple category held in this directory to -suite-out")
 	seriesCSV := flag.String("build-series-forecast", "", "write the series-forecast suite of this ETT file's oil temperature to -suite-out: consecutive windows that show -context readings and ask for the -horizon after them")
@@ -158,6 +160,12 @@ func run() error {
 		ctx, cancel := context.WithTimeoutCause(context.Background(), *budget, errors.New("transcription evaluation budget exhausted"))
 		defer cancel()
 		return evaluateTranscriptionResourceManifest(ctx, *repository, path)
+	}
+	if clips := strings.TrimSpace(*sceneClips); clips != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" {
+			return errors.New("usage: evaluate -build-scene-retrieval <clip directory> -media-out <frames directory> -suite-out <suite.json> [-distractors N] [-seed N]")
+		}
+		return writeSceneRetrieval(context.Background(), clips, strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), *sceneDistractors, *captionSeed)
 	}
 	if source := cmp.Or(strings.TrimSpace(*tifaQuestions), strings.TrimSpace(*vidgenCaptions)); source != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" ||

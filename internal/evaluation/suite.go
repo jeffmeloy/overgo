@@ -98,6 +98,21 @@ func compileSuite(data []byte, authorities ExactAuthorities) (CompiledSuite, err
 					Metrics: sequenceScoringMetrics(report.MeanNLLPerToken, report.Perplexity),
 				}, err
 			})
+	case imageRetrievalKind:
+		var source ImageRetrievalSuite
+		if err := strictjson.DecodeBytes(data, &source); err != nil {
+			return CompiledSuite{}, err
+		}
+		compiled, err := compileImageRetrieval(source)
+		if err != nil {
+			return CompiledSuite{}, err
+		}
+		plan, err := bindImageRetrieval(compiled, authorities)
+		return newCompiledSuite(envelope.Kind, source.Source, uint64(len(source.Cases)), plan, err, accuracyMetrics(0, nil),
+			func(ctx context.Context, repository artifact.Repository, runtime Runtime) (suiteResult, error) {
+				report, err := evaluateImageRetrieval(ctx, repository, runtime, compiled, plan)
+				return suiteResult{Report: report.ID, Metrics: accuracyMetrics(report.Accuracy, nil)}, err
+			})
 	case speechRoundTripKind:
 		var source SpeechRoundTripSuite
 		if err := strictjson.DecodeBytes(data, &source); err != nil {

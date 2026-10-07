@@ -158,6 +158,10 @@
       "title": "Define the held-out evaluation that measures image-embedding quality",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 2300,
+        "reason": "The image-retrieval suite kind (internal/evaluation/image_retrieval.go) and the embedding session and scene-retrieval builder (cmd/evaluate/embedding.go) are the production code a held-out evaluation of an image encoder needs from data on disk: evaluate could not score an embedding model at all"
+      },
       "steps": [
         {
           "id": "do",

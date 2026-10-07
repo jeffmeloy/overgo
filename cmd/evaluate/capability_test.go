@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"overgo/internal/inference"
@@ -59,7 +61,7 @@ func TestCapabilityTasksAreTheOnesASessionExists(t *testing.T) {
 	if len(capabilitySessions) == 0 {
 		t.Fatal("no capability session is named")
 	}
-	for _, task := range []string{"seq2seq", "forecast", "vqa", "speech", "image-gen", "video-gen"} {
+	for _, task := range []string{"seq2seq", "forecast", "vqa", "speech", "image-gen", "video-gen", "image-embedding"} {
 		if capabilitySessions[task] == nil {
 			t.Errorf("task %q has no capability session", task)
 		}
@@ -76,6 +78,22 @@ func TestCapabilityTasksAreTheOnesASessionExists(t *testing.T) {
 	}
 	if _, err := openSpeechSession(t.Context(), nil, manifest{}, modelRequest{Path: t.TempDir()}); err == nil {
 		t.Error("a speech session opened with no judge named")
+	}
+	embedder := embeddingRuntime{root: t.TempDir()}
+	if _, err := embedder.Embed(t.Context(), "../outside.png"); err == nil {
+		t.Error("a picture outside the media root was embedded")
+	}
+	if err := os.WriteFile(filepath.Join(embedder.root, "bad.png"), []byte("not the digest's picture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := embedder.Embed(t.Context(), "bad.png"); err == nil {
+		t.Error("a picture whose bytes are not the digest it is named for was embedded")
+	}
+	if _, _, err := embedder.Generate(t.Context(), "text", inference.GenerateOptions{}); err == nil {
+		t.Error("an image encoder generated text")
+	}
+	if _, err := openEmbeddingSession(t.Context(), nil, manifest{}, modelRequest{Path: t.TempDir()}); err == nil {
+		t.Error("an embedding session opened with no media root")
 	}
 	vqa := &vqaRuntime{}
 	if _, _, err := vqa.Generate(t.Context(), "Which description matches?", inference.GenerateOptions{}); err == nil {

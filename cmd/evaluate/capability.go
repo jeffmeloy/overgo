@@ -148,12 +148,13 @@ func openCapabilitySession(
 // capabilitySessions opens a model a manifest names by its task, under the
 // model's active recipe for that task.
 var capabilitySessions = map[string]func(context.Context, *overgodb.Store, manifest, modelRequest) (evaluationSession, error){
-	string(recipe.TaskSeq2Seq):  openSeq2SeqSession,
-	string(recipe.TaskForecast): openForecastSession,
-	string(recipe.TaskVQA):      openVQASession,
-	string(recipe.TaskSpeech):   openSpeechSession,
-	string(recipe.TaskImageGen): judgedSession(recipe.TaskImageGen),
-	string(recipe.TaskVideoGen): judgedSession(recipe.TaskVideoGen),
+	string(recipe.TaskSeq2Seq):        openSeq2SeqSession,
+	string(recipe.TaskForecast):       openForecastSession,
+	string(recipe.TaskVQA):            openVQASession,
+	string(recipe.TaskSpeech):         openSpeechSession,
+	string(recipe.TaskImageGen):       judgedSession(recipe.TaskImageGen),
+	string(recipe.TaskVideoGen):       judgedSession(recipe.TaskVideoGen),
+	string(recipe.TaskImageEmbedding): openEmbeddingSession,
 }
 
 // openThoughtBankSession opens the model at path when it is a Fractale

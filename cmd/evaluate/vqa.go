@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
-	"overgo/internal/media"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -150,15 +148,11 @@ func writeFrames(ctx context.Context, suite evaluation.DescriptionMatchingSuite,
 			return fmt.Errorf("evaluate: case %s names no frame to cut", testCase.Name)
 		}
 		clip := filepath.Join(clips, strings.TrimSuffix(name, filepath.Ext(name))+clipFileExtension)
-		frames, err := media.DecodeVideoFile(ctx, clip, ffmpeg, frameSampleFPS, frameSampleCount)
-		if err != nil || len(frames) == 0 {
-			return fmt.Errorf("evaluate: cut a frame of %s: %d frames, %v", clip, len(frames), err)
-		}
-		file, err := os.OpenFile(filepath.Join(directory, name), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, frameFileMode)
+		frame, err := cutFrame(ctx, clip, ffmpeg)
 		if err != nil {
 			return err
 		}
-		if err := errors.Join(png.Encode(file, frames[len(frames)/frameHalf]), file.Close()); err != nil {
+		if err := os.WriteFile(filepath.Join(directory, name), frame, frameFileMode); err != nil {
 			return err
 		}
 	}

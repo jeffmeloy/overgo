@@ -152,25 +152,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": "scorecard-unscored-image-embedding",
-      "title": "Define the held-out evaluation that measures image-embedding quality",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 2300,
-        "reason": "The image-retrieval suite kind (internal/evaluation/image_retrieval.go) and the embedding session and scene-retrieval builder (cmd/evaluate/embedding.go) are the production code a held-out evaluation of an image encoder needs from data on disk: evaluate could not score an embedding model at all"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Define the held-out evaluation that measures image-embedding quality",
-          "status": "open",
-          "verify": "go run ./cmd/validate -scorecard -gap scorecard-unscored-image-embedding",
-          "rationale": "- webssl-dino300m-full2b-224 held-out-quality: no held-out evaluation for image-embedding yet; proposed: Imagenette 160 px (fast.ai imagenette2-160, 100 MB) k-nearest-neighbour accuracy from the model's own embeddings\n\nServes: measure and find the gap; the loop proposed this row from scorecard scorecard-20261002T060730Z.json. Evidence: the verifier reads the scorecard the store holds, judged against that record's baseline."
-        }
-      ]
     }
   ],
   "decisions": [

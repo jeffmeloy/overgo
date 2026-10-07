@@ -880,9 +880,7 @@ func decodeJSONInput[Input any](
 	if program.Definition().Model != modelID {
 		return input, artifact.Content{}, errors.New("capability runtime: program model differs from binding")
 	}
-	content, err := artifact.JSONContent(
-		artifact.JSONContract(artifact.KindFile, "overgo."+name+requestSchema), input,
-	)
+	payload, err := json.Marshal(input)
 	if err != nil {
 		return input, artifact.Content{}, err
 	}
@@ -892,10 +890,14 @@ func decodeJSONInput[Input any](
 	// 2026-08-27). The durable document keeps the full request's hash
 	// for identity and an abbreviated form for the reader; execution
 	// identity derives from it, so replay semantics are unchanged for
-	// any given request.
-	if len(content.Data) > inlineRequestBytes {
-		content, err = digestRequestContent(name, content)
+	// any given request. The digest is taken from the request's bytes,
+	// never from a document of them: a document is bounded, and a clip's
+	// decoded pixels pass that bound at an ordinary size.
+	if len(payload) > inlineRequestBytes {
+		content, err := digestRequestContent(name, payload)
+		return input, content, err
 	}
+	content, err := artifact.JSONContract(artifact.KindFile, "overgo."+name+requestSchema).ContentBytes(payload)
 	return input, content, err
 }
 
@@ -917,9 +919,13 @@ func RetainedRequest(content artifact.Content) (string, bool) {
 // digestRequestContent replaces an oversized request document with its
 // durable footprint: the full request's digest and size for identity,
 // and an abbreviated rendering for the reader.
-func digestRequestContent(name string, full artifact.Content) (artifact.Content, error) {
+func digestRequestContent(name string, full []byte) (artifact.Content, error) {
+	id, err := artifact.IdentifyBytes(artifact.KindFile, full)
+	if err != nil {
+		return artifact.Content{}, err
+	}
 	var document any
-	if err := json.Unmarshal(full.Data, &document); err != nil {
+	if err := json.Unmarshal(full, &document); err != nil {
 		return artifact.Content{}, err
 	}
 	body := struct {
@@ -927,8 +933,8 @@ func digestRequestContent(name string, full artifact.Content) (artifact.Content,
 		RequestBytes  int    `json:"request_bytes"`
 		Abbreviated   any    `json:"abbreviated"`
 	}{
-		RequestSHA256: full.Descriptor.ID.String(),
-		RequestBytes:  len(full.Data),
+		RequestSHA256: id.String(),
+		RequestBytes:  len(full),
 		Abbreviated:   jsonabbrev.Value(document),
 	}
 	return artifact.JSONContent(

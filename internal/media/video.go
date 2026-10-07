@@ -198,8 +198,41 @@ func validateVideoDecode(fps float64, maximum int) error {
 	return nil
 }
 
+// DecodeVideoFileAt decodes a clip's first frames like DecodeVideoFile, each
+// scaled to width by height as FFmpeg decodes it, by averaging the pixels a
+// smaller one covers: a clip cut for a model to edit is given at the size the
+// model works at.
+func DecodeVideoFileAt(ctx context.Context, path, configuredFFmpeg string, fps float64, maximum, width, height int) ([]image.Image, error) {
+	if err := validateVideoDecode(fps, maximum); err != nil {
+		return nil, err
+	}
+	if !checked.PositiveInts(width, height) {
+		return nil, errors.New("media: video frame size is invalid")
+	}
+	absolutePath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	ffmpeg, err := ResolveFFmpeg(configuredFFmpeg)
+	if err != nil {
+		return nil, err
+	}
+	scale := ",scale=" + strconv.Itoa(width) + ":" + strconv.Itoa(height) + ":flags=area"
+	return decodeFFmpegFiltered(ctx, ffmpeg, absolutePath, nil, frameRateFilter(fps)+scale, maximum)
+}
+
+// frameRateFilter is the FFmpeg filter that samples a clip at fps frames a second.
+func frameRateFilter(fps float64) string {
+	return "fps=" + strconv.FormatFloat(fps, 'g', -tensor.SingletonExtent, float64Bits)
+}
+
 func decodeFFmpegFrames(ctx context.Context, ffmpeg, input string, stdin io.Reader, fps float64, maximum int) ([]image.Image, error) {
-	filter := "fps=" + strconv.FormatFloat(fps, 'g', -tensor.SingletonExtent, float64Bits)
+	return decodeFFmpegFiltered(ctx, ffmpeg, input, stdin, frameRateFilter(fps), maximum)
+}
+
+// decodeFFmpegFiltered decodes up to maximum frames of input through an
+// FFmpeg video filter.
+func decodeFFmpegFiltered(ctx context.Context, ffmpeg, input string, stdin io.Reader, filter string, maximum int) ([]image.Image, error) {
 	framePipe, frameSink := io.Pipe()
 	var stderr DiagnosticBuffer
 	supervised, err := processcontrol.Start(ctx, processcontrol.Command{

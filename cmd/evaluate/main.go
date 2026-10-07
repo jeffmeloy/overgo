@@ -97,6 +97,7 @@ func run() error {
 	speechJudge := flag.String("judge", "", "with -build-speech-round-trip, -render-tifa or -render-vidgen: the model that judges, a speech recognizer directory that listens or a vision-language model file that looks")
 	tifaQuestions := flag.String("render-tifa", "", "draw a picture of each of -cases TIFA captions with the image model -model-path names, and write the suite that asks the judge about them to -suite-out, the pictures to -media-out: the argument is TIFA's question-answer file")
 	vidgenCaptions := flag.String("render-vidgen", "", "draw a clip of each of -cases VidGen captions with the video model -model-path names, and write the suite that asks the judge which of four captions each shows to -suite-out, the clips to -media-out: the argument is VidGen's caption file")
+	editClips := flag.String("render-edits", "", "change each of -cases captioned clips of this directory with the video editor -model-path names, by an instruction from a fixed list, and write the suite that asks the judge which change each edited clip shows and which caption still describes it to -suite-out, the edited clips to -media-out; -captions names the caption file")
 	renderSet := flag.String("render-set", "", "with -render-tifa or -render-vidgen: comma-separated name=number settings that replace fields of the request the model's verification ran, such as width=416,height=240")
 	sceneClips := flag.String("build-scene-retrieval", "", "write the scene-retrieval suite of the clips in this directory to -suite-out, the frames to -media-out: a frame of every clip with a sibling scene of its source video, and of -distractors clips with none")
 	sceneDistractors := flag.Int("distractors", defaultSceneDistractors, "with -build-scene-retrieval: clips of a source video with no other scene to add to the gallery")
@@ -169,6 +170,12 @@ func run() error {
 			return errors.New("usage: evaluate -build-scene-retrieval <clip directory> -media-out <frames directory> -suite-out <suite.json> [-distractors N] [-seed N]")
 		}
 		return writeSceneRetrieval(context.Background(), clips, strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), *sceneDistractors, *captionSeed)
+	}
+	if clips := strings.TrimSpace(*editClips); clips != "" {
+		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" {
+			return errors.New("usage: evaluate -render-edits <clip directory> -model-path <editor directory> -judge <vision-language model> -media-out <directory> -suite-out <suite.json> [-captions <file>] [-repo <store>] [-cases N] [-seed N]")
+		}
+		return writeVideoEdits(context.Background(), clips, strings.TrimSpace(*captionSource), strings.TrimSpace(*modelPath), *repository, strings.TrimSpace(*speechJudge), strings.TrimSpace(*mediaOut), strings.TrimSpace(*suiteOut), *captionCases, *captionSeed)
 	}
 	if source := cmp.Or(strings.TrimSpace(*tifaQuestions), strings.TrimSpace(*vidgenCaptions)); source != "" {
 		if flag.NArg() != 0 || strings.TrimSpace(*suiteOut) == "" || strings.TrimSpace(*mediaOut) == "" || strings.TrimSpace(*speechJudge) == "" || strings.TrimSpace(*modelPath) == "" ||

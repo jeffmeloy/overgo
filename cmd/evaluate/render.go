@@ -83,6 +83,8 @@ func alreadyDrawn(directory string, want renderManifest) (renderManifest, map[st
 type renderPrompt struct {
 	ID     string
 	Prompt string
+	// Source is the clip an editor is given to change; a generator draws from the prompt alone.
+	Source artifact.ID
 }
 
 // verifiedTemplate is the request a recipe's accepted verification ran, which the media
@@ -204,6 +206,9 @@ func renderMedia(ctx context.Context, repository, path string, task recipe.Task,
 			request[name] = value
 		}
 		request["prompt"] = item.Prompt
+		if item.Source.Valid() {
+			request["source_artifact"] = item.Source
+		}
 		if seed, seeded := template["seed"].(float64); seeded {
 			request["seed"] = seed + float64(index)
 		}
@@ -291,6 +296,104 @@ func writeVidGenClips(ctx context.Context, captions, model, repository, judge, d
 		return err
 	}
 	return writeSuite(out, suite, len(suite.Cases), "generated-video caption-matching")
+}
+
+const (
+	// editSourceFrames frames at editSourceFPS a second, editSourceWidth by editSourceHeight,
+	// are what a clip is cut to for an editor: six latent frames of the video stack, which the
+	// editor's chunks of three admit, at the largest of the stack's sizes whose decoded clip
+	// the editor's workflow can record. A step's record is bounded by the store, and the clip
+	// the generators' suite is judged at, 416 by 240, passes that bound.
+	editSourceFrames = 21
+	editSourceFPS    = 16
+	editSourceWidth  = 320
+	editSourceHeight = 192
+	// colorFull is a channel's full value as image colors report it.
+	colorFull = 0xffff
+)
+
+// publishEditSources cuts each item's clip to the frames an editor takes, encodes them as
+// the clip a video model returns, and publishes that to the store, where the editor's
+// request names it. It returns each clip's artifact by its identity.
+func publishEditSources(ctx context.Context, repository, clips string, items []evaluation.VideoEditItem) (map[string]artifact.ID, error) {
+	store, err := overgodb.OpenContext(ctx, repository)
+	if err != nil {
+		return nil, err
+	}
+	defer store.Close()
+	sources := map[string]artifact.ID{}
+	plane := editSourceWidth * editSourceHeight
+	for _, item := range items {
+		clip := filepath.Join(clips, item.ID+clipFileExtension)
+		frames, err := media.DecodeVideoFileAt(ctx, clip, os.Getenv("OVERGO_FFMPEG"), editSourceFPS, editSourceFrames, editSourceWidth, editSourceHeight)
+		if err != nil || len(frames) != editSourceFrames {
+			return nil, fmt.Errorf("evaluate: %s gave %d of the %d frames an edit takes: %v", clip, len(frames), editSourceFrames, err)
+		}
+		encoder, err := latentvideo.NewGIFEncoder(editSourceFPS, latentvideo.UnitPixels)
+		if err != nil {
+			return nil, err
+		}
+		for index, frame := range frames {
+			origin := frame.Bounds().Min
+			pixels := make([]float32, media.RGBChannels*plane)
+			for at := range plane {
+				red, green, blue, _ := frame.At(origin.X+at%editSourceWidth, origin.Y+at/editSourceWidth).RGBA()
+				for channel, value := range []uint32{red, green, blue} {
+					pixels[channel*plane+at] = float32(value) / colorFull
+				}
+			}
+			if err := encoder.Add(index, pixels, editSourceHeight, editSourceWidth); err != nil {
+				return nil, err
+			}
+		}
+		video, err := encoder.Finish()
+		if err != nil {
+			return nil, err
+		}
+		content, err := latentvideo.GIFContent(video)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := artifact.Publish(ctx, store, artifact.Batch{Key: "evaluate/edit-source/" + content.Descriptor.ID.String(), Contents: []artifact.Content{content}}); err != nil {
+			return nil, err
+		}
+		sources[item.ID] = content.Descriptor.ID
+	}
+	return sources, nil
+}
+
+// writeVideoEdits picks captioned clips of a directory, has the editor at model change each
+// by its instruction, writes the edited clips to directory and the suite that asks the
+// judge about them to out.
+func writeVideoEdits(ctx context.Context, clips, captions, model, repository, judge, directory, out string, cases int, seed uint64) error {
+	commit, err := runrecord.ExecutableCodeCommit(".")
+	if err != nil {
+		return err
+	}
+	if captions == "" {
+		captions = filepath.Join(clips, captionFile)
+	}
+	items, err := evaluation.PickVideoEdits(clips, captions, cases, seed)
+	if err != nil {
+		return err
+	}
+	sources, err := publishEditSources(ctx, repository, clips, items)
+	if err != nil {
+		return err
+	}
+	prompts := make([]renderPrompt, len(items))
+	for index, item := range items {
+		prompts[index] = renderPrompt{ID: item.ID, Prompt: item.Instruction, Source: sources[item.ID]}
+	}
+	edited, err := renderMedia(ctx, repository, model, recipe.TaskVideoGen, directory, prompts, nil, commit)
+	if err != nil {
+		return err
+	}
+	suite, err := evaluation.BuildGeneratedVideoEdit(items, edited, filepath.Base(judge))
+	if err != nil {
+		return err
+	}
+	return writeSuite(out, suite, len(suite.Cases), "generated-video edit")
 }
 
 // verifyRendered refuses a picture or clip the manifest of its directory does not bind

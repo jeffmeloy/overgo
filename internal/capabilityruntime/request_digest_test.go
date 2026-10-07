@@ -74,6 +74,20 @@ func TestOversizedRequestDigestsInline(t *testing.T) {
 	if retained, ok := RetainedRequest(digested); ok {
 		t.Fatalf("digest retained as a request: %q", retained)
 	}
+	// A request over the bound of a stored document is digested like any
+	// oversized one: a clip's decoded pixels pass that bound at an ordinary
+	// size, and the digest never needed the request as a document.
+	huge := `{"prompt":"` + strings.Repeat("a", artifact.MaxContentBytes) + `","values":[1],"steps":4}`
+	_, beyond, err := decodeJSONInput[request]("digest-test", func(request) error { return nil }, modelID, program, huge)
+	if err != nil {
+		t.Fatalf("a request over the document bound: %v", err)
+	}
+	if err := strictjson.DecodeBytes(beyond.Data, &body); err != nil {
+		t.Fatal(err)
+	}
+	if beyond.Descriptor.Schema != "overgo.digest-test-input-digest.v1" || body.RequestBytes <= artifact.MaxContentBytes || len(beyond.Data) > inlineRequestBytes {
+		t.Fatalf("request over the document bound = schema %q, %d request bytes, %d digest bytes", beyond.Descriptor.Schema, body.RequestBytes, len(beyond.Data))
+	}
 }
 
 // scalarProgram reuses the package capability fixture for

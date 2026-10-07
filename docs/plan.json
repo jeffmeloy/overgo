@@ -4,6 +4,24 @@
   "lane": "master-lead",
   "items": [
     {
+      "id": "video-edit-evaluation",
+      "title": "Measure the video editor: a held-out evaluation of instructed changes to real clips",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 1865,
+        "reason": "The edit side of the render command (cutting and publishing source clips, the editor's request), the suite of change and content questions with its list of instructions, a frame decoder at a given size, and the digest of a request from its bytes are the production code a held-out evaluation of a video editor needs: evaluate could not give an editor a clip, and the editor refused one of ordinary size"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure the video editor: a held-out evaluation of instructed changes to real clips",
+          "status": "open",
+          "verify": "go test ./internal/scorecard -count=1 -run '^TestAnEditorIsProposedItsOwnEvaluation$'"
+        }
+      ]
+    },
+    {
       "id": "speech-document-admission",
       "title": "Admit or retire the GUI lane's document speech program",
       "owner": "professional_overgo_gui",
@@ -116,7 +134,8 @@
             "scorecard-wording-baseline/do",
             "record-adaptive-new-copy-budget/do",
             "plan-decision-blocks/do",
-            "evaluation-builders-in-go/do"
+            "evaluation-builders-in-go/do",
+            "video-edit-evaluation/do"
           ]
         }
       ]
